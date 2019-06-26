@@ -149,7 +149,7 @@ CONTAINS
 !>            - Modified to bisection to avoid division by zero (01.2002, Joost)
 !>            - that means the old version contains bugs .......(04.2002, Joost)
 !>              so keep this one ...
-              - Golden Section Search (GSS), minor other tweaks (06.2019, HansP)
+!>            - Golden Section Search (GSS), minor other tweaks (06.2019, HansP)
 !> \par Variables
 !>        - g      : The function g(r).
 !>        - maxiter: Maximum number of iterations.
