@@ -168,8 +168,7 @@ CONTAINS
                                                             grb = 0.6180339887498948_dp
 
       INTEGER                                            :: iter
-      REAL(KIND=dp)                                      :: a, ar2, d, epsiter, g, r, rgold, rhigh, &
-                                                            rlow, t
+      REAL(KIND=dp)                                      :: a, ar2, d, epsiter, g, r0, r1, rg, t
 
       IF (PRESENT(epsin)) THEN
          epsiter = epsin
@@ -206,27 +205,26 @@ CONTAINS
       END IF
 
       ! Calculate the Maximum g(r)
-      r = SQRT(0.5_dp*REAL(l, dp)/a)
-      ar2 = a*r*r
+      r0 = SQRT(0.5_dp*REAL(l, dp)/a)
+      ar2 = a*r0*r0
 
       IF (l == 0) THEN
          g = d
       ELSE
-         g = d*r**l*EXP(-ar2)
+         g = d*r0**l*EXP(-ar2)
       END IF
 
       IF (g .LT. t) THEN
          RETURN
       END IF
 
-      rlow = r
-      rhigh = 2.0_dp*rlow+1.0_dp
+      r1 = 2.0_dp*r0+1.0_dp
       DO iter = 1, maxiter
-         ar2 = a*rhigh*rhigh
-         g = d*rhigh**l*EXP(-ar2)
+         ar2 = a*r1*r1
+         g = d*r1**l*EXP(-ar2)
          IF (g .LT. t) EXIT
-         rlow = rhigh
-         rhigh = 2.0_dp*rlow+1.0_dp
+         r0 = r1
+         r1 = 2.0_dp*r0+1.0_dp
       ENDDO
       ! avoid system calls in tight/arithmetic loops
       IF (iter .EQ. maxiter) THEN
@@ -234,17 +232,17 @@ CONTAINS
       END IF
 
       DO iter = 1, maxiter
-         rgold = rlow*grb+rhigh*gra
-         ar2 = a*rgold*rgold
-         g = d*rgold**l*EXP(-ar2)
-         IF (epsiter .LE. ABS(rhigh-rlow)) THEN
+         rg = r0*grb+r1*gra ! Golden Section
+         ar2 = a*rg*rg
+         g = d*rg**l*EXP(-ar2)
+         IF (epsiter .LE. ABS(r1-r0)) THEN
             IF (g .LT. t) THEN
-               rhigh = rgold
+               r1 = rg
             ELSE
-               rlow = rgold
+               r0 = rg
             ENDIF
          ELSE
-            radius = MERGE(rgold, rhigh, g .LT. t)
+            radius = MERGE(rg, r1, g .LT. t)
             RETURN
          ENDIF
       ENDDO
