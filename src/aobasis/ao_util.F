@@ -143,7 +143,7 @@ CONTAINS
 !> \param prefactor Prefactor of the Gaussian function (e.g. a contraction
 !>                     coefficient).
 !> \param epsin Convergence criterion
-!> \return Calculated radius of the Gaussian functio
+!> \return Calculated radius of the Gaussian function
 !> \date    26.02.1999
 !> \par History
 !>            - Modified to bisection to avoid division by zero (01.2002, Joost)
@@ -163,12 +163,13 @@ CONTAINS
       REAL(KIND=dp)                                      :: radius
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius', routineP = moduleN//':'//routineN
-      REAL(KIND=dp), PARAMETER                           :: gratio = 0.3819660112501052_dp
       INTEGER, PARAMETER                                 :: maxiter = 5000
+      REAL(KIND=dp), PARAMETER                           :: gra = 0.3819660112501052_dp, &
+                                                            grb = 0.6180339887498948_dp
 
       INTEGER                                            :: iter
-      REAL(KIND=dp)                                      :: a, ar2, d, epsiter, g, r, rhigh, rlow, &
-                                                            rgold, t
+      REAL(KIND=dp)                                      :: a, ar2, d, epsiter, g, r, rgold, rhigh, &
+                                                            rlow, t
 
       IF (PRESENT(epsin)) THEN
          epsiter = epsin
@@ -233,7 +234,7 @@ CONTAINS
       END IF
 
       DO iter = 1, maxiter
-         rgold = (rlow+rhigh)*gratio
+         rgold = rlow*grb+rhigh*gra
          ar2 = a*rgold*rgold
          g = d*rgold**l*EXP(-ar2)
          IF (epsiter .LE. ABS(rhigh-rlow)) THEN
@@ -1025,3 +1026,4 @@ CONTAINS
    END SUBROUTINE cart2sph_mat
 
 END MODULE ao_util
+
