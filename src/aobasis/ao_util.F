@@ -190,16 +190,16 @@ CONTAINS
          a = ABS(alpha)
       END IF
 
-      IF (threshold == 0.0_dp) THEN
-         CPABORT("The requested threshold is zero")
-      ELSE
+      IF (threshold .NE. 0.0_dp) THEN
          t = ABS(threshold)
+      ELSE
+         CPABORT("The requested threshold is zero")
       END IF
 
-      IF (prefactor == 0.0_dp) THEN
-         RETURN
-      ELSE
+      IF (prefactor .NE. 0.0_dp) THEN
          d = ABS(prefactor)
+      ELSE
+         RETURN
       END IF
 
       ! Calculate the Maximum g(r)
@@ -218,29 +218,29 @@ CONTAINS
 
       rlow = r
       rhigh = 2.0_dp*rlow+1.0_dp
-      iter = 0
-      DO
-         iter = iter+1
-         IF (iter .GT. maxiter) THEN
-            CPABORT("Maximum number of iterations exceeded")
-         END IF
+      DO iter = 1, maxiter
          g = d*rhigh**l*EXP(-a*rhigh**2)
-         IF (g < t) EXIT
+         IF (g .LT. t) EXIT
          rlow = rhigh
          rhigh = 2.0_dp*rlow+1.0_dp
       ENDDO
+      ! avoid system calls in tight/arithmetic loops
+      IF (iter .EQ. maxiter) THEN
+         CPABORT("Maximum number of iterations reached")
+      END IF
 
       DO iter = 1, maxiter
          rmid = (rlow+rhigh)*0.5_dp
          ar2 = a*rmid*rmid
          g = d*rmid**l*EXP(-ar2)
-         IF (g .LT. t) THEN
-            rhigh = rmid
+         IF (epsiter .LE. ABS(rhigh-rlow)) THEN
+            IF (g .LT. t) THEN
+               rhigh = rmid
+            ELSE
+               rlow = rmid
+            ENDIF
          ELSE
-            rlow = rmid
-         ENDIF
-         IF (ABS(rhigh-rlow) .LT. epsiter) THEN
-            radius = rhigh
+            radius = MERGE(rmid, rhigh, g .LT. t)
             RETURN
          ENDIF
       ENDDO
