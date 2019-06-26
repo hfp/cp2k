@@ -149,6 +149,7 @@ CONTAINS
 !>            - Modified to bisection to avoid division by zero (01.2002, Joost)
 !>            - that means the old version contains bugs .......(04.2002, Joost)
 !>              so keep this one ...
+              - Golden Section Search (GSS), minor other tweaks (06.2019, HansP)
 !> \par Variables
 !>        - g      : The function g(r).
 !>        - maxiter: Maximum number of iterations.
@@ -162,11 +163,12 @@ CONTAINS
       REAL(KIND=dp)                                      :: radius
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius', routineP = moduleN//':'//routineN
+      REAL(KIND=dp), PARAMETER                           :: gratio = 0.3819660112501052_dp
       INTEGER, PARAMETER                                 :: maxiter = 5000
 
       INTEGER                                            :: iter
       REAL(KIND=dp)                                      :: a, ar2, d, epsiter, g, r, rhigh, rlow, &
-                                                            rmid, t
+                                                            rgold, t
 
       IF (PRESENT(epsin)) THEN
          epsiter = epsin
@@ -212,14 +214,15 @@ CONTAINS
          g = d*r**l*EXP(-ar2)
       END IF
 
-      IF (t > g) THEN
+      IF (g .LT. t) THEN
          RETURN
       END IF
 
       rlow = r
       rhigh = 2.0_dp*rlow+1.0_dp
       DO iter = 1, maxiter
-         g = d*rhigh**l*EXP(-a*rhigh**2)
+         ar2 = a*rhigh*rhigh
+         g = d*rhigh**l*EXP(-ar2)
          IF (g .LT. t) EXIT
          rlow = rhigh
          rhigh = 2.0_dp*rlow+1.0_dp
@@ -230,17 +233,17 @@ CONTAINS
       END IF
 
       DO iter = 1, maxiter
-         rmid = (rlow+rhigh)*0.5_dp
-         ar2 = a*rmid*rmid
-         g = d*rmid**l*EXP(-ar2)
+         rgold = (rlow+rhigh)*gratio
+         ar2 = a*rgold*rgold
+         g = d*rgold**l*EXP(-ar2)
          IF (epsiter .LE. ABS(rhigh-rlow)) THEN
             IF (g .LT. t) THEN
-               rhigh = rmid
+               rhigh = rgold
             ELSE
-               rlow = rmid
+               rlow = rgold
             ENDIF
          ELSE
-            radius = MERGE(rmid, rhigh, g .LT. t)
+            radius = MERGE(rgold, rhigh, g .LT. t)
             RETURN
          ENDIF
       ENDDO
