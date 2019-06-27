@@ -225,7 +225,7 @@ CONTAINS
          r1 = scale*r0+1.0_dp
       ENDDO
       ! avoid system calls in tight/arithmetic loops
-      IF (iter .EQ. maxiter) THEN
+      IF (maxiter .LT. iter) THEN
          CPABORT("Maximum number of iterations reached")
       END IF
 
