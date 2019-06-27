@@ -149,7 +149,8 @@ CONTAINS
 !>            - Modified to bisection to avoid division by zero (01.2002, Joost)
 !>            - that means the old version contains bugs .......(04.2002, Joost)
 !>              so keep this one ...
-!>            - Golden Section Search (GSS), minor other tweaks (06.2019, HansP)
+!>            - Golden Section Search (GSS), several tweaks     (06.2019, HansP)
+!>              iteration scheme before used incorrect criterion
 !> \par Variables
 !>        - g      : The function g(r).
 !>        - maxiter: Maximum number of iterations.
@@ -168,16 +169,16 @@ CONTAINS
                                                             grb = 0.6180339887498948_dp
 
       INTEGER                                            :: iter
-      REAL(KIND=dp)                                      :: a, ar2, d, epsiter, g, r0, r1, rg, t
+      REAL(KIND=dp)                                      :: a, ar2, d, epsiter, g, gr, r0, r1, rd, &
+                                                            rg, s, t
 
       IF (PRESENT(epsin)) THEN
          epsiter = epsin
-      ELSE
-         epsiter = EPSILON(epsiter)*(1.0E-12_dp/2.22044604925031E-16_dp)
+      ELSE ! arbitrary scaled epsilon?
+         epsiter = EPSILON(epsiter)*4.0E3_dp
       ENDIF
 
       ! Initialize function value
-
       radius = 0.0_dp
 
       ! Load and check parameter values
@@ -221,8 +222,8 @@ CONTAINS
       r1 = 2.0_dp*r0+1.0_dp
       DO iter = 1, maxiter
          ar2 = a*r1*r1
-         g = d*r1**l*EXP(-ar2)
-         IF (g .LT. t) EXIT
+         s = d*r1**l*EXP(-ar2)
+         IF (s .LT. t) EXIT
          r0 = r1
          r1 = 2.0_dp*r0+1.0_dp
       ENDDO
@@ -231,20 +232,27 @@ CONTAINS
          CPABORT("Maximum number of iterations reached")
       END IF
 
+      ! toggling 'gr' strictly not necessary (but improves convergence)
+      gr = gra
       DO iter = 1, maxiter
-         rg = r0*grb+r1*gra ! Golden Section
+         rd = r1-r0
+         CPASSERT(0.0_dp .LE. rd)
+         rg = r0+rd*gr ! Golden Section
          ar2 = a*rg*rg
          g = d*rg**l*EXP(-ar2)
-         IF (epsiter .LE. ABS(r1-r0)) THEN
-            IF (g .LT. t) THEN
+         IF (epsiter .LE. rd) THEN
+            IF (g .LT. s) THEN ! left interval
+               gr = gra
                r1 = rg
-            ELSE
+            ELSE ! right interval
+               gr = grb
                r0 = rg
             ENDIF
-         ELSE
-            radius = MERGE(rg, r1, g .LT. t)
+         ELSE ! return upper bound (rg or r1)
+            radius = MERGE(rg, r1, g .LT. s)
             RETURN
          ENDIF
+         s = g
       ENDDO
       CPABORT("Maximum number of iterations exceeded")
 
