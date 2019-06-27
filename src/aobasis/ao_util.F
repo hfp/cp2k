@@ -164,7 +164,7 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius', routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: maxiter = 5000
-      REAL(KIND=dp), PARAMETER                           :: gr = 0.6_dp, scale = 4.0_dp
+      REAL(KIND=dp), PARAMETER                           :: gr = 0.5_dp, scale = 2.0_dp
 
       INTEGER                                            :: iter
       REAL(KIND=dp)                                      :: a, ar2, d, epsiter, g, r0, r1, rd, rg, t
