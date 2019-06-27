@@ -164,7 +164,7 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius', routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: maxiter = 5000
-      REAL(KIND=dp), PARAMETER                           :: gr = 0.3819660112501052_dp
+      REAL(KIND=dp), PARAMETER                           :: gr = 0.6_dp, scale = 4.0_dp
 
       INTEGER                                            :: iter
       REAL(KIND=dp)                                      :: a, ar2, d, epsiter, g, r0, r1, rd, rg, t
@@ -216,26 +216,26 @@ CONTAINS
          RETURN
       END IF
 
-      r1 = 2.0_dp*r0+1.0_dp
+      r1 = scale*r0+1.0_dp
       DO iter = 1, maxiter
          ar2 = a*r1*r1
          g = d*r1**l*EXP(-ar2)
          IF (g .LT. t) EXIT
          r0 = r1
-         r1 = 2.0_dp*r0+1.0_dp
+         r1 = scale*r0+1.0_dp
       ENDDO
       ! avoid system calls in tight/arithmetic loops
       IF (iter .EQ. maxiter) THEN
          CPABORT("Maximum number of iterations reached")
       END IF
 
-      DO iter = 1, maxiter
+      DO iter = iter, maxiter
          rd = r1-r0
          CPASSERT(0.0_dp .LE. rd)
          rg = r0+rd*gr ! Golden Section
          ar2 = a*rg*rg
          g = d*rg**l*EXP(-ar2)
-         IF (epsiter .LE. rd) THEN
+         IF (rd .GE. epsiter) THEN
             IF (g .LT. t) THEN
                r1 = rg ! interval [r0, rg)
             ELSE
