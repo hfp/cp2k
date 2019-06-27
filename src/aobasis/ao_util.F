@@ -150,7 +150,6 @@ CONTAINS
 !>            - that means the old version contains bugs .......(04.2002, Joost)
 !>              so keep this one ...
 !>            - Golden Section Search (GSS), several tweaks     (06.2019, HansP)
-!>              iteration scheme before used incorrect criterion
 !> \par Variables
 !>        - g      : The function g(r).
 !>        - maxiter: Maximum number of iterations.
@@ -165,12 +164,10 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius', routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: maxiter = 5000
-      REAL(KIND=dp), PARAMETER                           :: gra = 0.3819660112501052_dp, &
-                                                            grb = 0.6180339887498948_dp
+      REAL(KIND=dp), PARAMETER                           :: gr = 0.3819660112501052_dp
 
       INTEGER                                            :: iter
-      REAL(KIND=dp)                                      :: a, ar2, d, epsiter, g, gr, r0, r1, rd, &
-                                                            rg, s, t
+      REAL(KIND=dp)                                      :: a, ar2, d, epsiter, g, r0, r1, rd, rg, t
 
       IF (PRESENT(epsin)) THEN
          epsiter = epsin
@@ -222,8 +219,8 @@ CONTAINS
       r1 = 2.0_dp*r0+1.0_dp
       DO iter = 1, maxiter
          ar2 = a*r1*r1
-         s = d*r1**l*EXP(-ar2)
-         IF (s .LT. t) EXIT
+         g = d*r1**l*EXP(-ar2)
+         IF (g .LT. t) EXIT
          r0 = r1
          r1 = 2.0_dp*r0+1.0_dp
       ENDDO
@@ -232,8 +229,6 @@ CONTAINS
          CPABORT("Maximum number of iterations reached")
       END IF
 
-      ! toggling 'gr' strictly not necessary (but improves convergence)
-      gr = gra
       DO iter = 1, maxiter
          rd = r1-r0
          CPASSERT(0.0_dp .LE. rd)
@@ -241,18 +236,15 @@ CONTAINS
          ar2 = a*rg*rg
          g = d*rg**l*EXP(-ar2)
          IF (epsiter .LE. rd) THEN
-            IF (g .LT. s) THEN ! left interval
-               gr = gra
-               r1 = rg
-            ELSE ! right interval
-               gr = grb
-               r0 = rg
+            IF (g .LT. t) THEN
+               r1 = rg ! interval [r0, rg)
+            ELSE
+               r0 = rg ! interval [rg, r1)
             ENDIF
-         ELSE ! return upper bound (rg or r1)
-            radius = MERGE(rg, r1, g .LT. s)
+         ELSE ! return upper bound of r but such that g(r) < threshold
+            radius = MERGE(rg, r1, g .LT. t)
             RETURN
          ENDIF
-         s = g
       ENDDO
       CPABORT("Maximum number of iterations exceeded")
 
