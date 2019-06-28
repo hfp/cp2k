@@ -164,23 +164,19 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius', routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: maxiter = 5000
-      REAL(KIND=dp), PARAMETER                           :: gr = 0.5_dp, scale = 2.0_dp
+      REAL(KIND=dp), PARAMETER                           :: contract = 0.5_dp, scope = 2.0_dp
 
-      INTEGER                                            :: iter
-      REAL(KIND=dp)                                      :: a, ar2, d, epsiter, g, r0, r1, rd, rg, t
-
-      IF (PRESENT(epsin)) THEN
-         epsiter = epsin
-      ELSE ! arbitrary scaled epsilon?
-         epsiter = EPSILON(epsiter)*(1.0E-12_dp/2.22044604925031E-16_dp)
-      ENDIF
+      INTEGER                                            :: iter, iter2
+      REAL(KIND=dp)                                      :: a, d, eps, epsiter, exp_2drsq, exp_2rdr, &
+                                                            exp_drsq, exp_rsq, g, r0, r1, rd, rg, &
+                                                            t, tmp
 
       ! Initialize function value
       radius = 0.0_dp
 
       ! Load and check parameter values
 
-      IF (l < 0) THEN
+      IF (l .LT. 0) THEN
          CPABORT("The angular momentum quantum number is negative")
       END IF
 
@@ -202,48 +198,78 @@ CONTAINS
          RETURN
       END IF
 
+      IF (PRESENT(epsin)) THEN
+         epsiter = epsin
+      ELSE ! arbitrary scaled epsilon?
+         epsiter = EPSILON(epsiter)*(1.0E-12_dp/2.22044604925031E-16_dp)
+      ENDIF
+
       ! Calculate the Maximum g(r)
       r0 = SQRT(0.5_dp*REAL(l, dp)/a)
-      ar2 = a*r0*r0
 
-      IF (l == 0) THEN
-         g = d
+      IF (l .NE. 0) THEN
+         tmp = a*r0*r0
+         g = d*r0**l*EXP(-tmp)
       ELSE
-         g = d*r0**l*EXP(-ar2)
+         g = d
       END IF
 
       IF (g .LT. t) THEN
          RETURN
       END IF
 
-      r1 = scale*r0+1.0_dp
+      ! fast contraction (no EXP in loop)
+      eps = MAX(r0, epsiter)
+      r1 = r0+eps
+      exp_rsq = d*EXP(-a*r1*r1)
+      exp_drsq = EXP(-a*eps*eps)
+      exp_2drsq = exp_drsq*exp_drsq
+      exp_2rdr = EXP(-2*a*r1*eps)
       DO iter = 1, maxiter
-         ar2 = a*r1*r1
-         g = d*r1**l*EXP(-ar2)
-         IF (g .LT. t) EXIT
-         r0 = r1
-         r1 = scale*r0+1.0_dp
+         tmp = r1**l
+         g = tmp*exp_rsq
+         IF (g .LT. t) THEN
+            tmp = MAX(r1-0.5_dp*scope*eps, r0)
+            EXIT
+         ENDIF
+         r1 = r1+eps
+         exp_rsq = exp_rsq*exp_drsq*exp_2rdr
+         exp_2rdr = exp_2rdr*exp_2drsq
       ENDDO
+
+      ! meet precondition for tail-iteration
+      DO iter2 = iter+1, maxiter
+         IF (t .LT. (d*tmp**l*EXP(-a*tmp*tmp))) THEN
+            r0 = tmp
+            EXIT
+         ENDIF
+         tmp = MAX(tmp-0.5_dp*scope*eps, r0)
+      ENDDO
+      DO iter2 = iter2+1, maxiter
+         IF ((d*r1**l*EXP(-a*r1*r1)) .LT. t) EXIT
+         r1 = r1+0.5_dp*scope*eps
+      ENDDO
+
       ! avoid system calls in tight/arithmetic loops
-      IF (maxiter .LT. iter) THEN
+      IF (maxiter .LT. iter2) THEN
          CPABORT("Maximum number of iterations reached")
       END IF
 
-      DO iter = iter, maxiter
+      DO iter2 = iter2+1, maxiter
          rd = r1-r0
          CPASSERT(0.0_dp .LE. rd)
-         rg = r0+rd*gr ! Golden Section
-         ar2 = a*rg*rg
-         g = d*rg**l*EXP(-ar2)
-         IF (rd .GE. epsiter) THEN
-            IF (g .LT. t) THEN
+         rg = r0+rd*contract ! Golden Section
+         tmp = a*rg*rg
+         g = d*rg**l*EXP(-tmp)
+         IF (g .LT. t) THEN
+            IF (rd .GE. epsiter) THEN
                r1 = rg ! interval [r0, rg)
-            ELSE
-               r0 = rg ! interval [rg, r1)
+            ELSE ! g(r) < threshold
+               radius = rg
+               RETURN
             ENDIF
-         ELSE ! return upper bound of r but such that g(r) < threshold
-            radius = MERGE(rg, r1, g .LT. t)
-            RETURN
+         ELSE
+            r0 = rg ! interval [rg, r1)
          ENDIF
       ENDDO
       CPABORT("Maximum number of iterations exceeded")
