@@ -172,7 +172,7 @@ CONTAINS
       IF (PRESENT(epsin)) THEN
          epsiter = epsin
       ELSE ! arbitrary scaled epsilon?
-         epsiter = EPSILON(epsiter)*4.0E3_dp
+         epsiter = EPSILON(epsiter)*(1.0E-12_dp/2.22044604925031E-16_dp)
       ENDIF
 
       ! Initialize function value
