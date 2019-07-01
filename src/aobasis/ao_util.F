@@ -164,13 +164,14 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius', routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: maxiter = 5000
-      REAL(KIND=dp), PARAMETER                           :: contract = 0.5_dp, scope = 2.0_dp
+      REAL(KIND=dp), PARAMETER                           :: contract = 0.62_dp, scope = 2.0_dp
 
       INTEGER                                            :: iter, iter2
-      REAL(KIND=dp)                                      :: a, d, eps, epsiter, exp_2drsq, exp_2rdr, &
+      REAL(KIND=dp)                                      :: a, d, epsiter, exp_2drsq, exp_2rdr, &
                                                             exp_drsq, exp_rsq, g, r0, r1, rd, rg, &
                                                             t, tmp
 
+      CPASSERT(1 .LT. scope)
       ! Initialize function value
       radius = 0.0_dp
 
@@ -214,41 +215,40 @@ CONTAINS
          g = d
       END IF
 
-      IF (g .LT. t) THEN
-         RETURN
-      END IF
+      ! early exit (radius=0)
+      IF (g .LT. t) RETURN
 
       ! fast contraction (no EXP in loop)
-      eps = MAX(r0, epsiter)
-      r1 = r0+eps
+      rd = MAX(r0/scope, epsiter)
+      r1 = r0+rd
       exp_rsq = d*EXP(-a*r1*r1)
-      exp_drsq = EXP(-a*eps*eps)
+      exp_drsq = EXP(-a*rd*rd)
       exp_2drsq = exp_drsq*exp_drsq
-      exp_2rdr = EXP(-2*a*r1*eps)
+      exp_2rdr = EXP(-2*a*r1*rd)
       DO iter = 1, maxiter
-         tmp = r1**l
-         g = tmp*exp_rsq
-         IF (g .LT. t) THEN
-            tmp = MAX(r1-0.5_dp*scope*eps, r0)
-            EXIT
-         ENDIF
-         r1 = r1+eps
+         g = r1**l*exp_rsq
+         IF (g .LT. t) EXIT
+         tmp = r1 ! r0
+         r1 = r1+rd
          exp_rsq = exp_rsq*exp_drsq*exp_2rdr
          exp_2rdr = exp_2rdr*exp_2drsq
       ENDDO
 
       ! meet precondition for tail-iteration
       DO iter2 = iter+1, maxiter
-         IF (t .LT. (d*tmp**l*EXP(-a*tmp*tmp))) THEN
+         g = d*tmp**l*EXP(-a*tmp*tmp)
+         IF (t .LT. g) THEN
             r0 = tmp
             EXIT
          ENDIF
-         tmp = MAX(tmp-0.5_dp*scope*eps, r0)
+         tmp = MAX(tmp/scope, r0)
       ENDDO
       DO iter2 = iter2+1, maxiter
-         IF ((d*r1**l*EXP(-a*r1*r1)) .LT. t) EXIT
-         r1 = r1+0.5_dp*scope*eps
+         g = d*r1**l*EXP(-a*r1*r1)
+         IF (g .LT. t) EXIT
+         r1 = scope*r1
       ENDDO
+      CPASSERT(r0 .LT. r1)
 
       ! avoid system calls in tight/arithmetic loops
       IF (maxiter .LT. iter2) THEN
@@ -257,19 +257,20 @@ CONTAINS
 
       DO iter2 = iter2+1, maxiter
          rd = r1-r0
-         CPASSERT(0.0_dp .LE. rd)
          rg = r0+rd*contract ! Golden Section
-         tmp = a*rg*rg
-         g = d*rg**l*EXP(-tmp)
+         g = d*rg**l*EXP(-a*rg*rg)
          IF (g .LT. t) THEN
-            IF (rd .GE. epsiter) THEN
+            IF ((rd .GE. epsiter) .AND. (rg .LT. r1)) THEN
                r1 = rg ! interval [r0, rg)
             ELSE ! g(r) < threshold
                radius = rg
                RETURN
             ENDIF
-         ELSE
+         ELSE IF (r0 .LT. rg) THEN
             r0 = rg ! interval [rg, r1)
+         ELSE
+            radius = rg
+            RETURN
          ENDIF
       ENDDO
       CPABORT("Maximum number of iterations exceeded")
