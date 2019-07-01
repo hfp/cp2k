@@ -164,7 +164,8 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius', routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: maxiter = 5000
-      REAL(KIND=dp), PARAMETER                           :: contract = 0.62_dp, scope = 2.0_dp
+      REAL(KIND=dp), PARAMETER                           :: contract = 0.62_dp, reliter = 150.0_dp, &
+                                                            scope = 2.0_dp
 
       INTEGER                                            :: iter, iter2
       REAL(KIND=dp)                                      :: a, d, epsiter, exp_2drsq, exp_2rdr, &
@@ -261,13 +262,13 @@ CONTAINS
          rg = r0+rd*contract ! Golden Section
          g = d*rg**l*EXP(-a*rg*rg)
          IF (g .LT. t) THEN
-            IF ((rd .GE. epsiter) .AND. (rg .LT. r1)) THEN
+            IF (((rd .GE. epsiter) .OR. (reliter*rd .GE. rg)) .AND. (rg .NE. r1)) THEN
                r1 = rg ! interval [r0, rg)
             ELSE ! g(r) < threshold
                radius = rg
                RETURN
             ENDIF
-         ELSE IF (r0 .LT. rg) THEN
+         ELSE IF (r0 .NE. rg) THEN
             r0 = rg ! interval [rg, r1)
          ELSE
             radius = rg
