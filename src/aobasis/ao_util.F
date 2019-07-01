@@ -225,9 +225,10 @@ CONTAINS
       exp_drsq = EXP(-a*rd*rd)
       exp_2drsq = exp_drsq*exp_drsq
       exp_2rdr = EXP(-2*a*r1*rd)
+      tmp = r0
       DO iter = 1, maxiter
          g = r1**l*exp_rsq
-         IF (g .LT. t) EXIT
+         IF ((g .LT. t) .OR. (g .EQ. d)) EXIT
          tmp = r1 ! r0
          r1 = r1+rd
          exp_rsq = exp_rsq*exp_drsq*exp_2rdr
@@ -248,12 +249,12 @@ CONTAINS
          IF (g .LT. t) EXIT
          r1 = scope*r1
       ENDDO
-      CPASSERT(r0 .LT. r1)
 
       ! avoid system calls in tight/arithmetic loops
       IF (maxiter .LT. iter2) THEN
          CPABORT("Maximum number of iterations reached")
       END IF
+      CPASSERT(r0 .LT. r1)
 
       DO iter2 = iter2+1, maxiter
          rd = r1-r0
