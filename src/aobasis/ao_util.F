@@ -220,7 +220,7 @@ CONTAINS
 
       ! estimate step-width
       r1 = r0+1.0_dp
-      tmp = d*EXP(-a*r1*r1)
+      tmp = d*r1**l*EXP(-a*r1*r1)
       CPASSERT(tmp .LE. g)
       rd = MIN(scope*g/MAX(g-tmp, t), 1.0_dp)
 
@@ -233,7 +233,7 @@ CONTAINS
       tmp = r0
       DO iter = 1, maxiter
          g = r1**l*exp_rsq
-         IF ((g .LT. t) .OR. (g .EQ. d)) EXIT
+         IF (g .LT. t) EXIT
          tmp = r1 ! r0
          r1 = r1+rd
          exp_rsq = exp_rsq*exp_drsq*exp_2rdr
@@ -243,7 +243,7 @@ CONTAINS
       ! meet precondition for tail-iteration
       DO iter2 = iter+1, maxiter
          g = d*tmp**l*EXP(-a*tmp*tmp)
-         IF (t .LT. g) THEN
+         IF (t .LE. g) THEN
             r0 = tmp
             EXIT
          ENDIF
