@@ -164,7 +164,7 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius', routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: maxiter = 5000
-      REAL(KIND=dp), PARAMETER                           :: contract = 0.62_dp, reliter = 150.0_dp, &
+      REAL(KIND=dp), PARAMETER                           :: contract = 0.38_dp, reliter = 150.0_dp, &
                                                             scope = 2.0_dp
 
       INTEGER                                            :: iter, iter2
@@ -222,7 +222,7 @@ CONTAINS
       r1 = r0+1.0_dp
       tmp = d*r1**l*EXP(-a*r1*r1)
       CPASSERT(tmp .LE. g)
-      rd = MIN(scope*g/MAX(g-tmp, t), 1.0_dp)
+      rd = scope*g/MAX(g-tmp, t)
 
       ! fast contraction (no EXP in loop)
       r1 = r0+rd
