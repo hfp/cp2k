@@ -220,8 +220,9 @@ CONTAINS
 
       ! estimate step-width
       r1 = r0+1.0_dp
-      tmp = g-d*EXP(-a*r1*r1)
-      rd = MIN(scope*g*ABS(r0-r0*tmp+1)/MAX(tmp, t), 1.0_dp)
+      tmp = d*EXP(-a*r1*r1)
+      CPASSERT(tmp .LE. g)
+      rd = MIN(scope*g/MAX(g-tmp, t), 1.0_dp)
 
       ! fast contraction (no EXP in loop)
       r1 = r0+rd
