@@ -210,8 +210,7 @@ CONTAINS
       r0 = SQRT(0.5_dp*REAL(l, dp)/a)
 
       IF (l .NE. 0) THEN
-         tmp = a*r0*r0
-         g = d*r0**l*EXP(-tmp)
+         g = d*r0**l*EXP(-a*r0*r0)
       ELSE
          g = d
       END IF
@@ -219,8 +218,12 @@ CONTAINS
       ! early exit (radius=0)
       IF (g .LT. t) RETURN
 
+      ! estimate step-width
+      r1 = r0+1.0_dp
+      tmp = g-d*EXP(-a*r1*r1)
+      rd = MIN(scope*g*ABS(r0-r0*tmp+1)/MAX(tmp, t), 1.0_dp)
+
       ! fast contraction (no EXP in loop)
-      rd = MAX(r0/scope, epsiter)
       r1 = r0+rd
       exp_rsq = d*EXP(-a*r1*r1)
       exp_drsq = EXP(-a*rd*rd)
