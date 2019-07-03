@@ -13,10 +13,10 @@
 MODULE eri_mme_lattice_summation
 #:include "eri_mme_unroll.fypp"
 
-   USE ao_util,                         ONLY: exp_radius
+   USE ao_util,                         ONLY: exp_radius, exp_radius_fast
    USE eri_mme_gaussian,                ONLY: create_gaussian_overlap_dist_to_hermite,&
                                               create_hermite_to_cartesian, &
-                                              exp_radius_fast, eri_mme_coulomb, eri_mme_yukawa,&
+                                              eri_mme_coulomb, eri_mme_yukawa,&
                                               eri_mme_longrange
    USE kinds,                           ONLY: dp,&
                                               int_8
