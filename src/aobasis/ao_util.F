@@ -185,9 +185,7 @@ CONTAINS
       ELSE ! automatically selected step size
          radius = r+jump
          h = d*radius**l*EXP(-a*radius*radius)
-         !dr = scope*g/MAX(g-h, t) ! simple
-         !dr = (g*radius-h*r)/(scope*MAX(g-h, t))
-         dr = (g*radius-h*r)/MAX(g-h, t)
+         dr = (0.5_dp*scope)*(g*radius-h*r)/MAX(g-h, t)
          CPASSERT(h .LE. g)
       ENDIF
 
@@ -262,7 +260,7 @@ CONTAINS
       INTEGER, PARAMETER                                 :: maxiter = 5000
       REAL(KIND=dp), PARAMETER                           :: contract = 0.38_dp, reliter = 150.0_dp
 
-      INTEGER                                            :: iter, iter2
+      INTEGER                                            :: iter
       REAL(KIND=dp)                                      :: a, d, epsiter, g, r0, r1, rd, rg, t
 
       IF (l .LT. 0) THEN
@@ -281,10 +279,16 @@ CONTAINS
          CPABORT("The requested threshold is zero")
       END IF
 
+      IF (PRESENT(epsin)) THEN
+         epsiter = epsin
+      ELSE ! arbitrary scaled epsilon?
+         epsiter = EPSILON(epsiter)*(1.0E-12_dp/2.22044604925031E-16_dp)
+      ENDIF
+
       d = ABS(prefactor)
       iter = maxiter
 
-      ! epsin is not given to automatically estimate the sampling rate
+      ! automatically estimate sampling rate (no epsin or epsiter is given)
       r1 = exp_radius_fast(l, a, t, d, rlow=r0, maxiter=iter)
 
       ! avoid system calls in tight/arithmetic loops
@@ -297,13 +301,7 @@ CONTAINS
       END IF
       CPASSERT(r0 .LT. r1)
 
-      IF (PRESENT(epsin)) THEN
-         epsiter = epsin
-      ELSE ! arbitrary scaled epsilon?
-         epsiter = EPSILON(epsiter)*(1.0E-12_dp/2.22044604925031E-16_dp)
-      ENDIF
-
-      DO iter2 = iter2+1, maxiter
+      DO iter = iter+1, maxiter
          rd = r1-r0
          rg = r0+rd*contract ! Golden Section
          g = d*rg**l*EXP(-a*rg*rg)
