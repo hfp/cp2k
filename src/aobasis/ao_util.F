@@ -4,7 +4,7 @@
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
-!> \brief All kind of helpfull little routines
+!> \brief All kind of helpful little routines
 !> \par History
 !>      none
 !> \author CJM & JGH
@@ -93,6 +93,7 @@ MODULE ao_util
    ! *** Public subroutines ***
 
    PUBLIC :: exp_radius, &
+             exp_radius_fast, &
              exp_radius_very_extended, &
              gauss_exponent, &
              gaussint_sph, &
@@ -134,6 +135,101 @@ CONTAINS
    END FUNCTION gauss_exponent
 
 ! **************************************************************************************************
+!> \brief ...
+!> \param l ...
+!> \param alpha ...
+!> \param threshold ...
+!> \param prefactor ...
+!> \param epsin ...
+!> \param rlow ...
+!> \param maxiter ...
+!> \return ...
+! **************************************************************************************************
+   FUNCTION exp_radius_fast(l, alpha, threshold, prefactor, epsin, rlow, maxiter) RESULT(radius)
+      INTEGER, INTENT(IN)                                :: l
+      REAL(KIND=dp), INTENT(IN)                          :: alpha, threshold, prefactor
+      REAL(KIND=dp), INTENT(IN), OPTIONAL                :: epsin
+      REAL(KIND=dp), INTENT(OUT), OPTIONAL               :: rlow
+      INTEGER, INTENT(INOUT), OPTIONAL                   :: maxiter
+      REAL(KIND=dp)                                      :: radius
+
+      REAL(KIND=dp), PARAMETER                           :: jump = 1.0_dp, scope = 2.0_dp
+
+      INTEGER                                            :: i, n
+      REAL(KIND=dp)                                      :: a, d, dr, exp_2drsq, exp_2rdr, exp_drsq, &
+                                                            exp_rsq, g, h, r, rtmp, t
+
+      CPASSERT((0 .LT. jump) .AND. (1 .LT. scope))
+      t = ABS(threshold)
+      d = ABS(prefactor)
+      a = ABS(alpha)
+      r = SQRT(0.5_dp*REAL(l, dp)/a)
+      exp_rsq = d*EXP(-a*r*r)
+      g = MERGE(exp_rsq*r**l, d, l .NE. 0)
+
+      IF (g .LT. t) THEN ! early exit (radius=0)
+         IF (PRESENT(maxiter)) maxiter = 0
+         IF (PRESENT(rlow)) rlow = 0.0_dp
+         radius = 0.0_dp
+         RETURN
+      ENDIF
+
+      IF (PRESENT(maxiter)) THEN
+         n = maxiter
+      ELSE
+         n = HUGE(i)
+      ENDIF
+
+      IF (PRESENT(epsin)) THEN
+         dr = ABS(epsin)
+      ELSE ! automatically selected step size
+         radius = r+jump
+         h = d*radius**l*EXP(-a*radius*radius)
+         !dr = scope*g/MAX(g-h, t) ! simple
+         !dr = (g*radius-h*r)/(scope*MAX(g-h, t))
+         dr = (g*radius-h*r)/MAX(g-h, t)
+         CPASSERT(h .LE. g)
+      ENDIF
+
+      ! setup fast contraction
+      exp_drsq = EXP(-a*dr*dr)
+      exp_2drsq = exp_drsq*exp_drsq
+      exp_2rdr = EXP(-2*a*r*dr)
+      radius = r
+      rtmp = r
+
+      ! fast contraction (no EXP in loop)
+      DO i = 1, n
+         g = radius**l*exp_rsq
+         IF (g .LT. t) EXIT
+         rtmp = radius
+         radius = radius+dr
+         exp_rsq = exp_rsq*exp_drsq*exp_2rdr
+         exp_2rdr = exp_2rdr*exp_2drsq
+      ENDDO
+
+      ! optionally ensure t<=g(rlow) and g(radius)<t
+      IF (PRESENT(rlow)) THEN
+         DO i = i+1, n
+            g = d*rtmp**l*EXP(-a*rtmp*rtmp)
+            IF (t .LE. g) THEN
+               rlow = rtmp
+               EXIT
+            ENDIF
+            rtmp = MAX(rtmp/scope, r)
+         ENDDO
+         DO i = i+1, n
+            g = d*radius**l*EXP(-a*radius*radius)
+            IF (g .LT. t) EXIT
+            radius = scope*radius
+         ENDDO
+      ENDIF
+      IF (PRESENT(maxiter)) THEN
+         maxiter = i
+      ENDIF
+   END FUNCTION
+
+! **************************************************************************************************
 !> \brief  The radius of a primitive Gaussian function for a given threshold
 !>         is calculated.
 !>               g(r) = prefactor*r**l*exp(-alpha*r**2) - threshold = 0
@@ -164,19 +260,10 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius', routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: maxiter = 5000
-      REAL(KIND=dp), PARAMETER                           :: contract = 0.38_dp, reliter = 150.0_dp, &
-                                                            scope = 2.0_dp
+      REAL(KIND=dp), PARAMETER                           :: contract = 0.38_dp, reliter = 150.0_dp
 
       INTEGER                                            :: iter, iter2
-      REAL(KIND=dp)                                      :: a, d, epsiter, exp_2drsq, exp_2rdr, &
-                                                            exp_drsq, exp_rsq, g, r0, r1, rd, rg, &
-                                                            t, tmp
-
-      CPASSERT(1 .LT. scope)
-      ! Initialize function value
-      radius = 0.0_dp
-
-      ! Load and check parameter values
+      REAL(KIND=dp)                                      :: a, d, epsiter, g, r0, r1, rd, rg, t
 
       IF (l .LT. 0) THEN
          CPABORT("The angular momentum quantum number is negative")
@@ -194,72 +281,27 @@ CONTAINS
          CPABORT("The requested threshold is zero")
       END IF
 
-      IF (prefactor .NE. 0.0_dp) THEN
-         d = ABS(prefactor)
-      ELSE
+      d = ABS(prefactor)
+      iter = maxiter
+
+      ! epsin is not given to automatically estimate the sampling rate
+      r1 = exp_radius_fast(l, a, t, d, rlow=r0, maxiter=iter)
+
+      ! avoid system calls in tight/arithmetic loops
+      IF (maxiter .LT. iter) THEN
+         CPABORT("Maximum number of iterations reached")
+      END IF
+      IF (r0 .EQ. r1) THEN
+         radius = r1
          RETURN
       END IF
+      CPASSERT(r0 .LT. r1)
 
       IF (PRESENT(epsin)) THEN
          epsiter = epsin
       ELSE ! arbitrary scaled epsilon?
          epsiter = EPSILON(epsiter)*(1.0E-12_dp/2.22044604925031E-16_dp)
       ENDIF
-
-      ! Calculate the Maximum g(r)
-      r0 = SQRT(0.5_dp*REAL(l, dp)/a)
-
-      IF (l .NE. 0) THEN
-         g = d*r0**l*EXP(-a*r0*r0)
-      ELSE
-         g = d
-      END IF
-
-      ! early exit (radius=0)
-      IF (g .LT. t) RETURN
-
-      ! estimate step-width
-      r1 = r0+1.0_dp
-      tmp = d*r1**l*EXP(-a*r1*r1)
-      CPASSERT(tmp .LE. g)
-      rd = scope*g/MAX(g-tmp, t)
-
-      ! fast contraction (no EXP in loop)
-      r1 = r0+rd
-      exp_rsq = d*EXP(-a*r1*r1)
-      exp_drsq = EXP(-a*rd*rd)
-      exp_2drsq = exp_drsq*exp_drsq
-      exp_2rdr = EXP(-2*a*r1*rd)
-      tmp = r0
-      DO iter = 1, maxiter
-         g = r1**l*exp_rsq
-         IF (g .LT. t) EXIT
-         tmp = r1 ! r0
-         r1 = r1+rd
-         exp_rsq = exp_rsq*exp_drsq*exp_2rdr
-         exp_2rdr = exp_2rdr*exp_2drsq
-      ENDDO
-
-      ! meet precondition for tail-iteration
-      DO iter2 = iter+1, maxiter
-         g = d*tmp**l*EXP(-a*tmp*tmp)
-         IF (t .LE. g) THEN
-            r0 = tmp
-            EXIT
-         ENDIF
-         tmp = MAX(tmp/scope, r0)
-      ENDDO
-      DO iter2 = iter2+1, maxiter
-         g = d*r1**l*EXP(-a*r1*r1)
-         IF (g .LT. t) EXIT
-         r1 = scope*r1
-      ENDDO
-
-      ! avoid system calls in tight/arithmetic loops
-      IF (maxiter .LT. iter2) THEN
-         CPABORT("Maximum number of iterations reached")
-      END IF
-      CPASSERT(r0 .LT. r1)
 
       DO iter2 = iter2+1, maxiter
          rd = r1-r0
