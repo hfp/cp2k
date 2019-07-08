@@ -135,15 +135,16 @@ CONTAINS
    END FUNCTION gauss_exponent
 
 ! **************************************************************************************************
-!> \brief ...
-!> \param l ...
-!> \param alpha ...
-!> \param threshold ...
-!> \param prefactor ...
-!> \param epsin ...
-!> \param rlow ...
-!> \param maxiter ...
-!> \return ...
+!> \brief  The radius of a primitive Gaussian function for a given threshold is calculated.
+!>         g(r) = prefactor*r**l*exp(-alpha*r**2) - threshold = 0
+!> \param l Angular momentum quantum number l.
+!> \param alpha Exponent of the primitive Gaussian function.
+!> \param threshold Determines if g(r) is accepted to be zero.
+!> \param prefactor Prefactor of the Gaussian function g(r).
+!> \param epsin Optonal interval width of bracketed radius (automatically chosen if not present).
+!> \param rlow Optional lower bound of interval; ensures (rlow, radius] are not approximated.
+!> \param maxiter Optional maximum number of iterations (HUGE if not present).
+!> \return Calculated radius of the Gaussian function such that g(r) < threshold.
 ! **************************************************************************************************
    FUNCTION exp_radius_fast(l, alpha, threshold, prefactor, epsin, rlow, maxiter) RESULT(radius)
       INTEGER, INTENT(IN)                                :: l
@@ -180,26 +181,36 @@ CONTAINS
          n = HUGE(i)
       ENDIF
 
-      IF (PRESENT(epsin)) THEN
-         dr = ABS(epsin)
-      ELSE ! automatically selected step size
-         radius = r+jump
-         h = d*radius**l*EXP(-a*radius*radius)
-         dr = (0.5_dp*scope)*(g*radius-h*r)/MAX(g-h, t)
-         CPASSERT(h .LE. g)
-      ENDIF
+      ! automatically select initial step size
+      radius = r+jump
+      h = d*radius**l*EXP(-a*radius*radius)
+      dr = (0.5_dp*scope)*(g*radius-h*r)/MAX(g-h, t)
+      CPASSERT(h .LE. g)
 
       ! setup fast contraction
       exp_drsq = EXP(-a*dr*dr)
       exp_2drsq = exp_drsq*exp_drsq
-      exp_2rdr = EXP(-2*a*r*dr)
+      exp_2rdr = EXP(-2.0_dp*a*r*dr)
       radius = r
       rtmp = r
 
       ! fast contraction (no EXP in loop)
       DO i = 1, n
          g = radius**l*exp_rsq
-         IF (g .LT. t) EXIT
+         IF (g .LT. t) THEN
+            IF (PRESENT(epsin)) THEN
+               IF (ABS(epsin) .LT. dr) THEN
+                  radius = MAX(radius+ABS(epsin)-dr, r)
+                  dr = ABS(epsin)
+                  exp_rsq = d*EXP(-a*radius*radius)
+                  exp_drsq = EXP(-a*dr*dr)
+                  exp_2drsq = exp_drsq*exp_drsq
+                  exp_2rdr = EXP(-2.0_dp*a*radius*dr)
+                  CYCLE
+               ENDIF
+            ENDIF
+            EXIT
+         ENDIF
          rtmp = radius
          radius = radius+dr
          exp_rsq = exp_rsq*exp_drsq*exp_2rdr
@@ -289,7 +300,7 @@ CONTAINS
       d = ABS(prefactor)
       iter = maxiter
 
-      ! automatically estimate sampling rate (no epsin or epsiter is given)
+      ! automatically estimate sampling rate (no epsin/epsiter is given)
       r1 = exp_radius_fast(l, a, t, d, rlow=r0, maxiter=iter)
 
       ! avoid system calls in tight/arithmetic loops
