@@ -160,6 +160,7 @@ CONTAINS
       REAL(KIND=dp), PARAMETER                           :: jump = 1.0_dp, scope = 2.0_dp
 
       INTEGER                                            :: i, n
+      LOGICAL                                            :: once
       REAL(KIND=dp)                                      :: a, d, dr, exp_2drsq, exp_2rdr, exp_drsq, &
                                                             exp_rsq, g, h, r, rd, rtmp, t
 
@@ -198,6 +199,7 @@ CONTAINS
       rtmp = r
 
       ! fast contraction (no EXP in loop)
+      once = .TRUE.
       DO i = 1, n
          g = radius**l*exp_rsq
          IF (g .LT. t) THEN
@@ -209,12 +211,13 @@ CONTAINS
             IF (PRESENT(epsrel)) THEN
                rd = MIN(epsrel*radius, rd)
             ENDIF
-            IF (rd .LT. dr) THEN
+            IF ((rd .LT. dr) .AND. (.NOT. once)) THEN
                radius = MAX(radius+rd-dr, r)
                exp_rsq = d*EXP(-a*radius*radius)
                exp_drsq = EXP(-a*rd*rd)
                exp_2drsq = exp_drsq*exp_drsq
                exp_2rdr = EXP(-2.0_dp*a*radius*rd)
+               once = .FALSE.
                dr = rd
                CYCLE
             ENDIF
@@ -225,6 +228,7 @@ CONTAINS
          exp_rsq = exp_rsq*exp_drsq*exp_2rdr
          exp_2rdr = exp_2rdr*exp_2drsq
       ENDDO
+      CPASSERT(0 .LT. radius)
 
       ! optionally ensure t<=g(rlow) and g(radius)<t
       IF (PRESENT(rlow)) THEN
