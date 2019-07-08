@@ -1,5 +1,5 @@
 ifeq ("","$(wildcard $(EXTSHOME)/dbcsr/Makefile)")
-$(error "No DBCSR submodule available, please run 'git submodule update --init --recursive'")
+$(error "No DBCSR submodule available, please run 'git submodule update --init --recursive --remote'")
 endif
 
 LIBS     := -L$(LIBEXTSDIR)/dbcsr -ldbcsr $(LIBS)

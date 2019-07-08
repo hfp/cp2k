@@ -341,10 +341,10 @@ CONTAINS
          routineP = moduleN//':'//routineN
 
       INTEGER                                            :: handle, img, ispin, nimg, nspins
-      INTEGER, DIMENSION(:, :, :), POINTER               :: cell_to_index
+      INTEGER, CONTIGUOUS, DIMENSION(:, :, :), POINTER   :: cell_to_index
       LOGICAL                                            :: gapw, gapw_xc
       REAL(KIND=dp)                                      :: dum
-      REAL(KIND=dp), DIMENSION(:), POINTER               :: tot_rho_r, tot_rho_r_xc
+      REAL(KIND=dp), CONTIGUOUS, DIMENSION(:), POINTER   :: tot_rho_r, tot_rho_r_xc
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: rho_ao

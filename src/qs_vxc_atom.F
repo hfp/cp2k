@@ -984,7 +984,9 @@ CONTAINS
 !> \param nspins ...
 ! **************************************************************************************************
    SUBROUTINE gaVxcgb_noGC(vxc_h, vxc_s, qs_kind, rho_atom, nspins)
-
+#if defined(__LIBXSMM)
+      USE libxsmm, ONLY: dgemm => libxsmm_dgemm
+#endif
       REAL(dp), DIMENSION(:, :, :), POINTER              :: vxc_h, vxc_s
       TYPE(qs_kind_type), INTENT(IN)                     :: qs_kind
       TYPE(rho_atom_type), POINTER                       :: rho_atom
@@ -993,8 +995,8 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'gaVxcgb_noGC', routineP = moduleN//':'//routineN
 
       INTEGER :: handle, ia, ic, icg, ipgf1, ipgf2, ir, iset1, iset2, iso, iso1, iso2, ispin, l, &
-         ld, lmax12, lmax_expansion, lmin12, m1, m2, max_iso_not0, max_iso_not0_local, max_s_harm, &
-         maxl, maxso, n1, n2, na, ngau1, ngau2, nngau1, nr, nset, size1
+                 ld, lmax12, lmax_expansion, lmin12, m1, m2, max_iso_not0, max_iso_not0_local, max_s_harm, &
+                 maxl, maxso, n1, n2, na, ngau1, ngau2, nngau1, nr, nset, size1
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: cg_n_list
       INTEGER, ALLOCATABLE, DIMENSION(:, :, :)           :: cg_list
       INTEGER, DIMENSION(:), POINTER                     :: lmax, lmin, npgf
