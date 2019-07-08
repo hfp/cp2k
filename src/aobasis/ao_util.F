@@ -141,15 +141,16 @@ CONTAINS
 !> \param alpha Exponent of the primitive Gaussian function.
 !> \param threshold Determines if g(r) is accepted to be zero.
 !> \param prefactor Prefactor of the Gaussian function g(r).
-!> \param epsin Optional interval width of bracketed radius (automatically chosen if not present).
+!> \param epsabs Optional interval width of bracketed radius (automatically chosen if not present).
+!> \param epsrel Optional interval width relative to radius (not enforced if not present).
 !> \param rlow Optional lower bound of interval; ensures (rlow, radius] are not approximated.
 !> \param maxiter Optional maximum number of iterations (HUGE if not present).
 !> \return Calculated radius of the Gaussian function such that g(r) < threshold.
 ! **************************************************************************************************
-   FUNCTION exp_radius_fast(l, alpha, threshold, prefactor, epsin, rlow, maxiter) RESULT(radius)
+   FUNCTION exp_radius_fast(l, alpha, threshold, prefactor, epsabs, epsrel, rlow, maxiter) RESULT(radius)
       INTEGER, INTENT(IN)                                :: l
       REAL(KIND=dp), INTENT(IN)                          :: alpha, threshold, prefactor
-      REAL(KIND=dp), INTENT(IN), OPTIONAL                :: epsin
+      REAL(KIND=dp), INTENT(IN), OPTIONAL                :: epsabs, epsrel
       REAL(KIND=dp), INTENT(OUT), OPTIONAL               :: rlow
       INTEGER, INTENT(INOUT), OPTIONAL                   :: maxiter
       REAL(KIND=dp)                                      :: radius
@@ -160,7 +161,7 @@ CONTAINS
 
       INTEGER                                            :: i, n
       REAL(KIND=dp)                                      :: a, d, dr, exp_2drsq, exp_2rdr, exp_drsq, &
-                                                            exp_rsq, g, h, r, rtmp, t
+                                                            exp_rsq, g, h, r, rd, rtmp, t
 
       CPASSERT((0 .LT. jump) .AND. (1 .LT. scope))
       t = ABS(threshold)
@@ -200,16 +201,22 @@ CONTAINS
       DO i = 1, n
          g = radius**l*exp_rsq
          IF (g .LT. t) THEN
-            IF (PRESENT(epsin)) THEN
-               IF (ABS(epsin) .LT. dr) THEN
-                  radius = MAX(radius+ABS(epsin)-dr, r)
-                  dr = ABS(epsin)
-                  exp_rsq = d*EXP(-a*radius*radius)
-                  exp_drsq = EXP(-a*dr*dr)
-                  exp_2drsq = exp_drsq*exp_drsq
-                  exp_2rdr = EXP(-2.0_dp*a*radius*dr)
-                  CYCLE
-               ENDIF
+            IF (PRESENT(epsabs)) THEN
+               rd = ABS(epsabs)
+            ELSE
+               rd = dr
+            ENDIF
+            IF (PRESENT(epsrel)) THEN
+               rd = MIN(epsrel*radius, rd)
+            ENDIF
+            IF (rd .LT. dr) THEN
+               radius = MAX(radius+rd-dr, r)
+               exp_rsq = d*EXP(-a*radius*radius)
+               exp_drsq = EXP(-a*rd*rd)
+               exp_2drsq = exp_drsq*exp_drsq
+               exp_2rdr = EXP(-2.0_dp*a*radius*rd)
+               dr = rd
+               CYCLE
             ENDIF
             EXIT
          ENDIF
@@ -248,26 +255,27 @@ CONTAINS
 !> \param alpha Exponent of the primitive Gaussian function.
 !> \param threshold Determines if g(r) is accepted to be zero.
 !> \param prefactor Prefactor of the Gaussian function g(r).
-!> \param epsin Optional interval width of bracketed radius (automatically chosen if not present).
+!> \param epsabs Optional interval width of bracketed radius (automatically chosen if not present).
+!> \param epsrel Optional interval width relative to radius (not enforced if not present).
 !> \return Calculated radius of the Gaussian function such that g(r) < threshold.
 ! **************************************************************************************************
-   FUNCTION exp_radius(l, alpha, threshold, prefactor, epsin) RESULT(radius)
+   FUNCTION exp_radius(l, alpha, threshold, prefactor, epsabs, epsrel) RESULT(radius)
       INTEGER, INTENT(IN)                                :: l
       REAL(KIND=dp), INTENT(IN)                          :: alpha, threshold, prefactor
-      REAL(KIND=dp), INTENT(IN), OPTIONAL                :: epsin
+      REAL(KIND=dp), INTENT(IN), OPTIONAL                :: epsabs, epsrel
       REAL(KIND=dp)                                      :: radius
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius', routineP = moduleN//':'//routineN
 
       REAL(KIND=dp)                                      :: epsiter
 
-      IF (PRESENT(epsin)) THEN
-         epsiter = epsin
+      IF (PRESENT(epsabs)) THEN
+         epsiter = epsabs
       ELSE ! arbitrary scaled epsilon?
          epsiter = EPSILON(epsiter)*(1.0E-12_dp/2.22044604925031E-16_dp)
       ENDIF
 
-      radius = exp_radius_fast(l, alpha, threshold, prefactor)
+      radius = exp_radius_fast(l, alpha, threshold, prefactor, epsiter, epsrel)
    END FUNCTION exp_radius
 
 ! **************************************************************************************************
@@ -279,7 +287,8 @@ CONTAINS
 !> \param threshold Threshold for radius.
 !> \param prefactor Prefactor of the Gaussian function (e.g. a contraction
 !>                     coefficient).
-!> \param epsin Convergence criterion
+!> \param epsabs Convergence criterion
+!> \param epsrel ...
 !> \return Calculated radius of the Gaussian function
 !> \date    26.02.1999
 !> \par History
@@ -293,18 +302,19 @@ CONTAINS
 !> \author  MK
 !> \version 2.0
 ! **************************************************************************************************
-   FUNCTION exp_radius_gss(l, alpha, threshold, prefactor, epsin) RESULT(radius)
+   FUNCTION exp_radius_gss(l, alpha, threshold, prefactor, epsabs, epsrel) RESULT(radius)
       INTEGER, INTENT(IN)                                :: l
       REAL(KIND=dp), INTENT(IN)                          :: alpha, threshold, prefactor
-      REAL(KIND=dp), INTENT(IN), OPTIONAL                :: epsin
+      REAL(KIND=dp), INTENT(IN), OPTIONAL                :: epsabs, epsrel
       REAL(KIND=dp)                                      :: radius
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius_gss', routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: maxiter = 5000
-      REAL(KIND=dp), PARAMETER                           :: contract = 0.38_dp, reliter = 150.0_dp
+      REAL(KIND=dp), PARAMETER                           :: contract = 0.38_dp
 
       INTEGER                                            :: iter
-      REAL(KIND=dp)                                      :: a, d, epsiter, g, r0, r1, rd, rg, t
+      REAL(KIND=dp)                                      :: a, d, epsiter, g, r0, r1, rd, reliter, &
+                                                            rg, t
 
       IF (l .LT. 0) THEN
          CPABORT("The angular momentum quantum number is negative")
@@ -322,16 +332,22 @@ CONTAINS
          CPABORT("The requested threshold is zero")
       END IF
 
-      IF (PRESENT(epsin)) THEN
-         epsiter = epsin
-      ELSE ! arbitrary scaled epsilon?
+      IF (PRESENT(epsabs)) THEN
+         epsiter = epsabs
+      ELSE
          epsiter = EPSILON(epsiter)*(1.0E-12_dp/2.22044604925031E-16_dp)
+      ENDIF
+
+      IF (PRESENT(epsrel)) THEN
+         reliter = epsrel
+      ELSE
+         reliter = HUGE(reliter)
       ENDIF
 
       d = ABS(prefactor)
       iter = maxiter
 
-      ! automatically estimate sampling rate (no epsin/epsiter is given)
+      ! automatically estimate sampling rate (no epsabs/epsrel is given)
       r1 = exp_radius_fast(l, a, t, d, rlow=r0, maxiter=iter)
 
       ! avoid system calls in tight/arithmetic loops
@@ -349,7 +365,7 @@ CONTAINS
          rg = r0+rd*contract ! Golden Section
          g = d*rg**l*EXP(-a*rg*rg)
          IF (g .LT. t) THEN
-            IF (((rd .GE. epsiter) .OR. (reliter*rd .GE. rg)) .AND. (rg .NE. r1)) THEN
+            IF (((rd .GE. epsiter) .OR. (rd .GE. reliter*rg)) .AND. (rg .NE. r1)) THEN
                r1 = rg ! interval [r0, rg)
             ELSE ! g(r) < threshold
                radius = rg
@@ -383,7 +399,7 @@ CONTAINS
 !> \param eps ...
 !> \param prefactor ...
 !> \param cutoff ...
-!> \param epsin ...
+!> \param epsabs ...
 !> \return ...
 !> \par History
 !>      03.2007 new version that assumes that the Gaussians origante from spherical
@@ -392,14 +408,14 @@ CONTAINS
 !>      can optionally screen by the maximum element of the pab block
 ! **************************************************************************************************
    FUNCTION exp_radius_very_extended(la_min, la_max, lb_min, lb_max, pab, o1, o2, ra, rb, rp, &
-                                     zetp, eps, prefactor, cutoff, epsin) RESULT(radius)
+                                     zetp, eps, prefactor, cutoff, epsabs) RESULT(radius)
 
       INTEGER, INTENT(IN)                                :: la_min, la_max, lb_min, lb_max
       REAL(KIND=dp), DIMENSION(:, :), OPTIONAL, POINTER  :: pab
       INTEGER, OPTIONAL                                  :: o1, o2
       REAL(KIND=dp), INTENT(IN)                          :: ra(3), rb(3), rp(3), zetp, eps, &
                                                             prefactor, cutoff
-      REAL(KIND=dp), OPTIONAL                            :: epsin
+      REAL(KIND=dp), OPTIONAL                            :: epsabs
       REAL(KIND=dp)                                      :: radius
 
       INTEGER                                            :: i, ico, j, jco, la(3), lb(3), lxa, lxb, &
@@ -411,7 +427,7 @@ CONTAINS
 ! get the local prefactor, we'll now use the largest density matrix element of the block to screen
 
       epsin_local = 1.0E-2_dp
-      IF (PRESENT(epsin)) epsin_local = epsin
+      IF (PRESENT(epsabs)) epsin_local = epsabs
 
       IF (PRESENT(pab)) THEN
          prefactor_local = cutoff
