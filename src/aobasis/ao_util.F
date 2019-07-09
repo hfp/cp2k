@@ -162,7 +162,7 @@ CONTAINS
 
       INTEGER                                            :: i, n
       REAL(KIND=dp)                                      :: a, d, dr, exp_2drsq, exp_2rdr, exp_drsq, &
-                                                            exp_rsq, g, h, r, rd, reliter, rtmp, t
+                                                            exp_rsq, g, h, r, rd, rtmp, t
 
       CPASSERT((0 .LT. jump) .AND. (1 .LT. scope))
       t = ABS(threshold)
@@ -183,12 +183,6 @@ CONTAINS
          n = maxiter
       ELSE
          n = HUGE(i)
-      ENDIF
-
-      IF (PRESENT(epsrel)) THEN
-         reliter = epsrel
-      ELSE
-         reliter = HUGE(reliter)
       ENDIF
 
       ! automatically select initial step size
@@ -212,7 +206,9 @@ CONTAINS
             IF (PRESENT(epsabs)) THEN
                rd = MAX(ABS(epsabs), dr)
             ENDIF
-            rd = MIN(reliter*radius, rd)
+            IF (PRESENT(epsrel)) THEN
+               rd = MIN(epsrel*radius, rd)
+            ENDIF
             IF (rd .LT. dr) THEN
                radius = rtmp+rd
                exp_rsq = d*EXP(-a*radius*radius)
@@ -318,8 +314,7 @@ CONTAINS
       REAL(KIND=dp), PARAMETER                           :: contract = 0.38_dp
 
       INTEGER                                            :: iter
-      REAL(KIND=dp)                                      :: a, absiter, d, g, r0, r1, rd, reliter, &
-                                                            rg, t
+      REAL(KIND=dp)                                      :: a, absiter, d, eps, g, r0, r1, rd, rg, t
 
       IF (l .LT. 0) THEN
          CPABORT("The angular momentum quantum number is negative")
@@ -343,17 +338,11 @@ CONTAINS
          absiter = EPSILON(absiter)*(1.0E-12_dp/2.22044604925031E-16_dp)
       ENDIF
 
-      IF (PRESENT(epsrel)) THEN
-         reliter = epsrel
-      ELSE
-         reliter = HUGE(reliter)
-      ENDIF
-
       d = ABS(prefactor)
       iter = maxiter
 
       ! narrow interval using approximative method
-      r1 = exp_radius_fast(l, a, t, d, absiter, reliter, rlow=r0, maxiter=iter)
+      r1 = exp_radius_fast(l, a, t, d, absiter, epsrel, rlow=r0, maxiter=iter)
 
       ! avoid system calls in tight/arithmetic loops
       IF (maxiter .LT. iter) THEN
@@ -365,12 +354,16 @@ CONTAINS
       END IF
       CPASSERT(r0 .LT. r1)
 
+      eps = absiter
       DO iter = iter+1, maxiter
          rd = r1-r0
          rg = r0+rd*contract ! Golden Section
          g = d*rg**l*EXP(-a*rg*rg)
          IF (g .LT. t) THEN
-            IF (((rd .GE. absiter) .OR. (rd .GE. reliter*rg)) .AND. (rg .NE. r1)) THEN
+            IF (PRESENT(epsrel)) THEN
+               eps = MIN(absiter, epsrel*rg)
+            ENDIF
+            IF ((rd .GE. eps) .AND. (rg .NE. r1)) THEN
                r1 = rg ! interval [r0, rg)
             ELSE ! g(r) < threshold
                radius = rg
