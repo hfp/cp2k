@@ -291,7 +291,10 @@ else # GNU GCC
       -Werror=zerotrip -Werror=uninitialized -Wno-maybe-uninitialized -Wuse-without-only \
       -Wintrinsic-shadow
     ifneq (1,$(DBG))
-      FCFLAGS += -std=f2008 -ffpe-trap=invalid,zero,overflow
+      FCFLAGS += -ffpe-trap=invalid,zero,overflow
+    endif
+    ifneq (2,$(DBG))
+      FCFLAGS += -std=f2008
     endif
     OPT = 0
   endif
