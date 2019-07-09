@@ -45,6 +45,7 @@ MPI ?= 1
 OMP ?= 1
 DBG ?= 0
 SYM ?= $(DBG)
+FPE ?= 0
 NDEBUG ?= 0
 MKL_DIRECT ?= 0
 MKL_STATIC ?= 1
@@ -235,7 +236,7 @@ ifeq (0,$(GNU)) # Intel
     CXXFLAGS := -debug $(CXXFLAGS)
     FCFLAGS  := -debug $(FCFLAGS)
     CFLAGS   := -debug $(CFLAGS)
-    ifeq (2,$(DBG))
+    ifneq (0,$(FPE))
       FCFLAGS += -fpe0 # debugging NaNs
     endif
     OPT = 0
@@ -291,10 +292,10 @@ else # GNU GCC
       -Werror=zerotrip -Werror=uninitialized -Wno-maybe-uninitialized -Wuse-without-only \
       -Wintrinsic-shadow
     ifneq (1,$(DBG))
-      FCFLAGS += -ffpe-trap=invalid,zero,overflow
-    endif
-    ifneq (2,$(DBG))
       FCFLAGS += -std=f2008
+    endif
+    ifneq (0,$(FPE))
+      FCFLAGS += -ffpe-trap=invalid,zero,overflow
     endif
     OPT = 0
   endif
