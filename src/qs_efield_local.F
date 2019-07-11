@@ -23,10 +23,10 @@ MODULE qs_efield_local
    USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: dbcsr_add,&
                                               dbcsr_copy,&
+                                              dbcsr_dot,&
                                               dbcsr_get_block_p,&
                                               dbcsr_p_type,&
-                                              dbcsr_set,&
-                                              dbcsr_trace
+                                              dbcsr_set
    USE kinds,                           ONLY: dp
    USE message_passing,                 ONLY: mp_sum
    USE orbital_pointers,                ONLY: ncoset
@@ -230,7 +230,7 @@ CONTAINS
       CALL qs_rho_get(rho, rho_ao=matrix_p)
       DO ispin = 1, SIZE(matrix_p)
          DO idir = 1, 3
-            CALL dbcsr_trace(matrix_p(ispin)%matrix, dipmat(idir)%matrix, tmp)
+            CALL dbcsr_dot(matrix_p(ispin)%matrix, dipmat(idir)%matrix, tmp)
             ener_field = ener_field+fieldpol(idir)*tmp
          END DO
       END DO

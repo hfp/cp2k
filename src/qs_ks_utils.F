@@ -47,9 +47,9 @@ MODULE qs_ks_utils
                                               cp_print_key_unit_nr
    USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: &
-        dbcsr_add, dbcsr_copy, dbcsr_deallocate_matrix, dbcsr_get_info, dbcsr_init_p, &
+        dbcsr_add, dbcsr_copy, dbcsr_deallocate_matrix, dbcsr_dot, dbcsr_get_info, dbcsr_init_p, &
         dbcsr_multiply, dbcsr_p_type, dbcsr_release_p, dbcsr_scale, dbcsr_scale_by_vector, &
-        dbcsr_set, dbcsr_trace, dbcsr_type
+        dbcsr_set, dbcsr_type
    USE input_constants,                 ONLY: &
         cdft_alpha_constraint, cdft_beta_constraint, cdft_charge_constraint, &
         cdft_magnetization_constraint, do_ppl_grid, sic_ad, sic_eo, sic_list_all, &
@@ -869,7 +869,7 @@ CONTAINS
       IF (BTEST(cp_print_key_should_output(logger%iter_info, scf_section, "PRINT%TOTAL_DENSITIES"), cp_p_file)) THEN
          DO ispin = 1, dft_control%nspins
             DO img = 1, dft_control%nimages
-               CALL dbcsr_trace(rho_ao(ispin, img)%matrix, matrix_s(1, img)%matrix, trace_tmp)
+               CALL dbcsr_dot(rho_ao(ispin, img)%matrix, matrix_s(1, img)%matrix, trace_tmp)
                trace = trace+trace_tmp
             END DO
          END DO
