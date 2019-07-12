@@ -152,6 +152,7 @@ CONTAINS
 ! **************************************************************************************************
    PURE FUNCTION get_elpa_kernel_index(cpuid) RESULT(index)
       USE machine,  ONLY: MACHINE_X86, &
+                          MACHINE_CPU_GENERIC, &
                           MACHINE_X86_SSE4, &
                           MACHINE_X86_AVX, &
                           MACHINE_X86_AVX2
