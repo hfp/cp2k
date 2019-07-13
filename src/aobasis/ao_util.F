@@ -367,14 +367,13 @@ CONTAINS
                r1 = rg ! interval [r0, rg)
             ELSE ! g(r) < threshold
                radius = rg
-               RETURN
             ENDIF
          ELSE IF (r0 .NE. rg) THEN
             r0 = rg ! interval [rg, r1)
          ELSE
             radius = rg
-            RETURN
          ENDIF
+         IF (radius .EQ. rg) RETURN
       ENDDO
       CPABORT("Maximum number of iterations exceeded")
 
