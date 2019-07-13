@@ -208,7 +208,7 @@
                                                  kg2, kgmin, lxp, sci
      REAL(dp)                                 :: coef_x(4, 0:lp), &
                                                  coef_xy(2, (lp+1)*(lp+2)/2), &
-                                                 s01, s02, s03, s04
+                                                 s0, s1, s2, s3, s4
 
      sci = 1
 
@@ -241,20 +241,21 @@
            coef_x(3:4, 0) = coef_x(3:4, 0)+coef_xy(1:2, 3)*pol_y(2, 1, jg)
            DO ig = igmin, igmax
               i = map(ig, 1)
-              s01 = 0.0_dp
-              s02 = 0.0_dp
-              s03 = 0.0_dp
-              s04 = 0.0_dp
+              s1 = 0.0_dp
+              s2 = 0.0_dp
+              s3 = 0.0_dp
+              s4 = 0.0_dp
               DO lxp = 0, lp
-                 s01 = s01+coef_x(1, lxp)*pol_x(lxp, ig)
-                 s02 = s02+coef_x(2, lxp)*pol_x(lxp, ig)
-                 s03 = s03+coef_x(3, lxp)*pol_x(lxp, ig)
-                 s04 = s04+coef_x(4, lxp)*pol_x(lxp, ig)
+                 s0 = pol_x(lxp, ig)
+                 s1 = s1+coef_x(1, lxp)*s0
+                 s2 = s2+coef_x(2, lxp)*s0
+                 s3 = s3+coef_x(3, lxp)*s0
+                 s4 = s4+coef_x(4, lxp)*s0
               ENDDO
-              grid(i, j, k) = grid(i, j, k)+s01
-              grid(i, j2, k) = grid(i, j2, k)+s03
-              grid(i, j, k2) = grid(i, j, k2)+s02
-              grid(i, j2, k2) = grid(i, j2, k2)+s04
+              grid(i, j, k) = grid(i, j, k)+s1
+              grid(i, j2, k) = grid(i, j2, k)+s3
+              grid(i, j, k2) = grid(i, j, k2)+s2
+              grid(i, j2, k2) = grid(i, j2, k2)+s4
            END DO
         END DO
      END DO

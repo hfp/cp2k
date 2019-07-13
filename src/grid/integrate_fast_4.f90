@@ -131,7 +131,7 @@
                                                  lyp, lzp, sci
      REAL(dp)                                 :: coef_x(4, 0:lp), &
                                                  coef_xy(2, ((lp+1)*(lp+2))/2), &
-                                                 s(4)
+                                                 s0, s1, s2, s3, s4
 
      sci = 1
 
@@ -159,12 +159,16 @@
            coef_x = 0.0_dp
            DO ig = igmin, igmax
               i = map(ig, 1)
-              s(1) = grid(i, j, k)
-              s(2) = grid(i, j, k2)
-              s(3) = grid(i, j2, k)
-              s(4) = grid(i, j2, k2)
+              s1 = grid(i, j, k)
+              s2 = grid(i, j, k2)
+              s3 = grid(i, j2, k)
+              s4 = grid(i, j2, k2)
               DO lxp = 0, lp
-                 coef_x(:, lxp) = coef_x(:, lxp)+s(:)*pol_x(lxp, ig)
+                 s0 = pol_x(lxp, ig)
+                 coef_x(1, lxp) = coef_x(1, lxp)+s1*s0
+                 coef_x(2, lxp) = coef_x(2, lxp)+s2*s0
+                 coef_x(3, lxp) = coef_x(3, lxp)+s3*s0
+                 coef_x(4, lxp) = coef_x(4, lxp)+s4*s0
               ENDDO
            END DO
            coef_xy(:, 1) = coef_xy(:, 1)+coef_x(1:2, 0)*pol_y(1, 0, jg)
