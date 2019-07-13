@@ -223,7 +223,6 @@
 
      kgmin = sphere_bounds(sci)
      sci = sci+1
-!$OMP DO SIMD COLLAPSE(4)
      DO kg = kgmin, 0
         kg2 = 1-kg
         k = map(kg, 3)
@@ -268,7 +267,7 @@
         coef_xyz(4) = coef_xyz(4)+coef_xy(1, 1)*pol_z(1, 1, kg)
         coef_xyz(4) = coef_xyz(4)+coef_xy(2, 1)*pol_z(2, 1, kg)
      END DO
-!$OMP END DO SIMD
+
   END SUBROUTINE integrate_core_1
 ! **************************************************************************************************
 !> \brief ...
