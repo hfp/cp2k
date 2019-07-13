@@ -476,11 +476,21 @@ ifneq (,$(LIBXSMMROOT))
     $(info Automatically enabled LIBXSMM (LIBXSMMROOT=$(LIBXSMMROOT)))
     $(info ================================================================================)
     DFLAGS += -D__LIBXSMM=$(LIBXSMM)
-    # adjust CP2K configuration
-    DFLAGS += -D__HAS_smm_vec
+    DFLAGS += -DLIBXSMM_OPENMP_SIMD
+    ifeq (0,$(GNU))
+      CXXFLAGS += -qopenmp-simd
+      CFLAGS += -qopenmp-simd
+      FCFLAGS += -qopenmp-simd
+    else # GNU
+      CXXFLAGS += -fopenmp-simd
+      CFLAGS += -fopenmp-simd
+      FCFLAGS += -fopenmp-simd
+    endif
+    # investigate __HAS_smm_vec
+    #DFLAGS += -D__HAS_smm_vec
 
     # always attempt to link libxsmmext (needed at least in case of WRAP)
-	LIBS += $(CP2KHOME)/$(LIBDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/lib/libxsmm.a
+    LIBS += $(CP2KHOME)/$(LIBDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/lib/libxsmm.a
     LIBS += $(CP2KHOME)/$(LIBDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/lib/libxsmmext.a
     LIBS += $(CP2KHOME)/$(LIBDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/lib/libxsmmf.a
     IFLAGS += -I$(CP2KHOME)/$(LIBDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/include
