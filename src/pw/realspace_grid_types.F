@@ -1951,9 +1951,8 @@ CONTAINS
       CALL timeset(routineN, handle)
       l(1) = LBOUND(rs%r, 1); l(2) = LBOUND(rs%r, 2); l(3) = LBOUND(rs%r, 3)
       u(1) = UBOUND(rs%r, 1); u(2) = UBOUND(rs%r, 2); u(3) = UBOUND(rs%r, 3)
-!$OMP PARALLEL DO DEFAULT(NONE) COLLAPSE(3) &
-!$OMP             PRIVATE(i,j,k) &
-!$OMP             SHARED(rs,l,u)
+!$OMP PARALLEL DO SIMD COLLAPSE(3) &
+!$OMP DEFAULT(NONE) SHARED(rs,l,u)
       DO k = l(3), u(3)
       DO j = l(2), u(2)
       DO i = l(1), u(1)
@@ -1961,7 +1960,7 @@ CONTAINS
       ENDDO
       ENDDO
       ENDDO
-!$OMP END PARALLEL DO
+!$OMP END PARALLEL DO SIMD
       CALL timestop(handle)
 
    END SUBROUTINE rs_grid_zero
