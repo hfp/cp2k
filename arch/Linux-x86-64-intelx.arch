@@ -217,6 +217,8 @@ ifeq (0,$(GNU)) # Intel
       endif
     else ifneq (0,$(SSE))
       TARGET = -xSSE3
+    else ifneq (,$(shell grep -om1 '\bavx512vl\b' /proc/cpuinfo))
+      TARGET = -xHost -qopt-zmm-usage=high
     else
       TARGET = -xHost
     endif
