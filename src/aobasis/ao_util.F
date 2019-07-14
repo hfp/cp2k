@@ -371,7 +371,6 @@ CONTAINS
       ENDIF
 
       IF (iter+neps .LT. maxiter) THEN
-!DIR$ IVDEP
          DO iter = 1, neps
             rg = r0+rd*contract ! Golden Section
             g = d*rg**l*EXP(-a*rg*rg)
