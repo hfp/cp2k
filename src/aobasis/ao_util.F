@@ -311,9 +311,9 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius', routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: maxiter = 5000
-      REAL(KIND=dp), PARAMETER                           :: contract = 0.38_dp
+      REAL(KIND=dp), PARAMETER :: contract = 0.38_dp, logc = LOG(MAX(1.0_dp-contract, contract))
 
-      INTEGER                                            :: iter
+      INTEGER                                            :: iter, neps
       REAL(KIND=dp)                                      :: a, absiter, d, eps, g, r0, r1, rd, rg, t
 
       IF (l .LT. 0) THEN
@@ -341,7 +341,7 @@ CONTAINS
       d = ABS(prefactor)
       iter = maxiter
 
-      ! narrow interval using approximative method
+      ! assume data-dependent iterations only in exp_radius_fast (approximative)
       r1 = exp_radius_fast(l, a, t, d, absiter, epsrel, rlow=r0, maxiter=iter)
 
       ! avoid system calls in tight/arithmetic loops
@@ -352,30 +352,40 @@ CONTAINS
          radius = r1
          RETURN
       END IF
-      CPASSERT(r0 .LT. r1)
 
-      eps = absiter
-      DO iter = iter+1, maxiter
-         rd = r1-r0
-         rg = r0+rd*contract ! Golden Section
-         g = d*rg**l*EXP(-a*rg*rg)
-         IF (g .LT. t) THEN
-            IF (PRESENT(epsrel)) THEN
-               eps = MIN(absiter, epsrel*rg)
-            ENDIF
-            IF ((rd .GE. eps) .AND. (rg .NE. r1)) THEN
+      CPASSERT(r0 .LT. r1)
+      rd = r1-r0
+
+      ! calculate trip count (deterministic after exp_radius_fast)
+      IF (PRESENT(epsrel)) THEN
+         eps = MIN(absiter, epsrel*r1)
+      ELSE
+         eps = absiter
+      ENDIF
+
+      ! GSS/CEILING is slightly faster
+      IF (eps .LT. rd) THEN
+         neps = CEILING(LOG(eps/rd)/logc)
+      ELSE
+         neps = 1
+      ENDIF
+
+      IF (iter+neps .LT. maxiter) THEN
+         DO iter = 1, neps
+            rg = r0+rd*contract ! Golden Section
+            g = d*rg**l*EXP(-a*rg*rg)
+            IF (g .LT. t) THEN
                r1 = rg ! interval [r0, rg)
-            ELSE ! g(r) < threshold
-               radius = rg
+            ELSE
+               r0 = rg ! interval [rg, r1)
             ENDIF
-         ELSE IF (r0 .NE. rg) THEN
-            r0 = rg ! interval [rg, r1)
-         ELSE
-            radius = rg
-         ENDIF
-         IF (radius .EQ. rg) RETURN
-      ENDDO
-      CPABORT("Maximum number of iterations exceeded")
+            rd = r1-r0
+         ENDDO
+         radius = rg
+      ELSE
+         CPABORT("Maximum number of iterations exceeded")
+      ENDIF
+      CPASSERT(radius .EQ. radius) ! NaN
 
    END FUNCTION exp_radius
 
