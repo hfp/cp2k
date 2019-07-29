@@ -5,4 +5,3 @@
 #      for details see cp2k/tools/do_regtest
 #
 li_chain.inp                                          0     1.0E-04                        0.00000
-li_chain2.inp                                         0     1.0E-04                        0.00000

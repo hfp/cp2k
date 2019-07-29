@@ -116,8 +116,8 @@ MODULE mp2_integrals
    USE qs_3c_tensors,                   ONLY: build_3c_integrals,&
                                               build_3c_neighbor_lists,&
                                               distribution_3d_create,&
-                                              distribution_3d_type,&
-                                              neighbor_list_3c_destroy,&
+                                              neighbor_list_3c_destroy
+   USE qs_3c_tensors_types,             ONLY: distribution_3d_type,&
                                               neighbor_list_3c_type
    USE qs_collocate_density,            ONLY: calculate_wavefunction
    USE qs_environment_types,            ONLY: get_qs_env,&
@@ -816,7 +816,6 @@ CONTAINS
                IF (unit_nr > 0) WRITE (UNIT=unit_nr, FMT="(T3,A,T75,i6)") &
                   "3C_OVERLAP_INTEGRALS_INFO| Number of periodic images considered:", dft_control%nimages
             ENDIF
-            DEALLOCATE (basis_set_ri_aux, basis_set_ao)
 
             ! split blocks to improve load balancing for tensor contraction
             sqrt_max_bsize = qs_env%mp2_env%ri_rpa_im_time%max_bsize_sqrt
@@ -847,8 +846,11 @@ CONTAINS
                                     qs_env%mp2_env%mp2_gpw%eps_filter, &
                                     qs_env, &
                                     nl_3c, &
+                                    basis_i=basis_set_ri_aux, &
+                                    basis_j=basis_set_ao, basis_k=basis_set_ao, &
                                     do_kpoints=do_kpoints_cubic_RPA)
 
+            DEALLOCATE (basis_set_ri_aux, basis_set_ao)
             ! copy integral tensor t_3c_overl_int to t_3c_O tensor optimized for contraction
             CALL timeset(routineN//"_copy_3c", handle4)
             DO i = 1, SIZE(t_3c_overl_int, 1)
@@ -1139,13 +1141,14 @@ CONTAINS
          OPTIONAL, POINTER                               :: basis_ao_1, basis_ao_2, basis_RI
       LOGICAL, INTENT(IN), OPTIONAL                      :: do_kpoints
 
-      INTEGER                                            :: mp_comm_t3c_2, size_AO_1, size_AO_2, &
-                                                            size_RI
+      INTEGER                                            :: mp_comm_t3c_2, nkind, size_AO_1, &
+                                                            size_AO_2, size_RI
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: dist_ao_1, dist_ao_2, dist_RI
       INTEGER, DIMENSION(3)                              :: pcoor, pcoord, pdims
       LOGICAL                                            :: kp
       TYPE(dbcsr_t_distribution_type)                    :: dist
       TYPE(distribution_3d_type)                         :: dist_3d
+      TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
 
       IF (PRESENT(do_kpoints)) THEN
          kp = do_kpoints
@@ -1169,12 +1172,14 @@ CONTAINS
 
       IF (PRESENT(nl_3c)) THEN
          CPASSERT(PRESENT(qs_env))
+         CALL get_qs_env(qs_env, nkind=nkind, particle_set=particle_set)
          CPASSERT(PRESENT(basis_RI))
          CPASSERT(PRESENT(basis_ao_1))
          CPASSERT(PRESENT(basis_ao_2))
          CALL dbcsr_t_mp_environ_pgrid(mp_comm_t3c, pdims, pcoor)
          CALL mp_cart_create(mp_comm_t3c%mp_comm_2d, 3, pdims, pcoord, mp_comm_t3c_2)
-         CALL distribution_3d_create(qs_env, dist_3d, dist_RI, dist_ao_1, dist_ao_2, mp_comm_t3c_2, own_comm=.TRUE.)
+         CALL distribution_3d_create(dist_3d, dist_RI, dist_ao_1, dist_ao_2, &
+                                     nkind, particle_set, mp_comm_t3c_2, own_comm=.TRUE.)
 
          ! we rely on symmetry of the two AO-indices only if no k-points
          CALL build_3c_neighbor_lists(nl_3c, basis_RI, basis_ao_1, basis_ao_2, &

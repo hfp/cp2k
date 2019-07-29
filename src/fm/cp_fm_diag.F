@@ -537,7 +537,7 @@ CONTAINS
       needs_evecs = PRESENT(eigenvectors)
 
       logger => cp_get_default_logger()
-      ionode = logger%para_env%mepos == logger%para_env%source
+      ionode = logger%para_env%ionode
       n = matrix%matrix_struct%nrow_global
 
       ! by default allocate all needed space
@@ -865,7 +865,7 @@ CONTAINS
 
       ! Print some warnings/notes
 
-      IF (matrix%matrix_struct%para_env%mepos == 0 .AND. my_verbose) THEN
+      IF (matrix%matrix_struct%para_env%ionode .AND. my_verbose) THEN
          condition_number = ABS(eigenvalues(ncol_global)/eigenvalues(1))
          WRITE (UNIT=cp_logger_get_default_unit_nr(), FMT="(/,(T2,A,ES15.6))") &
             "CP_FM_POWER: smallest eigenvalue:", eigenvalues(1), &
