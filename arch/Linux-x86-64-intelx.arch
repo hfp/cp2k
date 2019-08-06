@@ -69,16 +69,10 @@ ifeq (1,$(shell echo $$((2 < $(LIBXSMM)))))
 endif
 endif
 ifeq (0,$(GNU))
-  RECONFIGURE ?= 1
   IPO ?= 0
 else # GNU
-  RECONFIGURE ?= 0
   IPO ?= 1
 endif
-
-# CP2K's configuration namespace (prefix)
-#
-CONFIG_PREFIX = dbcsr_config_mp_
 
 ifneq (0,$(OMP))
   MKL ?= 2
@@ -669,23 +663,6 @@ ifneq (0,$(MKL))
   endif
   LIBS += -Wl,--as-needed -lpthread -lm -ldl -Wl,--no-as-needed
   MIC_LDFLAGS += -qoffload-option,mic,ld,"-lpthread -lm -ldl"
-endif
-
-ifneq (,$(wildcard $(SRCDIR)/dbcsr/libsmm_acc/libxsmm_acc))
-  ifeq (,$(LIBXSMMROOT))
-    ifeq (,$(LIBXSTREAMROOT))
-      RECONFIGURE = 0
-    else ifeq (0,$(ACC))
-      RECONFIGURE = 0
-    endif
-  endif
-else # this is not the CP2K/intel branch 
-  RECONFIGURE = 0
-endif
-ifneq (0,$(RECONFIGURE))
-  DFLAGS  += -DCP2K_CONFIG_PREFIX=$(CONFIG_PREFIX)
-  LDFLAGS += -Wl,--wrap=$(CONFIG_PREFIX)dbcsr_set_config_
-  DIAG_DISABLE := $(DIAG_DISABLE),11021
 endif
 
 DFLAGS += -D__HAS_ISO_C_BINDING
