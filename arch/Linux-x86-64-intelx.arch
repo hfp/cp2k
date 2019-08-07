@@ -71,8 +71,10 @@ ifeq (1,$(shell echo $$((2 < $(LIBXSMM)))))
 endif
 endif
 ifeq (0,$(GNU))
+  OMPRT ?= iomp5
   IPO ?= 0
 else # GNU
+  OMPRT ?= gomp
   IPO ?= 1
 endif
 
@@ -414,7 +416,7 @@ ifneq (,$(ELPAROOT))
     LIBS += $(ELPAROOT)/lib/libelpa.a
     # in case ELPA is built with OpenMP
     ifeq (0,$(OMP))
-      LIBS += -Wl,--as-needed -liomp5 -Wl,--no-as-needed
+      LIBS += -Wl,--as-needed -l$(OMPRT) -Wl,--no-as-needed
     endif
   endif
 endif
@@ -506,9 +508,9 @@ ifneq (,$(LIBXSMMROOT))
     # account for OpenMP-enabled libxsmmext routines
     ifeq (0,$(OMP))
       ifeq (1,$(MKL))
-        LIBS += -liomp5
+        LIBS += -l$(OMPRT)
       else ifeq (0,$(MKL))
-        LIBS += -liomp5
+        LIBS += -l$(OMPRT)
       endif
     endif
     # enable additional use cases for LIBXSMM
@@ -608,8 +610,8 @@ ifeq (1,$(MKL)) # sequential
 else ifneq (0,$(MKL)) # multi-threaded
   MKL_THREADS = $(MKL_OMPRTL)_thread
   ifeq (0,$(OMP))
-    MIC_LDFLAGS += -qoffload-option,mic,ld,"-liomp5"
-    LIBS += -liomp5
+    MIC_LDFLAGS += -qoffload-option,mic,ld,"-l$(OMPRT)"
+    LIBS += -l$(OMPRT)
   endif
 endif
 ifneq (0,$(MKL))
