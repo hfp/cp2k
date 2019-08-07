@@ -486,12 +486,14 @@ ifneq (,$(LIBXSMMROOT))
     $(info Automatically enabled LIBXSMM (LIBXSMMROOT=$(LIBXSMMROOT)))
     $(info ================================================================================)
     DFLAGS += -D__LIBXSMM=$(LIBXSMM)
-    DFLAGS += -DLIBXSMM_OPENMP_SIMD
     ifeq (0,$(GNU))
+      DFLAGS += -D_OPENMP_SIMD
       CXXFLAGS += -qopenmp-simd
       CFLAGS += -qopenmp-simd
       FCFLAGS += -qopenmp-simd
-    else # GNU
+    else ifeq (,$(filter _0_ __,_$(SIMD)_)) # force-enable with SIMD=1
+    # GNU: https://github.com/cp2k/dbcsr/issues/217
+      DFLAGS += -D_OPENMP_SIMD
       CXXFLAGS += -fopenmp-simd
       CFLAGS += -fopenmp-simd
       FCFLAGS += -fopenmp-simd
