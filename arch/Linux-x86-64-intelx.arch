@@ -50,7 +50,9 @@ NDEBUG ?= 0
 MKL_DIRECT ?= 0
 MKL_STATIC ?= 1
 
-ifneq (,$(wildcard $(CP2KHOME)/$(EXTSDIR)/dbcsr))
+EXTSDIR ?= exts
+EXTSHOME ?= $(CP2KHOME)/$(EXTSDIR)
+ifneq (,$(wildcard $(EXTSHOME)/dbcsr))
   IFLAGS += -I$(CP2KHOME)/$(OBJDIRNAME)/$(ARCH)/$(ONEVERSION)/exts/dbcsr
   ELPA ?= 1
 else
