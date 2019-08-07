@@ -52,7 +52,7 @@ MKL_STATIC ?= 1
 
 ifneq (,$(wildcard $(CP2KHOME)/$(EXTSDIR)/dbcsr))
   IFLAGS += -I$(CP2KHOME)/$(OBJDIRNAME)/$(ARCH)/$(ONEVERSION)/exts/dbcsr
-  ELPA ?= 201905
+  ELPA ?= 1
 else
   ELPA ?= 201705
 endif
@@ -401,7 +401,11 @@ endif
 
 ifneq (,$(ELPAROOT))
   ifneq (0,$(ELPA))
-    DFLAGS += -D__ELPA=$(ELPA)
+    ifneq (1,$(ELPA))
+      DFLAGS += -D__ELPA=$(ELPA)
+    else
+      DFLAGS += -D__ELPA
+    endif
     ELPAINCDIR = $(dir $(shell ls -1 $(ELPAROOT)/include/*/elpa/elpa_*constants.h | head -n1))
     ELPAMODDIR = $(ELPAINCDIR)../modules
     IFLAGS += -I$(ELPAINCDIR) -I$(ELPAMODDIR)
