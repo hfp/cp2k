@@ -373,13 +373,17 @@ def send_notification(report, last_ok, log, name, s):
     if(idx_end == idx_last_ok): return # probably a flapping tester
     emails = set([log[i]['author-email'] for i in range(idx_end, idx_last_ok)])
     emails = [e for e in emails if "noreply" not in e]
+    emails_str = ", ".join(emails)
     if not emails:
         return # no author emails found
+    if len(emails) > 3:
+        print("Spam protection, found more than three authors: " + emails_str)
+        return
     if (not send_emails):
-        print("Email sending disabled, would otherwise send to: "+msg['To'])
+        print("Email sending disabled, would otherwise send to: " + emails_str)
         return
 
-    print("Sending email to: "+", ".join(emails))
+    print("Sending email to: " + emails_str)
 
     msg_txt  = "Dear CP2K developer,\n\n"
     msg_txt += "the dashboard has detected a problem that one of your recent commits might have introduced.\n\n"
@@ -555,6 +559,10 @@ def retrieve_report(url):
         r.raise_for_status()
         if r.status_code == 304:  # Not Modified - cache hit
             return data_file.read_text()
+
+        # check report size
+        report_size = int(r.headers['Content-Length'])
+        assert report_size < 3*1024*1024  # 3 MB
 
         # cache miss - store response
         if 'ETag' in r.headers:
