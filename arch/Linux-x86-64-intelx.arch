@@ -509,6 +509,7 @@ ifneq (,$(LIBXSMMROOT))
 
     # account for OpenMP-enabled libxsmmext routines
     ifeq (0,$(OMP))
+      DFLAGS += -DDBCSR_LIBXSMM_GEMM_BATCH=libxsmm_gemm_batch_omp
       ifeq (1,$(MKL))
         LIBS += -l$(OMPRT)
       else ifeq (0,$(MKL))
