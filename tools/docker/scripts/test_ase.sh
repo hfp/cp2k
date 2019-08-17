@@ -5,9 +5,16 @@
 # shellcheck disable=SC1091
 source /opt/cp2k-toolchain/install/setup
 
-echo -e "\n========== Compiling CP2K =========="
 cd /workspace/cp2k
-make -j VERSION=pdbg
+echo -n "Compiling cp2k... "
+if make -j VERSION=pdbg &> /dev/null ; then
+   echo "done."
+else
+   echo -e "failed.\n\n"
+   echo "Summary: Compilation failed."
+   echo "Status: FAILED"
+   exit
+fi
 
 echo -e "\n========== Installing CP2K =========="
 # The cp2k main binary is used by ase/test/cp2k/cp2k_dcd.py.
@@ -34,7 +41,10 @@ set -e # abort if error is encountered
 for i in ./ase/test/cp2k/cp2k_*.py
 do
   echo "Running $i ..."
-  python3 "$i"
+  python3 "$i" |& tee "/tmp/test_ase.out"
+  if grep "Exception ignored" "/tmp/test_ase.out" ; then
+    exit 1  # Found unraisable exception, e.g. in __del__.
+  fi
 done
 )
 
