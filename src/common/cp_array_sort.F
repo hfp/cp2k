@@ -55,16 +55,18 @@ subroutine cp_1d_${nametype1}$_sort(arr, n, indices)
    ${type1}$, pointer                   :: tmp_arr(:)
    integer, pointer                   :: tmp_idx(:)
 
-   if(n == 0) return ! for some reason this is a frequent case in cp2k
+   if (1 < n) then
+      ! scratch space used during the merge step
+      allocate(tmp_arr((n+1)/2), tmp_idx((n+1)/2))
 
-   ! scratch space used during the merge step
-   allocate(tmp_arr((size(arr)+1)/2), tmp_idx((size(arr)+1)/2))
+      indices = (/ (i, i = 1, n) /)
 
-   indices = (/ (i, i = 1, size(arr)) /)
+      call cp_1d_${nametype1}$_sort_low(arr(1:n), indices, tmp_arr, tmp_idx)
 
-   call cp_1d_${nametype1}$_sort_low(arr(1:n), indices, tmp_arr, tmp_idx)
-
-   deallocate(tmp_arr,tmp_idx)
+      deallocate(tmp_arr,tmp_idx)
+   else if (0 < n) then ! can be a frequent case in cp2k
+      indices = (/ 1 /)
+   endif
 
 end subroutine cp_1d_${nametype1}$_sort
 
