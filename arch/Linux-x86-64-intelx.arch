@@ -329,7 +329,11 @@ ifneq (0,$(SYM))
   ifneq (1,$(SYM))
     CXXFLAGS := -ggdb3 $(CXXFLAGS)
     CFLAGS := -ggdb3 $(CFLAGS)
-    FCFLAGS := -ggdb3 $(FCFLAGS)
+    ifneq (0,$(GNU))
+      FCFLAGS := -ggdb3 $(FCFLAGS)
+    else # IFORT
+      FCFLAGS := -g $(FCFLAGS)
+    endif
   else
     CXXFLAGS := -g $(CXXFLAGS)
     CFLAGS := -g $(CFLAGS)
