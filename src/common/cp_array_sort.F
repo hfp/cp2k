@@ -9,10 +9,10 @@
 !> \brief Routine for sorting an array
 !> \note
 !>      CP2K:
-!>      Please use the interface definded in util.F for calling sort().
+!>      Please use the interface defined in util.F for calling sort().
 !>
 !>      DBCSR:
-!>      Please use the interface definded in dbcsr_toollib.F for calling sort().
+!>      Please use the interface defined in dbcsr_toollib.F for calling sort().
 !> \par History
 !>      12.2012 first version [ole]
 !> \author Ole Schuett
@@ -47,13 +47,13 @@ USE kinds, ONLY: ${uselist(usekinds)}$
 !> \author Ole Schuett
 ! **************************************************************************************************
 subroutine cp_1d_${nametype1}$_sort(arr, n, indices)
-   integer, intent(in)                  :: n
+   integer, intent(in)                      :: n
    ${type1}$, dimension(1:n), intent(inout) :: arr
-   integer, dimension(1:n), intent(out)   :: indices
+   integer, dimension(1:n), intent(out)     :: indices
 
    integer :: i
-   ${type1}$, pointer                   :: tmp_arr(:)
-   integer, pointer                   :: tmp_idx(:)
+   ${type1}$, allocatable                   :: tmp_arr(:)
+   integer, allocatable                     :: tmp_idx(:)
 
    if (1 < n) then
       ! scratch space used during the merge step
@@ -65,7 +65,7 @@ subroutine cp_1d_${nametype1}$_sort(arr, n, indices)
 
       deallocate(tmp_arr,tmp_idx)
    else if (0 < n) then ! can be a frequent case in cp2k
-      indices = (/ 1 /)
+      indices(1) = 1
    endif
 
 end subroutine cp_1d_${nametype1}$_sort
@@ -117,21 +117,21 @@ recursive subroutine cp_1d_${nametype1}$_sort_low(arr, indices, tmp_arr, tmp_idx
       return
    endif
 
-   ! split list in half and recusively sort both sublists
+   ! split list in half and recursively sort both sublists
    m = (size(arr)+1)/2 ! index where we going to divide the list in two
    call cp_1d_${nametype1}$_sort_low(arr(1:m), indices(1:m), tmp_arr, tmp_idx)
    call cp_1d_${nametype1}$_sort_low(arr(m+1:), indices(m+1:), tmp_arr, tmp_idx)
 
-   ! Check for a special case: Can we just concate the two sorted sublists?
+   ! Check for a special case: Can we just concatenate the two sorted sublists?
    ! This leads to O(n) scaling if the input is already sorted.
    if (@{lessQ(arr(m+1), arr(m))}@) then
       ! ...no - let's merge the two sorted sublists arr(:m) and arr(m+1:)
       ! Merge will be performed directly in arr. Need backup of first sublist.
       tmp_arr(1:m) = arr(1:m)
       tmp_idx(1:m) = indices(1:m)
-      i = 1; ! number of elemens consumed from 1st sublist
-      j = 1; ! number of elemens consumed from 2nd sublist
-      k = 1; ! number of elemens already merged
+      i = 1; ! number of elements consumed from 1st sublist
+      j = 1; ! number of elements consumed from 2nd sublist
+      k = 1; ! number of elements already merged
 
       do while(i <= m .and. j <= size(arr)-m )
       if (@{lessQ(arr(m+j), tmp_arr(i))}@) then
