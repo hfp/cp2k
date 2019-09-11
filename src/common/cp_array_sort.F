@@ -9,10 +9,10 @@
 !> \brief Routine for sorting an array
 !> \note
 !>      CP2K:
-!>      Please use the interface definded in util.F for calling sort().
+!>      Please use the interface defined in util.F for calling sort().
 !>
 !>      DBCSR:
-!>      Please use the interface definded in dbcsr_toollib.F for calling sort().
+!>      Please use the interface defined in dbcsr_toollib.F for calling sort().
 !> \par History
 !>      12.2012 first version [ole]
 !> \author Ole Schuett
@@ -47,13 +47,13 @@ USE kinds, ONLY: ${uselist(usekinds)}$
 !> \author Ole Schuett
 ! **************************************************************************************************
 subroutine cp_1d_${nametype1}$_sort(arr, n, indices)
-   integer, intent(in)                  :: n
+   integer, intent(in)                      :: n
    ${type1}$, dimension(1:n), intent(inout) :: arr
-   integer, dimension(1:n), intent(out)   :: indices
+   integer, dimension(1:n), intent(out)     :: indices
 
    integer :: i
-   ${type1}$, pointer                   :: tmp_arr(:)
-   integer, pointer                   :: tmp_idx(:)
+   ${type1}$, allocatable                   :: tmp_arr(:)
+   integer, allocatable                     :: tmp_idx(:)
 
    if (1 < n) then
       ! scratch space used during the merge step
@@ -65,7 +65,7 @@ subroutine cp_1d_${nametype1}$_sort(arr, n, indices)
 
       deallocate(tmp_arr,tmp_idx)
    else if (0 < n) then ! can be a frequent case in cp2k
-      indices = (/ 1 /)
+      indices(1) = 1
    endif
 
 end subroutine cp_1d_${nametype1}$_sort
