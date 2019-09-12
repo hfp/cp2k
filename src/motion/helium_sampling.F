@@ -187,8 +187,8 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'helium_sample', routineP = moduleN//':'//routineN
 
       CHARACTER(len=default_string_length)               :: msg_str
-      INTEGER                                            :: i, ires, irot, iweight, k, nslices, &
-                                                            nsteps, num_env, offset, sel_mp_source
+      INTEGER                                            :: i, irot, iweight, k, nslices, nsteps, &
+                                                            num_env, offset, sel_mp_source
       REAL(KIND=dp)                                      :: inv_num_env, inv_xn, rnd, rtmp, rweight
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: work_2d
       TYPE(cp_logger_type), POINTER                      :: logger
@@ -216,23 +216,9 @@ CONTAINS
 
          CASE (helium_sampling_worm)
 
-            CALL helium_sample_worm(helium_env(k)%helium, pint_env, helium_env(k)%helium%iter_rot, ires)
+            CALL helium_sample_worm(helium_env(k)%helium, pint_env)
 
-            IF (ires > 0) THEN
-               inv_xn = 1.0_dp/REAL(ires, dp)
-               IF (helium_env(k)%helium%solute_present .AND. helium_env(k)%helium%get_helium_forces == helium_forces_last) THEN
-                  DO i = 1, 10
-                     IF (helium_env(k)%helium%isector == 0) EXIT
-                     CALL helium_sample_worm(helium_env(k)%helium, pint_env, INT(helium_env(k)%helium%iter_rot*0.1d0), ires)
-                     inv_xn = 1.0_dp/REAL(ires, dp)
-                  END DO
-                  IF (helium_env(k)%helium%isector == 1) THEN
-                     CPABORT("No closed configuration after 10 attempts.Stopping.")
-                  END IF
-               END IF
-            ELSE
-               CPABORT("No statistics could be extracted. Stopping.")
-            END IF
+            inv_xn = 1.0_dp/REAL(helium_env(k)%helium%worm_nstat, dp)
 
          CASE (helium_sampling_ceperley)
             ! helium sampling (outer MC loop)
