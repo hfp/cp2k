@@ -29,8 +29,8 @@
     MULTIPLICITY 1
 
     &MGRID
-      CUTOFF    200
-      REL_CUTOFF 50
+      CUTOFF     50
+      REL_CUTOFF 20
       ! SKIP_LOAD_BALANCE_DISTRIBUTED
     &END MGRID
     &QS
@@ -39,7 +39,7 @@
     &END QS
     &SCF
       SCF_GUESS ATOMIC
-      EPS_SCF 5.0E-7
+      EPS_SCF 5.0E-5
       MAX_SCF 30
       ADDED_MOS 5
 
@@ -49,7 +49,7 @@
       &END MOM
 
       &OUTER_SCF
-        EPS_SCF  2.0E-7
+        EPS_SCF  2.0E-5
         MAX_SCF  2
       &END
     &END SCF
@@ -59,12 +59,12 @@
       &HF
         FRACTION  1.0
         &SCREENING
-          EPS_SCHWARZ          1.0E-8
+          EPS_SCHWARZ          1.0E-7
           SCREEN_ON_INITIAL_P  FALSE
         &END SCREENING
         &INTERACTION_POTENTIAL
           POTENTIAL_TYPE TRUNCATED
-          CUTOFF_RADIUS  3.0
+          CUTOFF_RADIUS  2.0
           T_C_G_DATA  t_c_g.dat
         &END
       &END HF
@@ -76,14 +76,14 @@
           FREE_HFX_BUFFER .FALSE.
         &END
         &CPHF
-          EPS_CONV  1.0E-5
-          MAX_ITER  50
+          EPS_CONV  1.0E-4
+          MAX_ITER  10
         &END
         &WFC_GPW
-          CUTOFF      100
-          REL_CUTOFF  25
-          EPS_FILTER  1.0E-5
-          EPS_GRID    1.0E-7
+          CUTOFF      20
+          REL_CUTOFF  10
+          EPS_FILTER  1.0E-4
+          EPS_GRID    1.0E-6
         &END
         MEMORY    500
         NUMBER_PROC  1

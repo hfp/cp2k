@@ -50,7 +50,9 @@ MODULE mp2_ri_grad
                                               mp2_eri_3c_integrate,&
                                               mp2_eri_deallocate_forces,&
                                               mp2_eri_force
-   USE mp2_integrals,                   ONLY: calc_potential_gpw
+   USE mp2_eri_gpw,                     ONLY: calc_potential_gpw,&
+                                              cleanup_gpw,&
+                                              prepare_gpw
    USE mp2_types,                       ONLY: integ_mat_buffer_type,&
                                               integ_mat_buffer_type_2D,&
                                               mp2_type
@@ -105,13 +107,12 @@ MODULE mp2_ri_grad
 CONTAINS
 
 ! **************************************************************************************************
-!> \brief Calcualte the non-separable part of the gradients and update the
+!> \brief Calculate the non-separable part of the gradients and update the
 !>        Lagrangian
 !> \param qs_env ...
 !> \param mp2_env ...
 !> \param para_env ...
 !> \param para_env_sub ...
-!> \param dft_control ...
 !> \param cell ...
 !> \param particle_set ...
 !> \param atomic_kind_set ...
@@ -125,29 +126,20 @@ CONTAINS
 !> \param my_group_L_end ...
 !> \param my_group_L_size ...
 !> \param sab_orb_sub ...
-!> \param rho_r ...
-!> \param rho_g ...
-!> \param pot_g ...
 !> \param mat_munu ...
-!> \param pw_env_sub ...
-!> \param poisson_env ...
-!> \param auxbas_pw_pool ...
-!> \param task_list_sub ...
 !> \param blacs_env_sub ...
 !> \param Eigenval_beta ...
 !> \param homo_beta ...
 !> \param mo_coeff_beta ...
 !> \author Mauro Del Ben
 ! **************************************************************************************************
-   SUBROUTINE calc_ri_mp2_nonsep(qs_env, mp2_env, para_env, para_env_sub, dft_control, cell, particle_set, &
+   SUBROUTINE calc_ri_mp2_nonsep(qs_env, mp2_env, para_env, para_env_sub, cell, particle_set, &
                                  atomic_kind_set, qs_kind_set, mo_coeff, nmo, homo, dimen_RI, Eigenval, &
-                                 my_group_L_start, my_group_L_end, my_group_L_size, sab_orb_sub, rho_r, rho_g, pot_g, &
-                                 mat_munu, pw_env_sub, poisson_env, auxbas_pw_pool, task_list_sub, &
+                                 my_group_L_start, my_group_L_end, my_group_L_size, sab_orb_sub, mat_munu, &
                                  blacs_env_sub, Eigenval_beta, homo_beta, mo_coeff_beta)
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(mp2_type), POINTER                            :: mp2_env
       TYPE(cp_para_env_type), POINTER                    :: para_env, para_env_sub
-      TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(cell_type), POINTER                           :: cell
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
@@ -159,12 +151,7 @@ CONTAINS
                                                             my_group_L_size
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
          POINTER                                         :: sab_orb_sub
-      TYPE(pw_p_type), INTENT(INOUT)                     :: rho_r, rho_g, pot_g
       TYPE(dbcsr_p_type), INTENT(INOUT)                  :: mat_munu
-      TYPE(pw_env_type), POINTER                         :: pw_env_sub
-      TYPE(pw_poisson_type), POINTER                     :: poisson_env
-      TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
-      TYPE(task_list_type), POINTER                      :: task_list_sub
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env_sub
       REAL(KIND=dp), DIMENSION(:), INTENT(IN), OPTIONAL  :: Eigenval_beta
       INTEGER, INTENT(IN), OPTIONAL                      :: homo_beta
@@ -175,17 +162,18 @@ CONTAINS
 
       INTEGER :: alpha, atom_a, beta, dimen, dir, eri_method, handle, handle2, handle3, i, iatom, &
          igrid_level, ikind, iorb, ipgf, iset, itmp(2), L_counter, lb(3), LLL, location(3), &
-         my_P_end, my_P_size, my_P_start, na1, na2, natom, ncoa, nseta, offset, sgfa, tp(3), &
-         ub(3), virtual, virtual_beta
+         my_P_end, my_P_size, my_P_start, na1, na2, natom, ncoa, nseta, offset, potential_type, &
+         sgfa, tp(3), ub(3), virtual, virtual_beta
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: atom_of_kind, kind_of
       INTEGER, DIMENSION(3)                              :: comp
       INTEGER, DIMENSION(:), POINTER                     :: la_max, la_min, npgfa, nsgfa
       INTEGER, DIMENSION(:, :), POINTER                  :: first_sgfa
       LOGICAL                                            :: alpha_beta, map_it_here, skip_shell, &
                                                             use_virial
-      REAL(KIND=dp)                                      :: e_hartree, eps_filter, factor, &
-                                                            pair_energy, rab2, total_rho
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: wf_vector
+      REAL(KIND=dp)                                      :: cutoff_old, e_hartree, eps_filter, &
+                                                            factor, omega, pair_energy, rab2, &
+                                                            relative_cutoff_old, total_rho
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: e_cutoff_old, wf_vector
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: G_PQ_local, I_ab
       REAL(KIND=dp), DIMENSION(3)                        :: force_a, force_b, ra, rab
       REAL(KIND=dp), DIMENSION(3, 3)                     :: h_stress, my_virial_a, my_virial_b
@@ -201,15 +189,21 @@ CONTAINS
                                                             matrix_P_munu_local
       TYPE(dbcsr_type), POINTER                          :: mo_coeff_o, mo_coeff_o_beta, mo_coeff_v, &
                                                             mo_coeff_v_beta
+      TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(gto_basis_set_type), POINTER                  :: basis_set_a
       TYPE(mp2_eri_force), ALLOCATABLE, DIMENSION(:)     :: force_2c, force_3c_aux, force_3c_orb_mu, &
                                                             force_3c_orb_nu
-      TYPE(pw_p_type)                                    :: dvg(3), psi_L, psi_L_beta, temp_pw_g
+      TYPE(pw_env_type), POINTER                         :: pw_env_sub
+      TYPE(pw_p_type)                                    :: dvg(3), pot_g, psi_L, psi_L_beta, rho_g, &
+                                                            rho_r, temp_pw_g
+      TYPE(pw_poisson_type), POINTER                     :: poisson_env
+      TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
       TYPE(qs_force_type), DIMENSION(:), POINTER         :: force
       TYPE(qs_ks_env_type), POINTER                      :: ks_env
       TYPE(realspace_grid_desc_p_type), DIMENSION(:), &
          POINTER                                         :: rs_descs
       TYPE(realspace_grid_p_type), DIMENSION(:), POINTER :: rs_v
+      TYPE(task_list_type), POINTER                      :: task_list_sub
       TYPE(virial_type), POINTER                         :: virial
 
       CALL timeset(routineN, handle)
@@ -223,6 +217,8 @@ CONTAINS
 
       dimen = nmo
       virtual = dimen-homo
+      potential_type = mp2_env%potential_parameter%potential_type
+      omega = mp2_env%potential_parameter%omega
       IF (alpha_beta) virtual_beta = dimen-homo_beta
       eps_filter = mp2_env%mp2_gpw%eps_filter
       NULLIFY (mo_coeff_o, mo_coeff_v, G_P_ia, ks_env)
@@ -326,13 +322,13 @@ CONTAINS
 
          ALLOCATE (I_tmp2(dimen_RI, my_group_L_size))
          I_tmp2(:, :) = 0.0_dp
-         CALL mp2_eri_2c_integrate(eri_param, para_env_sub, qs_env, &
+         CALL mp2_eri_2c_integrate(eri_param, potential_type, omega, para_env_sub, qs_env, &
                                    basis_type_a="RI_AUX", basis_type_b="RI_AUX", &
                                    hab=I_tmp2, first_b=my_group_L_start, last_b=my_group_L_end, &
                                    eri_method=eri_method, pab=G_PQ_local, force_a=force_2c)
 
          DEALLOCATE (I_tmp2)
-         CALL mp2_eri_3c_integrate(eri_param, para_env_sub, qs_env, &
+         CALL mp2_eri_3c_integrate(eri_param, potential_type, omega, para_env_sub, qs_env, &
                                    first_c=my_group_L_start, last_c=my_group_L_end, mat_ab=mat_munu_local, &
                                    basis_type_a="ORB", basis_type_b="ORB", basis_type_c="RI_AUX", &
                                    sab_nl=sab_orb_sub, eri_method=eri_method, &
@@ -390,12 +386,12 @@ CONTAINS
          ALLOCATE (atom_of_kind(natom))
          CALL get_atomic_kind_set(atomic_kind_set, kind_of=kind_of, atom_of_kind=atom_of_kind)
 
+         ! Supporting stuff for GPW
+         CALL prepare_gpw(qs_env, dft_control, e_cutoff_old, cutoff_old, relative_cutoff_old, para_env_sub, pw_env_sub, &
+                          auxbas_pw_pool, poisson_env, task_list_sub, rho_r, rho_g, pot_g, psi_L, sab_orb_sub)
+
          ! wave function vector and supporting stuff
          ALLOCATE (wf_vector(dimen_RI))
-         NULLIFY (psi_L%pw)
-         CALL pw_pool_create_pw(auxbas_pw_pool, psi_L%pw, &
-                                use_data=REALDATA3D, &
-                                in_space=REALSPACE)
          IF (alpha_beta) THEN
             NULLIFY (psi_L_beta%pw)
             CALL pw_pool_create_pw(auxbas_pw_pool, psi_L_beta%pw, &
@@ -464,7 +460,7 @@ CONTAINS
                rho_r%pw%cr3d = 0.50_dp*(rho_r%pw%cr3d+psi_L_beta%pw%cr3d)
             ENDIF
 
-            CALL calc_potential_gpw(rho_r, rho_g, poisson_env, pot_g)
+            CALL calc_potential_gpw(rho_r, rho_g, poisson_env, pot_g, potential_type, omega)
             CALL timestop(handle3)
 
             IF (use_virial) THEN
@@ -873,7 +869,6 @@ CONTAINS
          DEALLOCATE (kind_of)
          DEALLOCATE (atom_of_kind)
          DEALLOCATE (wf_vector)
-         CALL pw_pool_give_back_pw(auxbas_pw_pool, psi_L%pw)
 
          IF (alpha_beta) THEN
             CALL pw_pool_give_back_pw(auxbas_pw_pool, psi_L_beta%pw)
@@ -885,6 +880,9 @@ CONTAINS
                CALL pw_pool_give_back_pw(auxbas_pw_pool, dvg(i)%pw)
             END DO
          END IF
+
+         CALL cleanup_gpw(qs_env, e_cutoff_old, cutoff_old, relative_cutoff_old, pw_env_sub, &
+                          task_list_sub, auxbas_pw_pool, rho_r, rho_g, pot_g, psi_L)
 
          CALL dbcsr_release(matrix_P_munu%matrix)
          DEALLOCATE (matrix_P_munu%matrix)
