@@ -338,7 +338,7 @@ MODULE lri_environment_types
    END TYPE lri_kind_type
 
    TYPE lri_spin_type
-      TYPE(lri_kind_type), DIMENSION(:), POINTER                :: lri_kinds
+      TYPE(lri_kind_type), DIMENSION(:), POINTER, CONTIGUOUS    :: lri_kinds
    END TYPE lri_spin_type
 
 ! **************************************************************************************************
@@ -357,9 +357,10 @@ MODULE lri_environment_types
       INTEGER                                                 :: id_nr, ref_count, in_use
       INTEGER                                                 :: nspin
       ! pair density expansion (nspin)
-      TYPE(lri_list_p_type), DIMENSION(:), POINTER            :: lri_rhos
+      TYPE(lri_list_p_type), DIMENSION(:), &
+         POINTER, CONTIGUOUS                                  :: lri_rhos
       ! coefficients of RI expansion and gradients (nspin)
-      TYPE(lri_spin_type), DIMENSION(:), POINTER              :: lri_coefs
+      TYPE(lri_spin_type), DIMENSION(:), POINTER, CONTIGUOUS  :: lri_coefs
    END TYPE lri_density_type
 
 ! **************************************************************************************************

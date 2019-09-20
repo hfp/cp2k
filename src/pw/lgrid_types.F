@@ -29,7 +29,7 @@ MODULE lgrid_types
 
    TYPE lgrid_type
       INTEGER :: ldim, ref_count
-      REAL(dp), DIMENSION(:, :), POINTER :: r
+      REAL(dp), DIMENSION(:, :), POINTER, CONTIGUOUS :: r
    END TYPE lgrid_type
 
    TYPE lgrid_p_type
@@ -113,7 +113,9 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(lgrid))
       CPASSERT(.NOT. ASSOCIATED(lgrid%r))
+!$OMP MASTER
       ALLOCATE (lgrid%r(lgrid%ldim, 0:nthreads-1))
+!$OMP END MASTER
 
       CALL timestop(handle)
    END SUBROUTINE

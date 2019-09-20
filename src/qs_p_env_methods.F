@@ -121,9 +121,9 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(qs_kpp1_env_type), OPTIONAL, POINTER          :: kpp1_env
       TYPE(dbcsr_p_type), DIMENSION(:), OPTIONAL, &
-         POINTER                                         :: p1_option
+         POINTER, CONTIGUOUS                             :: p1_option
       TYPE(cp_fm_p_type), DIMENSION(:), OPTIONAL, &
-         POINTER                                         :: psi0d
+         POINTER, CONTIGUOUS                             :: psi0d
       LOGICAL, INTENT(in), OPTIONAL                      :: orthogonal_orbitals
       TYPE(linres_control_type), OPTIONAL, POINTER       :: linres_control
 
@@ -131,10 +131,12 @@ CONTAINS
 
       INTEGER                                            :: handle, n_ao, n_mo, n_spins, natom, spin
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
-      TYPE(cp_fm_pool_p_type), DIMENSION(:), POINTER     :: ao_mo_fm_pools, mo_mo_fm_pools
+      TYPE(cp_fm_pool_p_type), DIMENSION(:), &
+         POINTER, CONTIGUOUS                             :: ao_mo_fm_pools, mo_mo_fm_pools
       TYPE(cp_fm_type), POINTER                          :: qs_env_c
       TYPE(cp_para_env_type), POINTER                    :: para_env
-      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s
+      TYPE(dbcsr_p_type), DIMENSION(:), &
+         POINTER, CONTIGUOUS                             :: matrix_s
       TYPE(dft_control_type), POINTER                    :: dft_control
 
 ! code
@@ -362,7 +364,7 @@ CONTAINS
       TYPE(qs_p_env_type), POINTER                       :: p_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(cp_fm_p_type), DIMENSION(:), OPTIONAL, &
-         POINTER                                         :: psi0
+         POINTER, CONTIGUOUS                             :: psi0
       TYPE(cp_fm_p_type), DIMENSION(:), INTENT(inout), &
          OPTIONAL                                        :: Hrho_psi0d
 
@@ -372,13 +374,17 @@ CONTAINS
       INTEGER                                            :: handle, iounit, lfomo, n_spins, nmo, spin
       LOGICAL                                            :: was_present
       REAL(KIND=dp)                                      :: maxocc
-      TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: my_psi0
-      TYPE(cp_fm_pool_p_type), DIMENSION(:), POINTER     :: ao_mo_fm_pools
+      TYPE(cp_fm_p_type), DIMENSION(:), &
+         POINTER, CONTIGUOUS                             :: my_psi0
+      TYPE(cp_fm_pool_p_type), DIMENSION(:), &
+         POINTER, CONTIGUOUS                             :: ao_mo_fm_pools
       TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(cp_para_env_type), POINTER                    :: para_env
-      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_ks, matrix_s, rho_ao
+      TYPE(dbcsr_p_type), DIMENSION(:), &
+         POINTER, CONTIGUOUS                             :: matrix_ks, matrix_s, rho_ao
       TYPE(dft_control_type), POINTER                    :: dft_control
-      TYPE(mo_set_p_type), DIMENSION(:), POINTER         :: mos
+      TYPE(mo_set_p_type), DIMENSION(:), &
+         POINTER, CONTIGUOUS                             :: mos
       TYPE(qs_energy_type), POINTER                      :: energy
       TYPE(qs_ks_env_type), POINTER                      :: ks_env
       TYPE(qs_rho_type), POINTER                         :: rho
@@ -688,7 +694,8 @@ CONTAINS
 
       TYPE(qs_p_env_type), POINTER                       :: p_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
-      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: p1
+      TYPE(dbcsr_p_type), DIMENSION(:), &
+         POINTER, CONTIGUOUS                             :: p1
       TYPE(cp_fm_p_type), DIMENSION(:), INTENT(INOUT)    :: res
       REAL(KIND=dp), INTENT(in), OPTIONAL                :: alpha, beta
 
@@ -699,7 +706,8 @@ CONTAINS
       INTEGER, SAVE                                      :: iter = 0
       LOGICAL                                            :: gapw, gapw_xc
       REAL(KIND=dp)                                      :: my_alpha, my_beta
-      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: rho1_ao
+      TYPE(dbcsr_p_type), DIMENSION(:), &
+         POINTER, CONTIGUOUS                             :: rho1_ao
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(qs_rho_type), POINTER                         :: rho
 

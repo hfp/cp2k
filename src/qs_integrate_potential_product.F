@@ -153,13 +153,15 @@ CONTAINS
          jkind, jkind_old, jpgf, jpgf_new, jset, jset_new, jset_old, maxco, maxpgf, maxset, &
          maxsgf_set, na1, na2, natom, nb1, nb2, ncoa, ncob, nimages, nkind, nseta, nsetb, nthread, &
          offs_dv, sgfa, sgfb
-      INTEGER(KIND=int_8), DIMENSION(:), POINTER         :: atom_pair_recv, atom_pair_send
-      INTEGER(kind=int_8), DIMENSION(:, :), POINTER      :: tasks
+      INTEGER(KIND=int_8), DIMENSION(:), &
+         POINTER, CONTIGUOUS                             :: atom_pair_recv, atom_pair_send
+      INTEGER(kind=int_8), DIMENSION(:, :), &
+         POINTER, CONTIGUOUS                             :: tasks
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: atom_of_kind
       INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: block_touched
-      INTEGER, DIMENSION(:), POINTER                     :: la_max, la_min, lb_max, lb_min, npgfa, &
+      INTEGER, DIMENSION(:), POINTER, CONTIGUOUS         :: la_max, la_min, lb_max, lb_min, npgfa, &
                                                             npgfb, nsgfa, nsgfb
-      INTEGER, DIMENSION(:, :), POINTER                  :: first_sgfa, first_sgfb
+      INTEGER, DIMENSION(:, :), POINTER, CONTIGUOUS      :: first_sgfa, first_sgfb
       LOGICAL :: atom_pair_changed, atom_pair_done, distributed_grids, do_kp, found, h_duplicated, &
          has_threads, map_consistent, my_compute_tau, my_force_adm, my_gapw, new_set_pair_coming, &
          p_duplicated, pab_required, scatter, use_subpatch, use_virial
@@ -167,29 +169,39 @@ CONTAINS
                                                             rab2, scalef, zetp
       REAL(KIND=dp), DIMENSION(3)                        :: force_a, force_b, ra, rab, rab_inv, rb
       REAL(KIND=dp), DIMENSION(3, 3)                     :: my_virial_a, my_virial_b
-      REAL(KIND=dp), DIMENSION(:), POINTER               :: set_radius_a, set_radius_b
-      REAL(KIND=dp), DIMENSION(:, :), POINTER            :: dist_ab, h_block, hab, p_block, pab, &
+      REAL(KIND=dp), DIMENSION(:), POINTER, CONTIGUOUS   :: set_radius_a, set_radius_b
+      REAL(KIND=dp), DIMENSION(:, :), &
+         POINTER, CONTIGUOUS                             :: dist_ab, h_block, hab, p_block, pab, &
                                                             rpgfa, rpgfb, sphi_a, sphi_b, work, &
                                                             zeta, zetb
-      REAL(KIND=dp), DIMENSION(:, :, :), POINTER         :: habt, hadb, hdab, pabt, workt
-      REAL(kind=dp), DIMENSION(:, :, :, :), POINTER      :: hadbt, hdabt
+      REAL(KIND=dp), DIMENSION(:, :, :), &
+         POINTER, CONTIGUOUS                             :: habt, hadb, hdab, pabt, workt
+      REAL(kind=dp), DIMENSION(:, :, :, :), &
+         POINTER, CONTIGUOUS                             :: hadbt, hdabt
       TYPE(admm_type), POINTER                           :: admm_env
-      TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
+      TYPE(atomic_kind_type), DIMENSION(:), &
+         POINTER, CONTIGUOUS                             :: atomic_kind_set
       TYPE(cell_type), POINTER                           :: cell
-      TYPE(cube_info_type), DIMENSION(:), POINTER        :: cube_info
+      TYPE(cube_info_type), DIMENSION(:), &
+         POINTER, CONTIGUOUS                             :: cube_info
       TYPE(dbcsr_distribution_type)                      :: dist
-      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: deltap, dhmat, htemp
+      TYPE(dbcsr_p_type), DIMENSION(:), &
+         POINTER, CONTIGUOUS                             :: deltap, dhmat, htemp
       TYPE(dbcsr_type), POINTER                          :: href
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(gridlevel_info_type), POINTER                 :: gridlevel_info
       TYPE(gto_basis_set_type), POINTER                  :: orb_basis_set
-      TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
+      TYPE(particle_type), DIMENSION(:), &
+         POINTER, CONTIGUOUS                             :: particle_set
       TYPE(pw_env_type), POINTER                         :: pw_env
-      TYPE(qs_force_type), DIMENSION(:), POINTER         :: force
-      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
+      TYPE(qs_force_type), DIMENSION(:), &
+         POINTER, CONTIGUOUS                             :: force
+      TYPE(qs_kind_type), DIMENSION(:), &
+         POINTER, CONTIGUOUS                             :: qs_kind_set
       TYPE(realspace_grid_desc_p_type), DIMENSION(:), &
-         POINTER                                         :: rs_descs
-      TYPE(realspace_grid_p_type), DIMENSION(:), POINTER :: rs_v
+         POINTER, CONTIGUOUS                             :: rs_descs
+      TYPE(realspace_grid_p_type), DIMENSION(:), &
+         POINTER, CONTIGUOUS                             :: rs_v
       TYPE(task_list_type), POINTER                      :: task_list, task_list_soft
       TYPE(virial_type), POINTER                         :: virial
 

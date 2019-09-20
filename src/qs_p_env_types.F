@@ -60,32 +60,35 @@ MODULE qs_p_env_types
 
       LOGICAL :: orthogonal_orbitals
       INTEGER :: id_nr, ref_count, iter
-      TYPE(dbcsr_p_type), DIMENSION(:), POINTER :: kpp1, p1
-      TYPE(cp_fm_p_type), DIMENSION(:), POINTER :: m_epsilon, &
-                                                   psi0d, S_psi0, Smo_inv
-      TYPE(qs_kpp1_env_type), POINTER :: kpp1_env
-      TYPE(qs_rho_type), POINTER :: rho1
-      TYPE(qs_rho_type), POINTER :: rho1_xc
+      TYPE(dbcsr_p_type), DIMENSION(:), POINTER, CONTIGUOUS :: kpp1, p1
+      TYPE(cp_fm_p_type), DIMENSION(:), POINTER, CONTIGUOUS :: m_epsilon, &
+                                                               psi0d, S_psi0, &
+                                                               Smo_inv
+      TYPE(qs_kpp1_env_type), POINTER                       :: kpp1_env
+      TYPE(qs_rho_type), POINTER                            :: rho1
+      TYPE(qs_rho_type), POINTER                            :: rho1_xc
       INTEGER, DIMENSION(2) :: n_mo, & ! no of molecular orbitals
                                n_ao ! no of basis functions
       ! GAPW stuff
-      TYPE(hartree_local_type), POINTER                 :: hartree_local
-      TYPE(local_rho_type), POINTER                      :: local_rho_set
+      TYPE(hartree_local_type), POINTER                     :: hartree_local
+      TYPE(local_rho_type), POINTER                         :: local_rho_set
 
       ! Linear Response Modules
-      TYPE(cp_fm_p_type), DIMENSION(:), POINTER  :: PS_psi0
-      TYPE(cp_fm_p_type), DIMENSION(:), POINTER  :: ev_h0
+      TYPE(cp_fm_p_type), DIMENSION(:), POINTER, CONTIGUOUS :: PS_psi0
+      TYPE(cp_fm_p_type), DIMENSION(:), POINTER, CONTIGUOUS :: ev_h0
 
       ! preconditioner matrix should be symmetric and positive definite
-      TYPE(preconditioner_type), DIMENSION(:), POINTER :: preconditioner
-      LOGICAL :: new_preconditioner
+      TYPE(preconditioner_type), DIMENSION(:), &
+         POINTER, CONTIGUOUS    :: preconditioner
+      LOGICAL                   :: new_preconditioner
 
       !factors
-      REAL(KIND=dp)  :: delta, gnorm, gnorm_cross, gnorm_old, etotal, gradient
+      REAL(KIND=dp)             :: delta, gnorm, gnorm_cross, &
+                                   gnorm_old, etotal, gradient
       !line search
-      INTEGER :: ls_count
-      REAL(KIND=dp)  :: ls_pos(53), ls_energy(53), ls_grad(53)
-      LOGICAL :: only_energy, os_valid
+      INTEGER                   :: ls_count
+      REAL(KIND=dp)             :: ls_pos(53), ls_energy(53), ls_grad(53)
+      LOGICAL                   :: only_energy, os_valid
 
    END TYPE qs_p_env_type
 

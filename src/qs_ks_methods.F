@@ -205,7 +205,7 @@ CONTAINS
       LOGICAL, INTENT(in)                                :: calculate_forces, just_energy
       LOGICAL, INTENT(IN), OPTIONAL                      :: print_active
       TYPE(dbcsr_p_type), DIMENSION(:), OPTIONAL, &
-         POINTER                                         :: ext_ks_matrix
+         POINTER, CONTIGUOUS                             :: ext_ks_matrix
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'qs_ks_build_kohn_sham_matrix', &
          routineP = moduleN//':'//routineN
@@ -223,17 +223,20 @@ CONTAINS
       TYPE(cell_type), POINTER                           :: cell
       TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(cp_para_env_type), POINTER                    :: para_env
-      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: ksmat, matrix_vxc, mo_derivs
-      TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: ks_matrix, matrix_h, matrix_s, my_rho, &
+      TYPE(dbcsr_p_type), DIMENSION(:), &
+         POINTER, CONTIGUOUS                             :: ksmat, matrix_vxc, mo_derivs
+      TYPE(dbcsr_p_type), DIMENSION(:, :), &
+         POINTER, CONTIGUOUS                             :: ks_matrix, matrix_h, matrix_s, my_rho, &
                                                             rho_ao
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(lri_density_type), POINTER                    :: lri_density
       TYPE(lri_environment_type), POINTER                :: lri_env
-      TYPE(lri_kind_type), DIMENSION(:), POINTER         :: lri_v_int
+      TYPE(lri_kind_type), DIMENSION(:), &
+         POINTER, CONTIGUOUS                             :: lri_v_int
       TYPE(pw_env_type), POINTER                         :: pw_env
       TYPE(pw_p_type) :: rho_tot_gspace, v_efield_rspace, v_hartree_gspace, v_hartree_rspace, &
          v_minus_veps, v_sccs_rspace, v_sic_rspace, v_spin_ddapc_rest_r
-      TYPE(pw_p_type), DIMENSION(:), POINTER             :: rho_r, v_rspace_embed, v_rspace_new, &
+      TYPE(pw_p_type), DIMENSION(:), POINTER, CONTIGUOUS :: rho_r, v_rspace_embed, v_rspace_new, &
                                                             v_rspace_new_aux_fit, v_tau_rspace, &
                                                             v_tau_rspace_aux_fit
       TYPE(pw_p_type), POINTER                           :: rho0_s_rs, rho_core, rho_nlcc, vee, &

@@ -1200,15 +1200,17 @@ CONTAINS
                                    calculate_forces)
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
-      TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: ks_matrix
+      TYPE(dbcsr_p_type), DIMENSION(:, :), &
+         POINTER, CONTIGUOUS                             :: ks_matrix
       TYPE(qs_rho_type), POINTER                         :: rho
-      TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: my_rho
+      TYPE(dbcsr_p_type), DIMENSION(:, :), &
+         POINTER, CONTIGUOUS                             :: my_rho
       TYPE(pw_p_type), POINTER                           :: vppl_rspace
-      TYPE(pw_p_type), DIMENSION(:), POINTER             :: v_rspace_new, v_rspace_new_aux_fit, &
+      TYPE(pw_p_type), DIMENSION(:), POINTER, CONTIGUOUS :: v_rspace_new, v_rspace_new_aux_fit, &
                                                             v_tau_rspace, v_tau_rspace_aux_fit
       TYPE(pw_p_type)                                    :: v_efield_rspace, v_sic_rspace, &
                                                             v_spin_ddapc_rest_r, v_sccs_rspace
-      TYPE(pw_p_type), DIMENSION(:), POINTER             :: v_rspace_embed
+      TYPE(pw_p_type), DIMENSION(:), POINTER, CONTIGUOUS :: v_rspace_embed
       TYPE(cdft_control_type), POINTER                   :: cdft_control
       LOGICAL, INTENT(in)                                :: calculate_forces
 
@@ -1217,21 +1219,24 @@ CONTAINS
 
       INTEGER                                            :: handle, igroup, ikind, ispin, nkind, &
                                                             nspins
-      INTEGER, DIMENSION(:, :, :), POINTER               :: cell_to_index
+      INTEGER, DIMENSION(:, :, :), POINTER, CONTIGUOUS   :: cell_to_index
       LOGICAL                                            :: do_ppl, gapw, gapw_xc, lrigpw, rigpw
       REAL(dp)                                           :: dvol, sign
       TYPE(admm_type), POINTER                           :: admm_env
-      TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
+      TYPE(atomic_kind_type), DIMENSION(:), &
+         POINTER, CONTIGUOUS                             :: atomic_kind_set
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: ksmat, matrix_ks_aux_fit, &
                                                             matrix_ks_aux_fit_dft, rho_ao, &
                                                             rho_ao_aux, rho_ao_nokp, smat
-      TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: rho_ao_kp
+      TYPE(dbcsr_p_type), DIMENSION(:, :), &
+         POINTER, CONTIGUOUS                             :: rho_ao_kp
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(kpoint_type), POINTER                         :: kpoints
       TYPE(lri_density_type), POINTER                    :: lri_density
       TYPE(lri_environment_type), POINTER                :: lri_env
-      TYPE(lri_kind_type), DIMENSION(:), POINTER         :: lri_v_int
+      TYPE(lri_kind_type), DIMENSION(:), &
+         POINTER, CONTIGUOUS                             :: lri_v_int
       TYPE(pw_env_type), POINTER                         :: pw_env
       TYPE(pw_p_type)                                    :: v_rspace
       TYPE(pw_p_type), POINTER                           :: vee
