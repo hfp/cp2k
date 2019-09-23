@@ -69,7 +69,9 @@ MODULE qs_integrate_potential_product
    USE task_list_types,                 ONLY: task_list_type
    USE virial_types,                    ONLY: virial_type
 
-!$ USE OMP_LIB, ONLY: omp_get_max_threads, omp_get_thread_num, omp_get_num_threads
+!$ USE OMP_LIB, ONLY: omp_get_max_threads, omp_get_thread_num, &
+!$    omp_lock_kind, omp_init_lock, omp_destroy_lock, &
+!$    omp_set_lock, omp_unset_lock
 
 #include "./base/base_uses.f90"
 
@@ -205,7 +207,14 @@ CONTAINS
       TYPE(task_list_type), POINTER                      :: task_list, task_list_soft
       TYPE(virial_type), POINTER                         :: virial
 
+!$    INTEGER, PARAMETER                                 :: nlocks = 64
+!$    INTEGER(kind=omp_lock_kind)                        :: locks(0:nlocks-1), lock
+
       CALL timeset(routineN, handle)
+
+!$    DO i = 0, nlocks-1
+!$       CALL omp_init_lock(locks(i))
+!$    END DO
 
       ! we test here if the provided operator matrices are consistent
       CPASSERT(PRESENT(hmat) .OR. PRESENT(hmat_kp))
@@ -434,13 +443,13 @@ CONTAINS
       END IF
 
 !$OMP PARALLEL DEFAULT(NONE), &
-!$OMP SHARED(workt,habt,hdabt,hadbt,pabt,tasks,particle_set,natom,maxset), &
+!$OMP SHARED(locks,workt,habt,hdabt,hadbt,pabt,tasks,particle_set,natom,maxset), &
 !$OMP SHARED(maxpgf,my_basis_type,my_gapw,dhmat,deltap,use_virial,admm_scal_fac), &
 !$OMP SHARED(pab_required,calculate_forces,ncoset,rs_v,cube_info,my_compute_tau), &
 !$OMP SHARED(map_consistent,eps_gvg_rspace,force,virial,cell,atom_of_kind,dist_ab), &
 !$OMP SHARED(gridlevel_info,task_list,block_touched,nthread,qs_kind_set), &
 !$OMP SHARED(nimages,do_kp), &
-!$OMP PRIVATE(ithread,work,hab,hdab,hadb,pab,iset_old,jset_old), &
+!$OMP PRIVATE(lock,ithread,work,hab,hdab,hadb,pab,iset_old,jset_old), &
 !$OMP PRIVATE(ikind_old,jkind_old,iatom,jatom,iset,jset,ikind,jkind,ilevel,ipgf,jpgf), &
 !$OMP PRIVATE(img,brow,bcol,orb_basis_set,first_sgfa,la_max,la_min,npgfa,nseta,nsgfa), &
 !$OMP PRIVATE(rpgfa,set_radius_a,sphi_a,zeta,first_sgfb,lb_max,lb_min,npgfb), &
@@ -749,25 +758,28 @@ CONTAINS
             END IF
 
             IF (atom_pair_done) THEN
-!$OMP CRITICAL(force_critical)
-               IF (iatom == jatom) THEN
-                  scalef = 1.0_dp
-               ELSE
-                  scalef = 2.0_dp
-               END IF
+               ! scalef is thread-private
+               scalef = MERGE(2.0_dp, 1.0_dp, iatom .NE. jatom)
                IF (calculate_forces) THEN
+                  lock = locks(MOD(atom_a, nlocks))
+!$                CALL omp_set_lock(lock)
                   force(ikind)%rho_elec(:, atom_a) = &
                      force(ikind)%rho_elec(:, atom_a)+scalef*admm_scal_fac*force_a(:)
+!$                CALL omp_unset_lock(lock)
+                  lock = locks(MOD(atom_b, nlocks))
+!$                CALL omp_set_lock(lock)
                   force(jkind)%rho_elec(:, atom_b) = &
                      force(jkind)%rho_elec(:, atom_b)+scalef*admm_scal_fac*force_b(:)
+!$                CALL omp_unset_lock(lock)
                ENDIF
                IF (use_virial) THEN
                   IF (use_virial .AND. calculate_forces) THEN
+!$OMP CRITICAL(force_critical_virial)
                      virial%pv_virial = virial%pv_virial+scalef*admm_scal_fac*my_virial_a
                      virial%pv_virial = virial%pv_virial+scalef*admm_scal_fac*my_virial_b
+!$OMP END CRITICAL(force_critical_virial)
                   END IF
                END IF
-!$OMP END CRITICAL (force_critical)
             ENDIF
          END DO loop_tasks
          END DO loop_pairs
@@ -780,6 +792,9 @@ CONTAINS
       END DO loop_gridlevels
 
 !$OMP END PARALLEL
+!$    DO i = 0, nlocks-1
+!$       CALL omp_destroy_lock(locks(i))
+!$    END DO
 
       IF (debug_this_module) THEN
          DEALLOCATE (block_touched)
