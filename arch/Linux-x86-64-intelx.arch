@@ -246,6 +246,7 @@ ifeq (0,$(GNU)) # Intel
     CFLAGS   += -fno-alias -ansi-alias $(FPCMODEL) $(FPFLAGS)
     CXXFLAGS += -fno-alias -ansi-alias $(FPCMODEL) $(FPFLAGS)
     #OPTFLAGS += -qoverride_limits
+    OPTFLAGS += -qopt-matmul
     ifneq (0,$(IPO))
       OPTFLAGS += -ipo-separate
     else ifeq (0,$(IPO))
