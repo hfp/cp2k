@@ -194,6 +194,20 @@ DIAG_DISABLE = 8290,8291,10010,10212,10411,11060
 #ATTRIBUTE = mic
 #DIAG_DISABLE := $(DIAG_DISABLE),2571,3218
 
+CC_VERSION_STRING = $(shell $(CC) --version 2> /dev/null | head -n1 | sed "s/..* \([0-9][0-9]*\.[0-9][0-9]*\.*[0-9]*\)[ \S]*.*/\1/")
+CC_VERSION_MAJOR = $(shell echo "$(CC_VERSION_STRING)" | cut -d"." -f1)
+CC_VERSION_MINOR = $(shell echo "$(CC_VERSION_STRING)" | cut -d"." -f2)
+CC_VERSION_PATCH = $(shell echo "$(CC_VERSION_STRING)" | cut -d"." -f3)
+ifeq (3,$(words $(CC_VERSION_MAJOR) $(CC_VERSION_MINOR) $(CC_VERSION_PATCH)))
+  CC_VERSION = $(shell echo "$$(($(CC_VERSION_MAJOR) * 10000 + $(CC_VERSION_MINOR) * 100 + $(CC_VERSION_PATCH)))")
+else ifeq (2,$(words $(CC_VERSION_MAJOR) $(CC_VERSION_MINOR)))
+  CC_VERSION = $(shell echo "$$(($(CC_VERSION_MAJOR) * 10000 + $(CC_VERSION_MINOR) * 100))")
+  CC_VERSION_PATCH = 0
+else
+  CC_VERSION_STRING = $(NULL)
+  CC_VERSION = 0
+endif
+
 ifeq (0,$(GNU)) # Intel
   # check if the Intel Development Tools are available
   INTEL ?= $(shell echo "$$((2==$(words $(filter icpc icpx icc icx, \
@@ -217,12 +231,12 @@ ifeq (0,$(GNU)) # Intel
       else ifneq (0,$(MIC))
         TARGET = -xMIC-AVX512
       else
-        TARGET = -xCORE-AVX512 -qopt-zmm-usage=high
+        TARGET = -xCORE-AVX512 #-qopt-zmm-usage=high
       endif
     else ifneq (0,$(SSE))
       TARGET = -xSSE3
     else ifneq (,$(shell grep -om1 '\bavx512vl\b' /proc/cpuinfo))
-      TARGET = -xHost -qopt-zmm-usage=high
+      TARGET = -xHost #-qopt-zmm-usage=high
     else
       TARGET = -xHost
     endif
@@ -237,7 +251,12 @@ ifeq (0,$(GNU)) # Intel
     else ifeq (0,$(IPO))
       LDFLAGS += -no-ipo
     endif
-    OPT = 2
+    ifneq (0,$(shell echo "$$((190004 <= $(CC_VERSION)))"))
+      OPT = 3
+    else
+      FCFLAGS += -heap-arrays
+      OPT = 2
+    endif
   else
     CXXFLAGS := -debug $(CXXFLAGS)
     FCFLAGS  := -debug $(FCFLAGS)
@@ -247,7 +266,7 @@ ifeq (0,$(GNU)) # Intel
     endif
     OPT = 0
   endif
-  FCFLAGS += -free -fpp -heap-arrays
+  FCFLAGS += -free -fpp
   # more recent IFORT versions enable F2008 by default
   DFLAGS += -D__INTEL -D__F2008
   MKL_OMPRTL = intel
@@ -341,23 +360,9 @@ ifneq (0,$(SYM))
   endif
 endif
 
-CC_VERSION_STRING = $(shell $(CC) --version 2> /dev/null | head -n1 | sed "s/..* \([0-9][0-9]*\.[0-9][0-9]*\.*[0-9]*\)[ \S]*.*/\1/")
-CC_VERSION_MAJOR = $(shell echo "$(CC_VERSION_STRING)" | cut -d"." -f1)
-CC_VERSION_MINOR = $(shell echo "$(CC_VERSION_STRING)" | cut -d"." -f2)
-CC_VERSION_PATCH = $(shell echo "$(CC_VERSION_STRING)" | cut -d"." -f3)
-ifeq (3,$(words $(CC_VERSION_MAJOR) $(CC_VERSION_MINOR) $(CC_VERSION_PATCH)))
-  CC_VERSION = $(shell echo "$$(($(CC_VERSION_MAJOR) * 10000 + $(CC_VERSION_MINOR) * 100 + $(CC_VERSION_PATCH)))")
-else ifeq (2,$(words $(CC_VERSION_MAJOR) $(CC_VERSION_MINOR)))
-  CC_VERSION = $(shell echo "$$(($(CC_VERSION_MAJOR) * 10000 + $(CC_VERSION_MINOR) * 100))")
-  CC_VERSION_PATCH = 0
-else
-  CC_VERSION_STRING = $(NULL)
-  CC_VERSION = 0
-endif
-
 ifeq (0,$(GNU))
   # workaround for certain bits introduced by GCC 7.0
-  ifneq (0,$(shell echo "$$((180001 > $(CC_VERSION) && 0 != $(CC_VERSION)))"))
+  ifneq (0,$(shell echo "$$((180002 >= $(CC_VERSION) && 0 != $(CC_VERSION)))"))
     CFLAGS += -D_Float128=__float128
     FPCMODEL ?= precise
     FPFMODEL ?= source  
@@ -366,7 +371,6 @@ ifeq (0,$(GNU))
     # fypp preprocessed files, renamed translation units, etc.
     #
     BEEP ?= $(if $(wildcard $(TOOLSRC)/build_utils/fypp),1,0)
-  else
   endif
   ifneq (,$(strip $(FPCMODEL)))
     FPCMODEL := -fp-model $(FPCMODEL)
