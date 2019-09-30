@@ -38,19 +38,52 @@ BANNER_C = """\
  *****************************************************************************/
 """
 
+DEFAULT_EXCLUDED_DIRS = (
+    ".git",
+    "obj",
+    "lib",
+    "exe",
+    "regtesting",
+    "tools/toolchain/build",
+    "tools/toolchain/install",
+)
 
-def validate(cp2k_dir, filelist):
+
+def validate(cp2k_dir, filelist=None, excluded_dirs=DEFAULT_EXCLUDED_DIRS):
+    """
+    Check the source files in the given directory/filelist for convention violations, like:
+
+    - correct copyright headers
+    - undocumented preprocessor flags
+    - stray unicode characters
+
+    :param cp2k_dir: base directory to look for files
+    :param filelist: specific list of files to check in the given directory
+    :param excluded_dirs: List of directories to exclude in the checks (usually relative to `cp2k_dir`)
+    """
     # check flags and banners
     flags = set()
     year = datetime.utcnow().year
-    nwarnings = 0
+    warnings = []
+
+    # directories to exclude, if given as relative dirs, they're relative to cp2k_dir
+    excluded_dirs = [path.join(cp2k_dir, p) for p in DEFAULT_EXCLUDED_DIRS]
+
+    # also exclude any Git submodules
+    if path.exists(path.join(cp2k_dir, ".gitmodules")):
+        with open(path.join(cp2k_dir, ".gitmodules"), "r") as fhandle:
+            excluded_dirs += [
+                path.join(cp2k_dir, l.split()[-1]) for l in fhandle if "path =" in l
+            ]
 
     if filelist:
         fileiter = [(cp2k_dir, [], filelist)]
     else:
         fileiter = os.walk(path.join(cp2k_dir, "src"))
 
-    for root, _, files in fileiter:
+    for root, dirs, files in fileiter:
+        dirs[:] = [d for d in dirs if path.join(root, d) not in excluded_dirs]
+
         for fn in files:
             fn_ext = fn.rsplit(".", 1)[-1]
             if fn_ext in ("template", "instantiate"):
@@ -71,8 +104,7 @@ def validate(cp2k_dir, filelist):
                     and not content.startswith(BANNER_C.format(year))
                 )
             ):
-                nwarnings += 1
-                print("%s: Copyright banner malformed" % fn)
+                warnings += ["%s: Copyright banner malformed" % fn]
 
             # find all flags
             for line in content.split("\n"):
@@ -105,11 +137,9 @@ def validate(cp2k_dir, filelist):
 
     for f in sorted(flags):
         if f not in install_txt:
-            nwarnings += 1
-            print("Flag %s not mentioned in INSTALL.md" % f)
+            warnings += ["Flag %s not mentioned in INSTALL.md" % f]
         if f not in flags_src:
-            nwarnings += 1
-            print("Flag %s not mentioned in cp2k_flags()" % f)
+            warnings += ["Flag %s not mentioned in cp2k_flags()" % f]
 
     if not filelist:
         # check for copies of data files
@@ -120,8 +150,7 @@ def validate(cp2k_dir, filelist):
         for root, _, files in os.walk(path.join(cp2k_dir, "tests")):
             d = path.relpath(root, cp2k_dir)
             for c in data_files.intersection(files):
-                nwarnings += 1
-                print("Data file %s copied to %s" % (c, d))
+                warnings += ["Data file %s copied to %s" % (c, d)]
 
     if filelist:
         fileiter = [(cp2k_dir, [], filelist)]
@@ -130,16 +159,7 @@ def validate(cp2k_dir, filelist):
 
     # check linebreaks and encoding
     for root, dirs, files in fileiter:
-        # filter some directories to never visit
-        if root == cp2k_dir:
-            dirs[:] = [
-                d
-                for d in dirs
-                if d not in (".git", "obj", "lib", "exe", "regtesting", "exts")
-            ]
-
-        if root.endswith("tools/toolchain"):
-            dirs[:] = [d for d in dirs if d not in ("build", "install")]
+        dirs[:] = [d for d in dirs if path.join(root, d) not in excluded_dirs]
 
         for fn in files:
             absfn = path.join(root, fn)
@@ -154,8 +174,7 @@ def validate(cp2k_dir, filelist):
             if b"\0" in content:
                 continue  # skip binary files
             if b"\r\n" in content:
-                nwarnings += 1
-                print("Text file %s contains DOS linebreaks" % shortfn)
+                warnings += ["Text file %s contains DOS linebreaks" % shortfn]
 
             # check for non-ascii chars
             if b"# -*- coding: utf-8 -*-" in content:
@@ -167,13 +186,12 @@ def validate(cp2k_dir, filelist):
             for lineno, line in enumerate(content.splitlines()):
                 m = re.search(b"[\x80-\xFF]", line)
                 if m:
-                    nwarnings += 1
-                    print(
+                    warnings += [
                         "Found non-ascii char in %s line %d at position %d"
                         % (shortfn, lineno + 1, m.start(0) + 1)
-                    )
+                    ]
 
-    return nwarnings
+    return warnings
 
 
 if __name__ == "__main__":
@@ -194,9 +212,23 @@ if __name__ == "__main__":
         action="store_true",
         help="return non-0 exit code if warnings have been found (useful for pre-commit scripts)",
     )
+    parser.add_argument(
+        "--suppressions",
+        type=argparse.FileType("r"),
+        help="Specify a suppression file with messages to not count towards the number of warnings",
+    )
     args = parser.parse_args()
 
-    nwarnings = validate(args.base_dir, args.file)
+    warnings = validate(args.base_dir, args.file)
 
-    if args.fail and nwarnings:
+    if args.suppressions:
+        suppress = [
+            l.rstrip() for l in args.suppressions if l and not l.startswith("#")
+        ]
+        warnings = [w for w in warnings if not any(s in w for s in suppress)]
+
+    for warning in warnings:
+        print(warning)
+
+    if args.fail and warnings:
         sys.exit(1)
