@@ -46,9 +46,11 @@ OMP ?= 1
 DBG ?= 0
 SYM ?= $(DBG)
 FPE ?= 0
-NDEBUG ?= 0
 MKL_DIRECT ?= 0
 MKL_STATIC ?= 1
+
+# NDEBUG=1: CP2K regtests may fail
+NDEBUG ?= 0
 
 EXTSDIR ?= exts
 EXTSHOME ?= $(CP2KHOME)/$(EXTSDIR)
