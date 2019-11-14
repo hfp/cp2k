@@ -257,11 +257,9 @@ The following flags should be present (or not) in the arch file, partially depen
 
 Features useful to deal with legacy systems
   * `-D__NO_MPI_THREAD_SUPPORT_CHECK`  - Workaround for MPI libraries that do not declare they are thread safe (funneled) but you want to use them with OpenMP code anyways.
-  * `-D__HAS_NO_MPI_MOD` - workaround if mpi has been built for a different (version of the) Fortran compiler, rendering the MPI module unreadable (reverts to f77 style mpif.h includes)
   * `-D__NO_IPI_DRIVER` disables the socket interface in case of troubles compiling on systems that do not support POSIX sockets.
   * `-D__HAS_IEEE_EXCEPTIONS` disables trapping temporarily for libraries like scalapack.
   * The Makefile automatically compiles in the path to the data directory via the flag `-D__DATA_DIR`. If you want to compile in a different path, set the variable `DATA_DIR` in your arch-file.
-  * `-D__HAS_NO_OMP_3` CP2K assumes that compilers support OpenMP 3.0. If this is not the case specify this flag to compile. Runtime performance will be poorer on low numbers of processors
   * `-D__HAS_NO_CUDA_STREAM_PRIORITIES` - Needed for CUDA sdk version < 5.5
   * `-D__NO_STATM_ACCESS` - Do not try to read from /proc/self/statm to get memory usage information. This is otherwise attempted on several. Linux-based architectures or using with the NAG, gfortran, compilers.
   * `-D__CHECK_DIAG` Debug option which activates an orthonormality check of the eigenvectors calculated by the selected eigensolver
