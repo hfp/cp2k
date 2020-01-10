@@ -186,9 +186,9 @@ CONTAINS
       ENDIF
 
       ! automatically select initial step size
-      radius = r+jump
+      radius = r + jump
       h = d*radius**l*EXP(-a*radius*radius)
-      dr = (0.5_dp*scope)*(g*radius-h*r)/MAX(g-h, t)
+      dr = (0.5_dp*scope)*(g*radius - h*r)/MAX(g - h, t)
       CPASSERT(h .LE. g)
 
       ! setup fast contraction
@@ -210,7 +210,7 @@ CONTAINS
                rd = MIN(epsrel*radius, rd)
             ENDIF
             IF (rd .LT. dr) THEN
-               radius = rtmp+rd
+               radius = rtmp + rd
                exp_rsq = d*EXP(-a*radius*radius)
                exp_drsq = EXP(-a*rd*rd)
                exp_2drsq = exp_drsq*exp_drsq
@@ -221,7 +221,7 @@ CONTAINS
             EXIT
          ENDIF
          rtmp = radius
-         radius = radius+dr
+         radius = radius + dr
          exp_rsq = exp_rsq*exp_drsq*exp_2rdr
          exp_2rdr = exp_2rdr*exp_2drsq
       ENDDO
@@ -229,7 +229,7 @@ CONTAINS
 
       ! optionally ensure t<=g(rlow) and g(radius)<t
       IF (PRESENT(rlow)) THEN
-         DO i = i+1, n
+         DO i = i + 1, n
             g = d*rtmp**l*EXP(-a*rtmp*rtmp)
             IF (t .LE. g) THEN
                rlow = rtmp
@@ -237,7 +237,7 @@ CONTAINS
             ENDIF
             rtmp = MAX(rtmp*rscope, r)
          ENDDO
-         DO i = i+1, n
+         DO i = i + 1, n
             g = d*radius**l*EXP(-a*radius*radius)
             IF (g .LT. t) EXIT
             radius = scope*radius
@@ -311,7 +311,7 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius', routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: maxiter = 5000
-      REAL(KIND=dp), PARAMETER :: contract = 0.38_dp, logc = LOG(MAX(1.0_dp-contract, contract))
+      REAL(KIND=dp), PARAMETER :: contract = 0.38_dp, logc = LOG(MAX(1.0_dp - contract, contract))
 
       INTEGER                                            :: iter, neps
       REAL(KIND=dp)                                      :: a, absiter, d, eps, g, r0, r1, rd, rg, t
@@ -354,7 +354,7 @@ CONTAINS
       END IF
 
       CPASSERT(r0 .LT. r1)
-      rd = r1-r0
+      rd = r1 - r0
 
       ! calculate trip count (deterministic after exp_radius_fast)
       IF (PRESENT(epsrel)) THEN
@@ -370,16 +370,16 @@ CONTAINS
          neps = 1
       ENDIF
 
-      IF (iter+neps .LT. maxiter) THEN
+      IF (iter + neps .LT. maxiter) THEN
          DO iter = 1, neps
-            rg = r0+rd*contract ! Golden Section
+            rg = r0 + rd*contract ! Golden Section
             g = d*rg**l*EXP(-a*rg*rg)
             IF (g .LT. t) THEN
                r1 = rg ! interval [r0, rg)
             ELSE
                r0 = rg ! interval [rg, r1)
             ENDIF
-            rd = r1-r0
+            rd = r1 - r0
          ENDDO
          radius = rg
       ELSE
