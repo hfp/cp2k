@@ -378,15 +378,9 @@ CONTAINS
       IF (lc_min == 0) THEN
          ALLOCATE (S_G_0(0:la_max + lb_max, 3))
 
-<<<<<<< HEAD
-         alpha_R_0 = zeta*zetb/(zeta+zetb)
-         lmax_0 = la_max+lb_max
-         R_rad_0 = exp_radius(lmax_0, alpha_R_0, param%sum_precision, 1.0_dp, epsabs=R_res)
-=======
          alpha_R_0 = zeta*zetb/(zeta + zetb)
          lmax_0 = la_max + lb_max
-         R_rad_0 = exp_radius(lmax_0, alpha_R_0, param%sum_precision, 1.0_dp, epsin=R_res)
->>>>>>> abc290759eea54aa01d1b0ca123b4b8d41ebd3b0
+         R_rad_0 = exp_radius(lmax_0, alpha_R_0, param%sum_precision, 1.0_dp, epsabs=R_res)
 
          lgth = ABS(hmat(1, 1))
          CALL pgf_sum_2c_rspace_1d(S_G_0(:, 1), RB(1) - RA(1), alpha_R_0, lgth, R_rad_0/lgth)
@@ -528,17 +522,10 @@ CONTAINS
          ALLOCATE (S_G_0_no(ncoset(la_max + lb_max)))
          alpha_G_0 = 0.25_dp/zetb + 0.25_dp/zeta
          alpha_R_0 = 0.25_dp/alpha_G_0
-<<<<<<< HEAD
-         lmax_0 = la_max+lb_max
-         R_0 = RB-RA
-         G_rad_0 = exp_radius(lmax_0, alpha_G_0, param%sum_precision, 1.0_dp, epsabs=G_res)
-         R_rad_0 = exp_radius(lmax_0, alpha_R_0, param%sum_precision, 1.0_dp, epsabs=R_res)
-=======
          lmax_0 = la_max + lb_max
          R_0 = RB - RA
-         G_rad_0 = exp_radius(lmax_0, alpha_G_0, param%sum_precision, 1.0_dp, epsin=G_res)
-         R_rad_0 = exp_radius(lmax_0, alpha_R_0, param%sum_precision, 1.0_dp, epsin=R_res)
->>>>>>> abc290759eea54aa01d1b0ca123b4b8d41ebd3b0
+         G_rad_0 = exp_radius(lmax_0, alpha_G_0, param%sum_precision, 1.0_dp, epsabs=G_res)
+         R_rad_0 = exp_radius(lmax_0, alpha_R_0, param%sum_precision, 1.0_dp, epsabs=R_res)
          G_bound_0 = ellipsoid_bounds(G_rad_0, TRANSPOSE(hmat)/(2.0_dp*pi))
          R_bound_0 = ellipsoid_bounds(R_rad_0, h_inv)
          do_g_sum_0 = PRODUCT(2*R_bound_0 + 1) .GT. PRODUCT(2*G_bound_0 + 1)
