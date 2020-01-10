@@ -31,11 +31,13 @@ lapack_re = re.compile(
 )
 
 warning_re = re.compile(r".*[Ww]arning: (.*)")
+warning_re_subst = re.compile(r"'\d+'")  # replace occurences of '49' with *
 
 IGNORED_WARNINGS = (
     "-Wrealloc-lhs",
     "-Wdo-subscript",
     "-Wmaybe-uninitialized",
+    "-Wfunction-elimination",
     "Creating array temporary",
     "quality comparison",
     "defined but not used",
@@ -80,6 +82,8 @@ def check_warnings(fhandle):
         if not m:
             continue  # we are only looking for warnings
         warning = m.group(1)
+
+        warning = warning_re_subst.sub("*", warning)
 
         if any(iw in warning for iw in IGNORED_WARNINGS):
             continue

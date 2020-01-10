@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -65,7 +65,7 @@ CONTAINS
          nentries_exist = 0
       END IF
 
-      ALLOCATE (g_surf_contacts(ncontacts, nentries_exist+nnodes_extra))
+      ALLOCATE (g_surf_contacts(ncontacts, nentries_exist + nnodes_extra))
 
       IF (is_alloc) THEN
          DO i = 1, nentries_exist
@@ -79,7 +79,7 @@ CONTAINS
 
       DO i = 1, nnodes_extra
          DO icontact = 1, ncontacts
-            NULLIFY (g_surf_contacts(icontact, nentries_exist+i)%matrix)
+            NULLIFY (g_surf_contacts(icontact, nentries_exist + i)%matrix)
          END DO
       END DO
 

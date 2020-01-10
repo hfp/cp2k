@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -23,8 +23,7 @@ MODULE global_types
                                               default_string_length,&
                                               dp
    USE machine,                         ONLY: m_walltime
-   USE parallel_rng_types,              ONLY: delete_rng_stream,&
-                                              rng_stream_type
+   USE parallel_rng_types,              ONLY: rng_stream_type
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE
@@ -65,7 +64,7 @@ MODULE global_types
 ! **************************************************************************************************
    TYPE global_environment_type
       INTEGER :: id_nr, ref_count
-      TYPE(rng_stream_type), POINTER          :: gaussian_rng_stream
+      TYPE(rng_stream_type), ALLOCATABLE      :: gaussian_rng_stream
       CHARACTER(LEN=default_string_length)    :: diag_library
       CHARACTER(LEN=default_string_length)    :: default_fft_library
       CHARACTER(LEN=default_path_length)      :: fftw_wisdom_file_name
@@ -111,7 +110,6 @@ CONTAINS
       globenv%idum = 0 !! random number seed
       globenv%blacs_grid_layout = BLACS_GRID_SQUARE
       globenv%cp2k_start_time = m_walltime()
-      NULLIFY (globenv%gaussian_rng_stream)
    END SUBROUTINE globenv_create
 
 ! **************************************************************************************************
@@ -126,7 +124,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(globenv))
       CPASSERT(globenv%ref_count > 0)
-      globenv%ref_count = globenv%ref_count+1
+      globenv%ref_count = globenv%ref_count + 1
    END SUBROUTINE globenv_retain
 
 ! **************************************************************************************************
@@ -142,11 +140,10 @@ CONTAINS
 
       IF (ASSOCIATED(globenv)) THEN
          CPASSERT(globenv%ref_count > 0)
-         globenv%ref_count = globenv%ref_count-1
+         globenv%ref_count = globenv%ref_count - 1
          IF (globenv%ref_count == 0) THEN
-            IF (ASSOCIATED(globenv%gaussian_rng_stream)) THEN
-               CALL delete_rng_stream(globenv%gaussian_rng_stream)
-            END IF
+            IF (ALLOCATED(globenv%gaussian_rng_stream)) &
+               DEALLOCATE (globenv%gaussian_rng_stream)
             DEALLOCATE (globenv)
          END IF
       END IF

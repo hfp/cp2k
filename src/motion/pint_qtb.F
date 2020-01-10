@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -34,12 +34,9 @@ MODULE pint_qtb
                                               twopi
    USE message_passing,                 ONLY: mp_bcast
    USE parallel_rng_types,              ONLY: GAUSSIAN,&
-                                              create_rng_stream,&
-                                              delete_rng_stream,&
-                                              dump_rng_stream,&
-                                              next_random_number,&
-                                              read_rng_stream,&
-                                              rng_record_length
+                                              rng_record_length,&
+                                              rng_stream_type,&
+                                              rng_stream_type_from_record
    USE pint_io,                         ONLY: pint_write_line
    USE pint_types,                      ONLY: normalmode_env_type,&
                                               pint_env_type,&
@@ -111,14 +108,14 @@ CONTAINS
       !Initialize everything
       qtb_therm%g_fric(1) = 1.0_dp/qtb_therm%tau
       DO i = 2, p
-         qtb_therm%g_fric(i) = SQRT((1.d0/qtb_therm%tau)**2+(qtb_therm%lamb)**2* &
+         qtb_therm%g_fric(i) = SQRT((1.d0/qtb_therm%tau)**2 + (qtb_therm%lamb)**2* &
                                     normalmode_env%lambda(i))
       END DO
       DO i = 1, p
          ex = -dti2*qtb_therm%g_fric(i)
          qtb_therm%c1(i) = EXP(ex)
          ex = qtb_therm%c1(i)*qtb_therm%c1(i)
-         qtb_therm%c2(i) = SQRT(1.0_dp-ex)
+         qtb_therm%c2(i) = SQRT(1.0_dp - ex)
       END DO
       DO j = 1, pint_env%ndim
          DO i = 1, pint_env%p
@@ -128,21 +125,19 @@ CONTAINS
 
       !prepare Random number generator
       NULLIFY (rng_section)
-      NULLIFY (qtb_therm%gaussian_rng_stream)
       rng_section => section_vals_get_subs_vals(section, &
                                                 subsection_name="RNG_INIT")
       CALL section_vals_get(rng_section, explicit=restart)
       IF (restart) THEN
          CALL section_vals_val_get(rng_section, "_DEFAULT_KEYWORD_", &
                                    i_rep_val=1, c_val=rng_record)
-         CALL read_rng_stream(rng_stream=qtb_therm%gaussian_rng_stream, &
-                              rng_record=rng_record)
+         qtb_therm%gaussian_rng_stream = rng_stream_type_from_record(rng_record)
       ELSE
          initial_seed(:, :) = REAL(pint_env%thermostat_rng_seed, dp)
-         CALL create_rng_stream(rng_stream=qtb_therm%gaussian_rng_stream, &
-                                name="qtb_rng_gaussian", distribution_type=GAUSSIAN, &
-                                extended_precision=.TRUE., &
-                                seed=initial_seed)
+         qtb_therm%gaussian_rng_stream = rng_stream_type( &
+                                         name="qtb_rng_gaussian", distribution_type=GAUSSIAN, &
+                                         extended_precision=.TRUE., &
+                                         seed=initial_seed)
       END IF
 
       !Initialization of the QTB random forces
@@ -175,27 +170,26 @@ CONTAINS
 
       !update random forces
       DO ibead = 1, p
-         qtb_therm%cpt(ibead) = qtb_therm%cpt(ibead)+1
+         qtb_therm%cpt(ibead) = qtb_therm%cpt(ibead) + 1
          !new random forces at every qtb_therm%step
          IF (qtb_therm%cpt(ibead) == 2*qtb_therm%step(ibead)) THEN
             IF (ibead == 1) THEN
                !update the rng status
-               DO i = 1, qtb_therm%nf-1
-                  qtb_therm%rng_status(i) = qtb_therm%rng_status(i+1)
+               DO i = 1, qtb_therm%nf - 1
+                  qtb_therm%rng_status(i) = qtb_therm%rng_status(i + 1)
                END DO
-               CALL dump_rng_stream(rng_stream=qtb_therm%gaussian_rng_stream, &
-                                    rng_record=qtb_therm%rng_status(qtb_therm%nf))
+               CALL qtb_therm%gaussian_rng_stream%dump(qtb_therm%rng_status(qtb_therm%nf))
             END IF
             DO idim = 1, ndim
                !update random numbers
-               DO i = 1, qtb_therm%nf-1
-                  qtb_therm%r(i, ibead, idim) = qtb_therm%r(i+1, ibead, idim)
+               DO i = 1, qtb_therm%nf - 1
+                  qtb_therm%r(i, ibead, idim) = qtb_therm%r(i + 1, ibead, idim)
                END DO
-               qtb_therm%r(qtb_therm%nf, ibead, idim) = next_random_number(qtb_therm%gaussian_rng_stream)
+               qtb_therm%r(qtb_therm%nf, ibead, idim) = qtb_therm%gaussian_rng_stream%next()
                !compute new random force through the convolution product
                qtb_therm%rf(ibead, idim) = 0.0_dp
                DO i = 1, qtb_therm%nf
-                  qtb_therm%rf(ibead, idim) = qtb_therm%rf(ibead, idim)+ &
+                  qtb_therm%rf(ibead, idim) = qtb_therm%rf(ibead, idim) + &
                                               qtb_therm%h(i, ibead)*qtb_therm%r(i, ibead, idim)
                END DO
             END DO
@@ -206,16 +200,16 @@ CONTAINS
       !perform MD step
       DO idim = 1, ndim
          DO ibead = 1, p
-            vnew(ibead, idim) = qtb_therm%c1(ibead)*vold(ibead, idim)+ &
+            vnew(ibead, idim) = qtb_therm%c1(ibead)*vold(ibead, idim) + &
                                 qtb_therm%massfact(ibead, idim)*qtb_therm%c2(ibead)* &
                                 qtb_therm%rf(ibead, idim)
-            delta_ekin = delta_ekin+masses(ibead, idim)*( &
-                         vnew(ibead, idim)*vnew(ibead, idim)- &
+            delta_ekin = delta_ekin + masses(ibead, idim)*( &
+                         vnew(ibead, idim)*vnew(ibead, idim) - &
                          vold(ibead, idim)*vold(ibead, idim))
          END DO
       END DO
 
-      qtb_therm%thermostat_energy = qtb_therm%thermostat_energy-0.5_dp*delta_ekin
+      qtb_therm%thermostat_energy = qtb_therm%thermostat_energy - 0.5_dp*delta_ekin
 
       CALL timestop(handle)
    END SUBROUTINE pint_qtb_step
@@ -236,7 +230,7 @@ CONTAINS
          routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(qtb_therm)) THEN
-         qtb_therm%ref_count = qtb_therm%ref_count-1
+         qtb_therm%ref_count = qtb_therm%ref_count - 1
          IF (qtb_therm%ref_count == 0) THEN
             DEALLOCATE (qtb_therm%c1)
             DEALLOCATE (qtb_therm%c2)
@@ -248,7 +242,6 @@ CONTAINS
             DEALLOCATE (qtb_therm%cpt)
             DEALLOCATE (qtb_therm%step)
             DEALLOCATE (qtb_therm%rng_status)
-            CALL delete_rng_stream(qtb_therm%gaussian_rng_stream)
             DEALLOCATE (qtb_therm)
          END IF
       END IF
@@ -318,7 +311,7 @@ CONTAINS
       p = pint_env%p
       ndim = pint_env%ndim
       dt = pint_env%dt
-      IF (MOD(qtb_therm%nf, 2) /= 0) qtb_therm%nf = qtb_therm%nf+1
+      IF (MOD(qtb_therm%nf, 2) /= 0) qtb_therm%nf = qtb_therm%nf + 1
       nf = qtb_therm%nf
 
       para_env => pint_env%logger%para_env
@@ -338,7 +331,7 @@ CONTAINS
          kT = pint_env%kT*pint_env%propagator%temp_sim2phys
 
          ALLOCATE (fp(nf/2))
-         ALLOCATE (filter(0:nf-1))
+         ALLOCATE (filter(0:nf - 1))
 
          IF (print_level == debug_print_level) THEN
             !create log file if print_level is debug
@@ -354,7 +347,7 @@ CONTAINS
          DO ibead = 1, p
             !fcut is adapted to the NM freq.
             !Note that lambda is the angular free ring freq. squared
-            fcut = SQRT((1.d0/qtb_therm%taucut)**2+(qtb_therm%lambcut)**2* &
+            fcut = SQRT((1.d0/qtb_therm%taucut)**2 + (qtb_therm%lambcut)**2* &
                         normalmode_env%lambda(ibead))
             fcut = fcut/twopi
             !new random forces are drawn every step
@@ -397,7 +390,7 @@ CONTAINS
                tmp = 0.5_dp*w*h
                correct = SIN(tmp)/tmp
                filter(i) = SQRT(fp(i))/correct*(1.0_dp, 0.0_dp)
-               filter(nf-i) = CONJG(filter(i))
+               filter(nf - i) = CONJG(filter(i))
             END DO
 
             !compute the filter in time space - FFT
@@ -407,14 +400,14 @@ CONTAINS
             !take into account the effective timestep h = step*dt and
             !1/sqrt(2.0_dp) is to take into account the fact that the
             !same random force is used for the two thermostat "half-steps"
-            DO i = 0, nf/2-1
+            DO i = 0, nf/2 - 1
                tmp1 = filter(i)/(nf*SQRT(2.0_dp*step))
-               filter(i) = filter(nf/2+i)/(nf*SQRT(2.0_dp*step))
-               filter(nf/2+i) = tmp1
+               filter(i) = filter(nf/2 + i)/(nf*SQRT(2.0_dp*step))
+               filter(nf/2 + i) = tmp1
             END DO
 
-            DO i = 0, nf-1
-               qtb_therm%h(i+1, ibead) = REAL(filter(i), dp)
+            DO i = 0, nf - 1
+               qtb_therm%h(i + 1, ibead) = REAL(filter(i), dp)
             END DO
          END DO
 
@@ -435,15 +428,14 @@ CONTAINS
       ELSE
          !update the rng status
          DO i = 1, qtb_therm%nf
-            CALL dump_rng_stream(rng_stream=qtb_therm%gaussian_rng_stream, &
-                                 rng_record=qtb_therm%rng_status(i))
+            CALL qtb_therm%gaussian_rng_stream%dump(qtb_therm%rng_status(i))
          END DO
          !if no restart then initialize random numbers from scratch
          qtb_therm%cpt = 0
          DO idim = 1, ndim
             DO ibead = 1, p
                DO i = 1, nf
-                  qtb_therm%r(i, ibead, idim) = next_random_number(qtb_therm%gaussian_rng_stream)
+                  qtb_therm%r(i, ibead, idim) = qtb_therm%gaussian_rng_stream%next()
                END DO
             END DO
          END DO
@@ -454,7 +446,7 @@ CONTAINS
          DO ibead = 1, p
             qtb_therm%rf(ibead, idim) = 0.0_dp
             DO i = 1, nf
-               qtb_therm%rf(ibead, idim) = qtb_therm%rf(ibead, idim)+ &
+               qtb_therm%rf(ibead, idim) = qtb_therm%rf(ibead, idim) + &
                                            qtb_therm%h(i, ibead)*qtb_therm%r(i, ibead, idim)
             END DO
          END DO
@@ -479,54 +471,52 @@ CONTAINS
 
       INTEGER                                            :: begin, i, ibead, idim, istep
 
-      begin = pint_env%first_step-MOD(pint_env%first_step, qtb_therm%step(1))- &
-              (qtb_therm%nf-1)*qtb_therm%step(1)
+      begin = pint_env%first_step - MOD(pint_env%first_step, qtb_therm%step(1)) - &
+              (qtb_therm%nf - 1)*qtb_therm%step(1)
 
       IF (begin <= 0) THEN
          qtb_therm%cpt = 0
          !update the rng status
          DO i = 1, qtb_therm%nf
-            CALL dump_rng_stream(rng_stream=qtb_therm%gaussian_rng_stream, &
-                                 rng_record=qtb_therm%rng_status(i))
+            CALL qtb_therm%gaussian_rng_stream%dump(qtb_therm%rng_status(i))
          END DO
          !first random numbers initialized from scratch
          DO idim = 1, pint_env%ndim
             DO ibead = 1, pint_env%p
                DO i = 1, qtb_therm%nf
-                  qtb_therm%r(i, ibead, idim) = next_random_number(qtb_therm%gaussian_rng_stream)
+                  qtb_therm%r(i, ibead, idim) = qtb_therm%gaussian_rng_stream%next()
                END DO
             END DO
          END DO
          begin = 1
       ELSE
-         qtb_therm%cpt(1) = 2*(qtb_therm%step(1)-1)
+         qtb_therm%cpt(1) = 2*(qtb_therm%step(1) - 1)
          DO ibead = 2, pint_env%p
-            qtb_therm%cpt(ibead) = 2*MOD(begin-1, qtb_therm%step(ibead))
+            qtb_therm%cpt(ibead) = 2*MOD(begin - 1, qtb_therm%step(ibead))
          END DO
       END IF
 
       !from istep = 1,2*(the last previous MD step - begin) because
       !the thermostat step is called two times per MD step
       !DO istep = 2*begin, 2*pint_env%first_step
-      DO istep = 1, 2*(pint_env%first_step-begin+1)
+      DO istep = 1, 2*(pint_env%first_step - begin + 1)
          DO ibead = 1, pint_env%p
-            qtb_therm%cpt(ibead) = qtb_therm%cpt(ibead)+1
+            qtb_therm%cpt(ibead) = qtb_therm%cpt(ibead) + 1
             !new random forces at every qtb_therm%step
             IF (qtb_therm%cpt(ibead) == 2*qtb_therm%step(ibead)) THEN
                IF (ibead == 1) THEN
                   !update the rng status
-                  DO i = 1, qtb_therm%nf-1
-                     qtb_therm%rng_status(i) = qtb_therm%rng_status(i+1)
+                  DO i = 1, qtb_therm%nf - 1
+                     qtb_therm%rng_status(i) = qtb_therm%rng_status(i + 1)
                   END DO
-                  CALL dump_rng_stream(rng_stream=qtb_therm%gaussian_rng_stream, &
-                                       rng_record=qtb_therm%rng_status(qtb_therm%nf))
+                  CALL qtb_therm%gaussian_rng_stream%dump(qtb_therm%rng_status(qtb_therm%nf))
                END IF
                DO idim = 1, pint_env%ndim
                   !update random numbers
-                  DO i = 1, qtb_therm%nf-1
-                     qtb_therm%r(i, ibead, idim) = qtb_therm%r(i+1, ibead, idim)
+                  DO i = 1, qtb_therm%nf - 1
+                     qtb_therm%r(i, ibead, idim) = qtb_therm%r(i + 1, ibead, idim)
                   END DO
-                  qtb_therm%r(qtb_therm%nf, ibead, idim) = next_random_number(qtb_therm%gaussian_rng_stream)
+                  qtb_therm%r(qtb_therm%nf, ibead, idim) = qtb_therm%gaussian_rng_stream%next()
                END DO
                qtb_therm%cpt(ibead) = 0
             END IF
@@ -585,7 +575,7 @@ CONTAINS
          DO j = 1, n
             w = j*dw
             tmp = hbokT*w
-            fp(j) = tmp*(0.5_dp+1.0_dp/(EXP(tmp)-1.0_dp))
+            fp(j) = tmp*(0.5_dp + 1.0_dp/(EXP(tmp) - 1.0_dp))
          END DO
 
          IF (print_level == debug_print_level) THEN
@@ -603,8 +593,8 @@ CONTAINS
          xmin = 1.0e-7_dp !these values allows for an acceptable
          dx = 0.05_dp !ratio between accuracy, computing time and
          xmax = 10000.0_dp !memory requirement - tested for P up to 1024
-         nx = INT((xmax-xmin)/dx)+1
-         nx = nx+nx/5 !add 20% points to avoid any problems at the end
+         nx = INT((xmax - xmin)/dx) + 1
+         nx = nx + nx/5 !add 20% points to avoid any problems at the end
          !of the interval (probably unnecessary)
          IF (ibead == 1) THEN
             op = 1.0_dp/p
@@ -625,25 +615,25 @@ CONTAINS
             ALLOCATE (x2(nx))
             ALLOCATE (h(nx))
             ALLOCATE (fp1(nx))
-            ALLOCATE (xk(p-1, nx))
-            ALLOCATE (xk2(p-1, nx))
-            ALLOCATE (kk(p-1, nx))
-            ALLOCATE (fpxk(p-1, nx))
+            ALLOCATE (xk(p - 1, nx))
+            ALLOCATE (xk2(p - 1, nx))
+            ALLOCATE (kk(p - 1, nx))
+            ALLOCATE (fpxk(p - 1, nx))
 
             ! initialize fp(x)
             ! fp1 = fp(x) = h(x/P)
             ! fpxk = fp(xk) = h(xk/P)
             DO j = 1, nx
-               x(j) = xmin+(j-1)*dx
+               x(j) = xmin + (j - 1)*dx
                x2(j) = x(j)**2
                h(j) = x(j)/TANH(x(j))
                IF (x(j) <= 1.0e-10_dp) h(j) = 1.0_dp
                fp1(j) = op*x(j)/TANH(x(j)*op)
                IF (x(j)*op <= 1.0e-10_dp) fp1(j) = 1.0_dp
-               DO k = 1, p-1
-                  xk2(k, j) = x2(j)+(p*SIN(k*pi*op))**2
+               DO k = 1, p - 1
+                  xk2(k, j) = x2(j) + (p*SIN(k*pi*op))**2
                   xk(k, j) = SQRT(xk2(k, j))
-                  kk(k, j) = NINT((xk(k, j)-xmin)/dx)+1
+                  kk(k, j) = NINT((xk(k, j) - xmin)/dx) + 1
                   fpxk(k, j) = xk(k, j)*op/TANH(xk(k, j)*op)
                   IF (xk(k, j)*op <= 1.0e-10_dp) fpxk(k, j) = 1.0_dp
                END DO
@@ -655,12 +645,12 @@ CONTAINS
                err = 0.0_dp
                DO j = 1, nx
                   tmp = 0.0_dp
-                  DO k = 1, p-1
-                     tmp = tmp+fpxk(k, j)*x2(j)/xk2(k, j)
+                  DO k = 1, p - 1
+                     tmp = tmp + fpxk(k, j)*x2(j)/xk2(k, j)
                   END DO
                   fprev = fp1(j)
-                  fp1(j) = malpha*(h(j)-tmp)+(1.0_dp-malpha)*fp1(j)
-                  IF (j <= n) err = err+ABS(1.0_dp-fp1(j)/fprev) ! compute "errors"
+                  fp1(j) = malpha*(h(j) - tmp) + (1.0_dp - malpha)*fp1(j)
+                  IF (j <= n) err = err + ABS(1.0_dp - fp1(j)/fprev) ! compute "errors"
                END DO
                err = err/n
 
@@ -671,12 +661,12 @@ CONTAINS
                ! through linear interpolation
                ! or linear extrapolation if outside of the range
                DO j = 1, nx
-                  DO k = 1, p-1
+                  DO k = 1, p - 1
                      IF (kk(k, j) < nx) THEN
-                        fpxk(k, j) = fp1(kk(k, j))+(fp1(kk(k, j)+1)-fp1(kk(k, j)))/dx* &
-                                     (xk(k, j)-x(kk(k, j)))
+                        fpxk(k, j) = fp1(kk(k, j)) + (fp1(kk(k, j) + 1) - fp1(kk(k, j)))/dx* &
+                                     (xk(k, j) - x(kk(k, j)))
                      ELSE
-                        fpxk(k, j) = aa*xk(k, j)+bb
+                        fpxk(k, j) = aa*xk(k, j) + bb
                      ENDIF
                   END DO
                END DO
@@ -710,7 +700,7 @@ CONTAINS
                WRITE (log_unit, '(A)') ' # computed fp function'
                WRITE (log_unit, '(A)') ' # i, w(a.u.), x, fp'
                DO j = 1, nx
-                  WRITE (log_unit, *) j, j*dw, xmin+(j-1)*dx, fp1(j)
+                  WRITE (log_unit, *) j, j*dw, xmin + (j - 1)*dx, fp1(j)
                END DO
             END IF
 
@@ -727,18 +717,18 @@ CONTAINS
          ! through linear interpolation / regression
          DO j = 1, n
             x1 = j*dx1
-            k = NINT((x1-xmin)/dx)+1
+            k = NINT((x1 - xmin)/dx) + 1
             IF (k > nx) THEN
-               fp(j) = aa*x1+bb
+               fp(j) = aa*x1 + bb
             ELSE IF (k <= 0) THEN
                CALL pint_write_line("QTB| error in fp computation x < xmin")
                CPABORT("Error in fp computation (x < xmin) in intialization of QTB random forces")
             ELSE
-               xx = xmin+(k-1)*dx
+               xx = xmin + (k - 1)*dx
                IF (x1 > xx) THEN
-                  fp(j) = fp1(k)+(fp1(k+1)-fp1(k))/dx*(x1-xx)
+                  fp(j) = fp1(k) + (fp1(k + 1) - fp1(k))/dx*(x1 - xx)
                ELSE
-                  fp(j) = fp1(k)+(fp1(k)-fp1(k-1))/dx*(x1-xx)
+                  fp(j) = fp1(k) + (fp1(k) - fp1(k - 1))/dx*(x1 - xx)
                END IF
             END IF
          END DO
@@ -803,12 +793,12 @@ CONTAINS
          xmin = 1.0e-3_dp !these values allows for an acceptable
          dx = 0.05_dp !ratio between accuracy, computing time and
          xmax = 10000.0_dp !memory requirement - tested for P up to 1024
-         nx = INT((xmax-xmin)/dx)+1
-         nx = nx+nx/5 !add 20% points to avoid problem at the end
+         nx = INT((xmax - xmin)/dx) + 1
+         nx = nx + nx/5 !add 20% points to avoid problem at the end
          !of the interval (probably unnecessary)
          op = 1.0_dp/p
          IF (ibead == 2) THEN
-            op1 = 1.0_dp/(p-1)
+            op1 = 1.0_dp/(p - 1)
             malpha = op !mixing parameter alpha = 1/P
             niter = 40 !40 iterations are enough to converge
 
@@ -827,25 +817,25 @@ CONTAINS
             ALLOCATE (x2(nx))
             ALLOCATE (h(nx))
             ALLOCATE (fp1(nx))
-            ALLOCATE (xk(p-1, nx))
-            ALLOCATE (xk2(p-1, nx))
-            ALLOCATE (kk(p-1, nx))
-            ALLOCATE (fpxk(p-1, nx))
+            ALLOCATE (xk(p - 1, nx))
+            ALLOCATE (xk2(p - 1, nx))
+            ALLOCATE (kk(p - 1, nx))
+            ALLOCATE (fpxk(p - 1, nx))
 
             ! initialize F_P(x) = f_P(x_1)
             ! fp1 = fp(x) = h(x/(P-1))
             ! fpxk = fp(xk) = h(xk/(P-1))
             DO j = 1, nx
-               x(j) = xmin+(j-1)*dx
+               x(j) = xmin + (j - 1)*dx
                x2(j) = x(j)**2
                h(j) = x(j)/TANH(x(j))
                IF (x(j) <= 1.0e-10_dp) h(j) = 1.0_dp
                fp1(j) = op1*x(j)/TANH(x(j)*op1)
                IF (x(j)*op1 <= 1.0e-10_dp) fp1(j) = 1.0_dp
-               DO k = 1, p-1
-                  xk2(k, j) = x2(j)+(p*SIN(k*pi*op))**2
-                  xk(k, j) = SQRT(xk2(k, j)-(p*SIN(pi*op))**2)
-                  kk(k, j) = NINT((xk(k, j)-xmin)/dx)+1
+               DO k = 1, p - 1
+                  xk2(k, j) = x2(j) + (p*SIN(k*pi*op))**2
+                  xk(k, j) = SQRT(xk2(k, j) - (p*SIN(pi*op))**2)
+                  kk(k, j) = NINT((xk(k, j) - xmin)/dx) + 1
                   fpxk(k, j) = xk(k, j)*op1/TANH(xk(k, j)*op1)
                   IF (xk(k, j)*op1 <= 1.0e-10_dp) fpxk(k, j) = 1.0_dp
                END DO
@@ -857,13 +847,13 @@ CONTAINS
                err = 0.0_dp
                DO j = 1, nx
                   tmp = 0.0_dp
-                  DO k = 2, p-1
-                     tmp = tmp+fpxk(k, j)*x2(j)/xk2(k, j)
+                  DO k = 2, p - 1
+                     tmp = tmp + fpxk(k, j)*x2(j)/xk2(k, j)
                   END DO
                   fprev = fp1(j)
-                  tmp1 = 1.0_dp+(p*SIN(pi*op)/x(j))**2
-                  fp1(j) = malpha*tmp1*(h(j)-1.0_dp-tmp)+(1.0_dp-malpha)*fp1(j)
-                  IF (j <= n) err = err+ABS(1.0_dp-fp1(j)/fprev) ! compute "errors"
+                  tmp1 = 1.0_dp + (p*SIN(pi*op)/x(j))**2
+                  fp1(j) = malpha*tmp1*(h(j) - 1.0_dp - tmp) + (1.0_dp - malpha)*fp1(j)
+                  IF (j <= n) err = err + ABS(1.0_dp - fp1(j)/fprev) ! compute "errors"
                END DO
                err = err/n
 
@@ -874,12 +864,12 @@ CONTAINS
                ! through linear interpolation
                ! or linear extrapolation if outside of the range
                DO j = 1, nx
-                  DO k = 1, p-1
+                  DO k = 1, p - 1
                      IF (kk(k, j) < nx) THEN
-                        fpxk(k, j) = fp1(kk(k, j))+(fp1(kk(k, j)+1)-fp1(kk(k, j)))/dx* &
-                                     (xk(k, j)-x(kk(k, j)))
+                        fpxk(k, j) = fp1(kk(k, j)) + (fp1(kk(k, j) + 1) - fp1(kk(k, j)))/dx* &
+                                     (xk(k, j) - x(kk(k, j)))
                      ELSE
-                        fpxk(k, j) = aa*xk(k, j)+bb
+                        fpxk(k, j) = aa*xk(k, j) + bb
                      END IF
                   END DO
                END DO
@@ -907,7 +897,7 @@ CONTAINS
                WRITE (log_unit, '(A)') ' # computed fp function'
                WRITE (log_unit, '(A)') ' # i, w(a.u.), x, fp'
                DO j = 1, nx
-                  WRITE (log_unit, *) j, j*dw, xmin+(j-1)*dx, fp1(j)
+                  WRITE (log_unit, *) j, j*dw, xmin + (j - 1)*dx, fp1(j)
                END DO
             END IF
 
@@ -922,22 +912,22 @@ CONTAINS
          ! compute values of fP on the grid points for the current NM
          ! trough linear interpolation / regression
          DO j = 1, n
-            tmp = (j*dx1)**2-(p*SIN(pi*op))**2
+            tmp = (j*dx1)**2 - (p*SIN(pi*op))**2
             IF (tmp < 0.d0) THEN
                fp(j) = fp1(1)
             ELSE
                tmp = SQRT(tmp)
-               k = NINT((tmp-xmin)/dx)+1
+               k = NINT((tmp - xmin)/dx) + 1
                IF (k > nx) THEN
-                  fp(j) = aa*tmp+bb
+                  fp(j) = aa*tmp + bb
                ELSE IF (k <= 0) THEN
                   fp(j) = fp1(1)
                ELSE
-                  xx = xmin+(k-1)*dx
+                  xx = xmin + (k - 1)*dx
                   IF (tmp > xx) THEN
-                     fp(j) = fp1(k)+(fp1(k+1)-fp1(k))/dx*(tmp-xx)
+                     fp(j) = fp1(k) + (fp1(k + 1) - fp1(k))/dx*(tmp - xx)
                   ELSE
-                     fp(j) = fp1(k)+(fp1(k)-fp1(k-1))/dx*(tmp-xx)
+                     fp(j) = fp1(k) + (fp1(k) - fp1(k - 1))/dx*(tmp - xx)
                   END IF
                END IF
             END IF
@@ -982,24 +972,24 @@ CONTAINS
       yvar = 0.0_dp
 
       DO i = 1, n
-         xav = xav+x(i)
-         yav = yav+y(i)
-         xycov = xycov+x(i)*y(i)
-         xvar = xvar+x(i)**2
-         yvar = yvar+y(i)**2
+         xav = xav + x(i)
+         yav = yav + y(i)
+         xycov = xycov + x(i)*y(i)
+         xvar = xvar + x(i)**2
+         yvar = yvar + y(i)**2
       END DO
 
       xav = xav/n
       yav = yav/n
       xycov = xycov/n
-      xycov = xycov-xav*yav
+      xycov = xycov - xav*yav
       xvar = xvar/n
-      xvar = xvar-xav**2
+      xvar = xvar - xav**2
       yvar = yvar/n
-      yvar = yvar-yav**2
+      yvar = yvar - yav**2
 
       a = xycov/xvar
-      b = yav-a*xav
+      b = yav - a*xav
 
       r2 = xycov/SQRT(xvar*yvar)
 

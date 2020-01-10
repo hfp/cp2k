@@ -4,7 +4,7 @@ SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")" && pwd -P)"
 
 # +-----------------------------------------------------------------------+
 # |  CP2K: A general program to perform molecular dynamics simulations    |
-# |  Copyright (C) 2000 - 2019  CP2K developers group                     |
+# |  Copyright (C) 2000 - 2020  CP2K developers group                     |
 # +-----------------------------------------------------------------------+
 #
 # *****************************************************************************
@@ -297,7 +297,7 @@ fi
 with_acml=__SYSTEM__
 with_mkl=__SYSTEM__
 with_openblas=__INSTALL__
-with_reflapack=__INSTALL__
+with_reflapack=__DONTUSE__
 
 # sirius is activated by default
 with_sirius="__INSTALL__"

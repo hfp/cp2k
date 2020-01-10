@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -479,7 +479,7 @@ CONTAINS
 
       CALL cp_print_key_section_create(print_key, __LOCATION__, "SYMMETRY", &
                                        description="controls the output of symmetry information", &
-                                       print_level=debug_print_level+1, filename="__STD_OUT__")
+                                       print_level=debug_print_level + 1, filename="__STD_OUT__")
       CALL keyword_create(keyword, __LOCATION__, name="MOLECULE", &
                           description="Assume the system is an isolated molecule", &
                           default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)

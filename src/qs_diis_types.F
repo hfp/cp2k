@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -87,7 +87,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(diis_buffer))
       CPASSERT(diis_buffer%ref_count > 0)
-      diis_buffer%ref_count = diis_buffer%ref_count+1
+      diis_buffer%ref_count = diis_buffer%ref_count + 1
    END SUBROUTINE qs_diis_b_retain
 
 ! **************************************************************************************************
@@ -107,7 +107,7 @@ CONTAINS
 
       IF (ASSOCIATED(diis_buffer)) THEN
          CPASSERT(diis_buffer%ref_count > 0)
-         diis_buffer%ref_count = diis_buffer%ref_count-1
+         diis_buffer%ref_count = diis_buffer%ref_count - 1
          IF (diis_buffer%ref_count < 1) THEN
             IF (ASSOCIATED(diis_buffer%b_matrix)) THEN
                DEALLOCATE (diis_buffer%b_matrix)

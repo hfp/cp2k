@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -112,7 +112,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(parser))
       CPASSERT(parser%ref_count > 0)
-      parser%ref_count = parser%ref_count+1
+      parser%ref_count = parser%ref_count + 1
    END SUBROUTINE parser_retain
 
 ! **************************************************************************************************
@@ -129,7 +129,7 @@ CONTAINS
 
       IF (ASSOCIATED(parser)) THEN
          CPASSERT(parser%ref_count > 0)
-         parser%ref_count = parser%ref_count-1
+         parser%ref_count = parser%ref_count - 1
          IF (parser%ref_count == 0) THEN
             IF (parser%input_unit >= 0) THEN
                CALL close_file(unit_number=parser%input_unit)
@@ -184,7 +184,7 @@ CONTAINS
 
       CPASSERT(.NOT. ASSOCIATED(parser))
       ALLOCATE (parser)
-      last_parser_id = last_parser_id+1
+      last_parser_id = last_parser_id + 1
       parser%id_nr = last_parser_id
       parser%ref_count = 1
 

@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -44,8 +44,8 @@ MODULE cp_fm_struct
    PUBLIC :: cp_fm_struct_create, cp_fm_struct_retain, cp_fm_struct_release, &
              cp_fm_struct_equivalent, &
              cp_fm_struct_get, cp_fm_struct_double, cp_fm_struct_config, &
-             cp_fm_struct_get_nrow_block, cp_fm_struct_get_ncol_block
-!***
+             cp_fm_struct_get_nrow_block, cp_fm_struct_get_ncol_block, &
+             cp_fm_struct_write_info
 
 ! **************************************************************************************************
 !> \brief keeps the information about the structure of a full matrix
@@ -106,8 +106,10 @@ CONTAINS
 !> \param context the blacs context of this matrix
 !> \param nrow_global the number of row of the full matrix
 !> \param ncol_global the number of colums of the full matrix
-!> \param nrow_block the number of rows of a block of the matrix ! useful defaults are in, do not specify
-!> \param ncol_block the number of colums of a block of the matrix ! useful defaults are in, do not specify
+!> \param nrow_block the number of rows of a block of the matrix,
+!>        omit or set to -1 to use the built-in defaults
+!> \param ncol_block the number of colums of a block of the matrix,
+!>        omit or set to -1 to use the built-in defaults
 !> \param descriptor the scalapack descriptor of the matrix (if not given
 !>        a new one is allocated
 !> \param first_p_pos ...
@@ -196,7 +198,8 @@ CONTAINS
 
       ! try to avoid small left-over blocks (anyway naive)
       IF (PRESENT(nrow_block)) THEN
-         fmstruct%nrow_block = nrow_block
+         IF (nrow_block > 0) & ! allows setting the number of blocks to -1 to explicitly set to auto
+            fmstruct%nrow_block = nrow_block
       END IF
       IF (.NOT. my_force_block) THEN
          dumblock = CEILING(REAL(fmstruct%nrow_global, KIND=dp)/ &
@@ -204,7 +207,8 @@ CONTAINS
          fmstruct%nrow_block = MAX(1, MIN(fmstruct%nrow_block, dumblock))
       END IF
       IF (PRESENT(ncol_block)) THEN
-         fmstruct%ncol_block = ncol_block
+         IF (ncol_block > 0) & ! allows setting the number of blocks to -1 to explicitly set to auto
+            fmstruct%ncol_block = ncol_block
       END IF
       IF (.NOT. my_force_block) THEN
          dumblock = CEILING(REAL(fmstruct%ncol_global, KIND=dp)/ &
@@ -220,8 +224,8 @@ CONTAINS
          fmstruct%ncol_block = fmstruct%nrow_block
       END IF
 
-      ALLOCATE (fmstruct%nrow_locals(0:(fmstruct%context%num_pe(1)-1)), &
-                fmstruct%ncol_locals(0:(fmstruct%context%num_pe(2)-1)))
+      ALLOCATE (fmstruct%nrow_locals(0:(fmstruct%context%num_pe(1) - 1)), &
+                fmstruct%ncol_locals(0:(fmstruct%context%num_pe(2) - 1)))
       IF (.NOT. PRESENT(template_fmstruct)) &
          fmstruct%first_p_pos = (/0, 0/)
       IF (PRESENT(first_p_pos)) fmstruct%first_p_pos = first_p_pos
@@ -279,7 +283,7 @@ CONTAINS
       END IF
 
       NULLIFY (fmstruct%row_indices, fmstruct%col_indices)
-      last_fmstruct_id_nr = last_fmstruct_id_nr+1
+      last_fmstruct_id_nr = last_fmstruct_id_nr + 1
       fmstruct%id_nr = last_fmstruct_id_nr
       fmstruct%ref_count = 1
 
@@ -314,7 +318,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(fmstruct))
       CPASSERT(fmstruct%ref_count > 0)
-      fmstruct%ref_count = fmstruct%ref_count+1
+      fmstruct%ref_count = fmstruct%ref_count + 1
    END SUBROUTINE cp_fm_struct_retain
 
 ! **************************************************************************************************
@@ -332,7 +336,7 @@ CONTAINS
 
       IF (ASSOCIATED(fmstruct)) THEN
          CPASSERT(fmstruct%ref_count > 0)
-         fmstruct%ref_count = fmstruct%ref_count-1
+         fmstruct%ref_count = fmstruct%ref_count - 1
          IF (fmstruct%ref_count < 1) THEN
             CALL cp_blacs_env_release(fmstruct%context)
             CALL cp_para_env_release(fmstruct%para_env)
@@ -503,6 +507,42 @@ CONTAINS
    END SUBROUTINE cp_fm_struct_get
 
 ! **************************************************************************************************
+!> \brief Write nicely formatted info about the FM struct to the given I/O unit
+!> \param fmstruct a cp_fm_struct_type instance
+!> \param io_unit the I/O unit to use for writing
+! **************************************************************************************************
+   SUBROUTINE cp_fm_struct_write_info(fmstruct, io_unit)
+      TYPE(cp_fm_struct_type), INTENT(IN), POINTER       :: fmstruct
+      INTEGER, INTENT(IN)                                :: io_unit
+
+      INTEGER, PARAMETER                                 :: oblock_size = 8
+
+      CHARACTER(len=30)                                  :: fm
+      INTEGER                                            :: oblock
+
+      WRITE (fm, "(A,I2,A)") "(A,I5,A,I5,A,", oblock_size, "I6)"
+
+      WRITE (io_unit, '(A,I12)') "CP_FM_STRUCT | No. of matrix columns:   ", fmstruct%ncol_global
+      WRITE (io_unit, '(A,I12)') "CP_FM_STRUCT | No. of matrix rows:      ", fmstruct%nrow_global
+      WRITE (io_unit, '(A,I12)') "CP_FM_STRUCT | No. of block columns:    ", fmstruct%ncol_block
+      WRITE (io_unit, '(A,I12)') "CP_FM_STRUCT | No. of block rows:       ", fmstruct%nrow_block
+
+      WRITE (io_unit, '(A)') "CP_FM_STRUCT | Number of local columns: "
+      DO oblock = 0, (SIZE(fmstruct%ncol_locals) - 1)/oblock_size
+         WRITE (io_unit, fm) "CP_FM_STRUCT | CPUs ", &
+            oblock*oblock_size, "..", (oblock + 1)*oblock_size - 1, ": ", &
+            fmstruct%ncol_locals(oblock*oblock_size:MIN(SIZE(fmstruct%ncol_locals), (oblock + 1)*oblock_size) - 1)
+      END DO
+
+      WRITE (io_unit, '(A)') "CP_FM_STRUCT | Number of local rows:    "
+      DO oblock = 0, (SIZE(fmstruct%nrow_locals) - 1)/oblock_size
+         WRITE (io_unit, fm) "CP_FM_STRUCT | CPUs ", &
+            oblock*oblock_size, "..", (oblock + 1)*oblock_size - 1, ": ", &
+            fmstruct%nrow_locals(oblock*oblock_size:MIN(SIZE(fmstruct%nrow_locals), (oblock + 1)*oblock_size) - 1)
+      END DO
+   END SUBROUTINE cp_fm_struct_write_info
+
+! **************************************************************************************************
 !> \brief creates a struct with twice the number of blocks on each core.
 !>        If matrix A has to be multiplied with B anc C, a
 !>        significant speedup of pdgemm can be acchieved by joining the matrices
@@ -519,13 +559,14 @@ CONTAINS
    SUBROUTINE cp_fm_struct_double(fmstruct, struct, context, col, row)
       TYPE(cp_fm_struct_type), POINTER                   :: fmstruct, struct
       TYPE(cp_blacs_env_type), POINTER                   :: context
-      LOGICAL                                            :: col, row
+      LOGICAL, INTENT(in)                                :: col, row
 
       CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_struct_double', &
          routineP = moduleN//':'//routineN
 
-      INTEGER :: nblocks, ncol_block, ncol_global, nempty, newdim_col, newdim_row, nfilled, &
-         nprocs_col, nprocs_row, nrow_block, nrow_global
+      INTEGER :: n_doubled_items_in_partially_filled_block, ncol_block, ncol_global, newdim_col, &
+         newdim_row, nfilled_blocks, nfilled_blocks_remain, nprocs_col, nprocs_row, nrow_block, &
+         nrow_global
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
       CALL cp_fm_struct_get(struct, nrow_global=nrow_global, &
@@ -541,11 +582,38 @@ CONTAINS
          IF (ncol_global == 0) THEN
             newdim_col = 0
          ELSE
-            !Divide ncol_global by ncol_block and round up
-            nblocks = (ncol_global+ncol_block-1)/ncol_block
-            nfilled = MOD(nblocks, nprocs_col)
-            nempty = MOD(nprocs_col-nfilled, nprocs_col)
-            newdim_col = 2*ncol_global+2*nempty*ncol_block+2*MOD(ncol_block-MOD(ncol_global, ncol_block), ncol_block)
+            ! ncol_block            nfilled_blocks_remain * ncol_block
+            !     |<--->|           |<--->|
+            !     |-----|-----|-----|-----|---|
+            !     |  0  |  1  |  2  |  0  | 1 | <- context%mepos(2)
+            !     |-----|-----|-----|-----|---|
+            !     |<--- nfilled_blocks -->|<->  -- items (columns) in partially filled blocks
+            !     |     * ncol_block      |
+            n_doubled_items_in_partially_filled_block = 2*MOD(ncol_global, ncol_block)
+            nfilled_blocks = ncol_global/ncol_block
+            nfilled_blocks_remain = MOD(nfilled_blocks, nprocs_col)
+            newdim_col = 2*(nfilled_blocks/nprocs_col)
+            IF (n_doubled_items_in_partially_filled_block > ncol_block) THEN
+               ! doubled number of columns in a partially filled block does not fit into a single block.
+               ! Due to cyclic distribution of ScaLAPACK blocks, an extra block for each core needs to be added
+               ! |-----|-----|-----|----|     |-----|-----|-----|-----|-----|-----|-----|-----|-----|---|
+               ! |  0  |  1  |  2  |  0 | --> |  0  |  1  |  2  |  0  |  1  |  2  |  0  |  1  |  2  |  0|
+               ! |-----|-----|-----|----|     |-----|-----|-----|-----|-----|-----|-----|-----|-----|---|
+               !    a     a     a     b          a1    a1    a1    a2    a2    a2    b1  empty empty  b2
+               newdim_col = newdim_col + 1
+
+               ! the number of columns which does not fit into the added extra block
+               n_doubled_items_in_partially_filled_block = n_doubled_items_in_partially_filled_block - ncol_block
+            ELSE IF (nfilled_blocks_remain > 0) THEN
+               ! |-----|-----|-----|-----|--|    |-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|
+               ! |  0  |  1  |  2  |  0  | 1| -> |  0  |  1  |  2  |  0  |  1  |  2  |  0  |  1  |  2  |  0  |
+               ! |-----|-----|-----|-----|--|    |-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|
+               !    a     a     a     b    b        a1    a1    a1    a2    a2    a2    b1  b1 b2 empty   b2
+               newdim_col = newdim_col + 1
+               n_doubled_items_in_partially_filled_block = 0
+            END IF
+
+            newdim_col = (newdim_col*nprocs_col + nfilled_blocks_remain)*ncol_block + n_doubled_items_in_partially_filled_block
          END IF
       END IF
 
@@ -553,20 +621,31 @@ CONTAINS
          IF (nrow_global == 0) THEN
             newdim_row = 0
          ELSE
-            !Divide nrow_global by nrow_block and round up
-            nblocks = (nrow_global+nrow_block-1)/nrow_block
-            nfilled = MOD(nblocks, nprocs_row)
-            nempty = MOD(nprocs_row-nfilled, nprocs_row)
-            newdim_row = 2*nrow_global+2*nempty*nrow_block+2*MOD(nrow_block-MOD(nrow_global, nrow_block), nrow_block)
+            n_doubled_items_in_partially_filled_block = 2*MOD(nrow_global, nrow_block)
+            nfilled_blocks = nrow_global/nrow_block
+            nfilled_blocks_remain = MOD(nfilled_blocks, nprocs_row)
+            newdim_row = 2*(nfilled_blocks/nprocs_row)
+            IF (n_doubled_items_in_partially_filled_block > nrow_block) THEN
+               newdim_row = newdim_row + 1
+               n_doubled_items_in_partially_filled_block = n_doubled_items_in_partially_filled_block - nrow_block
+            ELSE IF (nfilled_blocks_remain > 0) THEN
+               newdim_row = newdim_row + 1
+               n_doubled_items_in_partially_filled_block = 0
+            END IF
+
+            newdim_row = (newdim_row*nprocs_row + nfilled_blocks_remain)*nrow_block + n_doubled_items_in_partially_filled_block
          END IF
       END IF
 
+      ! square_blocks=.FALSE. ensures that matrix blocks of the doubled matrix will have
+      ! nrow_block x ncol_block shape even in case of a square doubled matrix
       CALL cp_fm_struct_create(fmstruct=fmstruct, para_env=para_env, &
                                context=context, &
                                nrow_global=newdim_row, &
                                ncol_global=newdim_col, &
                                ncol_block=ncol_block, &
-                               nrow_block=nrow_block)
+                               nrow_block=nrow_block, &
+                               square_blocks=.FALSE.)
 
    END SUBROUTINE cp_fm_struct_double
 ! **************************************************************************************************

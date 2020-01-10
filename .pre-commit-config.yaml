@@ -11,6 +11,7 @@ repos:
         name: Check python ast (with Python 2.7)
         language_version: python2.7
         stages: [manual]
+        files: '^tools/build_utils/.*\.py'
     -   id: check-ast
         name: Check python ast (with Python 3)
         language_version: python3
@@ -19,21 +20,25 @@ repos:
     rev: stable
     hooks:
     -   id: black
+        exclude: >-
+          (?x)^(
+            exts/.*|
+            tools/prettify/fprettify/.|
+          )$
 -   repo: local
     hooks:
     -   id: doxify
         name: Run doxify
         entry: ./tools/doxify/doxify.sh
         language: script
-        files: '.*\.(F|f90)$'
+        files: '^src/.*\.(F|f90)$'
     -   id: prettify
         name: Run prettify
         entry: ./tools/prettify/prettify.py
         language: script
-        files: '.*\.(F|f90)$'
+        files: '^src/.*\.(F|f90)$'
         exclude: >-
           (?x)^(
-            tools/.*|
             src/base/base_uses.f90|
             src/common/util.F|
           )$
@@ -41,7 +46,7 @@ repos:
         name: Run analyze_src
         entry: ./tools/conventions/analyze_src.py --fail --suppressions ./tools/conventions/conventions.supp
         language: script
-        files: '.*\.(F|fypp|c|cu|cpp|h|hpp)$'
+        files: '^src/.*\.(F|fypp|c|cu|cpp|h|hpp)$'
     -   id: regen_data
         name: Regenerate checked-in data files
         entry: make --always-make data

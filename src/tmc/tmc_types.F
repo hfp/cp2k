@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -60,7 +60,7 @@ MODULE tmc_types
    TYPE tmc_env_type
       TYPE(tmc_comp_set_type), POINTER              :: tmc_comp_set
       TYPE(tmc_param_type), POINTER                 :: params
-      TYPE(rng_stream_type), POINTER                :: rng_stream
+      TYPE(rng_stream_type), ALLOCATABLE            :: rng_stream
       TYPE(master_env_type), POINTER                :: m_env
       TYPE(worker_env_type), POINTER                :: w_env
    END TYPE tmc_env_type
@@ -199,7 +199,6 @@ CONTAINS
       NULLIFY (tmc_env%tmc_comp_set%para_env_m_ana)
       NULLIFY (tmc_env%tmc_comp_set%para_env_m_only)
 
-      NULLIFY (tmc_env%rng_stream)
       NULLIFY (tmc_env%m_env, tmc_env%w_env)
 
       ! initialize the parameter section

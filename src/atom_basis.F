@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 MODULE atom_basis
@@ -57,10 +57,12 @@ CONTAINS
          DIMENSION(:), POINTER                           :: tmpstringlist
       INTEGER                                            :: do_eric, do_erie, handle, i, im, in, &
                                                             iunit, iw, k, maxl, mb, method, mo, &
-                                                            n_meth, n_rep, reltyp, zcore, zval, zz
+                                                            n_meth, n_rep, nr_gh, reltyp, zcore, &
+                                                            zval, zz
       INTEGER, DIMENSION(0:lmat)                         :: maxn
       INTEGER, DIMENSION(:), POINTER                     :: cn
-      LOGICAL                                            :: eri_c, eri_e, had_ae, had_pp, pp_calc
+      LOGICAL                                            :: do_gh, eri_c, eri_e, had_ae, had_pp, &
+                                                            pp_calc
       REAL(KIND=dp), DIMENSION(0:lmat, 10)               :: pocc
       TYPE(atom_basis_type), POINTER                     :: ae_basis, pp_basis
       TYPE(atom_integrals), POINTER                      :: ae_int, pp_int
@@ -117,13 +119,15 @@ CONTAINS
       eri_e = .FALSE.
       CALL section_vals_val_get(atom_section, "EXCHANGE_INTEGRALS", i_val=do_erie)
       IF (do_erie == do_analytic) eri_e = .TRUE.
+      CALL section_vals_val_get(atom_section, "USE_GAUSS_HERMITE", l_val=do_gh)
+      CALL section_vals_val_get(atom_section, "GRID_POINTS_GH", i_val=nr_gh)
 
       ! information on the states to be calculated
       CALL section_vals_val_get(atom_section, "MAX_ANGULAR_MOMENTUM", i_val=maxl)
       maxn = 0
       CALL section_vals_val_get(atom_section, "CALCULATE_STATES", i_vals=cn)
       DO in = 1, MIN(SIZE(cn), 4)
-         maxn(in-1) = cn(in)
+         maxn(in - 1) = cn(in)
       END DO
       DO in = 0, lmat
          maxn(in) = MIN(maxn(in), ae_basis%nbas(in))
@@ -185,7 +189,7 @@ CONTAINS
                ! get and set the core occupations
                CALL section_vals_val_get(atom_section, "CORE", c_vals=tmpstringlist)
                CALL atom_set_occupation(tmpstringlist, state%core, pocc)
-               zcore = zval-NINT(SUM(state%core))
+               zcore = zval - NINT(SUM(state%core))
                CALL set_atom(atom_info(in, im)%atom, zcore=zcore, pp_calc=.TRUE.)
                had_pp = .TRUE.
                CALL set_atom(atom_info(in, im)%atom, basis=pp_basis, potential=p_pot)
@@ -206,6 +210,8 @@ CONTAINS
             CALL set_atom(atom_info(in, im)%atom, state=state)
             CALL set_atom(atom_info(in, im)%atom, coulomb_integral_type=do_eric, &
                           exchange_integral_type=do_erie)
+            atom_info(in, im)%atom%hfx_pot%do_gh = do_gh
+            atom_info(in, im)%atom%hfx_pot%nr_gh = nr_gh
 
             IF (atom_consistent_method(method, state%multiplicity)) THEN
                iw = cp_print_key_unit_nr(logger, atom_section, "PRINT%METHOD_INFO", extension=".log")

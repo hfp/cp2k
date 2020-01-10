@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -45,8 +45,7 @@ MODULE mc_control
    USE molecule_kind_types,             ONLY: atom_type,&
                                               get_molecule_kind,&
                                               molecule_kind_type
-   USE parallel_rng_types,              ONLY: next_random_number,&
-                                              rng_stream_type
+   USE parallel_rng_types,              ONLY: rng_stream_type
    USE particle_list_types,             ONLY: particle_list_type
    USE physcon,                         ONLY: angstrom
 #include "../../base/base_uses.f90"
@@ -141,7 +140,7 @@ CONTAINS
                   WRITE (unit, '(1X,A,1X,3(F15.10,3X))') &
                      TRIM(ADJUSTL(name)), &
                      particles%els(iparticle)%r(1:3)*angstrom
-                  iparticle = iparticle+1
+                  iparticle = iparticle + 1
                ENDDO
             ENDDO
          ENDDO
@@ -172,7 +171,7 @@ CONTAINS
       TYPE(force_env_type), POINTER                      :: force_env
       INTEGER, INTENT(IN)                                :: iw
       INTEGER, INTENT(INOUT)                             :: mc_nunits_tot
-      TYPE(rng_stream_type), POINTER                     :: rng_stream
+      TYPE(rng_stream_type), INTENT(INOUT)               :: rng_stream
 
       CHARACTER(len=*), PARAMETER :: routineN = 'read_mc_restart', &
          routineP = moduleN//':'//routineN
@@ -228,7 +227,7 @@ CONTAINS
       CALL mp_bcast(nchains, source, group)
 
       ! do some checking
-      IF (ABS(temperature-mc_temp) .GT. 0.01E0_dp) THEN
+      IF (ABS(temperature - mc_temp) .GT. 0.01E0_dp) THEN
          IF (ionode) THEN
             WRITE (iw, *) 'The temperature in the restart file is ', &
                'not the same as the input file.'
@@ -268,9 +267,9 @@ CONTAINS
          box_length(1:3) = box_length(1:3)/angstrom ! convert to a.u.
       ENDIF
       CALL mp_bcast(box_length, source, group)
-      IF (ABS(box_length(1)-abc(1)) .GT. 0.0001E0_dp .OR. &
-          ABS(box_length(2)-abc(2)) .GT. 0.0001E0_dp .OR. &
-          ABS(box_length(3)-abc(3)) .GT. 0.0001E0_dp) THEN
+      IF (ABS(box_length(1) - abc(1)) .GT. 0.0001E0_dp .OR. &
+          ABS(box_length(2) - abc(2)) .GT. 0.0001E0_dp .OR. &
+          ABS(box_length(3) - abc(3)) .GT. 0.0001E0_dp) THEN
          IF (ionode) THEN
             WRITE (iw, *) 'The cell length in the restart file is ', &
                'not the same as the input file.'
@@ -317,8 +316,8 @@ CONTAINS
 
       ! advance the random number sequence based on the restart step
       IF (ionode) THEN
-         DO i = 1, nstart+1
-            rand = next_random_number(rng_stream)
+         DO i = 1, nstart + 1
+            rand = rng_stream%next()
          ENDDO
       ENDIF
 
@@ -420,4 +419,3 @@ CONTAINS
    END SUBROUTINE mc_create_bias_force_env
 
 END MODULE mc_control
-

@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -24,6 +24,7 @@ MODULE hfx_admm_utils
    USE cp_fm_types,                     ONLY: cp_fm_get_info,&
                                               cp_fm_type
    USE cp_log_handling,                 ONLY: cp_get_default_logger,&
+                                              cp_logger_get_default_io_unit,&
                                               cp_logger_type
    USE cp_output_handling,              ONLY: cp_print_key_finished_output,&
                                               cp_print_key_unit_nr
@@ -223,10 +224,8 @@ CONTAINS
       REAL(dp)                                           :: eh1, ehfx, ehfxrt
       REAL(dp), ALLOCATABLE, DIMENSION(:)                :: hf_energy
       TYPE(cp_para_env_type), POINTER                    :: para_env
-      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_ks_1d, matrix_ks_aux_fit, &
-                                                            matrix_ks_aux_fit_hfx, &
-                                                            matrix_ks_aux_fit_im, matrix_ks_im, &
-                                                            rho_ao_1d
+      TYPE(dbcsr_p_type), DIMENSION(:), POINTER :: matrix_ks_1d, matrix_ks_aux_fit, &
+         matrix_ks_aux_fit_hfx, matrix_ks_aux_fit_im, matrix_ks_im, rho_ao_1d, rho_ao_resp
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: matrix_h, matrix_ks_orb, rho_ao_orb
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(hfx_type), DIMENSION(:, :), POINTER           :: x_data
@@ -323,7 +322,7 @@ CONTAINS
             CALL integrate_four_center(qs_env, x_data, matrix_ks_orb, eh1, rho_ao_orb, hfx_sections, &
                                        para_env, s_mstruct_changed, irep, distribute_fock_matrix, &
                                        ispin=ispin)
-            ehfx = ehfx+eh1
+            ehfx = ehfx + eh1
          END DO
 
          IF (calculate_forces .AND. .NOT. do_adiabatic_rescaling) THEN
@@ -331,7 +330,12 @@ CONTAINS
             IF (dft_control%do_admm) THEN
                CALL scale_dm(qs_env, rho_ao_orb, scale_back=.FALSE.)
             END IF
-            CALL derivatives_four_center(qs_env, rho_ao_orb, hfx_sections, &
+            IF (ASSOCIATED(qs_env%mp2_env)) THEN
+               CALL get_qs_env(qs_env, matrix_p_mp2=rho_ao_resp)
+            ELSE
+               NULLIFY (rho_ao_resp)
+            END IF
+            CALL derivatives_four_center(qs_env, rho_ao_orb, rho_ao_resp, hfx_sections, &
                                          para_env, irep, use_virial)
             !Scale auxiliary density matrix for ADMMP back with 1/gsi(ispin)
             IF (dft_control%do_admm) THEN
@@ -372,16 +376,17 @@ CONTAINS
                CALL integrate_four_center(qs_env, x_data, matrix_ks_orb, eh1, rho_ao_orb, hfx_sections, &
                                           para_env, .FALSE., irep, distribute_fock_matrix, &
                                           ispin=ispin)
-               ehfxrt = ehfxrt+eh1
+               ehfxrt = ehfxrt + eh1
             END DO
 
             IF (calculate_forces .AND. .NOT. do_adiabatic_rescaling) THEN
-               CALL derivatives_four_center(qs_env, rho_ao_orb, hfx_sections, &
+               NULLIFY (rho_ao_resp)
+               CALL derivatives_four_center(qs_env, rho_ao_orb, rho_ao_resp, hfx_sections, &
                                             para_env, irep, use_virial)
             END IF
 
             !! If required, the calculation of the forces will be done later with adiabatic rescaling
-            IF (do_adiabatic_rescaling) hf_energy(irep) = ehfx+ehfxrt
+            IF (do_adiabatic_rescaling) hf_energy(irep) = ehfx + ehfxrt
          END IF
 
          CALL pw_env_get(pw_env, auxbas_pw_pool=auxbas_pw_pool, &
@@ -391,7 +396,7 @@ CONTAINS
       END DO
 
       ! *** Set the total HFX energy
-      energy%ex = ehfx+ehfxrt
+      energy%ex = ehfx + ehfxrt
 
       ! *** Add Core-Hamiltonian-Matrix ***
       DO ispin = 1, nspins
@@ -401,7 +406,7 @@ CONTAINS
          END DO
       END DO
       IF (use_virial .AND. calculate_forces) THEN
-         virial%pv_virial = virial%pv_virial-virial%pv_fock_4c
+         virial%pv_virial = virial%pv_virial - virial%pv_fock_4c
          virial%pv_calculate = .FALSE.
       ENDIF
 
@@ -512,9 +517,9 @@ CONTAINS
 
             DO iorb_block = 1, norb, blocksize
 
-               DO iorb = iorb_block, MIN(iorb_block+blocksize-1, norb)
+               DO iorb = iorb_block, MIN(iorb_block + blocksize - 1, norb)
 
-                  iloc = iorb-iorb_block+1
+                  iloc = iorb - iorb_block + 1
                   CALL calculate_wavefunction(mo_coeff, iorb, rho_i(iloc), rho_g, &
                                               atomic_kind_set, qs_kind_set, cell, dft_control, particle_set, &
                                               pw_env)
@@ -523,19 +528,19 @@ CONTAINS
 
                DO jorb_block = iorb_block, norb, blocksize
 
-                  DO jorb = jorb_block, MIN(jorb_block+blocksize-1, norb)
+                  DO jorb = jorb_block, MIN(jorb_block + blocksize - 1, norb)
 
-                     jloc = jorb-jorb_block+1
+                     jloc = jorb - jorb_block + 1
                      CALL calculate_wavefunction(mo_coeff, jorb, rho_j(jloc), rho_g, &
                                                  atomic_kind_set, qs_kind_set, cell, dft_control, particle_set, &
                                                  pw_env)
 
                   ENDDO
 
-                  DO iorb = iorb_block, MIN(iorb_block+blocksize-1, norb)
-                     iloc = iorb-iorb_block+1
-                     DO jorb = jorb_block, MIN(jorb_block+blocksize-1, norb)
-                        jloc = jorb-jorb_block+1
+                  DO iorb = iorb_block, MIN(iorb_block + blocksize - 1, norb)
+                     iloc = iorb - iorb_block + 1
+                     DO jorb = jorb_block, MIN(jorb_block + blocksize - 1, norb)
+                        jloc = jorb - jorb_block + 1
                         IF (jorb < iorb) CYCLE
 
                         ! compute the pair density
@@ -550,7 +555,7 @@ CONTAINS
                         IF (SIZE(mo_array) == 1) scaling = scaling*2.0_dp
                         IF (iorb /= jorb) scaling = scaling*2.0_dp
 
-                        exchange_energy = exchange_energy-scaling*pair_energy
+                        exchange_energy = exchange_energy - scaling*pair_energy
 
                      ENDDO
                   ENDDO
@@ -618,14 +623,17 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'create_admm_xc_section', &
          routineP = moduleN//':'//routineN
+      LOGICAL, PARAMETER                                 :: debug_functional = .FALSE.
 
       CHARACTER(LEN=20)                                  :: name_x_func
-      INTEGER                                            :: hfx_potential_type, ifun, nfun
+      INTEGER                                            :: hfx_potential_type, ifun, iounit, nfun
       LOGICAL                                            :: funct_found
       REAL(dp)                                           :: cutoff_radius, hfx_fraction, omega, &
                                                             scale_x
+      TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(section_vals_type), POINTER                   :: xc_fun, xc_fun_section
 
+      logger => cp_get_default_logger()
       NULLIFY (admm_env%xc_section_aux, admm_env%xc_section_primary)
 
       CALL get_qs_env(qs_env)
@@ -645,10 +653,10 @@ CONTAINS
       ifun = 0
       nfun = 0
       DO
-         ifun = ifun+1
+         ifun = ifun + 1
          xc_fun => section_vals_get_subs_vals2(xc_fun_section, i_section=ifun)
          IF (.NOT. ASSOCIATED(xc_fun)) EXIT
-         nfun = nfun+1
+         nfun = nfun + 1
       END DO
 
       ifun = 0
@@ -718,7 +726,7 @@ CONTAINS
             ifun = 0
             funct_found = .FALSE.
             DO
-               ifun = ifun+1
+               ifun = ifun + 1
                xc_fun => section_vals_get_subs_vals2(xc_fun_section, i_section=ifun)
                IF (.NOT. ASSOCIATED(xc_fun)) EXIT
                IF (xc_fun%section%name == "PBE") THEN
@@ -735,7 +743,7 @@ CONTAINS
             ELSE
                CALL section_vals_val_get(xc_fun_section, "PBE%SCALE_X", &
                                          r_val=scale_x)
-               scale_x = scale_x+hfx_fraction
+               scale_x = scale_x + hfx_fraction
                CALL section_vals_val_set(xc_fun_section, "PBE%SCALE_X", &
                                          r_val=scale_x)
             END IF
@@ -744,7 +752,7 @@ CONTAINS
             ifun = 0
             funct_found = .FALSE.
             DO
-               ifun = ifun+1
+               ifun = ifun + 1
                xc_fun => section_vals_get_subs_vals2(xc_fun_section, i_section=ifun)
                IF (.NOT. ASSOCIATED(xc_fun)) EXIT
                IF (xc_fun%section%name == "XWPBE") THEN
@@ -763,7 +771,7 @@ CONTAINS
             ELSE
                CALL section_vals_val_get(xc_fun_section, "XWPBE%SCALE_X", &
                                          r_val=scale_x)
-               scale_x = scale_x+hfx_fraction
+               scale_x = scale_x + hfx_fraction
                CALL section_vals_val_set(xc_fun_section, "XWPBE%SCALE_X", &
                                          r_val=scale_x)
             END IF
@@ -772,7 +780,7 @@ CONTAINS
             ifun = 0
             funct_found = .FALSE.
             DO
-               ifun = ifun+1
+               ifun = ifun + 1
                xc_fun => section_vals_get_subs_vals2(xc_fun_section, i_section=ifun)
                IF (.NOT. ASSOCIATED(xc_fun)) EXIT
                IF (xc_fun%section%name == "PBE_HOLE_T_C_LR") THEN
@@ -790,7 +798,7 @@ CONTAINS
             ELSE
                CALL section_vals_val_get(xc_fun_section, "PBE_HOLE_T_C_LR%SCALE_X", &
                                          r_val=scale_x)
-               scale_x = scale_x-hfx_fraction
+               scale_x = scale_x - hfx_fraction
                CALL section_vals_val_set(xc_fun_section, "PBE_HOLE_T_C_LR%SCALE_X", &
                                          r_val=scale_x)
                CALL section_vals_val_set(xc_fun_section, "PBE_HOLE_T_C_LR%CUTOFF_RADIUS", &
@@ -799,7 +807,7 @@ CONTAINS
             ifun = 0
             funct_found = .FALSE.
             DO
-               ifun = ifun+1
+               ifun = ifun + 1
                xc_fun => section_vals_get_subs_vals2(xc_fun_section, i_section=ifun)
                IF (.NOT. ASSOCIATED(xc_fun)) EXIT
                IF (xc_fun%section%name == "XWPBE") THEN
@@ -817,7 +825,7 @@ CONTAINS
             ELSE
                CALL section_vals_val_get(xc_fun_section, "XWPBE%SCALE_X0", &
                                          r_val=scale_x)
-               scale_x = scale_x+hfx_fraction
+               scale_x = scale_x + hfx_fraction
                CALL section_vals_val_set(xc_fun_section, "XWPBE%SCALE_X0", &
                                          r_val=scale_x)
             END IF
@@ -866,7 +874,7 @@ CONTAINS
          ifun = 0
          funct_found = .FALSE.
          DO
-            ifun = ifun+1
+            ifun = ifun + 1
             xc_fun => section_vals_get_subs_vals2(xc_fun_section, i_section=ifun)
             IF (.NOT. ASSOCIATED(xc_fun)) EXIT
             IF (xc_fun%section%name == TRIM(name_x_func)) THEN
@@ -895,7 +903,7 @@ CONTAINS
          ELSE
             CALL section_vals_val_get(xc_fun_section, TRIM(name_x_func)//"%SCALE_X", &
                                       r_val=scale_x)
-            scale_x = scale_x+hfx_fraction
+            scale_x = scale_x + hfx_fraction
             CALL section_vals_val_set(xc_fun_section, TRIM(name_x_func)//"%SCALE_X", &
                                       r_val=scale_x)
             IF (admm_env%aux_exch_func == do_admm_aux_exch_func_opt) THEN
@@ -905,51 +913,58 @@ CONTAINS
 
       END IF
 
-      IF (1 == 0) THEN
-         WRITE (*, *) "primary"
+      IF (debug_functional) THEN
+         iounit = cp_logger_get_default_io_unit(logger)
+         IF (iounit > 0) THEN
+            WRITE (iounit, "(A)") " ADMM Primary Basis Set Functional"
+         END IF
          xc_fun_section => section_vals_get_subs_vals(admm_env%xc_section_primary, "XC_FUNCTIONAL")
          ifun = 0
          funct_found = .FALSE.
          DO
-            ifun = ifun+1
+            ifun = ifun + 1
             xc_fun => section_vals_get_subs_vals2(xc_fun_section, i_section=ifun)
             IF (.NOT. ASSOCIATED(xc_fun)) EXIT
 
             scale_x = -1000.0_dp
             IF (xc_fun%section%name /= "LYP" .AND. xc_fun%section%name /= "VWN") THEN
-               CALL section_vals_val_get(xc_fun, "SCALE_X", &
-                                         r_val=scale_x)
+               CALL section_vals_val_get(xc_fun, "SCALE_X", r_val=scale_x)
             END IF
             IF (xc_fun%section%name == "XWPBE") THEN
-               CALL section_vals_val_get(xc_fun, "SCALE_X0", &
-                                         r_val=hfx_fraction)
-
-               WRITE (*, *) xc_fun%section%name, scale_x, hfx_fraction
+               CALL section_vals_val_get(xc_fun, "SCALE_X0", r_val=hfx_fraction)
+               IF (iounit > 0) THEN
+                  WRITE (iounit, "(T5,A,T25,2F10.3)") TRIM(xc_fun%section%name), scale_x, hfx_fraction
+               END IF
             ELSE
-               WRITE (*, *) xc_fun%section%name, scale_x
+               IF (iounit > 0) THEN
+                  WRITE (iounit, "(T5,A,T25,F10.3)") TRIM(xc_fun%section%name), scale_x
+               END IF
             END IF
          END DO
 
-         WRITE (*, *) "auxiliary"
+         IF (iounit > 0) THEN
+            WRITE (iounit, "(A)") " Auxiliary Basis Set Functional"
+         END IF
          xc_fun_section => section_vals_get_subs_vals(admm_env%xc_section_aux, "XC_FUNCTIONAL")
          ifun = 0
          funct_found = .FALSE.
          DO
-            ifun = ifun+1
+            ifun = ifun + 1
             xc_fun => section_vals_get_subs_vals2(xc_fun_section, i_section=ifun)
             IF (.NOT. ASSOCIATED(xc_fun)) EXIT
             scale_x = -1000.0_dp
             IF (xc_fun%section%name /= "LYP" .AND. xc_fun%section%name /= "VWN") THEN
-               CALL section_vals_val_get(xc_fun, "SCALE_X", &
-                                         r_val=scale_x)
+               CALL section_vals_val_get(xc_fun, "SCALE_X", r_val=scale_x)
             END IF
             IF (xc_fun%section%name == "XWPBE") THEN
-               CALL section_vals_val_get(xc_fun, "SCALE_X0", &
-                                         r_val=hfx_fraction)
-
-               WRITE (*, *) xc_fun%section%name, scale_x, hfx_fraction
+               CALL section_vals_val_get(xc_fun, "SCALE_X0", r_val=hfx_fraction)
+               IF (iounit > 0) THEN
+                  WRITE (iounit, "(T5,A,T25,2F10.3)") TRIM(xc_fun%section%name), scale_x, hfx_fraction
+               END IF
             ELSE
-               WRITE (*, *) xc_fun%section%name, scale_x
+               IF (iounit > 0) THEN
+                  WRITE (iounit, "(T5,A,T25,F10.3)") TRIM(xc_fun%section%name), scale_x
+               END IF
             END IF
          END DO
       END IF
@@ -1023,7 +1038,7 @@ CONTAINS
             DO ispin = 1, mspin
                CALL integrate_four_center(qs_env, x_data, matrix_ks_kp, eh1, rho_ao_kp, hfx_sections, para_env, &
                                           s_mstruct_changed, irep, distribute_fock_matrix, ispin=ispin)
-               ehfx = ehfx+eh1
+               ehfx = ehfx + eh1
             END DO
          END DO
          energy%ex = ehfx

@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -101,21 +101,21 @@ CONTAINS
 
       IF (my_multi .NE. do_pdgemm) THEN
          IF (SIZE(a_row_loc) == SIZE(c_row_loc)) THEN
-            IF (ANY(a_row_loc-c_row_loc .NE. 0)) my_multi = do_pdgemm
+            IF (ANY(a_row_loc - c_row_loc .NE. 0)) my_multi = do_pdgemm
          ELSE
             my_multi = do_pdgemm
          END IF
       END IF
       IF (my_multi .NE. do_pdgemm) THEN
          IF (SIZE(b_col_loc) == SIZE(c_col_loc)) THEN
-            IF (ANY(b_col_loc-c_col_loc .NE. 0)) my_multi = do_pdgemm
+            IF (ANY(b_col_loc - c_col_loc .NE. 0)) my_multi = do_pdgemm
          ELSE
             my_multi = do_pdgemm
          END IF
       END IF
       IF (my_multi .NE. do_pdgemm) THEN
          IF (SIZE(a_col_loc) == SIZE(b_row_loc)) THEN
-            IF (ANY(a_col_loc-b_row_loc .NE. 0)) my_multi = do_pdgemm
+            IF (ANY(a_col_loc - b_row_loc .NE. 0)) my_multi = do_pdgemm
          ELSE
             my_multi = do_pdgemm
          END IF

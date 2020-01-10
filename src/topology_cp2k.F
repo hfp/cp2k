@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 ! **************************************************************************************************
 MODULE topology_cp2k
@@ -139,7 +139,7 @@ CONTAINS
       DO
          CALL parser_get_object(parser, object=string, newline=.TRUE., at_end=eof)
          IF (eof) EXIT
-         natom = natom+1
+         natom = natom + 1
          IF (natom > SIZE(atom_info%id_atmname)) THEN
             newsize = INT(pfactor*natom)
             CALL reallocate(atom_info%id_molname, 1, newsize)

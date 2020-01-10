@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -238,7 +238,7 @@ CONTAINS
 
       IF (ASSOCIATED(mixing_store)) THEN
          CPASSERT(mixing_store%ref_count > 0)
-         mixing_store%ref_count = mixing_store%ref_count-1
+         mixing_store%ref_count = mixing_store%ref_count - 1
          IF (mixing_store%ref_count == 0) THEN
 
             IF (ASSOCIATED(mixing_store%kerker_factor)) THEN

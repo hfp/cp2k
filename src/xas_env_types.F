@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -351,7 +351,7 @@ CONTAINS
 
       IF (ASSOCIATED(xas_env)) THEN
          CPASSERT(xas_env%ref_count > 0)
-         xas_env%ref_count = xas_env%ref_count-1
+         xas_env%ref_count = xas_env%ref_count - 1
          IF (xas_env%ref_count == 0) THEN
 
             DEALLOCATE (xas_env%state_of_atom, xas_env%atom_of_state)
@@ -441,7 +441,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(xas_env))
       CPASSERT(xas_env%ref_count > 0)
-      xas_env%ref_count = xas_env%ref_count+1
+      xas_env%ref_count = xas_env%ref_count + 1
    END SUBROUTINE xas_env_retain
 
 END MODULE xas_env_types

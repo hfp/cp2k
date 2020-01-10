@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -82,10 +82,8 @@ MODULE environment
                                               init_spherical_harmonics
    USE parallel_rng_types,              ONLY: GAUSSIAN,&
                                               check_rng,&
-                                              create_rng_stream,&
-                                              init_rng,&
-                                              write_rng_matrices,&
-                                              write_rng_stream
+                                              rng_stream_type,&
+                                              write_rng_matrices
    USE physcon,                         ONLY: write_physcon
    USE reference_manager,               ONLY: collect_citations_from_ranks,&
                                               print_all_references,&
@@ -245,12 +243,12 @@ CONTAINS
 
       ALLOCATE (all_pid(para_env%num_pe))
       all_pid(:) = 0
-      all_pid(para_env%mepos+1) = r_pid
+      all_pid(para_env%mepos + 1) = r_pid
 
       CALL mp_sum(all_pid, para_env%group)
       ALLOCATE (all_host(30, para_env%num_pe))
       all_host(:, :) = 0
-      CALL string_to_ascii(r_host_name, all_host(:, para_env%mepos+1))
+      CALL string_to_ascii(r_host_name, all_host(:, para_env%mepos + 1))
       CALL mp_sum(all_host, para_env%group)
       IF (output_unit > 0) THEN
 
@@ -259,7 +257,7 @@ CONTAINS
             CALL ascii_to_string(all_host(:, ipe), string)
             WRITE (UNIT=output_unit, FMT="(T2,A,T63,I8,T71,I10)") &
                TRIM(r_user_name)//"@"//TRIM(string)// &
-               " has created rank and process ", ipe-1, all_pid(ipe)
+               " has created rank and process ", ipe - 1, all_pid(ipe)
          END DO
          WRITE (UNIT=output_unit, FMT="(T2,A)") ""
       END IF
@@ -289,7 +287,7 @@ CONTAINS
       all_host(:, :) = 0
 
       IF (m_procrun(r_pid) .EQ. 1) THEN
-         CALL string_to_ascii(r_host_name, all_host(:, para_env%mepos+1))
+         CALL string_to_ascii(r_host_name, all_host(:, para_env%mepos + 1))
          CALL mp_sum(all_host, para_env%group)
       ENDIF
 
@@ -305,7 +303,7 @@ CONTAINS
                DO jpe = 1, para_env%num_pe
                   CALL ascii_to_string(all_host(:, jpe), string_sec)
                   IF (string .EQ. string_sec) THEN
-                     nr_occu = nr_occu+1
+                     nr_occu = nr_occu + 1
                      all_pid(jpe) = -1
                   ENDIF
                END DO
@@ -411,7 +409,6 @@ CONTAINS
 
       ! Initialize the parallel random number generator
 
-      CALL init_rng()
       iw = cp_print_key_unit_nr(logger, root_section, "GLOBAL%PRINT/RNG_MATRICES", &
                                 extension=".Log")
       IF (iw > 0) THEN
@@ -432,11 +429,11 @@ CONTAINS
          CPABORT("Supply exactly 1 or 6 arguments for SEED in &GLOBAL only!")
       END IF
 
-      CALL create_rng_stream(rng_stream=globenv%gaussian_rng_stream, &
-                             name="Global Gaussian random numbers", &
-                             distribution_type=GAUSSIAN, &
-                             seed=initial_seed, &
-                             extended_precision=.TRUE.)
+      globenv%gaussian_rng_stream = rng_stream_type( &
+                                    name="Global Gaussian random numbers", &
+                                    distribution_type=GAUSSIAN, &
+                                    seed=initial_seed, &
+                                    extended_precision=.TRUE.)
 
       iw = cp_print_key_unit_nr(logger, root_section, "GLOBAL%PRINT/RNG_CHECK", &
                                 extension=".Log")
@@ -449,9 +446,9 @@ CONTAINS
 
       iw = cp_print_key_unit_nr(logger, root_section, "GLOBAL%PRINT/GLOBAL_GAUSSIAN_RNG", &
                                 extension=".Log")
-      IF (iw > 0) THEN
-         CALL write_rng_stream(globenv%gaussian_rng_stream, iw, write_all=.TRUE.)
-      END IF
+      IF (iw > 0) &
+         CALL globenv%gaussian_rng_stream%write(iw, write_all=.TRUE.)
+
       CALL cp_print_key_finished_output(iw, logger, root_section, &
                                         "GLOBAL%PRINT/GLOBAL_GAUSSIAN_RNG")
 
@@ -1092,7 +1089,7 @@ CONTAINS
          READ (txt(1:n), FMT="(I2,A1,I2,A1,I2)", IOSTAT=ierr) hours, c1, minutes, c2, seconds
          IF (n /= 8 .OR. ierr /= 0 .OR. c1 .NE. ":" .OR. c2 .NE. ":") &
             CPABORT('Could not parse WALLTIME: "'//txt(1:n)//'"')
-         walltime = 3600.0_dp*REAL(hours, dp)+60.0_dp*REAL(minutes, dp)+REAL(seconds, dp)
+         walltime = 3600.0_dp*REAL(hours, dp) + 60.0_dp*REAL(minutes, dp) + REAL(seconds, dp)
       END IF
    END SUBROUTINE cp2k_get_walltime
 

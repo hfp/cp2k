@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 !***************************************************************************************************
@@ -25,6 +25,13 @@ MODULE sirius_interface
                                               get_atomic_kind
    USE cell_types,                      ONLY: cell_type,&
                                               real_to_scaled
+   USE cp_log_handling,                 ONLY: cp_get_default_logger,&
+                                              cp_logger_get_default_io_unit,&
+                                              cp_logger_type
+   USE cp_output_handling,              ONLY: cp_p_file,&
+                                              cp_print_key_finished_output,&
+                                              cp_print_key_should_output,&
+                                              cp_print_key_unit_nr
    USE cp_para_types,                   ONLY: cp_para_env_type
    USE external_potential_types,        ONLY: gth_potential_type
    USE input_constants,                 ONLY: do_gapw_log
@@ -54,13 +61,16 @@ MODULE sirius_interface
    USE sirius,                          ONLY: &
         bool, sirius_add_atom, sirius_add_atom_type, sirius_add_atom_type_radial_function, &
         sirius_create_context, sirius_create_ground_state, sirius_create_kset_from_grid, &
-        sirius_dump_runtime_setup, sirius_finalize, sirius_find_ground_state, sirius_get_energy, &
-        sirius_get_forces, sirius_get_stress_tensor, sirius_import_parameters, sirius_initialize, &
-        sirius_initialize_context, sirius_option_add_string_to, sirius_option_get_length, &
-        sirius_option_get_name_and_type, sirius_option_set_double, sirius_option_set_int, &
-        sirius_option_set_logical, sirius_option_set_string, sirius_set_atom_position, &
-        sirius_set_atom_type_dion, sirius_set_atom_type_radial_grid, sirius_set_lattice_vectors, &
-        sirius_update_ground_state, string
+        sirius_dump_runtime_setup, sirius_finalize, sirius_find_ground_state, &
+        sirius_get_band_energies, sirius_get_band_occupancies, sirius_get_energy, &
+        sirius_get_forces, sirius_get_kpoint_properties, sirius_get_num_bands, &
+        sirius_get_num_kpoints, sirius_get_num_spin_components, sirius_get_stress_tensor, &
+        sirius_import_parameters, sirius_initialize, sirius_initialize_context, &
+        sirius_option_add_string_to, sirius_option_get_length, sirius_option_get_name_and_type, &
+        sirius_option_set_double, sirius_option_set_int, sirius_option_set_logical, &
+        sirius_option_set_string, sirius_set_atom_position, sirius_set_atom_type_dion, &
+        sirius_set_atom_type_radial_grid, sirius_set_lattice_vectors, sirius_update_ground_state, &
+        string
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE
@@ -165,7 +175,7 @@ CONTAINS
          !     NOT the single values, but the whole section_vals_type independently
          ifun = 0
          DO
-            ifun = ifun+1
+            ifun = ifun + 1
             xc_fun => section_vals_get_subs_vals2(xc_section, i_section=ifun)
             IF (.NOT. ASSOCIATED(xc_fun)) EXIT
             IF (TRIM(xc_fun%section%name) == "LIBXC") THEN
@@ -258,12 +268,12 @@ CONTAINS
                rp(1:nmesh) = atom_grid%rad(1:nmesh)
             ELSE
                DO i = 1, nmesh
-                  rp(i) = atom_grid%rad(nmesh-i+1)
+                  rp(i) = atom_grid%rad(nmesh - i + 1)
                END DO
             END IF
 ! add new atom type
             CALL sirius_add_atom_type(sctx, string(label), &
-                                      zn=NINT(zeff+0.001d0), &
+                                      zn=NINT(zeff + 0.001d0), &
                                       mass=REAL(mass, KIND=C_DOUBLE), &
                                       spin_orbit=bool(.FALSE.))
 !
@@ -281,11 +291,11 @@ CONTAINS
 ! we need to multiply by r so that data transfered to sirius are r \beta(r) not beta(r)
                ef(1:nmesh) = EXP(-0.5_dp*rp(1:nmesh)*rp(1:nmesh)/(rl*rl))
                DO i = 1, gth_atompot%nl(l)
-                  pf = rl**(l+0.5_dp*(4._dp*i-1._dp))
-                  j = l+2*i-1
+                  pf = rl**(l + 0.5_dp*(4._dp*i - 1._dp))
+                  j = l + 2*i - 1
                   pf = SQRT(2._dp)/(pf*SQRT(gamma1(j)))
-                  beta(:) = pf*rp**(l+2*i-2)*ef
-                  ibeta = ibeta+1
+                  beta(:) = pf*rp**(l + 2*i - 2)*ef
+                  ibeta = ibeta + 1
                   fun(1:nmesh) = beta(1:nmesh)*rp(1:nmesh)
                   CALL sirius_add_atom_type_radial_function(sctx, string(label), &
                                                             string("beta"), fun(1), nmesh, l=l)
@@ -299,8 +309,8 @@ CONTAINS
             dion = 0.0_dp
             DO l = 0, 3
                IF (gth_atompot%nl(l) == 0) CYCLE
-               ibeta = SUM(gth_atompot%nl(0:l-1))+1
-               i = ibeta+gth_atompot%nl(l)-1
+               ibeta = SUM(gth_atompot%nl(0:l - 1)) + 1
+               i = ibeta + gth_atompot%nl(l) - 1
                dion(ibeta:i, ibeta:i) = gth_atompot%hnl(1:gth_atompot%nl(l), 1:gth_atompot%nl(l), l)
             END DO
             CALL sirius_set_atom_type_dion(sctx, string(label), nbeta, dion(1, 1))
@@ -317,7 +327,7 @@ CONTAINS
                   fe(:) = EXP(-0.5_dp*rc(:)*rc(:))
                   DO j = 1, gth_atompot%nct_nlcc(i)
                      cval = gth_atompot%cval_nlcc(j, i)
-                     corden(:) = corden(:)+fe(:)*rc(:)**(2*j-2)*cval
+                     corden(:) = corden(:) + fe(:)*rc(:)**(2*j - 2)*cval
                   END DO
                END DO
                fun(1:nmesh) = corden(1:nmesh)*rp(1:nmesh)
@@ -348,7 +358,7 @@ CONTAINS
                   fun(1:nmesh) = wavefunction(1:nmesh, iwf)*rp(i)
                ELSE
                   DO i = 1, nmesh
-                     fun(i) = wavefunction(nmesh-i+1, iwf)*rp(i)
+                     fun(i) = wavefunction(nmesh - i + 1, iwf)*rp(i)
                   END DO
                END IF
                CALL sirius_add_atom_type_radial_function(sctx, &
@@ -361,7 +371,7 @@ CONTAINS
                fun(1:nmesh) = fourpi*density(1:nmesh)*atom_grid%rad(1:nmesh)**2
             ELSE
                DO i = 1, nmesh
-                  fun(i) = fourpi*density(nmesh-i+1)*atom_grid%rad(nmesh-i+1)**2
+                  fun(i) = fourpi*density(nmesh - i + 1)*atom_grid%rad(nmesh - i + 1)**2
                END DO
             END IF
             CALL sirius_add_atom_type_radial_function(sctx, string(label), string("ps_rho_total"), &
@@ -499,7 +509,7 @@ CONTAINS
 
       CALL sirius_option_get_length(section_name, number_of_options)
 
-      DO elem = 0, number_of_options-1
+      DO elem = 0, number_of_options - 1
          option_name = CHAR(0)
          CALL sirius_option_get_name_and_type(section_name, elem, option_name, ctype)
          option_name1 = TRIM(ADJUSTL(option_name))
@@ -569,6 +579,7 @@ CONTAINS
       LOGICAL, INTENT(IN)                                :: calculate_forces, calculate_stress_tensor
 
       INTEGER                                            :: n1, n2
+      LOGICAL                                            :: do_print
       REAL(KIND=C_DOUBLE)                                :: etotal
       REAL(KIND=C_DOUBLE), ALLOCATABLE, DIMENSION(:, :)  :: cforces
       REAL(KIND=C_DOUBLE), DIMENSION(3, 3)               :: cstress
@@ -576,6 +587,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: forces
       TYPE(C_PTR)                                        :: gs_handler
       TYPE(pwdft_energy_type), POINTER                   :: energy
+      TYPE(section_vals_type), POINTER                   :: print_section, pwdft_input
 
       CPASSERT(ASSOCIATED(pwdft_env))
 
@@ -613,7 +625,150 @@ CONTAINS
          CALL pwdft_env_set(pwdft_env=pwdft_env, stress=stress)
       ENDIF
 
+      CALL pwdft_env_get(pwdft_env=pwdft_env, pwdft_input=pwdft_input)
+      print_section => section_vals_get_subs_vals(pwdft_input, "PRINT")
+      CALL section_vals_get(print_section, explicit=do_print)
+      IF (do_print) THEN
+         CALL cp_sirius_print_results(pwdft_env, print_section)
+      END IF
+
    END SUBROUTINE cp_sirius_energy_force
+
+!***************************************************************************************************
+!> \brief ...
+!> \param pwdft_env ...
+!> \param print_section ...
+!> \param
+!> \par History
+!>      12.2019 init
+!> \author JHU
+! **************************************************************************************************
+   SUBROUTINE cp_sirius_print_results(pwdft_env, print_section)
+      TYPE(pwdft_environment_type), INTENT(INOUT), &
+         POINTER                                         :: pwdft_env
+      TYPE(section_vals_type), POINTER                   :: print_section
+
+      CHARACTER(LEN=default_string_length)               :: my_act, my_pos
+      INTEGER                                            :: i, ik, iounit, ispn, iterstep, iv, iw, &
+                                                            nbands, nhist, nkpts, nspins
+      INTEGER(KIND=C_INT)                                :: cint
+      LOGICAL                                            :: append, dos, ionode
+      REAL(KIND=C_DOUBLE)                                :: creal
+      REAL(KIND=C_DOUBLE), ALLOCATABLE, DIMENSION(:)     :: slist
+      REAL(KIND=dp)                                      :: de, e_fermi(2), emax, emin, eval
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: wkpt
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: ehist, hist, occval
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: energies, occupations
+      TYPE(C_PTR)                                        :: gs_handler, ks_handler, sctx
+      TYPE(cp_logger_type), POINTER                      :: logger
+
+      NULLIFY (logger)
+      logger => cp_get_default_logger()
+      ionode = logger%para_env%ionode
+      iounit = cp_logger_get_default_io_unit(logger)
+
+      ! Density of States
+      dos = BTEST(cp_print_key_should_output(logger%iter_info, print_section, "DOS"), cp_p_file)
+      IF (dos) THEN
+         ks_handler = C_NULL_PTR
+         CALL pwdft_env_get(pwdft_env, ks_handler=ks_handler)
+         gs_handler = C_NULL_PTR
+         CALL pwdft_env_get(pwdft_env, gs_handler=gs_handler)
+         sctx = C_NULL_PTR
+         CALL pwdft_env_get(pwdft_env, sctx=sctx)
+
+         CALL section_vals_val_get(print_section, "DOS%DELTA_E", r_val=de)
+         CALL section_vals_val_get(print_section, "DOS%APPEND", l_val=append)
+
+         CALL sirius_get_num_kpoints(ks_handler, cint)
+         nkpts = cint
+         CALL sirius_get_num_bands(sctx, cint)
+         nbands = cint
+         CALL sirius_get_num_spin_components(sctx, cint)
+         nspins = cint
+         e_fermi(:) = 0.0_dp
+         ALLOCATE (energies(nbands, nspins, nkpts))
+         energies = 0.0_dp
+         ALLOCATE (occupations(nbands, nspins, nkpts))
+         occupations = 0.0_dp
+         ALLOCATE (wkpt(nkpts))
+         ALLOCATE (slist(nbands))
+         DO ik = 0, nkpts - 1
+            CALL sirius_get_kpoint_properties(ks_handler, ik, creal)
+            wkpt(ik + 1) = creal
+         END DO
+         DO ik = 1, nkpts
+            DO ispn = 0, nspins - 1
+               CALL sirius_get_band_energies(ks_handler, ik, ispn, slist(1))
+               energies(1:nbands, ispn + 1, ik) = slist(1:nbands)
+               CALL sirius_get_band_occupancies(ks_handler, ik, ispn, slist(1))
+               occupations(1:nbands, ispn + 1, ik) = slist(1:nbands)
+            END DO
+         END DO
+         emin = MINVAL(energies)
+         emax = MAXVAL(energies)
+         nhist = NINT((emax - emin)/de) + 1
+         ALLOCATE (hist(nhist, nspins), occval(nhist, nspins), ehist(nhist, nspins))
+         hist = 0.0_dp
+         occval = 0.0_dp
+         ehist = 0.0_dp
+
+         DO ik = 1, nkpts
+            DO ispn = 1, nspins
+               DO i = 1, nbands
+                  eval = energies(i, ispn, ik) - emin
+                  iv = NINT(eval/de) + 1
+                  CPASSERT((iv > 0) .AND. (iv <= nhist))
+                  hist(iv, ispn) = hist(iv, ispn) + wkpt(ik)
+                  occval(iv, ispn) = occval(iv, ispn) + wkpt(ik)*occupations(i, ispn, ik)
+               END DO
+            END DO
+         END DO
+         hist = hist/REAL(nbands, KIND=dp)
+         DO i = 1, nhist
+            ehist(i, 1:nspins) = emin + (i - 1)*de
+         END DO
+
+         iterstep = logger%iter_info%iteration(logger%iter_info%n_rlevel)
+         my_act = "WRITE"
+         IF (append .AND. iterstep > 1) THEN
+            my_pos = "APPEND"
+         ELSE
+            my_pos = "REWIND"
+         END IF
+
+         iw = cp_print_key_unit_nr(logger, print_section, "DOS", &
+                                   extension=".dos", file_position=my_pos, file_action=my_act, &
+                                   file_form="FORMATTED")
+         IF (iw > 0) THEN
+            IF (nspins == 2) THEN
+               WRITE (UNIT=iw, FMT="(T2,A,I0,A,2F12.6)") &
+                  "# DOS at iteration step i = ", iterstep, ", E_Fermi[a.u.] = ", e_fermi(1:2)
+               WRITE (UNIT=iw, FMT="(T2,A, A)") "   Energy[a.u.]  Alpha_Density     Occupation", &
+                  "   Beta_Density      Occupation"
+            ELSE
+               WRITE (UNIT=iw, FMT="(T2,A,I0,A,F12.6)") &
+                  "# DOS at iteration step i = ", iterstep, ", E_Fermi[a.u.] = ", e_fermi(1)
+               WRITE (UNIT=iw, FMT="(T2,A)") "   Energy[a.u.]       Density     Occupation"
+            END IF
+            DO i = 1, nhist
+               eval = emin + (i - 1)*de
+               IF (nspins == 2) THEN
+                  WRITE (UNIT=iw, FMT="(F15.8,4F15.4)") eval, hist(i, 1), occval(i, 1), &
+                     hist(i, 2), occval(i, 2)
+               ELSE
+                  WRITE (UNIT=iw, FMT="(F15.8,2F15.4)") eval, hist(i, 1), occval(i, 1)
+               END IF
+            END DO
+         END IF
+         CALL cp_print_key_finished_output(iw, logger, print_section, "DOS")
+
+         DEALLOCATE (energies, occupations, wkpt, slist)
+         DEALLOCATE (hist, occval, ehist)
+
+      END IF
+
+   END SUBROUTINE cp_sirius_print_results
 
 END MODULE sirius_interface
 

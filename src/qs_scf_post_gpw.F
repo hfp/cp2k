@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -132,6 +132,8 @@ MODULE qs_scf_post_gpw
    USE qs_collocate_density,            ONLY: calculate_wavefunction
    USE qs_commutators,                  ONLY: build_com_hr_matrix
    USE qs_core_energies,                ONLY: calculate_ptrace
+   USE qs_dos,                          ONLY: calculate_dos,&
+                                              calculate_dos_kp
    USE qs_electric_field_gradient,      ONLY: qs_efg_calc
    USE qs_elf_methods,                  ONLY: qs_elf_calc
    USE qs_energy_types,                 ONLY: qs_energy_type
@@ -208,7 +210,7 @@ MODULE qs_scf_post_gpw
              qs_scf_post_moments, &
              write_available_results, &
              write_mo_free_results
-   PUBLIC :: make_lumo
+   PUBLIC :: make_lumo_gpw
 
 ! **************************************************************************************************
 
@@ -550,21 +552,21 @@ CONTAINS
             DO ispin = 1, dft_control%nspins
 
                CALL get_mo_set(mo_set=mos(ispin)%mo_set, homo=homo, nmo=nmo, eigenvalues=mo_eigenvalues)
-               IF (nlumo > nmo-homo) THEN
+               IF (nlumo > nmo - homo) THEN
                   ! this case not yet implemented
                ELSE
                   IF (nlumo .EQ. -1) THEN
-                     nlumo = nmo-homo
+                     nlumo = nmo - homo
                   END IF
                   IF (output_unit > 0) WRITE (output_unit, *) " "
                   IF (output_unit > 0) WRITE (output_unit, *) " Lowest eigenvalues of the unoccupied subspace spin ", ispin
                   IF (output_unit > 0) WRITE (output_unit, *) "---------------------------------------------"
-                  IF (output_unit > 0) WRITE (output_unit, '(4(1X,1F16.8))') mo_eigenvalues(homo+1:homo+nlumo)
+                  IF (output_unit > 0) WRITE (output_unit, '(4(1X,1F16.8))') mo_eigenvalues(homo + 1:homo + nlumo)
 
                   ! Prints the cube files of UNOCCUPIED ORBITALS
                   CALL get_mo_set(mo_set=mos(ispin)%mo_set, mo_coeff=mo_coeff)
                   CALL qs_scf_post_unocc_cubes(input, dft_section, dft_control, logger, qs_env, &
-                                               mo_coeff, wf_g, wf_r, particles, nlumo, homo, ispin, lumo=homo+1)
+                                               mo_coeff, wf_g, wf_r, particles, nlumo, homo, ispin, lumo=homo + 1)
                END IF
             END DO
 
@@ -583,7 +585,7 @@ CONTAINS
 
             ALLOCATE (unoccupied_orbs(dft_control%nspins))
             ALLOCATE (unoccupied_evals(dft_control%nspins))
-            CALL make_lumo(qs_env, scf_env, unoccupied_orbs, unoccupied_evals, min_lumos, nlumos)
+            CALL make_lumo_gpw(qs_env, scf_env, unoccupied_orbs, unoccupied_evals, min_lumos, nlumos)
             lumo_ptr => unoccupied_orbs
             DO ispin = 1, dft_control%nspins
                has_lumo = .TRUE.
@@ -630,7 +632,7 @@ CONTAINS
             IF (output_unit > 0) WRITE (output_unit, *) " "
             DO ispin = 1, dft_control%nspins
                IF (.NOT. scf_control%smear%do_smear) THEN
-                  gap = homo_lumo(ispin, 2)-homo_lumo(ispin, 1)
+                  gap = homo_lumo(ispin, 2) - homo_lumo(ispin, 1)
                   IF (output_unit > 0) WRITE (output_unit, '(T2,A,F12.6)') &
                      "HOMO - LUMO gap [eV] :", gap*evolt
                END IF
@@ -686,8 +688,8 @@ CONTAINS
             IF (nlumo_stm > 0) THEN
                ALLOCATE (unoccupied_orbs_stm(dft_control%nspins))
                ALLOCATE (unoccupied_evals_stm(dft_control%nspins))
-               CALL make_lumo(qs_env, scf_env, unoccupied_orbs_stm, unoccupied_evals_stm, &
-                              nlumo_stm, nlumos)
+               CALL make_lumo_gpw(qs_env, scf_env, unoccupied_orbs_stm, unoccupied_evals_stm, &
+                                  nlumo_stm, nlumos)
             END IF
 
             CALL th_stm_image(qs_env, stm_section, particles, unoccupied_orbs_stm, &
@@ -741,7 +743,7 @@ CONTAINS
 !> \param nlumo ...
 !> \param nlumos ...
 ! **************************************************************************************************
-   SUBROUTINE make_lumo(qs_env, scf_env, unoccupied_orbs, unoccupied_evals, nlumo, nlumos)
+   SUBROUTINE make_lumo_gpw(qs_env, scf_env, unoccupied_orbs, unoccupied_evals, nlumo, nlumos)
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(qs_scf_env_type), POINTER                     :: scf_env
@@ -750,7 +752,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: nlumo
       INTEGER, INTENT(OUT)                               :: nlumos
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'make_lumo', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'make_lumo_gpw', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: handle, homo, ispin, n, nao, nmo, &
                                                             output_unit
@@ -791,8 +793,8 @@ CONTAINS
          IF (output_unit > 0) WRITE (output_unit, FMT='(1X,A)') "-----------------------------------------------------"
          CALL get_mo_set(mo_set=mos(ispin)%mo_set, mo_coeff=mo_coeff, homo=homo, nao=nao, nmo=nmo)
          CALL cp_fm_get_info(mo_coeff, nrow_global=n)
-         nlumos = MAX(1, MIN(nlumo, nao-nmo))
-         IF (nlumo == -1) nlumos = nao-nmo
+         nlumos = MAX(1, MIN(nlumo, nao - nmo))
+         IF (nlumo == -1) nlumos = nao - nmo
          ALLOCATE (unoccupied_evals(ispin)%array(nlumos))
          CALL cp_fm_struct_create(fm_struct_tmp, para_env=para_env, context=blacs_env, &
                                   nrow_global=n, ncol_global=nlumos)
@@ -836,7 +838,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE make_lumo
+   END SUBROUTINE make_lumo_gpw
 ! **************************************************************************************************
 !> \brief Computes and Prints Atomic Charges with several methods
 !> \param input ...
@@ -955,20 +957,20 @@ CONTAINS
                CALL section_vals_val_get(dft_section, "PRINT%MO_CUBES%HOMO_LIST", i_rep_val=ir, &
                                          i_vals=list)
                IF (ASSOCIATED(list)) THEN
-                  CALL reallocate(list_index, 1, nlist+SIZE(list))
+                  CALL reallocate(list_index, 1, nlist + SIZE(list))
                   DO i = 1, SIZE(list)
-                     list_index(i+nlist) = list(i)
+                     list_index(i + nlist) = list(i)
                   END DO
-                  nlist = nlist+SIZE(list)
+                  nlist = nlist + SIZE(list)
                END IF
             END DO
          ELSE
 
             IF (nhomo == -1) nhomo = homo
-            nlist = homo-MAX(1, homo-nhomo+1)+1
+            nlist = homo - MAX(1, homo - nhomo + 1) + 1
             ALLOCATE (list_index(nlist))
             DO i = 1, nlist
-               list_index(i) = MAX(1, homo-nhomo+1)+i-1
+               list_index(i) = MAX(1, homo - nhomo + 1) + i - 1
             END DO
          END IF
          DO i = 1, nlist
@@ -986,7 +988,7 @@ CONTAINS
             unit_nr = cp_print_key_unit_nr(logger, input, "DFT%PRINT%MO_CUBES", extension=".cube", &
                                            middle_name=TRIM(filename), file_position=my_pos_cube, log_filename=.FALSE., &
                                            mpi_io=mpi_io)
-            WRITE (title, *) "WAVEFUNCTION ", ivector, " spin ", ispin, " i.e. HOMO - ", ivector-homo
+            WRITE (title, *) "WAVEFUNCTION ", ivector, " spin ", ispin, " i.e. HOMO - ", ivector - homo
             CALL cp_pw_to_cube(wf_r%pw, unit_nr, title, particles=particles, &
                                stride=section_get_ivals(dft_section, "PRINT%MO_CUBES%STRIDE"), mpi_io=mpi_io)
             CALL cp_print_key_finished_output(unit_nr, logger, input, "DFT%PRINT%MO_CUBES", mpi_io=mpi_io)
@@ -1051,7 +1053,7 @@ CONTAINS
          END IF
          ifirst = 1
          IF (PRESENT(lumo)) ifirst = lumo
-         DO ivector = ifirst, ifirst+nlumos-1
+         DO ivector = ifirst, ifirst + nlumos - 1
             CALL get_qs_env(qs_env=qs_env, &
                             atomic_kind_set=atomic_kind_set, &
                             qs_kind_set=qs_kind_set, &
@@ -1062,7 +1064,7 @@ CONTAINS
                                         qs_kind_set, cell, dft_control, particle_set, pw_env)
 
             IF (ifirst == 1) THEN
-               index_mo = homo+ivector
+               index_mo = homo + ivector
             ELSE
                index_mo = ivector
             END IF
@@ -1072,7 +1074,7 @@ CONTAINS
             unit_nr = cp_print_key_unit_nr(logger, input, "DFT%PRINT%MO_CUBES", extension=".cube", &
                                            middle_name=TRIM(filename), file_position=my_pos_cube, log_filename=.FALSE., &
                                            mpi_io=mpi_io)
-            WRITE (title, *) "WAVEFUNCTION ", index_mo, " spin ", ispin, " i.e. LUMO + ", ifirst+ivector-2
+            WRITE (title, *) "WAVEFUNCTION ", index_mo, " spin ", ispin, " i.e. LUMO + ", ifirst + ivector - 2
             CALL cp_pw_to_cube(wf_r%pw, unit_nr, title, particles=particles, &
                                stride=section_get_ivals(dft_section, "PRINT%MO_CUBES%STRIDE"), mpi_io=mpi_io)
             CALL cp_print_key_finished_output(unit_nr, logger, input, "DFT%PRINT%MO_CUBES", mpi_io=mpi_io)
@@ -1624,7 +1626,7 @@ CONTAINS
             END IF
             CALL get_qs_env(qs_env, matrix_ks=ks_rmpv)
             CALL write_dm_binary_restart(mos, dft_section, ks_rmpv)
-            sprint_section => section_vals_get_subs_vals(dft_section, "SCF%PRINT")
+            sprint_section => section_vals_get_subs_vals(dft_section, "PRINT%MO_MOLDEN")
             CALL write_mos_molden(mos, qs_kind_set, particle_set, sprint_section)
          ELSE ! *** if we have k points, let's print the eigenvalues at each of them
             CALL get_qs_env(qs_env=qs_env, kpoints=kpoints)
@@ -1646,6 +1648,18 @@ CONTAINS
                END DO
             END IF
          END IF
+
+         ! *** at the end of scf print out dos
+         IF (BTEST(cp_print_key_should_output(logger%iter_info, dft_section, "PRINT%DOS") &
+                   , cp_p_file)) THEN
+            IF (do_kpoints) THEN
+               CALL get_qs_env(qs_env=qs_env, kpoints=kpoints)
+               CALL calculate_dos_kp(kpoints, qs_env, dft_section)
+            ELSE
+               CALL get_qs_env(qs_env, mos=mos)
+               CALL calculate_dos(mos, qs_env, dft_section)
+            ENDIF
+         ENDIF
 
          ! *** at the end of scf print out the projected dos per kind
          IF (BTEST(cp_print_key_should_output(logger%iter_info, dft_section, "PRINT%PDOS") &
@@ -1730,7 +1744,7 @@ CONTAINS
                IF (nmo > 0) THEN
                   all_equal = all_equal .AND. &
                               (ALL(occupation_numbers(1:homo) == maxocc) .AND. &
-                               ALL(occupation_numbers(homo+1:nmo) == 0.0_dp))
+                               ALL(occupation_numbers(homo + 1:nmo) == 0.0_dp))
                END IF
             END DO
             IF (.NOT. all_equal) THEN
@@ -1926,7 +1940,7 @@ CONTAINS
                ccdens(:, 2, ikind) = 0._dp
                CALL project_function_a(ccdens(1:ngto, 2, ikind), ccdens(1:ngto, 1, ikind), &
                                        ppdens(1:ngto, 2, ikind), ppdens(1:ngto, 1, ikind), 0)
-               ccdens(:, 2, ikind) = aedens(:, 2, ikind)-ccdens(:, 2, ikind)
+               ccdens(:, 2, ikind) = aedens(:, 2, ikind) - ccdens(:, 2, ikind)
                IF (unit_nr > 0) THEN
                   WRITE (unit_nr, FMT="(I6,A10,A20)") ikind, TRIM(element_symbol), TRIM(name)
                   WRITE (unit_nr, FMT="(I6)") ngto
@@ -1963,7 +1977,7 @@ CONTAINS
                   bfun = 0._dp
                   DO ispin = 1, dft_control%nspins
                      IF (ASSOCIATED(rho_atom%rho_rad_h(1)%r_coef)) THEN
-                        bfun(:, :) = bfun+rho_atom%rho_rad_h(ispin)%r_coef-rho_atom%rho_rad_s(ispin)%r_coef
+                        bfun(:, :) = bfun + rho_atom%rho_rad_h(ispin)%r_coef - rho_atom%rho_rad_s(ispin)%r_coef
                      END IF
                   END DO
                   CALL mp_sum(bfun, para_env%group)
@@ -2028,7 +2042,7 @@ CONTAINS
                                               q_max=q_max, &
                                               rho_hard=rho_hard, &
                                               rho_soft=rho_soft)
-            rho_total = rho_hard+rho_soft
+            rho_total = rho_hard + rho_soft
             CALL get_pw_grid_info(pw_grid=rho_elec_gspace%pw%pw_grid, &
                                   vol=volume)
             CALL pw_transfer(rho_elec_gspace%pw, rho_elec_rspace%pw, debug=.FALSE.)
@@ -2071,7 +2085,7 @@ CONTAINS
                                                  rho_hard=rho_hard, &
                                                  rho_soft=rho_soft, &
                                                  fsign=-1.0_dp)
-               rho_total = rho_hard+rho_soft
+               rho_total = rho_hard + rho_soft
                CALL pw_transfer(rho_elec_gspace%pw, rho_elec_rspace%pw, debug=.FALSE.)
                rho_total_rspace = pw_integrate_function(rho_elec_rspace%pw, isign=-1)/volume
                filename = "TOTAL_SPIN_DENSITY"
@@ -2568,7 +2582,7 @@ CONTAINS
             CALL get_atomic_kind(atomic_kind, kind_number=ikind)
             CALL get_qs_kind(qs_kind_set(ikind), paw_atom=paw_atom)
             IF (paw_atom) THEN
-               charges(iat, 1:nspin) = charges(iat, 1:nspin)+mp_rho(iat)%q0(1:nspin)
+               charges(iat, 1:nspin) = charges(iat, 1:nspin) + mp_rho(iat)%q0(1:nspin)
             END IF
          END DO
       END IF
@@ -3231,7 +3245,7 @@ CONTAINS
          CALL basis_set_list_setup(basis_set_list_a, "ORB", qs_kind_set)
          CALL basis_set_list_setup(basis_set_list_b, "ORB", qs_kind_set)
 
-         adjm_size = ((natom+1)*natom)/2
+         adjm_size = ((natom + 1)*natom)/2
          ALLOCATE (interact_adjm(4*adjm_size))
          interact_adjm = 0
 
@@ -3255,19 +3269,19 @@ CONTAINS
                rowind = jatom
                colind = iatom
                ! swap the kinds too
-               ikind = ikind+jkind
-               jkind = ikind-jkind
-               ikind = ikind-jkind
+               ikind = ikind + jkind
+               jkind = ikind - jkind
+               ikind = ikind - jkind
             END IF
 
             ! indexing upper triangular matrix
-            ind = adjm_size-(natom-rowind+1)*((natom-rowind+1)+1)/2+colind-rowind+1
+            ind = adjm_size - (natom - rowind + 1)*((natom - rowind + 1) + 1)/2 + colind - rowind + 1
             ! convert the upper triangular matrix into a adjm_size x 4 matrix
             ! columns are: iatom, jatom, ikind, jkind
-            interact_adjm((ind-1)*4+1) = rowind
-            interact_adjm((ind-1)*4+2) = colind
-            interact_adjm((ind-1)*4+3) = ikind
-            interact_adjm((ind-1)*4+4) = jkind
+            interact_adjm((ind - 1)*4 + 1) = rowind
+            interact_adjm((ind - 1)*4 + 2) = colind
+            interact_adjm((ind - 1)*4 + 3) = ikind
+            interact_adjm((ind - 1)*4 + 4) = jkind
          ENDDO
 
          CALL mp_sum(interact_adjm, para_env%group)
@@ -3279,8 +3293,8 @@ CONTAINS
             WRITE (unit_nr, "(1A,2X,1A,5X,1A,4X,A5,3X,A5)") "#", "iatom", "jatom", "ikind", "jkind"
             DO k = 1, 4*adjm_size, 4
                ! print only the interacting atoms
-               IF (interact_adjm(k) .GT. 0 .AND. interact_adjm(k+1) .GT. 0) THEN
-                  WRITE (unit_nr, "(I8,2X,I8,3X,I6,2X,I6)") interact_adjm(k:k+3)
+               IF (interact_adjm(k) .GT. 0 .AND. interact_adjm(k + 1) .GT. 0) THEN
+                  WRITE (unit_nr, "(I8,2X,I8,3X,I6,2X,I6)") interact_adjm(k:k + 3)
                END IF
             END DO
          END IF

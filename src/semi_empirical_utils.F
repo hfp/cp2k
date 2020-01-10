@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -244,7 +244,7 @@ CONTAINS
          nq = 0
          lq = 0
          zet = 0._dp
-         DO l = 0, nshell-1
+         DO l = 0, nshell - 1
             nq(l) = get_se_basis(sep, l)
             lq(l) = l
             zet(l) = sep%sto_exponents(l)
@@ -335,7 +335,7 @@ CONTAINS
       IF (sep%dorb) sep%core_size = 10
 
       ! Get size of the all possible combinations of atomic orbitals
-      sep%atm_int_size = (sep%natorb+1)*sep%natorb/2
+      sep%atm_int_size = (sep%natorb + 1)*sep%natorb/2
 
    END SUBROUTINE se_param_set_default
 

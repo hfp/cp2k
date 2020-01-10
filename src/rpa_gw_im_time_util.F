@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -13,6 +13,7 @@ MODULE rpa_gw_im_time_util
    USE cell_types,                      ONLY: cell_type,&
                                               pbc
    USE cp_dbcsr_operations,             ONLY: copy_fm_to_dbcsr,&
+                                              cp_dbcsr_m_by_n_from_row_template,&
                                               dbcsr_allocate_matrix_set,&
                                               dbcsr_deallocate_matrix_set
    USE cp_fm_types,                     ONLY: cp_fm_create,&
@@ -22,11 +23,17 @@ MODULE rpa_gw_im_time_util
                                               cp_fm_type
    USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: &
-        dbcsr_copy, dbcsr_create, dbcsr_filter, dbcsr_finalize, dbcsr_get_diag, dbcsr_get_info, &
-        dbcsr_get_stored_coordinates, dbcsr_init_p, dbcsr_iterator_blocks_left, &
-        dbcsr_iterator_next_block, dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, &
-        dbcsr_multiply, dbcsr_p_type, dbcsr_release_p, dbcsr_reserve_all_blocks, &
-        dbcsr_reserve_blocks, dbcsr_scale, dbcsr_set, dbcsr_type, dbcsr_type_no_symmetry
+        dbcsr_add_on_diag, dbcsr_copy, dbcsr_create, dbcsr_distribution_get, &
+        dbcsr_distribution_new, dbcsr_distribution_release, dbcsr_distribution_type, dbcsr_filter, &
+        dbcsr_finalize, dbcsr_get_diag, dbcsr_get_info, dbcsr_get_stored_coordinates, &
+        dbcsr_init_p, dbcsr_iterator_blocks_left, dbcsr_iterator_next_block, dbcsr_iterator_start, &
+        dbcsr_iterator_stop, dbcsr_iterator_type, dbcsr_multiply, dbcsr_p_type, dbcsr_release, &
+        dbcsr_release_p, dbcsr_reserve_all_blocks, dbcsr_reserve_blocks, dbcsr_scalar, &
+        dbcsr_scale, dbcsr_set, dbcsr_set_diag, dbcsr_type, dbcsr_type_no_symmetry
+   USE dbcsr_tensor_api,                ONLY: &
+        dbcsr_t_contract, dbcsr_t_copy, dbcsr_t_copy_matrix_to_tensor, dbcsr_t_create, &
+        dbcsr_t_destroy, dbcsr_t_get_info, dbcsr_t_pgrid_create, dbcsr_t_pgrid_destroy, &
+        dbcsr_t_pgrid_type, dbcsr_t_type
    USE kinds,                           ONLY: dp
    USE message_passing,                 ONLY: mp_alltoall,&
                                               mp_sum
@@ -34,6 +41,10 @@ MODULE rpa_gw_im_time_util
    USE particle_types,                  ONLY: particle_type
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
+   USE qs_tensors_types,                ONLY: create_2c_tensor,&
+                                              create_3c_tensor,&
+                                              cyclic_tensor_dist,&
+                                              split_block_sizes
    USE rpa_communication,               ONLY: communicate_buffer
 #include "./base/base_uses.f90"
 
@@ -45,7 +56,7 @@ MODULE rpa_gw_im_time_util
 
    PUBLIC :: get_mat_3c_overl_int_gw, &
              replicate_mat_to_subgroup_simple, &
-             fill_mat_3c_overl_int_gw
+             fill_mat_3c_overl_int_gw, get_mat_3c_overl_int_gw_t
 CONTAINS
 
 ! **************************************************************************************************
@@ -123,16 +134,17 @@ CONTAINS
 
       ! set MO coeffs to zero where
       DO irow_global = 1, nmo
-         DO icol_global = 1, homo-gw_corr_lev_occ
+         DO icol_global = 1, homo - gw_corr_lev_occ
             CALL cp_fm_set_element(fm_mat_mo_coeff_gw, irow_global, icol_global, 0.0_dp)
          END DO
-         DO icol_global = homo+gw_corr_lev_virt+1, nmo
+         DO icol_global = homo + gw_corr_lev_virt + 1, nmo
             CALL cp_fm_set_element(fm_mat_mo_coeff_gw, irow_global, icol_global, 0.0_dp)
          END DO
       END DO
 
       NULLIFY (mat_mo_coeff_gw)
       CALL dbcsr_init_p(mat_mo_coeff_gw)
+
       CALL dbcsr_create(matrix=mat_mo_coeff_gw, &
                         template=matrix_s(1)%matrix, &
                         matrix_type=dbcsr_type_no_symmetry)
@@ -204,9 +216,9 @@ CONTAINS
          END DO
 
          NULLIFY (mat_3c_overl_int_gw_dummy)
-         CALL dbcsr_allocate_matrix_set(mat_3c_overl_int_gw_dummy, gw_corr_lev_occ+gw_corr_lev_virt)
+         CALL dbcsr_allocate_matrix_set(mat_3c_overl_int_gw_dummy, gw_corr_lev_occ + gw_corr_lev_virt)
 
-         DO n_level_gw = 1, gw_corr_lev_occ+gw_corr_lev_virt
+         DO n_level_gw = 1, gw_corr_lev_occ + gw_corr_lev_virt
 
             ALLOCATE (mat_3c_overl_int_gw_dummy(n_level_gw)%matrix)
             CALL dbcsr_create(matrix=mat_3c_overl_int_gw_dummy(n_level_gw)%matrix, &
@@ -247,9 +259,9 @@ CONTAINS
 
          CALL mp_sum(norm, para_env%group)
 
-         DO n_level_gw = 1, gw_corr_lev_occ+gw_corr_lev_virt
+         DO n_level_gw = 1, gw_corr_lev_occ + gw_corr_lev_virt
 
-            n_level_gw_ref = n_level_gw+homo-gw_corr_lev_occ
+            n_level_gw_ref = n_level_gw + homo - gw_corr_lev_occ
 
             CALL dbcsr_scale(mat_3c_overl_nnP_ic_reflected(n_level_gw)%matrix, 1.0_dp/norm(n_level_gw_ref))
 
@@ -266,6 +278,283 @@ CONTAINS
       CALL dbcsr_release_p(mat_mo_coeff_gw_local)
       CALL cp_fm_release(fm_mat_mo_coeff_gw)
       CALL dbcsr_deallocate_matrix_set(mat_3c_overl_int_gw_for_mult)
+
+      CALL timestop(handle)
+
+   END SUBROUTINE
+
+! **************************************************************************************************
+!> \brief ...
+!> \param t_3c_overl_int ...
+!> \param t_3c_overl_int_gw_RI ...
+!> \param t_3c_overl_int_gw_AO ...
+!> \param mo_coeff ...
+!> \param matrix_s ...
+!> \param gw_corr_lev_occ ...
+!> \param gw_corr_lev_virt ...
+!> \param homo ...
+!> \param nmo ...
+!> \param para_env ...
+!> \param do_ic_model ...
+!> \param t_3c_overl_nnP_ic ...
+!> \param t_3c_overl_nnP_ic_reflected ...
+!> \param qs_env ...
+!> \param unit_nr ...
+!> \param do_beta ...
+! **************************************************************************************************
+   SUBROUTINE get_mat_3c_overl_int_gw_t(t_3c_overl_int, &
+                                        t_3c_overl_int_gw_RI, t_3c_overl_int_gw_AO, &
+                                        mo_coeff, matrix_s, &
+                                        gw_corr_lev_occ, gw_corr_lev_virt, homo, nmo, &
+                                        para_env, &
+                                        do_ic_model, &
+                                        t_3c_overl_nnP_ic, t_3c_overl_nnP_ic_reflected, &
+                                        qs_env, unit_nr, do_beta)
+
+      TYPE(dbcsr_t_type), DIMENSION(:, :)                :: t_3c_overl_int
+      TYPE(dbcsr_t_type)                                 :: t_3c_overl_int_gw_RI, &
+                                                            t_3c_overl_int_gw_AO
+      TYPE(cp_fm_type), POINTER                          :: mo_coeff
+      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s
+      INTEGER, INTENT(IN)                                :: gw_corr_lev_occ, gw_corr_lev_virt, homo, &
+                                                            nmo
+      TYPE(cp_para_env_type), POINTER                    :: para_env
+      LOGICAL, INTENT(IN)                                :: do_ic_model
+      TYPE(dbcsr_t_type)                                 :: t_3c_overl_nnP_ic, &
+                                                            t_3c_overl_nnP_ic_reflected
+      TYPE(qs_environment_type), POINTER                 :: qs_env
+      INTEGER, INTENT(IN)                                :: unit_nr
+      LOGICAL, INTENT(IN), OPTIONAL                      :: do_beta
+
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'get_mat_3c_overl_int_gw_t', &
+         routineP = moduleN//':'//routineN
+
+      INTEGER                                            :: handle, icol_global, imo, irow_global, &
+                                                            npcols, nprows, size_MO, &
+                                                            sqrt_max_bsize, unit_nr_prv
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: dist1, dist2, dist3, sizes_AO, &
+                                                            sizes_AO_split, sizes_MO, sizes_RI, &
+                                                            sizes_RI_split
+      INTEGER, DIMENSION(2)                              :: pdims_2d
+      INTEGER, DIMENSION(2, 1)                           :: bounds
+      INTEGER, DIMENSION(3)                              :: pdims
+      INTEGER, DIMENSION(:), POINTER                     :: distp_1, distp_2, sizes_MO_blocked, &
+                                                            sizes_MO_p1, sizes_MO_p2
+      LOGICAL                                            :: memory_info, my_do_beta
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: norm
+      TYPE(cp_fm_type), POINTER                          :: fm_mat_mo_coeff_gw
+      TYPE(dbcsr_distribution_type)                      :: dist, dist_templ
+      TYPE(dbcsr_t_pgrid_type)                           :: pgrid, pgrid_2d, pgrid_ic
+      TYPE(dbcsr_t_type) :: mo_coeff_gw_t, mo_coeff_gw_t_tmp, t_3c_overl_int_ao_ao, &
+         t_3c_overl_int_ao_mo, t_3c_overl_int_mo_ao, t_3c_overl_int_mo_mo
+      TYPE(dbcsr_type)                                   :: mat_mo_coeff_gw_reflected_norm, &
+                                                            mat_norm, mat_norm_diag, mat_work
+      TYPE(dbcsr_type), POINTER                          :: mat_mo_coeff_gw, &
+                                                            mat_mo_coeff_gw_reflected
+
+      memory_info = qs_env%mp2_env%ri_rpa_im_time%memory_info
+      IF (memory_info) THEN
+         unit_nr_prv = unit_nr
+      ELSE
+         unit_nr_prv = 0
+      ENDIF
+
+      my_do_beta = .FALSE.
+      IF (PRESENT(do_beta)) my_do_beta = do_beta
+
+      CALL timeset(routineN, handle)
+
+      NULLIFY (fm_mat_mo_coeff_gw)
+      CALL cp_fm_create(fm_mat_mo_coeff_gw, mo_coeff%matrix_struct)
+      CALL cp_fm_to_fm(mo_coeff, fm_mat_mo_coeff_gw)
+
+      ! set MO coeffs to zero where
+      DO irow_global = 1, nmo
+         DO icol_global = 1, homo - gw_corr_lev_occ
+            CALL cp_fm_set_element(fm_mat_mo_coeff_gw, irow_global, icol_global, 0.0_dp)
+         END DO
+         DO icol_global = homo + gw_corr_lev_virt + 1, nmo
+            CALL cp_fm_set_element(fm_mat_mo_coeff_gw, irow_global, icol_global, 0.0_dp)
+         END DO
+      END DO
+
+      NULLIFY (mat_mo_coeff_gw)
+      CALL dbcsr_init_p(mat_mo_coeff_gw)
+
+      CALL cp_dbcsr_m_by_n_from_row_template(mat_mo_coeff_gw, template=matrix_s(1)%matrix, n=nmo, &
+                                             sym=dbcsr_type_no_symmetry)
+
+      CALL copy_fm_to_dbcsr(fm_mat_mo_coeff_gw, &
+                            mat_mo_coeff_gw, &
+                            keep_sparsity=.FALSE.)
+
+      ! just remove the blocks which have been set to zero
+      CALL dbcsr_filter(mat_mo_coeff_gw, 1.0E-20_dp)
+
+      sqrt_max_bsize = qs_env%mp2_env%ri_rpa_im_time%max_bsize_sqrt
+
+      CALL dbcsr_t_get_info(t_3c_overl_int(1, 1), blk_size_1=sizes_RI, blk_size_2=sizes_AO)
+      CALL split_block_sizes(sizes_AO, sizes_AO_split, sqrt_max_bsize)
+      CALL split_block_sizes(sizes_RI, sizes_RI_split, sqrt_max_bsize)
+      pdims = 0
+
+      ALLOCATE (sizes_MO(nmo))
+      sizes_MO = 1
+
+      CALL dbcsr_t_pgrid_create(para_env%group, pdims, pgrid)
+
+      pdims_2d = 0
+      CALL dbcsr_t_pgrid_create(para_env%group, pdims_2d, pgrid_2d)
+
+      CALL create_3c_tensor(t_3c_overl_int_ao_ao, dist1, dist2, dist3, pgrid, &
+                            sizes_RI_split, sizes_AO_split, sizes_AO, [1, 2], [3], "(RI AO | AO)")
+      DEALLOCATE (dist1, dist2, dist3)
+      CALL dbcsr_t_copy(t_3c_overl_int(1, 1), t_3c_overl_int_ao_ao)
+      CALL create_3c_tensor(t_3c_overl_int_ao_mo, dist1, dist2, dist3, pgrid, &
+                            sizes_RI_split, sizes_AO_split, sizes_MO, [1, 2], [3], "(RI AO | MO)")
+      DEALLOCATE (dist1, dist2, dist3)
+
+      CALL create_3c_tensor(t_3c_overl_int_gw_RI, dist1, dist2, dist3, pgrid, &
+                            sizes_RI, sizes_AO_split, sizes_MO, [1], [2, 3], "(RI | AO MO)")
+      DEALLOCATE (dist1, dist2, dist3)
+
+      CALL create_3c_tensor(t_3c_overl_int_gw_AO, dist1, dist2, dist3, pgrid, &
+                            sizes_AO, sizes_RI_split, sizes_MO, [1], [2, 3], "(AO | RI MO)")
+      DEALLOCATE (dist1, dist2, dist3)
+
+      CALL dbcsr_t_pgrid_destroy(pgrid)
+
+      CALL create_2c_tensor(mo_coeff_gw_t, dist1, dist2, pgrid_2d, sizes_AO, sizes_MO, name="(AO|MO)")
+      DEALLOCATE (dist1, dist2)
+      CALL dbcsr_t_pgrid_destroy(pgrid_2d)
+
+      CALL dbcsr_t_create(mat_mo_coeff_gw, mo_coeff_gw_t_tmp, name="MO coeffs")
+      CALL dbcsr_t_copy_matrix_to_tensor(mat_mo_coeff_gw, mo_coeff_gw_t_tmp)
+
+      CALL dbcsr_t_copy(mo_coeff_gw_t_tmp, mo_coeff_gw_t)
+
+      bounds(1, 1) = homo - gw_corr_lev_occ + 1
+      bounds(2, 1) = homo + gw_corr_lev_virt
+
+      CALL dbcsr_t_contract(dbcsr_scalar(1.0_dp), mo_coeff_gw_t, t_3c_overl_int_ao_ao, dbcsr_scalar(0.0_dp), &
+                            t_3c_overl_int_ao_mo, contract_1=[1], notcontract_1=[2], &
+                            contract_2=[3], notcontract_2=[1, 2], map_1=[3], map_2=[1, 2], &
+                            bounds_2=bounds, move_data=.FALSE., unit_nr=unit_nr_prv)
+
+      CALL dbcsr_t_copy(t_3c_overl_int_ao_mo, t_3c_overl_int_gw_RI)
+      CALL dbcsr_t_copy(t_3c_overl_int_ao_mo, t_3c_overl_int_gw_AO, order=[2, 1, 3])
+
+      CALL cp_fm_release(fm_mat_mo_coeff_gw)
+
+      IF (do_ic_model) THEN
+         pdims = 0
+         CALL dbcsr_t_pgrid_create(para_env%group, pdims, pgrid_ic)
+
+         CALL create_3c_tensor(t_3c_overl_int_mo_ao, dist1, dist2, dist3, pgrid_ic, &
+                               sizes_RI_split, sizes_MO, sizes_AO, [1, 2], [3], "(RI MO | AO)")
+         DEALLOCATE (dist1, dist2, dist3)
+         CALL create_3c_tensor(t_3c_overl_int_mo_mo, dist1, dist2, dist3, pgrid_ic, &
+                               sizes_RI_split, sizes_MO, sizes_MO, [1, 2], [3], "(RI MO | MO)")
+         DEALLOCATE (dist1, dist2, dist3)
+         CALL dbcsr_t_create(t_3c_overl_int_mo_mo, t_3c_overl_nnP_ic)
+         CALL create_3c_tensor(t_3c_overl_nnP_ic_reflected, dist1, dist2, dist3, pgrid_ic, &
+                               sizes_RI_split, sizes_MO, sizes_MO, [1], [2, 3], "(RI | MO MO)")
+         DEALLOCATE (dist1, dist2, dist3)
+
+         CALL dbcsr_t_pgrid_destroy(pgrid_ic)
+
+         CALL dbcsr_t_copy(t_3c_overl_int_ao_mo, t_3c_overl_int_mo_ao, order=[1, 3, 2])
+         CALL dbcsr_t_contract(dbcsr_scalar(1.0_dp), mo_coeff_gw_t, t_3c_overl_int_mo_ao, dbcsr_scalar(0.0_dp), &
+                               t_3c_overl_int_mo_mo, contract_1=[1], notcontract_1=[2], &
+                               contract_2=[3], notcontract_2=[1, 2], map_1=[3], map_2=[1, 2], &
+                               bounds_2=bounds, move_data=.FALSE., unit_nr=unit_nr_prv)
+         CALL dbcsr_t_copy(t_3c_overl_int_mo_mo, t_3c_overl_nnP_ic)
+
+         NULLIFY (mat_mo_coeff_gw_reflected)
+         CALL dbcsr_init_p(mat_mo_coeff_gw_reflected)
+
+         CALL cp_dbcsr_m_by_n_from_row_template(mat_mo_coeff_gw_reflected, template=matrix_s(1)%matrix, n=nmo, &
+                                                sym=dbcsr_type_no_symmetry)
+
+         CALL reflect_mat_row(mat_mo_coeff_gw_reflected, mat_mo_coeff_gw, para_env, qs_env, unit_nr, do_beta=my_do_beta)
+
+         ! normalize reflected MOs (they are not properly normalized since high angular momentum basis functions
+         ! of the image molecule are not exactly reflected at the image plane (sign problem in p_z function)
+         CALL dbcsr_create(matrix=mat_work, template=mat_mo_coeff_gw_reflected, matrix_type=dbcsr_type_no_symmetry)
+
+         CALL dbcsr_get_info(mat_work, distribution=dist_templ, nblkcols_total=size_MO, col_blk_size=sizes_MO_blocked)
+
+         CALL dbcsr_distribution_get(dist_templ, nprows=nprows, npcols=npcols)
+
+         ALLOCATE (distp_1(size_MO), distp_2(size_MO))
+         CALL cyclic_tensor_dist(size_MO, nprows, sizes_MO_blocked, distp_1)
+         CALL cyclic_tensor_dist(size_MO, npcols, sizes_MO_blocked, distp_2)
+         CALL dbcsr_distribution_new(dist, template=dist_templ, row_dist=distp_1, col_dist=distp_2, reuse_arrays=.TRUE.)
+
+         ALLOCATE (sizes_MO_p1(size_MO))
+         ALLOCATE (sizes_MO_p2(size_MO))
+         sizes_MO_p1(:) = sizes_MO_blocked
+         sizes_MO_p2(:) = sizes_MO_blocked
+         CALL dbcsr_create(mat_norm, "mo norm", dist, dbcsr_type_no_symmetry, sizes_MO_p1, sizes_MO_p2, &
+                           reuse_arrays=.TRUE.)
+         CALL dbcsr_distribution_release(dist)
+
+         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_s(1)%matrix, mat_mo_coeff_gw_reflected, 0.0_dp, mat_work)
+         CALL dbcsr_multiply("T", "N", 1.0_dp, mat_mo_coeff_gw_reflected, mat_work, 0.0_dp, mat_norm)
+
+         CALL dbcsr_release(mat_work)
+
+         ALLOCATE (norm(nmo))
+         norm = 0.0_dp
+
+         CALL dbcsr_get_diag(mat_norm, norm)
+         CALL mp_sum(norm, para_env%group)
+
+         DO imo = bounds(1, 1), bounds(2, 1)
+            norm(imo) = 1.0_dp/SQRT(norm(imo))
+         ENDDO
+
+         CALL dbcsr_create(mat_norm_diag, template=mat_norm)
+         CALL dbcsr_release(mat_norm)
+
+         CALL dbcsr_add_on_diag(mat_norm_diag, 1.0_dp)
+
+         CALL dbcsr_set_diag(mat_norm_diag, norm)
+
+         CALL dbcsr_create(mat_mo_coeff_gw_reflected_norm, template=mat_mo_coeff_gw_reflected)
+         CALL dbcsr_multiply("N", "N", 1.0_dp, mat_mo_coeff_gw_reflected, mat_norm_diag, 0.0_dp, mat_mo_coeff_gw_reflected_norm)
+         CALL dbcsr_release(mat_norm_diag)
+
+         CALL dbcsr_filter(mat_mo_coeff_gw_reflected_norm, 1.0E-20_dp)
+
+         CALL dbcsr_t_copy_matrix_to_tensor(mat_mo_coeff_gw_reflected_norm, mo_coeff_gw_t_tmp)
+         CALL dbcsr_release(mat_mo_coeff_gw_reflected_norm)
+         CALL dbcsr_t_copy(mo_coeff_gw_t_tmp, mo_coeff_gw_t)
+
+         CALL dbcsr_t_contract(dbcsr_scalar(1.0_dp), mo_coeff_gw_t, t_3c_overl_int_ao_ao, dbcsr_scalar(0.0_dp), &
+                               t_3c_overl_int_ao_mo, contract_1=[1], notcontract_1=[2], &
+                               contract_2=[3], notcontract_2=[1, 2], map_1=[3], map_2=[1, 2], &
+                               bounds_2=bounds, move_data=.FALSE., unit_nr=unit_nr_prv)
+
+         CALL dbcsr_t_copy(t_3c_overl_int_ao_mo, t_3c_overl_int_mo_ao, order=[1, 3, 2])
+         CALL dbcsr_t_contract(dbcsr_scalar(1.0_dp), mo_coeff_gw_t, t_3c_overl_int_mo_ao, dbcsr_scalar(0.0_dp), &
+                               t_3c_overl_int_mo_mo, contract_1=[1], notcontract_1=[2], &
+                               contract_2=[3], notcontract_2=[1, 2], map_1=[3], map_2=[1, 2], &
+                               bounds_2=bounds, move_data=.FALSE., unit_nr=unit_nr_prv)
+         CALL dbcsr_t_copy(t_3c_overl_int_mo_mo, t_3c_overl_nnP_ic_reflected)
+         CALL dbcsr_t_destroy(t_3c_overl_int_mo_ao)
+         CALL dbcsr_t_destroy(t_3c_overl_int_mo_mo)
+
+         CALL dbcsr_release_p(mat_mo_coeff_gw_reflected)
+
+      ENDIF
+
+      CALL dbcsr_release_p(mat_mo_coeff_gw)
+
+      CALL dbcsr_t_destroy(t_3c_overl_int_ao_ao)
+      CALL dbcsr_t_destroy(mo_coeff_gw_t)
+      CALL dbcsr_t_destroy(mo_coeff_gw_t_tmp)
+      CALL dbcsr_t_destroy(t_3c_overl_int_ao_mo)
 
       CALL timestop(handle)
 
@@ -309,9 +598,9 @@ CONTAINS
                         template=mat_mo_coeff_gw, &
                         matrix_type=dbcsr_type_no_symmetry)
 
-      DO n_level_gw = 1, gw_corr_lev_occ+gw_corr_lev_virt
+      DO n_level_gw = 1, gw_corr_lev_occ + gw_corr_lev_virt
 
-         n_level_gw_ref = n_level_gw+homo-gw_corr_lev_occ
+         n_level_gw_ref = n_level_gw + homo - gw_corr_lev_occ
 
          CALL dbcsr_copy(mat_mo_coeff_gw_copy, mat_mo_coeff_gw)
 
@@ -330,7 +619,7 @@ CONTAINS
 
                DO i_col = 1, col_size
 
-                  col_global = i_col+col_offset-1
+                  col_global = i_col + col_offset - 1
 
                   IF (is_occ) THEN
 
@@ -357,7 +646,7 @@ CONTAINS
 
                DO i_col = 1, col_size
 
-                  col_global = i_col+col_offset-1
+                  col_global = i_col + col_offset - 1
 
                   IF (col_global .NE. n_level_gw_ref) THEN
 
@@ -435,10 +724,10 @@ CONTAINS
 
       NULLIFY (data_block)
 
-      ALLOCATE (num_entries_send(0:para_env%num_pe-1))
+      ALLOCATE (num_entries_send(0:para_env%num_pe - 1))
       num_entries_send(:) = 0
 
-      ALLOCATE (num_blocks_send(0:para_env%num_pe-1))
+      ALLOCATE (num_blocks_send(0:para_env%num_pe - 1))
       num_blocks_send(:) = 0
 
       CALL timestop(handle1)
@@ -458,15 +747,15 @@ CONTAINS
                                            row_size=row_size, col_size=col_size, &
                                            row_offset=row_offset, col_offset=col_offset)
 
-            DO LLL = my_group_L_start, my_group_L_start+my_group_L_size-1
+            DO LLL = my_group_L_start, my_group_L_start + my_group_L_size - 1
 
                row_RI = row_from_LLL(LLL)
 
                CALL dbcsr_get_stored_coordinates(mat_3c_overl_int_gw(1)%matrix, row_RI, col, imepos_dest)
 
-               num_entries_send(imepos_dest) = num_entries_send(imepos_dest)+row_size*col_size/my_group_L_size
+               num_entries_send(imepos_dest) = num_entries_send(imepos_dest) + row_size*col_size/my_group_L_size
 
-               num_blocks_send(imepos_dest) = num_blocks_send(imepos_dest)+col_size/my_group_L_size
+               num_blocks_send(imepos_dest) = num_blocks_send(imepos_dest) + col_size/my_group_L_size
 
             END DO
 
@@ -480,24 +769,24 @@ CONTAINS
 
       CALL timeset("GW3c_send_sizes", handle1)
 
-      ALLOCATE (num_entries_rec(0:para_env%num_pe-1))
-      ALLOCATE (num_blocks_rec(0:para_env%num_pe-1))
+      ALLOCATE (num_entries_rec(0:para_env%num_pe - 1))
+      ALLOCATE (num_blocks_rec(0:para_env%num_pe - 1))
 
       IF (para_env%num_pe > 1) THEN
 
-         ALLOCATE (sizes_rec(0:2*para_env%num_pe-1))
-         ALLOCATE (sizes_send(0:2*para_env%num_pe-1))
+         ALLOCATE (sizes_rec(0:2*para_env%num_pe - 1))
+         ALLOCATE (sizes_send(0:2*para_env%num_pe - 1))
 
-         DO imepos = 0, para_env%num_pe-1
+         DO imepos = 0, para_env%num_pe - 1
             sizes_send(2*imepos) = num_entries_send(imepos)
-            sizes_send(2*imepos+1) = num_blocks_send(imepos)
+            sizes_send(2*imepos + 1) = num_blocks_send(imepos)
          END DO
 
          CALL mp_alltoall(sizes_send, sizes_rec, 2, para_env%group)
 
-         DO imepos = 0, para_env%num_pe-1
+         DO imepos = 0, para_env%num_pe - 1
             num_entries_rec(imepos) = sizes_rec(2*imepos)
-            num_blocks_rec(imepos) = sizes_rec(2*imepos+1)
+            num_blocks_rec(imepos) = sizes_rec(2*imepos + 1)
          END DO
 
          DEALLOCATE (sizes_rec, sizes_send)
@@ -513,11 +802,11 @@ CONTAINS
 
       CALL timeset("GW3c_fill_buffer_send", handle1)
 
-      ALLOCATE (buffer_rec(0:para_env%num_pe-1))
-      ALLOCATE (buffer_send(0:para_env%num_pe-1))
+      ALLOCATE (buffer_rec(0:para_env%num_pe - 1))
+      ALLOCATE (buffer_send(0:para_env%num_pe - 1))
 
       ! allocate data message and corresponding indices
-      DO imepos = 0, para_env%num_pe-1
+      DO imepos = 0, para_env%num_pe - 1
 
          ALLOCATE (buffer_rec(imepos)%msg(num_entries_rec(imepos)))
          buffer_rec(imepos)%msg = 0.0_dp
@@ -533,10 +822,10 @@ CONTAINS
 
       END DO
 
-      ALLOCATE (entry_counter(0:para_env%num_pe-1))
+      ALLOCATE (entry_counter(0:para_env%num_pe - 1))
       entry_counter(:) = 0
 
-      ALLOCATE (block_counter(0:para_env%num_pe-1))
+      ALLOCATE (block_counter(0:para_env%num_pe - 1))
       block_counter(:) = 0
 
       DO i_cut_RI = 1, cut_RI
@@ -552,7 +841,7 @@ CONTAINS
                                            row_size=row_size, col_size=col_size, &
                                            row_offset=row_offset, col_offset=col_offset)
 
-            DO LLL = my_group_L_start, my_group_L_start+my_group_L_size-1
+            DO LLL = my_group_L_start, my_group_L_start + my_group_L_size - 1
 
                row_RI = row_from_LLL(LLL)
 
@@ -561,18 +850,18 @@ CONTAINS
 
                col_size_orig = col_size/my_group_L_size
 
-               col_offset_data_block = (LLL-my_group_L_start)*col_size_orig+1
+               col_offset_data_block = (LLL - my_group_L_start)*col_size_orig + 1
 
                DO i_col_orig = 1, col_size_orig
 
-                  block = block_counter(imepos_dest)+1
+                  block = block_counter(imepos_dest) + 1
 
                   CALL dbcsr_get_stored_coordinates(mat_3c_overl_int_gw(1)%matrix, row_RI, col, imepos_dest)
 
                   offset = entry_counter(imepos_dest)
 
-                  buffer_send(imepos_dest)%msg(offset+1:offset+row_size) = &
-                     data_block(1:row_size, col_offset_data_block+i_col_orig-1)
+                  buffer_send(imepos_dest)%msg(offset + 1:offset + row_size) = &
+                     data_block(1:row_size, col_offset_data_block + i_col_orig - 1)
 
                   buffer_send(imepos_dest)%indx(block, 1) = LLL
                   buffer_send(imepos_dest)%indx(block, 2) = col
@@ -584,9 +873,9 @@ CONTAINS
                   buffer_send(imepos_dest)%indx(block, 8) = offset
                   buffer_send(imepos_dest)%indx(block, 9) = i_col_orig
 
-                  entry_counter(imepos_dest) = entry_counter(imepos_dest)+row_size
+                  entry_counter(imepos_dest) = entry_counter(imepos_dest) + row_size
 
-                  block_counter(imepos_dest) = block_counter(imepos_dest)+1
+                  block_counter(imepos_dest) = block_counter(imepos_dest) + 1
 
                END DO
 
@@ -622,7 +911,7 @@ CONTAINS
 
       first_cycle = .TRUE.
 
-      DO imepos = 0, para_env%num_pe-1
+      DO imepos = 0, para_env%num_pe - 1
 
          DO i_block = 1, num_blocks_rec(imepos)
 
@@ -662,8 +951,8 @@ CONTAINS
                   DEALLOCATE (rows_to_allocate)
                   DEALLOCATE (cols_to_allocate)
 
-                  ALLOCATE (rows_to_allocate(integer_block_counter+1))
-                  ALLOCATE (cols_to_allocate(integer_block_counter+1))
+                  ALLOCATE (rows_to_allocate(integer_block_counter + 1))
+                  ALLOCATE (cols_to_allocate(integer_block_counter + 1))
 
                   rows_to_allocate(1:integer_block_counter) = rows_tmp(1:integer_block_counter)
                   cols_to_allocate(1:integer_block_counter) = cols_tmp(1:integer_block_counter)
@@ -671,10 +960,10 @@ CONTAINS
                   DEALLOCATE (rows_tmp)
                   DEALLOCATE (cols_tmp)
 
-                  rows_to_allocate(integer_block_counter+1) = row_RI
-                  cols_to_allocate(integer_block_counter+1) = col_prim
+                  rows_to_allocate(integer_block_counter + 1) = row_RI
+                  cols_to_allocate(integer_block_counter + 1) = col_prim
 
-                  integer_block_counter = integer_block_counter+1
+                  integer_block_counter = integer_block_counter + 1
 
                END IF
 
@@ -688,7 +977,7 @@ CONTAINS
 
       CALL timeset("GW3c_fill_mat", handle1)
 
-      DO n_level_gw = 1, gw_corr_lev_occ+gw_corr_lev_virt
+      DO n_level_gw = 1, gw_corr_lev_occ + gw_corr_lev_virt
 
          IF (rows_to_allocate(1) .NE. 0) THEN
 
@@ -700,7 +989,7 @@ CONTAINS
 
          CALL dbcsr_finalize(mat_3c_overl_int_gw(n_level_gw)%matrix)
 
-         DO imepos = 0, para_env%num_pe-1
+         DO imepos = 0, para_env%num_pe - 1
 
             DO i_block = 1, num_blocks_rec(imepos)
 
@@ -723,14 +1012,14 @@ CONTAINS
                      offset_buffer = buffer_rec(imepos)%indx(i_block, 8)
                      i_col_orig = buffer_rec(imepos)%indx(i_block, 9)
 
-                     DO i_row_rec = row_offset_rec, row_offset_rec+row_size_rec-1
+                     DO i_row_rec = row_offset_rec, row_offset_rec + row_size_rec - 1
 
-                        IF (i_row_rec == n_level_gw+homo-gw_corr_lev_occ) THEN
+                        IF (i_row_rec == n_level_gw + homo - gw_corr_lev_occ) THEN
 
-                           RI_index_data_block = LLL-row_offset+1
+                           RI_index_data_block = LLL - row_offset + 1
 
                            data_block(RI_index_data_block, i_col_orig) = &
-                              buffer_rec(imepos)%msg(offset_buffer+1+i_row_rec-row_offset_rec)
+                              buffer_rec(imepos)%msg(offset_buffer + 1 + i_row_rec - row_offset_rec)
 
                         END IF
 
@@ -753,12 +1042,12 @@ CONTAINS
 
       CALL timestop(handle1)
 
-      DO imepos = 0, para_env%num_pe-1
+      DO imepos = 0, para_env%num_pe - 1
          DEALLOCATE (buffer_send(imepos)%msg)
          DEALLOCATE (buffer_send(imepos)%indx)
       END DO
 
-      DO imepos = 0, para_env%num_pe-1
+      DO imepos = 0, para_env%num_pe - 1
          DEALLOCATE (buffer_rec(imepos)%msg)
          DEALLOCATE (buffer_rec(imepos)%indx)
       END DO
@@ -810,10 +1099,10 @@ CONTAINS
 
       NULLIFY (data_block)
 
-      ALLOCATE (num_entries_blocks_send(0:2*para_env%num_pe-1))
+      ALLOCATE (num_entries_blocks_send(0:2*para_env%num_pe - 1))
       num_entries_blocks_send(:) = 0
 
-      ALLOCATE (num_entries_blocks_rec(0:2*para_env%num_pe-1))
+      ALLOCATE (num_entries_blocks_rec(0:2*para_env%num_pe - 1))
       num_entries_blocks_rec(:) = 0
 
       ngroup = para_env%num_pe/para_env_sub%num_pe
@@ -829,12 +1118,12 @@ CONTAINS
 
          CALL dbcsr_get_stored_coordinates(mat_local, row, col, imepos_sub)
 
-         DO igroup = 0, ngroup-1
+         DO igroup = 0, ngroup - 1
 
-            imepos = imepos_sub+igroup*num_pe_sub
+            imepos = imepos_sub + igroup*num_pe_sub
 
-            num_entries_blocks_send(2*imepos) = num_entries_blocks_send(2*imepos)+row_size*col_size
-            num_entries_blocks_send(2*imepos+1) = num_entries_blocks_send(2*imepos+1)+1
+            num_entries_blocks_send(2*imepos) = num_entries_blocks_send(2*imepos) + row_size*col_size
+            num_entries_blocks_send(2*imepos + 1) = num_entries_blocks_send(2*imepos + 1) + 1
 
          END DO
 
@@ -863,11 +1152,11 @@ CONTAINS
 
       CALL timeset("get_data_D", handle1)
 
-      ALLOCATE (buffer_rec(0:para_env%num_pe-1))
-      ALLOCATE (buffer_send(0:para_env%num_pe-1))
+      ALLOCATE (buffer_rec(0:para_env%num_pe - 1))
+      ALLOCATE (buffer_send(0:para_env%num_pe - 1))
 
       ! allocate data message and corresponding indices
-      DO imepos = 0, para_env%num_pe-1
+      DO imepos = 0, para_env%num_pe - 1
 
          ALLOCATE (buffer_rec(imepos)%msg(num_entries_blocks_rec(2*imepos)))
          buffer_rec(imepos)%msg = 0.0_dp
@@ -875,18 +1164,18 @@ CONTAINS
          ALLOCATE (buffer_send(imepos)%msg(num_entries_blocks_send(2*imepos)))
          buffer_send(imepos)%msg = 0.0_dp
 
-         ALLOCATE (buffer_rec(imepos)%indx(num_entries_blocks_rec(2*imepos+1), 3))
+         ALLOCATE (buffer_rec(imepos)%indx(num_entries_blocks_rec(2*imepos + 1), 3))
          buffer_rec(imepos)%indx = 0
 
-         ALLOCATE (buffer_send(imepos)%indx(num_entries_blocks_send(2*imepos+1), 3))
+         ALLOCATE (buffer_send(imepos)%indx(num_entries_blocks_send(2*imepos + 1), 3))
          buffer_send(imepos)%indx = 0
 
       END DO
 
-      ALLOCATE (entry_counter(0:para_env%num_pe-1))
+      ALLOCATE (entry_counter(0:para_env%num_pe - 1))
       entry_counter(:) = 0
 
-      ALLOCATE (blk_counter(0:para_env%num_pe-1))
+      ALLOCATE (blk_counter(0:para_env%num_pe - 1))
       blk_counter = 0
 
       CALL dbcsr_iterator_start(iter, mat_dm_global)
@@ -898,20 +1187,20 @@ CONTAINS
 
          CALL dbcsr_get_stored_coordinates(mat_local, row, col, imepos_sub)
 
-         DO igroup = 0, ngroup-1
+         DO igroup = 0, ngroup - 1
 
-            imepos = imepos_sub+igroup*num_pe_sub
+            imepos = imepos_sub + igroup*num_pe_sub
 
             msg_offset = entry_counter(imepos)
 
             block_size = row_size*col_size
 
-            buffer_send(imepos)%msg(msg_offset+1:msg_offset+block_size) = &
+            buffer_send(imepos)%msg(msg_offset + 1:msg_offset + block_size) = &
                RESHAPE(data_block(1:row_size, 1:col_size), (/block_size/))
 
-            entry_counter(imepos) = entry_counter(imepos)+block_size
+            entry_counter(imepos) = entry_counter(imepos) + block_size
 
-            blk_counter(imepos) = blk_counter(imepos)+1
+            blk_counter(imepos) = blk_counter(imepos) + 1
 
             block_offset = blk_counter(imepos)
 
@@ -931,10 +1220,10 @@ CONTAINS
 
       ALLOCATE (req_array(1:para_env%num_pe, 4))
 
-      ALLOCATE (sizes_rec(0:para_env%num_pe-1))
-      ALLOCATE (sizes_send(0:para_env%num_pe-1))
+      ALLOCATE (sizes_rec(0:para_env%num_pe - 1))
+      ALLOCATE (sizes_send(0:para_env%num_pe - 1))
 
-      DO imepos = 0, para_env%num_pe-1
+      DO imepos = 0, para_env%num_pe - 1
 
          sizes_send(imepos) = num_entries_blocks_send(2*imepos)
          sizes_rec(imepos) = num_entries_blocks_rec(2*imepos)
@@ -960,7 +1249,7 @@ CONTAINS
       DO i_entry = 1, nmo
          DO i_block = 1, nblkrows_total
 
-            IF (i_entry >= row_blk_offset(i_block) .AND. i_entry <= row_blk_offset(i_block)+row_blk_size(i_block)-1) THEN
+            IF (i_entry >= row_blk_offset(i_block) .AND. i_entry <= row_blk_offset(i_block) + row_blk_size(i_block) - 1) THEN
 
                row_block_from_index(i_entry) = i_block
 
@@ -976,8 +1265,8 @@ CONTAINS
       num_blocks = 0
 
       ! get the number of blocks, which have to be allocated
-      DO imepos = 0, para_env%num_pe-1
-         num_blocks = num_blocks+num_entries_blocks_rec(2*imepos+1)
+      DO imepos = 0, para_env%num_pe - 1
+         num_blocks = num_blocks + num_entries_blocks_rec(2*imepos + 1)
       END DO
 
       ALLOCATE (rows_to_allocate_all(num_blocks))
@@ -988,11 +1277,11 @@ CONTAINS
 
       block_counter = 0
 
-      DO i_mepos = 0, para_env%num_pe-1
+      DO i_mepos = 0, para_env%num_pe - 1
 
-         DO i_block = 1, num_entries_blocks_rec(2*i_mepos+1)
+         DO i_block = 1, num_entries_blocks_rec(2*i_mepos + 1)
 
-            block_counter = block_counter+1
+            block_counter = block_counter + 1
 
             rows_to_allocate_all(block_counter) = buffer_rec(i_mepos)%indx(i_block, 1)
             cols_to_allocate_all(block_counter) = buffer_rec(i_mepos)%indx(i_block, 2)
@@ -1019,9 +1308,9 @@ CONTAINS
          CALL dbcsr_iterator_next_block(iter, row, col, data_block, &
                                         row_size=row_size, col_size=col_size)
 
-         DO imepos = 0, para_env%num_pe-1
+         DO imepos = 0, para_env%num_pe - 1
 
-            DO i_block = 1, num_entries_blocks_rec(2*imepos+1)
+            DO i_block = 1, num_entries_blocks_rec(2*imepos + 1)
 
                row_from_buffer = buffer_rec(imepos)%indx(i_block, 1)
                col_from_buffer = buffer_rec(imepos)%indx(i_block, 2)
@@ -1030,7 +1319,7 @@ CONTAINS
                IF (row == row_from_buffer .AND. col == col_from_buffer) THEN
 
                   data_block(1:row_size, 1:col_size) = &
-                     RESHAPE(buffer_rec(imepos)%msg(offset+1:offset+row_size*col_size), &
+                     RESHAPE(buffer_rec(imepos)%msg(offset + 1:offset + row_size*col_size), &
                              (/row_size, col_size/))
 
                END IF
@@ -1045,7 +1334,7 @@ CONTAINS
 
       CALL timestop(handle1)
 
-      DO imepos = 0, para_env%num_pe-1
+      DO imepos = 0, para_env%num_pe - 1
          DEALLOCATE (buffer_rec(imepos)%msg)
          DEALLOCATE (buffer_rec(imepos)%indx)
          DEALLOCATE (buffer_send(imepos)%msg)
@@ -1115,11 +1404,8 @@ CONTAINS
                           row_blk_size=row_blk_sizes, &
                           col_blk_size=col_blk_sizes)
 
-      ! matrix has to be quadratic of course
-      CPASSERT(nblkrows_total == nblkcols_total)
-
       natom = SIZE(particle_set)
-      CPASSERT(natom == nblkcols_total)
+      CPASSERT(natom == nblkrows_total)
 
       eps_dist2 = qs_env%mp2_env%ri_g0w0%eps_dist
       eps_dist2 = eps_dist2*eps_dist2
@@ -1130,7 +1416,7 @@ CONTAINS
 
          ra(:) = pbc(particle_set(i_atom)%r, cell)
 
-         sum_z = sum_z+ra(3)
+         sum_z = sum_z + ra(3)
 
       END DO
 
@@ -1142,7 +1428,7 @@ CONTAINS
 
          ra(:) = pbc(particle_set(i_atom)%r, cell)
 
-         sum_z = sum_z+ABS(ra(3)-z_reflection)
+         sum_z = sum_z + ABS(ra(3) - z_reflection)
 
       END DO
 
@@ -1154,8 +1440,8 @@ CONTAINS
 
          ra(:) = pbc(particle_set(i_atom)%r, cell)
 
-         IF (ABS(ra(3)-z_reflection) < min_z_dist) THEN
-            min_z_dist = ABS(ra(3)-z_reflection)
+         IF (ABS(ra(3) - z_reflection) < min_z_dist) THEN
+            min_z_dist = ABS(ra(3) - z_reflection)
          END IF
 
       END DO
@@ -1180,7 +1466,7 @@ CONTAINS
 
             rb(:) = pbc(particle_set(j_atom)%r, cell)
 
-            delta = (ra(1)-rb(1))**2+(ra(2)-rb(2))**2+(ra(3)+rb(3)-2.0_dp*z_reflection)**2
+            delta = (ra(1) - rb(1))**2 + (ra(2) - rb(2))**2 + (ra(3) + rb(3) - 2.0_dp*z_reflection)**2
 
             ! SQRT(delta) < eps_dist
             IF (delta < eps_dist2) THEN
@@ -1200,13 +1486,13 @@ CONTAINS
 
       END DO
 
-      ALLOCATE (buffer_rec(0:para_env%num_pe-1))
-      ALLOCATE (buffer_send(0:para_env%num_pe-1))
+      ALLOCATE (buffer_rec(0:para_env%num_pe - 1))
+      ALLOCATE (buffer_send(0:para_env%num_pe - 1))
 
-      ALLOCATE (num_entries_rec(0:para_env%num_pe-1))
-      ALLOCATE (num_blocks_rec(0:para_env%num_pe-1))
-      ALLOCATE (num_entries_send(0:para_env%num_pe-1))
-      ALLOCATE (num_blocks_send(0:para_env%num_pe-1))
+      ALLOCATE (num_entries_rec(0:para_env%num_pe - 1))
+      ALLOCATE (num_blocks_rec(0:para_env%num_pe - 1))
+      ALLOCATE (num_entries_send(0:para_env%num_pe - 1))
+      ALLOCATE (num_blocks_send(0:para_env%num_pe - 1))
       num_entries_rec = 0
       num_blocks_rec = 0
       num_entries_send = 0
@@ -1222,8 +1508,8 @@ CONTAINS
 
          CALL dbcsr_get_stored_coordinates(mat_reflected, row_reflected, col, imepos)
 
-         num_entries_send(imepos) = num_entries_send(imepos)+row_size*col_size
-         num_blocks_send(imepos) = num_blocks_send(imepos)+1
+         num_entries_send(imepos) = num_entries_send(imepos) + row_size*col_size
+         num_blocks_send(imepos) = num_blocks_send(imepos) + 1
 
       END DO
 
@@ -1231,21 +1517,21 @@ CONTAINS
 
       IF (para_env%num_pe > 1) THEN
 
-         ALLOCATE (sizes_rec(0:2*para_env%num_pe-1))
-         ALLOCATE (sizes_send(0:2*para_env%num_pe-1))
+         ALLOCATE (sizes_rec(0:2*para_env%num_pe - 1))
+         ALLOCATE (sizes_send(0:2*para_env%num_pe - 1))
 
-         DO imepos = 0, para_env%num_pe-1
+         DO imepos = 0, para_env%num_pe - 1
 
             sizes_send(2*imepos) = num_entries_send(imepos)
-            sizes_send(2*imepos+1) = num_blocks_send(imepos)
+            sizes_send(2*imepos + 1) = num_blocks_send(imepos)
 
          END DO
 
          CALL mp_alltoall(sizes_send, sizes_rec, 2, para_env%group)
 
-         DO imepos = 0, para_env%num_pe-1
+         DO imepos = 0, para_env%num_pe - 1
             num_entries_rec(imepos) = sizes_rec(2*imepos)
-            num_blocks_rec(imepos) = sizes_rec(2*imepos+1)
+            num_blocks_rec(imepos) = sizes_rec(2*imepos + 1)
          END DO
 
          DEALLOCATE (sizes_rec, sizes_send)
@@ -1258,7 +1544,7 @@ CONTAINS
       END IF
 
       ! allocate data message and corresponding indices
-      DO imepos = 0, para_env%num_pe-1
+      DO imepos = 0, para_env%num_pe - 1
 
          ALLOCATE (buffer_rec(imepos)%msg(num_entries_rec(imepos)))
          buffer_rec(imepos)%msg = 0.0_dp
@@ -1274,10 +1560,10 @@ CONTAINS
 
       END DO
 
-      ALLOCATE (block_counter(0:para_env%num_pe-1))
+      ALLOCATE (block_counter(0:para_env%num_pe - 1))
       block_counter(:) = 0
 
-      ALLOCATE (entry_counter(0:para_env%num_pe-1))
+      ALLOCATE (entry_counter(0:para_env%num_pe - 1))
       entry_counter(:) = 0
 
       CALL dbcsr_iterator_start(iter, mat_orig)
@@ -1294,18 +1580,18 @@ CONTAINS
 
          offset = entry_counter(imepos)
 
-         buffer_send(imepos)%msg(offset+1:offset+block_size) = &
+         buffer_send(imepos)%msg(offset + 1:offset + block_size) = &
             RESHAPE(data_block(1:row_size, 1:col_size), (/block_size/))
 
-         block = block_counter(imepos)+1
+         block = block_counter(imepos) + 1
 
          buffer_send(imepos)%indx(block, 1) = row_reflected
          buffer_send(imepos)%indx(block, 2) = col
          buffer_send(imepos)%indx(block, 3) = offset
 
-         entry_counter(imepos) = entry_counter(imepos)+block_size
+         entry_counter(imepos) = entry_counter(imepos) + block_size
 
-         block_counter(imepos) = block_counter(imepos)+1
+         block_counter(imepos) = block_counter(imepos) + 1
 
       END DO
 
@@ -1318,7 +1604,7 @@ CONTAINS
       DEALLOCATE (req_array)
 
       ! fill the reflected matrix
-      DO imepos = 0, para_env%num_pe-1
+      DO imepos = 0, para_env%num_pe - 1
 
          DO i_block = 1, num_blocks_rec(imepos)
 
@@ -1335,7 +1621,7 @@ CONTAINS
 
                   offset = buffer_rec(imepos)%indx(i_block, 3)
 
-                  data_block(:, :) = RESHAPE(buffer_rec(imepos)%msg(offset+1:offset+row_size*col_size), &
+                  data_block(:, :) = RESHAPE(buffer_rec(imepos)%msg(offset + 1:offset + row_size*col_size), &
                                              (/row_size, col_size/))
 
                END IF
@@ -1348,7 +1634,7 @@ CONTAINS
 
       END DO
 
-      DO imepos = 0, para_env%num_pe-1
+      DO imepos = 0, para_env%num_pe - 1
          DEALLOCATE (buffer_rec(imepos)%msg)
          DEALLOCATE (buffer_rec(imepos)%indx)
          DEALLOCATE (buffer_send(imepos)%msg)

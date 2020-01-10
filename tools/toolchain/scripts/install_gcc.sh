@@ -2,8 +2,8 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")" && pwd -P)"
 
-gcc_ver="8.3.0"
-gcc_sha256="ea71adc1c3d86330874b8df19611424b143308f0d6612d542472600532c96d2d"
+gcc_ver="9.2.0"
+gcc_sha256="a931a750d6feadacbeecb321d73925cd5ebb6dfa7eff0802984af3aef63759f4"
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh
 source "${SCRIPT_DIR}"/signal_trap.sh
@@ -162,6 +162,9 @@ leak:blacs_gridmap_
 leak:PPEXSIDFTDriver
 # leaks in SuperLU
 leak:symbfact_distributeMatrix
+# leak due to compiler bug triggered by combination of OOP and ALLOCATABLE
+leak:__dbcsr_tensor_types_MOD___copy_dbcsr_tensor_types_Dbcsr_tas_dist_t
+leak:__dbcsr_tensor_types_MOD___copy_dbcsr_tensor_types_Dbcsr_tas_blk_size_t
 EOF
 cat << EOF >> ${INSTALLDIR}/tsan.supp
 # tsan bugs likely related to gcc

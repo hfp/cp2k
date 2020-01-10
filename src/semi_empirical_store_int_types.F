@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -246,7 +246,7 @@ CONTAINS
                ELSE
                   ! Skip compression
                   CALL reallocate(store_int_env%uncompressed_container, 1, &
-                                  store_int_env%memory_parameter%actual_memory_usage-1)
+                                  store_int_env%memory_parameter%actual_memory_usage - 1)
                END IF
             END IF
             IF (store_int_env%compress) THEN

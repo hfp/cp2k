@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -29,14 +29,23 @@ MODULE rpa_gw_ic
         dbcsr_add, dbcsr_create, dbcsr_dot, dbcsr_get_info, dbcsr_get_stored_coordinates, &
         dbcsr_init_p, dbcsr_iterator_blocks_left, dbcsr_iterator_next_block, dbcsr_iterator_start, &
         dbcsr_iterator_stop, dbcsr_iterator_type, dbcsr_multiply, dbcsr_p_type, dbcsr_release_p, &
-        dbcsr_reserve_all_blocks, dbcsr_set, dbcsr_transposed, dbcsr_type, dbcsr_type_no_symmetry, &
-        dbcsr_type_real_default
+        dbcsr_reserve_all_blocks, dbcsr_scalar, dbcsr_set, dbcsr_transposed, dbcsr_type, &
+        dbcsr_type_no_symmetry, dbcsr_type_real_default
+   USE dbcsr_tensor_api,                ONLY: &
+        dbcsr_t_contract, dbcsr_t_copy, dbcsr_t_copy_matrix_to_tensor, dbcsr_t_create, &
+        dbcsr_t_destroy, dbcsr_t_get_block, dbcsr_t_iterator_blocks_left, &
+        dbcsr_t_iterator_next_block, dbcsr_t_iterator_start, dbcsr_t_iterator_stop, &
+        dbcsr_t_iterator_type, dbcsr_t_pgrid_create, dbcsr_t_pgrid_destroy, dbcsr_t_pgrid_type, &
+        dbcsr_t_type
    USE kinds,                           ONLY: dp
    USE message_passing,                 ONLY: mp_alltoall,&
+                                              mp_dims_create,&
                                               mp_sum
    USE mp2_types,                       ONLY: integ_mat_buffer_type,&
                                               mp2_type
    USE physcon,                         ONLY: evolt
+   USE qs_tensors_types,                ONLY: create_2c_tensor,&
+                                              split_block_sizes
    USE rpa_communication,               ONLY: communicate_buffer
 #include "./base/base_uses.f90"
 
@@ -56,6 +65,9 @@ CONTAINS
 !> \param mat_SinvVSinv ...
 !> \param mat_3c_overl_nnP_ic ...
 !> \param mat_3c_overl_nnP_ic_reflected ...
+!> \param do_dbcsr_t ...
+!> \param t_3c_overl_nnP_ic ...
+!> \param t_3c_overl_nnP_ic_reflected ...
 !> \param mat_work ...
 !> \param matrix_s ...
 !> \param gw_corr_lev_tot ...
@@ -74,7 +86,8 @@ CONTAINS
 !> \param do_beta ...
 ! **************************************************************************************************
    SUBROUTINE calculate_ic_correction(Eigenval, mat_SinvVSinv, mat_3c_overl_nnP_ic, &
-                                      mat_3c_overl_nnP_ic_reflected, mat_work, matrix_s, gw_corr_lev_tot, &
+                                      mat_3c_overl_nnP_ic_reflected, do_dbcsr_t, &
+                                      t_3c_overl_nnP_ic, t_3c_overl_nnP_ic_reflected, mat_work, matrix_s, gw_corr_lev_tot, &
                                       gw_corr_lev_occ, gw_corr_lev_virt, homo, nmo, dimen_RI, unit_nr, &
                                       print_ic_values, do_ic_opt_homo_lumo, fm_mat_Q, para_env, mp2_env, &
                                       do_alpha, do_beta)
@@ -83,6 +96,9 @@ CONTAINS
       TYPE(dbcsr_p_type), INTENT(IN)                     :: mat_SinvVSinv
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: mat_3c_overl_nnP_ic, &
                                                             mat_3c_overl_nnP_ic_reflected
+      LOGICAL, INTENT(IN)                                :: do_dbcsr_t
+      TYPE(dbcsr_t_type)                                 :: t_3c_overl_nnP_ic, &
+                                                            t_3c_overl_nnP_ic_reflected
       TYPE(dbcsr_type), POINTER                          :: mat_work
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s
       INTEGER, INTENT(IN)                                :: gw_corr_lev_tot, gw_corr_lev_occ, &
@@ -98,8 +114,11 @@ CONTAINS
          routineP = moduleN//':'//routineN
 
       CHARACTER(4)                                       :: occ_virt
-      INTEGER                                            :: handle, n_level_gw, n_level_gw_ref, &
-                                                            sc_iter
+      INTEGER                                            :: handle, mo_end, mo_start, n_level_gw, &
+                                                            n_level_gw_ref, sc_iter, sqrt_max_bsize
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: dist_1, dist_2, sizes_RI_split
+      INTEGER, DIMENSION(2)                              :: pdims
+      INTEGER, DIMENSION(:), POINTER                     :: sizes_RI
       LOGICAL                                            :: do_closed_shell, do_neaton, my_do_alpha, &
                                                             my_do_beta
       REAL(KIND=dp)                                      :: alpha, old_energy
@@ -111,6 +130,8 @@ CONTAINS
                                                             fm_mat_U_occ, fm_mat_U_virt
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: mat_B_nm_P, mat_N_occ_dbcsr, &
                                                             mat_N_virt_dbcsr
+      TYPE(dbcsr_t_pgrid_type)                           :: pgrid_2d
+      TYPE(dbcsr_t_type) :: t_3c_overl_nnP_ic_reflected_ctr, t_SinvVSinv, t_SinvVSinv_tmp
       TYPE(dbcsr_type), POINTER                          :: coeff_homo_dbcsr, coeff_lumo_dbcsr, &
                                                             temp_RI_vector, vec_P_occ_dbcsr, &
                                                             vec_P_virt_dbcsr
@@ -138,22 +159,60 @@ CONTAINS
          ALLOCATE (Delta_Sigma_Neaton(gw_corr_lev_tot))
          Delta_Sigma_Neaton = 0.0_dp
 
-         DO n_level_gw = 1, gw_corr_lev_tot
+         IF (do_dbcsr_t) THEN
 
-            IF (n_level_gw > gw_corr_lev_occ) THEN
-               alpha = -0.5_dp
-            ELSE
-               alpha = 0.5_dp
-            END IF
+            mo_start = homo - gw_corr_lev_occ + 1
+            mo_end = homo + gw_corr_lev_virt
+            CPASSERT(mo_end - mo_start + 1 == gw_corr_lev_tot)
 
-            CALL dbcsr_multiply("N", "N", alpha, mat_SinvVSinv%matrix, &
-                                mat_3c_overl_nnP_ic(n_level_gw)%matrix, 0.0_dp, mat_work)
+            sqrt_max_bsize = mp2_env%ri_rpa_im_time%max_bsize_sqrt
+            CALL dbcsr_get_info(mat_SinvVSinv%matrix, row_blk_size=sizes_RI)
+            CALL split_block_sizes(sizes_RI, sizes_RI_split, sqrt_max_bsize)
 
-            CALL dbcsr_dot(mat_work, &
-                           mat_3c_overl_nnP_ic_reflected(n_level_gw)%matrix, &
-                           Delta_Sigma_Neaton(n_level_gw))
+            CALL dbcsr_t_create(mat_SinvVSinv%matrix, t_SinvVSinv_tmp)
+            CALL dbcsr_t_copy_matrix_to_tensor(mat_SinvVSinv%matrix, t_SinvVSinv_tmp)
+            pdims = 0
+            CALL mp_dims_create(para_env%num_pe, pdims)
+            CALL dbcsr_t_pgrid_create(para_env%group, pdims, pgrid_2d)
+            CALL create_2c_tensor(t_SinvVSinv, dist_1, dist_2, pgrid_2d, sizes_RI_split, sizes_RI_split, &
+                                  name="(RI|RI)")
+            DEALLOCATE (dist_1, dist_2)
+            CALL dbcsr_t_pgrid_destroy(pgrid_2d)
 
-         END DO
+            CALL dbcsr_t_copy(t_SinvVSinv_tmp, t_SinvVSinv)
+            CALL dbcsr_t_destroy(t_SinvVSinv_tmp)
+            CALL dbcsr_t_create(t_3c_overl_nnP_ic_reflected, t_3c_overl_nnP_ic_reflected_ctr)
+            CALL dbcsr_t_contract(dbcsr_scalar(0.5_dp), t_SinvVSinv, t_3c_overl_nnP_ic_reflected, &
+                                  dbcsr_scalar(0.0_dp), t_3c_overl_nnP_ic_reflected_ctr, &
+                                  contract_1=[2], notcontract_1=[1], &
+                                  contract_2=[1], notcontract_2=[2, 3], &
+                                  map_1=[1], map_2=[2, 3])
+
+            CALL trace_ic_gw(t_3c_overl_nnP_ic, t_3c_overl_nnP_ic_reflected_ctr, Delta_Sigma_Neaton, [mo_start, mo_end], para_env)
+
+            Delta_Sigma_Neaton(gw_corr_lev_occ + 1:) = -Delta_Sigma_Neaton(gw_corr_lev_occ + 1:)
+
+            CALL dbcsr_t_destroy(t_SinvVSinv)
+            CALL dbcsr_t_destroy(t_3c_overl_nnP_ic_reflected_ctr)
+
+         ELSE
+            DO n_level_gw = 1, gw_corr_lev_tot
+
+               IF (n_level_gw > gw_corr_lev_occ) THEN
+                  alpha = -0.5_dp
+               ELSE
+                  alpha = 0.5_dp
+               END IF
+
+               CALL dbcsr_multiply("N", "N", alpha, mat_SinvVSinv%matrix, &
+                                   mat_3c_overl_nnP_ic(n_level_gw)%matrix, 0.0_dp, mat_work)
+
+               CALL dbcsr_dot(mat_work, &
+                              mat_3c_overl_nnP_ic_reflected(n_level_gw)%matrix, &
+                              Delta_Sigma_Neaton(n_level_gw))
+
+            END DO
+         ENDIF
 
          IF (unit_nr > 0) THEN
 
@@ -179,7 +238,7 @@ CONTAINS
                '    E_n after ic corr'
 
             DO n_level_gw = 1, gw_corr_lev_tot
-               n_level_gw_ref = n_level_gw+homo-gw_corr_lev_occ
+               n_level_gw_ref = n_level_gw + homo - gw_corr_lev_occ
                IF (n_level_gw <= gw_corr_lev_occ) THEN
                   occ_virt = 'occ'
                ELSE
@@ -190,27 +249,27 @@ CONTAINS
                   n_level_gw_ref, ' ( ', occ_virt, ')  ', &
                   Eigenval(n_level_gw_ref)*evolt, &
                   Delta_Sigma_Neaton(n_level_gw)*evolt, &
-                  (Eigenval(n_level_gw_ref)+Delta_Sigma_Neaton(n_level_gw))*evolt
+                  (Eigenval(n_level_gw_ref) + Delta_Sigma_Neaton(n_level_gw))*evolt
 
             END DO
 
             IF (do_closed_shell) THEN
                WRITE (unit_nr, '(T3,A)') ' '
-               WRITE (unit_nr, '(T3,A,F57.2)') 'IC HOMO-LUMO gap (eV)', (Eigenval(homo+1)+ &
-                                                                         Delta_Sigma_Neaton(gw_corr_lev_occ+1)- &
-                                                                         Eigenval(homo)- &
+               WRITE (unit_nr, '(T3,A,F57.2)') 'IC HOMO-LUMO gap (eV)', (Eigenval(homo + 1) + &
+                                                                         Delta_Sigma_Neaton(gw_corr_lev_occ + 1) - &
+                                                                         Eigenval(homo) - &
                                                                          Delta_Sigma_Neaton(gw_corr_lev_occ))*evolt
             ELSE IF (my_do_alpha) THEN
                WRITE (unit_nr, '(T3,A)') ' '
-               WRITE (unit_nr, '(T3,A,F51.2)') 'Alpha IC HOMO-LUMO gap (eV)', (Eigenval(homo+1)+ &
-                                                                               Delta_Sigma_Neaton(gw_corr_lev_occ+1)- &
-                                                                               Eigenval(homo)- &
+               WRITE (unit_nr, '(T3,A,F51.2)') 'Alpha IC HOMO-LUMO gap (eV)', (Eigenval(homo + 1) + &
+                                                                               Delta_Sigma_Neaton(gw_corr_lev_occ + 1) - &
+                                                                               Eigenval(homo) - &
                                                                                Delta_Sigma_Neaton(gw_corr_lev_occ))*evolt
             ELSE IF (my_do_beta) THEN
                WRITE (unit_nr, '(T3,A)') ' '
-               WRITE (unit_nr, '(T3,A,F52.2)') 'Beta IC HOMO-LUMO gap (eV)', (Eigenval(homo+1)+ &
-                                                                              Delta_Sigma_Neaton(gw_corr_lev_occ+1)- &
-                                                                              Eigenval(homo)- &
+               WRITE (unit_nr, '(T3,A,F52.2)') 'Beta IC HOMO-LUMO gap (eV)', (Eigenval(homo + 1) + &
+                                                                              Delta_Sigma_Neaton(gw_corr_lev_occ + 1) - &
+                                                                              Eigenval(homo) - &
                                                                               Delta_Sigma_Neaton(gw_corr_lev_occ))*evolt
             END IF
 
@@ -225,9 +284,9 @@ CONTAINS
 
          END IF
 
-         Eigenval(homo-gw_corr_lev_occ+1:homo+gw_corr_lev_virt) = Eigenval(homo-gw_corr_lev_occ+1: &
-                                                                           homo+gw_corr_lev_virt) &
-                                                                  +Delta_Sigma_Neaton(1:gw_corr_lev_tot)
+         Eigenval(homo - gw_corr_lev_occ + 1:homo + gw_corr_lev_virt) = Eigenval(homo - gw_corr_lev_occ + 1: &
+                                                                                 homo + gw_corr_lev_virt) &
+                                                                        + Delta_Sigma_Neaton(1:gw_corr_lev_tot)
 
       END IF
 
@@ -237,7 +296,7 @@ CONTAINS
 
             CPASSERT(SIZE(mp2_env%ri_g0w0%gw_eigenvalues) == gw_corr_lev_tot)
 
-            Eigenval(homo-gw_corr_lev_occ+1:homo+gw_corr_lev_virt) = mp2_env%ri_g0w0%gw_eigenvalues(1:gw_corr_lev_tot)
+            Eigenval(homo - gw_corr_lev_occ + 1:homo + gw_corr_lev_virt) = mp2_env%ri_g0w0%gw_eigenvalues(1:gw_corr_lev_tot)
 
          END IF
 
@@ -246,7 +305,7 @@ CONTAINS
          ! initial guess
          coeff_homo(homo) = 1.0_dp
 
-         ALLOCATE (coeff_lumo(nmo-homo))
+         ALLOCATE (coeff_lumo(nmo - homo))
          coeff_lumo = 0.0_dp
          ! initial guess
          coeff_lumo(1) = 1.0_dp
@@ -375,7 +434,7 @@ CONTAINS
             ! build vec_P_occ
             DO n_level_gw = 1, gw_corr_lev_occ
 
-               n_level_gw_ref = n_level_gw+homo-gw_corr_lev_occ
+               n_level_gw_ref = n_level_gw + homo - gw_corr_lev_occ
 
                CALL dbcsr_multiply("N", "N", 1.0_dp, mat_B_nm_P(n_level_gw)%matrix, &
                                    coeff_homo_dbcsr, 0.0_dp, temp_RI_vector)
@@ -406,7 +465,7 @@ CONTAINS
                '   HOMO with IC (eV): ', &
                -Eigenval_M_occ(1)*evolt
 
-            IF (ABS(old_energy+Eigenval_M_occ(1)) < 1.0E-5) EXIT
+            IF (ABS(old_energy + Eigenval_M_occ(1)) < 1.0E-5) EXIT
 
             old_energy = -Eigenval_M_occ(1)
 
@@ -414,7 +473,7 @@ CONTAINS
 
          END DO
 
-         IF (unit_nr > 0) WRITE (unit_nr, '(T3,A,T40,F41.2)') 'Gas phase LUMO (eV): ', Eigenval(homo+1)*evolt
+         IF (unit_nr > 0) WRITE (unit_nr, '(T3,A,T40,F41.2)') 'Gas phase LUMO (eV): ', Eigenval(homo + 1)*evolt
 
          DO sc_iter = 1, 20
 
@@ -423,21 +482,21 @@ CONTAINS
             CALL dbcsr_set(vec_P_virt_dbcsr, 0.0_dp)
 
             ! build vec_P_virt
-            DO n_level_gw = gw_corr_lev_occ+1, gw_corr_lev_tot
+            DO n_level_gw = gw_corr_lev_occ + 1, gw_corr_lev_tot
 
-               n_level_gw_ref = n_level_gw+homo-gw_corr_lev_occ
+               n_level_gw_ref = n_level_gw + homo - gw_corr_lev_occ
 
                CALL dbcsr_multiply("N", "N", 1.0_dp, mat_B_nm_P(n_level_gw)%matrix, &
                                    coeff_lumo_dbcsr, 0.0_dp, temp_RI_vector)
 
-               CALL dbcsr_add(vec_P_virt_dbcsr, temp_RI_vector, 1.0_dp, coeff_lumo(n_level_gw_ref-homo))
+               CALL dbcsr_add(vec_P_virt_dbcsr, temp_RI_vector, 1.0_dp, coeff_lumo(n_level_gw_ref - homo))
 
             END DO
 
             ! build N matrix
             DO n_level_gw = 1, gw_corr_lev_virt
 
-               CALL dbcsr_multiply("T", "N", 1.0_dp, mat_3c_overl_nnP_ic_reflected(n_level_gw+gw_corr_lev_occ)%matrix, &
+               CALL dbcsr_multiply("T", "N", 1.0_dp, mat_3c_overl_nnP_ic_reflected(n_level_gw + gw_corr_lev_occ)%matrix, &
                                    vec_P_virt_dbcsr, 0.0_dp, mat_N_virt_dbcsr(n_level_gw)%matrix)
 
             END DO
@@ -454,11 +513,11 @@ CONTAINS
                '   LUMO with IC (eV): ', &
                Eigenval_M_virt(1)*evolt
 
-            IF (ABS(old_energy-Eigenval_M_virt(1)) < 1.0E-5) EXIT
+            IF (ABS(old_energy - Eigenval_M_virt(1)) < 1.0E-5) EXIT
 
             old_energy = Eigenval_M_virt(1)
 
-            CALL update_coeff_homo(coeff_lumo, fm_mat_U_virt, para_env, nmo-homo, &
+            CALL update_coeff_homo(coeff_lumo, fm_mat_U_virt, para_env, nmo - homo, &
                                    gw_corr_lev_virt, do_lumo=.TRUE.)
 
          END DO
@@ -487,6 +546,70 @@ CONTAINS
 
    END SUBROUTINE calculate_ic_correction
 
+! **************************************************************************************************
+!> \brief ...
+!> \param t3c_1 ...
+!> \param t3c_2 ...
+!> \param Delta_Sigma_Neaton ...
+!> \param mo_bounds ...
+!> \param para_env ...
+! **************************************************************************************************
+   SUBROUTINE trace_ic_gw(t3c_1, t3c_2, Delta_Sigma_Neaton, mo_bounds, para_env)
+      TYPE(dbcsr_t_type), INTENT(INOUT)                  :: t3c_1, t3c_2
+      REAL(dp), DIMENSION(:), INTENT(INOUT)              :: Delta_Sigma_Neaton
+      INTEGER, DIMENSION(2), INTENT(IN)                  :: mo_bounds
+      TYPE(cp_para_env_type), INTENT(IN)                 :: para_env
+
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'trace_ic_gw', routineP = moduleN//':'//routineN
+
+      INTEGER                                            :: blk, handle, n, n_end, n_end_block, &
+                                                            n_start, n_start_block
+      INTEGER, DIMENSION(3)                              :: boff, bsize, ind
+      LOGICAL                                            :: found
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: block_1, block_2
+      TYPE(dbcsr_t_iterator_type)                        :: iter
+
+      CALL timeset(routineN, handle)
+
+      CALL dbcsr_t_iterator_start(iter, t3c_1)
+      DO WHILE (dbcsr_t_iterator_blocks_left(iter))
+         CALL dbcsr_t_iterator_next_block(iter, ind, blk, blk_size=bsize, blk_offset=boff)
+         IF (ind(2) /= ind(3)) CYCLE
+         CALL dbcsr_t_get_block(t3c_1, ind, block_1, found)
+         CPASSERT(found)
+         CALL dbcsr_t_get_block(t3c_2, ind, block_2, found)
+         IF (.NOT. found) CYCLE
+
+         IF (boff(3) < mo_bounds(1)) THEN
+            n_start_block = mo_bounds(1) - boff(3) + 1
+            n_start = 1
+         ELSE
+            n_start_block = 1
+            n_start = boff(3) - mo_bounds(1) + 1
+         ENDIF
+
+         IF (boff(3) + bsize(3) - 1 > mo_bounds(2)) THEN
+            n_end_block = mo_bounds(2) - boff(3) + 1
+            n_end = mo_bounds(2) - mo_bounds(1) + 1
+         ELSE
+            n_end_block = bsize(3)
+            n_end = boff(3) + bsize(3) - mo_bounds(1)
+         ENDIF
+
+         Delta_Sigma_Neaton(n_start:n_end) = &
+            Delta_Sigma_Neaton(n_start:n_end) + &
+            (/(DOT_PRODUCT(block_1(:, n, n), &
+                           block_2(:, n, n)), &
+               n=n_start_block, n_end_block)/)
+         DEALLOCATE (block_1, block_2)
+      ENDDO
+      CALL dbcsr_t_iterator_stop(iter)
+
+      CALL mp_sum(Delta_Sigma_Neaton, para_env%group)
+
+      CALL timestop(handle)
+
+   END SUBROUTINE
 ! **************************************************************************************************
 !> \brief ...
 !> \param fm_mat_M_occ ...
@@ -607,7 +730,7 @@ CONTAINS
 
             IF (my_do_homo) THEN
 
-               coeff_homo_update(i_global+homo-gw_corr_lev_occ) = fm_mat_U_occ%local_data(iiB, jjB)
+               coeff_homo_update(i_global + homo - gw_corr_lev_occ) = fm_mat_U_occ%local_data(iiB, jjB)
 
             ELSE
 
@@ -692,7 +815,7 @@ CONTAINS
          DO row_block = 1, nblkrows_total
 
             IF (row_index >= row_blk_offset(row_block) .AND. &
-                row_index <= row_blk_offset(row_block)+row_blk_sizes(row_block)-1) THEN
+                row_index <= row_blk_offset(row_block) + row_blk_sizes(row_block) - 1) THEN
 
                blk_from_indx(row_index) = row_block
 
@@ -702,9 +825,9 @@ CONTAINS
 
       END DO
 
-      ALLOCATE (num_entries_send(0:para_env%num_pe-1))
+      ALLOCATE (num_entries_send(0:para_env%num_pe - 1))
       num_entries_send = 0
-      ALLOCATE (num_entries_rec(0:para_env%num_pe-1))
+      ALLOCATE (num_entries_rec(0:para_env%num_pe - 1))
       num_entries_rec = 0
 
       DO n_level_gw = 1, gw_corr_lev_virt
@@ -717,7 +840,7 @@ CONTAINS
 
             DO i_row = 1, row_size
 
-               m_level_gw = row_offset-1+i_row-homo
+               m_level_gw = row_offset - 1 + i_row - homo
 
                IF (m_level_gw < 1) CYCLE
 
@@ -726,7 +849,7 @@ CONTAINS
                CALL dbcsr_get_stored_coordinates(matrix_tmp, blk_from_indx(m_level_gw), &
                                                  blk_from_indx(n_level_gw), imepos)
 
-               num_entries_send(imepos) = num_entries_send(imepos)+1
+               num_entries_send(imepos) = num_entries_send(imepos) + 1
 
             END DO
 
@@ -738,11 +861,11 @@ CONTAINS
 
       CALL mp_alltoall(num_entries_send, num_entries_rec, 1, para_env%group)
 
-      ALLOCATE (buffer_rec(0:para_env%num_pe-1))
-      ALLOCATE (buffer_send(0:para_env%num_pe-1))
+      ALLOCATE (buffer_rec(0:para_env%num_pe - 1))
+      ALLOCATE (buffer_send(0:para_env%num_pe - 1))
 
       ! allocate data message and corresponding indices
-      DO imepos = 0, para_env%num_pe-1
+      DO imepos = 0, para_env%num_pe - 1
 
          ALLOCATE (buffer_rec(imepos)%msg(num_entries_rec(imepos)))
          buffer_rec(imepos)%msg = 0.0_dp
@@ -758,7 +881,7 @@ CONTAINS
 
       END DO
 
-      ALLOCATE (entry_counter(0:para_env%num_pe-1))
+      ALLOCATE (entry_counter(0:para_env%num_pe - 1))
       entry_counter(:) = 1
 
       DO n_level_gw = 1, gw_corr_lev_virt
@@ -771,7 +894,7 @@ CONTAINS
 
             DO i_row = 1, row_size
 
-               m_level_gw = row_offset-1+i_row-homo
+               m_level_gw = row_offset - 1 + i_row - homo
 
                IF (m_level_gw < 1) CYCLE
 
@@ -786,7 +909,7 @@ CONTAINS
                buffer_send(imepos)%indx(offset, 1) = m_level_gw
                buffer_send(imepos)%indx(offset, 2) = n_level_gw
 
-               entry_counter(imepos) = entry_counter(imepos)+1
+               entry_counter(imepos) = entry_counter(imepos) + 1
 
             END DO
 
@@ -809,17 +932,17 @@ CONTAINS
                                         row_offset=row_offset, row_size=row_size, &
                                         col_offset=col_offset, col_size=col_size)
 
-         DO imepos = 0, para_env%num_pe-1
+         DO imepos = 0, para_env%num_pe - 1
 
             DO i_index = 1, num_entries_rec(imepos)
 
                IF (buffer_rec(imepos)%indx(i_index, 1) >= row_offset .AND. &
-                   buffer_rec(imepos)%indx(i_index, 1) <= row_offset+row_size-1 .AND. &
+                   buffer_rec(imepos)%indx(i_index, 1) <= row_offset + row_size - 1 .AND. &
                    buffer_rec(imepos)%indx(i_index, 2) >= col_offset .AND. &
-                   buffer_rec(imepos)%indx(i_index, 2) <= col_offset+col_size-1) THEN
+                   buffer_rec(imepos)%indx(i_index, 2) <= col_offset + col_size - 1) THEN
 
-                  i_row = buffer_rec(imepos)%indx(i_index, 1)-row_offset+1
-                  i_col = buffer_rec(imepos)%indx(i_index, 2)-col_offset+1
+                  i_row = buffer_rec(imepos)%indx(i_index, 1) - row_offset + 1
+                  i_col = buffer_rec(imepos)%indx(i_index, 2) - col_offset + 1
 
                   data_block(i_row, i_col) = buffer_rec(imepos)%msg(i_index)
 
@@ -851,13 +974,13 @@ CONTAINS
          DO iiB = 1, nrow_local
             i_global = row_indices(iiB)
             IF (j_global == i_global) THEN
-               fm_mat_M_virt%local_data(iiB, jjB) = fm_mat_M_virt%local_data(iiB, jjB)+ &
-                                                    Eigenval(i_global+homo)
+               fm_mat_M_virt%local_data(iiB, jjB) = fm_mat_M_virt%local_data(iiB, jjB) + &
+                                                    Eigenval(i_global + homo)
             END IF
          END DO
       END DO
 
-      DO imepos = 0, para_env%num_pe-1
+      DO imepos = 0, para_env%num_pe - 1
          DEALLOCATE (buffer_rec(imepos)%msg)
          DEALLOCATE (buffer_rec(imepos)%indx)
          DEALLOCATE (buffer_send(imepos)%msg)
@@ -929,7 +1052,7 @@ CONTAINS
          DO row_block = 1, nblkrows_total
 
             IF (row_index >= row_blk_offset(row_block) .AND. &
-                row_index <= row_blk_offset(row_block)+row_blk_sizes(row_block)-1) THEN
+                row_index <= row_blk_offset(row_block) + row_blk_sizes(row_block) - 1) THEN
 
                blk_from_indx(row_index) = row_block
 
@@ -939,9 +1062,9 @@ CONTAINS
 
       END DO
 
-      ALLOCATE (num_entries_send(0:para_env%num_pe-1))
+      ALLOCATE (num_entries_send(0:para_env%num_pe - 1))
       num_entries_send = 0
-      ALLOCATE (num_entries_rec(0:para_env%num_pe-1))
+      ALLOCATE (num_entries_rec(0:para_env%num_pe - 1))
       num_entries_rec = 0
 
       DO n_level_gw = 1, gw_corr_lev_occ
@@ -952,31 +1075,31 @@ CONTAINS
             CALL dbcsr_iterator_next_block(iter, row, col, data_block, &
                                            row_offset=row_offset, row_size=row_size)
 
-            IF (row_offset+row_size-1 <= homo) THEN
+            IF (row_offset + row_size - 1 <= homo) THEN
 
                DO i_row = 1, row_size
 
-                  m_level_gw = row_offset-1+i_row-(homo-gw_corr_lev_occ)
+                  m_level_gw = row_offset - 1 + i_row - (homo - gw_corr_lev_occ)
 
                   IF (m_level_gw < 1) CYCLE
 
                   CALL dbcsr_get_stored_coordinates(matrix_tmp, blk_from_indx(m_level_gw), &
                                                     blk_from_indx(n_level_gw), imepos)
 
-                  num_entries_send(imepos) = num_entries_send(imepos)+1
+                  num_entries_send(imepos) = num_entries_send(imepos) + 1
 
                END DO
 
             ELSE IF (row_offset <= homo) THEN
 
-               DO m_level_gw = row_offset-(homo-gw_corr_lev_occ), gw_corr_lev_occ
+               DO m_level_gw = row_offset - (homo - gw_corr_lev_occ), gw_corr_lev_occ
 
                   IF (m_level_gw < 1) CYCLE
 
                   CALL dbcsr_get_stored_coordinates(matrix_tmp, blk_from_indx(m_level_gw), &
                                                     blk_from_indx(n_level_gw), imepos)
 
-                  num_entries_send(imepos) = num_entries_send(imepos)+1
+                  num_entries_send(imepos) = num_entries_send(imepos) + 1
 
                END DO
 
@@ -990,11 +1113,11 @@ CONTAINS
 
       CALL mp_alltoall(num_entries_send, num_entries_rec, 1, para_env%group)
 
-      ALLOCATE (buffer_rec(0:para_env%num_pe-1))
-      ALLOCATE (buffer_send(0:para_env%num_pe-1))
+      ALLOCATE (buffer_rec(0:para_env%num_pe - 1))
+      ALLOCATE (buffer_send(0:para_env%num_pe - 1))
 
       ! allocate data message and corresponding indices
-      DO imepos = 0, para_env%num_pe-1
+      DO imepos = 0, para_env%num_pe - 1
 
          ALLOCATE (buffer_rec(imepos)%msg(num_entries_rec(imepos)))
          buffer_rec(imepos)%msg = 0.0_dp
@@ -1010,7 +1133,7 @@ CONTAINS
 
       END DO
 
-      ALLOCATE (entry_counter(0:para_env%num_pe-1))
+      ALLOCATE (entry_counter(0:para_env%num_pe - 1))
       entry_counter(:) = 1
 
       DO n_level_gw = 1, gw_corr_lev_occ
@@ -1021,11 +1144,11 @@ CONTAINS
             CALL dbcsr_iterator_next_block(iter, row, col, data_block, &
                                            row_offset=row_offset, row_size=row_size)
 
-            IF (row_offset+row_size-1 <= homo) THEN
+            IF (row_offset + row_size - 1 <= homo) THEN
 
                DO i_row = 1, row_size
 
-                  m_level_gw = row_offset-1+i_row-(homo-gw_corr_lev_occ)
+                  m_level_gw = row_offset - 1 + i_row - (homo - gw_corr_lev_occ)
 
                   IF (m_level_gw < 1) CYCLE
 
@@ -1038,13 +1161,13 @@ CONTAINS
                   buffer_send(imepos)%indx(offset, 1) = m_level_gw
                   buffer_send(imepos)%indx(offset, 2) = n_level_gw
 
-                  entry_counter(imepos) = entry_counter(imepos)+1
+                  entry_counter(imepos) = entry_counter(imepos) + 1
 
                END DO
 
             ELSE IF (row_offset <= homo) THEN
 
-               DO m_level_gw = row_offset-(homo-gw_corr_lev_occ), gw_corr_lev_occ
+               DO m_level_gw = row_offset - (homo - gw_corr_lev_occ), gw_corr_lev_occ
 
                   IF (m_level_gw < 1) CYCLE
 
@@ -1053,13 +1176,13 @@ CONTAINS
 
                   offset = entry_counter(imepos)
 
-                  i_row = m_level_gw+(homo-gw_corr_lev_occ)-row_offset+1
+                  i_row = m_level_gw + (homo - gw_corr_lev_occ) - row_offset + 1
 
                   buffer_send(imepos)%msg(offset) = data_block(i_row, 1)
                   buffer_send(imepos)%indx(offset, 1) = m_level_gw
                   buffer_send(imepos)%indx(offset, 2) = n_level_gw
 
-                  entry_counter(imepos) = entry_counter(imepos)+1
+                  entry_counter(imepos) = entry_counter(imepos) + 1
 
                END DO
 
@@ -1084,17 +1207,17 @@ CONTAINS
                                         row_offset=row_offset, row_size=row_size, &
                                         col_offset=col_offset, col_size=col_size)
 
-         DO imepos = 0, para_env%num_pe-1
+         DO imepos = 0, para_env%num_pe - 1
 
             DO i_index = 1, num_entries_rec(imepos)
 
                IF (buffer_rec(imepos)%indx(i_index, 1) >= row_offset .AND. &
-                   buffer_rec(imepos)%indx(i_index, 1) <= row_offset+row_size-1 .AND. &
+                   buffer_rec(imepos)%indx(i_index, 1) <= row_offset + row_size - 1 .AND. &
                    buffer_rec(imepos)%indx(i_index, 2) >= col_offset .AND. &
-                   buffer_rec(imepos)%indx(i_index, 2) <= col_offset+col_size-1) THEN
+                   buffer_rec(imepos)%indx(i_index, 2) <= col_offset + col_size - 1) THEN
 
-                  i_row = buffer_rec(imepos)%indx(i_index, 1)-row_offset+1
-                  i_col = buffer_rec(imepos)%indx(i_index, 2)-col_offset+1
+                  i_row = buffer_rec(imepos)%indx(i_index, 1) - row_offset + 1
+                  i_col = buffer_rec(imepos)%indx(i_index, 2) - col_offset + 1
 
                   data_block(i_row, i_col) = buffer_rec(imepos)%msg(i_index)
 
@@ -1122,13 +1245,13 @@ CONTAINS
          DO iiB = 1, nrow_local
             i_global = row_indices(iiB)
             IF (j_global == i_global) THEN
-               fm_mat_M_occ%local_data(iiB, jjB) = fm_mat_M_occ%local_data(iiB, jjB)+ &
-                                                   Eigenval(i_global+homo-gw_corr_lev_occ)
+               fm_mat_M_occ%local_data(iiB, jjB) = fm_mat_M_occ%local_data(iiB, jjB) + &
+                                                   Eigenval(i_global + homo - gw_corr_lev_occ)
             END IF
          END DO
       END DO
 
-      DO imepos = 0, para_env%num_pe-1
+      DO imepos = 0, para_env%num_pe - 1
          DEALLOCATE (buffer_rec(imepos)%msg)
          DEALLOCATE (buffer_rec(imepos)%indx)
          DEALLOCATE (buffer_send(imepos)%msg)
@@ -1169,15 +1292,15 @@ CONTAINS
          CALL dbcsr_iterator_next_block(iter, row, col, data_block, &
                                         row_offset=row_offset, row_size=row_size)
 
-         IF (row_offset+row_size-1 <= homo) THEN
+         IF (row_offset + row_size - 1 <= homo) THEN
 
-            data_block(1:row_size, 1) = coeff(row_offset:row_offset+row_size-1)
+            data_block(1:row_size, 1) = coeff(row_offset:row_offset + row_size - 1)
 
          ELSE IF (row_offset <= homo) THEN
 
-            end_data_block = homo-row_offset+1
+            end_data_block = homo - row_offset + 1
 
-            data_block(1:end_data_block, 1) = coeff(row_offset:row_offset+end_data_block-1)
+            data_block(1:end_data_block, 1) = coeff(row_offset:row_offset + end_data_block - 1)
 
          END IF
 
@@ -1218,13 +1341,13 @@ CONTAINS
 
          IF (row_offset > homo) THEN
 
-            data_block(1:row_size, 1) = coeff(row_offset-homo:row_offset+row_size-homo-1)
+            data_block(1:row_size, 1) = coeff(row_offset - homo:row_offset + row_size - homo - 1)
 
-         ELSE IF (row_offset+row_size-1 > homo) THEN
+         ELSE IF (row_offset + row_size - 1 > homo) THEN
 
-            start_data_block = homo-row_offset+1
+            start_data_block = homo - row_offset + 1
 
-            data_block(start_data_block:row_size, 1) = coeff(1:row_offset+row_size-homo)
+            data_block(start_data_block:row_size, 1) = coeff(1:row_offset + row_size - homo)
 
          END IF
 

@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -11,7 +11,7 @@ MODULE cp_control_utils
         Andreussi2012, Dewar1977, Dewar1985, Elstner1998, Fattebert2002, Grimme2017, Hu2007, &
         Krack2000, Lippert1997, Lippert1999, Porezag1995, Repasky2002, Rocha2006, Schenter2008, &
         Seifert1996, Souza2002, Stengel2009, Stewart1989, Stewart2007, Thiel1992, Umari2002, &
-        VanVoorhis2015, VandeVondele2005a, VandeVondele2005b, Zhechkov2005, cite_reference
+        VanVoorhis2015, VandeVondele2005a, VandeVondele2005b, Yin2017, Zhechkov2005, cite_reference
    USE cp_control_types,                ONLY: &
         admm_control_create, admm_control_type, ddapc_control_create, ddapc_restraint_type, &
         dft_control_create, dft_control_type, efield_type, qs_control_type, sccs_control_create, &
@@ -181,7 +181,7 @@ CONTAINS
          CALL section_vals_val_get(dft_section, "AUTO_BASIS", i_rep_val=irep, c_vals=tmpstringlist)
          IF (SIZE(tmpstringlist) == 2) THEN
             CALL uppercase(tmpstringlist(2))
-            SELECT CASE (tmpstringlist (2))
+            SELECT CASE (tmpstringlist(2))
             CASE ("X")
                isize = -1
             CASE ("SMALL")
@@ -196,7 +196,7 @@ CONTAINS
                CPWARN("Unknown basis size in AUTO_BASIS keyword:"//TRIM(tmpstringlist(1)))
             END SELECT
             !
-            SELECT CASE (tmpstringlist (1))
+            SELECT CASE (tmpstringlist(1))
             CASE ("X")
             CASE ("RI_AUX")
                dft_control%auto_basis_ri_aux = isize
@@ -416,7 +416,7 @@ CONTAINS
       tmp_section => section_vals_get_subs_vals(dft_section, "EXTERNAL_POTENTIAL")
       CALL section_vals_get(tmp_section, explicit=dft_control%apply_external_potential)
 
-      !MK Read the SCCS input section if present
+      ! Read the SCCS input section if present
       sccs_section => section_vals_get_subs_vals(dft_section, "SCCS")
       CALL section_vals_get(sccs_section, explicit=is_present)
       IF (is_present) THEN
@@ -459,6 +459,7 @@ CONTAINS
                                 "The SCCS parameter RHO_MAX is smaller than RHO_MIN. "// &
                                 "Please, check your input!")
                END IF
+               CALL cite_reference(Andreussi2012)
             CASE (sccs_fattebert_gygi)
                tmp_section => section_vals_get_subs_vals(sccs_section, "FATTEBERT-GYGI")
                CALL section_vals_val_get(tmp_section, "BETA", &
@@ -470,11 +471,11 @@ CONTAINS
                END IF
                CALL section_vals_val_get(tmp_section, "RHO_ZERO", &
                                          r_val=dft_control%sccs_control%rho_zero)
+               CALL cite_reference(Fattebert2002)
             CASE DEFAULT
                CPABORT("Invalid SCCS model specified. Please, check your input!")
             END SELECT
-            CALL cite_reference(Fattebert2002)
-            CALL cite_reference(Andreussi2012)
+            CALL cite_reference(Yin2017)
          END IF
       END IF
 
@@ -543,11 +544,12 @@ CONTAINS
 
          CALL section_vals_val_get(mgrid_section, "MULTIGRID_CUTOFF", r_vals=cutofflist)
          IF (ASSOCIATED(cutofflist)) THEN
-            IF (SIZE(cutofflist, 1) /= ngrid_level) &
-               CPABORT("Inconsistent values for number of multi grids")
+            IF (SIZE(cutofflist, 1) /= ngrid_level) THEN
+               CPABORT("Number of multi-grids requested and number of cutoff values do not match")
+            END IF
             DO igrid_level = 1, ngrid_level
-               qs_control%e_cutoff(igrid_level) = cutofflist(igrid_level)*0.5_dp
-            ENDDO
+               qs_control%e_cutoff(igrid_level) = cutofflist(igrid_level)
+            END DO
          END IF
          ! set cutoff to smallest value in multgrid available with >= cutoff
          DO igrid_level = ngrid_level, 1, -1
@@ -564,15 +566,16 @@ CONTAINS
          IF (qs_control%commensurate_mgrids) qs_control%progression_factor = 4.0_dp
          qs_control%e_cutoff(1) = qs_control%cutoff
          DO igrid_level = 2, ngrid_level
-            qs_control%e_cutoff(igrid_level) = qs_control%e_cutoff(igrid_level-1) &
-                                               /qs_control%progression_factor
+            qs_control%e_cutoff(igrid_level) = qs_control%e_cutoff(igrid_level - 1)/ &
+                                               qs_control%progression_factor
          END DO
       END IF
       ! check that multigrids are ordered
       DO igrid_level = 2, ngrid_level
-         IF (qs_control%e_cutoff(igrid_level) > &
-             qs_control%e_cutoff(igrid_level-1)) THEN
-            CPABORT("Multi-grids not ordered")
+         IF (qs_control%e_cutoff(igrid_level) > qs_control%e_cutoff(igrid_level - 1)) THEN
+            CPABORT("The cutoff values for the multi-grids are not ordered from large to small")
+         ELSE IF (qs_control%e_cutoff(igrid_level) == qs_control%e_cutoff(igrid_level - 1)) THEN
+            CPABORT("The same cutoff value was specified for two multi-grids")
          END IF
       END DO
       CALL timestop(handle)
@@ -715,6 +718,7 @@ CONTAINS
       CALL section_vals_val_get(qs_section, "CLUSTER_EMBED_SUBSYS", l_val=qs_control%cluster_embed_subsys)
       CALL section_vals_val_get(qs_section, "HIGH_LEVEL_EMBED_SUBSYS", l_val=qs_control%high_level_embed_subsys)
       CALL section_vals_val_get(qs_section, "DFET_EMBEDDED", l_val=qs_control%dfet_embedded)
+      CALL section_vals_val_get(qs_section, "DMFET_EMBEDDED", l_val=qs_control%dmfet_embedded)
 
       ! Integers gapw
       CALL section_vals_val_get(qs_section, "LMAXN1", i_val=qs_control%gapw_control%lmax_sphere)
@@ -829,7 +833,7 @@ CONTAINS
          jj = 0
          DO k = 1, n_rep
             CALL section_vals_val_get(mull_section, "ATOMS", i_rep_val=k, i_vals=tmplist)
-            jj = jj+SIZE(tmplist)
+            jj = jj + SIZE(tmplist)
          END DO
          qs_control%mulliken_restraint_control%natoms = jj
          IF (qs_control%mulliken_restraint_control%natoms < 1) &
@@ -839,7 +843,7 @@ CONTAINS
          DO k = 1, n_rep
             CALL section_vals_val_get(mull_section, "ATOMS", i_rep_val=k, i_vals=tmplist)
             DO j = 1, SIZE(tmplist)
-               jj = jj+1
+               jj = jj + 1
                qs_control%mulliken_restraint_control%atoms(jj) = tmplist(j)
             END DO
          END DO
@@ -1183,8 +1187,8 @@ CONTAINS
       INTEGER                                            :: handle
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: inds
       LOGICAL                                            :: explicit, multigrid_set
-      TYPE(section_vals_type), POINTER                   :: dipole_section, mgrid_section, xc_func, &
-                                                            xc_section
+      TYPE(section_vals_type), POINTER                   :: dipole_section, mgrid_section, &
+                                                            stda_section, xc_func, xc_section
 
       CALL timeset(routineN, handle)
 
@@ -1195,6 +1199,10 @@ CONTAINS
       CALL section_vals_val_get(t_section, "MAX_KV", i_val=t_control%nkvs)
       CALL section_vals_val_get(t_section, "NLUMO", i_val=t_control%nlumo)
       CALL section_vals_val_get(t_section, "NPROC_STATE", i_val=t_control%nprocs)
+      CALL section_vals_val_get(t_section, "KERNEL", i_val=t_control%kernel)
+      CALL section_vals_val_get(t_section, "OE_CORR", i_val=t_control%oe_corr)
+      CALL section_vals_val_get(t_section, "EV_SHIFT", r_val=t_control%ev_shift)
+      CALL section_vals_val_get(t_section, "EOS_SHIFT", r_val=t_control%eos_shift)
 
       CALL section_vals_val_get(t_section, "CONVERGENCE", r_val=t_control%conv)
       CALL section_vals_val_get(t_section, "MIN_AMPLITUDE", r_val=t_control%min_excitation_amplitude)
@@ -1288,6 +1296,19 @@ CONTAINS
       CALL section_vals_get(xc_func, explicit=explicit)
       IF (explicit) &
          CALL xc_functionals_expand(xc_func, xc_section)
+
+      ! sTDA subsection
+      stda_section => section_vals_get_subs_vals(t_section, "STDA")
+      CALL section_vals_get(stda_section, explicit=explicit)
+      IF (explicit) THEN
+         CALL section_vals_val_get(stda_section, "HFX_FRACTION", r_val=t_control%stda_control%hfx_fraction)
+         CALL section_vals_val_get(stda_section, "EPS_TD_FILTER", r_val=t_control%stda_control%eps_td_filter)
+         CALL section_vals_val_get(stda_section, "DO_EWALD", l_val=t_control%stda_control%do_ewald)
+      ELSE
+         t_control%stda_control%hfx_fraction = 0.0_dp
+         t_control%stda_control%eps_td_filter = 1.e-10_dp
+         t_control%stda_control%do_ewald = .FALSE.
+      END IF
 
       CALL timestop(handle)
    END SUBROUTINE read_tddfpt2_control
@@ -1814,7 +1835,7 @@ CONTAINS
             CALL section_vals_val_get(ddapc_section, "ATOMS", i_rep_section=i, &
                                       i_rep_val=k, i_vals=tmplist)
             DO j = 1, SIZE(tmplist)
-               jj = jj+1
+               jj = jj + 1
             END DO
          END DO
          IF (jj < 1) CPABORT("Need at least 1 atom to use ddapc contraints")
@@ -1827,7 +1848,7 @@ CONTAINS
             CALL section_vals_val_get(ddapc_section, "ATOMS", i_rep_section=i, &
                                       i_rep_val=k, i_vals=tmplist)
             DO j = 1, SIZE(tmplist)
-               jj = jj+1
+               jj = jj + 1
                ddapc_restraint_control%atoms(jj) = tmplist(j)
             END DO
          END DO
@@ -1844,7 +1865,7 @@ CONTAINS
             CALL section_vals_val_get(ddapc_section, "COEFF", i_rep_section=i, &
                                       i_rep_val=k, r_vals=rtmplist)
             DO j = 1, SIZE(rtmplist)
-               jj = jj+1
+               jj = jj + 1
                IF (jj > ddapc_restraint_control%natoms) &
                   CPABORT("Need the same number of coeff as there are atoms ")
                ddapc_restraint_control%coeff(jj) = rtmplist(j)
@@ -1856,7 +1877,7 @@ CONTAINS
       k = 0
       DO i = 1, SIZE(qs_control%ddapc_restraint_control)
          IF (qs_control%ddapc_restraint_control(i)%ddapc_restraint_control%functional_form == &
-             do_ddapc_constraint) k = k+1
+             do_ddapc_constraint) k = k + 1
       END DO
       IF (k == 2) CALL cp_abort(__LOCATION__, &
                                 "Only a single constraint possible yet, try to use restraints instead ")
@@ -1934,14 +1955,14 @@ CONTAINS
             DO WHILE (.TRUE.)
                READ (unit_nr, *, iostat=io)
                IF (io /= 0) EXIT
-               n = n+1
+               n = n + 1
             END DO
             REWIND (unit_nr)
-            ALLOCATE (efield%envelop_r_vars(n+1))
+            ALLOCATE (efield%envelop_r_vars(n + 1))
             !Store the timestep of the list in the first entry of the r_vars
             CALL section_vals_val_get(tmp_section, "TIMESTEP", r_val=efield%envelop_r_vars(1))
             !Read the file
-            DO j = 2, n+1
+            DO j = 2, n + 1
                READ (unit_nr, *) efield%envelop_r_vars(j)
                efield%envelop_r_vars(j) = cp_unit_to_cp2k(efield%envelop_r_vars(j), "volt/m")
             END DO

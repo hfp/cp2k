@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -27,7 +27,6 @@ MODULE neb_md_utils
    USE kinds,                           ONLY: dp
    USE neb_types,                       ONLY: neb_type,&
                                               neb_var_type
-   USE parallel_rng_types,              ONLY: next_random_number
    USE particle_types,                  ONLY: get_particle_pos_or_vel,&
                                               particle_type,&
                                               update_particle_pos_or_vel
@@ -73,7 +72,7 @@ CONTAINS
       CHARACTER(LEN=*), PARAMETER :: routineN = 'neb_initialize_velocity', &
          routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: iatom, ivar, k, natom, nparticle, nvar
+      INTEGER                                            :: iatom, ivar, natom, nparticle, nvar
       REAL(KIND=dp)                                      :: akin, mass, mass_tot, sc, temp, &
                                                             temp_ext, tmp_r1
       REAL(KIND=dp), DIMENSION(3)                        :: v, vcom
@@ -87,10 +86,7 @@ CONTAINS
          natom = SIZE(particle_set)
          mass_tot = 0.0_dp
          vcom(1:3) = 0.0_dp
-         vels(:, i_rep) = 0.0_dp
-         DO k = 1, nparticle
-            vels(k, i_rep) = next_random_number(globenv%gaussian_rng_stream)
-         END DO
+         CALL globenv%gaussian_rng_stream%fill(vels(:, i_rep))
          ! Check always if BAND is working in Cartesian or in internal coordinates
          ! If working in cartesian coordinates let's get rid of the COM
          ! Compute also the total mass (both in Cartesian and internal)
@@ -100,9 +96,9 @@ CONTAINS
          ELSE
             DO iatom = 1, natom
                mass = particle_set(iatom)%atomic_kind%mass
-               mass_tot = mass_tot+mass
+               mass_tot = mass_tot + mass
                v(1:3) = get_particle_pos_or_vel(iatom, particle_set, vels(:, i_rep))
-               vcom(1:3) = vcom(1:3)+mass*v(1:3)
+               vcom(1:3) = vcom(1:3) + mass*v(1:3)
             END DO
             vcom(1:3) = vcom(1:3)/mass_tot
          END IF
@@ -110,14 +106,14 @@ CONTAINS
          akin = 0.0_dp
          IF (neb_env%use_colvar) THEN
             DO ivar = 1, nvar
-               akin = akin+0.5_dp*massunit*vels(ivar, i_rep)*vels(ivar, i_rep)
+               akin = akin + 0.5_dp*massunit*vels(ivar, i_rep)*vels(ivar, i_rep)
             END DO
          ELSE
             DO iatom = 1, natom
                mass = particle_set(iatom)%atomic_kind%mass
                v(1:3) = -vcom(1:3)
                CALL update_particle_pos_or_vel(iatom, particle_set, v(1:3), vels(:, i_rep))
-               akin = akin+0.5_dp*mass*DOT_PRODUCT(v(1:3), v(1:3))
+               akin = akin + 0.5_dp*mass*DOT_PRODUCT(v(1:3), v(1:3))
             END DO
             nvar = 3*natom
          END IF
@@ -130,14 +126,14 @@ CONTAINS
          vcom = 0.0_dp
          IF (neb_env%use_colvar) THEN
             DO ivar = 1, nvar
-               akin = akin+0.5_dp*massunit*vels(ivar, i_rep)*vels(ivar, i_rep)
+               akin = akin + 0.5_dp*massunit*vels(ivar, i_rep)*vels(ivar, i_rep)
             END DO
          ELSE
             DO iatom = 1, natom
                mass = particle_set(iatom)%atomic_kind%mass
                v(1:3) = get_particle_pos_or_vel(iatom, particle_set, vels(:, i_rep))
-               vcom(1:3) = vcom(1:3)+mass*v(1:3)
-               akin = akin+0.5_dp*mass*DOT_PRODUCT(v(1:3), v(1:3))
+               vcom(1:3) = vcom(1:3) + mass*v(1:3)
+               akin = akin + 0.5_dp*mass*DOT_PRODUCT(v(1:3), v(1:3))
             END DO
          END IF
          vcom(1:3) = vcom(1:3)/mass_tot
@@ -196,9 +192,9 @@ CONTAINS
          CALL get_temperatures(vels, particle_set, temperatures, factor=1.0_dp)
          ! Possibly rescale
          IF (istep <= temp_tol_steps) THEN
-            DO i = 2, SIZE(vels%wrk, 2)-1
+            DO i = 2, SIZE(vels%wrk, 2) - 1
                temploc = temperatures(i)
-               IF (ABS(temploc-ext_temp) > temp_tol) THEN
+               IF (ABS(temploc - ext_temp) > temp_tol) THEN
                   IF (output_unit > 0) THEN
                      tmp_r1 = cp_unit_from_cp2k(temploc, "K")
                      tmp_r2 = cp_unit_from_cp2k(ext_temp, "K")
@@ -218,7 +214,7 @@ CONTAINS
       CALL section_vals_get(vc_section, explicit=explicit)
       IF (explicit) THEN
          CALL section_vals_val_get(vc_section, "ANNEALING", r_val=f_annealing)
-         DO i = 2, SIZE(vels%wrk, 2)-1
+         DO i = 2, SIZE(vels%wrk, 2) - 1
             vels%wrk(:, i) = f_annealing*vels%wrk(:, i)
          END DO
       END IF
@@ -247,7 +243,7 @@ CONTAINS
       IF (explicit) THEN
          CALL section_vals_val_get(vc_section, "PROJ_VELOCITY_VERLET", l_val=lval)
          IF (lval) THEN
-            DO i = 2, SIZE(vels%wrk, 2)-1
+            DO i = 2, SIZE(vels%wrk, 2) - 1
                norm = DOT_PRODUCT(forces%wrk(:, i), forces%wrk(:, i))
                factor = DOT_PRODUCT(vels%wrk(:, i), forces%wrk(:, i))
                IF (factor > 0 .AND. (norm >= EPSILON(0.0_dp))) THEN
@@ -259,7 +255,7 @@ CONTAINS
          END IF
          CALL section_vals_val_get(vc_section, "SD_LIKE", l_val=lval)
          IF (lval) THEN
-            DO i = 2, SIZE(vels%wrk, 2)-1
+            DO i = 2, SIZE(vels%wrk, 2) - 1
                vels%wrk(:, i) = 0.0_dp
             END DO
          END IF
@@ -299,17 +295,17 @@ CONTAINS
       nvar = SIZE(vels%wrk, 1)
       n_rep = SIZE(vels%wrk, 2)
       natom = SIZE(particle_set)
-      DO i_rep = 2, n_rep-1
+      DO i_rep = 2, n_rep - 1
          akin = 0.0_dp
          IF (vels%in_use == do_band_collective) THEN
             DO ivar = 1, nvar
-               akin = akin+0.5_dp*massunit*vels%wrk(ivar, i_rep)*vels%wrk(ivar, i_rep)
+               akin = akin + 0.5_dp*massunit*vels%wrk(ivar, i_rep)*vels%wrk(ivar, i_rep)
             END DO
          ELSE
             DO iatom = 1, natom
                mass = particle_set(iatom)%atomic_kind%mass
                v(1:3) = get_particle_pos_or_vel(iatom, particle_set, vels%wrk(:, i_rep))
-               akin = akin+0.5_dp*mass*DOT_PRODUCT(v(1:3), v(1:3))
+               akin = akin + 0.5_dp*mass*DOT_PRODUCT(v(1:3), v(1:3))
             END DO
             nvar = 3*natom
          END IF

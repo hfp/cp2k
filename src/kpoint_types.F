@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -538,15 +538,15 @@ CONTAINS
          CASE ("MONKHORST-PACK")
             CPASSERT(nval >= 4)
             DO i = 2, 4
-               READ (tmpstringlist(i), *) kpoint%nkp_grid(i-1)
+               READ (tmpstringlist(i), *) kpoint%nkp_grid(i - 1)
             END DO
          CASE ("MACDONALD")
             CPASSERT(nval >= 7)
             DO i = 2, 4
-               READ (tmpstringlist(i), *) kpoint%nkp_grid(i-1)
+               READ (tmpstringlist(i), *) kpoint%nkp_grid(i - 1)
             END DO
             DO i = 5, 7
-               READ (tmpstringlist(i), *) kpoint%kp_shift(i-4)
+               READ (tmpstringlist(i), *) kpoint%kp_shift(i - 4)
             END DO
          CASE ("GENERAL")
             CALL section_vals_val_get(kpoint_section, "UNITS", c_val=ustr)
@@ -563,12 +563,12 @@ CONTAINS
                CASE ("B_VECTOR")
                   kpoint%xkp(1:3, i) = reallist(1:3)
                CASE ("CART_ANGSTROM")
-                  kpoint%xkp(1:3, i) = (reallist(1)*a_vec(1, 1:3)+ &
-                                        reallist(2)*a_vec(2, 1:3)+ &
+                  kpoint%xkp(1:3, i) = (reallist(1)*a_vec(1, 1:3) + &
+                                        reallist(2)*a_vec(2, 1:3) + &
                                         reallist(3)*a_vec(3, 1:3))/twopi*angstrom
                CASE ("CART_BOHR")
-                  kpoint%xkp(1:3, i) = (reallist(1)*a_vec(1, 1:3)+ &
-                                        reallist(2)*a_vec(2, 1:3)+ &
+                  kpoint%xkp(1:3, i) = (reallist(1)*a_vec(1, 1:3) + &
+                                        reallist(2)*a_vec(2, 1:3) + &
                                         reallist(3)*a_vec(3, 1:3))/twopi
                CASE DEFAULT
                   CPABORT("Unknown Unit for kpoint definition")

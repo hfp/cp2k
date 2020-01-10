@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -26,8 +26,8 @@ MODULE mp2_types
                                               ri_mp2_laplace,&
                                               ri_mp2_method_gpw,&
                                               ri_rpa_method_gpw
-   USE kinds,                           ONLY: default_path_length,&
-                                              dp
+   USE kinds,                           ONLY: dp
+   USE libint_2c_3c,                    ONLY: libint_potential_type
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE
@@ -73,13 +73,6 @@ MODULE mp2_types
       LOGICAL  :: big_send
    END TYPE
 
-   TYPE mp2_potential_type
-      INTEGER                                  :: potential_type !! 1/r, TShPSC, slab truncation
-      REAL(dp)                                 :: truncation_radius !! truncation radius if cutoff potential in use
-      CHARACTER(default_path_length)           :: filename
-      REAL(KIND=dp)                            :: omega ! Range separation parameter for longrange potential
-   END TYPE
-
    TYPE mp2_gpw_type
       REAL(KIND=dp)            :: eps_grid, eps_filter, eps_pgf_orb_S
       INTEGER                  :: print_level
@@ -111,6 +104,7 @@ MODULE mp2_types
       REAL(KIND=dp)            :: ener_axk
       REAL(KIND=dp)            :: rse_corr_diag
       REAL(KIND=dp)            :: rse_corr
+      REAL(KIND=dp)            :: scale_rpa
    END TYPE
 
    TYPE ri_rpa_im_time_util
@@ -227,7 +221,7 @@ MODULE mp2_types
       INTEGER                  :: method
       TYPE(mp2_laplace_type)   :: ri_laplace
       TYPE(mp2_direct_type)    :: direct_canonical
-      TYPE(mp2_potential_type) :: potential_parameter
+      TYPE(libint_potential_type) :: potential_parameter
       TYPE(mp2_gpw_type)       :: mp2_gpw
       TYPE(ri_mp2_type)        :: ri_mp2
       TYPE(ri_rpa_type)        :: ri_rpa
@@ -248,7 +242,6 @@ MODULE mp2_types
       INTEGER  :: mp2_num_proc
       INTEGER  :: block_size_row
       INTEGER  :: block_size_col
-      INTEGER  :: ri_metric
       LOGICAL  :: calc_PQ_cond_num
       LOGICAL  :: hf_fail
       LOGICAL  :: p_screen
@@ -259,7 +252,8 @@ MODULE mp2_types
       INTEGER, DIMENSION(:), POINTER  :: eri_blksize => NULL()
       LOGICAL  :: do_svd
       REAL(KIND=dp) :: eps_svd
-      REAL(KIND=dp) :: omega_metric
+      REAL(KIND=dp) :: eps_range
+      TYPE(libint_potential_type) :: ri_metric
    END TYPE
 
    TYPE integ_mat_buffer_type

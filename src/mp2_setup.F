@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -15,11 +15,19 @@ MODULE mp2_setup
                                               cp_logger_type
    USE cp_output_handling,              ONLY: cp_print_key_finished_output,&
                                               cp_print_key_unit_nr
-   USE input_constants,                 ONLY: do_eri_mme
+   USE cp_units,                        ONLY: cp_unit_from_cp2k
+   USE input_constants,                 ONLY: do_eri_mme,&
+                                              do_potential_coulomb,&
+                                              do_potential_id,&
+                                              do_potential_long,&
+                                              do_potential_short,&
+                                              do_potential_truncated
    USE input_section_types,             ONLY: section_vals_get,&
                                               section_vals_get_subs_vals,&
                                               section_vals_type,&
                                               section_vals_val_get
+   USE kinds,                           ONLY: dp
+   USE mathlib,                         ONLY: erfc_cutoff
    USE mp2_types,                       ONLY: mp2_method_direct,&
                                               mp2_method_gpw,&
                                               mp2_method_none,&
@@ -57,6 +65,7 @@ CONTAINS
       LOGICAL                                            :: explicit_k_laplace, explicit_k_rpa, &
                                                             explicit_k_wfc, explicit_laplace, &
                                                             explicit_rpa, explicit_wfc
+      REAL(dp)                                           :: rc_ang
       TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(section_vals_type), POINTER                   :: eri_mme_section, im_time_section, &
                                                             mp2_section
@@ -75,16 +84,25 @@ CONTAINS
       CALL section_vals_val_get(mp2_section, "DIRECT_CANONICAL%BIG_SEND", l_val=mp2_env%direct_canonical%big_send)
       CALL section_vals_val_get(mp2_section, "ROW_BLOCK", i_val=mp2_env%block_size_row)
       CALL section_vals_val_get(mp2_section, "COL_BLOCK", i_val=mp2_env%block_size_col)
-      CALL section_vals_val_get(mp2_section, "RI_METRIC", i_val=mp2_env%ri_metric)
+      CALL section_vals_val_get(mp2_section, "RI_METRIC", i_val=mp2_env%ri_metric%potential_type)
       CALL section_vals_val_get(mp2_section, "CALC_COND_NUM", l_val=mp2_env%calc_PQ_cond_num)
       CALL section_vals_val_get(mp2_section, "DO_SVD", l_val=mp2_env%do_svd)
       CALL section_vals_val_get(mp2_section, "EPS_SVD", r_val=mp2_env%eps_svd)
-      CALL section_vals_val_get(mp2_section, "OMEGA_METRIC", r_val=mp2_env%omega_metric)
+      CALL section_vals_val_get(mp2_section, "OMEGA_METRIC", r_val=mp2_env%ri_metric%omega)
+      CALL section_vals_val_get(mp2_section, "EPS_RANGE_METRIC", r_val=mp2_env%eps_range)
+      CALL section_vals_val_get(mp2_section, "CUTOFF_RADIUS_METRIC", r_val=mp2_env%ri_metric%cutoff_radius)
+      IF (mp2_env%ri_metric%potential_type == do_potential_short) THEN
+         CALL erfc_cutoff(mp2_env%eps_range, mp2_env%ri_metric%omega, mp2_env%ri_metric%cutoff_radius)
+      ENDIF
+
+      ! hardcoding filename for truncated coulomb operator integral data, there is no reason why this
+      ! should be configurable
+      mp2_env%ri_metric%filename = "t_c_g.dat"
 
       CALL section_vals_val_get(mp2_section, "INTERACTION_POTENTIAL%POTENTIAL_TYPE", &
                                 i_val=mp2_env%potential_parameter%potential_type)
       CALL section_vals_val_get(mp2_section, "INTERACTION_POTENTIAL%TRUNCATION_RADIUS", &
-                                r_val=mp2_env%potential_parameter%truncation_radius)
+                                r_val=mp2_env%potential_parameter%cutoff_radius)
       CALL section_vals_val_get(mp2_section, "INTERACTION_POTENTIAL%TShPSC_DATA", &
                                 c_val=mp2_env%potential_parameter%filename)
       CALL section_vals_val_get(mp2_section, "INTERACTION_POTENTIAL%OMEGA", &
@@ -120,6 +138,8 @@ CONTAINS
                                 l_val=mp2_env%ri_rpa%do_admm)
       CALL section_vals_val_get(mp2_section, "RI_RPA%RI_G0W0", &
                                 l_val=mp2_env%ri_rpa%do_ri_g0w0)
+      CALL section_vals_val_get(mp2_section, "RI_RPA%SCALE_RPA", &
+                                r_val=mp2_env%ri_rpa%scale_rpa)
 
       CALL section_vals_val_get(mp2_section, "RI_RPA%AXK", &
                                 l_val=mp2_env%ri_rpa%do_ri_axk)
@@ -349,10 +369,10 @@ CONTAINS
       CALL section_vals_val_get(mp2_section, "OPT_RI_BASIS%NUM_FUNC", &
                                 i_vals=tmplist)
       IF (tmplist(1) > 0) THEN
-         ALLOCATE (mp2_env%ri_opt_param%RI_nset_per_l(0:SIZE(tmplist)-1))
+         ALLOCATE (mp2_env%ri_opt_param%RI_nset_per_l(0:SIZE(tmplist) - 1))
          mp2_env%ri_opt_param%RI_nset_per_l = 0
          DO ival = 1, SIZE(tmplist)
-            mp2_env%ri_opt_param%RI_nset_per_l(ival-1) = tmplist(ival)
+            mp2_env%ri_opt_param%RI_nset_per_l(ival - 1) = tmplist(ival)
          END DO
       END IF
 
@@ -392,6 +412,39 @@ CONTAINS
          END SELECT
          WRITE (unit_nr, '(T2,A)') ""
       ENDIF
+
+      IF (unit_nr > 0) THEN
+         ASSOCIATE (ri_metric=>mp2_env%ri_metric)
+            SELECT CASE (ri_metric%potential_type)
+            CASE (do_potential_coulomb)
+               WRITE (unit_nr, FMT="(/T2,A,T74,A)") &
+                  "RI_INFO| RI metric: ", "COULOMB"
+            CASE (do_potential_short)
+               WRITE (unit_nr, FMT="(T2,A,T71,A)") &
+                  "RI_INFO| RI metric: ", "SHORTRANGE"
+               WRITE (unit_nr, '(T2,A,T61,F20.10)') &
+                  "RI_INFO| Omega:     ", ri_metric%omega
+               rc_ang = cp_unit_from_cp2k(ri_metric%cutoff_radius, "angstrom")
+               WRITE (unit_nr, '(T2,A,T61,F20.10)') &
+                  "RI_INFO| Cutoff Radius [angstrom]:     ", rc_ang
+            CASE (do_potential_long)
+               WRITE (unit_nr, FMT="(T2,A,T72,A)") &
+                  "RI_INFO| RI metric: ", "LONGRANGE"
+               WRITE (unit_nr, '(T2,A,T61,F20.10)') &
+                  "RI_INFO| Omega:     ", ri_metric%omega
+            CASE (do_potential_id)
+               WRITE (unit_nr, FMT="(T2,A,T73,A)") &
+                  "RI_INFO| RI metric: ", "IDENTITY"
+            CASE (do_potential_truncated)
+               WRITE (unit_nr, FMT="(T2,A,T72,A)") &
+                  "RI_INFO| RI metric: ", "TRUNCATED"
+               rc_ang = cp_unit_from_cp2k(ri_metric%cutoff_radius, "angstrom")
+               WRITE (unit_nr, '(T2,A,T61,F20.10)') &
+                  "RI_INFO| Cutoff Radius [angstrom]:     ", rc_ang
+            END SELECT
+         END ASSOCIATE
+      ENDIF
+
       CALL cp_print_key_finished_output(unit_nr, logger, mp2_section, &
                                         "MP2_INFO")
 

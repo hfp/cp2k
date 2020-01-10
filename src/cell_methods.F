@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -466,7 +466,7 @@ CONTAINS
 
       CALL parser_get_object(parser, s_tag)
       iln = LEN_TRIM(s_tag)
-      IF (INDEX(s_tag, "(") /= 0) iln = INDEX(s_tag, "(")-1
+      IF (INDEX(s_tag, "(") /= 0) iln = INDEX(s_tag, "(") - 1
       READ (s_tag(1:iln), *) r
    END SUBROUTINE cif_get_real
 

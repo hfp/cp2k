@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -25,8 +25,7 @@ MODULE distribution_1d_types
    USE cp_para_env,                     ONLY: cp_para_env_release,&
                                               cp_para_env_retain
    USE cp_para_types,                   ONLY: cp_para_env_type
-   USE parallel_rng_types,              ONLY: delete_rng_stream,&
-                                              rng_stream_p_type
+   USE parallel_rng_types,              ONLY: rng_stream_p_type
 #include "../base/base_uses.f90"
 
    IMPLICIT NONE
@@ -112,7 +111,7 @@ CONTAINS
       IF (PRESENT(n_lists)) my_n_lists = n_lists
 
       ALLOCATE (distribution_1d)
-      distribution_1d_last_id_nr = distribution_1d_last_id_nr+1
+      distribution_1d_last_id_nr = distribution_1d_last_id_nr + 1
       distribution_1d%id_nr = distribution_1d_last_id_nr
 
       distribution_1d%ref_count = 1
@@ -162,7 +161,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(distribution_1d))
       CPASSERT(distribution_1d%ref_count > 0)
-      distribution_1d%ref_count = distribution_1d%ref_count+1
+      distribution_1d%ref_count = distribution_1d%ref_count + 1
    END SUBROUTINE distribution_1d_retain
 
 ! **************************************************************************************************
@@ -184,7 +183,7 @@ CONTAINS
 
       IF (ASSOCIATED(distribution_1d)) THEN
          CPASSERT(distribution_1d%ref_count > 0)
-         distribution_1d%ref_count = distribution_1d%ref_count-1
+         distribution_1d%ref_count = distribution_1d%ref_count - 1
          IF (distribution_1d%ref_count == 0) THEN
             DEALLOCATE (distribution_1d%n_el)
 
@@ -205,8 +204,8 @@ CONTAINS
                      DO iparticle_local = 1, nparticle_local
                         IF (ASSOCIATED(local_particle_set(iparticle_kind)% &
                                        rng(iparticle_local)%stream)) THEN
-                           CALL delete_rng_stream(local_particle_set(iparticle_kind)% &
-                                                  rng(iparticle_local)%stream)
+                           DEALLOCATE (local_particle_set(iparticle_kind)% &
+                                       rng(iparticle_local)%stream)
                         END IF
                      END DO
                      DEALLOCATE (local_particle_set(iparticle_kind)%rng)

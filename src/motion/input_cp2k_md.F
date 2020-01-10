@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -1180,7 +1180,7 @@ CONTAINS
 
       CALL cp_print_key_section_create(print_key, __LOCATION__, "PRINT_AVERAGES", &
                                        description="Controls the output the averaged quantities", &
-                                       print_level=debug_print_level+1, common_iter_levels=1, &
+                                       print_level=debug_print_level + 1, common_iter_levels=1, &
                                        filename="")
       CALL section_add_subsection(section, print_key)
       CALL section_release(print_key)

@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -61,11 +61,14 @@ MODULE mp2_integrals
                                               do_eri_os,&
                                               do_potential_coulomb,&
                                               do_potential_id,&
-                                              do_potential_long
+                                              do_potential_long,&
+                                              do_potential_short,&
+                                              do_potential_truncated
    USE kinds,                           ONLY: dp
    USE kpoint_methods,                  ONLY: kpoint_init_cell_index
    USE kpoint_types,                    ONLY: get_kpoint_info,&
                                               kpoint_type
+   USE libint_2c_3c,                    ONLY: libint_potential_type
    USE machine,                         ONLY: m_flush
    USE message_passing,                 ONLY: mp_alltoall,&
                                               mp_cart_create,&
@@ -90,14 +93,6 @@ MODULE mp2_integrals
    USE pw_poisson_types,                ONLY: pw_poisson_type
    USE pw_pool_types,                   ONLY: pw_pool_type
    USE pw_types,                        ONLY: pw_p_type
-   USE qs_3c_tensors,                   ONLY: build_3c_integrals,&
-                                              build_3c_neighbor_lists,&
-                                              contiguous_tensor_dist,&
-                                              cyclic_tensor_dist,&
-                                              distribution_3d_create,&
-                                              neighbor_list_3c_destroy
-   USE qs_3c_tensors_types,             ONLY: distribution_3d_type,&
-                                              neighbor_list_3c_type
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type,&
                                               set_qs_env
@@ -110,6 +105,15 @@ MODULE mp2_integrals
                                               neighbor_list_iterator_p_type,&
                                               neighbor_list_iterator_release,&
                                               neighbor_list_set_p_type
+   USE qs_tensors,                      ONLY: build_3c_integrals,&
+                                              build_3c_neighbor_lists,&
+                                              contiguous_tensor_dist,&
+                                              neighbor_list_3c_destroy
+   USE qs_tensors_types,                ONLY: cyclic_tensor_dist,&
+                                              distribution_3d_create,&
+                                              distribution_3d_type,&
+                                              neighbor_list_3c_type,&
+                                              split_block_sizes
    USE rpa_communication,               ONLY: communicate_buffer
    USE task_list_types,                 ONLY: task_list_type
    USE util,                            ONLY: get_limit
@@ -177,6 +181,7 @@ CONTAINS
 !> \param kpoints ...
 !> \param mat_3c_overl_int ...
 !> \param do_dbcsr_t ...
+!> \param t_3c_overl_int ...
 !> \param t_3c_M ...
 !> \param t_3c_O ...
 !> \param mat_3c_overl_int_mao_for_occ ...
@@ -207,7 +212,7 @@ CONTAINS
                                     gd_B_all, starts_array_mc_t, ends_array_mc_t, &
                                     gw_corr_lev_occ, gw_corr_lev_virt, &
                                     do_im_time, do_mao, do_kpoints_cubic_RPA, kpoints, &
-                                    mat_3c_overl_int, do_dbcsr_t, t_3c_M, t_3c_O, mat_3c_overl_int_mao_for_occ, &
+                                    mat_3c_overl_int, do_dbcsr_t, t_3c_overl_int, t_3c_M, t_3c_O, mat_3c_overl_int_mao_for_occ, &
                                     mat_3c_overl_int_mao_for_virt, mao_coeff_occ, mao_coeff_virt, &
                                     ri_metric, gd_B_occ_bse, gd_B_virt_bse, BIb_C_beta, BIb_C_gw_beta, &
                                     gd_B_virtual_beta, homo_beta, mo_coeff_o_beta, mo_coeff_v_beta, &
@@ -247,13 +252,14 @@ CONTAINS
       TYPE(kpoint_type), POINTER                         :: kpoints
       TYPE(dbcsr_p_type), DIMENSION(:, :, :), POINTER    :: mat_3c_overl_int
       LOGICAL, INTENT(IN)                                :: do_dbcsr_t
+      TYPE(dbcsr_t_type), ALLOCATABLE, DIMENSION(:, :)   :: t_3c_overl_int
       TYPE(dbcsr_t_type), INTENT(OUT)                    :: t_3c_M
       TYPE(dbcsr_t_type), ALLOCATABLE, DIMENSION(:, :), &
          INTENT(OUT)                                     :: t_3c_O
       TYPE(dbcsr_p_type), DIMENSION(:, :, :), POINTER    :: mat_3c_overl_int_mao_for_occ, &
                                                             mat_3c_overl_int_mao_for_virt
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: mao_coeff_occ, mao_coeff_virt
-      INTEGER, INTENT(IN)                                :: ri_metric
+      TYPE(libint_potential_type), INTENT(IN)            :: ri_metric
       TYPE(group_dist_d1_type), INTENT(OUT)              :: gd_B_occ_bse, gd_B_virt_bse
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :), &
          INTENT(OUT), OPTIONAL                           :: BIb_C_beta, BIb_C_gw_beta
@@ -273,7 +279,7 @@ CONTAINS
          my_B_virt_bse_start, my_B_virtual_end, my_B_virtual_end_beta, my_B_virtual_start, &
          my_B_virtual_start_beta, my_group_L_end, my_group_L_size, my_group_L_start, natom, ngroup
       INTEGER :: ngroup_im_time, ngroup_im_time_P, nimg, nkind, num_diff_blk, num_small_eigen, &
-         potential_type, sqrt_max_bsize, virtual, virtual_beta
+         potential_type, ri_metric_type, sqrt_max_bsize, virtual, virtual_beta
       INTEGER, ALLOCATABLE, DIMENSION(:) :: local_atoms_for_mao_basis, my_group_L_ends_im_time, &
          my_group_L_sizes_im_time, my_group_L_starts_im_time, sizes_AO, sizes_AO_split, sizes_RI, &
          sizes_RI_split, sub_proc_map
@@ -284,7 +290,7 @@ CONTAINS
                                                             do_kpoints_from_Gamma, do_svd, &
                                                             impose_split, memory_info
       REAL(KIND=dp)                                      :: cond_num, cutoff_old, eps_svd, &
-                                                            mem_for_iaK, omega_metric, omega_pot, &
+                                                            mem_for_iaK, omega_pot, &
                                                             relative_cutoff_old
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: e_cutoff_old
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: my_Lrows
@@ -295,7 +301,7 @@ CONTAINS
       TYPE(cp_para_env_type), POINTER                    :: para_env_L
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: mat_munu_local_L
       TYPE(dbcsr_t_pgrid_type)                           :: pgrid_t3c_M, pgrid_t3c_overl
-      TYPE(dbcsr_t_type), ALLOCATABLE, DIMENSION(:, :)   :: t_3c_overl_int
+      TYPE(dbcsr_t_type)                                 :: t_3c_overl_int_template
       TYPE(dbcsr_type) :: matrix_bse_ab, matrix_bse_anu, matrix_bse_ij, matrix_bse_inu, &
          matrix_ia_jb, matrix_ia_jb_beta, matrix_ia_jnu, matrix_ia_jnu_beta, matrix_in_jm, &
          matrix_in_jm_beta, matrix_in_jnu, matrix_in_jnu_beta
@@ -321,24 +327,27 @@ CONTAINS
           PRESENT(mo_coeff_o_beta) .AND. &
           PRESENT(mo_coeff_v_beta)) do_alpha_beta = .TRUE.
 
-      ! imag. time only without Coulomb metric implemented
-      CPASSERT(.NOT. (ri_metric == do_potential_coulomb .AND. do_im_time))
+      IF ((ri_metric%potential_type == do_potential_short .OR. ri_metric%potential_type == do_potential_truncated) &
+          .AND. .NOT. do_im_time) THEN
+         CPABORT("TRUNCATED and SHORTRANGE RI metrics not yet implemented")
+      ENDIF
 
-      virtual = nmo-homo
-      gw_corr_lev_total = gw_corr_lev_virt+gw_corr_lev_occ
+      virtual = nmo - homo
+      gw_corr_lev_total = gw_corr_lev_virt + gw_corr_lev_occ
 
       eri_method = qs_env%mp2_env%eri_method
       eri_param => qs_env%mp2_env%eri_mme_param
       do_svd = qs_env%mp2_env%do_svd
       eps_svd = qs_env%mp2_env%eps_svd
       potential_type = qs_env%mp2_env%potential_parameter%potential_type
+      ri_metric_type = ri_metric%potential_type
       omega_pot = qs_env%mp2_env%potential_parameter%omega
-      omega_metric = qs_env%mp2_env%omega_metric
 
       ! whether we need gpw integrals (plus pw stuff)
-      do_gpw = (eri_method == do_eri_gpw) .OR. ((potential_type == do_potential_long .OR. ri_metric == do_potential_long) &
-                                                .AND. qs_env%mp2_env%eri_method == do_eri_os) &
-               .OR. (ri_metric == do_potential_id .AND. qs_env%mp2_env%eri_method == do_eri_mme)
+      do_gpw = (eri_method == do_eri_gpw) .OR. &
+               ((potential_type == do_potential_long .OR. ri_metric_type == do_potential_long) &
+                .AND. qs_env%mp2_env%eri_method == do_eri_os) &
+               .OR. (ri_metric_type == do_potential_id .AND. qs_env%mp2_env%eri_method == do_eri_mme)
 
       IF (do_svd .AND. calc_forces) THEN
          CPABORT("SVD not implemented for forces.!")
@@ -346,7 +355,6 @@ CONTAINS
 
       do_kpoints_from_Gamma = SUM(qs_env%mp2_env%ri_rpa_im_time%kp_grid) > 0
       IF (do_kpoints_cubic_RPA .OR. do_kpoints_from_Gamma) THEN
-         CPASSERT(eri_method == do_eri_os)
          CALL get_qs_env(qs_env=qs_env, &
                          kpoints=kpoints)
       END IF
@@ -366,7 +374,7 @@ CONTAINS
 
          IF (do_alpha_beta) THEN
 
-            virtual_beta = nmo-homo_beta
+            virtual_beta = nmo - homo_beta
 
             CALL create_intermediate_matrices(matrix_ia_jnu_beta, matrix_ia_jb_beta, mo_coeff_o_beta, &
                                               virtual_beta, homo_beta, &
@@ -455,7 +463,8 @@ CONTAINS
                             fm_matrix_L, ngroup, color_sub, dimen_RI, dimen_RI_red, kpoints, mo_coeff, &
                             my_group_L_size, my_group_L_start, my_group_L_end, &
                             gd_array, calc_PQ_cond_num .AND. .NOT. do_svd, cond_num, do_svd, eps_svd, &
-                            num_small_eigen, potential_type, ri_metric, omega_pot, omega_metric, fm_matrix_L_RI_metric, &
+                            num_small_eigen, qs_env%mp2_env%potential_parameter, ri_metric, &
+                            fm_matrix_L_RI_metric, &
                             do_im_time, do_kpoints_from_Gamma .OR. do_kpoints_cubic_RPA, qs_env%mp2_env%mp2_gpw%eps_pgf_orb_S, &
                             atomic_kind_set, qs_kind_set, sab_orb_sub)
 
@@ -492,7 +501,7 @@ CONTAINS
          ! we need (P|Q)^(-1/2) for future use, just save it
          ! in a fully (home made) distributed way
          itmp = get_limit(dimen_RI, para_env_sub%num_pe, para_env_sub%mepos)
-         lll = itmp(2)-itmp(1)+1
+         lll = itmp(2) - itmp(1) + 1
          ALLOCATE (qs_env%mp2_env%ri_grad%PQ_half(lll, my_group_L_size))
          qs_env%mp2_env%ri_grad%PQ_half(:, :) = my_Lrows(itmp(1):itmp(2), 1:my_group_L_size)
       END IF
@@ -508,8 +517,8 @@ CONTAINS
          END IF
 
          mem_for_iaK = dimen_RI*REAL(homo, KIND=dp)*virtual*8.0_dp/(1024_dp**2)
-         IF (do_alpha_beta) mem_for_iaK = mem_for_iaK+ &
-                                          dimen_RI*REAL(homo_beta, KIND=dp)*(nmo-homo_beta)*8.0_dp/(1024_dp**2)
+         IF (do_alpha_beta) mem_for_iaK = mem_for_iaK + &
+                                          dimen_RI*REAL(homo_beta, KIND=dp)*(nmo - homo_beta)*8.0_dp/(1024_dp**2)
 
          WRITE (unit_nr, '(T3,A,T66,F11.2,A4)') 'RI_INFO| Total memory for (ia|K) integrals:', &
             mem_for_iaK, ' MiB'
@@ -527,11 +536,11 @@ CONTAINS
       ! in case we do imaginary time, we need the overlap matrix (alpha beta P)
       IF (.NOT. do_im_time) THEN
 
-         ALLOCATE (sub_proc_map(-para_env_sub%num_pe:2*para_env_sub%num_pe-1))
-         DO i = 0, para_env_sub%num_pe-1
+         ALLOCATE (sub_proc_map(-para_env_sub%num_pe:2*para_env_sub%num_pe - 1))
+         DO i = 0, para_env_sub%num_pe - 1
             sub_proc_map(i) = i
-            sub_proc_map(-i-1) = para_env_sub%num_pe-i-1
-            sub_proc_map(para_env_sub%num_pe+i) = i
+            sub_proc_map(-i - 1) = para_env_sub%num_pe - i - 1
+            sub_proc_map(para_env_sub%num_pe + i) = i
          END DO
 
          ! array that will store the (ia|K) integrals
@@ -567,8 +576,9 @@ CONTAINS
 
          CALL timeset(routineN//"_loop", handle2)
 
-         IF (eri_method == do_eri_mme .AND. (ri_metric == do_potential_coulomb .OR. ri_metric == do_potential_long) .OR. &
-             eri_method == do_eri_os .AND. ri_metric == do_potential_coulomb) THEN
+         IF (eri_method == do_eri_mme .AND. &
+             (ri_metric%potential_type == do_potential_coulomb .OR. ri_metric%potential_type == do_potential_long) .OR. &
+             eri_method == do_eri_os .AND. ri_metric%potential_type == do_potential_coulomb) THEN
 
             NULLIFY (mat_munu_local_L)
             ALLOCATE (mat_munu_local_L(my_group_L_size))
@@ -578,7 +588,7 @@ CONTAINS
                CALL dbcsr_copy(mat_munu_local_L(LLL)%matrix, mat_munu%matrix)
                CALL dbcsr_set(mat_munu_local_L(LLL)%matrix, 0.0_dp)
             ENDDO
-            CALL mp2_eri_3c_integrate(eri_param, ri_metric, omega_metric, para_env_sub, qs_env, &
+            CALL mp2_eri_3c_integrate(eri_param, ri_metric%potential_type, ri_metric%omega, para_env_sub, qs_env, &
                                       first_c=my_group_L_start, last_c=my_group_L_end, &
                                       mat_ab=mat_munu_local_L, &
                                       basis_type_a="ORB", basis_type_b="ORB", &
@@ -671,7 +681,7 @@ CONTAINS
 
                CALL mp2_eri_3c_integrate_gpw(mo_coeff, psi_L, rho_g, atomic_kind_set, qs_kind_set, cell, dft_control, &
                                              particle_set, pw_env_sub, my_Lrows(:, i_counter), poisson_env, rho_r, pot_g, &
-                                             ri_metric, omega_metric, mat_munu, qs_env, task_list_sub)
+                                             ri_metric%potential_type, ri_metric%omega, mat_munu, qs_env, task_list_sub)
 
                CALL ao_to_mo_and_store_B(para_env_sub, mat_munu, matrix_ia_jnu, matrix_ia_jb, &
                                          fm_BIb_jb, BIb_C(i_counter, 1:my_B_size, 1:homo), &
@@ -791,21 +801,11 @@ CONTAINS
             CALL basis_set_list_setup(basis_set_ao, "ORB", qs_kind_set)
             CALL get_particle_set(particle_set, qs_kind_set, nsgf=sizes_AO, basis=basis_set_ao)
 
-            ! 1) create t_3c_overl_int
-            nimg = dft_control%nimages
-            ALLOCATE (t_3c_overl_int(nimg, nimg))
-
-            CALL create_tensor_O_3c(t_3c_overl_int(1, 1), pgrid_t3c_overl, &
+            CALL create_tensor_O_3c(t_3c_overl_int_template, pgrid_t3c_overl, &
                                     sizes_AO, sizes_AO, sizes_RI, &
-                                    nl_3c=nl_3c, qs_env=qs_env, &
+                                    ri_metric=ri_metric, nl_3c=nl_3c, qs_env=qs_env, &
                                     basis_ao_1=basis_set_ao, basis_ao_2=basis_set_ao, basis_RI=basis_set_ri_aux, &
                                     do_kpoints=do_kpoints_cubic_RPA)
-
-            DO i = 1, SIZE(t_3c_overl_int, 1)
-               DO j = 1, SIZE(t_3c_overl_int, 2)
-                  IF (i > 1 .OR. j > 1) CALL dbcsr_t_create(t_3c_overl_int(1, 1), t_3c_overl_int(i, j))
-               ENDDO
-            ENDDO
 
             ! init k points
             IF (do_kpoints_cubic_RPA) THEN
@@ -814,7 +814,21 @@ CONTAINS
                CALL kpoint_init_cell_index(kpoints, nl_3c%jk_list, para_env, dft_control)
                IF (unit_nr > 0) WRITE (UNIT=unit_nr, FMT="(T3,A,T75,i6)") &
                   "3C_OVERLAP_INTEGRALS_INFO| Number of periodic images considered:", dft_control%nimages
+
+               nimg = dft_control%nimages
+            ELSE
+               nimg = 1
             ENDIF
+
+            ALLOCATE (t_3c_overl_int(nimg, nimg))
+
+            DO i = 1, SIZE(t_3c_overl_int, 1)
+               DO j = 1, SIZE(t_3c_overl_int, 2)
+                  CALL dbcsr_t_create(t_3c_overl_int_template, t_3c_overl_int(i, j))
+               ENDDO
+            ENDDO
+
+            CALL dbcsr_t_destroy(t_3c_overl_int_template)
 
             ! split blocks to improve load balancing for tensor contraction
             sqrt_max_bsize = qs_env%mp2_env%ri_rpa_im_time%max_bsize_sqrt
@@ -852,6 +866,7 @@ CONTAINS
                                     nl_3c, &
                                     basis_i=basis_set_ri_aux, &
                                     basis_j=basis_set_ao, basis_k=basis_set_ao, &
+                                    potential_parameter=ri_metric, &
                                     do_kpoints=do_kpoints_cubic_RPA)
 
             DEALLOCATE (basis_set_ri_aux, basis_set_ao)
@@ -860,9 +875,8 @@ CONTAINS
             DO i = 1, SIZE(t_3c_overl_int, 1)
                DO j = 1, SIZE(t_3c_overl_int, 2)
 
-                  CALL dbcsr_t_copy(t_3c_overl_int(i, j), t_3c_O(i, j), order=[1, 3, 2], move_data=.TRUE.)
+                  CALL dbcsr_t_copy(t_3c_overl_int(i, j), t_3c_O(i, j), order=[1, 3, 2], move_data=.FALSE.)
                   CALL dbcsr_t_filter(t_3c_O(i, j), qs_env%mp2_env%mp2_gpw%eps_filter)
-                  CALL dbcsr_t_destroy(t_3c_overl_int(i, j))
                ENDDO
             ENDDO
             CALL timestop(handle4)
@@ -966,41 +980,6 @@ CONTAINS
 
 ! **************************************************************************************************
 !> \brief ...
-!> \param blk_sizes ...
-!> \param blk_sizes_split ...
-!> \param max_size ...
-! **************************************************************************************************
-   SUBROUTINE split_block_sizes(blk_sizes, blk_sizes_split, max_size)
-      INTEGER, DIMENSION(:), INTENT(IN)                  :: blk_sizes
-      INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(OUT)    :: blk_sizes_split
-      INTEGER, INTENT(IN)                                :: max_size
-
-      INTEGER                                            :: blk_remainder, i, isplit, isplit_sum, &
-                                                            nsplit
-
-      isplit_sum = 0
-      DO i = 1, SIZE(blk_sizes)
-         nsplit = (blk_sizes(i)+max_size-1)/max_size
-         isplit_sum = isplit_sum+nsplit
-      ENDDO
-
-      ALLOCATE (blk_sizes_split(isplit_sum))
-
-      isplit_sum = 0
-      DO i = 1, SIZE(blk_sizes)
-         nsplit = (blk_sizes(i)+max_size-1)/max_size
-         blk_remainder = blk_sizes(i)
-         DO isplit = 1, nsplit
-            isplit_sum = isplit_sum+1
-            blk_sizes_split(isplit_sum) = MIN(max_size, blk_remainder)
-            blk_remainder = blk_remainder-max_size
-         ENDDO
-      ENDDO
-
-   END SUBROUTINE split_block_sizes
-
-! **************************************************************************************************
-!> \brief ...
 !> \param t_3c_M ...
 !> \param pgrid_t3c_M ...
 !> \param mem_cut ...
@@ -1045,8 +1024,8 @@ CONTAINS
 
       bsum = 0
       DO imem = 1, mem_cut
-         starts_array_mc(imem) = bsum+1
-         bsum = bsum+SUM(sizes_AO(starts_array_mc_block(imem):ends_array_mc_block(imem)))
+         starts_array_mc(imem) = bsum + 1
+         bsum = bsum + SUM(sizes_AO(starts_array_mc_block(imem):ends_array_mc_block(imem)))
          ends_array_mc(imem) = bsum
       ENDDO
 
@@ -1054,7 +1033,7 @@ CONTAINS
       ALLOCATE (dist_ao_2(size_AO))
       DO imem = 1, mem_cut
 
-         size_AO_cut = ends_array_mc_block(imem)-starts_array_mc_block(imem)+1
+         size_AO_cut = ends_array_mc_block(imem) - starts_array_mc_block(imem) + 1
 
          IF (size_AO_cut < MIN(pdims(2), pdims(3))) THEN
             CPABORT("use smaller MEMORY_CUT or use less MPI ranks")
@@ -1080,6 +1059,7 @@ CONTAINS
 !> \param ao_sizes_1 block sizes of first AO index
 !> \param ao_sizes_2 block sizes of second AO index
 !> \param sizes_RI block sizes of RI index
+!> \param ri_metric ...
 !> \param nl_3c 3c-neighborlist - if present, the sizes arguments must refer to atomic blocks
 !> \param qs_env needed for nl_3c
 !> \param basis_ao_1 needed for nl_3c
@@ -1088,11 +1068,12 @@ CONTAINS
 !> \param do_kpoints ...
 ! **************************************************************************************************
    SUBROUTINE create_tensor_O_3c(t_3c_O, mp_comm_t3c, ao_sizes_1, ao_sizes_2, sizes_RI, &
-                                 nl_3c, qs_env, basis_ao_1, basis_ao_2, basis_RI, &
+                                 ri_metric, nl_3c, qs_env, basis_ao_1, basis_ao_2, basis_RI, &
                                  do_kpoints)
       TYPE(dbcsr_t_type), INTENT(OUT)                    :: t_3c_O
       TYPE(dbcsr_t_pgrid_type), INTENT(IN)               :: mp_comm_t3c
       INTEGER, DIMENSION(:), INTENT(IN)                  :: ao_sizes_1, ao_sizes_2, sizes_RI
+      TYPE(libint_potential_type), INTENT(IN), OPTIONAL  :: ri_metric
       TYPE(neighbor_list_3c_type), INTENT(OUT), OPTIONAL :: nl_3c
       TYPE(qs_environment_type), OPTIONAL, POINTER       :: qs_env
       TYPE(gto_basis_set_p_type), DIMENSION(:), &
@@ -1130,6 +1111,7 @@ CONTAINS
 
       IF (PRESENT(nl_3c)) THEN
          CPASSERT(PRESENT(qs_env))
+         CPASSERT(PRESENT(ri_metric))
          CALL get_qs_env(qs_env, nkind=nkind, particle_set=particle_set)
          CPASSERT(PRESENT(basis_RI))
          CPASSERT(PRESENT(basis_ao_1))
@@ -1139,9 +1121,8 @@ CONTAINS
          CALL distribution_3d_create(dist_3d, dist_RI, dist_ao_1, dist_ao_2, &
                                      nkind, particle_set, mp_comm_t3c_2, own_comm=.TRUE.)
 
-         ! we rely on symmetry of the two AO-indices only if no k-points
          CALL build_3c_neighbor_lists(nl_3c, basis_RI, basis_ao_1, basis_ao_2, &
-                                      dist_3d, "RPA_3c_nl", qs_env, &
+                                      dist_3d, ri_metric, "RPA_3c_nl", qs_env, &
                                       sym_jk=.NOT. kp, own_dist=.TRUE.)
       ENDIF
 
@@ -1202,7 +1183,7 @@ CONTAINS
       CALL mp_environ(nproc_glob, iproc_glob, mp_comm)
 
       ! local block index for R/P and a
-      loc_P = igroup+1; loc_a = iproc+1
+      loc_P = igroup + 1; loc_a = iproc + 1
 
       CPASSERT(SIZE(sizes_L) .EQ. ngroup)
       CPASSERT(SIZE(sizes_B) .EQ. nproc)
@@ -1236,9 +1217,9 @@ CONTAINS
 
       ! setup distribution vectors such that distribution matches parallel data layout of BIb_C and my_Lrows
       dist_B_i = [0]
-      dist_B_a = (/(i, i=0, nproc-1)/)
-      dist_L_R = (/(MODULO(i, nproc), i=0, ngroup-1)/) ! R index is replicated in my_Lrows, we impose a cyclic distribution
-      dist_L_P = (/(i, i=0, ngroup-1)/)
+      dist_B_a = (/(i, i=0, nproc - 1)/)
+      dist_L_R = (/(MODULO(i, nproc), i=0, ngroup - 1)/) ! R index is replicated in my_Lrows, we impose a cyclic distribution
+      dist_L_P = (/(i, i=0, ngroup - 1)/)
 
       ! create distributions and tensors
       CALL dbcsr_t_distribution_new(dist_B, mp_comm_B, map_B_1, map_B_2, dist_L_P, dist_B_a, dist_B_i)
@@ -1261,14 +1242,14 @@ CONTAINS
       ! in my_Lrows, R index is replicated. For (R|P), we distribute quadratic blocks cyclically over
       ! the processes in a subgroup.
       ! There are NG blocks, so each process holds at most NG/Nw+1 blocks.
-      ALLOCATE (block_ind_L_R(ngroup/nproc+1))
-      ALLOCATE (block_ind_L_P(ngroup/nproc+1))
+      ALLOCATE (block_ind_L_R(ngroup/nproc + 1))
+      ALLOCATE (block_ind_L_P(ngroup/nproc + 1))
       block_ind_L_R(:) = 0; block_ind_L_P(:) = 0
       ii = 0
       DO i = 1, ngroup
          CALL dbcsr_t_get_stored_coordinates(tL, [i, loc_P], check_proc)
          IF (check_proc == iproc_glob) THEN
-            ii = ii+1
+            ii = ii + 1
             block_ind_L_R(ii) = i
             block_ind_L_P(ii) = loc_P
          ENDIF
@@ -1281,8 +1262,8 @@ CONTAINS
       ! insert (R|P) blocks
       ioff = 0
       DO i = 1, ngroup
-         istart = ioff+1; iend = ioff+sizes_L(i)
-         ioff = ioff+sizes_L(i)
+         istart = ioff + 1; iend = ioff + sizes_L(i)
+         ioff = ioff + sizes_L(i)
          CALL dbcsr_t_get_stored_coordinates(tL, [i, loc_P], check_proc)
          IF (check_proc == iproc_glob) THEN
             CALL dbcsr_t_put_block(tL, [i, loc_P], [sizes_L(i), sizes_L(loc_P)], my_Lrows(istart:iend, :))
@@ -1511,7 +1492,7 @@ CONTAINS
       nkp_grid(1:3) = qs_env%mp2_env%ri_rpa_im_time%kp_grid(1:3)
       kpoints%nkp_grid(1:3) = nkp_grid(1:3)
 
-      num_dim = periodic(1)+periodic(2)+periodic(3)
+      num_dim = periodic(1) + periodic(2) + periodic(3)
 
       DO i_dim = 1, 3
          IF (periodic(i_dim) == 1) THEN
@@ -1540,12 +1521,12 @@ CONTAINS
          DO iy = 1, nkp_grid(2)
             DO iz = 1, nkp_grid(3)
 
-               i = i+1
+               i = i + 1
                IF (i > nkp) CYCLE
 
-               kpoints%xkp(1, i) = REAL(2*ix-nkp_grid(1)-1, KIND=dp)/(2._dp*REAL(nkp_grid(1), KIND=dp))
-               kpoints%xkp(2, i) = REAL(2*iy-nkp_grid(2)-1, KIND=dp)/(2._dp*REAL(nkp_grid(2), KIND=dp))
-               kpoints%xkp(3, i) = REAL(2*iz-nkp_grid(3)-1, KIND=dp)/(2._dp*REAL(nkp_grid(3), KIND=dp))
+               kpoints%xkp(1, i) = REAL(2*ix - nkp_grid(1) - 1, KIND=dp)/(2._dp*REAL(nkp_grid(1), KIND=dp))
+               kpoints%xkp(2, i) = REAL(2*iy - nkp_grid(2) - 1, KIND=dp)/(2._dp*REAL(nkp_grid(2), KIND=dp))
+               kpoints%xkp(3, i) = REAL(2*iz - nkp_grid(3) - 1, KIND=dp)/(2._dp*REAL(nkp_grid(3), KIND=dp))
 
             END DO
          END DO
@@ -1599,11 +1580,11 @@ CONTAINS
       ! for negative and positive number > num_pe
       ! needed to know which is the processor, to respect to another one,
       ! for a given shift
-      ALLOCATE (proc_map(-para_env%num_pe:2*para_env%num_pe-1))
-      DO iiB = 0, para_env%num_pe-1
+      ALLOCATE (proc_map(-para_env%num_pe:2*para_env%num_pe - 1))
+      DO iiB = 0, para_env%num_pe - 1
          proc_map(iiB) = iiB
-         proc_map(-iiB-1) = para_env%num_pe-iiB-1
-         proc_map(para_env%num_pe+iiB) = iiB
+         proc_map(-iiB - 1) = para_env%num_pe - iiB - 1
+         proc_map(para_env%num_pe + iiB) = iiB
       END DO
 
       CALL cp_fm_get_info(matrix=fm_matrix_L, &
@@ -1636,19 +1617,19 @@ CONTAINS
          IF (j_global >= my_group_L_start .AND. j_global <= my_group_L_end) THEN
             DO iiB = 1, nrow_local
                i_global = row_indices(iiB)
-               my_Lrows(i_global, j_global-my_group_L_start+1) = local_L(iiB, jjB)
+               my_Lrows(i_global, j_global - my_group_L_start + 1) = local_L(iiB, jjB)
             END DO
          END IF
       END DO
 
-      proc_send_static = proc_map(para_env%mepos+1)
-      proc_receive_static = proc_map(para_env%mepos-1)
+      proc_send_static = proc_map(para_env%mepos + 1)
+      proc_receive_static = proc_map(para_env%mepos - 1)
 
       CALL timeset(routineN//"_comm", handle2)
 
-      DO proc_shift = 1, para_env%num_pe-1
-         proc_send = proc_map(para_env%mepos+proc_shift)
-         proc_receive = proc_map(para_env%mepos-proc_shift)
+      DO proc_shift = 1, para_env%num_pe - 1
+         proc_send = proc_map(para_env%mepos + proc_shift)
+         proc_receive = proc_map(para_env%mepos - proc_shift)
 
          ! first exchange information on the local data
          rec_col_row_info = 0
@@ -1674,7 +1655,7 @@ CONTAINS
             IF (j_global >= my_group_L_start .AND. j_global <= my_group_L_end) THEN
                DO iiB = 1, nrow_rec
                   i_global = row_indices_rec(iiB)
-                  my_Lrows(i_global, j_global-my_group_L_start+1) = rec_L(iiB, jjB)
+                  my_Lrows(i_global, j_global - my_group_L_start + 1) = rec_L(iiB, jjB)
                END DO
             END IF
          END DO
@@ -1750,7 +1731,7 @@ CONTAINS
          IF (j_global >= my_B_virtual_start .AND. j_global <= my_B_virtual_end) THEN
             DO iiB = 1, nrow_rec
                i_global = row_indices_rec(iiB)
-               BIb_jb(j_global-my_B_virtual_start+1, i_global) = fm_BIb_jb%local_data(iiB, jjB)
+               BIb_jb(j_global - my_B_virtual_start + 1, i_global) = fm_BIb_jb%local_data(iiB, jjB)
             END DO
          END IF
       END DO
@@ -1762,9 +1743,9 @@ CONTAINS
          ALLOCATE (local_BI(nrow_rec, ncol_rec))
          local_BI(1:nrow_rec, 1:ncol_rec) = fm_BIb_jb%local_data(1:nrow_rec, 1:ncol_rec)
 
-         DO proc_shift = 1, para_env_sub%num_pe-1
-            proc_send = proc_map(para_env_sub%mepos+proc_shift)
-            proc_receive = proc_map(para_env_sub%mepos-proc_shift)
+         DO proc_shift = 1, para_env_sub%num_pe - 1
+            proc_send = proc_map(para_env_sub%mepos + proc_shift)
+            proc_receive = proc_map(para_env_sub%mepos - proc_shift)
 
             ! first exchange information on the local data
             rec_col_row_info = 0
@@ -1790,7 +1771,7 @@ CONTAINS
                IF (j_global >= my_B_virtual_start .AND. j_global <= my_B_virtual_end) THEN
                   DO iiB = 1, nrow_rec
                      i_global = row_indices_rec(iiB)
-                     BIb_jb(j_global-my_B_virtual_start+1, i_global) = rec_BI(iiB, jjB)
+                     BIb_jb(j_global - my_B_virtual_start + 1, i_global) = rec_BI(iiB, jjB)
                   END DO
                END IF
             END DO
@@ -2078,7 +2059,7 @@ CONTAINS
 
                               IF (.NOT. (acell == i_img)) CYCLE
 
-                              bcellvec = -outer_cell_vec+cell_vec
+                              bcellvec = -outer_cell_vec + cell_vec
 
                               IF (bcellvec(1) < minval_1) CYCLE
                               IF (bcellvec(1) > maxval_1) CYCLE
@@ -2094,7 +2075,7 @@ CONTAINS
                            END IF
 
                            raRI = rab_outer
-                           rbRI = raRI-rab
+                           rbRI = raRI - rab
 
                         ELSE IF (atom_RI .EQ. iatom_outer .AND. &
                                  iatom .EQ. jatom_outer) THEN
@@ -2105,7 +2086,7 @@ CONTAINS
                            END IF
 
                            raRI = -rab_outer
-                           rbRI = raRI-rab
+                           rbRI = raRI - rab
 
                         ELSE IF (jatom .EQ. iatom_outer .AND. &
                                  atom_RI .EQ. jatom_outer) THEN
@@ -2116,7 +2097,7 @@ CONTAINS
                            END IF
 
                            rbRI = rab_outer
-                           raRI = rbRI+rab
+                           raRI = rbRI + rab
 
                         ELSE IF (atom_RI .EQ. iatom_outer .AND. &
                                  jatom .EQ. jatom_outer) THEN
@@ -2127,7 +2108,7 @@ CONTAINS
                            END IF
 
                            rbRI = -rab_outer
-                           raRI = rbRI+rab
+                           raRI = rbRI + rab
 
                         END IF
 
@@ -2165,12 +2146,12 @@ CONTAINS
 
                            DO iset = 1, nseta
 
-                              IF (set_radius_a(iset)+set_radius_RI(set_RI) < daRI) CYCLE
+                              IF (set_radius_a(iset) + set_radius_RI(set_RI) < daRI) CYCLE
 
                               DO jset = 1, nsetb
 
-                                 IF (set_radius_a(iset)+set_radius_b(jset) < dab) CYCLE
-                                 IF (set_radius_b(jset)+set_radius_RI(set_RI) < dbRI) CYCLE
+                                 IF (set_radius_a(iset) + set_radius_b(jset) < dab) CYCLE
+                                 IF (set_radius_b(jset) + set_radius_RI(set_RI) < dbRI) CYCLE
 
                                  nco_RI = npgf_RI(set_RI)*ncoset(l_max_RI(set_RI))
                                  ncoa = npgfa(iset)*ncoset(la_max(iset))
@@ -2180,11 +2161,11 @@ CONTAINS
                                  sgfa = first_sgfa(1, iset)
                                  sgfb = first_sgfb(1, jset)
 
-                                 LLL_set_start = 1+sgf_RI-1-my_group_L_start+1+row_blk_start(atom_RI)-1
+                                 LLL_set_start = 1 + sgf_RI - 1 - my_group_L_start + 1 + row_blk_start(atom_RI) - 1
 
                                  IF (LLL_set_start > my_group_L_size) CYCLE
 
-                                 LLL_set_end = nsgf_RI(set_RI)+sgf_RI-1-my_group_L_start+1+row_blk_start(atom_RI)-1
+                                 LLL_set_end = nsgf_RI(set_RI) + sgf_RI - 1 - my_group_L_start + 1 + row_blk_start(atom_RI) - 1
 
                                  IF (LLL_set_end < 1) CYCLE
 
@@ -2217,7 +2198,7 @@ CONTAINS
 
                                     DO isgf_RI = 1, nsgf_RI(set_RI)
 
-                                       LLL = isgf_RI+sgf_RI-1-my_group_L_start+1+row_blk_start(atom_RI)-1
+                                       LLL = isgf_RI + sgf_RI - 1 - my_group_L_start + 1 + row_blk_start(atom_RI) - 1
 
                                        IF (LLL < 1) CYCLE
                                        IF (LLL > my_group_L_size) CYCLE
@@ -2244,49 +2225,49 @@ CONTAINS
                                        ALLOCATE (block_transposed(col_blk_sizes(col), row_blk_sizes(row)*my_group_L_size))
                                        block_transposed = 0.0_dp
 
-                                       offset_row_from_LLL = (LLL-1)*row_blk_sizes(row)
-                                       offset_col_from_LLL = (LLL-1)*col_blk_sizes(col)
+                                       offset_row_from_LLL = (LLL - 1)*row_blk_sizes(row)
+                                       offset_col_from_LLL = (LLL - 1)*col_blk_sizes(col)
 
                                        IF (iatom < jatom) THEN
 
                                           block_start_row = sgfa
-                                          block_end_row = sgfa+nsgfa(iset)-1
+                                          block_end_row = sgfa + nsgfa(iset) - 1
                                           block_start_col = sgfb
-                                          block_end_col = sgfb+nsgfb(jset)-1
+                                          block_end_col = sgfb + nsgfb(jset) - 1
 
                                           ! factor 0.5 is necessary due to double filling due to double iterate loop
                                           block(block_start_row:block_end_row, &
-                                                block_start_col+offset_col_from_LLL:block_end_col+offset_col_from_LLL) = &
+                                                block_start_col + offset_col_from_LLL:block_end_col + offset_col_from_LLL) = &
                                              0.5_dp*s_abRI_contr(:, :, isgf_RI)
 
                                           block_transposed(block_start_col:block_end_col, &
-                                                           block_start_row+offset_row_from_LLL: &
-                                                           block_end_row+offset_row_from_LLL) = &
+                                                           block_start_row + offset_row_from_LLL: &
+                                                           block_end_row + offset_row_from_LLL) = &
                                              0.5_dp*s_abRI_contr_transposed(:, :, isgf_RI)
 
                                        ELSE IF (iatom > jatom) THEN
 
                                           block_start_row = sgfb
-                                          block_end_row = sgfb+nsgfb(jset)-1
+                                          block_end_row = sgfb + nsgfb(jset) - 1
                                           block_start_col = sgfa
-                                          block_end_col = sgfa+nsgfa(iset)-1
+                                          block_end_col = sgfa + nsgfa(iset) - 1
 
                                           ! factor 0.5 is necessary due to double filling due to double iterate loop
                                           block(block_start_row:block_end_row, &
-                                                block_start_col+offset_col_from_LLL:block_end_col+offset_col_from_LLL) = &
+                                                block_start_col + offset_col_from_LLL:block_end_col + offset_col_from_LLL) = &
                                              0.5_dp*s_abRI_contr_transposed(:, :, isgf_RI)
 
                                           block_transposed(block_start_col:block_end_col, &
-                                                           block_start_row+offset_row_from_LLL: &
-                                                           block_end_row+offset_row_from_LLL) = &
+                                                           block_start_row + offset_row_from_LLL: &
+                                                           block_end_row + offset_row_from_LLL) = &
                                              0.5_dp*s_abRI_contr(:, :, isgf_RI)
 
                                        ELSE IF (iatom .EQ. jatom) THEN
 
                                           block_start_row = sgfa
-                                          block_end_row = sgfa+nsgfa(iset)-1
-                                          block_start_col = sgfb+offset_col_from_LLL
-                                          block_end_col = sgfb+nsgfb(jset)-1+offset_col_from_LLL
+                                          block_end_row = sgfa + nsgfa(iset) - 1
+                                          block_start_col = sgfb + offset_col_from_LLL
+                                          block_end_col = sgfb + nsgfb(jset) - 1 + offset_col_from_LLL
 
                                           block(block_start_row:block_end_row, &
                                                 block_start_col:block_end_col) = s_abRI_contr(:, :, isgf_RI)
@@ -2336,22 +2317,22 @@ CONTAINS
 
                                           ! transform from the primary Gaussian basis into the MAO basis
                                           CALL ab_contract(temp_mat_mao_occ_virt(:, :), s_abRI_contr(:, :, isgf_RI), &
-                                                           mao_coeff_repl_occ(iatom)%array(sgfa:sgfa+nsgfa(iset)-1, :), &
-                                                           mao_coeff_repl_virt(jatom)%array(sgfb:sgfb+nsgfb(jset)-1, :), &
+                                                           mao_coeff_repl_occ(iatom)%array(sgfa:sgfa + nsgfa(iset) - 1, :), &
+                                                           mao_coeff_repl_virt(jatom)%array(sgfb:sgfb + nsgfb(jset) - 1, :), &
                                                            nsgfa(iset), nsgfb(jset), &
                                                            iatom_basis_size_mao_occ, jatom_basis_size_mao_virt)
 
                                           CALL ab_contract(temp_mat_mao_virt_occ(:, :), s_abRI_contr(:, :, isgf_RI), &
-                                                           mao_coeff_repl_virt(iatom)%array(sgfa:sgfa+nsgfa(iset)-1, :), &
-                                                           mao_coeff_repl_occ(jatom)%array(sgfb:sgfb+nsgfb(jset)-1, :), &
+                                                           mao_coeff_repl_virt(iatom)%array(sgfa:sgfa + nsgfa(iset) - 1, :), &
+                                                           mao_coeff_repl_occ(jatom)%array(sgfb:sgfb + nsgfb(jset) - 1, :), &
                                                            nsgfa(iset), nsgfb(jset), &
                                                            iatom_basis_size_mao_virt, jatom_basis_size_mao_occ)
 
-                                          start_row_from_LLL_mao_occ = (LLL-1)*row_basis_size_mao_occ+1
-                                          start_col_from_LLL_mao_occ = (LLL-1)*col_basis_size_mao_occ+1
+                                          start_row_from_LLL_mao_occ = (LLL - 1)*row_basis_size_mao_occ + 1
+                                          start_col_from_LLL_mao_occ = (LLL - 1)*col_basis_size_mao_occ + 1
 
-                                          start_row_from_LLL_mao_virt = (LLL-1)*row_basis_size_mao_virt+1
-                                          start_col_from_LLL_mao_virt = (LLL-1)*col_basis_size_mao_virt+1
+                                          start_row_from_LLL_mao_virt = (LLL - 1)*row_basis_size_mao_virt + 1
+                                          start_col_from_LLL_mao_virt = (LLL - 1)*col_basis_size_mao_virt + 1
 
                                           end_row_from_LLL_mao_occ = LLL*row_basis_size_mao_occ
                                           end_col_from_LLL_mao_occ = LLL*col_basis_size_mao_occ
@@ -2773,24 +2754,24 @@ CONTAINS
                                  IF (outer_cell_vec(3) < minval_3) CYCLE
                                  IF (outer_cell_vec(3) > maxval_3) CYCLE
 
-                                 IF (-outer_cell_vec(1)+cell_vec(1) < minval_1) CYCLE
-                                 IF (-outer_cell_vec(1)+cell_vec(1) > maxval_1) CYCLE
-                                 IF (-outer_cell_vec(2)+cell_vec(2) < minval_2) CYCLE
-                                 IF (-outer_cell_vec(2)+cell_vec(2) > maxval_2) CYCLE
-                                 IF (-outer_cell_vec(3)+cell_vec(3) < minval_3) CYCLE
-                                 IF (-outer_cell_vec(3)+cell_vec(3) > maxval_3) CYCLE
+                                 IF (-outer_cell_vec(1) + cell_vec(1) < minval_1) CYCLE
+                                 IF (-outer_cell_vec(1) + cell_vec(1) > maxval_1) CYCLE
+                                 IF (-outer_cell_vec(2) + cell_vec(2) < minval_2) CYCLE
+                                 IF (-outer_cell_vec(2) + cell_vec(2) > maxval_2) CYCLE
+                                 IF (-outer_cell_vec(3) + cell_vec(3) < minval_3) CYCLE
+                                 IF (-outer_cell_vec(3) + cell_vec(3) > maxval_3) CYCLE
 
                                  acell = cell_to_index(-outer_cell_vec(1), -outer_cell_vec(2), -outer_cell_vec(3))
                                  IF (.NOT. (acell == i_img)) CYCLE
-                                 bcell = cell_to_index(-outer_cell_vec(1)+cell_vec(1), &
-                                                       -outer_cell_vec(2)+cell_vec(2), &
-                                                       -outer_cell_vec(3)+cell_vec(3))
+                                 bcell = cell_to_index(-outer_cell_vec(1) + cell_vec(1), &
+                                                       -outer_cell_vec(2) + cell_vec(2), &
+                                                       -outer_cell_vec(3) + cell_vec(3))
                                  IF (.NOT. (bcell == j_img)) CYCLE
 
                               END IF
 
                               raRI = rab_outer
-                              rbRI = raRI-rab
+                              rbRI = raRI - rab
 
                            ELSE IF (atom_RI .EQ. iatom_outer .AND. &
                                     iatom .EQ. jatom_outer) THEN
@@ -2801,7 +2782,7 @@ CONTAINS
                               END IF
 
                               raRI = -rab_outer
-                              rbRI = raRI-rab
+                              rbRI = raRI - rab
 
                            ELSE IF (jatom .EQ. iatom_outer .AND. &
                                     atom_RI .EQ. jatom_outer) THEN
@@ -2812,7 +2793,7 @@ CONTAINS
                               END IF
 
                               rbRI = rab_outer
-                              raRI = rbRI+rab
+                              raRI = rbRI + rab
 
                            ELSE IF (atom_RI .EQ. iatom_outer .AND. &
                                     jatom .EQ. jatom_outer) THEN
@@ -2823,7 +2804,7 @@ CONTAINS
                               END IF
 
                               rbRI = -rab_outer
-                              raRI = rbRI+rab
+                              raRI = rbRI + rab
 
                            END IF
 
@@ -2866,12 +2847,12 @@ CONTAINS
 
                               DO iset = 1, nseta
 
-                                 IF (set_radius_a(iset)+set_radius_RI(set_RI) < daRI) CYCLE
+                                 IF (set_radius_a(iset) + set_radius_RI(set_RI) < daRI) CYCLE
 
                                  DO jset = 1, nsetb
 
-                                    IF (set_radius_a(iset)+set_radius_b(jset) < dab) CYCLE
-                                    IF (set_radius_b(jset)+set_radius_RI(set_RI) < dbRI) CYCLE
+                                    IF (set_radius_a(iset) + set_radius_b(jset) < dab) CYCLE
+                                    IF (set_radius_b(jset) + set_radius_RI(set_RI) < dbRI) CYCLE
 
                                     nco_RI = npgf_RI(set_RI)*ncoset(l_max_RI(set_RI))
                                     ncoa = npgfa(iset)*ncoset(la_max(iset))
@@ -2881,11 +2862,11 @@ CONTAINS
                                     sgfa = first_sgfa(1, iset)
                                     sgfb = first_sgfb(1, jset)
 
-                                    LLL_set_start = 1+sgf_RI-1-my_group_L_start+1+row_blk_start(atom_RI)-1
+                                    LLL_set_start = 1 + sgf_RI - 1 - my_group_L_start + 1 + row_blk_start(atom_RI) - 1
 
                                     IF (LLL_set_start > my_group_L_size) CYCLE
 
-                                    LLL_set_end = nsgf_RI(set_RI)+sgf_RI-1-my_group_L_start+1+row_blk_start(atom_RI)-1
+                                    LLL_set_end = nsgf_RI(set_RI) + sgf_RI - 1 - my_group_L_start + 1 + row_blk_start(atom_RI) - 1
 
                                     IF (LLL_set_end < 1) CYCLE
 
@@ -2893,7 +2874,7 @@ CONTAINS
 
                                        DO isgf_RI = 1, nsgf_RI(set_RI)
 
-                                          LLL = isgf_RI+sgf_RI-1-my_group_L_start+1+row_blk_start(atom_RI)-1
+                                          LLL = isgf_RI + sgf_RI - 1 - my_group_L_start + 1 + row_blk_start(atom_RI) - 1
 
                                           IF (LLL < 1) CYCLE
                                           IF (LLL > my_group_L_size) CYCLE
@@ -2965,14 +2946,14 @@ CONTAINS
                                                    ALLOCATE (tmp(blk_cnt))
                                                    tmp(1:blk_cnt) = rows_to_alloc(i_img_outer, j_img_outer)%array(1:blk_cnt)
                                                    DEALLOCATE (rows_to_alloc(i_img_outer, j_img_outer)%array)
-                                                   ALLOCATE (rows_to_alloc(i_img_outer, j_img_outer)%array(blk_cnt+1))
+                                                   ALLOCATE (rows_to_alloc(i_img_outer, j_img_outer)%array(blk_cnt + 1))
                                                    rows_to_alloc(i_img_outer, j_img_outer)%array(1:blk_cnt) = tmp(1:blk_cnt)
-                                                   rows_to_alloc(i_img_outer, j_img_outer)%array(blk_cnt+1) = row
+                                                   rows_to_alloc(i_img_outer, j_img_outer)%array(blk_cnt + 1) = row
                                                    tmp(1:blk_cnt) = cols_to_alloc(i_img_outer, j_img_outer)%array(1:blk_cnt)
                                                    DEALLOCATE (cols_to_alloc(i_img_outer, j_img_outer)%array)
-                                                   ALLOCATE (cols_to_alloc(i_img_outer, j_img_outer)%array(blk_cnt+1))
+                                                   ALLOCATE (cols_to_alloc(i_img_outer, j_img_outer)%array(blk_cnt + 1))
                                                    cols_to_alloc(i_img_outer, j_img_outer)%array(1:blk_cnt) = tmp(1:blk_cnt)
-                                                   cols_to_alloc(i_img_outer, j_img_outer)%array(blk_cnt+1) = col
+                                                   cols_to_alloc(i_img_outer, j_img_outer)%array(blk_cnt + 1) = col
                                                    DEALLOCATE (tmp)
 
                                                    old_row(i_img_outer, j_img_outer) = row
@@ -2983,16 +2964,16 @@ CONTAINS
                                                    ALLOCATE (tmp(blk_cnt))
                                                    tmp(1:blk_cnt) = rows_to_alloc(i_img_outer, j_img_outer)%array(1:blk_cnt)
                                                    DEALLOCATE (rows_to_alloc(i_img_outer, j_img_outer)%array)
-                                                   ALLOCATE (rows_to_alloc(i_img_outer, j_img_outer)%array(blk_cnt+2))
+                                                   ALLOCATE (rows_to_alloc(i_img_outer, j_img_outer)%array(blk_cnt + 2))
                                                    rows_to_alloc(i_img_outer, j_img_outer)%array(1:blk_cnt) = tmp(1:blk_cnt)
-                                                   rows_to_alloc(i_img_outer, j_img_outer)%array(blk_cnt+1) = row
-                                                   rows_to_alloc(i_img_outer, j_img_outer)%array(blk_cnt+2) = col
+                                                   rows_to_alloc(i_img_outer, j_img_outer)%array(blk_cnt + 1) = row
+                                                   rows_to_alloc(i_img_outer, j_img_outer)%array(blk_cnt + 2) = col
                                                    tmp(1:blk_cnt) = cols_to_alloc(i_img_outer, j_img_outer)%array(1:blk_cnt)
                                                    DEALLOCATE (cols_to_alloc(i_img_outer, j_img_outer)%array)
-                                                   ALLOCATE (cols_to_alloc(i_img_outer, j_img_outer)%array(blk_cnt+2))
+                                                   ALLOCATE (cols_to_alloc(i_img_outer, j_img_outer)%array(blk_cnt + 2))
                                                    cols_to_alloc(i_img_outer, j_img_outer)%array(1:blk_cnt) = tmp(1:blk_cnt)
-                                                   cols_to_alloc(i_img_outer, j_img_outer)%array(blk_cnt+1) = col
-                                                   cols_to_alloc(i_img_outer, j_img_outer)%array(blk_cnt+2) = row
+                                                   cols_to_alloc(i_img_outer, j_img_outer)%array(blk_cnt + 1) = col
+                                                   cols_to_alloc(i_img_outer, j_img_outer)%array(blk_cnt + 2) = row
                                                    DEALLOCATE (tmp)
 
                                                    old_row(i_img_outer, j_img_outer) = row
@@ -3160,10 +3141,10 @@ CONTAINS
 
       ALLOCATE (mao_coeff_repl(1:natom))
 
-      ALLOCATE (num_entries_atoms_send(0:2*para_env%num_pe-1))
+      ALLOCATE (num_entries_atoms_send(0:2*para_env%num_pe - 1))
       num_entries_atoms_send(:) = 0
 
-      ALLOCATE (num_entries_atoms_rec(0:2*para_env%num_pe-1))
+      ALLOCATE (num_entries_atoms_rec(0:2*para_env%num_pe - 1))
       num_entries_atoms_rec(:) = 0
 
       DO iatom = 1, natom
@@ -3177,8 +3158,8 @@ CONTAINS
 
             CALL dbcsr_get_stored_coordinates(mao_coeff(1)%matrix, iatom, iatom, imepos)
 
-            num_entries_atoms_rec(2*imepos) = num_entries_atoms_rec(2*imepos)+prim_size*mao_size
-            num_entries_atoms_rec(2*imepos+1) = num_entries_atoms_rec(2*imepos+1)+1
+            num_entries_atoms_rec(2*imepos) = num_entries_atoms_rec(2*imepos) + prim_size*mao_size
+            num_entries_atoms_rec(2*imepos + 1) = num_entries_atoms_rec(2*imepos + 1) + 1
 
          END IF
 
@@ -3190,11 +3171,11 @@ CONTAINS
          num_entries_atoms_send(0:1) = num_entries_atoms_rec(0:1)
       END IF
 
-      ALLOCATE (buffer_rec(0:para_env%num_pe-1))
-      ALLOCATE (buffer_send(0:para_env%num_pe-1))
+      ALLOCATE (buffer_rec(0:para_env%num_pe - 1))
+      ALLOCATE (buffer_send(0:para_env%num_pe - 1))
 
       ! allocate data message and corresponding indices
-      DO imepos = 0, para_env%num_pe-1
+      DO imepos = 0, para_env%num_pe - 1
 
          ALLOCATE (buffer_rec(imepos)%msg(num_entries_atoms_rec(2*imepos)))
          buffer_rec(imepos)%msg = 0.0_dp
@@ -3202,18 +3183,18 @@ CONTAINS
          ALLOCATE (buffer_send(imepos)%msg(num_entries_atoms_send(2*imepos)))
          buffer_send(imepos)%msg = 0.0_dp
 
-         ALLOCATE (buffer_rec(imepos)%indx(num_entries_atoms_rec(2*imepos+1), 6))
+         ALLOCATE (buffer_rec(imepos)%indx(num_entries_atoms_rec(2*imepos + 1), 6))
          buffer_rec(imepos)%indx = 0
 
-         ALLOCATE (buffer_send(imepos)%indx(num_entries_atoms_send(2*imepos+1), 6))
+         ALLOCATE (buffer_send(imepos)%indx(num_entries_atoms_send(2*imepos + 1), 6))
          buffer_send(imepos)%indx = 0
 
       END DO
 
-      ALLOCATE (entry_counter(0:para_env%num_pe-1))
+      ALLOCATE (entry_counter(0:para_env%num_pe - 1))
       entry_counter(:) = 0
 
-      ALLOCATE (atom_counter(0:para_env%num_pe-1))
+      ALLOCATE (atom_counter(0:para_env%num_pe - 1))
       atom_counter = 0
 
       DO iatom = 1, natom
@@ -3223,7 +3204,7 @@ CONTAINS
 
             CALL dbcsr_get_stored_coordinates(mao_coeff(1)%matrix, iatom, iatom, imepos)
 
-            atom_counter(imepos) = atom_counter(imepos)+1
+            atom_counter(imepos) = atom_counter(imepos) + 1
 
             buffer_rec(imepos)%indx(atom_counter(imepos), 1) = iatom
 
@@ -3233,10 +3214,10 @@ CONTAINS
 
       ALLOCATE (req_array(1:para_env%num_pe, 4))
 
-      ALLOCATE (sizes_rec(0:para_env%num_pe-1))
-      ALLOCATE (sizes_send(0:para_env%num_pe-1))
+      ALLOCATE (sizes_rec(0:para_env%num_pe - 1))
+      ALLOCATE (sizes_send(0:para_env%num_pe - 1))
 
-      DO imepos = 0, para_env%num_pe-1
+      DO imepos = 0, para_env%num_pe - 1
 
          sizes_send(imepos) = num_entries_atoms_send(2*imepos)
          sizes_rec(imepos) = num_entries_atoms_rec(2*imepos)
@@ -3258,18 +3239,18 @@ CONTAINS
          ! for the mao trafo matrix, only the diagonal blocks should be allocated
          CPASSERT(row == col)
 
-         DO imepos = 0, para_env%num_pe-1
+         DO imepos = 0, para_env%num_pe - 1
 
             IF (ANY(buffer_send(imepos)%indx(:, 1) == row)) THEN
 
                block_size = row_size*col_size
-               start_msg = entry_counter(imepos)+1
-               end_msg = entry_counter(imepos)+block_size
+               start_msg = entry_counter(imepos) + 1
+               end_msg = entry_counter(imepos) + block_size
 
                buffer_send(imepos)%msg(start_msg:end_msg) = RESHAPE(data_block(1:row_size, 1:col_size), (/block_size/))
 
-               entry_counter(imepos) = entry_counter(imepos)+block_size
-               atom_counter(imepos) = atom_counter(imepos)+1
+               entry_counter(imepos) = entry_counter(imepos) + block_size
+               atom_counter(imepos) = atom_counter(imepos) + 1
 
                buffer_send(imepos)%indx(atom_counter(imepos), 2) = row
                buffer_send(imepos)%indx(atom_counter(imepos), 3) = row_size
@@ -3291,9 +3272,9 @@ CONTAINS
       DEALLOCATE (req_array, sizes_rec, sizes_send)
 
       ! fill mao_coeff_repl
-      DO imepos = 0, para_env%num_pe-1
+      DO imepos = 0, para_env%num_pe - 1
 
-         num_atom_from_imepos = num_entries_atoms_rec(2*imepos+1)
+         num_atom_from_imepos = num_entries_atoms_rec(2*imepos + 1)
 
          DO atom_rec = 1, num_atom_from_imepos
 
@@ -3312,7 +3293,7 @@ CONTAINS
 
       DEALLOCATE (num_entries_atoms_send, num_entries_atoms_rec, entry_counter, atom_counter)
 
-      DO imepos = 0, para_env%num_pe-1
+      DO imepos = 0, para_env%num_pe - 1
          DEALLOCATE (buffer_rec(imepos)%msg)
          DEALLOCATE (buffer_rec(imepos)%indx)
          DEALLOCATE (buffer_send(imepos)%msg)
@@ -3409,14 +3390,14 @@ CONTAINS
       ALLOCATE (my_group_L_ends_im_time(1:cut_memory))
       my_group_L_ends_im_time = 0
 
-      DO icut = 0, cut_memory-1
+      DO icut = 0, cut_memory - 1
 
          CALL get_group_dist(gd_array_mem_cut, icut, sizes=size_RI, starts=start_RI)
 
          itmp = get_limit(size_RI, ngroup, color_sub)
 
-         my_group_L_starts_im_time(icut+1) = itmp(1)+start_RI-1
-         my_group_L_ends_im_time(icut+1) = itmp(2)+start_RI-1
+         my_group_L_starts_im_time(icut + 1) = itmp(1) + start_RI - 1
+         my_group_L_ends_im_time(icut + 1) = itmp(2) + start_RI - 1
 
       END DO
 
@@ -3444,12 +3425,12 @@ CONTAINS
 
       row_blk_offset_RI(1) = 1
       DO iblk_RI = 2, nblks_RI
-         row_blk_offset_RI(iblk_RI) = row_blk_offset_RI(iblk_RI-1)+row_blk_sizes_RI(iblk_RI-1)
+         row_blk_offset_RI(iblk_RI) = row_blk_offset_RI(iblk_RI - 1) + row_blk_sizes_RI(iblk_RI - 1)
       END DO
 
       row_blk_end_RI(nblks_RI) = dimen_RI
-      DO iblk_RI = 1, nblks_RI-1
-         row_blk_end_RI(iblk_RI) = row_blk_offset_RI(iblk_RI+1)-1
+      DO iblk_RI = 1, nblks_RI - 1
+         row_blk_end_RI(iblk_RI) = row_blk_offset_RI(iblk_RI + 1) - 1
       END DO
 
       cut_RI = cut_memory
@@ -3467,10 +3448,10 @@ CONTAINS
                    row_blk_offset_RI(iblk_RI) <= my_group_L_ends_im_time(icut) .AND. &
                    row_blk_end_RI(iblk_RI) < my_group_L_ends_im_time(icut)) THEN
 
-                  cut_RI = cut_RI+1
+                  cut_RI = cut_RI + 1
 
-                  ALLOCATE (my_group_L_starts_im_time_tmp(cut_RI-1))
-                  ALLOCATE (my_group_L_ends_im_time_tmp(cut_RI-1))
+                  ALLOCATE (my_group_L_starts_im_time_tmp(cut_RI - 1))
+                  ALLOCATE (my_group_L_ends_im_time_tmp(cut_RI - 1))
 
                   my_group_L_starts_im_time_tmp(:) = my_group_L_starts_im_time(:)
                   my_group_L_ends_im_time_tmp(:) = my_group_L_ends_im_time(:)
@@ -3482,16 +3463,16 @@ CONTAINS
                   ALLOCATE (my_group_L_ends_im_time(cut_RI))
 
                   my_group_L_starts_im_time(1:icut) = my_group_L_starts_im_time_tmp(1:icut)
-                  my_group_L_starts_im_time(icut+1) = row_blk_offset_RI(iblk_RI+1)
-                  IF (cut_RI >= icut+2) THEN
-                     my_group_L_starts_im_time(icut+2:cut_RI) = my_group_L_starts_im_time_tmp(icut+1:cut_RI-1)
+                  my_group_L_starts_im_time(icut + 1) = row_blk_offset_RI(iblk_RI + 1)
+                  IF (cut_RI >= icut + 2) THEN
+                     my_group_L_starts_im_time(icut + 2:cut_RI) = my_group_L_starts_im_time_tmp(icut + 1:cut_RI - 1)
                   END IF
 
-                  IF (icut-1 >= 1) THEN
-                     my_group_L_ends_im_time(1:icut-1) = my_group_L_ends_im_time_tmp(1:icut-1)
+                  IF (icut - 1 >= 1) THEN
+                     my_group_L_ends_im_time(1:icut - 1) = my_group_L_ends_im_time_tmp(1:icut - 1)
                   END IF
-                  my_group_L_ends_im_time(icut) = row_blk_offset_RI(iblk_RI+1)-1
-                  my_group_L_ends_im_time(icut+1:cut_RI) = my_group_L_ends_im_time_tmp(icut:cut_RI-1)
+                  my_group_L_ends_im_time(icut) = row_blk_offset_RI(iblk_RI + 1) - 1
+                  my_group_L_ends_im_time(icut + 1:cut_RI) = my_group_L_ends_im_time_tmp(icut:cut_RI - 1)
 
                   DEALLOCATE (my_group_L_starts_im_time_tmp)
                   DEALLOCATE (my_group_L_ends_im_time_tmp)
@@ -3505,7 +3486,7 @@ CONTAINS
       END DO
 
       ALLOCATE (my_group_L_sizes_im_time(cut_RI))
-      my_group_L_sizes_im_time(:) = my_group_L_ends_im_time(:)-my_group_L_starts_im_time(:)+1
+      my_group_L_sizes_im_time(:) = my_group_L_ends_im_time(:) - my_group_L_starts_im_time(:) + 1
 
       ALLOCATE (qs_env%mp2_env%ri_rpa_im_time_util(cut_memory))
 

@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -45,8 +45,8 @@ MODULE cp2k_info
    CHARACTER(LEN=*), PARAMETER :: compile_revision = "unknown"
 #endif
 
-   CHARACTER(LEN=*), PARAMETER :: version_nr = "7.0"
-   CHARACTER(LEN=*), PARAMETER :: cp2k_year = "2018"
+   CHARACTER(LEN=*), PARAMETER :: version_nr = "8.0"
+   CHARACTER(LEN=*), PARAMETER :: cp2k_year = "2019"
    CHARACTER(LEN=*), PARAMETER :: cp2k_version = "CP2K version "//TRIM(version_nr)
    CHARACTER(LEN=*), PARAMETER :: cp2k_home = "https://www.cp2k.org/"
 
@@ -291,7 +291,8 @@ CONTAINS
       WRITE (iunit, '(T2,A)') '!   Copyright (C) 2004, 2005, 2006, 2007  CP2K developers group               !'
       WRITE (iunit, '(T2,A)') '!   Copyright (C) 2008, 2009, 2010, 2011  CP2K developers group               !'
       WRITE (iunit, '(T2,A)') '!   Copyright (C) 2012, 2013, 2014, 2015  CP2K developers group               !'
-      WRITE (iunit, '(T2,A)') '!   Copyright (C) 2016, 2017, 2018        CP2K developers group               !'
+      WRITE (iunit, '(T2,A)') '!   Copyright (C) 2016, 2017, 2018, 2019  CP2K developers group               !'
+      WRITE (iunit, '(T2,A)') '!   Copyright (C) 2020                    CP2K developers group               !'
       WRITE (iunit, '(T2,A)') '!                                                                             !'
       WRITE (iunit, '(T2,A)') '!   This program is free software; you can redistribute it and/or modify      !'
       WRITE (iunit, '(T2,A)') '!   it under the terms of the GNU General Public License as published by      !'

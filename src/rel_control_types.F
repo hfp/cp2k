@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -108,7 +108,7 @@ CONTAINS
       CPASSERT(ASSOCIATED(rel_control))
 
       CPASSERT(rel_control%ref_count > 0)
-      rel_control%ref_count = rel_control%ref_count+1
+      rel_control%ref_count = rel_control%ref_count + 1
 
    END SUBROUTINE rel_c_retain
 
@@ -130,7 +130,7 @@ CONTAINS
 
       IF (ASSOCIATED(rel_control)) THEN
          CPASSERT(rel_control%ref_count > 0)
-         rel_control%ref_count = rel_control%ref_count-1
+         rel_control%ref_count = rel_control%ref_count - 1
          IF (rel_control%ref_count < 1) THEN
             DEALLOCATE (rel_control)
          END IF

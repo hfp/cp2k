@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -106,7 +106,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(pwdft_env))
       CPASSERT(pwdft_env%ref_count > 0)
-      pwdft_env%ref_count = pwdft_env%ref_count+1
+      pwdft_env%ref_count = pwdft_env%ref_count + 1
    END SUBROUTINE pwdft_env_retain
 
 ! **************************************************************************************************
@@ -127,7 +127,7 @@ CONTAINS
 
       IF (ASSOCIATED(pwdft_env)) THEN
          CPASSERT(pwdft_env%ref_count > 0)
-         pwdft_env%ref_count = pwdft_env%ref_count-1
+         pwdft_env%ref_count = pwdft_env%ref_count - 1
          IF (pwdft_env%ref_count < 1) THEN
             !
             IF (ASSOCIATED(pwdft_env%qs_subsys)) THEN
@@ -327,7 +327,7 @@ CONTAINS
       ALLOCATE (pwdft_env)
 
       pwdft_env%ref_count = 1
-      last_pwdft_id = last_pwdft_id+1
+      last_pwdft_id = last_pwdft_id + 1
       pwdft_env%id_nr = last_pwdft_id
       CALL pwdft_env_clear(pwdft_env)
 

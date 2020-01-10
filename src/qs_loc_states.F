@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -146,7 +146,7 @@ CONTAINS
                   ALLOCATE (wc(ispin)%centres(3, ns))
                ENDIF
 
-               wc(ispin)%centres(:, :) = scenter(1+(ispin-1)*3:ispin*3, :)
+               wc(ispin)%centres(:, :) = scenter(1 + (ispin - 1)*3:ispin*3, :)
                lstates => qs_loc_env%localized_wfn_control%loc_states(:, ispin)
                CALL construct_wannier_states(mo_local(ispin)%matrix, &
                                              ks_rmpv(ispin)%matrix, qs_env, loc_print_section=loc_print_section, &

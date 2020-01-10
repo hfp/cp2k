@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -43,11 +43,10 @@ MODULE helium_sampling
    USE machine,                         ONLY: m_walltime
    USE message_passing,                 ONLY: mp_bcast,&
                                               mp_sum
-   USE parallel_rng_types,              ONLY: next_random_number
    USE physcon,                         ONLY: angstrom
    USE pint_public,                     ONLY: pint_com_pos
    USE pint_types,                      ONLY: pint_env_type
-   USE splines_types,                   ONLY: spline_data_p_type
+   USE splines_types,                   ONLY: spline_data_type
 #include "../base/base_uses.f90"
 
    IMPLICIT NONE
@@ -128,7 +127,7 @@ CONTAINS
 
       DO step = 1, num_steps
 
-         tot_steps = tot_steps+1
+         tot_steps = tot_steps + 1
 
          IF (ASSOCIATED(helium_env)) THEN
             DO k = 1, SIZE(helium_env)
@@ -212,7 +211,7 @@ CONTAINS
          ! runs independent helium simulation, the properties and forces are
          ! averaged over parallel helium environments once per step.
          inv_xn = 0.0_dp
-         SELECT CASE (helium_env (k)%helium%sampling_method)
+         SELECT CASE (helium_env(k)%helium%sampling_method)
 
          CASE (helium_sampling_worm)
 
@@ -228,7 +227,7 @@ CONTAINS
                ! 'rotation state' in helium%relrot wich is within (0, helium%beads-1)
                ! (this is needed to sample different fragments of the permutation
                ! paths in try_permutations)
-               rnd = next_random_number(helium_env(k)%helium%rng_stream_uniform)
+               rnd = helium_env(k)%helium%rng_stream_uniform%next()
                nslices = INT(rnd*helium_env(k)%helium%beads)
                CALL helium_rotate(helium_env(k)%helium, nslices)
 
@@ -238,15 +237,15 @@ CONTAINS
                IF (helium_env(k)%helium%solute_present) THEN
                   IF (helium_env(k)%helium%get_helium_forces == helium_forces_average) THEN
                      CALL helium_solute_e_f(pint_env, helium_env(k)%helium, rtmp)
-                     helium_env(k)%helium%force_avrg(:, :) = helium_env(k)%helium%force_avrg(:, :)+ &
+                     helium_env(k)%helium%force_avrg(:, :) = helium_env(k)%helium%force_avrg(:, :) + &
                                                              helium_env(k)%helium%force_inst(:, :)
                   END IF
                END IF
                CALL helium_calc_energy(helium_env(k)%helium, pint_env)
 
-               helium_env(k)%helium%energy_avrg(:) = helium_env(k)%helium%energy_avrg(:)+helium_env(k)%helium%energy_inst(:)
+               helium_env(k)%helium%energy_avrg(:) = helium_env(k)%helium%energy_avrg(:) + helium_env(k)%helium%energy_inst(:)
                CALL helium_calc_plength(helium_env(k)%helium)
-               helium_env(k)%helium%plength_avrg(:) = helium_env(k)%helium%plength_avrg(:)+helium_env(k)%helium%plength_inst(:)
+               helium_env(k)%helium%plength_avrg(:) = helium_env(k)%helium%plength_avrg(:) + helium_env(k)%helium%plength_inst(:)
 
                ! instantaneous force output according to HELIUM%PRINT%FORCES_INST
                ! Warning: file I/O here may cost A LOT of cpu time!
@@ -290,33 +289,33 @@ CONTAINS
          helium_env(k)%helium%mominer%inst(:) = helium_total_moment_of_inertia(helium_env(k)%helium)
 
          ! properties accumulated over the whole MC process
-         helium_env(k)%helium%proarea%accu(:) = helium_env(k)%helium%proarea%accu(:)+helium_env(k)%helium%proarea%inst(:)
-         helium_env(k)%helium%prarea2%accu(:) = helium_env(k)%helium%prarea2%accu(:)+helium_env(k)%helium%prarea2%inst(:)
-         helium_env(k)%helium%wnmber2%accu(:) = helium_env(k)%helium%wnmber2%accu(:)+helium_env(k)%helium%wnmber2%inst(:)
-         helium_env(k)%helium%mominer%accu(:) = helium_env(k)%helium%mominer%accu(:)+helium_env(k)%helium%mominer%inst(:)
+         helium_env(k)%helium%proarea%accu(:) = helium_env(k)%helium%proarea%accu(:) + helium_env(k)%helium%proarea%inst(:)
+         helium_env(k)%helium%prarea2%accu(:) = helium_env(k)%helium%prarea2%accu(:) + helium_env(k)%helium%prarea2%inst(:)
+         helium_env(k)%helium%wnmber2%accu(:) = helium_env(k)%helium%wnmber2%accu(:) + helium_env(k)%helium%wnmber2%inst(:)
+         helium_env(k)%helium%mominer%accu(:) = helium_env(k)%helium%mominer%accu(:) + helium_env(k)%helium%mominer%inst(:)
          IF (helium_env(k)%helium%rho_present) THEN
             CALL helium_calc_rho(helium_env(k)%helium)
-            helium_env(k)%helium%rho_accu(:, :, :, :) = helium_env(k)%helium%rho_accu(:, :, :, :)+ &
+            helium_env(k)%helium%rho_accu(:, :, :, :) = helium_env(k)%helium%rho_accu(:, :, :, :) + &
                                                         helium_env(k)%helium%rho_inst(:, :, :, :)
          END IF
          IF (helium_env(k)%helium%rdf_present) THEN
             CALL helium_set_rdf_coord_system(helium_env(k)%helium, pint_env)
             CALL helium_calc_rdf(helium_env(k)%helium)
-            helium_env(k)%helium%rdf_accu(:, :) = helium_env(k)%helium%rdf_accu(:, :)+helium_env(k)%helium%rdf_inst(:, :)
+            helium_env(k)%helium%rdf_accu(:, :) = helium_env(k)%helium%rdf_accu(:, :) + helium_env(k)%helium%rdf_inst(:, :)
          END IF
 
          ! running averages (restart-aware)
-         nsteps = helium_env(k)%helium%current_step-helium_env(k)%helium%first_step
+         nsteps = helium_env(k)%helium%current_step - helium_env(k)%helium%first_step
          iweight = helium_env(k)%helium%averages_iweight
          rweight = REAL(iweight, dp)
-         rtmp = 1.0_dp/(REAL(MAX(1, nsteps+iweight), dp))
-         helium_env(k)%helium%proarea%ravr(:) = (helium_env(k)%helium%proarea%accu(:)+ &
+         rtmp = 1.0_dp/(REAL(MAX(1, nsteps + iweight), dp))
+         helium_env(k)%helium%proarea%ravr(:) = (helium_env(k)%helium%proarea%accu(:) + &
                                                  rweight*helium_env(k)%helium%proarea%rstr(:))*rtmp
-         helium_env(k)%helium%prarea2%ravr(:) = (helium_env(k)%helium%prarea2%accu(:)+ &
+         helium_env(k)%helium%prarea2%ravr(:) = (helium_env(k)%helium%prarea2%accu(:) + &
                                                  rweight*helium_env(k)%helium%prarea2%rstr(:))*rtmp
-         helium_env(k)%helium%wnmber2%ravr(:) = (helium_env(k)%helium%wnmber2%accu(:)+ &
+         helium_env(k)%helium%wnmber2%ravr(:) = (helium_env(k)%helium%wnmber2%accu(:) + &
                                                  rweight*helium_env(k)%helium%wnmber2%rstr(:))*rtmp
-         helium_env(k)%helium%mominer%ravr(:) = (helium_env(k)%helium%mominer%accu(:)+ &
+         helium_env(k)%helium%mominer%ravr(:) = (helium_env(k)%helium%mominer%accu(:) + &
                                                  rweight*helium_env(k)%helium%mominer%rstr(:))*rtmp
 
       END DO
@@ -328,7 +327,7 @@ CONTAINS
 
       !energy_avrg:
       DO k = 2, SIZE(helium_env)
-         helium_env(1)%helium%energy_avrg(:) = helium_env(1)%helium%energy_avrg(:)+ &
+         helium_env(1)%helium%energy_avrg(:) = helium_env(1)%helium%energy_avrg(:) + &
                                                helium_env(k)%helium%energy_avrg(:)
       END DO
       CALL mp_sum(helium_env(1)%helium%energy_avrg(:), helium_env(1)%comm)
@@ -339,7 +338,7 @@ CONTAINS
 
       !plength_avrg:
       DO k = 2, SIZE(helium_env)
-         helium_env(1)%helium%plength_avrg(:) = helium_env(1)%helium%plength_avrg(:)+ &
+         helium_env(1)%helium%plength_avrg(:) = helium_env(1)%helium%plength_avrg(:) + &
                                                 helium_env(k)%helium%plength_avrg(:)
       END DO
       CALL mp_sum(helium_env(1)%helium%plength_avrg(:), helium_env(1)%comm)
@@ -350,7 +349,7 @@ CONTAINS
 
       !num_accepted:
       DO k = 2, SIZE(helium_env)
-         helium_env(1)%helium%num_accepted(:, :) = helium_env(1)%helium%num_accepted(:, :)+ &
+         helium_env(1)%helium%num_accepted(:, :) = helium_env(1)%helium%num_accepted(:, :) + &
                                                    helium_env(k)%helium%num_accepted(:, :)
       END DO
       CALL mp_sum(helium_env(1)%helium%num_accepted(:, :), helium_env(1)%comm)
@@ -363,7 +362,7 @@ CONTAINS
       IF (helium_env(1)%helium%solute_present) THEN
          IF (helium_env(1)%helium%get_helium_forces == helium_forces_average) THEN
             DO k = 2, SIZE(helium_env)
-               helium_env(1)%helium%force_avrg(:, :) = helium_env(1)%helium%force_avrg(:, :)+ &
+               helium_env(1)%helium%force_avrg(:, :) = helium_env(1)%helium%force_avrg(:, :) + &
                                                        helium_env(k)%helium%force_avrg(:, :)
             END DO
             CALL mp_sum(helium_env(1)%helium%force_avrg(:, :), helium_env(1)%comm)
@@ -373,20 +372,20 @@ CONTAINS
             END DO
          ELSE IF (helium_env(1)%helium%get_helium_forces == helium_forces_last) THEN
             IF (logger%para_env%ionode) THEN
-               sel_mp_source = INT(next_random_number(helium_env(1)%helium%rng_stream_uniform) &
+               sel_mp_source = INT(helium_env(1)%helium%rng_stream_uniform%next() &
                                    *REAL(helium_env(1)%helium%num_env, dp))
             END IF
             CALL mp_bcast(sel_mp_source, logger%para_env%source, helium_env(1)%comm)
 
             offset = 0
             DO i = 1, logger%para_env%mepos
-               offset = offset+helium_env(1)%env_all(i)
+               offset = offset + helium_env(1)%env_all(i)
             END DO
             ALLOCATE (work_2d(SIZE(helium_env(1)%helium%force_avrg, 1), &
                               SIZE(helium_env(1)%helium%force_avrg, 2)))
             work_2d(:, :) = 0.0_dp
-            IF (sel_mp_source .GE. offset .AND. sel_mp_source .LT. offset+SIZE(helium_env)) THEN
-               work_2d(:, :) = helium_env(sel_mp_source-offset+1)%helium%force_avrg(:, :)
+            IF (sel_mp_source .GE. offset .AND. sel_mp_source .LT. offset + SIZE(helium_env)) THEN
+               work_2d(:, :) = helium_env(sel_mp_source - offset + 1)%helium%force_avrg(:, :)
             END IF
             CALL mp_sum(work_2d(:, :), helium_env(1)%comm)
             DO k = 1, SIZE(helium_env)
@@ -445,7 +444,7 @@ CONTAINS
          WRITE (stmp, *) helium_env(1)%helium%apref
          DATA(:) = 0.0_dp
          DO k = 1, SIZE(helium_env)
-            DATA((k-1)*3+1:k*3) = helium_env(k)%helium%proarea%inst(:)
+            DATA((k - 1)*3 + 1:k*3) = helium_env(k)%helium%proarea%inst(:)
          END DO
          CALL helium_print_vector(helium_env, &
                                   "MOTION%PINT%HELIUM%PRINT%PROJECTED_AREA", &
@@ -457,7 +456,7 @@ CONTAINS
 
          DATA(:) = 0.0_dp
          DO k = 1, SIZE(helium_env)
-            DATA((k-1)*3+1:k*3) = helium_env(k)%helium%prarea2%ravr(:)
+            DATA((k - 1)*3 + 1:k*3) = helium_env(k)%helium%prarea2%ravr(:)
          END DO
          CALL helium_print_vector(helium_env, &
                                   "MOTION%PINT%HELIUM%PRINT%PROJECTED_AREA_2_AVG", &
@@ -471,7 +470,7 @@ CONTAINS
 
          DATA(:) = 0.0_dp
          DO k = 1, SIZE(helium_env)
-            DATA((k-1)*3+1:k*3) = helium_env(k)%helium%mominer%inst(:)
+            DATA((k - 1)*3 + 1:k*3) = helium_env(k)%helium%mominer%inst(:)
          END DO
          CALL helium_print_vector(helium_env, &
                                   "MOTION%PINT%HELIUM%PRINT%MOMENT_OF_INERTIA", &
@@ -483,7 +482,7 @@ CONTAINS
 
          DATA(:) = 0.0_dp
          DO k = 1, SIZE(helium_env)
-            DATA((k-1)*3+1:k*3) = helium_env(k)%helium%mominer%ravr
+            DATA((k - 1)*3 + 1:k*3) = helium_env(k)%helium%mominer%ravr
          END DO
          CALL helium_print_vector(helium_env, &
                                   "MOTION%PINT%HELIUM%PRINT%MOMENT_OF_INERTIA_AVG", &
@@ -497,7 +496,7 @@ CONTAINS
 
          DATA(:) = 0.0_dp
          DO k = 1, SIZE(helium_env)
-            DATA((k-1)*3+1:k*3) = helium_env(k)%helium%wnumber%inst
+            DATA((k - 1)*3 + 1:k*3) = helium_env(k)%helium%wnumber%inst
          END DO
          WRITE (stmp, *) helium_env(1)%helium%wpref
          CALL helium_print_vector(helium_env, &
@@ -510,7 +509,7 @@ CONTAINS
 
          DATA(:) = 0.0_dp
          DO k = 1, SIZE(helium_env)
-            DATA((k-1)*3+1:k*3) = helium_env(k)%helium%wnmber2%ravr
+            DATA((k - 1)*3 + 1:k*3) = helium_env(k)%helium%wnmber2%ravr
          END DO
          CALL helium_print_vector(helium_env, &
                                   "MOTION%PINT%HELIUM%PRINT%WINDING_NUMBER_2_AVG", &
@@ -524,7 +523,7 @@ CONTAINS
          DEALLOCATE (DATA)
 
          time_stop = m_walltime()
-         time_used = time_stop-time_start
+         time_used = time_stop - time_start
          time_unit = "sec"
          IF (time_used .GE. 60.0_dp) THEN
             time_used = time_used/60.0_dp
@@ -592,14 +591,14 @@ CONTAINS
       DO ni = 1, helium%iter_norot
 
          ! set the probability threshold for m_value: 1/(1+(m-1)/helium%m_ratio)
-         r = 1.0_dp/(1.0_dp+(helium%maxcycle-1)/helium%m_ratio)
+         r = 1.0_dp/(1.0_dp + (helium%maxcycle - 1)/helium%m_ratio)
 
          ! draw permutation length for this trial from the distribution of choice
          !
          SELECT CASE (helium%m_dist_type)
 
          CASE (helium_mdist_singlev)
-            x = next_random_number(helium%rng_stream_uniform)
+            x = helium%rng_stream_uniform%next()
             IF (x .LT. r) THEN
                cyclen = 1
             ELSE
@@ -607,69 +606,69 @@ CONTAINS
             END IF
 
          CASE (helium_mdist_uniform)
-            x = next_random_number(helium%rng_stream_uniform)
+            x = helium%rng_stream_uniform%next()
             IF (x .LT. r) THEN
                cyclen = helium%m_value
             ELSE
                DO
-                  x = next_random_number(helium%rng_stream_uniform)
-                  cyclen = INT(helium%maxcycle*x)+1
+                  x = helium%rng_stream_uniform%next()
+                  cyclen = INT(helium%maxcycle*x) + 1
                   IF (cyclen .NE. helium%m_value) EXIT
                END DO
             END IF
 
          CASE (helium_mdist_linear)
-            x = next_random_number(helium%rng_stream_uniform)
+            x = helium%rng_stream_uniform%next()
             IF (x .LT. r) THEN
                cyclen = helium%m_value
             ELSE
                DO
-                  x = next_random_number(helium%rng_stream_uniform)
+                  x = helium%rng_stream_uniform%next()
                   y = SQRT(2.0_dp*x)
-                  cyclen = INT(helium%maxcycle*y/SQRT(2.0_dp))+1
+                  cyclen = INT(helium%maxcycle*y/SQRT(2.0_dp)) + 1
                   IF (cyclen .NE. helium%m_value) EXIT
                END DO
             END IF
 
          CASE (helium_mdist_quadratic)
-            x = next_random_number(helium%rng_stream_uniform)
+            x = helium%rng_stream_uniform%next()
             IF (x .LT. r) THEN
                cyclen = helium%m_value
             ELSE
                DO
-                  x = next_random_number(helium%rng_stream_uniform)
+                  x = helium%rng_stream_uniform%next()
                   y = (3.0_dp*x)**(1.0_dp/3.0_dp)
                   z = 3.0_dp**(1.0_dp/3.0_dp)
-                  cyclen = INT(helium%maxcycle*y/z)+1
+                  cyclen = INT(helium%maxcycle*y/z) + 1
                   IF (cyclen .NE. helium%m_value) EXIT
                END DO
             END IF
 
          CASE (helium_mdist_exponential)
-            x = next_random_number(helium%rng_stream_uniform)
+            x = helium%rng_stream_uniform%next()
             IF (x .LT. r) THEN
                cyclen = helium%m_value
             ELSE
                DO
                   DO
-                     x = next_random_number(helium%rng_stream_uniform)
+                     x = helium%rng_stream_uniform%next()
                      IF (x .GE. 0.01_dp) EXIT
                   END DO
                   z = -LOG(0.01_dp)
-                  y = LOG(x)/z+1.0_dp; 
-                  cyclen = INT(helium%maxcycle*y)+1
+                  y = LOG(x)/z + 1.0_dp; 
+                  cyclen = INT(helium%maxcycle*y) + 1
                   IF (cyclen .NE. helium%m_value) EXIT
                END DO
             END IF
 
          CASE (helium_mdist_gaussian)
-            x = next_random_number(helium%rng_stream_uniform)
+            x = helium%rng_stream_uniform%next()
             IF (x .LT. r) THEN
                cyclen = 1
             ELSE
                DO
-                  x = next_random_number(helium%rng_stream_gaussian)
-                  cyclen = INT(x*0.75_dp+helium%m_value-0.5_dp)+1
+                  x = helium%rng_stream_gaussian%next()
+                  cyclen = INT(x*0.75_dp + helium%m_value - 0.5_dp) + 1
                   IF (cyclen .NE. 1) EXIT
                END DO
             END IF
@@ -684,12 +683,12 @@ CONTAINS
 
          IF (cyclen < 1) cyclen = 1
          IF (cyclen > helium%maxcycle) cyclen = helium%maxcycle
-         helium%num_accepted(1, cyclen) = helium%num_accepted(1, cyclen)+1
+         helium%num_accepted(1, cyclen) = helium%num_accepted(1, cyclen) + 1
 
          ! check, if permutation of this length can be constructed
          IF (cyclen == 1) THEN
-            rnd = next_random_number(helium%rng_stream_uniform)
-            helium%ptable(1) = 1+INT(rnd*helium%atoms)
+            rnd = helium%rng_stream_uniform%next()
+            helium%ptable(1) = 1 + INT(rnd*helium%atoms)
             helium%ptable(2) = -1
             helium%pweight = 0.0_dp
             selected = .TRUE.
@@ -753,9 +752,10 @@ CONTAINS
       LOGICAL                                            :: nperiodic, should_reject
       REAL(KIND=dp)                                      :: cell_size, ds, dtk, e1, e2, pds, &
                                                             prev_ds, r, rtmp, rtmpo, sigma, x
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: work3
       REAL(KIND=dp), DIMENSION(3)                        :: bis, biso, new_com, rm1, rm2, tmp1, tmp2
       REAL(KIND=dp), DIMENSION(:, :, :), POINTER         :: pos, work
-      TYPE(spline_data_p_type), DIMENSION(:, :), POINTER :: uij
+      TYPE(spline_data_type), POINTER                    :: u0
 
 ! trial permutation implicit in p
 ! since we (momentarily) only use cyclic permutations:
@@ -767,7 +767,7 @@ CONTAINS
       p => helium%ptable
       prev_ds = helium%pweight
 
-      helium%num_accepted(2, cyclen) = helium%num_accepted(2, cyclen)+1
+      helium%num_accepted(2, cyclen) = helium%num_accepted(2, cyclen) + 1
       level = 1
       res = .FALSE.
 
@@ -784,12 +784,12 @@ CONTAINS
       pos => helium%pos
       work => helium%work
       perm => helium%permutation
-      uij => helium%uij
+      u0 => helium%u0
       cell_size = (0.5_dp*helium%cell_size)**2
       nperiodic = .NOT. helium%periodic
 
       pds = prev_ds
-      ifix = helium%beads-helium%bisection+1
+      ifix = helium%beads - helium%bisection + 1
 
       ! sanity checks
       !
@@ -828,135 +828,135 @@ CONTAINS
          dtk = 0.0_dp
          ds = 0.0_dp
 
-         j = ifix+stride/2
+         j = ifix + stride/2
          DO
-            IF (j > helium%beads-stride/2) EXIT
-            pk1 = j-stride/2
-            pk2 = j+stride/2
+            IF (j > helium%beads - stride/2) EXIT
+            pk1 = j - stride/2
+            pk2 = j + stride/2
             ! calculate log(T(s)):
             DO k = 1, cyclen
                CALL helium_boxmean_3d(helium, pos(:, p(k), pk1), pos(:, p(k), pk2), bis)
-               tmp1(:) = bis(:)-pos(:, p(k), j)
+               tmp1(:) = bis(:) - pos(:, p(k), j)
                CALL helium_pbc(helium, tmp1)
                tmp1(:) = tmp1(:)/sigma
-               dtk = dtk-0.5_dp*(tmp1(1)*tmp1(1)+tmp1(2)*tmp1(2)+tmp1(3)*tmp1(3))
+               dtk = dtk - 0.5_dp*(tmp1(1)*tmp1(1) + tmp1(2)*tmp1(2) + tmp1(3)*tmp1(3))
             END DO
             ! calculate log(T(sprime)) and sprime itself
             DO k = 1, cyclen
                CALL helium_boxmean_3d(helium, work(:, p(k), pk1), work(:, p(k), pk2), tmp1)
                DO c = 1, 3
-                  x = next_random_number(rng_stream=helium%rng_stream_gaussian, variance=1.0_dp)
+                  x = helium%rng_stream_gaussian%next(variance=1.0_dp)
                   x = sigma*x
-                  tmp1(c) = tmp1(c)+x
+                  tmp1(c) = tmp1(c) + x
                   tmp2(c) = x
                END DO
                CALL helium_pbc(helium, tmp1)
                CALL helium_pbc(helium, tmp2)
                work(:, p(k), j) = tmp1(:)
                tmp2(:) = tmp2(:)/sigma
-               dtk = dtk+0.5_dp*(tmp2(1)*tmp2(1)+tmp2(2)*tmp2(2)+tmp2(3)*tmp2(3))
+               dtk = dtk + 0.5_dp*(tmp2(1)*tmp2(1) + tmp2(2)*tmp2(2) + tmp2(3)*tmp2(3))
             END DO
-            j = j+stride
+            j = j + stride
          END DO
 
-         j = helium%beads-stride/2+1
-         pk1 = j-stride/2
+         j = helium%beads - stride/2 + 1
+         pk1 = j - stride/2
          DO k = 1, cyclen
             CALL helium_boxmean_3d(helium, pos(:, p(k), pk1), pos(:, perm(p(k)), 1), bis)
-            tmp1(:) = bis(:)-pos(:, p(k), j)
+            tmp1(:) = bis(:) - pos(:, p(k), j)
             CALL helium_pbc(helium, tmp1)
             tmp1(:) = tmp1(:)/sigma
-            dtk = dtk-0.5_dp*(tmp1(1)*tmp1(1)+tmp1(2)*tmp1(2)+tmp1(3)*tmp1(3))
+            dtk = dtk - 0.5_dp*(tmp1(1)*tmp1(1) + tmp1(2)*tmp1(2) + tmp1(3)*tmp1(3))
          END DO
          DO k = 1, cyclen
-            CALL helium_boxmean_3d(helium, work(:, p(k), pk1), work(:, perm(p(1+MOD(k, cyclen))), 1), tmp1)
+            CALL helium_boxmean_3d(helium, work(:, p(k), pk1), work(:, perm(p(1 + MOD(k, cyclen))), 1), tmp1)
             DO c = 1, 3
-               x = next_random_number(rng_stream=helium%rng_stream_gaussian, variance=1.0_dp)
+               x = helium%rng_stream_gaussian%next(variance=1.0_dp)
                x = sigma*x
-               tmp1(c) = tmp1(c)+x
+               tmp1(c) = tmp1(c) + x
                tmp2(c) = x
             END DO
             CALL helium_pbc(helium, tmp1)
             CALL helium_pbc(helium, tmp2)
             work(:, p(k), j) = tmp1(:)
             tmp2(:) = tmp2(:)/sigma
-            dtk = dtk+0.5_dp*(tmp2(1)*tmp2(1)+tmp2(2)*tmp2(2)+tmp2(3)*tmp2(3))
+            dtk = dtk + 0.5_dp*(tmp2(1)*tmp2(1) + tmp2(2)*tmp2(2) + tmp2(3)*tmp2(3))
          END DO
          ! ok we got the new positions
          ! calculate action_k(s)-action_k(sprime)
          x = 1.0_dp/(helium%tau*helium%hb2m*stride)
          j = ifix
          DO
-            IF (j > helium%beads-stride/2) EXIT
-            pk1 = j+stride/2
+            IF (j > helium%beads - stride/2) EXIT
+            pk1 = j + stride/2
             DO k = 1, cyclen
-               tmp1(:) = pos(:, p(k), j)-pos(:, p(k), pk1)
+               tmp1(:) = pos(:, p(k), j) - pos(:, p(k), pk1)
                CALL helium_pbc(helium, tmp1)
-               ds = ds+x*(tmp1(1)*tmp1(1)+tmp1(2)*tmp1(2)+tmp1(3)*tmp1(3))
-               tmp1(:) = work(:, p(k), j)-work(:, p(k), pk1)
+               ds = ds + x*(tmp1(1)*tmp1(1) + tmp1(2)*tmp1(2) + tmp1(3)*tmp1(3))
+               tmp1(:) = work(:, p(k), j) - work(:, p(k), pk1)
                CALL helium_pbc(helium, tmp1)
-               ds = ds-x*(tmp1(1)*tmp1(1)+tmp1(2)*tmp1(2)+tmp1(3)*tmp1(3))
+               ds = ds - x*(tmp1(1)*tmp1(1) + tmp1(2)*tmp1(2) + tmp1(3)*tmp1(3))
                ! interaction change
                IF (helium%solute_present) THEN
                   CALL helium_bead_solute_e_f(pint_env, helium, p(k), pk1, energy=e1)
                   CALL helium_bead_solute_e_f(pint_env, helium, p(k), pk1, work(:, p(k), pk1), e2)
-                  ds = ds+(stride/2)*(e1-e2)*helium%tau
+                  ds = ds + (stride/2)*(e1 - e2)*helium%tau
                END IF
                DO l = 1, helium%atoms
                   IF (l /= p(k)) THEN
-                     tmp1(:) = pos(:, p(k), pk1)-pos(:, l, pk1)
+                     tmp1(:) = pos(:, p(k), pk1) - pos(:, l, pk1)
                      CALL helium_pbc(helium, tmp1)
-                     r = tmp1(1)*tmp1(1)+tmp1(2)*tmp1(2)+tmp1(3)*tmp1(3)
+                     r = tmp1(1)*tmp1(1) + tmp1(2)*tmp1(2) + tmp1(3)*tmp1(3)
                      IF ((r < cell_size) .OR. nperiodic) THEN
                         r = SQRT(r)
-                        ds = ds+REAL(stride/2, dp)*helium_spline(uij(1, 1)%spline_data, r)
+                        ds = ds + REAL(stride/2, dp)*helium_spline(u0, r)
                      END IF
-                     tmp1(:) = work(:, p(k), pk1)-work(:, l, pk1)
+                     tmp1(:) = work(:, p(k), pk1) - work(:, l, pk1)
                      CALL helium_pbc(helium, tmp1)
-                     r = tmp1(1)*tmp1(1)+tmp1(2)*tmp1(2)+tmp1(3)*tmp1(3)
+                     r = tmp1(1)*tmp1(1) + tmp1(2)*tmp1(2) + tmp1(3)*tmp1(3)
                      IF ((r < cell_size) .OR. nperiodic) THEN
                         r = SQRT(r)
-                        ds = ds-REAL(stride/2, dp)*helium_spline(uij(1, 1)%spline_data, r)
+                        ds = ds - REAL(stride/2, dp)*helium_spline(u0, r)
                      END IF
                   END IF
                END DO
                ! counted p[k], p[m] twice. subtract those again
                IF (k < cyclen) THEN
-                  DO l = k+1, cyclen
-                     tmp1(:) = pos(:, p(k), pk1)-pos(:, p(l), pk1)
+                  DO l = k + 1, cyclen
+                     tmp1(:) = pos(:, p(k), pk1) - pos(:, p(l), pk1)
                      CALL helium_pbc(helium, tmp1)
-                     r = tmp1(1)*tmp1(1)+tmp1(2)*tmp1(2)+tmp1(3)*tmp1(3)
+                     r = tmp1(1)*tmp1(1) + tmp1(2)*tmp1(2) + tmp1(3)*tmp1(3)
                      IF ((r < cell_size) .OR. nperiodic) THEN
                         r = SQRT(r)
-                        ds = ds-REAL(stride/2, dp)*helium_spline(uij(1, 1)%spline_data, r)
+                        ds = ds - REAL(stride/2, dp)*helium_spline(u0, r)
                      END IF
-                     tmp1(:) = work(:, p(k), pk1)-work(:, p(l), pk1)
+                     tmp1(:) = work(:, p(k), pk1) - work(:, p(l), pk1)
                      CALL helium_pbc(helium, tmp1)
-                     r = tmp1(1)*tmp1(1)+tmp1(2)*tmp1(2)+tmp1(3)*tmp1(3)
+                     r = tmp1(1)*tmp1(1) + tmp1(2)*tmp1(2) + tmp1(3)*tmp1(3)
                      IF ((r < cell_size) .OR. nperiodic) THEN
                         r = SQRT(r)
-                        ds = ds+REAL(stride/2, dp)*helium_spline(uij(1, 1)%spline_data, r)
+                        ds = ds + REAL(stride/2, dp)*helium_spline(u0, r)
                      END IF
                   END DO
                END IF
             END DO
-            j = j+stride/2
+            j = j + stride/2
          END DO
          ! last link
-         pk1 = helium%beads-stride/2+1
+         pk1 = helium%beads - stride/2 + 1
          DO k = 1, cyclen
-            tmp1(:) = pos(:, p(k), pk1)-pos(:, perm(p(k)), 1)
+            tmp1(:) = pos(:, p(k), pk1) - pos(:, perm(p(k)), 1)
             CALL helium_pbc(helium, tmp1)
-            ds = ds+x*(tmp1(1)*tmp1(1)+tmp1(2)*tmp1(2)+tmp1(3)*tmp1(3))
-            tmp1(:) = work(:, p(k), pk1)-work(:, perm(p(1+MOD(k, cyclen))), 1)
+            ds = ds + x*(tmp1(1)*tmp1(1) + tmp1(2)*tmp1(2) + tmp1(3)*tmp1(3))
+            tmp1(:) = work(:, p(k), pk1) - work(:, perm(p(1 + MOD(k, cyclen))), 1)
             CALL helium_pbc(helium, tmp1)
-            ds = ds-x*(tmp1(1)*tmp1(1)+tmp1(2)*tmp1(2)+tmp1(3)*tmp1(3))
+            ds = ds - x*(tmp1(1)*tmp1(1) + tmp1(2)*tmp1(2) + tmp1(3)*tmp1(3))
          END DO
          ! ok now accept or reject:
-         rtmp = next_random_number(helium%rng_stream_uniform)
+         rtmp = helium%rng_stream_uniform%next()
 !      IF ((dtk+ds-pds < 0.0_dp).AND.(EXP(dtk+ds-pds)<rtmp)) THEN
-         IF (dtk+ds-pds < 0.0_dp) THEN
-            IF (EXP(dtk+ds-pds) < rtmp) THEN
+         IF (dtk + ds - pds < 0.0_dp) THEN
+            IF (EXP(dtk + ds - pds) < rtmp) THEN
                DO c = ifix, helium%beads
                   DO k = 1, cyclen
                      work(:, p(k), c) = pos(:, p(k), c)
@@ -966,8 +966,8 @@ CONTAINS
             END IF
          END IF
          ! accepted. go on to the next level
-         helium%num_accepted(level+2, cyclen) = helium%num_accepted(level+2, cyclen)+1
-         level = level+1
+         helium%num_accepted(level + 2, cyclen) = helium%num_accepted(level + 2, cyclen) + 1
+         level = level + 1
          pds = ds
          stride = stride/2
       END DO
@@ -977,55 +977,55 @@ CONTAINS
       sigma = SQRT(0.5_dp*helium%hb2m*helium%tau)
       dtk = 0.0_dp
       ds = 0.0_dp
-      DO j = ifix+1, helium%beads-1, 2
-         pk1 = j-1
-         pk2 = j+1
+      DO j = ifix + 1, helium%beads - 1, 2
+         pk1 = j - 1
+         pk2 = j + 1
          ! calculate log(T(s)):
          DO k = 1, cyclen
             CALL helium_boxmean_3d(helium, pos(:, p(k), pk1), pos(:, p(k), pk2), bis)
-            tmp1(:) = bis(:)-pos(:, p(k), j)
+            tmp1(:) = bis(:) - pos(:, p(k), j)
             CALL helium_pbc(helium, tmp1)
             tmp1(:) = tmp1(:)/sigma
-            dtk = dtk-0.5_dp*(tmp1(1)*tmp1(1)+tmp1(2)*tmp1(2)+tmp1(3)*tmp1(3))
+            dtk = dtk - 0.5_dp*(tmp1(1)*tmp1(1) + tmp1(2)*tmp1(2) + tmp1(3)*tmp1(3))
          END DO
          ! calculate log(T(sprime)) and sprime itself
          DO k = 1, cyclen
             CALL helium_boxmean_3d(helium, work(:, p(k), pk1), work(:, p(k), pk2), tmp1)
             DO c = 1, 3
-               x = next_random_number(rng_stream=helium%rng_stream_gaussian, variance=1.0_dp)
+               x = helium%rng_stream_gaussian%next(variance=1.0_dp)
                x = sigma*x
-               tmp1(c) = tmp1(c)+x
+               tmp1(c) = tmp1(c) + x
                tmp2(c) = x
             END DO
             CALL helium_pbc(helium, tmp1)
             CALL helium_pbc(helium, tmp2)
             work(:, p(k), j) = tmp1(:)
             tmp2(:) = tmp2(:)/sigma
-            dtk = dtk+0.5_dp*(tmp2(1)*tmp2(1)+tmp2(2)*tmp2(2)+tmp2(3)*tmp2(3))
+            dtk = dtk + 0.5_dp*(tmp2(1)*tmp2(1) + tmp2(2)*tmp2(2) + tmp2(3)*tmp2(3))
          END DO
       END DO
       j = helium%beads
-      pk1 = j-1
+      pk1 = j - 1
       DO k = 1, cyclen
          CALL helium_boxmean_3d(helium, pos(:, p(k), pk1), pos(:, perm(p(k)), 1), bis)
-         tmp1(:) = bis(:)-pos(:, p(k), j)
+         tmp1(:) = bis(:) - pos(:, p(k), j)
          CALL helium_pbc(helium, tmp1)
          tmp1(:) = tmp1(:)/sigma
-         dtk = dtk-0.5_dp*(tmp1(1)*tmp1(1)+tmp1(2)*tmp1(2)+tmp1(3)*tmp1(3))
+         dtk = dtk - 0.5_dp*(tmp1(1)*tmp1(1) + tmp1(2)*tmp1(2) + tmp1(3)*tmp1(3))
       END DO
       DO k = 1, cyclen
-         CALL helium_boxmean_3d(helium, work(:, p(k), pk1), work(:, perm(p(1+MOD(k, cyclen))), 1), tmp1)
+         CALL helium_boxmean_3d(helium, work(:, p(k), pk1), work(:, perm(p(1 + MOD(k, cyclen))), 1), tmp1)
          DO c = 1, 3
-            x = next_random_number(rng_stream=helium%rng_stream_gaussian, variance=1.0_dp)
+            x = helium%rng_stream_gaussian%next(variance=1.0_dp)
             x = sigma*x
-            tmp1(c) = tmp1(c)+x
+            tmp1(c) = tmp1(c) + x
             tmp2(c) = x
          END DO
          CALL helium_pbc(helium, tmp1)
          CALL helium_pbc(helium, tmp2)
          work(:, p(k), j) = tmp1(:)
          tmp2 = tmp2/sigma
-         dtk = dtk+0.5_dp*(tmp2(1)*tmp2(1)+tmp2(2)*tmp2(2)+tmp2(3)*tmp2(3))
+         dtk = dtk + 0.5_dp*(tmp2(1)*tmp2(1) + tmp2(2)*tmp2(2) + tmp2(3)*tmp2(3))
       END DO
       ! ok we got the new positions.
       ! calculate action_k(s)-action_k(sprime)
@@ -1036,39 +1036,40 @@ CONTAINS
             DO k = 1, cyclen
                CALL helium_bead_solute_e_f(pint_env, helium, p(k), j, energy=e1)
                CALL helium_bead_solute_e_f(pint_env, helium, p(k), j, work(:, p(k), j), e2)
-               ds = ds+(e1-e2)*helium%tau
+               ds = ds + (e1 - e2)*helium%tau
             END DO
          END DO
       END IF
+      ALLOCATE (work3(SIZE(helium%uoffdiag, 1) + 1))
       x = 1.0_dp/(helium%tau*helium%hb2m*stride)
-      DO j = ifix, helium%beads-1
-         pk1 = j+1
+      DO j = ifix, helium%beads - 1
+         pk1 = j + 1
          DO k = 1, cyclen
-            tmp1(:) = pos(:, p(k), j)-pos(:, p(k), pk1)
+            tmp1(:) = pos(:, p(k), j) - pos(:, p(k), pk1)
             CALL helium_pbc(helium, tmp1)
-            ds = ds+x*(tmp1(1)*tmp1(1)+tmp1(2)*tmp1(2)+tmp1(3)*tmp1(3))
-            tmp1(:) = work(:, p(k), j)-work(:, p(k), pk1)
+            ds = ds + x*(tmp1(1)*tmp1(1) + tmp1(2)*tmp1(2) + tmp1(3)*tmp1(3))
+            tmp1(:) = work(:, p(k), j) - work(:, p(k), pk1)
             CALL helium_pbc(helium, tmp1)
-            ds = ds-x*(tmp1(1)*tmp1(1)+tmp1(2)*tmp1(2)+tmp1(3)*tmp1(3))
+            ds = ds - x*(tmp1(1)*tmp1(1) + tmp1(2)*tmp1(2) + tmp1(3)*tmp1(3))
             DO l = 1, helium%atoms
                IF (l /= p(k)) THEN
-                  rm1(:) = pos(:, p(k), j)-pos(:, l, j)
-                  rm2(:) = pos(:, p(k), pk1)-pos(:, l, pk1)
-                  ds = ds+helium_eval_expansion(helium, rm1, rm2, uij, 1)
-                  rm1(:) = work(:, p(k), j)-work(:, l, j)
-                  rm2(:) = work(:, p(k), pk1)-work(:, l, pk1)
-                  ds = ds-helium_eval_expansion(helium, rm1, rm2, uij, 1)
+                  rm1(:) = pos(:, p(k), j) - pos(:, l, j)
+                  rm2(:) = pos(:, p(k), pk1) - pos(:, l, pk1)
+                  ds = ds + helium_eval_expansion(helium, rm1, rm2, work3)
+                  rm1(:) = work(:, p(k), j) - work(:, l, j)
+                  rm2(:) = work(:, p(k), pk1) - work(:, l, pk1)
+                  ds = ds - helium_eval_expansion(helium, rm1, rm2, work3)
                END IF
             END DO
             ! counted p[k], p[m] twice. subtract those again
             IF (k < cyclen) THEN
-               DO l = k+1, cyclen
-                  rm1(:) = pos(:, p(k), j)-pos(:, p(l), j)
-                  rm2(:) = pos(:, p(k), pk1)-pos(:, p(l), pk1)
-                  ds = ds-helium_eval_expansion(helium, rm1, rm2, uij, 1)
-                  rm1(:) = work(:, p(k), j)-work(:, p(l), j)
-                  rm2(:) = work(:, p(k), pk1)-work(:, p(l), pk1)
-                  ds = ds+helium_eval_expansion(helium, rm1, rm2, uij, 1)
+               DO l = k + 1, cyclen
+                  rm1(:) = pos(:, p(k), j) - pos(:, p(l), j)
+                  rm2(:) = pos(:, p(k), pk1) - pos(:, p(l), pk1)
+                  ds = ds - helium_eval_expansion(helium, rm1, rm2, work3)
+                  rm1(:) = work(:, p(k), j) - work(:, p(l), j)
+                  rm2(:) = work(:, p(k), pk1) - work(:, p(l), pk1)
+                  ds = ds + helium_eval_expansion(helium, rm1, rm2, work3)
                END DO
             END IF
          END DO
@@ -1076,58 +1077,59 @@ CONTAINS
       j = helium%beads
       pk1 = 1
       DO k = 1, cyclen
-         tmp1(:) = pos(:, p(k), j)-pos(:, perm(p(k)), 1)
+         tmp1(:) = pos(:, p(k), j) - pos(:, perm(p(k)), 1)
          CALL helium_pbc(helium, tmp1)
-         ds = ds+x*(tmp1(1)*tmp1(1)+tmp1(2)*tmp1(2)+tmp1(3)*tmp1(3))
-         tmp1(:) = work(:, p(k), j)-work(:, perm(p(1+MOD(k, cyclen))), 1)
+         ds = ds + x*(tmp1(1)*tmp1(1) + tmp1(2)*tmp1(2) + tmp1(3)*tmp1(3))
+         tmp1(:) = work(:, p(k), j) - work(:, perm(p(1 + MOD(k, cyclen))), 1)
          CALL helium_pbc(helium, tmp1)
-         ds = ds-x*(tmp1(1)*tmp1(1)+tmp1(2)*tmp1(2)+tmp1(3)*tmp1(3))
+         ds = ds - x*(tmp1(1)*tmp1(1) + tmp1(2)*tmp1(2) + tmp1(3)*tmp1(3))
          DO l = 1, helium%atoms
             IF (l /= p(k)) THEN
-               rm1(:) = pos(:, p(k), j)-pos(:, l, j)
-               rm2(:) = pos(:, perm(p(k)), 1)-pos(:, perm(l), 1)
-               ds = ds+helium_eval_expansion(helium, rm1, rm2, uij, 1)
+               rm1(:) = pos(:, p(k), j) - pos(:, l, j)
+               rm2(:) = pos(:, perm(p(k)), 1) - pos(:, perm(l), 1)
+               ds = ds + helium_eval_expansion(helium, rm1, rm2, work3)
             END IF
          END DO
          ! counted p[k], p[m] twice. subtract those again
          IF (k < cyclen) THEN
-            DO l = k+1, cyclen
-               rm1(:) = pos(:, p(k), j)-pos(:, p(l), j)
-               rm2(:) = pos(:, perm(p(k)), pk1)-pos(:, perm(p(l)), pk1)
-               ds = ds-helium_eval_expansion(helium, rm1, rm2, uij, 1)
+            DO l = k + 1, cyclen
+               rm1(:) = pos(:, p(k), j) - pos(:, p(l), j)
+               rm2(:) = pos(:, perm(p(k)), pk1) - pos(:, perm(p(l)), pk1)
+               ds = ds - helium_eval_expansion(helium, rm1, rm2, work3)
             END DO
          END IF
       END DO
       IF (cyclen > 1) THEN
          !k,c,l
          c = perm(p(1))
-         DO k = 1, cyclen-1
-            perm(p(k)) = perm(p(k+1))
+         DO k = 1, cyclen - 1
+            perm(p(k)) = perm(p(k + 1))
          END DO
          perm(p(cyclen)) = c
       END IF
       DO k = 1, cyclen
          DO l = 1, helium%atoms
             IF (l /= p(k)) THEN
-               rm1(:) = work(:, p(k), j)-work(:, l, j)
-               rm2(:) = work(:, perm(p(k)), 1)-work(:, perm(l), 1)
-               ds = ds-helium_eval_expansion(helium, rm1, rm2, uij, 1)
+               rm1(:) = work(:, p(k), j) - work(:, l, j)
+               rm2(:) = work(:, perm(p(k)), 1) - work(:, perm(l), 1)
+               ds = ds - helium_eval_expansion(helium, rm1, rm2, work3)
             END IF
          END DO
          ! counted p[k], p[m] twice. subtract those again
          IF (k < cyclen) THEN
-            DO l = k+1, cyclen
-               rm1(:) = work(:, p(k), j)-work(:, p(l), j)
-               rm2(:) = work(:, perm(p(k)), 1)-work(:, perm(p(l)), 1)
-               ds = ds+helium_eval_expansion(helium, rm1, rm2, uij, 1)
+            DO l = k + 1, cyclen
+               rm1(:) = work(:, p(k), j) - work(:, p(l), j)
+               rm2(:) = work(:, perm(p(k)), 1) - work(:, perm(p(l)), 1)
+               ds = ds + helium_eval_expansion(helium, rm1, rm2, work3)
             END DO
          END IF
       END DO
+      DEALLOCATE (work3)
       ! ok now accept or reject:
-      rtmp = next_random_number(helium%rng_stream_uniform)
+      rtmp = helium%rng_stream_uniform%next()
 !   IF ((dtk+ds-pds<0.0_dp).AND.(EXP(dtk+ds-pds)<rtmp)) THEN
-      IF (dtk+ds-pds < 0.0_dp) THEN
-         IF (EXP(dtk+ds-pds) < rtmp) THEN
+      IF (dtk + ds - pds < 0.0_dp) THEN
+         IF (EXP(dtk + ds - pds) < rtmp) THEN
             DO c = ifix, helium%beads
                DO k = 1, cyclen
                   work(:, p(k), c) = pos(:, p(k), c)
@@ -1135,8 +1137,8 @@ CONTAINS
             END DO
             IF (cyclen > 1) THEN
                c = perm(p(cyclen))
-               DO k = cyclen-1, 1, -1
-                  perm(p(k+1)) = perm(p(k))
+               DO k = cyclen - 1, 1, -1
+                  perm(p(k + 1)) = perm(p(k))
                END DO
                perm(p(1)) = c
             END IF
@@ -1155,7 +1157,7 @@ CONTAINS
             new_com(:) = 0.0_dp
             DO k = 1, helium%atoms
                DO l = 1, helium%beads
-                  new_com(:) = new_com(:)+helium%work(:, k, l)
+                  new_com(:) = new_com(:) + helium%work(:, k, l)
                END DO
             END DO
             new_com(:) = new_com(:)/helium%atoms/helium%beads
@@ -1166,7 +1168,7 @@ CONTAINS
             bis(:) = 0.0_dp
             DO ib = 1, helium%beads
                DO ic = 1, 3
-                  bis(ic) = bis(ic)+work(ic, ia, ib)-new_com(ic)
+                  bis(ic) = bis(ic) + work(ic, ia, ib) - new_com(ic)
                END DO
             END DO
             bis(:) = bis(:)/helium%beads
@@ -1175,7 +1177,7 @@ CONTAINS
                biso(:) = 0.0_dp
                DO ib = 1, helium%beads
                   DO ic = 1, 3
-                     biso(ic) = biso(ic)+pos(ic, ia, ib)-helium%center(ic)
+                     biso(ic) = biso(ic) + pos(ic, ia, ib) - helium%center(ic)
                   END DO
                END DO
                biso(:) = biso(:)/helium%beads
@@ -1197,8 +1199,8 @@ CONTAINS
             END DO
             IF (cyclen > 1) THEN
                c = perm(p(cyclen))
-               DO k = cyclen-1, 1, -1
-                  perm(p(k+1)) = perm(p(k))
+               DO k = cyclen - 1, 1, -1
+                  perm(p(k + 1)) = perm(p(k))
                END DO
                perm(p(1)) = c
             END IF
@@ -1216,7 +1218,7 @@ CONTAINS
       DO k = 1, cyclen
          helium%iperm(perm(p(k))) = p(k)
       END DO
-      helium%num_accepted(level+2, cyclen) = helium%num_accepted(level+2, cyclen)+1
+      helium%num_accepted(level + 2, cyclen) = helium%num_accepted(level + 2, cyclen) + 1
       res = .TRUE.
 
       RETURN
@@ -1252,17 +1254,17 @@ CONTAINS
       p => helium%ptable
       nmatrix => helium%nmatrix
 
-      p(len+1) = -1
-      rnd = next_random_number(helium%rng_stream_uniform)
-      p(1) = INT(n*rnd)+1
-      DO k = 1, len-1
-         t = next_random_number(helium%rng_stream_uniform)
+      p(len + 1) = -1
+      rnd = helium%rng_stream_uniform%next()
+      p(1) = INT(n*rnd) + 1
+      DO k = 1, len - 1
+         t = helium%rng_stream_uniform%next()
          ! find the corresponding path to connect to
          ! using the precalculated optimal decision tree:
-         i = n-1
+         i = n - 1
          DO
             IF (tmatrix(p(k), i) > t) THEN
-               i = nmatrix(p(k), 2*i-1)
+               i = nmatrix(p(k), 2*i - 1)
             ELSE
                i = nmatrix(p(k), 2*i)
             END IF
@@ -1270,29 +1272,29 @@ CONTAINS
          END DO
          i = -i
          ! which particle was it previously connected to?
-         p(k+1) = iperm(i)
+         p(k + 1) = iperm(i)
          ! is it unique? quit if it was already part of the permutation
          DO j = 1, k
-            IF (p(j) == p(k+1)) RETURN
+            IF (p(j) == p(k + 1)) RETURN
          END DO
          ! acummulate the needed values for the final
          ! accept/reject step:
-         s1 = s1+ipmatrix(p(k), i)
-         s2 = s2+ipmatrix(p(k), perm(p(k)))
+         s1 = s1 + ipmatrix(p(k), i)
+         s2 = s2 + ipmatrix(p(k), perm(p(k)))
       END DO
       ! close the permutation loop:
-      s1 = s1+ipmatrix(p(len), perm(p(1)))
-      s2 = s2+ipmatrix(p(len), perm(p(len)))
+      s1 = s1 + ipmatrix(p(len), perm(p(1)))
+      s2 = s2 + ipmatrix(p(len), perm(p(len)))
       ! final accept/reject:
-      rnd = next_random_number(helium%rng_stream_uniform)
+      rnd = helium%rng_stream_uniform%next()
       t = s1*rnd
       IF (t > s2) RETURN
       ! ok, we have accepted the permutation
       ! calculate the action bias for the subsequent resampling
       ! of the paths:
-      s1 = pmatrix(p(len), perm(p(1)))-pmatrix(p(len), perm(p(len)))
-      DO k = 1, len-1
-         s1 = s1+pmatrix(p(k), perm(p(k+1)))-pmatrix(p(k), perm(p(k)))
+      s1 = pmatrix(p(len), perm(p(1))) - pmatrix(p(len), perm(p(len)))
+      DO k = 1, len - 1
+         s1 = s1 + pmatrix(p(k), perm(p(k + 1))) - pmatrix(p(k), perm(p(k)))
       END DO
       helium%pweight = s1
       res = .TRUE.

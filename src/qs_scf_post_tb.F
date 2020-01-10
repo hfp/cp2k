@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -102,6 +102,8 @@ MODULE qs_scf_post_tb
                                               calculate_wavefunction
    USE qs_dftb_types,                   ONLY: qs_dftb_atom_type
    USE qs_dftb_utils,                   ONLY: get_dftb_atom_param
+   USE qs_dos,                          ONLY: calculate_dos,&
+                                              calculate_dos_kp
    USE qs_elf_methods,                  ONLY: qs_elf_calc
    USE qs_energy_window,                ONLY: energy_windows
    USE qs_environment_types,            ONLY: get_qs_env,&
@@ -142,7 +144,9 @@ MODULE qs_scf_post_tb
 
    ! Global parameters
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'qs_scf_post_tb'
-   PUBLIC :: scf_post_calculation_tb
+   PUBLIC :: scf_post_calculation_tb, make_lumo_tb
+
+! **************************************************************************************************
 
 CONTAINS
 
@@ -187,6 +191,7 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: matrix_p, matrix_s
       TYPE(dbcsr_type), POINTER                          :: mo_coeff_deriv
       TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(kpoint_type), POINTER                         :: kpoints
       TYPE(mo_set_p_type), DIMENSION(:), POINTER         :: mos
       TYPE(particle_list_type), POINTER                  :: particles
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
@@ -219,7 +224,7 @@ CONTAINS
       nkind = SIZE(atomic_kind_set)
       DO ikind = 1, nkind
          CALL get_atomic_kind(atomic_kind_set(ikind), natom=nat)
-         SELECT CASE (TRIM (tb_type))
+         SELECT CASE (TRIM(tb_type))
          CASE ("DFTB")
             CALL get_qs_kind(qs_kind_set(ikind), dftb_parameter=dftb_kind)
             CALL get_dftb_atom_param(dftb_kind, zeff=zeff)
@@ -231,7 +236,7 @@ CONTAINS
          END SELECT
          DO iatom = 1, nat
             iat = atomic_kind_set(ikind)%atom_list(iatom)
-            mcharge(iat) = zeff-SUM(charges(iat, 1:nspins))
+            mcharge(iat) = zeff - SUM(charges(iat, 1:nspins))
          END DO
       END DO
 
@@ -294,7 +299,7 @@ CONTAINS
                      WRITE (UNIT=unit_nr, &
                             FMT="(T2,I6,3X,A6,I6,T29,4(1X,F12.6))") &
                         iat, ADJUSTL(ana), ikind, charges(iat, 1:2), mcharge(iat), &
-                        charges(iat, 1)-charges(iat, 2)
+                        charges(iat, 1) - charges(iat, 2)
                   END DO
                END DO
                WRITE (UNIT=unit_nr, &
@@ -375,6 +380,19 @@ CONTAINS
          CALL section_vals_get(wfn_mix_section, explicit=explicit)
          IF (explicit .AND. .NOT. qs_env%run_rtp) CALL wfn_mix_tb(qs_env, dft_section, scf_env)
       END IF
+
+      IF (.NOT. no_mos) THEN
+         print_key => section_vals_get_subs_vals(print_section, "DOS")
+         IF (BTEST(cp_print_key_should_output(logger%iter_info, print_key), cp_p_file)) THEN
+            IF (do_kpoints) THEN
+               CALL get_qs_env(qs_env=qs_env, kpoints=kpoints)
+               CALL calculate_dos_kp(kpoints, qs_env, dft_section)
+            ELSE
+               CALL get_qs_env(qs_env, mos=mos)
+               CALL calculate_dos(mos, qs_env, dft_section)
+            ENDIF
+         ENDIF
+      ENDIF
 
       ! PDOS
       IF (.NOT. no_mos) THEN
@@ -551,8 +569,8 @@ CONTAINS
                   IF (nlumo_stm > 0) THEN
                      ALLOCATE (unoccupied_orbs_stm(dft_control%nspins))
                      ALLOCATE (unoccupied_evals_stm(dft_control%nspins))
-                     CALL make_lumo(qs_env, scf_env, unoccupied_orbs_stm, unoccupied_evals_stm, &
-                                    nlumo_stm, nlumos)
+                     CALL make_lumo_tb(qs_env, scf_env, unoccupied_orbs_stm, unoccupied_evals_stm, &
+                                       nlumo_stm, nlumos)
                   END IF
 
                   CALL get_qs_env(qs_env, subsys=subsys)
@@ -687,7 +705,7 @@ CONTAINS
          zphase = CMPLX(COS(ria), SIN(ria), dp)**charge_tot
 
          dria = twopi*MATMUL(cell%h_inv, drcc)
-         dzphase = charge_tot*CMPLX(-SIN(ria), COS(ria), dp)**(charge_tot-1.0_dp)*dria
+         dzphase = charge_tot*CMPLX(-SIN(ria), COS(ria), dp)**(charge_tot - 1.0_dp)*dria
 
          ggamma = CMPLX(1.0_dp, 0.0_dp, KIND=dp)
          dggamma = CMPLX(0.0_dp, 0.0_dp, KIND=dp)
@@ -704,19 +722,19 @@ CONTAINS
                   theta = SUM(ria(:)*gvec(:))
                   dtheta = SUM(via(:)*gvec(:))
                   zeta = CMPLX(COS(theta), SIN(theta), KIND=dp)**(-q)
-                  dzeta = -q*CMPLX(-SIN(theta), COS(theta), KIND=dp)**(-q-1.0_dp)*dtheta
-                  dggamma(j) = dggamma(j)*zeta+ggamma(j)*dzeta
+                  dzeta = -q*CMPLX(-SIN(theta), COS(theta), KIND=dp)**(-q - 1.0_dp)*dtheta
+                  dggamma(j) = dggamma(j)*zeta + ggamma(j)*dzeta
                   ggamma(j) = ggamma(j)*zeta
                END DO
             ENDDO
          END DO
-         dggamma = dggamma*zphase+ggamma*dzphase
+         dggamma = dggamma*zphase + ggamma*dzphase
          ggamma = ggamma*zphase
          IF (ALL(REAL(ggamma, KIND=dp) /= 0.0_dp)) THEN
             tmp = AIMAG(ggamma)/REAL(ggamma, KIND=dp)
             ci = ATAN(tmp)
-            dci = (1.0_dp/(1.0_dp+tmp**2))* &
-                  (AIMAG(dggamma)*REAL(ggamma, KIND=dp)-AIMAG(ggamma)*REAL(dggamma, KIND=dp))/(REAL(ggamma, KIND=dp))**2
+            dci = (1.0_dp/(1.0_dp + tmp**2))* &
+                  (AIMAG(dggamma)*REAL(ggamma, KIND=dp) - AIMAG(ggamma)*REAL(dggamma, KIND=dp))/(REAL(ggamma, KIND=dp))**2
             dipole = MATMUL(cell%hmat, ci)/twopi
             dipole_deriv = MATMUL(cell%hmat, dci)/twopi
          END IF
@@ -726,8 +744,8 @@ CONTAINS
             ! no pbc(particle_set(i)%r(:),cell) so that the total dipole is the sum of the molecular dipoles
             ria = particle_set(i)%r(:)
             q = charges(i)
-            dipole = dipole-q*(ria-rcc)
-            dipole_deriv(:) = dipole_deriv(:)-q*(particle_set(i)%v(:)-drcc)
+            dipole = dipole - q*(ria - rcc)
+            dipole_deriv(:) = dipole_deriv(:) - q*(particle_set(i)%v(:) - drcc)
          END DO
       END IF
       CALL cp_results_erase(results=results, description=description)
@@ -794,7 +812,7 @@ CONTAINS
 
       DO ispin = 1, SIZE(mos)
          CALL get_mo_set(mos(ispin)%mo_set, mo_coeff=mo_coeff, eigenvalues=mo_eigenvalues, nmo=nmo)
-         CALL cp_fm_struct_create(fmstruct=ao_lumo_struct, nrow_global=nao, ncol_global=nao-nmo, &
+         CALL cp_fm_struct_create(fmstruct=ao_lumo_struct, nrow_global=nao, ncol_global=nao - nmo, &
                                   template_fmstruct=mo_coeff%matrix_struct)
 
          CALL cp_fm_create(lumos(ispin)%matrix, matrix_struct=ao_lumo_struct)
@@ -803,7 +821,7 @@ CONTAINS
          CALL choose_eigv_solver(KS_tmp, work, mo_eigenvalues)
          CALL cp_fm_cholesky_restore(work, nao, S_tmp, MO_tmp, "SOLVE")
          CALL cp_fm_to_fm_submat(MO_tmp, mo_coeff, nao, nmo, 1, 1, 1, 1)
-         CALL cp_fm_to_fm_submat(MO_tmp, lumos(ispin)%matrix, nao, nao-nmo, 1, nmo+1, 1, 1)
+         CALL cp_fm_to_fm_submat(MO_tmp, lumos(ispin)%matrix, nao, nao - nmo, 1, nmo + 1, 1, 1)
 
          CALL cp_fm_struct_release(ao_lumo_struct)
       END DO
@@ -882,7 +900,7 @@ CONTAINS
          CASE ("DFTB")
             !
          CASE ("xTB")
-            sprint_section => section_vals_get_subs_vals(dft_section, "SCF%PRINT")
+            sprint_section => section_vals_get_subs_vals(dft_section, "PRINT%MO_MOLDEN")
             CALL write_mos_molden(mos, qs_kind_set, particle_set, sprint_section)
          CASE DEFAULT
             CPABORT("unknown TB type")
@@ -917,7 +935,7 @@ CONTAINS
 !> \param nlumo ...
 !> \param nlumos ...
 ! **************************************************************************************************
-   SUBROUTINE make_lumo(qs_env, scf_env, unoccupied_orbs, unoccupied_evals, nlumo, nlumos)
+   SUBROUTINE make_lumo_tb(qs_env, scf_env, unoccupied_orbs, unoccupied_evals, nlumo, nlumos)
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(qs_scf_env_type), POINTER                     :: scf_env
@@ -926,7 +944,7 @@ CONTAINS
       INTEGER                                            :: nlumo
       INTEGER, INTENT(OUT)                               :: nlumos
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'make_lumo', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'make_lumo_tb', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: homo, iounit, ispin, n, nao, nmo
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
@@ -962,8 +980,8 @@ CONTAINS
          IF (iounit > 0) WRITE (iounit, FMT='(1X,A)') "-----------------------------------------------------"
          CALL get_mo_set(mo_set=mos(ispin)%mo_set, mo_coeff=mo_coeff, homo=homo, nao=nao, nmo=nmo)
          CALL cp_fm_get_info(mo_coeff, nrow_global=n)
-         nlumos = MAX(1, MIN(nlumo, nao-nmo))
-         IF (nlumo == -1) nlumos = nao-nmo
+         nlumos = MAX(1, MIN(nlumo, nao - nmo))
+         IF (nlumo == -1) nlumos = nao - nmo
          ALLOCATE (unoccupied_evals(ispin)%array(nlumos))
          CALL cp_fm_struct_create(fm_struct_tmp, para_env=para_env, context=blacs_env, &
                                   nrow_global=n, ncol_global=nlumos)
@@ -995,7 +1013,7 @@ CONTAINS
 
       END DO
 
-   END SUBROUTINE make_lumo
+   END SUBROUTINE make_lumo_tb
 
 ! **************************************************************************************************
 !> \brief ...
@@ -1545,20 +1563,20 @@ CONTAINS
             NULLIFY (list)
             CALL section_vals_val_get(cube_section, "HOMO_LIST", i_rep_val=ir, i_vals=list)
             IF (ASSOCIATED(list)) THEN
-               CALL reallocate(list_index, 1, nlist+SIZE(list))
+               CALL reallocate(list_index, 1, nlist + SIZE(list))
                DO i = 1, SIZE(list)
-                  list_index(i+nlist) = list(i)
+                  list_index(i + nlist) = list(i)
                END DO
-               nlist = nlist+SIZE(list)
+               nlist = nlist + SIZE(list)
             END IF
          END DO
          nhomo = MAXVAL(list_index)
       ELSE
          IF (nhomo == -1) nhomo = homo
-         nlist = homo-MAX(1, homo-nhomo+1)+1
+         nlist = homo - MAX(1, homo - nhomo + 1) + 1
          ALLOCATE (list_index(nlist))
          DO i = 1, nlist
-            list_index(i) = MAX(1, homo-nhomo+1)+i-1
+            list_index(i) = MAX(1, homo - nhomo + 1) + i - 1
          END DO
       END IF
 
@@ -1602,7 +1620,7 @@ CONTAINS
                   unit_nr = cp_print_key_unit_nr(logger, cube_section, '', extension=".cube", &
                                                  middle_name=TRIM(filename), file_position=my_pos_cube, &
                                                  log_filename=.FALSE., mpi_io=mpi_io)
-                  WRITE (title, *) "WAVEFUNCTION ", ivector, " spin ", ispin, " i.e. HOMO - ", ivector-homo
+                  WRITE (title, *) "WAVEFUNCTION ", ivector, " spin ", ispin, " i.e. HOMO - ", ivector - homo
                   CALL cp_pw_to_cube(wf_r%pw, unit_nr, title, particles=particles, &
                                      stride=section_get_ivals(cube_section, "STRIDE"), mpi_io=mpi_io)
                   CALL cp_print_key_finished_output(unit_nr, logger, cube_section, '', mpi_io=mpi_io)
@@ -1617,11 +1635,11 @@ CONTAINS
             CALL get_mo_set(mo_set=mos(ispin)%mo_set, mo_coeff=mo_coeff, &
                             eigenvalues=mo_eigenvalues, homo=homo, nmo=nmo)
             IF (write_cube) THEN
-               ifirst = homo+1
+               ifirst = homo + 1
                IF (nlumo == -1) THEN
                   ilast = nmo
                ELSE
-                  ilast = ifirst+nlumo-1
+                  ilast = ifirst + nlumo - 1
                   ilast = MIN(nmo, ilast)
                END IF
                DO ivector = ifirst, ilast
@@ -1632,7 +1650,7 @@ CONTAINS
                   unit_nr = cp_print_key_unit_nr(logger, cube_section, '', extension=".cube", &
                                                  middle_name=TRIM(filename), file_position=my_pos_cube, &
                                                  log_filename=.FALSE., mpi_io=mpi_io)
-                  WRITE (title, *) "WAVEFUNCTION ", ivector, " spin ", ispin, " i.e. LUMO + ", ivector-ifirst
+                  WRITE (title, *) "WAVEFUNCTION ", ivector, " spin ", ispin, " i.e. LUMO + ", ivector - ifirst
                   CALL cp_pw_to_cube(wf_r%pw, unit_nr, title, particles=particles, &
                                      stride=section_get_ivals(cube_section, "STRIDE"), mpi_io=mpi_io)
                   CALL cp_print_key_finished_output(unit_nr, logger, cube_section, '', mpi_io=mpi_io)

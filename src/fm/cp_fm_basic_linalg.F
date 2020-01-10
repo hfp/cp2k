@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -37,6 +37,7 @@ MODULE cp_fm_basic_linalg
    PUBLIC :: cp_fm_scale, & ! scale a matrix
              cp_fm_scale_and_add, & ! scale and add two matrices
              cp_fm_column_scale, & ! scale columns of a matrix
+             cp_fm_row_scale, & ! scale rows of a matrix
              cp_fm_trace, & ! trace of the transpose(A)*B
              cp_fm_contracted_trace, & ! sum_{i,...,k} Tr [A(i,...,k)^T * B(i,...,k)]
              cp_fm_norm, & ! different norms of A
@@ -119,7 +120,7 @@ CONTAINS
          IF (matrix_a%id_nr == matrix_b%id_nr) THEN
             IF (matrix_a%id_nr == matrix_b%id_nr) &
                CPWARN("Bad use of routine. Call cp_fm_scale instead")
-            CALL cp_fm_scale(alpha+beta, matrix_a)
+            CALL cp_fm_scale(alpha + beta, matrix_a)
             CALL timestop(handle)
             RETURN
          END IF
@@ -240,13 +241,13 @@ CONTAINS
       CASE ('T')
          DO jj = 1, ncol_global
             DO ii = 1, nrow_global
-               bb(ii, jj) = beta*bb(ii, jj)+alpha*aa(jj, ii)
+               bb(ii, jj) = beta*bb(ii, jj) + alpha*aa(jj, ii)
             END DO
          END DO
       CASE DEFAULT
          DO jj = 1, ncol_global
             DO ii = 1, nrow_global
-               bb(ii, jj) = beta*bb(ii, jj)+alpha*aa(ii, jj)
+               bb(ii, jj) = beta*bb(ii, jj) + alpha*aa(ii, jj)
             END DO
          END DO
       END SELECT
@@ -295,7 +296,7 @@ CONTAINS
 
       a => matrix_a%local_data
       n = matrix_a%matrix_struct%nrow_global
-      ALLOCATE (ipivot(n+matrix_a%matrix_struct%nrow_block))
+      ALLOCATE (ipivot(n + matrix_a%matrix_struct%nrow_block))
 
 #if defined(__SCALAPACK)
       MARK_USED(correct_sign)
@@ -837,6 +838,7 @@ CONTAINS
 !> \param matrix_a list of A matrices
 !> \param matrix_b list of B matrices
 !> \param trace    computed traces
+!> \param accurate ...
 !> \par History
 !>    * 11.2016 forked from cp_fm_trace() [Sergey Chulkov]
 !> \note \parblock
@@ -849,16 +851,17 @@ CONTAINS
 !>      all dummy variables (matrix_a, matrix_b, and trace) are 1-dimensional arrays.
 !>      \endparblock
 ! **************************************************************************************************
-   SUBROUTINE cp_fm_trace_a1b1t1(matrix_a, matrix_b, trace)
+   SUBROUTINE cp_fm_trace_a1b1t1(matrix_a, matrix_b, trace, accurate)
       TYPE(cp_fm_p_type), DIMENSION(:), INTENT(in)       :: matrix_a, matrix_b
       REAL(kind=dp), DIMENSION(:), INTENT(out)           :: trace
+      LOGICAL, INTENT(IN), OPTIONAL                      :: accurate
 
       CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_trace_a1b1t1', &
          routineP = moduleN//':'//routineN
 
       INTEGER                                            :: group, handle, imatrix, n_matrices, &
                                                             ncols_local, nrows_local
-      LOGICAL                                            :: use_sp_a, use_sp_b
+      LOGICAL                                            :: use_accurate_sum, use_sp_a, use_sp_b
       REAL(kind=dp), DIMENSION(:, :), POINTER            :: ldata_a, ldata_b
       REAL(kind=sp), DIMENSION(:, :), POINTER            :: ldata_a_sp, ldata_b_sp
 
@@ -868,10 +871,13 @@ CONTAINS
       CPASSERT(SIZE(matrix_a) == n_matrices)
       CPASSERT(SIZE(matrix_b) == n_matrices)
 
+      use_accurate_sum = .TRUE.
+      IF (PRESENT(accurate)) use_accurate_sum = accurate
+
 !$OMP PARALLEL DO DEFAULT(NONE), &
 !$OMP             PRIVATE(imatrix, ldata_a, ldata_a_sp, ldata_b, ldata_b_sp, ncols_local), &
 !$OMP             PRIVATE(nrows_local, use_sp_a, use_sp_b), &
-!$OMP             SHARED(matrix_a, matrix_b, n_matrices, trace)
+!$OMP             SHARED(matrix_a, matrix_b, n_matrices, trace, use_accurate_sum)
       DO imatrix = 1, n_matrices
          CALL cp_fm_get_info(matrix_a(imatrix)%matrix, nrow_local=nrows_local, ncol_local=ncols_local)
 
@@ -882,11 +888,19 @@ CONTAINS
          IF (use_sp_a .AND. use_sp_b) THEN
             ldata_a_sp => matrix_a(imatrix)%matrix%local_data_sp(1:nrows_local, 1:ncols_local)
             ldata_b_sp => matrix_b(imatrix)%matrix%local_data_sp(1:nrows_local, 1:ncols_local)
-            trace(imatrix) = accurate_dot_product(ldata_a_sp, ldata_b_sp)
+            IF (use_accurate_sum) THEN
+               trace(imatrix) = accurate_dot_product(ldata_a_sp, ldata_b_sp)
+            ELSE
+               trace(imatrix) = SUM(ldata_a_sp*ldata_b_sp)
+            END IF
          ELSE IF (.NOT. use_sp_a .AND. .NOT. use_sp_b) THEN
             ldata_a => matrix_a(imatrix)%matrix%local_data(1:nrows_local, 1:ncols_local)
             ldata_b => matrix_b(imatrix)%matrix%local_data(1:nrows_local, 1:ncols_local)
-            trace(imatrix) = accurate_dot_product(ldata_a, ldata_b)
+            IF (use_accurate_sum) THEN
+               trace(imatrix) = accurate_dot_product(ldata_a, ldata_b)
+            ELSE
+               trace(imatrix) = SUM(ldata_a*ldata_b)
+            END IF
          ELSE
             CPABORT("Matrices A and B are of different types")
          END IF
@@ -904,10 +918,12 @@ CONTAINS
 !> \param matrix_a list of A matrices
 !> \param matrix_b list of B matrices
 !> \param trace    computed traces
+!> \param accurate ...
 ! **************************************************************************************************
-   SUBROUTINE cp_fm_contracted_trace_a2b2t2(matrix_a, matrix_b, trace)
+   SUBROUTINE cp_fm_contracted_trace_a2b2t2(matrix_a, matrix_b, trace, accurate)
       TYPE(cp_fm_p_type), DIMENSION(:, :), INTENT(in)    :: matrix_a, matrix_b
       REAL(kind=dp), DIMENSION(:, :), INTENT(out)        :: trace
+      LOGICAL, INTENT(IN), OPTIONAL                      :: accurate
 
       CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_contracted_trace_a2b2t2', &
          routineP = moduleN//':'//routineN
@@ -915,7 +931,7 @@ CONTAINS
       INTEGER                                            :: group, handle, ia, ib, iz, na, nb, &
                                                             ncols_local, nrows_local, nz
       INTEGER(kind=int_8)                                :: ib8, itrace, na8, ntraces
-      LOGICAL                                            :: use_sp_a, use_sp_b
+      LOGICAL                                            :: use_accurate_sum, use_sp_a, use_sp_b
       REAL(kind=dp)                                      :: t
       REAL(kind=dp), DIMENSION(:, :), POINTER            :: ldata_a, ldata_b
       REAL(kind=sp), DIMENSION(:, :), POINTER            :: ldata_a_sp, ldata_b_sp
@@ -930,18 +946,22 @@ CONTAINS
       CPASSERT(SIZE(trace, 1) == na)
       CPASSERT(SIZE(trace, 2) == nb)
 
-      ! here we use one running index (itrace) instead of two (ia, ib) in order to improve load balance between shared-memory threads
+      use_accurate_sum = .TRUE.
+      IF (PRESENT(accurate)) use_accurate_sum = accurate
+
+      ! here we use one running index (itrace) instead of two (ia, ib) in order to
+      ! improve load balance between shared-memory threads
       ntraces = na*nb
       na8 = INT(na, kind=int_8)
 
 !$OMP PARALLEL DO DEFAULT(NONE), &
 !$OMP             PRIVATE(ia, ib, ib8, itrace, iz, ldata_a, ldata_a_sp, ldata_b, ldata_b_sp, ncols_local), &
 !$OMP             PRIVATE(nrows_local, t, use_sp_a, use_sp_b), &
-!$OMP             SHARED(matrix_a, matrix_b, na, na8, nb, ntraces, nz, trace)
+!$OMP             SHARED(matrix_a, matrix_b, na, na8, nb, ntraces, nz, trace, use_accurate_sum)
       DO itrace = 1, ntraces
-         ib8 = (itrace-1)/na8
-         ia = INT(itrace-ib8*na8)
-         ib = INT(ib8)+1
+         ib8 = (itrace - 1)/na8
+         ia = INT(itrace - ib8*na8)
+         ib = INT(ib8) + 1
 
          t = 0.0_dp
          DO iz = 1, nz
@@ -953,11 +973,19 @@ CONTAINS
             IF (.NOT. use_sp_a .AND. .NOT. use_sp_b) THEN
                ldata_a => matrix_a(iz, ia)%matrix%local_data(1:nrows_local, 1:ncols_local)
                ldata_b => matrix_b(iz, ib)%matrix%local_data(1:nrows_local, 1:ncols_local)
-               t = t+accurate_dot_product(ldata_a, ldata_b)
+               IF (use_accurate_sum) THEN
+                  t = t + accurate_dot_product(ldata_a, ldata_b)
+               ELSE
+                  t = t + SUM(ldata_a*ldata_b)
+               END IF
             ELSE IF (use_sp_a .AND. use_sp_b) THEN
                ldata_a_sp => matrix_a(iz, ia)%matrix%local_data_sp(1:nrows_local, 1:ncols_local)
                ldata_b_sp => matrix_b(iz, ib)%matrix%local_data_sp(1:nrows_local, 1:ncols_local)
-               t = t+accurate_dot_product(ldata_a_sp, ldata_b_sp)
+               IF (use_accurate_sum) THEN
+                  t = t + accurate_dot_product(ldata_a_sp, ldata_b_sp)
+               ELSE
+                  t = t + SUM(ldata_a_sp*ldata_b_sp)
+               END IF
             ELSE
                CPABORT("Matrices A and B are of different types")
             END IF
@@ -1281,7 +1309,7 @@ CONTAINS
       a => matrix%local_data
       a_sp => matrix%local_data_sp
       DO irow_global = 1, nrow_global
-         DO icol_global = irow_global+1, ncol_global
+         DO icol_global = irow_global + 1, ncol_global
             IF (matrix%use_sp) THEN
                a_sp(icol_global, irow_global) = a_sp(irow_global, icol_global)
             ELSE
@@ -1298,12 +1326,14 @@ CONTAINS
 ! **************************************************************************************************
 !> \brief scales column i of matrix a with scaling(i)
 !> \param matrixa ...
-!> \param scaling : an array used for scaling the columns, SIZE(scaling) determines the number of columns to be scaled
+!> \param scaling : an array used for scaling the columns,
+!>                  SIZE(scaling) determines the number of columns to be scaled
 !> \author Joost VandeVondele
 !> \note
 !>      this is very useful as a first step in the computation of C = sum_i alpha_i A_i transpose (A_i)
-!>      that is a rank-k update (cp_fm_syrk , cp_sm_plus_fm_fm_t) where every vector has a different prefactor
+!>      that is a rank-k update (cp_fm_syrk , cp_sm_plus_fm_fm_t)
 !>      this procedure can be up to 20 times faster than calling cp_fm_syrk n times
+!>      where every vector has a different prefactor
 ! **************************************************************************************************
    SUBROUTINE cp_fm_column_scale(matrixa, scaling)
       TYPE(cp_fm_type), POINTER                :: matrixa
@@ -1362,6 +1392,67 @@ CONTAINS
    END SUBROUTINE cp_fm_column_scale
 
 ! **************************************************************************************************
+!> \brief scales row i of matrix a with scaling(i)
+!> \param matrixa ...
+!> \param scaling : an array used for scaling the columns,
+!> \author JGH
+!> \note
+! **************************************************************************************************
+   SUBROUTINE cp_fm_row_scale(matrixa, scaling)
+      TYPE(cp_fm_type), POINTER                :: matrixa
+      REAL(KIND=dp), DIMENSION(:), INTENT(in)  :: scaling
+
+      INTEGER                                  :: n, m, nrow_global, nrow_local, ncol_local
+      INTEGER, DIMENSION(:), POINTER           :: row_indices
+      REAL(KIND=dp), DIMENSION(:, :), POINTER  :: a
+      REAL(KIND=sp), DIMENSION(:, :), POINTER  :: a_sp
+#if defined(__SCALAPACK)
+      INTEGER                                  :: irow_global, icol, irow
+#else
+      INTEGER                                  :: j
+#endif
+
+      CALL cp_fm_get_info(matrixa, row_indices=row_indices, nrow_global=nrow_global, &
+                          nrow_local=nrow_local, ncol_local=ncol_local)
+      CPASSERT(SIZE(scaling) == nrow_global)
+
+      a => matrixa%local_data
+      a_sp => matrixa%local_data_sp
+      IF (matrixa%use_sp) THEN
+         n = SIZE(a_sp, 1)
+         m = SIZE(a_sp, 2)
+      ELSE
+         n = SIZE(a, 1)
+         m = SIZE(a, 2)
+      ENDIF
+
+#if defined(__SCALAPACK)
+      DO icol = 1, ncol_local
+         IF (matrixa%use_sp) THEN
+            DO irow = 1, nrow_local
+               irow_global = row_indices(irow)
+               a(irow, icol) = REAL(scaling(irow_global), dp)*a(irow, icol)
+            END DO
+         ELSE
+            DO irow = 1, nrow_local
+               irow_global = row_indices(irow)
+               a(irow, icol) = scaling(irow_global)*a(irow, icol)
+            END DO
+         ENDIF
+      ENDDO
+#else
+      IF (matrixa%use_sp) THEN
+         DO j = 1, m
+            a_sp(1:n, j) = REAL(scaling(1:n), sp)*a_sp(1:n, j)
+         ENDDO
+      ELSE
+         DO j = 1, m
+            a(1:n, j) = scaling(1:n)*a(1:n, j)
+         ENDDO
+      ENDIF
+#endif
+   END SUBROUTINE cp_fm_row_scale
+! **************************************************************************************************
 !> \brief Inverts a cp_fm_type matrix, optionally returning the determinant of the input matrix
 !> \param matrix_a the matrix to invert
 !> \param matrix_inverse the inverse of matrix_a
@@ -1416,7 +1507,7 @@ CONTAINS
 
       a => matrix_lu%local_data
       n = matrix_lu%matrix_struct%nrow_global
-      ALLOCATE (ipivot(n+matrix_a%matrix_struct%nrow_block))
+      ALLOCATE (ipivot(n + matrix_a%matrix_struct%nrow_block))
       ipivot(:) = 0
 #if defined(__SCALAPACK)
       IF (my_eps_svd .EQ. 0.0_dp) THEN
@@ -1439,7 +1530,7 @@ CONTAINS
             DO i = 1, n
                determinant = determinant*diag(i)
                IF (ipivot(i) .NE. i) THEN
-                  exponent_of_minus_one = exponent_of_minus_one+1
+                  exponent_of_minus_one = exponent_of_minus_one + 1
                END IF
             ENDDO
             IF (PRESENT(eigval)) THEN
@@ -1486,7 +1577,7 @@ CONTAINS
                       1, 1, desca, vt%local_data, 1, 1, desca, work, lwork, info)
          ! info == n+1 implies homogeneity error when the number of procs is large
          ! this likely isnt a problem, but maybe we should handle it separately
-         IF (info /= 0 .AND. info /= n+1) &
+         IF (info /= 0 .AND. info /= n + 1) &
             CPABORT("Singular value decomposition of matrix failed.")
          ! (Pseudo)inverse and (pseudo)determinant
          CALL cp_fm_create(matrix=sigma, &
@@ -1672,7 +1763,7 @@ CONTAINS
       ALLOCATE (r_mat(ncol, ncol))
       CALL cp_fm_get_submatrix(matrix_a, r_mat, 1, 1, ncol, ncol)
       DO i = 1, ncol
-         DO j = i+1, ncol
+         DO j = i + 1, ncol
             r_mat(j, i) = 0.0_dp
          END DO
       END DO
@@ -1711,7 +1802,7 @@ CONTAINS
       a => matrix_a%local_data
       a_general => general_a%local_data
       n = matrix_a%matrix_struct%nrow_global
-      ALLOCATE (ipivot(n+matrix_a%matrix_struct%nrow_block))
+      ALLOCATE (ipivot(n + matrix_a%matrix_struct%nrow_block))
 
 #if defined(__SCALAPACK)
       desca(:) = matrix_a%matrix_struct%descriptor(:)
@@ -2078,13 +2169,13 @@ CONTAINS
       IF (matrix%use_sp) THEN
          res_sp = 0.0_sp
          DO ii = 1, nrows
-            res_sp = res_sp+aa_sp(ii, ii)
+            res_sp = res_sp + aa_sp(ii, ii)
          END DO
          res = REAL(res_sp, KIND=dp)
       ELSE
          res = 0.0_dp
          DO ii = 1, nrows
-            res = res+aa(ii, ii)
+            res = res + aa(ii, ii)
          END DO
       END IF
 #endif

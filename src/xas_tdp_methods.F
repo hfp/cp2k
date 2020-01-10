@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -55,12 +55,11 @@ MODULE xas_tdp_methods
                                               dbcsr_multiply,&
                                               dbcsr_p_type,&
                                               dbcsr_set
-   USE hfx_libint_wrapper,              ONLY: cp_libint_static_init
    USE input_constants,                 ONLY: &
-        do_loc_none, do_potential_coulomb, do_potential_short, do_potential_truncated, &
-        op_loc_berry, state_loc_list, tddfpt_singlet, tddfpt_spin_cons, tddfpt_spin_flip, &
-        tddfpt_triplet, xas_1s_type, xas_2p_type, xas_2s_type, xas_dip_len, xas_dip_vel, &
-        xas_not_excited, xas_tdp_by_index, xas_tdp_by_kind, xas_tdp_diag_syevr
+        do_loc_none, do_potential_coulomb, do_potential_id, do_potential_short, &
+        do_potential_truncated, op_loc_berry, state_loc_list, tddfpt_singlet, tddfpt_spin_cons, &
+        tddfpt_spin_flip, tddfpt_triplet, xas_1s_type, xas_2p_type, xas_2s_type, xas_dip_len, &
+        xas_dip_vel, xas_not_excited, xas_tdp_by_index, xas_tdp_by_kind
    USE input_cp2k_dft,                  ONLY: create_localize_section
    USE input_section_types,             ONLY: &
         section_release, section_type, section_vals_create, section_vals_duplicate, &
@@ -69,6 +68,7 @@ MODULE xas_tdp_methods
    USE kinds,                           ONLY: default_path_length,&
                                               default_string_length,&
                                               dp
+   USE libint_wrapper,                  ONLY: cp_libint_static_init
    USE machine,                         ONLY: m_flush
    USE mathlib,                         ONLY: get_diag
    USE memory_utilities,                ONLY: reallocate
@@ -118,8 +118,8 @@ MODULE xas_tdp_methods
    USE xas_tdp_types,                   ONLY: &
         donor_state_create, donor_state_type, free_ds_memory, free_exat_memory, &
         read_xas_tdp_control, set_donor_state, set_xas_tdp_env, xas_atom_env_create, &
-        xas_atom_env_release, xas_atom_env_type, xas_tdp_control_create, xas_tdp_control_type, &
-        xas_tdp_env_create, xas_tdp_env_release, xas_tdp_env_type
+        xas_atom_env_release, xas_atom_env_type, xas_tdp_control_create, xas_tdp_control_release, &
+        xas_tdp_control_type, xas_tdp_env_create, xas_tdp_env_release, xas_tdp_env_type
    USE xas_tdp_utils,                   ONLY: compute_ri_coulomb2_int,&
                                               compute_ri_exchange2_int,&
                                               compute_ri_o3c_coulomb,&
@@ -408,15 +408,6 @@ CONTAINS
 !              Do main calculations here
                CALL setup_xas_tdp_prob(current_state, qs_env, xas_tdp_env, xas_tdp_control)
 
-!              Warn against possible failure of SYEVR if this is the solver of choice
-               IF (output_unit > 0 .AND. xas_tdp_control%diag_type == xas_tdp_diag_syevr) THEN
-                  WRITE (UNIT=output_unit, FMT="(/T5,A,/,T5,A,/,T5,A)") &
-                     "Diagonalizing using ScaLAPACK's PDSYEVR routine. This routine is not always", &
-                     "stable and might lead to a crash. If it so happens, switch back to the", &
-                     "default DIAG_TYPE STD keyword."
-                  CALL m_flush(output_unit)
-               END IF
-
                IF (xas_tdp_control%do_spin_cons) THEN
                   CALL solve_xas_tdp_prob(current_state, xas_tdp_control, xas_tdp_env, qs_env, &
                                           ex_type=tddfpt_spin_cons)
@@ -473,7 +464,7 @@ CONTAINS
 !              Free some unneeded attributes of current_state
                CALL free_ds_memory(current_state)
 
-               current_state_index = current_state_index+1
+               current_state_index = current_state_index + 1
                NULLIFY (current_state)
 
             END DO ! state type
@@ -501,6 +492,7 @@ CONTAINS
 
 !  Clean-up
       CALL xas_tdp_env_release(xas_tdp_env)
+      CALL xas_tdp_control_release(xas_tdp_control)
 
    END SUBROUTINE xas_tdp_core
 
@@ -551,10 +543,8 @@ CONTAINS
       xas_tdp_section => section_vals_get_subs_vals(qs_env%input, "DFT%XAS_TDP")
 
       CALL get_qs_env(qs_env, dft_control=dft_control)
-      CALL xas_tdp_control_create(dft_control%xas_tdp_control)
-      CALL read_xas_tdp_control(dft_control%xas_tdp_control, xas_tdp_section)
-
-      xas_tdp_control => dft_control%xas_tdp_control
+      CALL xas_tdp_control_create(xas_tdp_control)
+      CALL read_xas_tdp_control(xas_tdp_control, xas_tdp_section)
 
 !  Check the qs_env for a LSD/ROKS calculation
       IF (dft_control%uks) xas_tdp_control%do_uks = .TRUE.
@@ -590,8 +580,8 @@ CONTAINS
          DO i = 1, nex_atoms
             at_ind = xas_tdp_env%ex_atom_indices(i)
             CALL get_atomic_kind(particle_set(at_ind)%atomic_kind, kind_number=j)
-            IF (ALL(ABS(xas_tdp_env%ex_kind_indices-j) .NE. 0)) THEN
-               k = k+1
+            IF (ALL(ABS(xas_tdp_env%ex_kind_indices - j) .NE. 0)) THEN
+               k = k + 1
                xas_tdp_env%ex_kind_indices(k) = j
             END IF
          END DO
@@ -614,8 +604,8 @@ CONTAINS
             CALL get_atomic_kind(atomic_kind=at_kind_set(i), name=kind_name, &
                                  natom=nat_of_kind, kind_number=kind_ind)
             IF (ANY(xas_tdp_control%list_ex_kinds == kind_name)) THEN
-               nex_atoms = nex_atoms+nat_of_kind
-               k = k+1
+               nex_atoms = nex_atoms + nat_of_kind
+               k = k + 1
                xas_tdp_env%ex_kind_indices(k) = kind_ind
             END IF
          END DO
@@ -630,13 +620,13 @@ CONTAINS
                                  natom=nat_of_kind, atom_list=ind_of_kind)
             DO j = 1, nex_kinds
                IF (xas_tdp_control%list_ex_kinds(j) == kind_name) THEN
-                  xas_tdp_env%ex_atom_indices(nex_atoms+1:nex_atoms+nat_of_kind) = ind_of_kind
+                  xas_tdp_env%ex_atom_indices(nex_atoms + 1:nex_atoms + nat_of_kind) = ind_of_kind
                   DO k = 1, SIZE(xas_tdp_control%state_types, 1)
-                     xas_tdp_env%state_types(k, nex_atoms+1:nex_atoms+nat_of_kind) = &
+                     xas_tdp_env%state_types(k, nex_atoms + 1:nex_atoms + nat_of_kind) = &
                         xas_tdp_control%state_types(k, j)
                   END DO
-                  nex_atoms = nex_atoms+nat_of_kind
-                  nmatch = nmatch+1
+                  nex_atoms = nex_atoms + nat_of_kind
+                  nmatch = nmatch + 1
                END IF
             END DO
          END DO
@@ -842,7 +832,7 @@ CONTAINS
 
       !PB only available without exact exchange
       IF (xas_tdp_control%is_periodic .AND. xas_tdp_control%do_hfx &
-          .AND. xas_tdp_control%x_op == do_potential_coulomb) THEN
+          .AND. xas_tdp_control%x_potential%potential_type == do_potential_coulomb) THEN
          CPABORT("XAS TDP with Coulomb operator for exact exchange only supports non-periodic BCs")
       END IF
 
@@ -1021,27 +1011,54 @@ CONTAINS
       !HFX kernel
       IF (xas_tdp_control%do_hfx) THEN
          WRITE (UNIT=ou, FMT="(/,T3,A,/,/,T3,A,F5.3)") &
-            "XAS_TDP| Exat Exchange Kernel: On ", &
+            "XAS_TDP| Exact Exchange Kernel: Yes ", &
             "EXACT_EXCHANGE| Scale: ", xas_tdp_control%sx
-         IF (xas_tdp_control%x_op == do_potential_coulomb) THEN
+         IF (xas_tdp_control%x_potential%potential_type == do_potential_coulomb) THEN
             WRITE (UNIT=ou, FMT="(T3,A)") &
-               "EXACT_EXCHANGE| Operator : Coulomb"
-         ELSE IF (xas_tdp_control%x_op == do_potential_truncated) THEN
+               "EXACT_EXCHANGE| Potential : Coulomb"
+         ELSE IF (xas_tdp_control%x_potential%potential_type == do_potential_truncated) THEN
             WRITE (UNIT=ou, FMT="(T3,A,/,T3,A,F5.2,A,/,T3,A,A)") &
-               "EXACT_EXCHANGE| Operator: Truncated Coulomb", &
-               "EXACT_EXCHANGE| Range: ", xas_tdp_control%x_range*angstrom, ", (Ang)", &
-               "EXACT_EXCHANGE| T_C_G_DATA: ", xas_tdp_control%x_t_c_filename
-         ELSE IF (xas_tdp_control%x_op == do_potential_short) THEN
+               "EXACT_EXCHANGE| Potential: Truncated Coulomb", &
+               "EXACT_EXCHANGE| Range: ", xas_tdp_control%x_potential%cutoff_radius*angstrom, ", (Ang)", &
+               "EXACT_EXCHANGE| T_C_G_DATA: ", TRIM(xas_tdp_control%x_potential%filename)
+         ELSE IF (xas_tdp_control%x_potential%potential_type == do_potential_short) THEN
             WRITE (UNIT=ou, FMT="(T3,A,/,T3,A,F5.2,A,/,T3,A,F5.2,A,/,T3,A,ES7.1)") &
-               "EXACT_EXCHANGE| Operator: Short Range", &
-               "EXACT_EXCHANGE| Omega: ", xas_tdp_control%x_omega, ", (1/a0)", &
-               "EXACT_EXCHANGE| Effective Range: ", xas_tdp_control%x_range*angstrom, ", (Ang)", &
+               "EXACT_EXCHANGE| Potential: Short Range", &
+               "EXACT_EXCHANGE| Omega: ", xas_tdp_control%x_potential%omega, ", (1/a0)", &
+               "EXACT_EXCHANGE| Effective Range: ", xas_tdp_control%x_potential%cutoff_radius*angstrom, ", (Ang)", &
                "EXACT_EXCHANGE| EPS_RANGE: ", xas_tdp_control%eps_range
          END IF
          IF (xas_tdp_control%eps_screen > 1.0E-16) THEN
             WRITE (UNIT=ou, FMT="(T3,A,ES7.1)") &
                "EXACT_EXCHANGE| EPS_SCREENING: ", xas_tdp_control%eps_screen
          END IF
+
+         !RI metric
+         IF (xas_tdp_control%do_ri_metric) THEN
+
+            WRITE (UNIT=ou, FMT="(/,T3,A)") &
+               "EXACT_EXCHANGE| Using a RI metric"
+            IF (xas_tdp_control%ri_m_potential%potential_type == do_potential_id) THEN
+               WRITE (UNIT=ou, FMT="(T3,A)") &
+                  "EXACT_EXCHANGE RI_METRIC| Potential : Overlap"
+            ELSE IF (xas_tdp_control%ri_m_potential%potential_type == do_potential_truncated) THEN
+               WRITE (UNIT=ou, FMT="(T3,A,/,T3,A,F5.2,A,/,T3,A,A)") &
+                  "EXACT_EXCHANGE RI_METRIC| Potential: Truncated Coulomb", &
+                  "EXACT_EXCHANGE RI_METRIC| Range: ", xas_tdp_control%ri_m_potential%cutoff_radius &
+                  *angstrom, ", (Ang)", &
+                  "EXACT_EXCHANGE RI_METRIC| T_C_G_DATA: ", TRIM(xas_tdp_control%ri_m_potential%filename)
+            ELSE IF (xas_tdp_control%ri_m_potential%potential_type == do_potential_short) THEN
+               WRITE (UNIT=ou, FMT="(T3,A,/,T3,A,F5.2,A,/,T3,A,F5.2,A,/,T3,A,ES7.1)") &
+                  "EXACT_EXCHANGE RI_METRIC| Potential: Short Range", &
+                  "EXACT_EXCHANGE RI_METRIC| Omega: ", xas_tdp_control%ri_m_potential%omega, ", (1/a0)", &
+                  "EXACT_EXCHANGE RI_METRIC| Effective Range: ", &
+                  xas_tdp_control%ri_m_potential%cutoff_radius*angstrom, ", (Ang)", &
+                  "EXACT_EXCHANGE RI_METRIC| EPS_RANGE: ", xas_tdp_control%eps_range
+            END IF
+         END IF
+      ELSE
+         WRITE (UNIT=ou, FMT="(/,T3,A,/)") &
+            "XAS_TDP| Exact Exchange Kernel: No "
       END IF
 
    END SUBROUTINE print_info
@@ -1242,7 +1259,7 @@ CONTAINS
             DO ilmo = 1, xas_tdp_control%n_search
                IF (xas_tdp_env%mos_of_ex_atoms(ilmo, iat, ispin) == -1) CYCLE
 
-               i = i+1
+               i = i + 1
                ! put the coeff in our atom-restricted lmo_fm
                CALL cp_fm_to_fm_submat(mo_coeff, lmo_fm, nrow=nao, ncol=1, s_firstrow=1, &
                                        s_firstcol=ilmo, t_firstrow=1, t_firstcol=i)
@@ -1266,7 +1283,7 @@ CONTAINS
             DO ilmo = 1, xas_tdp_control%n_search
                IF (xas_tdp_env%mos_of_ex_atoms(ilmo, iat, ispin) == -1) CYCLE
 
-               i = i+1
+               i = i + 1
                CALL cp_fm_to_fm_submat(work, mo_coeff, nrow=nao, ncol=1, s_firstrow=1, &
                                        s_firstcol=i, t_firstrow=1, t_firstcol=ilmo)
 
@@ -1371,9 +1388,9 @@ CONTAINS
 !     Electronic configuration (copied from MI's XAS)
       ne = 0
       DO l = 1, 4
-         nj = 2*(l-1)+1
+         nj = 2*(l - 1) + 1
          DO i = l, 7
-            ne(l, i) = ptable(zval)%e_conv(l-1)-2*nj*(i-l)
+            ne(l, i) = ptable(zval)%e_conv(l - 1) - 2*nj*(i - l)
             ne(l, i) = MAX(ne(l, i), 0)
             ne(l, i) = MIN(ne(l, i), 2*nj)
          END DO
@@ -1486,7 +1503,7 @@ CONTAINS
             DO i = 1, n_states
                CALL cp_fm_to_fm_submat(msource=mo_coeff, mtarget=donor_state%gs_coeffs, nrow=nao, &
                                        ncol=1, s_firstrow=1, s_firstcol=my_mos(i, ispin), &
-                                       t_firstrow=1, t_firstcol=(ispin-1)*n_states+i)
+                                       t_firstrow=1, t_firstcol=(ispin - 1)*n_states + i)
             END DO
          END DO
          gs_coeffs => donor_state%gs_coeffs
@@ -1567,7 +1584,7 @@ CONTAINS
 
 !                 Put the epsilon_ii into the donor_state. No off-diagonal element because of subset diag
                   CALL cp_fm_get_diag(eval_mat, diag)
-                  donor_state%energy_evals(:, ispin) = diag((ispin-1)*n_states+1:ispin*n_states)
+                  donor_state%energy_evals(:, ispin) = diag((ispin - 1)*n_states + 1:ispin*n_states)
 
                END DO
 
@@ -1797,7 +1814,7 @@ CONTAINS
                CALL assign_mos_to_donor_state(current_state, xas_tdp_env, xas_tdp_control, qs_env)
                CALL perform_mulliken_on_donor_state(current_state, qs_env)
 
-               current_state_index = current_state_index+1
+               current_state_index = current_state_index + 1
                NULLIFY (current_state)
 
             END DO !istate
@@ -1850,7 +1867,7 @@ CONTAINS
       IF (xas_tdp_control%do_quad) THEN
          DO i = 1, 6
             CALL dbcsr_set(xas_tdp_env%quadmat(i)%matrix, 0.0_dp)
-            work(3+i)%matrix => xas_tdp_env%quadmat(i)%matrix
+            work(3 + i)%matrix => xas_tdp_env%quadmat(i)%matrix
          END DO
          order = 2
          IF (xas_tdp_control%dipole_form == xas_dip_vel) order = -2
@@ -1947,20 +1964,20 @@ CONTAINS
          DO iosc = 1, nosc
 
             tot_contr = 0.0_dp
-            CALL cp_fm_get_submatrix(fm=mat_work, target_m=dip_block, start_row=(iosc-1)*ndo_so+1, &
+            CALL cp_fm_get_submatrix(fm=mat_work, target_m=dip_block, start_row=(iosc - 1)*ndo_so + 1, &
                                      start_col=1, n_rows=ndo_so, n_cols=ngs)
             IF (do_sg) THEN
                tot_contr(:) = get_diag(dip_block)
             ELSE IF (do_sc .AND. xas_tdp_control%do_uks) THEN
                tot_contr(:) = get_diag(dip_block(1:ndo_mo, 1:ndo_mo)) !alpha
-               tot_contr(:) = tot_contr(:)+get_diag(dip_block(ndo_mo+1:ndo_so, ndo_mo+1:ndo_so)) !beta
+               tot_contr(:) = tot_contr(:) + get_diag(dip_block(ndo_mo + 1:ndo_so, ndo_mo + 1:ndo_so)) !beta
             ELSE
                !roks
                tot_contr(:) = get_diag(dip_block(1:ndo_mo, :)) !alpha
-               tot_contr(:) = tot_contr(:)+get_diag(dip_block(ndo_mo+1:ndo_so, :)) !beta
+               tot_contr(:) = tot_contr(:) + get_diag(dip_block(ndo_mo + 1:ndo_so, :)) !beta
             END IF
 
-            osc_str(iosc) = osc_str(iosc)+SUM(tot_contr)**2
+            osc_str(iosc) = osc_str(iosc) + SUM(tot_contr)**2
 
          END DO !iosc
       END DO !j
@@ -2064,35 +2081,35 @@ CONTAINS
          DO iosc = 1, nosc
 
             tot_contr = 0.0_dp
-            CALL cp_fm_get_submatrix(fm=mat_work, target_m=quad_block, start_row=(iosc-1)*ndo_so+1, &
+            CALL cp_fm_get_submatrix(fm=mat_work, target_m=quad_block, start_row=(iosc - 1)*ndo_so + 1, &
                                      start_col=1, n_rows=ndo_so, n_cols=ngs)
 
             IF (do_sg) THEN
                tot_contr(:) = get_diag(quad_block)
             ELSE IF (do_sc .AND. xas_tdp_control%do_uks) THEN
                tot_contr(:) = get_diag(quad_block(1:ndo_mo, 1:ndo_mo)) !alpha
-               tot_contr(:) = tot_contr(:)+get_diag(quad_block(ndo_mo+1:ndo_so, ndo_mo+1:ndo_so)) !beta
+               tot_contr(:) = tot_contr(:) + get_diag(quad_block(ndo_mo + 1:ndo_so, ndo_mo + 1:ndo_so)) !beta
             ELSE
                !roks
                tot_contr(:) = get_diag(quad_block(1:ndo_mo, :)) !alpha
-               tot_contr(:) = tot_contr(:)+get_diag(quad_block(ndo_mo+1:ndo_so, :)) !beta
+               tot_contr(:) = tot_contr(:) + get_diag(quad_block(ndo_mo + 1:ndo_so, :)) !beta
             END IF
 
             !if x2, y2, or z2 direction, need to update the trace (for later)
             IF (j == 1 .OR. j == 4 .OR. j == 6) THEN
-               osc_str(iosc) = osc_str(iosc)+SUM(tot_contr)**2
-               trace(iosc) = trace(iosc)+SUM(tot_contr)
+               osc_str(iosc) = osc_str(iosc) + SUM(tot_contr)**2
+               trace(iosc) = trace(iosc) + SUM(tot_contr)
 
                !if xy, xz or yz, need to count twice the contribution (for yx, zx and zy)
             ELSE
-               osc_str(iosc) = osc_str(iosc)+2.0_dp*SUM(tot_contr)**2
+               osc_str(iosc) = osc_str(iosc) + 2.0_dp*SUM(tot_contr)**2
             END IF
 
          END DO !iosc
       END DO !j
 
       !compute the prefactor, and remove 1/3*trace^2
-      osc_str(:) = pref*1._dp/20._dp*a_fine**2*lr_evals(:)**3*(osc_str(:)-1._dp/3._dp*trace(:)**2)
+      osc_str(:) = pref*1._dp/20._dp*a_fine**2*lr_evals(:)**3*(osc_str(:) - 1._dp/3._dp*trace(:)**2)
 
       !clean-up
       CALL cp_fm_release(mat_work)
@@ -2244,7 +2261,7 @@ CONTAINS
       ALLOCATE (last_sgf(natom))
 
       CALL get_particle_set(particle_set, qs_kind_set, first_sgf=first_sgf, last_sgf=last_sgf)
-      nsgf = last_sgf(at_index)-first_sgf(at_index)+1
+      nsgf = last_sgf(at_index) - first_sgf(at_index) + 1
 
       CALL cp_fm_create(work_vect, col_vect_struct)
 
@@ -2264,7 +2281,7 @@ CONTAINS
 !  The Mullikan population for the MOs in on the diagonal.
       DO ispin = 1, nspins
          DO i = 1, ndo_mo
-            mul_pop(i, ispin) = pop_mat((ispin-1)*ndo_mo+i, (ispin-1)*ndo_mo+i)
+            mul_pop(i, ispin) = pop_mat((ispin - 1)*ndo_mo + i, (ispin - 1)*ndo_mo + i)
          END DO
       END DO
 
@@ -2430,11 +2447,11 @@ CONTAINS
          print_key => section_vals_get_subs_vals(xas_tdp_section, "PRINT%CUBES")
 
          CALL section_vals_val_get(print_key, "CUBES_LU_BOUNDS", i_vals=bounds)
-         ncubes = bounds(2)-bounds(1)+1
+         ncubes = bounds(2) - bounds(1) + 1
          IF (ncubes > 0) THEN
             ALLOCATE (state_list(ncubes))
             DO ic = 1, ncubes
-               state_list(ic) = bounds(1)+ic-1
+               state_list(ic) = bounds(1) + ic - 1
             END DO
          END IF
 
@@ -2446,11 +2463,11 @@ CONTAINS
                NULLIFY (list)
                CALL section_vals_val_get(print_key, "CUBES_LIST", i_rep_val=irep, i_vals=list)
                IF (ASSOCIATED(list)) THEN
-                  CALL reallocate(state_list, 1, ncubes+SIZE(list))
+                  CALL reallocate(state_list, 1, ncubes + SIZE(list))
                   DO ic = 1, SIZE(list)
-                     state_list(ncubes+ic) = list(ic)
+                     state_list(ncubes + ic) = list(ic)
                   END DO
-                  ncubes = ncubes+SIZE(list)
+                  ncubes = ncubes + SIZE(list)
                END IF
             END DO
          END IF
@@ -2487,7 +2504,7 @@ CONTAINS
                DO imo = 1, nmo
                   CALL cp_fm_to_fm_submat(msource=lr_coeffs, mtarget=mo_set%mo_coeff, &
                                           nrow=nao, ncol=1, s_firstrow=1, &
-                                          s_firstcol=(imo-1)*ndo_so+(ispin-1)*ndo_mo+ido_mo, &
+                                          s_firstcol=(imo - 1)*ndo_so + (ispin - 1)*ndo_mo + ido_mo, &
                                           t_firstrow=1, t_firstcol=imo)
                END DO
             END IF

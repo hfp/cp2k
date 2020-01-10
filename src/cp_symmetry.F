@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -120,9 +120,9 @@ CONTAINS
             CALL section_vals_val_get(section_vals=section, &
                                       keyword_name="ALL", l_val=pall)
             plevel = 0
-            IF (pcoor) plevel = plevel+1
-            IF (pinertia) plevel = plevel+10
-            IF (psymmele) plevel = plevel+100
+            IF (pcoor) plevel = plevel + 1
+            IF (pinertia) plevel = plevel + 10
+            IF (psymmele) plevel = plevel + 100
             IF (pall) plevel = 1111111111
 
             CALL print_symmetry(mol_sym, coord, atype, element, z, weight, iw, plevel)
@@ -164,7 +164,7 @@ CONTAINS
             CALL section_vals_val_get(section_vals=section, &
                                       keyword_name="ALL", l_val=pall)
             plevel = 0
-            IF (prmat) plevel = plevel+1
+            IF (prmat) plevel = plevel + 1
             IF (pall) plevel = 1111111111
             crys_sym%plevel = plevel
 

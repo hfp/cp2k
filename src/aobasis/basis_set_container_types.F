@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -196,11 +196,11 @@ CONTAINS
          END IF
       END IF
       ! shift other basis sets
-      DO i = ibas+1, SIZE(container)
+      DO i = ibas + 1, SIZE(container)
          IF (container(i)%basis_type_nr == 0) CYCLE
-         container(i-1)%basis_type = container(i)%basis_type
-         container(i-1)%basis_set => container(i)%basis_set
-         container(i-1)%basis_type_nr = container(i)%basis_type_nr
+         container(i - 1)%basis_type = container(i)%basis_type
+         container(i - 1)%basis_set => container(i)%basis_set
+         container(i - 1)%basis_type_nr = container(i)%basis_type_nr
          container(i)%basis_type = ""
          container(i)%basis_type_nr = 0
          NULLIFY (container(i)%basis_set)

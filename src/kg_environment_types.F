@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -22,12 +22,11 @@ MODULE kg_environment_types
                                               lri_env_release,&
                                               lri_environment_type
    USE molecule_types,                  ONLY: molecule_type
-   USE qs_dispersion_types,             ONLY: qs_dispersion_release,&
-                                              qs_dispersion_type
+   USE qs_dispersion_types,             ONLY: qs_dispersion_type
    USE qs_grid_atom,                    ONLY: atom_integration_grid_type,&
                                               deallocate_atom_int_grid
-   USE qs_neighbor_list_types,          ONLY: deallocate_neighbor_list_set,&
-                                              neighbor_list_set_p_type
+   USE qs_neighbor_list_types,          ONLY: neighbor_list_set_p_type,&
+                                              release_neighbor_list_sets
    USE task_list_types,                 ONLY: deallocate_task_list,&
                                               task_list_type
 #include "./base/base_uses.f90"
@@ -115,9 +114,6 @@ MODULE kg_environment_types
       INTEGER                                         :: coloring_method
       !
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER       :: tnadd_mat
-      !
-      LOGICAL                                         :: energy_correction
-      TYPE(energy_correction_type)                    :: ec_env
       ! LRI
       TYPE(lri_environment_type), POINTER             :: lri_env
       TYPE(lri_density_type), POINTER                 :: lri_density
@@ -138,34 +134,21 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'kg_env_release', routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: handle, iab, isub
+      INTEGER                                            :: handle, isub
 
       CALL timeset(routineN, handle)
 
       CPASSERT(ASSOCIATED(kg_env))
 
-      IF (ASSOCIATED(kg_env%sab_orb_full)) THEN
-         DO iab = 1, SIZE(kg_env%sab_orb_full)
-            CALL deallocate_neighbor_list_set(kg_env%sab_orb_full(iab)%neighbor_list_set)
-         END DO
-         DEALLOCATE (kg_env%sab_orb_full)
-      ENDIF
-      IF (ASSOCIATED(kg_env%sac_kin)) THEN
-         DO iab = 1, SIZE(kg_env%sac_kin)
-            CALL deallocate_neighbor_list_set(kg_env%sac_kin(iab)%neighbor_list_set)
-         END DO
-         DEALLOCATE (kg_env%sac_kin)
-      END IF
+      CALL release_neighbor_list_sets(kg_env%sab_orb_full)
+      CALL release_neighbor_list_sets(kg_env%sac_kin)
 
       IF (ASSOCIATED(kg_env%tnadd_mat)) THEN
          CALL dbcsr_deallocate_matrix_set(kg_env%tnadd_mat)
       ENDIF
 
       DO isub = 1, kg_env%nsubsets
-         DO iab = 1, SIZE(kg_env%subset(isub)%sab_orb)
-            CALL deallocate_neighbor_list_set(kg_env%subset(isub)%sab_orb(iab)%neighbor_list_set)
-         END DO
-         DEALLOCATE (kg_env%subset(isub)%sab_orb)
+         CALL release_neighbor_list_sets(kg_env%subset(isub)%sab_orb)
          CALL deallocate_task_list(kg_env%subset(isub)%task_list)
       END DO
 
@@ -190,44 +173,6 @@ CONTAINS
       END IF
       IF (ASSOCIATED(kg_env%int_grid_full)) THEN
          CALL deallocate_intgrid(kg_env%int_grid_full)
-      END IF
-
-      ! energy correction
-      IF (kg_env%energy_correction) THEN
-         ! neighbor lists
-         IF (ASSOCIATED(kg_env%ec_env%sab_orb)) THEN
-            DO iab = 1, SIZE(kg_env%ec_env%sab_orb)
-               CALL deallocate_neighbor_list_set(kg_env%ec_env%sab_orb(iab)%neighbor_list_set)
-            END DO
-            DEALLOCATE (kg_env%ec_env%sab_orb)
-         END IF
-         IF (ASSOCIATED(kg_env%ec_env%sac_ppl)) THEN
-            DO iab = 1, SIZE(kg_env%ec_env%sac_ppl)
-               CALL deallocate_neighbor_list_set(kg_env%ec_env%sac_ppl(iab)%neighbor_list_set)
-            END DO
-            DEALLOCATE (kg_env%ec_env%sac_ppl)
-         END IF
-         IF (ASSOCIATED(kg_env%ec_env%sap_ppnl)) THEN
-            DO iab = 1, SIZE(kg_env%ec_env%sap_ppnl)
-               CALL deallocate_neighbor_list_set(kg_env%ec_env%sap_ppnl(iab)%neighbor_list_set)
-            END DO
-            DEALLOCATE (kg_env%ec_env%sap_ppnl)
-         END IF
-         ! operator matrices
-         IF (ASSOCIATED(kg_env%ec_env%matrix_ks)) CALL dbcsr_deallocate_matrix_set(kg_env%ec_env%matrix_ks)
-         IF (ASSOCIATED(kg_env%ec_env%matrix_h)) CALL dbcsr_deallocate_matrix_set(kg_env%ec_env%matrix_h)
-         IF (ASSOCIATED(kg_env%ec_env%matrix_s)) CALL dbcsr_deallocate_matrix_set(kg_env%ec_env%matrix_s)
-         IF (ASSOCIATED(kg_env%ec_env%matrix_t)) CALL dbcsr_deallocate_matrix_set(kg_env%ec_env%matrix_t)
-         IF (ASSOCIATED(kg_env%ec_env%matrix_p)) CALL dbcsr_deallocate_matrix_set(kg_env%ec_env%matrix_p)
-         IF (ASSOCIATED(kg_env%ec_env%task_list)) THEN
-            CALL deallocate_task_list(kg_env%ec_env%task_list)
-         END IF
-         ! reduced basis
-         IF (ASSOCIATED(kg_env%ec_env%mao_coef)) CALL dbcsr_deallocate_matrix_set(kg_env%ec_env%mao_coef)
-         ! dispersion environment
-         IF (ASSOCIATED(kg_env%ec_env%dispersion_env)) THEN
-            CALL qs_dispersion_release(kg_env%ec_env%dispersion_env)
-         END IF
       END IF
 
       DEALLOCATE (kg_env)

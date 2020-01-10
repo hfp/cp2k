@@ -1,19 +1,19 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
 !> \brief Rountines for optimizing load balance between processes in HFX calculations
 !> \par History
 !>      04.2008 created [Manuel Guidon]
+!>      11.2019 fixed initial value for potential_id (A. Bussy)
 !> \author Manuel Guidon
 ! **************************************************************************************************
 MODULE hfx_pair_list_methods
    USE cell_types,                      ONLY: cell_type,&
                                               pbc
    USE gamma,                           ONLY: fgamma => fgamma_0
-   USE hfx_libint_wrapper,              ONLY: prim_data_f_size
    USE hfx_types,                       ONLY: &
         hfx_basis_type, hfx_block_range_type, hfx_cell_type, hfx_pgf_list, hfx_pgf_product_list, &
         hfx_potential_type, hfx_screen_coeff_type, pair_list_type, pair_set_list_type
@@ -22,6 +22,7 @@ MODULE hfx_pair_list_methods
         do_potential_long, do_potential_mix_cl, do_potential_mix_cl_trunc, do_potential_mix_lg, &
         do_potential_short, do_potential_truncated
    USE kinds,                           ONLY: dp
+   USE libint_wrapper,                  ONLY: prim_data_f_size
    USE mathconstants,                   ONLY: pi
    USE mp2_types,                       ONLY: pair_list_type_mp2
    USE particle_types,                  ONLY: particle_type
@@ -77,10 +78,10 @@ CONTAINS
 
       INTEGER                                            :: i, j, k, l, nimages1, nimages2, tmp_i4
       LOGICAL                                            :: use_gamma
-      REAL(dp) :: C11(3), Eta, EtaInv, factor, Fm(prim_data_f_size), omega2, omega_corr, &
-         omega_corr2, P(3), pgf_max_1, pgf_max_2, PQ(3), Q(3), R, R1, R2, ra(3), rb(3), rc(3), &
-         rd(3), Rho, RhoInv, rpq2, S1234, S1234a, S1234b, shift(3), T, temp(3), temp_CC(3), &
-         temp_DD(3), tmp, tmp_D(3), W(3), Zeta1, Zeta_C, Zeta_D, ZetapEtaInv
+      REAL(dp) :: C11(3), den, Eta, EtaInv, factor, Fm(prim_data_f_size), G(3), num, omega2, &
+         omega_corr, omega_corr2, P(3), pgf_max_1, pgf_max_2, PQ(3), Q(3), R, R1, R2, ra(3), &
+         rb(3), rc(3), rd(3), Rho, RhoInv, rpq2, S1234, S1234a, S1234b, shift(3), ssss, T, &
+         temp(3), temp_CC(3), temp_DD(3), tmp, tmp_D(3), W(3), Zeta1, Zeta_C, Zeta_D, ZetapEtaInv
       TYPE(hfx_pgf_product_list), ALLOCATABLE, &
          DIMENSION(:)                                    :: tmp_product_list
 
@@ -101,52 +102,52 @@ CONTAINS
          rb = list1%image_list(i)%rb
          DO j = 1, nimages2
             pgf_max_2 = list2%image_list(j)%pgf_max
-            IF (pgf_max_1+pgf_max_2+log10_pmax < log10_eps_schwarz) CYCLE
+            IF (pgf_max_1 + pgf_max_2 + log10_pmax < log10_eps_schwarz) CYCLE
             Q = list2%image_list(j)%P
             R2 = list2%image_list(j)%R
             S1234b = list2%image_list(j)%S1234
             rc = list2%image_list(j)%ra
             rd = list2%image_list(j)%rb
 
-            ZetapEtaInv = Zeta1+Eta
+            ZetapEtaInv = Zeta1 + Eta
             ZetapEtaInv = 1.0_dp/ZetapEtaInv
             Rho = Zeta1*Eta*ZetapEtaInv
             RhoInv = 1.0_dp/Rho
-            S1234 = EXP(S1234a+S1234b)
+            S1234 = EXP(S1234a + S1234b)
             IF (do_periodic) THEN
-               temp = P-Q
+               temp = P - Q
                PQ = pbc(temp, cell)
-               shift = -PQ+temp
-               temp_CC = rc+shift
-               temp_DD = rd+shift
+               shift = -PQ + temp
+               temp_CC = rc + shift
+               temp_DD = rd + shift
             END IF
 
             DO k = 1, SIZE(neighbor_cells)
                IF (do_periodic) THEN
-                  C11 = temp_CC+neighbor_cells(k)%cell_r(:)
-                  tmp_D = temp_DD+neighbor_cells(k)%cell_r(:)
+                  C11 = temp_CC + neighbor_cells(k)%cell_r(:)
+                  tmp_D = temp_DD + neighbor_cells(k)%cell_r(:)
                ELSE
                   C11 = rc
                   tmp_D = rd
                END IF
-               Q = (Zeta_C*C11+Zeta_D*tmp_D)*EtaInv
-               rpq2 = (P(1)-Q(1))**2+(P(2)-Q(2))**2+(P(3)-Q(3))**2
+               Q = (Zeta_C*C11 + Zeta_D*tmp_D)*EtaInv
+               rpq2 = (P(1) - Q(1))**2 + (P(2) - Q(2))**2 + (P(3) - Q(3))**2
                IF (potential_parameter%potential_type == do_potential_truncated .OR. &
                    potential_parameter%potential_type == do_potential_short .OR. &
                    potential_parameter%potential_type == do_potential_mix_cl_trunc) THEN
-                  IF (rpq2 > (R1+R2+potential_parameter%cutoff_radius)**2) CYCLE
+                  IF (rpq2 > (R1 + R2 + potential_parameter%cutoff_radius)**2) CYCLE
                END IF
                IF (potential_parameter%potential_type == do_potential_TShPSC) THEN
-                  IF (rpq2 > (R1+R2+potential_parameter%cutoff_radius*2.0_dp)**2) CYCLE
+                  IF (rpq2 > (R1 + R2 + potential_parameter%cutoff_radius*2.0_dp)**2) CYCLE
                END IF
-               nproducts = nproducts+1
+               nproducts = nproducts + 1
 
                ! allocate size as needed,
                ! updating the global size estimate to make this a rare event in longer simulations
                IF (nproducts > SIZE(product_list)) THEN
 !$OMP              ATOMIC READ
                   tmp_i4 = pgf_product_list_size
-                  tmp_i4 = MAX(pgf_product_list_size, (3*nproducts+1)/2)
+                  tmp_i4 = MAX(pgf_product_list_size, (3*nproducts + 1)/2)
 !$OMP              ATOMIC WRITE
                   pgf_product_list_size = tmp_i4
                   ALLOCATE (tmp_product_list(SIZE(product_list)))
@@ -175,24 +176,24 @@ CONTAINS
                CASE (do_potential_short)
                   CALL fgamma(m_max, T, product_list(nproducts)%Fm(1))
                   omega2 = potential_parameter%omega**2
-                  omega_corr2 = omega2/(omega2+Rho)
+                  omega_corr2 = omega2/(omega2 + Rho)
                   omega_corr = SQRT(omega_corr2)
                   T = T*omega_corr2
                   CALL fgamma(m_max, T, Fm)
                   tmp = -omega_corr
-                  DO l = 1, m_max+1
-                     product_list(nproducts)%Fm(l) = product_list(nproducts)%Fm(l)+Fm(l)*tmp
+                  DO l = 1, m_max + 1
+                     product_list(nproducts)%Fm(l) = product_list(nproducts)%Fm(l) + Fm(l)*tmp
                      tmp = tmp*omega_corr2
                   END DO
                   factor = 2.0_dp*Pi*RhoInv
                CASE (do_potential_long)
                   omega2 = potential_parameter%omega**2
-                  omega_corr2 = omega2/(omega2+Rho)
+                  omega_corr2 = omega2/(omega2 + Rho)
                   omega_corr = SQRT(omega_corr2)
                   T = T*omega_corr2
                   CALL fgamma(m_max, T, product_list(nproducts)%Fm(1))
                   tmp = omega_corr
-                  DO l = 1, m_max+1
+                  DO l = 1, m_max + 1
                      product_list(nproducts)%Fm(l) = product_list(nproducts)%Fm(l)*tmp
                      tmp = tmp*omega_corr2
                   END DO
@@ -200,15 +201,15 @@ CONTAINS
                CASE (do_potential_mix_cl)
                   CALL fgamma(m_max, T, product_list(nproducts)%Fm(1))
                   omega2 = potential_parameter%omega**2
-                  omega_corr2 = omega2/(omega2+Rho)
+                  omega_corr2 = omega2/(omega2 + Rho)
                   omega_corr = SQRT(omega_corr2)
                   T = T*omega_corr2
                   CALL fgamma(m_max, T, Fm)
                   tmp = omega_corr
-                  DO l = 1, m_max+1
+                  DO l = 1, m_max + 1
                      product_list(nproducts)%Fm(l) = &
                         product_list(nproducts)%Fm(l)*potential_parameter%scale_coulomb &
-                        +Fm(l)*tmp*potential_parameter%scale_longrange
+                        + Fm(l)*tmp*potential_parameter%scale_longrange
                      tmp = tmp*omega_corr2
                   END DO
                   factor = 2.0_dp*Pi*RhoInv
@@ -222,69 +223,80 @@ CONTAINS
                   ! Coulomb
                   CALL fgamma(m_max, T, Fm)
 
-                  DO l = 1, m_max+1
+                  DO l = 1, m_max + 1
                      product_list(nproducts)%Fm(l) = product_list(nproducts)%Fm(l)* &
-                                                     (potential_parameter%scale_coulomb+potential_parameter%scale_longrange)- &
+                                                     (potential_parameter%scale_coulomb + potential_parameter%scale_longrange) - &
                                                      Fm(l)*potential_parameter%scale_longrange
                   ENDDO
 
                   ! longrange
                   omega2 = potential_parameter%omega**2
-                  omega_corr2 = omega2/(omega2+Rho)
+                  omega_corr2 = omega2/(omega2 + Rho)
                   omega_corr = SQRT(omega_corr2)
                   T = T*omega_corr2
                   CALL fgamma(m_max, T, Fm)
                   tmp = omega_corr
-                  DO l = 1, m_max+1
-                     product_list(nproducts)%Fm(l) = product_list(nproducts)%Fm(l)+Fm(l)*tmp*potential_parameter%scale_longrange
+                  DO l = 1, m_max + 1
+                     product_list(nproducts)%Fm(l) = product_list(nproducts)%Fm(l) + Fm(l)*tmp*potential_parameter%scale_longrange
                      tmp = tmp*omega_corr2
                   END DO
                   factor = 2.0_dp*Pi*RhoInv
 
                CASE (do_potential_gaussian)
                   omega2 = potential_parameter%omega**2
-                  T = -omega2*T/(Rho+omega2)
+                  T = -omega2*T/(Rho + omega2)
                   tmp = 1.0_dp
-                  DO l = 1, m_max+1
+                  DO l = 1, m_max + 1
                      product_list(nproducts)%Fm(l) = EXP(T)*tmp
-                     tmp = tmp*omega2/(Rho+omega2)
+                     tmp = tmp*omega2/(Rho + omega2)
                   END DO
-                  factor = (Pi/(Rho+omega2))**(1.5_dp)
+                  factor = (Pi/(Rho + omega2))**(1.5_dp)
                CASE (do_potential_mix_lg)
                   omega2 = potential_parameter%omega**2
-                  omega_corr2 = omega2/(omega2+Rho)
+                  omega_corr2 = omega2/(omega2 + Rho)
                   omega_corr = SQRT(omega_corr2)
                   T = T*omega_corr2
                   CALL fgamma(m_max, T, Fm)
                   tmp = omega_corr*2.0_dp*Pi*RhoInv*potential_parameter%scale_longrange
-                  DO l = 1, m_max+1
+                  DO l = 1, m_max + 1
                      Fm(l) = Fm(l)*tmp
                      tmp = tmp*omega_corr2
                   END DO
                   T = Rho*rpq2
-                  T = -omega2*T/(Rho+omega2)
-                  tmp = (Pi/(Rho+omega2))**(1.5_dp)*potential_parameter%scale_gaussian
-                  DO l = 1, m_max+1
-                     product_list(nproducts)%Fm(l) = EXP(T)*tmp+Fm(l)
-                     tmp = tmp*omega2/(Rho+omega2)
+                  T = -omega2*T/(Rho + omega2)
+                  tmp = (Pi/(Rho + omega2))**(1.5_dp)*potential_parameter%scale_gaussian
+                  DO l = 1, m_max + 1
+                     product_list(nproducts)%Fm(l) = EXP(T)*tmp + Fm(l)
+                     tmp = tmp*omega2/(Rho + omega2)
                   END DO
                   factor = 1.0_dp
                CASE (do_potential_id)
-                  product_list(nproducts)%Fm(1) = (Pi*RhoInv)**(1.5_dp)
-                  DO l = 2, m_max+1
-                     product_list(nproducts)%Fm(l) = 0.0_dp
-                  END DO
+                  num = list1%zeta*list1%zetb
+                  den = list1%zeta + list1%zetb
+                  ssss = -num/den*SUM((ra - rb)**2)
+
+                  num = den*Zeta_C
+                  den = den + Zeta_C
+                  ssss = ssss - num/den*SUM((P - rc)**2)
+
+                  G(:) = (list1%zeta*ra(:) + list1%zetb*rb(:) + Zeta_C*rc(:))/den
+                  num = den*Zeta_D
+                  den = den + Zeta_D
+                  ssss = ssss - num/den*SUM((G - rd)**2)
+
+                  product_list(nproducts)%Fm(:) = EXP(ssss)
                   factor = 1.0_dp
+                  IF (S1234 > EPSILON(0.0_dp)) factor = 1.0_dp/S1234
                END SELECT
 
                tmp = (Pi*ZetapEtaInv)**3
                factor = factor*S1234*SQRT(tmp)
 
-               DO l = 1, m_max+1
+               DO l = 1, m_max + 1
                   product_list(nproducts)%Fm(l) = product_list(nproducts)%Fm(l)*factor
                END DO
 
-               W = (Zeta1*P+Eta*Q)*ZetapEtaInv
+               W = (Zeta1*P + Eta*Q)*ZetapEtaInv
                product_list(nproducts)%ra = ra
                product_list(nproducts)%rb = rb
                product_list(nproducts)%rc = C11
@@ -295,8 +307,8 @@ CONTAINS
                product_list(nproducts)%P = P
                product_list(nproducts)%Q = Q
                product_list(nproducts)%W = W
-               product_list(nproducts)%AB = ra-rb
-               product_list(nproducts)%CD = C11-tmp_D
+               product_list(nproducts)%AB = ra - rb
+               product_list(nproducts)%CD = C11 - tmp_D
             END DO
          END DO
       END DO
@@ -349,22 +361,22 @@ CONTAINS
       nelements = npgfa*npgfb
       DO i = 1, SIZE(neighbor_cells)
          IF (do_periodic) THEN
-            im_B = rb+neighbor_cells(i)%cell_r(:)
+            im_B = rb + neighbor_cells(i)%cell_r(:)
          ELSE
             im_B = rb
          END IF
-         AB = ra-im_B
-         rab2 = AB(1)**2+AB(2)**2+AB(3)**2
-         IF (screen1(1)*rab2+screen1(2)+screen2(2)+log10_pmax < log10_eps_schwarz) CYCLE
+         AB = ra - im_B
+         rab2 = AB(1)**2 + AB(2)**2 + AB(3)**2
+         IF (screen1(1)*rab2 + screen1(2) + screen2(2) + log10_pmax < log10_eps_schwarz) CYCLE
          element_counter = 0
          DO ipgf = 1, npgfa
             DO jpgf = 1, npgfb
-               element_counter = element_counter+1
-               pgf_max = pgf(jpgf, ipgf)%x(1)*rab2+pgf(jpgf, ipgf)%x(2)
-               IF (pgf_max+screen2(2)+log10_pmax < log10_eps_schwarz) THEN
+               element_counter = element_counter + 1
+               pgf_max = pgf(jpgf, ipgf)%x(1)*rab2 + pgf(jpgf, ipgf)%x(2)
+               IF (pgf_max + screen2(2) + log10_pmax < log10_eps_schwarz) THEN
                   CYCLE
                END IF
-               nimages(element_counter) = nimages(element_counter)+1
+               nimages(element_counter) = nimages(element_counter) + 1
                list(element_counter)%image_list(nimages(element_counter))%pgf_max = pgf_max
                list(element_counter)%image_list(nimages(element_counter))%ra = ra
                list(element_counter)%image_list(nimages(element_counter))%rb = im_B
@@ -372,7 +384,7 @@ CONTAINS
 
                Zeta_A = zeta(ipgf)
                Zeta_B = zetb(jpgf)
-               Zeta1 = Zeta_A+Zeta_B
+               Zeta1 = Zeta_A + Zeta_B
                ZetaInv = 1.0_dp/Zeta1
 
                IF (nimages(element_counter) == 1) THEN
@@ -385,9 +397,9 @@ CONTAINS
                END IF
 
                list(element_counter)%image_list(nimages(element_counter))%S1234 = (-Zeta_A*Zeta_B*ZetaInv*rab2)
-               list(element_counter)%image_list(nimages(element_counter))%P = (Zeta_A*ra+Zeta_B*im_B)*ZetaInv
+               list(element_counter)%image_list(nimages(element_counter))%P = (Zeta_A*ra + Zeta_B*im_B)*ZetaInv
                list(element_counter)%image_list(nimages(element_counter))%R = &
-                  MAX(0.0_dp, R_pgf(jpgf, ipgf)%x(1)*rab2+R_pgf(jpgf, ipgf)%x(2))
+                  MAX(0.0_dp, R_pgf(jpgf, ipgf)%x(1)*rab2 + R_pgf(jpgf, ipgf)%x(2))
                list(element_counter)%image_list(nimages(element_counter))%ra = ra
                list(element_counter)%image_list(nimages(element_counter))%rb = im_B
                list(element_counter)%image_list(nimages(element_counter))%rab2 = rab2
@@ -404,7 +416,7 @@ CONTAINS
       element_counter = 0
       DO j = 1, nelements
          IF (list(j)%nimages == 0) CYCLE
-         element_counter = element_counter+1
+         element_counter = element_counter + 1
          list(element_counter)%nimages = list(j)%nimages
          list(element_counter)%zetapzetb = list(j)%zetapzetb
          list(element_counter)%ZetaInv = list(j)%ZetaInv
@@ -485,18 +497,18 @@ CONTAINS
             rb = particle_set(jatom)%r(:)
 
             IF (do_periodic) THEN
-               temp = rb-ra
+               temp = rb - ra
                pbc_B = pbc(temp, cell)
-               B11 = ra+pbc_B
-               rab2 = (ra(1)-B11(1))**2+(ra(2)-B11(2))**2+(ra(3)-B11(3))**2
+               B11 = ra + pbc_B
+               rab2 = (ra(1) - B11(1))**2 + (ra(2) - B11(2))**2 + (ra(3) - B11(3))**2
             ELSE
-               rab2 = (ra(1)-rb(1))**2+(ra(2)-rb(2))**2+(ra(3)-rb(3))**2
+               rab2 = (ra(1) - rb(1))**2 + (ra(2) - rb(2))**2 + (ra(3) - rb(3))**2
                B11 = rb ! ra - rb
             END IF
-            IF ((coeffs_kind(jkind, ikind)%x(1)*rab2+ &
-                 coeffs_kind(jkind, ikind)%x(2))+coeffs_kind_max0+pmax_blocks < log10_eps_schwarz) CYCLE
+            IF ((coeffs_kind(jkind, ikind)%x(1)*rab2 + &
+                 coeffs_kind(jkind, ikind)%x(2)) + coeffs_kind_max0 + pmax_blocks < log10_eps_schwarz) CYCLE
 
-            n_element = n_element+1
+            n_element = n_element + 1
             list%elements(n_element)%pair(1) = iatom
             list%elements(n_element)%pair(2) = jatom
             list%elements(n_element)%kind_pair(1) = ikind
@@ -505,12 +517,12 @@ CONTAINS
             list%elements(n_element)%r2 = B11
             list%elements(n_element)%dist2 = rab2
             ! build a list of guaranteed overlapping sets
-            list%elements(n_element)%set_bounds(1) = nset_ij+1
+            list%elements(n_element)%set_bounds(1) = nset_ij + 1
             DO iset = 1, nseta
                DO jset = 1, nsetb
-                  IF (coeffs_set(jset, iset, jkind, ikind)%x(1)*rab2+coeffs_set(jset, iset, jkind, ikind)%x(2)+ &
-                      coeffs_kind_max0+pmax_blocks < log10_eps_schwarz) CYCLE
-                  nset_ij = nset_ij+1
+                  IF (coeffs_set(jset, iset, jkind, ikind)%x(1)*rab2 + coeffs_set(jset, iset, jkind, ikind)%x(2) + &
+                      coeffs_kind_max0 + pmax_blocks < log10_eps_schwarz) CYCLE
+                  nset_ij = nset_ij + 1
                   set_list(nset_ij)%pair(1) = iset
                   set_list(nset_ij)%pair(2) = jset
                END DO
@@ -577,16 +589,16 @@ CONTAINS
                   rb = particle_set(jatom)%r(:)
 
                   IF (do_periodic) THEN
-                     temp = rb-ra
+                     temp = rb - ra
                      pbc_B = pbc(temp, cell)
-                     B11 = ra+pbc_B
-                     rab2 = (ra(1)-B11(1))**2+(ra(2)-B11(2))**2+(ra(3)-B11(3))**2
+                     B11 = ra + pbc_B
+                     rab2 = (ra(1) - B11(1))**2 + (ra(2) - B11(2))**2 + (ra(3) - B11(3))**2
                   ELSE
-                     rab2 = (ra(1)-rb(1))**2+(ra(2)-rb(2))**2+(ra(3)-rb(3))**2
+                     rab2 = (ra(1) - rb(1))**2 + (ra(2) - rb(2))**2 + (ra(3) - rb(3))**2
                      B11 = rb ! ra - rb
                   END IF
-                  IF ((coeffs_kind(jkind, ikind)%x(1)*rab2+ &
-                       coeffs_kind(jkind, ikind)%x(2))+coeffs_kind_max0 < log10_eps_schwarz) CYCLE
+                  IF ((coeffs_kind(jkind, ikind)%x(1)*rab2 + &
+                       coeffs_kind(jkind, ikind)%x(2)) + coeffs_kind_max0 < log10_eps_schwarz) CYCLE
 
                   atomic_pair_list(jatom, iatom) = .TRUE.
                   atomic_pair_list(iatom, jatom) = .TRUE.
@@ -667,18 +679,18 @@ CONTAINS
             rb = particle_set(jatom)%r(:)
 
             IF (do_periodic) THEN
-               temp = rb-ra
+               temp = rb - ra
                pbc_B = pbc(temp, cell)
-               B11 = ra+pbc_B
-               rab2 = (ra(1)-B11(1))**2+(ra(2)-B11(2))**2+(ra(3)-B11(3))**2
+               B11 = ra + pbc_B
+               rab2 = (ra(1) - B11(1))**2 + (ra(2) - B11(2))**2 + (ra(3) - B11(3))**2
             ELSE
-               rab2 = (ra(1)-rb(1))**2+(ra(2)-rb(2))**2+(ra(3)-rb(3))**2
+               rab2 = (ra(1) - rb(1))**2 + (ra(2) - rb(2))**2 + (ra(3) - rb(3))**2
                B11 = rb ! ra - rb
             END IF
-            IF ((coeffs_kind(jkind, ikind)%x(1)*rab2+ &
-                 coeffs_kind(jkind, ikind)%x(2))+coeffs_kind_max0+pmax_blocks < log10_eps_schwarz) CYCLE
+            IF ((coeffs_kind(jkind, ikind)%x(1)*rab2 + &
+                 coeffs_kind(jkind, ikind)%x(2)) + coeffs_kind_max0 + pmax_blocks < log10_eps_schwarz) CYCLE
 
-            n_element = n_element+1
+            n_element = n_element + 1
             list%elements(n_element)%pair(1) = iatom
             list%elements(n_element)%pair(2) = jatom
             list%elements(n_element)%kind_pair(1) = ikind
@@ -687,12 +699,12 @@ CONTAINS
             list%elements(n_element)%r2 = B11
             list%elements(n_element)%dist2 = rab2
             ! build a list of guaranteed overlapping sets
-            list%elements(n_element)%set_bounds(1) = nset_ij+1
+            list%elements(n_element)%set_bounds(1) = nset_ij + 1
             DO iset = 1, nseta
                DO jset = 1, nsetb
-                  IF (coeffs_set(jset, iset, jkind, ikind)%x(1)*rab2+coeffs_set(jset, iset, jkind, ikind)%x(2)+ &
-                      coeffs_kind_max0+pmax_blocks < log10_eps_schwarz) CYCLE
-                  nset_ij = nset_ij+1
+                  IF (coeffs_set(jset, iset, jkind, ikind)%x(1)*rab2 + coeffs_set(jset, iset, jkind, ikind)%x(2) + &
+                      coeffs_kind_max0 + pmax_blocks < log10_eps_schwarz) CYCLE
+                  nset_ij = nset_ij + 1
                   set_list(nset_ij)%pair(1) = iset
                   set_list(nset_ij)%pair(2) = jset
                END DO

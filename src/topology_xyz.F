@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 ! **************************************************************************************************
 MODULE topology_xyz
@@ -88,7 +88,7 @@ CONTAINS
       Frames: DO
          ! Atom numbers
          CALL parser_get_object(parser, natom)
-         frame = frame+1
+         frame = frame + 1
          IF (frame == 1) THEN
             CALL reallocate(atom_info%id_molname, 1, natom)
             CALL reallocate(atom_info%id_resname, 1, natom)

@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -154,6 +154,7 @@ CONTAINS
       ALLOCATE (p_env)
       NULLIFY (p_env%kpp1, &
                p_env%p1, &
+               p_env%w1, &
                p_env%m_epsilon, &
                p_env%psi0d, &
                p_env%S_psi0, &
@@ -168,7 +169,7 @@ CONTAINS
                p_env%ev_h0)
 
       p_env%ref_count = 1
-      last_p_env_id = last_p_env_id+1
+      last_p_env_id = last_p_env_id + 1
       p_env%id_nr = last_p_env_id
       p_env%iter = 0
 
@@ -413,7 +414,7 @@ CONTAINS
       CALL qs_rho_get(rho, rho_ao=rho_ao)
 
       n_spins = dft_control%nspins
-      p_env%iter = p_env%iter+1
+      p_env%iter = p_env%iter + 1
       CALL mpools_get(qs_env%mpools, &
                       ao_mo_fm_pools=ao_mo_fm_pools)
       ! def my_psi0
@@ -723,7 +724,7 @@ CONTAINS
       my_beta = 0.0_dp
       IF (PRESENT(beta)) my_beta = beta
 
-      iter = iter+1
+      iter = iter + 1
 
       CPASSERT(ASSOCIATED(p_env))
       CPASSERT(p_env%ref_count > 0)
@@ -738,7 +739,12 @@ CONTAINS
             CALL dbcsr_copy(rho1_ao(ispin)%matrix, p1(ispin)%matrix)
          ENDIF
       ENDDO
-      CALL qs_rho_update_rho(rho_struct=p_env%rho1, qs_env=qs_env)
+
+      IF (ASSOCIATED(p_env%local_rho_set)) THEN
+         CALL qs_rho_update_rho(rho_struct=p_env%rho1, qs_env=qs_env, local_rho_set=p_env%local_rho_set)
+      ELSE
+         CALL qs_rho_update_rho(rho_struct=p_env%rho1, qs_env=qs_env)
+      END IF
 
       IF (fdiff) THEN
          CALL kpp1_calc_k_p_p1_fdiff(qs_env=qs_env, &

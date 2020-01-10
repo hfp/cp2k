@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -55,8 +55,8 @@ MODULE qs_ks_types
    USE qs_energy_types,                 ONLY: qs_energy_type
    USE qs_force_types,                  ONLY: qs_force_type
    USE qs_kind_types,                   ONLY: qs_kind_type
-   USE qs_neighbor_list_types,          ONLY: deallocate_neighbor_list_set,&
-                                              neighbor_list_set_p_type
+   USE qs_neighbor_list_types,          ONLY: neighbor_list_set_p_type,&
+                                              release_neighbor_list_sets
    USE qs_rho_types,                    ONLY: qs_rho_create,&
                                               qs_rho_release,&
                                               qs_rho_type
@@ -76,7 +76,7 @@ MODULE qs_ks_types
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'qs_ks_types'
 
    PUBLIC :: qs_ks_env_type, qs_ks_env_create, qs_ks_did_change
-   PUBLIC :: qs_ks_release, qs_ks_retain, get_ks_env, set_ks_env, release_sab
+   PUBLIC :: qs_ks_release, qs_ks_retain, get_ks_env, set_ks_env
 
 ! **************************************************************************************************
 !> \brief calculation environment to calculate the ks matrix,
@@ -775,7 +775,7 @@ CONTAINS
 
       IF (ASSOCIATED(ks_env)) THEN
          CPASSERT(ks_env%ref_count > 0)
-         ks_env%ref_count = ks_env%ref_count-1
+         ks_env%ref_count = ks_env%ref_count - 1
 
          IF (ks_env%ref_count < 1) THEN
             IF (ASSOCIATED(ks_env%v_hartree_rspace)) &
@@ -851,25 +851,25 @@ CONTAINS
                DEALLOCATE (ks_env%dbcsr_dist)
             ENDIF
 
-            CALL release_sab(ks_env%sab_orb)
-            CALL release_sab(ks_env%sac_ae)
-            CALL release_sab(ks_env%sac_ppl)
-            CALL release_sab(ks_env%sac_lri)
-            CALL release_sab(ks_env%sap_ppnl)
-            CALL release_sab(ks_env%sap_oce)
-            CALL release_sab(ks_env%sab_se)
-            CALL release_sab(ks_env%sab_vdw)
-            CALL release_sab(ks_env%sab_scp)
-            CALL release_sab(ks_env%sab_tbe)
-            CALL release_sab(ks_env%sab_core)
-            CALL release_sab(ks_env%sab_xb)
-            CALL release_sab(ks_env%sab_all)
-            CALL release_sab(ks_env%sab_aux_fit)
-            CALL release_sab(ks_env%sab_aux_fit_vs_orb)
-            CALL release_sab(ks_env%sab_aux_fit_asymm)
-            CALL release_sab(ks_env%sab_lrc)
-            CALL release_sab(ks_env%sab_almo)
-            CALL release_sab(ks_env%sab_kp)
+            CALL release_neighbor_list_sets(ks_env%sab_orb)
+            CALL release_neighbor_list_sets(ks_env%sac_ae)
+            CALL release_neighbor_list_sets(ks_env%sac_ppl)
+            CALL release_neighbor_list_sets(ks_env%sac_lri)
+            CALL release_neighbor_list_sets(ks_env%sap_ppnl)
+            CALL release_neighbor_list_sets(ks_env%sap_oce)
+            CALL release_neighbor_list_sets(ks_env%sab_se)
+            CALL release_neighbor_list_sets(ks_env%sab_vdw)
+            CALL release_neighbor_list_sets(ks_env%sab_scp)
+            CALL release_neighbor_list_sets(ks_env%sab_tbe)
+            CALL release_neighbor_list_sets(ks_env%sab_core)
+            CALL release_neighbor_list_sets(ks_env%sab_xb)
+            CALL release_neighbor_list_sets(ks_env%sab_all)
+            CALL release_neighbor_list_sets(ks_env%sab_aux_fit)
+            CALL release_neighbor_list_sets(ks_env%sab_aux_fit_vs_orb)
+            CALL release_neighbor_list_sets(ks_env%sab_aux_fit_asymm)
+            CALL release_neighbor_list_sets(ks_env%sab_lrc)
+            CALL release_neighbor_list_sets(ks_env%sab_almo)
+            CALL release_neighbor_list_sets(ks_env%sab_kp)
             CALL dft_control_release(ks_env%dft_control)
             CALL kpoint_release(ks_env%kpoints)
             CALL qs_subsys_release(ks_env%subsys)
@@ -885,25 +885,6 @@ CONTAINS
    END SUBROUTINE qs_ks_release
 
 ! **************************************************************************************************
-!> \brief releases an array of neighbor_list_sets
-!> \param sab ...
-!> \author Ole Schuett
-! **************************************************************************************************
-   SUBROUTINE release_sab(sab)
-      TYPE(neighbor_list_set_p_type), DIMENSION(:), &
-         POINTER                                         :: sab
-
-      INTEGER                                            :: i
-
-      IF (ASSOCIATED(sab)) THEN
-         DO i = 1, SIZE(sab)
-            CALL deallocate_neighbor_list_set(sab(i)%neighbor_list_set)
-         END DO
-         DEALLOCATE (sab)
-      END IF
-   END SUBROUTINE release_sab
-
-! **************************************************************************************************
 !> \brief retains the given ks_environment
 !> \param ks_env the KohnSham environment to retain
 !> \par History
@@ -917,7 +898,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(ks_env))
       CPASSERT(ks_env%ref_count > 0)
-      ks_env%ref_count = ks_env%ref_count+1
+      ks_env%ref_count = ks_env%ref_count + 1
    END SUBROUTINE qs_ks_retain
 
 ! **************************************************************************************************

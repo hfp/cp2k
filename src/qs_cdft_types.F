@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -433,7 +433,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(cdft_control))
       CPASSERT(cdft_control%ref_count > 0)
-      cdft_control%ref_count = cdft_control%ref_count-1
+      cdft_control%ref_count = cdft_control%ref_count - 1
       IF (cdft_control%ref_count == 0) THEN
          ! Constraint settings
          IF (ASSOCIATED(cdft_control%atoms)) &
@@ -515,7 +515,7 @@ CONTAINS
          routineP = moduleN//':'//routineN
 
       CPASSERT(ASSOCIATED(cdft_control))
-      cdft_control%ref_count = cdft_control%ref_count+1
+      cdft_control%ref_count = cdft_control%ref_count + 1
    END SUBROUTINE cdft_control_retain
 
 ! **************************************************************************************************

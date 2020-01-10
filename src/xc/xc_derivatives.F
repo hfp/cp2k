@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -65,6 +65,9 @@ MODULE xc_derivatives
                                               xc_rho_cflags_type
    USE xc_rho_set_types,                ONLY: xc_rho_set_get,&
                                               xc_rho_set_type
+   USE xc_sr_lda,                       ONLY: sr_lda_eval,&
+                                              sr_lda_info,&
+                                              sr_lsd_eval
    USE xc_tfw,                          ONLY: tfw_lda_eval,&
                                               tfw_lda_info,&
                                               tfw_lsd_eval,&
@@ -320,6 +323,8 @@ CONTAINS
          ELSE
             CALL xbr_pbe_lda_hole_tc_lr_lda_info(reference, shortform, needs, max_deriv)
          END IF
+      CASE ("SRLDA")
+         CALL sr_lda_info(reference, shortform, lsd, needs, max_deriv)
       CASE default
          CPABORT("unknown functional '"//TRIM(functional%section%name)//"'")
       END SELECT
@@ -543,6 +548,12 @@ CONTAINS
             CALL xbr_pbe_lda_hole_tc_lr_lda_eval(rho_set, deriv_set, deriv_order, &
                                                  functional)
          END IF
+      CASE ("SRLDA")
+         IF (lsd) THEN
+            CALL sr_lsd_eval(rho_set, deriv_set, deriv_order, functional)
+         ELSE
+            CALL sr_lda_eval(rho_set, deriv_set, deriv_order, functional)
+         END IF
       CASE default
          CPABORT("unknown functional '"//TRIM(functional%section%name)//"'")
       END SELECT
@@ -585,7 +596,7 @@ CONTAINS
       CPASSERT(ASSOCIATED(functionals))
       ifun = 0
       DO
-         ifun = ifun+1
+         ifun = ifun + 1
          xc_fun => section_vals_get_subs_vals2(functionals, i_section=ifun)
          IF (.NOT. ASSOCIATED(xc_fun)) EXIT
          IF (TRIM(xc_fun%section%name) /= "LIBXC") THEN
@@ -646,7 +657,7 @@ CONTAINS
 
       ifun = 0
       DO
-         ifun = ifun+1
+         ifun = ifun + 1
          xc_fun => section_vals_get_subs_vals2(functionals, i_section=ifun)
          IF (.NOT. ASSOCIATED(xc_fun)) EXIT
          IF (TRIM(xc_fun%section%name) /= "LIBXC") THEN
