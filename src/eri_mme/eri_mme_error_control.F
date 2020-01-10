@@ -295,7 +295,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(3, 3), INTENT(IN)         :: h_inv
       REAL(KIND=dp), INTENT(IN)                          :: G_min, zet_max
       INTEGER, INTENT(IN)                                :: l_max_zet, n_minimax
-      REAL(KIND=dp), DIMENSION(:), INTENT(OUT)           :: minimax_aw
+      REAL(KIND=dp), DIMENSION(:), INTENT(INOUT)         :: minimax_aw
       REAL(KIND=dp), INTENT(OUT)                         :: err_ctff, C_mm
       TYPE(cp_para_env_type), INTENT(IN), POINTER        :: para_env
 
@@ -432,7 +432,7 @@ CONTAINS
       ALLOCATE (S_G_l(0:2*l_max_zet, 3))
       ALLOCATE (S_G_u(0:2*l_max_zet, 3))
 
-      G_rad = exp_radius(2*l_max_zet, alpha_G, eps_G, prefactor, epsin=G_res)
+      G_rad = exp_radius(2*l_max_zet, alpha_G, eps_G, prefactor, epsabs=G_res)
 
       ! Parallelization of sum over G vectors
       my_p = para_env%mepos ! mpi rank
