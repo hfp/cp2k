@@ -73,22 +73,20 @@ MODULE pw_env_types
    TYPE pw_env_type
       INTEGER                                     :: ref_count
       INTEGER                                     :: auxbas_grid
-      TYPE(pw_pool_p_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                      :: pw_pools
+      TYPE(pw_pool_p_type), DIMENSION(:), POINTER :: pw_pools
       TYPE(pw_pool_type), POINTER                 :: xc_pw_pool
       TYPE(pw_pool_type), POINTER                 :: vdw_pw_pool
       TYPE(realspace_grid_desc_p_type), &
-         DIMENSION(:), POINTER, CONTIGUOUS        :: rs_descs
+         DIMENSION(:), POINTER                    :: rs_descs
       TYPE(realspace_grid_p_type), &
-         DIMENSION(:), POINTER, CONTIGUOUS        :: rs_grids
+         DIMENSION(:), POINTER                    :: rs_grids
       TYPE(lgrid_type), POINTER                   :: lgrid
       TYPE(gridlevel_info_type), POINTER          :: gridlevel_info
-      TYPE(cube_info_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                      :: cube_info
+      TYPE(cube_info_type), DIMENSION(:), POINTER :: cube_info
       TYPE(pw_poisson_type), POINTER              :: poisson_env
       TYPE(section_vals_type), POINTER            :: interp_section
       ! store current cell, used to rebuild lazily.
-      REAL(KIND=dp), DIMENSION(3, 3)              :: cell_hmat = -1.0_dp
+      REAL(KIND=dp), DIMENSION(3, 3)          :: cell_hmat = -1.0_dp
    END TYPE pw_env_type
 
 CONTAINS

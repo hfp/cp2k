@@ -23,15 +23,12 @@ MODULE task_list_types
 
 ! **************************************************************************************************
    TYPE task_list_type
-      INTEGER(kind=int_8), DIMENSION(:, :), &
-         POINTER, CONTIGUOUS                        :: tasks
-      REAL(KIND=dp), DIMENSION(:, :), &
-         POINTER, CONTIGUOUS                        :: dist_ab
-      INTEGER(kind=int_8), DIMENSION(:), &
-         POINTER, CONTIGUOUS                        :: atom_pair_send, atom_pair_recv
+      INTEGER(kind=int_8), DIMENSION(:, :), POINTER :: tasks
+      REAL(KIND=dp), DIMENSION(:, :), POINTER       :: dist_ab
+      INTEGER(kind=int_8), DIMENSION(:), POINTER    :: atom_pair_send, atom_pair_recv
       INTEGER                                       :: ntasks
-      INTEGER, DIMENSION(:, :), POINTER, CONTIGUOUS :: taskstart, taskstop
-      INTEGER, DIMENSION(:), POINTER, CONTIGUOUS    :: npairs
+      INTEGER, DIMENSION(:, :), POINTER             :: taskstart, taskstop
+      INTEGER, DIMENSION(:), POINTER                :: npairs
    END TYPE task_list_type
 
    PUBLIC :: task_list_type

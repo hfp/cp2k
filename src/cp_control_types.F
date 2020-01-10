@@ -301,12 +301,11 @@ MODULE cp_control_types
       INTEGER                              :: wf_interpolation_method_nr
       INTEGER                              :: wf_extrapolation_order
       REAL(KIND=dp)                        :: cutoff
-      REAL(KIND=dp), DIMENSION(:), &
-         POINTER, CONTIGUOUS               :: e_cutoff
+      REAL(KIND=dp), DIMENSION(:), POINTER :: e_cutoff
       TYPE(mulliken_restraint_type), &
          POINTER                           :: mulliken_restraint_control
       TYPE(ddapc_restraint_p_type), &
-         DIMENSION(:), POINTER, CONTIGUOUS :: ddapc_restraint_control
+         DIMENSION(:), POINTER             :: ddapc_restraint_control
       TYPE(cdft_control_type), POINTER     :: cdft_control
       TYPE(s2_restraint_type), POINTER     :: s2_restraint_control
       TYPE(dftb_control_type), POINTER     :: dftb_control
@@ -481,7 +480,7 @@ MODULE cp_control_types
       TYPE(tddfpt2_control_type), POINTER  :: tddfpt2_control
       TYPE(xas_control_type), POINTER      :: xas_control
       TYPE(efield_p_type), POINTER, &
-         DIMENSION(:), CONTIGUOUS          :: efield_fields
+         DIMENSION(:)                      :: efield_fields
       INTEGER                              :: nspins, &
                                               charge, &
                                               multiplicity, &

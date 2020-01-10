@@ -149,8 +149,7 @@ MODULE qs_tddfpt2_subgroups
       !> relative cutoff
       REAL(KIND=dp)                               :: relative_cutoff
       !> list of explicitly given cutoff values
-      REAL(KIND=dp), DIMENSION(:), &
-         POINTER, CONTIGUOUS                      :: e_cutoff
+      REAL(KIND=dp), DIMENSION(:), POINTER        :: e_cutoff
    END TYPE mgrid_saved_parameters
 
 CONTAINS

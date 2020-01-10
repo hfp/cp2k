@@ -2002,4 +2002,3 @@ ENDIF
    END FUNCTION
 
 END MODULE eri_mme_lattice_summation
-

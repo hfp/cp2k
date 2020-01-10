@@ -499,8 +499,7 @@ CONTAINS
    SUBROUTINE kpp1_calc_k_p_p1_fdiff(qs_env, k_p_p1, rho, rho1, &
                                      diff)
       TYPE(qs_environment_type), POINTER                 :: qs_env
-      TYPE(dbcsr_p_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: k_p_p1
+      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: k_p_p1
       TYPE(qs_rho_type), POINTER                         :: rho, rho1
       REAL(KIND=dp), INTENT(in), OPTIONAL                :: diff
 
@@ -509,9 +508,8 @@ CONTAINS
 
       INTEGER                                            :: ispin, nspins
       REAL(KIND=dp)                                      :: my_diff
-      TYPE(dbcsr_p_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: ks_2, matrix_s, rho1_ao, rho_ao
-      TYPE(pw_p_type), DIMENSION(:), POINTER, CONTIGUOUS :: rho1_g, rho1_r, rho_g, rho_r
+      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: ks_2, matrix_s, rho1_ao, rho_ao
+      TYPE(pw_p_type), DIMENSION(:), POINTER             :: rho1_g, rho1_r, rho_g, rho_r
       TYPE(qs_energy_type), POINTER                      :: qs_energy
 
       NULLIFY (ks_2, matrix_s, qs_energy, rho_ao, rho1_ao, rho_r, rho1_r, rho_g, rho1_g)

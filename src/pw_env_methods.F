@@ -165,7 +165,7 @@ CONTAINS
                                                             use_ref_cell
       REAL(KIND=dp)                                      :: cutilev, max_rpgf0_s, rel_cutoff, zet0
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: radius
-      REAL(KIND=dp), DIMENSION(:), POINTER, CONTIGUOUS   :: cutoff
+      REAL(KIND=dp), DIMENSION(:), POINTER               :: cutoff
       TYPE(cell_type), POINTER                           :: cell, cell_ref, my_cell
       TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(cp_para_env_type), POINTER                    :: para_env
@@ -173,16 +173,13 @@ CONTAINS
       TYPE(pw_grid_type), POINTER :: dct_pw_grid, mt_super_ref_grid, old_pw_grid, pw_grid, &
          super_ref_grid, vdw_grid, vdw_ref_grid, xc_super_ref_grid
       TYPE(pw_poisson_parameter_type)                    :: poisson_params
-      TYPE(pw_pool_p_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: pw_pools
+      TYPE(pw_pool_p_type), DIMENSION(:), POINTER        :: pw_pools
       TYPE(qs_dispersion_type), POINTER                  :: dispersion_env
-      TYPE(qs_kind_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: qs_kind_set
+      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(realspace_grid_desc_p_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: rs_descs
+         POINTER                                         :: rs_descs
       TYPE(realspace_grid_input_type)                    :: input_settings
-      TYPE(realspace_grid_p_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: rs_grids
+      TYPE(realspace_grid_p_type), DIMENSION(:), POINTER :: rs_grids
       TYPE(rho0_mpole_type), POINTER                     :: rho0_mpole
       TYPE(section_vals_type), POINTER                   :: efg_section, input, linres_section, &
                                                             poisson_section, print_section, &

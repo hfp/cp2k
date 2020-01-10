@@ -652,11 +652,10 @@ CONTAINS
       INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: bounds
       INTEGER, DIMENSION(2, 3)                           :: bo, bo_mixed
       INTEGER, DIMENSION(3)                              :: higher_grid_layout
-      INTEGER, DIMENSION(:), POINTER, CONTIGUOUS         :: i_force_eval, mixed_rs_dims, recvbuffer, &
+      INTEGER, DIMENSION(:), POINTER                     :: i_force_eval, mixed_rs_dims, recvbuffer, &
                                                             recvbuffer2, sendbuffer
       LOGICAL                                            :: is_match
-      TYPE(atomic_kind_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: atomic_kind_set
+      TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(cell_type), POINTER                           :: cell_mix
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
       TYPE(cp_logger_type), POINTER                      :: logger
@@ -664,17 +663,14 @@ CONTAINS
       TYPE(global_environment_type), POINTER             :: globenv
       TYPE(pw_env_type), POINTER                         :: pw_env
       TYPE(pw_grid_type), POINTER                        :: pw_grid
-      TYPE(pw_pool_p_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: pw_pools
+      TYPE(pw_pool_p_type), DIMENSION(:), POINTER        :: pw_pools
       TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
       TYPE(qs_environment_type), POINTER                 :: qs_env
-      TYPE(qs_kind_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: qs_kind_set
+      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(realspace_grid_desc_p_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: rs_descs
+         POINTER                                         :: rs_descs
       TYPE(realspace_grid_input_type)                    :: input_settings
-      TYPE(realspace_grid_p_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: rs_grids
+      TYPE(realspace_grid_p_type), DIMENSION(:), POINTER :: rs_grids
       TYPE(section_vals_type), POINTER :: force_env_section, force_env_sections, kind_section, &
          print_section, root_section, rs_grid_section, subsys_section
 
