@@ -1,5 +1,5 @@
 # Tested with: GFortran 7.4.0, FFTW 3.3, LAPACK 3.8.0, Libint 2.6.0, Libxc 4.3.4, SPGLIB 1.12.2
-# Author: Matthias Krack (matthias.krack@psi.ch, PSI, Dezember 2019)
+# Author: Matthias Krack (matthias.krack@psi.ch, PSI, January 2020)
 
 CC         = gcc
 FC         = gfortran
@@ -22,11 +22,11 @@ CFLAGS     = -O1 -g -mtune=generic
 
 DFLAGS     = -D__FFTW3 -D__LIBINT -D__LIBXC -D__SPGLIB -D__CHECK_DIAG
 
-WFLAGS     = -Waliasing -Wampersand -Wc-binding-type -Wconversion
-WFLAGS    += -Wintrinsic-shadow -Wintrinsics-std -Wline-truncation
-WFLAGS    += -Wno-tabs -Wrealloc-lhs -Wtarget-lifetime -Wunderflow
-WFLAGS    += -Wunused-but-set-variable -Wunused-dummy-argument -Wunused-variable
-WFLAGS    += -Werror
+WFLAGS     = -Werror=aliasing -Werror=ampersand -Werror=c-binding-type
+WFLAGS    += -Werror=conversion -Werror=intrinsic-shadow -Werror=intrinsics-std
+WFLAGS    += -Werror=line-truncation -Werror=realloc-lhs -Werror=tabs
+WFLAGS    += -Werror=target-lifetime -Werror=underflow -Werror=unused-but-set-variable
+WFLAGS    += -Werror=unused-dummy-argument -Werror=unused-variable
 
 FCFLAGS    = $(CFLAGS) $(DFLAGS) $(WFLAGS)
 FCFLAGS   += -fcheck=bounds,do,recursion,pointer -ffree-form
