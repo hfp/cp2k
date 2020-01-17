@@ -2,8 +2,8 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")" && pwd -P)"
 
-sirius_ver="6.4.3"
-sirius_sha256="4d1effeadb84b3e1efd7d9ac88018ef567aa2e0aa72e1112f0abf2e493e2a189"
+sirius_ver="6.4.4"
+sirius_sha256="1c5de9565781847658c3cc11edcb404e6e6d1c5a9dfc81e977de7a9a7a162c8a"
 
 
 source "${SCRIPT_DIR}"/common_vars.sh
@@ -246,6 +246,16 @@ export CP_LDFLAGS="\${CP_LDFLAGS} IF_MPI(IF_OMP(IF_CUDA("\${SIRIUS_CUDA_LDFLAGS}
 export CP_LIBS="IF_MPI(IF_OMP("\${SIRIUS_LIBS}"|)|) \${CP_LIBS}"
 EOF
 fi
+
+# ----------------------------------------------------------------------
+# Suppress reporting of known leaks
+# ----------------------------------------------------------------------
+cat <<EOF >> ${INSTALLDIR}/lsan.supp
+# Leaks in SIRIUS
+leak:sddk::Communicator::cart_sub
+leak:sddk::Communicator::split
+leak:sddk::Communicator::cart_create
+EOF
 
 # update toolchain environment
 load "${BUILDDIR}/setup_sirius"
