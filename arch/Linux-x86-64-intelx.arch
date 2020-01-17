@@ -315,12 +315,12 @@ else # GNU GCC
   else
     FCFLAGS += \
       -fimplicit-none -fsanitize=leak -fcheck=all -finit-derived -finit-real=snan -finit-integer=-42 -finline-matmul-limit=0 \
-      -Werror=realloc-lhs-all -Werror=aliasing -Werror=ampersand -Werror=c-binding-type -Werror=intrinsics-std -Werror=line-truncation -Werror=tabs \
-      -Werror=target-lifetime -Werror=underflow -Werror=unused-but-set-variable -Werror=conversion -Werror=unused-variable -Werror=unused-dummy-argument \
-      -Werror=zerotrip -Werror=uninitialized -Wno-maybe-uninitialized -Wuse-without-only \
+      -Werror=aliasing -Werror=ampersand -Werror=c-binding-type -Werror=intrinsics-std -Werror=line-truncation -Werror=tabs \
+      -Werror=target-lifetime -Werror=underflow -Werror=unused-but-set-variable -Werror=conversion -Werror=unused-variable \
+      -Werror=unused-dummy-argument -Werror=zerotrip -Werror=uninitialized -Wno-maybe-uninitialized -Wuse-without-only \
       -Wintrinsic-shadow
     ifneq (1,$(DBG))
-      FCFLAGS += -std=f2008
+      FCFLAGS += -std=f2008 -Werror=realloc-lhs-all
     endif
     ifneq (0,$(FPE))
       FCFLAGS += -ffpe-trap=invalid,zero,overflow
