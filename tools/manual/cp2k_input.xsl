@@ -64,6 +64,7 @@
      Assigns the text <i>value</i> to the preprocessing variable <i>VAR</i>. <i>value</i>
      is the text following <i>VAR</i> with the outer whitespace removed. The variable can be
      recalled with a <i>${VAR}</i> (or  <i>$VAR</i>) statement. There can be only one @SET statement per line.
+     A variable name can only contain alphanumerical characters plus the underscore and must not start with a number.
     </dd>
     <dt><b>${VAR}</b> or <b>$VAR</b></dt>
     <dd>
@@ -71,6 +72,12 @@
      with the value assigned to <i>VAR</i> in the last @SET directive.
      There can be multiple variable statements per line. The expansion process is repeated
      until no more variables are found.
+    </dd>
+    <dt><b>${VAR-DEFAULT}</b></dt>
+    <dd>
+     Expand the variable <i>VAR</i> if defined. The text <i>${VAR-DEFAULT}</i> is replaced
+     with the value assigned to <i>VAR</i> in the last @SET directive if defined,
+     otherwise with the value specified after the dash <i>-</i> (here: <i>DEFAULT</i>).
     </dd>
     <dt><b>@IF / @ENDIF</b></dt>
     <dd>
