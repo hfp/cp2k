@@ -24,8 +24,8 @@ case "$with_mkl" in
         ;;
     __SYSTEM__)
         echo "==================== Finding MKL from system paths ===================="
-        if ! [ -z "MKLROOT" ] ; then
-            echo "MKLROOT is found to be $MKLROOT"
+        if ! [ -z "${MKLROOT}" ] ; then
+            echo "MKLROOT is found to be ${MKLROOT}"
         else
             report_error ${LINENO} "Cannot find env variable MKLROOT, the script relies on it being set. Please check in MKL installation and use --with-mkl=<location> to pass the path to MKL root directory to this script."
             exit 1
@@ -58,7 +58,7 @@ if [ "$with_mkl" != "__DONTUSE__" ] ; then
     esac
     mkl_lib_dir="${MKLROOT}/lib/${mkl_arch_dir}"
     # check we have required libraries
-    mkl_required_libs="libmkl_gf_lp64.a libmkl_core.a libmkl_sequential.a"
+    mkl_required_libs="libmkl_gf_lp64.so libmkl_sequential.so libmkl_core.so"
     for ii in $mkl_required_libs ; do
         if [ ! -f "$mkl_lib_dir/${ii}" ] ; then
             report_error $LINENO "missing MKL library ${ii}"
@@ -66,17 +66,17 @@ if [ "$with_mkl" != "__DONTUSE__" ] ; then
         fi
     done
     # set the correct lib flags from  MLK link adviser
-    MKL_LIBS="-Wl,--start-group ${mkl_lib_dir}/libmkl_gf_lp64.a ${mkl_lib_dir}/libmkl_core.a ${mkl_lib_dir}/libmkl_sequential.a"
+    MKL_LIBS="-Wl,--start-group ${mkl_lib_dir}/libmkl_gf_lp64.so ${mkl_lib_dir}/libmkl_sequential.so ${mkl_lib_dir}/libmkl_core.so"
     # check optional libraries
     if [ $MPI_MODE != no ] ; then
         enable_mkl_scalapack="__TRUE__"
-        mkl_optional_libs="libmkl_scalapack_lp64.a"
+        mkl_optional_libs="libmkl_scalapack_lp64.so"
         case $MPI_MODE in
             mpich)
-                mkl_blacs_lib="libmkl_blacs_intelmpi_lp64.a"
+                mkl_blacs_lib="libmkl_blacs_intelmpi_lp64.so"
                 ;;
             openmpi)
-                mkl_blacs_lib="libmkl_blacs_openmpi_lp64.a"
+                mkl_blacs_lib="libmkl_blacs_openmpi_lp64.so"
                 ;;
             *)
                 enable_mkl_scalapack="__FALSE__"
@@ -90,7 +90,7 @@ if [ "$with_mkl" != "__DONTUSE__" ] ; then
         done
         if [ $enable_mkl_scalapack = "__TRUE__" ] ; then
             echo "Using MKL provided ScaLAPACK and BLACS"
-            MKL_LIBS="${mkl_lib_dir}/libmkl_scalapack_lp64.a ${MKL_LIBS} ${mkl_lib_dir}/${mkl_blacs_lib}"
+            MKL_LIBS="${mkl_lib_dir}/libmkl_scalapack_lp64.so ${MKL_LIBS} ${mkl_lib_dir}/${mkl_blacs_lib}"
         fi
     else
         echo "Not using MKL provided ScaLAPACK and BLACS"
@@ -109,11 +109,12 @@ export MKL_CFLAGS="${MKL_CFLAGS}"
 export MKL_LIBS="${MKL_LIBS}"
 export FAST_MATH_CFLAGS="\${FAST_MATH_CFLAGS} ${MKL_CFLAGS}"
 export FAST_MATH_LIBS="\${FAST_MATH_LIBS} ${MKL_LIBS}"
+export CP_DFLAGS="\${CP_DFLAGS} -D__MKL"
 EOF
     if [ $enable_mkl_scalapack = "__TRUE__" ] ; then
         cat <<EOF >> "${BUILDDIR}/setup_mkl"
 export CP_DFLAGS="\${CP_DFLAGS} IF_MPI(-D__SCALAPACK|)"
-with_scalapack="__DONTUSE__"
+export with_scalapack="__DONTUSE__"
 EOF
     fi
 fi
