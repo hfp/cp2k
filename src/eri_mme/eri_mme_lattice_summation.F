@@ -16,7 +16,7 @@ MODULE eri_mme_lattice_summation
    USE ao_util,                         ONLY: exp_radius
    USE eri_mme_gaussian,                ONLY: create_gaussian_overlap_dist_to_hermite,&
                                               create_hermite_to_cartesian, &
-                                              eri_mme_coulomb, eri_mme_yukawa,&
+                                              exp_radius_fast, eri_mme_coulomb, eri_mme_yukawa, &
                                               eri_mme_longrange
    USE kinds,                           ONLY: dp,&
                                               int_8
@@ -287,7 +287,6 @@ CONTAINS
             ns3_R1 = 2.0_dp*R_bounds_3(1, i_xyz)
             ns3_R2 = 2.0_dp*R_bounds_3(2, i_xyz)
 
-
             n_sum_1d(3, i_xyz) = nsum_3c_rspace_1d(ns3_R1, ns3_R2)
          ENDDO
 
@@ -435,7 +434,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(3)                        :: G, G_x, G_y, G_z
       REAL(KIND=dp), DIMENSION(3, 0:l_max)               :: G_pow_l
       REAL(KIND=dp), DIMENSION(3, 3)                     :: ht
-
 
       ht = twopi*TRANSPOSE(h_inv)
       Ig(:) = 0.0_dp
@@ -953,7 +951,6 @@ ENDIF
          ENDDO
       ENDDO
 
-
        S_R = S_R*pi**(-0.5_dp)*((zeta+zetb)/(zeta*zetb))**(-0.5_dp)
    END SUBROUTINE
 
@@ -1121,7 +1118,6 @@ ENDIF
 #:endfor
 #:endfor
 #:endfor
-
 
 ! **************************************************************************************************
 !> \brief As pgf_sum_3c_1d but 3d sum required for non-orthorhombic cells

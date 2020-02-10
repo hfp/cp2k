@@ -19,6 +19,9 @@ MODULE hirshfeld_methods
    USE cp_para_types,                   ONLY: cp_para_env_type
    USE cp_units,                        ONLY: cp_unit_to_cp2k
    USE cube_utils,                      ONLY: cube_info_type
+   USE grid_collocate,                  ONLY: GRID_FUNC_AB,&
+                                              collocate_pgf_product
+   USE grid_integrate,                  ONLY: integrate_pgf_product
    USE hirshfeld_types,                 ONLY: get_hirshfeld_info,&
                                               hirshfeld_type,&
                                               set_hirshfeld_info
@@ -45,13 +48,10 @@ MODULE hirshfeld_methods
                                               REALSPACE,&
                                               pw_p_type,&
                                               pw_release
-   USE qs_collocate_density,            ONLY: collocate_pgf_product_rspace
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
-   USE qs_integrate_potential_low,      ONLY: integrate_pgf_product_rspace
    USE qs_kind_types,                   ONLY: get_qs_kind,&
                                               qs_kind_type
-   USE qs_modify_pab_block,             ONLY: FUNC_AB
    USE qs_rho_types,                    ONLY: qs_rho_get,&
                                               qs_rho_type
    USE realspace_grid_types,            ONLY: pw2rs,&
@@ -481,11 +481,11 @@ CONTAINS
                ra(:) = pbc(particle_set(atom_a)%r, cell)
                subpatch_pattern = 0
                ! la_max==0 so set lmax_global to 0
-               CALL collocate_pgf_product_rspace(0, alpha, 0, 0, 0.0_dp, 0, ra, &
-                                                 (/0.0_dp, 0.0_dp, 0.0_dp/), 0.0_dp, 1.0_dp, pab, 0, 0, rs_rho, &
-                                                 cell, cube_info, eps_rho_rspace, ga_gb_function=FUNC_AB, &
-                                                 ithread=ithread, use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern, &
-                                                 lmax_global=0)
+               CALL collocate_pgf_product(0, alpha, 0, 0, 0.0_dp, 0, ra, &
+                                          (/0.0_dp, 0.0_dp, 0.0_dp/), 0.0_dp, 1.0_dp, pab, 0, 0, rs_rho, &
+                                          cell, cube_info, eps_rho_rspace, ga_gb_function=GRID_FUNC_AB, &
+                                          use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern, &
+                                          lmax_global=0)
             END DO
          END DO
 
@@ -605,12 +605,12 @@ CONTAINS
                force_a(:) = 0.0_dp
                force_b(:) = 0.0_dp
                !
-               CALL integrate_pgf_product_rspace(0, alpha, 0, &
-                                                 0, 0.0_dp, 0, ra, (/0.0_dp, 0.0_dp, 0.0_dp/), 0.0_dp, &
-                                                 rs_v, cell, pw_env%cube_info(1), hab, pab=pab, o1=0, o2=0, &
-                                                 eps_gvg_rspace=eps_rho_rspace, calculate_forces=do_force, &
-                                                 force_a=force_a, force_b=force_b, use_virial=.FALSE., &
-                                                 use_subpatch=.TRUE., subpatch_pattern=0_int_8)
+               CALL integrate_pgf_product(0, alpha, 0, &
+                                          0, 0.0_dp, 0, ra, (/0.0_dp, 0.0_dp, 0.0_dp/), 0.0_dp, &
+                                          rs_v, cell, pw_env%cube_info(1), hab, pab=pab, o1=0, o2=0, &
+                                          eps_gvg_rspace=eps_rho_rspace, calculate_forces=do_force, &
+                                          force_a=force_a, force_b=force_b, use_virial=.FALSE., &
+                                          use_subpatch=.TRUE., subpatch_pattern=0_int_8)
                fval(atom_a) = fval(atom_a) + hab(1, 1)*dvol*coef
                IF (do_force) THEN
                   fderiv(:, atom_a) = fderiv(:, atom_a) + force_a(:)*dvol

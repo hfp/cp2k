@@ -28,6 +28,8 @@ MODULE qs_cdft_utils
    USE cp_para_types,                   ONLY: cp_para_env_type
    USE cp_realspace_grid_cube,          ONLY: cp_pw_to_cube
    USE cp_units,                        ONLY: cp_unit_from_cp2k
+   USE grid_collocate,                  ONLY: GRID_FUNC_AB,&
+                                              collocate_pgf_product
    USE hirshfeld_methods,               ONLY: create_shape_function
    USE hirshfeld_types,                 ONLY: create_hirshfeld_type,&
                                               hirshfeld_type,&
@@ -58,12 +60,10 @@ MODULE qs_cdft_utils
                                               cdft_control_type,&
                                               cdft_group_type,&
                                               hirshfeld_constraint_type
-   USE qs_collocate_density,            ONLY: collocate_pgf_product_rspace
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
    USE qs_kind_types,                   ONLY: get_qs_kind,&
                                               qs_kind_type
-   USE qs_modify_pab_block,             ONLY: FUNC_AB
    USE qs_scf_output,                   ONLY: qs_scf_cdft_constraint_info
    USE qs_subsys_types,                 ONLY: qs_subsys_get,&
                                               qs_subsys_type
@@ -375,13 +375,13 @@ CONTAINS
                      ra(:) = pbc(particle_set(atom_a)%r, cell)
                   END IF
                   IF (is_constraint(atom_a)) &
-                     CALL collocate_pgf_product_rspace(0, alpha, 0, 0, 0.0_dp, 0, ra, &
-                                                       (/0.0_dp, 0.0_dp, 0.0_dp/), 0.0_dp, 1.0_dp, &
-                                                       pab, 0, 0, rs_cavity, cell, pw_env%cube_info(1), &
-                                                       dft_control%qs_control%eps_rho_rspace, &
-                                                       ga_gb_function=FUNC_AB, ithread=ithread, &
-                                                       use_subpatch=.TRUE., subpatch_pattern=0_int_8, &
-                                                       lmax_global=0)
+                     CALL collocate_pgf_product(0, alpha, 0, 0, 0.0_dp, 0, ra, &
+                                                (/0.0_dp, 0.0_dp, 0.0_dp/), 0.0_dp, 1.0_dp, &
+                                                pab, 0, 0, rs_cavity, cell, pw_env%cube_info(1), &
+                                                dft_control%qs_control%eps_rho_rspace, &
+                                                ga_gb_function=GRID_FUNC_AB, &
+                                                use_subpatch=.TRUE., subpatch_pattern=0_int_8, &
+                                                lmax_global=0)
                END DO
             END DO
             DEALLOCATE (cores)

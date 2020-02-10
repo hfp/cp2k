@@ -4,7 +4,6 @@
 !--------------------------------------------------------------------------------------------------!
 ! **************************************************************************************************
 MODULE qs_rho0_ggrid
-
    USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                               get_atomic_kind
    USE basis_set_types,                 ONLY: get_gto_basis_set,&
@@ -15,6 +14,8 @@ MODULE qs_rho0_ggrid
    USE cp_para_types,                   ONLY: cp_para_env_type
    USE cube_utils,                      ONLY: cube_info_type
    USE gaussian_gridlevels,             ONLY: gaussian_gridlevel
+   USE grid_collocate,                  ONLY: GRID_FUNC_AB,&
+                                              collocate_pgf_product
    USE kinds,                           ONLY: dp,&
                                               int_8
    USE mathconstants,                   ONLY: dfac,&
@@ -45,13 +46,12 @@ MODULE qs_rho0_ggrid
                                               RECIPROCALSPACE,&
                                               pw_p_type,&
                                               pw_release
-   USE qs_collocate_density,            ONLY: collocate_pgf_product_rspace
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
    USE qs_force_types,                  ONLY: qs_force_type
    USE qs_harmonics_atom,               ONLY: get_none0_cg_list,&
                                               harmonics_atom_type
-   USE qs_integrate_potential,          ONLY: integrate_pgf_product_rspace
+   USE qs_integrate_potential,          ONLY: integrate_pgf_product
    USE qs_kind_types,                   ONLY: get_qs_kind,&
                                               qs_kind_type
    USE qs_local_rho_types,              ONLY: get_local_rho,&
@@ -176,7 +176,7 @@ CONTAINS
 
       ALLOCATE (pab(nch_max, 1))
 
-      !Compute global lmax for use in collocate_pgf_product_rspace
+      !Compute global lmax for use in collocate_pgf_product
       lmax_global = 0
       DO ikind = 1, SIZE(atomic_kind_set)
          CALL get_rho0_mpole(rho0_mpole=rho0, ikind=ikind, l0_ikind=l0_ikind)
@@ -227,11 +227,11 @@ CONTAINS
 
             ra(:) = pbc(particle_set(iatom)%r, cell)
 
-            CALL collocate_pgf_product_rspace( &
+            CALL collocate_pgf_product( &
                l0_ikind, zet0, 0, 0, 0.0_dp, 0, &
                ra, (/0.0_dp, 0.0_dp, 0.0_dp/), 0.0_dp, 1.0_dp, pab, 0, 0, &
-               rs_grid, cell, cube_info(igrid), eps_rho_rspace, ga_gb_function=401, &
-               ithread=ithread, collocate_rho0=.TRUE., rpgf0_s=rpgf0, &
+               rs_grid, cell, cube_info(igrid), eps_rho_rspace, ga_gb_function=GRID_FUNC_AB, &
+               collocate_rho0=.TRUE., rpgf0_s=rpgf0, &
                use_subpatch=.TRUE., subpatch_pattern=0_int_8, lmax_global=lmax_global)
 
          END DO !  j
@@ -578,7 +578,7 @@ CONTAINS
                   a_hdab = 0.0_dp
                END IF
 
-               CALL integrate_pgf_product_rspace( &
+               CALL integrate_pgf_product( &
                   l0_ikind, zet0, 0, 0, 0.0_dp, 0, &
                   ra, (/0.0_dp, 0.0_dp, 0.0_dp/), 0.0_dp, rs_v, cell, &
                   cube_info(igrid), hab, pab, o1=0, o2=0, &

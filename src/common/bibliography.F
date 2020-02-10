@@ -86,7 +86,7 @@ MODULE bibliography
                             Schuett2018, Holmberg2018, Togo2018, Staub2019, Grimme2013, Grimme2016, &
                             Grimme2017, Kondov2007, &
                             Ren2011, Ren2013, Cohen2000, Rogers2002, Filippetti2000, Paziani2006, &
-                            Toulouse2004, Limpanuparb2011, Martin2003, Yin2017
+                            Toulouse2004, Limpanuparb2011, Martin2003, Yin2017, Goerigk2017
 
 CONTAINS
 
@@ -2768,7 +2768,7 @@ CONTAINS
                          "EP 666", &
                          "PD MAR 18", &
                          "PY 2002", &
-                         "UR https://dx.doi.org/10.1002/jcc.10069", &
+                         "UR https://doi.org/10.1002/jcc.10069", &
                          "ER"), &
                          DOI="10.1002/jcc.10069")
 
@@ -2788,7 +2788,7 @@ CONTAINS
                          "AR 064102", &
                          "PD FEB 8", &
                          "PY 2012", &
-                         "UR https://dx.doi.org/10.1063/1.3676407", &
+                         "UR https://doi.org/10.1063/1.3676407", &
                          "ER"), &
                          DOI="10.1063/1.3676407")
 
@@ -3704,7 +3704,7 @@ CONTAINS
                          "AU VandeVondele, Joost", &
                          "VL John Wiley & Sons, Ltd", &
                          "SN 9781118670712", &
-                         "UR https://dx.doi.org/10.1002/9781118670712.ch8", &
+                         "UR https://doi.org/10.1002/9781118670712.ch8", &
                          "DO 10.1002/9781118670712.ch8", &
                          "BP 173", &
                          "EP 190", &
@@ -4319,6 +4319,31 @@ CONTAINS
                          "EP 288", &
                          "ER"), &
                          DOI="10.1016/j.pnsc.2017.03.003")
+
+      CALL add_reference(key=Goerigk2017, ISI_record=s2a( &
+                         "TY JOUR", &
+                         "TI A look at the density functional theory zoo with the advanced GMTKN55 database ", &
+                         "   for general main group thermochemistry, kinetics and noncovalent interactions", &
+                         "AU Goerigk, Lars", &
+                         "   Hansen, Andreas", &
+                         "   Bauer, Christoph", &
+                         "   Ehrlich, Stephan", &
+                         "   Najibi, Asim", &
+                         "   Grimme, Stefan", &
+                         "PY 2017", &
+                         "SP 32184", &
+                         "EP 32215", &
+                         "JF Physical Chemistry Chemical Physics", &
+                         "JO Phys. Chem. Chem. Phys.", &
+                         "VL 19", &
+                         "IS 48", &
+                         "PB The Royal Society of Chemistry", &
+                         "SN 1463-9076", &
+                         "DO 10.1039/C7CP04913G", &
+                         "M3 10.1039/C7CP04913G", &
+                         "UR  - http://dx.doi.org/10.1039/C7CP04913G", &
+                         "ER"), &
+                         DOI="10.1039/C7CP04913G")
 
    END SUBROUTINE add_all_references
 

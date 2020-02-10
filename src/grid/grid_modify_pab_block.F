@@ -8,38 +8,22 @@
 !>      on the real space grid specific functions of the primitives
 !> \author MI 06.2006
 ! **************************************************************************************************
-MODULE qs_modify_pab_block
+MODULE grid_modify_pab_block
 
    USE kinds,                           ONLY: dp
    USE orbital_pointers,                ONLY: coset
-#include "./base/base_uses.f90"
+#include "../base/base_uses.f90"
 
    IMPLICIT NONE
 
    PRIVATE
 
-   CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'qs_modify_pab_block'
+   CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'grid_modify_pab_block'
 
-! *** Public subroutines ***
-
-   PUBLIC :: prepare_dadb, prepare_adb_m_dab, prepare_dab_p_adb, prepare_ardb_m_darb, prepare_arb
+   PUBLIC :: prepare_dadb, prepare_adb_m_dab, prepare_dab_p_adb, prepare_ardb_m_darb
    PUBLIC :: prepare_diadib, prepare_dijadijb, prepare_diiadiib
-   PUBLIC :: FUNC_AB, FUNC_ARB, FUNC_DADB, FUNC_ADBmDAB, FUNC_ARDBmDARB, FUNC_DABpADB
-   PUBLIC :: FUNC_DER, FUNC_DXDY, FUNC_DYDZ, FUNC_DZDX, FUNC_DX, FUNC_DY, FUNC_DZ
-   PUBLIC :: FUNC_DXDX, FUNC_DYDY, FUNC_DZDZ
-
-   ! Flags for the type of function to be collocated
-   INTEGER, PARAMETER :: FUNC_AB = 401, FUNC_DADB = 402
-   INTEGER, PARAMETER :: FUNC_ADBmDAB = 403, FUNC_ARDBmDARB = 404
-   INTEGER, PARAMETER :: FUNC_DABpADB = 405, FUNC_ARB = 406
-   INTEGER, DIMENSION(0:9), PARAMETER :: FUNC_DER = (/401, 501, 502, 503, 601, 602, 603, 604, 605, 606/)
-   INTEGER, PARAMETER :: FUNC_DXDY = 601, FUNC_DYDZ = 602, FUNC_DZDX = 603
-   INTEGER, PARAMETER :: FUNC_DXDX = 604, FUNC_DYDY = 605, FUNC_DZDZ = 606
-   INTEGER, PARAMETER :: FUNC_DX = 501, FUNC_DY = 502, FUNC_DZ = 503
 
 CONTAINS
-
-!
 
 ! **************************************************************************************************
 !> \brief create a new pab_local so that mapping pab_local with pgf_a pgf_b
@@ -118,7 +102,6 @@ CONTAINS
 
    END SUBROUTINE prepare_dadb
 
-!
 ! **************************************************************************************************
 !> \brief create a new pab_local so that mapping pab_local with pgf_a pgf_b
 !>      is equivalent to mapping pab with  (ddi pgf_a) . (ddi pgf_b)
@@ -198,7 +181,7 @@ CONTAINS
       END IF
 
    END SUBROUTINE prepare_diadib
-!
+
 ! **************************************************************************************************
 !> \brief create a new pab_local so that mapping pab_local with pgf_a pgf_b
 !>      is equivalent to mapping pab with  (ddidj pgf_a) . (ddidj pgf_b)
@@ -529,7 +512,6 @@ CONTAINS
 
    END SUBROUTINE prepare_adb_m_dab
 
-!
 ! **************************************************************************************************
 !> \brief create a new pab_local so that mapping pab_local with pgf_a pgf_b
 !>      is equivalent to mapping pab with  pgf_a (nabla_{idir} pgf_b) + (nabla_{idir} pgf_a) pgf_b
@@ -606,8 +588,6 @@ CONTAINS
       END IF
 
    END SUBROUTINE prepare_dab_p_adb
-
-!
 
 ! **************************************************************************************************
 !> \brief create a new pab_local so that mapping pab_local with pgf_a pgf_b
@@ -811,53 +791,4 @@ CONTAINS
 
    END SUBROUTINE prepare_ardb_m_darb
 
-! **************************************************************************************************
-!> \brief create a new pab_local so that mapping pab_local with pgf_a pgf_b
-!>    pgf_a (r-Rb)_{ir} pgf_b = pgf_a * pgf_b{+1ir}
-!> \param pab_local ...
-!> \param pab ...
-!> \param ir ...
-!> \param lxa ...
-!> \param lya ...
-!> \param lza ...
-!> \param lxb ...
-!> \param lyb ...
-!> \param lzb ...
-!> \param o1 ...
-!> \param o2 ...
-! **************************************************************************************************
-   SUBROUTINE prepare_arb(pab_local, pab, ir, lxa, lya, lza, lxb, lyb, lzb, o1, o2)
-
-      REAL(dp), DIMENSION(:, :), INTENT(INOUT)           :: pab_local
-      REAL(dp), DIMENSION(:, :), INTENT(IN)              :: pab
-      INTEGER, INTENT(IN)                                :: ir, lxa, lya, lza, lxb, lyb, lzb, o1, o2
-
-      INTEGER                                            :: ico, ico_l, jco, jco_l
-
-      ico = coset(lxa, lya, lza)
-      jco = coset(lxb, lyb, lzb)
-
-      IF (ir == 1) THEN
-
-         ico_l = coset(lxa, lya, lza)
-         jco_l = coset((lxb + 1), lyb, lzb)
-         pab_local(ico_l, jco_l) = pab_local(ico_l, jco_l) + pab(o1 + ico, o2 + jco)
-
-      ELSEIF (ir == 2) THEN
-
-         ico_l = coset(lxa, lya, lza)
-         jco_l = coset(lxb, (lyb + 1), lzb)
-         pab_local(ico_l, jco_l) = pab_local(ico_l, jco_l) + pab(o1 + ico, o2 + jco)
-
-      ELSEIF (ir == 3) THEN
-
-         ico_l = coset(lxa, lya, lza)
-         jco_l = coset(lxb, lyb, (lzb + 1))
-         pab_local(ico_l, jco_l) = pab_local(ico_l, jco_l) + pab(o1 + ico, o2 + jco)
-
-      END IF
-
-   END SUBROUTINE prepare_arb
-
-END MODULE qs_modify_pab_block
-
+END MODULE grid_modify_pab_block
