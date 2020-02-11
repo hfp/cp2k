@@ -36,9 +36,18 @@ endif
 #
 LIBXSTREAMROOT = $(TOOLSRC)/mic/libxstream
 
+# check if the Intel Development Tools are available
+INTEL ?= $(shell echo "$$((2==$(words $(filter icpc icpx icc icx, \
+  $(shell $(CXX) --version 2> /dev/null | head -n1 | cut -d' ' -f1) \
+  $(shell $(CC) --version 2> /dev/null | head -n1 | cut -d' ' -f1)))))")
+
 # DEFAULTS
 #
-GNU ?= 0
+ifneq (0,$(INTEL))
+  GNU ?= 0
+else
+  GNU ?= 1
+endif
 SSE ?= 0
 AVX ?= 0
 MPI ?= 1
@@ -211,10 +220,6 @@ else
 endif
 
 ifeq (0,$(GNU)) # Intel
-  # check if the Intel Development Tools are available
-  INTEL ?= $(shell echo "$$((2==$(words $(filter icpc icpx icc icx, \
-    $(shell $(CXX) --version 2> /dev/null | head -n1 | cut -d' ' -f1) \
-    $(shell $(CC) --version 2> /dev/null | head -n1 | cut -d' ' -f1)))))")
   ifeq (0,$(INTEL))
     $(info ================================================================================)
     $(info This ARCH file relies on Intel Compiler and Libraries. Please try the following:)
