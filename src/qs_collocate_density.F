@@ -32,6 +32,7 @@
 !>      Thomas D. Kuehne (04.08.2005)
 ! **************************************************************************************************
 MODULE qs_collocate_density
+   USE ao_util,                         ONLY: exp_radius_very_extended
    USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                               get_atomic_kind,&
                                               get_atomic_kind_set
@@ -54,10 +55,11 @@ MODULE qs_collocate_density
                                               gth_potential_type
    USE gaussian_gridlevels,             ONLY: gaussian_gridlevel,&
                                               gridlevel_info_type
-   USE grid_collocate,                  ONLY: &
-        GRID_FUNC_AB, GRID_FUNC_ADBmDAB, GRID_FUNC_ARDBmDARB, GRID_FUNC_DABpADB, GRID_FUNC_DADB, &
-        GRID_FUNC_DX, GRID_FUNC_DXDX, GRID_FUNC_DXDY, GRID_FUNC_DY, GRID_FUNC_DYDY, &
-        GRID_FUNC_DYDZ, GRID_FUNC_DZ, GRID_FUNC_DZDX, GRID_FUNC_DZDZ, collocate_pgf_product
+   USE grid_api,                        ONLY: &
+        GRID_FUNC_AB, GRID_FUNC_DABpADB_X, GRID_FUNC_DABpADB_Y, GRID_FUNC_DABpADB_Z, &
+        GRID_FUNC_DADB, GRID_FUNC_DX, GRID_FUNC_DXDX, GRID_FUNC_DXDY, GRID_FUNC_DY, &
+        GRID_FUNC_DYDY, GRID_FUNC_DYDZ, GRID_FUNC_DZ, GRID_FUNC_DZDX, GRID_FUNC_DZDZ, &
+        collocate_pgf_product
    USE input_constants,                 ONLY: &
         orb_dx2, orb_dxy, orb_dy2, orb_dyz, orb_dz2, orb_dzx, orb_px, orb_py, orb_pz, orb_s
    USE kinds,                           ONLY: default_string_length,&
@@ -150,12 +152,12 @@ CONTAINS
          routineP = moduleN//':'//routineN
 
       INTEGER                                            :: atom_a, handle, iatom, iexp_nlcc, ikind, &
-                                                            ithread, j, lmax_global, n, natom, nc, &
-                                                            nexp_nlcc, ni, npme, nthread
+                                                            ithread, j, n, natom, nc, nexp_nlcc, &
+                                                            ni, npme, nthread
       INTEGER(KIND=int_8)                                :: subpatch_pattern
-      INTEGER, DIMENSION(:), POINTER                     :: atom_list, cores, mylmax, nct_nlcc
+      INTEGER, DIMENSION(:), POINTER                     :: atom_list, cores, nct_nlcc
       LOGICAL                                            :: nlcc
-      REAL(KIND=dp)                                      :: alpha, eps_rho_rspace
+      REAL(KIND=dp)                                      :: alpha, eps_rho_rspace, radius
       REAL(KIND=dp), DIMENSION(3)                        :: ra
       REAL(KIND=dp), DIMENSION(:), POINTER               :: alpha_nlcc
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: cval_nlcc, pab
@@ -172,8 +174,8 @@ CONTAINS
 
       CALL timeset(routineN, handle)
 
-      NULLIFY (cell, dft_control, pab, particle_set, atomic_kind_set, qs_kind_set, &
-               atom_list, pw_env, rs_rho, auxbas_pw_pool, cores, mylmax)
+      NULLIFY (cell, dft_control, pab, particle_set, atomic_kind_set, &
+               qs_kind_set, atom_list, pw_env, rs_rho, auxbas_pw_pool, cores)
 
       CALL get_qs_env(qs_env=qs_env, &
                       atomic_kind_set=atomic_kind_set, &
@@ -190,19 +192,6 @@ CONTAINS
       CALL rs_grid_zero(rs_rho)
 
       eps_rho_rspace = dft_control%qs_control%eps_rho_rspace
-
-      !Find the maximum la_max over all of the atomic_kind_set
-      !We are using GRID_FUNC_AB so no need to cater for different ga_gb_functions
-      lmax_global = 0
-      DO ikind = 1, SIZE(atomic_kind_set)
-         CALL get_qs_kind(qs_kind_set(ikind), gth_potential=gth_potential)
-         IF (.NOT. ASSOCIATED(gth_potential)) CYCLE
-         CALL get_potential(potential=gth_potential, nct_nlcc=mylmax, nlcc_present=nlcc)
-         IF (.NOT. nlcc) CYCLE
-         lmax_global = MAX(MAXVAL(mylmax), lmax_global)
-      END DO
-      !lmax_global set according to ni = 2*nc-2 below
-      lmax_global = 2*lmax_global - 2
 
       DO ikind = 1, SIZE(atomic_kind_set)
          CALL get_atomic_kind(atomic_kind_set(ikind), natom=natom, atom_list=atom_list)
@@ -304,11 +293,16 @@ CONTAINS
                ra(:) = pbc(particle_set(atom_a)%r, cell)
                subpatch_pattern = 0
                ni = 2*nc - 2
+               radius = exp_radius_very_extended(la_min=0, la_max=ni, lb_min=0, lb_max=0, &
+                                                 ra=ra, rb=ra, rp=ra, &
+                                                 zetp=1/(2*alpha**2), eps=eps_rho_rspace, &
+                                                 pab=pab, o1=0, o2=0, &  ! without map_consistent
+                                                 prefactor=1.0_dp, cutoff=0.0_dp)
+
                CALL collocate_pgf_product(ni, 1/(2*alpha**2), 0, 0, 0.0_dp, 0, ra, &
                                           (/0.0_dp, 0.0_dp, 0.0_dp/), 1.0_dp, pab, 0, 0, rs_rho, &
-                                          cell, cube_info, eps_rho_rspace, ga_gb_function=GRID_FUNC_AB, &
-                                          use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern, &
-                                          lmax_global=lmax_global)
+                                          cell, cube_info, ga_gb_function=GRID_FUNC_AB, radius=radius, &
+                                          use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern)
 
             END DO
 
@@ -343,11 +337,10 @@ CONTAINS
          routineP = moduleN//':'//routineN
 
       INTEGER                                            :: atom_a, handle, iatom, ikind, ithread, &
-                                                            j, lmax_global, lppl, n, natom, ni, &
-                                                            npme, nthread
+                                                            j, lppl, n, natom, ni, npme, nthread
       INTEGER(KIND=int_8)                                :: subpatch_pattern
       INTEGER, DIMENSION(:), POINTER                     :: atom_list, cores
-      REAL(KIND=dp)                                      :: alpha, eps_rho_rspace
+      REAL(KIND=dp)                                      :: alpha, eps_rho_rspace, radius
       REAL(KIND=dp), DIMENSION(3)                        :: ra
       REAL(KIND=dp), DIMENSION(:), POINTER               :: cexp_ppl
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: pab
@@ -382,18 +375,6 @@ CONTAINS
       CALL rs_grid_zero(rs_rho)
 
       eps_rho_rspace = dft_control%qs_control%eps_rho_rspace
-
-      !Find maximum la_max over all of the atomic kind set where la_max=ni & ni=2*lppl-2
-      !Thus need to find the max of lppl over atomic_kind_set and use to define lmax_global
-      !We are using GRID_FUNC_AB so no need to cater for different ga_gb_functions
-      lmax_global = 0
-      DO ikind = 1, SIZE(atomic_kind_set)
-         CALL get_qs_kind(qs_kind_set(ikind), gth_potential=gth_potential)
-         IF (.NOT. ASSOCIATED(gth_potential)) CYCLE
-         CALL get_potential(potential=gth_potential, nexp_ppl=lppl)
-         lmax_global = MAX(lppl, lmax_global)
-      END DO
-      lmax_global = 2*lmax_global - 2
 
       DO ikind = 1, SIZE(atomic_kind_set)
          CALL get_atomic_kind(atomic_kind_set(ikind), natom=natom, atom_list=atom_list)
@@ -489,11 +470,18 @@ CONTAINS
                ra(:) = pbc(particle_set(atom_a)%r, cell)
                subpatch_pattern = 0
                ni = 2*lppl - 2
+
+               radius = exp_radius_very_extended(la_min=0, la_max=ni, &
+                                                 lb_min=0, lb_max=0, &
+                                                 ra=ra, rb=ra, rp=ra, &
+                                                 zetp=alpha, eps=eps_rho_rspace, &
+                                                 pab=pab, o1=0, o2=0, &  ! without map_consistent
+                                                 prefactor=1.0_dp, cutoff=0.0_dp)
+
                CALL collocate_pgf_product(ni, alpha, 0, 0, 0.0_dp, 0, ra, &
                                           (/0.0_dp, 0.0_dp, 0.0_dp/), 1.0_dp, pab, 0, 0, rs_rho, &
-                                          cell, cube_info, eps_rho_rspace, ga_gb_function=GRID_FUNC_AB, &
-                                          use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern, &
-                                          lmax_global=lmax_global)
+                                          cell, cube_info, radius=radius, ga_gb_function=GRID_FUNC_AB, &
+                                          use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern)
 
             END DO
          ENDIF
@@ -544,17 +532,16 @@ CONTAINS
          routineP = moduleN//':'//routineN
 
       INTEGER :: atom_a, dir, group_size, handle, iatom, igrid_level, ikind, ipgf, iset, jpgf, &
-         jset, lmax_global, m1, maxco, maxpgf, maxset, maxsgf, maxsgf_set, my_pos, na1, natom, &
-         nb1, ncoa, ncob, nseta, offset, sgfa, sgfb
+         jset, m1, maxco, maxsgf_set, my_pos, na1, natom, nb1, ncoa, ncob, nseta, offset, sgfa, &
+         sgfb
       INTEGER, DIMENSION(3)                              :: lb, location, tp, ub
-      INTEGER, DIMENSION(:), POINTER                     :: atom_list, la_max, la_min, mylmax, &
-                                                            npgfa, nsgfa
+      INTEGER, DIMENSION(:), POINTER                     :: atom_list, la_max, la_min, npgfa, nsgfa
       INTEGER, DIMENSION(:, :), POINTER                  :: first_sgfa
-      LOGICAL                                            :: found, map_consistent
+      LOGICAL                                            :: found
       LOGICAL, ALLOCATABLE, DIMENSION(:)                 :: map_it
       LOGICAL, ALLOCATABLE, DIMENSION(:, :)              :: map_it2
-      REAL(KIND=dp)                                      :: eps_rho_rspace, rab2, zetp
-      REAL(KIND=dp), DIMENSION(3)                        :: ra, rab
+      REAL(KIND=dp)                                      :: eps_rho_rspace, radius, zetp
+      REAL(KIND=dp), DIMENSION(3)                        :: ra
       REAL(KIND=dp), DIMENSION(:), POINTER               :: aci
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: p_block, pab, sphi_a, work, zeta
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
@@ -568,15 +555,14 @@ CONTAINS
       TYPE(pw_p_type), DIMENSION(:), POINTER             :: mgrid_gspace, mgrid_rspace
       TYPE(pw_pool_p_type), DIMENSION(:), POINTER        :: pw_pools
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
-      TYPE(qs_kind_type), POINTER                        :: qs_kind
       TYPE(realspace_grid_p_type), DIMENSION(:), POINTER :: rs_rho
       TYPE(realspace_grid_type), POINTER                 :: rs_grid
 
-      NULLIFY (aci, atomic_kind_set, qs_kind_set, atom_list, cell, cube_info, &
-               dft_control, first_sgfa, gridlevel_info, la_max, la_min, lri_basis_set, &
-               mgrid_gspace, mgrid_rspace, npgfa, nsgfa, pab, &
-               particle_set, pw_env, pw_pools, rs_grid, rs_rho, sphi_a, &
-               work, zeta, mylmax)
+      NULLIFY (aci, atomic_kind_set, qs_kind_set, atom_list, cell, &
+               cube_info, dft_control, first_sgfa, gridlevel_info, la_max, &
+               la_min, lri_basis_set, mgrid_gspace, mgrid_rspace, npgfa, nsgfa, &
+               pab, particle_set, pw_env, pw_pools, rs_grid, rs_rho, sphi_a, &
+               work, zeta)
 
       CALL timeset(routineN, handle)
 
@@ -592,7 +578,6 @@ CONTAINS
 
       cube_info => pw_env%cube_info
       eps_rho_rspace = dft_control%qs_control%eps_rho_rspace
-      map_consistent = dft_control%qs_control%map_consistent
       gridlevel_info => pw_env%gridlevel_info
 
       ! *** set up the pw multi-grids *** !
@@ -621,14 +606,6 @@ CONTAINS
       offset = 0
       my_pos = mgrid_rspace(1)%pw%pw_grid%para%my_pos
       group_size = mgrid_rspace(1)%pw%pw_grid%para%group_size
-
-      !Find lmax_global across atomic_kind_set
-      lmax_global = 0
-      DO ikind = 1, SIZE(atomic_kind_set)
-         CALL get_qs_kind(qs_kind_set(ikind), basis_set=lri_basis_set, basis_type=basis_type)
-         CALL get_gto_basis_set(gto_basis_set=lri_basis_set, lmax=mylmax)
-         lmax_global = MAX(MAXVAL(mylmax), lmax_global)
-      END DO
 
       DO ikind = 1, SIZE(atomic_kind_set)
 
@@ -700,6 +677,12 @@ CONTAINS
                      igrid_level = gaussian_gridlevel(gridlevel_info, zeta(ipgf, iset))
                      rs_grid => rs_rho(igrid_level)%rs_grid
                      IF (map_it(ipgf)) THEN
+                        radius = exp_radius_very_extended(la_min=la_min(iset), la_max=la_max(iset), &
+                                                          lb_min=0, lb_max=0, &
+                                                          ra=ra, rb=ra, rp=ra, &
+                                                          zetp=zeta(ipgf, iset), eps=eps_rho_rspace, &
+                                                          prefactor=1.0_dp, cutoff=1.0_dp)
+
                         CALL collocate_pgf_product(la_max=la_max(iset), &
                                                    zeta=zeta(ipgf, iset), &
                                                    la_min=la_min(iset), &
@@ -709,10 +692,8 @@ CONTAINS
                                                    pab=pab, o1=na1, o2=0, &
                                                    rsgrid=rs_grid, cell=cell, &
                                                    cube_info=cube_info(igrid_level), &
-                                                   eps_rho_rspace=eps_rho_rspace, &
-                                                   ga_gb_function=GRID_FUNC_AB, &
-                                                   map_consistent=map_consistent, &
-                                                   lmax_global=lmax_global)
+                                                   radius=radius, &
+                                                   ga_gb_function=GRID_FUNC_AB)
                      ENDIF
                   END DO
                   DEALLOCATE (work)
@@ -727,24 +708,9 @@ CONTAINS
       ! process the one-center terms
       IF (exact_1c_terms) THEN
          ! find maximum numbers
-         maxset = 0
-         maxpgf = 0
-         lmax_global = 0
          offset = 0
-         DO ikind = 1, SIZE(qs_kind_set)
-            qs_kind => qs_kind_set(ikind)
-            CALL get_qs_kind(qs_kind=qs_kind, &
-                             basis_set=orb_basis_set, basis_type="ORB")
-            IF (.NOT. ASSOCIATED(orb_basis_set)) CYCLE
-            CALL get_gto_basis_set(gto_basis_set=orb_basis_set, &
-                                   npgf=npgfa, nset=nseta, lmax=mylmax)
-            maxset = MAX(nseta, maxset)
-            maxpgf = MAX(MAXVAL(npgfa), maxpgf)
-            lmax_global = MAX(MAXVAL(mylmax), lmax_global)
-         END DO
          CALL get_qs_kind_set(qs_kind_set=qs_kind_set, &
                               maxco=maxco, &
-                              maxsgf=maxsgf, &
                               maxsgf_set=maxsgf_set, &
                               basis_type="ORB")
          ALLOCATE (pab(maxco, maxco), work(maxco, maxsgf_set))
@@ -758,8 +724,6 @@ CONTAINS
             DO iatom = 1, natom
                atom_a = atom_list(iatom)
                ra(:) = pbc(particle_set(atom_a)%r, cell)
-               rab(:) = 0.0_dp
-               rab2 = 0.0_dp
                CALL dbcsr_get_block_p(matrix=pmat, row=atom_a, col=atom_a, BLOCK=p_block, found=found)
                m1 = MAXVAL(npgfa(1:nseta))
                ALLOCATE (map_it2(m1, m1))
@@ -824,13 +788,20 @@ CONTAINS
                               nb1 = (jpgf - 1)*ncoset(la_max(jset))
 
                               IF (map_it2(ipgf, jpgf)) THEN
+                                 radius = exp_radius_very_extended(la_min=la_min(iset), &
+                                                                   la_max=la_max(iset), &
+                                                                   lb_min=la_min(jset), &
+                                                                   lb_max=la_max(jset), &
+                                                                   ra=ra, rb=ra, rp=ra, &
+                                                                   zetp=zetp, eps=eps_rho_rspace, &
+                                                                   prefactor=1.0_dp, cutoff=1.0_dp)
+
                                  CALL collocate_pgf_product( &
                                     la_max(iset), zeta(ipgf, iset), la_min(iset), &
                                     la_max(jset), zeta(jpgf, jset), la_min(jset), &
-                                    ra, rab, 1.0_dp, pab, na1, nb1, &
+                                    ra, (/0.0_dp, 0.0_dp, 0.0_dp/), 1.0_dp, pab, na1, nb1, &
                                     rs_grid, cell, cube_info(igrid_level), &
-                                    eps_rho_rspace, ga_gb_function=GRID_FUNC_AB, &
-                                    map_consistent=map_consistent, lmax_global=lmax_global)
+                                    radius=radius, ga_gb_function=GRID_FUNC_AB)
                               END IF
                            END DO
                         END DO
@@ -893,7 +864,7 @@ CONTAINS
       INTEGER(KIND=int_8)                                :: subpatch_pattern
       INTEGER, DIMENSION(:), POINTER                     :: atom_list, cores
       LOGICAL                                            :: my_only_nopaw, paw_atom
-      REAL(KIND=dp)                                      :: alpha, eps_rho_rspace
+      REAL(KIND=dp)                                      :: alpha, eps_rho_rspace, radius
       REAL(KIND=dp), DIMENSION(3)                        :: ra
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: pab
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
@@ -966,12 +937,17 @@ CONTAINS
                atom_a = atom_list(iatom)
                ra(:) = pbc(particle_set(atom_a)%r, cell)
                subpatch_pattern = 0
-               !lmax == 0 so set lmax_global to 0
+               radius = exp_radius_very_extended(la_min=0, la_max=0, &
+                                                 lb_min=0, lb_max=0, &
+                                                 ra=ra, rb=ra, rp=ra, &
+                                                 zetp=alpha, eps=eps_rho_rspace, &
+                                                 pab=pab, o1=0, o2=0, &  ! without map_consistent
+                                                 prefactor=-1.0_dp, cutoff=0.0_dp)
+
                CALL collocate_pgf_product(0, alpha, 0, 0, 0.0_dp, 0, ra, &
                                           (/0.0_dp, 0.0_dp, 0.0_dp/), -1.0_dp, pab, 0, 0, rs_rho, &
-                                          cell, cube_info, eps_rho_rspace, ga_gb_function=GRID_FUNC_AB, &
-                                          use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern, &
-                                          lmax_global=0)
+                                          cell, cube_info, radius=radius, ga_gb_function=GRID_FUNC_AB, &
+                                          use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern)
 
             END DO
          ENDIF
@@ -1019,7 +995,7 @@ CONTAINS
 
       INTEGER                                            :: atom_a, handle, iatom, npme
       INTEGER(KIND=int_8)                                :: subpatch_pattern
-      REAL(KIND=dp)                                      :: eps_rho_rspace
+      REAL(KIND=dp)                                      :: eps_rho_rspace, radius
       REAL(KIND=dp), DIMENSION(3)                        :: ra
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: pab
       TYPE(cell_type), POINTER                           :: cell
@@ -1061,12 +1037,18 @@ CONTAINS
          atom_a = qs_env%qmmm_env_qm%image_charge_pot%image_mm_list(iatom)
          ra(:) = pbc(qs_env%qmmm_env_qm%image_charge_pot%particles_all(atom_a)%r, cell)
          subpatch_pattern = 0
-         !lmax == 0 so set lmax_global to 0
+         radius = exp_radius_very_extended(la_min=0, la_max=0, &
+                                           lb_min=0, lb_max=0, &
+                                           ra=ra, rb=ra, rp=ra, &
+                                           zetp=qs_env%qmmm_env_qm%image_charge_pot%eta, &
+                                           eps=eps_rho_rspace, &
+                                           pab=pab, o1=0, o2=0, &  ! without map_consistent
+                                           prefactor=1.0_dp, cutoff=0.0_dp)
+
          CALL collocate_pgf_product(0, qs_env%qmmm_env_qm%image_charge_pot%eta, &
                                     0, 0, 0.0_dp, 0, ra, (/0.0_dp, 0.0_dp, 0.0_dp/), 1.0_dp, pab, 0, 0, rs_rho, &
-                                    cell, pw_env%cube_info(1), eps_rho_rspace, ga_gb_function=GRID_FUNC_AB, &
-                                    use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern, &
-                                    lmax_global=0)
+                                    cell, pw_env%cube_info(1), radius=radius, ga_gb_function=GRID_FUNC_AB, &
+                                    use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern)
       ENDIF
 
       DEALLOCATE (pab)
@@ -1109,7 +1091,7 @@ CONTAINS
       INTEGER                                            :: atom_a, handle, iatom, j, natom, npme
       INTEGER(KIND=int_8)                                :: subpatch_pattern
       INTEGER, DIMENSION(:), POINTER                     :: cores
-      REAL(KIND=dp)                                      :: eps_rho_rspace
+      REAL(KIND=dp)                                      :: eps_rho_rspace, radius
       REAL(KIND=dp), DIMENSION(3)                        :: ra
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: pab
       TYPE(cell_type), POINTER                           :: cell
@@ -1161,12 +1143,19 @@ CONTAINS
             atom_a = qs_env%qmmm_env_qm%image_charge_pot%image_mm_list(iatom)
             ra(:) = pbc(qs_env%qmmm_env_qm%image_charge_pot%particles_all(atom_a)%r, cell)
             subpatch_pattern = 0
-            !lmax == 0 so set lmax_global to 0
+            radius = exp_radius_very_extended(la_min=0, la_max=0, &
+                                              lb_min=0, lb_max=0, &
+                                              ra=ra, rb=ra, rp=ra, &
+                                              zetp=qs_env%qmmm_env_qm%image_charge_pot%eta, &
+                                              eps=eps_rho_rspace, &
+                                              pab=pab, o1=0, o2=0, &  ! without map_consistent
+                                              prefactor=coeff(iatom), cutoff=0.0_dp)
+
             CALL collocate_pgf_product( &
                0, qs_env%qmmm_env_qm%image_charge_pot%eta, &
                0, 0, 0.0_dp, 0, ra, (/0.0_dp, 0.0_dp, 0.0_dp/), coeff(iatom), pab, 0, 0, rs_rho, &
-               cell, pw_env%cube_info(1), eps_rho_rspace, ga_gb_function=GRID_FUNC_AB, &
-               use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern, lmax_global=0)
+               cell, pw_env%cube_info(1), radius=radius, ga_gb_function=GRID_FUNC_AB, &
+               use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern)
          ENDDO
       ENDIF
 
@@ -1211,7 +1200,7 @@ CONTAINS
 
       INTEGER                                            :: handle, iatom, npme
       INTEGER(KIND=int_8)                                :: subpatch_pattern
-      REAL(KIND=dp)                                      :: eps_rho_rspace
+      REAL(KIND=dp)                                      :: eps_rho_rspace, radius
       REAL(KIND=dp), DIMENSION(3)                        :: ra
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: pab
       TYPE(cell_type), POINTER                           :: cell
@@ -1255,12 +1244,17 @@ CONTAINS
       IF (npme .GT. 0) THEN
          ra(:) = pbc(particle_set(iatom)%r, cell)
          subpatch_pattern = 0
-         ! lmax == 0 so set lmax_global to 0
+         radius = exp_radius_very_extended(la_min=0, la_max=0, &
+                                           lb_min=0, lb_max=0, &
+                                           ra=ra, rb=ra, rp=ra, &
+                                           zetp=eta, eps=eps_rho_rspace, &
+                                           pab=pab, o1=0, o2=0, &  ! without map_consistent
+                                           prefactor=1.0_dp, cutoff=0.0_dp)
+
          CALL collocate_pgf_product(0, eta, 0, 0, 0.0_dp, 0, ra, &
                                     (/0.0_dp, 0.0_dp, 0.0_dp/), 1.0_dp, pab, 0, 0, rs_rho, &
-                                    cell, pw_env%cube_info(1), eps_rho_rspace, ga_gb_function=GRID_FUNC_AB, &
-                                    use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern, &
-                                    lmax_global=0)
+                                    cell, pw_env%cube_info(1), radius=radius, ga_gb_function=GRID_FUNC_AB, &
+                                    use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern)
       ENDIF
 
       DEALLOCATE (pab)
@@ -1305,7 +1299,7 @@ CONTAINS
       INTEGER                                            :: handle, iatom, j, npme
       INTEGER(KIND=int_8)                                :: subpatch_pattern
       INTEGER, DIMENSION(:), POINTER                     :: cores
-      REAL(KIND=dp)                                      :: eps_rho_rspace
+      REAL(KIND=dp)                                      :: eps_rho_rspace, radius
       REAL(KIND=dp), DIMENSION(3)                        :: ra
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: pab
       TYPE(cell_type), POINTER                           :: cell
@@ -1357,12 +1351,18 @@ CONTAINS
             iatom = cores(j)
             ra(:) = pbc(particle_set(iatom)%r, cell)
             subpatch_pattern = 0
-            ! la_max==0 so set lmax_global to 0
+            radius = exp_radius_very_extended(la_min=0, la_max=0, &
+                                              lb_min=0, lb_max=0, &
+                                              ra=ra, rb=ra, rp=ra, &
+                                              zetp=eta, eps=eps_rho_rspace, &
+                                              pab=pab, o1=0, o2=0, &  ! without map_consistent
+                                              prefactor=coeff(iatom), cutoff=0.0_dp)
+
             CALL collocate_pgf_product( &
                0, eta, &
                0, 0, 0.0_dp, 0, ra, (/0.0_dp, 0.0_dp, 0.0_dp/), coeff(iatom), pab, 0, 0, rs_rho, &
-               cell, pw_env%cube_info(1), eps_rho_rspace, ga_gb_function=GRID_FUNC_AB, &
-               use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern, lmax_global=0)
+               cell, pw_env%cube_info(1), radius=radius, ga_gb_function=GRID_FUNC_AB, &
+               use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern)
          ENDDO
       ENDIF
 
@@ -1427,17 +1427,19 @@ CONTAINS
       CHARACTER(LEN=default_string_length)               :: my_basis_type
       INTEGER :: bcol, brow, ga_gb_function, handle, iatom, iatom_old, igrid_level, ikind, &
          ikind_old, img, img_old, ipair, ipgf, iset, iset_old, itask, ithread, jatom, jatom_old, &
-         jkind, jkind_old, jpgf, jset, jset_old, lb, lbr, lbw, lmax_global, maxco, maxpgf, maxset, &
-         maxsgf, maxsgf_set, my_idir, n, na1, na2, natoms, nb1, nb2, nblock, ncoa, ncob, nimages, &
-         nr, nrlevel, nseta, nsetb, ntasks, nthread, nw, nxy, nz, nzsize, sgfa, sgfb, ub
+         jkind, jkind_old, jpgf, jset, jset_old, lb, lbr, lbw, maxco, maxsgf_set, n, na1, na2, &
+         natoms, nb1, nb2, nblock, ncoa, ncob, nimages, nr, nrlevel, nseta, nsetb, ntasks, &
+         nthread, nw, nxy, nz, nzsize, sgfa, sgfb, ub
       INTEGER(kind=int_8), DIMENSION(:), POINTER         :: atom_pair_recv, atom_pair_send
-      INTEGER, DIMENSION(:), POINTER                     :: la_max, la_min, lb_max, lb_min, mylmax, &
-                                                            npgfa, npgfb, nsgfa, nsgfb
+      INTEGER, DIMENSION(:), POINTER                     :: la_max, la_min, lb_max, lb_min, npgfa, &
+                                                            npgfb, nsgfa, nsgfb
       INTEGER, DIMENSION(:, :), POINTER                  :: first_sgfa, first_sgfb
-      LOGICAL :: atom_pair_changed, distributed_rs_grids, do_kp, found, map_consistent, &
-         my_compute_grad, my_compute_tau, my_soft, use_subpatch
-      REAL(KIND=dp)                                      :: eps_rho_rspace, rab2, scale, zetp
-      REAL(KIND=dp), DIMENSION(3)                        :: ra, rab, rab_inv, rb
+      LOGICAL                                            :: atom_pair_changed, distributed_rs_grids, &
+                                                            do_kp, found, my_compute_grad, &
+                                                            my_compute_tau, my_soft, use_subpatch
+      REAL(KIND=dp)                                      :: eps_rho_rspace, f, prefactor, rab2, &
+                                                            radius, scale, zetp
+      REAL(KIND=dp), DIMENSION(3)                        :: ra, rab, rab_inv, rb, rp
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: p_block, pab, sphi_a, sphi_b, work, &
                                                             zeta, zetb
       REAL(KIND=dp), DIMENSION(:, :, :), POINTER         :: pabt, workt
@@ -1468,7 +1470,7 @@ CONTAINS
                qs_kind_set, particle_set, rs_rho, pw_env, rs_descs, la_max, &
                la_min, lb_max, lb_min, npgfa, npgfb, nsgfa, nsgfb, p_block, &
                sphi_a, sphi_b, zeta, zetb, first_sgfa, first_sgfb, tasks, pabt, &
-               workt, lgrid, mylmax)
+               workt, lgrid)
 
       debug_count = debug_count + 1
 
@@ -1489,42 +1491,6 @@ CONTAINS
       ELSE
          my_compute_grad = .FALSE.
       ENDIF
-
-      my_idir = 0
-      IF (PRESENT(der_type)) THEN
-         SELECT CASE (der_type)
-         CASE (orb_s)
-            ga_gb_function = GRID_FUNC_AB
-         CASE (orb_px)
-            ga_gb_function = GRID_FUNC_DX
-         CASE (orb_py)
-            ga_gb_function = GRID_FUNC_DY
-         CASE (orb_pz)
-            ga_gb_function = GRID_FUNC_DZ
-         CASE (orb_dxy)
-            ga_gb_function = GRID_FUNC_DXDY
-         CASE (orb_dyz)
-            ga_gb_function = GRID_FUNC_DYDZ
-         CASE (orb_dzx)
-            ga_gb_function = GRID_FUNC_DZDX
-         CASE (orb_dx2)
-            ga_gb_function = GRID_FUNC_DXDX
-         CASE (orb_dy2)
-            ga_gb_function = GRID_FUNC_DYDY
-         CASE (orb_dz2)
-            ga_gb_function = GRID_FUNC_DZDZ
-         CASE DEFAULT
-            CPABORT("Unknown der_type")
-         END SELECT
-
-      ELSE IF (my_compute_tau) THEN
-         ga_gb_function = GRID_FUNC_DADB
-      ELSE IF (my_compute_grad) THEN
-         ga_gb_function = GRID_FUNC_DABpADB
-      ELSE
-         ga_gb_function = GRID_FUNC_AB
-      ENDIF
-      IF (PRESENT(idir)) my_idir = idir
 
       IF (PRESENT(basis_type)) THEN
          my_basis_type = basis_type
@@ -1562,7 +1528,6 @@ CONTAINS
 !$    nthread = omp_get_max_threads()
       CALL get_qs_kind_set(qs_kind_set=qs_kind_set, &
                            maxco=maxco, &
-                           maxsgf=maxsgf, &
                            maxsgf_set=maxsgf_set, &
                            basis_type=my_basis_type)
       CALL reallocate(pabt, 1, maxco, 1, maxco, 0, nthread - 1)
@@ -1570,48 +1535,49 @@ CONTAINS
 
       ! find maximum numbers
       natoms = SIZE(particle_set)
-      maxset = 0
-      maxpgf = 0
-      lmax_global = 0
 
-      DO ikind = 1, SIZE(qs_kind_set)
-         qs_kind => qs_kind_set(ikind)
-         CALL get_qs_kind(qs_kind=qs_kind, &
-                          softb=my_soft, &
-                          basis_set=orb_basis_set, basis_type=my_basis_type)
-
-         IF (.NOT. ASSOCIATED(orb_basis_set)) CYCLE
-
-         CALL get_gto_basis_set(gto_basis_set=orb_basis_set, &
-                                npgf=npgfa, nset=nseta, lmax=mylmax)
-
-         maxset = MAX(nseta, maxset)
-         maxpgf = MAX(MAXVAL(npgfa), maxpgf)
-         lmax_global = MAX(MAXVAL(mylmax), lmax_global)
-      END DO
-
-      ! Optionally increment lmax_global depending on which ga_gb_function
-      ! will be used for collocation
-      SELECT CASE (ga_gb_function)
-      CASE (GRID_FUNC_DADB)
-         lmax_global = lmax_global + 1
-      CASE (GRID_FUNC_ADBmDAB)
-         lmax_global = lmax_global + 1
-      CASE (GRID_FUNC_DABpADB)
-         lmax_global = lmax_global + 1
-      CASE (GRID_FUNC_DX, GRID_FUNC_DY, GRID_FUNC_DZ)
-         lmax_global = lmax_global + 1
-      CASE (GRID_FUNC_DXDY, GRID_FUNC_DYDZ, GRID_FUNC_DZDX)
-         lmax_global = lmax_global + 2
-      CASE (GRID_FUNC_DXDX, GRID_FUNC_DYDY, GRID_FUNC_DZDZ)
-         lmax_global = lmax_global + 2
-      CASE (GRID_FUNC_ARDBmDARB)
-         lmax_global = lmax_global + 2
-      CASE (GRID_FUNC_AB)
-         lmax_global = lmax_global
-      CASE DEFAULT
-         CPABORT("unknown ga_gb_function")
-      END SELECT
+      IF (PRESENT(der_type)) THEN
+         SELECT CASE (der_type)
+         CASE (orb_s)
+            ga_gb_function = GRID_FUNC_AB
+         CASE (orb_px)
+            ga_gb_function = GRID_FUNC_DX
+         CASE (orb_py)
+            ga_gb_function = GRID_FUNC_DY
+         CASE (orb_pz)
+            ga_gb_function = GRID_FUNC_DZ
+         CASE (orb_dxy)
+            ga_gb_function = GRID_FUNC_DXDY
+         CASE (orb_dyz)
+            ga_gb_function = GRID_FUNC_DYDZ
+         CASE (orb_dzx)
+            ga_gb_function = GRID_FUNC_DZDX
+         CASE (orb_dx2)
+            ga_gb_function = GRID_FUNC_DXDX
+         CASE (orb_dy2)
+            ga_gb_function = GRID_FUNC_DYDY
+         CASE (orb_dz2)
+            ga_gb_function = GRID_FUNC_DZDZ
+         CASE DEFAULT
+            CPABORT("Unknown der_type")
+         END SELECT
+      ELSE IF (my_compute_tau) THEN
+         ga_gb_function = GRID_FUNC_DADB
+      ELSE IF (my_compute_grad) THEN
+         CPASSERT(PRESENT(idir))
+         SELECT CASE (idir)
+         CASE (1)
+            ga_gb_function = GRID_FUNC_DABpADB_X
+         CASE (2)
+            ga_gb_function = GRID_FUNC_DABpADB_Y
+         CASE (3)
+            ga_gb_function = GRID_FUNC_DABpADB_Z
+         CASE DEFAULT
+            CPABORT("invalid idir")
+         END SELECT
+      ELSE
+         ga_gb_function = GRID_FUNC_AB
+      ENDIF
 
       ! get the task lists
       IF (my_soft) task_list => task_list_soft
@@ -1643,7 +1609,6 @@ CONTAINS
       END IF
 
       eps_rho_rspace = dft_control%qs_control%eps_rho_rspace
-      map_consistent = dft_control%qs_control%map_consistent
 
       !   *** Initialize working density matrix ***
       ! distributed rs grids require a matrix that will be changed
@@ -1683,16 +1648,16 @@ CONTAINS
       ! map all tasks on the grids
 
 !$OMP PARALLEL DEFAULT(NONE), &
-!$OMP          SHARED(ntasks,tasks,nimages,natoms,maxset,maxpgf,particle_set,pabt,workt), &
+!$OMP          SHARED(ntasks,tasks,nimages,natoms,particle_set,pabt,workt), &
 !$OMP          SHARED(my_basis_type,my_soft,deltap,maxco,ncoset,nthread), &
-!$OMP          SHARED(cell,cube_info,eps_rho_rspace,ga_gb_function, my_idir,map_consistent), &
-!$OMP          SHARED(rs_rho,lgrid,gridlevel_info,task_list,qs_kind_set,lmax_global), &
+!$OMP          SHARED(cell,cube_info,eps_rho_rspace,ga_gb_function), &
+!$OMP          SHARED(rs_rho,lgrid,gridlevel_info,task_list,qs_kind_set), &
 !$OMP          PRIVATE(igrid_level,iatom,jatom,iset,jset,ipgf,jpgf,ikind,jkind,pab,work), &
 !$OMP          PRIVATE(img,img_old,iatom_old,jatom_old,iset_old,jset_old,ikind_old,jkind_old), &
 !$OMP          PRIVATE(brow,bcol,qs_kind,orb_basis_set,first_sgfa,la_max,la_min), &
 !$OMP          PRIVATE(npgfa,nseta,nsgfa,sphi_a,zeta,first_sgfb,lb_max,lb_min,npgfb), &
-!$OMP          PRIVATE(nsetb,nsgfb,sphi_b,zetb,p_block,found), &
-!$OMP          PRIVATE(atom_pair_changed,ncoa,sgfa,ncob,sgfb,rab,rab2,ra,rb,zetp), &
+!$OMP          PRIVATE(nsetb,nsgfb,sphi_b,zetb,p_block,found,prefactor,radius), &
+!$OMP          PRIVATE(atom_pair_changed,ncoa,sgfa,ncob,sgfb,rab,rab2,ra,rb,rp,zetp,f), &
 !$OMP          PRIVATE(na1,na2,nb1,nb2,scale,use_subpatch,rab_inv,ithread,lb,ub,n,nw), &
 !$OMP          PRIVATE(itask,nz,nxy,nzsize,nrlevel,nblock,lbw,lbr,nr,threadlocal_rsgrid)
 
@@ -1817,6 +1782,15 @@ CONTAINS
             rb(:) = ra(:) + rab(:)
             zetp = zeta(ipgf, iset) + zetb(jpgf, jset)
 
+            f = zetb(jpgf, jset)/zetp
+            rp(:) = ra(:) + f*rab(:)
+            prefactor = EXP(-zeta(ipgf, iset)*f*DOT_PRODUCT(rab, rab))
+            radius = exp_radius_very_extended(la_min=la_min(iset), la_max=la_max(iset), &
+                                              lb_min=lb_min(jset), lb_max=lb_max(jset), &
+                                              ra=ra, rb=rb, rp=rp, &
+                                              zetp=zetp, eps=eps_rho_rspace, &
+                                              prefactor=prefactor, cutoff=1.0_dp)
+
             na1 = (ipgf - 1)*ncoset(la_max(iset)) + 1
             na2 = ipgf*ncoset(la_max(iset))
             nb1 = (jpgf - 1)*ncoset(lb_max(jset)) + 1
@@ -1847,11 +1821,10 @@ CONTAINS
                   lb_max(jset), zetb(jpgf, jset), lb_min(jset), &
                   ra, rab, scale, pab, na1 - 1, nb1 - 1, &
                   threadlocal_rsgrid, cell, cube_info(igrid_level), &
-                  eps_rho_rspace, &
+                  radius=radius, &
                   ga_gb_function=ga_gb_function, &
-                  idir=my_idir, &
-                  map_consistent=map_consistent, use_subpatch=use_subpatch, &
-                  subpatch_pattern=tasks(itask)%subpatch_pattern, lmax_global=lmax_global)
+                  use_subpatch=use_subpatch, &
+                  subpatch_pattern=tasks(itask)%subpatch_pattern)
             ELSE
                rab_inv = -rab
                CALL collocate_pgf_product( &
@@ -1859,11 +1832,10 @@ CONTAINS
                   la_max(iset), zeta(ipgf, iset), la_min(iset), &
                   rb, rab_inv, scale, pab, nb1 - 1, na1 - 1, &
                   threadlocal_rsgrid, cell, cube_info(igrid_level), &
-                  eps_rho_rspace, &
+                  radius=radius, &
                   ga_gb_function=ga_gb_function, &
-                  idir=my_idir, &
-                  map_consistent=map_consistent, use_subpatch=use_subpatch, &
-                  subpatch_pattern=tasks(itask)%subpatch_pattern, lmax_global=lmax_global)
+                  use_subpatch=use_subpatch, &
+                  subpatch_pattern=tasks(itask)%subpatch_pattern)
             END IF
          END DO loop_tasks
          END DO loop_pairs
@@ -1964,19 +1936,19 @@ CONTAINS
          routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_string_length)               :: my_basis_type
-      INTEGER :: bcol, brow, handle, i, iatom, iatom_old, idir, igrid_level, ikind, ikind_old, &
-         img, img_old, ipgf, iset, iset_old, itask, ithread, jatom, jatom_old, jkind, jkind_old, &
-         jpgf, jset, jset_old, lmax_global, maxco, maxpgf, maxset, maxsgf, maxsgf_set, na1, na2, &
-         natoms, nb1, nb2, ncoa, ncob, nimages, nseta, nsetb, ntasks, nthread, sgfa, sgfb
+      INTEGER :: bcol, brow, dabqadb_func, handle, i, iatom, iatom_old, idir, igrid_level, ikind, &
+         ikind_old, img, img_old, ipgf, iset, iset_old, itask, ithread, jatom, jatom_old, jkind, &
+         jkind_old, jpgf, jset, jset_old, maxco, maxsgf_set, na1, na2, natoms, nb1, nb2, ncoa, &
+         ncob, nimages, nseta, nsetb, ntasks, nthread, sgfa, sgfb
       INTEGER(kind=int_8), DIMENSION(:), POINTER         :: atom_pair_recv, atom_pair_send
-      INTEGER, DIMENSION(:), POINTER                     :: la_max, la_min, lb_max, lb_min, mylmax, &
-                                                            npgfa, npgfb, nsgfa, nsgfb
+      INTEGER, DIMENSION(:), POINTER                     :: la_max, la_min, lb_max, lb_min, npgfa, &
+                                                            npgfb, nsgfa, nsgfb
       INTEGER, DIMENSION(:, :), POINTER                  :: first_sgfa, first_sgfb
       LOGICAL                                            :: atom_pair_changed, distributed_rs_grids, &
-                                                            do_kp, found, map_consistent, my_soft, &
-                                                            use_subpatch
-      REAL(KIND=dp)                                      :: eps_rho_rspace, scale, zetp
-      REAL(KIND=dp), DIMENSION(3)                        :: ra, rab, rab_inv, rb
+                                                            do_kp, found, my_soft, use_subpatch
+      REAL(KIND=dp)                                      :: eps_rho_rspace, f, prefactor, radius, &
+                                                            scale, zetp
+      REAL(KIND=dp), DIMENSION(3)                        :: ra, rab, rab_inv, rb, rp
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: p_block, pab, sphi_a, sphi_b, work, &
                                                             zeta, zetb
       REAL(KIND=dp), DIMENSION(:, :, :), POINTER         :: pabt, workt
@@ -1991,7 +1963,6 @@ CONTAINS
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(pw_env_type), POINTER                         :: pw_env
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
-      TYPE(qs_kind_type), POINTER                        :: qs_kind
       TYPE(realspace_grid_desc_p_type), DIMENSION(:), &
          POINTER                                         :: rs_descs
       TYPE(realspace_grid_p_type), DIMENSION(:), POINTER :: rs_rho
@@ -2003,12 +1974,10 @@ CONTAINS
       CPASSERT(PRESENT(matrix_p) .OR. PRESENT(matrix_p_kp))
       do_kp = PRESENT(matrix_p_kp)
 
-      NULLIFY (qs_kind, cell, dft_control, orb_basis_set, deltap, &
-               qs_kind_set, sab_orb, particle_set, rs_rho, pw_env, rs_descs, &
-               la_max, la_min, &
-               lb_max, lb_min, npgfa, npgfb, nsgfa, nsgfb, p_block, &
-               sphi_a, sphi_b, zeta, zetb, first_sgfa, first_sgfb, tasks, pabt, &
-               workt, mylmax)
+      NULLIFY (cell, dft_control, orb_basis_set, deltap, qs_kind_set, &
+               sab_orb, particle_set, rs_rho, pw_env, rs_descs, la_max, la_min, &
+               lb_max, lb_min, npgfa, npgfb, nsgfa, nsgfb, p_block, sphi_a, &
+               sphi_b, zeta, zetb, first_sgfa, first_sgfb, tasks, pabt, workt)
 
       debug_count = debug_count + 1
 
@@ -2049,7 +2018,6 @@ CONTAINS
       nthread = 1
       CALL get_qs_kind_set(qs_kind_set=qs_kind_set, &
                            maxco=maxco, &
-                           maxsgf=maxsgf, &
                            maxsgf_set=maxsgf_set, &
                            basis_type=my_basis_type)
       CALL reallocate(pabt, 1, maxco, 1, maxco, 0, nthread - 1)
@@ -2060,28 +2028,6 @@ CONTAINS
       CPASSERT(nimages == 1 .OR. do_kp)
 
       natoms = SIZE(particle_set)
-      maxset = 0
-      maxpgf = 0
-      lmax_global = 0
-
-      DO ikind = 1, SIZE(qs_kind_set)
-         qs_kind => qs_kind_set(ikind)
-         CALL get_qs_kind(qs_kind=qs_kind, &
-                          softb=my_soft, &
-                          basis_set=orb_basis_set, basis_type=my_basis_type)
-
-         IF (.NOT. ASSOCIATED(orb_basis_set)) CYCLE
-
-         CALL get_gto_basis_set(gto_basis_set=orb_basis_set, &
-                                npgf=npgfa, nset=nseta, lmax=mylmax)
-
-         maxset = MAX(nseta, maxset)
-         maxpgf = MAX(MAXVAL(npgfa), maxpgf)
-         lmax_global = MAX(MAXVAL(mylmax), lmax_global)
-      END DO
-
-      !update lmax_global since ga_gb_function=GRID_FUNC_DABpADB
-      lmax_global = lmax_global + 1
 
       ! get the task lists
       IF (my_soft) task_list => task_list_soft
@@ -2100,7 +2046,6 @@ CONTAINS
       END DO
 
       eps_rho_rspace = dft_control%qs_control%eps_rho_rspace
-      map_consistent = dft_control%qs_control%map_consistent
 
       !   *** Initialize working density matrix ***
       ! distributed rs grids require a matrix that will be changed
@@ -2257,6 +2202,15 @@ CONTAINS
             rb(:) = ra(:) + rab(:)
             zetp = zeta(ipgf, iset) + zetb(jpgf, jset)
 
+            f = zetb(jpgf, jset)/zetp
+            rp(:) = ra(:) + f*rab(:)
+            prefactor = EXP(-zeta(ipgf, iset)*f*DOT_PRODUCT(rab, rab))
+            radius = exp_radius_very_extended(la_min=la_min(iset), la_max=la_max(iset), &
+                                              lb_min=lb_min(jset), lb_max=lb_max(jset), &
+                                              ra=ra, rb=rb, rp=rp, &
+                                              zetp=zeta(ipgf, iset), eps=eps_rho_rspace, &
+                                              prefactor=prefactor, cutoff=1.0_dp)
+
             na1 = (ipgf - 1)*ncoset(la_max(iset)) + 1
             na2 = ipgf*ncoset(la_max(iset))
             nb1 = (jpgf - 1)*ncoset(lb_max(jset)) + 1
@@ -2280,17 +2234,26 @@ CONTAINS
             ELSE
                use_subpatch = .FALSE.
             ENDIF
+
+            SELECT CASE (idir)
+            CASE (1)
+               dabqadb_func = GRID_FUNC_DABpADB_X
+            CASE (2)
+               dabqadb_func = GRID_FUNC_DABpADB_Y
+            CASE (3)
+               dabqadb_func = GRID_FUNC_DABpADB_Z
+            CASE DEFAULT
+               CPABORT("invalid idir")
+            END SELECT
+
             IF (iatom <= jatom) THEN
                CALL collocate_pgf_product( &
                   la_max(iset), zeta(ipgf, iset), la_min(iset), &
                   lb_max(jset), zetb(jpgf, jset), lb_min(jset), &
                   ra, rab, scale, pab, na1 - 1, nb1 - 1, &
                   rs_rho(igrid_level)%rs_grid, cell, cube_info(igrid_level), &
-                  eps_rho_rspace, &
-                  ga_gb_function=GRID_FUNC_DABpADB, &
-                  idir=idir, &
-                  map_consistent=map_consistent, use_subpatch=use_subpatch, subpatch_pattern=tasks(itask)%subpatch_pattern, &
-                  lmax_global=lmax_global)
+                  radius=radius, ga_gb_function=dabqadb_func, &
+                  use_subpatch=use_subpatch, subpatch_pattern=tasks(itask)%subpatch_pattern)
             ELSE
                rab_inv = -rab
                CALL collocate_pgf_product( &
@@ -2298,11 +2261,8 @@ CONTAINS
                   la_max(iset), zeta(ipgf, iset), la_min(iset), &
                   rb, rab_inv, scale, pab, nb1 - 1, na1 - 1, &
                   rs_rho(igrid_level)%rs_grid, cell, cube_info(igrid_level), &
-                  eps_rho_rspace, &
-                  ga_gb_function=GRID_FUNC_DABpADB, &
-                  idir=idir, &
-                  map_consistent=map_consistent, use_subpatch=use_subpatch, subpatch_pattern=tasks(itask)%subpatch_pattern, &
-                  lmax_global=lmax_global)
+                  radius=radius, ga_gb_function=dabqadb_func, &
+                  use_subpatch=use_subpatch, subpatch_pattern=tasks(itask)%subpatch_pattern)
             END IF
 
          END DO loop_tasks
@@ -2378,15 +2338,15 @@ CONTAINS
          routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_string_length)               :: my_basis_type
-      INTEGER :: dir, group, group_size, handle, i, iatom, igrid_level, ikind, ipgf, iset, &
-         lmax_global, maxco, maxsgf_set, my_pos, na1, na2, nao, natom, ncoa, nseta, offset, sgfa
+      INTEGER :: dir, group, group_size, handle, i, iatom, igrid_level, ikind, ipgf, iset, maxco, &
+         maxsgf_set, my_pos, na1, na2, nao, natom, ncoa, nseta, offset, sgfa
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: where_is_the_point
       INTEGER, DIMENSION(3)                              :: lb, location, tp, ub
-      INTEGER, DIMENSION(:), POINTER                     :: la_max, la_min, mylmax, npgfa, nsgfa
+      INTEGER, DIMENSION(:), POINTER                     :: la_max, la_min, npgfa, nsgfa
       INTEGER, DIMENSION(:, :), POINTER                  :: first_sgfa
       LOGICAL                                            :: local, map_it_here
-      REAL(KIND=dp)                                      :: dab, eps_rho_rspace, scale, zetp
-      REAL(KIND=dp), DIMENSION(3)                        :: ra, rab
+      REAL(KIND=dp)                                      :: dab, eps_rho_rspace, radius, scale
+      REAL(KIND=dp), DIMENSION(3)                        :: ra
       REAL(KIND=dp), DIMENSION(:), POINTER               :: eigenvector
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: pab, sphi_a, work, zeta
       TYPE(cube_info_type), DIMENSION(:), POINTER        :: cube_info
@@ -2404,11 +2364,9 @@ CONTAINS
 
       CALL timeset(routineN, handle)
 
-      NULLIFY (eigenvector, orb_basis_set, &
-               pab, work, la_max, la_min, &
-               npgfa, nsgfa, &
-               sphi_a, zeta, first_sgfa, &
-               rs_rho, pw_pools, mgrid_rspace, mgrid_gspace, mylmax)
+      NULLIFY (eigenvector, orb_basis_set, pab, work, la_max, la_min, &
+               npgfa, nsgfa, sphi_a, zeta, first_sgfa, rs_rho, pw_pools, &
+               mgrid_rspace, mgrid_gspace)
 
       IF (PRESENT(external_vector)) THEN
          nao = SIZE(external_vector)
@@ -2457,15 +2415,6 @@ CONTAINS
       group_size = mgrid_rspace(1)%pw%pw_grid%para%group_size
       ALLOCATE (where_is_the_point(0:group_size - 1))
 
-      !loop over natom to find maximum value of la_max
-      lmax_global = 0
-      DO iatom = 1, natom
-         ikind = particle_set(iatom)%atomic_kind%kind_number
-         CALL get_qs_kind(qs_kind_set(ikind), basis_set=orb_basis_set, basis_type=my_basis_type)
-         CALL get_gto_basis_set(gto_basis_set=orb_basis_set, lmax=mylmax)
-         lmax_global = MAX(MAXVAL(mylmax), lmax_global)
-      END DO
-
       DO iatom = 1, natom
          ikind = particle_set(iatom)%atomic_kind%kind_number
          CALL get_qs_kind(qs_kind_set(ikind), basis_set=orb_basis_set, basis_type=my_basis_type)
@@ -2479,7 +2428,6 @@ CONTAINS
                                 sphi=sphi_a, &
                                 zet=zeta)
          ra(:) = pbc(particle_set(iatom)%r, cell)
-         rab(:) = 0.0_dp
          dab = 0.0_dp
 
          DO iset = 1, nseta
@@ -2502,8 +2450,7 @@ CONTAINS
                na2 = ipgf*ncoset(la_max(iset))
 
                scale = 1.0_dp
-               zetp = zeta(ipgf, iset)
-               igrid_level = gaussian_gridlevel(gridlevel_info, zetp)
+               igrid_level = gaussian_gridlevel(gridlevel_info, zeta(ipgf, iset))
 
                map_it_here = .FALSE.
 
@@ -2532,13 +2479,19 @@ CONTAINS
                   IF (MODULO(offset, group_size) == my_pos) map_it_here = .TRUE.
                ENDIF
 
-               IF (map_it_here) CALL collocate_pgf_product( &
-                  la_max(iset), zeta(ipgf, iset), la_min(iset), &
-                  0, 0.0_dp, 0, &
-                  ra, rab, scale, pab, na1 - 1, 0, &
-                  rs_rho(igrid_level)%rs_grid, cell, cube_info(igrid_level), &
-                  eps_rho_rspace, map_consistent=.TRUE., ga_gb_function=GRID_FUNC_AB, &
-                  lmax_global=lmax_global)
+               IF (map_it_here) THEN
+                  radius = exp_radius_very_extended(la_min=la_min(iset), la_max=la_max(iset), &
+                                                    lb_min=0, lb_max=0, ra=ra, rb=ra, rp=ra, &
+                                                    zetp=zeta(ipgf, iset), eps=eps_rho_rspace, &
+                                                    prefactor=1.0_dp, cutoff=1.0_dp)
+
+                  CALL collocate_pgf_product(la_max(iset), zeta(ipgf, iset), la_min(iset), &
+                                             0, 0.0_dp, 0, &
+                                             ra, (/0.0_dp, 0.0_dp, 0.0_dp/), &
+                                             scale, pab, na1 - 1, 0, rs_rho(igrid_level)%rs_grid, &
+                                             cell, cube_info(igrid_level), &
+                                             radius=radius, ga_gb_function=GRID_FUNC_AB)
+               ENDIF
 
             END DO
 

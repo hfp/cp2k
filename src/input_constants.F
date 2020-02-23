@@ -917,8 +917,9 @@ MODULE input_constants
                                    almo_scf_trustr = 4, &
                                    almo_scf_skip = 0
 
-   INTEGER, PARAMETER, PUBLIC   :: almo_occ_vol_penalty_none = 0, &
-                                   almo_occ_vol_penalty_lndet = 1
+   INTEGER, PARAMETER, PUBLIC   :: penalty_type_none = 0, &
+                                   penalty_type_lndet = 1, &
+                                   penalty_type_nlmo = 2
 
    ! optimizer parameters
    INTEGER, PARAMETER, PUBLIC   :: cg_zero = 0, &
@@ -970,8 +971,7 @@ MODULE input_constants
                                                wfc_mm_style_syrk = 12
 
    ! G0W0 parameter
-   INTEGER, PARAMETER, PUBLIC               :: ri_rpa_g0w0_crossing_none = 0, &
-                                               ri_rpa_g0w0_crossing_z_shot = 1, &
+   INTEGER, PARAMETER, PUBLIC               :: ri_rpa_g0w0_crossing_z_shot = 1, &
                                                ri_rpa_g0w0_crossing_newton = 2, &
                                                ri_rpa_g0w0_crossing_bisection = 3, &
                                                gw_no_print_exx = 5, &

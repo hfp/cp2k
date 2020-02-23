@@ -3,7 +3,6 @@
 !   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 MODULE grid_collocate
-   USE ao_util,                         ONLY: exp_radius_very_extended
    USE cell_types,                      ONLY: cell_type
    USE cube_utils,                      ONLY: compute_cube_center,&
                                               cube_info_type,&
@@ -34,20 +33,32 @@ MODULE grid_collocate
 
    PUBLIC :: collocate_pgf_product
 
-   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_AB = 401
-   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DADB = 402
-   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_ADBmDAB = 403
-   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_ARDBmDARB = 404
-   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DABpADB = 405
-   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DXDY = 601
-   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DYDZ = 602
-   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DZDX = 603
-   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DXDX = 604
-   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DYDY = 605
-   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DZDZ = 606
-   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DX = 501
-   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DY = 502
-   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DZ = 503
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_AB = 100
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DADB = 200
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_ADBmDAB_X = 301
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_ADBmDAB_Y = 302
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_ADBmDAB_Z = 303
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_ARDBmDARB_XX = 411
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_ARDBmDARB_XY = 412
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_ARDBmDARB_XZ = 413
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_ARDBmDARB_YX = 421
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_ARDBmDARB_YY = 422
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_ARDBmDARB_YZ = 423
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_ARDBmDARB_ZX = 431
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_ARDBmDARB_ZY = 432
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_ARDBmDARB_ZZ = 433
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DABpADB_X = 501
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DABpADB_Y = 502
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DABpADB_Z = 503
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DX = 601
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DY = 602
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DZ = 603
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DXDY = 701
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DYDZ = 702
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DZDX = 703
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DXDX = 801
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DYDY = 802
+   INTEGER, PARAMETER, PUBLIC :: GRID_FUNC_DZDZ = 803
 
 CONTAINS
 
@@ -68,141 +79,41 @@ CONTAINS
 !> \param rsgrid ...
 !> \param cell ...
 !> \param cube_info ...
-!> \param eps_rho_rspace ...
 !> \param ga_gb_function ...
-!> \param map_consistent ...
-!> \param collocate_rho0 ...
-!> \param rpgf0_s ...
-!> \param idir ...
-!> \param ir ...
-!> \param rsgauge ...
-!> \param rsbuf ...
+!> \param radius ...
 !> \param use_subpatch ...
 !> \param subpatch_pattern ...
-!> \param lmax_global Maximum possible value of lmax used to dimension arrays
 ! **************************************************************************************************
    SUBROUTINE collocate_pgf_product(la_max, zeta, la_min, &
                                     lb_max, zetb, lb_min, &
                                     ra, rab, scale, pab, o1, o2, &
                                     rsgrid, cell, cube_info, &
-                                    eps_rho_rspace, ga_gb_function, &
-                                    map_consistent, &
-                                    collocate_rho0, &
-                                    rpgf0_s, idir, ir, rsgauge, rsbuf, &
-                                    use_subpatch, subpatch_pattern, &
-                                    lmax_global)
+                                    ga_gb_function, radius, &
+                                    use_subpatch, subpatch_pattern)
 
-      INTEGER, INTENT(IN)                      :: la_max
-      REAL(KIND=dp), INTENT(IN)                :: zeta
-      INTEGER, INTENT(IN)                      :: la_min, lb_max
-      REAL(KIND=dp), INTENT(IN)                :: zetb
-      INTEGER, INTENT(IN)                      :: lb_min
-      REAL(KIND=dp), DIMENSION(3), INTENT(IN)  :: ra, rab
-      REAL(KIND=dp), INTENT(IN)                :: scale
-      REAL(KIND=dp), DIMENSION(:, :), POINTER  :: pab
-      INTEGER, INTENT(IN)                      :: o1, o2
-      TYPE(realspace_grid_type)                :: rsgrid
-      TYPE(cell_type), POINTER                 :: cell
-      TYPE(cube_info_type), INTENT(IN)         :: cube_info
-      REAL(KIND=dp), INTENT(IN)                :: eps_rho_rspace
-      INTEGER, INTENT(IN)                      :: ga_gb_function
-      LOGICAL, INTENT(IN), OPTIONAL            :: map_consistent, collocate_rho0
-      REAL(dp), INTENT(IN), OPTIONAL           :: rpgf0_s
-      INTEGER, INTENT(IN), OPTIONAL            :: idir, ir
-      TYPE(realspace_grid_type), POINTER, OPTIONAL :: rsgauge, rsbuf
-      LOGICAL, OPTIONAL                        :: use_subpatch
-      INTEGER(KIND=int_8), OPTIONAL, INTENT(IN):: subpatch_pattern
-      INTEGER, INTENT(IN)                      :: lmax_global
+      INTEGER, INTENT(IN)                                :: la_max
+      REAL(KIND=dp), INTENT(IN)                          :: zeta
+      INTEGER, INTENT(IN)                                :: la_min, lb_max
+      REAL(KIND=dp), INTENT(IN)                          :: zetb
+      INTEGER, INTENT(IN)                                :: lb_min
+      REAL(KIND=dp), DIMENSION(3), INTENT(IN)            :: ra, rab
+      REAL(KIND=dp), INTENT(IN)                          :: scale
+      REAL(KIND=dp), DIMENSION(:, :), POINTER            :: pab
+      INTEGER, INTENT(IN)                                :: o1, o2
+      TYPE(realspace_grid_type)                          :: rsgrid
+      TYPE(cell_type), POINTER                           :: cell
+      TYPE(cube_info_type), INTENT(IN)                   :: cube_info
+      INTEGER, INTENT(IN)                                :: ga_gb_function
+      REAL(KIND=dp), INTENT(IN)                          :: radius
+      LOGICAL, OPTIONAL                                  :: use_subpatch
+      INTEGER(KIND=int_8), INTENT(IN), OPTIONAL          :: subpatch_pattern
 
       CHARACTER(len=*), PARAMETER :: routineN = 'collocate_pgf_product', &
-                                     routineP = moduleN//':'//routineN
+         routineP = moduleN//':'//routineN
 
-      INTEGER :: cmax, gridbounds(2, 3), i, ico, icoef, ider1, ider2, ig, &
-                 jco, k, l, la_max_local, la_min_local, lb_max_local, lb_min_local, &
-                 length, lxa, lxb, lxy, lxyz, lya, lyb, &
-                 lza, lzb, o1_local, o2_local, offset, start
-      INTEGER, DIMENSION(3)                    :: cubecenter, lb_cube, ng, &
-                                                  ub_cube
-      INTEGER, DIMENSION(:), POINTER           :: sphere_bounds
-      LOGICAL                                  :: my_collocate_rho0, &
-                                                  my_map_consistent, subpatch_collocate
-      REAL(KIND=dp) :: a, b, binomial_k_lxa, binomial_l_lxb, cutoff, f, pg, &
-                       prefactor, radius, rpg, zetp
-      REAL(KIND=dp), DIMENSION(3)              :: dr, rap, rb, rbp, roffset, rp
-      REAL(KIND=dp), DIMENSION(:, :), POINTER  :: pab_local
-      REAL(KIND=dp), DIMENSION(:, :, :), &
-         POINTER                                :: grid
-      INTEGER :: lxp, lyp, lzp, lp, lxpm, iaxis
-      INTEGER, ALLOCATABLE, DIMENSION(:, :) :: map
-      REAL(kind=dp) :: p_ele
-      REAL(kind=dp), DIMENSION(0:lmax_global*2, 0:lmax_global, 0:lmax_global, 3) :: alpha
-      REAL(kind=dp), DIMENSION(((lmax_global*2 + 1)*(lmax_global*2 + 2)*(lmax_global*2 + 3))/6) :: coef_xyz
-      REAL(kind=dp), DIMENSION(((lmax_global*2 + 1)*(lmax_global*2 + 2))/2) :: coef_xyt
-      REAL(kind=dp), DIMENSION(0:lmax_global*2) :: coef_xtt
-
-      REAL(kind=dp), ALLOCATABLE, DIMENSION(:, :, :) :: pol_z
-      REAL(kind=dp), ALLOCATABLE, DIMENSION(:, :, :) :: pol_y
-      REAL(kind=dp), ALLOCATABLE, DIMENSION(:, :) :: pol_x
-      REAL(KIND=dp) :: t_exp_1, t_exp_2, t_exp_min_1, t_exp_min_2, t_exp_plus_1, t_exp_plus_2
-
-      REAL(kind=dp), POINTER, DIMENSION(:, :, :) :: grid_tmp, gauge
-
-      subpatch_collocate = .FALSE.
-
-      IF (PRESENT(use_subpatch)) THEN
-         IF (use_subpatch) THEN
-            subpatch_collocate = .TRUE.
-            CPASSERT(PRESENT(subpatch_pattern))
-         ENDIF
-      ENDIF
-
-      ! use identical radii for integrate and collocate ?
-      IF (PRESENT(map_consistent)) THEN
-         my_map_consistent = map_consistent
-      ELSE
-         my_map_consistent = .FALSE.
-      ENDIF
-
-      IF (PRESENT(collocate_rho0) .AND. PRESENT(rpgf0_s)) THEN
-         my_collocate_rho0 = collocate_rho0
-      ELSE
-         my_collocate_rho0 = .FALSE.
-      END IF
-
-      zetp = zeta + zetb
-      f = zetb/zetp
-      rap(:) = f*rab(:)
-      rbp(:) = rap(:) - rab(:)
-      rp(:) = ra(:) + rap(:)
-      rb(:) = ra(:) + rab(:)
-
-      ! check to avoid overflows
-      a = MAXVAL(ABS(rsgrid%desc%dh))
-      a = 300._dp/(a*a)
-      !   CPASSERT(zetp < a)
-
-      IF (my_map_consistent) THEN
-         cutoff = 1.0_dp
-         prefactor = EXP(-zeta*f*DOT_PRODUCT(rab, rab))
-         radius = exp_radius_very_extended(la_min, la_max, lb_min, lb_max, ra=ra, rb=rb, rp=rp, &
-                                           zetp=zetp, eps=eps_rho_rspace, &
-                                           prefactor=prefactor, cutoff=cutoff)
-         prefactor = scale*EXP(-zeta*f*DOT_PRODUCT(rab, rab))
-      ELSE IF (my_collocate_rho0) THEN
-         cutoff = 0.0_dp
-         prefactor = 1.0_dp
-         radius = rpgf0_s
-      ELSE
-         cutoff = 0.0_dp
-         prefactor = scale*EXP(-zeta*f*DOT_PRODUCT(rab, rab))
-         radius = exp_radius_very_extended(la_min, la_max, lb_min, lb_max, pab, o1, o2, ra, rb, rp, &
-                                           zetp, eps_rho_rspace, prefactor, cutoff)
-      ENDIF
-
-      a = MAXVAL(ABS(rsgrid%desc%dh))
-      IF (radius .LT. a/2.0_dp) THEN
-         RETURN
-      END IF
+      INTEGER :: ider1, ider2, idir, ir, la_max_local, la_min_local, lb_max_local, lb_min_local, &
+         lxa, lxb, lya, lyb, lza, lzb, o1_local, o2_local
+      REAL(KIND=dp), DIMENSION(:, :), POINTER            :: pab_local
 
       ! it's a choice to compute lX_min/max, pab here,
       ! this way we get the same radius as we use for the corresponding density
@@ -237,8 +148,8 @@ CONTAINS
          o1_local = 0
          o2_local = 0
          pab_local = pab_local*0.5_dp
-      CASE (GRID_FUNC_ADBmDAB)
-         CPASSERT(PRESENT(idir))
+      CASE (GRID_FUNC_ADBmDAB_X, GRID_FUNC_ADBmDAB_Y, GRID_FUNC_ADBmDAB_Z)
+         idir = MODULO(ga_gb_function, 10)
          la_max_local = la_max + 1
          la_min_local = MAX(la_min - 1, 0)
          lb_max_local = lb_max + 1
@@ -269,8 +180,8 @@ CONTAINS
          END DO
          o1_local = 0
          o2_local = 0
-      CASE (GRID_FUNC_DABpADB)
-         CPASSERT(PRESENT(idir))
+      CASE (GRID_FUNC_DABpADB_X, GRID_FUNC_DABpADB_Y, GRID_FUNC_DABpADB_Z)
+         idir = MODULO(ga_gb_function, 10)
          la_max_local = la_max + 1
          la_min_local = MAX(la_min - 1, 0)
          lb_max_local = lb_max + 1
@@ -302,7 +213,7 @@ CONTAINS
          o1_local = 0
          o2_local = 0
       CASE (GRID_FUNC_DX, GRID_FUNC_DY, GRID_FUNC_DZ)
-         ider1 = ga_gb_function - 500
+         ider1 = MODULO(ga_gb_function, 10)
          la_max_local = la_max + 1
          la_min_local = MAX(la_min - 1, 0)
          lb_max_local = lb_max + 1
@@ -334,8 +245,8 @@ CONTAINS
          o1_local = 0
          o2_local = 0
       CASE (GRID_FUNC_DXDY, GRID_FUNC_DYDZ, GRID_FUNC_DZDX)
-         ider1 = ga_gb_function - 600
-         ider2 = ga_gb_function - 600 + 1
+         ider1 = MODULO(ga_gb_function, 10)
+         ider2 = ider1 + 1
          IF (ider2 > 3) ider2 = ider1 - 2
          la_max_local = la_max + 2
          la_min_local = MAX(la_min - 2, 0)
@@ -364,7 +275,7 @@ CONTAINS
          o1_local = 0
          o2_local = 0
       CASE (GRID_FUNC_DXDX, GRID_FUNC_DYDY, GRID_FUNC_DZDZ)
-         ider1 = ga_gb_function - 603
+         ider1 = MODULO(ga_gb_function, 10)
          la_max_local = la_max + 2
          la_min_local = MAX(la_min - 2, 0)
          lb_max_local = lb_max + 2
@@ -392,9 +303,11 @@ CONTAINS
          END DO
          o1_local = 0
          o2_local = 0
-      CASE (GRID_FUNC_ARDBmDARB)
-         CPASSERT(PRESENT(idir))
-         CPASSERT(PRESENT(ir))
+      CASE (GRID_FUNC_ARDBmDARB_XX, GRID_FUNC_ARDBmDARB_XY, GRID_FUNC_ARDBmDARB_XZ, &
+            GRID_FUNC_ARDBmDARB_YX, GRID_FUNC_ARDBmDARB_YY, GRID_FUNC_ARDBmDARB_YZ, &
+            GRID_FUNC_ARDBmDARB_ZX, GRID_FUNC_ARDBmDARB_ZY, GRID_FUNC_ARDBmDARB_ZZ)
+         ir = MODULO(ga_gb_function, 10)
+         idir = MODULO(ga_gb_function - ir, 100)/10
          la_max_local = la_max + 1
          la_min_local = MAX(la_min - 1, 0)
          lb_max_local = lb_max + 2
@@ -438,6 +351,118 @@ CONTAINS
          CPASSERT(.FALSE.)
       END SELECT
 
+      CALL collocate_pgf_product_part2(la_max_local, zeta, la_min_local, &
+                                       lb_max_local, zetb, lb_min_local, &
+                                       ra, rab, scale, pab_local, &
+                                       o1_local, o2_local, &
+                                       rsgrid, cell, cube_info, &
+                                       radius, &
+                                       use_subpatch, subpatch_pattern, &
+                                       lp=la_max_local + lb_max_local, &
+                                       lmax=MAX(la_max_local, lb_max_local))
+
+      IF (ga_gb_function /= GRID_FUNC_AB) THEN
+         DEALLOCATE (pab_local)
+      ENDIF
+
+   END SUBROUTINE collocate_pgf_product
+
+! **************************************************************************************************
+!> \brief After lp and lmax are determined they can be used to allocate arrays on the stack.
+!> \param la_max_local ...
+!> \param zeta ...
+!> \param la_min_local ...
+!> \param lb_max_local ...
+!> \param zetb ...
+!> \param lb_min_local ...
+!> \param ra ...
+!> \param rab ...
+!> \param scale ...
+!> \param pab_local ...
+!> \param o1_local ...
+!> \param o2_local ...
+!> \param rsgrid ...
+!> \param cell ...
+!> \param cube_info ...
+!> \param radius ...
+!> \param use_subpatch ...
+!> \param subpatch_pattern ...
+!> \param lp ...
+!> \param lmax ...
+! **************************************************************************************************
+   SUBROUTINE collocate_pgf_product_part2(la_max_local, zeta, la_min_local, &
+                                          lb_max_local, zetb, lb_min_local, &
+                                          ra, rab, scale, pab_local, &
+                                          o1_local, o2_local, &
+                                          rsgrid, cell, cube_info, &
+                                          radius, &
+                                          use_subpatch, subpatch_pattern, &
+                                          lp, lmax)
+
+      INTEGER, INTENT(IN)                      :: la_max_local
+      REAL(KIND=dp), INTENT(IN)                :: zeta
+      INTEGER, INTENT(IN)                      :: la_min_local, lb_max_local
+      REAL(KIND=dp), INTENT(IN)                :: zetb
+      INTEGER, INTENT(IN)                      :: lb_min_local
+      REAL(KIND=dp), DIMENSION(3), INTENT(IN)  :: ra, rab
+      REAL(KIND=dp), INTENT(IN)                :: scale
+      REAL(KIND=dp), DIMENSION(:, :), POINTER  :: pab_local
+      INTEGER, INTENT(IN)                      :: o1_local, o2_local
+      TYPE(realspace_grid_type)                :: rsgrid
+      TYPE(cell_type), POINTER                 :: cell
+      TYPE(cube_info_type), INTENT(IN)         :: cube_info
+      REAL(KIND=dp), INTENT(IN)                :: radius
+      LOGICAL, OPTIONAL                        :: use_subpatch
+      INTEGER(KIND=int_8), OPTIONAL, INTENT(IN):: subpatch_pattern
+      INTEGER, INTENT(IN)                      :: lp, lmax
+
+      CHARACTER(len=*), PARAMETER :: routineN = 'collocate_pgf_product_part2', &
+                                     routineP = moduleN//':'//routineN
+
+      INTEGER :: cmax, gridbounds(2, 3), i, ico, icoef, ig, jco, k, l, lxp, lyp, lzp, lxpm, iaxis, &
+                 length, lxa, lxb, lxy, lxyz, lya, lyb, lza, lzb, offset, start
+      INTEGER, DIMENSION(3)                    :: cubecenter, lb_cube, ng, ub_cube
+      INTEGER, DIMENSION(:), POINTER           :: sphere_bounds
+      LOGICAL                                  :: subpatch_collocate
+      REAL(KIND=dp) :: a, b, binomial_k_lxa, binomial_l_lxb, pg, prefactor, rpg, zetp, f, p_ele, &
+                       t_exp_1, t_exp_2, t_exp_min_1, t_exp_min_2, t_exp_plus_1, t_exp_plus_2
+      REAL(KIND=dp), DIMENSION(3)              :: dr, roffset, rb, rp
+      REAL(KIND=dp), DIMENSION(:, :, :), &
+         POINTER                                :: grid
+      INTEGER, ALLOCATABLE, DIMENSION(:, :)     :: map
+      REAL(kind=dp), DIMENSION(0:lp, 0:lmax, 0:lmax, 3) :: alpha
+      REAL(kind=dp), DIMENSION(((lp + 1)*(lp + 2)*(lp + 3))/6) :: coef_xyz
+      REAL(kind=dp), DIMENSION(((lp + 1)*(lp + 2))/2) :: coef_xyt
+      REAL(kind=dp), DIMENSION(0:lp) :: coef_xtt
+      REAL(kind=dp), ALLOCATABLE, DIMENSION(:, :, :) :: pol_z
+      REAL(kind=dp), ALLOCATABLE, DIMENSION(:, :, :) :: pol_y
+      REAL(kind=dp), ALLOCATABLE, DIMENSION(:, :) :: pol_x
+
+      subpatch_collocate = .FALSE.
+
+      IF (PRESENT(use_subpatch)) THEN
+         IF (use_subpatch) THEN
+            subpatch_collocate = .TRUE.
+            CPASSERT(PRESENT(subpatch_pattern))
+         ENDIF
+      ENDIF
+
+      ! check to avoid overflows
+      a = MAXVAL(ABS(rsgrid%desc%dh))
+      a = 300._dp/(a*a)
+      !   CPASSERT(zetp < a)
+
+      a = MAXVAL(ABS(rsgrid%desc%dh))
+      IF (radius .LT. a/2.0_dp) THEN
+         RETURN
+      END IF
+
+      zetp = zeta + zetb
+      f = zetb/zetp
+      rp(:) = ra(:) + f*rab(:)
+      rb(:) = ra(:) + rab(:)
+      prefactor = scale*EXP(-zeta*f*DOT_PRODUCT(rab, rab))
+
       ng(:) = rsgrid%desc%npts(:)
       grid => rsgrid%r(:, :, :)
       gridbounds(1, 1) = LBOUND(GRID, 1)
@@ -446,12 +471,6 @@ CONTAINS
       gridbounds(2, 2) = UBOUND(GRID, 2)
       gridbounds(1, 3) = LBOUND(GRID, 3)
       gridbounds(2, 3) = UBOUND(GRID, 3)
-
-      IF (PRESENT(ir) .AND. PRESENT(rsgauge) .AND. PRESENT(rsbuf)) THEN
-         grid => rsbuf%r(:, :, :)
-         grid_tmp => rsgrid%r(:, :, :)
-         gauge => rsgauge%r(:, :, :)
-      ENDIF
 
 !   *** initialise the coefficient matrix, we transform the sum
 !
@@ -464,8 +483,6 @@ CONTAINS
 !
 !   where p is center of the product gaussian, and lp = la_max + lb_max
 !   (current implementation is l**7)
-!
-      lp = la_max_local + lb_max_local
 !
 !   compute polynomial expansion coefs -> (x-a)**lxa (x-b)**lxb -> sum_{ls} alpha(ls,lxa,lxb,1)*(x-p)**ls
 !
@@ -571,17 +588,10 @@ CONTAINS
          END IF
       END IF
 
-      IF (ga_gb_function /= GRID_FUNC_AB) THEN
-         DEALLOCATE (pab_local)
-      ENDIF
-
    CONTAINS
 
-      !
-      ! this treats efficiently the orthogonal case
-      !
 ! **************************************************************************************************
-!> \brief ...
+!> \brief this treats efficiently the orthogonal case
 ! **************************************************************************************************
       SUBROUTINE collocate_ortho()
 
@@ -636,12 +646,8 @@ CONTAINS
          ALLOCATE (pol_y(1:2, 0:lp, -cmax:0))
          ALLOCATE (pol_x(0:lp, -cmax:cmax))
 
-         IF (PRESENT(ir) .AND. PRESENT(rsgauge)) CALL collocate_ortho_set_to_0()
-
 #include "prep.f90"
 #include "call_collocate.f90"
-
-         IF (PRESENT(ir) .AND. PRESENT(rsgauge)) CALL collocate_gauge_ortho()
 
          ! deallocation needed to pass around a pgi bug..
          DEALLOCATE (pol_z)
@@ -652,106 +658,7 @@ CONTAINS
       END SUBROUTINE collocate_ortho
 
 ! **************************************************************************************************
-!> \brief ...
-! **************************************************************************************************
-      SUBROUTINE collocate_gauge_ortho()
-      INTEGER                                            :: i, igmax, igmin, j, j2, jg, jg2, jgmin, &
-                                                            k, k2, kg, kg2, kgmin, sci
-      REAL(KIND=dp)                                      :: point(3, 4), res(4), x, y, y2, z, z2
-
-! notice we're in the ortho case
-
-         dr(1) = rsgrid%desc%dh(1, 1)
-         dr(2) = rsgrid%desc%dh(2, 2)
-         dr(3) = rsgrid%desc%dh(3, 3)
-         !
-         sci = 1
-         kgmin = sphere_bounds(sci)
-         sci = sci + 1
-         DO kg = kgmin, 0
-            kg2 = 1 - kg
-            k = map(kg, 3)
-            k2 = map(kg2, 3)
-            jgmin = sphere_bounds(sci)
-            sci = sci + 1
-            z = (REAL(kg, dp) + REAL(cubecenter(3), dp))*dr(3)
-            z2 = (REAL(kg2, dp) + REAL(cubecenter(3), dp))*dr(3)
-            DO jg = jgmin, 0
-               jg2 = 1 - jg
-               j = map(jg, 2)
-               j2 = map(jg2, 2)
-               igmin = sphere_bounds(sci)
-               sci = sci + 1
-               igmax = 1 - igmin
-               y = (REAL(jg, dp) + REAL(cubecenter(2), dp))*dr(2)
-               y2 = (REAL(jg2, dp) + REAL(cubecenter(2), dp))*dr(2)
-               DO ig = igmin, igmax
-                  i = map(ig, 1)
-                  x = (REAL(ig, dp) + REAL(cubecenter(1), dp))*dr(1)
-                  point(1, 1) = x; point(2, 1) = y; point(3, 1) = z
-                  point(1, 2) = x; point(2, 2) = y2; point(3, 2) = z
-                  point(1, 3) = x; point(2, 3) = y; point(3, 3) = z2
-                  point(1, 4) = x; point(2, 4) = y2; point(3, 4) = z2
-                  !
-                  res(1) = (point(ir, 1) - rb(ir)) - gauge(i, j, k)
-                  res(2) = (point(ir, 2) - rb(ir)) - gauge(i, j2, k)
-                  res(3) = (point(ir, 3) - rb(ir)) - gauge(i, j, k2)
-                  res(4) = (point(ir, 4) - rb(ir)) - gauge(i, j2, k2)
-                  !
-                  grid_tmp(i, j, k) = grid_tmp(i, j, k) + grid(i, j, k)*res(1)
-                  grid_tmp(i, j2, k) = grid_tmp(i, j2, k) + grid(i, j2, k)*res(2)
-                  grid_tmp(i, j, k2) = grid_tmp(i, j, k2) + grid(i, j, k2)*res(3)
-                  grid_tmp(i, j2, k2) = grid_tmp(i, j2, k2) + grid(i, j2, k2)*res(4)
-               ENDDO
-            ENDDO
-         ENDDO
-      END SUBROUTINE collocate_gauge_ortho
-
-! **************************************************************************************************
-!> \brief ...
-! **************************************************************************************************
-      SUBROUTINE collocate_ortho_set_to_0()
-      INTEGER                                            :: i, igmax, igmin, j, j2, jg, jg2, jgmin, &
-                                                            k, k2, kg, kg2, kgmin, sci
-
-!
-
-         dr(1) = rsgrid%desc%dh(1, 1)
-         dr(2) = rsgrid%desc%dh(2, 2)
-         dr(3) = rsgrid%desc%dh(3, 3)
-         !
-         sci = 1
-         kgmin = sphere_bounds(sci)
-         sci = sci + 1
-         DO kg = kgmin, 0
-            kg2 = 1 - kg
-            k = map(kg, 3)
-            k2 = map(kg2, 3)
-            jgmin = sphere_bounds(sci)
-            sci = sci + 1
-            DO jg = jgmin, 0
-               jg2 = 1 - jg
-               j = map(jg, 2)
-               j2 = map(jg2, 2)
-               igmin = sphere_bounds(sci)
-               sci = sci + 1
-               igmax = 1 - igmin
-               DO ig = igmin, igmax
-                  i = map(ig, 1)
-                  grid(i, j, k) = 0.0_dp
-                  grid(i, j2, k) = 0.0_dp
-                  grid(i, j, k2) = 0.0_dp
-                  grid(i, j2, k2) = 0.0_dp
-               ENDDO
-            ENDDO
-         ENDDO
-      END SUBROUTINE collocate_ortho_set_to_0
-
-!
-!   this is a general 'optimized' routine to do the collocation
-!
-! **************************************************************************************************
-!> \brief ...
+!> \brief this is a general 'optimized' routine to do the collocation
 ! **************************************************************************************************
       SUBROUTINE collocate_general_opt()
 
@@ -1018,11 +925,8 @@ CONTAINS
 
       END SUBROUTINE
 
-!
-!   this is a general 'reference' routine to do the collocation
-!
 ! **************************************************************************************************
-!> \brief ...
+!> \brief this is a general 'reference' routine to do the collocation
 ! **************************************************************************************************
       SUBROUTINE collocate_general()
 
@@ -1110,6 +1014,6 @@ CONTAINS
 
       END FUNCTION primitive_value
 
-   END SUBROUTINE collocate_pgf_product
+   END SUBROUTINE collocate_pgf_product_part2
 
 END MODULE grid_collocate

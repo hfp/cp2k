@@ -13,6 +13,7 @@
 !> \author MI
 ! **************************************************************************************************
 MODULE qs_linres_current
+   USE ao_util,                         ONLY: exp_radius_very_extended
    USE basis_set_types,                 ONLY: get_gto_basis_set,&
                                               gto_basis_set_p_type,&
                                               gto_basis_set_type
@@ -47,16 +48,20 @@ MODULE qs_linres_current
                                               cp_print_key_unit_nr
    USE cp_para_types,                   ONLY: cp_para_env_type
    USE cp_realspace_grid_cube,          ONLY: cp_pw_to_cube
-   USE cube_utils,                      ONLY: cube_info_type
+   USE cube_utils,                      ONLY: compute_cube_center,&
+                                              cube_info_type,&
+                                              return_cube
    USE dbcsr_api,                       ONLY: &
         dbcsr_add_block_node, dbcsr_convert_offsets_to_sizes, dbcsr_copy, dbcsr_create, &
         dbcsr_deallocate_matrix, dbcsr_distribution_type, dbcsr_finalize, dbcsr_get_block_p, &
         dbcsr_p_type, dbcsr_set, dbcsr_type, dbcsr_type_antisymmetric, dbcsr_type_no_symmetry
    USE gaussian_gridlevels,             ONLY: gridlevel_info_type
-   USE grid_collocate,                  ONLY: GRID_FUNC_AB,&
-                                              GRID_FUNC_ADBmDAB,&
-                                              GRID_FUNC_ARDBmDARB,&
-                                              collocate_pgf_product
+   USE grid_api,                        ONLY: &
+        GRID_FUNC_AB, GRID_FUNC_ADBmDAB_X, GRID_FUNC_ADBmDAB_Y, GRID_FUNC_ADBmDAB_Z, &
+        GRID_FUNC_ARDBmDARB_XX, GRID_FUNC_ARDBmDARB_XY, GRID_FUNC_ARDBmDARB_XZ, &
+        GRID_FUNC_ARDBmDARB_YX, GRID_FUNC_ARDBmDARB_YY, GRID_FUNC_ARDBmDARB_YZ, &
+        GRID_FUNC_ARDBmDARB_ZX, GRID_FUNC_ARDBmDARB_ZY, GRID_FUNC_ARDBmDARB_ZZ, &
+        collocate_pgf_product
    USE input_constants,                 ONLY: current_gauge_atom
    USE input_section_types,             ONLY: section_get_ivals,&
                                               section_get_lval,&
@@ -585,22 +590,23 @@ CONTAINS
          routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: max_tasks = 2000
 
-      INTEGER :: bcol, brow, cindex, curr_tasks, handle, i, iatom, iatom_old, idir2, igrid_level, &
-         iiB, iiiB, ikind, ikind_old, ipgf, iset, iset_old, itask, ithread, jatom, jatom_old, &
-         jkind, jkind_old, jpgf, jset, jset_old, lmax_global, maxco, maxpgf, maxset, maxsgf, &
+      INTEGER :: adbmdab_func, bcol, brow, cindex, curr_tasks, handle, i, iatom, iatom_old, idir2, &
+         igrid_level, iiB, iiiB, ikind, ikind_old, ipgf, iset, iset_old, itask, ithread, jatom, &
+         jatom_old, jkind, jkind_old, jpgf, jset, jset_old, maxco, maxpgf, maxset, maxsgf, &
          maxsgf_set, na1, na2, natom, nb1, nb2, ncoa, ncob, nimages, nkind, nseta, nsetb, ntasks, &
          nthread, sgfa, sgfb
       INTEGER(kind=int_8), DIMENSION(:), POINTER         :: atom_pair_recv, atom_pair_send
-      INTEGER, DIMENSION(:), POINTER                     :: la_max, la_min, lb_max, lb_min, mylmax, &
-                                                            npgfa, npgfb, nsgfa, nsgfb
+      INTEGER, DIMENSION(:), POINTER                     :: la_max, la_min, lb_max, lb_min, npgfa, &
+                                                            npgfb, nsgfa, nsgfb
       INTEGER, DIMENSION(:, :), POINTER                  :: first_sgfa, first_sgfb
-      LOGICAL :: atom_pair_changed, den_found, den_found_a, distributed_rs_grids, do_igaim, &
-         map_consistent, my_retain_rsgrid, my_soft
+      LOGICAL                                            :: atom_pair_changed, den_found, &
+                                                            den_found_a, distributed_rs_grids, &
+                                                            do_igaim, my_retain_rsgrid, my_soft
       REAL(dp), DIMENSION(:, :, :), POINTER              :: my_current, my_gauge, my_rho
-      REAL(KIND=dp)                                      :: eps_rho_rspace, kind_radius_a, &
+      REAL(KIND=dp)                                      :: eps_rho_rspace, f, kind_radius_a, &
                                                             kind_radius_b, Lxo2, Lyo2, Lzo2, &
-                                                            scale, scale2, zetp
-      REAL(KIND=dp), DIMENSION(3)                        :: ra, rab, rb
+                                                            prefactor, radius, scale, scale2, zetp
+      REAL(KIND=dp), DIMENSION(3)                        :: ra, rab, rb, rp
       REAL(KIND=dp), DIMENSION(:), POINTER               :: set_radius_a, set_radius_b
       REAL(KIND=dp), DIMENSION(:, :), POINTER :: jp_block_a, jp_block_b, jp_block_c, jp_block_d, &
          jpab_a, jpab_b, jpab_c, jpab_d, jpblock_a, jpblock_b, jpblock_c, jpblock_d, rpgfa, rpgfb, &
@@ -633,10 +639,10 @@ CONTAINS
 
       NULLIFY (qs_kind, cell, dft_control, orb_basis_set, rs_rho, &
                qs_kind_set, sab_orb, particle_set, rs_current, pw_env, &
-               rs_descs, para_env, set_radius_a, set_radius_b, la_max, &
-               la_min, lb_max, lb_min, npgfa, npgfb, nsgfa, nsgfb, rpgfa, rpgfb, &
-               sphi_a, sphi_b, zeta, zetb, first_sgfa, first_sgfb, &
-               tasks, workt, mat_a, mat_b, mat_c, mat_d, rs_gauge, mylmax)
+               rs_descs, para_env, set_radius_a, set_radius_b, la_max, la_min, &
+               lb_max, lb_min, npgfa, npgfb, nsgfa, nsgfb, rpgfa, rpgfb, &
+               sphi_a, sphi_b, zeta, zetb, first_sgfa, first_sgfb, tasks, &
+               workt, mat_a, mat_b, mat_c, mat_d, rs_gauge)
       NULLIFY (deltajp_a, deltajp_b, deltajp_c, deltajp_d)
       NULLIFY (jp_block_a, jp_block_b, jp_block_c, jp_block_d)
       NULLIFY (jpblock_a, jpblock_b, jpblock_c, jpblock_d)
@@ -695,7 +701,6 @@ CONTAINS
          ENDIF
       ENDDO
       eps_rho_rspace = dft_control%qs_control%eps_rho_rspace
-      map_consistent = dft_control%qs_control%map_consistent
       nthread = 1
 
       !   *** Allocate work storage ***
@@ -733,7 +738,6 @@ CONTAINS
       CPASSERT(nimages == 1)
       cindex = 1
 
-      lmax_global = 0
       DO ikind = 1, nkind
          qs_kind => qs_kind_set(ikind)
 
@@ -742,18 +746,10 @@ CONTAINS
 
          IF (.NOT. ASSOCIATED(orb_basis_set)) CYCLE
 
-         CALL get_gto_basis_set(gto_basis_set=orb_basis_set, &
-                                npgf=npgfa, nset=nseta, lmax=mylmax)
-
+         CALL get_gto_basis_set(gto_basis_set=orb_basis_set, npgf=npgfa, nset=nseta)
          maxset = MAX(nseta, maxset)
          maxpgf = MAX(MAXVAL(npgfa), maxpgf)
-         ! Find maximum l, for collocate_pgf_product
-         lmax_global = MAX(MAXVAL(mylmax), lmax_global)
       END DO
-
-      ! ga_gb_function can be one of GRID_FUNC_AB, GRID_FUNC_ADBmDAB or GRID_FUNC_ARDBm_DARB
-      ! take worst case and add 2 to lmax_global
-      lmax_global = lmax_global + 2
 
       !   *** Initialize working density matrix ***
 
@@ -856,14 +852,6 @@ CONTAINS
             jpblock_c => jp_block_c
             IF (do_igaim) jpblock_d => jp_block_d
          ENDIF
-
-         IF (.NOT. map_consistent) THEN
-            IF (ALL(100.0_dp*ABS(jpblock_a) < eps_rho_rspace) .AND. &
-                ALL(100.0_dp*ABS(jpblock_b) < eps_rho_rspace) .AND. &
-                ALL(100.0_dp*ABS(jpblock_c) < eps_rho_rspace)) THEN
-               CYCLE
-            END IF
-         END IF
 
          CALL task_list_inner_loop(tasks, ntasks, curr_tasks, rs_descs, &
                                    dft_control, cube_info, gridlevel_info, cindex, &
@@ -1111,9 +1099,23 @@ CONTAINS
 
          ENDIF
 
+         SELECT CASE (idir)
+         CASE (1)
+            adbmdab_func = GRID_FUNC_ADBmDAB_X
+         CASE (2)
+            adbmdab_func = GRID_FUNC_ADBmDAB_Y
+         CASE (3)
+            adbmdab_func = GRID_FUNC_ADBmDAB_Z
+         CASE DEFAULT
+            CPABORT("invalid idir")
+         END SELECT
+
          rab(:) = tasks(itask)%rab
          rb(:) = ra(:) + rab(:)
          zetp = zeta(ipgf, iset) + zetb(jpgf, jset)
+         f = zetb(jpgf, jset)/zetp
+         prefactor = EXP(-zeta(ipgf, iset)*f*DOT_PRODUCT(rab, rab))
+         rp(:) = ra(:) + f*rab(:)
 
          na1 = (ipgf - 1)*ncoset(la_max(iset)) + 1
          na2 = ipgf*ncoset(la_max(iset))
@@ -1127,14 +1129,16 @@ CONTAINS
          ! here the decontracted mat_jp_{ab} is multiplied by
          !     f_{ab} = g_{a} (dg_{b}/dr)_{idir} - (dg_{a}/dr)_{idir} g_{b}
          scale = 1.0_dp
+         radius = exp_radius_very_extended(la_min=la_min(iset), la_max=la_max(iset), &
+                                           lb_min=lb_min(jset), lb_max=lb_max(jset), &
+                                           ra=ra, rb=rb, rp=rp, zetp=zetp, eps=eps_rho_rspace, &
+                                           prefactor=prefactor, cutoff=1.0_dp)
+
          CALL collocate_pgf_product(la_max(iset), zeta(ipgf, iset), &
                                     la_min(iset), lb_max(jset), zetb(jpgf, jset), lb_min(jset), &
                                     ra, rab, scale, jpab_a, na1 - 1, nb1 - 1, &
                                     rs_current(igrid_level)%rs_grid, cell, cube_info(igrid_level), &
-                                    eps_rho_rspace, &
-                                    ga_gb_function=GRID_FUNC_ADBmDAB, &
-                                    idir=idir, &
-                                    map_consistent=map_consistent, lmax_global=lmax_global)
+                                    radius=radius, ga_gb_function=adbmdab_func)
          IF (do_igaim) THEN
             ! here the decontracted mat_jb_{ab} is multiplied by
             !     f_{ab} = g_{a} * g_{b} ! THIS GOES OUTSIDE THE LOOP !
@@ -1143,38 +1147,45 @@ CONTAINS
                                           la_min(iset), lb_max(jset), zetb(jpgf, jset), lb_min(jset), &
                                           ra, rab, scale2, jpab_d, na1 - 1, nb1 - 1, &
                                           rs_rho(igrid_level)%rs_grid, cell, cube_info(igrid_level), &
-                                          eps_rho_rspace, &
-                                          ga_gb_function=GRID_FUNC_AB, &
-                                          map_consistent=map_consistent, lmax_global=lmax_global)
+                                          radius=radius, ga_gb_function=GRID_FUNC_AB)
             ENDIF !rm
             ! here the decontracted mat_jp_rii{ab} is multiplied by
             !     f_{ab} = g_{a} (d(r) - R_{b})_{iiB} (dg_{b}/dr)_{idir} -
             !             (dg_{a}/dr)_{idir} (d(r) - R_{b})_{iiB} g_{b}
             scale = 1.0_dp
+            current_env%rs_buf(igrid_level)%rs_grid%r(:, :, :) = 0.0_dp
             CALL collocate_pgf_product(la_max(iset), zeta(ipgf, iset), &
                                        la_min(iset), lb_max(jset), zetb(jpgf, jset), lb_min(jset), &
                                        ra, rab, scale, jpab_b, na1 - 1, nb1 - 1, &
-                                       rs_current(igrid_level)%rs_grid, cell, cube_info(igrid_level), &
-                                       eps_rho_rspace, &
-                                       ga_gb_function=GRID_FUNC_ADBmDAB, &
-                                       idir=idir, ir=iiiB, &
+                                       cell=cell, cube_info=cube_info(igrid_level), &
+                                       radius=radius, &
+                                       ga_gb_function=adbmdab_func, &
+                                       rsgrid=current_env%rs_buf(igrid_level)%rs_grid)
+            CALL collocate_gauge_ortho(rsgrid=current_env%rs_buf(igrid_level)%rs_grid, &
+                                       rsbuf=rs_current(igrid_level)%rs_grid, &
                                        rsgauge=rs_gauge(iiiB)%rs(igrid_level)%rs_grid, &
-                                       rsbuf=current_env%rs_buf(igrid_level)%rs_grid, &
-                                       map_consistent=map_consistent, lmax_global=lmax_global)
+                                       cube_info=cube_info(igrid_level), radius=radius, &
+                                       zeta=zeta(ipgf, iset), zetb=zetb(jpgf, jset), &
+                                       ra=ra, rab=rab, ir=iiiB)
+
             ! here the decontracted mat_jp_riii{ab} is multiplied by
             !     f_{ab} = -g_{a} (d(r) - R_{b})_{iiB} (dg_{b}/dr)_{idir} +
             !             (dg_{a}/dr)_{idir} (d(r) - R_{b})_{iiB} g_{b}
             scale = -1.0_dp
+            current_env%rs_buf(igrid_level)%rs_grid%r(:, :, :) = 0.0_dp
             CALL collocate_pgf_product(la_max(iset), zeta(ipgf, iset), &
                                        la_min(iset), lb_max(jset), zetb(jpgf, jset), lb_min(jset), &
                                        ra, rab, scale, jpab_c, na1 - 1, nb1 - 1, &
-                                       rs_current(igrid_level)%rs_grid, cell, cube_info(igrid_level), &
-                                       eps_rho_rspace, &
-                                       ga_gb_function=GRID_FUNC_ADBmDAB, &
-                                       idir=idir, ir=iiB, &
+                                       cell=cell, cube_info=cube_info(igrid_level), &
+                                       radius=radius, &
+                                       ga_gb_function=adbmdab_func, &
+                                       rsgrid=current_env%rs_buf(igrid_level)%rs_grid)
+            CALL collocate_gauge_ortho(rsgrid=current_env%rs_buf(igrid_level)%rs_grid, &
+                                       rsbuf=rs_current(igrid_level)%rs_grid, &
                                        rsgauge=rs_gauge(iiB)%rs(igrid_level)%rs_grid, &
-                                       rsbuf=current_env%rs_buf(igrid_level)%rs_grid, &
-                                       map_consistent=map_consistent, lmax_global=lmax_global)
+                                       cube_info=cube_info(igrid_level), radius=radius, &
+                                       zeta=zeta(ipgf, iset), zetb=zetb(jpgf, jset), &
+                                       ra=ra, rab=rab, ir=iiB)
          ELSE
             ! here the decontracted mat_jp_rii{ab} is multiplied by
             !     f_{ab} = g_{a} (r - R_{b})_{iiB} (dg_{b}/dr)_{idir} -
@@ -1184,10 +1195,8 @@ CONTAINS
                                        la_min(iset), lb_max(jset), zetb(jpgf, jset), lb_min(jset), &
                                        ra, rab, scale, jpab_b, na1 - 1, nb1 - 1, &
                                        rs_current(igrid_level)%rs_grid, cell, cube_info(igrid_level), &
-                                       eps_rho_rspace, &
-                                       ga_gb_function=GRID_FUNC_ARDBmDARB, &
-                                       idir=idir, ir=iiiB, &
-                                       map_consistent=map_consistent, lmax_global=lmax_global)
+                                       radius=radius, &
+                                       ga_gb_function=encode_ardbmdarb_func(idir=idir, ir=iiiB))
             ! here the decontracted mat_jp_riii{ab} is multiplied by
             !     f_{ab} = -g_{a} (r - R_{b})_{iiB} (dg_{b}/dr)_{idir} +
             !             (dg_{a}/dr)_{idir} (r - R_{b})_{iiB} g_{b}
@@ -1196,10 +1205,8 @@ CONTAINS
                                        la_min(iset), lb_max(jset), zetb(jpgf, jset), lb_min(jset), &
                                        ra, rab, scale, jpab_c, na1 - 1, nb1 - 1, &
                                        rs_current(igrid_level)%rs_grid, cell, cube_info(igrid_level), &
-                                       eps_rho_rspace, &
-                                       ga_gb_function=GRID_FUNC_ARDBmDARB, &
-                                       idir=idir, ir=iiB, &
-                                       map_consistent=map_consistent, lmax_global=lmax_global)
+                                       radius=radius, &
+                                       ga_gb_function=encode_ardbmdarb_func(idir=idir, ir=iiB))
          ENDIF
 
       END DO loop_tasks
@@ -1241,6 +1248,179 @@ CONTAINS
       CALL timestop(handle)
 
    END SUBROUTINE calculate_jrho_resp
+
+! **************************************************************************************************
+!> \brief ...
+!> \param idir ...
+!> \param ir ...
+!> \return ...
+! **************************************************************************************************
+   FUNCTION encode_ardbmdarb_func(idir, ir) RESULT(func)
+      INTEGER, INTENT(IN)                                :: idir, ir
+      INTEGER                                            :: func
+
+      CPASSERT(1 <= idir .AND. idir <= 3 .AND. 1 <= ir .AND. ir <= 3)
+      SELECT CASE (10*idir + ir)
+      CASE (11)
+         func = GRID_FUNC_ARDBmDARB_XX
+      CASE (12)
+         func = GRID_FUNC_ARDBmDARB_XY
+      CASE (13)
+         func = GRID_FUNC_ARDBmDARB_XZ
+      CASE (21)
+         func = GRID_FUNC_ARDBmDARB_YX
+      CASE (22)
+         func = GRID_FUNC_ARDBmDARB_YY
+      CASE (23)
+         func = GRID_FUNC_ARDBmDARB_YZ
+      CASE (31)
+         func = GRID_FUNC_ARDBmDARB_ZX
+      CASE (32)
+         func = GRID_FUNC_ARDBmDARB_ZY
+      CASE (33)
+         func = GRID_FUNC_ARDBmDARB_ZZ
+      CASE DEFAULT
+         CPABORT("invalid idir or iiiB")
+      END SELECT
+   END FUNCTION encode_ardbmdarb_func
+
+! **************************************************************************************************
+!> \brief ...
+!> \param rsgrid ...
+!> \param rsbuf ...
+!> \param rsgauge ...
+!> \param cube_info ...
+!> \param radius ...
+!> \param ra ...
+!> \param rab ...
+!> \param zeta ...
+!> \param zetb ...
+!> \param ir ...
+! **************************************************************************************************
+   SUBROUTINE collocate_gauge_ortho(rsgrid, rsbuf, rsgauge, cube_info, radius, ra, rab, zeta, zetb, ir)
+      TYPE(realspace_grid_type)                          :: rsgrid, rsbuf, rsgauge
+      TYPE(cube_info_type), INTENT(IN)                   :: cube_info
+      REAL(KIND=dp), INTENT(IN)                          :: radius
+      REAL(KIND=dp), DIMENSION(3), INTENT(IN)            :: ra, rab
+      REAL(KIND=dp), INTENT(IN)                          :: zeta, zetb
+      INTEGER, INTENT(IN)                                :: ir
+
+      INTEGER                                            :: cmax, i, ig, igmax, igmin, j, j2, jg, &
+                                                            jg2, jgmin, k, k2, kg, kg2, kgmin, &
+                                                            length, offset, sci, start
+      INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: map
+      INTEGER, DIMENSION(3)                              :: cubecenter, lb_cube, ng, ub_cube
+      INTEGER, DIMENSION(:), POINTER                     :: sphere_bounds
+      REAL(KIND=dp)                                      :: f, point(3, 4), res(4), x, y, y2, z, z2, &
+                                                            zetp
+      REAL(KIND=dp), DIMENSION(3)                        :: dr, rap, rb, rbp, roffset, rp
+      REAL(kind=dp), DIMENSION(:, :, :), POINTER         :: gauge, grid, grid_buf
+
+      CPASSERT(rsgrid%desc%orthorhombic)
+      NULLIFY (sphere_bounds)
+
+      grid => rsgrid%r(:, :, :)
+      grid_buf => rsbuf%r(:, :, :)
+      gauge => rsgauge%r(:, :, :)
+
+      ! *** center of gaussians and their product
+      zetp = zeta + zetb
+      f = zetb/zetp
+      rap(:) = f*rab(:)
+      rbp(:) = rap(:) - rab(:)
+      rp(:) = ra(:) + rap(:)
+      rb(:) = ra(:) + rab(:)
+
+      !   *** properties of the grid ***
+      ng(:) = rsgrid%desc%npts(:)
+      dr(1) = rsgrid%desc%dh(1, 1)
+      dr(2) = rsgrid%desc%dh(2, 2)
+      dr(3) = rsgrid%desc%dh(3, 3)
+
+      !   *** get the sub grid properties for the given radius ***
+      CALL return_cube(cube_info, radius, lb_cube, ub_cube, sphere_bounds)
+      cmax = MAXVAL(ub_cube)
+
+      !   *** position of the gaussian product
+      !
+      !   this is the actual definition of the position on the grid
+      !   i.e. a point rp(:) gets here grid coordinates
+      !   MODULO(rp(:)/dr(:),ng(:))+1
+      !   hence (0.0,0.0,0.0) in real space is rsgrid%lb on the rsgrid ((1,1,1) on grid)
+      !
+      ALLOCATE (map(-cmax:cmax, 3))
+      map(:, :) = -1
+      CALL compute_cube_center(cubecenter, rsgrid%desc, zeta, zetb, ra, rab)
+      roffset(:) = rp(:) - REAL(cubecenter(:), dp)*dr(:)
+
+      !   *** a mapping so that the ig corresponds to the right grid point
+      DO i = 1, 3
+         IF (rsgrid%desc%perd(i) == 1) THEN
+            start = lb_cube(i)
+            DO
+               offset = MODULO(cubecenter(i) + start, ng(i)) + 1 - start
+               length = MIN(ub_cube(i), ng(i) - offset) - start
+               DO ig = start, start + length
+                  map(ig, i) = ig + offset
+               END DO
+               IF (start + length .GE. ub_cube(i)) EXIT
+               start = start + length + 1
+            END DO
+         ELSE
+            ! this takes partial grid + border regions into account
+            offset = MODULO(cubecenter(i) + lb_cube(i) + rsgrid%desc%lb(i) - rsgrid%lb_local(i), ng(i)) + 1 - lb_cube(i)
+            ! check for out of bounds
+            IF (ub_cube(i) + offset > UBOUND(grid, i) .OR. lb_cube(i) + offset < LBOUND(grid, i)) THEN
+               CPASSERT(.FALSE.)
+            ENDIF
+            DO ig = lb_cube(i), ub_cube(i)
+               map(ig, i) = ig + offset
+            END DO
+         END IF
+      ENDDO
+
+      ! *** actually loop over the grid
+      sci = 1
+      kgmin = sphere_bounds(sci)
+      sci = sci + 1
+      DO kg = kgmin, 0
+         kg2 = 1 - kg
+         k = map(kg, 3)
+         k2 = map(kg2, 3)
+         jgmin = sphere_bounds(sci)
+         sci = sci + 1
+         z = (REAL(kg, dp) + REAL(cubecenter(3), dp))*dr(3)
+         z2 = (REAL(kg2, dp) + REAL(cubecenter(3), dp))*dr(3)
+         DO jg = jgmin, 0
+            jg2 = 1 - jg
+            j = map(jg, 2)
+            j2 = map(jg2, 2)
+            igmin = sphere_bounds(sci)
+            sci = sci + 1
+            igmax = 1 - igmin
+            y = (REAL(jg, dp) + REAL(cubecenter(2), dp))*dr(2)
+            y2 = (REAL(jg2, dp) + REAL(cubecenter(2), dp))*dr(2)
+            DO ig = igmin, igmax
+               i = map(ig, 1)
+               x = (REAL(ig, dp) + REAL(cubecenter(1), dp))*dr(1)
+               point(1, 1) = x; point(2, 1) = y; point(3, 1) = z
+               point(1, 2) = x; point(2, 2) = y2; point(3, 2) = z
+               point(1, 3) = x; point(2, 3) = y; point(3, 3) = z2
+               point(1, 4) = x; point(2, 4) = y2; point(3, 4) = z2
+               !
+               res(1) = (point(ir, 1) - rb(ir)) - gauge(i, j, k)
+               res(2) = (point(ir, 2) - rb(ir)) - gauge(i, j2, k)
+               res(3) = (point(ir, 3) - rb(ir)) - gauge(i, j, k2)
+               res(4) = (point(ir, 4) - rb(ir)) - gauge(i, j2, k2)
+               !
+               grid_buf(i, j, k) = grid_buf(i, j, k) + grid(i, j, k)*res(1)
+               grid_buf(i, j2, k) = grid_buf(i, j2, k) + grid(i, j2, k)*res(2)
+               grid_buf(i, j, k2) = grid_buf(i, j, k2) + grid(i, j, k2)*res(3)
+               grid_buf(i, j2, k2) = grid_buf(i, j2, k2) + grid(i, j2, k2)*res(4)
+            ENDDO
+         ENDDO
+      ENDDO
+   END SUBROUTINE collocate_gauge_ortho
 
 ! **************************************************************************************************
 !> \brief ...

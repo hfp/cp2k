@@ -10,6 +10,7 @@
 !> \author JGH
 ! **************************************************************************************************
 MODULE hirshfeld_methods
+   USE ao_util,                         ONLY: exp_radius_very_extended
    USE atom_kind_orbitals,              ONLY: calculate_atomic_density
    USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                               get_atomic_kind
@@ -19,9 +20,9 @@ MODULE hirshfeld_methods
    USE cp_para_types,                   ONLY: cp_para_env_type
    USE cp_units,                        ONLY: cp_unit_to_cp2k
    USE cube_utils,                      ONLY: cube_info_type
-   USE grid_collocate,                  ONLY: GRID_FUNC_AB,&
-                                              collocate_pgf_product
-   USE grid_integrate,                  ONLY: integrate_pgf_product
+   USE grid_api,                        ONLY: GRID_FUNC_AB,&
+                                              collocate_pgf_product,&
+                                              integrate_pgf_product
    USE hirshfeld_types,                 ONLY: get_hirshfeld_info,&
                                               hirshfeld_type,&
                                               set_hirshfeld_info
@@ -419,7 +420,7 @@ CONTAINS
                                                             numexp
       INTEGER(KIND=int_8)                                :: subpatch_pattern
       INTEGER, DIMENSION(:), POINTER                     :: atom_list, cores
-      REAL(KIND=dp)                                      :: alpha, coef, eps_rho_rspace
+      REAL(KIND=dp)                                      :: alpha, coef, eps_rho_rspace, radius
       REAL(KIND=dp), DIMENSION(3)                        :: ra
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: pab
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
@@ -480,12 +481,16 @@ CONTAINS
                pab(1, 1) = hirshfeld_env%charges(atom_a)*coef
                ra(:) = pbc(particle_set(atom_a)%r, cell)
                subpatch_pattern = 0
+               radius = exp_radius_very_extended(la_min=0, la_max=0, lb_min=0, lb_max=0, &
+                                                 ra=ra, rb=ra, rp=ra, zetp=alpha, eps=eps_rho_rspace, &
+                                                 pab=pab, o1=0, o2=0, &  ! without map_consistent
+                                                 prefactor=1.0_dp, cutoff=0.0_dp)
+
                ! la_max==0 so set lmax_global to 0
                CALL collocate_pgf_product(0, alpha, 0, 0, 0.0_dp, 0, ra, &
                                           (/0.0_dp, 0.0_dp, 0.0_dp/), 1.0_dp, pab, 0, 0, rs_rho, &
-                                          cell, cube_info, eps_rho_rspace, ga_gb_function=GRID_FUNC_AB, &
-                                          use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern, &
-                                          lmax_global=0)
+                                          cell, cube_info, radius=radius, ga_gb_function=GRID_FUNC_AB, &
+                                          use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern)
             END DO
          END DO
 
@@ -537,7 +542,7 @@ CONTAINS
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: cores
       INTEGER, DIMENSION(:), POINTER                     :: atom_list
       LOGICAL                                            :: do_force
-      REAL(KIND=dp)                                      :: alpha, coef, dvol, eps_rho_rspace
+      REAL(KIND=dp)                                      :: alpha, coef, dvol, eps_rho_rspace, radius
       REAL(KIND=dp), DIMENSION(3)                        :: force_a, force_b, ra
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: hab, pab
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
@@ -604,11 +609,17 @@ CONTAINS
                hab(1, 1) = 0.0_dp
                force_a(:) = 0.0_dp
                force_b(:) = 0.0_dp
-               !
+
+               radius = exp_radius_very_extended(la_min=0, la_max=0, lb_min=0, lb_max=0, &
+                                                 ra=ra, rb=ra, rp=ra, &
+                                                 zetp=alpha, eps=eps_rho_rspace, &
+                                                 pab=pab, o1=0, o2=0, &  ! without map_consistent
+                                                 prefactor=1.0_dp, cutoff=1.0_dp)
+
                CALL integrate_pgf_product(0, alpha, 0, &
                                           0, 0.0_dp, 0, ra, (/0.0_dp, 0.0_dp, 0.0_dp/), &
                                           rs_v, cell, pw_env%cube_info(1), hab, pab=pab, o1=0, o2=0, &
-                                          eps_gvg_rspace=eps_rho_rspace, calculate_forces=do_force, &
+                                          radius=radius, calculate_forces=do_force, &
                                           force_a=force_a, force_b=force_b, use_virial=.FALSE., &
                                           use_subpatch=.TRUE., subpatch_pattern=0_int_8)
                fval(atom_a) = fval(atom_a) + hab(1, 1)*dvol*coef
