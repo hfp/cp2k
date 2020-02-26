@@ -12,7 +12,8 @@ MODULE qs_tensors
                                               abc_contract
    USE ai_overlap,                      ONLY: overlap_ab
    USE ai_overlap3,                     ONLY: overlap3
-   USE atomic_kind_types,               ONLY: atomic_kind_type
+   USE atomic_kind_types,               ONLY: atomic_kind_type,&
+                                              get_atomic_kind_set
    USE basis_set_types,                 ONLY: get_gto_basis_set,&
                                               gto_basis_set_p_type
    USE block_p_types,                   ONLY: block_p_type
@@ -32,8 +33,9 @@ MODULE qs_tensors
         dbcsr_t_blk_sizes, dbcsr_t_copy, dbcsr_t_create, dbcsr_t_destroy, &
         dbcsr_t_distribution_destroy, dbcsr_t_distribution_new, dbcsr_t_distribution_type, &
         dbcsr_t_filter, dbcsr_t_get_block, dbcsr_t_get_info, dbcsr_t_get_mapping_info, &
-        dbcsr_t_get_stored_coordinates, dbcsr_t_mp_environ_pgrid, dbcsr_t_pgrid_type, &
-        dbcsr_t_put_block, dbcsr_t_reserve_blocks, dbcsr_t_type, dbcsr_t_write_split_info
+        dbcsr_t_get_nze_total, dbcsr_t_get_stored_coordinates, dbcsr_t_mp_environ_pgrid, &
+        dbcsr_t_ndims, dbcsr_t_pgrid_type, dbcsr_t_put_block, dbcsr_t_reserve_blocks, &
+        dbcsr_t_type, dbcsr_t_write_split_info
    USE distribution_1d_types,           ONLY: distribution_1d_type
    USE distribution_2d_types,           ONLY: distribution_2d_type
    USE gamma,                           ONLY: init_md_ftable
@@ -43,7 +45,8 @@ MODULE qs_tensors
                                               do_potential_truncated
    USE input_section_types,             ONLY: section_vals_val_get
    USE kinds,                           ONLY: default_string_length,&
-                                              dp
+                                              dp,&
+                                              int_8
    USE kpoint_types,                    ONLY: get_kpoint_info,&
                                               kpoint_type
    USE libint_2c_3c,                    ONLY: cutoff_screen_factor,&
@@ -90,7 +93,8 @@ MODULE qs_tensors
              neighbor_list_3c_destroy, neighbor_list_3c_iterate, neighbor_list_3c_iterator_create, &
              neighbor_list_3c_iterator_destroy, get_3c_iterator_info, build_3c_integrals, &
              contiguous_tensor_dist, &
-             build_2c_neighbor_lists, build_2c_integrals, cutoff_screen_factor, tensor_change_pgrid
+             build_2c_neighbor_lists, build_2c_integrals, cutoff_screen_factor, tensor_change_pgrid, &
+             pgf_block_sizes, get_tensor_occupancy
 
    TYPE one_dim_int_array
       INTEGER, DIMENSION(:), ALLOCATABLE    :: array
@@ -388,7 +392,29 @@ CONTAINS
       iterator%iter_level = 0
       iterator%ijk_nl = ijk_nl
 
+      iterator%bounds_i = 0
+      iterator%bounds_j = 0
+      iterator%bounds_k = 0
+
       CALL timestop(handle)
+   END SUBROUTINE
+
+! **************************************************************************************************
+!> \brief impose atomic upper and lower bounds
+!> \param iterator ...
+!> \param bounds_i ...
+!> \param bounds_j ...
+!> \param bounds_k ...
+! **************************************************************************************************
+   SUBROUTINE nl_3c_iter_set_bounds(iterator, bounds_i, bounds_j, bounds_k)
+      TYPE(neighbor_list_3c_iterator_type), &
+         INTENT(INOUT)                                   :: iterator
+      INTEGER, DIMENSION(2), INTENT(IN), OPTIONAL        :: bounds_i, bounds_j, bounds_k
+
+      IF (PRESENT(bounds_i)) iterator%bounds_i = bounds_i
+      IF (PRESENT(bounds_j)) iterator%bounds_j = bounds_j
+      IF (PRESENT(bounds_k)) iterator%bounds_k = bounds_k
+
    END SUBROUTINE
 
 ! **************************************************************************************************
@@ -456,7 +482,19 @@ CONTAINS
       CPASSERT(jatom_1 == jatom_2)
       jatom = jatom_1
 
-      skip_this = .TRUE.
+      skip_this = .FALSE.
+      IF ((iterator%bounds_i(1) > 0 .AND. iatom < iterator%bounds_i(1)) &
+          .OR. (iterator%bounds_i(2) > 0 .AND. iatom > iterator%bounds_i(2))) skip_this = .TRUE.
+      IF ((iterator%bounds_j(1) > 0 .AND. jatom < iterator%bounds_j(1)) &
+          .OR. (iterator%bounds_j(2) > 0 .AND. jatom > iterator%bounds_j(2))) skip_this = .TRUE.
+      IF ((iterator%bounds_k(1) > 0 .AND. katom < iterator%bounds_k(1)) &
+          .OR. (iterator%bounds_k(2) > 0 .AND. katom > iterator%bounds_k(2))) skip_this = .TRUE.
+
+      IF (skip_this) THEN
+         iter_stat = neighbor_list_3c_iterate(iterator)
+         RETURN
+      ENDIF
+
       SELECT CASE (iterator%ijk_nl%sym)
       CASE (symmetric_none)
          skip_this = .FALSE.
@@ -568,7 +606,8 @@ CONTAINS
       INTEGER :: blk_cnt, handle, i, i_img, iatom, iblk, ikind, iproc, j_img, jatom, jcell, jkind, &
          katom, kcell, kkind, natom, nimg, op_ij, op_jk, op_pos_prv
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: tmp
-      INTEGER, DIMENSION(3)                              :: cell_j, cell_k
+      INTEGER, DIMENSION(3)                              :: cell_j, cell_k, kp_index_lbounds, &
+                                                            kp_index_ubounds
       INTEGER, DIMENSION(:, :, :), POINTER               :: cell_to_index
       LOGICAL                                            :: do_kpoints_prv, new_block
       REAL(KIND=dp)                                      :: dij, dik, djk, dr_ij, dr_ik, dr_jk, &
@@ -640,6 +679,11 @@ CONTAINS
       ALLOCATE (alloc_j(nimg, nimg))
       ALLOCATE (alloc_k(nimg, nimg))
 
+      IF (do_kpoints_prv) THEN
+         kp_index_lbounds = LBOUND(cell_to_index)
+         kp_index_ubounds = UBOUND(cell_to_index)
+      ENDIF
+
       CALL neighbor_list_3c_iterator_create(nl_3c_iter, nl_3c)
       DO WHILE (neighbor_list_3c_iterate(nl_3c_iter) == 0)
          CALL get_3c_iterator_info(nl_3c_iter, ikind=ikind, jkind=jkind, kkind=kkind, &
@@ -648,8 +692,14 @@ CONTAINS
 
          IF (do_kpoints_prv) THEN
 
+            IF (ANY([cell_j(1), cell_j(2), cell_j(3)] < kp_index_lbounds) .OR. &
+                ANY([cell_j(1), cell_j(2), cell_j(3)] > kp_index_ubounds)) CYCLE
+
             jcell = cell_to_index(cell_j(1), cell_j(2), cell_j(3))
             IF (jcell > nimg) CYCLE
+
+            IF (ANY([cell_k(1), cell_k(2), cell_k(3)] < kp_index_lbounds) .OR. &
+                ANY([cell_k(1), cell_k(2), cell_k(3)] > kp_index_ubounds)) CYCLE
 
             kcell = cell_to_index(cell_k(1), cell_k(2), cell_k(3))
             IF (kcell > nimg) CYCLE
@@ -776,12 +826,16 @@ CONTAINS
 !> \param do_kpoints ...
 !> this routine requires that libint has been static initialised somewhere else
 !> \param desymmetrize ...
+!> \param bounds_i ...
+!> \param bounds_j ...
+!> \param bounds_k ...
 ! **************************************************************************************************
    SUBROUTINE build_3c_integrals(t3c, filter_eps, qs_env, &
                                  nl_3c, basis_i, basis_j, basis_k, &
                                  potential_parameter, &
                                  int_eps, &
-                                 op_pos, do_kpoints, desymmetrize)
+                                 op_pos, do_kpoints, desymmetrize, &
+                                 bounds_i, bounds_j, bounds_k)
       TYPE(dbcsr_t_type), DIMENSION(:, :), INTENT(INOUT) :: t3c
       REAL(KIND=dp), INTENT(IN)                          :: filter_eps
       TYPE(qs_environment_type), POINTER                 :: qs_env
@@ -791,6 +845,7 @@ CONTAINS
       REAL(KIND=dp), INTENT(IN), OPTIONAL                :: int_eps
       INTEGER, INTENT(IN), OPTIONAL                      :: op_pos
       LOGICAL, INTENT(IN), OPTIONAL                      :: do_kpoints, desymmetrize
+      INTEGER, DIMENSION(2), INTENT(IN), OPTIONAL        :: bounds_i, bounds_j, bounds_k
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'build_3c_integrals', &
          routineP = moduleN//':'//routineN
@@ -799,7 +854,8 @@ CONTAINS
          block_start_k, handle, handle2, i, iatom, ibasis, ikind, imax, iset, jatom, jcell, jkind, &
          jset, katom, kcell, kkind, kset, m_max, maxli, maxlj, maxlk, natom, ncoi, ncoj, ncok, &
          nimg, nseti, nsetj, nsetk, op_ij, op_jk, op_pos_prv, sgfi, sgfj, sgfk, unit_id
-      INTEGER, DIMENSION(3)                              :: blk_size, cell_j, cell_k, sp
+      INTEGER, DIMENSION(3)                              :: blk_size, cell_j, cell_k, &
+                                                            kp_index_lbounds, kp_index_ubounds, sp
       INTEGER, DIMENSION(:), POINTER                     :: lmax_i, lmax_j, lmax_k, lmin_i, lmin_j, &
                                                             lmin_k, npgfi, npgfj, npgfk, nsgfi, &
                                                             nsgfj, nsgfk
@@ -934,6 +990,13 @@ CONTAINS
       ENDIF
 
       CALL neighbor_list_3c_iterator_create(nl_3c_iter, nl_3c)
+      CALL nl_3c_iter_set_bounds(nl_3c_iter, bounds_i, bounds_j, bounds_k)
+
+      IF (do_kpoints_prv) THEN
+         kp_index_lbounds = LBOUND(cell_to_index)
+         kp_index_ubounds = UBOUND(cell_to_index)
+      ENDIF
+
       DO WHILE (neighbor_list_3c_iterate(nl_3c_iter) == 0)
          CALL get_3c_iterator_info(nl_3c_iter, ikind=ikind, jkind=jkind, kkind=kkind, &
                                    iatom=iatom, jatom=jatom, katom=katom, &
@@ -955,8 +1018,14 @@ CONTAINS
 
          IF (do_kpoints_prv) THEN
 
+            IF (ANY([cell_j(1), cell_j(2), cell_j(3)] < kp_index_lbounds) .OR. &
+                ANY([cell_j(1), cell_j(2), cell_j(3)] > kp_index_ubounds)) CYCLE
+
             jcell = cell_to_index(cell_j(1), cell_j(2), cell_j(3))
             IF (jcell > nimg) CYCLE
+
+            IF (ANY([cell_k(1), cell_k(2), cell_k(3)] < kp_index_lbounds) .OR. &
+                ANY([cell_k(1), cell_k(2), cell_k(3)] > kp_index_ubounds)) CYCLE
 
             kcell = cell_to_index(cell_k(1), cell_k(2), cell_k(3))
             IF (kcell > nimg) CYCLE
@@ -1221,14 +1290,20 @@ CONTAINS
 !> \param dist ...
 ! **************************************************************************************************
    SUBROUTINE contiguous_tensor_dist(nel, nbin, weights, limits_start, limits_end, dist)
-      INTEGER, INTENT(IN)                                :: nel, nbin
+      INTEGER, INTENT(IN)                                :: nel
+      INTEGER, INTENT(INOUT)                             :: nbin
       INTEGER, DIMENSION(nel), INTENT(IN)                :: weights
-      INTEGER, DIMENSION(nbin), INTENT(OUT), OPTIONAL    :: limits_start, limits_end
+      INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(OUT), &
+         OPTIONAL                                        :: limits_start, limits_end
       INTEGER, DIMENSION(nel), INTENT(OUT), OPTIONAL     :: dist
 
       INTEGER                                            :: el_end, el_start, end_weight, ibin, &
                                                             nel_div, nel_rem, nel_split, nel_w, &
                                                             w_partialsum
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: lim_e, lim_s
+
+      ALLOCATE (lim_s(nbin), lim_e(nbin))
+      lim_s = 0; lim_e = 0
 
       nel_w = SUM(weights)
       nel_div = nel_w/nbin
@@ -1250,11 +1325,22 @@ CONTAINS
             !IF (ABS(w_partialsum + weights(el_end) - end_weight) > ABS(w_partialsum - end_weight)) EXIT
             el_end = el_end + 1
             w_partialsum = w_partialsum + weights(el_end)
+            IF (el_end == nel) EXIT
          ENDDO
+
          IF (PRESENT(dist)) dist(el_start:el_end) = ibin - 1
-         IF (PRESENT(limits_start)) limits_start(ibin) = el_start
-         IF (PRESENT(limits_end)) limits_end(ibin) = el_end
+         lim_s(ibin) = el_start
+         lim_e(ibin) = el_end
+
+         IF (el_end == nel) EXIT
       ENDDO
+
+      IF (PRESENT(limits_start) .AND. PRESENT(limits_end)) THEN
+         ALLOCATE (limits_start(ibin)); limits_start(:ibin) = lim_s(:ibin)
+         ALLOCATE (limits_end(ibin)); limits_end(:ibin) = lim_e(:ibin)
+      ENDIF
+
+      nbin = ibin
 
    END SUBROUTINE contiguous_tensor_dist
 
@@ -1514,32 +1600,59 @@ CONTAINS
 !> \param t_3c ...
 !> \param pgrid ...
 !> \param nodata ...
+!> \param starts_array_mc_block_1 ...
+!> \param ends_array_mc_block_1 ...
+!> \param starts_array_mc_block_2 ...
+!> \param ends_array_mc_block_2 ...
+!> \param starts_array_mc_block_3 ...
+!> \param ends_array_mc_block_3 ...
 !> \param unit_nr ...
 ! **************************************************************************************************
-   SUBROUTINE tensor_change_pgrid(t_3c, pgrid, nodata, unit_nr)
+   SUBROUTINE tensor_change_pgrid(t_3c, pgrid, nodata, &
+                                  starts_array_mc_block_1, ends_array_mc_block_1, &
+                                  starts_array_mc_block_2, ends_array_mc_block_2, &
+                                  starts_array_mc_block_3, ends_array_mc_block_3, &
+                                  unit_nr)
       TYPE(dbcsr_t_type), INTENT(INOUT)                  :: t_3c
       TYPE(dbcsr_t_pgrid_type), INTENT(IN)               :: pgrid
       LOGICAL, INTENT(IN), OPTIONAL                      :: nodata
+      INTEGER, DIMENSION(:), INTENT(IN), OPTIONAL :: starts_array_mc_block_1, &
+         ends_array_mc_block_1, starts_array_mc_block_2, ends_array_mc_block_2, &
+         starts_array_mc_block_3, ends_array_mc_block_3
       INTEGER, INTENT(IN), OPTIONAL                      :: unit_nr
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'tensor_change_pgrid', &
          routineP = moduleN//':'//routineN
 
       CHARACTER(default_string_length)                   :: name
-      INTEGER                                            :: handle
+      INTEGER                                            :: handle, imem, memcut_1, memcut_2, &
+                                                            memcut_3, size_cut
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: bs1, bs2, bs3, dist1, dist2, dist3, &
                                                             map1, map2
       INTEGER, DIMENSION(3)                              :: pcoord, pcoord_ref, pdims, pdims_ref, &
                                                             tdims
+      LOGICAL                                            :: mem_aware_1, mem_aware_2, mem_aware_3
       TYPE(dbcsr_t_distribution_type)                    :: dist
       TYPE(dbcsr_t_type)                                 :: t_tmp
 
       CALL dbcsr_t_mp_environ_pgrid(pgrid, pdims, pcoord)
       CALL dbcsr_t_mp_environ_pgrid(t_3c%pgrid, pdims_ref, pcoord_ref)
 
-      IF (ALL(pdims == pdims_ref)) RETURN
+      IF (ALL(pdims == pdims_ref)) THEN
+         IF (ALLOCATED(pgrid%tas_split_info) .AND. ALLOCATED(t_3c%pgrid%tas_split_info)) THEN
+            IF (pgrid%tas_split_info%ngroup == t_3c%pgrid%tas_split_info%ngroup) RETURN
+         ENDIF
+      ENDIF
 
       CALL timeset(routineN, handle)
+
+      mem_aware_1 = PRESENT(starts_array_mc_block_1) .AND. PRESENT(ends_array_mc_block_1)
+      mem_aware_2 = PRESENT(starts_array_mc_block_2) .AND. PRESENT(ends_array_mc_block_2)
+      mem_aware_3 = PRESENT(starts_array_mc_block_3) .AND. PRESENT(ends_array_mc_block_3)
+
+      IF (mem_aware_1) memcut_1 = SIZE(starts_array_mc_block_1)
+      IF (mem_aware_2) memcut_2 = SIZE(starts_array_mc_block_2)
+      IF (mem_aware_3) memcut_3 = SIZE(starts_array_mc_block_3)
 
       CALL dbcsr_t_get_info(t_3c, nblks_total=tdims, blk_size_1=bs1, blk_size_2=bs2, blk_size_3=bs3, &
                             name=name)
@@ -1549,8 +1662,42 @@ CONTAINS
       ALLOCATE (dist3(tdims(3)))
 
       CALL cyclic_tensor_dist(tdims(1), pdims(1), bs1, dist1)
-      CALL cyclic_tensor_dist(tdims(2), pdims(2), bs2, dist2)
-      CALL cyclic_tensor_dist(tdims(3), pdims(3), bs3, dist3)
+
+      IF (mem_aware_1) THEN
+         DO imem = 1, memcut_1
+            size_cut = ends_array_mc_block_1(imem) - starts_array_mc_block_1(imem) + 1
+            CALL cyclic_tensor_dist( &
+               size_cut, pdims(1), &
+               bs1(starts_array_mc_block_1(imem):ends_array_mc_block_1(imem)), &
+               dist1(starts_array_mc_block_1(imem):ends_array_mc_block_1(imem)))
+         ENDDO
+      ELSE
+         CALL cyclic_tensor_dist(tdims(1), pdims(1), bs1, dist1)
+      ENDIF
+
+      IF (mem_aware_2) THEN
+         DO imem = 1, memcut_2
+            size_cut = ends_array_mc_block_2(imem) - starts_array_mc_block_2(imem) + 1
+            CALL cyclic_tensor_dist( &
+               size_cut, pdims(2), &
+               bs2(starts_array_mc_block_2(imem):ends_array_mc_block_2(imem)), &
+               dist2(starts_array_mc_block_2(imem):ends_array_mc_block_2(imem)))
+         ENDDO
+      ELSE
+         CALL cyclic_tensor_dist(tdims(2), pdims(2), bs2, dist2)
+      ENDIF
+
+      IF (mem_aware_3) THEN
+         DO imem = 1, memcut_3
+            size_cut = ends_array_mc_block_3(imem) - starts_array_mc_block_3(imem) + 1
+            CALL cyclic_tensor_dist( &
+               size_cut, pdims(3), &
+               bs3(starts_array_mc_block_3(imem):ends_array_mc_block_3(imem)), &
+               dist3(starts_array_mc_block_3(imem):ends_array_mc_block_3(imem)))
+         ENDDO
+      ELSE
+         CALL cyclic_tensor_dist(tdims(3), pdims(3), bs3, dist3)
+      ENDIF
 
       CALL dbcsr_t_get_mapping_info(t_3c%nd_index_blk, map1_2d=map1, map2_2d=map2)
       CALL dbcsr_t_distribution_new(dist, pgrid, dist1, dist2, dist3)
@@ -1575,6 +1722,84 @@ CONTAINS
       ENDIF
 
       CALL timestop(handle)
+   END SUBROUTINE
+
+! **************************************************************************************************
+!> \brief ...
+!> \param qs_env ...
+!> \param basis ...
+!> \param min_blk_size ...
+!> \param pgf_blk_sizes ...
+! **************************************************************************************************
+   SUBROUTINE pgf_block_sizes(qs_env, basis, min_blk_size, pgf_blk_sizes)
+      TYPE(qs_environment_type), POINTER                 :: qs_env
+      TYPE(gto_basis_set_p_type), DIMENSION(:), &
+         INTENT(IN)                                      :: basis
+      INTEGER, INTENT(IN)                                :: min_blk_size
+      INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(OUT)    :: pgf_blk_sizes
+
+      INTEGER                                            :: blk_count, blk_count_prev, blk_size, &
+                                                            iatom, ikind, iset, natom, nblk, nset
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: kind_of, pgf_blk_sizes_tmp
+      INTEGER, DIMENSION(:), POINTER                     :: nsgf_set
+      TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
+
+      CALL get_qs_env(qs_env, natom=natom, atomic_kind_set=atomic_kind_set)
+
+      ALLOCATE (kind_of(natom))
+      CALL get_atomic_kind_set(atomic_kind_set, kind_of=kind_of)
+
+      nblk = 0
+      DO iatom = 1, natom
+         ikind = kind_of(iatom)
+         CALL get_gto_basis_set(basis(ikind)%gto_basis_set, nset=nset)
+         nblk = nblk + nset
+      ENDDO
+
+      ALLOCATE (pgf_blk_sizes_tmp(nblk)); pgf_blk_sizes_tmp = 0
+
+      blk_count = 0
+      blk_size = 0
+      DO iatom = 1, natom
+         blk_count_prev = blk_count
+         ikind = kind_of(iatom)
+         CALL get_gto_basis_set(basis(ikind)%gto_basis_set, nset=nset, nsgf_set=nsgf_set)
+         DO iset = 1, nset
+            blk_size = blk_size + nsgf_set(iset)
+            IF (blk_size >= min_blk_size) THEN
+               blk_count = blk_count + 1
+               pgf_blk_sizes_tmp(blk_count) = pgf_blk_sizes_tmp(blk_count) + blk_size
+               blk_size = 0
+            ENDIF
+         ENDDO
+         IF (blk_size > 0) THEN
+            IF (blk_count == blk_count_prev) blk_count = blk_count + 1
+            pgf_blk_sizes_tmp(blk_count) = pgf_blk_sizes_tmp(blk_count) + blk_size
+            blk_size = 0
+         ENDIF
+      ENDDO
+
+      ALLOCATE (pgf_blk_sizes(blk_count))
+      pgf_blk_sizes(:) = pgf_blk_sizes_tmp(:blk_count)
+   END SUBROUTINE
+
+! **************************************************************************************************
+!> \brief ...
+!> \param tensor ...
+!> \param nze ...
+!> \param occ ...
+! **************************************************************************************************
+   SUBROUTINE get_tensor_occupancy(tensor, nze, occ)
+      TYPE(dbcsr_t_type), INTENT(IN)                     :: tensor
+      INTEGER(int_8), INTENT(OUT)                        :: nze
+      REAL(dp), INTENT(OUT)                              :: occ
+
+      INTEGER, DIMENSION(dbcsr_t_ndims(tensor))          :: dims
+
+      nze = dbcsr_t_get_nze_total(tensor)
+      CALL dbcsr_t_get_info(tensor, nfull_total=dims)
+      occ = REAL(nze, dp)/PRODUCT(REAL(dims, dp))
+
    END SUBROUTINE
 
 END MODULE

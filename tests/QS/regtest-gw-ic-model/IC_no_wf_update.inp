@@ -10,6 +10,7 @@
   METHOD Quickstep
   &DFT
     BASIS_SET_FILE_NAME  HFX_BASIS
+    SORT_BASIS EXP
     POTENTIAL_FILE_NAME  GTH_POTENTIALS
     &MGRID
       CUTOFF  100
@@ -47,21 +48,18 @@
       &WF_CORRELATION
         METHOD  RI_RPA_GPW
         &WFC_GPW
-          ! normally, this EPS_FILTER controls the accuracy and
-          ! the time for the cubic_scaling RPA calculation
-          EPS_FILTER  1.0E-6
         &END
         ERI_METHOD OS
         &RI_METRIC
           POTENTIAL_TYPE IDENTITY
         &END
-        &IM_TIME
+        &LOW_SCALING
+          MEMORY_CUT 1
         &END
         &RI_RPA
           RPA_NUM_QUAD_POINTS  5
           MINIMAX
-          GW
-          &RI_G0W0
+          &GW
             CORR_MOS_OCC 3
             CORR_MOS_VIRT 3
             IC

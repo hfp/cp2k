@@ -136,11 +136,12 @@ CONTAINS
 !> \param matrix_s ...
 !> \param mat_munu ...
 !> \param mat_P_global ...
-!> \param t_3c_overl_int ...
 !> \param t_3c_M ...
 !> \param t_3c_O ...
 !> \param starts_array_mc ...
 !> \param ends_array_mc ...
+!> \param starts_array_mc_block ...
+!> \param ends_array_mc_block ...
 !> \param eps_filter ...
 !> \param BIb_C_beta ...
 !> \param homo_beta ...
@@ -159,8 +160,9 @@ CONTAINS
                                 unit_nr, do_ri_sos_laplace_mp2, my_do_gw, do_im_time, do_bse, matrix_s, &
                                 mat_munu, &
                                 mat_P_global, &
-                                t_3c_overl_int, t_3c_M, t_3c_O, &
+                                t_3c_M, t_3c_O, &
                                 starts_array_mc, ends_array_mc, &
+                                starts_array_mc_block, ends_array_mc_block, &
                                 eps_filter, BIb_C_beta, homo_beta, Eigenval_beta, &
                                 gd_B_virtual_beta, &
                                 mo_coeff_beta, BIb_C_gw_beta, gw_corr_lev_occ_beta, gw_corr_lev_virt_beta)
@@ -187,10 +189,11 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s
       TYPE(dbcsr_p_type), INTENT(IN)                     :: mat_munu
       TYPE(dbcsr_p_type), INTENT(INOUT)                  :: mat_P_global
-      TYPE(dbcsr_t_type), ALLOCATABLE, DIMENSION(:, :)   :: t_3c_overl_int
       TYPE(dbcsr_t_type)                                 :: t_3c_M
       TYPE(dbcsr_t_type), ALLOCATABLE, DIMENSION(:, :)   :: t_3c_O
-      INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(IN)     :: starts_array_mc, ends_array_mc
+      INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(IN)     :: starts_array_mc, ends_array_mc, &
+                                                            starts_array_mc_block, &
+                                                            ends_array_mc_block
       REAL(KIND=dp), INTENT(IN)                          :: eps_filter
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :), &
          INTENT(INOUT), OPTIONAL                         :: BIb_C_beta
@@ -256,6 +259,9 @@ CONTAINS
          virtual_beta = nmo - homo_beta
       END IF
 
+      IF (do_im_time) mp2_env%ri_rpa%minimax_quad = .TRUE.
+      do_minimax_quad = mp2_env%ri_rpa%minimax_quad
+
       IF (do_ri_sos_laplace_mp2) THEN
          num_integ_points = mp2_env%ri_laplace%n_quadrature
          input_integ_group_size = mp2_env%ri_laplace%integ_group_size
@@ -289,8 +295,7 @@ CONTAINS
       ELSE
          num_integ_points = mp2_env%ri_rpa%rpa_num_quad_points
          input_integ_group_size = mp2_env%ri_rpa%rpa_integ_group_size
-         IF (do_im_time) mp2_env%ri_rpa%minimax_quad = .TRUE.
-         do_minimax_quad = mp2_env%ri_rpa%minimax_quad
+
          mp2_env%ri_g0w0%do_gw_im_time_mix_minimax_clenshaw = mp2_env%ri_g0w0%num_integ_points_freq > num_integ_points
 
          IF (do_minimax_quad .AND. num_integ_points > 20) THEN
@@ -658,8 +663,9 @@ CONTAINS
                           do_im_time, fm_mo_coeff_occ, fm_mo_coeff_virt, mo_coeff, fm_matrix_L_RI_metric, &
                           fm_scaled_dm_occ_tau, fm_scaled_dm_virt_tau, &
                           mat_munu, mat_P_global, &
-                          t_3c_overl_int, t_3c_M, t_3c_O, &
+                          t_3c_M, t_3c_O, &
                           starts_array_mc, ends_array_mc, &
+                          starts_array_mc_block, ends_array_mc_block, &
                           matrix_s, &
                           kpoints, eps_filter, &
                           gd_array, color_sub, &
@@ -681,8 +687,9 @@ CONTAINS
                           do_im_time, fm_mo_coeff_occ, fm_mo_coeff_virt, mo_coeff, fm_matrix_L_RI_metric, &
                           fm_scaled_dm_occ_tau, fm_scaled_dm_virt_tau, &
                           mat_munu, mat_P_global, &
-                          t_3c_overl_int, t_3c_M, t_3c_O, &
+                          t_3c_M, t_3c_O, &
                           starts_array_mc, ends_array_mc, &
+                          starts_array_mc_block, ends_array_mc_block, &
                           matrix_s, &
                           kpoints, &
                           eps_filter, gd_array, color_sub, &
@@ -1211,11 +1218,12 @@ CONTAINS
 !> \param fm_scaled_dm_virt_tau ...
 !> \param mat_munu ...
 !> \param mat_P_global ...
-!> \param t_3c_overl_int ...
 !> \param t_3c_M ...
 !> \param t_3c_O ...
 !> \param starts_array_mc ...
 !> \param ends_array_mc ...
+!> \param starts_array_mc_block ...
+!> \param ends_array_mc_block ...
 !> \param matrix_s ...
 !> \param kpoints ...
 !> \param eps_filter ...
@@ -1246,8 +1254,9 @@ CONTAINS
                           fm_mo_coeff_virt, mo_coeff, fm_matrix_L_RI_metric, &
                           fm_scaled_dm_occ_tau, fm_scaled_dm_virt_tau, mat_munu, &
                           mat_P_global, &
-                          t_3c_overl_int, t_3c_M, t_3c_O, &
+                          t_3c_M, t_3c_O, &
                           starts_array_mc, ends_array_mc, &
+                          starts_array_mc_block, ends_array_mc_block, &
                           matrix_s, kpoints, &
                           eps_filter, gd_array, color_sub, &
                           fm_mo_coeff_occ_beta, fm_mo_coeff_virt_beta, &
@@ -1277,11 +1286,12 @@ CONTAINS
                                                             fm_scaled_dm_virt_tau
       TYPE(dbcsr_p_type), INTENT(IN)                     :: mat_munu
       TYPE(dbcsr_p_type), INTENT(INOUT)                  :: mat_P_global
-      TYPE(dbcsr_t_type), ALLOCATABLE, DIMENSION(:, :)   :: t_3c_overl_int
       TYPE(dbcsr_t_type), INTENT(INOUT)                  :: t_3c_M
       TYPE(dbcsr_t_type), ALLOCATABLE, DIMENSION(:, :), &
          INTENT(INOUT)                                   :: t_3c_O
-      INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(IN)     :: starts_array_mc, ends_array_mc
+      INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(IN)     :: starts_array_mc, ends_array_mc, &
+                                                            starts_array_mc_block, &
+                                                            ends_array_mc_block
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s
       TYPE(kpoint_type), POINTER                         :: kpoints
       REAL(KIND=dp), INTENT(IN)                          :: eps_filter
@@ -1303,10 +1313,11 @@ CONTAINS
 
       COMPLEX(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)  :: vec_Sigma_c_gw, vec_Sigma_c_gw_beta
       INTEGER :: count_ev_sc_GW, cut_memory, group_size_P, gw_corr_lev_tot, handle, handle3, &
-         iter_evGW, iter_sc_GW0, jquad, max_iter_bse, mm_style, my_num_dgemm_call, nkp, &
+         iter_evGW, iter_sc_GW0, jquad, max_iter_bse, min_bsize, mm_style, my_num_dgemm_call, nkp, &
          nkp_self_energy, nmo, num_3c_repl, num_cells_dm, num_fit_points, num_integ_points_freq, &
          num_points_corr, num_Z_vectors, number_of_rec, number_of_rec_axk, number_of_rec_beta, &
          number_of_send, number_of_send_axk, number_of_send_beta, size_P
+      INTEGER(int_8)                                     :: dbcsr_nflop
       INTEGER, ALLOCATABLE, DIMENSION(:) :: ikp_local, map_rec_size, map_rec_size_axk, &
          map_rec_size_beta, map_send_size, map_send_size_axk, map_send_size_beta, RPA_proc_map
       INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: index_to_cell_3c, local_size_source, &
@@ -1319,6 +1330,7 @@ CONTAINS
          do_ic_model, do_kpoints_cubic_RPA, do_kpoints_from_Gamma, do_periodic, do_ri_Sigma_x, &
          exit_ev_gw, first_cycle, first_cycle_periodic_correction, my_open_shell, print_ic_values
       LOGICAL, ALLOCATABLE, DIMENSION(:, :, :, :, :)     :: has_mat_P_blocks
+      REAL(dp)                                           :: dbcsr_time
       REAL(KIND=dp) :: a_scaling, alpha, e_axk, e_axk_corr, e_fermi, e_fermi_beta, &
          eps_filter_im_time, eps_min_trans, ext_scaling, fermi_level_offset, &
          fermi_level_offset_input, my_flop_rate, omega, omega_max_fit, omega_old, stabilize_exp, &
@@ -1422,6 +1434,7 @@ CONTAINS
          group_size_P = mp2_env%ri_rpa_im_time%group_size_P
          cut_memory = mp2_env%ri_rpa_im_time%cut_memory
          eps_filter_im_time = mp2_env%ri_rpa_im_time%eps_filter_im_time
+         min_bsize = mp2_env%ri_rpa_im_time%min_bsize
          stabilize_exp = mp2_env%ri_rpa_im_time%stabilize_exp
 
          CALL alloc_im_time(qs_env, para_env, dimen_RI, dimen_RI_red, &
@@ -1463,7 +1476,7 @@ CONTAINS
                                                     mo_coeff, &
                                                     t_3c_overl_int_gw_RI, t_3c_overl_int_gw_AO, &
                                                     t_3c_overl_nnP_ic, t_3c_overl_nnP_ic_reflected, &
-                                                    matrix_s, mat_W, t_3c_overl_int, &
+                                                    matrix_s, mat_W, t_3c_O, &
                                                     qs_env, &
                                                     gw_corr_lev_occ_beta, gw_corr_lev_virt_beta, homo_beta, &
                                                     mo_coeff_beta, &
@@ -1477,7 +1490,7 @@ CONTAINS
                                                     mo_coeff, &
                                                     t_3c_overl_int_gw_RI, t_3c_overl_int_gw_AO, &
                                                     t_3c_overl_nnP_ic, t_3c_overl_nnP_ic_reflected, &
-                                                    matrix_s, mat_W, t_3c_overl_int, qs_env)
+                                                    matrix_s, mat_W, t_3c_O, qs_env)
 
                END IF
 
@@ -1609,6 +1622,9 @@ CONTAINS
 
       DO count_ev_sc_GW = 1, iter_evGW
 
+         dbcsr_time = 0.0_dp
+         dbcsr_nflop = 0
+
          IF (do_ic_model) CYCLE
 
          ! reset some values, important when doing eigenvalue self-consistent GW
@@ -1634,7 +1650,7 @@ CONTAINS
             tau = 0.0_dp
             tau_old = 0.0_dp
 
-            IF (unit_nr > 0) WRITE (UNIT=unit_nr, FMT="(T3,A,T66,i15)") &
+            IF (unit_nr > 0) WRITE (UNIT=unit_nr, FMT="(/T3,A,T66,i15)") &
                "MEMORY_INFO| Memory cut:", cut_memory
             IF (.NOT. mp2_env%ri_rpa_im_time%group_size_internal) THEN
                IF (unit_nr > 0) WRITE (UNIT=unit_nr, FMT="(T3,A,T66,i15)") &
@@ -1645,9 +1661,11 @@ CONTAINS
             IF (unit_nr > 0) WRITE (UNIT=unit_nr, FMT="(T3,A,T66,ES15.2)") &
                "SPARSITY_INFO| Eps pgf orb for imaginary time:", mp2_env%mp2_gpw%eps_grid
             IF (unit_nr > 0) WRITE (UNIT=unit_nr, FMT="(T3,A,T66,ES15.2)") &
-               "SPARSITY_INFO| Eps filter for imaginary time:", eps_filter
+               "SPARSITY_INFO| Eps filter for M virt/occ tensors:", eps_filter
             IF (unit_nr > 0) WRITE (UNIT=unit_nr, FMT="(T3,A,T66,ES15.2)") &
-               "SPARSITY_INFO| Second eps filter for imaginary time:", eps_filter_im_time
+               "SPARSITY_INFO| Eps filter for P matrix:", eps_filter_im_time
+            IF (unit_nr > 0) WRITE (UNIT=unit_nr, FMT="(T3,A,T66,i15)") &
+               "SPARSITY_INFO| Minimum tensor block size:", min_bsize
 
             ! for evGW, we have to ensure that mat_P_omega is zero
             CALL zero_mat_P_omega(mat_P_omega)
@@ -1661,12 +1679,14 @@ CONTAINS
                                      1, &
                                      t_3c_M, t_3c_O, &
                                      starts_array_mc, ends_array_mc, &
+                                     starts_array_mc_block, ends_array_mc_block, &
                                      weights_cos_tf_t_to_w, tj, tau_tj, e_fermi, eps_filter, alpha, &
                                      eps_filter_im_time, Eigenval, nmo, &
                                      num_integ_points, num_integ_points_freq, cut_memory, &
                                      unit_nr, mp2_env, para_env, &
                                      stabilize_exp, qs_env, index_to_cell_3c, cell_to_index_3c, &
-                                     has_mat_P_blocks, do_ri_sos_laplace_mp2)
+                                     has_mat_P_blocks, do_ri_sos_laplace_mp2, &
+                                     dbcsr_time, dbcsr_nflop)
 
             ! the same for open shell, use fm_mo_coeff_occ_beta and fm_mo_coeff_virt_beta
             IF (my_open_shell) THEN
@@ -1682,12 +1702,14 @@ CONTAINS
                                            2, &
                                            t_3c_M, t_3c_O, &
                                            starts_array_mc, ends_array_mc, &
+                                           starts_array_mc_block, ends_array_mc_block, &
                                            weights_cos_tf_t_to_w, tj, tau_tj, e_fermi_beta, eps_filter, alpha, &
                                            eps_filter_im_time, Eigenval_beta, nmo, &
                                            num_integ_points, num_integ_points_freq, cut_memory, &
                                            unit_nr, mp2_env, para_env, &
                                            stabilize_exp, qs_env, index_to_cell_3c, cell_to_index_3c, &
-                                           has_mat_P_blocks, do_ri_sos_laplace_mp2)
+                                           has_mat_P_blocks, do_ri_sos_laplace_mp2, &
+                                           dbcsr_time, dbcsr_nflop)
                ELSE
                   CALL compute_mat_P_omega(mat_P_omega, fm_scaled_dm_occ_tau, &
                                            fm_scaled_dm_virt_tau, fm_mo_coeff_occ_beta, fm_mo_coeff_virt_beta, &
@@ -1697,12 +1719,14 @@ CONTAINS
                                            2, &
                                            t_3c_M, t_3c_O, &
                                            starts_array_mc, ends_array_mc, &
+                                           starts_array_mc_block, ends_array_mc_block, &
                                            weights_cos_tf_t_to_w, tj, tau_tj, e_fermi_beta, eps_filter, alpha, &
                                            eps_filter_im_time, Eigenval_beta, nmo, &
                                            num_integ_points, num_integ_points_freq, cut_memory, &
                                            unit_nr, mp2_env, para_env, &
                                            stabilize_exp, qs_env, index_to_cell_3c, cell_to_index_3c, &
-                                           has_mat_P_blocks, do_ri_sos_laplace_mp2)
+                                           has_mat_P_blocks, do_ri_sos_laplace_mp2, &
+                                           dbcsr_time, dbcsr_nflop)
                END IF ! do_ri_sos_laplace_mp2
 
             END IF ! my_open_shell
@@ -1853,7 +1877,17 @@ CONTAINS
             mp2_env%ri_rpa%ener_axk = E_axk
          ENDIF
 
-         IF (.NOT. do_im_time) THEN
+         IF (do_im_time) THEN
+
+            my_flop_rate = REAL(dbcsr_nflop, dp)/(1.0E09_dp*dbcsr_time)
+            IF (unit_nr > 0) WRITE (UNIT=unit_nr, FMT="(T3,A,T73,ES8.2)") &
+               "PERFORMANCE| DBCSR total number of flops:", REAL(dbcsr_nflop*para_env%num_pe, dp)
+            IF (unit_nr > 0) WRITE (UNIT=unit_nr, FMT="(T3,A,T66,F15.2)") &
+               "PERFORMANCE| DBCSR total execution time:", dbcsr_time
+            IF (unit_nr > 0) WRITE (UNIT=unit_nr, FMT="(T3,A,T66,F15.2)") &
+               "PERFORMANCE| DBCSR flop rate (Gflops / MPI rank):", my_flop_rate
+
+         ELSE
 
             IF (para_env_RPA%mepos == 0) my_flop_rate = my_flop_rate/REAL(MAX(my_num_dgemm_call, 1), KIND=dp)/1.0E9_dp
             CALL mp_sum(my_flop_rate, para_env%group)
@@ -1923,13 +1957,13 @@ CONTAINS
                                          t_3c_overl_nnP_ic, t_3c_overl_nnP_ic_reflected, &
                                          gw_corr_lev_tot, &
                                          gw_corr_lev_occ, gw_corr_lev_virt, homo, unit_nr, &
-                                         print_ic_values, para_env, mp2_env, do_alpha=.TRUE.)
+                                         print_ic_values, para_env, do_alpha=.TRUE.)
 
             CALL calculate_ic_correction(Eigenval_beta, mat_SinvVSinv, &
                                          t_3c_overl_nnP_ic_beta, t_3c_overl_nnP_ic_reflected_beta, &
                                          gw_corr_lev_tot, &
                                          gw_corr_lev_occ_beta, gw_corr_lev_virt_beta, homo_beta, unit_nr, &
-                                         print_ic_values, para_env, mp2_env, do_beta=.TRUE.)
+                                         print_ic_values, para_env, do_beta=.TRUE.)
 
          ELSE
 
@@ -1937,7 +1971,7 @@ CONTAINS
                                          t_3c_overl_nnP_ic, t_3c_overl_nnP_ic_reflected, &
                                          gw_corr_lev_tot, &
                                          gw_corr_lev_occ, gw_corr_lev_virt, homo, unit_nr, &
-                                         print_ic_values, para_env, mp2_env)
+                                         print_ic_values, para_env)
 
          END IF
 
@@ -2000,7 +2034,7 @@ CONTAINS
                                  wkp_W, cfm_mat_Q, fm_mat_L, fm_mat_RI_global_work, fm_mat_work, &
                                  fm_mo_coeff_occ_scaled, fm_mo_coeff_virt_scaled, mat_dm, mat_L, &
                                  mat_SinvVSinv, mat_P_omega, mat_P_omega_kp, &
-                                 t_3c_overl_int, t_3c_M, t_3c_O, &
+                                 t_3c_M, t_3c_O, &
                                  mat_work, &
                                  fm_mo_coeff_occ_beta, fm_mo_coeff_virt_beta, mat_P_omega_beta)
          ELSE
@@ -2012,7 +2046,7 @@ CONTAINS
                                  wkp_W, cfm_mat_Q, fm_mat_L, fm_mat_RI_global_work, fm_mat_work, &
                                  fm_mo_coeff_occ_scaled, fm_mo_coeff_virt_scaled, mat_dm, mat_L, &
                                  mat_SinvVSinv, mat_P_omega, mat_P_omega_kp, &
-                                 t_3c_overl_int, t_3c_M, t_3c_O, &
+                                 t_3c_M, t_3c_O, &
                                  mat_work)
          END IF
 

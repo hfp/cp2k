@@ -4,22 +4,13 @@ import sys
 import re
 import tempfile
 import os
-from os import path
 import logging
 import argparse
 import errno
-import traceback
 import contextlib
-
-try:
-    from hashlib import md5
-except ImportError:
-    from md5 import new as md5
-
-try:
-    from cStringIO import StringIO
-except ImportError:
-    from io import StringIO
+from os import path
+from hashlib import md5
+from io import StringIO
 
 from prettify_cp2k import normalizeFortranFile
 from prettify_cp2k import replacer
@@ -272,7 +263,9 @@ def prettifyFile(
 
 
 def prettifyInplace(filename, backupdir=None, stdout=False, **kwargs):
-    """Same as prettify, but inplace, replaces only if needed"""
+    """Same as prettify, but inplace, replaces only if needed
+    :return: True if file was modified, False if otherwise. If stdin/stdout, always False.
+    """
 
     if filename == "stdin":
         infile = tempfile.TemporaryFile(mode="r+")
@@ -287,11 +280,11 @@ def prettifyInplace(filename, backupdir=None, stdout=False, **kwargs):
         outfile.seek(0)
         sys.stdout.write(outfile.read())
         outfile.close()
-        return
+        return False
 
     if infile == outfile:
         infile.close()
-        return
+        return False
 
     infile.seek(0)
     outfile.seek(0)
@@ -320,6 +313,8 @@ def prettifyInplace(filename, backupdir=None, stdout=False, **kwargs):
         infile.close()
 
     outfile.close()
+
+    return changed
 
 
 def is_fypp(infile):
@@ -358,11 +353,6 @@ def mkdir_p(p):
             pass
         else:
             raise
-
-
-# from https://stackoverflow.com/a/14981125
-def eprint(*args, **kwargs):
-    print(*args, file=sys.stderr, **kwargs)
 
 
 def abspath(p):
@@ -422,6 +412,9 @@ def main(argv):
         False,
         "store backups of original files in backup-dir (--backup-dir option)",
     )
+    argparse_add_bool_arg(
+        parser, "quiet", False, "don't show summary or list of reformatted files"
+    )
     argparse_add_bool_arg(parser, "report-errors", True, "report warnings and errors")
     argparse_add_bool_arg(parser, "debug", False, "increase log level to debug")
 
@@ -438,7 +431,7 @@ def main(argv):
         if args.debug:
             level = logging.DEBUG
         else:
-            level = logging.INFO
+            level = logging.ERROR
 
     # the fprettify logger provides filename and line number in case of errors
     shandler = logging.StreamHandler()
@@ -456,20 +449,21 @@ def main(argv):
     shandler.setLevel(level)
     shandler.setFormatter(logging.Formatter("%(levelname)s %(ffilename)s: %(message)s"))
 
-    prettify_logger = logging.getLogger("prettify-logger")
-    prettify_logger.setLevel(level)
-    prettify_logger.addHandler(shandler)
+    logger = logging.getLogger("prettify-logger")
+    logger.setLevel(level)
+    logger.addHandler(shandler)
 
     failure = 0
+    total_prettified = 0
 
     for filename in args.files:
         if not path.isfile(filename) and not filename == "stdin":
-            eprint("file '{}' does not exist!".format(filename))
+            logger.error(f"file '{filename}' does not exist")
             failure += 1
             continue
 
         try:
-            prettifyInplace(
+            changed = prettifyInplace(
                 filename,
                 backupdir=args.backup_dir if args.do_backup else None,
                 stdout=args.stdout or filename == "stdin",
@@ -483,9 +477,19 @@ def main(argv):
                 upcase_omp=args.omp_upcase,
                 replace=args.replace,
             )
+
+            if changed and not args.quiet:
+                print(f"prettified {filename}")
+                total_prettified += 1
+
         except:
             logger.exception("processing file failed", extra={"ffilename": filename})
             failure += 1
+
+    if not (args.stdout or filename == "stdin" or args.quiet):
+        print(
+            f"{total_prettified} file(s) prettified, {len(args.files) - total_prettified} file(s) left unchanged."
+        )
 
     return failure > 0
 
