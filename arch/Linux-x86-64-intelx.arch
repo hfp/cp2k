@@ -73,9 +73,9 @@ INTEL ?= $(shell echo "$$((2==$(words $(filter icpc icpx icc icx, \
 # DEFAULTS
 #
 ifneq (0,$(INTEL))
-  GNU ?= 0
+  GNU = 0
 else
-  GNU ?= 1
+  GNU = 1
 endif
 SSE ?= 0
 AVX ?= 0
