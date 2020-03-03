@@ -36,6 +36,35 @@ endif
 #
 LIBXSTREAMROOT = $(TOOLSRC)/mic/libxstream
 
+which = $(shell which $1 2>/dev/null)
+which ?= $(shell command -v $1)
+
+# Automatically pickup the environment (make -e is not required),
+# or pickup the Intel Compiler (if available).
+GNU ?= 0
+ifeq (0,$(GNU))
+  ifeq (,$(shell echo "$${CXX}"))
+    ifneq (,$(filter icpc icpc1,$(notdir $(call which,icpc))$(INTEL)))
+      CXX = icpc
+    else ifneq (,$(filter icpx icpx2,$(notdir $(call which,icpx))$(INTEL)))
+      CXX = icpx
+    endif
+  endif
+  ifeq (,$(shell echo "$${CC}"))
+    ifneq (,$(filter icc icc1,$(notdir $(call which,icc))$(INTEL)))
+      CC = icc
+    else ifneq (,$(filter icx icx2,$(notdir $(call which,icx))$(INTEL)))
+      CC = icx
+    endif
+  endif
+  ifeq (__INTEL_COMPILER,$(shell echo "__INTEL_COMPILER" | $(CC) $(ECFLAGS) $(EFLAGS) -E -P - 2>/dev/null))
+    ICX = 1
+  else ifneq (,$(filter icx icx2,$(notdir $(call which,icx))$(INTEL)))
+    ICX = 2
+  endif
+endif
+ICX ?= 0
+
 # check if the Intel Development Tools are available
 INTEL ?= $(shell echo "$$((2==$(words $(filter icpc icpx icc icx, \
   $(shell $(CXX) --version 2> /dev/null | head -n1 | cut -d' ' -f1) \
