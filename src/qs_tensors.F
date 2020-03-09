@@ -12,8 +12,7 @@ MODULE qs_tensors
                                               abc_contract
    USE ai_overlap,                      ONLY: overlap_ab
    USE ai_overlap3,                     ONLY: overlap3
-   USE atomic_kind_types,               ONLY: atomic_kind_type,&
-                                              get_atomic_kind_set
+   USE atomic_kind_types,               ONLY: atomic_kind_type
    USE basis_set_types,                 ONLY: get_gto_basis_set,&
                                               gto_basis_set_p_type
    USE block_p_types,                   ONLY: block_p_type
@@ -92,9 +91,8 @@ MODULE qs_tensors
    PUBLIC :: build_3c_neighbor_lists, &
              neighbor_list_3c_destroy, neighbor_list_3c_iterate, neighbor_list_3c_iterator_create, &
              neighbor_list_3c_iterator_destroy, get_3c_iterator_info, build_3c_integrals, &
-             contiguous_tensor_dist, &
              build_2c_neighbor_lists, build_2c_integrals, cutoff_screen_factor, tensor_change_pgrid, &
-             pgf_block_sizes, get_tensor_occupancy
+             get_tensor_occupancy
 
    TYPE one_dim_int_array
       INTEGER, DIMENSION(:), ALLOCATABLE    :: array
@@ -464,6 +462,19 @@ CONTAINS
          IF (iter_stat /= 0) THEN
             RETURN
          ENDIF
+
+         CALL get_iterator_info(iterator%iter_ij, iatom=iatom, jatom=jatom)
+         skip_this = .FALSE.
+         IF ((iterator%bounds_i(1) > 0 .AND. iatom < iterator%bounds_i(1)) &
+             .OR. (iterator%bounds_i(2) > 0 .AND. iatom > iterator%bounds_i(2))) skip_this = .TRUE.
+         IF ((iterator%bounds_j(1) > 0 .AND. jatom < iterator%bounds_j(1)) &
+             .OR. (iterator%bounds_j(2) > 0 .AND. jatom > iterator%bounds_j(2))) skip_this = .TRUE.
+
+         IF (skip_this) THEN
+            iter_stat = neighbor_list_3c_iterate(iterator)
+            RETURN
+         ENDIF
+
       ENDIF
       iter_stat = nl_sub_iterate(iterator%iter_jk, iterator%iter_ij)
       IF (iter_stat /= 0) THEN
@@ -483,10 +494,6 @@ CONTAINS
       jatom = jatom_1
 
       skip_this = .FALSE.
-      IF ((iterator%bounds_i(1) > 0 .AND. iatom < iterator%bounds_i(1)) &
-          .OR. (iterator%bounds_i(2) > 0 .AND. iatom > iterator%bounds_i(2))) skip_this = .TRUE.
-      IF ((iterator%bounds_j(1) > 0 .AND. jatom < iterator%bounds_j(1)) &
-          .OR. (iterator%bounds_j(2) > 0 .AND. jatom > iterator%bounds_j(2))) skip_this = .TRUE.
       IF ((iterator%bounds_k(1) > 0 .AND. katom < iterator%bounds_k(1)) &
           .OR. (iterator%bounds_k(2) > 0 .AND. katom > iterator%bounds_k(2))) skip_this = .TRUE.
 
@@ -1281,70 +1288,6 @@ CONTAINS
    END SUBROUTINE
 
 ! **************************************************************************************************
-!> \brief contiguous distribution of weighted elements
-!> \param nel ...
-!> \param nbin ...
-!> \param weights ...
-!> \param limits_start ...
-!> \param limits_end ...
-!> \param dist ...
-! **************************************************************************************************
-   SUBROUTINE contiguous_tensor_dist(nel, nbin, weights, limits_start, limits_end, dist)
-      INTEGER, INTENT(IN)                                :: nel
-      INTEGER, INTENT(INOUT)                             :: nbin
-      INTEGER, DIMENSION(nel), INTENT(IN)                :: weights
-      INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(OUT), &
-         OPTIONAL                                        :: limits_start, limits_end
-      INTEGER, DIMENSION(nel), INTENT(OUT), OPTIONAL     :: dist
-
-      INTEGER                                            :: el_end, el_start, end_weight, ibin, &
-                                                            nel_div, nel_rem, nel_split, nel_w, &
-                                                            w_partialsum
-      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: lim_e, lim_s
-
-      ALLOCATE (lim_s(nbin), lim_e(nbin))
-      lim_s = 0; lim_e = 0
-
-      nel_w = SUM(weights)
-      nel_div = nel_w/nbin
-      nel_rem = MOD(nel_w, nbin)
-
-      w_partialsum = 0
-      el_end = 0
-      end_weight = 0
-      DO ibin = 1, nbin
-         nel_split = nel_div
-         IF (ibin <= nel_rem) THEN
-            nel_split = nel_split + 1
-         ENDIF
-         el_start = el_end + 1
-         el_end = el_start
-         w_partialsum = w_partialsum + weights(el_end)
-         end_weight = end_weight + nel_split
-         DO WHILE (w_partialsum < end_weight)
-            !IF (ABS(w_partialsum + weights(el_end) - end_weight) > ABS(w_partialsum - end_weight)) EXIT
-            el_end = el_end + 1
-            w_partialsum = w_partialsum + weights(el_end)
-            IF (el_end == nel) EXIT
-         ENDDO
-
-         IF (PRESENT(dist)) dist(el_start:el_end) = ibin - 1
-         lim_s(ibin) = el_start
-         lim_e(ibin) = el_end
-
-         IF (el_end == nel) EXIT
-      ENDDO
-
-      IF (PRESENT(limits_start) .AND. PRESENT(limits_end)) THEN
-         ALLOCATE (limits_start(ibin)); limits_start(:ibin) = lim_s(:ibin)
-         ALLOCATE (limits_end(ibin)); limits_end(:ibin) = lim_e(:ibin)
-      ENDIF
-
-      nbin = ibin
-
-   END SUBROUTINE contiguous_tensor_dist
-
-! **************************************************************************************************
 !> \brief ...
 !> \param t2c empty DBCSR matrix
 !> \param filter_eps Filter threshold for matrix blocks
@@ -1722,65 +1665,6 @@ CONTAINS
       ENDIF
 
       CALL timestop(handle)
-   END SUBROUTINE
-
-! **************************************************************************************************
-!> \brief ...
-!> \param qs_env ...
-!> \param basis ...
-!> \param min_blk_size ...
-!> \param pgf_blk_sizes ...
-! **************************************************************************************************
-   SUBROUTINE pgf_block_sizes(qs_env, basis, min_blk_size, pgf_blk_sizes)
-      TYPE(qs_environment_type), POINTER                 :: qs_env
-      TYPE(gto_basis_set_p_type), DIMENSION(:), &
-         INTENT(IN)                                      :: basis
-      INTEGER, INTENT(IN)                                :: min_blk_size
-      INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(OUT)    :: pgf_blk_sizes
-
-      INTEGER                                            :: blk_count, blk_count_prev, blk_size, &
-                                                            iatom, ikind, iset, natom, nblk, nset
-      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: kind_of, pgf_blk_sizes_tmp
-      INTEGER, DIMENSION(:), POINTER                     :: nsgf_set
-      TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
-
-      CALL get_qs_env(qs_env, natom=natom, atomic_kind_set=atomic_kind_set)
-
-      ALLOCATE (kind_of(natom))
-      CALL get_atomic_kind_set(atomic_kind_set, kind_of=kind_of)
-
-      nblk = 0
-      DO iatom = 1, natom
-         ikind = kind_of(iatom)
-         CALL get_gto_basis_set(basis(ikind)%gto_basis_set, nset=nset)
-         nblk = nblk + nset
-      ENDDO
-
-      ALLOCATE (pgf_blk_sizes_tmp(nblk)); pgf_blk_sizes_tmp = 0
-
-      blk_count = 0
-      blk_size = 0
-      DO iatom = 1, natom
-         blk_count_prev = blk_count
-         ikind = kind_of(iatom)
-         CALL get_gto_basis_set(basis(ikind)%gto_basis_set, nset=nset, nsgf_set=nsgf_set)
-         DO iset = 1, nset
-            blk_size = blk_size + nsgf_set(iset)
-            IF (blk_size >= min_blk_size) THEN
-               blk_count = blk_count + 1
-               pgf_blk_sizes_tmp(blk_count) = pgf_blk_sizes_tmp(blk_count) + blk_size
-               blk_size = 0
-            ENDIF
-         ENDDO
-         IF (blk_size > 0) THEN
-            IF (blk_count == blk_count_prev) blk_count = blk_count + 1
-            pgf_blk_sizes_tmp(blk_count) = pgf_blk_sizes_tmp(blk_count) + blk_size
-            blk_size = 0
-         ENDIF
-      ENDDO
-
-      ALLOCATE (pgf_blk_sizes(blk_count))
-      pgf_blk_sizes(:) = pgf_blk_sizes_tmp(:blk_count)
    END SUBROUTINE
 
 ! **************************************************************************************************

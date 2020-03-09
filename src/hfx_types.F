@@ -14,8 +14,12 @@ MODULE hfx_types
    USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                               get_atomic_kind,&
                                               get_atomic_kind_set
+   USE auto_basis,                      ONLY: create_ri_aux_basis_set
+   USE basis_set_container_types,       ONLY: add_basis_set_to_container
    USE basis_set_types,                 ONLY: get_gto_basis_set,&
-                                              gto_basis_set_type
+                                              gto_basis_set_p_type,&
+                                              gto_basis_set_type,&
+                                              init_orb_basis_set
    USE bibliography,                    ONLY: cite_reference,&
                                               guidon2008,&
                                               guidon2009
@@ -33,19 +37,28 @@ MODULE hfx_types
                                               cp_print_key_unit_nr
    USE cp_para_types,                   ONLY: cp_para_env_type
    USE cp_units,                        ONLY: cp_unit_from_cp2k
+   USE dbcsr_tensor_api,                ONLY: &
+        dbcsr_t_batched_contract_finalize, dbcsr_t_destroy, dbcsr_t_distribution_destroy, &
+        dbcsr_t_distribution_new, dbcsr_t_distribution_type, dbcsr_t_mp_dims_create, &
+        dbcsr_t_pgrid_create, dbcsr_t_pgrid_destroy, dbcsr_t_pgrid_type, dbcsr_t_type
    USE hfx_helpers,                     ONLY: count_cells_perd,&
                                               next_image_cell_perd
    USE input_constants,                 ONLY: &
         do_hfx_auto_shells, do_potential_coulomb, do_potential_gaussian, do_potential_id, &
         do_potential_long, do_potential_mix_cl, do_potential_mix_cl_trunc, do_potential_mix_lg, &
-        do_potential_short, do_potential_truncated, hfx_do_eval_energy, hfx_do_eval_forces
+        do_potential_short, do_potential_truncated, hfx_do_eval_energy, hfx_do_eval_forces, &
+        hfx_ri_do_2c_diag, hfx_ri_do_2c_iter
+   USE input_cp2k_hfx,                  ONLY: ri_mo,&
+                                              ri_pmat
    USE input_section_types,             ONLY: section_vals_get,&
                                               section_vals_get_subs_vals,&
                                               section_vals_type,&
                                               section_vals_val_get
    USE kinds,                           ONLY: default_path_length,&
+                                              default_string_length,&
                                               dp,&
                                               int_8
+   USE libint_2c_3c,                    ONLY: libint_potential_type
    USE libint_wrapper,                  ONLY: &
         cp_libint_cleanup_eri, cp_libint_cleanup_eri1, cp_libint_init_eri, cp_libint_init_eri1, &
         cp_libint_set_contrdepth, cp_libint_static_cleanup, cp_libint_static_init, cp_libint_t, &
@@ -53,12 +66,23 @@ MODULE hfx_types
    USE machine,                         ONLY: m_chdir,&
                                               m_getcwd
    USE mathlib,                         ONLY: erfc_cutoff
+   USE message_passing,                 ONLY: mp_cart_create,&
+                                              mp_environ
    USE orbital_pointers,                ONLY: nco,&
                                               ncoset,&
                                               nso
+   USE particle_methods,                ONLY: get_particle_set
+   USE particle_types,                  ONLY: particle_type
+   USE qs_integral_utils,               ONLY: basis_set_list_setup
+   USE qs_interactions,                 ONLY: init_interaction_radii_orb_basis
    USE qs_kind_types,                   ONLY: get_qs_kind,&
                                               get_qs_kind_set,&
                                               qs_kind_type
+   USE qs_loc_types,                    ONLY: qs_loc_env_new_type
+   USE qs_tensors_types,                ONLY: &
+        create_2c_tensor, create_3c_tensor, cyclic_tensor_dist, distribution_3d_create, &
+        distribution_3d_destroy, distribution_3d_type, libcusmm_maxblocksize, pgf_block_sizes, &
+        split_block_sizes
    USE string_utilities,                ONLY: compress
    USE t_c_g0,                          ONLY: free_C0
 
@@ -82,7 +106,8 @@ MODULE hfx_types
              pair_set_list_type, hfx_p_kind, hfx_2D_map, hfx_pgf_list, &
              hfx_pgf_product_list, hfx_block_range_type, &
              alloc_containers, dealloc_containers, hfx_task_list_type, init_t_c_g0_lmax, &
-             hfx_create_neighbor_cells, hfx_create_basis_types, hfx_release_basis_types
+             hfx_create_neighbor_cells, hfx_create_basis_types, hfx_release_basis_types, &
+             hfx_ri_type
 
 #define CACHE_SIZE 1024
 #define BITS_MAX_VAL 6
@@ -330,6 +355,94 @@ MODULE hfx_types
       INTEGER(int_8)                           :: cost
    END TYPE
 
+   TYPE hfx_ri_type
+      ! input parameters (see input_cp2k_hfx)
+      REAL(KIND=dp) :: filter_eps, filter_eps_2c, filter_eps_3c, filter_eps_mo, &
+                       eps_lanczos, eps_pgf_orb
+      INTEGER :: t2c_sqrt_order, max_iter_lanczos, flavor, unit_nr_dbcsr, unit_nr, &
+                 min_bsize, min_bsize_MO, t2c_method, nelectron_total
+      LOGICAL :: check_2c_inv, calc_condnum
+
+      TYPE(libint_potential_type) :: ri_metric
+
+      ! input parameters from hfx
+      TYPE(libint_potential_type) :: hfx_pot ! interaction potential
+      REAL(KIND=dp) :: eps_schwarz ! integral screening threshold
+
+      LOGICAL :: same_op ! whether RI operator is same as HF potential
+
+      ! default process grid used for 3c tensors
+      TYPE(dbcsr_t_pgrid_type), POINTER :: pgrid => NULL()
+      TYPE(dbcsr_t_pgrid_type), POINTER :: pgrid_2d => NULL()
+
+      ! distributions for (RI | AO AO) 3c integral tensor (non split)
+      TYPE(distribution_3d_type) :: dist_3d
+      TYPE(dbcsr_t_distribution_type) :: dist
+
+      ! MO localization
+      TYPE(qs_loc_env_new_type), POINTER                 :: qs_loc_env => NULL()
+      TYPE(section_vals_type), POINTER                   :: loc_subsection => NULL(), print_loc_subsection => NULL()
+      LOGICAL                                            :: do_loc
+
+      INTEGER, DIMENSION(:), ALLOCATABLE :: dist1_AO_1, dist1_AO_2, dist1_RI
+      INTEGER, DIMENSION(:), ALLOCATABLE :: dist2_AO_1, dist2_AO_2, dist2_RI
+      INTEGER, DIMENSION(:), ALLOCATABLE :: dist3_AO_1, dist3_AO_2, dist3_RI
+      INTEGER, DIMENSION(:), ALLOCATABLE :: dist4_AO_1, dist4_AO_2, dist4_RI
+
+      ! block sizes for RI and AO tensor dimensions (split)
+      INTEGER, DIMENSION(:), ALLOCATABLE :: bsizes_RI, bsizes_AO, bsizes_RI_split, bsizes_AO_split, bsizes_RI_fit, bsizes_AO_fit
+
+      ! Note: changed static DIMENSION(1,1) of dbcsr_t_type to allocatables as workaround for gfortran 8.3.0,
+      ! with static dimension gfortran gets stuck during compilation
+
+      ! 2c tensor in (RI | RI) format for contraction
+      TYPE(dbcsr_t_type), DIMENSION(:, :), ALLOCATABLE    :: t_2c_int
+
+      ! 3c integral tensor in default format
+      TYPE(dbcsr_t_type), DIMENSION(:, :), ALLOCATABLE :: t_3c_int
+
+      ! 3c integral tensor in (AO RI | AO) format for contraction
+      TYPE(dbcsr_t_type), DIMENSION(:, :), ALLOCATABLE :: t_3c_int_ctr_1
+      TYPE(dbcsr_t_pgrid_type), POINTER                :: pgrid_1 => NULL()
+
+      ! 3c integral tensor in ( AO | RI AO) format for contraction
+      TYPE(dbcsr_t_type), DIMENSION(:, :), ALLOCATABLE :: t_3c_int_ctr_2
+      TYPE(dbcsr_t_pgrid_type), POINTER                :: pgrid_2 => NULL()
+
+      ! 3c integral tensor in ( RI | AO AO ) format for contraction
+      TYPE(dbcsr_t_type), DIMENSION(:, :), ALLOCATABLE :: t_3c_int_ctr_3
+      TYPE(dbcsr_t_pgrid_type), POINTER                :: pgrid_3 => NULL()
+
+      ! 3c integral tensor in (RI | MO AO ) format for contraction
+      TYPE(dbcsr_t_type), DIMENSION(:, :, :), ALLOCATABLE :: t_3c_int_mo
+      TYPE(dbcsr_t_type), DIMENSION(:, :, :), ALLOCATABLE :: t_3c_ctr_RI
+      TYPE(dbcsr_t_type), DIMENSION(:, :, :), ALLOCATABLE :: t_3c_ctr_KS
+      TYPE(dbcsr_t_type), DIMENSION(:, :, :), ALLOCATABLE :: t_3c_ctr_KS_copy
+      ! 3c integral tensor in ( RI AO | AO ) format for contraction
+      !TYPE(dbcsr_t_type), DIMENSION(:, :), ALLOCATABLE :: t_3c_int_ctr_4
+      !TYPE(dbcsr_t_pgrid_type), POINTER                :: pgrid_4 => NULL()
+
+      ! optional: sections for output handling
+      ! alternatively set unit_nr_dbcsr (for logging tensor operations) and unit_nr (for general
+      ! output) directly
+      TYPE(section_vals_type), POINTER :: ri_section => NULL(), hfx_section => NULL()
+
+      ! types of primary and auxiliary basis
+      CHARACTER(len=default_string_length) :: orb_basis_type, ri_basis_type
+
+      ! memory reduction factor
+      INTEGER :: n_mem
+
+      ! relevant non-zero RI-AO pairs
+      INTEGER, DIMENSION(:, :), ALLOCATABLE :: nonzero_pairs
+      INTEGER, DIMENSION(:), ALLOCATABLE :: nonzero_rows
+
+      INTEGER(int_8) :: dbcsr_nflop
+      REAL(dp)       :: dbcsr_time
+      INTEGER        :: num_pe
+
+   END TYPE
+
 ! **************************************************************************************************
 !> \brief stores some data used in construction of Kohn-Sham matrix
 !> \param potential_parameter stores information on the potential (1/r, erfc(wr)/r
@@ -436,6 +549,8 @@ MODULE hfx_types
       REAL(dp), DIMENSION(:, :), POINTER        :: pmax_block
       LOGICAL, DIMENSION(:, :), POINTER         :: atomic_pair_list
       LOGICAL, DIMENSION(:, :), POINTER         :: atomic_pair_list_forces
+      LOGICAL                                   :: do_hfx_ri
+      TYPE(hfx_ri_type), POINTER                :: ri_data
    END TYPE hfx_type
 
 CONTAINS
@@ -445,12 +560,14 @@ CONTAINS
 !> \param x_data contains all relevant data structures for hfx runs
 !> \param para_env ...
 !> \param hfx_section input section
-!> \param natom , max_set: quantities that define some array sizes
 !> \param atomic_kind_set ...
 !> \param qs_kind_set ...
+!> \param particle_set ...
 !> \param dft_control ...
 !> \param cell ...
 !> \param do_exx ...
+!> \param do_ot ...
+!> \param nelectron_total ...
 !> \par History
 !>      09.2007 created [Manuel Guidon]
 !> \author Manuel Guidon
@@ -458,38 +575,47 @@ CONTAINS
 !>      - All POINTERS and ALLOCATABLES are allocated, even if their size is
 !>        unknown at invocation time
 ! **************************************************************************************************
-   SUBROUTINE hfx_create(x_data, para_env, hfx_section, natom, atomic_kind_set, qs_kind_set, &
-                         dft_control, cell, do_exx)
+   SUBROUTINE hfx_create(x_data, para_env, hfx_section, atomic_kind_set, qs_kind_set, &
+                         particle_set, dft_control, cell, do_exx, do_ot, nelectron_total)
       TYPE(hfx_type), DIMENSION(:, :), POINTER           :: x_data
       TYPE(cp_para_env_type)                             :: para_env
       TYPE(section_vals_type), POINTER                   :: hfx_section
-      INTEGER, INTENT(IN)                                :: natom
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
+      TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(cell_type), POINTER                           :: cell
-      LOGICAL, OPTIONAL                                  :: do_exx
+      LOGICAL, OPTIONAL                                  :: do_exx, do_ot
+      INTEGER, OPTIONAL                                  :: nelectron_total
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'hfx_create', routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=512)                                 :: error_msg
       CHARACTER(LEN=default_path_length)                 :: char_val
       INTEGER :: handle, i, i_thread, iatom, ikind, int_val, irep, jkind, max_set, n_rep_hf, &
-         n_threads, natom_a, natom_b, nkind, nseta, nsetb, pbc_shells, storage_id
+         n_threads, natom, natom_a, natom_b, nkind, nseta, nsetb, pbc_shells, storage_id
       INTEGER, DIMENSION(:), POINTER                     :: atom2kind, kind_of
-      LOGICAL                                            :: logic_val, my_do_exx
+      LOGICAL                                            :: do_ri, logic_val, my_do_exx
       REAL(dp)                                           :: real_val
       TYPE(hfx_type), POINTER                            :: actual_x_data
-      TYPE(section_vals_type), POINTER                   :: hf_pbc_section, hf_sub_section
+      TYPE(section_vals_type), POINTER                   :: hf_pbc_section, hf_sub_section, &
+                                                            hfx_ri_section
 
       CALL timeset(routineN, handle)
 
       CALL cite_reference(Guidon2008)
       CALL cite_reference(Guidon2009)
+
+      natom = SIZE(particle_set)
+
       !! There might be 2 hf sections
       CALL section_vals_get(hfx_section, n_repetition=n_rep_hf)
       n_threads = 1
 !$    n_threads = omp_get_max_threads()
+
+      CALL section_vals_val_get(hfx_section, "RI%_SECTION_PARAMETERS_", l_val=do_ri)
+      IF (do_ri) n_threads = 1 ! RI implementation does not use threads
+
       ALLOCATE (x_data(n_rep_hf, n_threads))
       DO i_thread = 1, n_threads
          DO irep = 1, n_rep_hf
@@ -505,6 +631,9 @@ CONTAINS
 
             CALL section_vals_val_get(hfx_section, "TREAT_LSD_IN_CORE", l_val=logic_val, i_rep_section=irep)
             actual_x_data%general_parameter%treat_lsd_in_core = logic_val
+
+            hfx_ri_section => section_vals_get_subs_vals(hfx_section, "RI")
+            CALL section_vals_val_get(hfx_ri_section, "_SECTION_PARAMETERS_", l_val=actual_x_data%do_hfx_ri)
 
             !! MEMORY section
             hf_sub_section => section_vals_get_subs_vals(hfx_section, "MEMORY", i_rep_section=irep)
@@ -833,6 +962,18 @@ CONTAINS
 
             actual_x_data%b_first_load_balance_energy = .TRUE.
             actual_x_data%b_first_load_balance_forces = .TRUE.
+
+            hf_sub_section => section_vals_get_subs_vals(hfx_section, "RI", i_rep_section=irep)
+            IF (actual_x_data%do_hfx_ri) THEN
+               CPASSERT(PRESENT(do_ot))
+               CPASSERT(PRESENT(nelectron_total))
+               ALLOCATE (actual_x_data%ri_data)
+               CALL hfx_ri_init_read_input_from_hfx(actual_x_data%ri_data, actual_x_data, hfx_section, &
+                                                    hf_sub_section, qs_kind_set, &
+                                                    particle_set, atomic_kind_set, dft_control, para_env, irep, do_ot, &
+                                                    nelectron_total)
+
+            ENDIF
          END DO
       END DO
 
@@ -842,6 +983,495 @@ CONTAINS
       END DO
       CALL timestop(handle)
    END SUBROUTINE hfx_create
+
+! **************************************************************************************************
+!> \brief Read RI input and initialize RI data for use within Hartree-Fock
+!> \param ri_data ...
+!> \param x_data ...
+!> \param hfx_section ...
+!> \param ri_section ...
+!> \param qs_kind_set ...
+!> \param particle_set ...
+!> \param atomic_kind_set ...
+!> \param dft_control ...
+!> \param para_env ...
+!> \param irep ...
+!> \param do_ot ...
+!> \param nelectron_total ...
+! **************************************************************************************************
+   SUBROUTINE hfx_ri_init_read_input_from_hfx(ri_data, x_data, hfx_section, ri_section, qs_kind_set, &
+                                              particle_set, atomic_kind_set, dft_control, para_env, irep, do_ot, nelectron_total)
+      TYPE(hfx_ri_type), INTENT(INOUT)                   :: ri_data
+      TYPE(hfx_type), INTENT(INOUT)                      :: x_data
+      TYPE(section_vals_type), POINTER                   :: hfx_section, ri_section
+      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
+      TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
+      TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
+      TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(cp_para_env_type)                             :: para_env
+      INTEGER, INTENT(IN)                                :: irep
+      LOGICAL, INTENT(IN)                                :: do_ot
+      INTEGER, INTENT(IN)                                :: nelectron_total
+
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'hfx_ri_init_read_input_from_hfx', &
+         routineP = moduleN//':'//routineN
+
+      CHARACTER(LEN=512)                                 :: error_msg
+      CHARACTER(LEN=default_path_length)                 :: char_val, t_c_filename
+      CHARACTER(LEN=default_string_length)               :: orb_basis_type, ri_basis_type
+      INTEGER                                            :: handle, unit_nr, unit_nr_dbcsr
+      TYPE(cp_logger_type), POINTER                      :: logger
+      TYPE(section_vals_type), POINTER                   :: hf_sub_section
+
+      CALL timeset(routineN, handle)
+
+      NULLIFY (hf_sub_section)
+
+      ASSOCIATE (hfx_pot=>ri_data%hfx_pot)
+         hfx_pot%potential_type = x_data%potential_parameter%potential_type
+         hfx_pot%omega = x_data%potential_parameter%omega
+         hfx_pot%cutoff_radius = x_data%potential_parameter%cutoff_radius
+      END ASSOCIATE
+      ri_data%ri_section => ri_section
+      ri_data%hfx_section => hfx_section
+      ri_data%eps_schwarz = x_data%screening_parameter%eps_schwarz
+
+      logger => cp_get_default_logger()
+      unit_nr_dbcsr = cp_print_key_unit_nr(logger, ri_data%ri_section, "RI_INFO", &
+                                           extension=".dbcsrLog")
+
+      unit_nr = cp_print_key_unit_nr(logger, ri_data%hfx_section, "HF_INFO", &
+                                     extension=".scfLog")
+
+      hf_sub_section => section_vals_get_subs_vals(hfx_section, "INTERACTION_POTENTIAL", i_rep_section=irep)
+      CALL section_vals_val_get(hf_sub_section, "T_C_G_DATA", c_val=char_val)
+      CALL compress(char_val, .TRUE.)
+
+      IF (.NOT. file_exists(char_val)) THEN
+         WRITE (error_msg, '(A,A,A)') "File not found. Please check T_C_G_DATA "// &
+            "in the INTERACTION_POTENTIAL section"
+         CPABORT(error_msg)
+      ELSE
+         t_c_filename = char_val
+      END IF
+
+      IF (dft_control%do_admm) THEN
+         orb_basis_type = "AUX_FIT"
+      ELSE
+         orb_basis_type = "ORB"
+      ENDIF
+
+      ri_basis_type = "RI_HFX"
+
+      CALL hfx_ri_init_read_input(ri_data, ri_section, qs_kind_set, particle_set, atomic_kind_set, &
+                                  orb_basis_type, ri_basis_type, dft_control%auto_basis_ri_hfx, &
+                                  para_env, unit_nr, unit_nr_dbcsr, nelectron_total, &
+                                  t_c_filename=t_c_filename)
+
+      IF (ri_data%flavor == ri_mo .AND. .NOT. do_ot) THEN
+         CPABORT("RI_FLAVOR MO is not consistent with density mixing. Either use OT or RI_FLAVOR RHO.")
+      ENDIF
+
+      CALL timestop(handle)
+   END SUBROUTINE
+
+! **************************************************************************************************
+!> \brief General routine for reading input of RI section and initializing RI data
+!> \param ri_data ...
+!> \param ri_section ...
+!> \param qs_kind_set ...
+!> \param particle_set ...
+!> \param atomic_kind_set ...
+!> \param orb_basis_type ...
+!> \param ri_basis_type ...
+!> \param auto_basis_cntrl ...
+!> \param para_env ...
+!> \param unit_nr unit number of general output
+!> \param unit_nr_dbcsr unit number for logging DBCSR tensor operations
+!> \param nelectron_total ...
+!> \param t_c_filename ...
+! **************************************************************************************************
+   SUBROUTINE hfx_ri_init_read_input(ri_data, ri_section, qs_kind_set, &
+                                     particle_set, atomic_kind_set, orb_basis_type, ri_basis_type, auto_basis_cntrl, para_env, &
+                                     unit_nr, unit_nr_dbcsr, nelectron_total, t_c_filename)
+      TYPE(hfx_ri_type), INTENT(INOUT)                   :: ri_data
+      TYPE(section_vals_type), POINTER                   :: ri_section
+      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
+      TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
+      TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
+      CHARACTER(LEN=*), INTENT(IN)                       :: orb_basis_type, ri_basis_type
+      INTEGER, INTENT(IN)                                :: auto_basis_cntrl
+      TYPE(cp_para_env_type)                             :: para_env
+      INTEGER, INTENT(IN)                                :: unit_nr, unit_nr_dbcsr, nelectron_total
+      CHARACTER(len=*), INTENT(IN), OPTIONAL             :: t_c_filename
+
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'hfx_ri_init_read_input', &
+         routineP = moduleN//':'//routineN
+
+      INTEGER                                            :: handle
+      LOGICAL                                            :: explicit
+
+      CALL timeset(routineN, handle)
+
+      CALL section_vals_val_get(ri_section, "EPS_FILTER", r_val=ri_data%filter_eps)
+      CALL section_vals_val_get(ri_section, "EPS_FILTER_2C", r_val=ri_data%filter_eps_2c)
+      CALL section_vals_val_get(ri_section, "EPS_FILTER_3C", r_val=ri_data%filter_eps_3c)
+      CALL section_vals_val_get(ri_section, "EPS_FILTER_MO", r_val=ri_data%filter_eps_mo)
+
+      ASSOCIATE (ri_metric=>ri_data%ri_metric, hfx_pot=>ri_data%hfx_pot)
+         CALL section_vals_val_get(ri_section, "RI_METRIC", i_val=ri_metric%potential_type, explicit=explicit)
+         IF (.NOT. explicit .OR. ri_metric%potential_type == 0) THEN
+            ri_metric%potential_type = hfx_pot%potential_type
+         ENDIF
+
+         CALL section_vals_val_get(ri_section, "OMEGA", r_val=ri_metric%omega, explicit=explicit)
+         IF (.NOT. explicit) THEN
+            ri_metric%omega = hfx_pot%omega
+         ENDIF
+
+         CALL section_vals_val_get(ri_section, "CUTOFF_RADIUS", r_val=ri_metric%cutoff_radius, explicit=explicit)
+         IF (.NOT. explicit) THEN
+            ri_metric%cutoff_radius = hfx_pot%cutoff_radius
+         ENDIF
+      END ASSOCIATE
+
+      CALL section_vals_val_get(ri_section, "2C_MATRIX_FUNCTIONS", i_val=ri_data%t2c_method)
+
+      CALL section_vals_val_get(ri_section, "CHECK_2C_MATRIX", l_val=ri_data%check_2c_inv)
+      CALL section_vals_val_get(ri_section, "CALC_COND_NUM", l_val=ri_data%calc_condnum)
+      CALL section_vals_val_get(ri_section, "SQRT_ORDER", i_val=ri_data%t2c_sqrt_order)
+      CALL section_vals_val_get(ri_section, "EPS_LANCZOS", r_val=ri_data%eps_lanczos)
+      CALL section_vals_val_get(ri_section, "MAX_ITER_LANCZOS", i_val=ri_data%max_iter_lanczos)
+      CALL section_vals_val_get(ri_section, "RI_FLAVOR", i_val=ri_data%flavor)
+      CALL section_vals_val_get(ri_section, "EPS_PGF_ORB", r_val=ri_data%eps_pgf_orb)
+      CALL section_vals_val_get(ri_section, "MIN_BLOCK_SIZE", i_val=ri_data%min_bsize)
+      CALL section_vals_val_get(ri_section, "MIN_BLOCK_SIZE_MO", i_val=ri_data%min_bsize_MO)
+      CALL section_vals_val_get(ri_section, "MEMORY_CUT", i_val=ri_data%n_mem)
+
+      ri_data%orb_basis_type = orb_basis_type
+      ri_data%ri_basis_type = ri_basis_type
+      ri_data%nelectron_total = nelectron_total
+
+      IF (PRESENT(t_c_filename)) THEN
+         ri_data%ri_metric%filename = t_c_filename
+         ri_data%hfx_pot%filename = t_c_filename
+      ENDIF
+
+      ri_data%unit_nr_dbcsr = unit_nr_dbcsr
+      ri_data%unit_nr = unit_nr
+
+      ri_data%loc_subsection => section_vals_get_subs_vals(ri_section, "LOCALIZE")
+      ri_data%print_loc_subsection => section_vals_get_subs_vals(ri_data%loc_subsection, "PRINT")
+
+      CALL section_vals_val_get(ri_data%loc_subsection, "_SECTION_PARAMETERS_", l_val=ri_data%do_loc)
+
+      CALL hfx_ri_init(ri_data, qs_kind_set, particle_set, atomic_kind_set, para_env, auto_basis_cntrl)
+
+      CALL timestop(handle)
+
+   END SUBROUTINE
+
+! **************************************************************************************************
+!> \brief ...
+!> \param ri_data ...
+!> \param qs_kind_set ...
+!> \param particle_set ...
+!> \param atomic_kind_set ...
+!> \param para_env ...
+!> \param basis_cntrl ...
+! **************************************************************************************************
+   SUBROUTINE hfx_ri_init(ri_data, qs_kind_set, particle_set, atomic_kind_set, para_env, basis_cntrl)
+      TYPE(hfx_ri_type), INTENT(INOUT)                   :: ri_data
+      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
+      TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
+      TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
+      TYPE(cp_para_env_type)                             :: para_env
+      INTEGER, INTENT(IN)                                :: basis_cntrl
+
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'hfx_ri_init', routineP = moduleN//':'//routineN
+
+      INTEGER                                            :: handle, ikind, iproc, MO_dim, &
+                                                            mp_comm_3d, natom, nkind, nproc
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: dist1, dist2, dist_AO_1, dist_AO_2, &
+                                                            dist_RI
+      INTEGER, DIMENSION(2)                              :: pdims_2d
+      INTEGER, DIMENSION(3)                              :: pcoord, pdims
+      LOGICAL                                            :: same_op
+      TYPE(distribution_3d_type)                         :: dist_3d
+      TYPE(gto_basis_set_p_type), ALLOCATABLE, &
+         DIMENSION(:)                                    :: basis_set_AO, basis_set_RI
+      TYPE(gto_basis_set_type), POINTER                  :: ri_aux_basis_set
+      TYPE(qs_kind_type), POINTER                        :: qs_kind
+
+      CALL timeset(routineN, handle)
+
+      NULLIFY (ri_aux_basis_set, qs_kind)
+
+      natom = SIZE(particle_set)
+      nkind = SIZE(qs_kind_set, 1)
+
+      ! initialise RI basis
+      DO ikind = 1, nkind
+         NULLIFY (ri_aux_basis_set)
+         qs_kind => qs_kind_set(ikind)
+         CALL get_qs_kind(qs_kind=qs_kind, basis_set=ri_aux_basis_set, &
+                          basis_type=ri_data%ri_basis_type)
+         IF (.NOT. (ASSOCIATED(ri_aux_basis_set))) THEN
+            ! Generate a default basis
+            CALL create_ri_aux_basis_set(ri_aux_basis_set, qs_kind, basis_cntrl, ri_data%orb_basis_type)
+
+            CALL add_basis_set_to_container(qs_kind%basis_sets, ri_aux_basis_set, ri_data%ri_basis_type)
+         END IF
+         CALL init_orb_basis_set(ri_aux_basis_set)
+         CALL init_interaction_radii_orb_basis(ri_aux_basis_set, ri_data%eps_pgf_orb)
+      END DO
+
+      ASSOCIATE (ri_metric=>ri_data%ri_metric, hfx_pot=>ri_data%hfx_pot)
+         IF (ri_metric%potential_type == do_potential_short) THEN
+            CALL erfc_cutoff(ri_data%eps_schwarz, ri_metric%omega, ri_metric%cutoff_radius)
+         ENDIF
+
+         IF (hfx_pot%potential_type == do_potential_short) THEN
+            ! need a more accurate threshold for determining 2-center integral operator range
+            ! because stability of matrix inversion/sqrt is sensitive to this
+            CALL erfc_cutoff(ri_data%filter_eps_2c, hfx_pot%omega, hfx_pot%cutoff_radius)
+         ENDIF
+         ! determine whether RI metric is same operator as used in HFX
+         same_op = ri_metric%potential_type == hfx_pot%potential_type
+
+         IF (same_op .AND. hfx_pot%potential_type == do_potential_truncated) THEN
+            same_op = ABS(ri_metric%cutoff_radius - hfx_pot%cutoff_radius) < 1.0E-16_dp
+         ENDIF
+
+         IF (same_op .AND. hfx_pot%potential_type == do_potential_short) THEN
+            same_op = ABS(ri_metric%omega - hfx_pot%omega) < 1.0E-16_dp
+         ENDIF
+      END ASSOCIATE
+
+      ri_data%same_op = same_op
+
+      pdims = 0
+      CALL mp_cart_create(para_env%group, 3, pdims, pcoord, mp_comm_3d)
+
+      ALLOCATE (ri_data%bsizes_RI(natom))
+      ALLOCATE (ri_data%bsizes_AO(natom))
+      ALLOCATE (basis_set_RI(nkind), basis_set_AO(nkind))
+      CALL basis_set_list_setup(basis_set_RI, ri_data%ri_basis_type, qs_kind_set)
+      CALL get_particle_set(particle_set, qs_kind_set, nsgf=ri_data%bsizes_RI, basis=basis_set_RI)
+      CALL basis_set_list_setup(basis_set_AO, ri_data%orb_basis_type, qs_kind_set)
+      CALL get_particle_set(particle_set, qs_kind_set, nsgf=ri_data%bsizes_AO, basis=basis_set_AO)
+
+      ALLOCATE (dist_RI(natom))
+      ALLOCATE (dist_AO_1(natom))
+      ALLOCATE (dist_AO_2(natom))
+      CALL cyclic_tensor_dist(natom, pdims(1), ri_data%bsizes_RI, dist_RI)
+      CALL cyclic_tensor_dist(natom, pdims(2), ri_data%bsizes_AO, dist_AO_1)
+      CALL cyclic_tensor_dist(natom, pdims(3), ri_data%bsizes_AO, dist_AO_2)
+      CALL distribution_3d_create(dist_3d, dist_RI, dist_ao_1, dist_ao_2, nkind, particle_set, &
+                                  mp_comm_3d, own_comm=.TRUE.)
+
+      ALLOCATE (ri_data%pgrid)
+      CALL dbcsr_t_pgrid_create(para_env%group, pdims, ri_data%pgrid)
+
+      ALLOCATE (ri_data%pgrid_2d)
+      pdims_2d = 0
+      CALL dbcsr_t_pgrid_create(para_env%group, pdims_2d, ri_data%pgrid_2d)
+
+      ri_data%dist_3d = dist_3d
+
+      CALL dbcsr_t_distribution_new(ri_data%dist, ri_data%pgrid, &
+                                    dist_RI, dist_AO_1, dist_AO_2)
+
+      DEALLOCATE (dist_AO_1, dist_AO_2, dist_RI)
+
+      ! initialize tensors expressed in basis representation
+
+      CALL pgf_block_sizes(atomic_kind_set, basis_set_AO, ri_data%min_bsize, ri_data%bsizes_AO_split)
+      CALL pgf_block_sizes(atomic_kind_set, basis_set_RI, ri_data%min_bsize, ri_data%bsizes_RI_split)
+
+      CALL split_block_sizes(ri_data%bsizes_AO, ri_data%bsizes_AO_fit, libcusmm_maxblocksize)
+      CALL split_block_sizes(ri_data%bsizes_RI, ri_data%bsizes_RI_fit, libcusmm_maxblocksize)
+
+      IF (ri_data%flavor == ri_pmat) THEN
+         ALLOCATE (ri_data%t_3c_int_ctr_1(1, 1))
+         CALL create_3c_tensor(ri_data%t_3c_int_ctr_1(1, 1), ri_data%dist1_ao_1, ri_data%dist1_ri, ri_data%dist1_ao_2, &
+                               ri_data%pgrid, ri_data%bsizes_AO_split, ri_data%bsizes_RI_split, ri_data%bsizes_AO_split, &
+                               [1, 2], [3], name="(AO RI | AO)")
+
+         ALLOCATE (ri_data%t_3c_int_ctr_3(1, 1))
+         CALL create_3c_tensor(ri_data%t_3c_int_ctr_3(1, 1), ri_data%dist3_RI, ri_data%dist3_AO_1, ri_data%dist3_AO_2, &
+                               ri_data%pgrid, ri_data%bsizes_RI_split, ri_data%bsizes_AO_split, ri_data%bsizes_AO_split, &
+                               [1], [2, 3], name="(RI | AO AO)")
+
+         ALLOCATE (ri_data%t_2c_int(1, 1))
+         CALL create_2c_tensor(ri_data%t_2c_int(1, 1), dist1, dist2, ri_data%pgrid_2d, &
+                               ri_data%bsizes_RI_split, ri_data%bsizes_RI_split, &
+                               name="(RI | RI)")
+         DEALLOCATE (dist1, dist2)
+
+      ELSEIF (ri_data%flavor == ri_mo) THEN
+         ALLOCATE (ri_data%t_3c_int(1, 1))
+         ALLOCATE (ri_data%t_2c_int(2, 1))
+
+         CALL create_2c_tensor(ri_data%t_2c_int(1, 1), dist1, dist2, ri_data%pgrid_2d, &
+                               ri_data%bsizes_RI_fit, ri_data%bsizes_RI_fit, &
+                               name="(RI | RI)")
+
+         DEALLOCATE (dist1, dist2)
+
+         CALL mp_environ(nproc, iproc, para_env%group)
+
+         ALLOCATE (ri_data%t_3c_int_ctr_1(1, 1))
+
+         ALLOCATE (ri_data%pgrid_1)
+         ALLOCATE (ri_data%pgrid_2)
+         pdims = 0
+
+         IF (ri_data%n_mem > ri_data%nelectron_total/2) ri_data%n_mem = MAX(ri_data%nelectron_total/2, 1)
+         ! Size of dimension corresponding to MOs is nelectron/2 and divided by the memory factor
+         ! we are using ceiling of that division to make sure that no MO dimension (after memory cut)
+         ! is larger than this (it is however not a problem for load balancing if actual MO dimension
+         ! is slightly smaller)
+         MO_dim = MAX((ri_data%nelectron_total/2 - 1)/ri_data%n_mem + 1, 1)
+
+         pdims = [1, nproc, 1]
+         CALL dbcsr_t_mp_dims_create(nproc, pdims, [MO_dim, SIZE(ri_data%bsizes_RI_split), MO_dim])
+
+         CALL dbcsr_t_pgrid_create(para_env%group, pdims, ri_data%pgrid_1)
+         CALL dbcsr_t_pgrid_create(para_env%group, pdims, ri_data%pgrid_2)
+
+         CALL create_3c_tensor(ri_data%t_3c_int_ctr_1(1, 1), ri_data%dist1_ao_1, ri_data%dist1_ri, ri_data%dist1_ao_2, &
+                               ri_data%pgrid_1, ri_data%bsizes_AO, ri_data%bsizes_RI_split, ri_data%bsizes_AO, &
+                               [1, 2], [3], name="(AO RI | AO)")
+
+         ALLOCATE (ri_data%t_3c_int_ctr_2(1, 1))
+         CALL create_3c_tensor(ri_data%t_3c_int_ctr_2(1, 1), ri_data%dist2_ao_1, ri_data%dist2_ri, ri_data%dist2_ao_2, &
+                               ri_data%pgrid_2, ri_data%bsizes_AO, ri_data%bsizes_RI_split, ri_data%bsizes_AO, &
+                               [1], [2, 3], name="(AO | RI AO)")
+
+      ENDIF
+
+      ri_data%dbcsr_nflop = 0
+      ri_data%dbcsr_time = 0.0_dp
+      ri_data%num_pe = para_env%num_pe
+
+      CALL timestop(handle)
+
+   END SUBROUTINE
+
+! **************************************************************************************************
+!> \brief ...
+!> \param ri_data ...
+! **************************************************************************************************
+   SUBROUTINE hfx_ri_write_stats(ri_data)
+      TYPE(hfx_ri_type), INTENT(IN)                      :: ri_data
+
+      REAL(dp)                                           :: my_flop_rate
+
+      ASSOCIATE (unit_nr=>ri_data%unit_nr, dbcsr_nflop=>ri_data%dbcsr_nflop, &
+                 dbcsr_time=>ri_data%dbcsr_time, num_pe=>ri_data%num_pe)
+         my_flop_rate = REAL(dbcsr_nflop, dp)/(1.0E09_dp*ri_data%dbcsr_time)
+         IF (unit_nr > 0) WRITE (UNIT=unit_nr, FMT="(/T2,A,T73,ES8.2)") &
+            "RI-HFX PERFORMANCE| DBCSR total number of flops:", REAL(dbcsr_nflop*num_pe, dp)
+         IF (unit_nr > 0) WRITE (UNIT=unit_nr, FMT="(T2,A,T66,F15.2)") &
+            "RI-HFX PERFORMANCE| DBCSR total execution time:", dbcsr_time
+         IF (unit_nr > 0) WRITE (UNIT=unit_nr, FMT="(T2,A,T66,F15.2)") &
+            "RI-HFX PERFORMANCE| DBCSR flop rate (Gflops / MPI rank):", my_flop_rate
+      END ASSOCIATE
+   END SUBROUTINE
+
+! **************************************************************************************************
+!> \brief ...
+!> \param ri_data ...
+! **************************************************************************************************
+   SUBROUTINE hfx_ri_release(ri_data)
+      TYPE(hfx_ri_type), INTENT(INOUT)                   :: ri_data
+
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'hfx_ri_release', routineP = moduleN//':'//routineN
+
+      INTEGER                                            :: handle, ispin
+      TYPE(cp_logger_type), POINTER                      :: logger
+
+      CALL timeset(routineN, handle)
+
+      CALL hfx_ri_write_stats(ri_data)
+
+      IF (ASSOCIATED(ri_data%pgrid)) THEN
+         CALL dbcsr_t_pgrid_destroy(ri_data%pgrid)
+         DEALLOCATE (ri_data%pgrid)
+      ENDIF
+      IF (ASSOCIATED(ri_data%pgrid_1)) THEN
+         CALL dbcsr_t_pgrid_destroy(ri_data%pgrid_1)
+         DEALLOCATE (ri_data%pgrid_1)
+      ENDIF
+      IF (ASSOCIATED(ri_data%pgrid_2)) THEN
+         CALL dbcsr_t_pgrid_destroy(ri_data%pgrid_2)
+         DEALLOCATE (ri_data%pgrid_2)
+      ENDIF
+      IF (ASSOCIATED(ri_data%pgrid_3)) THEN
+         CALL dbcsr_t_pgrid_destroy(ri_data%pgrid_3)
+         DEALLOCATE (ri_data%pgrid_3)
+      ENDIF
+      IF (ASSOCIATED(ri_data%pgrid_2d)) THEN
+         CALL dbcsr_t_pgrid_destroy(ri_data%pgrid_2d)
+         DEALLOCATE (ri_data%pgrid_2d)
+      ENDIF
+
+      CALL distribution_3d_destroy(ri_data%dist_3d)
+      CALL dbcsr_t_distribution_destroy(ri_data%dist)
+
+      DEALLOCATE (ri_data%bsizes_RI)
+      DEALLOCATE (ri_data%bsizes_AO)
+      DEALLOCATE (ri_data%bsizes_AO_split)
+      DEALLOCATE (ri_data%bsizes_RI_split)
+      DEALLOCATE (ri_data%bsizes_AO_fit)
+      DEALLOCATE (ri_data%bsizes_RI_fit)
+
+      IF (ri_data%flavor == ri_pmat) THEN
+         CALL dbcsr_t_destroy(ri_data%t_3c_int_ctr_1(1, 1))
+         DEALLOCATE (ri_data%t_3c_int_ctr_1)
+         DEALLOCATE (ri_data%dist1_RI, ri_data%dist1_AO_1, ri_data%dist1_AO_2)
+         DEALLOCATE (ri_data%dist3_RI, ri_data%dist3_AO_1, ri_data%dist3_AO_2)
+         CALL dbcsr_t_destroy(ri_data%t_3c_int_ctr_3(1, 1))
+         DEALLOCATE (ri_data%t_3c_int_ctr_3)
+         CALL dbcsr_t_destroy(ri_data%t_2c_int(1, 1))
+         DEALLOCATE (ri_data%t_2c_int)
+         DEALLOCATE (ri_data%nonzero_pairs)
+         DEALLOCATE (ri_data%nonzero_rows)
+      ELSEIF (ri_data%flavor == ri_mo) THEN
+         CALL dbcsr_t_destroy(ri_data%t_3c_int_ctr_1(1, 1))
+         CALL dbcsr_t_destroy(ri_data%t_3c_int_ctr_2(1, 1))
+         DEALLOCATE (ri_data%t_3c_int_ctr_1)
+         DEALLOCATE (ri_data%t_3c_int_ctr_2)
+
+         DO ispin = 1, SIZE(ri_data%t_3c_int_mo, 1)
+            CALL dbcsr_t_destroy(ri_data%t_3c_int_mo(ispin, 1, 1))
+            CALL dbcsr_t_destroy(ri_data%t_3c_ctr_RI(ispin, 1, 1))
+            CALL dbcsr_t_destroy(ri_data%t_3c_ctr_KS(ispin, 1, 1))
+            CALL dbcsr_t_destroy(ri_data%t_3c_ctr_KS_copy(ispin, 1, 1))
+            CALL dbcsr_t_batched_contract_finalize(ri_data%t_2c_int(ispin, 1))
+            CALL dbcsr_t_destroy(ri_data%t_2c_int(ispin, 1))
+         ENDDO
+         DEALLOCATE (ri_data%t_2c_int)
+         DEALLOCATE (ri_data%t_3c_int_mo)
+         DEALLOCATE (ri_data%t_3c_ctr_RI)
+         DEALLOCATE (ri_data%t_3c_ctr_KS)
+         DEALLOCATE (ri_data%t_3c_ctr_KS_copy)
+      ENDIF
+
+      IF (ASSOCIATED(ri_data%ri_section)) THEN
+         logger => cp_get_default_logger()
+         CALL cp_print_key_finished_output(ri_data%unit_nr_dbcsr, logger, ri_data%ri_section, &
+                                           "RI_INFO")
+      ENDIF
+      IF (ASSOCIATED(ri_data%hfx_section)) THEN
+         logger => cp_get_default_logger()
+         CALL cp_print_key_finished_output(ri_data%unit_nr, logger, ri_data%hfx_section, &
+                                           "HF_INFO")
+      ENDIF
+
+      CALL timestop(handle)
+   END SUBROUTINE
 
 ! **************************************************************************************************
 !> \brief - This routine allocates and initializes the basis_info and basis_parameter types
@@ -1127,8 +1757,7 @@ CONTAINS
 !! There might be 2 hf sections
 
       n_rep_hf = x_data(1, 1)%n_rep_hf
-      n_threads = 1
-!$    n_threads = omp_get_max_threads()
+      n_threads = SIZE(x_data, 2)
 
       IF (x_data(1, 1)%potential_parameter%potential_type == do_potential_truncated .OR. &
           x_data(1, 1)%potential_parameter%potential_type == do_potential_mix_cl_trunc) THEN
@@ -1229,9 +1858,15 @@ CONTAINS
                END DO
                DEALLOCATE (actual_x_data%map_atoms_to_cpus)
             END IF
+
+            IF (actual_x_data%do_hfx_ri) THEN
+               CALL hfx_ri_release(actual_x_data%ri_data)
+               DEALLOCATE (actual_x_data%ri_data)
+            ENDIF
          END DO
 
       END DO
+
       DEALLOCATE (x_data)
    END SUBROUTINE hfx_release
 
@@ -1822,10 +2457,160 @@ CONTAINS
 !> \brief - This routine prints some information on HFX
 !> \param x_data contains all relevant data structures for hfx runs
 !> \param hfx_section HFX input section
-!> \param i_rep current replica ID
 !> \par History
 !>      03.2008 created [Manuel Guidon]
 !> \author Manuel Guidon
+! **************************************************************************************************
+   SUBROUTINE hfx_print_std_info(x_data, hfx_section)
+      TYPE(hfx_type), POINTER                            :: x_data
+      TYPE(section_vals_type), POINTER                   :: hfx_section
+
+      INTEGER                                            :: iw
+      TYPE(cp_logger_type), POINTER                      :: logger
+
+      NULLIFY (logger)
+      logger => cp_get_default_logger()
+
+      iw = cp_print_key_unit_nr(logger, hfx_section, "HF_INFO", &
+                                extension=".scfLog")
+
+      IF (iw > 0) THEN
+         WRITE (UNIT=iw, FMT="((T3,A,T73,ES8.1))") &
+            "HFX_INFO| EPS_SCHWARZ:     ", x_data%screening_parameter%eps_schwarz
+         WRITE (UNIT=iw, FMT="((T3,A,T73,ES8.1))") &
+            "HFX_INFO| EPS_SCHWARZ_FORCES     ", x_data%screening_parameter%eps_schwarz_forces
+         WRITE (UNIT=iw, FMT="((T3,A,T73,ES8.1))") &
+            "HFX_INFO| EPS_STORAGE_SCALING:     ", x_data%memory_parameter%eps_storage_scaling
+         WRITE (UNIT=iw, FMT="((T3,A,T61,I20))") &
+            "HFX_INFO| NBINS:     ", x_data%load_balance_parameter%nbins
+         WRITE (UNIT=iw, FMT="((T3,A,T61,I20))") &
+            "HFX_INFO| BLOCK_SIZE:     ", x_data%load_balance_parameter%block_size
+         IF (x_data%periodic_parameter%do_periodic) THEN
+            IF (x_data%periodic_parameter%mode == -1) THEN
+               WRITE (UNIT=iw, FMT="((T3,A,T77,A))") &
+                  "HFX_INFO| NUMBER_OF_SHELLS:     ", "AUTO"
+            ELSE
+               WRITE (UNIT=iw, FMT="((T3,A,T61,I20))") &
+                  "HFX_INFO| NUMBER_OF_SHELLS:     ", x_data%periodic_parameter%mode
+            END IF
+            WRITE (UNIT=iw, FMT="((T3,A,T61,I20))") &
+               "HFX_INFO| Number of periodic shells considered:     ", x_data%periodic_parameter%number_of_shells
+            WRITE (UNIT=iw, FMT="((T3,A,T61,I20),/)") &
+               "HFX_INFO| Number of periodic cells considered:     ", SIZE(x_data%neighbor_cells)
+         ELSE
+            WRITE (UNIT=iw, FMT="((T3,A,T77,A))") &
+               "HFX_INFO| Number of periodic shells considered:     ", "NONE"
+            WRITE (UNIT=iw, FMT="((T3,A,T77,A),/)") &
+               "HFX_INFO| Number of periodic cells considered:     ", "NONE"
+         END IF
+      ENDIF
+   END SUBROUTINE hfx_print_std_info
+
+! **************************************************************************************************
+!> \brief ...
+!> \param ri_data ...
+!> \param hfx_section ...
+! **************************************************************************************************
+   SUBROUTINE hfx_print_ri_info(ri_data, hfx_section)
+      TYPE(hfx_ri_type), POINTER                         :: ri_data
+      TYPE(section_vals_type), POINTER                   :: hfx_section
+
+      INTEGER                                            :: iw
+      REAL(dp)                                           :: rc_ang
+      TYPE(cp_logger_type), POINTER                      :: logger
+      TYPE(section_vals_type), POINTER                   :: ri_section
+
+      NULLIFY (logger, ri_section)
+      logger => cp_get_default_logger()
+
+      ri_section => ri_data%ri_section
+
+      iw = cp_print_key_unit_nr(logger, hfx_section, "HF_INFO", &
+                                extension=".scfLog")
+
+      IF (iw > 0) THEN
+
+         ASSOCIATE (ri_metric=>ri_data%ri_metric, hfx_pot=>ri_data%hfx_pot)
+            SELECT CASE (ri_metric%potential_type)
+            CASE (do_potential_coulomb)
+               WRITE (UNIT=iw, FMT="(/T3,A,T74,A)") &
+                  "HFX_RI_INFO| RI metric: ", "COULOMB"
+            CASE (do_potential_short)
+               WRITE (UNIT=iw, FMT="(T3,A,T71,A)") &
+                  "HFX_RI_INFO| RI metric: ", "SHORTRANGE"
+               WRITE (iw, '(T3,A,T61,F20.10)') &
+                  "HFX_RI_INFO| Omega:     ", ri_metric%omega
+               rc_ang = cp_unit_from_cp2k(ri_metric%cutoff_radius, "angstrom")
+               WRITE (iw, '(T3,A,T61,F20.10)') &
+                  "HFX_RI_INFO| Cutoff Radius [angstrom]:     ", rc_ang
+            CASE (do_potential_long)
+               WRITE (UNIT=iw, FMT="(T3,A,T72,A)") &
+                  "HFX_RI_INFO| RI metric: ", "LONGRANGE"
+               WRITE (iw, '(T3,A,T61,F20.10)') &
+                  "HFX_RI_INFO| Omega:     ", ri_metric%omega
+            CASE (do_potential_id)
+               WRITE (UNIT=iw, FMT="(T3,A,T73,A)") &
+                  "HFX_RI_INFO| RI metric: ", "IDENTITY"
+            CASE (do_potential_truncated)
+               WRITE (UNIT=iw, FMT="(T3,A,T72,A)") &
+                  "HFX_RI_INFO| RI metric: ", "TRUNCATED"
+               rc_ang = cp_unit_from_cp2k(ri_metric%cutoff_radius, "angstrom")
+               WRITE (iw, '(T3,A,T61,F20.10)') &
+                  "HFX_RI_INFO| Cutoff Radius [angstrom]:     ", rc_ang
+            END SELECT
+
+         END ASSOCIATE
+         SELECT CASE (ri_data%flavor)
+         CASE (ri_mo)
+            WRITE (UNIT=iw, FMT="(T3, A, T79, A)") &
+               "HFX_RI_INFO| RI flavor: ", "MO"
+         CASE (ri_pmat)
+            WRITE (UNIT=iw, FMT="(T3, A, T78, A)") &
+               "HFX_RI_INFO| RI flavor: ", "RHO"
+         END SELECT
+         SELECT CASE (ri_data%do_loc)
+         CASE (.TRUE.)
+            WRITE (UNIT=iw, FMT="(T3, A, T80, A)") &
+               "HFX_RI_INFO| Localized MOs: ", "T"
+         CASE (.FALSE.)
+            WRITE (UNIT=iw, FMT="(T3, A, T80, A)") &
+               "HFX_RI_INFO| Localized MOs: ", "F"
+         END SELECT
+         SELECT CASE (ri_data%t2c_method)
+         CASE (hfx_ri_do_2c_iter)
+            WRITE (UNIT=iw, FMT="(T3, A, T69, A)") &
+               "HFX_RI_INFO| Matrix SQRT/INV", "DBCSR / iter"
+         CASE (hfx_ri_do_2c_diag)
+            WRITE (UNIT=iw, FMT="(T3, A, T65, A)") &
+               "HFX_RI_INFO| Matrix SQRT/INV", "Dense / diag"
+         END SELECT
+         WRITE (UNIT=iw, FMT="(T3, A, T73, ES8.1)") &
+            "HFX_RI_INFO| EPS_FILTER", ri_data%filter_eps
+         WRITE (UNIT=iw, FMT="(T3, A, T73, ES8.1)") &
+            "HFX_RI_INFO| EPS_FILTER 2-center", ri_data%filter_eps_2c
+         WRITE (UNIT=iw, FMT="(T3, A, T73, ES8.1)") &
+            "HFX_RI_INFO| EPS_FILTER 3-center", ri_data%filter_eps_3c
+         WRITE (UNIT=iw, FMT="(T3, A, T73, ES8.1)") &
+            "HFX_RI_INFO| EPS_FILTER MO", ri_data%filter_eps_mo
+         WRITE (UNIT=iw, FMT="(T3, A, T73, ES8.1)") &
+            "HFX_RI_INFO| EPS_PGF_ORB", ri_data%eps_pgf_orb
+         WRITE (UNIT=iw, FMT="((T3, A, T73, ES8.1))") &
+            "HFX_RI_INFO| EPS_SCHWARZ:     ", ri_data%eps_schwarz
+         WRITE (UNIT=iw, FMT="(T3, A, T78, I3)") &
+            "HFX_RI_INFO| Minimum block size", ri_data%min_bsize
+         WRITE (UNIT=iw, FMT="(T3, A, T78, I3)") &
+            "HFX_RI_INFO| MO block size", ri_data%min_bsize_MO
+         WRITE (UNIT=iw, FMT="(T3, A, T79, I2)") &
+            "HFX_RI_INFO| Memory reduction factor", ri_data%n_mem
+      ENDIF
+
+   END SUBROUTINE
+
+! **************************************************************************************************
+!> \brief ...
+!> \param x_data ...
+!> \param hfx_section ...
+!> \param i_rep ...
 ! **************************************************************************************************
    SUBROUTINE hfx_print_info(x_data, hfx_section, i_rep)
       TYPE(hfx_type), POINTER                            :: x_data
@@ -1841,19 +2626,11 @@ CONTAINS
 
       iw = cp_print_key_unit_nr(logger, hfx_section, "HF_INFO", &
                                 extension=".scfLog")
+
       IF (iw > 0) THEN
          WRITE (UNIT=iw, FMT="(/,(T3,A,T61,I20))") &
             "HFX_INFO| Replica ID:     ", i_rep
-         WRITE (UNIT=iw, FMT="((T3,A,T73,ES8.1))") &
-            "HFX_INFO| EPS_SCHWARZ:     ", x_data%screening_parameter%eps_schwarz
-         WRITE (UNIT=iw, FMT="((T3,A,T73,ES8.1))") &
-            "HFX_INFO| EPS_SCHWARZ_FORCES     ", x_data%screening_parameter%eps_schwarz_forces
-         WRITE (UNIT=iw, FMT="((T3,A,T73,ES8.1))") &
-            "HFX_INFO| EPS_STORAGE_SCALING:     ", x_data%memory_parameter%eps_storage_scaling
-         WRITE (UNIT=iw, FMT="((T3,A,T61,I20))") &
-            "HFX_INFO| NBINS:     ", x_data%load_balance_parameter%nbins
-         WRITE (UNIT=iw, FMT="((T3,A,T61,I20))") &
-            "HFX_INFO| BLOCK_SIZE:     ", x_data%load_balance_parameter%block_size
+
          WRITE (iw, '(T3,A,T61,F20.10)') &
             "HFX_INFO| FRACTION:     ", x_data%general_parameter%fraction
          SELECT CASE (x_data%potential_parameter%potential_type)
@@ -1912,28 +2689,17 @@ CONTAINS
             WRITE (iw, '(T3,A,T61,F20.10)') &
                "HFX_INFO| Cutoff Radius [angstrom]:     ", rc_ang
          END SELECT
-         IF (x_data%periodic_parameter%do_periodic) THEN
-            IF (x_data%periodic_parameter%mode == -1) THEN
-               WRITE (UNIT=iw, FMT="((T3,A,T77,A))") &
-                  "HFX_INFO| NUMBER_OF_SHELLS:     ", "AUTO"
-            ELSE
-               WRITE (UNIT=iw, FMT="((T3,A,T61,I20))") &
-                  "HFX_INFO| NUMBER_OF_SHELLS:     ", x_data%periodic_parameter%mode
-            END IF
-            WRITE (UNIT=iw, FMT="((T3,A,T61,I20))") &
-               "HFX_INFO| Number of periodic shells considered:     ", x_data%periodic_parameter%number_of_shells
-            WRITE (UNIT=iw, FMT="((T3,A,T61,I20),/)") &
-               "HFX_INFO| Number of periodic cells considered:     ", SIZE(x_data%neighbor_cells)
-         ELSE
-            WRITE (UNIT=iw, FMT="((T3,A,T77,A))") &
-               "HFX_INFO| Number of periodic shells considered:     ", "NONE"
-            WRITE (UNIT=iw, FMT="((T3,A,T77,A),/)") &
-               "HFX_INFO| Number of periodic cells considered:     ", "NONE"
-         END IF
+
       END IF
+      IF (x_data%do_hfx_ri) THEN
+         CALL hfx_print_ri_info(x_data%ri_data, hfx_section)
+      ELSE
+         CALL hfx_print_std_info(x_data, hfx_section)
+      ENDIF
+
       CALL cp_print_key_finished_output(iw, logger, hfx_section, &
                                         "HF_INFO")
-   END SUBROUTINE hfx_print_info
+   END SUBROUTINE
 
 ! **************************************************************************************************
 !> \brief ...
