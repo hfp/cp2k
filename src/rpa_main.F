@@ -13,12 +13,9 @@
 !>      03.2019 Refactoring [Frederick Stein]
 ! **************************************************************************************************
 MODULE rpa_main
-   USE bibliography,                    ONLY: Bates2013,&
-                                              DelBen2013,&
-                                              DelBen2015,&
-                                              Ren2011,&
-                                              Ren2013,&
-                                              cite_reference
+   USE bibliography,                    ONLY: &
+        Bates2013, DelBen2013, DelBen2015, Ren2011, Ren2013, Wilhelm2016a, Wilhelm2016b, &
+        Wilhelm2017, Wilhelm2018, cite_reference
    USE bse,                             ONLY: do_subspace_iterations,&
                                               mult_B_with_W_and_fill_local_3c_arrays
    USE cp_blacs_env,                    ONLY: cp_blacs_env_create,&
@@ -142,7 +139,6 @@ CONTAINS
 !> \param ends_array_mc ...
 !> \param starts_array_mc_block ...
 !> \param ends_array_mc_block ...
-!> \param eps_filter ...
 !> \param BIb_C_beta ...
 !> \param homo_beta ...
 !> \param Eigenval_beta ...
@@ -163,7 +159,7 @@ CONTAINS
                                 t_3c_M, t_3c_O, &
                                 starts_array_mc, ends_array_mc, &
                                 starts_array_mc_block, ends_array_mc_block, &
-                                eps_filter, BIb_C_beta, homo_beta, Eigenval_beta, &
+                                BIb_C_beta, homo_beta, Eigenval_beta, &
                                 gd_B_virtual_beta, &
                                 mo_coeff_beta, BIb_C_gw_beta, gw_corr_lev_occ_beta, gw_corr_lev_virt_beta)
 
@@ -194,7 +190,6 @@ CONTAINS
       INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(IN)     :: starts_array_mc, ends_array_mc, &
                                                             starts_array_mc_block, &
                                                             ends_array_mc_block
-      REAL(KIND=dp), INTENT(IN)                          :: eps_filter
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :), &
          INTENT(INOUT), OPTIONAL                         :: BIb_C_beta
       INTEGER, INTENT(IN), OPTIONAL                      :: homo_beta
@@ -241,12 +236,21 @@ CONTAINS
 
       IF (mp2_env%ri_rpa%do_ri_axk) THEN
          CALL cite_reference(Bates2013)
-
       ENDIF
       IF (mp2_env%ri_rpa%do_rse) THEN
          CALL cite_reference(Ren2011)
          CALL cite_reference(Ren2013)
       ENDIF
+
+      IF (my_do_gw) THEN
+         CALL cite_reference(Wilhelm2016a)
+         CALL cite_reference(Wilhelm2017)
+         CALL cite_reference(Wilhelm2018)
+      END IF
+
+      IF (do_im_time) THEN
+         CALL cite_reference(Wilhelm2016b)
+      END IF
 
       my_open_shell = .FALSE.
       IF (PRESENT(BIb_C_beta) .AND. &
@@ -670,7 +674,7 @@ CONTAINS
                           starts_array_mc, ends_array_mc, &
                           starts_array_mc_block, ends_array_mc_block, &
                           matrix_s, &
-                          kpoints, eps_filter, &
+                          kpoints, &
                           gd_array, color_sub, &
                           fm_mo_coeff_occ_beta=fm_mo_coeff_occ_beta, fm_mo_coeff_virt_beta=fm_mo_coeff_virt_beta, &
                           homo_beta=homo_beta, virtual_beta=virtual_beta, &
@@ -695,7 +699,7 @@ CONTAINS
                           starts_array_mc_block, ends_array_mc_block, &
                           matrix_s, &
                           kpoints, &
-                          eps_filter, gd_array, color_sub, &
+                          gd_array, color_sub, &
                           do_ri_sos_laplace_mp2=do_ri_sos_laplace_mp2)
       END IF
 
@@ -1229,7 +1233,6 @@ CONTAINS
 !> \param ends_array_mc_block ...
 !> \param matrix_s ...
 !> \param kpoints ...
-!> \param eps_filter ...
 !> \param gd_array ...
 !> \param color_sub ...
 !> \param fm_mo_coeff_occ_beta ...
@@ -1261,7 +1264,7 @@ CONTAINS
                           starts_array_mc, ends_array_mc, &
                           starts_array_mc_block, ends_array_mc_block, &
                           matrix_s, kpoints, &
-                          eps_filter, gd_array, color_sub, &
+                          gd_array, color_sub, &
                           fm_mo_coeff_occ_beta, fm_mo_coeff_virt_beta, &
                           homo_beta, virtual_beta, dimen_ia_beta, Eigenval_beta, fm_mat_S_beta, &
                           fm_mat_Q_gemm_beta, fm_mat_Q_beta, fm_mat_S_gw_beta, &
@@ -1297,7 +1300,6 @@ CONTAINS
                                                             ends_array_mc_block
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s
       TYPE(kpoint_type), POINTER                         :: kpoints
-      REAL(KIND=dp), INTENT(IN)                          :: eps_filter
       TYPE(group_dist_d1_type), INTENT(IN)               :: gd_array
       INTEGER, INTENT(IN)                                :: color_sub
       TYPE(cp_fm_type), OPTIONAL, POINTER                :: fm_mo_coeff_occ_beta, &
@@ -1334,7 +1336,7 @@ CONTAINS
          first_cycle_periodic_correction, my_open_shell, print_ic_values
       LOGICAL, ALLOCATABLE, DIMENSION(:, :, :, :, :)     :: has_mat_P_blocks
       REAL(dp)                                           :: dbcsr_time
-      REAL(KIND=dp) :: a_scaling, alpha, e_axk, e_axk_corr, e_fermi, e_fermi_beta, &
+      REAL(KIND=dp) :: a_scaling, alpha, e_axk, e_axk_corr, e_fermi, e_fermi_beta, eps_filter, &
          eps_filter_im_time, eps_min_trans, ext_scaling, fermi_level_offset, &
          fermi_level_offset_input, my_flop_rate, omega, omega_max_fit, omega_old, tau, tau_old
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:) :: delta_corr, Eigenval_last, Eigenval_last_beta, &
@@ -1433,7 +1435,10 @@ CONTAINS
 
          group_size_P = mp2_env%ri_rpa_im_time%group_size_P
          cut_memory = mp2_env%ri_rpa_im_time%cut_memory
-         eps_filter_im_time = mp2_env%ri_rpa_im_time%eps_filter_im_time
+         eps_filter = mp2_env%ri_rpa_im_time%eps_filter
+         eps_filter_im_time = mp2_env%ri_rpa_im_time%eps_filter* &
+                              mp2_env%ri_rpa_im_time%eps_filter_factor
+
          min_bsize = mp2_env%ri_rpa_im_time%min_bsize
 
          CALL alloc_im_time(qs_env, para_env, dimen_RI, dimen_RI_red, &
@@ -1500,13 +1505,13 @@ CONTAINS
 
       IF (do_minimax_quad .OR. do_ri_sos_laplace_mp2) THEN
          IF (my_open_shell) THEN
-            CALL get_minimax_grid(para_env, unit_nr, homo, Eigenval, num_integ_points, num_integ_points, do_im_time, &
+            CALL get_minimax_grid(para_env, unit_nr, homo, Eigenval, num_integ_points, do_im_time, &
                                   do_ri_sos_laplace_mp2,.NOT. do_ic_model, tau_tj, tau_wj, qs_env, do_gw_im_time, &
                                   do_kpoints_cubic_RPA, a_scaling, e_fermi, tj, wj, mp2_env, &
                                   weights_cos_tf_t_to_w, weights_cos_tf_w_to_t, weights_sin_tf_t_to_w, &
                                   homo_beta, dimen_ia_beta, Eigenval_beta)
          ELSE
-            CALL get_minimax_grid(para_env, unit_nr, homo, Eigenval, num_integ_points, num_integ_points, do_im_time, &
+            CALL get_minimax_grid(para_env, unit_nr, homo, Eigenval, num_integ_points, do_im_time, &
                                   do_ri_sos_laplace_mp2,.NOT. do_ic_model, tau_tj, tau_wj, qs_env, do_gw_im_time, &
                                   do_kpoints_cubic_RPA, a_scaling, e_fermi, tj, wj, mp2_env, &
                                   weights_cos_tf_t_to_w, weights_cos_tf_w_to_t, weights_sin_tf_t_to_w)

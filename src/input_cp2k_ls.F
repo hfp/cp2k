@@ -21,7 +21,8 @@ MODULE input_cp2k_ls
         ls_s_inversion_sign_sqrt, ls_s_preconditioner_atomic, ls_s_preconditioner_molecular, &
         ls_s_preconditioner_none, ls_s_sqrt_ns, ls_s_sqrt_proot, ls_scf_line_search_3point, &
         ls_scf_line_search_3point_2d, ls_scf_pexsi, ls_scf_sign, ls_scf_sign_ns, &
-        ls_scf_sign_proot, ls_scf_tc2, ls_scf_trs4
+        ls_scf_sign_proot, ls_scf_sign_submatrix, ls_scf_submatrix_sign_direct, &
+        ls_scf_submatrix_sign_ns, ls_scf_tc2, ls_scf_trs4
    USE input_keyword_types,             ONLY: keyword_create,&
                                               keyword_release,&
                                               keyword_type
@@ -208,10 +209,22 @@ CONTAINS
                           usage="SIGN_METHOD NEWTONSCHULZ", &
                           default_i_val=ls_scf_sign_ns, &
                           citations=(/VandeVondele2012, Niklasson2003/), &
-                          enum_c_vals=s2a("NEWTONSCHULZ", "PROOT"), &
+                          enum_c_vals=s2a("NEWTONSCHULZ", "PROOT", "SUBMATRIX"), &
                           enum_desc=s2a("Newton-Schulz iteration.", &
-                                        "p-th order root iteration"), &
-                          enum_i_vals=(/ls_scf_sign_ns, ls_scf_sign_proot/))
+                                        "p-th order root iteration", &
+                                        "Submatrix method"), &
+                          enum_i_vals=(/ls_scf_sign_ns, ls_scf_sign_proot, ls_scf_sign_submatrix/))
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="SUBMATRIX_SIGN_METHOD", &
+                          description="Method used for the computation of the sign matrix of all submatrices.", &
+                          usage="SUBMATRIX_SIGN_METHOD NEWTONSCHULZ", &
+                          default_i_val=ls_scf_submatrix_sign_ns, &
+                          enum_c_vals=s2a("NEWTONSCHULZ", "DIRECT"), &
+                          enum_desc=s2a("Newton-Schulz iteration.", &
+                                        "Directly calculate all eigenvalues."), &
+                          enum_i_vals=(/ls_scf_submatrix_sign_ns, ls_scf_submatrix_sign_direct/))
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -219,6 +232,12 @@ CONTAINS
                           description="Order of the method used for the computation of the sign matrix.", &
                           usage="SIGN_ORDER 2", &
                           default_i_val=2)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="SIGN_SYMMETRIC", &
+                          description="Use symmetric orthogonalization when generating the input for the sign function.", &
+                          usage="SIGN_SYMMETRIC .TRUE.", default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 

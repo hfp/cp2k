@@ -10,12 +10,9 @@
 !> \author MDB
 ! **************************************************************************************************
 MODULE input_cp2k_mp2
-   USE bibliography,                    ONLY: Bates2013,&
-                                              DelBen2012,&
-                                              DelBen2013,&
-                                              DelBen2015,&
-                                              DelBen2015b,&
-                                              Rybkin2016
+   USE bibliography,                    ONLY: &
+        Bates2013, DelBen2012, DelBen2013, DelBen2015, DelBen2015b, Rybkin2016, Wilhelm2016a, &
+        Wilhelm2016b, Wilhelm2017, Wilhelm2018
    USE cp_eri_mme_interface,            ONLY: create_eri_mme_section
    USE cp_output_handling,              ONLY: add_last_numeric,&
                                               cp_print_key_section_create,&
@@ -76,7 +73,8 @@ CONTAINS
                           description="Sets up the wavefunction-based correlation methods as MP2, "// &
                           "RI-MP2, RI-SOS-MP2, RI-RPA and GW (inside RI-RPA). ", &
                           n_keywords=4, n_subsections=7, repeats=.TRUE., &
-                          citations=(/DelBen2012, DelBen2013, DelBen2015, DelBen2015b, Rybkin2016/))
+                          citations=(/DelBen2012, DelBen2013, DelBen2015, DelBen2015b, Rybkin2016, &
+                                      Wilhelm2016a, Wilhelm2016b, Wilhelm2017, Wilhelm2018/))
 
       NULLIFY (keyword, subsection)
 
@@ -999,7 +997,7 @@ CONTAINS
 
       CALL keyword_create(keyword, __LOCATION__, name="THRESHOLD_MIN_TRANS", &
                           variants=(/"EPS"/), &
-                          description="Threshold for stopping the iteration for computing the transistion energies. "// &
+                          description="Threshold for stopping the iteration for computing the transition energies. "// &
                           "If the lowest excitation changes by less than THRESHOLD_MIN_TRANS (in eV), the ieration"// &
                           "stops.", &
                           usage="THRESHOLD_MIN_TRANS 0.001", &
@@ -1008,7 +1006,7 @@ CONTAINS
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="MAX_ITER", &
-                          description="Maximum number of iterations for determining the transistion energies.", &
+                          description="Maximum number of iterations for determining the transition energies.", &
                           usage="MAX_ITER 200", &
                           default_i_val=200)
       CALL section_add_keyword(section, keyword)

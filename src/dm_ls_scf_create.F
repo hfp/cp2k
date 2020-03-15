@@ -30,7 +30,8 @@ MODULE dm_ls_scf_create
         ls_cluster_atomic, ls_cluster_molecular, ls_s_inversion_hotelling, ls_s_inversion_none, &
         ls_s_inversion_sign_sqrt, ls_s_preconditioner_atomic, ls_s_preconditioner_molecular, &
         ls_s_preconditioner_none, ls_s_sqrt_ns, ls_s_sqrt_proot, ls_scf_pexsi, ls_scf_sign, &
-        ls_scf_sign_ns, ls_scf_sign_proot, ls_scf_tc2, ls_scf_trs4
+        ls_scf_sign_ns, ls_scf_sign_proot, ls_scf_sign_submatrix, ls_scf_submatrix_sign_direct, &
+        ls_scf_submatrix_sign_ns, ls_scf_tc2, ls_scf_trs4
    USE input_enumeration_types,         ONLY: enum_i2c,&
                                               enumeration_type
    USE input_keyword_types,             ONLY: keyword_get,&
@@ -210,7 +211,9 @@ CONTAINS
       CALL section_vals_val_get(ls_scf_section, "PERFORM_MU_SCAN", l_val=ls_scf_env%perform_mu_scan)
       CALL section_vals_val_get(ls_scf_section, "PURIFICATION_METHOD", i_val=ls_scf_env%purification_method)
       CALL section_vals_val_get(ls_scf_section, "SIGN_METHOD", i_val=ls_scf_env%sign_method)
+      CALL section_vals_val_get(ls_scf_section, "SUBMATRIX_SIGN_METHOD", i_val=ls_scf_env%submatrix_sign_method)
       CALL section_vals_val_get(ls_scf_section, "SIGN_ORDER", i_val=ls_scf_env%sign_order)
+      CALL section_vals_val_get(ls_scf_section, "SIGN_SYMMETRIC", l_val=ls_scf_env%sign_symmetric)
       CALL section_vals_val_get(ls_scf_section, "DYNAMIC_THRESHOLD", l_val=ls_scf_env%dynamic_threshold)
       CALL section_vals_val_get(ls_scf_section, "NON_MONOTONIC", l_val=ls_scf_env%non_monotonic)
       CALL section_vals_val_get(ls_scf_section, "S_SQRT_METHOD", i_val=ls_scf_env%s_sqrt_method)
@@ -309,6 +312,15 @@ CONTAINS
       IF (ls_scf_env%curvy_steps .AND. .NOT. ls_scf_env%use_s_sqrt) &
          CPABORT("CURVY_STEPS requires the use of the sqrt inversion.")
 
+      ! verify requirements for direct submatrix sign method
+      IF (ls_scf_env%sign_method .EQ. ls_scf_sign_submatrix &
+          .AND. ls_scf_env%submatrix_sign_method .EQ. ls_scf_submatrix_sign_direct &
+          .AND. .NOT. ls_scf_env%sign_symmetric) &
+         CPABORT("DIRECT submatrix sign method requires SIGN_SYMMETRIC being set.")
+
+      ! sign_symmetric requires computation of s_sqrt
+      IF (ls_scf_env%sign_symmetric) ls_scf_env%use_s_sqrt = .TRUE.
+
       ! an undocumented feature ... allows for just doing the initial guess, no expensive stuff
       IF (ls_scf_env%max_scf < 0) THEN
          ls_scf_env%needs_s_inv = .FALSE.
@@ -358,7 +370,7 @@ CONTAINS
          CASE (ls_s_sqrt_proot)
             WRITE (unit_nr, '(T2,A,T61,A20)') "S sqrt method:", "PROOT"
          CASE DEFAULT
-            CPABORT("Unkown sqrt method.")
+            CPABORT("Unknown sqrt method.")
          END SELECT
 
          WRITE (unit_nr, '(T2,A,T61,I20)') "S sqrt order:", ls_scf_env%s_sqrt_order
@@ -389,10 +401,21 @@ CONTAINS
                WRITE (unit_nr, '(T2,A,T61,A20)') "Sign method:", ADJUSTR("newton schulz")
             CASE (ls_scf_sign_proot)
                WRITE (unit_nr, '(T2,A,T61,A20)') "Sign method:", ADJUSTR("p-th root method")
+            CASE (ls_scf_sign_submatrix)
+               WRITE (unit_nr, '(T2,A,T61,A20)') "Sign method:", ADJUSTR("submatrix method")
+               SELECT CASE (ls_scf_env%submatrix_sign_method)
+               CASE (ls_scf_submatrix_sign_ns)
+                  WRITE (unit_nr, '(T2,A,T61,A20)') "Submatrix sign method:", ADJUSTR("newton schulz")
+               CASE (ls_scf_submatrix_sign_direct)
+                  WRITE (unit_nr, '(T2,A,T61,A20)') "Submatrix sign method:", ADJUSTR("direct")
+               CASE DEFAULT
+                  CPABORT("Unkown submatrix sign method.")
+               END SELECT
             CASE DEFAULT
-               CPABORT("Unkown sign method.")
+               CPABORT("Unknown sign method.")
             END SELECT
             WRITE (unit_nr, '(T2,A,T61,I20)') "Sign order:", ls_scf_env%sign_order
+            WRITE (unit_nr, '(T2,A,T61,L20)') "Symmetric sign calculation:", ls_scf_env%sign_symmetric
          CASE (ls_scf_tc2)
             CALL cite_reference(Niklasson2014)
             WRITE (unit_nr, '(T2,A,T51,A30)') "Purification method", ADJUSTR("Trace conserving 2nd order")
@@ -413,7 +436,7 @@ CONTAINS
          CASE (ls_cluster_molecular)
             WRITE (unit_nr, '(T2,A,T61,A20)') "Cluster type", ADJUSTR("MOLECULAR")
          CASE DEFAULT
-            CPABORT("Unkown cluster type")
+            CPABORT("Unknown cluster type")
          END SELECT
 
          IF (ls_scf_env%chebyshev%compute_chebyshev) THEN

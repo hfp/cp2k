@@ -17,11 +17,14 @@ MODULE iterate_matrix
                                               cp_logger_get_default_unit_nr,&
                                               cp_logger_type
    USE dbcsr_api,                       ONLY: &
-        dbcsr_add, dbcsr_add_on_diag, dbcsr_copy, dbcsr_create, dbcsr_desymmetrize, dbcsr_filter, &
-        dbcsr_frobenius_norm, dbcsr_gershgorin_norm, dbcsr_get_diag, dbcsr_get_info, &
-        dbcsr_get_matrix_type, dbcsr_get_occupation, dbcsr_multiply, dbcsr_norm, &
-        dbcsr_norm_maxabsnorm, dbcsr_p_type, dbcsr_release, dbcsr_scale, dbcsr_set, &
-        dbcsr_set_diag, dbcsr_trace, dbcsr_transposed, dbcsr_type, dbcsr_type_no_symmetry
+        dbcsr_add, dbcsr_add_on_diag, dbcsr_copy, dbcsr_create, dbcsr_desymmetrize, &
+        dbcsr_distribution_get, dbcsr_distribution_type, dbcsr_filter, dbcsr_frobenius_norm, &
+        dbcsr_gershgorin_norm, dbcsr_get_diag, dbcsr_get_info, dbcsr_get_matrix_type, &
+        dbcsr_get_occupation, dbcsr_multiply, dbcsr_norm, dbcsr_norm_maxabsnorm, dbcsr_p_type, &
+        dbcsr_release, dbcsr_scale, dbcsr_set, dbcsr_set_diag, dbcsr_trace, dbcsr_transposed, &
+        dbcsr_type, dbcsr_type_no_symmetry
+   USE input_constants,                 ONLY: ls_scf_submatrix_sign_direct,&
+                                              ls_scf_submatrix_sign_ns
    USE kinds,                           ONLY: dp,&
                                               int_8
    USE machine,                         ONLY: m_flush,&
@@ -29,6 +32,7 @@ MODULE iterate_matrix
    USE mathconstants,                   ONLY: ifac
    USE mathlib,                         ONLY: abnormal_value
    USE message_passing,                 ONLY: mp_sum
+   USE submatrix_dissection,            ONLY: submatrix_dissection_type
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE
@@ -42,7 +46,7 @@ MODULE iterate_matrix
    END INTERFACE
 
    PUBLIC :: invert_Hotelling, matrix_sign_Newton_Schulz, matrix_sqrt_Newton_Schulz, &
-             matrix_sqrt_proot, matrix_sign_proot, &
+             matrix_sqrt_proot, matrix_sign_proot, matrix_sign_submatrix, &
              purify_mcweeny, invert_Taylor, determinant
 
 CONTAINS
@@ -1006,6 +1010,8 @@ CONTAINS
       TYPE(dbcsr_type)                                   :: matrix2, matrix_sqrt, matrix_sqrt_inv, &
                                                             tmp1, tmp2
 
+      CALL cite_reference(Richters2018)
+
       CALL timeset(routineN, handle)
 
       logger => cp_get_default_logger()
@@ -1071,6 +1077,243 @@ CONTAINS
       CALL timestop(handle)
 
    END SUBROUTINE matrix_sign_proot
+
+! **************************************************************************************************
+!> \brief compute the sign of a dense matrix using Newton-Schulz iterations
+!> \param matrix_sign ...
+!> \param matrix ...
+!> \param matrix_id ...
+!> \param threshold ...
+!> \param sign_order ...
+!> \author Michael Lass, Robert Schade
+! **************************************************************************************************
+   SUBROUTINE dense_matrix_sign_Newton_Schulz(matrix_sign, matrix, matrix_id, threshold, sign_order)
+
+      REAL(KIND=dp), DIMENSION(:, :), INTENT(INOUT)      :: matrix_sign
+      REAL(KIND=dp), DIMENSION(:, :), INTENT(IN)         :: matrix
+      INTEGER, INTENT(IN), OPTIONAL                      :: matrix_id
+      REAL(KIND=dp), INTENT(IN)                          :: threshold
+      INTEGER, INTENT(IN), OPTIONAL                      :: sign_order
+
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'dense_matrix_sign_Newton_Schulz', &
+         routineP = moduleN//':'//routineN
+
+      INTEGER                                            :: handle, i, j, sz, unit_nr
+      LOGICAL                                            :: converged
+      REAL(KIND=dp)                                      :: frob_matrix, frob_matrix_base, &
+                                                            gersh_matrix, prefactor, scaling_factor
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: tmp1, tmp2
+      REAL(KIND=dp), DIMENSION(1)                        :: work
+      REAL(KIND=dp), EXTERNAL                            :: dlange
+      TYPE(cp_logger_type), POINTER                      :: logger
+
+      CALL timeset(routineN, handle)
+
+      ! print output on all ranks
+      logger => cp_get_default_logger()
+      unit_nr = cp_logger_get_default_unit_nr(logger, local=.TRUE.)
+
+      ! scale the matrix to get into the convergence range
+      sz = SIZE(matrix, 1)
+      frob_matrix = dlange('F', sz, sz, matrix, sz, work) !dbcsr_frobenius_norm(matrix_sign)
+      gersh_matrix = dlange('1', sz, sz, matrix, sz, work) !dbcsr_gershgorin_norm(matrix_sign)
+      scaling_factor = 1/MIN(frob_matrix, gersh_matrix)
+      matrix_sign = matrix*scaling_factor
+      ALLOCATE (tmp1(sz, sz))
+      ALLOCATE (tmp2(sz, sz))
+
+      converged = .FALSE.
+      DO i = 1, 100
+         CALL dgemm('N', 'N', sz, sz, sz, -1.0_dp, matrix_sign, sz, matrix_sign, sz, 0.0_dp, tmp1, sz)
+
+         ! check convergence (frob norm of what should be the identity matrix minus identity matrix)
+         frob_matrix_base = dlange('F', sz, sz, tmp1, sz, work)
+         DO j = 1, sz
+            tmp1(j, j) = tmp1(j, j) + 1.0_dp
+         ENDDO
+         frob_matrix = dlange('F', sz, sz, tmp1, sz, work)
+
+         IF (sign_order .EQ. 2) THEN
+            prefactor = 0.5_dp
+            ! update the above to 3*I-X*X
+            DO j = 1, sz
+               tmp1(j, j) = tmp1(j, j) + 2.0_dp
+            ENDDO
+         ELSE IF (sign_order .EQ. 3) THEN
+            tmp2(:, :) = tmp1
+            tmp1 = tmp1*4.0_dp/3.0_dp
+            DO j = 1, sz
+               tmp1(j, j) = tmp1(j, j) + 8.0_dp/3.0_dp
+            ENDDO
+            CALL dgemm('N', 'N', sz, sz, sz, 1.0_dp, tmp2, sz, tmp2, sz, 1.0_dp, tmp1, sz)
+            prefactor = 3.0_dp/8.0_dp
+         ELSE
+            CPABORT("requested order is not implemented.")
+         ENDIF
+
+         CALL dgemm('N', 'N', sz, sz, sz, prefactor, matrix_sign, sz, tmp1, sz, 0.0_dp, tmp2, sz)
+         matrix_sign = tmp2
+
+         ! frob_matrix/frob_matrix_base < SQRT(threshold)
+         IF (frob_matrix*frob_matrix < (threshold*frob_matrix_base*frob_matrix_base)) THEN
+            WRITE (unit_nr, '(T6,A,1X,I6,1X,A,1X,I3,E12.3)') &
+               "Submatrix", matrix_id, "final NS sign iter", i, frob_matrix/frob_matrix_base
+            CALL m_flush(unit_nr)
+            converged = .TRUE.
+            EXIT
+         ENDIF
+      ENDDO
+
+      IF (.NOT. converged) &
+         CPABORT("dense_matrix_sign_Newton_Schulz did not converge within 100 iterations")
+
+      DEALLOCATE (tmp1)
+      DEALLOCATE (tmp2)
+
+      CALL timestop(handle)
+
+   END SUBROUTINE dense_matrix_sign_Newton_Schulz
+
+! **************************************************************************************************
+!> \brief Calculate the sign matrix by direct calculation of all eigenvalues and eigenvectors
+!> \param sm_sign ...
+!> \param sm ...
+!> \param N ...
+!> \author Michael Lass, Robert Schade
+! **************************************************************************************************
+   SUBROUTINE dense_matrix_sign_direct(sm_sign, sm, N)
+      INTEGER, INTENT(IN)                                :: N
+      REAL(KIND=dp), INTENT(IN)                          :: sm(N, N)
+      REAL(KIND=dp), INTENT(INOUT)                       :: sm_sign(N, N)
+
+      INTEGER                                            :: i, info, liwork, lwork
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: iwork
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: W, work
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: tmp, U
+
+      ALLOCATE (U(N, N), tmp(N, N))
+      ALLOCATE (W(N))
+
+      ! symmetrize sm
+      U(:, :) = 0.5*(sm + TRANSPOSE(sm))
+
+      ! probe optimal sizes for WORK and IWORK
+      LWORK = -1
+      LIWORK = -1
+      ALLOCATE (WORK(1))
+      ALLOCATE (IWORK(1))
+      CALL dsyevd('V', 'U', N, U, N, W, WORK, LWORK, IWORK, LIWORK, INFO)
+      LWORK = INT(WORK(1))
+      LIWORK = INT(IWORK(1))
+      DEALLOCATE (IWORK)
+      DEALLOCATE (WORK)
+
+      ! calculate eigenvalues and eigenvectors
+      ALLOCATE (WORK(LWORK))
+      ALLOCATE (IWORK(LIWORK))
+      CALL dsyevd('V', 'U', N, U, N, W, WORK, LWORK, IWORK, LIWORK, INFO)
+      DEALLOCATE (IWORK)
+      DEALLOCATE (WORK)
+
+      IF (INFO .NE. 0) CPABORT("dsyevd did not succeed")
+
+      sm_sign = 0
+      DO i = 1, N
+         IF (W(i) > 0) THEN
+            sm_sign(i, i) = 1.0
+         ELSE IF (W(i) < 0) THEN
+            sm_sign(i, i) = -1.0
+         ELSE
+            sm_sign(i, i) = 0.0
+         ENDIF
+      ENDDO
+
+      ! Create matrix with eigenvalues in {-1,0,1} and eigenvectors of sm:
+      ! sm_sign = U * sm_sign * U.T
+      CALL dgemm('N', 'N', N, N, N, 1.0_dp, U, N, sm_sign, N, 0.0_dp, tmp, N)
+      CALL dgemm('N', 'T', N, N, N, 1.0_dp, tmp, N, U, N, 0.0_dp, sm_sign, N)
+
+      DEALLOCATE (W)
+      DEALLOCATE (tmp)
+      DEALLOCATE (U)
+   END SUBROUTINE dense_matrix_sign_direct
+
+! **************************************************************************************************
+!> \brief Submatrix method
+!> \param matrix_sign ...
+!> \param matrix ...
+!> \param threshold ...
+!> \param sign_order ...
+!> \param submatrix_sign_method ...
+!> \par History
+!>       2019.03 created [Robert Schade]
+!>       2019.06 impl. submatrix method [Michael Lass]
+!> \author Robert Schade, Michael Lass
+! **************************************************************************************************
+   SUBROUTINE matrix_sign_submatrix(matrix_sign, matrix, threshold, sign_order, submatrix_sign_method)
+
+      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix_sign, matrix
+      REAL(KIND=dp), INTENT(IN)                          :: threshold
+      INTEGER, INTENT(IN), OPTIONAL                      :: sign_order
+      INTEGER, INTENT(IN)                                :: submatrix_sign_method
+
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'matrix_sign_submatrix', &
+         routineP = moduleN//':'//routineN
+
+      INTEGER                                            :: group, handle, i, myrank, nblkcols, &
+                                                            order, sm_size, unit_nr
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: my_sms
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: sm, sm_sign
+      TYPE(cp_logger_type), POINTER                      :: logger
+      TYPE(dbcsr_distribution_type)                      :: dist
+      TYPE(submatrix_dissection_type)                    :: dissection
+
+      CALL timeset(routineN, handle)
+
+      ! print output on all ranks
+      logger => cp_get_default_logger()
+      unit_nr = cp_logger_get_default_unit_nr(logger, local=.TRUE.)
+
+      IF (PRESENT(sign_order)) THEN
+         order = sign_order
+      ELSE
+         order = 2
+      ENDIF
+
+      CALL dbcsr_get_info(matrix=matrix, nblkcols_total=nblkcols, distribution=dist, group=group)
+      CALL dbcsr_distribution_get(dist=dist, mynode=myrank)
+
+      CALL dissection%init(matrix)
+      CALL dissection%get_sm_ids_for_rank(myrank, my_sms)
+
+      !$OMP PARALLEL DEFAULT(NONE) PRIVATE(sm, sm_sign, sm_size) &
+      !$OMP          SHARED(dissection, myrank, my_sms, order, submatrix_sign_method, threshold, unit_nr)
+      !$OMP DO SCHEDULE(GUIDED)
+      DO i = 1, SIZE(my_sms)
+         WRITE (unit_nr, '(T3,A,1X,I4,1X,A,1X,I6)') "Rank", myrank, "processing submatrix", my_sms(i)
+         CALL dissection%generate_submatrix(my_sms(i), sm)
+         sm_size = SIZE(sm, 1)
+         ALLOCATE (sm_sign(sm_size, sm_size))
+         SELECT CASE (submatrix_sign_method)
+         CASE (ls_scf_submatrix_sign_ns)
+            CALL dense_matrix_sign_Newton_Schulz(sm_sign, sm, my_sms(i), threshold, order)
+         CASE (ls_scf_submatrix_sign_direct)
+            CALL dense_matrix_sign_direct(sm_sign, sm, sm_size)
+         CASE DEFAULT
+            CPABORT("Unkown submatrix sign method.")
+         END SELECT
+         CALL dissection%copy_resultcol(my_sms(i), sm_sign)
+         DEALLOCATE (sm, sm_sign)
+      ENDDO
+      !$OMP END DO
+      !$OMP END PARALLEL
+
+      CALL dissection%communicate_results(matrix_sign)
+      CALL dissection%final
+
+      CALL timestop(handle)
+
+   END SUBROUTINE matrix_sign_submatrix
 
 ! **************************************************************************************************
 !> \brief compute the sqrt of a matrix via the sign function and the corresponding Newton-Schulz iterations
@@ -1619,7 +1862,7 @@ CONTAINS
       ! Calculate the norm of C and moltiply by toll to be used as a threshold
       norm_C = toll*dbcsr_frobenius_norm(matrix)
 
-      ! iteration for the trucated taylor series expansion
+      ! iteration for the truncated taylor series expansion
       CALL dbcsr_create(D_product, template=matrix, matrix_type=dbcsr_type_no_symmetry)
       i = 1
       DO

@@ -25,17 +25,14 @@ MODULE dm_ls_scf_methods
    USE dm_ls_scf_types,                 ONLY: ls_cluster_atomic,&
                                               ls_mstruct_type,&
                                               ls_scf_env_type
-   USE input_constants,                 ONLY: ls_cluster_atomic,&
-                                              ls_s_preconditioner_atomic,&
-                                              ls_s_preconditioner_molecular,&
-                                              ls_s_preconditioner_none,&
-                                              ls_s_sqrt_ns,&
-                                              ls_s_sqrt_proot,&
-                                              ls_scf_sign_ns,&
-                                              ls_scf_sign_proot
+   USE input_constants,                 ONLY: &
+        ls_cluster_atomic, ls_s_preconditioner_atomic, ls_s_preconditioner_molecular, &
+        ls_s_preconditioner_none, ls_s_sqrt_ns, ls_s_sqrt_proot, ls_scf_sign_ns, &
+        ls_scf_sign_proot, ls_scf_sign_submatrix, ls_scf_submatrix_sign_ns
    USE iterate_matrix,                  ONLY: invert_Hotelling,&
                                               matrix_sign_Newton_Schulz,&
                                               matrix_sign_proot,&
+                                              matrix_sign_submatrix,&
                                               matrix_sqrt_Newton_Schulz,&
                                               matrix_sqrt_proot
    USE kinds,                           ONLY: dp,&
@@ -140,7 +137,7 @@ CONTAINS
                                            ls_scf_env%s_sqrt_order, &
                                            ls_scf_env%eps_lanczos, ls_scf_env%max_iter_lanczos)
          CASE DEFAULT
-            CPABORT("Unkown sqrt method.")
+            CPABORT("Unknown sqrt method.")
          END SELECT
 
          IF (ls_scf_env%check_s_inv) THEN
@@ -372,12 +369,16 @@ CONTAINS
 !> \param matrix_s_inv ...
 !> \param nelectron ...
 !> \param threshold ...
+!> \param sign_symmetric ...
+!> \param submatrix_sign_method ...
+!> \param matrix_s_sqrt_inv ...
 !> \par History
 !>       2010.10 created [Joost VandeVondele]
 !> \author Joost VandeVondele
 ! **************************************************************************************************
    SUBROUTINE density_matrix_sign(matrix_p, mu, fixed_mu, sign_method, sign_order, matrix_ks, &
-                                  matrix_s, matrix_s_inv, nelectron, threshold)
+                                  matrix_s, matrix_s_inv, nelectron, threshold, sign_symmetric, submatrix_sign_method, &
+                                  matrix_s_sqrt_inv)
 
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix_p
       REAL(KIND=dp), INTENT(INOUT)                       :: mu
@@ -386,13 +387,18 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix_ks, matrix_s, matrix_s_inv
       INTEGER, INTENT(IN)                                :: nelectron
       REAL(KIND=dp), INTENT(IN)                          :: threshold
+      LOGICAL, OPTIONAL                                  :: sign_symmetric
+      INTEGER, OPTIONAL                                  :: submatrix_sign_method
+      TYPE(dbcsr_type), INTENT(IN), OPTIONAL             :: matrix_s_sqrt_inv
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'density_matrix_sign', &
          routineP = moduleN//':'//routineN
       REAL(KIND=dp), PARAMETER                           :: initial_increment = 0.01_dp
 
-      INTEGER                                            :: handle, iter, unit_nr
-      LOGICAL                                            :: has_mu_high, has_mu_low
+      INTEGER                                            :: handle, iter, unit_nr, &
+                                                            used_submatrix_sign_method
+      LOGICAL                                            :: do_sign_symmetric, has_mu_high, &
+                                                            has_mu_low
       REAL(KIND=dp)                                      :: increment, mu_high, mu_low, trace
       TYPE(cp_logger_type), POINTER                      :: logger
 
@@ -404,6 +410,12 @@ CONTAINS
       ELSE
          unit_nr = -1
       ENDIF
+
+      do_sign_symmetric = .FALSE.
+      IF (PRESENT(sign_symmetric)) do_sign_symmetric = sign_symmetric
+
+      used_submatrix_sign_method = ls_scf_submatrix_sign_ns
+      IF (PRESENT(submatrix_sign_method)) used_submatrix_sign_method = submatrix_sign_method
 
       increment = initial_increment
 
@@ -418,7 +430,9 @@ CONTAINS
          ENDIF
 
          CALL density_matrix_sign_fixed_mu(matrix_p, trace, mu, sign_method, sign_order, &
-                                           matrix_ks, matrix_s, matrix_s_inv, threshold)
+                                           matrix_ks, matrix_s, matrix_s_inv, threshold, &
+                                           do_sign_symmetric, used_submatrix_sign_method, &
+                                           matrix_s_sqrt_inv)
          IF (unit_nr > 0) WRITE (unit_nr, '(T2,A,I2,1X,F13.9,1X,F15.9)') &
             "Density matrix:  iter, mu, trace error: ", iter, mu, trace - nelectron
 
@@ -454,12 +468,16 @@ CONTAINS
 !> \param matrix_s ...
 !> \param matrix_s_inv ...
 !> \param threshold ...
+!> \param sign_symmetric ...
+!> \param submatrix_sign_method ...
+!> \param matrix_s_sqrt_inv ...
 !> \par History
 !>       2010.10 created [Joost VandeVondele]
 !> \author Joost VandeVondele
 ! **************************************************************************************************
    SUBROUTINE density_matrix_sign_fixed_mu(matrix_p, trace, mu, sign_method, sign_order, matrix_ks, &
-                                           matrix_s, matrix_s_inv, threshold)
+                                           matrix_s, matrix_s_inv, threshold, sign_symmetric, submatrix_sign_method, &
+                                           matrix_s_sqrt_inv)
 
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix_p
       REAL(KIND=dp), INTENT(OUT)                         :: trace
@@ -467,6 +485,9 @@ CONTAINS
       INTEGER                                            :: sign_method, sign_order
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix_ks, matrix_s, matrix_s_inv
       REAL(KIND=dp), INTENT(IN)                          :: threshold
+      LOGICAL                                            :: sign_symmetric
+      INTEGER                                            :: submatrix_sign_method
+      TYPE(dbcsr_type), INTENT(IN), OPTIONAL             :: matrix_s_sqrt_inv
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'density_matrix_sign_fixed_mu', &
          routineP = moduleN//':'//routineN
@@ -474,8 +495,8 @@ CONTAINS
       INTEGER                                            :: handle, unit_nr
       REAL(KIND=dp)                                      :: frob_matrix
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(dbcsr_type)                                   :: matrix_p_ud, matrix_sign, &
-                                                            matrix_sinv_ks, matrix_tmp
+      TYPE(dbcsr_type) :: matrix_p_ud, matrix_sign, matrix_sinv_ks, matrix_ssqrtinv_ks_ssqrtinv, &
+         matrix_ssqrtinv_ks_ssqrtinv2, matrix_tmp
 
       CALL timeset(routineN, handle)
 
@@ -486,23 +507,54 @@ CONTAINS
          unit_nr = -1
       ENDIF
 
-      ! get inv(S)*H-I*mu
-      CALL dbcsr_create(matrix_sinv_ks, template=matrix_s, matrix_type=dbcsr_type_no_symmetry)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_s_inv, matrix_ks, &
-                          0.0_dp, matrix_sinv_ks, filter_eps=threshold)
-      CALL dbcsr_add_on_diag(matrix_sinv_ks, -mu)
-
-      ! compute sign(inv(S)*H-I*mu)
       CALL dbcsr_create(matrix_sign, template=matrix_s, matrix_type=dbcsr_type_no_symmetry)
-      SELECT CASE (sign_method)
-      CASE (ls_scf_sign_ns)
-         CALL matrix_sign_Newton_Schulz(matrix_sign, matrix_sinv_ks, threshold, sign_order)
-      CASE (ls_scf_sign_proot)
-         CALL matrix_sign_proot(matrix_sign, matrix_sinv_ks, threshold, sign_order)
-      CASE DEFAULT
-         CPABORT("Unkown sign method.")
-      END SELECT
-      CALL dbcsr_release(matrix_sinv_ks)
+
+      IF (sign_symmetric) THEN
+
+         IF (.NOT. PRESENT(matrix_s_sqrt_inv)) &
+            CPABORT("Argument matrix_s_sqrt_inv required if sign_symmetric is set")
+
+         CALL dbcsr_create(matrix_ssqrtinv_ks_ssqrtinv, template=matrix_s, matrix_type=dbcsr_type_no_symmetry)
+         CALL dbcsr_create(matrix_ssqrtinv_ks_ssqrtinv2, template=matrix_s, matrix_type=dbcsr_type_no_symmetry)
+         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_s_sqrt_inv, matrix_ks, &
+                             0.0_dp, matrix_ssqrtinv_ks_ssqrtinv2, filter_eps=threshold)
+         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_ssqrtinv_ks_ssqrtinv2, matrix_s_sqrt_inv, &
+                             0.0_dp, matrix_ssqrtinv_ks_ssqrtinv, filter_eps=threshold)
+         CALL dbcsr_add_on_diag(matrix_ssqrtinv_ks_ssqrtinv, -mu)
+
+         SELECT CASE (sign_method)
+         CASE (ls_scf_sign_ns)
+            CALL matrix_sign_Newton_Schulz(matrix_sign, matrix_ssqrtinv_ks_ssqrtinv, threshold, sign_order)
+         CASE (ls_scf_sign_proot)
+            CALL matrix_sign_proot(matrix_sign, matrix_ssqrtinv_ks_ssqrtinv, threshold, sign_order)
+         CASE (ls_scf_sign_submatrix)
+            CALL matrix_sign_submatrix(matrix_sign, matrix_ssqrtinv_ks_ssqrtinv, threshold, sign_order, submatrix_sign_method)
+         CASE DEFAULT
+            CPABORT("Unkown sign method.")
+         END SELECT
+         CALL dbcsr_release(matrix_ssqrtinv_ks_ssqrtinv)
+         CALL dbcsr_release(matrix_ssqrtinv_ks_ssqrtinv2)
+
+      ELSE ! .NOT. sign_symmetric
+         ! get inv(S)*H-I*mu
+         CALL dbcsr_create(matrix_sinv_ks, template=matrix_s, matrix_type=dbcsr_type_no_symmetry)
+         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_s_inv, matrix_ks, &
+                             0.0_dp, matrix_sinv_ks, filter_eps=threshold)
+         CALL dbcsr_add_on_diag(matrix_sinv_ks, -mu)
+
+         ! compute sign(inv(S)*H-I*mu)
+         SELECT CASE (sign_method)
+         CASE (ls_scf_sign_ns)
+            CALL matrix_sign_Newton_Schulz(matrix_sign, matrix_sinv_ks, threshold, sign_order)
+         CASE (ls_scf_sign_proot)
+            CALL matrix_sign_proot(matrix_sign, matrix_sinv_ks, threshold, sign_order)
+         CASE (ls_scf_sign_submatrix)
+            CALL matrix_sign_submatrix(matrix_sign, matrix_sinv_ks, threshold, sign_order, submatrix_sign_method)
+         CASE DEFAULT
+            CPABORT("Unkown sign method.")
+         END SELECT
+         CALL dbcsr_release(matrix_sinv_ks)
+      ENDIF
 
       ! now construct the density matrix PS=0.5*(I-sign(inv(S)H-I*mu))
       CALL dbcsr_create(matrix_p_ud, template=matrix_s, matrix_type=dbcsr_type_no_symmetry)
@@ -523,9 +575,17 @@ CONTAINS
       CALL dbcsr_release(matrix_tmp)
       IF (unit_nr > 0) WRITE (unit_nr, '(T2,A,F20.12)') "Deviation from idempotency: ", frob_matrix
 
-      ! get P=PS*inv(S)
-      CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_p_ud, matrix_s_inv, &
-                          0.0_dp, matrix_p, filter_eps=threshold)
+      IF (sign_symmetric) THEN
+         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_s_sqrt_inv, matrix_p_ud, &
+                             0.0_dp, matrix_p, filter_eps=threshold)
+         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_p, matrix_s_sqrt_inv, &
+                             0.0_dp, matrix_p, filter_eps=threshold)
+      ELSE
+
+         ! get P=PS*inv(S)
+         CALL dbcsr_multiply("N", "N", 1.0_dp, matrix_p_ud, matrix_s_inv, &
+                             0.0_dp, matrix_p, filter_eps=threshold)
+      ENDIF
       CALL dbcsr_release(matrix_p_ud)
 
       CALL timestop(handle)
@@ -941,7 +1001,7 @@ CONTAINS
          beta = 0.0_dp
          betaB = 1.0_dp
       ENDIF
-! inital SCF cycle has no reliable estimate of homo/lumo, force monotinic bounds.
+! initial SCF cycle has no reliable estimate of homo/lumo, force monotinic bounds.
       IF (e_homo == 0.0_dp) THEN
          beta = 0.0_dp
          BetaB = 1.0_dp
@@ -1236,4 +1296,3 @@ CONTAINS
    END FUNCTION estimate_steps
 
 END MODULE dm_ls_scf_methods
-
