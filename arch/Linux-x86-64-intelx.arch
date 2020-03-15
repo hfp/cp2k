@@ -3,38 +3,17 @@
 PERL = perl
 CPP  = #cpp
 
-# LIBINT: https://xconfigure.readthedocs.io/libint/README/
-# LIBXC:  https://xconfigure.readthedocs.io/libxc/README/
-# ELPA:   https://xconfigure.readthedocs.io/elpa/README/
-
 # LIBXSMM (https://github.com/hfp/libxsmm)
-#
 #LIBXSMMROOT = /path/to/libxsmm
-ifneq (0,$(LIBXSMM))
-  ifeq (,$(strip $(LIBXSMMROOT)))
-    ifneq (,$(wildcard $(CP2KHOME)/../libxsmm/Makefile))
-      LIBXSMMROOT = $(abspath $(CP2KHOME)/../libxsmm)
-    else ifneq (,$(wildcard $(CP2KHOME)/../libxsmm-master/Makefile))
-      LIBXSMMROOT = $(abspath $(CP2KHOME)/../libxsmm-master)
-    else ifneq (,$(wildcard $(CP2KHOME)/../libxsmm-*/Makefile))
-      LIBXSMMROOT = $(abspath $(dir $(lastword $(sort $(wildcard $(CP2KHOME)/../libxsmm-*/Makefile)))))
-    else ifneq (,$(wildcard $(HOME)/libxsmm/Makefile))
-      LIBXSMMROOT = $(abspath $(HOME)/libxsmm)
-    else ifneq (,$(wildcard $(HOME)/libxsmm-master/Makefile))
-      LIBXSMMROOT = $(abspath $(HOME)/libxsmm-master)
-    else ifneq (,$(wildcard $(HOME)/libxsmm-*/Makefile))
-      LIBXSMMROOT = $(abspath $(dir $(lastword $(sort $(wildcard $(HOME)/libxsmm-*/Makefile)))))
-    else ifneq (,$(wildcard $(TOOLSRC)/toolchain/build/libxsmm*/Makefile))
-      LIBXSMMROOT = $(abspath $(dir $(lastword $(sort $(wildcard $(TOOLSRC)/toolchain/build/libxsmm*/Makefile)))))
-    endif
-  endif
-endif
 
-# LIBXSTREAM: cp2k/tools/mic/libxstream or https://github.com/hfp/libxstream
-# Please note that CP2K redistributes a tested version of LIBXSTREAM
-# which is built automatically (if LIBXSTREAMROOT is set).
-#
-LIBXSTREAMROOT = $(TOOLSRC)/mic/libxstream
+# LIBINT: https://xconfigure.readthedocs.io/libint/
+#LIBINTROOT = /path/to/libint
+
+# LIBXC:  https://xconfigure.readthedocs.io/libxc/
+#LIBXCROOT = /path/to/libxc
+
+# ELPA:   https://xconfigure.readthedocs.io/elpa/
+#ELPAROOT = /path/to/elpa
 
 which = $(shell which $1 2>/dev/null)
 which ?= $(shell command -v $1)
@@ -70,13 +49,16 @@ INTEL ?= $(shell echo "$$((2==$(words $(filter icpc icpx icc icx, \
   $(shell $(CXX) --version 2> /dev/null | head -n1 | cut -d' ' -f1) \
   $(shell $(CC) --version 2> /dev/null | head -n1 | cut -d' ' -f1)))))")
 
-# DEFAULTS
-#
 ifneq (0,$(INTEL))
+  CFG = intel
   GNU = 0
 else
+  CFG = gnu
   GNU = 1
 endif
+
+# DEFAULTS
+#
 SSE ?= 0
 AVX ?= 0
 MPI ?= 1
@@ -171,7 +153,9 @@ ifeq (,$(strip $(MKLROOT)))
   endif
 endif
 
-SCALAPACK ?= 1
+SCALAPACK ?= $(MPI)
+COSMA ?= 0
+
 ifneq (0,$(MPI))
   ifeq (0,$(GNU))
     CXX = mpiicpc
@@ -185,6 +169,12 @@ ifneq (0,$(MPI))
     LD  = mpif90
   endif
   DFLAGS += -D__parallel
+  # COSMA section must appear before SCALAPACK section
+  ifneq (0,$(COSMA))
+  ifneq (,$(wildcard $(COSMAROOT)/lib64/libcosma_pxgemm.*))
+    LIBS += -L$(COSMAROOT)/lib64 -lcosma_pxgemm -lcosma -lgrid2grid
+  endif
+  endif
   ifneq (0,$(SCALAPACK))
     DFLAGS += -D__BLACS -D__SCALAPACK
     ifeq (0,$(shell echo $(SCALAPACK) | grep -q "^-*[0-9]\+$$"; echo $$?)) # number
@@ -259,22 +249,33 @@ ifeq (0,$(GNU)) # Intel
   ifeq (1,$(shell echo $$((2 > $(DBG)))))
     ifeq (1,$(AVX))
       TARGET = -xAVX
+      TGT = snb
     else ifeq (2,$(AVX))
       TARGET = -march=core-avx2
+      TGT = hsw
     else ifeq (3,$(AVX))
       ifeq (,$(MIC))
         TARGET = -xCOMMON-AVX512
+        TGT = hsw
       else ifneq (0,$(MIC))
         TARGET = -xMIC-AVX512
+        TGT = knl
       else
         TARGET = -xCORE-AVX512 #-qopt-zmm-usage=high
+        TGT = skx
       endif
     else ifneq (0,$(SSE))
       TARGET = -xSSE3
-    else ifneq (,$(shell grep -om1 '\bavx512vl\b' /proc/cpuinfo))
-      TARGET = -xHost #-qopt-zmm-usage=high
     else
       TARGET = -xHost
+      ifneq (,$(shell grep -om1 '\bavx512vl\b' /proc/cpuinfo))
+        #TARGET += -qopt-zmm-usage=high
+        TGT = skx
+      else ifneq (,$(shell grep -om1 '\bavx2\b' /proc/cpuinfo))
+        TGT = hsw
+      else ifneq (,$(shell grep -om1 '\bavx\b' /proc/cpuinfo))
+        TGT = snb
+      endif
     endif
   endif
   ifeq (0,$(DBG))
@@ -322,21 +323,30 @@ else # GNU GCC
   ifeq (1,$(shell echo $$((2 > $(DBG)))))
     ifeq (1,$(AVX))
       TARGET = -mavx
+      TGT = snb
     else ifeq (2,$(AVX))
       TARGET = -march=core-avx2
+      TGT = hsw
     else ifeq (3,$(AVX))
       TARGET = -mfma -mavx512f -mavx512cd
-      ifneq (,$(MIC))
-      ifneq (0,$(MIC)) # AVX512/MIC
+      ifneq (,$(filter-out 0,$(MIC))) # AVX512/MIC
         TARGET += -mavx512pf -mavx512er
+        TGT = knl
       else # AVX512/Core
         TARGET += -mavx512dq -mavx512bw -mavx512vl
-      endif
+        TGT = skx
       endif
     else ifneq (0,$(SSE))
       TARGET = -mSSE3
     else
       TARGET = -march=native
+      ifneq (,$(shell grep -om1 '\bavx512vl\b' /proc/cpuinfo))
+        TGT = skx
+      else ifneq (,$(shell grep -om1 '\bavx2\b' /proc/cpuinfo))
+        TGT = hsw
+      else ifneq (,$(shell grep -om1 '\bavx\b' /proc/cpuinfo))
+        TGT = snb
+      endif
     endif
   endif
   FCFLAGS += -ffree-form -ffree-line-length-none
@@ -368,6 +378,62 @@ else # GNU GCC
   RANLIB = gcc-ranlib
   AR = gcc-ar -r
 endif
+
+ifneq (,$(TGT))
+  XCFG = $(CFG)-$(TGT)
+else
+  XCFG = $(CFG)
+endif
+ifneq (0,$(OMP))
+  XCFGOMP = $(XCFG)-omp
+else
+  XCFGOMP = $(XCFG)
+endif
+
+$(info ================================================================================)
+$(info Using the following libraries:)
+ifneq (0,$(LIBXSMM)) # incl. undefined
+  ifneq (,$(wildcard $(CP2KHOME)/../libxsmm/Makefile))
+    LIBXSMMROOT ?= $(abspath $(CP2KHOME)/../libxsmm)
+  else ifneq (,$(wildcard $(CP2KHOME)/../libxsmm-master/Makefile))
+    LIBXSMMROOT ?= $(abspath $(CP2KHOME)/../libxsmm-master)
+  else ifneq (,$(wildcard $(CP2KHOME)/../libxsmm-*/Makefile))
+    LIBXSMMROOT ?= $(abspath $(dir $(lastword $(sort $(wildcard $(CP2KHOME)/../libxsmm-*/Makefile)))))
+  else ifneq (,$(wildcard $(HOME)/libxsmm/Makefile))
+    LIBXSMMROOT ?= $(abspath $(HOME)/libxsmm)
+  else ifneq (,$(wildcard $(HOME)/libxsmm-master/Makefile))
+    LIBXSMMROOT ?= $(abspath $(HOME)/libxsmm-master)
+  else ifneq (,$(wildcard $(HOME)/libxsmm-*/Makefile))
+    LIBXSMMROOT ?= $(abspath $(dir $(lastword $(sort $(wildcard $(HOME)/libxsmm-*/Makefile)))))
+  else ifneq (,$(wildcard $(TOOLSRC)/toolchain/build/libxsmm*/Makefile))
+    LIBXSMMROOT ?= $(abspath $(dir $(lastword $(sort $(wildcard $(TOOLSRC)/toolchain/build/libxsmm*/Makefile)))))
+  endif
+  ifneq (,$(LIBXSMMROOT))
+    $(info LIBXSMMROOT=$(LIBXSMMROOT))
+  endif
+endif
+ifneq (0,$(LIBINT)) # incl. undefined
+  LIBINTROOT ?= $(abspath $(wildcard $(CP2KHOME)/../libint/$(XCFG)))
+  LIBINTROOT ?= $(abspath $(wildcard $(HOME)/libint/$(XCFG)))
+  ifneq (,$(LIBINTROOT))
+    $(info LIBINTROOT=$(LIBINTROOT))
+  endif
+endif
+ifneq (0,$(LIBXC)) # incl. undefined
+  LIBXCROOT ?= $(abspath $(wildcard $(CP2KHOME)/../libxc/$(XCFG)))
+  LIBXCROOT ?= $(abspath $(wildcard $(HOME)/libxc/$(XCFG)))
+  ifneq (,$(LIBXCROOT))
+    $(info LIBXCROOT=$(LIBXCROOT))
+  endif
+endif
+ifneq (0,$(ELPA)) # incl. undefined
+  ELPAROOT ?= $(abspath $(wildcard $(CP2KHOME)/../elpa/$(XCFGOMP)))
+  ELPAROOT ?= $(abspath $(wildcard $(HOME)/elpa/$(XCFG)))
+  ifneq (,$(ELPAROOT))
+    $(info ELPAROOT=$(ELPAROOT))
+  endif
+endif
+$(info ================================================================================)
 
 OPT1 = $(shell echo $$((1<$(OPT)?1:$(OPT))))
 OPT2 = $(shell echo $$((2<$(OPT)?2:$(OPT))))
@@ -527,9 +593,6 @@ ifneq (,$(LIBXSMMROOT))
   #
   LIBXSMM ?= 1
   ifneq (0,$(LIBXSMM))
-    $(info ================================================================================)
-    $(info Automatically enabled LIBXSMM (LIBXSMMROOT=$(LIBXSMMROOT)))
-    $(info ================================================================================)
     DFLAGS += -D__LIBXSMM=$(LIBXSMM)
     ifeq (0,$(GNU))
       DFLAGS += -D_OPENMP_SIMD
@@ -599,6 +662,12 @@ ifneq (,$(LIBXSMMROOT))
       INIT=0 WRAP=$(WRAP) LNKSOFT=0 >&2)
   endif
 endif
+
+# LIBXSTREAM: cp2k/tools/mic/libxstream or https://github.com/hfp/libxstream
+# Please note that CP2K redistributes a tested version of LIBXSTREAM
+# which is built automatically (if LIBXSTREAMROOT is set).
+#
+LIBXSTREAMROOT = $(TOOLSRC)/mic/libxstream
 
 OCL ?= 0
 ifneq (0,$(ACC))
