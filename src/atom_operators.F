@@ -309,11 +309,14 @@ CONTAINS
                END DO
                integrals%nne(l) = ii
                IF (ii > 0) THEN
-                  omat(1:ii, 1:ii) = MATMUL(TRANSPOSE(integrals%utrans(1:n, 1:ii, l)), integrals%utrans(1:n, 1:ii, l))
+                  omat(1:ii, 1:ii) = MATMUL( &
+                     TRANSPOSE(integrals%utrans(1:n, 1:ii, l)), &
+                               integrals%utrans(1:n, 1:ii, l))
                   DO i = 1, ii
                      integrals%uptrans(i, i, l) = 1._dp
                   ENDDO
-                  CALL lapack_sgesv(ii, ii, omat(1:ii, 1:ii), ii, ipiv, integrals%uptrans(1:ii, 1:ii, l), ii, info)
+                  CALL lapack_sgesv(ii, ii, RESHAPE(omat, (/ii, ii/)), ii, ipiv, &
+                            RESHAPE(integrals%uptrans(:,:,l), (/ii, ii/)), ii, info)
                   CPASSERT(info == 0)
                END IF
             END IF
