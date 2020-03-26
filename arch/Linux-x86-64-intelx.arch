@@ -670,7 +670,7 @@ endif
 LIBXSTREAMROOT = $(TOOLSRC)/mic/libxstream
 
 OCL ?= 0
-ifneq (0,$(ACC))
+ifneq (,$(filter-out 0,$(ACC)))
   DFLAGS += -D__ACC -D__DBCSR_ACC
   ifeq (0,$(OCL))
     DFLAGS += -D__ACC_MIC
