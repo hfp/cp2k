@@ -309,19 +309,19 @@ CONTAINS
                END DO
                integrals%nne(l) = ii
                IF (ii > 0) THEN
-                  omat(1:ii, 1:ii) = MATMUL(TRANSPOSE(integrals%utrans(1:n, 1:ii, l)), &
-                                            integrals%utrans(1:n, 1:ii, l))
+                  ! use BLAS/GEMM to keep leading dimension
+                  CALL dgemm('T', 'N', ii, ii, n, 1._dp, integrals%utrans(:, :, l), n, &
+                             integrals%utrans(:, :, l), n, 0._dp, omat, n)
+
                   DO i = 1, ii
                      integrals%uptrans(i, i, l) = 1._dp
                   ENDDO
-                  CALL lapack_sgesv(ii, ii, RESHAPE(omat, (/ii, ii/)), ii, ipiv, &
-                                    RESHAPE(integrals%uptrans(:, :, l), (/ii, ii/)), ii, info)
+                  CALL lapack_sgesv(ii, ii, omat, n, ipiv, integrals%uptrans(:, :, l), n, info)
                   CPASSERT(info == 0)
                END IF
             END IF
          END DO
          DEALLOCATE (omat, vmat, w, work)
-
       END IF
 
       CALL timestop(handle)
