@@ -329,7 +329,7 @@ CONTAINS
       LOGICAL, INTENT(IN), OPTIONAL                      :: trans
 
       CHARACTER(len=*), PARAMETER :: routineN = 'decontraction_ab', &
-         routineP = moduleN//':'//routineN
+                                     routineP = moduleN//':'//routineN
 
       INTEGER                                            :: lda, ldb, ldq, lds, ldw
       LOGICAL                                            :: my_trans
