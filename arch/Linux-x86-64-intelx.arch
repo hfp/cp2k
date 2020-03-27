@@ -339,7 +339,7 @@ else # GNU GCC
   endif
   FCFLAGS += -ffree-form -ffree-line-length-none
   ifeq (0,$(DBG))
-    OPTFLAGS += -funroll-loops -ftree-vectorize
+    OPTFLAGS += -funroll-loops -ftree-vectorize #-fexternal-blas #-fstack-arrays
     ifneq (0,$(IPO))
       OPTFLAGS += -flto -Wl,-flto -Wno-lto-type-mismatch
     endif
@@ -350,7 +350,7 @@ else # GNU GCC
       -Werror=aliasing -Werror=ampersand -Werror=c-binding-type -Werror=intrinsics-std -Werror=line-truncation -Werror=tabs \
       -Werror=target-lifetime -Werror=underflow -Werror=unused-but-set-variable -Werror=conversion -Werror=unused-variable \
       -Werror=unused-dummy-argument -Werror=zerotrip -Werror=uninitialized -Wno-maybe-uninitialized -Wuse-without-only \
-      -Wintrinsic-shadow
+      -Wintrinsic-shadow -Warray-temporaries
     ifneq (1,$(DBG))
       FCFLAGS += -std=f2008 -Werror=realloc-lhs-all
     endif
