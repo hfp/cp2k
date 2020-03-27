@@ -1,6 +1,7 @@
 # Arch file targeting Linux 64-bit using the Intel tool chain
 #
 PERL = perl
+NVCC = nvcc
 CPP  = #cpp
 
 # LIBXSMM (https://github.com/hfp/libxsmm)
@@ -122,14 +123,6 @@ TBBMALLOC ?= 0
 # TBB runtime compatible with oldest supported GCC
 TBBGCC_OLD ?= 1
 
-ACC ?= 0
-OFFLOAD ?= 0
-ifeq (0,$(OFFLOAD))
-  MIC ?= 0
-else
-  ACC = 1
-endif
-
 MKL_MPIRTL ?= intelmpi
 ifneq (0,$(BLAS))
   ifneq (Darwin,$(UNAME))
@@ -219,10 +212,6 @@ endif
 
 # Diagnostic message to be turned off
 DIAG_DISABLE = 8290,8291,10010,10212,10411,11060
-
-# workaround for issue "cannot find address of function"
-#ATTRIBUTE = mic
-#DIAG_DISABLE := $(DIAG_DISABLE),2571,3218
 
 CC_VERSION_STRING = $(shell $(CC) --version 2> /dev/null | head -n1 | sed "s/..* \([0-9][0-9]*\.[0-9][0-9]*\.*[0-9]*\)[ \S]*.*/\1/")
 CC_VERSION_MAJOR = $(shell echo "$(CC_VERSION_STRING)" | cut -d"." -f1)
@@ -644,12 +633,6 @@ ifneq (,$(LIBXSMMROOT))
     ifeq (1,$(shell echo "$$((0>=$(JIT)))"))
       LIBXSMM_MNK := "23, 6, 14 16 29, 14 32 29, 5 32 13 24 26, 9 32 22, 64, 78, 16 29 55, 32 29 55, 12, 4 5 7 9 13 25 26 28 32 45"
     endif
-    LIBXSMM_MPSS := 0
-    ifneq (0,$(MIC))
-      ifneq (3,$(AVX))
-        LIBXSMM_MPSS := 1
-      endif
-    endif
     LIBXSMM_UPTODATE_CHECK := $(shell $(BIGVERNUM) && $(MAKE) --no-print-directory -f $(LIBXSMMROOT)/Makefile \
       INCDIR=$(CP2KHOME)/$(LIBDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/include \
       BLDDIR=$(CP2KHOME)/$(OBJDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/build \
@@ -657,39 +640,21 @@ ifneq (,$(LIBXSMMROOT))
       OUTDIR=$(CP2KHOME)/$(LIBDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/lib \
       CXX=$(CXX) CC=$(CC) FC=$(FC) AR=$(AR) JIT=$(JIT) SYM=$(SYM) DBG=$(DBG) \
       MNK=$(LIBXSMM_MNK) M=$(LIBXSMM_M) N=$(LIBXSMM_N) K=$(LIBXSMM_K) PRECISION=2 \
-      OPT=$(OPT) IPO=0 TARGET="$(TARGET)" SSE=$(SSE) AVX=$(AVX) \
-      MIC=$(MIC) MPSS=$(LIBXSMM_MPSS) OFFLOAD=$(OFFLOAD) \
+      OPT=$(OPT) IPO=0 TARGET="$(TARGET)" SSE=$(SSE) AVX=$(AVX) MIC=$(MIC) \
       INIT=0 WRAP=$(WRAP) LNKSOFT=0 >&2)
   endif
 endif
 
-# LIBXSTREAM: cp2k/tools/mic/libxstream or https://github.com/hfp/libxstream
-# Please note that CP2K redistributes a tested version of LIBXSTREAM
-# which is built automatically (if LIBXSTREAMROOT is set).
-#
-LIBXSTREAMROOT = $(TOOLSRC)/mic/libxstream
-
+ACC ?= 0
 OCL ?= 0
-ifneq (,$(filter-out 0,$(ACC)))
+ifneq (,$(filter-out 0,$(ACC) $(GPUVER)))
   DFLAGS += -D__ACC -D__DBCSR_ACC
   ifeq (0,$(OCL))
-    DFLAGS += -D__ACC_MIC
-    ifeq (0,$(OFFLOAD))
-      OPTFLAGS += -qno-offload
-    else # also true if OFFLOAD is undefined
-      #OPTFLAGS += -qoffload=mandatory
-      # enable OpenMP for OFFLOAD regardless of whether OMP is enabled or not
-      MIC_CXFLAGS += -qopenmp -qno-openmp -qoffload-option,mic,compiler,"-qopenmp"
-      MIC_CCFLAGS += -qopenmp -qno-openmp -qoffload-option,mic,compiler,"-qopenmp"
-      MIC_FCFLAGS += -qopenmp -qno-openmp -qoffload-option,mic,compiler,"-qopenmp"
-      MIC_LDFLAGS += -qoffload-option,mic,ld,"--no-undefined"
-      #LDFLAGS += -qoffload-option,mic,ld,"--unresolved-symbols=ignore-all"
-      DIAG_DISABLE := $(DIAG_DISABLE),10121
-      ifneq (,$(ATTRIBUTE))
-        MIC_CXFLAGS += -qoffload-attribute-target=$(ATTRIBUTE)
-        MIC_CCFLAGS += -qoffload-attribute-target=$(ATTRIBUTE)
-        #MIC_FCFLAGS += -qoffload-attribute-target=$(ATTRIBUTE)
-      endif
+    LIBS += -L$(CUDA_PATH)/lib64 -lcudart -lcublas -lnvrtc -lcuda
+    IFLAGS += -I$(CUDA_PATH)/include
+    ifneq (,$(filter-out 0 1,$(ACC)))
+      DFLAGS += -D__PW_CUDA
+      LIBS += -lcufft
     endif
   else
     DFLAGS += -D__OPENCL -D__USE_INTEL_CL
@@ -697,26 +662,8 @@ ifneq (,$(filter-out 0,$(ACC)))
   endif
 else # ACC off
   ifeq (0,$(GNU))
-    ifeq (0,$(OFFLOAD))
-      OPTFLAGS += -qno-offload
-    #else
-      #LDFLAGS += -qoffload-option,mic,ld,"--unresolved-symbols=ignore-all"
-    endif
+    OPTFLAGS += -qno-offload
   endif
-  # save some build time
-  LIBXSTREAMROOT = $(NULL)
-endif
-
-ifneq (,$(LIBXSTREAMROOT))
-  LIBXSTREAM_BUILD := $(shell $(MAKE) -f $(LIBXSTREAMROOT)/Makefile \
-    BLDDIR=$(CP2KHOME)/$(OBJDIRNAME)/$(ARCH)/$(ONEVERSION)/libxstream \
-    OUTDIR=$(CP2KHOME)/$(LIBDIRNAME)/$(ARCH)/$(ONEVERSION)/libxstream \
-    SYM=$(SYM) DBG=$(DBG) IPO=0 \
-    OFFLOAD=$(OFFLOAD) MIC=$(MIC) \
-  >&2)
-  DFLAGS += -D__LIBXSTREAM
-  IFLAGS += -I$(LIBXSTREAMROOT)/include
-  LIBS   += $(CP2KHOME)/$(LIBDIRNAME)/$(ARCH)/$(ONEVERSION)/libxstream/libxstream.a
 endif
 
 ifeq (1,$(MKL_DIRECT))
@@ -728,7 +675,6 @@ ifeq (1,$(MKL)) # sequential
 else ifneq (0,$(MKL)) # multi-threaded
   MKL_THREADS = $(MKL_OMPRTL)_thread
   ifeq (0,$(OMP))
-    MIC_LDFLAGS += -qoffload-option,mic,ld,"-l$(OMPRT)"
     LIBS += -l$(OMPRT)
   endif
 endif
@@ -748,22 +694,12 @@ ifneq (0,$(MKL))
   ifeq (0,$(MKL_STATIC))
     LIBS += -L$(MKLROOT)/lib/intel64
     ifneq (0,$(MPI))
-      MIC_LDFLAGS += -qoffload-option,mic,ld,"-L$(MKLROOT)/lib/mic -l$(SCALAPACKLIB) -lmkl_$(MKL_FCRTL)_lp64 -lmkl_core -lmkl_$(MKL_THREADS) -lmkl_blacs_$(MKL_MPIRTL)_lp64"
       LIBS += -l$(SCALAPACKLIB) -lmkl_$(MKL_FCRTL)_lp64 -lmkl_core -lmkl_$(MKL_THREADS) -lmkl_blacs_$(MKL_MPIRTL)_lp64
     else
-      MIC_LDFLAGS += -qoffload-option,mic,ld,"-L$(MKLROOT)/lib/mic -lmkl_$(MKL_FCRTL)_lp64 -lmkl_core -lmkl_$(MKL_THREADS)"
       LIBS += -lmkl_$(MKL_FCRTL)_lp64 -lmkl_core -lmkl_$(MKL_THREADS)
     endif
   else # static
     ifneq (0,$(MPI))
-      MIC_LDFLAGS += -qoffload-option,mic,ld," \
-        --start-group \
-          $(MKLROOT)/lib/mic/lib$(SCALAPACKLIB).a \
-          $(MKLROOT)/lib/mic/libmkl_$(MKL_FCRTL)_lp64.a \
-          $(MKLROOT)/lib/mic/libmkl_core.a \
-          $(MKLROOT)/lib/mic/libmkl_$(MKL_THREADS).a \
-          $(MKLROOT)/lib/mic/libmkl_blacs_$(MKL_MPIRTL)_lp64.a \
-        --end-group"
       LIBS += \
         -Wl,--start-group \
           $(SCALAPACKDIR)/lib$(SCALAPACKLIB).a \
@@ -773,12 +709,6 @@ ifneq (0,$(MKL))
           $(MKLROOT)/lib/intel64/libmkl_blacs_$(MKL_MPIRTL)_lp64.a \
         -Wl,--end-group
     else
-      MIC_LDFLAGS += -qoffload-option,mic,ld," \
-        --start-group \
-          $(MKLROOT)/lib/mic/libmkl_$(MKL_FCRTL)_lp64.a \
-          $(MKLROOT)/lib/mic/libmkl_core.a \
-          $(MKLROOT)/lib/mic/libmkl_$(MKL_THREADS).a \
-        --end-group"
       LIBS += \
         -Wl,--start-group \
           $(MKLROOT)/lib/intel64/libmkl_$(MKL_FCRTL)_lp64.a \
@@ -788,7 +718,6 @@ ifneq (0,$(MKL))
     endif
   endif
   LIBS += -Wl,--as-needed -lpthread -lm -ldl -Wl,--no-as-needed
-  MIC_LDFLAGS += -qoffload-option,mic,ld,"-lpthread -lm -ldl"
 endif
 
 DFLAGS += -D__HAS_ISO_C_BINDING
@@ -817,15 +746,6 @@ ifeq (0,$(GNU))
 endif
 
 LIBS += -Wl,--as-needed -lstdc++ -Wl,--no-as-needed
-ifneq (0,$(ACC))
-ifneq (0,$(OFFLOAD))
-  LIBS     += $(MIC_LDFLAGS)
-  CXXFLAGS += $(MIC_CXFLAGS)
-  CFLAGS   += $(MIC_CCFLAGS)
-  FCFLAGS  += $(MIC_FCFLAGS)
-  #LDFLAGS  += $(MIC_LDFLAGS)
-endif
-endif
 
 cleanup = $(foreach flag,$1,$(flag))
 LDFLAGS := $(filter-out -ipo -ipo-separate,$(call cleanup,$(LDFLAGS)))
