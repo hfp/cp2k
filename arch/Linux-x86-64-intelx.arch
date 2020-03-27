@@ -1,7 +1,6 @@
 # Arch file targeting Linux 64-bit using the Intel tool chain
 #
 PERL = perl
-NVCC = nvcc
 CPP  = #cpp
 
 # LIBXSMM (https://github.com/hfp/libxsmm)
@@ -649,6 +648,7 @@ ACC ?= 0
 OCL ?= 0
 ifneq (,$(filter-out 0,$(ACC) $(GPUVER)))
   DFLAGS += -D__ACC -D__DBCSR_ACC
+  NVCC = $(call which,nvcc)
   ifeq (0,$(OCL))
     LIBS += -L$(CUDA_PATH)/lib64 -lcudart -lcublas -lnvrtc -lcuda
     IFLAGS += -I$(CUDA_PATH)/include
