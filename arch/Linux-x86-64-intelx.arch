@@ -350,7 +350,7 @@ else # GNU GCC
       -Werror=aliasing -Werror=ampersand -Werror=c-binding-type -Werror=intrinsics-std -Werror=line-truncation -Werror=tabs \
       -Werror=target-lifetime -Werror=underflow -Werror=unused-but-set-variable -Werror=conversion -Werror=unused-variable \
       -Werror=unused-dummy-argument -Werror=zerotrip -Werror=uninitialized -Wno-maybe-uninitialized -Wuse-without-only \
-      -Wintrinsic-shadow -Warray-temporaries
+      -Wintrinsic-shadow #-Warray-temporaries
     ifneq (1,$(DBG))
       FCFLAGS += -std=f2008 -Werror=realloc-lhs-all
     endif
