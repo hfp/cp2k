@@ -660,6 +660,7 @@ ifneq (,$(filter-out 0,$(ACC) $(GPUVER)))
       DFLAGS += -D__PW_CUDA
       LIBS += -lcufft
     endif
+    NVFLAGS += $(addprefix -Xcompiler $(NULL),$(OPTFLAGS))
     NVCC = nvcc
   endif
 else # ACC off
