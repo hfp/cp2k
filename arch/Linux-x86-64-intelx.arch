@@ -644,9 +644,8 @@ ifneq (,$(LIBXSMMROOT))
   endif
 endif
 
-ACC ?= 0
 OCL ?= 0
-ifneq (,$(filter-out 0,$(ACC) $(GPUVER)))
+ifneq (,$(filter-out 0,$(OCL) $(GPUVER)))
   CUDA_PATH ?= $(if $(call which,nvcc),$(abspath $(dir $(call which,nvcc))/..))
   ifneq (0,$(OCL))
     DFLAGS += -D__ACC -D__DBCSR_ACC
@@ -656,11 +655,11 @@ ifneq (,$(filter-out 0,$(ACC) $(GPUVER)))
     DFLAGS += -D__ACC -D__DBCSR_ACC
     LIBS += -L$(CUDA_PATH)/lib64 -lcudart -lcublas -lnvrtc -lcuda
     IFLAGS += -I$(CUDA_PATH)/include
-    ifneq (,$(filter-out 0 1,$(ACC)))
+    ifneq (,$(filter-out 0 1,$(CUDA)))
       DFLAGS += -D__PW_CUDA
       LIBS += -lcufft
     endif
-    NVFLAGS += $(addprefix -Xcompiler $(NULL),$(OPTFLAGS))
+    NVFLAGS += $(addprefix -Xcompiler $(NULL),$(filter-out -Wl%,$(OPTFLAGS)))
     NVCC = nvcc
   endif
 else # ACC off
