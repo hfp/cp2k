@@ -30,6 +30,7 @@ MODULE xas_tdp_atom
    USE cp_dbcsr_operations,             ONLY: cp_dbcsr_dist2d_to_dist,&
                                               dbcsr_deallocate_matrix_set
    USE cp_log_handling,                 ONLY: cp_logger_get_default_io_unit
+   USE cp_para_env,                     ONLY: cp_para_env_create
    USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: &
         dbcsr_complete_redistribute, dbcsr_create, dbcsr_distribution_get, dbcsr_distribution_new, &
@@ -37,24 +38,31 @@ MODULE xas_tdp_atom
         dbcsr_get_block_p, dbcsr_get_stored_coordinates, dbcsr_iterator_blocks_left, &
         dbcsr_iterator_next_block, dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, &
         dbcsr_p_type, dbcsr_put_block, dbcsr_release, dbcsr_replicate_all, dbcsr_type
+   USE dbcsr_tensor_api,                ONLY: dbcsr_t_destroy,&
+                                              dbcsr_t_get_block,&
+                                              dbcsr_t_iterator_blocks_left,&
+                                              dbcsr_t_iterator_next_block,&
+                                              dbcsr_t_iterator_start,&
+                                              dbcsr_t_iterator_stop,&
+                                              dbcsr_t_iterator_type,&
+                                              dbcsr_t_type
    USE distribution_2d_types,           ONLY: distribution_2d_release,&
                                               distribution_2d_type
    USE input_constants,                 ONLY: do_potential_id
    USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                               section_vals_type
    USE kinds,                           ONLY: default_string_length,&
-                                              dp,&
-                                              int_8
+                                              dp
    USE lebedev,                         ONLY: deallocate_lebedev_grids,&
                                               get_number_of_lebedev_grid,&
                                               init_lebedev_grids,&
                                               lebedev_grid
+   USE libint_2c_3c,                    ONLY: libint_potential_type
    USE mathconstants,                   ONLY: dfac,&
                                               pi
    USE mathlib,                         ONLY: get_diag
    USE memory_utilities,                ONLY: reallocate
-   USE message_passing,                 ONLY: mp_comm_free,&
-                                              mp_comm_split_direct,&
+   USE message_passing,                 ONLY: mp_comm_split_direct,&
                                               mp_irecv,&
                                               mp_isend,&
                                               mp_sum,&
@@ -86,16 +94,6 @@ MODULE xas_tdp_atom
                                               qs_kind_type
    USE qs_neighbor_list_types,          ONLY: neighbor_list_set_p_type,&
                                               release_neighbor_list_sets
-   USE qs_o3c_methods,                  ONLY: calculate_o3c_integrals,&
-                                              contract12_o3c
-   USE qs_o3c_types,                    ONLY: get_o3c_iterator_info,&
-                                              init_o3c_container,&
-                                              o3c_container_type,&
-                                              o3c_iterate,&
-                                              o3c_iterator_create,&
-                                              o3c_iterator_release,&
-                                              o3c_iterator_type,&
-                                              release_o3c_container
    USE qs_overlap,                      ONLY: build_overlap_matrix_simple
    USE qs_rho_types,                    ONLY: qs_rho_get,&
                                               qs_rho_type
@@ -104,13 +102,17 @@ MODULE xas_tdp_atom
                                               clebsch_gordon_init
    USE util,                            ONLY: get_limit,&
                                               sort_unique
-   USE xas_tdp_types,                   ONLY: xas_atom_env_type,&
+   USE xas_tdp_integrals,               ONLY: build_xas_tdp_3c_nl,&
+                                              build_xas_tdp_ovlp_nl,&
+                                              create_pqX_tensor,&
+                                              fill_pqx_tensor,&
+                                              get_opt_3c_dist2d
+   USE xas_tdp_types,                   ONLY: batch_info_type,&
+                                              get_proc_batch_sizes,&
+                                              release_batch_info,&
+                                              xas_atom_env_type,&
                                               xas_tdp_control_type,&
                                               xas_tdp_env_type
-   USE xas_tdp_utils,                   ONLY: build_xas_tdp_3c_nl,&
-                                              build_xas_tdp_ovlp_nl,&
-                                              get_o3c_memory,&
-                                              get_opt_3c_dist2d
    USE xc,                              ONLY: divide_by_norm_drho
    USE xc_atom,                         ONLY: xc_rho_set_atom_update
    USE xc_derivative_set_types,         ONLY: xc_derivative_set_type,&
@@ -850,6 +852,7 @@ CONTAINS
 !>       In this case, with the partial RI projection, the RI basis is restricted to an excited atom
 !>       and its neighbors at a time. Leads to smaller overlap matrix to invert and less 3-center
 !>       overlap to compute. The procedure is repeated for each excited atom
+!>       This is a test implementation for tensors
 ! **************************************************************************************************
    SUBROUTINE calculate_density_coeffs(xas_atom_env, qs_env)
 
@@ -859,34 +862,41 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'calculate_density_coeffs', &
          routineP = moduleN//':'//routineN
 
-      INTEGER :: bo(2), exat, handle, iat, ibatch, iex, inb, ispin, jnb, katom, mepos, nat_batch, &
-         natom, nbatch, nex, nkind, nnb, nspins, nthread, output_unit, ri_at
-      INTEGER(int_8)                                     :: free_mem, mem_per_exat, o3c_mem
-      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: idx_to_nb, neighbors, nsgf
-      INTEGER, DIMENSION(:), POINTER                     :: all_ri_atoms, batch_atoms
-      LOGICAL                                            :: found, foundt, unique
-      REAL(dp)                                           :: factor
-      REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: work
-      REAL(dp), DIMENSION(:, :), POINTER                 :: pblock, pblockt, tvec
+      INTEGER                                            :: blk, exat, handle, i, iat, iatom, iex, &
+                                                            inb, ind(3), ispin, jatom, jnb, katom, &
+                                                            natom, nex, nkind, nnb, nspins, &
+                                                            output_unit, ri_at
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: blk_size_orb, blk_size_ri, idx_to_nb, &
+                                                            neighbors
+      INTEGER, DIMENSION(:), POINTER                     :: all_ri_atoms
+      LOGICAL                                            :: pmat_found, pmat_foundt, sinv_found, &
+                                                            sinv_foundt, tensor_found, unique
+      REAL(dp)                                           :: factor, prefac
+      REAL(dp), ALLOCATABLE, DIMENSION(:)                :: work2
+      REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: work1
+      REAL(dp), ALLOCATABLE, DIMENSION(:, :, :)          :: t_block
+      REAL(dp), DIMENSION(:, :), POINTER                 :: pmat_block, pmat_blockt, sinv_block, &
+                                                            sinv_blockt
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_distribution_type)                      :: opt_dbcsr_dist
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: overlap, rho_ao, rho_redist
+      TYPE(dbcsr_t_iterator_type)                        :: iter
+      TYPE(dbcsr_t_type)                                 :: pqX
       TYPE(dbcsr_type)                                   :: ri_sinv
       TYPE(dbcsr_type), POINTER                          :: ri_mats
       TYPE(distribution_2d_type), POINTER                :: opt_dist2d
       TYPE(gto_basis_set_p_type), DIMENSION(:), POINTER  :: basis_set_orb, basis_set_ri
+      TYPE(libint_potential_type)                        :: pot
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
          POINTER                                         :: ab_list, ac_list, sab_ri
-      TYPE(o3c_container_type), POINTER                  :: o3c
-      TYPE(o3c_iterator_type)                            :: o3c_iterator
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(qs_rho_type), POINTER                         :: rho
 
       NULLIFY (qs_kind_set, basis_set_ri, basis_set_orb, ac_list, rho, rho_ao, sab_ri, ri_mats)
-      NULLIFY (o3c, tvec, particle_set, para_env, all_ri_atoms, overlap, batch_atoms)
-      NULLIFY (blacs_env, pblock, pblockt, ab_list, opt_dist2d, rho_redist)
+      NULLIFY (particle_set, para_env, all_ri_atoms, overlap, pmat_blockt)
+      NULLIFY (blacs_env, pmat_block, ab_list, opt_dist2d, rho_redist, sinv_block, sinv_blockt)
 
       !Idea: We don't do a full RI here as it would be too expensive in many ways (inversion of a
       !      large matrix, many 3-center overlaps, density coefficients for all atoms, etc...)
@@ -895,8 +905,6 @@ CONTAINS
       !      very small matrices to invert and only a few (abc) overlp integrals with c on the
       !      excited atom its neighbors. This is physically sound since we only need the density
       !      well defined on the excited atom grid as we do (aI|P)*(P|Q)^-1*(Q|fxc|R)*(R|S)^-1*(S|Jb)
-      !      The o3c integrals are computed before the excited atom loop though for optimal load
-      !      balance
 
       CALL timeset(routineN, handle)
 
@@ -929,8 +937,8 @@ CONTAINS
 !  Allocate space for the projected density coefficients. On all ri_atoms.
 !  Note: the sub-region where we project the density changes from excited atom to excited atom
 !        => need different sets of RI coeffs
-      ALLOCATE (nsgf(natom))
-      CALL get_particle_set(particle_set, qs_kind_set, nsgf=nsgf, basis=basis_set_ri)
+      ALLOCATE (blk_size_ri(natom))
+      CALL get_particle_set(particle_set, qs_kind_set, nsgf=blk_size_ri, basis=basis_set_ri)
       ALLOCATE (xas_atom_env%ri_dcoeff(natom, nspins, nex))
       DO iex = 1, nex
          DO ispin = 1, nspins
@@ -938,7 +946,7 @@ CONTAINS
                NULLIFY (xas_atom_env%ri_dcoeff(iat, ispin, iex)%array)
                IF ((.NOT. ANY(xas_atom_env%exat_neighbors(iex)%array == iat)) &
                    .AND. (.NOT. xas_atom_env%excited_atoms(iex) == iat)) CYCLE
-               ALLOCATE (xas_atom_env%ri_dcoeff(iat, ispin, iex)%array(nsgf(iat)))
+               ALLOCATE (xas_atom_env%ri_dcoeff(iat, ispin, iex)%array(blk_size_ri(iat)))
                xas_atom_env%ri_dcoeff(iat, ispin, iex)%array = 0.0_dp
             END DO
          END DO
@@ -951,49 +959,40 @@ CONTAINS
             "---------------------------------"
       END IF
 
-      !Idea: we want to split the density projection process in batches such that it never exceeds
-      !      available memory. We use max 65% of available memory (arbitrary choice)
-      !      This is a buffer that should catch any load imbalance between the batches
+      !We go atom by atom, first compute the optimal distribution for the integrals, then
+      !the integrals themselves that we put into a tensor, then the contraction with the
+      !density
 
-      !Build the naive overlap neighbor list in order to compute the total memory cost of o3c
-      CALL build_xas_tdp_ovlp_nl(ab_list, basis_set_orb, basis_set_orb, qs_env)
-      CALL build_xas_tdp_3c_nl(ac_list, basis_set_orb, basis_set_ri, do_potential_id, &
-                               qs_env, excited_atoms=all_ri_atoms)
-      CALL get_o3c_memory(o3c_mem, free_mem, ab_list, ac_list, basis_set_orb, basis_set_orb, &
-                          basis_set_ri, qs_env)
-      CALL release_neighbor_list_sets(ab_list)
-      CALL release_neighbor_list_sets(ac_list)
+      ALLOCATE (blk_size_orb(natom))
+      CALL get_particle_set(particle_set, qs_kind_set, nsgf=blk_size_orb, basis=basis_set_orb)
 
-      mem_per_exat = o3c_mem/nex
-      IF (mem_per_exat > FLOOR(0.65_dp*REAL(free_mem, dp), KIND=int_8)) &
-         CPABORT("XAS_TDP| Not enough memory for density projection")
+      DO iex = 1, nex
 
-      !divide into batches that at most use 65% of free memory
-      nbatch = CEILING(REAL(o3c_mem, dp)/(0.65_dp*REAL(free_mem, dp)))
-      DO ibatch = 1, nbatch
+         !get neighbors of current atom
+         exat = xas_atom_env%excited_atoms(iex)
+         nnb = 1 + SIZE(xas_atom_env%exat_neighbors(iex)%array)
+         ALLOCATE (neighbors(nnb))
+         neighbors(1) = exat
+         neighbors(2:nnb) = xas_atom_env%exat_neighbors(iex)%array(:)
+         CALL sort_unique(neighbors, unique)
 
-         !excited atoms in that batch
-         bo = get_limit(nex, nbatch, ibatch - 1)
+         !link the atoms to their position in neighbors
+         ALLOCATE (idx_to_nb(natom))
+         idx_to_nb = 0
+         DO inb = 1, nnb
+            idx_to_nb(neighbors(inb)) = inb
+         END DO
 
-         !Get all ri atoms belonging to that batch in an array (ex atoms + neighbors in RI_REGION)
-         nat_batch = bo(2) - bo(1) + 1
-         ALLOCATE (batch_atoms(nat_batch))
-         batch_atoms(:) = xas_atom_env%excited_atoms(bo(1):bo(2))
-         DO iex = bo(1), bo(2)
-            DO inb = 1, SIZE(xas_atom_env%exat_neighbors(iex)%array)
-               IF (.NOT. ANY(batch_atoms == xas_atom_env%exat_neighbors(iex)%array(inb))) THEN
-                  CALL reallocate(batch_atoms, 1, nat_batch + 1)
-                  batch_atoms(nat_batch + 1) = xas_atom_env%exat_neighbors(iex)%array(inb)
-                  nat_batch = nat_batch + 1
-               END IF
-            END DO !inb
-         END DO !iex
+         IF (output_unit > 0) THEN
+            WRITE (output_unit, FMT="(T7,I12,I21)") &
+               exat, nnb
+         END IF
 
-         !Get the optimal distribution_2d for the overlap integrals (abc), centers c on excited atoms
-         !and their neighbors defined by RI_RADIUS, for the current batch
+         !Get the optimal distribution_2d for the overlap integrals (abc), centers c on the current
+         !excited atom and its neighbors defined by RI_RADIUS
          CALL build_xas_tdp_ovlp_nl(ab_list, basis_set_orb, basis_set_orb, qs_env)
          CALL build_xas_tdp_3c_nl(ac_list, basis_set_orb, basis_set_ri, do_potential_id, &
-                                  qs_env, excited_atoms=batch_atoms)
+                                  qs_env, excited_atoms=neighbors)
          CALL get_opt_3c_dist2d(opt_dist2d, ab_list, ac_list, basis_set_orb, basis_set_orb, &
                                 basis_set_ri, qs_env)
          CALL release_neighbor_list_sets(ab_list)
@@ -1002,9 +1001,9 @@ CONTAINS
          !get the ab and ac neighbor lists based on the optimized distribution
          CALL build_xas_tdp_ovlp_nl(ab_list, basis_set_orb, basis_set_orb, qs_env, ext_dist2d=opt_dist2d)
          CALL build_xas_tdp_3c_nl(ac_list, basis_set_orb, basis_set_ri, do_potential_id, &
-                                  qs_env, excited_atoms=batch_atoms, ext_dist2d=opt_dist2d)
-         !get the AO density matrix in the optimized distribution for compatibility
+                                  qs_env, excited_atoms=neighbors, ext_dist2d=opt_dist2d)
 
+         !get the AO density matrix in the optimized distribution
          CALL cp_dbcsr_dist2d_to_dist(opt_dist2d, opt_dbcsr_dist)
          ALLOCATE (rho_redist(nspins))
          DO ispin = 1, nspins
@@ -1013,110 +1012,113 @@ CONTAINS
             CALL dbcsr_complete_redistribute(rho_ao(ispin)%matrix, rho_redist(ispin)%matrix)
          END DO
 
-         !Compute the integrals and cantract with the density matrix
-         ALLOCATE (o3c)
-         CALL init_o3c_container(o3c, nspins, basis_set_orb, basis_set_orb, basis_set_ri, ab_list, ac_list)
-         CALL calculate_o3c_integrals(o3c)
-         CALL contract12_o3c(o3c, rho_redist)
+         !Compute the 3-center overlap integrals
+         pot%potential_type = do_potential_id
 
-         !  Loop over the excited atoms
-         DO iex = bo(1), bo(2)
+         CALL create_pqX_tensor(pqX, ab_list, ac_list, opt_dbcsr_dist, blk_size_orb, blk_size_orb, &
+                                blk_size_ri)
+         CALL fill_pqX_tensor(pqX, ab_list, ac_list, basis_set_orb, basis_set_orb, basis_set_ri, &
+                              pot, qs_env)
 
-            !get the neighbors of current excited atom
-            exat = xas_atom_env%excited_atoms(iex)
-            nnb = 1 + SIZE(xas_atom_env%exat_neighbors(iex)%array)
-            ALLOCATE (neighbors(nnb))
-            neighbors(1) = exat
-            neighbors(2:nnb) = xas_atom_env%exat_neighbors(iex)%array(:)
-            CALL sort_unique(neighbors, unique)
+         !Compute the RI inverse overlap matrix on the reduced RI basis that spans the excited
+         !atom and its neighbors, ri_sinv is replicated over all procs
+         CALL get_exat_ri_sinv(ri_sinv, ri_mats, neighbors, idx_to_nb, basis_set_ri, qs_env)
 
-            IF (output_unit > 0) THEN
-               WRITE (output_unit, FMT="(T7,I12,I21)") &
-                  exat, nnb
-            END IF
+         !Do the actual contraction: coeff_y = sum_pq sum_x P_pq (phi_p phi_q xi_x) S_xy^-1
+!$OMP PARALLEL DEFAULT(NONE) &
+!$OMP SHARED (pqX,nspins,blk_size_ri,nnb,neighbors,ri_sinv,factor,xas_atom_env,iex,rho_redist,idx_to_nb)&
+!$OMP PRIVATE(iter,ind,blk,t_block,tensor_found,iatom,jatom,inb,prefac,ispin,work1,pmat_block, &
+!$OMP         pmat_blockt,pmat_found,pmat_foundt,i,jnb,ri_at,sinv_block,sinv_blockt,sinv_found,&
+!$OMP         sinv_foundt,work2,katom)
 
-            !link the atoms to their position in neighbors
-            ALLOCATE (idx_to_nb(natom))
-            idx_to_nb = 0
-            DO inb = 1, nnb
-               idx_to_nb(neighbors(inb)) = inb
-            END DO
+         CALL dbcsr_t_iterator_start(iter, pqX)
+         DO WHILE (dbcsr_t_iterator_blocks_left(iter))
+            CALL dbcsr_t_iterator_next_block(iter, ind, blk)
+!$OMP CRITICAL (get_t_block)
+            CALL dbcsr_t_get_block(pqX, ind, t_block, tensor_found)
+!$OMP END CRITICAL (get_t_block)
 
-            !Compute the RI inverse overlap matrix on the reduced RI basis that spans the excited
-            !atom and its neighbors, ri_sinv is replicated over all procs
-            CALL get_exat_ri_sinv(ri_sinv, ri_mats, neighbors, idx_to_nb, basis_set_ri, qs_env)
+            iatom = ind(1)
+            jatom = ind(2)
+            katom = ind(3)
+            inb = idx_to_nb(katom)
 
-            !Loop over the integral to get the density coefficients
-            nthread = 1
-!$          nthread = omp_get_max_threads()
-            CALL o3c_iterator_create(o3c, o3c_iterator, nthread=nthread)
+            !non-diagonal elements need to be counted twice
+            prefac = 2.0_dp
+            IF (iatom == jatom) prefac = 1.0_dp
 
-!$OMP PARALLEL DEFAULT(NONE)&
-!$OMP SHARED (o3c_iterator,xas_atom_env,nsgf,nspins,factor,nnb,neighbors,iex,idx_to_nb,ri_sinv)&
-!$OMP PRIVATE (mepos,katom,tvec,work,inb,jnb,ri_at,found,foundt,pblock,pblockt)
+            DO ispin = 1, nspins
 
-            mepos = 0
-!$          mepos = omp_get_thread_num()
+               !rho_redist is symmetric, block can be in either location
+               CALL dbcsr_get_block_p(rho_redist(ispin)%matrix, iatom, jatom, pmat_block, pmat_found)
+               CALL dbcsr_get_block_p(rho_redist(ispin)%matrix, jatom, iatom, pmat_blockt, pmat_foundt)
+               IF ((.NOT. pmat_found) .AND. (.NOT. pmat_foundt)) CYCLE
 
-            DO WHILE (o3c_iterate(o3c_iterator, mepos=mepos) == 0)
-               CALL get_o3c_iterator_info(o3c_iterator, mepos=mepos, katom=katom, tvec=tvec)
+               ALLOCATE (work1(blk_size_ri(katom), 1))
+               work1 = 0.0_dp
 
-               !we only treat katoms that are the excited atom or one of its neighbor
-               IF (.NOT. ANY(neighbors == katom)) CYCLE
-               inb = idx_to_nb(katom)
+               !first contraction with the density matrix
+               IF (pmat_found) THEN
+                  DO i = 1, blk_size_ri(katom)
+                     work1(i, 1) = prefac*SUM(pmat_block(:, :)*t_block(:, :, i))
+                  END DO
+               ELSE
+                  DO i = 1, blk_size_ri(katom)
+                     work1(i, 1) = prefac*SUM(TRANSPOSE(pmat_blockt(:, :))*t_block(:, :, i))
+                  END DO
+               END IF
 
-               !Loop over the negihbors (incl. excited atom)
+               !loop over neighbors
                DO jnb = 1, nnb
 
                   ri_at = neighbors(jnb)
 
-                  !get the corresponding block in ri_sinv
-                  CALL dbcsr_get_block_p(ri_sinv, inb, jnb, pblock, found)
-                  CALL dbcsr_get_block_p(ri_sinv, jnb, inb, pblockt, foundt)
-                  IF ((.NOT. found) .AND. (.NOT. foundt)) CYCLE
+                  !ri_sinv is a symmetric matrix => actual block is one of the two
+                  CALL dbcsr_get_block_p(ri_sinv, inb, jnb, sinv_block, sinv_found)
+                  CALL dbcsr_get_block_p(ri_sinv, jnb, inb, sinv_blockt, sinv_foundt)
+                  IF ((.NOT. sinv_found) .AND. (.NOT. sinv_foundt)) CYCLE
 
-                  !katom and ri_at interact => compute the ri_dcoeff for ri_at, coming from katom
-                  ! The coefficients for katom/ri_at are tvec*S^-1
-                  ALLOCATE (work(nsgf(ri_at), nspins))
-                  IF (found) THEN
-                     CALL dgemm('T', 'N', nsgf(ri_at), nspins, nsgf(katom), 1.0_dp, pblock, &
-                                nsgf(katom), tvec, nsgf(katom), 0.0_dp, work, nsgf(ri_at))
+                  !second contraction with the inverse RI overlap
+                  ALLOCATE (work2(SIZE(xas_atom_env%ri_dcoeff(ri_at, ispin, iex)%array)))
+                  work2 = 0.0_dp
+
+                  IF (sinv_found) THEN
+                     DO i = 1, blk_size_ri(katom)
+                        CALL daxpy(SIZE(work2), factor*work1(i, 1), sinv_block(i, :), 1, work2(:), 1)
+                     END DO
                   ELSE
-                     CALL dgemm('N', 'N', nsgf(ri_at), nspins, nsgf(katom), 1.0_dp, pblockt, &
-                                nsgf(ri_at), tvec, nsgf(katom), 0.0_dp, work, nsgf(ri_at))
+                     DO i = 1, blk_size_ri(katom)
+                        CALL daxpy(SIZE(work2), factor*work1(i, 1), sinv_blockt(:, i), 1, work2(:), 1)
+                     END DO
                   END IF
 
-!$OMP    CRITICAL(spin1)
-                  CALL daxpy(nsgf(ri_at), factor, work(:, 1), 1, xas_atom_env%ri_dcoeff(ri_at, 1, iex)%array(:), 1)
-!$OMP    END CRITICAL(spin1)
+!$OMP CRITICAL (ri_dcoeff)
+                  xas_atom_env%ri_dcoeff(ri_at, ispin, iex)%array(:) = &
+                     xas_atom_env%ri_dcoeff(ri_at, ispin, iex)%array(:) + work2(:)
+!$OMP END CRITICAL (ri_dcoeff)
 
-                  IF (nspins == 2) THEN
-!$OMP    CRITICAL(spin2)
-                     CALL daxpy(nsgf(ri_at), 1._dp, work(:, 2), 1, xas_atom_env%ri_dcoeff(ri_at, 2, iex)%array(:), 1)
-!$OMP    END CRITICAL(spin2)
-                  END IF
-
-                  DEALLOCATE (work)
+                  DEALLOCATE (work2)
                END DO !jnb
-            END DO !o3c_iterator
-!$OMP    END PARALLEL
-            CALL o3c_iterator_release(o3c_iterator)
 
-            !clean-up for excited atom
-            CALL dbcsr_release(ri_sinv)
-            DEALLOCATE (neighbors, idx_to_nb)
+               DEALLOCATE (work1)
+            END DO
 
-         END DO !iex
+            DEALLOCATE (t_block)
+         END DO !iter
+         CALL dbcsr_t_iterator_stop(iter)
+!$OMP END PARALLEL
 
-         !batch clean-up
+         !clean-up
+         CALL dbcsr_release(ri_sinv)
+         CALL dbcsr_t_destroy(pqX)
          CALL distribution_2d_release(opt_dist2d)
          CALL dbcsr_deallocate_matrix_set(rho_redist)
          CALL dbcsr_distribution_release(opt_dbcsr_dist)
-         CALL release_o3c_container(o3c)
          CALL release_neighbor_list_sets(ab_list)
          CALL release_neighbor_list_sets(ac_list)
-         DEALLOCATE (batch_atoms, o3c)
-      END DO !ibatch
+         DEALLOCATE (neighbors, idx_to_nb)
+
+      END DO !iex
 
       !making sure all procs have the same info
       DO iex = 1, nex
@@ -1130,7 +1132,6 @@ CONTAINS
       END DO !iex
 
 !  clean-up
-
       CALL dbcsr_deallocate_matrix_set(overlap)
       DEALLOCATE (basis_set_ri, basis_set_orb, all_ri_atoms)
 
@@ -1144,42 +1145,42 @@ CONTAINS
 !> \param ri_dcoeff the arrays containing the RI density coefficients of this atom, for each spin
 !> \param atom_kind the kind of the atom in question
 !> \param do_gga whether the gradient of the density should also be put on the grid
-!> \param bounds the local bounds of the grid
+!> \param batch_info how the so are distributed
 !> \param xas_atom_env ...
 !> \param qs_env ...
 !> \note The density is expressed as n = sum_d coeff_d*xi_d. Knowing the coordinate of each grid
 !>       grid point, one can simply evaluate xi_d(r)
 ! **************************************************************************************************
-   SUBROUTINE put_density_on_atomic_grid(rho_set, ri_dcoeff, atom_kind, do_gga, bounds, &
+   SUBROUTINE put_density_on_atomic_grid(rho_set, ri_dcoeff, atom_kind, do_gga, batch_info, &
                                          xas_atom_env, qs_env)
 
       TYPE(xc_rho_set_type), POINTER                     :: rho_set
       TYPE(cp_1d_r_p_type), DIMENSION(:)                 :: ri_dcoeff
       INTEGER, INTENT(IN)                                :: atom_kind
       LOGICAL, INTENT(IN)                                :: do_gga
-      INTEGER, DIMENSION(2, 3), INTENT(IN)               :: bounds
+      TYPE(batch_info_type)                              :: batch_info
       TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
       CHARACTER(len=*), PARAMETER :: routineN = 'put_density_on_atomic_grid', &
          routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: dir, handle, ipgf, iset, isgf, iso, &
-                                                            maxso, n, na, nr, nset, nspins, sgfi, &
-                                                            start, start_pgf
+      INTEGER                                            :: dir, handle, ipgf, iset, iso, iso_proc, &
+                                                            ispin, maxso, n, na, nr, nset, nsgfi, &
+                                                            nsoi, nspins, sgfi, starti
       INTEGER, DIMENSION(:), POINTER                     :: lmax, lmin, npgf, nsgf_set
       INTEGER, DIMENSION(:, :), POINTER                  :: first_sgf
-      REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: sgf
-      REAL(dp), ALLOCATABLE, DIMENSION(:, :, :)          :: dsgf, so
-      REAL(dp), ALLOCATABLE, DIMENSION(:, :, :, :)       :: dso
+      REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: so, work1, work2
+      REAL(dp), ALLOCATABLE, DIMENSION(:, :, :)          :: dso
       REAL(dp), DIMENSION(:, :), POINTER                 :: dgr1, dgr2, ga, gr, ri_sphi_so, zet
       REAL(dp), DIMENSION(:, :, :), POINTER              :: dga1, dga2, rhoa, rhob
+      TYPE(cp_1d_r_p_type), DIMENSION(:), POINTER        :: ri_dcoeff_so
       TYPE(grid_atom_type), POINTER                      :: grid_atom
       TYPE(gto_basis_set_type), POINTER                  :: ri_basis
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
 
       NULLIFY (grid_atom, ri_basis, qs_kind_set, lmax, npgf, zet, nsgf_set, ri_sphi_so)
-      NULLIFY (lmin, first_sgf, rhoa, rhob, ga, gr, dgr1, dgr2, dga1, dga2)
+      NULLIFY (lmin, first_sgf, rhoa, rhob, ga, gr, dgr1, dgr2, dga1, dga2, ri_dcoeff_so)
 
       CALL timeset(routineN, handle)
 
@@ -1197,7 +1198,7 @@ CONTAINS
 !  Get the grid and the info we need from it
       grid_atom => xas_atom_env%grid_atom_set(atom_kind)%grid_atom
       na = grid_atom%ng_sphere
-      nr = bounds(2, 2) - bounds(1, 2) + 1
+      nr = grid_atom%nr
       n = na*nr
       nspins = xas_atom_env%nspins
       ri_sphi_so => xas_atom_env%ri_sphi_so(atom_kind)%array
@@ -1223,97 +1224,81 @@ CONTAINS
          dgr2 => xas_atom_env%dgr2(atom_kind)%array
       END IF
 
-!  Loop over the sets and pgfs of the basis set
-      DO iset = 1, nset
+!  Need to express the ri_dcoeffs in terms of so (and not sgf)
+      ALLOCATE (ri_dcoeff_so(nspins))
+      DO ispin = 1, nspins
+         ALLOCATE (ri_dcoeff_so(ispin)%array(nset*maxso))
+         ri_dcoeff_so(ispin)%array = 0.0_dp
 
-         !allocate space to store the spherical orbitals on the grid
-         ALLOCATE (so(na, nr, npgf(iset)*nsoset(lmax(iset))))
-         IF (do_gga) ALLOCATE (dso(na, nr, 3, npgf(iset)*nsoset(lmax(iset))))
+         !for a given so, loop over sgf and sum
+         DO iset = 1, nset
+            sgfi = first_sgf(1, iset)
+            nsoi = npgf(iset)*nsoset(lmax(iset))
+            nsgfi = nsgf_set(iset)
+            ALLOCATE (work1(nsoi, 1), work2(nsgfi, 1))
 
-         DO ipgf = 1, npgf(iset)
-            start_pgf = (ipgf - 1)*nsoset(lmax(iset))
-            start = (iset - 1)*maxso + start_pgf
+            work2(:, 1) = ri_dcoeff(ispin)%array(sgfi:sgfi + nsgfi - 1)
+            CALL dgemm('N', 'N', nsoi, 1, nsgfi, 1.0_dp, ri_sphi_so(1:nsoi, sgfi:sgfi + nsgfi - 1), &
+                       nsoi, work2, nsgfi, 0.0_dp, work1, nsoi)
+            ri_dcoeff_so(ispin)%array((iset - 1)*maxso + 1:(iset - 1)*maxso + nsoi) = work1(:, 1)
 
-            !loop over the spherical gaussian orbitals
-            DO iso = nsoset(lmin(iset) - 1) + 1, nsoset(lmax(iset))
+            DEALLOCATE (work1, work2)
+         END DO
 
-               !the spherical orbital on the grid
-               CALL dgemm('N', 'T', na, nr, 1, 1.0_dp, ga(:, start + iso:start + iso), na, &
-                          gr(:, start + iso:start + iso), nr, 0.0_dp, so(:, :, start_pgf + iso), na)
+      END DO
 
-               !the gradient on the grid
-               IF (do_gga) THEN
+      !allocate space to store the spherical orbitals on the grid
+      ALLOCATE (so(na, nr))
+      IF (do_gga) ALLOCATE (dso(na, nr, 3))
 
-                  DO dir = 1, 3
-                     CALL dgemm('N', 'T', na, nr, 1, 1.0_dp, dga1(:, start + iso:start + iso, dir), na, &
-                                dgr1(:, start + iso:start + iso), nr, 0.0_dp, dso(:, :, dir, start_pgf + iso), na)
-                     CALL dgemm('N', 'T', na, nr, 1, 1.0_dp, dga2(:, start + iso:start + iso, dir), na, &
-                                dgr2(:, start + iso:start + iso), nr, 1.0_dp, dso(:, :, dir, start_pgf + iso), na)
-                  END DO
-               END IF
+!  Loop over the spherical orbitals on this proc
+      DO iso_proc = 1, batch_info%nso_proc(atom_kind)
+         iset = batch_info%so_proc_info(atom_kind)%array(1, iso_proc)
+         ipgf = batch_info%so_proc_info(atom_kind)%array(2, iso_proc)
+         iso = batch_info%so_proc_info(atom_kind)%array(3, iso_proc)
+         IF (iso < 0) CYCLE
 
-            END DO !iso
+         starti = (iset - 1)*maxso + (ipgf - 1)*nsoset(lmax(iset))
 
-         END DO !ipgf
+         !the spherical orbital on the grid
+         CALL dgemm('N', 'T', na, nr, 1, 1.0_dp, ga(:, iso_proc:iso_proc), na, &
+                    gr(:, iso_proc:iso_proc), nr, 0.0_dp, so(:, :), na)
 
-         !contract the so to get the sgf
-         ALLOCATE (sgf(na, nr))
+         !the gradient on the grid
          IF (do_gga) THEN
-            ALLOCATE (dsgf(na, nr, 3))
+
+            DO dir = 1, 3
+               CALL dgemm('N', 'T', na, nr, 1, 1.0_dp, dga1(:, iso_proc:iso_proc, dir), na, &
+                          dgr1(:, iso_proc:iso_proc), nr, 0.0_dp, dso(:, :, dir), na)
+               CALL dgemm('N', 'T', na, nr, 1, 1.0_dp, dga2(:, iso_proc:iso_proc, dir), na, &
+                          dgr2(:, iso_proc:iso_proc), nr, 1.0_dp, dso(:, :, dir), na)
+            END DO
          END IF
-         sgfi = first_sgf(1, iset) - 1
 
-         DO isgf = 1, nsgf_set(iset)
+         !put the so on the grid with the approriate coefficients and sum
+         CALL daxpy(n, ri_dcoeff_so(1)%array(starti + iso), so(:, :), 1, rhoa(:, :, 1), 1)
 
-            sgf = 0.0_dp
-            IF (do_gga) dsgf = 0.0_dp
+         IF (nspins == 2) THEN
+            CALL daxpy(n, ri_dcoeff_so(2)%array(starti + iso), so(:, :), 1, rhob(:, :, 1), 1)
+         END IF
 
-            !so -> sgf
-            DO ipgf = 1, npgf(iset)
-               start_pgf = (ipgf - 1)*nsoset(lmax(iset))
-               DO iso = nsoset(lmin(iset) - 1) + 1, nsoset(lmax(iset))
-                  CALL daxpy(n, ri_sphi_so(start_pgf + iso, sgfi + isgf), so(:, :, start_pgf + iso), 1, &
-                             sgf(:, :), 1)
-               END DO !iso
-            END DO !ipgf
+         IF (do_gga) THEN
 
-            !put the sgf on the grid with the appropriate coefficients and sum
-            CALL daxpy(n, ri_dcoeff(1)%array(sgfi + isgf), sgf(:, :), 1, rhoa(:, :, 1), 1)
+            !put the gradient of the so on the grid with correspond RI coeff
+            DO dir = 1, 3
+               CALL daxpy(n, ri_dcoeff_so(1)%array(starti + iso), dso(:, :, dir), &
+                          1, rho_set%drhoa(dir)%array(:, :, 1), 1)
 
-            IF (nspins == 2) THEN
-               CALL daxpy(n, ri_dcoeff(2)%array(sgfi + isgf), sgf(:, :), 1, rhob(:, :, 1), 1)
-            END IF
+               IF (nspins == 2) THEN
+                  CALL daxpy(n, ri_dcoeff_so(2)%array(starti + iso), dso(:, :, dir), &
+                             1, rho_set%drhob(dir)%array(:, :, 1), 1)
+               END IF
+            END DO !dir
+         END IF !do_gga
 
-            IF (do_gga) THEN
-               DO ipgf = 1, npgf(iset)
-                  start_pgf = (ipgf - 1)*nsoset(lmax(iset))
-                  DO iso = nsoset(lmin(iset) - 1) + 1, nsoset(lmax(iset))
-                     DO dir = 1, 3
-                        CALL daxpy(n, ri_sphi_so(start_pgf + iso, sgfi + isgf), dso(:, :, dir, start_pgf + iso), &
-                                   1, dsgf(:, :, dir), 1)
-                     END DO !dir
-                  END DO !iso
-               END DO !ipgf
+      END DO
 
-               !put the gradient of the sgf on the grid with correspond RI coeff
-               DO dir = 1, 3
-                  CALL daxpy(n, ri_dcoeff(1)%array(sgfi + isgf), dsgf(:, :, dir), &
-                             1, rho_set%drhoa(dir)%array(:, :, 1), 1)
-
-                  IF (nspins == 2) THEN
-                     CALL daxpy(n, ri_dcoeff(2)%array(sgfi + isgf), dsgf(:, :, dir), &
-                                1, rho_set%drhob(dir)%array(:, :, 1), 1)
-                  END IF
-               END DO !dir
-            END IF !do_gga
-
-         END DO !isgf
-
-         DEALLOCATE (so, sgf)
-         IF (do_gga) DEALLOCATE (dso, dsgf)
-      END DO !iset
-
-      ! Treat spin restricted case (=> copy alpha into beta)
+! Treat spin restricted case (=> copy alpha into beta)
       IF (nspins == 1) THEN
          CALL dcopy(n, rhoa(:, :, 1), 1, rhob(:, :, 1), 1)
 
@@ -1323,6 +1308,14 @@ CONTAINS
             END DO
          END IF
       END IF
+
+! Note: sum over procs is done outside
+
+!  clean-up
+      DO ispin = 1, nspins
+         DEALLOCATE (ri_dcoeff_so(ispin)%array)
+      END DO
+      DEALLOCATE (ri_dcoeff_so)
 
       CALL timestop(handle)
 
@@ -1339,29 +1332,29 @@ CONTAINS
 !> \param source_ikind the kind of the source atom
 !> \param target_iat the index of the target atom
 !> \param target_ikind the kind of the target atom
+!> \param sr starting r index for the local grid
+!> \param er ending r index for the local grid
 !> \param do_gga whether the gradient of the density is needed
-!> \param bounds the local bounds of the atomic grid
 !> \param xas_atom_env ...
 !> \param qs_env ...
 ! **************************************************************************************************
    SUBROUTINE put_density_on_other_grid(rho_set, ri_dcoeff, source_iat, source_ikind, target_iat, &
-                                        target_ikind, do_gga, bounds, xas_atom_env, qs_env)
+                                        target_ikind, sr, er, do_gga, xas_atom_env, qs_env)
 
       TYPE(xc_rho_set_type), POINTER                     :: rho_set
       TYPE(cp_1d_r_p_type), DIMENSION(:)                 :: ri_dcoeff
       INTEGER, INTENT(IN)                                :: source_iat, source_ikind, target_iat, &
-                                                            target_ikind
+                                                            target_ikind, sr, er
       LOGICAL, INTENT(IN)                                :: do_gga
-      INTEGER, DIMENSION(2, 3), INTENT(IN)               :: bounds
       TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
       CHARACTER(len=*), PARAMETER :: routineN = 'put_density_on_other_grid', &
          routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: dir, er, handle, ia, ico, ipgf, ir, &
-                                                            iset, isgf, lx, ly, lz, n, na, nr, &
-                                                            nset, nspins, sgfi, sr, start
+      INTEGER                                            :: dir, handle, ia, ico, ipgf, ir, iset, &
+                                                            isgf, lx, ly, lz, n, na, nr, nset, &
+                                                            nspins, sgfi, start
       INTEGER, DIMENSION(:), POINTER                     :: lmax, lmin, npgf, nsgf_set
       INTEGER, DIMENSION(:, :), POINTER                  :: first_sgf
       REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: sgf
@@ -1398,7 +1391,6 @@ CONTAINS
       grid_atom => xas_atom_env%grid_atom_set(target_ikind)%grid_atom
       harmonics => xas_atom_env%harmonics_atom_set(target_ikind)%harmonics_atom
       na = grid_atom%ng_sphere
-      sr = bounds(1, 2); er = bounds(2, 2)
       nr = er - sr + 1
       n = na*nr
       nspins = xas_atom_env%nspins
@@ -1415,7 +1407,7 @@ CONTAINS
       ! Precompute the positions on the target grid
       ALLOCATE (pos(na, sr:er, 4))
 !$OMP PARALLEL DO COLLAPSE(2) SCHEDULE(STATIC) DEFAULT(NONE), &
-!$OMP SHARED(na,nr,pos,harmonics,grid_atom,rst,sr,er), &
+!$OMP SHARED(na,sr,er,pos,harmonics,grid_atom,rst), &
 !$OMP PRIVATE(ia,ir)
       DO ir = sr, er
          DO ia = 1, na
@@ -1433,7 +1425,7 @@ CONTAINS
          IF (do_gga) ALLOCATE (dco(na, sr:er, 3, npgf(iset)*ncoset(lmax(iset))))
 
 !$OMP PARALLEL DEFAULT(NONE), &
-!$OMP SHARED(co,npgf,ncoset,lmax,lmin,indco,pos,zet,iset,na,nr,do_gga,dco,sr,er), &
+!$OMP SHARED(co,npgf,ncoset,lmax,lmin,indco,pos,zet,iset,na,sr,er,do_gga,dco), &
 !$OMP PRIVATE(ipgf,start,ico,lx,ly,lz,ia,ir)
 
 !$OMP DO COLLAPSE(2) SCHEDULE(STATIC)
@@ -1551,8 +1543,8 @@ CONTAINS
 !$OMP END PARALLEL
 
          !contract the co into sgf
-         ALLOCATE (sgf(na, nr))
-         IF (do_gga) ALLOCATE (dsgf(na, nr, 3))
+         ALLOCATE (sgf(na, sr:er))
+         IF (do_gga) ALLOCATE (dsgf(na, sr:er, 3))
          sgfi = first_sgf(1, iset) - 1
 
          DO isgf = 1, nsgf_set(iset)
@@ -1562,15 +1554,15 @@ CONTAINS
             DO ipgf = 1, npgf(iset)
                start = (ipgf - 1)*ncoset(lmax(iset))
                DO ico = ncoset(lmin(iset) - 1) + 1, ncoset(lmax(iset))
-                  CALL daxpy(n, ri_sphi(start + ico, sgfi + isgf), co(:, :, start + ico), 1, sgf(:, :), 1)
+                  CALL daxpy(n, ri_sphi(start + ico, sgfi + isgf), co(:, sr:er, start + ico), 1, sgf(:, sr:er), 1)
                END DO !ico
             END DO !ipgf
 
             !add the density to the grid
-            CALL daxpy(n, ri_dcoeff(1)%array(sgfi + isgf), sgf(:, :), 1, rhoa(:, :, 1), 1)
+            CALL daxpy(n, ri_dcoeff(1)%array(sgfi + isgf), sgf(:, sr:er), 1, rhoa(:, sr:er, 1), 1)
 
             IF (nspins == 2) THEN
-               CALL daxpy(n, ri_dcoeff(2)%array(sgfi + isgf), sgf(:, :), 1, rhob(:, :, 1), 1)
+               CALL daxpy(n, ri_dcoeff(2)%array(sgfi + isgf), sgf(:, sr:er), 1, rhob(:, sr:er, 1), 1)
             END IF
 
             !deal with the gradient
@@ -1580,18 +1572,19 @@ CONTAINS
                   start = (ipgf - 1)*ncoset(lmax(iset))
                   DO ico = ncoset(lmin(iset) - 1) + 1, ncoset(lmax(iset))
                      DO dir = 1, 3
-                        CALL daxpy(n, ri_sphi(start + ico, sgfi + isgf), dco(:, :, dir, start + ico), 1, dsgf(:, :, dir), 1)
+                        CALL daxpy(n, ri_sphi(start + ico, sgfi + isgf), dco(:, sr:er, dir, start + ico), &
+                                   1, dsgf(:, sr:er, dir), 1)
                      END DO
                   END DO !ico
                END DO !ipgf
 
                DO dir = 1, 3
-                  CALL daxpy(n, ri_dcoeff(1)%array(sgfi + isgf), dsgf(:, :, dir), 1, &
-                             rho_set%drhoa(dir)%array(:, :, 1), 1)
+                  CALL daxpy(n, ri_dcoeff(1)%array(sgfi + isgf), dsgf(:, sr:er, dir), 1, &
+                             rho_set%drhoa(dir)%array(:, sr:er, 1), 1)
 
                   IF (nspins == 2) THEN
-                     CALL daxpy(n, ri_dcoeff(2)%array(sgfi + isgf), dsgf(:, :, dir), 1, &
-                                rho_set%drhob(dir)%array(:, :, 1), 1)
+                     CALL daxpy(n, ri_dcoeff(2)%array(sgfi + isgf), dsgf(:, sr:er, dir), 1, &
+                                rho_set%drhob(dir)%array(:, sr:er, 1), 1)
                   END IF
                END DO
             END IF !do_gga
@@ -1604,11 +1597,11 @@ CONTAINS
 
       !Treat spin-restricted case (copy alpha into beta)
       IF (nspins == 1) THEN
-         CALL dcopy(n, rhoa(:, :, 1), 1, rhob(:, :, 1), 1)
+         CALL dcopy(n, rhoa(:, sr:er, 1), 1, rhob(:, sr:er, 1), 1)
 
          IF (do_gga) THEN
             DO dir = 1, 3
-               CALL dcopy(n, rho_set%drhoa(dir)%array(:, :, 1), 1, rho_set%drhob(dir)%array(:, :, 1), 1)
+               CALL dcopy(n, rho_set%drhoa(dir)%array(:, sr:er, 1), 1, rho_set%drhob(dir)%array(:, sr:er, 1), 1)
             END DO
          END IF
       END IF
@@ -1621,25 +1614,22 @@ CONTAINS
 !> \brief Computes the norm of the density gradient on the atomic grid
 !> \param rho_set ...
 !> \param atom_kind ...
-!> \param bounds ...
 !> \param xas_atom_env ...
 !> \note GGA is assumed
 ! **************************************************************************************************
-   SUBROUTINE compute_norm_drho(rho_set, atom_kind, bounds, xas_atom_env)
+   SUBROUTINE compute_norm_drho(rho_set, atom_kind, xas_atom_env)
 
       TYPE(xc_rho_set_type), POINTER                     :: rho_set
       INTEGER, INTENT(IN)                                :: atom_kind
-      INTEGER, DIMENSION(2, 3), INTENT(IN)               :: bounds
       TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
 
       CHARACTER(len=*), PARAMETER :: routineN = 'compute_norm_drho', &
          routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: dir, er, ia, ir, n, na, nr, nspins, sr
+      INTEGER                                            :: dir, ia, ir, n, na, nr, nspins
 
       na = xas_atom_env%grid_atom_set(atom_kind)%grid_atom%ng_sphere
-      sr = bounds(1, 2); er = bounds(2, 2)
-      nr = er - sr + 1
+      nr = xas_atom_env%grid_atom_set(atom_kind)%grid_atom%nr
       n = na*nr
       nspins = xas_atom_env%nspins
 
@@ -1648,7 +1638,7 @@ CONTAINS
       rho_set%norm_drho = 0.0_dp
 
       DO dir = 1, 3
-         DO ir = sr, er
+         DO ir = 1, nr
             DO ia = 1, na
                rho_set%norm_drhoa(ia, ir, 1) = rho_set%norm_drhoa(ia, ir, 1) &
                                                + rho_set%drhoa(dir)%array(ia, ir, 1)**2
@@ -1662,7 +1652,7 @@ CONTAINS
          CALL dcopy(n, rho_set%norm_drhoa(:, :, 1), 1, rho_set%norm_drhob(:, :, 1), 1)
       ELSE
          DO dir = 1, 3
-            DO ir = sr, er
+            DO ir = 1, nr
                DO ia = 1, na
                   rho_set%norm_drhob(ia, ir, 1) = rho_set%norm_drhob(ia, ir, 1) &
                                                   + rho_set%drhob(dir)%array(ia, ir, 1)**2
@@ -1673,10 +1663,11 @@ CONTAINS
       END IF
 
       DO dir = 1, 3
-         DO ir = sr, er
+         DO ir = 1, nr
             DO ia = 1, na
                rho_set%norm_drho(ia, ir, 1) = rho_set%norm_drho(ia, ir, 1) + &
-                                              (rho_set%drhoa(dir)%array(ia, ir, 1) + rho_set%drhob(dir)%array(ia, ir, 1))**2
+                                              (rho_set%drhoa(dir)%array(ia, ir, 1) + &
+                                               rho_set%drhob(dir)%array(ia, ir, 1))**2
             END DO
          END DO
       END DO
@@ -1687,27 +1678,28 @@ CONTAINS
 ! **************************************************************************************************
 !> \brief Precomputes the spherical orbitals of the RI basis on the excited atom grids
 !> \param do_gga whether the gradient needs to be computed for GGA or not
-!> \param batch_size among how many procs the grid is divided
-!> \param ipe the current proc index within the batch
+!> \param batch_info the parallelization info to complete with so distribution info
 !> \param xas_atom_env ...
 !> \param qs_env ...
 !> \note the functions are split in a purely angular part of size na and a purely radial part of
 !>       size nr. The full function on the grid can simply be obtained with dgemm and we save space
 ! **************************************************************************************************
-   SUBROUTINE precompute_so_dso(do_gga, batch_size, ipe, xas_atom_env, qs_env)
+   SUBROUTINE precompute_so_dso(do_gga, batch_info, xas_atom_env, qs_env)
 
       LOGICAL, INTENT(IN)                                :: do_gga
-      INTEGER, INTENT(IN)                                :: batch_size, ipe
+      TYPE(batch_info_type)                              :: batch_info
       TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
       CHARACTER(len=*), PARAMETER :: routineN = 'precompute_so_dso', &
          routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: bo(2), dir, er, handle, ikind, ipgf, &
-                                                            iset, iso, l, maxso, n, na, nkind, nr, &
-                                                            nset, nsotot, sr, starti
+      INTEGER                                            :: bo(2), dir, handle, ikind, ipgf, iset, &
+                                                            iso, iso_proc, l, maxso, n, na, nkind, &
+                                                            nr, nset, nso_proc, nsotot, starti
       INTEGER, DIMENSION(:), POINTER                     :: lmax, lmin, npgf, nsgf_set
+      INTEGER, DIMENSION(:, :), POINTER                  :: so_proc_info
+      REAL(dp), ALLOCATABLE, DIMENSION(:)                :: rexp
       REAL(dp), DIMENSION(:, :), POINTER                 :: dgr1, dgr2, ga, gr, slm, zet
       REAL(dp), DIMENSION(:, :, :), POINTER              :: dga1, dga2, dslm_dxyz
       TYPE(cp_para_env_type), POINTER                    :: para_env
@@ -1717,12 +1709,16 @@ CONTAINS
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
 
       NULLIFY (qs_kind_set, harmonics, grid_atom, slm, dslm_dxyz, ri_basis, lmax, lmin, npgf)
-      NULLIFY (nsgf_set, zet, para_env)
+      NULLIFY (nsgf_set, zet, para_env, so_proc_info)
 
       CALL timeset(routineN, handle)
 
       CALL get_qs_env(qs_env, qs_kind_set=qs_kind_set, para_env=para_env)
       nkind = SIZE(qs_kind_set)
+
+      ALLOCATE (batch_info%so_proc_info(nkind))
+      ALLOCATE (batch_info%nso_proc(nkind))
+      ALLOCATE (batch_info%so_bo(2, nkind))
 
       DO ikind = 1, nkind
 
@@ -1733,6 +1729,8 @@ CONTAINS
          NULLIFY (xas_atom_env%dgr1(ikind)%array)
          NULLIFY (xas_atom_env%dgr2(ikind)%array)
 
+         NULLIFY (batch_info%so_proc_info(ikind)%array)
+
          IF (.NOT. ANY(xas_atom_env%excited_kinds == ikind)) CYCLE
 
          !grid info
@@ -1741,13 +1739,7 @@ CONTAINS
 
          na = grid_atom%ng_sphere
          nr = grid_atom%nr
-         sr = 1; er = nr
          n = na*nr
-
-         !Split the grid
-         bo = get_limit(nr, batch_size, ipe)
-         sr = bo(1); er = bo(2)
-         nr = er - sr + 1
 
          slm => harmonics%slm
          dslm_dxyz => harmonics%dslm_dxyz
@@ -1758,15 +1750,41 @@ CONTAINS
                                 nsgf_set=nsgf_set, lmin=lmin, maxso=maxso)
          nsotot = maxso*nset
 
+         !we split all so among the processors of the batch
+         bo = get_limit(nsotot, batch_info%batch_size, batch_info%ipe)
+         nso_proc = bo(2) - bo(1) + 1
+         batch_info%so_bo(:, ikind) = bo
+         batch_info%nso_proc(ikind) = nso_proc
+
+         !store info about the so's set, pgf and index
+         ALLOCATE (batch_info%so_proc_info(ikind)%array(3, nso_proc))
+         so_proc_info => batch_info%so_proc_info(ikind)%array
+         so_proc_info = -1 !default is -1 => set so value to zero
+         DO iset = 1, nset
+            DO ipgf = 1, npgf(iset)
+               starti = (iset - 1)*maxso + (ipgf - 1)*nsoset(lmax(iset))
+               DO iso = nsoset(lmin(iset) - 1) + 1, nsoset(lmax(iset))
+
+                  !only consider so that are on this proc
+                  IF (starti + iso < bo(1) .OR. starti + iso > bo(2)) CYCLE
+                  iso_proc = starti + iso - bo(1) + 1
+                  so_proc_info(1, iso_proc) = iset
+                  so_proc_info(2, iso_proc) = ipgf
+                  so_proc_info(3, iso_proc) = iso
+
+               END DO
+            END DO
+         END DO
+
          !Put the gaussians and their gradient as purely angular or radial arrays
-         ALLOCATE (xas_atom_env%ga(ikind)%array(na, nsotot))
-         ALLOCATE (xas_atom_env%gr(ikind)%array(nr, nsotot))
+         ALLOCATE (xas_atom_env%ga(ikind)%array(na, nso_proc))
+         ALLOCATE (xas_atom_env%gr(ikind)%array(nr, nso_proc))
          xas_atom_env%ga(ikind)%array = 0.0_dp; xas_atom_env%gr(ikind)%array = 0.0_dp
          IF (do_gga) THEN
-            ALLOCATE (xas_atom_env%dga1(ikind)%array(na, nsotot, 3))
-            ALLOCATE (xas_atom_env%dgr1(ikind)%array(nr, nsotot))
-            ALLOCATE (xas_atom_env%dga2(ikind)%array(na, nsotot, 3))
-            ALLOCATE (xas_atom_env%dgr2(ikind)%array(nr, nsotot))
+            ALLOCATE (xas_atom_env%dga1(ikind)%array(na, nso_proc, 3))
+            ALLOCATE (xas_atom_env%dgr1(ikind)%array(nr, nso_proc))
+            ALLOCATE (xas_atom_env%dga2(ikind)%array(na, nso_proc, 3))
+            ALLOCATE (xas_atom_env%dgr2(ikind)%array(nr, nso_proc))
             xas_atom_env%dga1(ikind)%array = 0.0_dp; xas_atom_env%dgr1(ikind)%array = 0.0_dp
             xas_atom_env%dga2(ikind)%array = 0.0_dp; xas_atom_env%dgr2(ikind)%array = 0.0_dp
          END IF
@@ -1778,35 +1796,36 @@ CONTAINS
          dgr1 => xas_atom_env%dgr1(ikind)%array
          dgr2 => xas_atom_env%dgr2(ikind)%array
 
-         DO iset = 1, nset
-            DO ipgf = 1, npgf(iset)
-               starti = (iset - 1)*maxso + (ipgf - 1)*nsoset(lmax(iset))
-               DO iso = nsoset(lmin(iset) - 1) + 1, nsoset(lmax(iset))
-                  l = indso(1, iso)
+         ALLOCATE (rexp(nr))
 
-                  !radial part of the gaussian
-                  gr(1:nr, starti + iso) = grid_atom%rad(sr:er)**l*EXP(-zet(ipgf, iset)*grid_atom%rad2(sr:er))
+         DO iso_proc = 1, nso_proc
+            iset = so_proc_info(1, iso_proc)
+            ipgf = so_proc_info(2, iso_proc)
+            iso = so_proc_info(3, iso_proc)
+            IF (iso < 0) CYCLE
 
-                  !angular part of the gaussian
-                  ga(1:na, starti + iso) = slm(1:na, iso)
+            l = indso(1, iso)
 
-                  IF (do_gga) THEN
-                     !radial part of the gradient => same in all three direction
-                     dgr1(1:nr, starti + iso) = grid_atom%rad(sr:er)**(l - 1) &
-                                                *EXP(-zet(ipgf, iset)*grid_atom%rad2(sr:er))
-                     dgr2(1:nr, starti + iso) = -2.0_dp*zet(ipgf, iset)*grid_atom%rad(sr:er)**(l + 1) &
-                                                *EXP(-zet(ipgf, iset)*grid_atom%rad2(sr:er))
+            !radial part of the gaussian
+            rexp(1:nr) = EXP(-zet(ipgf, iset)*grid_atom%rad2(1:nr))
+            gr(1:nr, iso_proc) = grid_atom%rad(1:nr)**l*rexp(1:nr)
 
-                     !angular part of the gradient
-                     DO dir = 1, 3
-                        dga1(1:na, starti + iso, dir) = dslm_dxyz(dir, 1:na, iso)
-                        dga2(1:na, starti + iso, dir) = harmonics%a(dir, 1:na)*slm(1:na, iso)
-                     END DO
-                  END IF
+            !angular part of the gaussian
+            ga(1:na, iso_proc) = slm(1:na, iso)
 
-               END DO !iso
-            END DO !ipgf
-         END DO !iset
+            IF (do_gga) THEN
+               !radial part of the gradient => same in all three direction
+               dgr1(1:nr, iso_proc) = grid_atom%rad(1:nr)**(l - 1)*rexp(1:nr)
+               dgr2(1:nr, iso_proc) = -2.0_dp*zet(ipgf, iset)*grid_atom%rad(1:nr)**(l + 1)*rexp(1:nr)
+
+               !angular part of the gradient
+               DO dir = 1, 3
+                  dga1(1:na, iso_proc, dir) = dslm_dxyz(dir, 1:na, iso)
+                  dga2(1:na, iso_proc, dir) = harmonics%a(dir, 1:na)*slm(1:na, iso)
+               END DO
+            END IF
+
+         END DO !iso_proc
 
       END DO !ikind
 
@@ -1834,13 +1853,12 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'integrate_fxc_atoms', &
          routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: batch_size, bo(2), handle, i, iatom, &
-                                                            ibatch, iex, ikind, inb, ipe, mepos, &
-                                                            na, natom, nb, nbatch, nbk, nex_atom, &
-                                                            nr, num_pe, subcomm
+      INTEGER :: batch_size, dir, er, ex_bo(2), handle, i, iatom, ibatch, iex, ikind, inb, ipe, &
+         mepos, na, natom, nb, nb_bo(2), nbatch, nbk, nex_atom, nr, num_pe, sr, subcomm
       INTEGER, DIMENSION(2, 3)                           :: bounds
       INTEGER, DIMENSION(:), POINTER                     :: exat_neighbors
       LOGICAL                                            :: do_gga, do_sc, do_sf
+      TYPE(batch_info_type)                              :: batch_info
       TYPE(cp_1d_r_p_type), DIMENSION(:, :), POINTER     :: ri_dcoeff
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dft_control_type), POINTER                    :: dft_control
@@ -1876,29 +1894,39 @@ CONTAINS
       needs = xc_functionals_get_needs(xc_functionals, lsd=.TRUE., add_basic_components=.TRUE.)
       do_gga = needs%drho_spin !because either LDA or GGA, and the former does not need gradient
 
-!  Distribute the excited atoms over the processors, which are split into batches
+!  Distribute the excited atoms over batches of processors
+!  Then, the spherical orbital of the RI basis are distributed among the procs of the batch, making
+!  the GGA integration very efficient
       num_pe = para_env%num_pe
       mepos = para_env%mepos
-      batch_size = xas_tdp_control%batch_size
-      nbatch = num_pe/batch_size
+
+      !create a batch_info_type
+      CALL get_proc_batch_sizes(batch_size, nbatch, nex_atom, num_pe)
+
+      !the batch index
       ibatch = mepos/batch_size
       !the proc index within the batch
       ipe = MODULO(mepos, batch_size)
-      !make sure we include last procs if batch_size is not divisor of total num_procs
-      IF (nbatch*batch_size .NE. num_pe) nbatch = nbatch + 1
-      !the size of the last batch might be less than nominal one
-      IF ((ibatch + 1)*batch_size > num_pe) batch_size = num_pe - ibatch*batch_size
-      !distribute the excted atoms over the batches
-      bo = get_limit(nex_atom, nbatch, ibatch)
+
+      batch_info%batch_size = batch_size
+      batch_info%nbatch = nbatch
+      batch_info%ibatch = ibatch
+      batch_info%ipe = ipe
+
       !create a subcommunicator for this batch
       CALL mp_comm_split_direct(para_env%group, subcomm, ibatch)
+      NULLIFY (batch_info%para_env)
+      CALL cp_para_env_create(batch_info%para_env, subcomm)
 
 !  Precompute the spherical orbital of the RI basis (and maybe their gradient) on the grids of the
 !  excited atoms. Needed for the GGA integration and to actually put the density on the grid
-      CALL precompute_so_dso(do_gga, batch_size, ipe, xas_atom_env, qs_env)
+      CALL precompute_so_dso(do_gga, batch_info, xas_atom_env, qs_env)
+
+      !distribute the excted atoms over the batches
+      ex_bo = get_limit(nex_atom, nbatch, ibatch)
 
 !  Looping over the excited atoms
-      DO iex = bo(1), bo(2)
+      DO iex = ex_bo(1), ex_bo(2)
 
          iatom = xas_atom_env%excited_atoms(iex)
          ikind = particle_set(iatom)%atomic_kind%kind_number
@@ -1913,8 +1941,6 @@ CONTAINS
          bounds(1:2, 1:3) = 1
          bounds(2, 1) = na
          bounds(2, 2) = nr
-         !split the grid by columns for best efficiency
-         bounds(:, 2) = get_limit(nr, batch_size, ipe)
 
          CALL xc_rho_set_create(rho_set=rho_set, local_bounds=bounds, &
                                 rho_cutoff=dft_control%qs_control%eps_rho_rspace, &
@@ -1926,20 +1952,33 @@ CONTAINS
 
 !     Put the density, and possibly its gradient,  on the grid (for this atom)
          CALL put_density_on_atomic_grid(rho_set, ri_dcoeff(iatom, :), ikind, &
-                                         do_gga, bounds, xas_atom_env, qs_env)
+                                         do_gga, batch_info, xas_atom_env, qs_env)
 
 !     Take the neighboring atom contributions to the density (and gradient)
+!     distribute the grid among the procs (for best load balance)
+         nb_bo = get_limit(nr, batch_size, ipe)
+         sr = nb_bo(1); er = nb_bo(2)
          DO inb = 1, SIZE(exat_neighbors)
 
             nb = exat_neighbors(inb)
             nbk = particle_set(nb)%atomic_kind%kind_number
             CALL put_density_on_other_grid(rho_set, ri_dcoeff(nb, :), nb, nbk, iatom, &
-                                           ikind, do_gga, bounds, xas_atom_env, qs_env)
+                                           ikind, sr, er, do_gga, xas_atom_env, qs_env)
 
          END DO
 
+         ! make sure contributions from different procs are summed up
+         CALL mp_sum(rho_set%rhoa, batch_info%para_env%group)
+         CALL mp_sum(rho_set%rhob, batch_info%para_env%group)
+         IF (do_gga) THEN
+            DO dir = 1, 3
+               CALL mp_sum(rho_set%drhoa(dir)%array, batch_info%para_env%group)
+               CALL mp_sum(rho_set%drhob(dir)%array, batch_info%para_env%group)
+            END DO
+         END IF
+
 !     In case of GGA, also need the norm of the density gradient
-         IF (do_gga) CALL compute_norm_drho(rho_set, ikind, bounds, xas_atom_env)
+         IF (do_gga) CALL compute_norm_drho(rho_set, ikind, xas_atom_env)
 
 !     Compute the required derivatives
          CALL xc_functionals_eval(xc_functionals, lsd=.TRUE., rho_set=rho_set, deriv_set=deriv_set, &
@@ -1947,38 +1986,29 @@ CONTAINS
 
          !spin-conserving (LDA part)
          IF (do_sc) THEN
-            CALL integrate_sc_fxc(int_fxc, iatom, ikind, deriv_set, bounds, xas_atom_env, qs_env)
+            CALL integrate_sc_fxc(int_fxc, iatom, ikind, deriv_set, xas_atom_env, qs_env)
          END IF
 
          !spin-flip (LDA part)
          IF (do_sf) THEN
-            CALL integrate_sf_fxc(int_fxc, iatom, ikind, rho_set, deriv_set, bounds, xas_atom_env, qs_env)
+            CALL integrate_sf_fxc(int_fxc, iatom, ikind, rho_set, deriv_set, xas_atom_env, qs_env)
          END IF
 
          !Gradient correction (note: spin-flip only keeps the lda part, aka ALDA0)
          IF (do_gga .AND. do_sc) THEN
-            CALL integrate_gga_fxc(int_fxc, iatom, ikind, rho_set, deriv_set, bounds, xas_atom_env, qs_env)
+            CALL integrate_gga_fxc(int_fxc, iatom, ikind, batch_info, rho_set, deriv_set, &
+                                   xas_atom_env, qs_env)
          END IF
-
-!     Sum the contribution of the different procs of the batch
-         DO i = 1, 4
-            IF (ASSOCIATED(int_fxc(iatom, i)%array)) THEN
-               CALL mp_sum(int_fxc(iatom, i)%array, subcomm)
-            END IF
-         END DO
 
 !     Clean-up
          CALL xc_dset_release(deriv_set)
          CALL xc_rho_set_release(rho_set)
-
       END DO !iex
 
-      !Not necessary to sync, but makes sure that any load imbalance (which can be significant if
-      !nbatch is not a divisor of n_excited) is reported here
-      CALL mp_sync(para_env%group)
+      CALL release_batch_info(batch_info)
 
-      !clean-up
-      CALL mp_comm_free(subcomm)
+      !Not necessary to sync, but makes sure that any load inbalance is reported here
+      CALL mp_sync(para_env%group)
 
       CALL timestop(handle)
 
@@ -1989,42 +2019,47 @@ CONTAINS
 !> \param int_fxc the array containing the (P|fxc|Q) integrals
 !> \param iatom the index of the current excited atom
 !> \param ikind the index of the current excited kind
+!> \param batch_info how the so are distributed over the processor batch
 !> \param rho_set the variable contatinind the density and its gradient
 !> \param deriv_set the functional derivatives
-!> \param bounds the bounds of the local grid
 !> \param xas_atom_env ...
 !> \param qs_env ...
 !> \note Ignored in case of pure LDA, added on top of the LDA kernel in case of GGA
 ! **************************************************************************************************
-   SUBROUTINE integrate_gga_fxc(int_fxc, iatom, ikind, rho_set, deriv_set, bounds, xas_atom_env, qs_env)
+   SUBROUTINE integrate_gga_fxc(int_fxc, iatom, ikind, batch_info, rho_set, deriv_set, &
+                                xas_atom_env, qs_env)
 
       TYPE(cp_2d_r_p_type), DIMENSION(:, :), POINTER     :: int_fxc
       INTEGER, INTENT(IN)                                :: iatom, ikind
+      TYPE(batch_info_type)                              :: batch_info
       TYPE(xc_rho_set_type), POINTER                     :: rho_set
       TYPE(xc_derivative_set_type), POINTER              :: deriv_set
-      INTEGER, DIMENSION(2, 3), INTENT(IN)               :: bounds
       TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
       CHARACTER(len=*), PARAMETER :: routineN = 'integrate_gga_fxc', &
          routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: dir, er, handle, i, jpgf, jset, jso, &
-                                                            maxso, na, nr, nset, nsgf, nsoi, &
-                                                            nsotot, sr, startj, ub
+      INTEGER                                            :: bo(2), dir, handle, i, ia, ir, jpgf, &
+                                                            jset, jso, l, maxso, na, nr, nset, &
+                                                            nsgf, nsoi, nsotot, startj, ub
       INTEGER, DIMENSION(:), POINTER                     :: lmax, lmin, npgf
+      REAL(dp), ALLOCATABLE, DIMENSION(:)                :: rexp
       REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: int_sgf, res, so, work
       REAL(dp), ALLOCATABLE, DIMENSION(:, :, :)          :: dso
-      REAL(dp), DIMENSION(:, :), POINTER                 :: dgr1, dgr2, ga, gr, ri_sphi_so, weight
+      REAL(dp), DIMENSION(:, :), POINTER                 :: dgr1, dgr2, ga, gr, ri_sphi_so, weight, &
+                                                            zet
       REAL(dp), DIMENSION(:, :, :), POINTER              :: dga1, dga2
       TYPE(cp_2d_r_p_type), ALLOCATABLE, DIMENSION(:)    :: int_so, vxc
       TYPE(cp_3d_r_p_type), ALLOCATABLE, DIMENSION(:)    :: vxg
+      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(grid_atom_type), POINTER                      :: grid_atom
       TYPE(gto_basis_set_type), POINTER                  :: ri_basis
+      TYPE(harmonics_atom_type), POINTER                 :: harmonics
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
 
       NULLIFY (grid_atom, ri_basis, qs_kind_set, ga, gr, dgr1, dgr2, lmax, lmin, npgf)
-      NULLIFY (weight, ri_sphi_so, dga1, dga2)
+      NULLIFY (weight, ri_sphi_so, dga1, dga2, para_env, harmonics, zet)
 
       !Strategy: we need to compute <phi_i|fxc|phij>, most of existing application of the 2nd
       !          functional derivative involve the response density, and the expression of the
@@ -2043,18 +2078,18 @@ CONTAINS
       IF (xas_atom_env%nspins == 2) ub = 3
 
       !Get the necessary grid info
+      harmonics => xas_atom_env%harmonics_atom_set(ikind)%harmonics_atom
       grid_atom => xas_atom_env%grid_atom_set(ikind)%grid_atom
       na = grid_atom%ng_sphere
-      sr = bounds(1, 2); er = bounds(2, 2)
-      nr = er - sr + 1
+      nr = grid_atom%nr
       weight => grid_atom%weight
 
-      !get the ri_basis indo
-      CALL get_qs_env(qs_env, qs_kind_set=qs_kind_set)
+      !get the ri_basis info
+      CALL get_qs_env(qs_env, qs_kind_set=qs_kind_set, para_env=para_env)
       CALL get_qs_kind(qs_kind_set(ikind), basis_set=ri_basis, basis_type="RI_XAS")
 
       CALL get_gto_basis_set(gto_basis_set=ri_basis, lmax=lmax, lmin=lmin, nsgf=nsgf, &
-                             maxso=maxso, npgf=npgf, nset=nset)
+                             maxso=maxso, npgf=npgf, nset=nset, zet=zet)
       nsotot = nset*maxso
 
       !Point to the precomputed so
@@ -2072,9 +2107,11 @@ CONTAINS
       !collect vxc and vxg and loop over phi_i for the second integration
       !Note: we do not use the CG coefficients because they are only useful when there is a product
       !      of Gaussians, which is not really the case here
+      !Note: the spherical orbitals for phi_i are distributed among the prcos of the current batch
 
       ALLOCATE (so(na, nr))
       ALLOCATE (dso(na, nr, 3))
+      ALLOCATE (rexp(nr))
 
       ALLOCATE (vxc(ub))
       ALLOCATE (vxg(ub))
@@ -2090,28 +2127,40 @@ CONTAINS
          DO jpgf = 1, npgf(jset)
             startj = (jset - 1)*maxso + (jpgf - 1)*nsoset(lmax(jset))
             DO jso = nsoset(lmin(jset) - 1) + 1, nsoset(lmax(jset))
+               l = indso(1, jso)
 
                !put the so phi_j and its gradient on the grid
+               !more efficient to recompute it rather than mp_bcast each chunk
 
-               !so
-               CALL dgemm('N', 'T', na, nr, 1, 1.0_dp, ga(:, startj + jso:startj + jso), na, &
-                          gr(:, startj + jso:startj + jso), nr, 0.0_dp, so(:, :), na)
+               rexp(1:nr) = EXP(-zet(jpgf, jset)*grid_atom%rad2(1:nr))
+!$OMP PARALLEL DO COLLAPSE(2) DEFAULT(NONE), &
+!$OMP SHARED(nr,na,so,dso,grid_atom,l,rexp,harmonics,jso,zet,jset,jpgf), &
+!$OMP PRIVATE(ir,ia,dir)
+               DO ir = 1, nr
+                  DO ia = 1, na
 
-               !dso
-               DO dir = 1, 3
-                  CALL dgemm('N', 'T', na, nr, 1, 1.0_dp, dga1(:, startj + jso:startj + jso, dir), &
-                             na, dgr1(:, startj + jso:startj + jso), nr, 0.0_dp, dso(:, :, dir), na)
-                  CALL dgemm('N', 'T', na, nr, 1, 1.0_dp, dga2(:, startj + jso:startj + jso, dir), &
-                             na, dgr2(:, startj + jso:startj + jso), nr, 1.0_dp, dso(:, :, dir), na)
-               END DO !dir
+                     !so
+                     so(ia, ir) = grid_atom%rad(ir)**l*rexp(ir)*harmonics%slm(ia, jso)
+
+                     !dso
+                     dso(ia, ir, :) = 0.0_dp
+                     DO dir = 1, 3
+                        dso(ia, ir, dir) = dso(ia, ir, dir) &
+                                           + grid_atom%rad(ir)**(l - 1)*rexp(ir)*harmonics%dslm_dxyz(dir, ia, jso) &
+                                           - 2.0_dp*zet(jpgf, jset)*grid_atom%rad(ir)**(l + 1)*rexp(ir) &
+                                           *harmonics%a(dir, ia)*harmonics%slm(ia, jso)
+                     END DO
+                  END DO
+               END DO
+!$OMP END PARALLEL DO
 
                !Perform the first integration (analytically)
-               CALL get_vxc_vxg(vxc, vxg, so, dso, na, sr, er, rho_set, deriv_set, weight)
+               CALL get_vxc_vxg(vxc, vxg, so, dso, na, nr, rho_set, deriv_set, weight)
 
                !For a given phi_j, compute the second integration with all phi_i at once
-               !=> allows for efficient gemm to take place
-               !kernl is symmetric => avoid double computing
-               nsoi = startj + jso
+               !=> allows for efficient gemm to take place, especially since so are distributed
+               nsoi = batch_info%nso_proc(ikind)
+               bo = batch_info%so_bo(:, ikind)
                ALLOCATE (res(nsoi, nsoi), work(na, nsoi))
                res = 0.0_dp; work = 0.0_dp
 
@@ -2122,7 +2171,7 @@ CONTAINS
                              gr(:, 1:nsoi), nr, 0.0_dp, work, na)
                   CALL dgemm('T', 'N', nsoi, nsoi, na, 1.0_dp, work, na, &
                              ga(:, 1:nsoi), na, 0.0_dp, res, nsoi)
-                  int_so(i)%array(1:nsoi, startj + jso) = get_diag(res)
+                  int_so(i)%array(bo(1):bo(2), startj + jso) = get_diag(res)
 
                   DO dir = 1, 3
 
@@ -2131,18 +2180,15 @@ CONTAINS
                                 dgr1(:, 1:nsoi), nr, 0.0_dp, work, na)
                      CALL dgemm('T', 'N', nsoi, nsoi, na, 1.0_dp, work, na, &
                                 dga1(:, 1:nsoi, dir), na, 0.0_dp, res, nsoi)
-                     CALL daxpy(nsoi, 1.0_dp, get_diag(res), 1, int_so(i)%array(1:nsoi, startj + jso), 1)
+                     CALL daxpy(nsoi, 1.0_dp, get_diag(res), 1, int_so(i)%array(bo(1):bo(2), startj + jso), 1)
 
                      CALL dgemm('N', 'N', na, nsoi, nr, 1.0_dp, vxg(i)%array(:, :, dir), na, &
                                 dgr2(:, 1:nsoi), nr, 0.0_dp, work, na)
                      CALL dgemm('T', 'N', nsoi, nsoi, na, 1.0_dp, work, na, &
                                 dga2(:, 1:nsoi, dir), na, 0.0_dp, res, nsoi)
-                     CALL daxpy(nsoi, 1.0_dp, get_diag(res), 1, int_so(i)%array(1:nsoi, startj + jso), 1)
+                     CALL daxpy(nsoi, 1.0_dp, get_diag(res), 1, int_so(i)%array(bo(1):bo(2), startj + jso), 1)
 
                   END DO
-
-                  !symmetry
-                  int_so(i)%array(startj + jso, 1:nsoi) = int_so(i)%array(1:nsoi, startj + jso)
 
                END DO !i
                DEALLOCATE (res, work)
@@ -2155,6 +2201,7 @@ CONTAINS
       ri_sphi_so => xas_atom_env%ri_sphi_so(ikind)%array
       ALLOCATE (int_sgf(nsgf, nsgf))
       DO i = 1, ub
+         CALL mp_sum(int_so(i)%array, batch_info%para_env%group)
          CALL contract_so2sgf(int_sgf, int_so(i)%array, ri_basis, ri_sphi_so)
          CALL daxpy(nsgf*nsgf, 1.0_dp, int_sgf, 1, int_fxc(iatom, i)%array, 1)
       END DO
@@ -2180,8 +2227,7 @@ CONTAINS
 !> \param so the spherical orbital on the grid
 !> \param dso the derivative of the spherical orbital on the grid
 !> \param na ...
-!> \param sr the starting index for ir
-!> \param er the ending index for ir
+!> \param nr ...
 !> \param rho_set ...
 !> \param deriv_set ...
 !> \param weight the grid weight
@@ -2189,20 +2235,20 @@ CONTAINS
 !>       case that can be further optimized and because the interface of the original routine does
 !>       not fit this code, it has been re-written (no pw, no rho1_set but just the so, etc...)
 ! **************************************************************************************************
-   SUBROUTINE get_vxc_vxg(vxc, vxg, so, dso, na, sr, er, rho_set, deriv_set, weight)
+   SUBROUTINE get_vxc_vxg(vxc, vxg, so, dso, na, nr, rho_set, deriv_set, weight)
 
       TYPE(cp_2d_r_p_type), DIMENSION(:)                 :: vxc
       TYPE(cp_3d_r_p_type), DIMENSION(:)                 :: vxg
       REAL(dp), DIMENSION(:, :)                          :: so
       REAL(dp), DIMENSION(:, :, :)                       :: dso
-      INTEGER, INTENT(IN)                                :: na, sr, er
+      INTEGER, INTENT(IN)                                :: na, nr
       TYPE(xc_rho_set_type), POINTER                     :: rho_set
       TYPE(xc_derivative_set_type), POINTER              :: deriv_set
       REAL(dp), DIMENSION(:, :), POINTER                 :: weight
 
       CHARACTER(len=*), PARAMETER :: routineN = 'get_vxc_vxg', routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: dir, handle, i, ia, ir, jr, ub
+      INTEGER                                            :: dir, handle, i, ia, ir, ub
       REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: dot_proda, dot_prodb, tmp
       REAL(dp), DIMENSION(:, :, :), POINTER              :: d1e, d2e, norm_drhoa, norm_drhob
       TYPE(xc_derivative_type), POINTER                  :: deriv
@@ -2216,8 +2262,6 @@ CONTAINS
       !      response densities are replaced by the spherical orbital.
       !      The usual spin ordering is used: aa => 1, ab => 2 , bb => 3
 
-      !TODO: test giving explicit sr:er bounds in definition
-
       !point to the relevant components of rho_set
       ub = SIZE(vxc)
       norm_drhoa => rho_set%norm_drhoa
@@ -2229,7 +2273,7 @@ CONTAINS
          vxg(i)%array = 0.0_dp
       END DO
 
-      ALLOCATE (tmp(na, sr:er), dot_proda(na, sr:er), dot_prodb(na, sr:er))
+      ALLOCATE (tmp(na, nr), dot_proda(na, nr), dot_prodb(na, nr))
       dot_proda = 0.0_dp; dot_prodb = 0.0_dp
 
       !Strategy: most terms are either multiplied by drhoa or drhob => group those first and then
@@ -2237,18 +2281,17 @@ CONTAINS
       !          precompute it as well
 
 !$OMP PARALLEL DEFAULT(NONE), &
-!$OMP SHARED(dot_proda,dot_prodb,tmp,vxc,vxg,deriv_set,rho_set,na,sr,er,norm_drhoa,norm_drhob,dso, &
+!$OMP SHARED(dot_proda,dot_prodb,tmp,vxc,vxg,deriv_set,rho_set,na,nr,norm_drhoa,norm_drhob,dso, &
 !$OMP        so,weight,ub), &
-!$OMP PRIVATE(ia,ir,dir,deriv,d1e,d2e,jr)
+!$OMP PRIVATE(ia,ir,dir,deriv,d1e,d2e)
 
       !Precompute the very common dot products grad_na . grad_so and grad_nb . grad_so
       DO dir = 1, 3
-!$OMP DO SCHEDULE(STATIC)
-         DO ir = sr, er
-            jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+         DO ir = 1, nr
             DO ia = 1, na
-               dot_proda(ia, ir) = dot_proda(ia, ir) + rho_set%drhoa(dir)%array(ia, ir, 1)*dso(ia, jr, dir)
-               dot_prodb(ia, ir) = dot_prodb(ia, ir) + rho_set%drhob(dir)%array(ia, ir, 1)*dso(ia, jr, dir)
+               dot_proda(ia, ir) = dot_proda(ia, ir) + rho_set%drhoa(dir)%array(ia, ir, 1)*dso(ia, ir, dir)
+               dot_prodb(ia, ir) = dot_prodb(ia, ir) + rho_set%drhob(dir)%array(ia, ir, 1)*dso(ia, ir, dir)
             END DO !ia
          END DO !ir
 !$OMP END DO NOWAIT
@@ -2259,11 +2302,10 @@ CONTAINS
       !Vxc, first term
       deriv => xc_dset_get_derivative(deriv_set, "(rhoa)(norm_drhoa)")
       CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-      DO ir = sr, er
-         jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+      DO ir = 1, nr
          DO ia = 1, na
-            vxc(1)%array(ia, jr) = d2e(ia, ir, 1)*dot_proda(ia, ir)
+            vxc(1)%array(ia, ir) = d2e(ia, ir, 1)*dot_proda(ia, ir)
          END DO !ia
       END DO !ir
 !$OMP END DO NOWAIT
@@ -2271,21 +2313,19 @@ CONTAINS
       !Vxc, second term
       deriv => xc_dset_get_derivative(deriv_set, "(rhoa)(norm_drho)")
       CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-      DO ir = sr, er
-         jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+      DO ir = 1, nr
          DO ia = 1, na
-            vxc(1)%array(ia, jr) = vxc(1)%array(ia, jr) + d2e(ia, ir, 1)*dot_prodb(ia, ir)
+            vxc(1)%array(ia, ir) = vxc(1)%array(ia, ir) + d2e(ia, ir, 1)*dot_prodb(ia, ir)
          END DO !ia
       END DO !ir
 !$OMP END DO NOWAIT
 
       !Vxc, take the grid weight into acocunt
-!$OMP DO SCHEDULE(STATIC)
-      DO ir = sr, er
-         jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+      DO ir = 1, nr
          DO ia = 1, na
-            vxc(1)%array(ia, jr) = vxc(1)%array(ia, jr)*weight(ia, ir)
+            vxc(1)%array(ia, ir) = vxc(1)%array(ia, ir)*weight(ia, ir)
          END DO !ia
       END DO !ir
 !$OMP END DO NOWAIT
@@ -2293,11 +2333,10 @@ CONTAINS
       !Vxg, first term (to be multiplied by drhoa)
       deriv => xc_dset_get_derivative(deriv_set, "(rhoa)(norm_drhoa)")
       CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-      DO ir = sr, er
-         jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+      DO ir = 1, nr
          DO ia = 1, na
-            tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, jr)
+            tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, ir)
          END DO !ia
       END DO !ir
 !$OMP END DO NOWAIT
@@ -2305,8 +2344,8 @@ CONTAINS
       !Vxg, second term (to be multiplied by drhoa)
       deriv => xc_dset_get_derivative(deriv_set, "(norm_drhoa)(norm_drho)")
       CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-      DO ir = sr, er
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+      DO ir = 1, nr
          DO ia = 1, na
             tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_prodb(ia, ir)
          END DO !ia
@@ -2316,8 +2355,8 @@ CONTAINS
       !Vxg, third term (to be multiplied by drhoa)
       deriv => xc_dset_get_derivative(deriv_set, "(norm_drhoa)(norm_drhoa)")
       CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-      DO ir = sr, er
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+      DO ir = 1, nr
          DO ia = 1, na
             tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
          END DO !ia
@@ -2327,8 +2366,8 @@ CONTAINS
       !Vxg, fourth term (to be multiplied by drhoa)
       deriv => xc_dset_get_derivative(deriv_set, "(norm_drhoa)")
       CALL xc_derivative_get(deriv, deriv_data=d1e)
-!$OMP DO SCHEDULE(STATIC)
-      DO ir = sr, er
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+      DO ir = 1, nr
          DO ia = 1, na
             tmp(ia, ir) = tmp(ia, ir) - d1e(ia, ir, 1)*dot_proda(ia, ir) &
                           /MAX(norm_drhoa(ia, ir, 1), rho_set%drho_cutoff)**2
@@ -2338,11 +2377,10 @@ CONTAINS
 
       !put tmp*drhoa in Vxg (so that we can reuse it for drhob terms)
       DO dir = 1, 3
-!$OMP DO SCHEDULE(STATIC)
-         DO ir = sr, er
-            jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+         DO ir = 1, nr
             DO ia = 1, na
-               vxg(1)%array(ia, jr, dir) = tmp(ia, ir)*rho_set%drhoa(dir)%array(ia, ir, 1)
+               vxg(1)%array(ia, ir, dir) = tmp(ia, ir)*rho_set%drhoa(dir)%array(ia, ir, 1)
             END DO !ia
          END DO !ir
 !$OMP END DO NOWAIT
@@ -2351,11 +2389,10 @@ CONTAINS
       !Vxg, fifth term (to be multiplied by drhob)
       deriv => xc_dset_get_derivative(deriv_set, "(rhoa)(norm_drho)")
       CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-      DO ir = sr, er
-         jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+      DO ir = 1, nr
          DO ia = 1, na
-            tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, jr)
+            tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, ir)
          END DO !ia
       END DO !ir
 !$OMP END DO NOWAIT
@@ -2363,8 +2400,8 @@ CONTAINS
       !Vxg, sixth term (to be multiplied by drhob)
       deriv => xc_dset_get_derivative(deriv_set, "(norm_drhoa)(norm_drho)")
       CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-      DO ir = sr, er
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+      DO ir = 1, nr
          DO ia = 1, na
             tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
          END DO !ia
@@ -2374,8 +2411,8 @@ CONTAINS
       !Vxg, seventh term (to be multiplied by drhob)
       deriv => xc_dset_get_derivative(deriv_set, "(norm_drho)(norm_drho)")
       CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-      DO ir = sr, er
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+      DO ir = 1, nr
          DO ia = 1, na
             tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_prodb(ia, ir)
          END DO !ia
@@ -2384,11 +2421,10 @@ CONTAINS
 
       !put tmp*drhob in Vxg
       DO dir = 1, 3
-!$OMP DO SCHEDULE(STATIC)
-         DO ir = sr, er
-            jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+         DO ir = 1, nr
             DO ia = 1, na
-               vxg(1)%array(ia, jr, dir) = vxg(1)%array(ia, jr, dir) + tmp(ia, ir)*rho_set%drhob(dir)%array(ia, ir, 1)
+               vxg(1)%array(ia, ir, dir) = vxg(1)%array(ia, ir, dir) + tmp(ia, ir)*rho_set%drhob(dir)%array(ia, ir, 1)
             END DO !ia
          END DO !ir
 !$OMP END DO NOWAIT
@@ -2398,11 +2434,10 @@ CONTAINS
       deriv => xc_dset_get_derivative(deriv_set, "(norm_drhoa)")
       CALL xc_derivative_get(deriv, deriv_data=d1e)
       DO dir = 1, 3
-!$OMP DO SCHEDULE(STATIC)
-         DO ir = sr, er
-            jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+         DO ir = 1, nr
             DO ia = 1, na
-               vxg(1)%array(ia, jr, dir) = vxg(1)%array(ia, jr, dir) + d1e(ia, ir, 1)*dso(ia, jr, dir)
+               vxg(1)%array(ia, ir, dir) = vxg(1)%array(ia, ir, dir) + d1e(ia, ir, 1)*dso(ia, ir, dir)
             END DO !ia
          END DO !ir
 !$OMP END DO NOWAIT
@@ -2410,11 +2445,10 @@ CONTAINS
 
       !Vxg, take the grid weight into account
       DO dir = 1, 3
-!$OMP DO SCHEDULE(STATIC)
-         DO ir = sr, er
-            jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+         DO ir = 1, nr
             DO ia = 1, na
-               vxg(1)%array(ia, jr, dir) = vxg(1)%array(ia, jr, dir)*weight(ia, ir)
+               vxg(1)%array(ia, ir, dir) = vxg(1)%array(ia, ir, dir)*weight(ia, ir)
             END DO !ia
          END DO !ir
 !$OMP END DO NOWAIT
@@ -2425,11 +2459,10 @@ CONTAINS
       !Vxc, first term
       deriv => xc_dset_get_derivative(deriv_set, "(rhoa)(norm_drhob)")
       CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-      DO ir = sr, er
-         jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+      DO ir = 1, nr
          DO ia = 1, na
-            vxc(2)%array(ia, jr) = d2e(ia, ir, 1)*dot_prodb(ia, ir)
+            vxc(2)%array(ia, ir) = d2e(ia, ir, 1)*dot_prodb(ia, ir)
          END DO !ia
       END DO !ir
 !$OMP END DO NOWAIT
@@ -2437,21 +2470,19 @@ CONTAINS
       !Vxc, second term
       deriv => xc_dset_get_derivative(deriv_set, "(rhoa)(norm_drho)")
       CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-      DO ir = sr, er
-         jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+      DO ir = 1, nr
          DO ia = 1, na
-            vxc(2)%array(ia, jr) = vxc(2)%array(ia, jr) + d2e(ia, ir, 1)*dot_proda(ia, ir)
+            vxc(2)%array(ia, ir) = vxc(2)%array(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
          END DO !ia
       END DO !ir
 !$OMP END DO NOWAIT
 
       !Vxc, take the grid weight into acocunt
-!$OMP DO SCHEDULE(STATIC)
-      DO ir = sr, er
-         jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+      DO ir = 1, nr
          DO ia = 1, na
-            vxc(2)%array(ia, jr) = vxc(2)%array(ia, jr)*weight(ia, ir)
+            vxc(2)%array(ia, ir) = vxc(2)%array(ia, ir)*weight(ia, ir)
          END DO !ia
       END DO !ir
 !$OMP END DO NOWAIT
@@ -2459,11 +2490,10 @@ CONTAINS
       !Vxg, first term (to be multiplied by drhoa)
       deriv => xc_dset_get_derivative(deriv_set, "(rhob)(norm_drhoa)")
       CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-      DO ir = sr, er
-         jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+      DO ir = 1, nr
          DO ia = 1, na
-            tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, jr)
+            tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, ir)
          END DO !ia
       END DO !ir
 !$OMP END DO NOWAIT
@@ -2471,8 +2501,8 @@ CONTAINS
       !Vxg, second term (to be multiplied by drhoa)
       deriv => xc_dset_get_derivative(deriv_set, "(norm_drhoa)(norm_drho)")
       CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-      DO ir = sr, er
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+      DO ir = 1, nr
          DO ia = 1, na
             tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
          END DO !ia
@@ -2482,8 +2512,8 @@ CONTAINS
       !Vxg, third term (to be multiplied by drhoa)
       deriv => xc_dset_get_derivative(deriv_set, "(norm_drhoa)(norm_drhob)")
       CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-      DO ir = sr, er
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+      DO ir = 1, nr
          DO ia = 1, na
             tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_prodb(ia, ir)
          END DO !ia
@@ -2492,11 +2522,10 @@ CONTAINS
 
       !put tmp*drhoa in Vxg
       DO dir = 1, 3
-!$OMP DO SCHEDULE(STATIC)
-         DO ir = sr, er
-            jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+         DO ir = 1, nr
             DO ia = 1, na
-               vxg(2)%array(ia, jr, dir) = tmp(ia, ir)*rho_set%drhoa(dir)%array(ia, ir, 1)
+               vxg(2)%array(ia, ir, dir) = tmp(ia, ir)*rho_set%drhoa(dir)%array(ia, ir, 1)
             END DO !ia
          END DO !ir
 !$OMP END DO NOWAIT
@@ -2505,11 +2534,10 @@ CONTAINS
       !Vxg, fourth term (to be multiplied by drhob)
       deriv => xc_dset_get_derivative(deriv_set, "(rhob)(norm_drho)")
       CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-      DO ir = sr, er
-         jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+      DO ir = 1, nr
          DO ia = 1, na
-            tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, jr)
+            tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, ir)
          END DO !ia
       END DO !ir
 !$OMP END DO NOWAIT
@@ -2517,8 +2545,8 @@ CONTAINS
       !Vxg, fifth term (to be multiplied by drhob)
       deriv => xc_dset_get_derivative(deriv_set, "(norm_drho)(norm_drhob)")
       CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-      DO ir = sr, er
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+      DO ir = 1, nr
          DO ia = 1, na
             tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_prodb(ia, ir)
          END DO !ia
@@ -2528,8 +2556,8 @@ CONTAINS
       !Vxg, sixth term (to be multiplied by drhob)
       deriv => xc_dset_get_derivative(deriv_set, "(norm_drho)(norm_drho)")
       CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-      DO ir = sr, er
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+      DO ir = 1, nr
          DO ia = 1, na
             tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
          END DO !ia
@@ -2538,11 +2566,10 @@ CONTAINS
 
       !put tmp*drhob in Vxg
       DO dir = 1, 3
-!$OMP DO SCHEDULE(STATIC)
-         DO ir = sr, er
-            jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+         DO ir = 1, nr
             DO ia = 1, na
-               vxg(2)%array(ia, jr, dir) = vxg(2)%array(ia, jr, dir) + tmp(ia, ir)*rho_set%drhob(dir)%array(ia, ir, 1)
+               vxg(2)%array(ia, ir, dir) = vxg(2)%array(ia, ir, dir) + tmp(ia, ir)*rho_set%drhob(dir)%array(ia, ir, 1)
             END DO
          END DO
 !$OMP END DO NOWAIT
@@ -2552,11 +2579,10 @@ CONTAINS
       deriv => xc_dset_get_derivative(deriv_set, "(norm_drho)")
       CALL xc_derivative_get(deriv, deriv_data=d1e)
       DO dir = 1, 3
-!$OMP DO SCHEDULE(STATIC)
-         DO ir = sr, er
-            jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+         DO ir = 1, nr
             DO ia = 1, na
-               vxg(2)%array(ia, jr, dir) = vxg(2)%array(ia, jr, dir) + d1e(ia, ir, 1)*dso(ia, jr, dir)
+               vxg(2)%array(ia, ir, dir) = vxg(2)%array(ia, ir, dir) + d1e(ia, ir, 1)*dso(ia, ir, dir)
             END DO !ia
          END DO !ir
 !$OMP END DO NOWAIT
@@ -2564,11 +2590,10 @@ CONTAINS
 
       !Vxg, take the grid weight into account
       DO dir = 1, 3
-!$OMP DO SCHEDULE(STATIC)
-         DO ir = sr, er
-            jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+         DO ir = 1, nr
             DO ia = 1, na
-               vxg(2)%array(ia, jr, dir) = vxg(2)%array(ia, jr, dir)*weight(ia, ir)
+               vxg(2)%array(ia, ir, dir) = vxg(2)%array(ia, ir, dir)*weight(ia, ir)
             END DO !ia
          END DO !ir
 !$OMP END DO NOWAIT
@@ -2580,11 +2605,10 @@ CONTAINS
          !Vxc, first term
          deriv => xc_dset_get_derivative(deriv_set, "(rhob)(norm_drhob)")
          CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-         DO ir = sr, er
-            jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+         DO ir = 1, nr
             DO ia = 1, na
-               vxc(3)%array(ia, jr) = d2e(ia, ir, 1)*dot_prodb(ia, ir)
+               vxc(3)%array(ia, ir) = d2e(ia, ir, 1)*dot_prodb(ia, ir)
             END DO !ia
          END DO !ir
 !$OMP END DO NOWAIT
@@ -2592,21 +2616,19 @@ CONTAINS
          !Vxc, second term
          deriv => xc_dset_get_derivative(deriv_set, "(rhob)(norm_drho)")
          CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-         DO ir = sr, er
-            jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+         DO ir = 1, nr
             DO ia = 1, na
-               vxc(3)%array(ia, jr) = vxc(3)%array(ia, jr) + d2e(ia, ir, 1)*dot_proda(ia, ir)
+               vxc(3)%array(ia, ir) = vxc(3)%array(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
             END DO !i
          END DO !ir
 !$OMP END DO NOWAIT
 
          !Vxc, take the grid weight into acocunt
-!$OMP DO SCHEDULE(STATIC)
-         DO ir = sr, er
-            jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+         DO ir = 1, nr
             DO ia = 1, na
-               vxc(3)%array(ia, jr) = vxc(3)%array(ia, jr)*weight(ia, ir)
+               vxc(3)%array(ia, ir) = vxc(3)%array(ia, ir)*weight(ia, ir)
             END DO !ia
          END DO !ir
 !$OMP END DO NOWAIT
@@ -2614,11 +2636,10 @@ CONTAINS
          !Vxg, first term (to be multiplied by drhob)
          deriv => xc_dset_get_derivative(deriv_set, "(rhob)(norm_drhob)")
          CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-         DO ir = sr, er
-            jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+         DO ir = 1, nr
             DO ia = 1, na
-               tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, jr)
+               tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, ir)
             END DO !ia
          END DO !ir
 !$OMP END DO NOWAIT
@@ -2626,8 +2647,8 @@ CONTAINS
          !Vxg, second term (to be multiplied by drhob)
          deriv => xc_dset_get_derivative(deriv_set, "(norm_drhob)(norm_drho)")
          CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-         DO ir = sr, er
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+         DO ir = 1, nr
             DO ia = 1, na
                tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
             END DO !ia
@@ -2637,8 +2658,8 @@ CONTAINS
          !Vxg, third term (to be multiplied by drhob)
          deriv => xc_dset_get_derivative(deriv_set, "(norm_drhob)(norm_drhob)")
          CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-         DO ir = sr, er
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+         DO ir = 1, nr
             DO ia = 1, na
                tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_prodb(ia, ir)
             END DO !ia
@@ -2648,8 +2669,8 @@ CONTAINS
          !Vxg, fourth term (to be multiplied by drhob)
          deriv => xc_dset_get_derivative(deriv_set, "(norm_drhob)")
          CALL xc_derivative_get(deriv, deriv_data=d1e)
-!$OMP DO SCHEDULE(STATIC)
-         DO ir = sr, er
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+         DO ir = 1, nr
             DO ia = 1, na
                tmp(ia, ir) = tmp(ia, ir) - d1e(ia, ir, 1)*dot_prodb(ia, ir) &
                              /MAX(norm_drhob(ia, ir, 1), rho_set%drho_cutoff)**2
@@ -2659,11 +2680,10 @@ CONTAINS
 
          !put tmp*drhob in Vxg (so that we can reuse it for drhoa terms)
          DO dir = 1, 3
-!$OMP DO SCHEDULE(STATIC)
-            DO ir = sr, er
-               jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+            DO ir = 1, nr
                DO ia = 1, na
-                  vxg(3)%array(ia, jr, dir) = tmp(ia, ir)*rho_set%drhob(dir)%array(ia, ir, 1)
+                  vxg(3)%array(ia, ir, dir) = tmp(ia, ir)*rho_set%drhob(dir)%array(ia, ir, 1)
                END DO !ia
             END DO !ir
 !$OMP END DO NOWAIT
@@ -2672,11 +2692,10 @@ CONTAINS
          !Vxg, fifth term (to be multiplied by drhoa)
          deriv => xc_dset_get_derivative(deriv_set, "(rhob)(norm_drho)")
          CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-         DO ir = sr, er
-            jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+         DO ir = 1, nr
             DO ia = 1, na
-               tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, jr)
+               tmp(ia, ir) = d2e(ia, ir, 1)*so(ia, ir)
             END DO !ia
          END DO !ir
 !$OMP END DO NOWAIT
@@ -2684,8 +2703,8 @@ CONTAINS
          !Vxg, sixth term (to be multiplied by drhoa)
          deriv => xc_dset_get_derivative(deriv_set, "(norm_drhob)(norm_drho)")
          CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-         DO ir = sr, er
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+         DO ir = 1, nr
             DO ia = 1, na
                tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_prodb(ia, ir)
             END DO !ia
@@ -2695,8 +2714,8 @@ CONTAINS
          !Vxg, seventh term (to be multiplied by drhoa)
          deriv => xc_dset_get_derivative(deriv_set, "(norm_drho)(norm_drho)")
          CALL xc_derivative_get(deriv, deriv_data=d2e)
-!$OMP DO SCHEDULE(STATIC)
-         DO ir = sr, er
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+         DO ir = 1, nr
             DO ia = 1, na
                tmp(ia, ir) = tmp(ia, ir) + d2e(ia, ir, 1)*dot_proda(ia, ir)
             END DO !ia
@@ -2705,11 +2724,11 @@ CONTAINS
 
          !put tmp*drhoa in Vxg
          DO dir = 1, 3
-!$OMP DO SCHEDULE(STATIC)
-            DO ir = sr, er
-               jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+            DO ir = 1, nr
                DO ia = 1, na
-                  vxg(3)%array(ia, jr, dir) = vxg(3)%array(ia, jr, dir) + tmp(ia, ir)*rho_set%drhoa(dir)%array(ia, ir, 1)
+                  vxg(3)%array(ia, ir, dir) = vxg(3)%array(ia, ir, dir) + &
+                                              tmp(ia, ir)*rho_set%drhoa(dir)%array(ia, ir, 1)
                END DO !ia
             END DO !ir
 !$OMP END DO NOWAIT
@@ -2719,11 +2738,10 @@ CONTAINS
          deriv => xc_dset_get_derivative(deriv_set, "(norm_drhob)")
          CALL xc_derivative_get(deriv, deriv_data=d1e)
          DO dir = 1, 3
-!$OMP DO SCHEDULE(STATIC)
-            DO ir = sr, er
-               jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+            DO ir = 1, nr
                DO ia = 1, na
-                  vxg(3)%array(ia, jr, dir) = vxg(3)%array(ia, jr, dir) + d1e(ia, ir, 1)*dso(ia, jr, dir)
+                  vxg(3)%array(ia, ir, dir) = vxg(3)%array(ia, ir, dir) + d1e(ia, ir, 1)*dso(ia, ir, dir)
                END DO !ia
             END DO !ir
 !$OMP END DO NOWAIT
@@ -2731,11 +2749,10 @@ CONTAINS
 
          !Vxg, take the grid weight into account
          DO dir = 1, 3
-!$OMP DO SCHEDULE(STATIC)
-            DO ir = sr, er
-               jr = ir - sr + 1
+!$OMP DO SCHEDULE(STATIC) COLLAPSE(2)
+            DO ir = 1, nr
                DO ia = 1, na
-                  vxg(3)%array(ia, jr, dir) = vxg(3)%array(ia, jr, dir)*weight(ia, ir)
+                  vxg(3)%array(ia, ir, dir) = vxg(3)%array(ia, ir, dir)*weight(ia, ir)
                END DO !ia
             END DO !ir
 !$OMP END DO NOWAIT
@@ -2755,24 +2772,22 @@ CONTAINS
 !> \param iatom the index of the current excited atom
 !> \param ikind the index of the current excited kind
 !> \param deriv_set the set of functional derivatives
-!> \param bounds local bounds of the atomic grid
 !> \param xas_atom_env ...
 !> \param qs_env ...
 ! **************************************************************************************************
-   SUBROUTINE integrate_sc_fxc(int_fxc, iatom, ikind, deriv_set, bounds, xas_atom_env, qs_env)
+   SUBROUTINE integrate_sc_fxc(int_fxc, iatom, ikind, deriv_set, xas_atom_env, qs_env)
 
       TYPE(cp_2d_r_p_type), DIMENSION(:, :), POINTER     :: int_fxc
       INTEGER, INTENT(IN)                                :: iatom, ikind
       TYPE(xc_derivative_set_type), POINTER              :: deriv_set
-      INTEGER, DIMENSION(2, 3), INTENT(IN)               :: bounds
       TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
       CHARACTER(len=*), PARAMETER :: routineN = 'integrate_sc_fxc', &
          routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: er, i, maxso, na, nr, nset, nsotot, &
-                                                            nspins, ri_nsgf, sr, ub
+      INTEGER                                            :: i, maxso, na, nr, nset, nsotot, nspins, &
+                                                            ri_nsgf, ub
       REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: fxc, int_so
       REAL(dp), DIMENSION(:, :), POINTER                 :: ri_sphi_so
       TYPE(cp_3d_r_p_type), ALLOCATABLE, DIMENSION(:)    :: d2e
@@ -2788,8 +2803,7 @@ CONTAINS
       CALL get_qs_env(qs_env, qs_kind_set=qs_kind_set, dft_control=dft_control)
       grid_atom => xas_atom_env%grid_atom_set(ikind)%grid_atom
       na = grid_atom%ng_sphere
-      sr = bounds(1, 2); er = bounds(2, 2)
-      nr = er - er + 1
+      nr = grid_atom%nr
       CALL get_qs_kind(qs_kind_set(ikind), basis_set=ri_basis, basis_type="RI_XAS")
       CALL get_gto_basis_set(ri_basis, nset=nset, maxso=maxso, nsgf=ri_nsgf)
       nsotot = nset*maxso
@@ -2806,7 +2820,7 @@ CONTAINS
       CALL xc_derivative_get(deriv, deriv_data=d2e(3)%array)
 
       ! Allocate some work arrays
-      ALLOCATE (fxc(na, sr:er))
+      ALLOCATE (fxc(na, nr))
       ALLOCATE (int_so(nsotot, nsotot))
 
       ! Integrate for all three derivatives, taking the grid weight into account
@@ -2815,11 +2829,12 @@ CONTAINS
       DO i = 1, ub
 
          int_so = 0.0_dp
-         fxc(:, sr:er) = d2e(i)%array(:, :, 1)*grid_atom%weight(:, sr:er)
-         CALL integrate_so_prod(int_so, fxc, ikind, bounds, xas_atom_env, qs_env)
+         fxc(:, :) = d2e(i)%array(:, :, 1)*grid_atom%weight(:, :)
+         CALL integrate_so_prod(int_so, fxc, ikind, xas_atom_env, qs_env)
 
          !contract into sgf. Array allocated on current processor only
          ALLOCATE (int_fxc(iatom, i)%array(ri_nsgf, ri_nsgf))
+         int_fxc(iatom, i)%array = 0.0_dp
          CALL contract_so2sgf(int_fxc(iatom, i)%array, int_so, ri_basis, ri_sphi_so)
 
       END DO
@@ -2834,25 +2849,23 @@ CONTAINS
 !> \param ikind the index of the current excited kind
 !> \param rho_set the density in the atomic grid
 !> \param deriv_set the set of functional derivatives
-!> \param bounds the bounds of the local frid
 !> \param xas_atom_env ...
 !> \param qs_env ...
 ! **************************************************************************************************
-   SUBROUTINE integrate_sf_fxc(int_fxc, iatom, ikind, rho_set, deriv_set, bounds, xas_atom_env, qs_env)
+   SUBROUTINE integrate_sf_fxc(int_fxc, iatom, ikind, rho_set, deriv_set, xas_atom_env, qs_env)
 
       TYPE(cp_2d_r_p_type), DIMENSION(:, :), POINTER     :: int_fxc
       INTEGER, INTENT(IN)                                :: iatom, ikind
       TYPE(xc_rho_set_type), POINTER                     :: rho_set
       TYPE(xc_derivative_set_type), POINTER              :: deriv_set
-      INTEGER, DIMENSION(2, 3), INTENT(IN)               :: bounds
       TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
       CHARACTER(len=*), PARAMETER :: routineN = 'integrate_sf_fxc', &
          routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: er, ia, ir, maxso, na, nr, nset, nsotot, &
-                                                            ri_nsgf, sr
+      INTEGER                                            :: ia, ir, maxso, na, nr, nset, nsotot, &
+                                                            ri_nsgf
       REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: fxc, int_so
       REAL(dp), DIMENSION(:, :), POINTER                 :: ri_sphi_so
       REAL(dp), DIMENSION(:, :, :), POINTER              :: rhoa, rhob
@@ -2869,8 +2882,7 @@ CONTAINS
       CALL get_qs_env(qs_env, qs_kind_set=qs_kind_set, dft_control=dft_control)
       grid_atom => xas_atom_env%grid_atom_set(ikind)%grid_atom
       na = grid_atom%ng_sphere
-      sr = bounds(1, 2); er = bounds(2, 2)
-      nr = er - sr + 1
+      nr = grid_atom%nr
       CALL get_qs_kind(qs_kind_set(ikind), basis_set=ri_basis, basis_type="RI_XAS")
       CALL get_gto_basis_set(ri_basis, nset=nset, maxso=maxso, nsgf=ri_nsgf)
       nsotot = nset*maxso
@@ -2894,11 +2906,11 @@ CONTAINS
       CALL xc_derivative_get(deriv, deriv_data=d2e(3)%array)
 
       !Compute the kernel on the grid. Already take weight into acocunt there
-      ALLOCATE (fxc(na, sr:er))
+      ALLOCATE (fxc(na, nr))
 !$OMP PARALLEL DO COLLAPSE(2) SCHEDULE(STATIC) DEFAULT(NONE), &
-!$OMP SHARED(grid_atom,fxc,d1e,d2e,dft_control,na,sr,er,rhoa,rhob), &
+!$OMP SHARED(grid_atom,fxc,d1e,d2e,dft_control,na,nr,rhoa,rhob), &
 !$OMP PRIVATE(ia,ir)
-      DO ir = sr, er
+      DO ir = 1, nr
          DO ia = 1, na
 
             !Need to be careful not to divide by zero. Assume that if rhoa == rhob, then
@@ -2918,10 +2930,11 @@ CONTAINS
       ! Integrate wrt to so
       ALLOCATE (int_so(nsotot, nsotot))
       int_so = 0.0_dp
-      CALL integrate_so_prod(int_so, fxc, ikind, bounds, xas_atom_env, qs_env)
+      CALL integrate_so_prod(int_so, fxc, ikind, xas_atom_env, qs_env)
 
       ! Contract into sgf. Array located on current processor only
       ALLOCATE (int_fxc(iatom, 4)%array(ri_nsgf, ri_nsgf))
+      int_fxc(iatom, 4)%array = 0.0_dp
       CALL contract_so2sgf(int_fxc(iatom, 4)%array, int_so, ri_basis, ri_sphi_so)
 
    END SUBROUTINE integrate_sf_fxc
@@ -2976,7 +2989,6 @@ CONTAINS
 !> \param intso the integral in terms of spherical orbitals
 !> \param fxc the xc kernel at each grid point
 !> \param ikind the kind of the atom we integrate for
-!> \param bounds the local bounds of the atomic grid
 !> \param xas_atom_env ...
 !> \param qs_env ...
 !> \note Largely copied from gaVxcgb_noGC. Rewritten here because we need our own atomic grid,
@@ -2984,21 +2996,20 @@ CONTAINS
 !>       it would have been messy. Also we do not need rho_atom (too big and fancy for us)
 !>       We also go over the whole range of angular momentum l
 ! **************************************************************************************************
-   SUBROUTINE integrate_so_prod(intso, fxc, ikind, bounds, xas_atom_env, qs_env)
+   SUBROUTINE integrate_so_prod(intso, fxc, ikind, xas_atom_env, qs_env)
 
       REAL(dp), DIMENSION(:, :), INTENT(INOUT)           :: intso
       REAL(dp), DIMENSION(:, :), INTENT(IN)              :: fxc
       INTEGER, INTENT(IN)                                :: ikind
-      INTEGER, DIMENSION(2, 3), INTENT(IN)               :: bounds
       TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
       CHARACTER(len=*), PARAMETER :: routineN = 'integrate_so_prod', &
          routineP = moduleN//':'//routineN
 
-      INTEGER :: er, handle, ia, ic, icg, ipgf1, ipgf2, iset1, iset2, iso, iso1, iso2, l, ld, &
-         lmax12, lmin12, m1, m2, max_iso_not0, max_iso_not0_local, max_s_harm, maxl, maxso, n1, &
-         n2, na, ngau1, ngau2, nngau1, nr, nset, size1, sr
+      INTEGER :: handle, ia, ic, icg, ipgf1, ipgf2, iset1, iset2, iso, iso1, iso2, l, ld, lmax12, &
+         lmin12, m1, m2, max_iso_not0, max_iso_not0_local, max_s_harm, maxl, maxso, n1, n2, na, &
+         ngau1, ngau2, nngau1, nr, nset, size1
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: cg_n_list
       INTEGER, ALLOCATABLE, DIMENSION(:, :, :)           :: cg_list
       INTEGER, DIMENSION(:), POINTER                     :: lmax, lmin, npgf
@@ -3025,8 +3036,7 @@ CONTAINS
                              nset=nset, zet=zet)
 
       na = grid_atom%ng_sphere
-      sr = bounds(1, 2); er = bounds(2, 2)
-      nr = er - sr + 1
+      nr = grid_atom%nr
       my_CG => harmonics%my_CG
       max_iso_not0 = harmonics%max_iso_not0
       max_s_harm = harmonics%max_s_harm
@@ -3056,11 +3066,11 @@ CONTAINS
                size1 = nsoset(lmax(iset1)) - nsoset(lmin(iset1) - 1)
                nngau1 = nsoset(lmin(iset1) - 1) + ngau1
 
-               g1(:) = EXP(-zet(ipgf1, iset1)*grid_atom%rad2(sr:er))
+               g1(:) = EXP(-zet(ipgf1, iset1)*grid_atom%rad2(1:nr))
                DO ipgf2 = 1, npgf(iset2)
                   ngau2 = n2*(ipgf2 - 1) + m2
 
-                  g2(:) = EXP(-zet(ipgf2, iset2)*grid_atom%rad2(sr:er))
+                  g2(:) = EXP(-zet(ipgf2, iset2)*grid_atom%rad2(1:nr))
                   lmin12 = lmin(iset1) + lmin(iset2)
                   lmax12 = lmax(iset1) + lmax(iset2)
 
@@ -3069,11 +3079,11 @@ CONTAINS
                   IF (lmin12 == 0) THEN
                      gg(:, lmin12) = g1(:)*g2(:)
                   ELSE
-                     gg(:, lmin12) = grid_atom%rad2l(sr:er, lmin12)*g1(:)*g2(:)
+                     gg(:, lmin12) = grid_atom%rad2l(1:nr, lmin12)*g1(:)*g2(:)
                   END IF
 
                   DO l = lmin12 + 1, lmax12
-                     gg(:, l) = grid_atom%rad(sr:er)*gg(:, l - 1)
+                     gg(:, l) = grid_atom%rad(1:nr)*gg(:, l - 1)
                   END DO
 
                   ld = lmax12 + 1

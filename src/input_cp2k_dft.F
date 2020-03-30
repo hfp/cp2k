@@ -8215,7 +8215,8 @@ CONTAINS
                           description="Whether spin-orbit coupling should be added. "// &
                           "Note: only applies for spin-restricted calculations with "// &
                           "singlet and triplet excitations OR spin-unrestricted "// &
-                          "calculations with both spin-conserving and spin-flip.", &
+                          "calculations with both spin-conserving and spin-flip."// &
+                          "Only tested with CIS", &
                           usage="SOC {logical}", &
                           default_l_val=.FALSE., &
                           lone_keyword_l_val=.TRUE.)
@@ -8271,20 +8272,9 @@ CONTAINS
 !  The KERNEL subsection
       CALL section_create(subsection, __LOCATION__, name="KERNEL", &
                           description="Defines how the kernel is built in terms of functionals.", &
-                          n_keywords=2, &
+                          n_keywords=1, &
                           n_subsections=1, &
                           repeats=.FALSE.)
-
-      CALL keyword_create(keyword, __LOCATION__, name="NPROCS_GRID", &
-                          variants=s2a("BATCH_SIZE", "NPROCS_PER_GRID"), &
-                          description="The MPI processes are split into batches of size NPROCS_GRID "// &
-                          "for the parallel treatment of the XC kernel. The excited "// &
-                          "atoms are distributed over the batches and their integration "// &
-                          "grids are split over the procs of the corresponding batch.", &
-                          usage="NPROCS_GRID {integer}", &
-                          default_i_val=1)
-      CALL section_add_keyword(subsection, keyword)
-      CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="RI_REGION", &
                           variants=(/"RI_RADIUS"/), &
@@ -8332,7 +8322,7 @@ CONTAINS
       CALL section_add_subsection(subsection, subsubsection)
       CALL section_release(subsubsection)
 
-!  The EXACT_EXCHANGE subsubsection
+! The EXACT_EXCHANGE subsubsection
       CALL section_create(subsubsection, __LOCATION__, name="EXACT_EXCHANGE", &
                           description="Whether exact-exchange should be added to the kernel and "// &
                           "if so, with which fraction and operator.", &
@@ -8549,7 +8539,7 @@ CONTAINS
                                        "and corresponding excitation energies such that "// &
                                        "the program can be restarted for PDOS or CUBE "// &
                                        "printing without the heavy computing.", &
-                                       print_level=medium_print_level, filename="", common_iter_levels=3)
+                                       print_level=high_print_level, filename="", common_iter_levels=3)
       CALL section_add_subsection(subsection, print_key)
       CALL section_release(print_key)
 

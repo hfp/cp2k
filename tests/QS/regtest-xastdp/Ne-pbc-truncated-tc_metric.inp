@@ -1,5 +1,5 @@
 &GLOBAL
-  PROJECT Ne-pbc-shortrange-metric
+  PROJECT Ne-pbc-truncated-tc_metric
   PRINT_LEVEL LOW
 &END GLOBAL
 &FORCE_EVAL
@@ -18,22 +18,16 @@
          &LIBXC
             FUNCTIONAL LDA_C_VWN
          &END LIBXC
-         !Range separated, need 100% of long-range and 75% of short range LDA exchange
-         !Long-range obtained by subtracting short-range from normal => end up with -0.25 scale
          &LIBXC
             FUNCTIONAL LDA_X
-         &END LIBXC 
-         &LIBXC
-            FUNCTIONAL LDA_X_ERF
-            SCALE -0.25
-            PARAMETERS 0.6
+            SCALE 0.75
          &END LIBXC
       &END XC_FUNCTIONAL
       &HF
          FRACTION 0.25
          &INTERACTION_POTENTIAL
-            POTENTIAL_TYPE SHORTRANGE
-            OMEGA 0.6
+            POTENTIAL_TYPE TRUNCATED
+            CUTOFF_RADIUS 3.0
          &END INTERACTION_POTENTIAL
       &END HF
     &END XC
@@ -57,20 +51,19 @@
                FUNCTIONAL LDA_C_VWN
             &END LIBXC
             &LIBXC
-               FUNCTIONAL LDA_X_ERF
+               FUNCTIONAL LDA_X
                SCALE 0.75
-               PARAMETERS 0.6
             &END LIBXC
          &END XC_FUNCTIONAL
 
          &EXACT_EXCHANGE
             FRACTION 0.25
-            OPERATOR SHORTRANGE
-            OMEGA 0.6
+            OPERATOR TRUNCATED
+            CUTOFF_RADIUS 3.0
             EPS_SCREENING 1.0E-8
             &RI_METRIC
-               OPERATOR SHORTRANGE
-               OMEGA 1.0
+               OPERATOR TRUNCATED
+               CUTOFF_RADIUS 1.5
             &END RI_METRIC
          &END EXACT_EXCHANGE
       &END KERNEL

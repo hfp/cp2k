@@ -11,35 +11,33 @@
 MODULE xas_tdp_kernel
    USE basis_set_types,                 ONLY: get_gto_basis_set,&
                                               gto_basis_set_type
-   USE cp_array_utils,                  ONLY: cp_2d_r_p_type
    USE cp_dbcsr_operations,             ONLY: cp_dbcsr_dist2d_to_dist,&
                                               dbcsr_deallocate_matrix_set
    USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: &
         dbcsr_add, dbcsr_complete_redistribute, dbcsr_copy, dbcsr_create, dbcsr_desymmetrize, &
-        dbcsr_distribution_release, dbcsr_distribution_type, dbcsr_filter, dbcsr_finalize, &
-        dbcsr_get_block_p, dbcsr_get_info, dbcsr_get_stored_coordinates, &
-        dbcsr_iterator_blocks_left, dbcsr_iterator_next_block, dbcsr_iterator_start, &
-        dbcsr_iterator_stop, dbcsr_iterator_type, dbcsr_multiply, dbcsr_p_type, dbcsr_put_block, &
-        dbcsr_release, dbcsr_reserve_block2d, dbcsr_set, dbcsr_transposed, dbcsr_type, &
-        dbcsr_type_symmetric
+        dbcsr_distribution_release, dbcsr_distribution_type, dbcsr_finalize, dbcsr_get_block_p, &
+        dbcsr_get_info, dbcsr_get_stored_coordinates, dbcsr_iterator_blocks_left, &
+        dbcsr_iterator_next_block, dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, &
+        dbcsr_multiply, dbcsr_p_type, dbcsr_put_block, dbcsr_release, dbcsr_reserve_block2d, &
+        dbcsr_set, dbcsr_transposed, dbcsr_type
+   USE dbcsr_tensor_api,                ONLY: dbcsr_t_get_block,&
+                                              dbcsr_t_iterator_blocks_left,&
+                                              dbcsr_t_iterator_next_block,&
+                                              dbcsr_t_iterator_start,&
+                                              dbcsr_t_iterator_stop,&
+                                              dbcsr_t_iterator_type,&
+                                              dbcsr_t_type
    USE distribution_2d_types,           ONLY: distribution_2d_type
    USE kinds,                           ONLY: dp
-   USE message_passing,                 ONLY: mp_bcast,&
-                                              mp_irecv,&
-                                              mp_isend,&
-                                              mp_waitall
+   USE message_passing,                 ONLY: mp_bcast
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
    USE qs_kind_types,                   ONLY: get_qs_kind,&
                                               qs_kind_type
-   USE qs_o3c_methods,                  ONLY: contract3_o3c
-   USE qs_o3c_types,                    ONLY: &
-        get_o3c_container, get_o3c_iterator_info, get_o3c_vec, o3c_container_type, o3c_iterate, &
-        o3c_iterator_create, o3c_iterator_release, o3c_iterator_type, o3c_vec_create, &
-        o3c_vec_release, o3c_vec_type
    USE util,                            ONLY: get_limit
    USE xas_tdp_types,                   ONLY: donor_state_type,&
+                                              get_proc_batch_sizes,&
                                               xas_tdp_control_type,&
                                               xas_tdp_env_type
 
@@ -87,9 +85,10 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'kernel_coulomb_xc', &
          routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: bo(2), handle, i, ibatch, iex, lb, &
-                                                            natom, nbatch, ndo_mo, ndo_so, &
-                                                            nex_atom, nsgfp, ri_atom, source, ub
+      INTEGER                                            :: batch_size, bo(2), handle, i, ibatch, &
+                                                            iex, lb, natom, nbatch, ndo_mo, &
+                                                            ndo_so, nex_atom, nsgfp, ri_atom, &
+                                                            source, ub
       INTEGER, DIMENSION(:), POINTER                     :: blk_size
       LOGICAL                                            :: do_coulomb, do_sc, do_sf, do_sg, do_tp, &
                                                             do_xc, found
@@ -120,7 +119,7 @@ CONTAINS
       CALL timeset(routineN, handle)
 
 !  Contract the RI 3-center integrals once to get (aI|P)
-      CALL contract_o3c_int(contr1_int, "COULOMB", donor_state, xas_tdp_env, xas_tdp_control, qs_env)
+      CALL contract2_AO_to_doMO(contr1_int, "COULOMB", donor_state, xas_tdp_env, xas_tdp_control, qs_env)
 
 !  Deal with the Coulomb case
       IF (do_coulomb) CALL coulomb(coul_ker, contr1_int, dist, blk_size, xas_tdp_env, &
@@ -143,9 +142,8 @@ CONTAINS
             nsgfp = SIZE(PQ, 1)
             CALL get_qs_env(qs_env, para_env=para_env)
             found = .FALSE.
-            nbatch = para_env%num_pe/xas_tdp_control%batch_size
-            IF (nbatch*xas_tdp_control%batch_size .NE. para_env%num_pe) nbatch = nbatch + 1
             nex_atom = SIZE(xas_tdp_env%ex_atom_indices)
+            CALL get_proc_batch_sizes(batch_size, nbatch, nex_atom, para_env%num_pe)
 
             DO ibatch = 0, nbatch - 1
 
@@ -153,7 +151,7 @@ CONTAINS
                DO iex = bo(1), bo(2)
 
                   IF (xas_tdp_env%ex_atom_indices(iex) == ri_atom) THEN
-                     source = ibatch*xas_tdp_control%batch_size !fxc is on all procs of the batch,
+                     source = ibatch*batch_size
                      found = .TRUE. !but simply take the first
                      EXIT
                   END IF
@@ -631,7 +629,7 @@ CONTAINS
                   (xas_tdp_control%do_spin_cons .OR. xas_tdp_control%do_singlet .OR. xas_tdp_control%do_triplet)
 
       ! Need the once contracted integrals (aI|P)
-      CALL contract_o3c_int(contr1_int, "EXCHANGE", donor_state, xas_tdp_env, xas_tdp_control, qs_env)
+      CALL contract2_AO_to_doMO(contr1_int, "EXCHANGE", donor_state, xas_tdp_env, xas_tdp_control, qs_env)
 
 !  The on-diagonal exchange : (ab|P) * (P|Q)^-1 * (Q|I_sigma J_tau) * delta_sigma,tau
       CALL ondiag_ex(ex_ker(1)%matrix, contr1_int, dist, blk_size, donor_state, xas_tdp_env, &
@@ -681,26 +679,22 @@ CONTAINS
 
       INTEGER                                            :: blk, iblk, iso, jblk, jso, nblk, ndo_mo, &
                                                             ndo_so, nsgfa, nsgfp, ri_atom, source
-      INTEGER, DIMENSION(:), POINTER                     :: ri_blk_size, vec_blk_size
+      INTEGER, DIMENSION(:), POINTER                     :: ri_blk_size
       LOGICAL                                            :: do_roks, do_uks, found
       REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: coeffs, ri_coeffs
-      REAL(dp), DIMENSION(:), POINTER                    :: v
       REAL(dp), DIMENSION(:, :), POINTER                 :: aIQ, pblock, PQ
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_distribution_type)                      :: opt_dbcsr_dist
       TYPE(dbcsr_iterator_type)                          :: iter
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s
-      TYPE(dbcsr_type)                                   :: abIJ_desymm, abIJ_desymm_std_dist, &
-                                                            contr1_int_t, work_mat
-      TYPE(dbcsr_type), POINTER                          :: abIJ
-      TYPE(o3c_vec_type), DIMENSION(:), POINTER          :: o3c_vec
+      TYPE(dbcsr_type)                                   :: abIJ, abIJ_std_dist, mats_desymm, &
+                                                            work_mat
 
-      NULLIFY (para_env, matrix_s, ri_blk_size, o3c_vec, v)
-      NULLIFY (vec_blk_size, pblock, abIJ, PQ, aIQ)
+      NULLIFY (para_env, matrix_s, pblock, aIQ)
 
       ! We want to compute (ab|I_sigma J_tau) = (ab|P) * (P|Q)^-1 * (Q|I_sigma J_tau)
       ! Already have (cJ_tau|P)  stored in contr1_int. Need to further contract the
-      ! AOs c with the coeff of the I_alpha spin-orbital.
+      ! AOs with the coeff of the I_alpha spin-orbital.
 
       ! Initialization
       ndo_mo = donor_state%ndo_mo
@@ -714,22 +708,21 @@ CONTAINS
       CALL dbcsr_get_info(contr1_int(1)%matrix, col_blk_size=ri_blk_size)
       nsgfp = ri_blk_size(ri_atom)
       nsgfa = SIZE(donor_state%contract_coeffs, 1)
+      nblk = SIZE(ri_blk_size)
       ALLOCATE (coeffs(nsgfp, ndo_so), ri_coeffs(nsgfp, ndo_so))
 
-      nblk = SIZE(ri_blk_size)
-      ALLOCATE (o3c_vec(nblk), vec_blk_size(nblk))
-      vec_blk_size = 1; vec_blk_size(ri_atom) = nsgfp
-      CALL o3c_vec_create(o3c_vec, vec_blk_size)
-
       ! a and b need to overlap for non-zero (ab|IJ) => same block structure as overlap S
-      ! goes into an o3c routine => need compatible distribution_2d
+      ! need compatible distribution_2d with 3c tensor + normal type
       CALL cp_dbcsr_dist2d_to_dist(xas_tdp_env%opt_dist2d_ex, opt_dbcsr_dist)
 
-      ALLOCATE (abIJ)
-      CALL dbcsr_create(abIJ, template=matrix_s(1)%matrix, name="(ab|IJ)", dist=opt_dbcsr_dist)
-      CALL dbcsr_complete_redistribute(matrix_s(1)%matrix, abIJ)
+      CALL dbcsr_desymmetrize(matrix_s(1)%matrix, mats_desymm)
 
-      CALL dbcsr_create(abIJ_desymm_std_dist, template=matrix_s(1)%matrix, matrix_type="N")
+      CALL dbcsr_create(abIJ, template=mats_desymm, name="(ab|IJ)", dist=opt_dbcsr_dist)
+      CALL dbcsr_complete_redistribute(mats_desymm, abIJ)
+
+      CALL dbcsr_create(abIJ_std_dist, template=mats_desymm)
+
+      CALL dbcsr_release(mats_desymm)
 
       CALL dbcsr_create(work_mat, name="WORK", matrix_type="N", dist=dist, &
                         row_blk_size=blk_size, col_blk_size=blk_size)
@@ -763,24 +756,19 @@ CONTAINS
             IF (do_uks .AND. (iso <= ndo_mo .AND. jso > ndo_mo)) CYCLE
 
             ! compute (ab|IJ) = sum_P (ab|P) * (P|Q)^-1 * (Q|IJ)
-            CALL get_o3c_vec(o3c_vec, ri_atom, v)
-            v(:) = ri_coeffs(:, jso)
             CALL dbcsr_set(abIJ, 0.0_dp)
-            CALL contract3_o3c(xas_tdp_env%ri_o3c_ex, o3c_vec, abIJ)
+            CALL contract3_RI_to_doMOs(xas_tdp_env%ri_3c_ex, ri_coeffs(:, jso), abIJ, ri_atom)
 
-            ! (ab|IJ) is symmetric, but need it as normal in the standard dbcsr distribution
-            ! for the block by block copying process
-            CALL dbcsr_desymmetrize(abIJ, abIJ_desymm)
-            CALL dbcsr_filter(abIJ_desymm, 1.0E-12_dp) !if short range exchange, might have 0 blocks
-            CALL dbcsr_complete_redistribute(abIJ_desymm, abIJ_desymm_std_dist)
+            ! Need (ab|IJ) in the standard dbcsr distribution
+            CALL dbcsr_complete_redistribute(abIJ, abIJ_std_dist)
 
-            CALL dbcsr_iterator_start(iter, abIJ_desymm_std_dist)
+            CALL dbcsr_iterator_start(iter, abIJ_std_dist)
             DO WHILE (dbcsr_iterator_blocks_left(iter))
 
                CALL dbcsr_iterator_next_block(iter, row=iblk, column=jblk, blk=blk)
                IF (iso == jso .AND. jblk < iblk) CYCLE
 
-               CALL dbcsr_get_block_p(abIJ_desymm_std_dist, iblk, jblk, pblock, found)
+               CALL dbcsr_get_block_p(abIJ_std_dist, iblk, jblk, pblock, found)
 
                IF (found) THEN
                   CALL dbcsr_put_block(work_mat, (iso - 1)*nblk + iblk, (jso - 1)*nblk + jblk, pblock)
@@ -789,16 +777,15 @@ CONTAINS
                   !beta-beta => replicate the blocks (alpha-beta is zero)
                   IF (do_roks) THEN
                      !the beta-beta block
-                     CALL dbcsr_put_block(work_mat, (ndo_so + iso - 1)*nblk + iblk, (ndo_so + jso - 1)*nblk + jblk, pblock)
+                     CALL dbcsr_put_block(work_mat, (ndo_so + iso - 1)*nblk + iblk, &
+                                          (ndo_so + jso - 1)*nblk + jblk, pblock)
                   END IF
                END IF
 
             END DO !iterator
             CALL dbcsr_iterator_stop(iter)
-            CALL dbcsr_release(abIJ_desymm)
 
          END DO !jso
-         CALL dbcsr_release(contr1_int_t)
       END DO !iso
 
       CALL dbcsr_finalize(work_mat)
@@ -809,10 +796,8 @@ CONTAINS
       !Clean-up
       CALL dbcsr_release(work_mat)
       CALL dbcsr_release(abIJ)
-      CALL o3c_vec_release(o3c_vec)
       CALL dbcsr_distribution_release(opt_dbcsr_dist)
-      CALL dbcsr_release(abIJ_desymm_std_dist)
-      DEALLOCATE (o3c_vec, vec_blk_size, abIJ)
+      CALL dbcsr_release(abIJ_std_dist)
 
    END SUBROUTINE ondiag_ex
 
@@ -908,300 +893,42 @@ CONTAINS
    END SUBROUTINE offdiag_ex_sc
 
 ! **************************************************************************************************
-!> \brief Contract the ri 3-center integrals contained in o3c with respect to the donor MOs coeffs,
-!>        for a given excited atom k => (aI|k) = sum_b c_Ib (ab|k)
-!> \param contr_int the contracted integrals as array of dbcsr matrices
-!> \param op_type for which operator type we contract (COULOMB or EXCHANGE)
-!> \param donor_state ...
-!> \param xas_tdp_env ...
-!> \param xas_tdp_control ...
-!> \param qs_env ...
-!> \note  In the output matrices, (aI_b|k) is stored at block a,b where I_b is the partial
-!>        contraction that only includes coeffs from atom b. Note that the contracted matrix is
-!>        not symmetric, but the blocks (aI_b|P) and (bI_a|P) are strictly identical
-! **************************************************************************************************
-   SUBROUTINE contract_o3c_int(contr_int, op_type, donor_state, xas_tdp_env, xas_tdp_control, qs_env)
-
-      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: contr_int
-      CHARACTER(len=*), INTENT(IN)                       :: op_type
-      TYPE(donor_state_type), POINTER                    :: donor_state
-      TYPE(xas_tdp_env_type), POINTER                    :: xas_tdp_env
-      TYPE(xas_tdp_control_type), POINTER                :: xas_tdp_control
-      TYPE(qs_environment_type), POINTER                 :: qs_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'contract_o3c_int', &
-         routineP = moduleN//':'//routineN
-
-      CHARACTER                                          :: my_op
-      INTEGER                                            :: handle, i, imo, ispin, katom, kkind, &
-                                                            natom, ndo_mo, ndo_so, nsgfk, nspins
-      INTEGER, DIMENSION(:), POINTER                     :: ri_blk_size, std_blk_size
-      LOGICAL                                            :: do_uks
-      REAL(dp), DIMENSION(:, :), POINTER                 :: coeffs
-      TYPE(cp_para_env_type), POINTER                    :: para_env
-      TYPE(dbcsr_distribution_type)                      :: opt_dbcsr_dist
-      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrices, matrix_s
-      TYPE(dbcsr_type), POINTER                          :: aI_P, P_Ib, work1, work2, work3
-      TYPE(distribution_2d_type), POINTER                :: opt_dist2d
-      TYPE(gto_basis_set_type), POINTER                  :: ri_basis
-      TYPE(o3c_container_type), POINTER                  :: o3c_coul, o3c_ex
-      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
-
-      NULLIFY (matrix_s, std_blk_size, ri_blk_size, qs_kind_set, ri_basis)
-      NULLIFY (aI_P, P_Ib, work1, work2, matrices, coeffs, opt_dist2d)
-
-      CALL timeset(routineN, handle)
-
-!  Initialization
-      CALL get_qs_env(qs_env, natom=natom, matrix_s=matrix_s, qs_kind_set=qs_kind_set, para_env=para_env)
-      ndo_mo = donor_state%ndo_mo
-      kkind = donor_state%kind_index
-      katom = donor_state%at_index
-      !by default contract for Coulomb
-      my_op = "C"
-      o3c_coul => xas_tdp_env%ri_o3c_coul
-      opt_dist2d => xas_tdp_env%opt_dist2d_coul
-      IF (op_type == "EXCHANGE") THEN
-         my_op = "E"
-         CPASSERT(ASSOCIATED(xas_tdp_env%ri_o3c_ex))
-         o3c_ex => xas_tdp_env%ri_o3c_ex
-         opt_dist2d => xas_tdp_env%opt_dist2d_ex
-      END IF
-      do_uks = xas_tdp_control%do_uks
-      nspins = 1; IF (do_uks) nspins = 2
-      ndo_so = nspins*ndo_mo
-
-!  contracted integrals block sizes
-      CALL dbcsr_get_info(matrix_s(1)%matrix, col_blk_size=std_blk_size)
-      ! getting the block dimensions for the RI basis
-      CALL get_qs_kind(qs_kind_set(kkind), basis_set=ri_basis, basis_type="RI_XAS")
-      CALL get_gto_basis_set(ri_basis, nsgf=nsgfk)
-      ALLOCATE (ri_blk_size(natom))
-      ri_blk_size = nsgfk
-
-!  Create  work matrices. They must have the block distribution of a symmetric matric to enter the
-!  o3c routines. HACK => create a symmetric matrix with non-symmetric block size (aI_P, P_Ib)
-!  Also create their normal matrix conterparts (work1, work2)
-!  Everything that goes into a o3c routine must be compatible with the optimal dist_2d
-      CALL cp_dbcsr_dist2d_to_dist(opt_dist2d, opt_dbcsr_dist)
-
-      ALLOCATE (aI_P, P_Ib, work1, work2, work3, matrices(2))
-      CALL dbcsr_create(aI_P, dist=opt_dbcsr_dist, matrix_type="S", name="(aI|P)", &
-                        row_blk_size=std_blk_size, col_blk_size=ri_blk_size)
-      CALL dbcsr_create(work1, dist=opt_dbcsr_dist, matrix_type="N", name="WORK 1", &
-                        row_blk_size=std_blk_size, col_blk_size=ri_blk_size)
-
-      CALL dbcsr_create(P_Ib, dist=opt_dbcsr_dist, matrix_type="S", name="(P|Ib)", &
-                        row_blk_size=ri_blk_size, col_blk_size=std_blk_size)
-      CALL dbcsr_create(work2, dist=opt_dbcsr_dist, matrix_type="N", name="WORK 2", &
-                        row_blk_size=ri_blk_size, col_blk_size=std_blk_size)
-
-      !reserve the blocks (needed for o3c routines)
-      matrices(1)%matrix => aI_P; matrices(2)%matrix => P_Ib
-      CALL reserve_contraction_blocks(matrices, katom, qs_env)
-
-      matrices(1)%matrix => work1; matrices(2)%matrix => work2
-      CALL reserve_contraction_blocks(matrices, katom, qs_env, matrix_type="N")
-      DEALLOCATE (matrices)
-
-      !  Create the contracted integral matrices
-      ALLOCATE (contr_int(ndo_so))
-      DO i = 1, ndo_so
-         ALLOCATE (contr_int(i)%matrix)
-         CALL dbcsr_create(matrix=contr_int(i)%matrix, template=matrix_s(1)%matrix, matrix_type="N", &
-                           row_blk_size=std_blk_size, col_blk_size=ri_blk_size)
-      END DO
-
-      ! Only take the coeffs for atom on which MOs I,J are localized
-      coeffs => donor_state%contract_coeffs
-
-      DO ispin = 1, nspins
-
-!     Loop over the donor MOs, fill the o3c_vec and contract
-         DO imo = 1, ndo_mo
-
-            ! do the contraction
-            CALL dbcsr_set(aI_P, 0.0_dp); CALL dbcsr_set(P_Ib, 0.0_dp)
-            IF (my_op == "C") THEN
-               CALL contract_o3c_once(o3c_coul, coeffs(:, (ispin - 1)*ndo_mo + imo), aI_P, P_Ib, katom)
-            ELSE
-               CALL contract_o3c_once(o3c_ex, coeffs(:, (ispin - 1)*ndo_mo + imo), aI_P, P_Ib, katom)
-            END IF
-
-            ! Get the full "normal" (aI|P) contracted integrals
-            CALL change_dist(P_Ib, work2, para_env)
-            CALL dbcsr_transposed(work3, work2)
-            CALL change_dist(aI_P, work1, para_env)
-            CALL dbcsr_add(work3, work1, 1.0_dp, 1.0_dp)
-            CALL dbcsr_complete_redistribute(work3, contr_int((ispin - 1)*ndo_mo + imo)%matrix)
-
-            CALL dbcsr_release(work3)
-
-         END DO !imo
-      END DO !ispin
-
-!  Clean-up
-      CALL dbcsr_release(aI_P)
-      CALL dbcsr_release(P_Ib)
-      CALL dbcsr_release(work1)
-      CALL dbcsr_release(work2)
-      CALL dbcsr_distribution_release(opt_dbcsr_dist)
-      DEALLOCATE (ri_blk_size, aI_P, P_Ib, work1, work2, work3)
-
-      CALL timestop(handle)
-
-   END SUBROUTINE contract_o3c_int
-
-! **************************************************************************************************
-!> \brief Home made utility to transfer a matrix from a given proc distribution to another
-!> \param mat_in ...
-!> \param mat_out ...
-!> \param para_env ...
-!> \note It is assumed both matrices have the same block sizes and structure, and that all blocks
-!>       are at least reserved
-! **************************************************************************************************
-   SUBROUTINE change_dist(mat_in, mat_out, para_env)
-
-      TYPE(dbcsr_type), INTENT(INOUT)                    :: mat_in, mat_out
-      TYPE(cp_para_env_type), POINTER                    :: para_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'change_dist', routineP = moduleN//':'//routineN
-
-      INTEGER                                            :: blk, dest, group, handle, iblk, ir, is, &
-                                                            jblk, nblk, num_pe, s1, s2, source, tag
-      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: recv_req, send_req
-      LOGICAL                                            :: found_in, found_out
-      REAL(dp), DIMENSION(:, :), POINTER                 :: pbin, pbout
-      TYPE(cp_2d_r_p_type), ALLOCATABLE, DIMENSION(:)    :: recv_buff, send_buff
-      TYPE(dbcsr_iterator_type)                          :: iter
-
-      NULLIFY (pbin, pbout)
-
-      CALL timeset(routineN, handle)
-
-      CALL dbcsr_get_info(mat_in, nblkrows_total=nblk)
-      group = para_env%group
-      num_pe = para_env%num_pe
-
-      !Allocate a pointer array which will point on the block => we won't need to send more than
-      !nblk**2/num_pe message per processor (assumes blocks well distributed)
-      ALLOCATE (send_buff(nblk**2/num_pe + 1), recv_buff(nblk**2/num_pe + 1))
-      ALLOCATE (send_req(nblk**2/num_pe + 1), recv_req(nblk**2/num_pe + 1))
-      is = 0; ir = 0
-
-      !Iterate over input matrix
-      CALL dbcsr_iterator_start(iter, mat_in)
-      DO WHILE (dbcsr_iterator_blocks_left(iter))
-
-         CALL dbcsr_iterator_next_block(iter, row=iblk, column=jblk, blk=blk)
-         CALL dbcsr_get_block_p(mat_in, iblk, jblk, pbin, found_in)
-
-         IF (found_in) THEN
-
-            !Check if the block is on the same proc on mat_out
-            CALL dbcsr_get_block_p(mat_out, iblk, jblk, pbout, found_out)
-            IF (found_out) THEN
-               !Simply copy the block from mat_in to mat_out
-               s1 = SIZE(pbout, 1); s2 = SIZE(pbout, 2)
-               CALL dcopy(s1*s2, pbin, 1, pbout, 1)
-            ELSE
-               !If block not on the same processor, need to send it
-               CALL dbcsr_get_stored_coordinates(mat_out, iblk, jblk, dest)
-               !unique tag
-               tag = nblk*iblk + jblk
-               !point on the block such that the buffer is not changed after isend
-               is = is + 1
-               send_buff(is)%array => pbin
-               CALL mp_isend(msgin=send_buff(is)%array, dest=dest, comm=group, request=send_req(is), &
-                             tag=tag)
-            END IF
-
-         END IF !found_in
-
-      END DO !iterator
-      CALL dbcsr_iterator_stop(iter)
-
-      !Iterate over the output matrix
-      CALL dbcsr_iterator_start(iter, mat_out)
-      DO WHILE (dbcsr_iterator_blocks_left(iter))
-
-         CALL dbcsr_iterator_next_block(iter, row=iblk, column=jblk, blk=blk)
-         CALL dbcsr_get_block_p(mat_out, iblk, jblk, pbout, found_out)
-
-         IF (found_out) THEN
-            !Check if the block is on the same proc on mat_in
-            CALL dbcsr_get_block_p(mat_in, iblk, jblk, pbin, found_in)
-            !If not, need to receive it
-            IF (.NOT. found_in) THEN
-               CALL dbcsr_get_stored_coordinates(mat_in, iblk, jblk, source)
-               tag = nblk*iblk + jblk
-               ir = ir + 1
-               recv_buff(ir)%array => pbout
-               CALL mp_irecv(msgout=recv_buff(ir)%array, source=source, request=recv_req(ir), &
-                             tag=tag, comm=group)
-            END IF
-         END IF
-
-      END DO !iterator
-      CALL dbcsr_iterator_stop(iter)
-
-      !Make sure all communication is over. is, ir are 0 is no communication
-      CALL mp_waitall(send_req(1:is))
-      CALL mp_waitall(recv_req(1:ir))
-
-      CALL timestop(handle)
-
-   END SUBROUTINE change_dist
-
-! **************************************************************************************************
 !> \brief Reserves the blocks in of a dbcsr matrix as needed for RI 3-center contraction (aI|P)
 !> \param matrices the matrices for which blocks are reserved
 !> \param ri_atom the index of the atom on which RI is done (= all coeffs of I are there, and P too)
 !> \param qs_env ...
-!> \param matrix_type whether the matrices are symmetric or not
-!> \note Even if the matrix_type is set to "normal", only reserve blocks on the upper-diagonal
+!> \note the end product are normal type matrices that are possibly slightly spraser as matrix_s
 ! **************************************************************************************************
-   SUBROUTINE reserve_contraction_blocks(matrices, ri_atom, qs_env, matrix_type)
+   SUBROUTINE reserve_contraction_blocks(matrices, ri_atom, qs_env)
 
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrices
       INTEGER, INTENT(IN)                                :: ri_atom
       TYPE(qs_environment_type), POINTER                 :: qs_env
-      CHARACTER, INTENT(IN), OPTIONAL                    :: matrix_type
 
       CHARACTER(len=*), PARAMETER :: routineN = 'reserve_contraction_blocks', &
          routineP = moduleN//':'//routineN
 
-      CHARACTER                                          :: my_type
       INTEGER                                            :: blk, i, iblk, jblk, n
       LOGICAL                                            :: found
       REAL(dp), DIMENSION(:, :), POINTER                 :: pblock_m, pblock_s
       TYPE(dbcsr_distribution_type)                      :: dist
       TYPE(dbcsr_iterator_type)                          :: iter
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s
-      TYPE(dbcsr_type), POINTER                          :: template, work
+      TYPE(dbcsr_type)                                   :: template, work
 
-      NULLIFY (matrix_s, pblock_s, pblock_m, template)
+      NULLIFY (matrix_s, pblock_s, pblock_m)
 
 !  Initialization
       CALL get_qs_env(qs_env, matrix_s=matrix_s)
       n = SIZE(matrices)
-      !assume symmetric type
-      my_type = dbcsr_type_symmetric
-      IF (PRESENT(matrix_type)) my_type = matrix_type
       CALL dbcsr_get_info(matrices(1)%matrix, distribution=dist)
 
 !  Need to redistribute matrix_s in the distribution of matrices
-      ALLOCATE (work)
       CALL dbcsr_create(work, template=matrix_s(1)%matrix, dist=dist)
       CALL dbcsr_complete_redistribute(matrix_s(1)%matrix, work)
 
-!  If non-symmetric, need to desymmetrize matrix as as a template
-      IF (my_type .NE. dbcsr_type_symmetric) THEN
-         ALLOCATE (template)
-         CALL dbcsr_desymmetrize(work, template)
-      ELSE
-         template => work
-      END IF
+!  Need to desymmetrize matrix as as a template
+      CALL dbcsr_desymmetrize(work, template)
 
 !  Loop over matrix_s as need a,b to overlap
       CALL dbcsr_iterator_start(iter, template)
@@ -1210,7 +937,6 @@ CONTAINS
          CALL dbcsr_iterator_next_block(iter, row=iblk, column=jblk, blk=blk)
          !only have a,b pair if one of them is the ri_atom
          IF (iblk .NE. ri_atom .AND. jblk .NE. ri_atom) CYCLE
-         IF (jblk < iblk) CYCLE
 
          CALL dbcsr_get_block_p(template, iblk, jblk, pblock_s, found)
 
@@ -1229,144 +955,300 @@ CONTAINS
       END DO
 
 !  Clean-up
-      IF (my_type .NE. dbcsr_type_symmetric) THEN
-         CALL dbcsr_release(template)
-         DEALLOCATE (template)
-      END IF
+      CALL dbcsr_release(template)
       CALL dbcsr_release(work)
-      DEALLOCATE (work)
 
    END SUBROUTINE reserve_contraction_blocks
+
+! **************************************************************************************************
+!> \brief Contract the ri 3-center integrals stored in a tensor with repect to the donor MOs coeffs,
+!>        for a given excited atom k => (aI|k) = sum_b c_Ib (ab|k)
+!> \param contr_int the contracted integrals as array of dbcsr matrices
+!> \param op_type for which operator type we contract (COULOMB or EXCHANGE)
+!> \param donor_state ...
+!> \param xas_tdp_env ...
+!> \param xas_tdp_control ...
+!> \param qs_env ...
+!> \note  In the output matrices, (aI_b|k) is stored at block a,b where I_b is the partial
+!>        contraction that only includes coeffs from atom b. Note that the contracted matrix is
+!>        not symmetric. To get the fully contracted matrix over b, one need to add the block
+!>        columns of (aI_b|k) (get an array of size nao*nsgfp). This step is unnessary in our case
+!>        because we assume locality of donor state, and only one column od (aI_b|k) is pouplated
+! **************************************************************************************************
+   SUBROUTINE contract2_AO_to_doMO(contr_int, op_type, donor_state, xas_tdp_env, xas_tdp_control, qs_env)
+
+      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: contr_int
+      CHARACTER(len=*), INTENT(IN)                       :: op_type
+      TYPE(donor_state_type), POINTER                    :: donor_state
+      TYPE(xas_tdp_env_type), POINTER                    :: xas_tdp_env
+      TYPE(xas_tdp_control_type), POINTER                :: xas_tdp_control
+      TYPE(qs_environment_type), POINTER                 :: qs_env
+
+      CHARACTER(len=*), PARAMETER :: routineN = 'contract2_AO_to_doMO', &
+         routineP = moduleN//':'//routineN
+
+      INTEGER                                            :: handle, i, imo, ispin, katom, kkind, &
+                                                            natom, ndo_mo, ndo_so, nsgfk, nspins
+      INTEGER, DIMENSION(:), POINTER                     :: ri_blk_size, std_blk_size
+      LOGICAL                                            :: do_uks
+      REAL(dp), DIMENSION(:, :), POINTER                 :: coeffs
+      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(dbcsr_distribution_type)                      :: opt_dbcsr_dist
+      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrices, matrix_s
+      TYPE(dbcsr_t_type), POINTER                        :: pq_X
+      TYPE(dbcsr_type), POINTER                          :: aI_P, P_Ib, work
+      TYPE(distribution_2d_type), POINTER                :: opt_dist2d
+      TYPE(gto_basis_set_type), POINTER                  :: ri_basis
+      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
+
+      NULLIFY (matrix_s, std_blk_size, ri_blk_size, qs_kind_set, ri_basis, pq_X)
+      NULLIFY (aI_P, P_Ib, work, matrices, coeffs, opt_dist2d)
+
+      CALL timeset(routineN, handle)
+
+!  Initialization
+      CALL get_qs_env(qs_env, natom=natom, matrix_s=matrix_s, qs_kind_set=qs_kind_set, para_env=para_env)
+      ndo_mo = donor_state%ndo_mo
+      kkind = donor_state%kind_index
+      katom = donor_state%at_index
+      !by default contract for Coulomb
+      pq_X => xas_tdp_env%ri_3c_coul
+      opt_dist2d => xas_tdp_env%opt_dist2d_coul
+      IF (op_type == "EXCHANGE") THEN
+         CPASSERT(ASSOCIATED(xas_tdp_env%ri_3c_ex))
+         pq_X => xas_tdp_env%ri_3c_ex
+         opt_dist2d => xas_tdp_env%opt_dist2d_ex
+      END IF
+      do_uks = xas_tdp_control%do_uks
+      nspins = 1; IF (do_uks) nspins = 2
+      ndo_so = nspins*ndo_mo
+
+!  contracted integrals block sizes
+      CALL dbcsr_get_info(matrix_s(1)%matrix, col_blk_size=std_blk_size)
+      ! getting the block dimensions for the RI basis
+      CALL get_qs_kind(qs_kind_set(kkind), basis_set=ri_basis, basis_type="RI_XAS")
+      CALL get_gto_basis_set(ri_basis, nsgf=nsgfk)
+      ALLOCATE (ri_blk_size(natom))
+      ri_blk_size = nsgfk
+
+!  Create  work matrices. Everything that goes into a 3c routine must be compatible with the optimal dist_2d
+      CALL cp_dbcsr_dist2d_to_dist(opt_dist2d, opt_dbcsr_dist)
+
+      ALLOCATE (aI_P, P_Ib, work, matrices(2))
+      CALL dbcsr_create(aI_P, dist=opt_dbcsr_dist, matrix_type="N", name="(aI|P)", &
+                        row_blk_size=std_blk_size, col_blk_size=ri_blk_size)
+
+      CALL dbcsr_create(P_Ib, dist=opt_dbcsr_dist, matrix_type="N", name="(P|Ib)", &
+                        row_blk_size=ri_blk_size, col_blk_size=std_blk_size)
+
+      !reserve the blocks (needed for 3c contraction routines)
+      matrices(1)%matrix => aI_P; matrices(2)%matrix => P_Ib
+      CALL reserve_contraction_blocks(matrices, katom, qs_env)
+      DEALLOCATE (matrices)
+
+      ! Create the contracted integral matrices
+      ALLOCATE (contr_int(ndo_so))
+      DO i = 1, ndo_so
+         ALLOCATE (contr_int(i)%matrix)
+         CALL dbcsr_create(matrix=contr_int(i)%matrix, template=matrix_s(1)%matrix, matrix_type="N", &
+                           row_blk_size=std_blk_size, col_blk_size=ri_blk_size)
+      END DO
+
+      ! Only take the coeffs for atom on which MOs I,J are localized
+      coeffs => donor_state%contract_coeffs
+
+      DO ispin = 1, nspins
+
+!     Loop over the donor MOs and contract
+         DO imo = 1, ndo_mo
+
+            ! do the contraction
+            CALL dbcsr_set(aI_P, 0.0_dp); CALL dbcsr_set(P_Ib, 0.0_dp)
+            CALL contract2_AO_to_doMO_low(pq_X, coeffs(:, (ispin - 1)*ndo_mo + imo), aI_P, P_Ib, katom)
+
+            ! Get the full (aI|P) contracted integrals
+            CALL dbcsr_transposed(work, P_Ib)
+            CALL dbcsr_add(work, aI_P, 1.0_dp, 1.0_dp)
+            CALL dbcsr_complete_redistribute(work, contr_int((ispin - 1)*ndo_mo + imo)%matrix)
+
+            CALL dbcsr_release(work)
+         END DO !imo
+      END DO !ispin
+
+!  Clean-up
+      CALL dbcsr_release(aI_P)
+      CALL dbcsr_release(P_Ib)
+      CALL dbcsr_distribution_release(opt_dbcsr_dist)
+      DEALLOCATE (ri_blk_size, aI_P, P_Ib, work)
+
+      CALL timestop(handle)
+
+   END SUBROUTINE contract2_AO_to_doMO
+
+! **************************************************************************************************
+!> \brief Contraction of the 3-center integrals (ab|Q) over the RI basis elements Q to get donor MOS
+!>        => (ab|IJ) = sum_X (ab|Q) coeffs_Q
+!> \param ab_Q the tensor holding the integrals
+!> \param vec the contraction coefficients
+!> \param mat_abIJ the matrix holding the (ab|IJ) integrals (blocks must be reserved)
+!> \param atom_k the atom for which we contract, i.e. we only take RI basis Q centered on atom_k
+!> \note By construction, distribution of tensor and matrix match, also for OMP threads
+! **************************************************************************************************
+   SUBROUTINE contract3_RI_to_doMOs(ab_Q, vec, mat_abIJ, atom_k)
+
+      TYPE(dbcsr_t_type)                                 :: ab_Q
+      REAL(dp), DIMENSION(:), INTENT(IN)                 :: vec
+      TYPE(dbcsr_type)                                   :: mat_abIJ
+      INTEGER, INTENT(IN)                                :: atom_k
+
+      CHARACTER(len=*), PARAMETER :: routineN = 'contract3_RI_to_doMOs', &
+         routineP = moduleN//':'//routineN
+
+      INTEGER                                            :: blk, handle, iatom, ik, ind(3), jatom, &
+                                                            katom, nk, s1, s2
+      LOGICAL                                            :: found, t_found
+      REAL(dp)                                           :: prefac
+      REAL(dp), ALLOCATABLE, DIMENSION(:, :, :)          :: iabc
+      REAL(KIND=dp), DIMENSION(:, :), POINTER            :: pblock
+      TYPE(dbcsr_t_iterator_type)                        :: iter
+      TYPE(dbcsr_type)                                   :: work
+
+      NULLIFY (pblock)
+
+      CALL timeset(routineN, handle)
+
+      nk = SIZE(vec)
+
+      CALL dbcsr_t_iterator_start(iter, ab_Q)
+      DO WHILE (dbcsr_t_iterator_blocks_left(iter))
+         CALL dbcsr_t_iterator_next_block(iter, ind, blk)
+
+         iatom = ind(1)
+         jatom = ind(2)
+         katom = ind(3)
+
+         IF (.NOT. atom_k == katom) CYCLE
+
+         prefac = 1.0_dp
+         IF (iatom == jatom) prefac = 0.5_dp
+
+         CALL dbcsr_t_get_block(ab_Q, ind, iabc, t_found)
+
+         CALL dbcsr_get_block_p(mat_abIJ, iatom, jatom, pblock, found)
+         IF ((.NOT. found) .OR. (.NOT. t_found)) CYCLE
+
+         s1 = SIZE(pblock, 1); s2 = SIZE(pblock, 2)
+         DO ik = 1, nk
+            CALL daxpy(s1*s2, prefac*vec(ik), iabc(:, :, ik), 1, pblock(:, :), 1)
+         END DO
+
+         DEALLOCATE (iabc)
+      END DO !iter
+      CALL dbcsr_t_iterator_stop(iter)
+
+      !matrix only half filled => need to add its transpose
+      CALL dbcsr_create(work, template=mat_abIJ)
+      CALL dbcsr_transposed(work, mat_abIJ)
+      CALL dbcsr_add(mat_abIJ, work, 1.0_dp, 1.0_dp)
+      CALL dbcsr_release(work)
+
+      CALL timestop(handle)
+
+   END SUBROUTINE contract3_RI_to_doMOs
 
 ! **************************************************************************************************
 !> \brief Contraction of the 3-center integrals over index 1 and 2, for a given atom_k. The results
 !>        are stored in two matrices, such that (a,b are block indices):
 !>        mat_aIb(ab) = mat_aIb(ab) + sum j_b (i_aj_b|k)*v(j_b) and
 !>        mat_bIa(ba) = mat_bIa(ba) + sum i_a (i_aj_b|k)*v(i_a)
-!>        The block size of the columns of mat_aIb and the rows of mat_bIa are the size of k
-!> \param o3c the container for the integrals
+!>        The block size of the columns of mat_aIb and the rows of mat_bIa are the size of k (RI)
+!> \param ab_Q the tensor containing the 3-center integrals
 !> \param vec the contraction coefficients
-!> \param mat_aIb ...
-!> \param mat_bIa ...
+!> \param mat_aIb normal type dbcsr matrix
+!> \param mat_bIa normal type dbcsr matrix
 !> \param atom_k the atom for which we contract
 !> \note To get the full (aI|P) matrix, one has to sum mat_aIb + mat_bIa^T (the latter has empty diag)
 !>       It is assumed that the contraction coefficients for MO I are all on atom_k
+!>       We do the classic thing when we fill half the matrix and add its transposed to get the full
+!>       one, but here, the matrix is not symmetric, hence we explicitely have 2 input matrices
+!>       The distribution of the integrals and the normal dbcsr matrix are compatible out of the box
 ! **************************************************************************************************
-   SUBROUTINE contract_o3c_once(o3c, vec, mat_aIb, mat_bIa, atom_k)
-      TYPE(o3c_container_type), POINTER                  :: o3c
+   SUBROUTINE contract2_AO_to_doMO_low(ab_Q, vec, mat_aIb, mat_bIa, atom_k)
+
+      TYPE(dbcsr_t_type)                                 :: ab_Q
       REAL(dp), DIMENSION(:), INTENT(IN)                 :: vec
       TYPE(dbcsr_type), INTENT(INOUT)                    :: mat_aIb, mat_bIa
       INTEGER, INTENT(IN)                                :: atom_k
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'contract_o3c_once', &
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'contract2_AO_to_doMO_low', &
          routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: handle, i, iatom, icol, irow, jatom, &
-                                                            katom, mepos, n, nthread, s1, s2
+      INTEGER                                            :: blk, handle, i, iatom, ind(3), jatom, &
+                                                            katom, n, s1, s2
       INTEGER, DIMENSION(:), POINTER                     :: atom_blk_size
-      LOGICAL                                            :: found, ijsymmetric, trans
-      REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: work
+      LOGICAL                                            :: found, t_found
+      REAL(dp), ALLOCATABLE, DIMENSION(:, :, :)          :: iabc
       REAL(dp), DIMENSION(:, :), POINTER                 :: pblock
-      REAL(dp), DIMENSION(:, :, :), POINTER              :: iabc
-      TYPE(o3c_iterator_type)                            :: o3c_iterator
+      TYPE(dbcsr_t_iterator_type)                        :: iter
+
+      NULLIFY (atom_blk_size, pblock)
 
       CALL timeset(routineN, handle)
 
-      CALL get_o3c_container(o3c, ijsymmetric=ijsymmetric)
-      CPASSERT(ijsymmetric)
-
       CALL dbcsr_get_info(mat_aIb, row_blk_size=atom_blk_size)
 
-      nthread = 1
-!$    nthread = omp_get_max_threads()
-      CALL o3c_iterator_create(o3c, o3c_iterator, nthread=nthread)
+      CALL dbcsr_t_iterator_start(iter, ab_Q)
+      DO WHILE (dbcsr_t_iterator_blocks_left(iter))
+         CALL dbcsr_t_iterator_next_block(iter, ind, blk)
 
-!$OMP PARALLEL DEFAULT(NONE) &
-!$OMP SHARED (nthread,o3c_iterator,vec,mat_aIb,mat_bIa,atom_k,atom_blk_size)&
-!$OMP PRIVATE (mepos,iabc,iatom,jatom,katom,irow,icol,trans,pblock,found,i,n,s1,s2,work)
+         iatom = ind(1)
+         jatom = ind(2)
+         katom = ind(3)
 
-      mepos = 0
-!$    mepos = omp_get_thread_num()
+         IF (atom_k .NE. katom) CYCLE
 
-      DO WHILE (o3c_iterate(o3c_iterator, mepos=mepos) == 0)
-         CALL get_o3c_iterator_info(o3c_iterator, mepos=mepos, iatom=iatom, jatom=jatom, katom=katom, &
-                                    integral=iabc)
-
-         IF (katom .NE. atom_k) CYCLE
-
-         IF (iatom <= jatom) THEN
-            irow = iatom
-            icol = jatom
-            trans = .FALSE.
-         ELSE
-            irow = jatom
-            icol = iatom
-            trans = .TRUE.
-         END IF
+         CALL dbcsr_t_get_block(ab_Q, ind, iabc, t_found)
+         IF (.NOT. t_found) CYCLE
 
          ! Deal with mat_aIb
-         IF (icol == atom_k) THEN
+         IF (jatom == atom_k) THEN
             n = SIZE(vec)
-            s1 = atom_blk_size(irow)
+            s1 = atom_blk_size(iatom)
             s2 = SIZE(iabc, 3)
-            ALLOCATE (work(s1, s2))
-            work = 0.0_dp
 
-            IF (trans) THEN
-               DO i = 1, n
-                  CALL daxpy(s1*s2, vec(i), iabc(i, :, :), 1, work(:, :), 1)
-               END DO
-            ELSE
-               DO i = 1, n
-                  CALL daxpy(s1*s2, vec(i), iabc(:, i, :), 1, work(:, :), 1)
-               END DO
-            END IF
+            CALL dbcsr_get_block_p(matrix=mat_aIb, row=iatom, col=jatom, BLOCK=pblock, found=found)
 
-!$OMP CRITICAL(mat_aIb_critical)
-            CALL dbcsr_get_block_p(matrix=mat_aIb, row=irow, col=icol, BLOCK=pblock, found=found)
             IF (found) THEN
-               CALL daxpy(s1*s2, 1.0_dp, work(:, :), 1, pblock(:, :), 1)
+               DO i = 1, n
+                  CALL daxpy(s1*s2, vec(i), iabc(:, i, :), 1, pblock(:, :), 1)
+               END DO
             END IF
-!$OMP END CRITICAL(mat_aIb_critical)
-            DEALLOCATE (work)
-         END IF ! icol == atom_k
+         END IF ! jatom == atom_k
 
          ! Deal with mat_bIa, keep block diagonal empty
-         IF (irow == icol) CYCLE
-         IF (irow == atom_k) THEN
+         IF (iatom == jatom) CYCLE
+         IF (iatom == atom_k) THEN
 
             n = SIZE(vec)
             s1 = SIZE(iabc, 3)
-            s2 = atom_blk_size(icol)
-            ALLOCATE (work(s1, s2))
-            work = 0.0_dp
+            s2 = atom_blk_size(jatom)
 
-            IF (trans) THEN
-               DO i = 1, n
-                  CALL daxpy(s1*s2, vec(i), TRANSPOSE(iabc(:, i, :)), 1, work(:, :), 1)
-               END DO
-            ELSE
-               DO i = 1, n
-                  CALL daxpy(s1*s2, vec(i), TRANSPOSE(iabc(i, :, :)), 1, work(:, :), 1)
-               END DO
-            END IF
+            CALL dbcsr_get_block_p(matrix=mat_bIa, row=iatom, col=jatom, BLOCK=pblock, found=found)
 
-!$OMP CRITICAL(mat_bIa_critical)
-            CALL dbcsr_get_block_p(matrix=mat_bIa, row=irow, col=icol, BLOCK=pblock, found=found)
             IF (found) THEN
-               CALL daxpy(s1*s2, 1.0_dp, work(:, :), 1, pblock(:, :), 1)
+               DO i = 1, n
+                  CALL daxpy(s1*s2, vec(i), TRANSPOSE(iabc(i, :, :)), 1, pblock(:, :), 1)
+               END DO
             END IF
-!$OMP END CRITICAL(mat_bIa_critical)
-            DEALLOCATE (work)
-         END IF !irow == atom_k
+         END IF !iatom== atom_k
 
-      END DO !o3c iterator
-!$OMP END PARALLEL
-      CALL o3c_iterator_release(o3c_iterator)
+         DEALLOCATE (iabc)
+      END DO !iter
+      CALL dbcsr_t_iterator_stop(iter)
 
       CALL timestop(handle)
 
-   END SUBROUTINE contract_o3c_once
+   END SUBROUTINE contract2_AO_to_doMO_low
 
 ! **************************************************************************************************
 !> \brief Multiply all the blocks of a contracted RI integral (aI|P) by a matrix of type (P|...|Q)
