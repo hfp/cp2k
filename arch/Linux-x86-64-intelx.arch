@@ -122,6 +122,31 @@ TBBMALLOC ?= 0
 # TBB runtime compatible with oldest supported GCC
 TBBGCC_OLD ?= 1
 
+OCL ?= 0
+ifneq (,$(filter-out 0,$(OCL) $(GPUVER)))
+  CUDA_PATH ?= $(if $(call which,nvcc),$(abspath $(dir $(call which,nvcc))/..))
+  ifneq (0,$(OCL))
+    DFLAGS += -D__ACC -D__DBCSR_ACC
+    DFLAGS += -D__OPENCL -D__USE_INTEL_CL
+    LIBS += -L/usr/lib64 -lOpenCL -lrt
+  else ifneq (,$(CUDA_PATH))
+    DFLAGS += -D__ACC -D__DBCSR_ACC
+    LIBS += -L$(CUDA_PATH)/lib64 -lcudart -lcublas -lnvrtc -lcuda
+    IFLAGS += -I$(CUDA_PATH)/include
+    ifneq (,$(filter-out 0 1,$(CUDA)))
+      DFLAGS += -D__PW_CUDA
+      LIBS += -lcufft
+    endif
+    NVFLAGS += $(addprefix -Xcompiler $(NULL),$(filter-out -Wl%,$(OPTFLAGS)))
+    NVCC = nvcc
+    IPO = 0
+  endif
+else # ACC off
+  ifeq (0,$(GNU))
+    OPTFLAGS += -qno-offload
+  endif
+endif
+
 MKL_MPIRTL ?= intelmpi
 ifneq (0,$(BLAS))
   ifneq (Darwin,$(UNAME))
@@ -641,30 +666,6 @@ ifneq (,$(LIBXSMMROOT))
       MNK=$(LIBXSMM_MNK) M=$(LIBXSMM_M) N=$(LIBXSMM_N) K=$(LIBXSMM_K) PRECISION=2 \
       OPT=$(OPT) IPO=0 TARGET="$(TARGET)" SSE=$(SSE) AVX=$(AVX) MIC=$(MIC) \
       INIT=0 WRAP=$(WRAP) LNKSOFT=0 >&2)
-  endif
-endif
-
-OCL ?= 0
-ifneq (,$(filter-out 0,$(OCL) $(GPUVER)))
-  CUDA_PATH ?= $(if $(call which,nvcc),$(abspath $(dir $(call which,nvcc))/..))
-  ifneq (0,$(OCL))
-    DFLAGS += -D__ACC -D__DBCSR_ACC
-    DFLAGS += -D__OPENCL -D__USE_INTEL_CL
-    LIBS += -L/usr/lib64 -lOpenCL -lrt
-  else ifneq (,$(CUDA_PATH))
-    DFLAGS += -D__ACC -D__DBCSR_ACC
-    LIBS += -L$(CUDA_PATH)/lib64 -lcudart -lcublas -lnvrtc -lcuda
-    IFLAGS += -I$(CUDA_PATH)/include
-    ifneq (,$(filter-out 0 1,$(CUDA)))
-      DFLAGS += -D__PW_CUDA
-      LIBS += -lcufft
-    endif
-    NVFLAGS += $(addprefix -Xcompiler $(NULL),$(filter-out -Wl%,$(OPTFLAGS)))
-    NVCC = nvcc
-  endif
-else # ACC off
-  ifeq (0,$(GNU))
-    OPTFLAGS += -qno-offload
   endif
 endif
 
