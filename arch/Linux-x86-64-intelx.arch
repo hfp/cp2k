@@ -123,7 +123,7 @@ TBBMALLOC ?= 0
 TBBGCC_OLD ?= 1
 
 OCL ?= 0
-GPUVER ?= undefined
+GPUVER = undefined
 ifneq (,$(filter-out 0 undefined,$(OCL) $(GPUVER)))
   CUDA_PATH ?= $(if $(call which,nvcc),$(abspath $(dir $(call which,nvcc))/..))
   ifneq (0,$(OCL))
