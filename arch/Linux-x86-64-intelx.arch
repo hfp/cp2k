@@ -69,8 +69,9 @@ FPE ?= 0
 MKL_DIRECT ?= 0
 MKL_STATIC ?= 1
 
-# NDEBUG=1: CP2K regtests may fail
-NDEBUG ?= 0
+# NDEBUG=1: apply to DBCSR (should be fine)
+# NDEBUG=2: apply to CP2K (regtests may fail)
+NDEBUG ?= 1
 
 EXTSDIR ?= exts
 EXTSHOME ?= $(CP2KHOME)/$(EXTSDIR)
@@ -79,12 +80,6 @@ ifneq (,$(wildcard $(EXTSHOME)/dbcsr))
   ELPA ?= 1
 else
   ELPA ?= 201705
-endif
-
-ifeq (0,$(DBG))
-ifneq (0,$(NDEBUG))
-  DFLAGS += -DNDEBUG
-endif
 endif
 
 ifneq (,$(LIBXSMM))
@@ -233,6 +228,22 @@ else # GNU
   CC  = gcc
   FC  = gfortran
   LD  = gfortran
+endif
+
+XCXX := $(CXX)
+XCC := $(CC)
+XFC := $(FC)
+
+ifeq (0,$(DBG))
+ifneq (0,$(NDEBUG))
+  ifneq (1,$(NDEBUG)) # CP2K and DBCSR
+    DFLAGS += -DNDEBUG
+  else ifneq (,$(wildcard $(CP2KHOME)/inject.sh)) # only DBCSR
+    CXX := $(CP2KHOME)/inject.sh dbcsr -DNDEBUG $(CXX)
+    CC  := $(CP2KHOME)/inject.sh dbcsr -DNDEBUG $(CC)
+    FC  := $(CP2KHOME)/inject.sh dbcsr -DNDEBUG $(FC)
+  endif
+endif
 endif
 
 # Diagnostic message to be turned off
@@ -658,15 +669,14 @@ ifneq (,$(LIBXSMMROOT))
     ifeq (1,$(shell echo "$$((0>=$(JIT)))"))
       LIBXSMM_MNK := "23, 6, 14 16 29, 14 32 29, 5 32 13 24 26, 9 32 22, 64, 78, 16 29 55, 32 29 55, 12, 4 5 7 9 13 25 26 28 32 45"
     endif
-    LIBXSMM_UPTODATE_CHECK := $(shell $(BIGVERNUM) && $(MAKE) --no-print-directory -f $(LIBXSMMROOT)/Makefile \
-      INCDIR=$(CP2KHOME)/$(LIBDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/include \
-      BLDDIR=$(CP2KHOME)/$(OBJDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/build \
-      BINDIR=$(CP2KHOME)/$(LIBDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/bin \
-      OUTDIR=$(CP2KHOME)/$(LIBDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/lib \
-      CXX=$(CXX) CC=$(CC) FC=$(FC) AR=$(AR) JIT=$(JIT) SYM=$(SYM) DBG=$(DBG) \
-      MNK=$(LIBXSMM_MNK) M=$(LIBXSMM_M) N=$(LIBXSMM_N) K=$(LIBXSMM_K) PRECISION=2 \
-      OPT=$(OPT) IPO=0 TARGET="$(TARGET)" SSE=$(SSE) AVX=$(AVX) MIC=$(MIC) \
-      INIT=0 WRAP=$(WRAP) LNKSOFT=0 >&2)
+    LIBXSMM_UPTODATE_CHECK := $(shell $(BIGVERNUM) && $(MAKE) --no-print-directory -f "$(LIBXSMMROOT)/Makefile" \
+      INCDIR="$(CP2KHOME)/$(LIBDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/include" \
+      BLDDIR="$(CP2KHOME)/$(OBJDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/build" \
+      BINDIR="$(CP2KHOME)/$(LIBDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/bin" \
+      OUTDIR="$(CP2KHOME)/$(LIBDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/lib" \
+      CXX="$(XCXX)" CC="$(XCC)" FC="$(XFC)" AR=$(AR) LD=$(LD) JIT=$(JIT) SYM=$(SYM) DBG=$(DBG) \
+      MNK=$(LIBXSMM_MNK) M=$(LIBXSMM_M) N=$(LIBXSMM_N) K=$(LIBXSMM_K) PRECISION=2 OPT=$(OPT) IPO=0 \
+      TARGET="$(TARGET)" SSE=$(SSE) AVX=$(AVX) MIC=$(MIC) INIT=0 WRAP=$(WRAP) LNKSOFT=0 >&2)
   endif
 endif
 
