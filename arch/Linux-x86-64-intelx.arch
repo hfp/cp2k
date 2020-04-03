@@ -238,10 +238,10 @@ ifeq (0,$(DBG))
 ifneq (0,$(NDEBUG))
   ifneq (1,$(NDEBUG)) # CP2K and DBCSR
     DFLAGS += -DNDEBUG
-  else ifneq (,$(wildcard $(CP2KHOME)/inject.sh)) # only DBCSR
-    CXX := $(CP2KHOME)/inject.sh dbcsr -DNDEBUG $(CXX)
-    CC  := $(CP2KHOME)/inject.sh dbcsr -DNDEBUG $(CC)
-    FC  := $(CP2KHOME)/inject.sh dbcsr -DNDEBUG $(FC)
+  else ifneq (,$(wildcard $(CP2KHOME)/.inject.sh)) # only DBCSR
+    CXX := $(CP2KHOME)/.inject.sh dbcsr -DNDEBUG $(CXX)
+    CC  := $(CP2KHOME)/.inject.sh dbcsr -DNDEBUG $(CC)
+    FC  := $(CP2KHOME)/.inject.sh dbcsr -DNDEBUG $(FC)
   endif
 endif
 endif
