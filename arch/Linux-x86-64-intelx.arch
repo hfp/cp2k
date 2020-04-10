@@ -83,7 +83,7 @@ else
 endif
 
 ifneq (,$(LIBXSMM))
-ifeq (1,$(shell echo $$((2 < $(LIBXSMM)))))
+ifneq (0,$(shell echo $$((2 < $(LIBXSMM)))))
   IPO ?= 0
 endif
 endif
@@ -271,7 +271,7 @@ ifeq (0,$(GNU)) # Intel
     $(info ================================================================================)
     $(error Intel Development Tools not found!)
   endif
-  ifeq (1,$(shell echo $$((2 > $(DBG)))))
+  ifneq (0,$(shell echo $$((2 > $(DBG)))))
     ifeq (1,$(AVX))
       TARGET = -xAVX
       TGT = snb
@@ -308,7 +308,9 @@ ifeq (0,$(GNU)) # Intel
     CFLAGS   += -fno-alias -ansi-alias $(FPCMODEL) $(FPFLAGS)
     CXXFLAGS += -fno-alias -ansi-alias $(FPCMODEL) $(FPFLAGS)
     #OPTFLAGS += -qoverride_limits
-    OPTFLAGS += -qopt-matmul
+    ifneq (0,$(shell echo $$((1 < $(OPT)))))
+      OPTFLAGS += -qopt-matmul
+    endif
     ifneq (0,$(IPO))
       OPTFLAGS += -ipo-separate
     else ifeq (0,$(IPO))
@@ -345,7 +347,7 @@ else # GNU GCC
     $(info ================================================================================)
     $(error Intel MKL not found!)
   endif
-  ifeq (1,$(shell echo $$((2 > $(DBG)))))
+  ifneq (0,$(shell echo $$((2 > $(DBG)))))
     ifeq (1,$(AVX))
       TARGET = -mavx
       TGT = snb
@@ -650,7 +652,7 @@ ifneq (,$(LIBXSMMROOT))
       endif
     endif
     # enable additional use cases for LIBXSMM
-    ifeq (1,$(shell echo $$((1 < $(LIBXSMM)))))
+    ifneq (0,$(shell echo $$((1 < $(LIBXSMM)))))
       BIGVERNUM = echo "99" > version.txt
       # substitute all GEMM calls with LIBXSMM
       WRAP ?= $(shell echo $$(((2<$(LIBXSMM))*($(LIBXSMM)-2))))
@@ -781,7 +783,7 @@ minimax_exp_k53.o: minimax_exp_k53.F
 	$(FC) -c $(filter-out -qoverride_limits,$(FCFLAGS)) -D__SHORT_FILE__="\"$(subst $(SRCDIR)/,,$<)\"" -I'$(dir $<)' $*.F90 $(FCLOGPIPE)
 endif
 
-ifeq (1,$(shell echo $$((1<=$(BEEP) && 0==$(GNU)))))
+ifneq (0,$(shell echo $$((1<=$(BEEP) && 0==$(GNU)))))
 helium_sampling.o: helium_sampling.F
 	$(eval MAKE_FYPP := $(if $(wildcard $(TOOLSRC)/build_utils/fypp),$(TOOLSRC)/build_utils/fypp $(FYPPFLAGS) $< $*.F90,$(NULL)))
 	$(MAKE_FYPP)
