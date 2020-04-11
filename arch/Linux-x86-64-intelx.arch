@@ -3,6 +3,14 @@
 PERL = perl
 CPP = #cpp
 
+LIBS     = $(NULL)
+CXXFLAGS = $(NULL)
+CFLAGS   = $(NULL)
+FCFLAGS  = $(NULL)
+LDFLAGS  = $(NULL)
+ACCFLAGS = $(NULL)
+ACC      = $(NULL)
+
 # LIBXSMM (https://github.com/hfp/libxsmm)
 #LIBXSMMROOT = /path/to/libxsmm
 
