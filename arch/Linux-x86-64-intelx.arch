@@ -68,7 +68,7 @@ endif
 endif
 
 ifneq (,$(LIBXSMM))
-ifeq (1,$(shell echo $$((2 < $(LIBXSMM)))))
+ifneq (0,$(shell echo $$((2 < $(LIBXSMM)))))
   IPO ?= 0
 endif
 endif
@@ -222,7 +222,7 @@ ifeq (0,$(GNU)) # Intel
     $(info ================================================================================)
     $(error Intel Development Tools not found!)
   endif
-  ifeq (1,$(shell echo $$((2 > $(DBG)))))
+  ifneq (0,$(shell echo $$((2 > $(DBG)))))
     ifeq (1,$(AVX))
       TARGET = -xAVX
     else ifeq (2,$(AVX))
@@ -285,7 +285,7 @@ else # GNU GCC
     $(info ================================================================================)
     $(error Intel MKL not found!)
   endif
-  ifeq (1,$(shell echo $$((2 > $(DBG)))))
+  ifneq (0,$(shell echo $$((2 > $(DBG)))))
     ifeq (1,$(AVX))
       TARGET = -mavx
     else ifeq (2,$(AVX))
@@ -528,7 +528,7 @@ ifneq (,$(LIBXSMMROOT))
       endif
     endif
     # enable additional use cases for LIBXSMM
-    ifeq (1,$(shell echo $$((1 < $(LIBXSMM)))))
+    ifneq (0,$(shell echo $$((1 < $(LIBXSMM)))))
       BIGVERNUM = echo "99" > version.txt
       # substitute all GEMM calls with LIBXSMM
       WRAP ?= $(shell echo $$(((2<$(LIBXSMM))*($(LIBXSMM)-2))))
@@ -544,7 +544,7 @@ ifneq (,$(LIBXSMMROOT))
     endif
     WRAP ?= 0
     JIT ?= 1
-    ifeq (1,$(shell echo "$$((0>=$(JIT)))"))
+    ifneq (0,$(shell echo "$$((0>=$(JIT)))"))
       LIBXSMM_MNK := "23, 6, 14 16 29, 14 32 29, 5 32 13 24 26, 9 32 22, 64, 78, 16 29 55, 32 29 55, 12, 4 5 7 9 13 25 26 28 32 45"
     endif
     LIBXSMM_MPSS := 0
