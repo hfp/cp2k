@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -22,7 +22,8 @@ MODULE qs_ks_methods
                                               admm_dm_merge_ks_matrix
    USE admm_methods,                    ONLY: admm_mo_calc_rho_aux,&
                                               admm_mo_merge_derivs,&
-                                              admm_mo_merge_ks_matrix
+                                              admm_mo_merge_ks_matrix,&
+                                              admm_update_ks_atom
    USE admm_types,                      ONLY: admm_type
    USE cell_types,                      ONLY: cell_type
    USE cp_blacs_env,                    ONLY: cp_blacs_env_type
@@ -62,6 +63,7 @@ MODULE qs_ks_methods
    USE dft_plus_u,                      ONLY: plus_u
    USE efield_utils,                    ONLY: efield_potential
    USE hartree_local_methods,           ONLY: Vh_1c_gg_integrals
+   USE hartree_local_types,             ONLY: ecoul_1center_type
    USE hfx_admm_utils,                  ONLY: hfx_admm_init,&
                                               hfx_ks_matrix
    USE input_constants,                 ONLY: do_ppl_grid,&
@@ -129,6 +131,7 @@ MODULE qs_ks_methods
         calc_v_sic_rspace, calculate_zmp_potential, compute_matrix_vxc, &
         get_embed_potential_energy, low_spin_roks, print_densities, print_detailed_energy, &
         sic_explicit_orbitals, sum_up_and_integrate
+   USE qs_local_rho_types,              ONLY: local_rho_type
    USE qs_mo_types,                     ONLY: get_mo_set,&
                                               mo_set_p_type,&
                                               mo_set_type
@@ -205,7 +208,7 @@ CONTAINS
       LOGICAL, INTENT(in)                                :: calculate_forces, just_energy
       LOGICAL, INTENT(IN), OPTIONAL                      :: print_active
       TYPE(dbcsr_p_type), DIMENSION(:), OPTIONAL, &
-         POINTER, CONTIGUOUS                             :: ext_ks_matrix
+         POINTER                                         :: ext_ks_matrix
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'qs_ks_build_kohn_sham_matrix', &
          routineP = moduleN//':'//routineN
@@ -223,20 +226,19 @@ CONTAINS
       TYPE(cell_type), POINTER                           :: cell
       TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(cp_para_env_type), POINTER                    :: para_env
-      TYPE(dbcsr_p_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: ksmat, matrix_vxc, mo_derivs
-      TYPE(dbcsr_p_type), DIMENSION(:, :), &
-         POINTER, CONTIGUOUS                             :: ks_matrix, matrix_h, matrix_s, my_rho, &
+      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: ksmat, matrix_vxc, mo_derivs
+      TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: ks_matrix, matrix_h, matrix_s, my_rho, &
                                                             rho_ao
       TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(ecoul_1center_type), DIMENSION(:), POINTER    :: ecoul_1c
+      TYPE(local_rho_type), POINTER                      :: local_rho_set
       TYPE(lri_density_type), POINTER                    :: lri_density
       TYPE(lri_environment_type), POINTER                :: lri_env
-      TYPE(lri_kind_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: lri_v_int
+      TYPE(lri_kind_type), DIMENSION(:), POINTER         :: lri_v_int
       TYPE(pw_env_type), POINTER                         :: pw_env
       TYPE(pw_p_type) :: rho_tot_gspace, v_efield_rspace, v_hartree_gspace, v_hartree_rspace, &
          v_minus_veps, v_sccs_rspace, v_sic_rspace, v_spin_ddapc_rest_r
-      TYPE(pw_p_type), DIMENSION(:), POINTER, CONTIGUOUS :: rho_r, v_rspace_embed, v_rspace_new, &
+      TYPE(pw_p_type), DIMENSION(:), POINTER             :: rho_r, v_rspace_embed, v_rspace_new, &
                                                             v_rspace_new_aux_fit, v_tau_rspace, &
                                                             v_tau_rspace_aux_fit
       TYPE(pw_p_type), POINTER                           :: rho0_s_rs, rho_core, rho_nlcc, vee, &
@@ -252,14 +254,13 @@ CONTAINS
       TYPE(virial_type), POINTER                         :: virial
 
       CALL timeset(routineN, handle)
-      NULLIFY (admm_env, cell, dft_control, logger, &
-               mo_derivs, my_rho, rho_struct, para_env, pw_env, virial, &
-               vppl_rspace, v_hartree_rspace%pw, adiabatic_rescaling_section, &
-               hfx_sections, input, scf_section, xc_section, matrix_h, matrix_s, &
-               auxbas_pw_pool, poisson_env, v_rspace_new, &
-               v_rspace_new_aux_fit, v_tau_rspace, v_tau_rspace_aux_fit, &
-               matrix_vxc, vee, rho_nlcc, ks_env, &
-               ks_matrix, rho, energy, rho_xc, rho_r, rho_ao, rho_core)
+      NULLIFY (admm_env, cell, dft_control, logger, mo_derivs, my_rho, &
+               rho_struct, para_env, pw_env, virial, vppl_rspace, &
+               v_hartree_rspace%pw, adiabatic_rescaling_section, hfx_sections, &
+               input, scf_section, xc_section, matrix_h, matrix_s, &
+               auxbas_pw_pool, poisson_env, v_rspace_new, v_rspace_new_aux_fit, &
+               v_tau_rspace, v_tau_rspace_aux_fit, matrix_vxc, vee, rho_nlcc, &
+               ks_env, ks_matrix, rho, energy, rho_xc, rho_r, rho_ao, rho_core)
 
       CPASSERT(ASSOCIATED(qs_env))
 
@@ -417,8 +418,8 @@ CONTAINS
          IF (use_virial .AND. calculate_forces) THEN
             CALL sccs(qs_env, rho_tot_gspace%pw, v_hartree_gspace%pw, v_sccs_rspace%pw, &
                       h_stress=h_stress)
-            virial%pv_virial = virial%pv_virial+h_stress/REAL(para_env%num_pe, dp)
-            virial%pv_hartree = virial%pv_hartree+h_stress/REAL(para_env%num_pe, dp)
+            virial%pv_virial = virial%pv_virial + h_stress/REAL(para_env%num_pe, dp)
+            virial%pv_hartree = virial%pv_hartree + h_stress/REAL(para_env%num_pe, dp)
          ELSE
             CALL sccs(qs_env, rho_tot_gspace%pw, v_hartree_gspace%pw, v_sccs_rspace%pw)
          END IF
@@ -430,8 +431,8 @@ CONTAINS
             CALL pw_poisson_solve(poisson_env, rho_tot_gspace%pw, energy%hartree, &
                                   v_hartree_gspace%pw, h_stress=h_stress, &
                                   rho_core=rho_core)
-            virial%pv_virial = virial%pv_virial+h_stress/REAL(para_env%num_pe, dp)
-            virial%pv_hartree = virial%pv_hartree+h_stress/REAL(para_env%num_pe, dp)
+            virial%pv_virial = virial%pv_virial + h_stress/REAL(para_env%num_pe, dp)
+            virial%pv_hartree = virial%pv_hartree + h_stress/REAL(para_env%num_pe, dp)
          ELSE
             CALL pw_poisson_solve(poisson_env, rho_tot_gspace%pw, energy%hartree, &
                                   v_hartree_gspace%pw, rho_core=rho_core)
@@ -463,15 +464,20 @@ CONTAINS
       END IF
 
       IF (dft_control%correct_surf_dip) THEN
-         CALL calc_dipsurf_potential(qs_env, energy)
-         energy%hartree = energy%hartree+energy%surf_dipole
+         IF (dft_control%surf_dip_correct_switch) THEN
+            CALL calc_dipsurf_potential(qs_env, energy)
+            energy%hartree = energy%hartree + energy%surf_dipole
+         END IF
       END IF
 
       ! SIC
       CALL calc_v_sic_rspace(v_sic_rspace, energy, qs_env, dft_control, rho, poisson_env, &
                              just_energy, calculate_forces, auxbas_pw_pool)
 
-      IF (gapw) CALL Vh_1c_gg_integrals(qs_env, energy%hartree_1c)
+      IF (gapw) THEN
+         CALL get_qs_env(qs_env, ecoul_1c=ecoul_1c, local_rho_set=local_rho_set)
+         CALL Vh_1c_gg_integrals(qs_env, energy%hartree_1c, ecoul_1c, local_rho_set, para_env, tddft=.FALSE.)
+      END IF
 
       ! Check if CDFT constraint is needed
       CALL qs_ks_cdft_constraint(qs_env, auxbas_pw_pool, calculate_forces, cdft_control)
@@ -481,14 +487,14 @@ CONTAINS
          ! Compute the energy due to the external potential
          ee_ener = 0.0_dp
          DO ispin = 1, nspins
-            ee_ener = ee_ener+pw_integral_ab(rho_r(ispin)%pw, vee%pw)
+            ee_ener = ee_ener + pw_integral_ab(rho_r(ispin)%pw, vee%pw)
          END DO
          IF (.NOT. just_energy) THEN
             IF (gapw) THEN
                CALL get_qs_env(qs_env=qs_env, &
                                rho0_s_rs=rho0_s_rs)
                CPASSERT(ASSOCIATED(rho0_s_rs))
-               ee_ener = ee_ener+pw_integral_ab(rho0_s_rs%pw, vee%pw)
+               ee_ener = ee_ener + pw_integral_ab(rho0_s_rs%pw, vee%pw)
             END IF
          END IF
          ! the sign accounts for the charge of the electrons
@@ -530,6 +536,7 @@ CONTAINS
       ! calculate the density matrix for the fitted mo_coeffs
       IF (dft_control%do_admm) THEN
          CALL hfx_admm_init(qs_env)
+
          IF (dft_control%do_admm_mo) THEN
             IF (qs_env%run_rtp) THEN
                CALL rtp_admm_calc_rho_aux(qs_env)
@@ -550,21 +557,26 @@ CONTAINS
       IF (dft_control%do_admm) THEN
          CALL get_qs_env(qs_env, admm_env=admm_env)
          xc_section => admm_env%xc_section_aux
-         IF (gapw_xc) THEN
-            CALL get_qs_env(qs_env=qs_env, rho_xc=rho_struct)
-         ELSE
-            CALL get_qs_env(qs_env=qs_env, rho_aux_fit=rho_struct)
-         END IF
+         CALL get_qs_env(qs_env=qs_env, rho_aux_fit=rho_struct)
 
          ! here we ignore a possible vdW section in admm_env%xc_section_aux
          CALL qs_vxc_create(ks_env=ks_env, rho_struct=rho_struct, xc_section=xc_section, &
                             vxc_rho=v_rspace_new_aux_fit, vxc_tau=v_tau_rspace_aux_fit, exc=energy%exc_aux_fit, &
                             just_energy=just_energy_xc)
 
+         IF (admm_env%do_gapw) THEN
+            !compute the potential due to atomic densities
+            CALL calculate_vxc_atom(qs_env, energy_only=just_energy_xc, exc1=energy%exc1_aux_fit, &
+                                    kind_set_external=admm_env%admm_gapw_env%admm_kind_set, &
+                                    xc_section_external=xc_section, &
+                                    rho_atom_set_external=admm_env%admm_gapw_env%local_rho_set%rho_atom_set)
+
+         END IF
+
          NULLIFY (rho_struct)
 
          IF (use_virial .AND. calculate_forces) THEN
-            virial%pv_virial = virial%pv_virial-virial%pv_xc
+            virial%pv_virial = virial%pv_virial - virial%pv_xc
             ! ** virial%pv_xc will be zeroed in the xc routines
          END IF
          xc_section => admm_env%xc_section_primary
@@ -602,22 +614,22 @@ CONTAINS
          ENDIF
 
          IF (gapw .OR. gapw_xc) THEN
-            CALL calculate_vxc_atom(qs_env, just_energy_xc)
+            CALL calculate_vxc_atom(qs_env, just_energy_xc, energy%exc1, xc_section_external=xc_section)
          ENDIF
 
       ENDIF
 
       NULLIFY (rho_struct)
       IF (use_virial .AND. calculate_forces) THEN
-         virial%pv_virial = virial%pv_virial-virial%pv_xc
+         virial%pv_virial = virial%pv_virial - virial%pv_xc
          virial%pv_exc = -virial%pv_xc
          DO idir = 1, 3
-            virial%pv_exc(idir, idir) = virial%pv_exc(idir, idir)-energy%exc
-            virial%pv_hartree(idir, idir) = virial%pv_hartree(idir, idir)-2.0_dp*energy%hartree
+            virial%pv_exc(idir, idir) = virial%pv_exc(idir, idir) - energy%exc
+            virial%pv_hartree(idir, idir) = virial%pv_hartree(idir, idir) - 2.0_dp*energy%hartree
          END DO
          IF (dft_control%do_admm) THEN
             DO idir = 1, 3
-               virial%pv_exc(idir, idir) = virial%pv_exc(idir, idir)-energy%exc_aux_fit
+               virial%pv_exc(idir, idir) = virial%pv_exc(idir, idir) - energy%exc_aux_fit
             END DO
          END IF
       ENDIF
@@ -649,10 +661,10 @@ CONTAINS
          CPASSERT(.NOT. (gapw .OR. gapw_xc))
          CPASSERT(nimages == 1)
          ksmat => ks_matrix(:, 1)
-         CALL kg_ekin_subset(qs_env, ksmat, ekin_mol, calculate_forces)
+         CALL kg_ekin_subset(qs_env, ksmat, ekin_mol, calculate_forces, do_kernel=.FALSE.)
 
-         ! substract kg corr from the total energy
-         energy%exc = energy%exc-ekin_mol
+         ! subtract kg corr from the total energy
+         energy%exc = energy%exc - ekin_mol
 
       END IF
 
@@ -695,18 +707,18 @@ CONTAINS
                                    cdft_control, calculate_forces)
 
          IF (use_virial .AND. calculate_forces) THEN
-            virial%pv_hartree = virial%pv_hartree+(virial%pv_virial-pv_loc)
+            virial%pv_hartree = virial%pv_hartree + (virial%pv_virial - pv_loc)
          END IF
          IF (dft_control%qs_control%do_kg) THEN
             CPASSERT(.NOT. (gapw .OR. gapw_xc))
             CPASSERT(nimages == 1)
             ksmat => ks_matrix(:, 1)
-            CALL kg_ekin_subset(qs_env, ksmat, ekin_mol, calculate_forces)
-            ! substract kg corr from the total energy
-            energy%exc = energy%exc-ekin_mol
+            CALL kg_ekin_subset(qs_env, ksmat, ekin_mol, calculate_forces, do_kernel=.FALSE.)
+            ! subtract kg corr from the total energy
+            energy%exc = energy%exc - ekin_mol
             ! virial corrections
             IF (use_virial .AND. calculate_forces) THEN
-               virial%pv_virial = virial%pv_virial+virial%pv_xc
+               virial%pv_virial = virial%pv_virial + virial%pv_xc
                virial%pv_xc = 0.0_dp
             END IF
          END IF
@@ -760,12 +772,17 @@ CONTAINS
             CALL qmmm_modify_hartree_pot(v_hartree=v_hartree_rspace, &
                                          v_qmmm=vee, scale=-1.0_dp)
          ENDIF
-         CALL integrate_vhg0_rspace(qs_env, v_hartree_rspace, calculate_forces)
+         CALL integrate_vhg0_rspace(qs_env, v_hartree_rspace, para_env, calculate_forces)
       END IF
 
       IF (gapw .OR. gapw_xc) THEN
          ! Single atom contributions in the KS matrix ***
          CALL update_ks_atom(qs_env, ks_matrix, rho_ao, calculate_forces)
+
+         IF (dft_control%do_admm) THEN
+            !Single atom contribution to the AUX matrices
+            CALL admm_update_ks_atom(qs_env, calculate_forces)
+         END IF
       END IF
 
       !Calculation of Mulliken restraint, if requested
@@ -837,11 +854,11 @@ CONTAINS
          ! update core energy for grid based local pseudopotential
          ecore_ppl = 0._dp
          DO ispin = 1, nspins
-            ecore_ppl = ecore_ppl+ &
+            ecore_ppl = ecore_ppl + &
                         SUM(vppl_rspace%pw%cr3d*rho_r(ispin)%pw%cr3d)*vppl_rspace%pw%pw_grid%dvol
          END DO
          CALL mp_sum(ecore_ppl, para_env%group)
-         energy%core = energy%core+ecore_ppl
+         energy%core = energy%core + ecore_ppl
       END IF
 
       IF (lrigpw) THEN
@@ -853,21 +870,21 @@ CONTAINS
                lri_v_int => lri_density%lri_coefs(ispin)%lri_kinds
                CALL v_int_ppl_energy(qs_env, lri_v_int, ecore_ppl)
             END DO
-            energy%core = energy%core+ecore_ppl
+            energy%core = energy%core + ecore_ppl
          END IF
       END IF
 
       ! Sum all energy terms to obtain the total energy
-      energy%total = energy%core_overlap+energy%core_self+energy%core+energy%hartree+ &
-                     energy%hartree_1c+energy%exc+energy%exc1+energy%ex+ &
-                     energy%dispersion+energy%gcp+energy%qmmm_el+energy%mulliken+ &
-                     SUM(energy%ddapc_restraint)+energy%s2_restraint+ &
-                     energy%dft_plus_u+energy%kTS+ &
-                     energy%efield+energy%efield_core+energy%ee+ &
-                     energy%ee_core+energy%exc_aux_fit+energy%image_charge+ &
-                     energy%sccs_pol+energy%sccs_mpc+energy%cdft
+      energy%total = energy%core_overlap + energy%core_self + energy%core + energy%hartree + &
+                     energy%hartree_1c + energy%exc + energy%exc1 + energy%ex + &
+                     energy%dispersion + energy%gcp + energy%qmmm_el + energy%mulliken + &
+                     SUM(energy%ddapc_restraint) + energy%s2_restraint + &
+                     energy%dft_plus_u + energy%kTS + &
+                     energy%efield + energy%efield_core + energy%ee + &
+                     energy%ee_core + energy%exc_aux_fit + energy%image_charge + &
+                     energy%sccs_pol + energy%sccs_mpc + energy%cdft + energy%exc1_aux_fit
 
-      IF (dft_control%apply_embed_pot) energy%total = energy%total+energy%embed_corr
+      IF (dft_control%apply_embed_pot) energy%total = energy%total + energy%embed_corr
 
       IF (abnormal_value(energy%total)) &
          CPABORT("KS energy is an abnormal value (NaN/Inf).")
@@ -1360,7 +1377,7 @@ CONTAINS
          CALL cp_fm_column_scale(weighted_vectors, scaling_factor)
          DEALLOCATE (scaling_factor)
 
-         WRITE (*, *) " maxabs difference ", MAXVAL(ABS(weighted_vectors%local_data-2.0_dp*gradient%local_data))
+         WRITE (*, *) " maxabs difference ", MAXVAL(ABS(weighted_vectors%local_data - 2.0_dp*gradient%local_data))
          CALL cp_fm_release(gradient)
       ENDIF
 

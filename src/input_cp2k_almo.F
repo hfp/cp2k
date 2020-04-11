@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -17,13 +17,13 @@ MODULE input_cp2k_almo
    USE input_constants,                 ONLY: &
         almo_deloc_none, almo_deloc_scf, almo_deloc_x, almo_deloc_x_then_scf, &
         almo_deloc_xalmo_1diag, almo_deloc_xalmo_scf, almo_deloc_xalmo_x, almo_frz_crystal, &
-        almo_frz_none, almo_occ_vol_penalty_lndet, almo_occ_vol_penalty_none, almo_scf_diag, &
-        almo_scf_pcg, almo_scf_skip, atomic_guess, cg_dai_yuan, cg_fletcher, cg_fletcher_reeves, &
-        cg_hager_zhang, cg_hestenes_stiefel, cg_liu_storey, cg_polak_ribiere, cg_zero, &
-        molecular_guess, optimizer_diis, optimizer_lin_eq_pcg, optimizer_pcg, &
+        almo_frz_none, almo_scf_diag, almo_scf_pcg, almo_scf_skip, almo_scf_trustr, atomic_guess, &
+        cg_dai_yuan, cg_fletcher, cg_fletcher_reeves, cg_hager_zhang, cg_hestenes_stiefel, &
+        cg_liu_storey, cg_polak_ribiere, cg_zero, molecular_guess, op_loc_berry, op_loc_pipek, &
+        optimizer_diis, optimizer_lin_eq_pcg, optimizer_pcg, optimizer_trustr, &
         spd_inversion_dense_cholesky, spd_inversion_ls_hotelling, spd_inversion_ls_taylor, &
-        xalmo_prec_domain, xalmo_prec_full, xalmo_prec_zero, xalmo_trial_r0_out, &
-        xalmo_trial_simplex
+        trustr_cauchy, trustr_dogleg, trustr_steihaug, xalmo_prec_domain, xalmo_prec_full, &
+        xalmo_prec_zero, xalmo_trial_r0_out, xalmo_trial_simplex
    USE input_keyword_types,             ONLY: keyword_create,&
                                               keyword_release,&
                                               keyword_type
@@ -44,7 +44,9 @@ MODULE input_cp2k_almo
    INTEGER, PARAMETER, PRIVATE :: optimizer_block_diagonal_diis = 1
    INTEGER, PARAMETER, PRIVATE :: optimizer_block_diagonal_pcg = 2
    INTEGER, PARAMETER, PRIVATE :: optimizer_xalmo_pcg = 3
+   INTEGER, PARAMETER, PRIVATE :: optimizer_xalmo_trustr = 4
    INTEGER, PARAMETER, PRIVATE :: optimizer_newton_pcg_solver = 5
+   INTEGER, PARAMETER, PRIVATE :: optimizer_nlmo_pcg = 6
 
    PUBLIC :: create_almo_scf_section
 
@@ -71,7 +73,7 @@ CONTAINS
                           description="Settings for a class of efficient linear scaling methods based "// &
                           "on absolutely localized orbitals"// &
                           " (ALMOs). ALMO methods are currently restricted to closed-shell molecular systems.", &
-                          n_keywords=9, n_subsections=5, repeats=.FALSE., &
+                          n_keywords=10, n_subsections=6, repeats=.FALSE., &
                           citations=(/Khaliullin2013, Scheiber2018/))
 
       NULLIFY (keyword)
@@ -146,6 +148,18 @@ CONTAINS
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
+      CALL keyword_create(keyword, __LOCATION__, name="XALMO_ALGORITHM", &
+                          description="Specifies the algorithm to update ALMOs on eXtended domains (XALMOs).", &
+                          usage="XALMO_ALGORITHM TRUST_REGION", &
+                          default_i_val=almo_scf_pcg, &
+                          enum_c_vals=s2a("DIAG", "PCG", "TRUST_REGION"), &
+                          enum_desc=s2a("DIIS-accelerated diagonalization.", &
+                                        "PCG algorithm controlled by XALMO_OPTIMIZER_PCG.", &
+                                        "Trust-region optimizer controlled by XALMO_OPTIMIZER_TRUSTR"), &
+                          enum_i_vals=(/almo_scf_diag, almo_scf_pcg, almo_scf_trustr/))
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
       CALL keyword_create(keyword, __LOCATION__, name="XALMO_TRIAL_WF", &
                           description="Determines the form of the trial XALMOs.", &
                           usage="XALMO_TRIAL_WF SIMPLE", &
@@ -163,8 +177,8 @@ CONTAINS
          description="Methods to reintroduce electron delocalization, which is excluded "// &
          "with the block-diagonal ALMO reference. Electron delocalization can "// &
          "be computed using either fully delocalized MOs or spatially restricted "// &
-         "ALMOs (called extended ALMOs or XALMOs). All methods below use a PCG "// &
-         "optimizer controlled by XALMO_OPTIMIZER_PCG. The only exception is "// &
+         "ALMOs (called eXtended ALMOs or XALMOs). All methods below use either a PCG or trust-region"// &
+         "optimizers controlled by XALMO_OPTIMIZER_* subsections. The only exception is "// &
          "the non-iterative XALMO_1DIAG.", &
          usage="DELOCALIZE_METHOD XALMO_X", &
          default_i_val=almo_deloc_xalmo_x, &
@@ -197,35 +211,11 @@ CONTAINS
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
-      !CALL keyword_create(keyword, __LOCATION__, name="DELOCALIZE_EPS_ITER",&
-      !     description="Obsolete and to be deleted: use EPS_ERROR in XALMO_OPTIMIZER_PCG",&
-      !     usage="DELOCALIZE_EPS_ITER 1.e-5", default_r_val=1.e-5_dp)
-      !CALL section_add_keyword(section,keyword)
-      !CALL keyword_release(keyword)
-
-      !CALL keyword_create(keyword, __LOCATION__, name="DELOCALIZE_EPS_LIN_SEARCH",&
-      !     description="Obsolete and to be deleted: use EPS_ERROR_LIN_SEARCH in XALMO_OPTIMIZER_PCG",&
-      !     usage="DELOCALIZE_EPS_LIN_SEARCH 1.e-6", default_r_val=1.e-7_dp)
-      !CALL section_add_keyword(section,keyword)
-      !CALL keyword_release(keyword)
-
-      !CALL keyword_create(keyword, __LOCATION__, name="BLOCKED_MAX_ITER",&
-      !     description="Obsolete and to be deleted: use MAX_ITER in ALMO_OPTIMIZER_DIIS or ALMO_OPTIMIZER_PCG",&
-      !     usage="BLOCKED_MAX_ITER 200", default_i_val=100)
-      !CALL section_add_keyword(section,keyword)
-      !CALL keyword_release(keyword)
-
-      !CALL keyword_create(keyword, __LOCATION__, name="BLOCKED_EPS_ITER",&
-      !     description="Obsolete and to be deleted: use EPS_ERROR in ALMO_OPTIMIZER_DIIS or ALMO_OPTIMIZER_PCG",&
-      !     usage="BLOCKED_EPS_ITER 1.e-5", default_r_val=1.e-5_dp)
-      !CALL section_add_keyword(section,keyword)
-      !CALL keyword_release(keyword)
-
-      !CALL keyword_create(keyword, __LOCATION__, name="DELOCALIZE_MAX_ITER",&
-      !     description="Obsolete and to be deleted: use MAX_ITER in XALMO_OPTIMIZER_PCG",&
-      !     usage="DELOCALIZE_MAX_ITER 200", default_i_val=100)
-      !CALL section_add_keyword(section,keyword)
-      !CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="CONSTRUCT_NLMOS", &
+                          description="Turns on post-SCF construction of NLMOs", &
+                          usage="CONSTRUCT_NLMOS .TRUE.", default_l_val=.FALSE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
 
       !CALL keyword_create(keyword, __LOCATION__, name="DOMAIN_LAYOUT_MOS",&
       !     description="Each electron in the system is constrained to its own delocalization domain."//&
@@ -292,51 +282,6 @@ CONTAINS
       !     "MO coefficients are quenched according to the AO overlap criterion"),&
       !     enum_i_vals=(/almo_constraint_block_diagonal,almo_constraint_distance,&
       !     almo_constraint_ao_overlap/))
-      !CALL section_add_keyword(section,keyword)
-      !CALL keyword_release(keyword)
-
-      !!CALL keyword_create(keyword, __LOCATION__, name="OUTER_MAX_SCF_Q",&
-      !!     description="Maximum number of the outer loop SCF iterations for optimization of quenched ALMOs",&
-      !!     usage="OUTER_MAX_SCF_Q 10", default_i_val=0)
-      !!CALL section_add_keyword(section,keyword)
-      !!CALL keyword_release(keyword)
-
-      !!CALL keyword_create(keyword, __LOCATION__, name="EPS_USE_PREV_AS_GUESS",&
-      !!     description="SCF convergence below which quantities from previous iterations"//&
-      !!                 " can be used as initial guess for the current iteration.",&
-      !!     usage="EPS_USE_PREV_AS_GUESS 0.01", default_r_val=0.001_dp)
-      !!CALL section_add_keyword(section,keyword)
-      !!CALL keyword_release(keyword)
-
-      !!CALL keyword_create(keyword, __LOCATION__, name="MIXING_FRACTION",&
-      !!     description="Weight of the new KS matrix in the mixing during the SCF procedure.",&
-      !!     usage="MIXING_FRACTION 0.45", default_r_val=0.45_dp)
-      !!CALL section_add_keyword(section,keyword)
-      !!CALL keyword_release(keyword)
-
-      !!CALL keyword_create(keyword, __LOCATION__, name="FIXED_MU",&
-      !!     description="Fix chemical potential or optimize it to get "//&
-      !!                 "the correct number of electrons",&
-      !!     usage="FIXED_MU .TRUE.", default_l_val=.FALSE.,&
-      !!     lone_keyword_l_val=.TRUE.)
-      !!CALL section_add_keyword(section,keyword)
-      !!CALL keyword_release(keyword)
-
-      !!CALL keyword_create(keyword, __LOCATION__, name="MU",&
-      !!     description="Value (or initial guess) for the chemical potential."//&
-      !!                 " Provide energy between HOMO and LUMO energy.",&
-      !!     usage="MU 0.0", default_r_val=-0.1_dp)
-      !!CALL section_add_keyword(section,keyword)
-      !!CALL keyword_release(keyword)
-
-      !CALL keyword_create(keyword, __LOCATION__, name="XALMO_ALGORITHM",&
-      !     description="Specifies the algorithm to update ALMOs on eXtended domains (XALMOs).",&
-      !     usage="XALMO_ALGORITHM PCG",&
-      !     default_i_val=almo_scf_diag,&
-      !     enum_c_vals=s2a("DDIAG", "PCG"),&
-      !     enum_desc=s2a("Domain diagonalization",&
-      !                   "Preconditioned conjugate gradient"),&
-      !     enum_i_vals=(/almo_scf_diag,almo_scf_pcg/))
       !CALL section_add_keyword(section,keyword)
       !CALL keyword_release(keyword)
 
@@ -590,7 +535,12 @@ CONTAINS
       CALL section_release(subsection)
 
       NULLIFY (subsection)
-      CALL create_penalty_section(subsection)
+      CALL create_optimizer_section(subsection, optimizer_xalmo_trustr)
+      CALL section_add_subsection(section, subsection)
+      CALL section_release(subsection)
+
+      NULLIFY (subsection)
+      CALL create_optimizer_section(subsection, optimizer_nlmo_pcg)
       CALL section_add_subsection(section, subsection)
       CALL section_release(subsection)
 
@@ -641,17 +591,35 @@ CONTAINS
       CASE (optimizer_block_diagonal_pcg)
          CALL section_create(section, __LOCATION__, name="ALMO_OPTIMIZER_PCG", &
                              description="Controls the PCG optimization of block-diagonal ALMOs.", &
-                             n_keywords=9, n_subsections=0, repeats=.FALSE.)
+                             n_keywords=9, n_subsections=1, repeats=.FALSE.)
          optimizer_type = optimizer_pcg
+      CASE (optimizer_nlmo_pcg)
+         CALL section_create(section, __LOCATION__, name="NLMO_OPTIMIZER_PCG", &
+                             description="Controls the PCG optimization of nonorthogonal localized MOs.", &
+                             n_keywords=9, n_subsections=1, repeats=.FALSE.)
+         optimizer_type = optimizer_pcg
+         NULLIFY (subsection)
+         CALL create_penalty_section(subsection)
+         CALL section_add_subsection(section, subsection)
+         CALL section_release(subsection)
       CASE (optimizer_xalmo_pcg)
          CALL section_create(section, __LOCATION__, name="XALMO_OPTIMIZER_PCG", &
                              description="Controls the PCG optimization of extended ALMOs.", &
-                             n_keywords=10, n_subsections=1, repeats=.FALSE.)
+                             n_keywords=10, n_subsections=2, repeats=.FALSE.)
          NULLIFY (subsection)
          CALL create_optimizer_section(subsection, optimizer_newton_pcg_solver)
          CALL section_add_subsection(section, subsection)
          CALL section_release(subsection)
          optimizer_type = optimizer_pcg
+      CASE (optimizer_xalmo_trustr)
+         CALL section_create(section, __LOCATION__, name="XALMO_OPTIMIZER_TRUSTR", &
+                             description="Controls the trust-region optimization of extended ALMOs. "// &
+                             "Trust radius is varied in the outer loop. Once the trust radius is "// &
+                             "chosen (and fixed) the model function can be minized using various "// &
+                             "approaches. Currently, an iterative conjugate-gradient approach is "// &
+                             "used and controlled by the inner loop", &
+                             n_keywords=10, n_subsections=0, repeats=.FALSE.)
+         optimizer_type = optimizer_trustr
       CASE (optimizer_newton_pcg_solver)
          CALL section_create(section, __LOCATION__, name="XALMO_NEWTON_PCG_SOLVER", &
                              description="Controls an iterative solver of the Newton-Raphson linear equation.", &
@@ -692,8 +660,7 @@ CONTAINS
       CALL keyword_release(keyword)
 
       ! add keywords specific to each type
-      SELECT CASE (optimizer_type)
-      CASE (optimizer_diis)
+      IF (optimizer_type .EQ. optimizer_diis) THEN
 
          CALL keyword_create(keyword, __LOCATION__, name="N_DIIS", &
                              description="Number of error vectors to be used in the DIIS "// &
@@ -702,50 +669,11 @@ CONTAINS
          CALL section_add_keyword(section, keyword)
          CALL keyword_release(keyword)
 
-      CASE (optimizer_pcg, optimizer_lin_eq_pcg)
+      ENDIF
 
-         IF (optimizer_type .EQ. optimizer_pcg) THEN
-
-            CALL keyword_create(keyword, __LOCATION__, name="LIN_SEARCH_EPS_ERROR", &
-                                description="Target value of the gradient norm during the linear search", &
-                                usage="LIN_SEARCH_EPS_ERROR 1.E-2", default_r_val=1.0E-3_dp)
-            CALL section_add_keyword(section, keyword)
-            CALL keyword_release(keyword)
-
-            CALL keyword_create(keyword, __LOCATION__, name="LIN_SEARCH_STEP_SIZE_GUESS", &
-                                description="The size of the first step in the linear search", &
-                                usage="LIN_SEARCH_STEP_SIZE_GUESS 0.1", default_r_val=1.0_dp)
-            CALL section_add_keyword(section, keyword)
-            CALL keyword_release(keyword)
-
-            CALL keyword_create(keyword, __LOCATION__, name="CONJUGATOR", &
-                                description="Various methods to compute step directions in the PCG optimization", &
-                                usage="CONJUGATOR POLAK_RIBIERE", &
-                                default_i_val=cg_hager_zhang, &
-                                enum_c_vals=s2a("ZERO", "POLAK_RIBIERE", "FLETCHER_REEVES", &
-                                                "HESTENES_STIEFEL", "FLETCHER", "LIU_STOREY", "DAI_YUAN", "HAGER_ZHANG"), &
-                                enum_desc=s2a("Steepest descent", "Polak and Ribiere", &
-                                              "Fletcher and Reeves", "Hestenes and Stiefel", &
-                                              "Fletcher (Conjugate descent)", "Liu and Storey", &
-                                              "Dai and Yuan", "Hager and Zhang"), &
-                                enum_i_vals=(/cg_zero, cg_polak_ribiere, cg_fletcher_reeves, &
-                                              cg_hestenes_stiefel, cg_fletcher, cg_liu_storey, &
-                                              cg_dai_yuan, cg_hager_zhang/))
-            CALL section_add_keyword(section, keyword)
-            CALL keyword_release(keyword)
-
-            CALL keyword_create(keyword, __LOCATION__, name="PRECOND_FILTER_THRESHOLD", &
-                                description="Select eigenvalues of the preconditioner "// &
-                                "that are smaller than the threshold and project out the "// &
-                                "corresponding eigenvectors from the gradient. No matter "// &
-                                "how large the threshold is the maximum number of projected "// &
-                                "eienvectors for a fragment equals to the number of occupied "// &
-                                "orbitals of fragment's neighbors.", &
-                                usage="PRECOND_FILTER_THRESHOLD 0.1", default_r_val=0.5_dp)
-            CALL section_add_keyword(section, keyword)
-            CALL keyword_release(keyword)
-
-         ENDIF
+      IF (optimizer_type .EQ. optimizer_pcg .OR. &
+          optimizer_type .EQ. optimizer_lin_eq_pcg .OR. &
+          optimizer_type .EQ. optimizer_trustr) THEN
 
          CALL keyword_create(keyword, __LOCATION__, name="MAX_ITER_OUTER_LOOP", &
                              description="Maximum number of iterations in the outer loop. "// &
@@ -758,7 +686,7 @@ CONTAINS
          CALL keyword_create(keyword, __LOCATION__, name="PRECONDITIONER", &
                              description="Select a preconditioner for the conjugate gradient optimization", &
                              usage="PRECONDITIONER DOMAIN", &
-                             default_i_val=1, &
+                             default_i_val=xalmo_prec_domain, &
                              enum_c_vals=s2a("NONE", "DEFAULT", "DOMAIN", "FULL"), &
                              enum_desc=s2a("Do not use preconditioner", &
                                            "Same as DOMAIN preconditioner", &
@@ -770,7 +698,101 @@ CONTAINS
          CALL section_add_keyword(section, keyword)
          CALL keyword_release(keyword)
 
-      END SELECT
+      ENDIF
+
+      IF (optimizer_type .EQ. optimizer_pcg) THEN
+
+         CALL keyword_create(keyword, __LOCATION__, name="LIN_SEARCH_EPS_ERROR", &
+                             description="Target value of the gradient norm during the linear search", &
+                             usage="LIN_SEARCH_EPS_ERROR 1.E-2", default_r_val=1.0E-3_dp)
+         CALL section_add_keyword(section, keyword)
+         CALL keyword_release(keyword)
+
+         CALL keyword_create(keyword, __LOCATION__, name="LIN_SEARCH_STEP_SIZE_GUESS", &
+                             description="The size of the first step in the linear search", &
+                             usage="LIN_SEARCH_STEP_SIZE_GUESS 0.1", default_r_val=1.0_dp)
+         CALL section_add_keyword(section, keyword)
+         CALL keyword_release(keyword)
+
+         CALL keyword_create(keyword, __LOCATION__, name="PRECOND_FILTER_THRESHOLD", &
+                             description="Select eigenvalues of the preconditioner "// &
+                             "that are smaller than the threshold and project out the "// &
+                             "corresponding eigenvectors from the gradient. No matter "// &
+                             "how large the threshold is the maximum number of projected "// &
+                             "eienvectors for a fragment equals to the number of occupied "// &
+                             "orbitals of fragment's neighbors.", &
+                             usage="PRECOND_FILTER_THRESHOLD 0.1", default_r_val=0.5_dp)
+         CALL section_add_keyword(section, keyword)
+         CALL keyword_release(keyword)
+
+      ENDIF
+
+      IF (optimizer_type .EQ. optimizer_pcg .OR. &
+          optimizer_type .EQ. optimizer_trustr) THEN
+
+         CALL keyword_create(keyword, __LOCATION__, name="CONJUGATOR", &
+                             description="Various methods to compute step directions in the PCG optimization", &
+                             usage="CONJUGATOR POLAK_RIBIERE", &
+                             default_i_val=cg_hager_zhang, &
+                             enum_c_vals=s2a("ZERO", "POLAK_RIBIERE", "FLETCHER_REEVES", &
+                                             "HESTENES_STIEFEL", "FLETCHER", "LIU_STOREY", "DAI_YUAN", "HAGER_ZHANG"), &
+                             enum_desc=s2a("Steepest descent", "Polak and Ribiere", &
+                                           "Fletcher and Reeves", "Hestenes and Stiefel", &
+                                           "Fletcher (Conjugate descent)", "Liu and Storey", &
+                                           "Dai and Yuan", "Hager and Zhang"), &
+                             enum_i_vals=(/cg_zero, cg_polak_ribiere, cg_fletcher_reeves, &
+                                           cg_hestenes_stiefel, cg_fletcher, cg_liu_storey, &
+                                           cg_dai_yuan, cg_hager_zhang/))
+         CALL section_add_keyword(section, keyword)
+         CALL keyword_release(keyword)
+
+      ENDIF
+
+      IF (optimizer_type .EQ. optimizer_trustr) THEN
+
+         CALL keyword_create(keyword, __LOCATION__, name="ALGORITHM", &
+                             description="Selects an algorithm to solve the fixed-radius subproblem", &
+                             usage="ALGORITHM CG", &
+                             default_i_val=trustr_cauchy, &
+                             enum_c_vals=s2a("CG", "CAUCHY", "DOGLEG"), &
+                             enum_desc=s2a("Steihaug's iterative CG algorithm that does not invert model Hessian", &
+                                           "Compute simple Cauchy point", &
+                                           "Dogleg optimizer"), &
+                             enum_i_vals=(/trustr_steihaug, trustr_cauchy, trustr_dogleg/))
+         CALL section_add_keyword(section, keyword)
+         CALL keyword_release(keyword)
+
+         CALL keyword_create(keyword, __LOCATION__, name="ETA", &
+                             description="Must be between 0.0 and 0.25. Rho value below which the "// &
+                             "optimization of the model function is not accepted and the "// &
+                             "optimization is restarted from the same point but decreased "// &
+                             "trust radius. Rho is the ratio of the actual over predicted "// &
+                             "change in the objective function", &
+                             usage="ETA 0.1", default_r_val=0.25_dp)
+         CALL section_add_keyword(section, keyword)
+         CALL keyword_release(keyword)
+
+         CALL keyword_create(keyword, __LOCATION__, name="MODEL_GRAD_NORM_RATIO", &
+                             description="Stop the fixed-trust-radius (inner) loop optimization "// &
+                             "once the ratio of the current norm of the model gradient over the "// &
+                             "initial norm drops below this threshold", &
+                             usage="MODEL_GRAD_NORM_RATIO 1.E-2", default_r_val=0.01_dp)
+         CALL section_add_keyword(section, keyword)
+         CALL keyword_release(keyword)
+
+         CALL keyword_create(keyword, __LOCATION__, name="INITIAL_TRUST_RADIUS", &
+                             description="Initial trust radius", &
+                             usage="INITIAL_TRUST_RADIUS 0.1", default_r_val=0.1_dp)
+         CALL section_add_keyword(section, keyword)
+         CALL keyword_release(keyword)
+
+         CALL keyword_create(keyword, __LOCATION__, name="MAX_TRUST_RADIUS", &
+                             description="Maximum allowed trust radius", &
+                             usage="MAX_TRUST_RADIUS 1.0", default_r_val=2.0_dp)
+         CALL section_add_keyword(section, keyword)
+         CALL keyword_release(keyword)
+
+      ENDIF
 
    END SUBROUTINE create_optimizer_section
 
@@ -842,25 +864,54 @@ CONTAINS
 
       CALL section_create(section, __LOCATION__, name="PENALTY", &
                           description="Add penalty terms to the energy functional.", &
-                          n_keywords=2, n_subsections=0, repeats=.FALSE.)
+                          n_keywords=3, n_subsections=0, repeats=.FALSE.)
 
       NULLIFY (keyword)
 
       CALL keyword_create( &
-         keyword, __LOCATION__, name="OCCUPIED_VOLUME_PENALTY_METHOD", &
-         description="Penalty that prevents nonorthogonal orbitals from becoming linear dependent.", &
-         usage="OCCUPIED_VOLUME_PENALTY_METHOD LNDET", &
-         default_i_val=almo_occ_vol_penalty_none, &
-         enum_c_vals=s2a("NONE", "LNDET"), &
-         enum_desc=s2a("Do not use penalties", &
-                       "Use -coeff*ln(det(MO-overlap)) term."), &
-         enum_i_vals=(/almo_occ_vol_penalty_none, almo_occ_vol_penalty_lndet/))
+         keyword, __LOCATION__, name="OPERATOR", &
+         description="Type of opertator which defines the spread functional", &
+         usage="OPERATOR PIPEK", &
+         enum_c_vals=s2a("BERRY", "PIPEK"), &
+         enum_i_vals=(/op_loc_berry, op_loc_pipek/), &
+         default_i_val=op_loc_berry)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
-      CALL keyword_create(keyword, __LOCATION__, name="OCCUPIED_VOLUME_PENALTY_COEFF", &
-                          description="Multiplication factor that determines the strength of the penalty term.", &
-                          usage="OCCUPIED_VOLUME_PENALTY_COEFF 10.0", default_r_val=1.0_dp)
+      CALL keyword_create(keyword, __LOCATION__, name="PENALTY_STRENGTH", &
+                          description="Strength of the orthogonalization penalty", &
+                          usage="PENALTY_STRENGTH 1.1", default_r_val=1.1_dp)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="PENALTY_STRENGTH_DECREASE_FACTOR", &
+                          description="Factor that decreases the strength of the orthogonalization penalty.", &
+                          usage="PENALTY_STRENGTH_DECREASE_FACTOR 1.1", default_r_val=1.1_dp)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="DETERMINANT_TOLERANCE", &
+                          description="Stop the optimization of the penalty strength if the determinant of the overlap "// &
+                          "changes less than this tolerance threshold.", &
+                          usage="DETERMINANT_TOLERANCE 1.0E-4", default_r_val=1.0E-3_dp)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="FINAL_DETERMINANT", &
+                          description="The final determinant that obtained after optimization.", &
+                          usage="FINAL_DETERMINANT 0.1", default_r_val=0.1_dp)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="COMPACTIFICATION_FILTER_START", &
+                          description="Set orbital coefficients with absolute value smaller than this value to zero.", &
+                          usage="COMPACTIFICATION_FILTER_START 1.e-6", default_r_val=-1.0_dp)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="VIRTUAL_NLMOS", &
+                          description="Localize virtual oribtals", &
+                          usage="VIRTUAL_NLMOS .TRUE.", default_l_val=.FALSE.)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 

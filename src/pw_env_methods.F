@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -163,9 +163,9 @@ CONTAINS
                                                             set_vdw_pool, should_output, &
                                                             smooth_required, spherical, uf_grid, &
                                                             use_ref_cell
-      REAL(KIND=dp)                                      :: cutilev, max_rpgf0_s, rel_cutoff, zet0
+      REAL(KIND=dp)                                      :: cutilev, rel_cutoff
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: radius
-      REAL(KIND=dp), DIMENSION(:), POINTER, CONTIGUOUS   :: cutoff
+      REAL(KIND=dp), DIMENSION(:), POINTER               :: cutoff
       TYPE(cell_type), POINTER                           :: cell, cell_ref, my_cell
       TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(cp_para_env_type), POINTER                    :: para_env
@@ -173,17 +173,13 @@ CONTAINS
       TYPE(pw_grid_type), POINTER :: dct_pw_grid, mt_super_ref_grid, old_pw_grid, pw_grid, &
          super_ref_grid, vdw_grid, vdw_ref_grid, xc_super_ref_grid
       TYPE(pw_poisson_parameter_type)                    :: poisson_params
-      TYPE(pw_pool_p_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: pw_pools
+      TYPE(pw_pool_p_type), DIMENSION(:), POINTER        :: pw_pools
       TYPE(qs_dispersion_type), POINTER                  :: dispersion_env
-      TYPE(qs_kind_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: qs_kind_set
+      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(realspace_grid_desc_p_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: rs_descs
+         POINTER                                         :: rs_descs
       TYPE(realspace_grid_input_type)                    :: input_settings
-      TYPE(realspace_grid_p_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: rs_grids
-      TYPE(rho0_mpole_type), POINTER                     :: rho0_mpole
+      TYPE(realspace_grid_p_type), DIMENSION(:), POINTER :: rs_grids
       TYPE(section_vals_type), POINTER                   :: efg_section, input, linres_section, &
                                                             poisson_section, print_section, &
                                                             rs_grid_section, xc_section
@@ -202,7 +198,7 @@ CONTAINS
       !
       !
       NULLIFY (cutoff, cell, pw_grid, old_pw_grid, dft_control, qs_kind_set, &
-               pw_pools, rho0_mpole, rs_descs, para_env, cell_ref, vdw_ref_grid, &
+               pw_pools, rs_descs, para_env, cell_ref, vdw_ref_grid, &
                mt_super_ref_grid, input, poisson_section, xc_super_ref_grid, &
                dct_pw_grid, vdw_grid, super_ref_grid, my_cell, rs_grids, dispersion_env)
 
@@ -237,12 +233,6 @@ CONTAINS
          CALL destroy_gaussian_gridlevel(pw_env%gridlevel_info)
       ELSE
          ALLOCATE (pw_env%gridlevel_info)
-      END IF
-      IF (dft_control%qs_control%gapw) THEN
-         CALL get_qs_env(qs_env=qs_env, rho0_mpole=rho0_mpole)
-         CPASSERT(ASSOCIATED(rho0_mpole))
-         CALL get_rho0_mpole(rho0_mpole=rho0_mpole, &
-                             zet0_h=zet0, max_rpgf0_s=max_rpgf0_s)
       END IF
 
       IF (ASSOCIATED(pw_env%cube_info)) THEN
@@ -339,7 +329,6 @@ CONTAINS
 
       ! methods that require smoothing or nearest neighbor have to use a plane distributed setup
       ! find the xc properties (FIXME this could miss other xc sections that operate on the grid ...)
-      CALL get_qs_env(qs_env=qs_env, input=input)
       xc_section => section_vals_get_subs_vals(input, "DFT%XC")
       xc_deriv_method_id = section_get_ival(xc_section, "XC_GRID%XC_DERIV")
       xc_smooth_method_id = section_get_ival(xc_section, "XC_GRID%XC_SMOOTH_RHO")
@@ -442,8 +431,6 @@ CONTAINS
 
       pw_env%pw_pools => pw_pools
 
-      CALL cp_print_key_finished_output(iounit, logger, print_section, '')
-
       ! init auxbas_grid
       DO i = 1, ngrid_level
          IF (cutoff(i) == dft_control%qs_control%cutoff) pw_env%auxbas_grid = i
@@ -470,6 +457,7 @@ CONTAINS
          CPASSERT(ASSOCIATED(old_pw_grid))
          IF (.NOT. ASSOCIATED(vdw_ref_grid)) vdw_ref_grid => old_pw_grid
          CALL pw_grid_create(vdw_grid, para_env%group)
+         IF (iounit > 0) WRITE (iounit, "(/,T2,A)") "PW_GRID| Grid for non-local vdW functional"
          CALL pw_grid_setup(my_cell%hmat, vdw_grid, grid_span=grid_span, &
                             cutoff=dispersion_env%pw_cutoff, &
                             spherical=spherical, odd=odd, fft_usage=.TRUE., &
@@ -484,6 +472,8 @@ CONTAINS
          pw_env%vdw_pw_pool => pw_pools(pw_env%auxbas_grid)%pool
          CALL pw_pool_retain(pw_env%vdw_pw_pool)
       END IF
+
+      CALL cp_print_key_finished_output(iounit, logger, print_section, '')
 
       ! complete init of the poisson_env
       IF (.NOT. ASSOCIATED(pw_env%poisson_env)) THEN
@@ -577,7 +567,7 @@ CONTAINS
 
          rs_grid_section => section_vals_get_subs_vals(input, "DFT%MGRID%RS_GRID")
 
-         CALL init_input_type(input_settings, nsmax=2*MAX(1, return_cube_max_iradius(pw_env%cube_info(igrid_level)))+1, &
+         CALL init_input_type(input_settings, nsmax=2*MAX(1, return_cube_max_iradius(pw_env%cube_info(igrid_level))) + 1, &
                               rs_grid_section=rs_grid_section, ilevel=igrid_level, &
                               higher_grid_layout=higher_grid_layout)
 
@@ -748,6 +738,7 @@ CONTAINS
 !> \param qs_env ...
 !> \par History
 !>      10.2010 refactored [Joost VandeVondele]
+!>      01.2020 igrid_zet0_s initialisation code is reused in rho0_s_grid_create() [Sergey Chulkov]
 !> \author Joost VandeVondele
 ! **************************************************************************************************
    SUBROUTINE compute_max_radius(radius, pw_env, qs_env)
@@ -768,7 +759,7 @@ CONTAINS
       INTEGER, DIMENSION(:), POINTER                     :: npgfa, npgfb, nshella, nshellb
       INTEGER, DIMENSION(:, :), POINTER                  :: lshella, lshellb
       REAL(KIND=dp)                                      :: alpha, core_charge, eps_gvg, eps_rho, &
-                                                            max_rpgf0_s, maxradius, zet0, zetp
+                                                            max_rpgf0_s, maxradius, zet0_h, zetp
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: zeta, zetb
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(gto_basis_set_type), POINTER                  :: orb_basis_set
@@ -792,19 +783,14 @@ CONTAINS
       IF (dft_control%qs_control%gapw) THEN
          CALL get_qs_env(qs_env=qs_env, rho0_mpole=rho0_mpole)
          CPASSERT(ASSOCIATED(rho0_mpole))
-         CALL get_rho0_mpole(rho0_mpole=rho0_mpole, zet0_h=zet0, max_rpgf0_s=max_rpgf0_s)
+
+         CALL get_rho0_mpole(rho0_mpole=rho0_mpole, max_rpgf0_s=max_rpgf0_s, zet0_h=zet0_h)
+         igrid_zet0_s = gaussian_gridlevel(pw_env%gridlevel_info, 2.0_dp*zet0_h)
+         rho0_mpole%igrid_zet0_s = igrid_zet0_s
       END IF
 
       ngrid_level = SIZE(radius)
       nkind = SIZE(qs_kind_set)
-
-      ! Find the grid level suitable for rho0_soft
-      IF (dft_control%qs_control%gapw) THEN
-         igrid_zet0_s = gaussian_gridlevel(pw_env%gridlevel_info, 2.0_dp*zet0)
-         rho0_mpole%igrid_zet0_s = igrid_zet0_s
-      ELSE
-         igrid_zet0_s = 0
-      END IF
 
       ! try to predict the maximum radius of the gaussians to be mapped on the grid
       ! up to now, it is not yet very good
@@ -881,18 +867,18 @@ CONTAINS
                      DO jset = 1, nsetb
                      DO jpgf = 1, npgfb(jset)
                      DO jshell = 1, nshellb(jset)
-                        zetp = zeta(ipgf, iset)+zetb(jpgf, jset)
-                        lb = lshellb(jshell, jset)+la
+                        zetp = zeta(ipgf, iset) + zetb(jpgf, jset)
+                        lb = lshellb(jshell, jset) + la
                         lgrid_level = gaussian_gridlevel(pw_env%gridlevel_info, zetp)
                         IF (lgrid_level .EQ. igrid_level) THEN
                            ! density (scale is at most 2)
                            maxradius = MAX(maxradius, exp_radius(lb, zetp, eps_rho, 2.0_dp))
                            ! tau, properties?
-                           maxradius = MAX(maxradius, exp_radius(lb+1, zetp, eps_rho, 2.0_dp))
+                           maxradius = MAX(maxradius, exp_radius(lb + 1, zetp, eps_rho, 2.0_dp))
                            ! potential
                            maxradius = MAX(maxradius, exp_radius(lb, zetp, eps_gvg, 2.0_dp))
                            ! forces
-                           maxradius = MAX(maxradius, exp_radius(lb+1, zetp, eps_gvg, 2.0_dp))
+                           maxradius = MAX(maxradius, exp_radius(lb + 1, zetp, eps_gvg, 2.0_dp))
                         ENDIF
                      END DO
                      END DO
@@ -1048,7 +1034,7 @@ CONTAINS
       CASE (derivative_cd7)
          border_points = 3
       END SELECT
-      CALL init_input_type(input_settings, 2*border_points+1, rs_grid_section, &
+      CALL init_input_type(input_settings, 2*border_points + 1, rs_grid_section, &
                            1, (/-1, -1, -1/))
       CALL rs_grid_create_descriptor(rs_desc, pw_grid, input_settings, &
                                      border_points=border_points)

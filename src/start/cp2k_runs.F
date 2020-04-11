@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -41,9 +41,7 @@ MODULE cp2k_runs
                                               cp_unit_set_type,&
                                               print_all_units
    USE cuda_profiling,                  ONLY: cuda_nvtx_init
-   USE dbcsr_api,                       ONLY: dbcsr_acc_get_ndevices,&
-                                              dbcsr_acc_set_active_device,&
-                                              dbcsr_finalize_lib,&
+   USE dbcsr_api,                       ONLY: dbcsr_finalize_lib,&
                                               dbcsr_init_lib,&
                                               dbcsr_print_config,&
                                               dbcsr_print_statistics
@@ -85,8 +83,7 @@ MODULE cp2k_runs
    USE input_cp2k,                      ONLY: create_cp2k_root_section
    USE input_cp2k_check,                ONLY: check_cp2k_input
    USE input_cp2k_global,               ONLY: create_global_section
-   USE input_cp2k_read,                 ONLY: empty_initial_variables,&
-                                              read_input
+   USE input_cp2k_read,                 ONLY: read_input
    USE input_keyword_types,             ONLY: keyword_release
    USE input_parsing,                   ONLY: section_vals_parse
    USE input_section_types,             ONLY: &
@@ -152,6 +149,7 @@ CONTAINS
 !> \param input_file_name name of the file to be opened for input
 !> \param output_unit unit to which output should be written
 !> \param mpi_comm ...
+!> \param initial_variables key-value list of initial preprocessor variables
 !> \author Joost VandeVondele
 !> \note
 !>      para_env should be a valid communicator
@@ -168,10 +166,12 @@ CONTAINS
 !>      able to run simultaneously / multithreaded / sequential / parallel / ...
 !>      and able to fail safe
 ! **************************************************************************************************
-   RECURSIVE SUBROUTINE cp2k_run(input_declaration, input_file_name, output_unit, mpi_comm)
+   RECURSIVE SUBROUTINE cp2k_run(input_declaration, input_file_name, output_unit, mpi_comm, initial_variables)
       TYPE(section_type), POINTER                        :: input_declaration
       CHARACTER(LEN=*), INTENT(IN)                       :: input_file_name
       INTEGER, INTENT(IN)                                :: output_unit, mpi_comm
+      CHARACTER(len=default_path_length), &
+         DIMENSION(:, :), INTENT(IN)                     :: initial_variables
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'cp2k_run', routineP = moduleN//':'//routineN
 
@@ -191,16 +191,14 @@ CONTAINS
       NULLIFY (para_env, f_env, dft_control)
       CALL cp_para_env_create(para_env, group=mpi_comm, owns_group=.FALSE.)
 
-      IF (dbcsr_acc_get_ndevices() > 0) &
-         CALL dbcsr_acc_set_active_device(MOD(para_env%mepos, dbcsr_acc_get_ndevices()))
+      ! DBCSR sets the GPU device, make sure it is the first GPU call
+      CALL dbcsr_init_lib(mpi_comm, io_unit=output_unit)
 
       CALL cuda_nvtx_init()
 
       CALL pw_cuda_init()
 
       CALL pw_fpga_init()
-
-      CALL dbcsr_init_lib(mpi_comm, io_unit=output_unit)
 
       CALL cp_sirius_init()
 
@@ -209,7 +207,7 @@ CONTAINS
       CALL cite_reference(Hutter2014)
 
       ! parse the input
-      input_file => read_input(input_declaration, input_file_name, initial_variables=empty_initial_variables, &
+      input_file => read_input(input_declaration, input_file_name, initial_variables=initial_variables, &
                                para_env=para_env)
 
       CALL mp_sync(para_env%group)
@@ -265,11 +263,12 @@ CONTAINS
          CALL cp_sirius_finalize()
          CALL pw_cuda_finalize()
          CALL pw_fpga_finalize()
-         CALL farming_run(input_declaration, root_section, para_env)
-         CALL cp_sirius_init()
+         ! DBCSR sets the GPU device, make sure it is the first GPU call
+         CALL farming_run(input_declaration, root_section, para_env, initial_variables)
          CALL dbcsr_init_lib(mpi_comm, io_unit=output_unit)
          CALL pw_cuda_init()
          CALL pw_fpga_init()
+         CALL cp_sirius_init()
       CASE (do_opt_basis)
          CALL run_optimize_basis(input_declaration, root_section, para_env)
          globenv%run_type_id = none_run
@@ -404,7 +403,7 @@ CONTAINS
       IF (output_unit > 0) THEN
          WRITE (output_unit, *)
          WRITE (output_unit, '(T2,"MEMORY| Estimated peak process memory [MiB]",T73,I8)') &
-            (m_memory_max_mpi+(1024*1024)-1)/(1024*1024)
+            (m_memory_max_mpi + (1024*1024) - 1)/(1024*1024)
       ENDIF
 
       IF (prog_name_id == do_cp2k) THEN
@@ -435,15 +434,17 @@ CONTAINS
 !> \param input_declaration ...
 !> \param root_section ...
 !> \param para_env ...
+!> \param initial_variables ...
 !> \author Joost VandeVondele
 !> \note
 !>      needs to be part of this module as the cp2k_run -> farming_run -> cp2k_run
 !>      calling style creates a hard circular dependency
 ! **************************************************************************************************
-   RECURSIVE SUBROUTINE farming_run(input_declaration, root_section, para_env)
+   RECURSIVE SUBROUTINE farming_run(input_declaration, root_section, para_env, initial_variables)
       TYPE(section_type), POINTER              :: input_declaration
       TYPE(section_vals_type), POINTER         :: root_section
       TYPE(cp_para_env_type), POINTER          :: para_env
+      CHARACTER(len=default_path_length), DIMENSION(:, :), INTENT(IN) :: initial_variables
 
       CHARACTER(len=*), PARAMETER :: routineN = 'farming_run', &
                                      routineP = moduleN//':'//routineN
@@ -494,8 +495,8 @@ CONTAINS
          IF (output_unit > 0) WRITE (output_unit, FMT="(T2,A)") "FARMING| using a master-slave setup"
 
          ALLOCATE (master_slave_partition(0:1))
-         master_slave_partition = (/1, para_env%num_pe-1/)
-         ALLOCATE (group_distribution(0:para_env%num_pe-1))
+         master_slave_partition = (/1, para_env%num_pe - 1/)
+         ALLOCATE (group_distribution(0:para_env%num_pe - 1))
 
          CALL mp_comm_split(para_env%group, slave_group, ngroups, group_distribution, &
                             n_subgroups=2, group_partition=master_slave_partition)
@@ -509,10 +510,10 @@ CONTAINS
             ! on the master node, num_slaves corresponds to the size of the master group
             ! due to the mp_environ call.
             CPASSERT(num_slaves == 1)
-            num_slaves = para_env%num_pe-1
+            num_slaves = para_env%num_pe - 1
             slave_rank = -1
          ENDIF
-         CPASSERT(num_slaves == para_env%num_pe-1)
+         CPASSERT(num_slaves == para_env%num_pe - 1)
       ELSE
          ! all processes are slaves
          IF (output_unit > 0) WRITE (output_unit, FMT="(T2,A)") "FARMING| using a slave-only setup"
@@ -522,19 +523,19 @@ CONTAINS
       IF (output_unit > 0) WRITE (output_unit, FMT="(T2,A,I0)") "FARMING| number of slaves ", num_slaves
 
       ! keep track of which para_env rank is which slave/master
-      ALLOCATE (slave_distribution(0:para_env%num_pe-1))
+      ALLOCATE (slave_distribution(0:para_env%num_pe - 1))
       slave_distribution = 0
       slave_distribution(para_env%mepos) = slave_rank
       CALL mp_sum(slave_distribution, para_env%group)
       ! we do have a primus inter pares
       primus_slave = 0
-      DO i = 1, para_env%num_pe-1
+      DO i = 1, para_env%num_pe - 1
          IF (slave_distribution(i) == 0) primus_slave = i
       ENDDO
 
       ! split the current communicator for the slaves
       ! in a new_group, new_size and new_rank according to the number of groups required according to the input
-      ALLOCATE (group_distribution(0:num_slaves-1))
+      ALLOCATE (group_distribution(0:num_slaves - 1))
       group_distribution = -1
       IF (slave) THEN
          IF (farming_env%group_size_wish_set) THEN
@@ -576,7 +577,7 @@ CONTAINS
       IF (output_unit > 0) THEN
          WRITE (output_unit, FMT="(T2,A,T71,I10)") "FARMING| Number of created MPI (slave) groups:", ngroups
          WRITE (output_unit, FMT="(T2,A)", ADVANCE="NO") "FARMING| MPI (slave) process to group correspondence:"
-         DO i = 0, num_slaves-1
+         DO i = 0, num_slaves - 1
             IF (MODULO(i, 4) == 0) WRITE (output_unit, *)
             WRITE (output_unit, FMT='(A3,I6,A3,I6,A1)', ADVANCE="NO") &
                "  (", i, " : ", group_distribution(i), ")"
@@ -589,11 +590,11 @@ CONTAINS
       ! and determine the future restart point
       IF (farming_env%cycle) THEN
          n_jobs_to_run = farming_env%max_steps*ngroups
-         i_job_to_restart = MODULO(farming_env%restart_n+n_jobs_to_run-1, farming_env%njobs)+1
+         i_job_to_restart = MODULO(farming_env%restart_n + n_jobs_to_run - 1, farming_env%njobs) + 1
       ELSE
          n_jobs_to_run = MIN(farming_env%njobs, farming_env%max_steps*ngroups)
-         n_jobs_to_run = MIN(n_jobs_to_run, farming_env%njobs-farming_env%restart_n+1)
-         i_job_to_restart = n_jobs_to_run+farming_env%restart_n
+         n_jobs_to_run = MIN(n_jobs_to_run, farming_env%njobs - farming_env%restart_n + 1)
+         i_job_to_restart = n_jobs_to_run + farming_env%restart_n
       ENDIF
 
       ! and write the restart now, that's the point where the next job starts, even if this one is running
@@ -606,8 +607,8 @@ CONTAINS
 
       ! this is the job range to be executed.
       ijob_start = farming_env%restart_n
-      ijob_end = ijob_start+n_jobs_to_run-1
-      IF (output_unit > 0 .AND. ijob_end-ijob_start < 0) THEN
+      ijob_end = ijob_start + n_jobs_to_run - 1
+      IF (output_unit > 0 .AND. ijob_end - ijob_start < 0) THEN
          WRITE (output_unit, FMT="(T2,A)") "FARMING| --- WARNING --- NO JOBS NEED EXECUTION ? "
          WRITE (output_unit, FMT="(T2,A)") "FARMING| is the cycle keyword required ?"
          WRITE (output_unit, FMT="(T2,A)") "FARMING| or is a stray RESTART file present ?"
@@ -645,7 +646,7 @@ CONTAINS
                   t1 = m_walltime()
                   DO
                      t2 = m_walltime()
-                     IF (t2-t1 > farming_env%wait_time) EXIT
+                     IF (t2 - t1 > farming_env%wait_time) EXIT
                   ENDDO
                CASE (do_nothing)
                   EXIT
@@ -654,9 +655,9 @@ CONTAINS
                END SELECT
             ENDDO
          ELSE ! master
-            ALLOCATE (slave_status(0:ngroups-1))
+            ALLOCATE (slave_status(0:ngroups - 1))
             slave_status = slave_status_wait
-            ijob_current = ijob_start-1
+            ijob_current = ijob_start - 1
 
             DO
                IF (ALL(slave_status == slave_status_done)) EXIT
@@ -715,21 +716,21 @@ CONTAINS
          ! the i-th job in the input is always executed by the MODULO(i-1,ngroups)-th group
          ! (needed for cyclic runs, we don't want two groups working on the same job)
          IF (output_unit > 0) THEN
-            IF (ijob_end-ijob_start >= 0) THEN
+            IF (ijob_end - ijob_start >= 0) THEN
                WRITE (output_unit, FMT="(T2,A)") "FARMING| List of jobs : "
                DO ijob = ijob_start, ijob_end
-                  i = MODULO(ijob-1, farming_env%njobs)+1
+                  i = MODULO(ijob - 1, farming_env%njobs) + 1
                   WRITE (output_unit, FMT=*) "Job: ", i, " Dir: ", TRIM(farming_env%Job(i)%cwd), " Input: ", &
-                     TRIM(farming_env%Job(i)%input), " MPI group:", MODULO(i-1, ngroups)
+                     TRIM(farming_env%Job(i)%input), " MPI group:", MODULO(i - 1, ngroups)
                ENDDO
             ENDIF
             CALL m_flush(output_unit)
          ENDIF
 
          DO ijob = ijob_start, ijob_end
-            i = MODULO(ijob-1, farming_env%njobs)+1
+            i = MODULO(ijob - 1, farming_env%njobs) + 1
             ! this farms out the jobs
-            IF (MODULO(i-1, ngroups) == group_distribution(slave_rank)) THEN
+            IF (MODULO(i - 1, ngroups) == group_distribution(slave_rank)) THEN
                IF (output_unit > 0) THEN
                   WRITE (output_unit, FMT="(T2,A,I5.5,A)", ADVANCE="NO") " Running Job ", i, &
                      " in "//TRIM(farming_env%Job(i)%cwd)//"."
@@ -749,16 +750,16 @@ CONTAINS
       t1 = m_walltime()
       CALL mp_sync(para_env%group)
       t2 = m_walltime()
-      ALLOCATE (waittime(0:para_env%num_pe-1))
+      ALLOCATE (waittime(0:para_env%num_pe - 1))
       waittime = 0.0_dp
-      waittime(para_env%mepos) = t2-t1
+      waittime(para_env%mepos) = t2 - t1
       CALL mp_sum(waittime, para_env%group)
       IF (output_unit > 0) THEN
          WRITE (output_unit, '(T2,A)') "Process idle times [s] at the end of the run"
-         DO i = 0, para_env%num_pe-1
+         DO i = 0, para_env%num_pe - 1
             WRITE (output_unit, FMT='(A2,I6,A3,F8.3,A1)', ADVANCE="NO") &
                " (", i, " : ", waittime(i), ")"
-            IF (MOD(i+1, 4) == 0) WRITE (output_unit, '(A)') ""
+            IF (MOD(i + 1, 4) == 0) WRITE (output_unit, '(A)') ""
          ENDDO
          CALL m_flush(output_unit)
       ENDIF
@@ -835,7 +836,7 @@ CONTAINS
             new_output_unit = -1
          ENDIF
 
-         CALL cp2k_run(input_declaration, TRIM(farming_env%Job(i)%input), new_output_unit, new_group)
+         CALL cp2k_run(input_declaration, TRIM(farming_env%Job(i)%input), new_output_unit, new_group, initial_variables)
 
          IF (new_rank == 0) CALL close_file(unit_number=new_output_unit)
 
@@ -875,12 +876,12 @@ CONTAINS
       WRITE (UNIT=unit_number, FMT="(A)") &
          "<!DOCTYPE documentElement["
       DO i = 1, SIZE(html_entity_table), 2
-         is = INDEX(html_entity_table(i), "&")+1
+         is = INDEX(html_entity_table(i), "&") + 1
          CPASSERT(is > 0)
-         ie = INDEX(html_entity_table(i), ";")-1
+         ie = INDEX(html_entity_table(i), ";") - 1
          CPASSERT(ie >= is)
          WRITE (UNIT=unit_number, FMT="(A)") &
-            "<!ENTITY "//html_entity_table(i) (is:ie)//" """//TRIM(html_entity_table(i+1))//""">"
+            "<!ENTITY "//html_entity_table(i) (is:ie)//" """//TRIM(html_entity_table(i + 1))//""">"
       END DO
       WRITE (UNIT=unit_number, FMT="(A)") &
          "]>"
@@ -928,15 +929,18 @@ CONTAINS
 !> \param input_file_path the path of the input file
 !> \param output_file_path path of the output file (to which it is appended)
 !>        if it is "__STD_OUT__" the default_output_unit is used
+!> \param initial_variables key-value list of initial preprocessor variables
 !> \param mpi_comm the mpi communicator to be used for this environment
 !>        it will not be freed
 !> \author fawzi
 !> \note
 !>      moved here because of circular dependencies
 ! **************************************************************************************************
-   SUBROUTINE run_input(input_declaration, input_file_path, output_file_path, mpi_comm)
+   SUBROUTINE run_input(input_declaration, input_file_path, output_file_path, initial_variables, mpi_comm)
       TYPE(section_type), POINTER                        :: input_declaration
       CHARACTER(len=*), INTENT(in)                       :: input_file_path, output_file_path
+      CHARACTER(len=default_path_length), &
+         DIMENSION(:, :), INTENT(IN)                     :: initial_variables
       INTEGER, INTENT(in), OPTIONAL                      :: mpi_comm
 
       CHARACTER(len=*), PARAMETER :: routineN = 'run_input', routineP = moduleN//':'//routineN
@@ -962,7 +966,7 @@ CONTAINS
       ELSE
          unit_nr = -1
       END IF
-      CALL cp2k_run(input_declaration, input_file_path, unit_nr, para_env%group)
+      CALL cp2k_run(input_declaration, input_file_path, unit_nr, para_env%group, initial_variables)
       CALL cp_para_env_release(para_env) !XXXXXXXXXXXX uninitiliased error
    END SUBROUTINE run_input
 

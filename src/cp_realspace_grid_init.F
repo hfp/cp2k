@@ -1,11 +1,11 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
 !> \note
-!>      Routine to initalize a real space grid from a given input section
+!>      Routine to initialize a real space grid from a given input section
 !> \par History
 !>      01.2014 moved routine from realspace_grid_types into separate file.
 !> \author Ole Schuett

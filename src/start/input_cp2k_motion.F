@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -1338,7 +1338,7 @@ CONTAINS
                           usage="TYPE GOLD", &
                           default_i_val=ls_gold, &
                           enum_c_vals=s2a("NONE", "2PNT", "3PNT", "GOLD", "FIT"), &
-                          enum_desc=s2a("take fixed lenght steps", &
+                          enum_desc=s2a("take fixed length steps", &
                                         "extrapolate based on 2 points", &
                                         "extrapolate based on on 3 points", &
                                         "perform 1D golden section search of the minimum (very expensive)", &
@@ -2624,7 +2624,7 @@ CONTAINS
                           n_keywords=16, n_subsections=0, repeats=.FALSE.)
 
       ! *************************************************************************
-      !> Printkeys for properites output
+      !> Printkeys for properties output
       ! *************************************************************************
       NULLIFY (print_key)
 

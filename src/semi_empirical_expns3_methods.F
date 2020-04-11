@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -192,7 +192,7 @@ CONTAINS
          DO j = 1, sepj%natorb
             lk = l_index(j)
             kl = indexa(j, j)
-            kr = kr+1
+            kr = kr + 1
             sepi%expns3_int(jkind)%expns3%w(kr) = &
                ijkl_low_3(sepi, sepj, ij, kl, li, li, lk, lk, 0, do_method_undef, coeff_int_3)
          END DO
@@ -206,7 +206,7 @@ CONTAINS
          DO j = 1, sepi%natorb
             lk = l_index(j)
             kl = indexa(j, j)
-            kr = kr+1
+            kr = kr + 1
             sepj%expns3_int(ikind)%expns3%w(kr) = &
                ijkl_low_3(sepj, sepi, ij, kl, li, li, lk, lk, 0, do_method_undef, coeff_int_3)
          END DO

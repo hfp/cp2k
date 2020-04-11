@@ -25,6 +25,7 @@ case "$with_libvdwxc" in
         require_env MPI_CFLAGS
         require_env MPI_LDFLAGS
         require_env MPI_LIBS
+        require_env FFTW_ROOT
         require_env FFTW_LDFLAGS
         require_env FFTW_LIBS
         require_env FFTW_CFLAGS
@@ -67,15 +68,15 @@ case "$with_libvdwxc" in
                 ./configure \
                     --prefix="${pkg_install_dir}" \
                     --libdir="${pkg_install_dir}/lib" \
-                    --with-fftw3 \
+                    --with-fftw3=${FFTW_ROOT} \
                     --disable-shared \
                     --without-mpi \
                     >> configure.log 2>&1
             else
-                CC=mpicc FC=mpifort ./configure \
+                CC="${MPICC}" FC="${MPIFC}" ./configure \
                     --prefix="${pkg_install_dir}" \
                     --libdir="${pkg_install_dir}/lib" \
-                    --with-fftw3 \
+                    --with-fftw3=${FFTW_ROOT} \
                     --disable-shared \
                     --with-mpi \
                     >> configure.log 2>&1
@@ -125,7 +126,7 @@ export CP_CFLAGS="\${CP_CFLAGS} IF_MPI(IF_OMP(${LIBVDWXC_CFLAGS}|)|)"
 export CP_LDFLAGS="\${CP_LDFLAGS} IF_MPI(IF_OMP(${LIBVDWXC_LDFLAGS}|)|)"
 export CP_LIBS="IF_MPI(IF_OMP(${LIBVDWXC_LIBS}|)|) \${CP_LIBS}"
 export PKG_CONFIG_PATH="$pkg_install_dir/lib/pkgconfig:$PKG_CONFIG_PATH"
-export LIBVDWXCROOT="$pkg_install_dir"
+export VDWXC_DIR="$pkg_install_dir"
 EOF
         cat "${BUILDDIR}/setup_libvdwxc" >> $SETUPFILE
 fi

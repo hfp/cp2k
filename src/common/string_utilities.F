@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -76,6 +76,7 @@ MODULE string_utilities
              s2a, a2s, &
              str_comp, &
              string_to_ascii, &
+             strip_control_codes, &
              substitute_special_xml_tokens, &
              typo_match, &
              uppercase, &
@@ -126,7 +127,7 @@ CONTAINS
             tmp(i:i) = kind
             tmp(j:j) = kind
             IF (i == j .AND. LEN_TRIM(tmp) > 2) tmp(i:i) = star
-            IF (pattern_match(string=string, pattern=tmp)) match = match+1
+            IF (pattern_match(string=string, pattern=tmp)) match = match + 1
          ENDDO
       ENDDO
       IF (LEN_TRIM(string) .LE. 4) THEN
@@ -140,12 +141,12 @@ CONTAINS
             tmp2(i:i) = kind
             tmp2(j:j) = kind
             IF (i == j .AND. LEN_TRIM(tmp2) > 2) tmp2(i:i) = star
-            IF (pattern_match(string=typo_string, pattern=tmp2)) match = match+1
+            IF (pattern_match(string=typo_string, pattern=tmp2)) match = match + 1
          ENDDO
       ENDDO
       IF (match > 0) THEN
          ! bonus points for small differences in length
-         IF (ABS(LEN_TRIM(string)-LEN_TRIM(typo_string)) < 3) match = match+2
+         IF (ABS(LEN_TRIM(string) - LEN_TRIM(typo_string)) < 3) match = match + 2
       ENDIF
 
    END FUNCTION typo_match
@@ -1632,13 +1633,13 @@ CONTAINS
             IF (string(i:i) /= " ") THEN
                tmp = string(i:i)
                string(z:z) = tmp
-               z = z+1
+               z = z + 1
             END IF
          ELSE
-            IF ((string(i:i) /= " ") .OR. (string(z-1:z-1) /= " ")) THEN
+            IF ((string(i:i) /= " ") .OR. (string(z - 1:z - 1) /= " ")) THEN
                tmp = string(i:i)
                string(z:z) = tmp
-               z = z+1
+               z = z + 1
             END IF
          END IF
       END DO
@@ -1702,11 +1703,11 @@ CONTAINS
       i = 1
       ! possibly clean white spaces
       DO WHILE (string(i:i) == " ")
-         i = i+1
+         i = i + 1
       END DO
       ! now remove the word
       DO WHILE (string(i:i) /= " ")
-         i = i+1
+         i = i + 1
       END DO
       string = string(i:)
 
@@ -1746,17 +1747,17 @@ CONTAINS
       i = 0
       j = 1
       string_loop: DO
-         i = i+1
+         i = i + 1
          IF (i > LEN_TRIM(string)) EXIT string_loop
          IF (string(i:i) == "<") THEN
             ! Detect valid HTML tags and keep them
             ientry = 0
             ilen = INDEX(string(i:), ">")
-            IF ((ilen > 2) .AND. (ilen <= maxlen_tag_name+3)) THEN
-               IF (string(i+1:i+1) == "/") THEN
-                  tag_name(1:) = string(i+2:i+ilen-2)
+            IF ((ilen > 2) .AND. (ilen <= maxlen_tag_name + 3)) THEN
+               IF (string(i + 1:i + 1) == "/") THEN
+                  tag_name(1:) = string(i + 2:i + ilen - 2)
                ELSE
-                  tag_name(1:) = string(i+1:i+ilen-2)
+                  tag_name(1:) = string(i + 1:i + ilen - 2)
                END IF
                CALL lowercase(tag_name)
                tag_loop: DO k = 1, SIZE(html_tag_table)
@@ -1766,49 +1767,49 @@ CONTAINS
                   END IF
                END DO tag_loop
                IF (ientry > 0) THEN ! HTML tag found in table
-                  IF (string(i+1:i+1) == "/") THEN
-                     out_string(j:j+ilen+7) = "&#60;/"//TRIM(tag_name)//"&#62;"
+                  IF (string(i + 1:i + 1) == "/") THEN
+                     out_string(j:j + ilen + 7) = "&#60;/"//TRIM(tag_name)//"&#62;"
                   ELSE
-                     out_string(j:j+ilen+7) = "&#60;"//TRIM(tag_name)//"&#62;"
+                     out_string(j:j + ilen + 7) = "&#60;"//TRIM(tag_name)//"&#62;"
                   END IF
-                  i = i+ilen-1
-                  j = j+ilen+8
+                  i = i + ilen - 1
+                  j = j + ilen + 8
                END IF
             END IF
             ! HTML tag not found in table
             IF (ientry == 0) THEN
-               out_string(j:j+4) = "&#60;"
-               j = j+5
+               out_string(j:j + 4) = "&#60;"
+               j = j + 5
             END IF
          ELSE IF (string(i:i) == ">") THEN
-            out_string(j:j+4) = "&#62;"
-            j = j+5
+            out_string(j:j + 4) = "&#62;"
+            j = j + 5
          ELSE IF (string(i:i) == "&") THEN
             ! Substitute HTML entity names by the corresponding entity number
             ientry = 0
             ilen = INDEX(string(i:), ";")
             IF ((ilen > 2) .AND. (ilen <= maxlen_entity_name)) THEN
-               entity_name(1:) = string(i:i+ilen-1)
+               entity_name(1:) = string(i:i + ilen - 1)
                entity_loop: DO k = 1, SIZE(html_entity_table), 2
                   IF (entity_name == html_entity_table(k)) THEN
-                     ientry = k+1
+                     ientry = k + 1
                      EXIT entity_loop
                   END IF
                END DO entity_loop
-               i = i+ilen-1
+               i = i + ilen - 1
                IF (ientry > 0) THEN ! HTML entity found in table
                   ilen = LEN_TRIM(html_entity_table(ientry))
-                  out_string(j:j+ilen-1) = TRIM(ADJUSTL(html_entity_table(ientry)))
-                  j = j+ilen
+                  out_string(j:j + ilen - 1) = TRIM(ADJUSTL(html_entity_table(ientry)))
+                  j = j + ilen
                END IF
             END IF
             IF (ientry == 0) THEN
-               out_string(j:j+4) = "&#38;"
-               j = j+5
+               out_string(j:j + 4) = "&#38;"
+               j = j + 5
             END IF
          ELSE
             out_string(j:j) = string(i:i)
-            j = j+1
+            j = j + 1
          END IF
       END DO string_loop
 
@@ -1839,7 +1840,7 @@ CONTAINS
          WRITE (UNIT=output_unit, FMT="(T3,A)") &
             "<ENTITY>", &
             " <NAME>&#38;"//TRIM(html_entity_table(i) (2:))//"</NAME>", &
-            " <CODE>&#38;"//TRIM(html_entity_table(i+1) (2:))//"</CODE>", &
+            " <CODE>&#38;"//TRIM(html_entity_table(i + 1) (2:))//"</CODE>", &
             "</ENTITY>"
       END DO
 
@@ -1862,7 +1863,7 @@ CONTAINS
       DO i = 1, LEN_TRIM(string)
          iascii = ICHAR(string(i:i))
          IF ((iascii >= 65) .AND. (iascii <= 90)) THEN
-            string(i:i) = CHAR(iascii+32)
+            string(i:i) = CHAR(iascii + 32)
          END IF
       END DO
 
@@ -1883,7 +1884,7 @@ CONTAINS
       DO i = 1, LEN_TRIM(string)
          iascii = ICHAR(string(i:i))
          IF ((iascii >= 97) .AND. (iascii <= 122)) THEN
-            string(i:i) = CHAR(iascii-32)
+            string(i:i) = CHAR(iascii - 32)
          END IF
       END DO
 
@@ -1905,7 +1906,7 @@ CONTAINS
       ib = LEN_TRIM(string)
       IF (ib > 0) THEN
          DO WHILE (string(ia:ia) == ' ')
-            ia = ia+1
+            ia = ia + 1
          END DO
       END IF
 
@@ -1948,5 +1949,25 @@ CONTAINS
       resval = .FALSE.
       IF (ANY(default_blank_character == testchar)) resval = .TRUE.
    END FUNCTION is_whitespace
+
+! **************************************************************************************************
+!> \brief Strip control codes and extended characters from a string, i.e. replace them with blanks
+!> \param string ...
+!> \date    13.12.2019
+!> \author  MK
+!> \version 1.0
+! **************************************************************************************************
+   SUBROUTINE strip_control_codes(string)
+
+      CHARACTER(LEN=*), INTENT(INOUT)                    :: string
+
+      INTEGER                                            :: i, iascii
+
+      DO i = 1, LEN(string)
+         iascii = ICHAR(string(i:i))
+         IF ((iascii < 32) .OR. (iascii > 126)) string(i:i) = " "
+      END DO
+
+   END SUBROUTINE strip_control_codes
 
 END MODULE string_utilities

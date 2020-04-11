@@ -1,14 +1,14 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 MODULE callgraph
-   USE kinds,                           ONLY: int_4, int_8
-   USE timings_base_type,               ONLY: call_stat_type
+   USE kinds, ONLY: int_4, int_8
+   USE timings_base_type, ONLY: call_stat_type
 #include "../base/base_uses.f90"
 
-IMPLICIT NONE
-PRIVATE
+   IMPLICIT NONE
+   PRIVATE
 
 #:include 'hash_map.fypp'
 
@@ -16,7 +16,6 @@ PRIVATE
                 key_type='INTEGER(kind=int_4), DIMENSION(2)', &
                 value_type='TYPE(call_stat_type), POINTER')
 #:endcall hash_map
-
 
 ! **************************************************************************************************
 !> \brief ...
@@ -32,7 +31,6 @@ PRIVATE
       k2 = key(2)
       hash = IOR(k1, ISHFT(k2, 32))
    END FUNCTION callgraph_hash_function
-
 
 ! **************************************************************************************************
 !> \brief ...

@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -317,7 +317,7 @@ CONTAINS
             REPEAT("=", 79)
 
          WRITE (UNIT=iounit, FMT="(T2,A)") &
-            "LINRES| Properties to be calulated:"
+            "LINRES| Properties to be calculated:"
          CALL section_vals_val_get(lr_section, "NMR%_SECTION_PARAMETERS_", l_val=do_it)
          IF (do_it) WRITE (UNIT=iounit, FMT="(T62,A)") "NMR Chemical Shift"
          CALL section_vals_val_get(lr_section, "EPR%_SECTION_PARAMETERS_", l_val=do_it)

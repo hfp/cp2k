@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 MODULE se_fock_matrix_dbg
@@ -66,14 +66,14 @@ CONTAINS
       ! Compute the Hartree energy
       DO ispin = 1, nspins
          CALL dbcsr_dot(ks_matrix(ispin)%matrix, matrix_p(ispin)%matrix, ecoul)
-         energy%hartree = energy%hartree+ecoul
+         energy%hartree = energy%hartree + ecoul
 
          WRITE (*, *) ispin, "ECOUL ", ecoul
       END DO
       WRITE (*, *) "ENUC in DBG:", energy%core_overlap
 
       ! Debug statements
-      WRITE (*, *) "TOTAL ENE", 0.5_dp*energy%hartree+energy%core_overlap
+      WRITE (*, *) "TOTAL ENE", 0.5_dp*energy%hartree + energy%core_overlap
       CPABORT("Debug energy for Coulomb Long-Range")
 
    END SUBROUTINE dbg_energy_coulomb_lr

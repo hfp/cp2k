@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -88,7 +88,7 @@ CONTAINS
          END IF
       END DO
 
-      ! Seach for an unused entry
+      ! Search for an unused entry
       islot = -1
       DO ic = 1, nc
          IF (preconnected(ic)%unit_number == -1) THEN
@@ -211,7 +211,7 @@ CONTAINS
 
       nc = SIZE(preconnected)
 
-      ! Seach for preconnection entry and delete it when found
+      ! Search for preconnection entry and delete it when found
       DO ic = 1, nc
          IF (TRIM(preconnected(ic)%file_name) == TRIM(file_name)) THEN
             IF (preconnected(ic)%unit_number == unit_number) THEN

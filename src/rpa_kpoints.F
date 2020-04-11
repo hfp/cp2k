@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -88,14 +88,14 @@ CONTAINS
 !> \param eps_filter_im_time ...
 !> \param kpoints ...
 !> \param fm_mat_L ...
-!> \param fm_mat_W_tau ...
+!> \param fm_mat_W ...
 !> \param fm_mat_RI_global_work ...
 !> \param mat_SinvVSinv ...
 ! **************************************************************************************************
    SUBROUTINE RPA_postprocessing_kp(dimen_RI, num_integ_points, jquad, nkp, count_ev_sc_GW, para_env, para_env_RPA, &
                                     Erpa, tau_tj, tj, wj, weights_cos_tf_w_to_t, wkp_W, do_gw_im_time, do_ri_Sigma_x, &
                                     do_kpoints_from_Gamma, do_kpoints_cubic_RPA, cfm_mat_W_kp_tau, cfm_mat_Q, ikp_local, &
-                                    mat_P_omega, mat_P_omega_kp, qs_env, eps_filter_im_time, kpoints, fm_mat_L, fm_mat_W_tau, &
+                                    mat_P_omega, mat_P_omega_kp, qs_env, eps_filter_im_time, kpoints, fm_mat_L, fm_mat_W, &
                                     fm_mat_RI_global_work, mat_SinvVSinv)
 
       INTEGER, INTENT(IN)                                :: dimen_RI, num_integ_points, jquad, nkp, &
@@ -105,7 +105,8 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(0:num_integ_points), &
          INTENT(IN)                                      :: tau_tj
       REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: tj, wj
-      REAL(KIND=dp), DIMENSION(:, :), INTENT(IN)         :: weights_cos_tf_w_to_t
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
+         INTENT(IN)                                      :: weights_cos_tf_w_to_t
       REAL(KIND=dp), DIMENSION(:), POINTER               :: wkp_W
       LOGICAL, INTENT(IN)                                :: do_gw_im_time, do_ri_Sigma_x, &
                                                             do_kpoints_from_Gamma, &
@@ -118,7 +119,7 @@ CONTAINS
       REAL(KIND=dp), INTENT(IN)                          :: eps_filter_im_time
       TYPE(kpoint_type), POINTER                         :: kpoints
       TYPE(cp_fm_p_type), DIMENSION(:, :), POINTER       :: fm_mat_L
-      TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: fm_mat_W_tau
+      TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: fm_mat_W
       TYPE(cp_fm_type), POINTER                          :: fm_mat_RI_global_work
       TYPE(dbcsr_p_type), INTENT(IN)                     :: mat_SinvVSinv
 
@@ -173,7 +174,7 @@ CONTAINS
 
                CALL get_dummys(tj_dummy, tau_tj_dummy, weights_cos_tf_w_to_t_dummy)
 
-               CALL compute_Wc_real_space_tau_GW(fm_mat_W_tau, cfm_mat_Q, &
+               CALL compute_Wc_real_space_tau_GW(fm_mat_W, cfm_mat_Q, &
                                                  fm_mat_L(ikp, 1)%matrix, &
                                                  fm_mat_L(ikp, 2)%matrix, &
                                                  dimen_RI, 1, 1, &
@@ -186,7 +187,7 @@ CONTAINS
             END IF
             IF (do_kpoints_from_Gamma) THEN
 
-               CALL compute_Wc_real_space_tau_GW(fm_mat_W_tau, cfm_mat_Q, &
+               CALL compute_Wc_real_space_tau_GW(fm_mat_W, cfm_mat_Q, &
                                                  fm_mat_L(ikp, 1)%matrix, &
                                                  fm_mat_L(ikp, 2)%matrix, &
                                                  dimen_RI, num_integ_points, jquad, &
@@ -405,7 +406,7 @@ CONTAINS
             i_global = row_indices(iiB)
             IF (j_global == i_global .AND. i_global <= dimen_RI) THEN
                trace_Qomega(i_global) = REAL(cfm_mat_Q%local_data(iiB, jjB))
-               cfm_mat_Q%local_data(iiB, jjB) = cfm_mat_Q%local_data(iiB, jjB)+z_one
+               cfm_mat_Q%local_data(iiB, jjB) = cfm_mat_Q%local_data(iiB, jjB) + z_one
             END IF
          END DO
       END DO
@@ -475,10 +476,10 @@ CONTAINS
       DO iiB = 1, dimen_RI
          IF (MODULO(iiB, para_env_RPA%num_pe) /= para_env_RPA%mepos) CYCLE
          ! FComega=FComega+(LOG(Q_log(iiB))-trace_Qomega(iiB))/2.0_dp
-         FComega = FComega+(Q_log(iiB)-trace_Qomega(iiB))/2.0_dp
+         FComega = FComega + (Q_log(iiB) - trace_Qomega(iiB))/2.0_dp
       END DO
 
-      Erpa = Erpa+FComega*freq_weight*kp_weight
+      Erpa = Erpa + FComega*freq_weight*kp_weight
 
       DEALLOCATE (Q_log)
 
@@ -628,7 +629,7 @@ CONTAINS
          ! we have at most 3 neigboring cells per dimension and at least one because
          ! the density response at Gamma is only divided to neighboring
          IF (periodic(i_dim) == 1) THEN
-            cell_grid_P(i_dim) = MAX(MIN((kpoints%nkp_grid(i_dim)/2)*2-1, 1), 3)
+            cell_grid_P(i_dim) = MAX(MIN((kpoints%nkp_grid(i_dim)/2)*2 - 1, 1), 3)
          ELSE
             cell_grid_P(i_dim) = 1
          END IF
@@ -666,11 +667,11 @@ CONTAINS
          DO i_cell = 1, num_cells_P
 
             cell_vector(1:3) = MATMUL(hmat, REAL(index_to_cell_P(1:3, i_cell), dp))
-            rab_cell_i(1:3) = pbc(particle_set(row)%r(1:3), cell)- &
-                              (pbc(particle_set(col)%r(1:3), cell)+cell_vector(1:3))
-            abs_rab_cell(i_cell) = SQRT(rab_cell_i(1)**2+rab_cell_i(2)**2+rab_cell_i(3)**2)
+            rab_cell_i(1:3) = pbc(particle_set(row)%r(1:3), cell) - &
+                              (pbc(particle_set(col)%r(1:3), cell) + cell_vector(1:3))
+            abs_rab_cell(i_cell) = SQRT(rab_cell_i(1)**2 + rab_cell_i(2)**2 + rab_cell_i(3)**2)
             IF (abs_rab_cell(i_cell)/d_0 < cutoff_exp) THEN
-               sum_exp = sum_exp+EXP(-abs_rab_cell(i_cell)/d_0)
+               sum_exp = sum_exp + EXP(-abs_rab_cell(i_cell)/d_0)
             END IF
 
          END DO
@@ -787,7 +788,7 @@ CONTAINS
 
       num_cells = SIZE(index_to_cell, 2)
 
-      CPASSERT(SIZE(mat_real_space) >= num_cells/2+1)
+      CPASSERT(SIZE(mat_real_space) >= num_cells/2 + 1)
 
       DO ik = 1, nkp
 
@@ -798,11 +799,11 @@ CONTAINS
          CALL dbcsr_reserve_all_blocks(real_mat_kp(ik)%matrix)
          CALL dbcsr_reserve_all_blocks(imag_mat_kp(ik)%matrix)
 
-         DO i_cell = 1, num_cells/2+1
+         DO i_cell = 1, num_cells/2 + 1
 
             cell(:) = index_to_cell(:, i_cell)
 
-            arg = REAL(cell(1), dp)*xkp(1, ik)+REAL(cell(2), dp)*xkp(2, ik)+REAL(cell(3), dp)*xkp(3, ik)
+            arg = REAL(cell(1), dp)*xkp(1, ik) + REAL(cell(2), dp)*xkp(2, ik) + REAL(cell(3), dp)*xkp(3, ik)
             coskl = COS(twopi*arg)
             sinkl = SIN(twopi*arg)
 
@@ -862,7 +863,7 @@ CONTAINS
 
          CPASSERT(found)
 
-         block_to_compute(:, :) = alpha*block_to_compute(:, :)+beta*data_block(:, :)
+         block_to_compute(:, :) = alpha*block_to_compute(:, :) + beta*data_block(:, :)
 
       END DO
       CALL dbcsr_iterator_stop(iter)

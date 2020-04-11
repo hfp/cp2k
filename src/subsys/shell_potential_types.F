@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -76,7 +76,7 @@ CONTAINS
       CHARACTER(LEN=*), PARAMETER :: routineN = 'get_shell', routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(shell)) THEN
-         IF (PRESENT(charge)) charge = shell%charge_core+shell%charge_shell
+         IF (PRESENT(charge)) charge = shell%charge_core + shell%charge_shell
          IF (PRESENT(charge_core)) charge_core = shell%charge_core
          IF (PRESENT(charge_shell)) charge_shell = shell%charge_shell
          IF (PRESENT(mass_core)) mass_core = shell%mass_core
@@ -141,7 +141,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(shell))
       CPASSERT(shell%ref_count > 0)
-      shell%ref_count = shell%ref_count+1
+      shell%ref_count = shell%ref_count + 1
 
    END SUBROUTINE shell_retain
 
@@ -157,7 +157,7 @@ CONTAINS
 
       IF (ASSOCIATED(shell)) THEN
          CPASSERT(shell%ref_count > 0)
-         shell%ref_count = shell%ref_count-1
+         shell%ref_count = shell%ref_count - 1
          IF (shell%ref_count == 0) THEN
             DEALLOCATE (shell)
          END IF

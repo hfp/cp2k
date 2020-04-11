@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -36,7 +36,7 @@ MODULE qs_vxc_atom
                                               has_nlcc,&
                                               qs_kind_type
    USE qs_linres_types,                 ONLY: nablavks_atom_type
-   USE qs_p_env_types,                  ONLY: qs_p_env_type
+   USE qs_local_rho_types,              ONLY: local_rho_type
    USE qs_rho_atom_types,               ONLY: get_rho_atom,&
                                               rho_atom_coeff,&
                                               rho_atom_type
@@ -73,16 +73,28 @@ CONTAINS
 !> \brief ...
 !> \param qs_env ...
 !> \param energy_only ...
+!> \param exc1 the on-body ex energy contribution
 !> \param gradient_atom_set ...
 !> \param adiabatic_rescale_factor ...
+!> \param kind_set_external provides a non-default kind_set to use
+!> \param rho_atom_set_external provides a non-default atomic density set to use
+!> \param xc_section_external provides an external non-default XC
 ! **************************************************************************************************
-   SUBROUTINE calculate_vxc_atom(qs_env, energy_only, gradient_atom_set, adiabatic_rescale_factor)
+   SUBROUTINE calculate_vxc_atom(qs_env, energy_only, exc1, gradient_atom_set, &
+                                 adiabatic_rescale_factor, kind_set_external, &
+                                 rho_atom_set_external, xc_section_external)
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
       LOGICAL, INTENT(IN)                                :: energy_only
+      REAL(dp), INTENT(INOUT)                            :: exc1
       TYPE(nablavks_atom_type), DIMENSION(:), OPTIONAL, &
          POINTER                                         :: gradient_atom_set
       REAL(dp), INTENT(IN), OPTIONAL                     :: adiabatic_rescale_factor
+      TYPE(qs_kind_type), DIMENSION(:), OPTIONAL, &
+         POINTER                                         :: kind_set_external
+      TYPE(rho_atom_type), DIMENSION(:), OPTIONAL, &
+         POINTER                                         :: rho_atom_set_external
+      TYPE(section_vals_type), OPTIONAL, POINTER         :: xc_section_external
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_vxc_atom', &
          routineP = moduleN//':'//routineN
@@ -105,14 +117,13 @@ CONTAINS
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(grid_atom_type), POINTER                      :: grid_atom
       TYPE(harmonics_atom_type), POINTER                 :: harmonics
-      TYPE(qs_energy_type), POINTER                      :: energy
-      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
+      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: my_kind_set
       TYPE(qs_kind_type), POINTER                        :: qs_kind
       TYPE(rho_atom_coeff), DIMENSION(:), POINTER        :: dr_h, dr_s, r_h, r_s
       TYPE(rho_atom_coeff), DIMENSION(:, :), POINTER     :: r_h_d, r_s_d, trho_h, trho_s
-      TYPE(rho_atom_type), DIMENSION(:), POINTER         :: rho_atom_set
+      TYPE(rho_atom_type), DIMENSION(:), POINTER         :: my_rho_atom_set
       TYPE(rho_atom_type), POINTER                       :: rho_atom
-      TYPE(section_vals_type), POINTER                   :: input, xc_fun_section, xc_section
+      TYPE(section_vals_type), POINTER                   :: input, my_xc_section, xc_fun_section
       TYPE(xc_derivative_set_type), POINTER              :: deriv_set
       TYPE(xc_rho_cflags_type)                           :: needs
       TYPE(xc_rho_set_type), POINTER                     :: rho_set_h, rho_set_s
@@ -121,18 +132,19 @@ CONTAINS
 
       CALL timeset(routineN, handle)
 
+      !TODO: make sure we use the right xc_section
+
       NULLIFY (atom_list)
-      NULLIFY (qs_kind_set)
+      NULLIFY (my_kind_set)
       NULLIFY (atomic_kind_set)
       NULLIFY (qs_kind)
       NULLIFY (deriv_set)
-      NULLIFY (energy)
       NULLIFY (grid_atom)
       NULLIFY (harmonics)
       NULLIFY (input)
       NULLIFY (para_env)
       NULLIFY (rho_atom)
-      NULLIFY (rho_atom_set)
+      NULLIFY (my_rho_atom_set)
       NULLIFY (rho_set_h)
       NULLIFY (rho_set_s)
 
@@ -150,34 +162,39 @@ CONTAINS
       CALL get_qs_env(qs_env=qs_env, &
                       dft_control=dft_control, &
                       para_env=para_env, &
-                      energy=energy, &
                       atomic_kind_set=atomic_kind_set, &
-                      qs_kind_set=qs_kind_set, &
+                      qs_kind_set=my_kind_set, &
                       input=input, &
-                      rho_atom_set=rho_atom_set)
+                      rho_atom_set=my_rho_atom_set)
 
-      nlcc = has_nlcc(qs_kind_set)
+      IF (PRESENT(kind_set_external)) my_kind_set => kind_set_external
+      IF (PRESENT(rho_atom_set_external)) my_rho_atom_set => rho_atom_set_external
+
+      nlcc = has_nlcc(my_kind_set)
 
       IF (epr_xc) THEN
-         xc_section => section_vals_get_subs_vals(input, &
-                                                  "PROPERTIES%LINRES%EPR%PRINT%G_TENSOR%XC")
+         my_xc_section => section_vals_get_subs_vals(input, &
+                                                     "PROPERTIES%LINRES%EPR%PRINT%G_TENSOR%XC")
       ELSE
-         xc_section => section_vals_get_subs_vals(input, "DFT%XC")
+         my_xc_section => section_vals_get_subs_vals(input, "DFT%XC")
       END IF
-      xc_fun_section => section_vals_get_subs_vals(xc_section, "XC_FUNCTIONAL")
+
+      IF (PRESENT(xc_section_external)) my_xc_section => xc_section_external
+
+      xc_fun_section => section_vals_get_subs_vals(my_xc_section, "XC_FUNCTIONAL")
       CALL section_vals_val_get(xc_fun_section, "_SECTION_PARAMETERS_", &
                                 i_val=myfun)
 
       IF (myfun == xc_none) THEN
-         energy%exc1 = 0.0_dp
-         rho_atom_set(:)%exc_h = 0.0_dp
-         rho_atom_set(:)%exc_s = 0.0_dp
+         exc1 = 0.0_dp
+         my_rho_atom_set(:)%exc_h = 0.0_dp
+         my_rho_atom_set(:)%exc_s = 0.0_dp
       ELSE
-         CALL section_vals_val_get(xc_section, "DENSITY_CUTOFF", &
+         CALL section_vals_val_get(my_xc_section, "DENSITY_CUTOFF", &
                                    r_val=density_cut)
-         CALL section_vals_val_get(xc_section, "GRADIENT_CUTOFF", &
+         CALL section_vals_val_get(my_xc_section, "GRADIENT_CUTOFF", &
                                    r_val=gradient_cut)
-         CALL section_vals_val_get(xc_section, "TAU_CUTOFF", &
+         CALL section_vals_val_get(my_xc_section, "TAU_CUTOFF", &
                                    r_val=tau_cut)
 
          lsd = dft_control%lsd
@@ -193,7 +210,7 @@ CONTAINS
          tau_f = (needs%tau .OR. needs%tau_spin)
 
          ! Initialize energy contribution from the one center XC terms to zero
-         energy%exc1 = 0.0_dp
+         exc1 = 0.0_dp
 
          ! Nullify some pointers for work-arrays
          NULLIFY (rho_h, drho_h, rho_s, drho_s, weight)
@@ -205,7 +222,7 @@ CONTAINS
 
          DO ikind = 1, SIZE(atomic_kind_set)
             CALL get_atomic_kind(atomic_kind_set(ikind), atom_list=atom_list, natom=natom)
-            CALL get_qs_kind(qs_kind_set(ikind), paw_atom=paw_atom, &
+            CALL get_qs_kind(my_kind_set(ikind), paw_atom=paw_atom, &
                              harmonics=harmonics, grid_atom=grid_atom)
 
             IF (.NOT. paw_atom) CYCLE
@@ -258,7 +275,7 @@ CONTAINS
             donlcc = .FALSE.
             IF (nlcc) THEN
                NULLIFY (rho_nlcc)
-               rho_nlcc => qs_kind_set(ikind)%nlcc_pot
+               rho_nlcc => my_kind_set(ikind)%nlcc_pot
                IF (ASSOCIATED(rho_nlcc)) donlcc = .TRUE.
             END IF
 
@@ -271,10 +288,10 @@ CONTAINS
             DO iat = bo(1), bo(2)
                iatom = atom_list(iat)
 
-               rho_atom_set(iatom)%exc_h = 0.0_dp
-               rho_atom_set(iatom)%exc_s = 0.0_dp
+               my_rho_atom_set(iatom)%exc_h = 0.0_dp
+               my_rho_atom_set(iatom)%exc_s = 0.0_dp
 
-               rho_atom => rho_atom_set(iatom)
+               rho_atom => my_rho_atom_set(iatom)
                IF (gradient_f) THEN
                   NULLIFY (r_h, r_s, dr_h, dr_s, r_h_d, r_s_d)
                   CALL get_rho_atom(rho_atom=rho_atom, rho_rad_h=r_h, &
@@ -315,7 +332,7 @@ CONTAINS
                CALL vxc_of_r_new(xc_fun_section, rho_set_h, deriv_set, 1, needs, weight, &
                                  lsd, na, nr, exc_h, vxc_h, vxg_h, vtau_h, energy_only=energy_only, &
                                  epr_xc=epr_xc, adiabatic_rescale_factor=my_adiabatic_rescale_factor)
-               rho_atom%exc_h = rho_atom%exc_h+exc_h
+               rho_atom%exc_h = rho_atom%exc_h + exc_h
 
                !-------------------!
                ! soft atom density !
@@ -324,7 +341,7 @@ CONTAINS
                CALL vxc_of_r_new(xc_fun_section, rho_set_s, deriv_set, 1, needs, weight, &
                                  lsd, na, nr, exc_s, vxc_s, vxg_s, vtau_s, energy_only=energy_only, &
                                  epr_xc=epr_xc, adiabatic_rescale_factor=my_adiabatic_rescale_factor)
-               rho_atom%exc_s = rho_atom%exc_s+exc_s
+               rho_atom%exc_s = rho_atom%exc_s + exc_s
 
                IF (epr_xc) THEN
                   DO ispin = 1, nspins
@@ -333,10 +350,10 @@ CONTAINS
                            DO ia = 1, na
                               gradient_atom_set(iatom)%nablavks_vec_rad_h(idir, ispin)%r_coef(ir, ia) = &
                                  gradient_atom_set(iatom)%nablavks_vec_rad_h(idir, ispin)%r_coef(ir, ia) &
-                                 +vxg_h(idir, ia, ir, ispin)
+                                 + vxg_h(idir, ia, ir, ispin)
                               gradient_atom_set(iatom)%nablavks_vec_rad_s(idir, ispin)%r_coef(ir, ia) = &
                                  gradient_atom_set(iatom)%nablavks_vec_rad_s(idir, ispin)%r_coef(ir, ia) &
-                                 +vxg_s(idir, ia, ir, ispin)
+                                 + vxg_s(idir, ia, ir, ispin)
                            END DO ! ia
                         END DO ! ir
                      END DO ! idir
@@ -345,14 +362,14 @@ CONTAINS
 
                ! Add contributions to the exc energy
 
-               energy%exc1 = energy%exc1+rho_atom%exc_h-rho_atom%exc_s
+               exc1 = exc1 + rho_atom%exc_h - rho_atom%exc_s
 
                ! Integration to get the matrix elements relative to the vxc_atom
                ! here the products with the primitives is done: gaVxcgb
                ! internal transformation to get the integral in cartesian Gaussians
 
                IF (.NOT. energy_only) THEN
-                  qs_kind => qs_kind_set(ikind)
+                  qs_kind => my_kind_set(ikind)
                   IF (gradient_f) THEN
                      CALL gaVxcgb_GC(vxc_h, vxc_s, vxg_h, vxg_s, qs_kind, &
                                      rho_atom, nspins)
@@ -373,7 +390,7 @@ CONTAINS
 
          END DO ! ikind
 
-         CALL mp_sum(energy%exc1, para_env%group)
+         CALL mp_sum(exc1, para_env%group)
 
          IF (ASSOCIATED(rho_h)) THEN
             DEALLOCATE (rho_h)
@@ -439,18 +456,22 @@ CONTAINS
 
 ! **************************************************************************************************
 !> \brief ...
-!> \param p_env ...
+!> \param local_rho_set ...
 !> \param qs_env ...
 !> \param xc_section ...
-!> \param do_tddft ...
+!> \param para_env ...
+!> \param do_tddft   Initial implementation of TDDFT. Control parameters are read directly from
+!>                   'DFT' input section
 !> \param do_triplet ...
 ! **************************************************************************************************
-   SUBROUTINE calculate_xc_2nd_deriv_atom(p_env, qs_env, xc_section, do_tddft, do_triplet)
+   SUBROUTINE calculate_xc_2nd_deriv_atom(local_rho_set, qs_env, xc_section, para_env, do_tddft, do_triplet)
 
-      TYPE(qs_p_env_type), POINTER                       :: p_env
+      TYPE(local_rho_type), POINTER                      :: local_rho_set
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(section_vals_type), POINTER                   :: xc_section
-      LOGICAL, INTENT(IN), OPTIONAL                      :: do_tddft, do_triplet
+      TYPE(cp_para_env_type), POINTER                    :: para_env
+      LOGICAL, INTENT(IN)                                :: do_tddft
+      LOGICAL, INTENT(IN), OPTIONAL                      :: do_triplet
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_xc_2nd_deriv_atom', &
          routineP = moduleN//':'//routineN
@@ -461,7 +482,7 @@ CONTAINS
       INTEGER, DIMENSION(2, 3)                           :: bounds
       INTEGER, DIMENSION(:), POINTER                     :: atom_list
       LOGICAL                                            :: gradient_functional, lsd, lsd_singlets, &
-                                                            my_do_tddft, paw_atom, tau_f
+                                                            paw_atom, tau_f
       REAL(KIND=dp)                                      :: density_cut, gradient_cut, rtot, tau_cut
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: rho1_h, rho1_s, rho_h, rho_s, tau1_h, &
                                                             tau1_s, tau_h, tau_s, weight
@@ -469,7 +490,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :, :, :), POINTER      :: drho1_h, drho1_s, drho_h, drho_s, vxg_h, &
                                                             vxg_s
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(grid_atom_type), POINTER                      :: grid_atom
       TYPE(harmonics_atom_type), POINTER                 :: harmonics
       TYPE(qs_energy_type), POINTER                      :: energy
@@ -489,14 +509,11 @@ CONTAINS
 
       CALL timeset(routineN, handle)
 
-      NULLIFY (qs_kind_set, energy, para_env)
+      NULLIFY (qs_kind_set, energy)
       NULLIFY (rho_h, rho_s, drho_h, drho_s, weight)
       NULLIFY (rho1_h, rho1_s, drho1_h, drho1_s)
       NULLIFY (vxc_h, vxc_s, vxg_h, vxg_s)
       NULLIFY (tau_h, tau_s, tau1_h, tau1_s)
-
-      my_do_tddft = .TRUE.
-      IF (PRESENT(do_tddft)) my_do_tddft = do_tddft
 
       CALL get_qs_env(qs_env=qs_env, &
                       para_env=para_env, &
@@ -506,7 +523,7 @@ CONTAINS
                       atomic_kind_set=atomic_kind_set, &
                       rho_atom_set=rho_atom_set)
 
-      rho1_atom_set => p_env%local_rho_set%rho_atom_set
+      rho1_atom_set => local_rho_set%rho_atom_set
 
       CALL section_vals_val_get(input, "DFT%LSD", l_val=lsd)
       CALL section_vals_val_get(xc_section, "DENSITY_CUTOFF", &
@@ -515,7 +532,7 @@ CONTAINS
                                 r_val=gradient_cut)
       CALL section_vals_val_get(xc_section, "TAU_CUTOFF", &
                                 r_val=tau_cut)
-      IF (my_do_tddft) THEN
+      IF (do_tddft) THEN
          CALL section_vals_val_get(input, "DFT%EXCITATIONS", &
                                    i_val=excitations)
          CALL section_vals_val_get(input, "DFT%TDDFPT%LSD_SINGLETS", &
@@ -538,7 +555,7 @@ CONTAINS
          CPABORT("Tau functionals not implemented for GAPW 2nd derivatives")
       END IF
 
-      IF (my_do_tddft) THEN
+      IF (do_tddft) THEN
          IF (excitations == tddfpt_excitations) THEN
             IF (nspins == 1 .AND. (lsd_singlets .OR. res_etype == tddfpt_triplet)) THEN
                lsd = .TRUE.
@@ -764,10 +781,10 @@ CONTAINS
       DO ispin = 1, nspins
          DO iso = 1, harmonics%max_iso_not0
             DO ia = 1, na
-               rho_h(ia, ispin) = rho_h(ia, ispin)+ &
+               rho_h(ia, ispin) = rho_h(ia, ispin) + &
                                   r_h(ispin)%r_coef(ir, iso)* &
                                   harmonics%slm(ia, iso)
-               rho_s(ia, ispin) = rho_s(ia, ispin)+ &
+               rho_s(ia, ispin) = rho_s(ia, ispin) + &
                                   r_s(ispin)%r_coef(ir, iso)* &
                                   harmonics%slm(ia, iso)
             END DO ! ia
@@ -780,51 +797,51 @@ CONTAINS
                DO ia = 1, na
 
 !              components of the gradient of rho1 hard
-                  drho_h(1, ia, ir, ispin) = drho_h(1, ia, ir, ispin)+ &
+                  drho_h(1, ia, ir, ispin) = drho_h(1, ia, ir, ispin) + &
                                              dr_h(ispin)%r_coef(ir, iso)* &
-                                             harmonics%a(1, ia)*harmonics%slm(ia, iso)+ &
+                                             harmonics%a(1, ia)*harmonics%slm(ia, iso) + &
                                              r_h_d(1, ispin)%r_coef(ir, iso)* &
                                              harmonics%slm(ia, iso)
 
-                  drho_h(2, ia, ir, ispin) = drho_h(2, ia, ir, ispin)+ &
+                  drho_h(2, ia, ir, ispin) = drho_h(2, ia, ir, ispin) + &
                                              dr_h(ispin)%r_coef(ir, iso)* &
-                                             harmonics%a(2, ia)*harmonics%slm(ia, iso)+ &
+                                             harmonics%a(2, ia)*harmonics%slm(ia, iso) + &
                                              r_h_d(2, ispin)%r_coef(ir, iso)* &
                                              harmonics%slm(ia, iso)
 
-                  drho_h(3, ia, ir, ispin) = drho_h(3, ia, ir, ispin)+ &
+                  drho_h(3, ia, ir, ispin) = drho_h(3, ia, ir, ispin) + &
                                              dr_h(ispin)%r_coef(ir, iso)* &
-                                             harmonics%a(3, ia)*harmonics%slm(ia, iso)+ &
+                                             harmonics%a(3, ia)*harmonics%slm(ia, iso) + &
                                              r_h_d(3, ispin)%r_coef(ir, iso)* &
                                              harmonics%slm(ia, iso)
 
 !              components of the gradient of rho1 soft
-                  drho_s(1, ia, ir, ispin) = drho_s(1, ia, ir, ispin)+ &
+                  drho_s(1, ia, ir, ispin) = drho_s(1, ia, ir, ispin) + &
                                              dr_s(ispin)%r_coef(ir, iso)* &
-                                             harmonics%a(1, ia)*harmonics%slm(ia, iso)+ &
+                                             harmonics%a(1, ia)*harmonics%slm(ia, iso) + &
                                              r_s_d(1, ispin)%r_coef(ir, iso)* &
                                              harmonics%slm(ia, iso)
 
-                  drho_s(2, ia, ir, ispin) = drho_s(2, ia, ir, ispin)+ &
+                  drho_s(2, ia, ir, ispin) = drho_s(2, ia, ir, ispin) + &
                                              dr_s(ispin)%r_coef(ir, iso)* &
-                                             harmonics%a(2, ia)*harmonics%slm(ia, iso)+ &
+                                             harmonics%a(2, ia)*harmonics%slm(ia, iso) + &
                                              r_s_d(2, ispin)%r_coef(ir, iso)* &
                                              harmonics%slm(ia, iso)
 
-                  drho_s(3, ia, ir, ispin) = drho_s(3, ia, ir, ispin)+ &
+                  drho_s(3, ia, ir, ispin) = drho_s(3, ia, ir, ispin) + &
                                              dr_s(ispin)%r_coef(ir, iso)* &
-                                             harmonics%a(3, ia)*harmonics%slm(ia, iso)+ &
+                                             harmonics%a(3, ia)*harmonics%slm(ia, iso) + &
                                              r_s_d(3, ispin)%r_coef(ir, iso)* &
                                              harmonics%slm(ia, iso)
 
                   drho_h(4, ia, ir, ispin) = SQRT( &
-                                             drho_h(1, ia, ir, ispin)*drho_h(1, ia, ir, ispin)+ &
-                                             drho_h(2, ia, ir, ispin)*drho_h(2, ia, ir, ispin)+ &
+                                             drho_h(1, ia, ir, ispin)*drho_h(1, ia, ir, ispin) + &
+                                             drho_h(2, ia, ir, ispin)*drho_h(2, ia, ir, ispin) + &
                                              drho_h(3, ia, ir, ispin)*drho_h(3, ia, ir, ispin))
 
                   drho_s(4, ia, ir, ispin) = SQRT( &
-                                             drho_s(1, ia, ir, ispin)*drho_s(1, ia, ir, ispin)+ &
-                                             drho_s(2, ia, ir, ispin)*drho_s(2, ia, ir, ispin)+ &
+                                             drho_s(1, ia, ir, ispin)*drho_s(1, ia, ir, ispin) + &
+                                             drho_s(2, ia, ir, ispin)*drho_s(2, ia, ir, ispin) + &
                                              drho_s(3, ia, ir, ispin)*drho_s(3, ia, ir, ispin))
 
                END DO ! ia
@@ -870,21 +887,21 @@ CONTAINS
       DO ispin = 1, nspins
          DO iso = 1, harmonics%max_iso_not0
             DO ia = 1, na
-               tau_h(ia, ispin) = tau_h(ia, ispin)+ &
+               tau_h(ia, ispin) = tau_h(ia, ispin) + &
                                   trho_h(1, ispin)%r_coef(ir, iso)*harmonics%slm(ia, iso)
-               tau_h(ia, ispin) = tau_h(ia, ispin)+ &
+               tau_h(ia, ispin) = tau_h(ia, ispin) + &
                                   trho_h(3, ispin)%r_coef(ir, iso)*harmonics%slm(ia, iso)
-               tau_s(ia, ispin) = tau_s(ia, ispin)+ &
+               tau_s(ia, ispin) = tau_s(ia, ispin) + &
                                   trho_s(1, ispin)%r_coef(ir, iso)*harmonics%slm(ia, iso)
-               tau_s(ia, ispin) = tau_s(ia, ispin)+ &
+               tau_s(ia, ispin) = tau_s(ia, ispin) + &
                                   trho_s(3, ispin)%r_coef(ir, iso)*harmonics%slm(ia, iso)
             END DO ! ia
          END DO ! iso
          DO iso = 1, harmonics%max_iso_not0
             DO ia = 1, na
-               tau_h(ia, ispin) = tau_h(ia, ispin)+ &
+               tau_h(ia, ispin) = tau_h(ia, ispin) + &
                                   trho_h(2, ispin)%r_coef(ir, iso)*harmonics%slm(ia, iso)*grid_atom%usin_azi(ia)**2
-               tau_s(ia, ispin) = tau_s(ia, ispin)+ &
+               tau_s(ia, ispin) = tau_s(ia, ispin) + &
                                   trho_s(2, ispin)%r_coef(ir, iso)*harmonics%slm(ia, iso)*grid_atom%usin_azi(ia)**2
             END DO ! ia
          END DO ! iso
@@ -935,8 +952,8 @@ CONTAINS
       xsp = REAL(nspins, KIND=dp)
       rho = rho_nlcc(ir)/xsp
       DO ispin = 1, nspins
-         rho_h(1:na, ispin) = rho_h(1:na, ispin)+rho
-         rho_s(1:na, ispin) = rho_s(1:na, ispin)+rho
+         rho_h(1:na, ispin) = rho_h(1:na, ispin) + rho
+         rho_s(1:na, ispin) = rho_s(1:na, ispin) + rho
       END DO ! ispin
 
       IF (grad_func) THEN
@@ -952,22 +969,22 @@ CONTAINS
                END IF
                dz = grid_atom%cos_pol(ia)
                ! components of the gradient of rho1 hard
-               drho_h(1, ia, ir, ispin) = drho_h(1, ia, ir, ispin)+drho*dx
-               drho_h(2, ia, ir, ispin) = drho_h(2, ia, ir, ispin)+drho*dy
-               drho_h(3, ia, ir, ispin) = drho_h(3, ia, ir, ispin)+drho*dz
+               drho_h(1, ia, ir, ispin) = drho_h(1, ia, ir, ispin) + drho*dx
+               drho_h(2, ia, ir, ispin) = drho_h(2, ia, ir, ispin) + drho*dy
+               drho_h(3, ia, ir, ispin) = drho_h(3, ia, ir, ispin) + drho*dz
                ! components of the gradient of rho1 soft
-               drho_s(1, ia, ir, ispin) = drho_s(1, ia, ir, ispin)+drho*dx
-               drho_s(2, ia, ir, ispin) = drho_s(2, ia, ir, ispin)+drho*dy
-               drho_s(3, ia, ir, ispin) = drho_s(3, ia, ir, ispin)+drho*dz
+               drho_s(1, ia, ir, ispin) = drho_s(1, ia, ir, ispin) + drho*dx
+               drho_s(2, ia, ir, ispin) = drho_s(2, ia, ir, ispin) + drho*dy
+               drho_s(3, ia, ir, ispin) = drho_s(3, ia, ir, ispin) + drho*dz
                ! norm of gradient
                drho_h(4, ia, ir, ispin) = SQRT( &
-                                          drho_h(1, ia, ir, ispin)*drho_h(1, ia, ir, ispin)+ &
-                                          drho_h(2, ia, ir, ispin)*drho_h(2, ia, ir, ispin)+ &
+                                          drho_h(1, ia, ir, ispin)*drho_h(1, ia, ir, ispin) + &
+                                          drho_h(2, ia, ir, ispin)*drho_h(2, ia, ir, ispin) + &
                                           drho_h(3, ia, ir, ispin)*drho_h(3, ia, ir, ispin))
 
                drho_s(4, ia, ir, ispin) = SQRT( &
-                                          drho_s(1, ia, ir, ispin)*drho_s(1, ia, ir, ispin)+ &
-                                          drho_s(2, ia, ir, ispin)*drho_s(2, ia, ir, ispin)+ &
+                                          drho_s(1, ia, ir, ispin)*drho_s(1, ia, ir, ispin) + &
+                                          drho_s(2, ia, ir, ispin)*drho_s(2, ia, ir, ispin) + &
                                           drho_s(3, ia, ir, ispin)*drho_s(3, ia, ir, ispin))
             END DO ! ia
          END DO ! ispin
@@ -1053,17 +1070,17 @@ CONTAINS
 
             n2 = nsoset(lmax(iset2))
             DO ipgf1 = 1, npgf(iset1)
-               ngau1 = n1*(ipgf1-1)+m1
-               size1 = nsoset(lmax(iset1))-nsoset(lmin(iset1)-1)
-               nngau1 = nsoset(lmin(iset1)-1)+ngau1
+               ngau1 = n1*(ipgf1 - 1) + m1
+               size1 = nsoset(lmax(iset1)) - nsoset(lmin(iset1) - 1)
+               nngau1 = nsoset(lmin(iset1) - 1) + ngau1
 
                g1(1:nr) = EXP(-zet(ipgf1, iset1)*grid_atom%rad2(1:nr))
                DO ipgf2 = 1, npgf(iset2)
-                  ngau2 = n2*(ipgf2-1)+m2
+                  ngau2 = n2*(ipgf2 - 1) + m2
 
                   g2(1:nr) = EXP(-zet(ipgf2, iset2)*grid_atom%rad2(1:nr))
-                  lmin12 = lmin(iset1)+lmin(iset2)
-                  lmax12 = lmax(iset1)+lmax(iset2)
+                  lmin12 = lmin(iset1) + lmin(iset2)
+                  lmax12 = lmax(iset1) + lmax(iset2)
 
                   ! reduce expansion local densities
                   IF (lmin12 .LE. lmax_expansion) THEN
@@ -1078,12 +1095,12 @@ CONTAINS
                      ! limit the expansion of the local densities to a max L
                      IF (lmax12 .GT. lmax_expansion) lmax12 = lmax_expansion
 
-                     DO l = lmin12+1, lmax12
-                        gg(1:nr, l) = grid_atom%rad(1:nr)*gg(:, l-1)
+                     DO l = lmin12 + 1, lmax12
+                        gg(1:nr, l) = grid_atom%rad(1:nr)*gg(:, l - 1)
                      END DO
 
                      DO ispin = 1, nspins
-                        ld = lmax12+1
+                        ld = lmax12 + 1
                         DO ir = 1, nr
                            vx(1:na, ir) = vxc_h(1:na, ir, ispin)
                         END DO
@@ -1101,15 +1118,15 @@ CONTAINS
                            DO icg = 1, cg_n_list(iso)
                               iso1 = cg_list(1, icg, iso)
                               iso2 = cg_list(2, icg, iso)
-                              l = indso(1, iso1)+indso(1, iso2)
+                              l = indso(1, iso1) + indso(1, iso2)
 
                               CPASSERT(l <= lmax_expansion)
                               DO ia = 1, na
-                                 matso_h(iso1, iso2) = matso_h(iso1, iso2)+ &
+                                 matso_h(iso1, iso2) = matso_h(iso1, iso2) + &
                                                        gVg_h(ia, l)* &
                                                        my_CG(iso1, iso2, iso)* &
                                                        harmonics%slm(ia, iso)
-                                 matso_s(iso1, iso2) = matso_s(iso1, iso2)+ &
+                                 matso_s(iso1, iso2) = matso_s(iso1, iso2) + &
                                                        gVg_s(ia, l)* &
                                                        my_CG(iso1, iso2, iso)* &
                                                        harmonics%slm(ia, iso)
@@ -1118,13 +1135,13 @@ CONTAINS
                         END DO
 
 !             Write in the global matrix
-                        DO ic = nsoset(lmin(iset2)-1)+1, nsoset(lmax(iset2))
-                           iso1 = nsoset(lmin(iset1)-1)+1
-                           iso2 = ngau2+ic
+                        DO ic = nsoset(lmin(iset2) - 1) + 1, nsoset(lmax(iset2))
+                           iso1 = nsoset(lmin(iset1) - 1) + 1
+                           iso2 = ngau2 + ic
                            CALL daxpy(size1, 1.0_dp, matso_h(iso1, ic), 1, &
-                                      int_hh(ispin)%r_coef(nngau1+1, iso2), 1)
+                                      int_hh(ispin)%r_coef(nngau1 + 1, iso2), 1)
                            CALL daxpy(size1, 1.0_dp, matso_s(iso1, ic), 1, &
-                                      int_ss(ispin)%r_coef(nngau1+1, iso2), 1)
+                                      int_ss(ispin)%r_coef(nngau1 + 1, iso2), 1)
                         END DO
 
                      END DO ! ispin
@@ -1133,9 +1150,9 @@ CONTAINS
 
                END DO ! ipfg2
             END DO ! ipfg1
-            m2 = m2+maxso
+            m2 = m2 + maxso
          END DO ! iset2
-         m1 = m1+maxso
+         m1 = m1 + maxso
       END DO ! iset1
 
       DEALLOCATE (g1, g2, gg, matso_h, matso_s, gVg_s, gVg_h, vx)
@@ -1240,17 +1257,17 @@ CONTAINS
 
                n2 = nsoset(lmax(iset2))
                DO ipgf1 = 1, npgf(iset1)
-                  ngau1 = n1*(ipgf1-1)+m1
-                  size1 = nsoset(lmax(iset1))-nsoset(lmin(iset1)-1)
-                  nngau1 = nsoset(lmin(iset1)-1)+ngau1
+                  ngau1 = n1*(ipgf1 - 1) + m1
+                  size1 = nsoset(lmax(iset1)) - nsoset(lmin(iset1) - 1)
+                  nngau1 = nsoset(lmin(iset1) - 1) + ngau1
 
                   g1(1:nr) = EXP(-zet(ipgf1, iset1)*grid_atom%rad2(1:nr))
                   DO ipgf2 = 1, npgf(iset2)
-                     ngau2 = n2*(ipgf2-1)+m2
+                     ngau2 = n2*(ipgf2 - 1) + m2
 
                      g2(1:nr) = EXP(-zet(ipgf2, iset2)*grid_atom%rad2(1:nr))
-                     lmin12 = lmin(iset1)+lmin(iset2)
-                     lmax12 = lmax(iset1)+lmax(iset2)
+                     lmin12 = lmin(iset1) + lmin(iset2)
+                     lmax12 = lmax(iset1) + lmax(iset2)
 
                      !test reduce expansion local densities
                      IF (lmin12 .LE. lmax_expansion) THEN
@@ -1267,13 +1284,13 @@ CONTAINS
                         !test reduce expansion local densities
                         IF (lmax12 .GT. lmax_expansion) lmax12 = lmax_expansion
 
-                        DO l = lmin12+1, lmax12
-                           gg(1:nr, l) = grid_atom%rad(1:nr)*gg(:, l-1)
-                           dgg(1:nr, l-1) = dgg(1:nr, l-1)-2.0_dp*(zet(ipgf1, iset1)+ &
-                                                                   zet(ipgf2, iset2))*gg(1:nr, l)
+                        DO l = lmin12 + 1, lmax12
+                           gg(1:nr, l) = grid_atom%rad(1:nr)*gg(:, l - 1)
+                           dgg(1:nr, l - 1) = dgg(1:nr, l - 1) - 2.0_dp*(zet(ipgf1, iset1) + &
+                                                                         zet(ipgf2, iset2))*gg(1:nr, l)
                         END DO
-                        dgg(1:nr, lmax12) = dgg(1:nr, lmax12)-2.0_dp*(zet(ipgf1, iset1)+ &
-                                                                      zet(ipgf2, iset2))*grid_atom%rad(1:nr)* &
+                        dgg(1:nr, lmax12) = dgg(1:nr, lmax12) - 2.0_dp*(zet(ipgf1, iset1) + &
+                                                                        zet(ipgf2, iset2))*grid_atom%rad(1:nr)* &
                                             gg(1:nr, lmax12)
 
                         gVXCg_h = 0.0_dp
@@ -1285,43 +1302,43 @@ CONTAINS
                         DO l = lmin12, lmax12
                            DO ia = 1, na
                               DO ir = 1, nr
-                                 gVXCg_h(ia, l) = gVXCg_h(ia, l)+ &
-                                                  gg(ir, l)*vxc_h(ia, ir, ispin)+ &
+                                 gVXCg_h(ia, l) = gVXCg_h(ia, l) + &
+                                                  gg(ir, l)*vxc_h(ia, ir, ispin) + &
                                                   dgg(ir, l)* &
-                                                  (vxg_h(1, ia, ir, ispin)*harmonics%a(1, ia)+ &
-                                                   vxg_h(2, ia, ir, ispin)*harmonics%a(2, ia)+ &
+                                                  (vxg_h(1, ia, ir, ispin)*harmonics%a(1, ia) + &
+                                                   vxg_h(2, ia, ir, ispin)*harmonics%a(2, ia) + &
                                                    vxg_h(3, ia, ir, ispin)*harmonics%a(3, ia))
 
-                                 gVXCg_s(ia, l) = gVXCg_s(ia, l)+ &
-                                                  gg(ir, l)*vxc_s(ia, ir, ispin)+ &
+                                 gVXCg_s(ia, l) = gVXCg_s(ia, l) + &
+                                                  gg(ir, l)*vxc_s(ia, ir, ispin) + &
                                                   dgg(ir, l)* &
-                                                  (vxg_s(1, ia, ir, ispin)*harmonics%a(1, ia)+ &
-                                                   vxg_s(2, ia, ir, ispin)*harmonics%a(2, ia)+ &
+                                                  (vxg_s(1, ia, ir, ispin)*harmonics%a(1, ia) + &
+                                                   vxg_s(2, ia, ir, ispin)*harmonics%a(2, ia) + &
                                                    vxg_s(3, ia, ir, ispin)*harmonics%a(3, ia))
 
                                  urad = grid_atom%oorad2l(ir, 1)
 
-                                 gVXGg_h(1, ia, l) = gVXGg_h(1, ia, l)+ &
+                                 gVXGg_h(1, ia, l) = gVXGg_h(1, ia, l) + &
                                                      vxg_h(1, ia, ir, ispin)* &
                                                      gg(ir, l)*urad
 
-                                 gVXGg_h(2, ia, l) = gVXGg_h(2, ia, l)+ &
+                                 gVXGg_h(2, ia, l) = gVXGg_h(2, ia, l) + &
                                                      vxg_h(2, ia, ir, ispin)* &
                                                      gg(ir, l)*urad
 
-                                 gVXGg_h(3, ia, l) = gVXGg_h(3, ia, l)+ &
+                                 gVXGg_h(3, ia, l) = gVXGg_h(3, ia, l) + &
                                                      vxg_h(3, ia, ir, ispin)* &
                                                      gg(ir, l)*urad
 
-                                 gVXGg_s(1, ia, l) = gVXGg_s(1, ia, l)+ &
+                                 gVXGg_s(1, ia, l) = gVXGg_s(1, ia, l) + &
                                                      vxg_s(1, ia, ir, ispin)* &
                                                      gg(ir, l)*urad
 
-                                 gVXGg_s(2, ia, l) = gVXGg_s(2, ia, l)+ &
+                                 gVXGg_s(2, ia, l) = gVXGg_s(2, ia, l) + &
                                                      vxg_s(2, ia, ir, ispin)* &
                                                      gg(ir, l)*urad
 
-                                 gVXGg_s(3, ia, l) = gVXGg_s(3, ia, l)+ &
+                                 gVXGg_s(3, ia, l) = gVXGg_s(3, ia, l) + &
                                                      vxg_s(3, ia, ir, ispin)* &
                                                      gg(ir, l)*urad
 
@@ -1336,16 +1353,16 @@ CONTAINS
                               iso1 = cg_list(1, icg, iso)
                               iso2 = cg_list(2, icg, iso)
 
-                              l = indso(1, iso1)+indso(1, iso2)
+                              l = indso(1, iso1) + indso(1, iso2)
 
                               !test reduce expansion local densities
                               CPASSERT(l <= lmax_expansion)
                               DO ia = 1, na
-                                 matso_h(iso1, iso2) = matso_h(iso1, iso2)+ &
+                                 matso_h(iso1, iso2) = matso_h(iso1, iso2) + &
                                                        gVXCg_h(ia, l)* &
                                                        harmonics%slm(ia, iso)* &
                                                        my_CG(iso1, iso2, iso)
-                                 matso_s(iso1, iso2) = matso_s(iso1, iso2)+ &
+                                 matso_s(iso1, iso2) = matso_s(iso1, iso2) + &
                                                        gVXCg_s(ia, l)* &
                                                        harmonics%slm(ia, iso)* &
                                                        my_CG(iso1, iso2, iso)
@@ -1362,19 +1379,19 @@ CONTAINS
                               iso1 = dcg_list(1, icg, iso)
                               iso2 = dcg_list(2, icg, iso)
 
-                              l = indso(1, iso1)+indso(1, iso2)
+                              l = indso(1, iso1) + indso(1, iso2)
                               !test reduce expansion local densities
                               CPASSERT(l <= lmax_expansion)
                               DO ia = 1, na
-                                 matso_h(iso1, iso2) = matso_h(iso1, iso2)+ &
-                                                       (gVXGg_h(1, ia, l)*my_CG_dxyz(1, iso1, iso2, iso)+ &
-                                                        gVXGg_h(2, ia, l)*my_CG_dxyz(2, iso1, iso2, iso)+ &
+                                 matso_h(iso1, iso2) = matso_h(iso1, iso2) + &
+                                                       (gVXGg_h(1, ia, l)*my_CG_dxyz(1, iso1, iso2, iso) + &
+                                                        gVXGg_h(2, ia, l)*my_CG_dxyz(2, iso1, iso2, iso) + &
                                                         gVXGg_h(3, ia, l)*my_CG_dxyz(3, iso1, iso2, iso))* &
                                                        harmonics%slm(ia, iso)
 
-                                 matso_s(iso1, iso2) = matso_s(iso1, iso2)+ &
-                                                       (gVXGg_s(1, ia, l)*my_CG_dxyz(1, iso1, iso2, iso)+ &
-                                                        gVXGg_s(2, ia, l)*my_CG_dxyz(2, iso1, iso2, iso)+ &
+                                 matso_s(iso1, iso2) = matso_s(iso1, iso2) + &
+                                                       (gVXGg_s(1, ia, l)*my_CG_dxyz(1, iso1, iso2, iso) + &
+                                                        gVXGg_s(2, ia, l)*my_CG_dxyz(2, iso1, iso2, iso) + &
                                                         gVXGg_s(3, ia, l)*my_CG_dxyz(3, iso1, iso2, iso))* &
                                                        harmonics%slm(ia, iso)
 
@@ -1388,20 +1405,20 @@ CONTAINS
                      END IF ! lmax_expansion
 
 !             Write in the global matrix
-                     DO ic = nsoset(lmin(iset2)-1)+1, nsoset(lmax(iset2))
-                        iso1 = nsoset(lmin(iset1)-1)+1
-                        iso2 = ngau2+ic
+                     DO ic = nsoset(lmin(iset2) - 1) + 1, nsoset(lmax(iset2))
+                        iso1 = nsoset(lmin(iset1) - 1) + 1
+                        iso2 = ngau2 + ic
                         CALL daxpy(size1, 1.0_dp, matso_h(iso1, ic), 1, &
-                                   int_hh(ispin)%r_coef(nngau1+1, iso2), 1)
+                                   int_hh(ispin)%r_coef(nngau1 + 1, iso2), 1)
                         CALL daxpy(size1, 1.0_dp, matso_s(iso1, ic), 1, &
-                                   int_ss(ispin)%r_coef(nngau1+1, iso2), 1)
+                                   int_ss(ispin)%r_coef(nngau1 + 1, iso2), 1)
                      END DO
 
                   END DO ! ipfg2
                END DO ! ipfg1
-               m2 = m2+maxso
+               m2 = m2 + maxso
             END DO ! iset2
-            m1 = m1+maxso
+            m1 = m1 + maxso
          END DO ! iset1
       END DO ! ispin
 
@@ -1508,33 +1525,33 @@ CONTAINS
 
                n2 = nsoset(lmax(iset2))
                DO ipgf1 = 1, npgf(iset1)
-                  ngau1 = n1*(ipgf1-1)+m1
-                  size1 = nsoset(lmax(iset1))-nsoset(lmin(iset1)-1)
-                  nngau1 = nsoset(lmin(iset1)-1)+ngau1
+                  ngau1 = n1*(ipgf1 - 1) + m1
+                  size1 = nsoset(lmax(iset1)) - nsoset(lmin(iset1) - 1)
+                  nngau1 = nsoset(lmin(iset1) - 1) + ngau1
                   g1(1:nr) = EXP(-zet(ipgf1, iset1)*grid_atom%rad2(1:nr))
                   DO ipgf2 = 1, npgf(iset2)
-                     ngau2 = n2*(ipgf2-1)+m2
+                     ngau2 = n2*(ipgf2 - 1) + m2
                      g2(1:nr) = EXP(-zet(ipgf2, iset2)*grid_atom%rad2(1:nr))
-                     lmin12 = lmin(iset1)+lmin(iset2)
-                     lmax12 = lmax(iset1)+lmax(iset2)
+                     lmin12 = lmin(iset1) + lmin(iset2)
+                     lmax12 = lmax(iset1) + lmax(iset2)
 
                      IF (lmin12 .LE. lmax_expansion) THEN
                         fgr = 0._dp
                         dgr = 0._dp
                         DO l1 = 0, maxl
                            DO l2 = 0, maxl
-                              IF (l1+l2 > lmax_expansion) CYCLE
-                              IF (l1+l2 > 0) THEN
-                                 gg(1:nr) = g1(1:nr)*g2(1:nr)*grid_atom%rad2l(1:nr, l1+l2)
+                              IF (l1 + l2 > lmax_expansion) CYCLE
+                              IF (l1 + l2 > 0) THEN
+                                 gg(1:nr) = g1(1:nr)*g2(1:nr)*grid_atom%rad2l(1:nr, l1 + l2)
                               ELSE
                                  gg(1:nr) = g1(1:nr)*g2(1:nr)
                               END IF
-                              dd(1:nr) = REAL(l1*l2, dp)/grid_atom%rad2(1:nr)- &
-                                         2._dp*REAL(l1, dp)*zet(ipgf2, iset2)- &
-                                         2._dp*REAL(l2, dp)*zet(ipgf1, iset1)+ &
+                              dd(1:nr) = REAL(l1*l2, dp)/grid_atom%rad2(1:nr) - &
+                                         2._dp*REAL(l1, dp)*zet(ipgf2, iset2) - &
+                                         2._dp*REAL(l2, dp)*zet(ipgf1, iset1) + &
                                          4._dp*zet(ipgf1, iset1)*zet(ipgf2, iset2)*grid_atom%rad2(1:nr)
                               fgr(1:nr, l1, l2) = dd(1:nr)*gg(1:nr)
-                              dgr(1:nr, l1+l2) = gg(1:nr)/grid_atom%rad2(1:nr)
+                              dgr(1:nr, l1 + l2) = gg(1:nr)/grid_atom%rad2(1:nr)
                            END DO
                         END DO
                      END IF
@@ -1554,17 +1571,17 @@ CONTAINS
                               isom1 = soset(l1, -mm1)
                               isom2 = soset(l2, -mm2)
 
-                              IF (l1+l2 > lmax_expansion) CYCLE
+                              IF (l1 + l2 > lmax_expansion) CYCLE
 
-                              matso_h(iso1, iso2) = matso_h(iso1, iso2)+my_CG(iso1, iso2, iso)* &
+                              matso_h(iso1, iso2) = matso_h(iso1, iso2) + my_CG(iso1, iso2, iso)* &
                                                     DOT_PRODUCT(vth(1:nr, ispin), fgr(1:nr, l1, l2))
-                              matso_s(iso1, iso2) = matso_s(iso1, iso2)+my_CG(iso1, iso2, iso)* &
+                              matso_s(iso1, iso2) = matso_s(iso1, iso2) + my_CG(iso1, iso2, iso)* &
                                                     DOT_PRODUCT(vts(1:nr, ispin), fgr(1:nr, l1, l2))
                               ! d azimuthal
-                              matso_h(iso1, iso2) = matso_h(iso1, iso2)+REAL(mm1*mm2, dp)*my_CG(isom1, isom2, iso)* &
-                                                    DOT_PRODUCT(vth(1:nr, ispin), dgr(1:nr, l1+l2))
-                              matso_s(iso1, iso2) = matso_s(iso1, iso2)+REAL(mm1*mm2, dp)*my_CG(isom1, isom2, iso)* &
-                                                    DOT_PRODUCT(vts(1:nr, ispin), dgr(1:nr, l1+l2))
+                              matso_h(iso1, iso2) = matso_h(iso1, iso2) + REAL(mm1*mm2, dp)*my_CG(isom1, isom2, iso)* &
+                                                    DOT_PRODUCT(vth(1:nr, ispin), dgr(1:nr, l1 + l2))
+                              matso_s(iso1, iso2) = matso_s(iso1, iso2) + REAL(mm1*mm2, dp)*my_CG(isom1, isom2, iso)* &
+                                                    DOT_PRODUCT(vts(1:nr, ispin), dgr(1:nr, l1 + l2))
                            END DO
                         END DO
                      END IF
@@ -1576,26 +1593,26 @@ CONTAINS
 
                            l1 = indso(1, iso1)
                            l2 = indso(1, iso2)
-                           matso_h(iso1, iso2) = matso_h(iso1, iso2)+my_dCG(iso1, iso2, iso)* &
-                                                 DOT_PRODUCT(dvth(1:nr, ispin), dgr(1:nr, l1+l2))
-                           matso_s(iso1, iso2) = matso_s(iso1, iso2)+my_dCG(iso1, iso2, iso)* &
-                                                 DOT_PRODUCT(dvts(1:nr, ispin), dgr(1:nr, l1+l2))
+                           matso_h(iso1, iso2) = matso_h(iso1, iso2) + my_dCG(iso1, iso2, iso)* &
+                                                 DOT_PRODUCT(dvth(1:nr, ispin), dgr(1:nr, l1 + l2))
+                           matso_s(iso1, iso2) = matso_s(iso1, iso2) + my_dCG(iso1, iso2, iso)* &
+                                                 DOT_PRODUCT(dvts(1:nr, ispin), dgr(1:nr, l1 + l2))
                         END DO
                      END DO
 
                      ! Write in the global matrix
-                     DO ic = nsoset(lmin(iset2)-1)+1, nsoset(lmax(iset2))
-                        iso1 = nsoset(lmin(iset1)-1)+1
-                        iso2 = ngau2+ic
-                        CALL daxpy(size1, 1.0_dp, matso_h(iso1, ic), 1, int_hh(ispin)%r_coef(nngau1+1, iso2), 1)
-                        CALL daxpy(size1, 1.0_dp, matso_s(iso1, ic), 1, int_ss(ispin)%r_coef(nngau1+1, iso2), 1)
+                     DO ic = nsoset(lmin(iset2) - 1) + 1, nsoset(lmax(iset2))
+                        iso1 = nsoset(lmin(iset1) - 1) + 1
+                        iso2 = ngau2 + ic
+                        CALL daxpy(size1, 1.0_dp, matso_h(iso1, ic), 1, int_hh(ispin)%r_coef(nngau1 + 1, iso2), 1)
+                        CALL daxpy(size1, 1.0_dp, matso_s(iso1, ic), 1, int_ss(ispin)%r_coef(nngau1 + 1, iso2), 1)
                      END DO
 
                   END DO ! ipfg2
                END DO ! ipfg1
-               m2 = m2+maxso
+               m2 = m2 + maxso
             END DO ! iset2
-            m1 = m1+maxso
+            m1 = m1 + maxso
          END DO ! iset1
          DEALLOCATE (vth, vts, dvth, dvts)
       END DO ! ispin

@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -275,7 +275,7 @@ CONTAINS
                maxatom = MAX(maxatom, atomic_kind%natom)
             END IF
             IF (PRESENT(natom)) THEN
-               natom = natom+atomic_kind_set(ikind)%natom
+               natom = natom + atomic_kind_set(ikind)%natom
             END IF
             IF (PRESENT(fist_potential_present)) THEN
                IF (ASSOCIATED(fist_potential)) THEN

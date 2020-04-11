@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -30,7 +30,7 @@ MODULE qs_charges_types
 !> \param total_rho_rspace total charge in the real space
 !> \param total_rho_gspace total charge in the g space
 !> \note
-!>      this type is loosing the reason to exist...
+!>      this type is losing the reason to exist...
 !> \par History
 !>      10.2002 created [fawzi]
 !>      11.2002 moved total_rho_elec_rspace to qs_rho_type
@@ -100,7 +100,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(qs_charges))
       CPASSERT(qs_charges%ref_count > 0)
-      qs_charges%ref_count = qs_charges%ref_count+1
+      qs_charges%ref_count = qs_charges%ref_count + 1
    END SUBROUTINE qs_charges_retain
 
 ! **************************************************************************************************
@@ -118,7 +118,7 @@ CONTAINS
 
       IF (ASSOCIATED(qs_charges)) THEN
          CPASSERT(qs_charges%ref_count > 0)
-         qs_charges%ref_count = qs_charges%ref_count-1
+         qs_charges%ref_count = qs_charges%ref_count - 1
          IF (qs_charges%ref_count < 1) THEN
             DEALLOCATE (qs_charges%total_rho1_hard)
             DEALLOCATE (qs_charges%total_rho1_soft)

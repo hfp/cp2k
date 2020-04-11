@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -14,52 +14,52 @@
 ! **************************************************************************************************
 MODULE cp_fm_diag
    USE cp_blacs_calls, ONLY: cp_blacs_gridexit, &
-      cp_blacs_gridinit
+                             cp_blacs_gridinit
    USE cp_blacs_env, ONLY: cp_blacs_env_create, &
-      cp_blacs_env_release, &
-      cp_blacs_env_type
+                           cp_blacs_env_release, &
+                           cp_blacs_env_type
    USE cp_fm_basic_linalg, ONLY: cp_fm_column_scale, &
-      cp_fm_gemm, &
-      cp_fm_scale, &
-      cp_fm_syrk, &
-      cp_fm_triangular_invert, &
-      cp_fm_triangular_multiply, &
-      cp_fm_upper_to_full
+                                 cp_fm_gemm, &
+                                 cp_fm_scale, &
+                                 cp_fm_syrk, &
+                                 cp_fm_triangular_invert, &
+                                 cp_fm_triangular_multiply, &
+                                 cp_fm_upper_to_full
    USE cp_fm_cholesky, ONLY: cp_fm_cholesky_decompose
    USE cp_fm_diag_utils, ONLY: cp_fm_redistribute_start, &
-      cp_fm_redistribute_end
+                               cp_fm_redistribute_end
    USE cp_fm_elpa, ONLY: cp_fm_diag_elpa, &
-      set_elpa_kernel, &
-      set_elpa_qr, &
-      set_elpa_print, &
-      initialize_elpa_library, &
-      finalize_elpa_library
+                         set_elpa_kernel, &
+                         set_elpa_qr, &
+                         set_elpa_print, &
+                         initialize_elpa_library, &
+                         finalize_elpa_library
    USE cp_fm_struct, ONLY: cp_fm_struct_create, &
-      cp_fm_struct_release, &
-      cp_fm_struct_type
+                           cp_fm_struct_release, &
+                           cp_fm_struct_type
    USE cp_fm_types, ONLY: cp_fm_create, &
-      cp_fm_get_info, &
-      cp_fm_release, &
-      cp_fm_set_element, &
-      cp_fm_to_fm, &
-      cp_fm_type
+                          cp_fm_get_info, &
+                          cp_fm_release, &
+                          cp_fm_set_element, &
+                          cp_fm_to_fm, &
+                          cp_fm_type
    USE cp_log_handling, ONLY: cp_get_default_logger, &
-      cp_logger_get_default_unit_nr, &
-      cp_logger_get_unit_nr, &
-      cp_logger_type
+                              cp_logger_get_default_unit_nr, &
+                              cp_logger_get_unit_nr, &
+                              cp_logger_type
    USE cp_para_env, ONLY: cp_para_env_create, &
-      cp_para_env_release
+                          cp_para_env_release
    USE cp_para_types, ONLY: cp_para_env_type
    USE kinds, ONLY: dp
    USE machine, ONLY: m_memory
    USE message_passing, ONLY: mp_bcast, &
-      mp_comm_free, &
-      mp_comm_split, &
-      mp_sync
+                              mp_comm_free, &
+                              mp_comm_split, &
+                              mp_sync
 #if defined (__HAS_IEEE_EXCEPTIONS)
    USE ieee_exceptions, ONLY: ieee_get_halting_mode, &
-      ieee_set_halting_mode, &
-      ieee_all
+                              ieee_set_halting_mode, &
+                              ieee_all
 #endif
 
 #include "../base/base_uses.f90"
@@ -87,7 +87,6 @@ MODULE cp_fm_diag
              cp_fm_syevx, &
              cp_fm_geeig, &
              cp_fm_geeig_canon, &
-             cp_fm_geeig_syevr, &
              diag_init, &
              diag_finalize
 
@@ -221,7 +220,7 @@ CONTAINS
             CALL infog2l(i, j, desca, nprow, npcol, myprow, mypcol, il, jl, iprow, ipcol)
             IF ((iprow == myprow) .AND. (ipcol == mypcol)) THEN
                IF (i == j) THEN
-                  IF (ABS(matrix%local_data(il, jl)-1.0_dp) > eps) THEN
+                  IF (ABS(matrix%local_data(il, jl) - 1.0_dp) > eps) THEN
                      WRITE (UNIT=*, FMT="(/,T2,A,/,T2,A,I0,A,I0,A,F0.12,/,T2,A)") &
                         "The eigenvectors returned by "//TRIM(diag_driver(diag_type))//" are not orthonormal", &
                         "Matrix element (", i, ", ", j, ") = ", matrix%local_data(il, jl), &
@@ -249,7 +248,7 @@ CONTAINS
       DO i = 1, nmo
          DO j = 1, nmo
             IF (i == j) THEN
-               IF (ABS(matrix%local_data(i, j)-1.0_dp) > eps) THEN
+               IF (ABS(matrix%local_data(i, j) - 1.0_dp) > eps) THEN
                   WRITE (UNIT=*, FMT="(/,T2,A,/,T2,A,I0,A,I0,A,F0.12,/,T2,A)") &
                      "The eigenvectors returned by "//TRIM(diag_driver(diag_type))//" are not orthonormal", &
                      "Matrix element (", i, ", ", j, ") = ", matrix%local_data(i, j), &
@@ -427,7 +426,7 @@ CONTAINS
       v => eigenvectors%local_data
       descv(:) = eigenvectors%matrix_struct%descriptor(:)
 
-      liwork = 7*n+8*context%num_pe(2)+2
+      liwork = 7*n + 8*context%num_pe(2) + 2
       ALLOCATE (iwork(liwork))
       ! work space query
 
@@ -443,7 +442,7 @@ CONTAINS
       ! arbitrary additional memory  ... we give 100000 more words
       ! (it seems to depend on the block size used)
 
-      lwork = NINT(work(1)+100000)
+      lwork = NINT(work(1) + 100000)
 !    lwork = NINT(work(1))
       DEALLOCATE (work)
       ALLOCATE (work(lwork))
@@ -605,12 +604,12 @@ CONTAINS
       nq0 = MAX(numroc(nn, nb, 0, 0, npcol), nb)
 
       IF (needs_evecs) THEN
-         lwork = 5*n+MAX(5*nn, np0*nq0)+iceil(neig_local, npe)*nn+2*nb*nb+ &
-                 INT(work_syevx_local*REAL((neig_local-1)*n, dp)) !!!! allocates a full matrix on every CPU !!!!!
+         lwork = 5*n + MAX(5*nn, np0*nq0) + iceil(neig_local, npe)*nn + 2*nb*nb + &
+                 INT(work_syevx_local*REAL((neig_local - 1)*n, dp)) !!!! allocates a full matrix on every CPU !!!!!
       ELSE
-         lwork = 5*n+MAX(5*nn, nb*(np0+1))
+         lwork = 5*n + MAX(5*nn, nb*(np0 + 1))
       ENDIF
-      liwork = 6*MAX(N, npe+1, 4)
+      liwork = 6*MAX(N, npe + 1, 4)
 
       ALLOCATE (gap(npe))
       gap = 0.0_dp
@@ -680,7 +679,7 @@ CONTAINS
       nb = MAX(ilaenv(1, "DSYTRD", "U", n, -1, -1, -1), &
                ilaenv(1, "DORMTR", "U", n, -1, -1, -1))
 
-      lwork = MAX((nb+3)*n, 8*n)+n ! sun bug fix
+      lwork = MAX((nb + 3)*n, 8*n) + n ! sun bug fix
       liwork = 5*n
 
       ALLOCATE (ifail(n))
@@ -720,201 +719,6 @@ CONTAINS
       CALL timestop(handle)
 
    END SUBROUTINE cp_fm_syevx
-
-! **************************************************************************************************
-!> \brief  computes selected eigenvalues and, optionally, eigenvectors of
-!>         a real symmetric matrix A distributed in 2D blockcyclic format by
-!>         calling the recommended sequence of ScaLAPACK routines.
-!>         WARNING: PDSEYVR is not always stable and might fail, especially for small matrices
-!>                  The typical error message comes from PDORMTR with illegal value on entry
-!>         ScalaPACK version 2+ is required
-!>
-!> \param matrix ...
-!> \param eigenvectors ...
-!> \param eigenvalues ...
-!> \param ilow index of lowest desired eigenvalue
-!> \param iup index of highest desired eigenvalue
-!> \param vlow the lowest value from which to start calculating eigenvalues
-!> \param vup the highest value up to which eigenvalues are computed
-!> \note  matrix is supposed to be in upper triangular form, and overwritten by this routine
-!>        subsets of eigenvalues/vectors can be selected by
-!>        specifying a range of values or a range of indices for the desired eigenvalues.
-!>        Reintroduced after removal because needed for XAS_TDP A. Bussy (07.2019)
-! **************************************************************************************************
-   SUBROUTINE cp_fm_syevr(matrix, eigenvectors, eigenvalues, ilow, iup, vlow, vup)
-
-      TYPE(cp_fm_type), POINTER                    :: matrix
-      TYPE(cp_fm_type), POINTER, OPTIONAL          :: eigenvectors
-      REAL(KIND=dp), DIMENSION(:), INTENT(OUT)     :: eigenvalues
-      INTEGER, INTENT(IN), OPTIONAL                :: ilow, iup
-      REAL(KIND=dp), INTENT(IN), OPTIONAL          :: vlow, vup
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = "cp_fm_syevr", &
-                                     routineP = moduleN//":"//routineN
-
-      CHARACTER(LEN=1)                           :: job_type, range_type
-      INTEGER                                    :: handle, ilow_local, &
-                                                    info, iup_local, &
-                                                    lwork, liwork, mypcol, &
-                                                    myprow, n, neig
-      REAL(KIND=dp)                              :: vlow_local, vup_local
-      INTEGER, DIMENSION(:), ALLOCATABLE         :: iwork
-      LOGICAL                                    :: needs_evecs
-      REAL(KIND=dp), DIMENSION(:), ALLOCATABLE   :: w, work
-      REAL(KIND=dp), DIMENSION(:, :), POINTER     :: a, z
-
-      TYPE(cp_blacs_env_type), POINTER           :: context
-
-      REAL(KIND=dp), EXTERNAL :: dlamch
-
-#if defined(__SCALAPACK)
-      INTEGER, DIMENSION(9)               :: desca, descz
-      INTEGER                             :: m, nz
-#else
-      INTEGER                             :: m, nb
-      REAL(dp)                            :: abstol
-      INTEGER, DIMENSION(:), ALLOCATABLE  :: ifail
-      INTEGER, EXTERNAL                   :: ilaenv
-#endif
-
-      ! by default all
-      n = matrix%matrix_struct%nrow_global
-      neig = n
-      iup_local = n
-      ilow_local = 1
-      range_type = "I"
-      IF (PRESENT(ilow) .AND. PRESENT(iup)) THEN
-         neig = iup-ilow+1
-         iup_local = iup
-         ilow_local = ilow
-      ELSE IF (PRESENT(vlow) .AND. PRESENT(vup)) THEN
-         vlow_local = vlow
-         vup_local = vup
-         range_type = "V"
-      END IF
-      IF (neig <= 0) RETURN
-
-      CALL timeset(routineN, handle)
-
-      needs_evecs = PRESENT(eigenvectors)
-
-      n = matrix%matrix_struct%nrow_global
-
-      ! set scalapack job type
-      IF (needs_evecs) THEN
-         job_type = "V"
-      ELSE
-         job_type = "N"
-      ENDIF
-
-      context => matrix%matrix_struct%context
-      myprow = context%mepos(1)
-      mypcol = context%mepos(2)
-
-      ALLOCATE (w(n))
-
-      eigenvalues(:) = 0.0_dp
-
-#if defined(__SCALAPACK)
-
-      IF (matrix%matrix_struct%nrow_block /= matrix%matrix_struct%ncol_block) THEN
-         CPABORT("")
-      END IF
-
-      a => matrix%local_data
-      desca(:) = matrix%matrix_struct%descriptor(:)
-
-      IF (needs_evecs) THEN
-         z => eigenvectors%local_data
-         descz(:) = eigenvectors%matrix_struct%descriptor(:)
-      ELSE
-         ! z will not be referenced
-         z => matrix%local_data
-         descz = desca
-      ENDIF
-
-      ! First Call: Determine the needed work_space
-      lwork = -1
-      ALLOCATE (work(5*n))
-      ALLOCATE (iwork(6*n))
-
-      CALL pdsyevr(job_type, range_type, 'U', n, a, 1, 1, desca, vlow, vup, ilow_local, iup_local, &
-                   m, nz, w(1), z, 1, 1, descz, work, lwork, iwork, liwork, info)
-
-      lwork = INT(work(1))
-      lwork = NINT(work(1)+300000)
-      liwork = iwork(1)
-      IF (lwork > SIZE(work, 1)) THEN
-         DEALLOCATE (work)
-         ALLOCATE (work(lwork))
-      END IF
-      IF (liwork > SIZE(iwork, 1)) THEN
-         DEALLOCATE (iwork)
-         ALLOCATE (iwork(liwork))
-      END IF
-
-      !Second call: solve the eigenvalue problem
-      info = 0
-
-      CALL pdsyevr(job_type, range_type, 'U', n, a, 1, 1, desca, vlow, vup, ilow_local, iup_local, &
-                   m, nz, w(1), z, 1, 1, descz, work, lwork, iwork, liwork, info)
-
-      IF (info > 0) THEN
-         WRITE (*, *) 'Processor ', myprow, mypcol, ': Error! INFO code = ', INFO
-      END IF
-      CPASSERT(info == 0)
-
-      ! Release work storage
-      DEALLOCATE (iwork)
-      DEALLOCATE (work)
-
-#else
-
-      a => matrix%local_data
-      IF (needs_evecs) THEN
-         z => eigenvectors%local_data
-      ELSE
-         ! z will not be referenced
-         z => matrix%local_data
-      ENDIF
-
-      ! Get the optimal work storage size
-
-      nb = MAX(ilaenv(1, "DSYTRD", "U", n, -1, -1, -1), &
-               ilaenv(1, "DORMTR", "U", n, -1, -1, -1))
-
-      lwork = MAX((nb+3)*n, 8*n)+n ! sun bug fix
-      liwork = 5*n
-
-      ALLOCATE (ifail(n))
-      ifail = 0
-
-      ALLOCATE (iwork(liwork))
-      ALLOCATE (work(lwork))
-
-      ! target the most accurate calculation of the eigenvalues
-      abstol = 2.0_dp*dlamch("S")
-
-      info = 0
-      CALL dsyevx(job_type, range_type, "U", n, a(1, 1), n, vlow, vup, ilow_local, iup_local, &
-                  abstol, m, w, z(1, 1), n, work(1), lwork, iwork(1), ifail(1), info)
-
-      ! Error handling
-      CPASSERT(info == 0)
-
-      ! Release work storage
-      DEALLOCATE (iwork)
-      DEALLOCATE (work)
-
-#endif
-
-      !put eigenvalues from index 1
-      eigenvalues(1:m) = w(1:m)
-      DEALLOCATE (w)
-
-      CALL timestop(handle)
-
-   END SUBROUTINE cp_fm_syevr
 
 ! **************************************************************************************************
 !> \brief ...
@@ -1002,7 +806,7 @@ CONTAINS
 
          IF (eigenvalues(icol_global) < threshold) THEN
 
-            n_dependent = n_dependent+1
+            n_dependent = n_dependent + 1
 
             ipcol = indxg2p(icol_global, ncol_block, mypcol, &
                             work%matrix_struct%first_p_pos(2), npcol)
@@ -1057,7 +861,7 @@ CONTAINS
 
          IF (eigenvalues(icol_global) < threshold) THEN
 
-            n_dependent = n_dependent+1
+            n_dependent = n_dependent + 1
             eigenvectors(1:nrow_global, icol_global) = 0.0_dp
 
          ELSE
@@ -1174,8 +978,8 @@ CONTAINS
 ! ACHTUNG start_sec_block sagt aus WO der ZWEITE Block STARTET!!!
 ! Der Block wird mitsamt dem OO-Block bearbeitet
 
-      block_dim_row = start_sec_block-1
-      block_dim_col = N-block_dim_row
+      block_dim_row = start_sec_block - 1
+      block_dim_col = N - block_dim_row
       ALLOCATE (A_loc(block_dim_row, block_dim_col))
 
       mype = matrix%matrix_struct%para_env%mepos
@@ -1216,17 +1020,17 @@ CONTAINS
       q_loc = 0
 
       DO q = start_sec_block, N
-         q_loc = q_loc+1
-         DO p = 1, (start_sec_block-1)
+         q_loc = q_loc + 1
+         DO p = 1, (start_sec_block - 1)
 
             IF (ABS(A_loc(p, q_loc)) > thresh) THEN
 
-               tau = (eigval(q)-eigval(p))/(2.0_dp*A_loc(p, q_loc))
+               tau = (eigval(q) - eigval(p))/(2.0_dp*A_loc(p, q_loc))
 
-               tan_theta = SIGN(1.0_dp, tau)/(ABS(tau)+SQRT(1.0_dp+tau*tau))
+               tan_theta = SIGN(1.0_dp, tau)/(ABS(tau) + SQRT(1.0_dp + tau*tau))
 
                ! cos theta
-               c = 1.0_dp/SQRT(1.0_dp+tan_theta*tan_theta)
+               c = 1.0_dp/SQRT(1.0_dp + tan_theta*tan_theta)
                s = tan_theta*c
 
                ! Und jetzt noch die Eigenvektoren produzieren:
@@ -1273,16 +1077,16 @@ CONTAINS
       tau = 0.0_dp
 
       DO q = start_sec_block, N
-         DO p = 1, (start_sec_block-1)
+         DO p = 1, (start_sec_block - 1)
 
             IF (ABS(A(p, q)) > thresh) THEN
 
-               tau = (eigval(q)-eigval(p))/(2.0_dp*A(p, q))
+               tau = (eigval(q) - eigval(p))/(2.0_dp*A(p, q))
 
-               tan_theta = SIGN(1.0_dp, tau)/(ABS(tau)+SQRT(1.0_dp+tau*tau))
+               tan_theta = SIGN(1.0_dp, tau)/(ABS(tau) + SQRT(1.0_dp + tau*tau))
 
                ! cos theta
-               c = 1.0_dp/SQRT(1.0_dp+tan_theta*tan_theta)
+               c = 1.0_dp/SQRT(1.0_dp + tan_theta*tan_theta)
                s = tan_theta*c
 
                ! Und jetzt noch die Eigenvektoren produzieren:
@@ -1357,69 +1161,6 @@ CONTAINS
    END SUBROUTINE cp_fm_geeig
 
 ! **************************************************************************************************
-!> \brief A geeig solver using Cholesky decomposition and syevr so that only a couple of eigenvalues
-!>        can be computed. Can be considerably cheaper than the standard diagonalization for very
-!>        large matrices. WARNING: PDSYEVR is not always stable and might produce errors,
-!>        especially for smaller matrices (typically from inputs to PDORMTR)
-!> amatrix ...
-!> \param amatrix ...
-!> \param bmatrix ...
-!> \param eigenvectors ...
-!> \param eigenvalues ...
-!> \param work ...
-!> \param ilow index of the first eigenvalue to compute
-!> \param iup index of the last eigenvalue to compute
-!> \param vlow lowest value from which eigenvalues are sought
-!> \param vup upper value up to which eigenvalues are sought
-!> \author A.Bussy (07.2019), originally for application in XAS_TDP
-!> \note Blatantly copied from cp_fm_geeig. The eigenvalues are the first elements of the
-!>       `eigenvalues` array and the eigenvectors are in the first columns of `eigenvectors`
-! **************************************************************************************************
-   SUBROUTINE cp_fm_geeig_syevr(amatrix, bmatrix, eigenvectors, eigenvalues, work, ilow, iup, &
-                                vlow, vup)
-
-      TYPE(cp_fm_type), POINTER                          :: amatrix, bmatrix, eigenvectors
-      REAL(dp), DIMENSION(:)                             :: eigenvalues
-      TYPE(cp_fm_type), POINTER                          :: work
-      INTEGER, INTENT(IN), OPTIONAL                      :: ilow, iup
-      REAL(dp), INTENT(IN), OPTIONAL                     :: vlow, vup
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_geeig_syevr', &
-         routineP = moduleN//':'//routineN
-
-      INTEGER                                            :: nao
-      LOGICAL                                            :: range_idx, range_val
-
-      range_idx = .FALSE.; range_val = .FALSE.
-      IF (PRESENT(ilow) .AND. PRESENT(iup)) THEN
-         range_idx = .TRUE.
-      ELSE IF (PRESENT(vlow) .AND. PRESENT(vup)) THEN
-         range_val = .TRUE.
-      END IF
-
-      CALL cp_fm_get_info(amatrix, nrow_global=nao)
-      ! Cholesky decompose S=U(T)U
-      CALL cp_fm_cholesky_decompose(bmatrix)
-      ! Invert to get U^(-1)
-      CALL cp_fm_triangular_invert(bmatrix)
-      ! Reduce to get U^(-T) * H * U^(-1)
-      CALL cp_fm_triangular_multiply(bmatrix, amatrix, side="R")
-      CALL cp_fm_triangular_multiply(bmatrix, amatrix, transpose_tr=.TRUE.)
-      ! Diagonalize
-      IF (range_idx) THEN
-         CALL cp_fm_syevr(amatrix, work, eigenvalues, ilow=ilow, iup=iup)
-      ELSE IF (range_val) THEN
-         CALL cp_fm_syevr(amatrix, work, eigenvalues, vlow=vlow, vup=vup)
-      ELSE
-         CALL cp_fm_syevr(amatrix, work, eigenvalues)
-      END IF
-      ! Restore vectors C = U^(-1) * C*
-      CALL cp_fm_triangular_multiply(bmatrix, work)
-      CALL cp_fm_to_fm(work, eigenvectors, nao)
-
-   END SUBROUTINE cp_fm_geeig_syevr
-
-! **************************************************************************************************
 !> \brief General Eigenvalue Problem  AX = BXE
 !>        Use canonical diagonalization : U*s**(-1/2)
 !> \param amatrix ...
@@ -1457,7 +1198,7 @@ CONTAINS
       nc = nao
       DO i = 1, nao
          IF (seigval(i) < epseig) THEN
-            nc = i-1
+            nc = i - 1
             EXIT
          END IF
       END DO
@@ -1466,17 +1207,17 @@ CONTAINS
       IF (nc /= nao) THEN
          IF (nc < nmo) THEN
             ! Copy NULL space definition to last vectors of eigenvectors (if needed)
-            ncol = nmo-nc
-            CALL cp_fm_to_fm(work, eigenvectors, ncol, nc+1, nc+1)
+            ncol = nmo - nc
+            CALL cp_fm_to_fm(work, eigenvectors, ncol, nc + 1, nc + 1)
          END IF
          ! Set NULL space in eigenvector matrix of S to zero
-         DO icol = nc+1, nao
+         DO icol = nc + 1, nao
             DO irow = 1, nao
                CALL cp_fm_set_element(work, irow, icol, 0.0_dp)
             END DO
          END DO
          ! Set small eigenvalues to a dummy save value
-         seigval(nc+1:nao) = 1.0_dp
+         seigval(nc + 1:nao) = 1.0_dp
       END IF
       ! calculate U*s**(-1/2)
       seigval(:) = 1.0_dp/SQRT(seigval(:))
@@ -1486,7 +1227,7 @@ CONTAINS
       CALL cp_fm_gemm("N", "N", nao, nao, nao, 1.0_dp, bmatrix, work, 0.0_dp, amatrix)
       IF (nc /= nao) THEN
          ! set diagonal values to save large value
-         DO icol = nc+1, nao
+         DO icol = nc + 1, nao
             CALL cp_fm_set_element(amatrix, icol, icol, 10000.0_dp)
          END DO
       END IF

@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -74,10 +74,10 @@ CONTAINS
 !> \param rho_struct density for which v_xc is calculated
 !> \param xc_section ...
 !> \param vxc_rho will contain the v_xc part that depend on rho
-!>        (if one of the choosen xc functionals has it it is allocated and you
+!>        (if one of the chosen xc functionals has it it is allocated and you
 !>        are responsible for it)
 !> \param vxc_tau will contain the kinetic (tau) part of v_xc
-!>        (if one of the choosen xc functionals has it it is allocated and you
+!>        (if one of the chosen xc functionals has it it is allocated and you
 !>        are responsible for it)
 !> \param exc ...
 !> \param just_energy if true calculates just the energy, and does not
@@ -202,7 +202,7 @@ CONTAINS
             ! no idea yet what to do here in that case
             CPASSERT(.NOT. tau_r_valid)
          CASE (sic_mauri_us)
-            my_scaling = 1.0_dp-dft_control%sic_scaling_b
+            my_scaling = 1.0_dp - dft_control%sic_scaling_b
             ! no idea yet what to do here in that case
             CPASSERT(.NOT. tau_r_valid)
          CASE (sic_eo)
@@ -419,7 +419,7 @@ CONTAINS
                                       virial_xc=virial_xc_tmp)
             END IF
 
-            exc = exc-dft_control%sic_scaling_b*exc_m
+            exc = exc - dft_control%sic_scaling_b*exc_m
 
             ! and take care of the potential only vxc_rho is taken into account
             IF (.NOT. my_just_energy) THEN
@@ -491,7 +491,7 @@ CONTAINS
                                          virial_xc=virial_xc_tmp)
                END IF
 
-               exc = exc-dft_control%sic_scaling_b*nelec_spin(ispin)*exc_m
+               exc = exc - dft_control%sic_scaling_b*nelec_spin(ispin)*exc_m
 
                ! and take care of the potential only vxc_rho is taken into account
                IF (.NOT. my_just_energy) THEN
@@ -536,7 +536,7 @@ CONTAINS
                                       virial_xc=virial_xc_tmp)
             END IF
 
-            exc = exc+dft_control%sic_scaling_b*exc_m
+            exc = exc + dft_control%sic_scaling_b*exc_m
 
             ! and take care of the potential
             IF (.NOT. my_just_energy) THEN

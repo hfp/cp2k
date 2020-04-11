@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -52,6 +52,7 @@ MODULE rtp_admm_methods
                                               qs_rho_type
    USE rt_propagation_types,            ONLY: get_rtp,&
                                               rt_prop_type
+   USE task_list_types,                 ONLY: task_list_type
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE
@@ -93,11 +94,12 @@ CONTAINS
       TYPE(qs_ks_env_type), POINTER                      :: ks_env
       TYPE(qs_rho_type), POINTER                         :: rho, rho_aux_fit
       TYPE(rt_prop_type), POINTER                        :: rtp
+      TYPE(task_list_type), POINTER                      :: task_list_aux_fit
 
       CALL timeset(routineN, handle)
       NULLIFY (admm_env, matrix_p_aux, matrix_p_aux_im, mos, &
                mos_aux_fit, para_env, matrix_s_aux_fit, matrix_s_aux_fit_vs_orb, rho, &
-               ks_env, dft_control, tot_rho_r_aux, rho_r_aux, rho_g_aux)
+               ks_env, dft_control, tot_rho_r_aux, rho_r_aux, rho_g_aux, task_list_aux_fit)
 
       CALL get_qs_env(qs_env, &
                       admm_env=admm_env, &
@@ -111,7 +113,12 @@ CONTAINS
                       rtp=rtp, &
                       rho=rho, &
                       rho_aux_fit=rho_aux_fit, &
-                      s_mstruct_changed=s_mstruct_changed)
+                      s_mstruct_changed=s_mstruct_changed, &
+                      task_list_aux_fit=task_list_aux_fit)
+
+      IF (admm_env%do_gapw) THEN
+         CPABORT("GAPW ADMM not implemented for real time propagation")
+      END IF
 
       nspins = dft_control%nspins
 
@@ -139,7 +146,8 @@ CONTAINS
                                  rho_gspace=rho_g_aux(ispin), &
                                  total_rho=tot_rho_r_aux(ispin), &
                                  ks_env=ks_env, soft_valid=.FALSE., &
-                                 basis_type="AUX_FIT")
+                                 basis_type="AUX_FIT", &
+                                 task_list_external=task_list_aux_fit)
       END DO
       CALL set_qs_env(qs_env, admm_env=admm_env)
       CALL qs_rho_set(rho_aux_fit, rho_r_valid=.TRUE., rho_g_valid=.TRUE.)
@@ -340,13 +348,13 @@ CONTAINS
                          occupation_numbers=occ_num_aux)
 
          CALL cp_gemm('N', 'N', nao_aux_fit, nmo, nao_orb, &
-                      1.0_dp, admm_env%A, mos_new(2*ispin-1)%matrix, 0.0_dp, &
-                      rtp_coeff_aux_fit(2*ispin-1)%matrix)
+                      1.0_dp, admm_env%A, mos_new(2*ispin - 1)%matrix, 0.0_dp, &
+                      rtp_coeff_aux_fit(2*ispin - 1)%matrix)
          CALL cp_gemm('N', 'N', nao_aux_fit, nmo, nao_orb, &
                       1.0_dp, admm_env%A, mos_new(2*ispin)%matrix, 0.0_dp, &
                       rtp_coeff_aux_fit(2*ispin)%matrix)
 
-         CALL cp_fm_to_fm(rtp_coeff_aux_fit(2*ispin-1)%matrix, mo_coeff_aux_fit)
+         CALL cp_fm_to_fm(rtp_coeff_aux_fit(2*ispin - 1)%matrix, mo_coeff_aux_fit)
       END DO
 
       CALL timestop(handle)
@@ -376,8 +384,8 @@ CONTAINS
 
       CALL timeset(routineN, handle)
 
-      re = 2*ispin-1; im = 2*ispin
-      alpha = 3*one-REAL(SIZE(rtp_coeff_aux_fit)/2, dp)
+      re = 2*ispin - 1; im = 2*ispin
+      alpha = 3*one - REAL(SIZE(rtp_coeff_aux_fit)/2, dp)
       CALL dbcsr_set(density_matrix_aux, zero)
       CALL cp_fm_get_info(rtp_coeff_aux_fit(re)%matrix, ncol_global=ncol)
       CALL cp_dbcsr_plus_fm_fm_t(sparse_matrix=density_matrix_aux, &
@@ -386,7 +394,7 @@ CONTAINS
                                  ncol=ncol, &
                                  alpha=alpha)
 
-      ! It is actually complex conjugate but i*i=-1 therfore it must be added
+      ! It is actually complex conjugate but i*i=-1 therefore it must be added
       CALL cp_dbcsr_plus_fm_fm_t(sparse_matrix=density_matrix_aux, &
                                  matrix_v=rtp_coeff_aux_fit(im)%matrix, &
                                  matrix_g=rtp_coeff_aux_fit(im)%matrix, &
@@ -480,7 +488,7 @@ CONTAINS
 
       CALL timeset(routineN, handle)
 
-      counter = counter+1
+      counter = counter + 1
       nao_aux_fit = admm_env%nao_aux_fit
       nao_orb = admm_env%nao_orb
       nmo = admm_env%nmo(ispin)

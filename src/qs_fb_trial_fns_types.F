@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 MODULE qs_fb_trial_fns_types
@@ -73,7 +73,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(trial_fns%obj))
       CPASSERT(trial_fns%obj%ref_count > 0)
-      trial_fns%obj%ref_count = trial_fns%obj%ref_count+1
+      trial_fns%obj%ref_count = trial_fns%obj%ref_count + 1
    END SUBROUTINE fb_trial_fns_retain
 
 ! **************************************************************************************************
@@ -90,7 +90,7 @@ CONTAINS
 
       IF (ASSOCIATED(trial_fns%obj)) THEN
          CPASSERT(trial_fns%obj%ref_count > 0)
-         trial_fns%obj%ref_count = trial_fns%obj%ref_count-1
+         trial_fns%obj%ref_count = trial_fns%obj%ref_count - 1
          IF (trial_fns%obj%ref_count == 0) THEN
             trial_fns%obj%ref_count = 1
             IF (ASSOCIATED(trial_fns%obj%nfunctions)) THEN
@@ -170,7 +170,7 @@ CONTAINS
       NULLIFY (trial_fns%obj%nfunctions)
       NULLIFY (trial_fns%obj%functions)
       trial_fns%obj%ref_count = 1
-      trial_fns%obj%id_nr = last_fb_trial_fns_id+1
+      trial_fns%obj%id_nr = last_fb_trial_fns_id + 1
       last_fb_trial_fns_id = trial_fns%obj%id_nr
    END SUBROUTINE fb_trial_fns_create
 

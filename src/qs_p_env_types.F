@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -46,7 +46,7 @@ MODULE qs_p_env_types
 !> \param kpp 1: the kpp1 matrix (make it temporary?)
 !> \param m_epsilon minus epsilon: -<psi0d|H_rho|psi0d>
 !> \param psi 0d: the dual basis of psi0: psi0 (psi0^T S psi0)^-1
-!> \param S_psi 0: S times psi0, cached for performace reasons
+!> \param S_psi 0: S times psi0, cached for performance reasons
 !> \param Smo_inv inverse of the mo overlap: (psi0^T S psi0)^-1
 !> \param kpp 1_env: environment for the calculation of kpp1
 !> \param rho 1: the density rho1
@@ -60,35 +60,33 @@ MODULE qs_p_env_types
 
       LOGICAL :: orthogonal_orbitals
       INTEGER :: id_nr, ref_count, iter
-      TYPE(dbcsr_p_type), DIMENSION(:), POINTER, CONTIGUOUS :: kpp1, p1
-      TYPE(cp_fm_p_type), DIMENSION(:), POINTER, CONTIGUOUS :: m_epsilon, &
-                                                               psi0d, S_psi0, &
-                                                               Smo_inv
-      TYPE(qs_kpp1_env_type), POINTER                       :: kpp1_env
-      TYPE(qs_rho_type), POINTER                            :: rho1
-      TYPE(qs_rho_type), POINTER                            :: rho1_xc
+      TYPE(dbcsr_p_type), DIMENSION(:), POINTER :: kpp1, p1, w1
+      TYPE(dbcsr_p_type), DIMENSION(:), POINTER :: p1_admm => NULL()
+      TYPE(cp_fm_p_type), DIMENSION(:), POINTER :: m_epsilon, &
+                                                   psi0d, S_psi0, Smo_inv
+      TYPE(qs_kpp1_env_type), POINTER :: kpp1_env
+      TYPE(qs_rho_type), POINTER :: rho1
+      TYPE(qs_rho_type), POINTER :: rho1_xc
       INTEGER, DIMENSION(2) :: n_mo, & ! no of molecular orbitals
                                n_ao ! no of basis functions
       ! GAPW stuff
-      TYPE(hartree_local_type), POINTER                     :: hartree_local
-      TYPE(local_rho_type), POINTER                         :: local_rho_set
+      TYPE(hartree_local_type), POINTER                 :: hartree_local
+      TYPE(local_rho_type), POINTER                      :: local_rho_set
 
       ! Linear Response Modules
-      TYPE(cp_fm_p_type), DIMENSION(:), POINTER, CONTIGUOUS :: PS_psi0
-      TYPE(cp_fm_p_type), DIMENSION(:), POINTER, CONTIGUOUS :: ev_h0
+      TYPE(cp_fm_p_type), DIMENSION(:), POINTER  :: PS_psi0
+      TYPE(cp_fm_p_type), DIMENSION(:), POINTER  :: ev_h0
 
       ! preconditioner matrix should be symmetric and positive definite
-      TYPE(preconditioner_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS    :: preconditioner
-      LOGICAL                   :: new_preconditioner
+      TYPE(preconditioner_type), DIMENSION(:), POINTER :: preconditioner
+      LOGICAL :: new_preconditioner
 
       !factors
-      REAL(KIND=dp)             :: delta, gnorm, gnorm_cross, &
-                                   gnorm_old, etotal, gradient
+      REAL(KIND=dp)  :: delta, gnorm, gnorm_cross, gnorm_old, etotal, gradient
       !line search
-      INTEGER                   :: ls_count
-      REAL(KIND=dp)             :: ls_pos(53), ls_energy(53), ls_grad(53)
-      LOGICAL                   :: only_energy, os_valid
+      INTEGER :: ls_count
+      REAL(KIND=dp)  :: ls_pos(53), ls_energy(53), ls_grad(53)
+      LOGICAL :: only_energy, os_valid
 
    END TYPE qs_p_env_type
 
@@ -119,7 +117,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(p_env))
       CPASSERT(p_env%ref_count > 0)
-      p_env%ref_count = p_env%ref_count+1
+      p_env%ref_count = p_env%ref_count + 1
    END SUBROUTINE p_env_retain
 
 ! **************************************************************************************************
@@ -139,7 +137,7 @@ CONTAINS
 
       IF (ASSOCIATED(p_env)) THEN
          CPASSERT(p_env%ref_count > 0)
-         p_env%ref_count = p_env%ref_count-1
+         p_env%ref_count = p_env%ref_count - 1
          IF (p_env%ref_count < 1) THEN
             CALL kpp1_release(p_env%kpp1_env)
             CALL cp_fm_vect_dealloc(p_env%S_psi0)
@@ -152,6 +150,8 @@ CONTAINS
             CALL qs_rho_release(p_env%rho1)
             IF (ASSOCIATED(p_env%kpp1)) CALL dbcsr_deallocate_matrix_set(p_env%kpp1)
             IF (ASSOCIATED(p_env%p1)) CALL dbcsr_deallocate_matrix_set(p_env%p1)
+            IF (ASSOCIATED(p_env%w1)) CALL dbcsr_deallocate_matrix_set(p_env%w1)
+            IF (ASSOCIATED(p_env%p1_admm)) CALL dbcsr_deallocate_matrix_set(p_env%p1_admm)
             IF (ASSOCIATED(p_env%local_rho_set)) THEN
                CALL local_rho_set_release(p_env%local_rho_set)
             END IF

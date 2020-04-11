@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -22,7 +22,8 @@ MODULE qs_environment
                                               create_lri_aux_basis_set,&
                                               create_ri_aux_basis_set
    USE basis_set_container_types,       ONLY: add_basis_set_to_container
-   USE basis_set_types,                 ONLY: get_gto_basis_set,&
+   USE basis_set_types,                 ONLY: basis_sort_zet,&
+                                              get_gto_basis_set,&
                                               gto_basis_set_type
    USE bibliography,                    ONLY: Iannuzzi2006,&
                                               Iannuzzi2007,&
@@ -63,6 +64,8 @@ MODULE qs_environment
                                               distribution_1d_type
    USE distribution_methods,            ONLY: distribute_molecules_1d
    USE dm_ls_scf_create,                ONLY: ls_scf_create
+   USE ec_env_types,                    ONLY: energy_correction_type
+   USE ec_environment,                  ONLY: ec_env_create
    USE et_coupling_types,               ONLY: et_coupling_create
    USE ewald_environment_types,         ONLY: ewald_env_create,&
                                               ewald_env_get,&
@@ -119,7 +122,8 @@ MODULE qs_environment
                                               write_molecule_kind_set
    USE molecule_types,                  ONLY: molecule_type
    USE mp2_setup,                       ONLY: read_mp2_section
-   USE mp2_types,                       ONLY: mp2_env_create
+   USE mp2_types,                       ONLY: mp2_env_create,&
+                                              mp2_type
    USE multipole_types,                 ONLY: do_multipole_none
    USE orbital_pointers,                ONLY: init_orbital_pointers
    USE orbital_transformation_matrices, ONLY: init_spherical_harmonics
@@ -127,6 +131,7 @@ MODULE qs_environment
                                               write_qs_particle_coordinates,&
                                               write_structure_data
    USE particle_types,                  ONLY: particle_type
+   USE pw_env_types,                    ONLY: pw_env_type
    USE qmmm_types_low,                  ONLY: qmmm_env_qm_type
    USE qs_dftb_parameters,              ONLY: qs_dftb_param_init
    USE qs_dftb_types,                   ONLY: qs_dftb_pairpot_type
@@ -159,12 +164,14 @@ MODULE qs_environment
                                               qs_ks_env_type,&
                                               qs_ks_release,&
                                               set_ks_env
+   USE qs_local_rho_types,              ONLY: local_rho_type
    USE qs_mo_types,                     ONLY: allocate_mo_set,&
                                               mo_set_p_type
    USE qs_rho0_ggrid,                   ONLY: rho0_s_grid_create
    USE qs_rho0_methods,                 ONLY: init_rho0
    USE qs_rho0_types,                   ONLY: rho0_mpole_type
    USE qs_rho_atom_methods,             ONLY: init_rho_atom
+   USE qs_rho_atom_types,               ONLY: rho_atom_type
    USE qs_subsys_methods,               ONLY: qs_subsys_create
    USE qs_subsys_types,                 ONLY: qs_subsys_get,&
                                               qs_subsys_release,&
@@ -247,7 +254,7 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'qs_init', routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: ikind, method_id, natom, nkind
+      INTEGER                                            :: ikind, method_id, nelectron_total, nkind
       LOGICAL                                            :: do_admm_rpa, do_et, do_exx, do_hfx, &
                                                             do_kpoints, is_semi, mp2_present, &
                                                             my_qmmm, qmmm_decoupl, silent, &
@@ -257,6 +264,7 @@ CONTAINS
       TYPE(cell_type), POINTER                           :: my_cell, my_cell_ref
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
       TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(energy_correction_type), POINTER              :: ec_env
       TYPE(kpoint_type), POINTER                         :: kpoints
       TYPE(lri_environment_type), POINTER                :: lri_env
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
@@ -265,6 +273,7 @@ CONTAINS
       TYPE(qs_subsys_type), POINTER                      :: subsys
       TYPE(qs_wf_history_type), POINTER                  :: wf_history
       TYPE(rel_control_type), POINTER                    :: rel_control
+      TYPE(scf_control_type), POINTER                    :: scf_control
       TYPE(section_vals_type), POINTER                   :: dft_section, et_coupling_section, &
                                                             hfx_section, kpoint_section, &
                                                             mp2_section, transport_section
@@ -388,18 +397,18 @@ CONTAINS
       do_hfx = .FALSE.
       hfx_section => section_vals_get_subs_vals(qs_env%input, "DFT%XC%HF")
       CALL section_vals_get(hfx_section, explicit=do_hfx)
-      CALL get_qs_env(qs_env, dft_control=dft_control)
+      CALL get_qs_env(qs_env, dft_control=dft_control, scf_control=scf_control, nelectron_total=nelectron_total)
       IF (do_hfx) THEN
          ! Retrieve particle_set and atomic_kind_set (needed for both kinds of initialization)
-         natom = SIZE(particle_set)
-         CALL hfx_create(qs_env%x_data, para_env, hfx_section, natom, atomic_kind_set, &
-                         qs_kind_set, dft_control, my_cell)
+         CALL hfx_create(qs_env%x_data, para_env, hfx_section, atomic_kind_set, &
+                         qs_kind_set, particle_set, dft_control, my_cell, do_ot=scf_control%use_ot, &
+                         nelectron_total=nelectron_total)
       END IF
 
       mp2_section => section_vals_get_subs_vals(qs_env%input, "DFT%XC%WF_CORRELATION")
       CALL section_vals_get(mp2_section, explicit=mp2_present)
       IF (mp2_present) THEN
-         CALL mp2_env_create(qs_env%mp2_env)
+         CPASSERT(ASSOCIATED(qs_env%mp2_env))
          CALL read_mp2_section(qs_env%input, qs_env%mp2_env)
          ! create the EXX section if necessary
          do_exx = .FALSE.
@@ -407,14 +416,14 @@ CONTAINS
          CALL section_vals_get(hfx_section, explicit=do_exx)
          IF (do_exx) THEN
             ! Retrieve particle_set and atomic_kind_set (needed for both kinds of initialization)
-            natom = SIZE(particle_set)
 
             ! do_exx in call of hfx_create decides whether to go without ADMM (do_exx=.TRUE.) or with
             ! ADMM (do_exx=.FALSE.)
             CALL section_vals_val_get(mp2_section, "RI_RPA%ADMM", l_val=do_admm_rpa)
 
-            CALL hfx_create(qs_env%mp2_env%ri_rpa%x_data, para_env, hfx_section, natom, atomic_kind_set, &
-                            qs_kind_set, dft_control, my_cell, do_exx=(.NOT. do_admm_rpa))
+            CALL hfx_create(qs_env%mp2_env%ri_rpa%x_data, para_env, hfx_section, atomic_kind_set, &
+                            qs_kind_set, particle_set, dft_control, my_cell, do_exx=(.NOT. do_admm_rpa), &
+                            do_ot=scf_control%use_ot, nelectron_total=nelectron_total)
 
          END IF
       END IF
@@ -423,6 +432,13 @@ CONTAINS
          CALL cite_reference(Iannuzzi2006)
          CALL kg_env_create(qs_env, qs_env%kg_env, qs_kind_set, qs_env%input)
       END IF
+
+      dft_section => section_vals_get_subs_vals(qs_env%input, "DFT")
+      CALL section_vals_val_get(dft_section, "ENERGY_CORRECTION%_SECTION_PARAMETERS_", &
+                                l_val=qs_env%energy_correction)
+      NULLIFY (ec_env)
+      CALL ec_env_create(qs_env, ec_env, dft_section)
+      CALL set_qs_env(qs_env, ec_env=ec_env)
 
       et_coupling_section => section_vals_get_subs_vals(qs_env%input, &
                                                         "PROPERTIES%ET_COUPLING")
@@ -489,13 +505,13 @@ CONTAINS
       CHARACTER(len=2)                                   :: element_symbol
       INTEGER :: handle, ikind, ispin, iw, lmax_sphere, maxl, maxlgto, maxlgto_lri, maxlppl, &
          maxlppnl, method_id, multiplicity, my_ival, n_ao, n_ao_aux_fit, n_mo_add, natom, &
-         nelectron, ngauss, nkind, output_unit, tnadd_method
+         nelectron, ngauss, nkind, output_unit, sort_basis, tnadd_method
       INTEGER, DIMENSION(2)                              :: n_mo, nelectron_spin
-      LOGICAL                                            :: all_potential_present, be_silent, &
-                                                            do_kpoints, e1terms, has_unit_metric, &
-                                                            lribas, orb_gradient, was_present
+      LOGICAL :: all_potential_present, be_silent, do_kpoints, do_ri_hfx, do_ri_mp2, do_ri_rpa, &
+         do_ri_sos_mp2, do_wfc_im_time, e1terms, has_unit_metric, lribas, mp2_present, orb_gradient
       REAL(dp)                                           :: alpha, ccore, ewald_rcut, maxocc, &
                                                             verlet_skin, zeff_correction
+      REAL(KIND=dp)                                      :: total_zeff_corr
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(dft_control_type), POINTER                    :: dft_control
@@ -506,14 +522,17 @@ CONTAINS
       TYPE(fist_nonbond_env_type), POINTER               :: se_nonbond_env
       TYPE(gapw_control_type), POINTER                   :: gapw_control
       TYPE(gto_basis_set_type), POINTER                  :: aux_fit_basis, lri_aux_basis, &
-                                                            ri_hfx_basis, ri_xas_basis, &
-                                                            tmp_basis_set
+                                                            ri_aux_basis_set, ri_hfx_basis, &
+                                                            ri_xas_basis, tmp_basis_set
+      TYPE(local_rho_type), POINTER                      :: local_rho_set
       TYPE(lri_environment_type), POINTER                :: lri_env
-      TYPE(mo_set_p_type), DIMENSION(:), POINTER         :: mos, mos_aux_fit
+      TYPE(mo_set_p_type), DIMENSION(:), POINTER         :: mos, mos_aux_fit, mos_last_converged
       TYPE(molecule_kind_type), DIMENSION(:), POINTER    :: molecule_kind_set
       TYPE(molecule_type), DIMENSION(:), POINTER         :: molecule_set
+      TYPE(mp2_type), POINTER                            :: mp2_env
       TYPE(nddo_mpole_type), POINTER                     :: se_nddo_mpole
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
+      TYPE(pw_env_type), POINTER                         :: pw_env
       TYPE(qs_control_type), POINTER                     :: qs_control
       TYPE(qs_dftb_pairpot_type), DIMENSION(:, :), &
          POINTER                                         :: dftb_potential
@@ -527,11 +546,12 @@ CONTAINS
       TYPE(qs_wf_history_type), POINTER                  :: wf_history
       TYPE(rel_control_type), POINTER                    :: rel_control
       TYPE(rho0_mpole_type), POINTER                     :: rho0_mpole
+      TYPE(rho_atom_type), DIMENSION(:), POINTER         :: rho_atom_set
       TYPE(scf_control_type), POINTER                    :: scf_control
       TYPE(se_taper_type), POINTER                       :: se_taper
       TYPE(section_vals_type), POINTER :: dft_section, et_coupling_section, et_ddapc_section, &
-         ewald_section, lri_section, nl_section, poisson_section, pp_section, print_section, &
-         qs_section, se_section, tddfpt_section, xc_section, xtb_section
+         ewald_section, lri_section, mp2_section, nl_section, poisson_section, pp_section, &
+         print_section, qs_section, se_section, tddfpt_section, xc_section, xtb_section
       TYPE(semi_empirical_control_type), POINTER         :: se_control
       TYPE(semi_empirical_si_type), POINTER              :: se_store_int_env
       TYPE(xtb_control_type), POINTER                    :: xtb_control
@@ -540,7 +560,6 @@ CONTAINS
       NULLIFY (logger)
       logger => cp_get_default_logger()
       output_unit = cp_logger_get_default_io_unit(logger)
-      was_present = .FALSE.
 
       be_silent = .FALSE.
       IF (PRESENT(silent)) be_silent = silent
@@ -556,6 +575,7 @@ CONTAINS
       NULLIFY (dft_section)
       NULLIFY (et_coupling_section)
       NULLIFY (ks_env)
+      NULLIFY (mos_last_converged)
       dft_section => section_vals_get_subs_vals(qs_env%input, "DFT")
       qs_section => section_vals_get_subs_vals(dft_section, "QS")
       et_coupling_section => section_vals_get_subs_vals(qs_env%input, "PROPERTIES%ET_COUPLING")
@@ -685,7 +705,7 @@ CONTAINS
             CALL get_potential(qs_kind%all_potential, alpha_core_charge=alpha)
             ccore = qs_kind%xtb_parameter%zeff*SQRT((alpha/pi)**3)
             CALL set_potential(qs_kind%all_potential, ccore_charge=ccore)
-            qs_kind%xtb_parameter%zeff = qs_kind%xtb_parameter%zeff-zeff_correction
+            qs_kind%xtb_parameter%zeff = qs_kind%xtb_parameter%zeff - zeff_correction
          END DO
          !
          ! check for Ewald
@@ -717,11 +737,11 @@ CONTAINS
 
       !   *** Check that no all-electron potential is present if GPW or GAPW_XC
       CALL get_qs_kind_set(qs_kind_set, all_potential_present=all_potential_present)
-      IF ((dft_control%qs_control%method == "GPW") .OR. &
-          (dft_control%qs_control%method == "GAPW_XC") .OR. &
-          (dft_control%qs_control%method == "OFGPW")) THEN
+      IF ((dft_control%qs_control%method_id == do_method_gpw) .OR. &
+          (dft_control%qs_control%method_id == do_method_gapw_xc) .OR. &
+          (dft_control%qs_control%method_id == do_method_ofgpw)) THEN
          IF (all_potential_present) THEN
-            CPABORT("All-el calculations with GPW, GAPW_XC, and OFGPW are not implemented ")
+            CPABORT("All-electron calculations with GPW, GAPW_XC, and OFGPW are not implemented")
          END IF
       END IF
 
@@ -775,6 +795,26 @@ CONTAINS
          END DO
       END IF
 
+      CALL section_vals_val_get(qs_env%input, "DFT%XC%HF%RI%_SECTION_PARAMETERS_", l_val=do_ri_hfx)
+      IF (do_ri_hfx) THEN
+         CALL get_qs_env(qs_env, nkind=nkind)
+         DO ikind = 1, nkind
+            NULLIFY (ri_hfx_basis)
+            qs_kind => qs_kind_set(ikind)
+            CALL get_qs_kind(qs_kind=qs_kind, basis_set=ri_hfx_basis, &
+                             basis_type="RI_HFX")
+            IF (.NOT. (ASSOCIATED(ri_hfx_basis))) THEN
+               CALL get_qs_kind_set(qs_kind_set, maxlgto=maxlgto)
+               IF (dft_control%do_admm) THEN
+                  CALL create_ri_aux_basis_set(ri_hfx_basis, qs_kind, dft_control%auto_basis_ri_hfx, basis_type="AUX_FIT")
+               ELSE
+                  CALL create_ri_aux_basis_set(ri_hfx_basis, qs_kind, dft_control%auto_basis_ri_hfx)
+               ENDIF
+               CALL add_basis_set_to_container(qs_kind%basis_sets, ri_hfx_basis, "RI_HFX")
+            END IF
+         END DO
+      ENDIF
+
       IF (dft_control%qs_control%method_id == do_method_rigpw) THEN
          ! Check if RI_HXC basis is available, auto-generate if needed
          CALL get_qs_env(qs_env, nkind=nkind)
@@ -792,6 +832,45 @@ CONTAINS
             END IF
          END DO
       END IF
+
+      mp2_section => section_vals_get_subs_vals(qs_env%input, "DFT%XC%WF_CORRELATION")
+      CALL section_vals_get(mp2_section, explicit=mp2_present)
+      IF (mp2_present) THEN
+
+         ! basis should be sorted for imaginary time RPA/GW
+         CALL section_vals_val_get(qs_env%input, "DFT%SORT_BASIS", i_val=sort_basis)
+         CALL section_vals_val_get(qs_env%input, "DFT%XC%WF_CORRELATION%LOW_SCALING%_SECTION_PARAMETERS_", &
+                                   l_val=do_wfc_im_time)
+
+         IF (do_wfc_im_time .AND. sort_basis /= basis_sort_zet) THEN
+            CALL cp_warn(__LOCATION__, &
+                         "Low-scaling RPA requires SORT_BASIS EXP keyword (in DFT input section) for good performance")
+         ENDIF
+
+         ! Check if RI_AUX basis (for MP2/RPA) is given, auto-generate if not
+         CALL mp2_env_create(qs_env%mp2_env)
+         CALL get_qs_env(qs_env, mp2_env=mp2_env, nkind=nkind)
+         CALL section_vals_val_get(qs_env%input, "DFT%XC%WF_CORRELATION%RI_MP2%_SECTION_PARAMETERS_", l_val=do_ri_mp2)
+         CALL section_vals_val_get(qs_env%input, "DFT%XC%WF_CORRELATION%RI_SOS_MP2%_SECTION_PARAMETERS_", l_val=do_ri_sos_mp2)
+         CALL section_vals_val_get(qs_env%input, "DFT%XC%WF_CORRELATION%RI_RPA%_SECTION_PARAMETERS_", l_val=do_ri_rpa)
+         IF (do_ri_mp2 .OR. do_ri_sos_mp2 .OR. do_ri_rpa) THEN
+            DO ikind = 1, nkind
+               NULLIFY (ri_aux_basis_set)
+               qs_kind => qs_kind_set(ikind)
+               CALL get_qs_kind(qs_kind=qs_kind, basis_set=ri_aux_basis_set, &
+                                basis_type="RI_AUX")
+               IF (.NOT. (ASSOCIATED(ri_aux_basis_set))) THEN
+                  ! RI_AUX basis set is not yet loaded
+                  CALL cp_warn(__LOCATION__, "Automatic Generation of RI_AUX basis. "// &
+                               "This is experimental code.")
+                  ! Generate a default basis
+                  CALL create_ri_aux_basis_set(ri_aux_basis_set, qs_kind, dft_control%auto_basis_ri_aux, basis_sort=sort_basis)
+                  CALL add_basis_set_to_container(qs_kind%basis_sets, ri_aux_basis_set, "RI_AUX")
+               END IF
+            END DO
+         END IF
+
+      ENDIF
 
       IF (dft_control%do_xas_tdp_calculation) THEN
          ! Check if RI_XAS basis is given, auto-generate if not
@@ -819,11 +898,11 @@ CONTAINS
          lmax_sphere = 2*maxlgto
          dft_control%qs_control%gapw_control%lmax_sphere = lmax_sphere
       END IF
-      IF (dft_control%qs_control%method == "LRIGPW" .OR. dft_control%qs_control%lri_optbas) THEN
+      IF (dft_control%qs_control%method_id == do_method_lrigpw .OR. dft_control%qs_control%lri_optbas) THEN
          CALL get_qs_kind_set(qs_kind_set, maxlgto=maxlgto_lri, basis_type="LRI_AUX")
          !take maxlgto from lri basis if larger (usually)
          maxlgto = MAX(maxlgto, maxlgto_lri)
-      ELSE IF (dft_control%qs_control%method == "RIGPW") THEN
+      ELSE IF (dft_control%qs_control%method_id == do_method_rigpw) THEN
          CALL get_qs_kind_set(qs_kind_set, maxlgto=maxlgto_lri, basis_type="RI_HXC")
          maxlgto = MAX(maxlgto, maxlgto_lri)
       END IF
@@ -832,7 +911,7 @@ CONTAINS
          CALL get_qs_kind_set(qs_kind_set, maxlgto=maxlgto_lri, basis_type="RI_XAS")
          maxlgto = MAX(maxlgto, maxlgto_lri)
       END IF
-      maxl = MAX(2*maxlgto, maxlppl, maxlppnl, lmax_sphere)+1
+      maxl = MAX(2*maxlgto, maxlppl, maxlppnl, lmax_sphere) + 1
 
       CALL init_orbital_pointers(maxl)
 
@@ -842,8 +921,8 @@ CONTAINS
       CALL init_qs_kind_set(qs_kind_set)
 
       !   *** Initialise GAPW soft basis and projectors
-      IF (dft_control%qs_control%method == "GAPW" .OR. &
-          dft_control%qs_control%method == "GAPW_XC") THEN
+      IF (dft_control%qs_control%method_id == do_method_gapw .OR. &
+          dft_control%qs_control%method_id == do_method_gapw_xc) THEN
          qs_control => dft_control%qs_control
          CALL init_gapw_basis_set(qs_kind_set, qs_control, qs_env%input)
       ENDIF
@@ -851,11 +930,11 @@ CONTAINS
       !   *** Initialize the pretabulation for the calculation of the   ***
       !   *** incomplete Gamma function F_n(t) after McMurchie-Davidson ***
       CALL get_qs_kind_set(qs_kind_set, maxlgto=maxlgto)
-      maxl = MAX(3*maxlgto+1, 0)
+      maxl = MAX(3*maxlgto + 1, 0)
       CALL init_md_ftable(maxl)
 
       !   *** Initialize the atomic interaction radii ***
-      CALL init_interaction_radii(dft_control%qs_control, atomic_kind_set, qs_kind_set)
+      CALL init_interaction_radii(dft_control%qs_control, qs_kind_set)
       !
       IF (dft_control%qs_control%method_id == do_method_xtb) THEN
          ! cutoff radius
@@ -972,12 +1051,14 @@ CONTAINS
       IF (dft_control%qs_control%method_id == do_method_gapw .OR. &
           dft_control%qs_control%method_id == do_method_gapw_xc) THEN
          !     *** Allocate and initialize the set of atomic densities ***
+         NULLIFY (rho_atom_set)
          gapw_control => dft_control%qs_control%gapw_control
-         CALL init_rho_atom(qs_env, gapw_control)
+         CALL init_rho_atom(rho_atom_set, atomic_kind_set, qs_kind_set, dft_control, para_env)
+         CALL set_qs_env(qs_env=qs_env, rho_atom_set=rho_atom_set)
          IF (dft_control%qs_control%method_id /= do_method_gapw_xc) THEN
-            CALL get_qs_env(qs_env=qs_env, natom=natom)
+            CALL get_qs_env(qs_env=qs_env, local_rho_set=local_rho_set, natom=natom)
             !       *** Allocate and initialize the compensation density rho0 ***
-            CALL init_rho0(qs_env, gapw_control)
+            CALL init_rho0(local_rho_set, qs_env, gapw_control, .FALSE.)
             !       *** Allocate and Initialize the local coulomb term ***
             CALL init_coulomb_local(qs_env%hartree_local, natom)
          END IF
@@ -1187,7 +1268,7 @@ CONTAINS
       CALL get_qs_kind_set(qs_kind_set, nsgf=n_ao, nelectron=nelectron)
 
       ! the total number of electrons
-      nelectron = nelectron-dft_control%charge
+      nelectron = nelectron - dft_control%charge
 
       IF (dft_control%multiplicity == 0) THEN
          IF (MODULO(nelectron, 2) == 0) THEN
@@ -1232,11 +1313,11 @@ CONTAINS
             n_mo(1) = 1
             n_mo(2) = 0
          ELSE
-            IF (MODULO(nelectron+multiplicity-1, 2) /= 0) THEN
+            IF (MODULO(nelectron + multiplicity - 1, 2) /= 0) THEN
                CPABORT("LSD: try to use a different multiplicity")
             END IF
-            nelectron_spin(1) = (nelectron+multiplicity-1)/2
-            nelectron_spin(2) = (nelectron-multiplicity+1)/2
+            nelectron_spin(1) = (nelectron + multiplicity - 1)/2
+            nelectron_spin(2) = (nelectron - multiplicity + 1)/2
             IF (nelectron_spin(1) < 0) THEN
                CPABORT("LSD: too few electrons for this multiplicity")
             END IF
@@ -1254,7 +1335,7 @@ CONTAINS
             IF (MODULO(nelectron, 2) == 0) THEN
                n_mo(1) = nelectron/2
             ELSE
-               n_mo(1) = INT(nelectron/2._dp)+1
+               n_mo(1) = INT(nelectron/2._dp) + 1
             END IF
             n_mo(2) = 0
          ELSE
@@ -1262,12 +1343,12 @@ CONTAINS
 
             ! The simplist spin distribution is written here. Special cases will
             ! need additional user input
-            IF (MODULO(nelectron+multiplicity-1, 2) /= 0) THEN
+            IF (MODULO(nelectron + multiplicity - 1, 2) /= 0) THEN
                CPABORT("LSD: try to use a different multiplicity")
             END IF
 
-            nelectron_spin(1) = (nelectron+multiplicity-1)/2
-            nelectron_spin(2) = (nelectron-multiplicity+1)/2
+            nelectron_spin(1) = (nelectron + multiplicity - 1)/2
+            nelectron_spin(2) = (nelectron - multiplicity + 1)/2
 
             IF (nelectron_spin(2) < 0) THEN
                CPABORT("LSD: too few electrons for this multiplicity")
@@ -1279,6 +1360,11 @@ CONTAINS
          END IF
 
       END IF
+
+      ! Read the total_zeff_corr here [SGh]
+      CALL get_qs_kind_set(qs_kind_set, total_zeff_corr=total_zeff_corr)
+      ! store it in qs_env
+      qs_env%total_zeff_corr = total_zeff_corr
 
       ! store the number of electrons once an for all
       CALL qs_subsys_set(subsys, &
@@ -1292,10 +1378,10 @@ CONTAINS
          ELSE
             n_mo_add = scf_control%added_mos(1)
          END IF
-         IF (n_mo_add > n_ao-n_mo(2)) &
+         IF (n_mo_add > n_ao - n_mo(2)) &
             CPWARN("More added MOs requested for beta spin than available.")
-         scf_control%added_mos(2) = MIN(n_mo_add, n_ao-n_mo(2))
-         n_mo(2) = n_mo(2)+scf_control%added_mos(2)
+         scf_control%added_mos(2) = MIN(n_mo_add, n_ao - n_mo(2))
+         n_mo(2) = n_mo(2) + scf_control%added_mos(2)
       END IF
 
       ! proceed alpha orbitals after the beta orbitals; this is essential to avoid
@@ -1306,12 +1392,12 @@ CONTAINS
       ! However, if we try to proceed alpha orbitals first, this leads us n_mo(1:2) = (10,8)
       ! due to the following assignment instruction above:
       !   IF (scf_control%added_mos(2) > 0) THEN ... ELSE; n_mo_add = scf_control%added_mos(1); END IF
-      IF (scf_control%added_mos(1) > n_ao-n_mo(1)) &
+      IF (scf_control%added_mos(1) > n_ao - n_mo(1)) &
          CALL cp_warn(__LOCATION__, &
                       "More added MOs requested than available. "// &
                       "The full set of unoccupied MOs will be used.")
-      scf_control%added_mos(1) = MIN(scf_control%added_mos(1), n_ao-n_mo(1))
-      n_mo(1) = n_mo(1)+scf_control%added_mos(1)
+      scf_control%added_mos(1) = MIN(scf_control%added_mos(1), n_ao - n_mo(1))
+      n_mo(1) = n_mo(1) + scf_control%added_mos(1)
 
       IF (dft_control%nspins == 2) THEN
          IF (n_mo(2) > n_mo(1)) &
@@ -1417,6 +1503,22 @@ CONTAINS
          CALL set_qs_env(qs_env, mos_aux_fit=mos_aux_fit)
       END IF
 
+! allocate mos when switch_surf_dip is triggered [SGh]
+      IF (dft_control%switch_surf_dip) THEN
+         ALLOCATE (mos_last_converged(dft_control%nspins))
+         DO ispin = 1, dft_control%nspins
+            NULLIFY (mos_last_converged(ispin)%mo_set)
+            CALL allocate_mo_set(mo_set=mos_last_converged(ispin)%mo_set, &
+                                 nao=n_ao, &
+                                 nmo=n_mo(ispin), &
+                                 nelectron=nelectron_spin(ispin), &
+                                 n_el_f=REAL(nelectron_spin(ispin), dp), &
+                                 maxocc=maxocc, &
+                                 flexible_electron_count=dft_control%relax_multiplicity)
+         END DO
+         CALL set_qs_env(qs_env, mos_last_converged=mos_last_converged)
+      ENDIF
+
       IF (.NOT. be_silent) THEN
          ! Print the DFT control parameters
          CALL write_dft_control(dft_control, dft_section)
@@ -1477,10 +1579,10 @@ CONTAINS
       ! Sets up pw_env, qs_charges, mpools ...
       CALL qs_env_setup(qs_env)
 
-      ! Allocate and Initialie rho0 soft on the global grid
-      IF (dft_control%qs_control%method == "GAPW") THEN
-         CALL get_qs_env(qs_env=qs_env, rho0_mpole=rho0_mpole)
-         CALL rho0_s_grid_create(qs_env, rho0_mpole)
+      ! Allocate and initialise rho0 soft on the global grid
+      IF (dft_control%qs_control%method_id == do_method_gapw) THEN
+         CALL get_qs_env(qs_env=qs_env, pw_env=pw_env, rho0_mpole=rho0_mpole)
+         CALL rho0_s_grid_create(pw_env, rho0_mpole)
       END IF
 
       IF (output_unit > 0) CALL m_flush(output_unit)
@@ -1532,7 +1634,7 @@ CONTAINS
          WRITE (UNIT=output_unit, FMT="(/,/,T2,A)") &
             "TOTAL NUMBERS AND MAXIMUM NUMBERS"
 
-         IF (nset+npgf+ncgf > 0) THEN
+         IF (nset + npgf + ncgf > 0) THEN
             WRITE (UNIT=output_unit, FMT="(/,T3,A,(T30,A,T71,I10))") &
                "Total number of", &
                "- Atomic kinds:                  ", nkind, &
@@ -1542,7 +1644,7 @@ CONTAINS
                "- Primitive Cartesian functions: ", npgf, &
                "- Cartesian basis functions:     ", ncgf, &
                "- Spherical basis functions:     ", nsgf
-         ELSE IF (nshell+nsgf > 0) THEN
+         ELSE IF (nshell + nsgf > 0) THEN
             WRITE (UNIT=output_unit, FMT="(/,T3,A,(T30,A,T71,I10))") &
                "Total number of", &
                "- Atomic kinds:                  ", nkind, &
@@ -1581,7 +1683,7 @@ CONTAINS
                               nsgf=nsgf, &
                               nshell=nshell, &
                               basis_type="LRI_AUX")
-         IF (nset+npgf+ncgf > 0) THEN
+         IF (nset + npgf + ncgf > 0) THEN
             WRITE (UNIT=output_unit, FMT="(/,T3,A,/,T3,A,(T30,A,T71,I10))") &
                "LRI_AUX Basis: ", &
                "Total number of", &
@@ -1603,7 +1705,7 @@ CONTAINS
                               nsgf=nsgf, &
                               nshell=nshell, &
                               basis_type="RI_HXC")
-         IF (nset+npgf+ncgf > 0) THEN
+         IF (nset + npgf + ncgf > 0) THEN
             WRITE (UNIT=output_unit, FMT="(/,T3,A,/,T3,A,(T30,A,T71,I10))") &
                "RI_HXC Basis: ", &
                "Total number of", &
@@ -1625,7 +1727,7 @@ CONTAINS
                               nsgf=nsgf, &
                               nshell=nshell, &
                               basis_type="AUX_FIT")
-         IF (nset+npgf+ncgf > 0) THEN
+         IF (nset + npgf + ncgf > 0) THEN
             WRITE (UNIT=output_unit, FMT="(/,T3,A,/,T3,A,(T30,A,T71,I10))") &
                "AUX_FIT ADMM-Basis: ", &
                "Total number of", &

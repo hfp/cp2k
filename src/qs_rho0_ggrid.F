@@ -1,10 +1,9 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 ! **************************************************************************************************
 MODULE qs_rho0_ggrid
-
    USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                               get_atomic_kind
    USE basis_set_types,                 ONLY: get_gto_basis_set,&
@@ -14,7 +13,9 @@ MODULE qs_rho0_ggrid
    USE cp_control_types,                ONLY: dft_control_type
    USE cp_para_types,                   ONLY: cp_para_env_type
    USE cube_utils,                      ONLY: cube_info_type
-   USE input_constants,                 ONLY: tddfpt_singlet
+   USE gaussian_gridlevels,             ONLY: gaussian_gridlevel
+   USE grid_api,                        ONLY: GRID_FUNC_AB,&
+                                              collocate_pgf_product
    USE kinds,                           ONLY: dp,&
                                               int_8
    USE mathconstants,                   ONLY: dfac,&
@@ -45,16 +46,16 @@ MODULE qs_rho0_ggrid
                                               RECIPROCALSPACE,&
                                               pw_p_type,&
                                               pw_release
-   USE qs_collocate_density,            ONLY: collocate_pgf_product_rspace
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
    USE qs_force_types,                  ONLY: qs_force_type
    USE qs_harmonics_atom,               ONLY: get_none0_cg_list,&
                                               harmonics_atom_type
-   USE qs_integrate_potential,          ONLY: integrate_pgf_product_rspace
+   USE qs_integrate_potential,          ONLY: integrate_pgf_product
    USE qs_kind_types,                   ONLY: get_qs_kind,&
                                               qs_kind_type
-   USE qs_p_env_types,                  ONLY: qs_p_env_type
+   USE qs_local_rho_types,              ONLY: get_local_rho,&
+                                              local_rho_type
    USE qs_rho0_types,                   ONLY: get_rho0_mpole,&
                                               rho0_mpole_type
    USE qs_rho_atom_types,               ONLY: get_rho_atom,&
@@ -99,7 +100,7 @@ CONTAINS
 
       INTEGER                                            :: auxbas_grid, handle, iat, iatom, igrid, &
                                                             ikind, ithread, j, l0_ikind, lmax0, &
-                                                            lmax_global, nat, nch_ik, nch_max, npme
+                                                            nat, nch_ik, nch_max, npme
       INTEGER, DIMENSION(:), POINTER                     :: atom_list, cores
       LOGICAL                                            :: paw_atom
       REAL(KIND=dp)                                      :: eps_rho_rspace, rpgf0, zet0
@@ -175,13 +176,6 @@ CONTAINS
 
       ALLOCATE (pab(nch_max, 1))
 
-      !Compute global lmax for use in collocate_pgf_product_rspace
-      lmax_global = 0
-      DO ikind = 1, SIZE(atomic_kind_set)
-         CALL get_rho0_mpole(rho0_mpole=rho0, ikind=ikind, l0_ikind=l0_ikind)
-         lmax_global = MAX(lmax_global, l0_ikind)
-      END DO
-
       DO ikind = 1, SIZE(atomic_kind_set)
          CALL get_atomic_kind(atomic_kind_set(ikind), atom_list=atom_list, natom=nat)
          CALL get_qs_kind(qs_kind_set(ikind), paw_atom=paw_atom)
@@ -204,11 +198,11 @@ CONTAINS
             IF (rs_grid%desc%parallel .AND. .NOT. rs_grid%desc%distributed) THEN
                ! replicated realspace grid, split the atoms up between procs
                IF (MODULO(nat, rs_grid%desc%group_size) == rs_grid%desc%my_pos) THEN
-                  npme = npme+1
+                  npme = npme + 1
                   cores(npme) = iat
                ENDIF
             ELSE
-               npme = npme+1
+               npme = npme + 1
                cores(npme) = iat
             ENDIF
 
@@ -226,12 +220,11 @@ CONTAINS
 
             ra(:) = pbc(particle_set(iatom)%r, cell)
 
-            CALL collocate_pgf_product_rspace( &
+            CALL collocate_pgf_product( &
                l0_ikind, zet0, 0, 0, 0.0_dp, 0, &
-               ra, (/0.0_dp, 0.0_dp, 0.0_dp/), 0.0_dp, 1.0_dp, pab, 0, 0, &
-               rs_grid, cell, cube_info(igrid), eps_rho_rspace, ga_gb_function=401, &
-               ithread=ithread, collocate_rho0=.TRUE., rpgf0_s=rpgf0, &
-               use_subpatch=.TRUE., subpatch_pattern=0_int_8, lmax_global=lmax_global)
+               ra, (/0.0_dp, 0.0_dp, 0.0_dp/), 1.0_dp, pab, 0, 0, &
+               rs_grid, cell, cube_info(igrid), ga_gb_function=GRID_FUNC_AB, radius=rpgf0, &
+               use_subpatch=.TRUE., subpatch_pattern=0_int_8)
 
          END DO !  j
 
@@ -279,33 +272,27 @@ CONTAINS
 
 ! **************************************************************************************************
 !> \brief ...
-!> \param qs_env ...
+!> \param pw_env ...
 !> \param rho0_mpole ...
-!> \param tddft ...
 ! **************************************************************************************************
-   SUBROUTINE rho0_s_grid_create(qs_env, rho0_mpole, tddft)
+   SUBROUTINE rho0_s_grid_create(pw_env, rho0_mpole)
 
-      TYPE(qs_environment_type), POINTER                 :: qs_env
+      TYPE(pw_env_type), POINTER                         :: pw_env
       TYPE(rho0_mpole_type), POINTER                     :: rho0_mpole
-      LOGICAL, INTENT(IN), OPTIONAL                      :: tddft
 
       CHARACTER(len=*), PARAMETER :: routineN = 'rho0_s_grid_create', &
          routineP = moduleN//':'//routineN
 
-      LOGICAL                                            :: my_tddft
-      TYPE(pw_env_type), POINTER                         :: new_pw_env
+      INTEGER                                            :: handle
       TYPE(pw_p_type), POINTER                           :: rho_gs, rho_rs
       TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
 
-      my_tddft = .FALSE.
-      IF (PRESENT(tddft)) my_tddft = tddft
+      CALL timeset(routineN, handle)
 
-      NULLIFY (new_pw_env)
-      CALL get_qs_env(qs_env, pw_env=new_pw_env)
-      CPASSERT(ASSOCIATED(new_pw_env))
+      CPASSERT(ASSOCIATED(pw_env))
 
       NULLIFY (auxbas_pw_pool)
-      CALL pw_env_get(new_pw_env, auxbas_pw_pool=auxbas_pw_pool)
+      CALL pw_env_get(pw_env, auxbas_pw_pool=auxbas_pw_pool)
       CPASSERT(ASSOCIATED(auxbas_pw_pool))
 
       ! reallocate rho0 on the global grid in real and reciprocal space
@@ -335,9 +322,10 @@ CONTAINS
       rho_gs%pw%in_space = RECIPROCALSPACE
       rho0_mpole%rho0_s_gs => rho_gs
 
-      IF (my_tddft) THEN
-         rho0_mpole%igrid_zet0_s = qs_env%local_rho_set%rho0_mpole%igrid_zet0_s
-      END IF
+      ! Find the grid level suitable for rho0_soft
+      rho0_mpole%igrid_zet0_s = gaussian_gridlevel(pw_env%gridlevel_info, 2.0_dp*rho0_mpole%zet0_h)
+
+      CALL timestop(handle)
 
    END SUBROUTINE rho0_s_grid_create
 
@@ -345,19 +333,17 @@ CONTAINS
 !> \brief ...
 !> \param qs_env ...
 !> \param v_rspace ...
+!> \param para_env ...
 !> \param calculate_forces ...
-!> \param tddft ...
-!> \param do_triplet ...
-!> \param p_env ...
+!> \param local_rho_set ...
 ! **************************************************************************************************
-   SUBROUTINE integrate_vhg0_rspace(qs_env, v_rspace, calculate_forces, &
-                                    tddft, do_triplet, p_env)
+   SUBROUTINE integrate_vhg0_rspace(qs_env, v_rspace, para_env, calculate_forces, local_rho_set)
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(pw_p_type)                                    :: v_rspace
+      TYPE(cp_para_env_type), POINTER                    :: para_env
       LOGICAL, INTENT(IN)                                :: calculate_forces
-      LOGICAL, INTENT(IN), OPTIONAL                      :: tddft, do_triplet
-      TYPE(qs_p_env_type), OPTIONAL, POINTER             :: p_env
+      TYPE(local_rho_type), OPTIONAL, POINTER            :: local_rho_set
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'integrate_vhg0_rspace', &
          routineP = moduleN//':'//routineN
@@ -369,8 +355,7 @@ CONTAINS
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: cg_n_list
       INTEGER, ALLOCATABLE, DIMENSION(:, :, :)           :: cg_list
       INTEGER, DIMENSION(:), POINTER                     :: atom_list, lmax, lmin, npgf
-      LOGICAL                                            :: grid_distributed, my_tddft, paw_atom, &
-                                                            use_virial
+      LOGICAL                                            :: grid_distributed, paw_atom, use_virial
       REAL(dp)                                           :: c4pi, eps_rho_rspace, force_tmp(3), &
                                                             ra(3), rpgf0, scale, zet0
       REAL(dp), DIMENSION(:), POINTER                    :: hab_sph, norm_l, Qlm
@@ -380,7 +365,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(3, 3)                     :: my_virial_a, my_virial_b
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(cell_type), POINTER                           :: cell
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(cube_info_type), DIMENSION(:), POINTER        :: cube_info
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(gto_basis_set_type), POINTER                  :: orb_basis_set
@@ -407,18 +391,19 @@ CONTAINS
 
       CALL timeset(routineN, handle)
 
-      NULLIFY (atomic_kind_set, qs_kind_set, dft_control, para_env, particle_set)
-      NULLIFY (cell, force, pw_env, rho0_mpole, rho_atom_set)
+      ! In case of the external density computed forces probably also
+      ! need to be stored outside qs_env. We can then remove the
+      ! attribute 'OPTIONAL' from the argument 'local_rho_set'.
+      CPASSERT(.NOT. (calculate_forces .AND. PRESENT(local_rho_set)))
 
-      my_tddft = .FALSE.
-      IF (PRESENT(tddft)) my_tddft = tddft
+      NULLIFY (atomic_kind_set, qs_kind_set, dft_control, particle_set)
+      NULLIFY (cell, force, pw_env, rho0_mpole, rho_atom_set)
 
       CALL get_qs_env(qs_env=qs_env, &
                       atomic_kind_set=atomic_kind_set, &
                       qs_kind_set=qs_kind_set, &
                       cell=cell, &
                       dft_control=dft_control, &
-                      para_env=para_env, &
                       force=force, pw_env=pw_env, &
                       rho0_mpole=rho0_mpole, &
                       rho_atom_set=rho_atom_set, &
@@ -429,18 +414,21 @@ CONTAINS
 
       nspins = dft_control%nspins
 
-      IF (my_tddft) THEN
-         IF (PRESENT(do_triplet)) THEN
-            IF (nspins == 1 .AND. do_triplet) RETURN
-         ELSE
-            IF (nspins == 1 .AND. dft_control%tddfpt_control%res_etype /= tddfpt_singlet) RETURN
-         ENDIF
-      END IF
+      ! The aim of the following code was to return immediately if the subroutine
+      ! was called for triplet excited states in spin-restricted case. This check
+      ! is also performed before invocation of this subroutine. It should be save
+      ! to remove the optional argument 'do_triplet' from the subroutine interface.
+      !my_tddft = PRESENT(local_rho_set)
+      !IF (my_tddft) THEN
+      !   IF (PRESENT(do_triplet)) THEN
+      !      IF (nspins == 1 .AND. do_triplet) RETURN
+      !   ELSE
+      !      IF (nspins == 1 .AND. dft_control%tddfpt_control%res_etype /= tddfpt_singlet) RETURN
+      !   ENDIF
+      !END IF
 
-      IF (my_tddft) THEN
-         rho0_mpole => p_env%local_rho_set%rho0_mpole
-         rho_atom_set => p_env%local_rho_set%rho_atom_set
-      END IF
+      IF (PRESENT(local_rho_set)) &
+         CALL get_local_rho(local_rho_set, rho0_mpole=rho0_mpole, rho_atom_set=rho_atom_set)
 
       CALL get_rho0_mpole(rho0_mpole=rho0_mpole, lmax_0=lmax0, &
                           zet0_h=zet0, igrid_zet0_s=igrid, &
@@ -562,7 +550,7 @@ CONTAINS
 
          num_pe = para_env%num_pe
          mepos = para_env%mepos
-         DO j = 0, num_pe-1
+         DO j = 0, num_pe - 1
             bo = get_limit(nat, num_pe, j)
             IF (.NOT. grid_distributed .AND. j /= mepos) CYCLE
 
@@ -582,51 +570,50 @@ CONTAINS
                   a_hdab = 0.0_dp
                END IF
 
-               CALL integrate_pgf_product_rspace( &
+               CALL integrate_pgf_product( &
                   l0_ikind, zet0, 0, 0, 0.0_dp, 0, &
-                  ra, (/0.0_dp, 0.0_dp, 0.0_dp/), 0.0_dp, rs_v, cell, &
+                  ra, (/0.0_dp, 0.0_dp, 0.0_dp/), rs_v, cell, &
                   cube_info(igrid), hab, pab, o1=0, o2=0, &
-                  eps_gvg_rspace=eps_rho_rspace, &
+                  radius=rpgf0, &
                   calculate_forces=calculate_forces, &
                   hdab=hdab, hadb=hadb, &
-                  collocate_rho0=.TRUE., rpgf0_s=rpgf0, &
                   use_virial=use_virial, my_virial_a=my_virial_a, my_virial_b=my_virial_b, &
                   a_hdab=a_hdab, use_subpatch=.TRUE., subpatch_pattern=0_int_8)
 
                ! Convert from cartesian to spherical
                DO lshell = 0, l0_ikind
                   DO is = 1, nso(lshell)
-                     iso = is+nsoset(lshell-1)
+                     iso = is + nsoset(lshell - 1)
                      hab_sph(iso) = 0.0_dp
                      hdab_sph(1:3, iso) = 0.0_dp
                      a_hdab_sph(1:3, 1:3, iso) = 0.0_dp
                      DO ic = 1, nco(lshell)
-                        ico = ic+ncoset(lshell-1)
+                        ico = ic + ncoset(lshell - 1)
                         lx = indco(1, ico)
                         ly = indco(2, ico)
                         lz = indco(3, ico)
 
-                        hab_sph(iso) = hab_sph(iso)+ &
+                        hab_sph(iso) = hab_sph(iso) + &
                                        orbtramat(lshell)%c2s(is, ic)*hab(ico, 1)* &
                                        norm_l(lshell)/ &
-                                       SQRT(c4pi*dfac(2*lx-1)*dfac(2*ly-1)*dfac(2*lz-1)/ &
-                                            dfac(2*lshell+1))
+                                       SQRT(c4pi*dfac(2*lx - 1)*dfac(2*ly - 1)*dfac(2*lz - 1)/ &
+                                            dfac(2*lshell + 1))
 
                         IF (calculate_forces) THEN
-                           hdab_sph(1:3, iso) = hdab_sph(1:3, iso)+ &
+                           hdab_sph(1:3, iso) = hdab_sph(1:3, iso) + &
                                                 orbtramat(lshell)%c2s(is, ic)*hdab(1:3, ico, 1)* &
                                                 norm_l(lshell)/ &
-                                                SQRT(c4pi*dfac(2*lx-1)*dfac(2*ly-1)*dfac(2*lz-1)/ &
-                                                     dfac(2*lshell+1))
+                                                SQRT(c4pi*dfac(2*lx - 1)*dfac(2*ly - 1)*dfac(2*lz - 1)/ &
+                                                     dfac(2*lshell + 1))
                         END IF
                         IF (use_virial) THEN
                            DO ii = 1, 3
                            DO i = 1, 3
-                              a_hdab_sph(i, ii, iso) = a_hdab_sph(i, ii, iso)+ &
+                              a_hdab_sph(i, ii, iso) = a_hdab_sph(i, ii, iso) + &
                                                        orbtramat(lshell)%c2s(is, ic)*a_hdab(i, ii, ico, 1)* &
                                                        norm_l(lshell)/ &
-                                                       SQRT(c4pi*dfac(2*lx-1)*dfac(2*ly-1)*dfac(2*lz-1)/ &
-                                                            dfac(2*lshell+1))
+                                                       SQRT(c4pi*dfac(2*lx - 1)*dfac(2*ly - 1)*dfac(2*lz - 1)/ &
+                                                            dfac(2*lshell + 1))
                            END DO
                            END DO
                         END IF
@@ -652,19 +639,19 @@ CONTAINS
                                  iso1 = cg_list(1, icg, iso)
                                  iso2 = cg_list(2, icg, iso)
 
-                                 ig1 = iso1+n1*(ipgf1-1)+m1
-                                 ig2 = iso2+n2*(ipgf2-1)+m2
+                                 ig1 = iso1 + n1*(ipgf1 - 1) + m1
+                                 ig2 = iso2 + n2*(ipgf2 - 1) + m2
 
-                                 intloc(ig1, ig2) = intloc(ig1, ig2)+Qlm_gg(ig1, ig2, iso)*hab_sph(iso)
+                                 intloc(ig1, ig2) = intloc(ig1, ig2) + Qlm_gg(ig1, ig2, iso)*hab_sph(iso)
 
                               END DO ! icg
                            END DO ! iso
 
                         END DO ! ipgf2
                      END DO ! ipgf1
-                     m2 = m2+maxso
+                     m2 = m2 + maxso
                   END DO ! iset2
-                  m1 = m1+maxso
+                  m1 = m1 + maxso
                END DO ! iset1
 
                IF (grid_distributed) THEN
@@ -676,26 +663,26 @@ CONTAINS
                   rho_atom => rho_atom_set(iatom)
                   CALL get_rho_atom(rho_atom=rho_atom, ga_Vlocal_gb_h=int_local_h, ga_Vlocal_gb_s=int_local_s)
                   DO ispin = 1, nspins
-                     int_local_h(ispin)%r_coef = int_local_h(ispin)%r_coef+intloc
-                     int_local_s(ispin)%r_coef = int_local_s(ispin)%r_coef+intloc
+                     int_local_h(ispin)%r_coef = int_local_h(ispin)%r_coef + intloc
+                     int_local_s(ispin)%r_coef = int_local_s(ispin)%r_coef + intloc
                   END DO
                END IF
 
                IF (calculate_forces) THEN
                   force_tmp(1:3) = 0.0_dp
                   DO iso = 1, nsoset(l0_ikind)
-                     force_tmp(1) = force_tmp(1)+Qlm(iso)*hdab_sph(1, iso)
-                     force_tmp(2) = force_tmp(2)+Qlm(iso)*hdab_sph(2, iso)
-                     force_tmp(3) = force_tmp(3)+Qlm(iso)*hdab_sph(3, iso)
+                     force_tmp(1) = force_tmp(1) + Qlm(iso)*hdab_sph(1, iso)
+                     force_tmp(2) = force_tmp(2) + Qlm(iso)*hdab_sph(2, iso)
+                     force_tmp(3) = force_tmp(3) + Qlm(iso)*hdab_sph(3, iso)
                   END DO
-                  force(ikind)%g0s_Vh_elec(1:3, iat) = force(ikind)%g0s_Vh_elec(1:3, iat)+force_tmp(1:3)
+                  force(ikind)%g0s_Vh_elec(1:3, iat) = force(ikind)%g0s_Vh_elec(1:3, iat) + force_tmp(1:3)
                END IF
                IF (use_virial) THEN
                   my_virial_a = 0.0_dp
                   DO iso = 1, nsoset(l0_ikind)
                      DO ii = 1, 3
                      DO i = 1, 3
-                        virial%pv_virial(i, ii) = virial%pv_virial(i, ii)+Qlm(iso)*a_hdab_sph(i, ii, iso)
+                        virial%pv_virial(i, ii) = virial%pv_virial(i, ii) + Qlm(iso)*a_hdab_sph(i, ii, iso)
                      END DO
                      END DO
                   END DO

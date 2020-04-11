@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 MODULE pint_types
@@ -60,7 +60,7 @@ MODULE pint_types
    !> \param beta 1/kT (physical temperature)
    !> \param dt time step for dynamic
    !> \param e_pot_h potential energy in harmonic springs
-   !> \param e_kin_beads (fictious) kinetic energy of the beads
+   !> \param e_kin_beads (fictitious) kinetic energy of the beads
    !> \param e_pot_t potential energy of thermostats
    !> \param e_kin_t kinetic energy of thermostats
    !> \param energy - energy contributions updated every step REAL(e_num_ids)
@@ -77,7 +77,7 @@ MODULE pint_types
    !> \param v array with real space velocities
    !> \param f array with real space forces
    !> \param mass_beads masses of the beads for harmonic forces (harmonic mass)
-   !> \param mass_fict fictious mass of the beads for dynamics (kinetic mass)
+   !> \param mass_fict fictitious mass of the beads for dynamics (kinetic mass)
    !> \param ux array with transformed space coordinates (P, 3*N)
    !> \param uv array with transformed velocities
    !> \param uv_t array with temporary transformed velocities
@@ -121,7 +121,7 @@ MODULE pint_types
       TYPE(section_vals_type), POINTER :: input
       TYPE(staging_env_type), POINTER :: staging_env
       TYPE(normalmode_env_type), POINTER :: normalmode_env
-      TYPE(rng_stream_type), POINTER :: randomG
+      TYPE(rng_stream_type) :: randomG
       TYPE(gle_type), POINTER        :: gle
       REAL(KIND=dp), DIMENSION(e_num_ids) :: energy
       REAL(KIND=dp), DIMENSION(:), POINTER :: mass, e_pot_bead
@@ -206,7 +206,7 @@ MODULE pint_types
       REAL(KIND=dp), DIMENSION(:), POINTER       :: c2
       REAL(KIND=dp), DIMENSION(:), POINTER       :: g_fric
       REAL(KIND=dp), DIMENSION(:, :), POINTER    :: massfact
-      TYPE(rng_stream_type), POINTER             :: gaussian_rng_stream
+      TYPE(rng_stream_type)                      :: gaussian_rng_stream
    END TYPE pile_therm_type
 
    ! ***************************************************************************
@@ -240,7 +240,7 @@ MODULE pint_types
       REAL(KIND=dp), DIMENSION(:, :), POINTER :: temp1
       REAL(KIND=dp), DIMENSION(:, :), POINTER :: temp2
       REAL(KIND=dp), DIMENSION(:, :), POINTER :: sqrtmass
-      TYPE(rng_stream_type), POINTER       :: gaussian_rng_stream
+      TYPE(rng_stream_type)                :: gaussian_rng_stream
    END TYPE piglet_therm_type
 
    ! ***************************************************************************
@@ -283,7 +283,7 @@ MODULE pint_types
       INTEGER                                    :: fp
       INTEGER                                    :: nf
       REAL(KIND=dp)                              :: thermostat_energy
-      TYPE(rng_stream_type), POINTER             :: gaussian_rng_stream
+      TYPE(rng_stream_type)                      :: gaussian_rng_stream
       CHARACTER(LEN=rng_record_length), DIMENSION(:), POINTER :: rng_status
    END TYPE qtb_therm_type
 

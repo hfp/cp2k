@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -19,8 +19,6 @@ MODULE al_system_dynamics
    USE molecule_kind_types,             ONLY: molecule_kind_type
    USE molecule_types,                  ONLY: get_molecule,&
                                               molecule_type
-   USE parallel_rng_types,              ONLY: next_random_number,&
-                                              rng_stream_type
    USE particle_types,                  ONLY: particle_type
    USE thermostat_utils,                ONLY: ke_region_particles,&
                                               vel_rescale_particles
@@ -190,7 +188,6 @@ CONTAINS
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: w(:, :)
       TYPE(atomic_kind_type), POINTER                    :: atomic_kind
       TYPE(molecule_type), POINTER                       :: molecule
-      TYPE(rng_stream_type), POINTER                     :: rng_stream
 
       present_vel = PRESENT(vel)
 
@@ -200,7 +197,7 @@ CONTAINS
          ! drag on velocities
          IF (al%tau_langevin > 0.0_dp) THEN
             map_info%v_scale(imap) = EXP(-step*al%dt/al%tau_langevin)
-            map_info%s_kin(imap) = SQRT((al%nvt(i)%nkt/al%nvt(i)%degrees_of_freedom)*(1.0_dp-map_info%v_scale(imap)**2))
+            map_info%s_kin(imap) = SQRT((al%nvt(i)%nkt/al%nvt(i)%degrees_of_freedom)*(1.0_dp - map_info%v_scale(imap)**2))
          ELSE
             map_info%v_scale(imap) = 1.0_dp
             map_info%s_kin(imap) = 0.0_dp
@@ -222,10 +219,9 @@ CONTAINS
          CPASSERT(check)
          DO iparticle_local = 1, nparticle_local
             ipart = local_particles%list(iparticle_kind)%array(iparticle_local)
-            rng_stream => local_particles%local_particle_set(iparticle_kind)%rng(iparticle_local)%stream
-            w(1, ipart) = next_random_number(rng_stream, variance=1.0_dp)
-            w(2, ipart) = next_random_number(rng_stream, variance=1.0_dp)
-            w(3, ipart) = next_random_number(rng_stream, variance=1.0_dp)
+            w(1, ipart) = local_particles%local_particle_set(iparticle_kind)%rng(iparticle_local)%stream%next(variance=1.0_dp)
+            w(2, ipart) = local_particles%local_particle_set(iparticle_kind)%rng(iparticle_local)%stream%next(variance=1.0_dp)
+            w(3, ipart) = local_particles%local_particle_set(iparticle_kind)%rng(iparticle_local)%stream%next(variance=1.0_dp)
          END DO
       END DO
 
@@ -239,14 +235,14 @@ CONTAINS
             molecule => molecule_set(imol)
             CALL get_molecule(molecule, first_atom=first_atom, last_atom=last_atom)
             DO ipart = first_atom, last_atom
-               ii = ii+1
+               ii = ii + 1
                atomic_kind => particle_set(ipart)%atomic_kind
                CALL get_atomic_kind(atomic_kind=atomic_kind, mass=mass)
                IF (present_vel) THEN
-                  vel(:, ipart) = vel(:, ipart)*map_info%v_scale(ii)+ &
+                  vel(:, ipart) = vel(:, ipart)*map_info%v_scale(ii) + &
                                   map_info%s_kin(ii)/SQRT(mass)*w(:, ipart)
                ELSE
-                  particle_set(ipart)%v(:) = particle_set(ipart)%v(:)*map_info%v_scale(ii)+ &
+                  particle_set(ipart)%v(:) = particle_set(ipart)%v(:)*map_info%v_scale(ii) + &
                                              map_info%s_kin(ii)/SQRT(mass)*w(:, ipart)
                ENDIF
             END DO
@@ -280,8 +276,8 @@ CONTAINS
       DO i = 1, al%loc_num_al
          IF (al%nvt(i)%mass > 0.0_dp) THEN
             imap = map_info%map_index(i)
-            delta_K = 0.5_dp*(map_info%s_kin(imap)-al%nvt(i)%nkt)
-            al%nvt(i)%chi = al%nvt(i)%chi+0.5_dp*al%dt*delta_K/al%nvt(i)%mass
+            delta_K = 0.5_dp*(map_info%s_kin(imap) - al%nvt(i)%nkt)
+            al%nvt(i)%chi = al%nvt(i)%chi + 0.5_dp*al%dt*delta_K/al%nvt(i)%mass
             IF (set_half_step_vel_factors) THEN
                decay = EXP(-0.5_dp*al%dt*al%nvt(i)%chi)
                map_info%v_scale(imap) = decay

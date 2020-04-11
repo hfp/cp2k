@@ -12,6 +12,7 @@
     UKS
     MULTIPLICITY 2
     BASIS_SET_FILE_NAME  HFX_BASIS
+    SORT_BASIS EXP
     POTENTIAL_FILE_NAME  GTH_POTENTIALS
     &MGRID
       CUTOFF  100
@@ -43,13 +44,9 @@
         &END
       &END XC_FUNCTIONAL
       &WF_CORRELATION
-        METHOD  RI_RPA_GPW
-        ERI_METHOD OS
-        RI OVERLAP
-        IM_TIME
-        &IM_TIME
-          DO_DBCSR_T .FALSE.
-        &END IM_TIME
+        &LOW_SCALING
+          MEMORY_CUT 1
+        &END LOW_SCALING
         &RI_RPA
           &HF
             FRACTION 1.0000000
@@ -58,20 +55,16 @@
               SCREEN_ON_INITIAL_P FALSE
             &END SCREENING
           &END HF
-          MINIMAX
           RPA_NUM_QUAD_POINTS 20
-          GW
-          &RI_G0W0
+          &GW
             CORR_MOS_OCC          10
             CORR_MOS_VIRT         10
+            ANALYTIC_CONTINUATION TWO_POLE
             NUMB_POLES            2
-            MAX_ITER_FIT          10000
             CROSSING_SEARCH       Z_SHOT
             FERMI_LEVEL_OFFSET    2.0E-2
-            EV_SC_ITER            1
-            HF_LIKE_EV_START      FALSE
-            PRINT_GW_DETAILS
-          &END RI_G0W0
+            EV_GW_ITER            1
+          &END GW
         &END RI_RPA
         MEMORY  200.
         NUMBER_PROC  1

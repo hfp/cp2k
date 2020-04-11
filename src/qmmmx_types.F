@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -69,7 +69,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(qmmmx_env))
       CPASSERT(qmmmx_env%ref_count > 0)
-      qmmmx_env%ref_count = qmmmx_env%ref_count+1
+      qmmmx_env%ref_count = qmmmx_env%ref_count + 1
    END SUBROUTINE qmmmx_env_retain
 
 ! **************************************************************************************************
@@ -85,7 +85,7 @@ CONTAINS
 
       IF (ASSOCIATED(qmmmx_env)) THEN
          CPASSERT(qmmmx_env%ref_count > 0)
-         qmmmx_env%ref_count = qmmmx_env%ref_count-1
+         qmmmx_env%ref_count = qmmmx_env%ref_count - 1
          IF (qmmmx_env%ref_count == 0) THEN
             CALL qmmm_env_release(qmmmx_env%core)
             CALL qmmm_env_release(qmmmx_env%ext)

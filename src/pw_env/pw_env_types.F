@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -61,9 +61,9 @@ MODULE pw_env_types
 !>      readonly attributes
 !> \param auxbas_pw_pool a pool that allocates grids in the auxiliary basis
 !> \param auxbas_rs_desc real space grid in the auxiliary basis, be careful
-!>        in parallel nsmax is choosen with multigrid in mind!
+!>        in parallel nsmax is chosen with multigrid in mind!
 !> \note
-!>      be careful in parallel nsmax for the rs_grids is choosen with
+!>      be careful in parallel nsmax for the rs_grids is chosen with
 !>      multigrid in mind! (well not as of this writing but...)
 !> \par History
 !>      10.2002 created [fawzi]
@@ -73,22 +73,20 @@ MODULE pw_env_types
    TYPE pw_env_type
       INTEGER                                     :: ref_count
       INTEGER                                     :: auxbas_grid
-      TYPE(pw_pool_p_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                      :: pw_pools
+      TYPE(pw_pool_p_type), DIMENSION(:), POINTER :: pw_pools
       TYPE(pw_pool_type), POINTER                 :: xc_pw_pool
       TYPE(pw_pool_type), POINTER                 :: vdw_pw_pool
       TYPE(realspace_grid_desc_p_type), &
-         DIMENSION(:), POINTER, CONTIGUOUS        :: rs_descs
+         DIMENSION(:), POINTER                    :: rs_descs
       TYPE(realspace_grid_p_type), &
-         DIMENSION(:), POINTER, CONTIGUOUS        :: rs_grids
+         DIMENSION(:), POINTER                    :: rs_grids
       TYPE(lgrid_type), POINTER                   :: lgrid
       TYPE(gridlevel_info_type), POINTER          :: gridlevel_info
-      TYPE(cube_info_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                      :: cube_info
+      TYPE(cube_info_type), DIMENSION(:), POINTER :: cube_info
       TYPE(pw_poisson_type), POINTER              :: poisson_env
       TYPE(section_vals_type), POINTER            :: interp_section
       ! store current cell, used to rebuild lazily.
-      REAL(KIND=dp), DIMENSION(3, 3)              :: cell_hmat = -1.0_dp
+      REAL(KIND=dp), DIMENSION(3, 3)          :: cell_hmat = -1.0_dp
    END TYPE pw_env_type
 
 CONTAINS
@@ -176,7 +174,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(pw_env))
       CPASSERT(pw_env%ref_count > 0)
-      pw_env%ref_count = pw_env%ref_count+1
+      pw_env%ref_count = pw_env%ref_count + 1
    END SUBROUTINE pw_env_retain
 
 ! **************************************************************************************************
@@ -200,7 +198,7 @@ CONTAINS
       IF (PRESENT(kg)) my_kg = kg
       IF (ASSOCIATED(pw_env)) THEN
          CPASSERT(pw_env%ref_count > 0)
-         pw_env%ref_count = pw_env%ref_count-1
+         pw_env%ref_count = pw_env%ref_count - 1
          IF (pw_env%ref_count < 1) THEN
             CALL pw_poisson_release(pw_env%poisson_env)
             CALL pw_pools_dealloc(pw_env%pw_pools)

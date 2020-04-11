@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -43,9 +43,7 @@ MODULE f77_interface
                                               cp_subsys_set,&
                                               cp_subsys_type,&
                                               unpack_subsys_particles
-   USE dbcsr_api,                       ONLY: dbcsr_acc_get_ndevices,&
-                                              dbcsr_acc_set_active_device,&
-                                              dbcsr_finalize_lib,&
+   USE dbcsr_api,                       ONLY: dbcsr_finalize_lib,&
                                               dbcsr_init_lib
    USE eip_environment,                 ONLY: eip_init
    USE eip_environment_types,           ONLY: eip_env_create,&
@@ -267,15 +265,13 @@ CONTAINS
          !   *** init the bibliography ***
          CALL add_all_references()
 
-         IF (dbcsr_acc_get_ndevices() > 0) &
-            CALL dbcsr_acc_set_active_device(MOD(default_para_env%mepos, dbcsr_acc_get_ndevices()))
-
-         CALL pw_cuda_init()
-
          ! Initialize the DBCSR configuration
          ! Attach the time handler hooks to DBCSR
+         ! DBCSR sets the device for multi-gpu, make sure it is the first GPU call
          CALL dbcsr_init_lib(default_para_env%group, timeset_hook, timestop_hook, &
                              cp_abort_hook, cp_warn_hook, io_unit=unit_nr)
+
+         CALL pw_cuda_init()
       ELSE
          ierr = cp_failure_level
       END IF
@@ -538,7 +534,7 @@ CONTAINS
 !>        instead of parsing from file
 !> \param ierr will return a number different from 0 if there was an error
 !> \param work_dir ...
-!> \param initial_variables ...
+!> \param initial_variables key-value list of initial preprocessor variables
 !> \author fawzi
 !> \note
 !>      The following routines need to be synchronized wrt. adding/removing
@@ -673,13 +669,13 @@ CONTAINS
       root_section => input_file
       CALL section_vals_retain(root_section)
 
-      IF (n_f_envs+1 > SIZE(f_envs)) THEN
+      IF (n_f_envs + 1 > SIZE(f_envs)) THEN
          f_envs_old => f_envs
-         ALLOCATE (f_envs(n_f_envs+10))
+         ALLOCATE (f_envs(n_f_envs + 10))
          DO i = 1, n_f_envs
             f_envs(i)%f_env => f_envs_old(i)%f_env
          END DO
-         DO i = n_f_envs+1, SIZE(f_envs)
+         DO i = n_f_envs + 1, SIZE(f_envs)
             NULLIFY (f_envs(i)%f_env)
          END DO
          DEALLOCATE (f_envs_old)
@@ -689,7 +685,7 @@ CONTAINS
 
       CALL cp2k_setup(root_section, para_env, globenv)
       ! Group Distribution
-      ALLOCATE (group_distribution(0:para_env%num_pe-1))
+      ALLOCATE (group_distribution(0:para_env%num_pe - 1))
       group_distribution = 0
       lgroup_distribution => group_distribution
       ! Setup all possible force_env
@@ -705,7 +701,7 @@ CONTAINS
             CALL section_vals_remove_values(wrk_section)
          END DO
       END IF
-      nsubforce_size = nforce_eval-1
+      nsubforce_size = nforce_eval - 1
       use_multiple_para_env = .FALSE.
       use_motion_section = .TRUE.
       DO iforce_eval = 1, nforce_eval
@@ -731,11 +727,11 @@ CONTAINS
                CPASSERT(check)
                ngroups = force_env%mixed_env%ngroups
                my_group = lgroup_distribution(para_env%mepos)
-               isubforce_eval = iforce_eval-1
+               isubforce_eval = iforce_eval - 1
                ! If task not allocated on this procs skip setup..
-               IF (MODULO(isubforce_eval-1, ngroups) /= my_group) CYCLE
-               my_para_env => force_env%mixed_env%sub_para_env(my_group+1)%para_env
-               my_logger => force_env%mixed_env%sub_logger(my_group+1)%p
+               IF (MODULO(isubforce_eval - 1, ngroups) /= my_group) CYCLE
+               my_para_env => force_env%mixed_env%sub_para_env(my_group + 1)%para_env
+               my_logger => force_env%mixed_env%sub_logger(my_group + 1)%p
                CALL cp_rm_default_logger()
                CALL cp_add_default_logger(my_logger)
             ENDIF
@@ -744,11 +740,11 @@ CONTAINS
                CPASSERT(check)
                ngroups = force_env%embed_env%ngroups
                my_group = lgroup_distribution(para_env%mepos)
-               isubforce_eval = iforce_eval-1
+               isubforce_eval = iforce_eval - 1
                ! If task not allocated on this procs skip setup..
-               IF (MODULO(isubforce_eval-1, ngroups) /= my_group) CYCLE
-               my_para_env => force_env%embed_env%sub_para_env(my_group+1)%para_env
-               my_logger => force_env%embed_env%sub_logger(my_group+1)%p
+               IF (MODULO(isubforce_eval - 1, ngroups) /= my_group) CYCLE
+               my_para_env => force_env%embed_env%sub_para_env(my_group + 1)%para_env
+               my_logger => force_env%embed_env%sub_logger(my_group + 1)%p
                CALL cp_rm_default_logger()
                CALL cp_add_default_logger(my_logger)
             ENDIF
@@ -882,7 +878,7 @@ CONTAINS
          IF (iforce_eval == 1) THEN
             force_env => my_force_env
          ELSE
-            force_env%sub_force_env(iforce_eval-1)%force_env => my_force_env
+            force_env%sub_force_env(iforce_eval - 1)%force_env => my_force_env
          END IF
          ! Multiple para env for sub_force_eval
          IF (.NOT. use_multiple_para_env) THEN
@@ -898,9 +894,9 @@ CONTAINS
       timer_env => get_timer_env()
       mp_perf_env => get_mp_perf_env()
       CALL mp_max(last_f_env_id, para_env%group)
-      last_f_env_id = last_f_env_id+1
+      last_f_env_id = last_f_env_id + 1
       new_env_id = last_f_env_id
-      n_f_envs = n_f_envs+1
+      n_f_envs = n_f_envs + 1
       CALL f_env_create(f_envs(n_f_envs)%f_env, logger=logger, &
                         timer_env=timer_env, mp_perf_env=mp_perf_env, force_env=force_env, &
                         id_nr=last_f_env_id, old_dir=old_dir)
@@ -943,11 +939,11 @@ CONTAINS
       NULLIFY (f_env)
       CALL f_env_add_defaults(env_id, f_env)
       env_pos = get_pos_of_env(env_id)
-      n_f_envs = n_f_envs-1
+      n_f_envs = n_f_envs - 1
       DO i = env_pos, n_f_envs
-         f_envs(i)%f_env => f_envs(i+1)%f_env
+         f_envs(i)%f_env => f_envs(i + 1)%f_env
       END DO
-      NULLIFY (f_envs(n_f_envs+1)%f_env)
+      NULLIFY (f_envs(n_f_envs + 1)%f_env)
 
       CALL force_env_get(f_env%force_env, globenv=globenv, &
                          root_section=root_section, para_env=para_env)
@@ -1083,7 +1079,7 @@ CONTAINS
       ELSE
          exist_res = .TRUE.
       END IF
-      ! if existing (or assuming the existance) read the results
+      ! if existing (or assuming the existence) read the results
       IF (exist_res) THEN
          CALL get_results(results, description=description, n_rep=nres)
          CALL get_results(results, description=description, values=RESULT, nval=nres)
@@ -1420,15 +1416,18 @@ CONTAINS
 !>        defaults made explicit
 !> \param mpi_comm the mpi communicator (if not given it uses the default
 !>        one)
+!> \param initial_variables key-value list of initial preprocessor variables
 !> \param ierr error control, if different from 0 there was an error
 !> \author fawzi
 ! **************************************************************************************************
    SUBROUTINE check_input(input_declaration, input_file_path, output_file_path, &
-                          echo_input, mpi_comm, ierr)
+                          echo_input, mpi_comm, initial_variables, ierr)
       TYPE(section_type), POINTER                        :: input_declaration
       CHARACTER(len=*), INTENT(in)                       :: input_file_path, output_file_path
       LOGICAL, INTENT(in), OPTIONAL                      :: echo_input
       INTEGER, INTENT(in), OPTIONAL                      :: mpi_comm
+      CHARACTER(len=default_path_length), &
+         DIMENSION(:, :), INTENT(IN)                     :: initial_variables
       INTEGER, INTENT(out)                               :: ierr
 
       CHARACTER(len=*), PARAMETER :: routineN = 'check_input', routineP = moduleN//':'//routineN
@@ -1468,7 +1467,7 @@ CONTAINS
       CALL cp_add_default_logger(logger)
       CALL cp_logger_release(logger)
 
-      input_file => read_input(input_declaration, input_file_path, initial_variables=empty_initial_variables, &
+      input_file => read_input(input_declaration, input_file_path, initial_variables=initial_variables, &
                                para_env=para_env)
       CALL check_cp2k_input(input_declaration, input_file, para_env=para_env, output_unit=unit_nr)
       IF (my_echo_input .AND. para_env%ionode) THEN

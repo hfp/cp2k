@@ -2,31 +2,22 @@
 
 # author: Ole Schuett
 
-# Install Ubuntu packages required for the toolchain.
+if (( $# != 1 )) ; then
+    echo "Usage: install_requirements.sh <BASE_IMAGE>"
+    exit 1
+fi
 
-apt-get update -qq
+BASE_IMAGE=$1
 
-apt-get install -qq --no-install-recommends \
-    autoconf                                \
-    autogen                                 \
-    automake                                \
-    autotools-dev                           \
-    ca-certificates                         \
-    g++                                     \
-    git                                     \
-    less                                    \
-    libtool                                 \
-    make                                    \
-    nano                                    \
-    pkg-config                              \
-    python                                  \
-    python-numpy                            \
-    python3                                 \
-    unzip                                   \
-    wget                                    \
-    xxd                                     \
-    zlib1g-dev
+if [[ ${BASE_IMAGE} == ubuntu* ]] ; then
+    ./install_requirements_ubuntu.sh
 
-rm -rf /var/lib/apt/lists/*
+elif [[ ${BASE_IMAGE} == fedora* ]] ; then
+    ./install_requirements_fedora.sh
+
+else
+    echo "Unknown base image: ${BASE_IMAGE}"
+    exit 1
+fi
 
 #EOF

@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -117,7 +117,7 @@ CONTAINS
       CALL create_replicated_col_vec_from_matrix(vectors%rep_col_vec, matrix(1)%matrix, 1)
       CALL create_replicated_row_vec_from_matrix(vectors%rep_row_vec, matrix(1)%matrix, 1)
 
-! Tells whether we have local data available on the processor (usually all in pcol 0 but even ther can be some without data)
+! Tells whether we have local data available on the processor (usually all in pcol 0 but even there can be some without data)
       control => get_control(arnoldi_data)
       CALL dbcsr_get_info(matrix=vectors%input_vec, nfullrows_local=nrow_local, nfullcols_local=ncol_local)
       control%local_comp = ncol_local > 0 .AND. nrow_local > 0
@@ -202,7 +202,7 @@ CONTAINS
       CALL create_replicated_col_vec_from_matrix(vectors%rep_col_vec, matrix(1)%matrix, 1)
       CALL create_replicated_row_vec_from_matrix(vectors%rep_row_vec, matrix(1)%matrix, 1)
 
-! Tells whether we have local data available on the processor (usually all in pcol 0 but even ther can be some without data)
+! Tells whether we have local data available on the processor (usually all in pcol 0 but even there can be some without data)
       control => get_control(arnoldi_data)
       CALL dbcsr_get_info(matrix=vectors%input_vec, nfullrows_local=nrow_local, nfullcols_local=ncol_local)
       control%local_comp = ncol_local > 0 .AND. nrow_local > 0
@@ -341,7 +341,7 @@ CONTAINS
          CALL dbcsr_iterator_next_block(dbcsr_iter, i, j, xvec)
          nb = rb_size(i)
          no = rb_offset(i)
-         xvec(1:nb, 1) = vec_x(no:no+nb-1)
+         xvec(1:nb, 1) = vec_x(no:no + nb - 1)
       END DO
       CALL dbcsr_iterator_stop(dbcsr_iter)
 
@@ -368,7 +368,7 @@ CONTAINS
          CALL dbcsr_iterator_next_block(dbcsr_iter, i, j, xvec)
          nb = rb_size(i)
          no = rb_offset(i)
-         vec_x(no:no+nb-1) = xvec(1:nb, 1)
+         vec_x(no:no + nb - 1) = xvec(1:nb, 1)
       END DO
       CALL dbcsr_iterator_stop(dbcsr_iter)
       control => get_control(my_arnoldi)
@@ -528,7 +528,7 @@ CONTAINS
          CALL dbcsr_iterator_next_block(dbcsr_iter, i, j, av)
          CALL dbcsr_get_block_p(bvec, i, j, bv, found)
          IF (found .AND. SIZE(bv) > 0) THEN
-            adotb = adotb+DOT_PRODUCT(av(:, 1), bv(:, 1))
+            adotb = adotb + DOT_PRODUCT(av(:, 1), bv(:, 1))
          END IF
       END DO
       CALL dbcsr_iterator_stop(dbcsr_iter)

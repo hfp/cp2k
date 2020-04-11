@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -299,9 +299,9 @@ CONTAINS
             ! actual extrapolation
             CALL dbcsr_set(ls_scf_env%matrix_p(ispin), 0.0_dp)
             DO iaspc = 1, naspc
-               alpha = (-1.0_dp)**(iaspc+1)*REAL(iaspc, KIND=dp)* &
-                       binomial(2*naspc, naspc-iaspc)/binomial(2*naspc-2, naspc-1)
-               istore = MOD(ls_scf_env%scf_history%istore-iaspc, ls_scf_env%scf_history%nstore)+1
+               alpha = (-1.0_dp)**(iaspc + 1)*REAL(iaspc, KIND=dp)* &
+                       binomial(2*naspc, naspc - iaspc)/binomial(2*naspc - 2, naspc - 1)
+               istore = MOD(ls_scf_env%scf_history%istore - iaspc, ls_scf_env%scf_history%nstore) + 1
                CALL dbcsr_add(ls_scf_env%matrix_p(ispin), ls_scf_env%scf_history%matrix(ispin, istore), 1.0_dp, alpha)
             ENDDO
          ENDDO
@@ -403,9 +403,9 @@ CONTAINS
       END IF
 
       IF (ls_scf_env%scf_history%nstore > 0) THEN
-         ls_scf_env%scf_history%istore = ls_scf_env%scf_history%istore+1
+         ls_scf_env%scf_history%istore = ls_scf_env%scf_history%istore + 1
          DO ispin = 1, SIZE(ls_scf_env%matrix_p)
-            istore = MOD(ls_scf_env%scf_history%istore-1, ls_scf_env%scf_history%nstore)+1
+            istore = MOD(ls_scf_env%scf_history%istore - 1, ls_scf_env%scf_history%nstore) + 1
             CALL dbcsr_copy(ls_scf_env%scf_history%matrix(ispin, istore), ls_scf_env%matrix_p(ispin))
 
             ! if we have the sqrt around, we use it to go to the orthogonal basis
@@ -534,7 +534,7 @@ CONTAINS
          END IF
 
          t1 = m_walltime()
-         iscf = iscf+1
+         iscf = iscf + 1
 
          ! first get a copy of the current KS matrix
          CALL get_qs_env(qs_env, matrix_ks=matrix_ks)
@@ -561,7 +561,7 @@ CONTAINS
                      CALL dbcsr_copy(matrix_mixing_old(ispin), ls_scf_env%matrix_ks(ispin))
                   ELSE
                      IF (ls_scf_env%ls_diis) THEN ! ------- IF-DIIS+MIX--- START
-                        IF (diis_step .AND. (iscf-1) .GE. ls_scf_env%iter_ini_diis) THEN
+                        IF (diis_step .AND. (iscf - 1) .GE. ls_scf_env%iter_ini_diis) THEN
                            IF (unit_nr > 0) THEN
                               WRITE (unit_nr, '(A61)') &
                                  '*************************************************************'
@@ -584,14 +584,14 @@ CONTAINS
                                  " to mix KS matrix:  iscf=", iscf
                               WRITE (unit_nr, '(A7,F5.3,A6,F5.3,A7)') &
                                  " KS_nw=", ls_scf_env%mixing_fraction, "*KS + ", &
-                                 1.0_dp-ls_scf_env%mixing_fraction, "*KS_old"
+                                 1.0_dp - ls_scf_env%mixing_fraction, "*KS_old"
                               WRITE (unit_nr, '(A57)') &
                                  "*********************************************************"
                            ENDIF
                            ! perform the mixing of ks matrices
                            CALL dbcsr_add(matrix_mixing_old(ispin), &
                                           ls_scf_env%matrix_ks(ispin), &
-                                          1.0_dp-ls_scf_env%mixing_fraction, &
+                                          1.0_dp - ls_scf_env%mixing_fraction, &
                                           ls_scf_env%mixing_fraction)
                         ENDIF
                      ELSE ! otherwise
@@ -603,14 +603,14 @@ CONTAINS
                               " to mix KS matrix:  iscf=", iscf
                            WRITE (unit_nr, '(A7,F5.3,A6,F5.3,A7)') &
                               " KS_nw=", ls_scf_env%mixing_fraction, "*KS + ", &
-                              1.0_dp-ls_scf_env%mixing_fraction, "*KS_old"
+                              1.0_dp - ls_scf_env%mixing_fraction, "*KS_old"
                            WRITE (unit_nr, '(A57)') &
                               "*********************************************************"
                         ENDIF
                         ! perform the mixing of ks matrices
                         CALL dbcsr_add(matrix_mixing_old(ispin), &
                                        ls_scf_env%matrix_ks(ispin), &
-                                       1.0_dp-ls_scf_env%mixing_fraction, &
+                                       1.0_dp - ls_scf_env%mixing_fraction, &
                                        ls_scf_env%mixing_fraction)
                      ENDIF ! ------- IF-DIIS+MIX--- END
                   ENDIF
@@ -639,7 +639,8 @@ CONTAINS
                      CALL density_matrix_sign(ls_scf_env%matrix_p(ispin), ls_scf_env%mu_spin(ispin), ls_scf_env%fixed_mu, &
                                               ls_scf_env%sign_method, ls_scf_env%sign_order, matrix_mixing_old(ispin), &
                                               ls_scf_env%matrix_s, ls_scf_env%matrix_s_inv, nelectron_spin_real, &
-                                              ls_scf_env%eps_filter)
+                                              ls_scf_env%eps_filter, ls_scf_env%sign_symmetric, ls_scf_env%submatrix_sign_method, &
+                                              ls_scf_env%matrix_s_sqrt_inv)
                   CASE (ls_scf_tc2)
                      CALL density_matrix_tc2(ls_scf_env%matrix_p(ispin), matrix_mixing_old(ispin), ls_scf_env%matrix_s_sqrt_inv, &
                                              nelectron_spin_real, ls_scf_env%eps_filter, ls_scf_env%homo_spin(ispin), &
@@ -685,13 +686,13 @@ CONTAINS
          ENDIF
 
          ! report current SCF loop
-         energy_diff = energy_new-energy_old
+         energy_diff = energy_new - energy_old
          energy_old = energy_new
 
          t2 = m_walltime()
          IF (unit_nr > 0) THEN
             WRITE (unit_nr, *)
-            WRITE (unit_nr, '(T2,A,I6,F20.9,F20.9,F12.6)') "SCF", iscf, energy_new, energy_diff, t2-t1
+            WRITE (unit_nr, '(T2,A,I6,F20.9,F20.9,F12.6)') "SCF", iscf, energy_new, energy_diff, t2 - t1
             WRITE (unit_nr, *)
             CALL m_flush(unit_nr)
          ENDIF
@@ -968,7 +969,7 @@ CONTAINS
 
          t1 = m_walltime()
 
-         mu = -0.4_dp+imu*(0.1_dp+0.4_dp)/nmu
+         mu = -0.4_dp + imu*(0.1_dp + 0.4_dp)/nmu
 
          IF (unit_nr > 0) WRITE (unit_nr, *) "------- starting with mu ", mu
 
@@ -980,12 +981,13 @@ CONTAINS
             CALL density_matrix_sign_fixed_mu(matrix_p, trace, mu, ls_scf_env%sign_method, &
                                               ls_scf_env%sign_order, ls_scf_env%matrix_ks(ispin), &
                                               ls_scf_env%matrix_s, ls_scf_env%matrix_s_inv, &
-                                              ls_scf_env%eps_filter)
+                                              ls_scf_env%eps_filter, ls_scf_env%sign_symmetric, &
+                                              ls_scf_env%submatrix_sign_method, ls_scf_env%matrix_s_sqrt_inv)
          ENDDO
 
          t2 = m_walltime()
 
-         IF (unit_nr > 0) WRITE (unit_nr, *) " obtained ", mu, trace, t2-t1
+         IF (unit_nr > 0) WRITE (unit_nr, *) " obtained ", mu, trace, t2 - t1
 
       ENDDO
 

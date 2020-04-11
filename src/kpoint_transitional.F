@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -53,7 +53,7 @@ CONTAINS
    END FUNCTION get_1d_pointer
 
 ! **************************************************************************************************
-!> \brief Simple getter, neede because of PRIVATE
+!> \brief Simple getter, needed because of PRIVATE
 !> \param this ...
 !> \return ...
 !> \author Ole Schuett

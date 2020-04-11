@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -47,7 +47,7 @@ MODULE qs_scf_initialization
         broy_mix, broy_mix_new, cholesky_dbcsr, cholesky_inverse, cholesky_off, &
         diag_block_davidson, diag_block_krylov, diag_filter_matrix, diag_ot, diag_standard, &
         direct_p_mix, kerker_mix, multisec_mix, no_mix, ot2cdft, outer_scf_none, plus_u_lowdin, &
-        pulay_mix, wfi_frozen_method_nr, wfi_use_guess_method_nr
+        pulay_mix, wfi_frozen_method_nr, wfi_ps_method_nr, wfi_use_guess_method_nr
    USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                               section_vals_type,&
                                               section_vals_val_get
@@ -280,7 +280,7 @@ CONTAINS
       INTEGER                                            :: nhistory, nvariables
 
       IF (scf_control%outer_scf%have_scf) THEN
-         nhistory = scf_control%outer_scf%max_scf+1
+         nhistory = scf_control%outer_scf%max_scf + 1
          IF (PRESENT(nvar)) THEN
             IF (nvar > 0) THEN
                nvariables = nvar
@@ -332,7 +332,7 @@ CONTAINS
          CPABORT("Section SCF&OUTER_SCF must be active for CDFT calculations.")
       ! Initialize CDFT and outer_loop variables (constraint settings active in scf_control)
       IF (dft_control%qs_control%cdft_control%constraint_control%have_scf) THEN
-         nhistory = dft_control%qs_control%cdft_control%constraint_control%max_scf+1
+         nhistory = dft_control%qs_control%cdft_control%constraint_control%max_scf + 1
          IF (scf_control%outer_scf%type /= outer_scf_none) THEN
             nvariables = outer_loop_variables_count(scf_control, &
                                                     dft_control%qs_control%cdft_control)
@@ -562,13 +562,13 @@ CONTAINS
       INTEGER                                            :: handle, ic, ik, ikk, ispin, nmo, nmo_mat
       TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: mo_derivs_aux_fit
       TYPE(cp_fm_pool_p_type), DIMENSION(:), POINTER     :: ao_mo_fm_pools, ao_mo_fm_pools_aux_fit
-      TYPE(cp_fm_type), POINTER                          :: mo_coeff, mo_coeff_aux_fit
-      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: mo_derivs
+      TYPE(cp_fm_type), POINTER                          :: mo_coeff, mo_coeff_aux_fit, mo_coeff_last
+      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s_aux_fit, mo_derivs
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: matrix_s
       TYPE(dbcsr_type), POINTER                          :: mo_coeff_b
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(kpoint_type), POINTER                         :: kpoints
-      TYPE(mo_set_p_type), DIMENSION(:), POINTER         :: mos, mos_aux_fit
+      TYPE(mo_set_p_type), DIMENSION(:), POINTER         :: mos, mos_aux_fit, mos_last_converged
       TYPE(mo_set_p_type), DIMENSION(:, :), POINTER      :: mos_k
       TYPE(xas_environment_type), POINTER                :: xas_env
 
@@ -576,6 +576,7 @@ CONTAINS
 
       NULLIFY (ao_mo_fm_pools, dft_control, mos, ao_mo_fm_pools_aux_fit)
       NULLIFY (mo_derivs, mo_coeff, mo_coeff_aux_fit, mo_derivs_aux_fit, xas_env, matrix_s)
+      NULLIFY (mos_last_converged, mo_coeff_last)
 
       CPASSERT(ASSOCIATED(scf_env))
       CPASSERT(scf_env%ref_count > 0)
@@ -587,6 +588,9 @@ CONTAINS
                       mos_aux_fit=mos_aux_fit, &
                       xas_env=xas_env)
       CALL mpools_get(qs_env%mpools, ao_mo_fm_pools=ao_mo_fm_pools)
+      IF (dft_control%switch_surf_dip) THEN
+         CALL get_qs_env(qs_env, mos_last_converged=mos_last_converged)
+      ENDIF
 
       nmo_mat = dft_control%nspins
       IF (dft_control%restricted) nmo_mat = 1 ! right now, there might be more mos than needed derivs
@@ -609,7 +613,6 @@ CONTAINS
          ENDIF
       END DO
 !   *** get the mo_derivs OK if needed ***
-
       IF (qs_env%requires_mo_derivs) THEN
          CALL get_qs_env(qs_env, mo_derivs=mo_derivs)
          IF (.NOT. ASSOCIATED(mo_derivs)) THEN
@@ -636,13 +639,21 @@ CONTAINS
          CPASSERT(ASSOCIATED(mos_aux_fit))
          CALL mpools_get(qs_env%mpools_aux_fit, ao_mo_fm_pools=ao_mo_fm_pools_aux_fit)
          DO ispin = 1, SIZE(mos_aux_fit)
-            CALL get_mo_set(mos_aux_fit(ispin)%mo_set, mo_coeff=mo_coeff_aux_fit)
+            CALL get_mo_set(mos_aux_fit(ispin)%mo_set, mo_coeff=mo_coeff_aux_fit, mo_coeff_b=mo_coeff_b)
             IF (.NOT. ASSOCIATED(mo_coeff_aux_fit)) THEN
                CALL init_mo_set(mos_aux_fit(ispin)%mo_set, &
                                 fm_pool=ao_mo_fm_pools_aux_fit(ispin)%pool, &
                                 name="qs_env"//TRIM(ADJUSTL(cp_to_string(qs_env%id_nr)))// &
                                 "%mo_aux_fit"//TRIM(ADJUSTL(cp_to_string(ispin))))
             END IF
+            IF (.NOT. ASSOCIATED(mo_coeff_b)) THEN
+               CALL cp_fm_get_info(mos_aux_fit(ispin)%mo_set%mo_coeff, ncol_global=nmo)
+               CALL dbcsr_init_p(mos_aux_fit(ispin)%mo_set%mo_coeff_b)
+               CALL get_qs_env(qs_env=qs_env, matrix_s_aux_fit=matrix_s_aux_fit)
+               CALL cp_dbcsr_m_by_n_from_row_template(mos_aux_fit(ispin)%mo_set%mo_coeff_b, &
+                                                      template=matrix_s_aux_fit(1)%matrix, n=nmo, &
+                                                      sym=dbcsr_type_no_symmetry)
+            ENDIF
          END DO
          IF (qs_env%requires_mo_derivs) THEN
             CALL get_qs_env(qs_env, mo_derivs_aux_fit=mo_derivs_aux_fit)
@@ -659,6 +670,19 @@ CONTAINS
          ENDIF
       END IF
 
+! *** finish initialization of mos_last_converged *** [SGh]
+      IF (dft_control%switch_surf_dip) THEN
+         CPASSERT(ASSOCIATED(mos_last_converged))
+         DO ispin = 1, SIZE(mos_last_converged)
+            CALL get_mo_set(mos_last_converged(ispin)%mo_set, mo_coeff=mo_coeff_last)
+            IF (.NOT. ASSOCIATED(mo_coeff_last)) THEN
+               CALL init_mo_set(mos_last_converged(ispin)%mo_set, &
+                                fm_ref=mos(ispin)%mo_set%mo_coeff, &
+                                name="qs_env"//TRIM(ADJUSTL(cp_to_string(qs_env%id_nr)))// &
+                                "%mos_last_converged"//TRIM(ADJUSTL(cp_to_string(ispin))))
+            END IF
+         END DO
+      END IF
       ! kpoints: we have to initialize all the k-point MOs
       CALL get_qs_env(qs_env=qs_env, kpoints=kpoints)
       IF (kpoints%nkp /= 0) THEN
@@ -676,7 +700,7 @@ CONTAINS
          DO ik = 1, SIZE(kpoints%kp_env)
             CALL mpools_get(kpoints%mpools, ao_mo_fm_pools=ao_mo_fm_pools)
             mos_k => kpoints%kp_env(ik)%kpoint_env%mos
-            ikk = kpoints%kp_range(1)+ik-1
+            ikk = kpoints%kp_range(1) + ik - 1
             CPASSERT(ASSOCIATED(mos_k))
             DO ispin = 1, SIZE(mos_k, 2)
                DO ic = 1, SIZE(mos_k, 1)
@@ -870,7 +894,7 @@ CONTAINS
       ELSEIF (scf_control%use_ot) THEN
          scf_env%method = ot_method_nr
          need_coeff_b = .TRUE.
-         IF (scf_control%added_mos(1)+scf_control%added_mos(2) > 0) &
+         IF (scf_control%added_mos(1) + scf_control%added_mos(2) > 0) &
             CPABORT("OT with ADDED_MOS/=0 not implemented")
          IF (dft_control%restricted .AND. dft_control%nspins .NE. 2) &
             CPABORT("nspin must be 2 for restricted (ROKS)")
@@ -1024,7 +1048,7 @@ CONTAINS
                                          extension=".scfLog")
       IF (output_unit > 0) THEN
          WRITE (UNIT=output_unit, FMT="(T2,A,T71,I10)") &
-            "Number of independent orbital functions:", nao-ndep
+            "Number of independent orbital functions:", nao - ndep
       END IF
       CALL cp_print_key_finished_output(output_unit, logger, scf_section, &
                                         "PRINT%PROGRAM_RUN_INFO")
@@ -1137,9 +1161,14 @@ CONTAINS
       output_unit = cp_print_key_unit_nr(logger, scf_section, "PRINT%PROGRAM_RUN_INFO", &
                                          extension=".scfLog")
       IF (output_unit > 0) THEN
-         WRITE (UNIT=output_unit, FMT="(/,T2,A)") &
+         WRITE (UNIT=output_unit, FMT="(/,T2,A,I0)") &
             "Extrapolation method: "// &
             TRIM(wfi_get_method_label(extrapolation_method_nr))
+         IF (extrapolation_method_nr == wfi_ps_method_nr) THEN
+            WRITE (UNIT=output_unit, FMT="(T2,A,I0,A)") &
+               "Extrapolation order:  ", &
+               MAX((MIN(qs_env%wf_history%memory_depth, qs_env%wf_history%snapshot_count) - 1), 0)
+         END IF
       END IF
 
       CALL cp_print_key_finished_output(output_unit, logger, scf_section, &

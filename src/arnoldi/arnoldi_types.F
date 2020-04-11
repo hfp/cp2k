@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -34,7 +34,7 @@ MODULE arnoldi_types
       LOGICAL                                 :: generalized_ev
       LOGICAL                                 :: iram
       LOGICAL                                 :: has_initial_vector
-      INTEGER, DIMENSION(:), POINTER          :: selected_ind ! list of indicies matching the selection criterion
+      INTEGER, DIMENSION(:), POINTER          :: selected_ind ! list of indices matching the selection criterion
    END TYPE arnoldi_control_type
 
    TYPE arnoldi_data_d_type

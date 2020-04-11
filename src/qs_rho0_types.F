@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 ! **************************************************************************************************
 MODULE qs_rho0_types
@@ -270,10 +270,10 @@ CONTAINS
          rho0_mpole%mp_gau(ik)%g0_h(1:nr, l) = gh_tmp(1:nr)* &
                                                rho0_mpole%norm_g0l_h(l)
 
-         prefactor = fourpi/(2.0_dp*l+1.0_dp)*rho0_mpole%norm_g0l_h(l)
+         prefactor = fourpi/(2.0_dp*l + 1.0_dp)*rho0_mpole%norm_g0l_h(l)
          CALL whittaker_c0a(int1, grid_atom%rad, gexp, erf_z_h, z_h, l, l, nr)
          DO ir = 1, nr
-            rho0_mpole%mp_gau(ik)%vg0_h(ir, l) = prefactor*(int1(ir)+ &
+            rho0_mpole%mp_gau(ik)%vg0_h(ir, l) = prefactor*(int1(ir) + &
                                                             int2(ir)*grid_atom%rad2l(ir, l))
          END DO
 
@@ -501,22 +501,15 @@ CONTAINS
 !> \param nchan_s ...
 !> \param nchan_c ...
 !> \param zeff ...
-!> \param tddft ...
 ! **************************************************************************************************
-   SUBROUTINE initialize_mpole_rho(mp_rho, nchan_s, nchan_c, zeff, tddft)
+   SUBROUTINE initialize_mpole_rho(mp_rho, nchan_s, nchan_c, zeff)
 
       TYPE(mpole_rho_atom)                               :: mp_rho
       INTEGER, INTENT(IN)                                :: nchan_s, nchan_c
       REAL(KIND=dp), INTENT(IN)                          :: zeff
-      LOGICAL, OPTIONAL                                  :: tddft
 
       CHARACTER(len=*), PARAMETER :: routineN = 'initialize_mpole_rho', &
          routineP = moduleN//':'//routineN
-
-      LOGICAL                                            :: my_tddft
-
-      my_tddft = .FALSE.
-      IF (PRESENT(tddft)) my_tddft = tddft
 
       CALL reallocate(mp_rho%Qlm_h, 1, nchan_s)
       CALL reallocate(mp_rho%Qlm_s, 1, nchan_s)
@@ -527,11 +520,7 @@ CONTAINS
       mp_rho%Qlm_s = 0.0_dp
       mp_rho%Qlm_tot = 0.0_dp
       mp_rho%Qlm_car = 0.0_dp
-      IF (.NOT. my_tddft) THEN
-         mp_rho%Qlm_z = -2.0_dp*rootpi*Zeff
-      ELSE
-         mp_rho%Qlm_z = 0.0_dp
-      END IF
+      mp_rho%Qlm_z = -2.0_dp*rootpi*Zeff
       mp_rho%Q0 = 0.0_dp
 
    END SUBROUTINE initialize_mpole_rho

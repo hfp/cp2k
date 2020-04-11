@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -28,10 +28,8 @@ MODULE gle_system_dynamics
    USE molecule_kind_types,             ONLY: molecule_kind_type
    USE molecule_types,                  ONLY: global_constraint_type,&
                                               molecule_type
-   USE parallel_rng_types,              ONLY: next_random_number,&
-                                              read_rng_stream,&
-                                              rng_record_length,&
-                                              rng_stream_type
+   USE parallel_rng_types,              ONLY: rng_record_length,&
+                                              rng_stream_type_from_record
    USE particle_types,                  ONLY: particle_type
    USE simpar_types,                    ONLY: simpar_type
    USE thermostat_mapping,              ONLY: thermostat_mapping_region
@@ -93,12 +91,10 @@ CONTAINS
       REAL(dp)                                           :: alpha, beta, rr
       REAL(dp), DIMENSION(:, :), POINTER                 :: a_mat, e_tmp, h_tmp, s_tmp
       TYPE(map_info_type), POINTER                       :: map_info
-      TYPE(rng_stream_type), POINTER                     :: rng_stream
 
       CALL timeset(routineN, handle)
       my_shell_adiabatic = .FALSE.
       IF (PRESENT(shell_adiabatic)) my_shell_adiabatic = shell_adiabatic
-      NULLIFY (rng_stream)
       present_vel = PRESENT(vel)
       ndim = gle%ndim
       ALLOCATE (s_tmp(ndim, gle%loc_num_gle))
@@ -122,12 +118,11 @@ CONTAINS
          IF (gle%nvt(ideg)%nkt == 0.0_dp) CYCLE
          gle%nvt(ideg)%s(1) = map_info%s_kin(imap)
          s_tmp(1, imap) = map_info%s_kin(imap)
-         rng_stream => gle%nvt(ideg)%gaussian_rng_stream
-         rr = next_random_number(rng_stream)
+         rr = gle%nvt(ideg)%gaussian_rng_stream%next()
          e_tmp(1, imap) = rr
          DO iadd = 2, ndim
             s_tmp(iadd, imap) = gle%nvt(ideg)%s(iadd)
-            rr = next_random_number(rng_stream)
+            rr = gle%nvt(ideg)%gaussian_rng_stream%next()
             e_tmp(iadd, imap) = rr
          END DO
       END DO
@@ -159,8 +154,8 @@ CONTAINS
                                local_molecules, molecule_set, group, vel)
       DO ideg = 1, gle%loc_num_gle
          imap = gle%map_info%map_index(ideg)
-         gle%nvt(ideg)%thermostat_energy = gle%nvt(ideg)%thermostat_energy+ &
-                                           0.5_dp*(gle%nvt(ideg)%kin_energy-map_info%s_kin(imap))
+         gle%nvt(ideg)%thermostat_energy = gle%nvt(ideg)%thermostat_energy + &
+                                           0.5_dp*(gle%nvt(ideg)%kin_energy - map_info%s_kin(imap))
       END DO
 
       DEALLOCATE (e_tmp, s_tmp, h_tmp)
@@ -217,7 +212,7 @@ CONTAINS
       ! deterministic part of the propagator
       CALL gle_matrix_exp((-simpar%dt*0.5_dp)*gle%a_mat, gle%ndim, 15, 15, gle%gle_t)
       ! stochastic part
-      Mtmp = gle%c_mat-MATMUL(gle%gle_t, MATMUL(gle%c_mat, TRANSPOSE(gle%gle_t)))
+      Mtmp = gle%c_mat - MATMUL(gle%gle_t, MATMUL(gle%c_mat, TRANSPOSE(gle%gle_t)))
       CALL gle_cholesky_stab(Mtmp, gle%gle_s, gle%ndim)
 
    END SUBROUTINE initialize_gle_part
@@ -240,25 +235,25 @@ CONTAINS
       REAL(dp), INTENT(out)                              :: EM(n, n)
 
       INTEGER                                            :: i, p
-      REAL(dp)                                           :: SM(n, n), tc(j+1)
+      REAL(dp)                                           :: SM(n, n), tc(j + 1)
 
       tc(1) = 1._dp
       DO i = 1, j
-         tc(i+1) = tc(i)/REAL(i, KIND=dp)
+         tc(i + 1) = tc(i)/REAL(i, KIND=dp)
       ENDDO
 
       !scale
       SM = M*(1._dp/2._dp**k)
       EM = 0._dp
       DO i = 1, n
-         EM(i, i) = tc(j+1)
+         EM(i, i) = tc(j + 1)
       ENDDO
 
       !taylor exp of scaled matrix
       DO p = j, 1, -1
          EM = MATMUL(SM, EM)
          DO i = 1, n
-            EM(i, i) = EM(i, i)+tc(p)
+            EM(i, i) = EM(i, i) + tc(p)
          ENDDO
       ENDDO
 
@@ -293,21 +288,21 @@ CONTAINS
       DO i = 1, n
          L(i, i) = 1.0_dp
          D(i) = SST(i, i)
-         DO j = 1, i-1
+         DO j = 1, i - 1
             L(i, j) = SST(i, j); 
-            DO k = 1, j-1
-               L(i, j) = L(i, j)-L(i, k)*L(j, k)*D(k)
+            DO k = 1, j - 1
+               L(i, j) = L(i, j) - L(i, k)*L(j, k)*D(k)
             ENDDO
             IF (ABS(D(j)) > EPSILON(1.0_dp)) L(i, j) = L(i, j)/D(j)
          ENDDO
-         DO k = 1, i-1
-            D(i) = D(i)-L(i, k)*L(i, k)*D(k)
+         DO k = 1, i - 1
+            D(i) = D(i) - L(i, k)*L(i, k)*D(k)
          END DO
       ENDDO
       DO i = 1, n
          DO j = 1, i
             IF ((ABS(D(j)) > EPSILON(1.0_dp)) .AND. (D(j) > 0.0_dp)) THEN
-               S(i, j) = S(i, j)+L(i, j)*SQRT(D(j))
+               S(i, j) = S(i, j) + L(i, j)*SQRT(D(j))
             END IF
          ENDDO
       ENDDO
@@ -384,7 +379,7 @@ CONTAINS
          map_info%s_kin = 0.0_dp
          DO i = 1, 3
             DO j = 1, natoms_local
-               map_info%p_kin(i, j)%point = map_info%p_kin(i, j)%point+1
+               map_info%p_kin(i, j)%point = map_info%p_kin(i, j)%point + 1
             END DO
          END DO
 
@@ -394,7 +389,7 @@ CONTAINS
 
          ! We know the total number of system thermostats.
          IF ((sum_of_thermostats == 1) .AND. (map_info%dis_type /= do_thermo_no_communication)) THEN
-            fac = map_info%s_kin(1)-deg_of_freedom(1)-simpar%nfree_rot_transl
+            fac = map_info%s_kin(1) - deg_of_freedom(1) - simpar%nfree_rot_transl
             IF (fac == 0.0_dp) THEN
                CPABORT("Zero degrees of freedom. Nothing to thermalize!")
             END IF
@@ -403,7 +398,7 @@ CONTAINS
          ELSE
             DO i = 1, gle%loc_num_gle
                imap = map_info%map_index(i)
-               fac = (map_info%s_kin(imap)-deg_of_freedom(i))
+               fac = (map_info%s_kin(imap) - deg_of_freedom(i))
                gle%nvt(i)%nkt = simpar%temp_ext*fac
                gle%nvt(i)%degrees_of_freedom = FLOOR(fac)
             END DO
@@ -453,9 +448,9 @@ CONTAINS
          CALL section_vals_val_get(gle_section, "S%_DEFAULT_KEYWORD_", r_vals=buffer)
          DO i = 1, SIZE(gle%nvt, 1)
             ind = map_info%index(i)
-            ind = (ind-1)*(gle%ndim)
+            ind = (ind - 1)*(gle%ndim)
             DO j = 1, SIZE(gle%nvt(i)%s, 1)
-               ind = ind+1
+               ind = ind + 1
                gle%nvt(i)%s(j) = buffer(ind)
             END DO
          END DO
@@ -502,8 +497,7 @@ CONTAINS
                   ind = map_info%index(i)
                   CALL section_vals_val_get(section_vals=work_section, keyword_name="_DEFAULT_KEYWORD_", &
                                             i_rep_val=ind, c_val=rng_record)
-                  CALL read_rng_stream(rng_stream=gle%nvt(i)%gaussian_rng_stream, &
-                                       rng_record=rng_record)
+                  gle%nvt(i)%gaussian_rng_stream = rng_stream_type_from_record(rng_record)
                END DO
             ELSE
                CALL cp_abort(__LOCATION__, &
@@ -528,14 +522,12 @@ CONTAINS
 
       INTEGER                                            :: i, j
       REAL(dp)                                           :: rr(gle%ndim), cc(gle%ndim, gle%ndim)
-      TYPE(rng_stream_type), POINTER                     :: rng_stream
 
       CALL gle_cholesky_stab(gle%c_mat, cc, gle%ndim)
       DO i = 1, gle%loc_num_gle
-         rng_stream => gle%nvt(i)%gaussian_rng_stream
          DO j = 1, gle%ndim
             ! here s should be properly initialized, when it is not read from restart
-            rr(j) = next_random_number(rng_stream)
+            rr(j) = gle%nvt(i)%gaussian_rng_stream%next()
          END DO
          gle%nvt(i)%s = MATMUL(cc, rr)
       END DO

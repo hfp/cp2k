@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -63,7 +63,7 @@ MODULE cp_result_types
 ! **************************************************************************************************
 !> \brief contains arbitrary information which need to be stored
 !> \note
-!>      result_list is a character list, in which everthing can be stored
+!>      result_list is a character list, in which everything can be stored
 !>      before passing any variable just name the variable like '[NAME]'
 !>      brackets will be used to identify the start of a new set
 !> \author fschiff (12.2007)
@@ -126,7 +126,7 @@ CONTAINS
       CALL timeset(routineN, handle)
       IF (ASSOCIATED(results)) THEN
          CPASSERT(results%ref_count > 0)
-         results%ref_count = results%ref_count-1
+         results%ref_count = results%ref_count - 1
          IF (results%ref_count == 0) THEN
             ! Description
             IF (ASSOCIATED(results%result_label)) THEN
@@ -190,7 +190,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(results))
       CPASSERT(results%ref_count > 0)
-      results%ref_count = results%ref_count+1
+      results%ref_count = results%ref_count + 1
    END SUBROUTINE cp_result_retain
 
 ! **************************************************************************************************

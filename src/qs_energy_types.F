@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -32,6 +32,7 @@ MODULE qs_energy_types
                        exc, &
                        exc_aux_fit, &
                        exc1, &
+                       exc1_aux_fit, & !the GAPW contribution to ADMM
                        hartree, &
                        hartree_1c, &
                        e_hartree, & ! contains the hartree energy of electrons only
@@ -56,6 +57,7 @@ MODULE qs_energy_types
                        ktS, & ! electronic entropic contribution
                        efermi, & ! Fermi energy
                        dftb3, & ! DFTB 3rd order correction
+                       nonscf_correction, & ! e.g. Harris correction
                        mp2, &
                        ! single excitations correction for all
                        ! non-scf orbital(density) corrections
@@ -162,6 +164,7 @@ CONTAINS
          qs_energy%exc = 0.0_dp
          qs_energy%exc_aux_fit = 0.0_dp
          qs_energy%exc1 = 0.0_dp
+         qs_energy%exc1_aux_fit = 0.0_dp
          qs_energy%e_hartree = 0.0_dp
          qs_energy%hartree = 0.0_dp
          qs_energy%hartree_1c = 0.0_dp
@@ -188,6 +191,7 @@ CONTAINS
          qs_energy%surf_dipole = 0.0_dp
          qs_energy%total = 0.0_dp
          qs_energy%singles_corr = 0.0_dp
+         qs_energy%nonscf_correction = 0.0_dp
          IF (.NOT. ASSOCIATED(qs_energy%ddapc_restraint)) THEN
             ALLOCATE (qs_energy%ddapc_restraint(1))
          END IF

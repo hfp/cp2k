@@ -20,7 +20,7 @@
             FUNCTIONAL LDA_C_VWN
          &END LIBXC
          !Range separated, need 100% of long-range and 75% of short range LDA exchange
-         !Long-range obtained by substracting short-range from normal => end up with -0.25 scale
+         !Long-range obtained by subtracting short-range from normal => end up with -0.25 scale
          &LIBXC
             FUNCTIONAL LDA_X
          &END LIBXC 
@@ -50,6 +50,7 @@
 
       TAMM_DANCOFF 
       GRID Ne 150 150
+      N_EXCITED 10
 
       &KERNEL
          &XC_FUNCTIONAL 
@@ -71,9 +72,6 @@
          &END EXACT_EXCHANGE
       &END KERNEL
 
-      &DIAGONALIZATION
-         N_EXCITED 10
-      &END DIAGONALIZATION
     &END XAS_TDP
 
   &END DFT

@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -62,7 +62,7 @@ MODULE pw_pool_types
 
 ! **************************************************************************************************
 !> \brief Manages a pool of grids (to be used for example as tmp objects),
-!>      but can also be used to intantiate grids that are never given back.
+!>      but can also be used to instantiate grids that are never given back.
 !> \param ref_count reference count (see /cp2k/doc/ReferenceCounting.html)
 !> \param id_nr number that identifies each pool
 !> \param real 1d_pw, real3d_pw, complex1d_pw, complex3d_pw: liked list with
@@ -119,7 +119,7 @@ CONTAINS
       ALLOCATE (pool)
       pool%pw_grid => pw_grid
       CALL pw_grid_retain(pw_grid)
-      last_pw_pool_id_nr = last_pw_pool_id_nr+1
+      last_pw_pool_id_nr = last_pw_pool_id_nr + 1
       pool%id_nr = last_pw_pool_id_nr
       pool%ref_count = 1
       pool%max_cache = default_max_cache
@@ -153,7 +153,7 @@ CONTAINS
       CPASSERT(ASSOCIATED(pool))
       CPASSERT(pool%ref_count > 0)
 
-      pool%ref_count = pool%ref_count+1
+      pool%ref_count = pool%ref_count + 1
       IF (debug_this_module) THEN
          WRITE (unit=cp_logger_get_default_unit_nr(logger, local=.TRUE.), &
                 fmt="(' *** pw_pool ',i4,' has been retained, ref_count=',i4)") &
@@ -256,7 +256,7 @@ CONTAINS
 
       IF (ASSOCIATED(pool)) THEN
          CPASSERT(pool%ref_count > 0)
-         pool%ref_count = pool%ref_count-1
+         pool%ref_count = pool%ref_count - 1
          IF (debug_this_module) THEN
             WRITE (unit=cp_logger_get_default_unit_nr(logger, local=.TRUE.), &
                    fmt="(' *** pw_pool ',i4,' released ref_count=',i4)") &
@@ -509,7 +509,7 @@ CONTAINS
    END SUBROUTINE pw_pool_give_back_pw
 
 ! **************************************************************************************************
-!> \brief returns a 3d real array of coefficents as the one used by pw with
+!> \brief returns a 3d real array of coefficients as the one used by pw with
 !>      REALDATA3D, allocating it if none is present in the pool
 !> \param pw_pool the pool that caches the cr3d
 !> \param cr3d the pointer that will contain the array
@@ -566,7 +566,7 @@ CONTAINS
    END SUBROUTINE pw_pool_create_cr3d
 
 ! **************************************************************************************************
-!> \brief returns a 3d real array of coefficents as the one used by pw with
+!> \brief returns a 3d real array of coefficients as the one used by pw with
 !>      REALDATA3D, allocating it if none is present in the pool
 !> \param pw_pool the pool that caches the cr3d
 !> \param cr3d the pointer that will contain the array
@@ -665,9 +665,9 @@ CONTAINS
    END SUBROUTINE pw_pools_create_pws
 
 ! **************************************************************************************************
-!> \brief returns the pw part of the coefficents into the pools
+!> \brief returns the pw part of the coefficients into the pools
 !> \param pools the pools that will cache the pws %pw
-!> \param pws the coefficents to give back
+!> \param pws the coefficients to give back
 !> \par History
 !>      08.2002 created [fawzi]
 !> \author Fawzi Mohamed

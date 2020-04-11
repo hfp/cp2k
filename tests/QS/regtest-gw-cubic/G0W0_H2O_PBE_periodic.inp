@@ -10,6 +10,7 @@
   METHOD Quickstep
   &DFT
     BASIS_SET_FILE_NAME  HFX_BASIS
+    SORT_BASIS EXP
     POTENTIAL_FILE_NAME  GTH_POTENTIALS
     &MGRID
       CUTOFF  100
@@ -41,19 +42,8 @@
         &END
       &END XC_FUNCTIONAL
       &WF_CORRELATION
-        METHOD  RI_RPA_GPW
-        &WFC_GPW
-          ! normally, this EPS_FILTER controls the accuracy and
-          ! the time for the cubic_scaling RPA calculation
-          EPS_FILTER  1.0E-6
-        &END
-        RI OVERLAP
-        ERI_METHOD OS
-        IM_TIME
-        &IM_TIME
-          DO_DBCSR_T .FALSE.
-          GROUP_SIZE_3c 1
-          GROUP_SIZE_P 1
+        &LOW_SCALING
+          MEMORY_CUT 1
         &END
         &RI_RPA
           &HF
@@ -63,19 +53,18 @@
               SCREEN_ON_INITIAL_P FALSE
             &END SCREENING
           &END HF
-          MINIMAX
           RPA_NUM_QUAD_POINTS     10
-          GW
-          &RI_G0W0
+          &GW
             CORR_MOS_OCC          4
             CORR_MOS_VIRT         4
-            PRINT_GW_DETAILS
+            ANALYTIC_CONTINUATION TWO_POLE
+            CROSSING_SEARCH       Z_SHOT
             PERIODIC
             &PERIODIC
               # That value should be chosen much larger !
               NUM_OMEGA_POINTS   5
             &END
-          &END RI_G0W0
+          &END GW
         &END RI_RPA
         MEMORY  200.
         NUMBER_PROC  1

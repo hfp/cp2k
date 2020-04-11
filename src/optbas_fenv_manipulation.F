@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 MODULE optbas_fenv_manipulation
    USE admm_types,                      ONLY: admm_env_create,&
@@ -123,7 +123,7 @@ CONTAINS
 
       ! add the new basis file containing the templates to the basis file list
       CALL section_vals_val_get(dft_section, "BASIS_SET_FILE_NAME", n_rep_val=nbasis)
-      CALL section_vals_val_set(dft_section, "BASIS_SET_FILE_NAME", i_rep_val=nbasis+1, &
+      CALL section_vals_val_set(dft_section, "BASIS_SET_FILE_NAME", i_rep_val=nbasis + 1, &
                                 c_val=basis_optimization%work_basis_file)
 
       ! Set the auxilarry basis in the kind sections
@@ -418,7 +418,7 @@ CONTAINS
          END DO
       END DO
 
-      CALL init_interaction_radii(dft_control%qs_control, atomic_kind_set, qs_kind_set)
+      CALL init_interaction_radii(dft_control%qs_control, qs_kind_set)
 
    END SUBROUTINE update_basis_set
 

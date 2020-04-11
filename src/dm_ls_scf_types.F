@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -103,6 +103,8 @@ MODULE dm_ls_scf_types
       INTEGER :: purification_method
       INTEGER :: sign_method
       INTEGER :: sign_order
+      LOGICAL :: sign_symmetric
+      INTEGER :: submatrix_sign_method
       INTEGER :: s_sqrt_method
       INTEGER :: s_sqrt_order
 
@@ -219,4 +221,3 @@ CONTAINS
    END SUBROUTINE ls_scf_release
 
 END MODULE dm_ls_scf_types
-

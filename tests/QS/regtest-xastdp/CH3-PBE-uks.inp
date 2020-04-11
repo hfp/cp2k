@@ -39,10 +39,10 @@
       DIPOLE_FORM LENGTH
       GRID C 300 300
       EXCITATIONS OS_SPIN_CONS
+      N_EXCITED 12
       
       &KERNEL
          RI_RADIUS 3.0
-         NPROCS_GRID 2
          &XC_FUNCTIONAL
             &LIBXC
                FUNCTIONAL GGA_X_PBE
@@ -53,9 +53,6 @@
          &END XC_FUNCTIONAL
       &END KERNEL
 
-      &DIAGONALIZATION
-         N_EXCITED 12
-      &END DIAGONALIZATION
     &END XAS_TDP
 
   &END DFT

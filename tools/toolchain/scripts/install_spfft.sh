@@ -2,8 +2,8 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")" && pwd -P)"
 
-spfft_ver="0.9.8"
-spfft_sha256="e47989bcc9ca5cec424504f84ff75d5a09b2063ee0d50e537baf85d3629b15f8"
+spfft_ver="0.9.10"
+spfft_sha256="b4a5cbdf69b5dd97202f269f24e2337b333a45d6ff001aabfca64c7ec412c15d"
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh
 source "${SCRIPT_DIR}"/signal_trap.sh
@@ -57,6 +57,11 @@ case "$with_spfft" in
         SPFFT_CFLAGS="-I'${pkg_install_dir}/include'"
         SPFFT_LDFLAGS="-L'${pkg_install_dir}/lib' -Wl,-rpath='${pkg_install_dir}/lib'"
         SPFFT_CUDA_LDFLAGS="-L'${pkg_install_dir}/lib/cuda' -Wl,-rpath='${pkg_install_dir}/lib/cuda'"
+        if [ -d "${SPFFT_ROOT}/lib64" ]; then
+           cd ${SPFFT_ROOT}
+           ln -sf lib64 lib
+           cd ${BUILDDIR}
+        fi
         ;;
     __SYSTEM__)
         echo "==================== Finding psfft from system paths ===================="

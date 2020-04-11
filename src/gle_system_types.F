@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -19,8 +19,6 @@ MODULE gle_system_types
                                               section_vals_val_get
    USE kinds,                           ONLY: dp
    USE parallel_rng_types,              ONLY: GAUSSIAN,&
-                                              create_rng_stream,&
-                                              delete_rng_stream,&
                                               next_rng_seed,&
                                               rng_stream_type
    USE string_utilities,                ONLY: compress
@@ -38,7 +36,7 @@ MODULE gle_system_types
       INTEGER                                 :: degrees_of_freedom
       REAL(KIND=dp)                           :: nkt, kin_energy, thermostat_energy
       REAL(KIND=dp), DIMENSION(:), POINTER    :: s
-      TYPE(rng_stream_type), POINTER          :: gaussian_rng_stream
+      TYPE(rng_stream_type)                   :: gaussian_rng_stream
    END TYPE gle_thermo_type
 
 ! **************************************************************************************************
@@ -110,15 +108,15 @@ CONTAINS
                   CPABORT("GLE: Too many elements in A_LIST")
                END IF
                gle%a_mat(j, k) = list(i)
-               k = k+1
+               k = k + 1
                IF (k > gle%ndim) THEN
                   k = 1
-                  j = j+1
+                  j = j + 1
                END IF
             END DO
          END IF
       END DO ! ir
-      IF (j < gle%ndim+1) THEN
+      IF (j < gle%ndim + 1) THEN
          CPABORT("GLE: Too few elements in A_LIST")
       END IF
       gle%a_mat = gle%a_mat*a_scale
@@ -138,15 +136,15 @@ CONTAINS
                      CPABORT("GLE: Too many elements in C_LIST")
                   END IF
                   gle%c_mat(j, k) = list(i)
-                  k = k+1
+                  k = k + 1
                   IF (k > gle%ndim) THEN
                      k = 1
-                     j = j+1
+                     j = j + 1
                   END IF
                END DO
             END IF
          END DO ! ir
-         IF (j < gle%ndim+1) THEN
+         IF (j < gle%ndim + 1) THEN
             CPABORT("GLE: Too few elements in C_LIST")
          END IF
       ELSE
@@ -196,20 +194,18 @@ CONTAINS
 
       seed(:, :, 1) = initial_seed
       DO ithermo = 2, gle%glob_num_gle
-         seed(:, :, ithermo) = next_rng_seed(seed(:, :, ithermo-1))
+         seed(:, :, ithermo) = next_rng_seed(seed(:, :, ithermo - 1))
       END DO
 
       ! Update initial seed
       initial_seed = next_rng_seed(seed(:, :, gle%glob_num_gle))
       DO ithermo = 1, gle%loc_num_gle
-         NULLIFY (gle%nvt(ithermo)%gaussian_rng_stream)
          my_index = gle%map_info%index(ithermo)
          my_seed = seed(:, :, my_index)
          WRITE (UNIT=name, FMT="(A,I8)") "Wiener process for Thermostat #", my_index
          CALL compress(name)
-         CALL create_rng_stream(rng_stream=gle%nvt(ithermo)%gaussian_rng_stream, &
-                                name=name, distribution_type=GAUSSIAN, extended_precision=.TRUE., &
-                                seed=my_seed)
+         gle%nvt(ithermo)%gaussian_rng_stream = rng_stream_type( &
+                                                name=name, distribution_type=GAUSSIAN, extended_precision=.TRUE., seed=my_seed)
       END DO
 
       DEALLOCATE (seed)
@@ -243,9 +239,6 @@ CONTAINS
          IF (ASSOCIATED(gle%nvt)) THEN
             DO i = 1, SIZE(gle%nvt)
                DEALLOCATE (gle%nvt(i)%s)
-               IF (ASSOCIATED(gle%nvt(i)%gaussian_rng_stream)) THEN
-                  CALL delete_rng_stream(gle%nvt(i)%gaussian_rng_stream)
-               END IF
             END DO
             DEALLOCATE (gle%nvt)
          ENDIF

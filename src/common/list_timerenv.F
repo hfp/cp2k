@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -18,7 +18,7 @@
 #:include 'list.fypp'
 #:set n_inst = 0
 MODULE list_timerenv
-USE timings_types,           ONLY: ${uselist(usetimings)}$
+   USE timings_types, ONLY: ${uselist(usetimings)}$
 
 $:list_body(valuetype[n_inst], valuetype_in[n_inst], valuetype_out[n_inst], value_assign[n_inst])
 

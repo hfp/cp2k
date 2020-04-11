@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 ! **************************************************************************************************
 !> \brief Utility routines for qs_scf
@@ -151,6 +151,33 @@ CONTAINS
                       has_unit_metric=has_unit_metric)
       scf_env%iter_param = 0.0_dp
 
+      ! transfer total_zeff_corr from qs_env to scf_env only if
+      ! correct_el_density_dip is switched on [SGh]
+      IF (dft_control%correct_el_density_dip) THEN
+         scf_env%sum_zeff_corr = qs_env%total_zeff_corr
+         IF (ABS(qs_env%total_zeff_corr) > 0.0_dp) THEN
+            IF (scf_env%method /= general_diag_method_nr) THEN
+               CALL cp_abort(__LOCATION__, &
+                             "Please use ALGORITHM STANDARD in "// &
+                             "SCF%DIAGONALIZATION if "// &
+                             "CORE_CORRECTION /= 0.0 and "// &
+                             "SURFACE_DIPOLE_CORRECTION TRUE ")
+            ELSEIF (dft_control%roks) THEN
+               CALL cp_abort(__LOCATION__, &
+                             "Combination of "// &
+                             "CORE_CORRECTION /= 0.0 and "// &
+                             "SURFACE_DIPOLE_CORRECTION TRUE "// &
+                             "is not implemented with ROKS")
+            ELSEIF (scf_control%diagonalization%mom) THEN
+               CALL cp_abort(__LOCATION__, &
+                             "Combination of "// &
+                             "CORE_CORRECTION /= 0.0 and "// &
+                             "SURFACE_DIPOLE_CORRECTION TRUE "// &
+                             "is not implemented with SCF%MOM")
+            ENDIF
+         ENDIF
+      ENDIF
+
       SELECT CASE (scf_env%method)
       CASE DEFAULT
          CALL cp_abort(__LOCATION__, &
@@ -162,6 +189,13 @@ CONTAINS
          ! *************************************************************************
       CASE (filter_matrix_diag_method_nr)
 
+         IF (ABS(qs_env%total_zeff_corr) > 0.0_dp) THEN
+            CALL cp_abort(__LOCATION__, &
+                          "CORE_CORRECTION /= 0.0 plus"// &
+                          "SURFACE_DIPOLE_CORRECTION  TRUE"// &
+                          "requires SCF%DIAGONALIZATION: "// &
+                          "ALGORITHM STANDARD")
+         ENDIF
          CALL fb_env_do_diag(scf_env%filter_matrix_env, qs_env, &
                              matrix_ks, matrix_s, scf_section, diis_step)
 
@@ -242,8 +276,8 @@ CONTAINS
       energy%efermi = 0.0_dp
       CALL get_qs_env(qs_env, mos=mos)
       DO ispin = 1, SIZE(mos)
-         energy%kTS = energy%kTS+mos(ispin)%mo_set%kTS
-         energy%efermi = energy%efermi+mos(ispin)%mo_set%mu
+         energy%kTS = energy%kTS + mos(ispin)%mo_set%kTS
+         energy%efermi = energy%efermi + mos(ispin)%mo_set%mu
       ENDDO
       energy%efermi = energy%efermi/REAL(SIZE(mos), KIND=dp)
 
@@ -326,8 +360,8 @@ CONTAINS
       energy%efermi = 0.0_dp
       mos => kpoints%kp_env(1)%kpoint_env%mos
       DO ispin = 1, SIZE(mos, 2)
-         energy%kTS = energy%kTS+mos(1, ispin)%mo_set%kTS
-         energy%efermi = energy%efermi+mos(1, ispin)%mo_set%mu
+         energy%kTS = energy%kTS + mos(1, ispin)%mo_set%kTS
+         energy%efermi = energy%efermi + mos(1, ispin)%mo_set%mu
       ENDDO
       energy%efermi = energy%efermi/REAL(SIZE(mos, 2), KIND=dp)
 
@@ -475,7 +509,7 @@ CONTAINS
       outer_loop_converged = .TRUE.
       IF (scf_control%outer_scf%have_scf) THEN
          ! We have an outer SCF loop...
-         scf_env%outer_scf%iter_count = scf_env%outer_scf%iter_count+1
+         scf_env%outer_scf%iter_count = scf_env%outer_scf%iter_count + 1
          outer_loop_converged = .FALSE.
 
          CALL outer_loop_gradient(qs_env, scf_env)
@@ -587,7 +621,7 @@ CONTAINS
    END SUBROUTINE qs_scf_undo_mixing
 
 ! **************************************************************************************************
-!> \brief Performes the updates rho (takes care of mixing as well)
+!> \brief Performs the updates rho (takes care of mixing as well)
 !> \param rho ...
 !> \param qs_env ...
 !> \param scf_env ...
@@ -621,7 +655,7 @@ CONTAINS
    END SUBROUTINE qs_scf_rho_update
 
 ! **************************************************************************************************
-!> \brief Performes the necessary steps before leaving innner scf loop
+!> \brief Performs the necessary steps before leaving innner scf loop
 !> \param scf_env ...
 !> \param qs_env ...
 !> \param diis_step ...

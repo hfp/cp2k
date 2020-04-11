@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -11,10 +11,7 @@ MODULE pao_ml_neuralnet
    USE kinds,                           ONLY: dp
    USE pao_types,                       ONLY: pao_env_type,&
                                               training_matrix_type
-   USE parallel_rng_types,              ONLY: create_rng_stream,&
-                                              delete_rng_stream,&
-                                              next_random_number,&
-                                              rng_stream_type
+   USE parallel_rng_types,              ONLY: rng_stream_type
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE
@@ -92,7 +89,7 @@ CONTAINS
       DO ilayer = 1, nlayers
       DO i = 1, width
       DO j = 1, width
-         forward(ilayer, i) = forward(ilayer, i)+A(ilayer, i, j)*TANH(forward(ilayer-1, j))
+         forward(ilayer, i) = forward(ilayer, i) + A(ilayer, i, j)*TANH(forward(ilayer - 1, j))
       ENDDO
       ENDDO
       ENDDO
@@ -104,7 +101,7 @@ CONTAINS
       DO ilayer = nlayers, 1, -1
       DO i = 1, width
       DO j = 1, width
-         backward(ilayer-1, j) = backward(ilayer-1, j)+backward(ilayer, i)*A(ilayer, i, j)*(1.0_dp-TANH(forward(ilayer-1, j))**2)
+  backward(ilayer - 1, j) = backward(ilayer - 1, j) + backward(ilayer, i)*A(ilayer, i, j)*(1.0_dp - TANH(forward(ilayer - 1, j))**2)
       ENDDO
       ENDDO
       ENDDO
@@ -126,10 +123,8 @@ CONTAINS
       REAL(dp)                                           :: bak, eps, error, error1, error2, num_grad
       REAL(dp), ALLOCATABLE, DIMENSION(:)                :: prediction
       REAL(dp), ALLOCATABLE, DIMENSION(:, :, :)          :: gradient
-      TYPE(rng_stream_type), POINTER                     :: rng_stream
+      TYPE(rng_stream_type)                              :: rng_stream
       TYPE(training_matrix_type), POINTER                :: training_matrix
-
-      NULLIFY (rng_stream)
 
       ! TODO this could be parallelized over ranks
       DO ikind = 1, SIZE(pao%ml_training_matrices)
@@ -150,15 +145,14 @@ CONTAINS
          ALLOCATE (training_matrix%NN(nlayers, width, width))
 
          ! initialize network with random numbers from -1.0 ... +1.0
-         CALL create_rng_stream(rng_stream, name="pao_nn")
+         rng_stream = rng_stream_type(name="pao_nn")
          DO ilayer = 1, nlayers
          DO i = 1, width
          DO j = 1, width
-            training_matrix%NN(ilayer, i, j) = -1.0_dp+2.0_dp*next_random_number(rng_stream)
+            training_matrix%NN(ilayer, i, j) = -1.0_dp + 2.0_dp*rng_stream%next()
          ENDDO
          ENDDO
          ENDDO
-         CALL delete_rng_stream(rng_stream)
 
          ! train the network using backpropagation
          ALLOCATE (gradient(nlayers, width, width))
@@ -172,7 +166,7 @@ CONTAINS
                                      gradient=gradient, &
                                      error=error)
             ENDDO
-            training_matrix%NN(:, :, :) = training_matrix%NN-step_size*gradient
+            training_matrix%NN(:, :, :) = training_matrix%NN - step_size*gradient
 
             IF (pao%iw > 0 .AND. MOD(icycle, 100) == 0) WRITE (pao%iw, *) &
                "PAO|ML| ", TRIM(training_matrix%kindname), &
@@ -199,20 +193,20 @@ CONTAINS
             DO j = 1, width
                bak = training_matrix%NN(ilayer, i, j)
 
-               training_matrix%NN(ilayer, i, j) = bak+eps
+               training_matrix%NN(ilayer, i, j) = bak + eps
                CALL nn_eval(training_matrix%NN, &
                             input=training_matrix%inputs(:, ipoint), &
                             prediction=prediction)
-               error1 = SUM((training_matrix%outputs(:, ipoint)-prediction)**2)
+               error1 = SUM((training_matrix%outputs(:, ipoint) - prediction)**2)
 
-               training_matrix%NN(ilayer, i, j) = bak-eps
+               training_matrix%NN(ilayer, i, j) = bak - eps
                CALL nn_eval(training_matrix%NN, &
                             input=training_matrix%inputs(:, ipoint), &
                             prediction=prediction)
-               error2 = SUM((training_matrix%outputs(:, ipoint)-prediction)**2)
+               error2 = SUM((training_matrix%outputs(:, ipoint) - prediction)**2)
 
                training_matrix%NN(ilayer, i, j) = bak
-               num_grad = (error1-error2)/(2.0_dp*eps)
+               num_grad = (error1 - error2)/(2.0_dp*eps)
                IF (pao%iw > 0) WRITE (pao%iw, *) "PAO|ML| Numeric gradient:", i, j, gradient(ilayer, i, j), num_grad
 
             ENDDO
@@ -229,7 +223,7 @@ CONTAINS
             CALL nn_eval(training_matrix%NN, &
                          input=training_matrix%inputs(:, ipoint), &
                          prediction=prediction)
-            error = MAXVAL(ABS(training_matrix%outputs(:, ipoint)-prediction))
+            error = MAXVAL(ABS(training_matrix%outputs(:, ipoint) - prediction))
             IF (pao%iw > 0) WRITE (pao%iw, *) "PAO|ML| ", TRIM(training_matrix%kindname), &
                " verify training-point:", ipoint, "SQRT(error):", SQRT(error)
          ENDDO
@@ -267,7 +261,7 @@ CONTAINS
       DO ilayer = 1, nlayers
       DO i = 1, width
       DO j = 1, width
-         forward(ilayer, i) = forward(ilayer, i)+A(ilayer, i, j)*TANH(forward(ilayer-1, j))
+         forward(ilayer, i) = forward(ilayer, i) + A(ilayer, i, j)*TANH(forward(ilayer - 1, j))
       ENDDO
       ENDDO
       ENDDO
@@ -308,24 +302,24 @@ CONTAINS
       DO ilayer = 1, nlayers
       DO i = 1, width
       DO j = 1, width
-         forward(ilayer, i) = forward(ilayer, i)+A(ilayer, i, j)*TANH(forward(ilayer-1, j))
+         forward(ilayer, i) = forward(ilayer, i) + A(ilayer, i, j)*TANH(forward(ilayer - 1, j))
       ENDDO
       ENDDO
       ENDDO
 
       prediction(:) = forward(nlayers, 1:width_out)
 
-      error = error+SUM((prediction-goal)**2)
+      error = error + SUM((prediction - goal)**2)
 
       ! Turning Point ------------------------------------------------------------------------------
       backward = 0.0_dp
-      backward(nlayers, 1:width_out) = prediction-goal
+      backward(nlayers, 1:width_out) = prediction - goal
 
       DO ilayer = nlayers, 1, -1
       DO i = 1, width
       DO j = 1, width
-         gradient(ilayer, i, j) = gradient(ilayer, i, j)+2.0_dp*backward(ilayer, i)*TANH(forward(ilayer-1, j))
-         backward(ilayer-1, j) = backward(ilayer-1, j)+backward(ilayer, i)*A(ilayer, i, j)*(1.0_dp-TANH(forward(ilayer-1, j))**2)
+         gradient(ilayer, i, j) = gradient(ilayer, i, j) + 2.0_dp*backward(ilayer, i)*TANH(forward(ilayer - 1, j))
+  backward(ilayer - 1, j) = backward(ilayer - 1, j) + backward(ilayer, i)*A(ilayer, i, j)*(1.0_dp - TANH(forward(ilayer - 1, j))**2)
       ENDDO
       ENDDO
       ENDDO

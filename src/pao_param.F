@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -139,7 +139,7 @@ CONTAINS
       CASE (pao_gth_param)
          CALL pao_param_init_gth(pao, qs_env)
       CASE DEFAULT
-         CPABORT("PAO: unkown parametrization")
+         CPABORT("PAO: unknown parametrization")
       END SELECT
 
       CALL timestop(handle)
@@ -168,7 +168,7 @@ CONTAINS
       CASE (pao_gth_param)
          CALL pao_param_finalize_gth(pao)
       CASE DEFAULT
-         CPABORT("PAO: unkown parametrization")
+         CPABORT("PAO: unknown parametrization")
       END SELECT
 
       CALL timestop(handle)
@@ -203,7 +203,7 @@ CONTAINS
       CASE (pao_gth_param)
          CALL pao_param_count_gth(qs_env, ikind=ikind, nparams=nparams)
       CASE DEFAULT
-         CPABORT("PAO: unkown parametrization")
+         CPABORT("PAO: unknown parametrization")
       END SELECT
 
       CALL timestop(handle)
@@ -236,7 +236,7 @@ CONTAINS
       CASE (pao_gth_param)
          CALL pao_param_initguess_gth(pao)
       CASE DEFAULT
-         CPABORT("PAO: unkown parametrization")
+         CPABORT("PAO: unknown parametrization")
       END SELECT
 
       norm = dbcsr_frobenius_norm(pao%matrix_X)
@@ -286,7 +286,7 @@ CONTAINS
       CASE (pao_gth_param)
          CALL pao_calc_U_gth(pao, penalty, matrix_M, matrix_G)
       CASE DEFAULT
-         CPABORT("PAO: unkown parametrization")
+         CPABORT("PAO: unknown parametrization")
       END SELECT
 
       CALL pao_assert_unitary(pao)
@@ -330,7 +330,7 @@ CONTAINS
          tmp1 = block_test(:, 1:M)
          tmp2 = MATMUL(TRANSPOSE(tmp1), tmp1)
          DO i = 1, M
-            tmp2(i, i) = tmp2(i, i)-1.0_dp
+            tmp2(i, i) = tmp2(i, i) - 1.0_dp
          ENDDO
 
 !$OMP ATOMIC

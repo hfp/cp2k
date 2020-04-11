@@ -1,10 +1,10 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
-!> \brief Types and set/get functions for auxiliary denisty matrix methods
+!> \brief Types and set/get functions for auxiliary density matrix methods
 !> \par History
 !>      11.2014 created [Ole Schuett]
 !> \author Ole Schuett

@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -704,7 +704,7 @@ CONTAINS
 
       ! Real
       CALL keyword_create(keyword, __LOCATION__, name="PARAMETERS", &
-                          description="The constrained paramters' values to construct virtual site."// &
+                          description="The constrained parameters' values to construct virtual site."// &
                           "r_v=a*r_ij+b*r_kj", &
                           usage="PARAMETERS {real} {real}", &
                           type_of_var=real_t, n_var=2, unit_str="internal_cp2k")

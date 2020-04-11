@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -28,6 +28,7 @@
 ! **************************************************************************************************
 MODULE qs_integrate_potential_product
    USE admm_types,                      ONLY: admm_type
+   USE ao_util,                         ONLY: exp_radius_very_extended
    USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                               get_atomic_kind_set
    USE basis_set_types,                 ONLY: get_gto_basis_set,&
@@ -42,6 +43,7 @@ MODULE qs_integrate_potential_product
         dbcsr_distribution_type, dbcsr_finalize, dbcsr_get_block_p, dbcsr_get_info, dbcsr_p_type, &
         dbcsr_type, dbcsr_work_create
    USE gaussian_gridlevels,             ONLY: gridlevel_info_type
+   USE grid_api,                        ONLY: integrate_pgf_product
    USE input_constants,                 ONLY: do_admm_exch_scaling_merlot
    USE kinds,                           ONLY: default_string_length,&
                                               dp,&
@@ -55,7 +57,6 @@ MODULE qs_integrate_potential_product
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
    USE qs_force_types,                  ONLY: qs_force_type
-   USE qs_integrate_potential_low,      ONLY: integrate_pgf_product_rspace
    USE qs_kind_types,                   ONLY: get_qs_kind,&
                                               get_qs_kind_set,&
                                               qs_kind_type
@@ -64,14 +65,12 @@ MODULE qs_integrate_potential_product
                                               rs_grid_release,&
                                               rs_grid_retain
    USE rs_pw_interface,                 ONLY: potential_pw2rs
-   USE task_list_methods,               ONLY: int2pair,&
-                                              rs_distribute_matrix
-   USE task_list_types,                 ONLY: task_list_type
+   USE task_list_methods,               ONLY: rs_distribute_matrix
+   USE task_list_types,                 ONLY: task_list_type,&
+                                              task_type
    USE virial_types,                    ONLY: virial_type
 
-!$ USE OMP_LIB, ONLY: omp_get_max_threads, omp_get_thread_num, &
-!$    omp_lock_kind, omp_init_lock, omp_destroy_lock, &
-!$    omp_set_lock, omp_unset_lock
+!$ USE OMP_LIB, ONLY: omp_get_max_threads, omp_get_thread_num, omp_get_num_threads
 
 #include "./base/base_uses.f90"
 
@@ -146,75 +145,104 @@ CONTAINS
       TYPE(pw_env_type), OPTIONAL, POINTER               :: pw_env_external
       TYPE(task_list_type), OPTIONAL, POINTER            :: task_list_external
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'integrate_v_rspace', &
-         routineP = moduleN//':'//routineN
+      INTEGER                                            :: natom
+
+      CALL get_qs_env(qs_env, natom=natom)
+      CALL integrate_v_rspace_low(v_rspace, hmat, hmat_kp, pmat, pmat_kp, qs_env, &
+                                  calculate_forces, force_adm, ispin, compute_tau, gapw, &
+                                  basis_type, pw_env_external, task_list_external, natom)
+
+   END SUBROUTINE integrate_v_rspace
+
+! **************************************************************************************************
+!> \brief Implementation of integrate_v_rspace with the additional natom argument passed in to
+!>        allow for explicitly shaped force_thread array which is needed for OMP REDUCTION.
+!> \param v_rspace ...
+!> \param hmat ...
+!> \param hmat_kp ...
+!> \param pmat ...
+!> \param pmat_kp ...
+!> \param qs_env ...
+!> \param calculate_forces ...
+!> \param force_adm ...
+!> \param ispin ...
+!> \param compute_tau ...
+!> \param gapw ...
+!> \param basis_type ...
+!> \param pw_env_external ...
+!> \param task_list_external ...
+!> \param natom ...
+! **************************************************************************************************
+   SUBROUTINE integrate_v_rspace_low(v_rspace, hmat, hmat_kp, pmat, pmat_kp, qs_env, &
+                                     calculate_forces, force_adm, ispin, compute_tau, gapw, &
+                                     basis_type, pw_env_external, task_list_external, natom)
+
+      TYPE(pw_p_type)                                    :: v_rspace
+      TYPE(dbcsr_p_type), INTENT(INOUT), OPTIONAL        :: hmat
+      TYPE(dbcsr_p_type), DIMENSION(:), OPTIONAL, &
+         POINTER                                         :: hmat_kp
+      TYPE(dbcsr_p_type), INTENT(IN), OPTIONAL           :: pmat
+      TYPE(dbcsr_p_type), DIMENSION(:), OPTIONAL, &
+         POINTER                                         :: pmat_kp
+      TYPE(qs_environment_type), POINTER                 :: qs_env
+      LOGICAL, INTENT(IN)                                :: calculate_forces
+      LOGICAL, INTENT(IN), OPTIONAL                      :: force_adm
+      INTEGER, INTENT(IN), OPTIONAL                      :: ispin
+      LOGICAL, INTENT(IN), OPTIONAL                      :: compute_tau, gapw
+      CHARACTER(len=*), INTENT(IN), OPTIONAL             :: basis_type
+      TYPE(pw_env_type), OPTIONAL, POINTER               :: pw_env_external
+      TYPE(task_list_type), OPTIONAL, POINTER            :: task_list_external
+      INTEGER, INTENT(IN)                                :: natom
+
+      CHARACTER(len=*), PARAMETER :: routineN = 'integrate_v_rspace_low'
 
       CHARACTER(len=default_string_length)               :: my_basis_type
-      INTEGER :: atom_a, atom_b, bcol, brow, handle, i, iatom, igrid_level, ikind, ikind_old, &
-         ilevel, img, ipair, ipgf, ipgf_new, iset, iset_new, iset_old, itask, ithread, jatom, &
-         jkind, jkind_old, jpgf, jpgf_new, jset, jset_new, jset_old, maxco, maxpgf, maxset, &
-         maxsgf_set, na1, na2, natom, nb1, nb2, ncoa, ncob, nimages, nkind, nseta, nsetb, nthread, &
-         offs_dv, sgfa, sgfb
-      INTEGER(KIND=int_8), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: atom_pair_recv, atom_pair_send
-      INTEGER(kind=int_8), DIMENSION(:, :), &
-         POINTER, CONTIGUOUS                             :: tasks
-      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: atom_of_kind
+      INTEGER :: atom_a, bcol, brow, handle, i, iatom, igrid_level, ikind, ikind_old, ilevel, img, &
+         ipair, ipgf, ipgf_new, iset, iset_new, iset_old, itask, ithread, jatom, jkind, jkind_old, &
+         jpgf, jpgf_new, jset, jset_new, jset_old, maxco, maxpgf, maxset, maxsgf_set, na1, na2, &
+         nb1, nb2, ncoa, ncob, nimages, nkind, nseta, nsetb, nthread, offs_dv, sgfa, sgfb
+      INTEGER(KIND=int_8), DIMENSION(:), POINTER         :: atom_pair_recv, atom_pair_send
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: atom_of_kind, kind_of
       INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: block_touched
-      INTEGER, DIMENSION(:), POINTER, CONTIGUOUS         :: la_max, la_min, lb_max, lb_min, npgfa, &
+      INTEGER, DIMENSION(:), POINTER                     :: la_max, la_min, lb_max, lb_min, npgfa, &
                                                             npgfb, nsgfa, nsgfb
-      INTEGER, DIMENSION(:, :), POINTER, CONTIGUOUS      :: first_sgfa, first_sgfb
+      INTEGER, DIMENSION(:, :), POINTER                  :: first_sgfa, first_sgfb
       LOGICAL :: atom_pair_changed, atom_pair_done, distributed_grids, do_kp, found, h_duplicated, &
-         has_threads, map_consistent, my_compute_tau, my_force_adm, my_gapw, new_set_pair_coming, &
-         p_duplicated, pab_required, scatter, use_subpatch, use_virial
-      REAL(KIND=dp)                                      :: admm_scal_fac, dab, eps_gvg_rspace, &
-                                                            rab2, scalef, zetp
-      REAL(KIND=dp), DIMENSION(3)                        :: force_a, force_b, ra, rab, rab_inv, rb
-      REAL(KIND=dp), DIMENSION(3, 3)                     :: my_virial_a, my_virial_b
-      REAL(KIND=dp), DIMENSION(:), POINTER, CONTIGUOUS   :: set_radius_a, set_radius_b
-      REAL(KIND=dp), DIMENSION(:, :), &
-         POINTER, CONTIGUOUS                             :: dist_ab, h_block, hab, p_block, pab, &
-                                                            rpgfa, rpgfb, sphi_a, sphi_b, work, &
-                                                            zeta, zetb
-      REAL(KIND=dp), DIMENSION(:, :, :), &
-         POINTER, CONTIGUOUS                             :: habt, hadb, hdab, pabt, workt
-      REAL(kind=dp), DIMENSION(:, :, :, :), &
-         POINTER, CONTIGUOUS                             :: hadbt, hdabt
+         has_threads, my_compute_tau, my_force_adm, my_gapw, new_set_pair_coming, p_duplicated, &
+         pab_required, scatter, use_subpatch, use_virial
+      REAL(KIND=dp)                                      :: admm_scal_fac, eps_rho_rspace, f, &
+                                                            prefactor, radius, scalef, zetp
+      REAL(KIND=dp), DIMENSION(3)                        :: force_a, force_b, ra, rab, rab_inv, rb, &
+                                                            rp
+      REAL(KIND=dp), DIMENSION(3, 3)                     :: my_virial_a, my_virial_b, pv_thread
+      REAL(KIND=dp), DIMENSION(3, natom)                 :: force_thread
+      REAL(KIND=dp), DIMENSION(:), POINTER               :: set_radius_a, set_radius_b
+      REAL(KIND=dp), DIMENSION(:, :), POINTER            :: h_block, hab, p_block, pab, rpgfa, &
+                                                            rpgfb, sphi_a, sphi_b, work, zeta, zetb
+      REAL(KIND=dp), DIMENSION(:, :, :), POINTER         :: habt, hadb, hdab, pabt, workt
+      REAL(kind=dp), DIMENSION(:, :, :, :), POINTER      :: hadbt, hdabt
       TYPE(admm_type), POINTER                           :: admm_env
-      TYPE(atomic_kind_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: atomic_kind_set
+      TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(cell_type), POINTER                           :: cell
-      TYPE(cube_info_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: cube_info
+      TYPE(cube_info_type), DIMENSION(:), POINTER        :: cube_info
       TYPE(dbcsr_distribution_type)                      :: dist
-      TYPE(dbcsr_p_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: deltap, dhmat, htemp
+      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: deltap, dhmat, htemp
       TYPE(dbcsr_type), POINTER                          :: href
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(gridlevel_info_type), POINTER                 :: gridlevel_info
       TYPE(gto_basis_set_type), POINTER                  :: orb_basis_set
-      TYPE(particle_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: particle_set
+      TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(pw_env_type), POINTER                         :: pw_env
-      TYPE(qs_force_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: force
-      TYPE(qs_kind_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: qs_kind_set
+      TYPE(qs_force_type), DIMENSION(:), POINTER         :: force
+      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(realspace_grid_desc_p_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: rs_descs
-      TYPE(realspace_grid_p_type), DIMENSION(:), &
-         POINTER, CONTIGUOUS                             :: rs_v
+         POINTER                                         :: rs_descs
+      TYPE(realspace_grid_p_type), DIMENSION(:), POINTER :: rs_v
       TYPE(task_list_type), POINTER                      :: task_list, task_list_soft
+      TYPE(task_type), DIMENSION(:), POINTER             :: tasks
       TYPE(virial_type), POINTER                         :: virial
 
-!$    INTEGER, PARAMETER                                 :: nlocks = 64
-!$    INTEGER(kind=omp_lock_kind)                        :: locks(0:nlocks-1), lock
-
       CALL timeset(routineN, handle)
-
-!$    DO i = 0, nlocks-1
-!$       CALL omp_init_lock(locks(i))
-!$    END DO
 
       ! we test here if the provided operator matrices are consistent
       CPASSERT(PRESENT(hmat) .OR. PRESENT(hmat_kp))
@@ -226,9 +254,9 @@ CONTAINS
          CPASSERT(PRESENT(hmat_kp))
       END IF
 
-      NULLIFY (pw_env, rs_descs, tasks, dist_ab, admm_env)
+      NULLIFY (pw_env, rs_descs, tasks, admm_env)
 
-      debug_count = debug_count+1
+      debug_count = debug_count + 1
 
       offs_dv = 0
 
@@ -255,16 +283,12 @@ CONTAINS
       ! task lists have to be in sync with basis sets
       ! there is an option to provide the task list from outside (not through qs_env)
       ! outside option has highest priority
-      SELECT CASE (my_basis_type)
-      CASE ("ORB")
-         CALL get_qs_env(qs_env=qs_env, &
-                         task_list=task_list, &
-                         task_list_soft=task_list_soft)
-      CASE ("AUX_FIT")
-         CALL get_qs_env(qs_env=qs_env, &
-                         task_list_aux_fit=task_list, &
-                         task_list_soft=task_list_soft)
-      END SELECT
+      CALL get_qs_env(qs_env=qs_env, &
+                      task_list=task_list, &
+                      task_list_soft=task_list_soft)
+      IF (.NOT. my_basis_type == "ORB") THEN
+         CPASSERT(PRESENT(task_list_external))
+      END IF
       IF (my_gapw) task_list => task_list_soft
       IF (PRESENT(task_list_external)) task_list => task_list_external
       CPASSERT(ASSOCIATED(task_list))
@@ -300,7 +324,6 @@ CONTAINS
 
       ! short cuts to task list variables
       tasks => task_list%tasks
-      dist_ab => task_list%dist_ab
       atom_pair_send => task_list%atom_pair_send
       atom_pair_recv => task_list%atom_pair_recv
 
@@ -322,24 +345,14 @@ CONTAINS
          CPASSERT(do_kp)
       END IF
       nkind = SIZE(qs_kind_set)
-      natom = SIZE(particle_set)
       use_virial = virial%pv_availability .AND. (.NOT. virial%pv_numer)
+      pv_thread = 0.0_dp
+      force_thread = 0.0_dp
 
-      IF (calculate_forces) THEN
-         ALLOCATE (atom_of_kind(natom))
-         CALL get_atomic_kind_set(atomic_kind_set, atom_of_kind=atom_of_kind)
-      END IF
+      ! needs to be consistent with rho_rspace
+      eps_rho_rspace = dft_control%qs_control%eps_rho_rspace
 
-      map_consistent = dft_control%qs_control%map_consistent
-      IF (map_consistent) THEN
-         ! needs to be consistent with rho_rspace
-         eps_gvg_rspace = dft_control%qs_control%eps_rho_rspace
-      ELSE
-         eps_gvg_rspace = dft_control%qs_control%eps_gvg_rspace
-      ENDIF
-
-      pab_required = (PRESENT(pmat) .OR. PRESENT(pmat_kp)) &
-                     .AND. (calculate_forces .OR. .NOT. map_consistent)
+      pab_required = (PRESENT(pmat) .OR. PRESENT(pmat_kp)) .AND. calculate_forces
 
       CALL get_qs_kind_set(qs_kind_set=qs_kind_set, &
                            maxco=maxco, &
@@ -416,7 +429,6 @@ CONTAINS
       NULLIFY (hdabt, hadbt, hdab, hadb)
 
       !   get maximum numbers
-      natom = SIZE(particle_set)
       maxset = 0
       maxpgf = 0
       DO ikind = 1, nkind
@@ -443,22 +455,23 @@ CONTAINS
       END IF
 
 !$OMP PARALLEL DEFAULT(NONE), &
-!$OMP SHARED(locks,workt,habt,hdabt,hadbt,pabt,tasks,particle_set,natom,maxset), &
+!$OMP SHARED(workt,habt,hdabt,hadbt,pabt,tasks,particle_set,natom,maxset), &
 !$OMP SHARED(maxpgf,my_basis_type,my_gapw,dhmat,deltap,use_virial,admm_scal_fac), &
 !$OMP SHARED(pab_required,calculate_forces,ncoset,rs_v,cube_info,my_compute_tau), &
-!$OMP SHARED(map_consistent,eps_gvg_rspace,force,virial,cell,atom_of_kind,dist_ab), &
+!$OMP SHARED(eps_rho_rspace,force,virial,cell), &
 !$OMP SHARED(gridlevel_info,task_list,block_touched,nthread,qs_kind_set), &
 !$OMP SHARED(nimages,do_kp), &
-!$OMP PRIVATE(lock,ithread,work,hab,hdab,hadb,pab,iset_old,jset_old), &
+!$OMP PRIVATE(ithread,work,hab,hdab,hadb,pab,iset_old,jset_old), &
 !$OMP PRIVATE(ikind_old,jkind_old,iatom,jatom,iset,jset,ikind,jkind,ilevel,ipgf,jpgf), &
 !$OMP PRIVATE(img,brow,bcol,orb_basis_set,first_sgfa,la_max,la_min,npgfa,nseta,nsgfa), &
 !$OMP PRIVATE(rpgfa,set_radius_a,sphi_a,zeta,first_sgfb,lb_max,lb_min,npgfb), &
-!$OMP PRIVATE(nsetb,nsgfb,rpgfb,set_radius_b,sphi_b,zetb,found,atom_a,atom_b), &
+!$OMP PRIVATE(nsetb,nsgfb,rpgfb,set_radius_b,sphi_b,zetb,found), &
 !$OMP PRIVATE(force_a,force_b,my_virial_a,my_virial_b,atom_pair_changed,h_block), &
-!$OMP PRIVATE(p_block,ncoa,sgfa,ncob,sgfb,rab,rab2,ra,rb,zetp,dab,igrid_level), &
+!$OMP PRIVATE(p_block,ncoa,sgfa,ncob,sgfb,rab,ra,rb,rp,zetp,f,prefactor,radius,igrid_level), &
 !$OMP PRIVATE(na1,na2,nb1,nb2,use_subpatch,rab_inv,new_set_pair_coming,atom_pair_done), &
 !$OMP PRIVATE(iset_new,jset_new,ipgf_new,jpgf_new,scalef), &
-!$OMP PRIVATE(itask,dist,has_threads)
+!$OMP PRIVATE(itask,dist,has_threads) &
+!$OMP REDUCTION (+ : pv_thread, force_thread )
 
       ithread = 0
 !$    ithread = omp_get_thread_num()
@@ -496,9 +509,14 @@ CONTAINS
 !$OMP DO schedule (dynamic, MAX(1,task_list%npairs(igrid_level)/(nthread*50)))
          loop_pairs: DO ipair = 1, task_list%npairs(igrid_level)
          loop_tasks: DO itask = task_list%taskstart(ipair, igrid_level), task_list%taskstop(ipair, igrid_level)
-
-            CALL int2pair(tasks(3, itask), ilevel, img, iatom, jatom, iset, jset, ipgf, jpgf, &
-                          nimages, natom, maxset, maxpgf)
+            ilevel = tasks(itask)%grid_level
+            img = tasks(itask)%image
+            iatom = tasks(itask)%iatom
+            jatom = tasks(itask)%jatom
+            iset = tasks(itask)%iset
+            jset = tasks(itask)%jset
+            ipgf = tasks(itask)%ipgf
+            jpgf = tasks(itask)%jpgf
             CPASSERT(img == 1 .OR. do_kp)
 
             ! At the start of a block of tasks, get atom data (and kind data, if needed)
@@ -575,8 +593,6 @@ CONTAINS
                END IF
 
                IF (calculate_forces) THEN
-                  atom_a = atom_of_kind(iatom)
-                  atom_b = atom_of_kind(jatom)
                   force_a(:) = 0.0_dp
                   force_b(:) = 0.0_dp
                ENDIF
@@ -604,23 +620,13 @@ CONTAINS
                sgfb = first_sgfb(1, jset)
                IF (pab_required) THEN
                   IF (iatom <= jatom) THEN
-                     CALL dgemm("N", "N", ncoa, nsgfb(jset), nsgfa(iset), &
-                                1.0_dp, sphi_a(1, sgfa), SIZE(sphi_a, 1), &
-                                p_block(sgfa, sgfb), SIZE(p_block, 1), &
-                                0.0_dp, work(1, 1), SIZE(work, 1))
-                     CALL dgemm("N", "T", ncoa, ncob, nsgfb(jset), &
-                                1.0_dp, work(1, 1), SIZE(work, 1), &
-                                sphi_b(1, sgfb), SIZE(sphi_b, 1), &
-                                0.0_dp, pab(1, 1), SIZE(pab, 1))
+                     work(1:ncoa, 1:nsgfb(jset)) = MATMUL(sphi_a(1:ncoa, sgfa:sgfa + nsgfa(iset) - 1), &
+                                                          p_block(sgfa:sgfa + nsgfa(iset) - 1, sgfb:sgfb + nsgfb(jset) - 1))
+                   pab(1:ncoa, 1:ncob) = MATMUL(work(1:ncoa, 1:nsgfb(jset)), TRANSPOSE(sphi_b(1:ncob, sgfb:sgfb + nsgfb(jset) - 1)))
                   ELSE
-                     CALL dgemm("N", "N", ncob, nsgfa(iset), nsgfb(jset), &
-                                1.0_dp, sphi_b(1, sgfb), SIZE(sphi_b, 1), &
-                                p_block(sgfb, sgfa), SIZE(p_block, 1), &
-                                0.0_dp, work(1, 1), SIZE(work, 1))
-                     CALL dgemm("N", "T", ncob, ncoa, nsgfa(iset), &
-                                1.0_dp, work(1, 1), SIZE(work, 1), &
-                                sphi_a(1, sgfa), SIZE(sphi_a, 1), &
-                                0.0_dp, pab(1, 1), SIZE(pab, 1))
+                     work(1:ncob, 1:nsgfa(iset)) = MATMUL(sphi_b(1:ncob, sgfb:sgfb + nsgfb(jset) - 1), &
+                                                          p_block(sgfb:sgfb + nsgfb(jset) - 1, sgfa:sgfa + nsgfa(iset) - 1))
+                   pab(1:ncob, 1:ncoa) = MATMUL(work(1:ncob, 1:nsgfa(iset)), TRANSPOSE(sphi_a(1:ncoa, sgfa:sgfa + nsgfa(iset) - 1)))
                   END IF
                END IF
 
@@ -635,25 +641,28 @@ CONTAINS
 
             ENDIF
 
-            rab(1) = dist_ab(1, itask)
-            rab(2) = dist_ab(2, itask)
-            rab(3) = dist_ab(3, itask)
-            rab2 = DOT_PRODUCT(rab, rab)
-            rb(1) = ra(1)+rab(1)
-            rb(2) = ra(2)+rab(2)
-            rb(3) = ra(3)+rab(3)
-            zetp = zeta(ipgf, iset)+zetb(jpgf, jset)
-            dab = SQRT(rab2)
+            rab = tasks(itask)%rab
+            rb(:) = ra(:) + rab(:)
+            zetp = zeta(ipgf, iset) + zetb(jpgf, jset)
 
-            na1 = (ipgf-1)*ncoset(la_max(iset))+1
+            f = zetb(jpgf, jset)/zetp
+            rp(:) = ra(:) + f*rab(:)
+            prefactor = EXP(-zeta(ipgf, iset)*f*DOT_PRODUCT(rab, rab))
+            radius = exp_radius_very_extended(la_min=la_min(iset), la_max=la_max(iset), &
+                                              lb_min=lb_min(jset), lb_max=lb_max(jset), &
+                                              ra=ra, rb=rb, rp=rp, &
+                                              zetp=zetp, eps=eps_rho_rspace, &
+                                              prefactor=prefactor, cutoff=1.0_dp)
+
+            na1 = (ipgf - 1)*ncoset(la_max(iset)) + 1
             na2 = ipgf*ncoset(la_max(iset))
-            nb1 = (jpgf-1)*ncoset(lb_max(jset))+1
+            nb1 = (jpgf - 1)*ncoset(lb_max(jset)) + 1
             nb2 = jpgf*ncoset(lb_max(jset))
 
             ! check whether we need to use fawzi's generalised collocation scheme
             IF (rs_v(igrid_level)%rs_grid%desc%distributed) THEN
                !tasks(4,:) is 0 for replicated, 1 for distributed 2 for exceptional distributed tasks
-               IF (tasks(4, itask) .EQ. 2) THEN
+               IF (tasks(itask)%dist_type .EQ. 2) THEN
                   use_subpatch = .TRUE.
                ELSE
                   use_subpatch = .FALSE.
@@ -664,67 +673,73 @@ CONTAINS
 
             IF (pab_required) THEN
                IF (iatom <= jatom) THEN
-                  CALL integrate_pgf_product_rspace( &
+                  CALL integrate_pgf_product( &
                      la_max(iset), zeta(ipgf, iset), la_min(iset), &
                      lb_max(jset), zetb(jpgf, jset), lb_min(jset), &
-                     ra, rab, rab2, rs_v(igrid_level)%rs_grid, cell, &
+                     ra, rab, rs_v(igrid_level)%rs_grid, cell, &
                      cube_info(igrid_level), &
-                     hab, pab=pab, o1=na1-1, o2=nb1-1, &
-                     eps_gvg_rspace=eps_gvg_rspace, &
+                     hab, pab=pab, o1=na1 - 1, o2=nb1 - 1, &
+                     radius=radius, &
                      calculate_forces=calculate_forces, &
                      force_a=force_a, force_b=force_b, &
-                     compute_tau=my_compute_tau, map_consistent=map_consistent, &
+                     compute_tau=my_compute_tau, &
                      use_virial=use_virial, my_virial_a=my_virial_a, &
-                     my_virial_b=my_virial_b, use_subpatch=use_subpatch, subpatch_pattern=tasks(6, itask))
+                     my_virial_b=my_virial_b, use_subpatch=use_subpatch, subpatch_pattern=tasks(itask)%subpatch_pattern)
                ELSE
                   rab_inv = -rab
-                  CALL integrate_pgf_product_rspace( &
+                  CALL integrate_pgf_product( &
                      lb_max(jset), zetb(jpgf, jset), lb_min(jset), &
                      la_max(iset), zeta(ipgf, iset), la_min(iset), &
-                     rb, rab_inv, rab2, rs_v(igrid_level)%rs_grid, cell, &
+                     rb, rab_inv, rs_v(igrid_level)%rs_grid, cell, &
                      cube_info(igrid_level), &
-                     hab, pab=pab, o1=nb1-1, o2=na1-1, &
-                     eps_gvg_rspace=eps_gvg_rspace, &
+                     hab, pab=pab, o1=nb1 - 1, o2=na1 - 1, &
+                     radius=radius, &
                      calculate_forces=calculate_forces, &
                      force_a=force_b, force_b=force_a, &
-                     compute_tau=my_compute_tau, map_consistent=map_consistent, &
+                     compute_tau=my_compute_tau, &
                      use_virial=use_virial, my_virial_a=my_virial_b, &
-                     my_virial_b=my_virial_a, use_subpatch=use_subpatch, subpatch_pattern=tasks(6, itask))
+                     my_virial_b=my_virial_a, use_subpatch=use_subpatch, subpatch_pattern=tasks(itask)%subpatch_pattern)
                END IF
             ELSE
                IF (iatom <= jatom) THEN
-                  CALL integrate_pgf_product_rspace( &
+                  CALL integrate_pgf_product( &
                      la_max(iset), zeta(ipgf, iset), la_min(iset), &
                      lb_max(jset), zetb(jpgf, jset), lb_min(jset), &
-                     ra, rab, rab2, rs_v(igrid_level)%rs_grid, cell, &
+                     ra, rab, rs_v(igrid_level)%rs_grid, cell, &
                      cube_info(igrid_level), &
-                     hab, o1=na1-1, o2=nb1-1, &
-                     eps_gvg_rspace=eps_gvg_rspace, &
+                     hab, o1=na1 - 1, o2=nb1 - 1, &
+                     radius=radius, &
                      calculate_forces=calculate_forces, &
                      force_a=force_a, force_b=force_b, &
                      compute_tau=my_compute_tau, &
-                     map_consistent=map_consistent, use_subpatch=use_subpatch, subpatch_pattern=tasks(6, itask))
+                     use_subpatch=use_subpatch, subpatch_pattern=tasks(itask)%subpatch_pattern)
                ELSE
                   rab_inv = -rab
-                  CALL integrate_pgf_product_rspace( &
+                  CALL integrate_pgf_product( &
                      lb_max(jset), zetb(jpgf, jset), lb_min(jset), &
                      la_max(iset), zeta(ipgf, iset), la_min(iset), &
-                     rb, rab_inv, rab2, rs_v(igrid_level)%rs_grid, cell, &
+                     rb, rab_inv, rs_v(igrid_level)%rs_grid, cell, &
                      cube_info(igrid_level), &
-                     hab, o1=nb1-1, o2=na1-1, &
-                     eps_gvg_rspace=eps_gvg_rspace, &
+                     hab, o1=nb1 - 1, o2=na1 - 1, &
+                     radius=radius, &
                      calculate_forces=calculate_forces, &
                      force_a=force_b, force_b=force_a, &
                      compute_tau=my_compute_tau, &
-                     map_consistent=map_consistent, use_subpatch=use_subpatch, subpatch_pattern=tasks(6, itask))
+                     use_subpatch=use_subpatch, subpatch_pattern=tasks(itask)%subpatch_pattern)
                END IF
             END IF
 
             new_set_pair_coming = .FALSE.
             atom_pair_done = .FALSE.
             IF (itask < task_list%taskstop(ipair, igrid_level)) THEN
-               CALL int2pair(tasks(3, itask+1), ilevel, img, iatom, jatom, iset_new, jset_new, ipgf_new, jpgf_new, &
-                             nimages, natom, maxset, maxpgf)
+               ilevel = tasks(itask + 1)%grid_level
+               img = tasks(itask + 1)%image
+               iatom = tasks(itask + 1)%iatom
+               jatom = tasks(itask + 1)%jatom
+               iset_new = tasks(itask + 1)%iset
+               jset_new = tasks(itask + 1)%jset
+               ipgf_new = tasks(itask + 1)%ipgf
+               jpgf_new = tasks(itask + 1)%jpgf
                IF (iset_new .NE. iset .OR. jset_new .NE. jset) THEN
                   new_set_pair_coming = .TRUE.
                ENDIF
@@ -737,47 +752,32 @@ CONTAINS
             ! contract the block into h if we're done with the current set pair
             IF (new_set_pair_coming) THEN
                IF (iatom <= jatom) THEN
-                  CALL dgemm("N", "N", ncoa, nsgfb(jset), ncob, &
-                             1.0_dp, hab(1, 1), SIZE(hab, 1), &
-                             sphi_b(1, sgfb), SIZE(sphi_b, 1), &
-                             0.0_dp, work(1, 1), SIZE(work, 1))
-                  CALL dgemm("T", "N", nsgfa(iset), nsgfb(jset), ncoa, &
-                             1.0_dp, sphi_a(1, sgfa), SIZE(sphi_a, 1), &
-                             work(1, 1), SIZE(work, 1), &
-                             1.0_dp, h_block(sgfa, sgfb), SIZE(h_block, 1))
+                  work(1:ncoa, 1:nsgfb(jset)) = MATMUL(hab(1:ncoa, 1:ncob), sphi_b(1:ncob, sgfb:sgfb + nsgfb(jset) - 1))
+                  h_block(sgfa:sgfa + nsgfa(iset) - 1, sgfb:sgfb + nsgfb(jset) - 1) = &
+                     h_block(sgfa:sgfa + nsgfa(iset) - 1, sgfb:sgfb + nsgfb(jset) - 1) + &
+                     MATMUL(TRANSPOSE(sphi_a(1:ncoa, sgfa:sgfa + nsgfa(iset) - 1)), work(1:ncoa, 1:nsgfb(jset)))
                ELSE
-                  CALL dgemm("N", "N", ncob, nsgfa(iset), ncoa, &
-                             1.0_dp, hab(1, 1), SIZE(hab, 1), &
-                             sphi_a(1, sgfa), SIZE(sphi_a, 1), &
-                             0.0_dp, work(1, 1), SIZE(work, 1))
-                  CALL dgemm("T", "N", nsgfb(jset), nsgfa(iset), ncob, &
-                             1.0_dp, sphi_b(1, sgfb), SIZE(sphi_b, 1), &
-                             work(1, 1), SIZE(work, 1), &
-                             1.0_dp, h_block(sgfb, sgfa), SIZE(h_block, 1))
+                  work(1:ncob, 1:nsgfa(iset)) = MATMUL(hab(1:ncob, 1:ncoa), sphi_a(1:ncoa, sgfa:sgfa + nsgfa(iset) - 1))
+                  h_block(sgfb:sgfb + nsgfb(jset) - 1, sgfa:sgfa + nsgfa(iset) - 1) = &
+                     h_block(sgfb:sgfb + nsgfb(jset) - 1, sgfa:sgfa + nsgfa(iset) - 1) + &
+                     MATMUL(TRANSPOSE(sphi_b(1:ncob, sgfb:sgfb + nsgfb(jset) - 1)), work(1:ncob, 1:nsgfa(iset)))
                END IF
             END IF
 
             IF (atom_pair_done) THEN
-               ! scalef is thread-private
-               scalef = MERGE(2.0_dp, 1.0_dp, iatom .NE. jatom)
+               IF (iatom == jatom) THEN
+                  scalef = 1.0_dp
+               ELSE
+                  scalef = 2.0_dp
+               END IF
                IF (calculate_forces) THEN
-                  lock = locks(MOD(atom_a, nlocks))
-!$                CALL omp_set_lock(lock)
-                  force(ikind)%rho_elec(:, atom_a) = &
-                     force(ikind)%rho_elec(:, atom_a)+scalef*admm_scal_fac*force_a(:)
-!$                CALL omp_unset_lock(lock)
-                  lock = locks(MOD(atom_b, nlocks))
-!$                CALL omp_set_lock(lock)
-                  force(jkind)%rho_elec(:, atom_b) = &
-                     force(jkind)%rho_elec(:, atom_b)+scalef*admm_scal_fac*force_b(:)
-!$                CALL omp_unset_lock(lock)
+                  force_thread(:, iatom) = force_thread(:, iatom) + scalef*admm_scal_fac*force_a(:)
+                  force_thread(:, jatom) = force_thread(:, jatom) + scalef*admm_scal_fac*force_b(:)
                ENDIF
                IF (use_virial) THEN
                   IF (use_virial .AND. calculate_forces) THEN
-!$OMP CRITICAL(force_critical_virial)
-                     virial%pv_virial = virial%pv_virial+scalef*admm_scal_fac*my_virial_a
-                     virial%pv_virial = virial%pv_virial+scalef*admm_scal_fac*my_virial_b
-!$OMP END CRITICAL(force_critical_virial)
+                     pv_thread = pv_thread + scalef*admm_scal_fac*my_virial_a
+                     pv_thread = pv_thread + scalef*admm_scal_fac*my_virial_b
                   END IF
                END IF
             ENDIF
@@ -792,12 +792,26 @@ CONTAINS
       END DO loop_gridlevels
 
 !$OMP END PARALLEL
-!$    DO i = 0, nlocks-1
-!$       CALL omp_destroy_lock(locks(i))
-!$    END DO
 
       IF (debug_this_module) THEN
          DEALLOCATE (block_touched)
+      END IF
+
+      IF (calculate_forces) THEN
+         ALLOCATE (atom_of_kind(natom), kind_of(natom))
+         CALL get_atomic_kind_set(atomic_kind_set, atom_of_kind=atom_of_kind, &
+                                  kind_of=kind_of)
+!$OMP DO
+         DO iatom = 1, natom
+            atom_a = atom_of_kind(iatom)
+            ikind = kind_of(iatom)
+            force(ikind)%rho_elec(:, atom_a) = force(ikind)%rho_elec(:, atom_a) + force_thread(:, iatom)
+         END DO
+!$OMP END DO
+         DEALLOCATE (atom_of_kind, kind_of)
+      END IF
+      IF (use_virial) THEN
+         virial%pv_virial = virial%pv_virial + pv_thread
       END IF
 
       IF (h_duplicated) THEN
@@ -850,12 +864,8 @@ CONTAINS
          END DO
       END IF
 
-      IF (calculate_forces) THEN
-         DEALLOCATE (atom_of_kind)
-      END IF
-
       CALL timestop(handle)
 
-   END SUBROUTINE integrate_v_rspace
+   END SUBROUTINE integrate_v_rspace_low
 
 END MODULE qs_integrate_potential_product

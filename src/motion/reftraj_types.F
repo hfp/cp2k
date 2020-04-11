@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -140,7 +140,7 @@ CONTAINS
 
       IF (ASSOCIATED(reftraj)) THEN
          CPASSERT(reftraj%ref_count > 0)
-         reftraj%ref_count = reftraj%ref_count+1
+         reftraj%ref_count = reftraj%ref_count + 1
       END IF
 
    END SUBROUTINE retain_reftraj
@@ -161,7 +161,7 @@ CONTAINS
 
       IF (ASSOCIATED(reftraj)) THEN
          CPASSERT(reftraj%ref_count > 0)
-         reftraj%ref_count = reftraj%ref_count-1
+         reftraj%ref_count = reftraj%ref_count - 1
          IF (reftraj%ref_count < 1) THEN
             CALL parser_release(reftraj%info%traj_parser)
             CALL parser_release(reftraj%info%cell_parser)

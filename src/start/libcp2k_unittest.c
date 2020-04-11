@@ -1,6 +1,6 @@
 /*****************************************************************************
  *  CP2K: A general program to perform molecular dynamics simulations        *
- *  Copyright (C) 2000 - 2019  CP2K developers group                         *
+ *  Copyright (C) 2000 - 2020  CP2K developers group                         *
  *****************************************************************************/
 
 #include <stdio.h>
@@ -13,7 +13,7 @@
  * \author Ole Schuett
  */
 
-int main(int argc, char** argv){
+int main(){
 
     printf("Unit test starts ...\n");
 

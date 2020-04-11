@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 !--------------------------------------------------------------------------------------------------!
@@ -32,6 +32,7 @@ MODULE libcp2k
    USE force_env_types,                 ONLY: force_env_get,&
                                               use_qs_force
    USE input_cp2k,                      ONLY: create_cp2k_root_section
+   USE input_cp2k_read,                 ONLY: empty_initial_variables
    USE input_section_types,             ONLY: section_release,&
                                               section_type
    USE kinds,                           ONLY: default_path_length,&
@@ -66,13 +67,13 @@ CONTAINS
       INTEGER                                            :: i, n
 
       n = LEN_TRIM(cp2k_version)
-      CPASSERT(str_length >= n+1)
+      CPASSERT(str_length >= n + 1)
 
       ! copy string
       DO i = 1, n
          version_str(i) = cp2k_version(i:i)
       ENDDO
-      version_str(n+1) = C_NULL_CHAR
+      version_str(n + 1) = C_NULL_CHAR
    END SUBROUTINE cp2k_get_version
 
 ! **************************************************************************************************
@@ -355,7 +356,7 @@ CONTAINS
 
       NULLIFY (input_declaration)
       CALL create_cp2k_root_section(input_declaration)
-      CALL run_input(input_declaration, ifp, ofp)
+      CALL run_input(input_declaration, ifp, ofp, empty_initial_variables)
       CALL section_release(input_declaration)
    END SUBROUTINE cp2k_run_input
 
@@ -378,7 +379,7 @@ CONTAINS
 
       NULLIFY (input_declaration)
       CALL create_cp2k_root_section(input_declaration)
-      CALL run_input(input_declaration, ifp, ofp, mpi_comm)
+      CALL run_input(input_declaration, ifp, ofp, empty_initial_variables, mpi_comm)
       CALL section_release(input_declaration)
    END SUBROUTINE cp2k_run_input_comm
 
@@ -429,7 +430,7 @@ CONTAINS
 
       CALL f_env_add_defaults(f_env_id, f_env)
 
-      try:BLOCK
+      try: BLOCK
          CALL get_qs_env(f_env%force_env%qs_env, active_space=active_space_env)
 
          IF (.NOT. ASSOCIATED(active_space_env)) &
@@ -469,7 +470,7 @@ CONTAINS
 
       CALL f_env_add_defaults(f_env_id, f_env)
 
-      try:BLOCK
+      try: BLOCK
          CALL get_qs_env(f_env%force_env%qs_env, active_space=active_space_env)
 
          IF (.NOT. ASSOCIATED(active_space_env)) &
@@ -480,11 +481,11 @@ CONTAINS
          IF (buf_len < norb*norb) &
             EXIT try
 
-         DO i = 0, norb-1
-            DO j = 0, norb-1
-               CALL cp_fm_get_element(active_space_env%fock_sub(1)%matrix, i+1, j+1, mval)
-               buf(norb*i+j) = mval
-               buf(norb*j+i) = mval
+         DO i = 0, norb - 1
+            DO j = 0, norb - 1
+               CALL cp_fm_get_element(active_space_env%fock_sub(1)%matrix, i + 1, j + 1, mval)
+               buf(norb*i + j) = mval
+               buf(norb*j + i) = mval
             END DO
          END DO
 
@@ -516,7 +517,7 @@ CONTAINS
 
       CALL f_env_add_defaults(f_env_id, f_env)
 
-      try:BLOCK
+      try: BLOCK
          CALL get_qs_env(f_env%force_env%qs_env, active_space=active_space_env)
 
          IF (.NOT. ASSOCIATED(active_space_env)) &
@@ -560,7 +561,7 @@ CONTAINS
 
       CALL f_env_add_defaults(f_env_id, f_env)
 
-      try:BLOCK
+      try: BLOCK
          CALL get_qs_env(f_env%force_env%qs_env, active_space=active_space_env)
 
          IF (.NOT. ASSOCIATED(active_space_env)) &
@@ -617,13 +618,13 @@ CONTAINS
       INTEGER, INTENT(in)             :: i, j, k, l
       REAL(KIND=dp), INTENT(in)       :: val
 
-      this%coords(4*(this%idx-1)+1) = i
-      this%coords(4*(this%idx-1)+2) = j
-      this%coords(4*(this%idx-1)+3) = k
-      this%coords(4*(this%idx-1)+4) = l
+      this%coords(4*(this%idx - 1) + 1) = i
+      this%coords(4*(this%idx - 1) + 2) = j
+      this%coords(4*(this%idx - 1) + 3) = k
+      this%coords(4*(this%idx - 1) + 4) = l
       this%values(this%idx) = val
 
-      this%idx = this%idx+1
+      this%idx = this%idx + 1
 
       cont = .TRUE.
    END FUNCTION eri2array_func

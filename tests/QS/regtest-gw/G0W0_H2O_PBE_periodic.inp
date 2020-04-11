@@ -41,11 +41,12 @@
         &END
       &END XC_FUNCTIONAL
       &WF_CORRELATION
-        METHOD  RI_RPA_GPW
+        &INTEGRALS
         &WFC_GPW
           CUTOFF  100
           REL_CUTOFF 20
-        &END
+        &END WFC_GPW
+        &END INTEGRALS
         &RI_RPA
           &HF
             FRACTION 1.0000000
@@ -55,16 +56,14 @@
             &END SCREENING
           &END HF
           RPA_NUM_QUAD_POINTS 40
-          GW
-          &RI_G0W0
+          &GW
             CORR_MOS_OCC          10
             CORR_MOS_VIRT         10
+            ANALYTIC_CONTINUATION TWO_POLE
             NUMB_POLES            2
-            MAX_ITER_FIT          10000
             CROSSING_SEARCH       Z_SHOT 
             FERMI_LEVEL_OFFSET    2.0E-2
-            EV_SC_ITER            3
-            HF_LIKE_EV_START      FALSE
+            EV_GW_ITER            3
             PERIODIC
             &PERIODIC
               KPOINTS 12 12 12
@@ -72,7 +71,7 @@
               EXTRAPOLATE
               DO_AUX_BAS_GW
             &END PERIODIC
-          &END RI_G0W0 
+          &END GW 
         &END RI_RPA
         MEMORY  200.
         NUMBER_PROC  1

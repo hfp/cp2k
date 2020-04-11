@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -80,7 +80,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(subsys))
       CPASSERT(subsys%ref_count > 0)
-      subsys%ref_count = subsys%ref_count+1
+      subsys%ref_count = subsys%ref_count + 1
    END SUBROUTINE qs_subsys_retain
 
 ! **************************************************************************************************
@@ -96,7 +96,7 @@ CONTAINS
 
       IF (ASSOCIATED(subsys)) THEN
          CPASSERT(subsys%ref_count > 0)
-         subsys%ref_count = subsys%ref_count-1
+         subsys%ref_count = subsys%ref_count - 1
          IF (subsys%ref_count == 0) THEN
             CALL cp_subsys_release(subsys%cp_subsys)
             CALL cell_release(subsys%cell_ref)

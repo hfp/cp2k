@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -77,15 +77,9 @@ MODULE library_tests
                                               mp_sync,&
                                               mpi_perf_test
    USE minimax_exp,                     ONLY: validate_exp_minimax
-   USE mp2_weights,                     ONLY: test_least_square_ft
-   USE parallel_rng_types,              ONLY: GAUSSIAN,&
-                                              UNIFORM,&
-                                              check_rng,&
-                                              create_rng_stream,&
-                                              delete_rng_stream,&
-                                              next_random_number,&
-                                              rng_stream_type,&
-                                              write_rng_stream
+   USE mp2_grids,                       ONLY: test_least_square_ft
+   USE parallel_rng_types,              ONLY: UNIFORM,&
+                                              rng_stream_type
    USE pw_grid_types,                   ONLY: FULLSPACE,&
                                               HALFSPACE,&
                                               pw_grid_type
@@ -173,8 +167,6 @@ CONTAINS
       ! runtest 7 has been deleted and can be recycled
       !
       IF (runtest(8) /= 0) CALL mpi_perf_test(para_env%group, runtest(8), iw)
-      !
-      IF (runtest(9) /= 0) CALL rng_test(para_env, iw)
       !
       IF (runtest(10) /= 0) CALL validate_exp_minimax(runtest(10), iw)
       !
@@ -275,7 +267,6 @@ CONTAINS
       CALL section_vals_val_get(test_section, 'ERI', i_val=runtest(4))
       CALL section_vals_val_get(test_section, 'CLEBSCH_GORDON', i_val=runtest(6))
       CALL section_vals_val_get(test_section, 'MPI', i_val=runtest(8))
-      CALL section_vals_val_get(test_section, 'RNG', i_val=runtest(9))
       CALL section_vals_val_get(test_section, 'MINIMAX', i_val=runtest(10))
       CALL section_vals_val_get(test_section, 'LEAST_SQ_FT', i_val=runtest(11))
 
@@ -327,7 +318,7 @@ CONTAINS
             ca(1) = REAL(j, KIND=dp)
          END DO
          tend = m_walltime()
-         t = tend-tstart+threshold
+         t = tend - tstart + threshold
          IF (t > 0.0_dp) THEN
             perf = REAL(ntim, KIND=dp)*REAL(len, KIND=dp)*1.e-6_dp/t
          ELSE
@@ -373,7 +364,7 @@ CONTAINS
          siz = ABS(runtest(2))
          IF (para_env%ionode) WRITE (iw, '(//,A,/)') " Test of matmul ( F95 ) "
          DO i = 5, siz, 2
-            len = 2**i+1
+            len = 2**i + 1
             IF (8.0_dp*REAL(len*len, KIND=dp) > max_memory*0.3_dp) EXIT
             ALLOCATE (ma(len, len), STAT=ierr)
             IF (ierr /= 0) EXIT
@@ -396,7 +387,7 @@ CONTAINS
                ma(1, 1) = REAL(j, KIND=dp)
             END DO
             tend = m_walltime()
-            t = tend-tstart+threshold
+            t = tend - tstart + threshold
             perf = REAL(ntim, KIND=dp)*2.0_dp*REAL(len, KIND=dp)**3*1.e-6_dp/t
             IF (para_env%ionode) THEN
                WRITE (iw, '(A,i6,T59,F14.4,A)') &
@@ -404,11 +395,11 @@ CONTAINS
             END IF
             tstart = m_walltime()
             DO j = 1, ntim
-               mc(:, :) = mc+MATMUL(ma, mb)
+               mc(:, :) = mc + MATMUL(ma, mb)
                ma(1, 1) = REAL(j, KIND=dp)
             END DO
             tend = m_walltime()
-            t = tend-tstart+threshold
+            t = tend - tstart + threshold
             IF (t > 0.0_dp) THEN
                perf = REAL(ntim, KIND=dp)*2.0_dp*REAL(len, KIND=dp)**3*1.e-6_dp/t
             ELSE
@@ -422,11 +413,11 @@ CONTAINS
 
             tstart = m_walltime()
             DO j = 1, ntim
-               mc(:, :) = mc+MATMUL(ma, TRANSPOSE(mb))
+               mc(:, :) = mc + MATMUL(ma, TRANSPOSE(mb))
                ma(1, 1) = REAL(j, KIND=dp)
             END DO
             tend = m_walltime()
-            t = tend-tstart+threshold
+            t = tend - tstart + threshold
             IF (t > 0.0_dp) THEN
                perf = REAL(ntim, KIND=dp)*2.0_dp*REAL(len, KIND=dp)**3*1.e-6_dp/t
             ELSE
@@ -440,11 +431,11 @@ CONTAINS
 
             tstart = m_walltime()
             DO j = 1, ntim
-               mc(:, :) = mc+MATMUL(TRANSPOSE(ma), mb)
+               mc(:, :) = mc + MATMUL(TRANSPOSE(ma), mb)
                ma(1, 1) = REAL(j, KIND=dp)
             END DO
             tend = m_walltime()
-            t = tend-tstart+threshold
+            t = tend - tstart + threshold
             IF (t > 0.0_dp) THEN
                perf = REAL(ntim, KIND=dp)*2.0_dp*REAL(len, KIND=dp)**3*1.e-6_dp/t
             ELSE
@@ -467,7 +458,7 @@ CONTAINS
          siz = ABS(runtest(5))
          IF (para_env%ionode) WRITE (iw, '(//,A,/)') " Test of matmul ( BLAS ) "
          DO i = 5, siz, 2
-            len = 2**i+1
+            len = 2**i + 1
             IF (8.0_dp*REAL(len*len, KIND=dp) > max_memory*0.3_dp) EXIT
             ALLOCATE (ma(len, len), STAT=ierr)
             IF (ierr /= 0) EXIT
@@ -490,7 +481,7 @@ CONTAINS
                CALL dgemm("N", "N", len, len, len, 1.0_dp, ma, len, mb, len, 1.0_dp, mc, len)
             END DO
             tend = m_walltime()
-            t = tend-tstart+threshold
+            t = tend - tstart + threshold
             IF (t > 0.0_dp) THEN
                perf = REAL(ntim, KIND=dp)*2.0_dp*REAL(len, KIND=dp)**3*1.e-6_dp/t
             ELSE
@@ -507,7 +498,7 @@ CONTAINS
                CALL dgemm("N", "N", len, len, len, 1.0_dp, ma, len, mb, len, 1.0_dp, mc, len)
             END DO
             tend = m_walltime()
-            t = tend-tstart+threshold
+            t = tend - tstart + threshold
             IF (t > 0.0_dp) THEN
                perf = REAL(ntim, KIND=dp)*2.0_dp*REAL(len, KIND=dp)**3*1.e-6_dp/t
             ELSE
@@ -524,7 +515,7 @@ CONTAINS
                CALL dgemm("N", "T", len, len, len, 1.0_dp, ma, len, mb, len, 1.0_dp, mc, len)
             END DO
             tend = m_walltime()
-            t = tend-tstart+threshold
+            t = tend - tstart + threshold
             IF (t > 0.0_dp) THEN
                perf = REAL(ntim, KIND=dp)*2.0_dp*REAL(len, KIND=dp)**3*1.e-6_dp/t
             ELSE
@@ -541,7 +532,7 @@ CONTAINS
                CALL dgemm("T", "N", len, len, len, 1.0_dp, ma, len, mb, len, 1.0_dp, mc, len)
             END DO
             tend = m_walltime()
-            t = tend-tstart+threshold
+            t = tend - tstart + threshold
             IF (t > 0.0_dp) THEN
                perf = REAL(ntim, KIND=dp)*2.0_dp*REAL(len, KIND=dp)**3*1.e-6_dp/t
             ELSE
@@ -626,7 +617,7 @@ CONTAINS
                CALL RANDOM_NUMBER(ra)
                ca(:, :, :) = ra
                CALL RANDOM_NUMBER(ra)
-               ca(:, :, :) = ca+CMPLX(0.0_dp, 1.0_dp, KIND=dp)*ra
+               ca(:, :, :) = ca + CMPLX(0.0_dp, 1.0_dp, KIND=dp)*ra
                flops = REAL(len**3, KIND=dp)*15.0_dp*LOG(REAL(len, KIND=dp))
                ntim = NINT(siz*1.e7_dp/flops)
                ntim = MAX(ntim, 1)
@@ -638,7 +629,7 @@ CONTAINS
                   CALL fft3d(BWFFT, n, ca, SCALE=scale)
                END DO
                tend = m_walltime()
-               t = tend-tstart+threshold
+               t = tend - tstart + threshold
                IF (t > 0.0_dp) THEN
                   perf = REAL(ntim, KIND=dp)*2.0_dp*flops*1.e-6_dp/t
                ELSE
@@ -663,10 +654,10 @@ CONTAINS
             CALL RANDOM_NUMBER(ra)
             ca(:, :, :) = ra
             CALL RANDOM_NUMBER(ra)
-            ca(:, :, :) = ca+CMPLX(0.0_dp, 1.0_dp, KIND=dp)*ra
+            ca(:, :, :) = ca + CMPLX(0.0_dp, 1.0_dp, KIND=dp)*ra
             cc(:, :, :) = ca
             CALL fft3d(FWFFT, n, ca, cb)
-            tdiff = MAXVAL(ABS(ca-cc))
+            tdiff = MAXVAL(ABS(ca - cc))
             IF (tdiff > 1.0E-12_dp) THEN
                IF (para_env%ionode) &
                   WRITE (iw, '(T2,A,A,A)') ADJUSTR(method), "         FWFFT ", &
@@ -678,7 +669,7 @@ CONTAINS
             END IF
             ca(:, :, :) = cc
             CALL fft3d(BWFFT, n, ca, cb)
-            tdiff = MAXVAL(ABS(ca-cc))
+            tdiff = MAXVAL(ABS(ca - cc))
             IF (tdiff > 1.0E-12_dp) THEN
                IF (para_env%ionode) &
                   WRITE (iw, '(T2,A,A,A)') ADJUSTR(method), "         BWFFT ", &
@@ -765,7 +756,7 @@ CONTAINS
       ! .. rs input setting type
       CALL section_vals_val_get(rs_pw_transfer_section, "HALO_SIZE", i_val=halo_size)
       rs_grid_section => section_vals_get_subs_vals(rs_pw_transfer_section, "RS_GRID")
-      ns_max = 2*halo_size+1
+      ns_max = 2*halo_size + 1
       CALL init_input_type(input_settings, ns_max, rs_grid_section, 1, (/-1, -1, -1/))
 
       ! .. rs type
@@ -801,7 +792,7 @@ CONTAINS
          CALL mp_sync(para_env%group)
          tend = m_walltime()
          IF (para_env%ionode) THEN
-            WRITE (iw, '(T2,I9,1X,F12.6)') i_loop, tend-tstart
+            WRITE (iw, '(T2,I9,1X,F12.6)') i_loop, tend - tstart
          ENDIF
       ENDDO
 
@@ -893,7 +884,7 @@ CONTAINS
             DO p = 2, para_env%num_pe
                q = para_env%num_pe/p
                IF (p*q == para_env%num_pe) THEN
-                  itmp = itmp+1
+                  itmp = itmp + 1
                ENDIF
             ENDDO
             ! build list
@@ -902,7 +893,7 @@ CONTAINS
             DO p = 2, para_env%num_pe
                q = para_env%num_pe/p
                IF (p*q == para_env%num_pe) THEN
-                  itmp = itmp+1
+                  itmp = itmp + 1
                   layouts(:, itmp) = (/p, q/)
                ENDIF
             ENDDO
@@ -988,19 +979,19 @@ CONTAINS
                t_end(ip) = m_walltime()
             END DO
             tend = m_walltime()
-            t = tend-tstart+threshold
+            t = tend - tstart + threshold
             IF (t > 0.0_dp) THEN
                perf = REAL(n_loop, KIND=dp)*2.0_dp*flops*1.e-6_dp/t
             ELSE
                perf = 0.0_dp
             END IF
 
-            em = MAXVAL(ABS(ca%pw%cc(:)-cc%pw%cc(:)))
+            em = MAXVAL(ABS(ca%pw%cc(:) - cc%pw%cc(:)))
             CALL mp_max(em, para_env%group)
-            et = SUM(ABS(ca%pw%cc(:)-cc%pw%cc(:)))
+            et = SUM(ABS(ca%pw%cc(:) - cc%pw%cc(:)))
             CALL mp_sum(et, para_env%group)
-            t_min = MINVAL(t_end-t_start)
-            t_max = MAXVAL(t_end-t_start)
+            t_min = MINVAL(t_end - t_start)
+            t_max = MAXVAL(t_end - t_start)
 
             IF (para_env%ionode) THEN
                WRITE (iw, *)
@@ -1042,113 +1033,6 @@ CONTAINS
    END SUBROUTINE pw_fft_test
 
 ! **************************************************************************************************
-!> \brief Test the parallel (pseudo)random number generator (RNG).
-!> \param para_env ...
-!> \param output_unit ...
-!> \par History
-!>      JGH  6-Feb-2001 : Test and performance code
-!> \author JGH  1-JAN-2001
-! **************************************************************************************************
-   SUBROUTINE rng_test(para_env, output_unit)
-      TYPE(cp_para_env_type), POINTER                    :: para_env
-      INTEGER                                            :: output_unit
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'rng_test', routineP = moduleN//':'//routineN
-
-      INTEGER                                            :: i, n
-      LOGICAL                                            :: ionode
-      REAL(KIND=dp)                                      :: t, tend, tmax, tmin, tstart, tsum, tsum2
-      TYPE(rng_stream_type), POINTER                     :: rng_stream
-
-      ionode = para_env%ionode
-      n = runtest(9)
-      NULLIFY (rng_stream)
-
-      ! Check correctness
-
-      CALL check_rng(output_unit, ionode)
-
-      ! Check performance
-
-      IF (ionode) THEN
-         WRITE (UNIT=output_unit, FMT="(/,/,T2,A,I10,A)") &
-            "Check distributions using", n, " random numbers:"
-      END IF
-
-      ! Test uniform distribution [0,1]
-
-      CALL create_rng_stream(rng_stream=rng_stream, &
-                             name="Test uniform distribution [0,1]", &
-                             distribution_type=UNIFORM, &
-                             extended_precision=.TRUE.)
-
-      IF (ionode) THEN
-         CALL write_rng_stream(rng_stream, output_unit, write_all=.TRUE.)
-      END IF
-
-      tmax = -HUGE(0.0_dp)
-      tmin = +HUGE(0.0_dp)
-      tsum = 0.0_dp
-      tsum2 = 0.0_dp
-
-      tstart = m_walltime()
-      DO i = 1, n
-         t = next_random_number(rng_stream)
-         tsum = tsum+t
-         tsum2 = tsum2+t*t
-         IF (t > tmax) tmax = t
-         IF (t < tmin) tmin = t
-      END DO
-      tend = m_walltime()
-
-      IF (ionode) THEN
-         WRITE (UNIT=output_unit, FMT="(/,(T4,A,F12.6))") &
-            "Minimum: ", tmin, &
-            "Maximum: ", tmax, &
-            "Average: ", tsum/REAL(n, KIND=dp), &
-            "Variance:", tsum2/REAL(n, KIND=dp), &
-            "Time [s]:", tend-tstart
-      END IF
-
-      CALL delete_rng_stream(rng_stream)
-
-      ! Test normal Gaussian distribution
-
-      CALL create_rng_stream(rng_stream=rng_stream, &
-                             name="Test normal Gaussian distribution", &
-                             distribution_type=GAUSSIAN, &
-                             extended_precision=.TRUE.)
-
-      tmax = -HUGE(0.0_dp)
-      tmin = +HUGE(0.0_dp)
-      tsum = 0.0_dp
-      tsum2 = 0.0_dp
-
-      tstart = m_walltime()
-      DO i = 1, n
-         t = next_random_number(rng_stream)
-         tsum = tsum+t
-         tsum2 = tsum2+t*t
-         IF (t > tmax) tmax = t
-         IF (t < tmin) tmin = t
-      END DO
-      tend = m_walltime()
-
-      IF (ionode) THEN
-         CALL write_rng_stream(rng_stream, output_unit)
-         WRITE (UNIT=output_unit, FMT="(/,(T4,A,F12.6))") &
-            "Minimum: ", tmin, &
-            "Maximum: ", tmax, &
-            "Average: ", tsum/REAL(n, KIND=dp), &
-            "Variance:", tsum2/REAL(n, KIND=dp), &
-            "Time [s]:", tend-tstart
-      END IF
-
-      CALL delete_rng_stream(rng_stream)
-
-   END SUBROUTINE rng_test
-
-! **************************************************************************************************
 !> \brief Tests the eigensolver library routines
 !> \param para_env ...
 !> \param iw ...
@@ -1175,7 +1059,7 @@ CONTAINS
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
       TYPE(cp_fm_struct_type), POINTER                   :: fmstruct
       TYPE(cp_fm_type), POINTER                          :: eigenvectors, matrix, work
-      TYPE(rng_stream_type), POINTER                     :: rng_stream
+      TYPE(rng_stream_type), ALLOCATABLE                 :: rng_stream
 
       group = para_env%group
       source = para_env%source
@@ -1263,11 +1147,10 @@ CONTAINS
          IF (para_env%ionode) THEN
             SELECT CASE (init_method)
             CASE (do_mat_random)
-               NULLIFY (rng_stream)
-               CALL create_rng_stream(rng_stream=rng_stream, &
-                                      name="rng_stream", &
-                                      distribution_type=UNIFORM, &
-                                      extended_precision=.TRUE.)
+               rng_stream = rng_stream_type( &
+                            name="rng_stream", &
+                            distribution_type=UNIFORM, &
+                            extended_precision=.TRUE.)
             CASE (do_mat_read)
                CALL open_file(file_name="MATRIX", &
                               file_action="READ", &
@@ -1282,7 +1165,7 @@ CONTAINS
                SELECT CASE (init_method)
                CASE (do_mat_random)
                   DO j = i, n
-                     buffer(1, j) = next_random_number(rng_stream)-0.5_dp
+                     buffer(1, j) = rng_stream%next() - 0.5_dp
                   END DO
                   !MK activate/modify for a diagonal dominant symmetric matrix:
                   !MK buffer(1,i) = 10.0_dp*buffer(1,i)
@@ -1298,7 +1181,7 @@ CONTAINS
                                         start_row=i, &
                                         start_col=i, &
                                         n_rows=1, &
-                                        n_cols=n-i+1, &
+                                        n_cols=n - i + 1, &
                                         alpha=1.0_dp, &
                                         beta=0.0_dp, &
                                         transpose=.FALSE.)
@@ -1306,7 +1189,7 @@ CONTAINS
                                         new_values=buffer, &
                                         start_row=i, &
                                         start_col=i, &
-                                        n_rows=n-i+1, &
+                                        n_rows=n - i + 1, &
                                         n_cols=1, &
                                         alpha=1.0_dp, &
                                         beta=0.0_dp, &
@@ -1328,8 +1211,6 @@ CONTAINS
 
          IF (para_env%ionode) THEN
             SELECT CASE (init_method)
-            CASE (do_mat_random)
-               CALL delete_rng_stream(rng_stream=rng_stream)
             CASE (do_mat_read)
                CALL close_file(unit_number=unit_number)
             END SELECT
@@ -1356,7 +1237,7 @@ CONTAINS
                                 work_syevx=1.0_dp)
             END SELECT
             t2 = m_walltime()
-            IF (iw > 0) WRITE (iw, *) "Timing for loop ", i_loop, " : ", t2-t1
+            IF (iw > 0) WRITE (iw, *) "Timing for loop ", i_loop, " : ", t2 - t1
          ENDDO
 
          IF (iw > 0) THEN
@@ -1517,17 +1398,17 @@ CONTAINS
             CALL cp_gemm(transa, transb, k, n, m, 1.0_dp, matrix_a, matrix_b, 0.0_dp, matrix_c)
             t4 = m_walltime()
             IF (iw > 0) THEN
-               WRITE (iw, '(T2,A,T50,F12.6)') "cp_fm_gemm timing: ", (t4-t3)
+               WRITE (iw, '(T2,A,T50,F12.6)') "cp_fm_gemm timing: ", (t4 - t3)
                CALL m_flush(iw)
             ENDIF
          ENDDO
          t2 = m_walltime()
 
          IF (iw > 0) THEN
-            WRITE (iw, '(T2,A,T50,F12.6)') "average cp_fm_gemm timing: ", (t2-t1)/N_loop
+            WRITE (iw, '(T2,A,T50,F12.6)') "average cp_fm_gemm timing: ", (t2 - t1)/N_loop
             IF (t2 > t1) THEN
                WRITE (iw, '(T2,A,T50,F12.6)') "cp_fm_gemm Gflops per MPI task: ", &
-                  2*REAL(m, kind=dp)*REAL(n, kind=dp)*REAL(k, kind=dp)*N_loop/MAX(0.001_dp, t2-t1)/1.0E9_dp/para_env%num_pe
+                  2*REAL(m, kind=dp)*REAL(n, kind=dp)*REAL(k, kind=dp)*N_loop/MAX(0.001_dp, t2 - t1)/1.0E9_dp/para_env%num_pe
             ENDIF
          ENDIF
 

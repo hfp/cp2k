@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -186,9 +186,9 @@ CONTAINS
       ENDIF
 
       ! automatically select initial step size
-      radius = r+jump
+      radius = r + jump
       h = d*radius**l*EXP(-a*radius*radius)
-      dr = (0.5_dp*scope)*(g*radius-h*r)/MAX(g-h, t)
+      dr = (0.5_dp*scope)*(g*radius - h*r)/MAX(g - h, t)
       CPASSERT(h .LE. g)
 
       ! setup fast contraction
@@ -210,7 +210,7 @@ CONTAINS
                rd = MIN(epsrel*radius, rd)
             ENDIF
             IF (rd .LT. dr) THEN
-               radius = rtmp+rd
+               radius = rtmp + rd
                exp_rsq = d*EXP(-a*radius*radius)
                exp_drsq = EXP(-a*rd*rd)
                exp_2drsq = exp_drsq*exp_drsq
@@ -221,7 +221,7 @@ CONTAINS
             EXIT
          ENDIF
          rtmp = radius
-         radius = radius+dr
+         radius = radius + dr
          exp_rsq = exp_rsq*exp_drsq*exp_2rdr
          exp_2rdr = exp_2rdr*exp_2drsq
       ENDDO
@@ -229,7 +229,7 @@ CONTAINS
 
       ! optionally ensure t<=g(rlow) and g(radius)<t
       IF (PRESENT(rlow)) THEN
-         DO i = i+1, n
+         DO i = i + 1, n
             g = d*rtmp**l*EXP(-a*rtmp*rtmp)
             IF (t .LE. g) THEN
                rlow = rtmp
@@ -237,7 +237,7 @@ CONTAINS
             ENDIF
             rtmp = MAX(rtmp*rscope, r)
          ENDDO
-         DO i = i+1, n
+         DO i = i + 1, n
             g = d*radius**l*EXP(-a*radius*radius)
             IF (g .LT. t) EXIT
             radius = scope*radius
@@ -311,7 +311,7 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius', routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: maxiter = 5000
-      REAL(KIND=dp), PARAMETER :: contract = 0.38_dp, logc = LOG(MAX(1.0_dp-contract, contract))
+      REAL(KIND=dp), PARAMETER :: contract = 0.38_dp, logc = LOG(MAX(1.0_dp - contract, contract))
 
       INTEGER                                            :: iter, neps
       REAL(KIND=dp)                                      :: a, absiter, d, eps, g, r0, r1, rd, rg, t
@@ -354,7 +354,7 @@ CONTAINS
       END IF
 
       CPASSERT(r0 .LT. r1)
-      rd = r1-r0
+      rd = r1 - r0
 
       ! calculate trip count (deterministic after exp_radius_fast)
       IF (PRESENT(epsrel)) THEN
@@ -370,16 +370,16 @@ CONTAINS
          neps = 1
       ENDIF
 
-      IF (iter+neps .LT. maxiter) THEN
+      IF (iter + neps .LT. maxiter) THEN
          DO iter = 1, neps
-            rg = r0+rd*contract ! Golden Section
+            rg = r0 + rd*contract ! Golden Section
             g = d*rg**l*EXP(-a*rg*rg)
             IF (g .LT. t) THEN
                r1 = rg ! interval [r0, rg)
             ELSE
                r0 = rg ! interval [rg, r1)
             ENDIF
-            rd = r1-r0
+            rd = r1 - r0
          ENDDO
          radius = rg
       ELSE
@@ -440,15 +440,15 @@ CONTAINS
          prefactor_local = cutoff
          DO lxa = 0, la_max
          DO lxb = 0, lb_max
-            DO lya = 0, la_max-lxa
-            DO lyb = 0, lb_max-lxb
-               DO lza = MAX(la_min-lxa-lya, 0), la_max-lxa-lya
-               DO lzb = MAX(lb_min-lxb-lyb, 0), lb_max-lxb-lyb
+            DO lya = 0, la_max - lxa
+            DO lyb = 0, lb_max - lxb
+               DO lza = MAX(la_min - lxa - lya, 0), la_max - lxa - lya
+               DO lzb = MAX(lb_min - lxb - lyb, 0), lb_max - lxb - lyb
                   la = (/lxa, lya, lza/)
                   lb = (/lxb, lyb, lzb/)
                   ico = coset(lxa, lya, lza)
                   jco = coset(lxb, lyb, lzb)
-                  prefactor_local = MAX(ABS(pab(o1+ico, o2+jco)), prefactor_local)
+                  prefactor_local = MAX(ABS(pab(o1 + ico, o2 + jco)), prefactor_local)
                ENDDO
                ENDDO
             ENDDO
@@ -465,35 +465,35 @@ CONTAINS
       ! the Gaussians a and b are both on the z - axis, but at the same
       ! distance as the original a and b
       !
-      rad_a = SQRT(SUM((ra-rp)**2))
-      rad_b = SQRT(SUM((rb-rp)**2))
+      rad_a = SQRT(SUM((ra - rp)**2))
+      rad_b = SQRT(SUM((rb - rp)**2))
 
-      polycoef(0:la_max+lb_max) = 0.0_dp
+      polycoef(0:la_max + lb_max) = 0.0_dp
       DO lxa = 0, la_max
       DO lxb = 0, lb_max
-         coef(0:la_max+lb_max) = 0.0_dp
+         coef(0:la_max + lb_max) = 0.0_dp
          bini = 1.0_dp
          s1 = 1.0_dp
          DO i = 0, lxa
             binj = 1.0_dp
             s2 = 1.0_dp
             DO j = 0, lxb
-               coef(lxa+lxb-i-j) = coef(lxa+lxb-i-j)+bini*binj*s1*s2
-               binj = (binj*(lxb-j))/(j+1)
+               coef(lxa + lxb - i - j) = coef(lxa + lxb - i - j) + bini*binj*s1*s2
+               binj = (binj*(lxb - j))/(j + 1)
                s2 = s2*(rad_b)
             ENDDO
-            bini = (bini*(lxa-i))/(i+1)
+            bini = (bini*(lxa - i))/(i + 1)
             s1 = s1*(rad_a)
          ENDDO
-         DO i = 0, lxa+lxb
+         DO i = 0, lxa + lxb
             polycoef(i) = MAX(polycoef(i), coef(i))
          ENDDO
       ENDDO
       ENDDO
 
-      polycoef(0:la_max+lb_max) = polycoef(0:la_max+lb_max)*prefactor_local
+      polycoef(0:la_max + lb_max) = polycoef(0:la_max + lb_max)*prefactor_local
       radius = 0.0_dp
-      DO i = 0, la_max+lb_max
+      DO i = 0, la_max + lb_max
          radius = MAX(radius, exp_radius(i, zetp, eps, polycoef(i), epsin_local))
       ENDDO
 
@@ -518,11 +518,11 @@ CONTAINS
 
       IF ((l/2)*2 == l) THEN
          !even l:
-         gaussint_sph = ROOTPI*0.5_dp**(l/2+2)*dfac(l+1) &
-                        /SQRT(alpha)**(l+3)
+         gaussint_sph = ROOTPI*0.5_dp**(l/2 + 2)*dfac(l + 1) &
+                        /SQRT(alpha)**(l + 3)
       ELSE
          !odd l:
-         gaussint_sph = 0.5_dp*fac((l+1)/2)/SQRT(alpha)**(l+3)
+         gaussint_sph = 0.5_dp*fac((l + 1)/2)/SQRT(alpha)**(l + 3)
       ENDIF
 
    END FUNCTION gaussint_sph
@@ -558,50 +558,50 @@ CONTAINS
       CASE (0)
          DO i2 = 1, n
             DO i1 = 1, m, 4
-               t1 = t1+A(i1, i2)*B(i1, i2)
-               t2 = t2+A(i1+1, i2)*B(i1+1, i2)
-               t3 = t3+A(i1+2, i2)*B(i1+2, i2)
-               t4 = t4+A(i1+3, i2)*B(i1+3, i2)
+               t1 = t1 + A(i1, i2)*B(i1, i2)
+               t2 = t2 + A(i1 + 1, i2)*B(i1 + 1, i2)
+               t3 = t3 + A(i1 + 2, i2)*B(i1 + 2, i2)
+               t4 = t4 + A(i1 + 3, i2)*B(i1 + 3, i2)
             ENDDO
          ENDDO
       CASE (1)
-         mminus3 = m-3
+         mminus3 = m - 3
          DO i2 = 1, n
             DO i1 = 1, mminus3, 4
-               t1 = t1+A(i1, i2)*B(i1, i2)
-               t2 = t2+A(i1+1, i2)*B(i1+1, i2)
-               t3 = t3+A(i1+2, i2)*B(i1+2, i2)
-               t4 = t4+A(i1+3, i2)*B(i1+3, i2)
+               t1 = t1 + A(i1, i2)*B(i1, i2)
+               t2 = t2 + A(i1 + 1, i2)*B(i1 + 1, i2)
+               t3 = t3 + A(i1 + 2, i2)*B(i1 + 2, i2)
+               t4 = t4 + A(i1 + 3, i2)*B(i1 + 3, i2)
             ENDDO
-            t1 = t1+A(m, i2)*B(m, i2)
+            t1 = t1 + A(m, i2)*B(m, i2)
          ENDDO
       CASE (2)
-         mminus3 = m-3
+         mminus3 = m - 3
          DO i2 = 1, n
             DO i1 = 1, mminus3, 4
-               t1 = t1+A(i1, i2)*B(i1, i2)
-               t2 = t2+A(i1+1, i2)*B(i1+1, i2)
-               t3 = t3+A(i1+2, i2)*B(i1+2, i2)
-               t4 = t4+A(i1+3, i2)*B(i1+3, i2)
+               t1 = t1 + A(i1, i2)*B(i1, i2)
+               t2 = t2 + A(i1 + 1, i2)*B(i1 + 1, i2)
+               t3 = t3 + A(i1 + 2, i2)*B(i1 + 2, i2)
+               t4 = t4 + A(i1 + 3, i2)*B(i1 + 3, i2)
             ENDDO
-            t1 = t1+A(m-1, i2)*B(m-1, i2)
-            t2 = t2+A(m, i2)*B(m, i2)
+            t1 = t1 + A(m - 1, i2)*B(m - 1, i2)
+            t2 = t2 + A(m, i2)*B(m, i2)
          ENDDO
       CASE (3)
-         mminus3 = m-3
+         mminus3 = m - 3
          DO i2 = 1, n
             DO i1 = 1, mminus3, 4
-               t1 = t1+A(i1, i2)*B(i1, i2)
-               t2 = t2+A(i1+1, i2)*B(i1+1, i2)
-               t3 = t3+A(i1+2, i2)*B(i1+2, i2)
-               t4 = t4+A(i1+3, i2)*B(i1+3, i2)
+               t1 = t1 + A(i1, i2)*B(i1, i2)
+               t2 = t2 + A(i1 + 1, i2)*B(i1 + 1, i2)
+               t3 = t3 + A(i1 + 2, i2)*B(i1 + 2, i2)
+               t4 = t4 + A(i1 + 3, i2)*B(i1 + 3, i2)
             ENDDO
-            t1 = t1+A(m-2, i2)*B(m-2, i2)
-            t2 = t2+A(m-1, i2)*B(m-1, i2)
-            t3 = t3+A(m, i2)*B(m, i2)
+            t1 = t1 + A(m - 2, i2)*B(m - 2, i2)
+            t2 = t2 + A(m - 1, i2)*B(m - 1, i2)
+            t3 = t3 + A(m, i2)*B(m, i2)
          ENDDO
       END SELECT
-      trace_r_AxB = t1+t2+t3+t4
+      trace_r_AxB = t1 + t2 + t3 + t4
 
    END FUNCTION trace_r_AxB
 
@@ -666,15 +666,15 @@ CONTAINS
          DO l = 0, lm2
             DO is2 = 1, nso(l)
                DO ic2 = 1, nco(l)
-                  lx = indco(1, ic2+ncoset(l-1))
-                  ly = indco(2, ic2+ncoset(l-1))
-                  lz = indco(3, ic2+ncoset(l-1))
-                  work(ic1, is2+nsoset(l-1)) = &
-                     work(ic1, is2+nsoset(l-1))+ &
-                     CPC_co(ic1, ic2+ncoset(l-1))* &
+                  lx = indco(1, ic2 + ncoset(l - 1))
+                  ly = indco(2, ic2 + ncoset(l - 1))
+                  lz = indco(3, ic2 + ncoset(l - 1))
+                  work(ic1, is2 + nsoset(l - 1)) = &
+                     work(ic1, is2 + nsoset(l - 1)) + &
+                     CPC_co(ic1, ic2 + ncoset(l - 1))* &
                      orbtramat(l)%c2s(is2, ic2)* &
-                     SQRT(fourpi/dfac(2*l+1)* &
-                          dfac(2*lx-1)*dfac(2*ly-1)*dfac(2*lz-1))
+                     SQRT(fourpi/dfac(2*l + 1)* &
+                          dfac(2*lx - 1)*dfac(2*ly - 1)*dfac(2*lz - 1))
                   !         write(*,*) 'dfac 1', dfac(2*lx-1)*dfac(2*ly-1)*dfac(2*lz-1)
                ENDDO
             ENDDO
@@ -685,15 +685,15 @@ CONTAINS
          DO l = 0, lm1
             DO is1 = 1, nso(l)
                DO ic1 = 1, nco(l)
-                  lx = indco(1, ic1+ncoset(l-1))
-                  ly = indco(2, ic1+ncoset(l-1))
-                  lz = indco(3, ic1+ncoset(l-1))
-                  CPC_so(is1+nsoset(l-1), is2) = &
-                     CPC_so(is1+nsoset(l-1), is2)+ &
-                     work(ic1+ncoset(l-1), is2)* &
+                  lx = indco(1, ic1 + ncoset(l - 1))
+                  ly = indco(2, ic1 + ncoset(l - 1))
+                  lz = indco(3, ic1 + ncoset(l - 1))
+                  CPC_so(is1 + nsoset(l - 1), is2) = &
+                     CPC_so(is1 + nsoset(l - 1), is2) + &
+                     work(ic1 + ncoset(l - 1), is2)* &
                      orbtramat(l)%c2s(is1, ic1)* &
-                     SQRT(fourpi/dfac(2*l+1)* &
-                          dfac(2*lx-1)*dfac(2*ly-1)*dfac(2*lz-1))
+                     SQRT(fourpi/dfac(2*l + 1)* &
+                          dfac(2*lx - 1)*dfac(2*ly - 1)*dfac(2*lz - 1))
                   !          write(*,*) 'dfac 2', dfac(2*lx-1)*dfac(2*ly-1)*dfac(2*lz-1)
                ENDDO
             ENDDO
@@ -777,16 +777,16 @@ CONTAINS
       DO is1 = 1, ns1
          DO l = 0, lm2
             DO ico = 1, nco(l)
-               ic2 = ncoset(l-1)+ico
-               lx = indco(1, ico+ncoset(l-1))
-               ly = indco(2, ico+ncoset(l-1))
-               lz = indco(3, ico+ncoset(l-1))
+               ic2 = ncoset(l - 1) + ico
+               lx = indco(1, ico + ncoset(l - 1))
+               ly = indco(2, ico + ncoset(l - 1))
+               lz = indco(3, ico + ncoset(l - 1))
                DO iso = 1, nso(l)
-                  is2 = nsoset(l-1)+iso
-                  matsc(is1, ic2) = matsc(is1, ic2)+ &
+                  is2 = nsoset(l - 1) + iso
+                  matsc(is1, ic2) = matsc(is1, ic2) + &
                                     matso(is1, is2)*orbtramat(l)%s2c(iso, ico)* &
-                                    SQRT((fourpi)/dfac(2*l+1)* &
-                                         dfac(2*lx-1)*dfac(2*ly-1)*dfac(2*lz-1))
+                                    SQRT((fourpi)/dfac(2*l + 1)* &
+                                         dfac(2*lx - 1)*dfac(2*ly - 1)*dfac(2*lz - 1))
                ENDDO ! iso
             ENDDO ! ico
          ENDDO ! l
@@ -796,16 +796,16 @@ CONTAINS
       DO ic2 = 1, nc2
          DO l = 0, lm1
             DO ico = 1, nco(l)
-               ic1 = ncoset(l-1)+ico
-               lx = indco(1, ico+ncoset(l-1))
-               ly = indco(2, ico+ncoset(l-1))
-               lz = indco(3, ico+ncoset(l-1))
+               ic1 = ncoset(l - 1) + ico
+               lx = indco(1, ico + ncoset(l - 1))
+               ly = indco(2, ico + ncoset(l - 1))
+               lz = indco(3, ico + ncoset(l - 1))
                DO iso = 1, nso(l)
-                  is1 = nsoset(l-1)+iso
-                  matco(ic1, ic2) = matco(ic1, ic2)+ &
+                  is1 = nsoset(l - 1) + iso
+                  matco(ic1, ic2) = matco(ic1, ic2) + &
                                     matsc(is1, ic2)*orbtramat(l)%s2c(iso, ico)* &
-                                    SQRT((fourpi)/dfac(2*l+1)* &
-                                         dfac(2*lx-1)*dfac(2*ly-1)*dfac(2*lz-1))
+                                    SQRT((fourpi)/dfac(2*l + 1)* &
+                                         dfac(2*lx - 1)*dfac(2*ly - 1)*dfac(2*lz - 1))
                ENDDO ! iso
             ENDDO ! ico
          ENDDO ! l
@@ -857,14 +857,14 @@ CONTAINS
 
          mat_aux(5, idx_l2, :) &
             = -s_root5o16pi*mat(7, idx_l2, :) &
-              +s_root15o16pi*mat(9, idx_l2, :)
+              + s_root15o16pi*mat(9, idx_l2, :)
 
          mat_aux(6, idx_l2, :) &
             = s_root15o4pi*mat(5, idx_l2, :)
 
          mat_aux(7, idx_l2, :) &
             = -s_root5o16pi*mat(7, idx_l2, :) &
-              -s_root15o16pi*mat(9, idx_l2, :)
+              - s_root15o16pi*mat(9, idx_l2, :)
 
          mat_aux(8, idx_l2, :) &
             = -s_root15o4pi*mat(8, idx_l2, :)
@@ -879,30 +879,30 @@ CONTAINS
 
          mat_aux(11, idx_l2, :) &
             = -s_root21o32pi*mat(14, idx_l2, :) &
-              +s_root35o32pi*mat(16, idx_l2, :)
+              + s_root35o32pi*mat(16, idx_l2, :)
 
          mat_aux(12, idx_l2, :) &
             = -s_3root35o32pi*mat(10, idx_l2, :) &
-              +s_root21o32pi*mat(12, idx_l2, :)
+              + s_root21o32pi*mat(12, idx_l2, :)
 
          mat_aux(13, idx_l2, :) &
             = s_root21o32pi*mat(14, idx_l2, :) &
-              +s_3root35o32pi*mat(16, idx_l2, :)
+              + s_3root35o32pi*mat(16, idx_l2, :)
 
          mat_aux(14, idx_l2, :) &
             = s_root35o32pi*mat(10, idx_l2, :) &
-              +s_root21o32pi*mat(12, idx_l2, :)
+              + s_root21o32pi*mat(12, idx_l2, :)
 
          mat_aux(15, idx_l2, :) &
             = -s_3root7o16pi*mat(13, idx_l2, :) &
-              +s_root105o16pi*mat(15, idx_l2, :)
+              + s_root105o16pi*mat(15, idx_l2, :)
 
          mat_aux(16, idx_l2, :) &
             = s_root105o4pi*mat(11, idx_l2, :)
 
          mat_aux(17, idx_l2, :) &
             = -s_3root7o16pi*mat(13, idx_l2, :) &
-              -s_root105o16pi*mat(15, idx_l2, :)
+              - s_root105o16pi*mat(15, idx_l2, :)
 
          mat_aux(18, idx_l2, :) &
             = -s_4root21o32pi*mat(14, idx_l2, :)
@@ -935,14 +935,14 @@ CONTAINS
 
          mat(idx_l1, 5, :) &
             = -s_root5o16pi*mat_aux(idx_l1, 7, :) &
-              +s_root15o16pi*mat_aux(idx_l1, 9, :)
+              + s_root15o16pi*mat_aux(idx_l1, 9, :)
 
          mat(idx_l1, 6, :) &
             = s_root15o4pi*mat_aux(idx_l1, 5, :)
 
          mat(idx_l1, 7, :) &
             = -s_root5o16pi*mat_aux(idx_l1, 7, :) &
-              -s_root15o16pi*mat_aux(idx_l1, 9, :)
+              - s_root15o16pi*mat_aux(idx_l1, 9, :)
 
          mat(idx_l1, 8, :) &
             = -s_root15o4pi*mat_aux(idx_l1, 8, :)
@@ -957,30 +957,30 @@ CONTAINS
 
          mat(idx_l1, 11, :) &
             = -s_root21o32pi*mat_aux(idx_l1, 14, :) &
-              +s_root35o32pi*mat_aux(idx_l1, 16, :)
+              + s_root35o32pi*mat_aux(idx_l1, 16, :)
 
          mat(idx_l1, 12, :) &
             = -s_3root35o32pi*mat_aux(idx_l1, 10, :) &
-              +s_root21o32pi*mat_aux(idx_l1, 12, :)
+              + s_root21o32pi*mat_aux(idx_l1, 12, :)
 
          mat(idx_l1, 13, :) &
             = s_root21o32pi*mat_aux(idx_l1, 14, :) &
-              +s_3root35o32pi*mat_aux(idx_l1, 16, :)
+              + s_3root35o32pi*mat_aux(idx_l1, 16, :)
 
          mat(idx_l1, 14, :) &
             = s_root35o32pi*mat_aux(idx_l1, 10, :) &
-              +s_root21o32pi*mat_aux(idx_l1, 12, :)
+              + s_root21o32pi*mat_aux(idx_l1, 12, :)
 
          mat(idx_l1, 15, :) &
             = -s_3root7o16pi*mat_aux(idx_l1, 13, :) &
-              +s_root105o16pi*mat_aux(idx_l1, 15, :)
+              + s_root105o16pi*mat_aux(idx_l1, 15, :)
 
          mat(idx_l1, 16, :) &
             = s_root105o4pi*mat_aux(idx_l1, 11, :)
 
          mat(idx_l1, 17, :) &
             = -s_3root7o16pi*mat_aux(idx_l1, 13, :) &
-              -s_root105o16pi*mat_aux(idx_l1, 15, :)
+              - s_root105o16pi*mat_aux(idx_l1, 15, :)
 
          mat(idx_l1, 18, :) &
             = -s_4root21o32pi*mat_aux(idx_l1, 14, :)
@@ -1046,47 +1046,47 @@ CONTAINS
 
          mat_aux(7, idx_l2, :) &
             = -0.5_dp*root4pio5*mat(5, idx_l2, :) &
-              -0.5_dp*root4pio5*mat(7, idx_l2, :) &
-              +root4pio5*mat(10, idx_l2, :)
+              - 0.5_dp*root4pio5*mat(7, idx_l2, :) &
+              + root4pio5*mat(10, idx_l2, :)
 
          mat_aux(8, idx_l2, :) &
             = -root4pio15*mat(8, idx_l2, :)
 
          mat_aux(9, idx_l2, :) &
             = 0.5_dp*root4pio15*mat(5, idx_l2, :) &
-              -0.5_dp*root4pio15*mat(7, idx_l2, :)
+              - 0.5_dp*root4pio15*mat(7, idx_l2, :)
 
          IF (lmax1 == 2) CYCLE
 
          mat_aux(10, idx_l2, :) &
             = -s_3root35o32pi*mat(12, idx_l2, :) &
-              +s_root35o32pi*mat(14, idx_l2, :)
+              + s_root35o32pi*mat(14, idx_l2, :)
 
          mat_aux(11, idx_l2, :) &
             = s_root105o4pi*mat(16, idx_l2, :)
 
          mat_aux(12, idx_l2, :) &
             = s_root21o32pi*mat(12, idx_l2, :) &
-              +s_root21o32pi*mat(14, idx_l2, :) &
-              -s_4root21o32pi*mat(19, idx_l2, :)
+              + s_root21o32pi*mat(14, idx_l2, :) &
+              - s_4root21o32pi*mat(19, idx_l2, :)
 
          mat_aux(13, idx_l2, :) &
             = -s_3root7o16pi*mat(15, idx_l2, :) &
-              -s_3root7o16pi*mat(17, idx_l2, :) &
-              +s_2root7o16pi*mat(20, idx_l2, :)
+              - s_3root7o16pi*mat(17, idx_l2, :) &
+              + s_2root7o16pi*mat(20, idx_l2, :)
 
          mat_aux(14, idx_l2, :) &
             = s_root21o32pi*mat(11, idx_l2, :) &
-              +s_root21o32pi*mat(13, idx_l2, :) &
-              -s_4root21o32pi*mat(18, idx_l2, :)
+              + s_root21o32pi*mat(13, idx_l2, :) &
+              - s_4root21o32pi*mat(18, idx_l2, :)
 
          mat_aux(15, idx_l2, :) &
             = s_root105o16pi*mat(15, idx_l2, :) &
-              -s_root105o16pi*mat(17, idx_l2, :)
+              - s_root105o16pi*mat(17, idx_l2, :)
 
          mat_aux(16, idx_l2, :) &
             = -s_root35o32pi*mat(11, idx_l2, :) &
-              +s_3root35o32pi*mat(13, idx_l2, :)
+              + s_3root35o32pi*mat(13, idx_l2, :)
 
       ENDDO
 
@@ -1116,51 +1116,50 @@ CONTAINS
 
          mat(idx_lm1, 7, :) &
             = -0.5_dp*root4pio5*mat_aux(idx_lm1, 5, :) &
-              -0.5_dp*root4pio5*mat_aux(idx_lm1, 7, :) &
-              +root4pio5*mat_aux(idx_lm1, 10, :)
+              - 0.5_dp*root4pio5*mat_aux(idx_lm1, 7, :) &
+              + root4pio5*mat_aux(idx_lm1, 10, :)
 
          mat(idx_lm1, 8, :) &
             = -root4pio15*mat_aux(idx_lm1, 8, :)
 
          mat(idx_lm1, 9, :) &
             = 0.5_dp*root4pio15*mat_aux(idx_lm1, 5, :) &
-              -0.5_dp*root4pio15*mat_aux(idx_lm1, 7, :)
+              - 0.5_dp*root4pio15*mat_aux(idx_lm1, 7, :)
 
          IF (lmax2 == 2) CYCLE
 
          mat(idx_lm1, 10, :) &
             = -s_3root35o32pi*mat_aux(idx_lm1, 12, :) &
-              +s_root35o32pi*mat_aux(idx_lm1, 14, :)
+              + s_root35o32pi*mat_aux(idx_lm1, 14, :)
 
          mat(idx_lm1, 11, :) &
             = s_root105o4pi*mat_aux(idx_lm1, 16, :)
 
          mat(idx_lm1, 12, :) &
             = s_root21o32pi*mat_aux(idx_lm1, 12, :) &
-              +s_root21o32pi*mat_aux(idx_lm1, 14, :) &
-              -s_4root21o32pi*mat_aux(idx_lm1, 19, :)
+              + s_root21o32pi*mat_aux(idx_lm1, 14, :) &
+              - s_4root21o32pi*mat_aux(idx_lm1, 19, :)
 
          mat(idx_lm1, 13, :) &
             = -s_3root7o16pi*mat_aux(idx_lm1, 15, :) &
-              -s_3root7o16pi*mat_aux(idx_lm1, 17, :) &
-              +s_2root7o16pi*mat_aux(idx_lm1, 20, :)
+              - s_3root7o16pi*mat_aux(idx_lm1, 17, :) &
+              + s_2root7o16pi*mat_aux(idx_lm1, 20, :)
 
          mat(idx_lm1, 14, :) &
             = s_root21o32pi*mat_aux(idx_lm1, 11, :) &
-              +s_root21o32pi*mat_aux(idx_lm1, 13, :) &
-              -s_4root21o32pi*mat_aux(idx_lm1, 18, :)
+              + s_root21o32pi*mat_aux(idx_lm1, 13, :) &
+              - s_4root21o32pi*mat_aux(idx_lm1, 18, :)
 
          mat(idx_lm1, 15, :) &
             = s_root105o16pi*mat_aux(idx_lm1, 15, :) &
-              -s_root105o16pi*mat_aux(idx_lm1, 17, :)
+              - s_root105o16pi*mat_aux(idx_lm1, 17, :)
 
          mat(idx_lm1, 16, :) &
             = -s_root35o32pi*mat_aux(idx_lm1, 11, :) &
-              +s_3root35o32pi*mat_aux(idx_lm1, 13, :)
+              + s_3root35o32pi*mat_aux(idx_lm1, 13, :)
 
       ENDDO
 
    END SUBROUTINE cart2sph_mat
 
 END MODULE ao_util
-

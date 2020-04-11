@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -11,8 +11,8 @@
 !> \author Fawzi Mohamed
 ! **************************************************************************************************
 MODULE atomic_kind_list_types
-   USE atomic_kind_types,               ONLY: atomic_kind_type,&
-                                              deallocate_atomic_kind_set
+   USE atomic_kind_types, ONLY: atomic_kind_type, &
+                                deallocate_atomic_kind_set
 #include "../base/base_uses.f90"
 
    IMPLICIT NONE

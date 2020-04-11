@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -9,21 +9,6 @@
 ! **************************************************************************************************
 
 MODULE xas_tdp_utils
-   USE ai_contraction_sphi,             ONLY: ab_contract
-   USE arnoldi_api,                     ONLY: arnoldi_data_type,&
-                                              arnoldi_ev,&
-                                              deallocate_arnoldi_data,&
-                                              get_selected_ritz_val,&
-                                              setup_arnoldi_data
-   USE atomic_kind_types,               ONLY: atomic_kind_type
-   USE basis_set_types,                 ONLY: get_gto_basis_set,&
-                                              gto_basis_set_p_type,&
-                                              gto_basis_set_type
-   USE cell_types,                      ONLY: cell_type
-   USE constants_operator,              ONLY: operator_coulomb,&
-                                              operator_truncated,&
-                                              operator_verfc
-   USE cp_array_utils,                  ONLY: cp_1d_i_p_type
    USE cp_blacs_env,                    ONLY: cp_blacs_env_type
    USE cp_cfm_basic_linalg,             ONLY: cp_cfm_gemm
    USE cp_cfm_diag,                     ONLY: cp_cfm_heevd
@@ -35,23 +20,18 @@ MODULE xas_tdp_utils
                                               cp_fm_to_cfm
    USE cp_dbcsr_cholesky,               ONLY: cp_dbcsr_cholesky_decompose,&
                                               cp_dbcsr_cholesky_invert
+   USE cp_dbcsr_diag,                   ONLY: cp_dbcsr_power
    USE cp_dbcsr_operations,             ONLY: copy_dbcsr_to_fm,&
                                               copy_fm_to_dbcsr,&
                                               cp_dbcsr_sm_fm_multiply,&
                                               dbcsr_allocate_matrix_set,&
                                               dbcsr_deallocate_matrix_set
-   USE cp_eri_mme_interface,            ONLY: cp_eri_mme_param,&
-                                              cp_eri_mme_set_params
-   USE cp_files,                        ONLY: close_file,&
-                                              open_file
    USE cp_fm_basic_linalg,              ONLY: cp_fm_column_scale,&
                                               cp_fm_scale,&
                                               cp_fm_transpose,&
                                               cp_fm_upper_to_full
    USE cp_fm_diag,                      ONLY: choose_eigv_solver,&
-                                              cp_fm_geeig,&
-                                              cp_fm_geeig_syevr,&
-                                              cp_fm_power
+                                              cp_fm_geeig
    USE cp_fm_struct,                    ONLY: cp_fm_struct_create,&
                                               cp_fm_struct_release,&
                                               cp_fm_struct_type
@@ -61,61 +41,24 @@ MODULE xas_tdp_utils
    USE cp_gemm_interface,               ONLY: cp_gemm
    USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: &
-        dbcsr_add, dbcsr_add_on_diag, dbcsr_copy, dbcsr_create, dbcsr_distribution_get, &
-        dbcsr_distribution_new, dbcsr_distribution_release, dbcsr_distribution_type, &
-        dbcsr_finalize, dbcsr_get_block_p, dbcsr_get_info, dbcsr_iterator_blocks_left, &
-        dbcsr_iterator_next_block, dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, &
-        dbcsr_multiply, dbcsr_p_type, dbcsr_put_block, dbcsr_release, dbcsr_reserve_all_blocks, &
-        dbcsr_set, dbcsr_type
-   USE distribution_1d_types,           ONLY: distribution_1d_type
-   USE distribution_2d_types,           ONLY: distribution_2d_create,&
-                                              distribution_2d_type
-   USE eri_mme_integrate,               ONLY: eri_mme_2c_integrate
-   USE eri_mme_types,                   ONLY: eri_mme_init,&
-                                              eri_mme_release
-   USE generic_os_integrals,            ONLY: int_operators_r12_ab_os
-   USE input_constants,                 ONLY: &
-        do_potential_coulomb, do_potential_id, do_potential_short, do_potential_truncated, &
-        tddfpt_singlet, tddfpt_spin_cons, tddfpt_spin_flip, tddfpt_triplet, xas_dip_len, &
-        xas_tdp_diag_std, xas_tdp_diag_syevr
-   USE input_section_types,             ONLY: section_vals_val_get
-   USE kinds,                           ONLY: dp,&
-                                              int_8
-   USE machine,                         ONLY: m_memory_details
-   USE mathlib,                         ONLY: get_diag,&
-                                              invmat_symm
-   USE message_passing,                 ONLY: mp_min,&
-                                              mp_sum,&
-                                              mp_sync
-   USE molecule_types,                  ONLY: molecule_type
-   USE orbital_pointers,                ONLY: ncoset
-   USE particle_types,                  ONLY: particle_type
+        dbcsr_add, dbcsr_copy, dbcsr_create, dbcsr_distribution_get, dbcsr_distribution_new, &
+        dbcsr_distribution_release, dbcsr_distribution_type, dbcsr_finalize, dbcsr_get_block_p, &
+        dbcsr_get_info, dbcsr_iterator_blocks_left, dbcsr_iterator_next_block, &
+        dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, dbcsr_multiply, &
+        dbcsr_p_type, dbcsr_put_block, dbcsr_release, dbcsr_reserve_all_blocks, dbcsr_set, &
+        dbcsr_type
+   USE input_constants,                 ONLY: tddfpt_singlet,&
+                                              tddfpt_spin_cons,&
+                                              tddfpt_spin_flip,&
+                                              tddfpt_triplet,&
+                                              xas_dip_len
+   USE kinds,                           ONLY: dp
+   USE mathlib,                         ONLY: get_diag
    USE physcon,                         ONLY: a_fine
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
-   USE qs_integral_utils,               ONLY: basis_set_list_setup
-   USE qs_kind_types,                   ONLY: get_qs_kind,&
-                                              qs_kind_type
-   USE qs_ks_types,                     ONLY: release_sab
    USE qs_mo_types,                     ONLY: get_mo_set,&
                                               mo_set_p_type
-   USE qs_neighbor_list_types,          ONLY: neighbor_list_set_p_type
-   USE qs_neighbor_lists,               ONLY: atom2d_build,&
-                                              atom2d_cleanup,&
-                                              build_neighbor_lists,&
-                                              local_atoms_type,&
-                                              pair_radius_setup
-   USE qs_o3c_methods,                  ONLY: calculate_o3c_libint_integrals
-   USE qs_o3c_types,                    ONLY: get_o3c_iterator_info,&
-                                              init_o3c_container,&
-                                              o3c_container_type,&
-                                              o3c_iterate,&
-                                              o3c_iterator_create,&
-                                              o3c_iterator_release,&
-                                              o3c_iterator_type,&
-                                              release_o3c_container
-   USE t_c_g0,                          ONLY: get_lmax_init,&
-                                              init
    USE xas_tdp_kernel,                  ONLY: kernel_coulomb_xc,&
                                               kernel_exchange
    USE xas_tdp_types,                   ONLY: donor_state_type,&
@@ -130,10 +73,7 @@ MODULE xas_tdp_utils
 
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'xas_tdp_utils'
 
-   PUBLIC :: setup_xas_tdp_prob, solve_xas_tdp_prob, build_xas_tdp_3c_nl, &
-             compute_ri_coulomb2_int, include_rcs_soc, include_os_soc, &
-             compute_ri_o3c_coulomb, compute_ri_o3c_exchange, build_xas_tdp_ovlp_nl, &
-             compute_ri_exchange2_int, get_opt_3c_dist2d, get_o3c_memory
+   PUBLIC :: setup_xas_tdp_prob, solve_xas_tdp_prob, include_rcs_soc, include_os_soc
 
    !A helper type for SOC
    TYPE dbcsr_soc_package_type
@@ -152,7 +92,7 @@ CONTAINS
 ! **************************************************************************************************
 !> \brief Builds the matrix that defines the XAS TDDFPT generalized eigenvalue problem to be solved
 !>        for excitation energies omega. The problem has the form omega*G*C = M*C, where C contains
-!>        the reponse orbitals coefficients. The matrix M and the metric G are stored in the given
+!>        the response orbitals coefficients. The matrix M and the metric G are stored in the given
 !>        donor_state
 !> \param donor_state the donor_state for which the problem is restricted
 !> \param qs_env ...
@@ -161,7 +101,7 @@ CONTAINS
 !> \note  the matrix M is symmetric and has the form | M_d   M_o |
 !>                                                   | M_o   M_d |,
 !>       -In the SPIN-RESTRICTED case:
-!>        depending on whther we consider singlet or triplet excitation, the diagonal (M_d) and
+!>        depending on whether we consider singlet or triplet excitation, the diagonal (M_d) and
 !>        off-diagonal (M_o) parts of M differ:
 !>        - For singlet: M_d = A + 2B + C_aa + C_ab - D
 !>                       M_o = 2B + C_aa + C_ab - E
@@ -512,27 +452,24 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'solve_xas_tdp_prob', &
          routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: diag_type, first_ex, handle, i, imo, &
-                                                            ispin, nao, ndo_mo, nelectron, nevals, &
-                                                            nocc, nrow, nspins
+      INTEGER                                            :: first_ex, handle, i, imo, ispin, nao, &
+                                                            ndo_mo, nelectron, nevals, nocc, nrow, &
+                                                            nspins
       LOGICAL                                            :: do_os, do_range, do_sf
-      REAL(dp)                                           :: max_ev, min_ev, shift
       REAL(dp), ALLOCATABLE, DIMENSION(:)                :: scaling, tmp_evals
       REAL(dp), DIMENSION(:), POINTER                    :: lr_evals
-      TYPE(arnoldi_data_type)                            :: my_arnoldi
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
       TYPE(cp_fm_struct_type), POINTER                   :: ex_struct, fm_struct
       TYPE(cp_fm_type), POINTER                          :: c_diff, c_sum, lhs_matrix, lr_coeffs, &
                                                             rhs_matrix, work
       TYPE(cp_para_env_type), POINTER                    :: para_env
-      TYPE(dbcsr_p_type), DIMENSION(2)                   :: matrices
-      TYPE(dbcsr_type)                                   :: proj_Q, tmp_mat
-      TYPE(dbcsr_type), POINTER                          :: matrix_tdp, sps
+      TYPE(dbcsr_type)                                   :: tmp_mat
+      TYPE(dbcsr_type), POINTER                          :: matrix_tdp
 
       CALL timeset(routineN, handle)
 
       NULLIFY (para_env, blacs_env, fm_struct, rhs_matrix, matrix_tdp, lhs_matrix, work)
-      NULLIFY (c_diff, c_sum, ex_struct, lr_evals, lr_coeffs, sps)
+      NULLIFY (c_diff, c_sum, ex_struct, lr_evals, lr_coeffs)
       CPASSERT(ASSOCIATED(xas_tdp_env))
 
       do_os = .FALSE.
@@ -553,64 +490,16 @@ CONTAINS
 
 !     Initialization
       nspins = 1; IF (do_os) nspins = 2
-      diag_type = xas_tdp_control%diag_type
       CALL cp_fm_get_info(donor_state%gs_coeffs, nrow_global=nao)
       CALL dbcsr_get_info(matrix_tdp, nfullrows_total=nrow)
       ndo_mo = donor_state%ndo_mo
       nocc = nelectron/2; IF (do_os) nocc = nelectron
       nocc = ndo_mo*nocc
-      first_ex = nocc+1 !where to find the first proper eigenvalue
+      first_ex = nocc + 1 !where to find the first proper eigenvalue
 
       !solve by energy_range or number of states ?
-      IF (xas_tdp_control%e_range > 0.0_dp) THEN
-
-         !Need to find out what the first excitation energy is => project out 0 eigenvalues
-         !then use arnoldi
-         do_range = .TRUE.
-
-         !Need to add shift*SPS to matrix_tdp. Q = 1-SP => SPS = (1-Q)*S (symmetric matrix)
-         !shift = 2*(E_homo - E-lomo) should be safe
-
-         ALLOCATE (sps)
-         CALL get_q_projector(proj_Q, donor_state, do_os, xas_tdp_env)
-         CALL dbcsr_create(matrix=sps, template=matrix_tdp, matrix_type="S")
-
-         CALL dbcsr_add_on_diag(proj_Q, -1.0_dp) ! -SP
-         CALL dbcsr_multiply('N', 'N', -1.0_dp, proj_Q, donor_state%metric(1)%matrix, &
-                             0.0_dp, sps, filter_eps=xas_tdp_control%eps_filter)
-
-         shift = 2.0_dp*MAXVAL(ABS(donor_state%energy_evals))
-         CALL dbcsr_add(sps, matrix_tdp, shift, 1.0_dp) ! store it in sps not to mess-up matrix_tdp
-
-         !estimating the first eigenvalue now
-         matrices(1)%matrix => sps
-         matrices(2)%matrix => donor_state%metric(1)%matrix
-         CALL setup_arnoldi_data(my_arnoldi, matrices, max_iter=20, threshold=1.0E-3_dp, &
-                                 selection_crit=3, nval_request=1, nrestarts=10, &
-                                 generalized_ev=.TRUE., iram=.FALSE.)
-         CALL arnoldi_ev(matrices, my_arnoldi)
-         min_ev = REAL(get_selected_ritz_val(my_arnoldi, 1), dp)
-         CALL deallocate_arnoldi_data(my_arnoldi)
-
-         !Now we have an estimate for lowest excitation energy => max_ev = min_ev + e_range
-         max_ev = min_ev+xas_tdp_control%e_range
-         min_ev = 0.8_dp*min_ev !for safety, in case of overestimation
-
-         CALL dbcsr_release(sps)
-         CALL dbcsr_release(proj_Q)
-         DEALLOCATE (sps)
-
-      ELSE !number of states
-
-         do_range = .FALSE.
-
-         nevals = nspins*nao-nocc/ndo_mo
-         IF (xas_tdp_control%n_excited > 0 .AND. xas_tdp_control%n_excited < nevals) THEN
-            nevals = xas_tdp_control%n_excited
-         END IF
-         nevals = ndo_mo*nevals !as in input description, multiply by # of donor MOs
-
-      END IF
+      do_range = .FALSE.
+      IF (xas_tdp_control%e_range > 0.0_dp) do_range = .TRUE.
 
       ! create the fm infrastructure
       ALLOCATE (tmp_evals(nrow))
@@ -630,28 +519,8 @@ CONTAINS
          CALL cp_fm_create(lhs_matrix, fm_struct)
          CALL copy_dbcsr_to_fm(donor_state%metric(1)%matrix, lhs_matrix)
 
-         IF (diag_type == xas_tdp_diag_std) THEN
-            !Diagonalisation (Cholesky decomposition). In TDA, c_sum = c^-
-            CALL cp_fm_geeig(rhs_matrix, lhs_matrix, c_sum, tmp_evals, work)
-
-         ELSE IF (diag_type == xas_tdp_diag_syevr .AND. do_range) THEN
-
-            !Using syevr to loko for eigenvalue in the given energy window
-            CALL cp_fm_geeig_syevr(rhs_matrix, lhs_matrix, c_sum, tmp_evals(nocc+1:nrow), &
-                                   work, vlow=min_ev, vup=max_ev)
-
-            !In this case, eigenvectors are from the first comlumn on
-            first_ex = 1
-
-         ELSE !syevr, look for eigenvalues with indices
-
-            !Usgin syevr to only compute nevals
-            CALL cp_fm_geeig_syevr(rhs_matrix, lhs_matrix, c_sum, tmp_evals(nocc+1:nocc+nevals), &
-                                   work, ilow=nocc+1, iup=nocc+nevals)
-
-            !In this case, eigenvectors are from the first comlumn on
-            first_ex = 1
-         END IF
+         !Diagonalisation (Cholesky decomposition). In TDA, c_sum = c^-
+         CALL cp_fm_geeig(rhs_matrix, lhs_matrix, c_sum, tmp_evals, work)
 
 !        TDA specific clean-up
          CALL cp_fm_release(lhs_matrix)
@@ -676,7 +545,7 @@ CONTAINS
 !        Put tiny almost zero eigenvalues to zero (corresponding to occupied MOs)
          WHERE (tmp_evals < 1.0E-4_dp) tmp_evals = 0.0_dp
 
-!        Retrive c_diff = (c^+ - c^-) for normalization
+!        Retrieve c_diff = (c^+ - c^-) for normalization
 !        (c^+ - c^-) = 1/omega^2 * M * (A-D+E)^0.5 * work
          CALL cp_fm_create(c_diff, fm_struct)
          CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_tdp, donor_state%matrix_aux, &
@@ -721,17 +590,23 @@ CONTAINS
 !  first element is the first eval. Need a case study on do_range
       IF (do_range) THEN
 
-         WHERE (tmp_evals > max_ev) tmp_evals = 0.0_dp
-         nevals = MAXLOC(tmp_evals, 1)-nocc
+         WHERE (tmp_evals > tmp_evals(first_ex) + xas_tdp_control%e_range) tmp_evals = 0.0_dp
+         nevals = MAXLOC(tmp_evals, 1) - nocc
 
          ALLOCATE (lr_evals(nevals))
-         lr_evals(:) = tmp_evals(nocc+1:nocc+nevals)
+         lr_evals(:) = tmp_evals(first_ex:nocc + nevals)
 
       ELSE
 
-         !nevals is known from the start
+         !Determine the number of evals to keep base on N_EXCITED
+         nevals = nspins*nao - nocc/ndo_mo
+         IF (xas_tdp_control%n_excited > 0 .AND. xas_tdp_control%n_excited < nevals) THEN
+            nevals = xas_tdp_control%n_excited
+         END IF
+         nevals = ndo_mo*nevals !as in input description, multiply by # of donor MOs
+
          ALLOCATE (lr_evals(nevals))
-         lr_evals(:) = tmp_evals(nocc+1:nocc+nevals)
+         lr_evals(:) = tmp_evals(first_ex:nocc + nevals)
       END IF
 
 !  Reorganize the eigenvectors in array of cp_fm so that each ndo_mo columns corresponds to an
@@ -747,9 +622,9 @@ CONTAINS
             DO imo = 1, ndo_mo
 
                CALL cp_fm_to_fm_submat(msource=c_sum, mtarget=lr_coeffs, &
-                                       nrow=nao, ncol=1, s_firstrow=((ispin-1)*ndo_mo+imo-1)*nao+1, &
-                                       s_firstcol=first_ex+i-1, t_firstrow=1, &
-                                       t_firstcol=(i-1)*ndo_mo*nspins+(ispin-1)*ndo_mo+imo)
+                                       nrow=nao, ncol=1, s_firstrow=((ispin - 1)*ndo_mo + imo - 1)*nao + 1, &
+                                       s_firstcol=first_ex + i - 1, t_firstrow=1, &
+                                       t_firstcol=(i - 1)*ndo_mo*nspins + (ispin - 1)*ndo_mo + imo)
             END DO !imo
          END DO !ispin
       END DO !istate
@@ -840,7 +715,7 @@ CONTAINS
 !>        the same properties, which are based on the replication of the KS matrix. Stored in the
 !>        donor_state_type
 !> \param donor_state ...
-!> \param do_os whther this is a open-shell calculation
+!> \param do_os whether this is a open-shell calculation
 !> \param qs_env ...
 ! **************************************************************************************************
    SUBROUTINE compute_submat_dist_and_blk_size(donor_state, do_os, qs_env)
@@ -885,9 +760,9 @@ CONTAINS
       ALLOCATE (col_dist_sub(ndo_mo*nspins*scol_dist))
 
       DO i = 1, ndo_mo*nspins
-         submat_blk_size((i-1)*nblk_row+1:i*nblk_row) = row_blk_size
-         row_dist_sub((i-1)*srow_dist+1:i*srow_dist) = row_dist
-         col_dist_sub((i-1)*scol_dist+1:i*scol_dist) = col_dist
+         submat_blk_size((i - 1)*nblk_row + 1:i*nblk_row) = row_blk_size
+         row_dist_sub((i - 1)*srow_dist + 1:i*srow_dist) = row_dist
+         col_dist_sub((i - 1)*scol_dist + 1:i*scol_dist) = col_dist
       END DO
 
 !  Create the submatrix dbcsr distribution
@@ -959,7 +834,7 @@ CONTAINS
          one_sp => xas_tdp_env%q_projector(ispin)%matrix
 
          !if spin-flip, swap the alpha-alpha and beta-beta blocks
-         IF (my_dosf) one_sp => xas_tdp_env%q_projector(3-ispin)%matrix
+         IF (my_dosf) one_sp => xas_tdp_env%q_projector(3 - ispin)%matrix
 
          CALL dbcsr_iterator_start(iter, one_sp)
          DO WHILE (dbcsr_iterator_blocks_left(iter))
@@ -972,8 +847,8 @@ CONTAINS
             IF (found_block) THEN
 
                DO imo = 1, ndo_mo
-                  CALL dbcsr_put_block(proj_Q, ((ispin-1)*ndo_mo+imo-1)*nblk_row+iblk, &
-                                       ((ispin-1)*ndo_mo+imo-1)*nblk_row+jblk, work_block)
+                  CALL dbcsr_put_block(proj_Q, ((ispin - 1)*ndo_mo + imo - 1)*nblk_row + iblk, &
+                                       ((ispin - 1)*ndo_mo + imo - 1)*nblk_row + jblk, work_block)
                END DO
 
             END IF
@@ -1000,7 +875,7 @@ CONTAINS
 !> \param donor_state ...
 !> \param do_os ...
 !> \param qs_env ...
-!> \param do_sf whther the ground state contribution should accomodate spin-flip
+!> \param do_sf whether the ground state contribution should accommodate spin-flip
 !> \note Even localized non-canonical MOs are diagonalized in their subsapce => eps_ij = eps_ii*delta_ij
 ! **************************************************************************************************
    SUBROUTINE build_gs_contribution(matrix_a, donor_state, do_os, qs_env, do_sf)
@@ -1077,8 +952,8 @@ CONTAINS
                DO imo = 1, ndo_mo
 
 !                 Put the block as it is
-                  CALL dbcsr_put_block(matrix_a, ((ispin-1)*ndo_mo+imo-1)*nblk_row+iblk, &
-                                       ((ispin-1)*ndo_mo+imo-1)*nblk_row+jblk, work_block)
+                  CALL dbcsr_put_block(matrix_a, ((ispin - 1)*ndo_mo + imo - 1)*nblk_row + iblk, &
+                                       ((ispin - 1)*ndo_mo + imo - 1)*nblk_row + jblk, work_block)
 
                END DO !imo
             END IF !found_block
@@ -1102,8 +977,8 @@ CONTAINS
 !              Add S matrix on block diagonal as epsilon_ii*S_pq
                DO imo = 1, ndo_mo
 
-                  CALL dbcsr_put_block(work_matrix, ((ispin-1)*ndo_mo+imo-1)*nblk_row+iblk, &
-                                       ((ispin-1)*ndo_mo+imo-1)*nblk_row+jblk, &
+                  CALL dbcsr_put_block(work_matrix, ((ispin - 1)*ndo_mo + imo - 1)*nblk_row + iblk, &
+                                       ((ispin - 1)*ndo_mo + imo - 1)*nblk_row + jblk, &
                                        energy_evals(imo)*work_block)
                END DO !imo
             END IF !found block
@@ -1162,7 +1037,7 @@ CONTAINS
 
       CALL timeset(routineN, handle)
 
-!  Initilization
+!  Initialization
       nspins = 1; IF (do_os) nspins = 2
       ndo_mo = donor_state%ndo_mo
       CALL get_qs_env(qs_env=qs_env, matrix_s=matrix_s)
@@ -1191,7 +1066,7 @@ CONTAINS
 
 !           Go over the diagonal of G => donor MOs ii, spin ss
             DO i = 1, ndo_mo*nspins
-               CALL dbcsr_put_block(matrix_g(1)%matrix, (i-1)*nblk_row+iblk, (i-1)*nblk_row+jblk, work_block)
+               CALL dbcsr_put_block(matrix_g(1)%matrix, (i - 1)*nblk_row + iblk, (i - 1)*nblk_row + jblk, work_block)
             END DO
 
          END IF
@@ -1232,7 +1107,7 @@ CONTAINS
 
 !              Go over the diagonal of G => donor MOs ii spin ss
                DO i = 1, ndo_mo*nspins
-                  CALL dbcsr_put_block(matrix_g(2)%matrix, (i-1)*nblk_row+iblk, (i-1)*nblk_row+jblk, work_block)
+                  CALL dbcsr_put_block(matrix_g(2)%matrix, (i - 1)*nblk_row + iblk, (i - 1)*nblk_row + jblk, work_block)
                END DO
 
             END IF
@@ -1281,15 +1156,13 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'build_aux_matrix', &
          routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: handle, ndep, nrow
+      INTEGER                                            :: handle, ndep
       REAL(dp)                                           :: evals(2)
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
-      TYPE(cp_fm_struct_type), POINTER                   :: struct
-      TYPE(cp_fm_type), POINTER                          :: aux_fm, work_fm
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_type)                                   :: tmp_mat
 
-      NULLIFY (aux_fm, work_fm, struct, blacs_env, para_env)
+      NULLIFY (blacs_env, para_env)
 
       CALL timeset(routineN, handle)
 
@@ -1307,18 +1180,12 @@ CONTAINS
       ALLOCATE (donor_state%matrix_aux)
       CALL dbcsr_create(matrix=donor_state%matrix_aux, template=matrix_a, name="MAT AUX")
 
-      ! Go through fm and cp_fm_power for good quality sqrt
-      CALL dbcsr_get_info(matrix_a, nfullrows_total=nrow)
       CALL get_qs_env(qs_env, para_env=para_env, blacs_env=blacs_env)
-      CALL cp_fm_struct_create(struct, context=blacs_env, para_env=para_env, &
-                               ncol_global=nrow, nrow_global=nrow)
-      CALL cp_fm_create(aux_fm, struct)
-      CALL cp_fm_create(work_fm, struct)
 
-      CALL copy_dbcsr_to_fm(tmp_mat, aux_fm)
-      CALL cp_fm_power(aux_fm, work_fm, 0.5_dp, threshold, ndep, eigvals=evals)
+      ! good quality sqrt
+      CALL cp_dbcsr_power(tmp_mat, 0.5_dp, threshold, ndep, para_env, blacs_env, eigenvalues=evals)
 
-      CALL copy_fm_to_dbcsr(aux_fm, donor_state%matrix_aux)
+      CALL dbcsr_copy(donor_state%matrix_aux, tmp_mat)
 
       ! Warn the user if matrix not positive semi-definite
       IF (evals(1) < 0.0_dp .AND. ABS(evals(1)) > threshold) THEN
@@ -1326,872 +1193,11 @@ CONTAINS
       END IF
 
       ! clean-up
-      CALL cp_fm_struct_release(struct)
-      CALL cp_fm_release(aux_fm)
-      CALL cp_fm_release(work_fm)
       CALL dbcsr_release(tmp_mat)
 
       CALL timestop(handle)
 
    END SUBROUTINE build_aux_matrix
-
-! **************************************************************************************************
-!> \brief Computes the two-center Exchange integral needed for the RI in kernel calculation. Stores
-!>        the integrals (P|Q)^-1 in the xas_tdp_env as global (small) arrays. Does that for a given
-!>        excited kind
-!> \param ex_kind ...
-!> \param xas_tdp_env ...
-!> \param xas_tdp_control ...
-!> \param qs_env ...
-!> \note Computes all these integrals in non-PBCs as we assume that the range is short enough that
-!>       atoms do not exchange with their periodic images
-! **************************************************************************************************
-   SUBROUTINE compute_ri_exchange2_int(ex_kind, xas_tdp_env, xas_tdp_control, qs_env)
-
-      INTEGER, INTENT(IN)                                :: ex_kind
-      TYPE(xas_tdp_env_type), POINTER                    :: xas_tdp_env
-      TYPE(xas_tdp_control_type), POINTER                :: xas_tdp_control
-      TYPE(qs_environment_type), POINTER                 :: qs_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'compute_ri_exchange2_int', &
-         routineP = moduleN//':'//routineN
-
-      INTEGER                                            :: maxl, nsgf, unit_id
-      REAL(dp), DIMENSION(3)                             :: r
-      TYPE(cp_para_env_type), POINTER                    :: para_env
-      TYPE(gto_basis_set_type), POINTER                  :: ri_basis
-      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
-
-      NULLIFY (ri_basis, qs_kind_set, para_env)
-
-!  Initialization
-      CALL get_qs_env(qs_env, qs_kind_set=qs_kind_set, para_env=para_env)
-      IF (ASSOCIATED(xas_tdp_env%ri_inv_ex)) THEN
-         DEALLOCATE (xas_tdp_env%ri_inv_ex)
-      END IF
-
-!  Get the RI basis of interest and its quantum numbers
-      CALL get_qs_kind(qs_kind_set(ex_kind), basis_set=ri_basis, basis_type="RI_XAS")
-      CALL get_gto_basis_set(ri_basis, nsgf=nsgf, maxl=maxl)
-      ALLOCATE (xas_tdp_env%ri_inv_ex(nsgf, nsgf))
-      xas_tdp_env%ri_inv_ex = 0.0_dp
-
-      r = 0.0_dp
-
-      SELECT CASE (xas_tdp_control%x_op)
-      CASE (do_potential_coulomb)
-         CALL int_operators_r12_ab_os(r12_operator=operator_coulomb, vab=xas_tdp_env%ri_inv_ex, &
-                                      rab=r, fba=ri_basis, fbb=ri_basis, &
-                                      calculate_forces=.FALSE.)
-      CASE (do_potential_truncated)
-
-         !Make sure the operator is up to date
-         IF (2*maxl+1 > get_lmax_init()) THEN
-            IF (para_env%mepos == 0) THEN
-               CALL open_file(unit_number=unit_id, file_name=xas_tdp_control%x_t_c_filename)
-            END IF
-            CALL init(2*maxl+1, unit_id, para_env%mepos, para_env%group)
-            IF (para_env%mepos == 0) THEN
-               CALL close_file(unit_id)
-            END IF
-         END IF
-
-         CALL int_operators_r12_ab_os(r12_operator=operator_truncated, vab=xas_tdp_env%ri_inv_ex, &
-                                      rab=r, fba=ri_basis, fbb=ri_basis, &
-                                      r_cutoff=xas_tdp_control%x_range, calculate_forces=.FALSE.)
-
-      CASE (do_potential_short)
-         CALL int_operators_r12_ab_os(r12_operator=operator_verfc, vab=xas_tdp_env%ri_inv_ex, &
-                                      rab=r, fba=ri_basis, fbb=ri_basis, &
-                                      omega=xas_tdp_control%x_omega, calculate_forces=.FALSE.)
-      END SELECT
-
-!  Inverting
-      CALL invmat_symm(xas_tdp_env%ri_inv_ex)
-
-   END SUBROUTINE compute_ri_exchange2_int
-
-! **************************************************************************************************
-!> \brief Computes the two-center Coulomb integral needed for the RI in kernel calculation. Stores
-!>        the integrals (P|Q)^-1 in the xas_tdp_env as global (small) arrays. Does that for a given
-!>        excited kind
-!> \param ex_kind ...
-!> \param xas_tdp_env ...
-!> \param xas_tdp_control ...
-!> \param qs_env ...
-! **************************************************************************************************
-   SUBROUTINE compute_ri_coulomb2_int(ex_kind, xas_tdp_env, xas_tdp_control, qs_env)
-
-      INTEGER, INTENT(IN)                                :: ex_kind
-      TYPE(xas_tdp_env_type), POINTER                    :: xas_tdp_env
-      TYPE(xas_tdp_control_type), POINTER                :: xas_tdp_control
-      TYPE(qs_environment_type), POINTER                 :: qs_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'compute_ri_coulomb2_int', &
-         routineP = moduleN//':'//routineN
-
-      INTEGER                                            :: nsgf
-      TYPE(gto_basis_set_type), POINTER                  :: ri_basis
-      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
-
-      NULLIFY (ri_basis, qs_kind_set)
-
-!  Initialization
-      CALL get_qs_env(qs_env, qs_kind_set=qs_kind_set)
-      IF (ASSOCIATED(xas_tdp_env%ri_inv_coul)) THEN
-         DEALLOCATE (xas_tdp_env%ri_inv_coul)
-      END IF
-
-!  Get the RI basis of interest and its quantum numbers
-      CALL get_qs_kind(qs_kind_set(ex_kind), basis_set=ri_basis, basis_type="RI_XAS")
-      CALL get_gto_basis_set(ri_basis, nsgf=nsgf)
-      ALLOCATE (xas_tdp_env%ri_inv_coul(nsgf, nsgf))
-      xas_tdp_env%ri_inv_coul = 0.0_dp
-
-      IF (.NOT. xas_tdp_control%is_periodic) THEN
-         CALL int_operators_r12_ab_os(r12_operator=operator_coulomb, vab=xas_tdp_env%ri_inv_coul, &
-                                      rab=(/0.0_dp, 0.0_dp, 0.0_dp/), fba=ri_basis, fbb=ri_basis, &
-                                      calculate_forces=.FALSE.)
-         CPASSERT(ASSOCIATED(xas_tdp_control))
-      ELSE
-         CALL periodic_ri_coulomb2(xas_tdp_env%ri_inv_coul, ri_basis, qs_env)
-      END IF
-
-!  Inverting
-      CALL invmat_symm(xas_tdp_env%ri_inv_coul)
-
-   END SUBROUTINE compute_ri_coulomb2_int
-
-! **************************************************************************************************
-!> \brief Computes the two-center inverse coulomb integral in the case of PBCs
-!> \param ri_coul2 ...
-!> \param ri_basis ...
-!> \param qs_env ...
-! **************************************************************************************************
-   SUBROUTINE periodic_ri_coulomb2(ri_coul2, ri_basis, qs_env)
-
-      REAL(dp), DIMENSION(:, :), INTENT(INOUT)           :: ri_coul2
-      TYPE(gto_basis_set_type), POINTER                  :: ri_basis
-      TYPE(qs_environment_type), POINTER                 :: qs_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'periodic_ri_coulomb2', &
-         routineP = moduleN//':'//routineN
-
-      INTEGER                                            :: maxco, ncop, ncoq, nset, op, oq, ppgf, &
-                                                            pset, qpgf, qset, sgfp, sgfq
-      INTEGER, DIMENSION(:), POINTER                     :: lmax, lmin, npgf, nsgf
-      INTEGER, DIMENSION(:, :), POINTER                  :: first_sgf
-      REAL(dp)                                           :: r(3)
-      REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: hpq
-      REAL(dp), DIMENSION(:, :), POINTER                 :: sphi, zet
-      TYPE(cell_type), POINTER                           :: cell
-      TYPE(cp_eri_mme_param)                             :: mme_param
-      TYPE(cp_para_env_type), POINTER                    :: para_env
-      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
-
-      NULLIFY (cell, qs_kind_set, lmin, lmax, nsgf, npgf, zet, sphi, first_sgf)
-
-      ! Use eri_mme for this. Don't want to annoy the user with a full input section just for this
-      ! tiny bit => initialize our own eri_mme section with the defaults
-
-      CALL get_qs_env(qs_env, cell=cell, qs_kind_set=qs_kind_set, para_env=para_env)
-
-      CALL eri_mme_init(mme_param%par, n_minimax=20, cutoff=300.0_dp, do_calib_cutoff=.TRUE., &
-                        cutoff_min=10.0_dp, cutoff_max=10000.0_dp, cutoff_eps=0.01_dp, &
-                        cutoff_delta=0.9_dp, sum_precision=1.0E-12_dp, debug=.FALSE., &
-                        debug_delta=1.0E-6_dp, debug_nsum=1000000, unit_nr=0, print_calib=.FALSE., &
-                        do_error_est=.FALSE.)
-      mme_param%do_calib = .TRUE.
-
-      CALL cp_eri_mme_set_params(mme_param, cell, qs_kind_set, basis_type_1="RI_XAS", para_env=para_env)
-
-      CALL get_gto_basis_set(ri_basis, lmax=lmax, npgf=npgf, zet=zet, lmin=lmin, nset=nset, &
-                             nsgf_set=nsgf, sphi=sphi, first_sgf=first_sgf, maxco=maxco)
-
-      r = 0.0_dp
-      ALLOCATE (hpq(nset*maxco, nset*maxco))
-      hpq = 0.0_dp
-
-      DO pset = 1, nset
-         ncop = npgf(pset)*ncoset(lmax(pset))
-         sgfp = first_sgf(1, pset)
-
-         DO qset = 1, nset
-            ncoq = npgf(qset)*ncoset(lmax(qset))
-            sgfq = first_sgf(1, qset)
-
-            DO ppgf = 1, npgf(pset)
-               op = (pset-1)*maxco+(ppgf-1)*ncoset(lmax(pset))
-               DO qpgf = 1, npgf(qset)
-                  oq = (qset-1)*maxco+(qpgf-1)*ncoset(lmax(qset))
-
-                  CALL eri_mme_2c_integrate(mme_param%par, lmin(pset), lmax(pset), lmin(qset), &
-                                            lmax(qset), zet(ppgf, pset), zet(qpgf, qset), r, hpq, &
-                                            op, oq)
-
-               END DO !qpgf
-            END DO ! ppgf
-
-            !contraction into sgfs
-            op = (pset-1)*maxco+1
-            oq = (qset-1)*maxco+1
-
-            CALL ab_contract(ri_coul2(sgfp:sgfp+nsgf(pset)-1, sgfq:sgfq+nsgf(qset)-1), &
-                             hpq(op:op+ncop-1, oq:oq+ncoq-1), sphi(:, sgfp:), sphi(:, sgfq:), &
-                             ncop, ncoq, nsgf(pset), nsgf(qset))
-
-         END DO !qset
-      END DO !pset
-
-      !celan-up
-      CALL eri_mme_release(mme_param%par)
-
-   END SUBROUTINE periodic_ri_coulomb2
-
-! **************************************************************************************************
-!> \brief Computes the RI Coulomb 3-center integrals (ab|c), where c is from the RI_XAS basis and
-!>        centered on the excited atoms of xas_tdp_env
-!> \param xas_tdp_env ...
-!> \param qs_env ...
-!> \note  The ri_o3c_coul member of xas_tdp_env is defined and allocated here. Only computed once
-!>        for the whole system (for optimized load balance). Ok because not too much memory needed
-! **************************************************************************************************
-   SUBROUTINE compute_ri_o3c_coulomb(xas_tdp_env, qs_env)
-
-      TYPE(xas_tdp_env_type), POINTER                    :: xas_tdp_env
-      TYPE(qs_environment_type), POINTER                 :: qs_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'compute_ri_o3c_coulomb', &
-         routineP = moduleN//':'//routineN
-
-      INTEGER                                            :: handle, nkind
-      TYPE(cp_para_env_type), POINTER                    :: para_env
-      TYPE(gto_basis_set_p_type), DIMENSION(:), POINTER  :: basis_set_orb, basis_set_ri
-      TYPE(neighbor_list_set_p_type), DIMENSION(:), &
-         POINTER                                         :: ab_list, ac_list
-      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
-
-      NULLIFY (basis_set_ri, basis_set_orb, ac_list, ab_list, qs_kind_set, para_env)
-
-      CALL timeset(routineN, handle)
-
-!  Take what we need from the qs_env
-      CALL get_qs_env(qs_env, nkind=nkind, qs_kind_set=qs_kind_set, para_env=para_env)
-
-!  Build the basis set lists
-      ALLOCATE (basis_set_ri(nkind))
-      ALLOCATE (basis_set_orb(nkind))
-      CALL basis_set_list_setup(basis_set_ri, "RI_XAS", qs_kind_set)
-      CALL basis_set_list_setup(basis_set_orb, "ORB", qs_kind_set)
-
-!  Get the optimized distribution 2d for these integrals (and store it in xas_tdp_env)
-      CALL build_xas_tdp_ovlp_nl(ab_list, basis_set_orb, basis_set_orb, qs_env, &
-                                 excited_atoms=xas_tdp_env%ex_atom_indices)
-      CALL build_xas_tdp_3c_nl(ac_list, basis_set_orb, basis_set_ri, do_potential_id, &
-                               qs_env, excited_atoms=xas_tdp_env%ex_atom_indices)
-      CALL get_opt_3c_dist2d(xas_tdp_env%opt_dist2d_coul, ab_list, ac_list, basis_set_orb, &
-                             basis_set_orb, basis_set_ri, qs_env)
-      CALL release_sab(ab_list)
-      CALL release_sab(ac_list)
-
-!  Build a neighbor list for the ab centers. Assume (aI|c) = sum_b c_bI (ab|c), with c_bI only
-!  non-zero for b centered on the same atom as c => build overlap nl, but only keeping b if centered
-!  on an excited atom
-      CALL build_xas_tdp_ovlp_nl(ab_list, basis_set_orb, basis_set_orb, qs_env, &
-                                 excited_atoms=xas_tdp_env%ex_atom_indices, &
-                                 ext_dist2d=xas_tdp_env%opt_dist2d_coul)
-
-!  Build a neighbor list for the ac centers. Since we later contract as (aI|c) and we assume I is
-!  very localized on the same atom as c, we take a,c as neighbors if they overlap
-      CALL build_xas_tdp_3c_nl(ac_list, basis_set_orb, basis_set_ri, do_potential_id, &
-                               qs_env, excited_atoms=xas_tdp_env%ex_atom_indices, &
-                               ext_dist2d=xas_tdp_env%opt_dist2d_coul)
-
-!  Allocate, init and compute the integrals
-      ALLOCATE (xas_tdp_env%ri_o3c_coul)
-      !only one spin needed for coulomb integrals
-      CALL init_o3c_container(xas_tdp_env%ri_o3c_coul, 1, basis_set_orb, basis_set_orb, &
-                              basis_set_ri, ab_list, ac_list, only_bc_same_center=.TRUE.)
-      CALL calculate_o3c_libint_integrals(xas_tdp_env%ri_o3c_coul, op=do_potential_coulomb)
-
-! Clean-up
-      CALL release_sab(ab_list)
-      CALL release_sab(ac_list)
-      DEALLOCATE (basis_set_ri, basis_set_orb)
-
-      !not strictly necessary but avoid having any load unbalance here being reported in the
-      !timings for other routines
-      CALL mp_sync(para_env%group)
-
-      CALL timestop(handle)
-
-   END SUBROUTINE compute_ri_o3c_coulomb
-
-! **************************************************************************************************
-!> \brief Computes the RI exchange 3-center integrals (ab|c), where c is from the RI_XAS basis and
-!>        centered on excited atoms and kind
-!> \param ex_atom the excited atom on which the third center is
-!> \param xas_tdp_env ...
-!> \param xas_tdp_control ...
-!> \param qs_env ...
-!> \note  This routine is called once for each excited atom. Because there are many different a,b
-!>        pairs involved, load balance is ok. This allows memory saving
-! **************************************************************************************************
-   SUBROUTINE compute_ri_o3c_exchange(ex_atom, xas_tdp_env, xas_tdp_control, qs_env)
-
-      INTEGER, INTENT(IN)                                :: ex_atom
-      TYPE(xas_tdp_env_type), POINTER                    :: xas_tdp_env
-      TYPE(xas_tdp_control_type), POINTER                :: xas_tdp_control
-      TYPE(qs_environment_type), POINTER                 :: qs_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'compute_ri_o3c_exchange', &
-         routineP = moduleN//':'//routineN
-
-      INTEGER                                            :: handle, nkind
-      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: exat
-      TYPE(cp_para_env_type), POINTER                    :: para_env
-      TYPE(gto_basis_set_p_type), DIMENSION(:), POINTER  :: basis_set_orb, basis_set_ri
-      TYPE(neighbor_list_set_p_type), DIMENSION(:), &
-         POINTER                                         :: ab_list, ac_list
-      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
-
-      NULLIFY (basis_set_ri, basis_set_orb, ac_list, ab_list, qs_kind_set, para_env)
-
-      CALL timeset(routineN, handle)
-
-!  Take what we need from the qs_env
-      CALL get_qs_env(qs_env, nkind=nkind, qs_kind_set=qs_kind_set, para_env=para_env)
-
-!  Build the basis set lists
-      ALLOCATE (basis_set_ri(nkind))
-      ALLOCATE (basis_set_orb(nkind))
-      CALL basis_set_list_setup(basis_set_ri, "RI_XAS", qs_kind_set)
-      CALL basis_set_list_setup(basis_set_orb, "ORB", qs_kind_set)
-
-!  Get the optimized distribution 2d for theses integrals (and store it in xas_tdp_env)
-      ALLOCATE (exat(1))
-      exat(1) = ex_atom
-      CALL build_xas_tdp_ovlp_nl(ab_list, basis_set_orb, basis_set_orb, qs_env)
-      CALL build_xas_tdp_3c_nl(ac_list, basis_set_orb, basis_set_ri, xas_tdp_control%x_op, &
-                               qs_env, excited_atoms=exat, x_range=xas_tdp_control%x_range)
-
-      CALL get_opt_3c_dist2d(xas_tdp_env%opt_dist2d_ex, ab_list, ac_list, basis_set_orb, &
-                             basis_set_orb, basis_set_ri, qs_env)
-      CALL release_sab(ab_list)
-      CALL release_sab(ac_list)
-
-!  Build the ab and ac centers neighbor lists based on the optimize distribution
-      CALL build_xas_tdp_ovlp_nl(ab_list, basis_set_orb, basis_set_orb, qs_env, &
-                                 ext_dist2d=xas_tdp_env%opt_dist2d_ex)
-      CALL build_xas_tdp_3c_nl(ac_list, basis_set_orb, basis_set_ri, xas_tdp_control%x_op, &
-                               qs_env, excited_atoms=exat, x_range=xas_tdp_control%x_range, &
-                               ext_dist2d=xas_tdp_env%opt_dist2d_ex)
-
-!  Allocate, init and compute the integrals.
-      ALLOCATE (xas_tdp_env%ri_o3c_ex)
-      CALL init_o3c_container(xas_tdp_env%ri_o3c_ex, 1, basis_set_orb, basis_set_orb, &
-                              basis_set_ri, ab_list, ac_list)
-      CALL calculate_o3c_libint_integrals(xas_tdp_env%ri_o3c_ex, op=xas_tdp_control%x_op, &
-                                          para_env=para_env, r_cutoff=xas_tdp_control%x_range, &
-                                          omega=xas_tdp_control%x_omega, &
-                                          t_c_filename=xas_tdp_control%x_t_c_filename, &
-                                          eps_screen=xas_tdp_control%eps_screen)
-
-! Clean-up
-      CALL release_sab(ab_list)
-      CALL release_sab(ac_list)
-      DEALLOCATE (basis_set_ri, basis_set_orb)
-
-      !not strictly necessary but avoid having any load unbalance here being reported in the
-      !timings for other routines
-      CALL mp_sync(para_env%group)
-
-      CALL timestop(handle)
-
-   END SUBROUTINE compute_ri_o3c_exchange
-
-! **************************************************************************************************
-!> \brief Estimates the memory cost of an o3c based on the incoming ab and ac lists. Also returns
-!>        the total amount of free memory in the system
-!> \param o3c_mem the amount of memory that will be taken by the o3c
-!> \param free_mem the total amount of free memeory left
-!> \param ab_list ...
-!> \param ac_list ...
-!> \param basis_set_a ...
-!> \param basis_set_b ...
-!> \param basis_set_c ...
-!> \param qs_env ...
-! **************************************************************************************************
-   SUBROUTINE get_o3c_memory(o3c_mem, free_mem, ab_list, ac_list, basis_set_a, basis_set_b, &
-                             basis_set_c, qs_env)
-
-      INTEGER(int_8), INTENT(INOUT)                      :: o3c_mem, free_mem
-      TYPE(neighbor_list_set_p_type), DIMENSION(:), &
-         POINTER                                         :: ab_list, ac_list
-      TYPE(gto_basis_set_p_type), DIMENSION(:), POINTER  :: basis_set_a, basis_set_b, basis_set_c
-      TYPE(qs_environment_type), POINTER                 :: qs_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_o3c_memory', routineP = moduleN//':'//routineN
-
-      INTEGER                                            :: handle, ikind, jkind, kkind, mepos, &
-                                                            nsgfa, nsgfb, nsgfc, nthread
-      INTEGER(int_8)                                     :: m1, m2, m3, m4, m5, m6
-      TYPE(cp_para_env_type), POINTER                    :: para_env
-      TYPE(o3c_container_type), POINTER                  :: o3c
-      TYPE(o3c_iterator_type)                            :: o3c_iterator
-
-      NULLIFY (o3c, para_env)
-
-      CALL timeset(routineN, handle)
-
-      !Idea: go over the o3c and count the number of nsgf^3. This times 64 gives the amount of
-      !      bits that will be used. At the same time, querry the system for the remaining available
-      !      memory
-
-      !o3c memory
-      CALL get_qs_env(qs_env, para_env=para_env)
-
-      ALLOCATE (o3c)
-      CALL init_o3c_container(o3c, 1, basis_set_a, basis_set_b, basis_set_c, ab_list, ac_list)
-      o3c_mem = 0
-
-      nthread = 1
-!$    nthread = omp_get_max_threads()
-      CALL o3c_iterator_create(o3c, o3c_iterator, nthread=nthread)
-
-!$OMP PARALLEL DEFAULT(NONE) &
-!$OMP SHARED (nthread,o3c_iterator,basis_set_a,basis_set_b,basis_set_c) &
-!$OMP PRIVATE(mepos,ikind,jkind,kkind,nsgfa,nsgfb,nsgfc) &
-!$OMP REDUCTION(+:o3c_mem)
-
-      mepos = 0
-!$    mepos = omp_get_thread_num()
-
-      DO WHILE (o3c_iterate(o3c_iterator, mepos=mepos) == 0)
-         CALL get_o3c_iterator_info(o3c_iterator, mepos=mepos, ikind=ikind, jkind=jkind, kkind=kkind)
-
-         nsgfa = basis_set_a(ikind)%gto_basis_set%nsgf
-         nsgfb = basis_set_b(jkind)%gto_basis_set%nsgf
-         nsgfc = basis_set_c(kkind)%gto_basis_set%nsgf
-
-         o3c_mem = o3c_mem+nsgfa*nsgfb*nsgfc
-
-      END DO
-!$OMP END PARALLEL
-      CALL o3c_iterator_release(o3c_iterator)
-      CALL release_o3c_container(o3c)
-      DEALLOCATE (o3c)
-
-      CALL mp_sum(o3c_mem, para_env%group)
-      o3c_mem = o3c_mem*8 !8 bytes, double precision
-
-      !System free memory (take minimum for safety)
-      CALL m_memory_details(m1, free_mem, m2, m3, m4, m5, m6)
-      CALL mp_min(free_mem, para_env%group)
-
-      CALL timestop(handle)
-
-   END SUBROUTINE get_o3c_memory
-
-! **************************************************************************************************
-!> \brief Returns an optimized distribution_2d for the given neighbor lists based on an evaluation
-!>        of the cost of the corresponding 3-center integrals
-!> \param opt_3c_dist2d the optimized distribution_2d
-!> \param ab_list ...
-!> \param ac_list ...
-!> \param basis_set_a ...
-!> \param basis_set_b ...
-!> \param basis_set_c ...
-!> \param qs_env ...
-! **************************************************************************************************
-   SUBROUTINE get_opt_3c_dist2d(opt_3c_dist2d, ab_list, ac_list, basis_set_a, basis_set_b, &
-                                basis_set_c, qs_env)
-
-      TYPE(distribution_2d_type), POINTER                :: opt_3c_dist2d
-      TYPE(neighbor_list_set_p_type), DIMENSION(:), &
-         POINTER                                         :: ab_list, ac_list
-      TYPE(gto_basis_set_p_type), DIMENSION(:), POINTER  :: basis_set_a, basis_set_b, basis_set_c
-      TYPE(qs_environment_type), POINTER                 :: qs_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_opt_3c_dist2d', &
-         routineP = moduleN//':'//routineN
-
-      INTEGER                                            :: handle, i, iatom, ikind, ip, jatom, &
-                                                            jkind, kkind, mepos, mypcol, myprow, &
-                                                            n, natom, nkind, npcol, nprow, nsgfa, &
-                                                            nsgfb, nsgfc, nthread
-      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: nparticle_local_col, nparticle_local_row
-      INTEGER, DIMENSION(:, :), POINTER                  :: col_dist, row_dist
-      REAL(dp)                                           :: cost
-      REAL(dp), ALLOCATABLE, DIMENSION(:)                :: col_cost, col_proc_cost, row_cost, &
-                                                            row_proc_cost
-      TYPE(cp_1d_i_p_type), DIMENSION(:), POINTER        :: local_particle_col, local_particle_row
-      TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
-      TYPE(cp_para_env_type), POINTER                    :: para_env
-      TYPE(o3c_container_type), POINTER                  :: o3c
-      TYPE(o3c_iterator_type)                            :: o3c_iterator
-      TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
-      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
-
-      NULLIFY (o3c, para_env, col_dist, row_dist, blacs_env, qs_kind_set, particle_set)
-      NULLIFY (local_particle_col, local_particle_row)
-
-      CALL timeset(routineN, handle)
-
-      !Idea: create an o3c container in the original distribution, loop over it and compute the
-      !      cost of each ab pairs and project on the col/row. Then distribute the atom col/row to
-      !      the proc col/row in order to spread out the cost as much as possible
-
-      CALL get_qs_env(qs_env, natom=natom, para_env=para_env, blacs_env=blacs_env, &
-                      qs_kind_set=qs_kind_set, particle_set=particle_set)
-
-      myprow = blacs_env%mepos(1)+1
-      mypcol = blacs_env%mepos(2)+1
-      nprow = blacs_env%num_pe(1)
-      npcol = blacs_env%num_pe(2)
-
-      ALLOCATE (col_cost(natom), row_cost(natom))
-      col_cost = 0.0_dp; row_cost = 0.0_dp
-
-      ALLOCATE (row_dist(natom, 2), col_dist(natom, 2))
-      row_dist = 1; col_dist = 1
-
-      ALLOCATE (o3c)
-      CALL init_o3c_container(o3c, 1, basis_set_a, basis_set_b, basis_set_c, ab_list, ac_list)
-
-      nthread = 1
-!$    nthread = omp_get_max_threads()
-      CALL o3c_iterator_create(o3c, o3c_iterator, nthread=nthread)
-
-!$OMP PARALLEL DEFAULT(NONE) &
-!$OMP SHARED (nthread,o3c_iterator,basis_set_a,basis_set_b,basis_set_c,row_cost,col_cost) &
-!$OMP PRIVATE(mepos,iatom,jatom,ikind,jkind,kkind,cost,nsgfa,nsgfb,nsgfc)
-
-      mepos = 0
-!$    mepos = omp_get_thread_num()
-
-      DO WHILE (o3c_iterate(o3c_iterator, mepos=mepos) == 0)
-         CALL get_o3c_iterator_info(o3c_iterator, mepos=mepos, iatom=iatom, jatom=jatom, &
-                                    ikind=ikind, jkind=jkind, kkind=kkind)
-
-         nsgfa = basis_set_a(ikind)%gto_basis_set%nsgf
-         nsgfb = basis_set_b(jkind)%gto_basis_set%nsgf
-         nsgfc = basis_set_c(kkind)%gto_basis_set%nsgf
-
-         !use the size of the integral in terms of sgf as a measure (because contraction dominates
-         ! over the actual integral most of the time)
-         cost = REAL(nsgfa*nsgfb*nsgfc, dp)
-
-!$OMP ATOMIC
-         row_cost(iatom) = row_cost(iatom)+cost
-!$OMP ATOMIC
-         col_cost(jatom) = col_cost(jatom)+cost
-
-      END DO
-!$OMP END PARALLEL
-      CALL o3c_iterator_release(o3c_iterator)
-      CALL release_o3c_container(o3c)
-      DEALLOCATE (o3c)
-
-      CALL mp_sum(row_cost, para_env%group)
-      CALL mp_sum(col_cost, para_env%group)
-
-      !Distribute the cost as evenly as possible
-      ALLOCATE (col_proc_cost(npcol), row_proc_cost(nprow))
-      col_proc_cost = 0.0_dp; row_proc_cost = 0.0_dp
-      DO i = 1, natom
-         iatom = MAXLOC(row_cost, 1)
-         ip = MINLOC(row_proc_cost, 1)
-         row_proc_cost(ip) = row_proc_cost(ip)+row_cost(iatom)
-         row_dist(iatom, 1) = ip
-         row_cost(iatom) = 0.0_dp
-
-         iatom = MAXLOC(col_cost, 1)
-         ip = MINLOC(col_proc_cost, 1)
-         col_proc_cost(ip) = col_proc_cost(ip)+col_cost(iatom)
-         col_dist(iatom, 1) = ip
-         col_cost(iatom) = 0.0_dp
-      END DO
-
-      !the usual stuff
-      nkind = SIZE(qs_kind_set)
-      ALLOCATE (local_particle_col(nkind), local_particle_row(nkind))
-      ALLOCATE (nparticle_local_row(nkind), nparticle_local_col(nkind))
-      nparticle_local_row = 0; nparticle_local_col = 0
-
-      DO iatom = 1, natom
-         ikind = particle_set(iatom)%atomic_kind%kind_number
-
-         IF (row_dist(iatom, 1) == myprow) nparticle_local_row(ikind) = nparticle_local_row(ikind)+1
-         IF (col_dist(iatom, 1) == mypcol) nparticle_local_col(ikind) = nparticle_local_col(ikind)+1
-      END DO
-
-      DO ikind = 1, nkind
-         n = nparticle_local_row(ikind)
-         ALLOCATE (local_particle_row(ikind)%array(n))
-
-         n = nparticle_local_col(ikind)
-         ALLOCATE (local_particle_col(ikind)%array(n))
-      END DO
-
-      nparticle_local_row = 0; nparticle_local_col = 0
-      DO iatom = 1, natom
-         ikind = particle_set(iatom)%atomic_kind%kind_number
-
-         IF (row_dist(iatom, 1) == myprow) THEN
-            nparticle_local_row(ikind) = nparticle_local_row(ikind)+1
-            local_particle_row(ikind)%array(nparticle_local_row(ikind)) = iatom
-         END IF
-         IF (col_dist(iatom, 1) == mypcol) THEN
-            nparticle_local_col(ikind) = nparticle_local_col(ikind)+1
-            local_particle_col(ikind)%array(nparticle_local_col(ikind)) = iatom
-         END IF
-      END DO
-
-      !Finally create the dist_2d
-      row_dist(:, 1) = row_dist(:, 1)-1
-      col_dist(:, 1) = col_dist(:, 1)-1
-      CALL distribution_2d_create(opt_3c_dist2d, row_distribution_ptr=row_dist, &
-                                  col_distribution_ptr=col_dist, local_rows_ptr=local_particle_row, &
-                                  local_cols_ptr=local_particle_col, blacs_env=blacs_env)
-
-      CALL timestop(handle)
-
-   END SUBROUTINE get_opt_3c_dist2d
-
-! **************************************************************************************************
-!> \brief Builds a neighbor lists set for overlaping 2-center S_ab, where b is restricted on a
-!>        a given list of atoms. Used for Coulomb RI where (aI|P) = sum_b C_bI (ab|P), where
-!>        contraction coeff C_bI is assumed to be non-zero only on excited atoms
-!> \param ab_list the neighbor list
-!> \param basis_a basis set list for atom a
-!> \param basis_b basis set list for atom b
-!> \param qs_env ...
-!> \param excited_atoms the indices of the excited atoms on which b is centered
-!> \param ext_dist2d use an external distribution2d
-! **************************************************************************************************
-   SUBROUTINE build_xas_tdp_ovlp_nl(ab_list, basis_a, basis_b, qs_env, excited_atoms, ext_dist2d)
-
-      TYPE(neighbor_list_set_p_type), DIMENSION(:), &
-         POINTER                                         :: ab_list
-      TYPE(gto_basis_set_p_type), DIMENSION(:), POINTER  :: basis_a, basis_b
-      TYPE(qs_environment_type), POINTER                 :: qs_env
-      INTEGER, DIMENSION(:), INTENT(IN), OPTIONAL        :: excited_atoms
-      TYPE(distribution_2d_type), OPTIONAL, POINTER      :: ext_dist2d
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_xas_tdp_ovlp_nl', &
-         routineP = moduleN//':'//routineN
-
-      INTEGER                                            :: ikind, nkind
-      LOGICAL                                            :: my_restrictb
-      LOGICAL, ALLOCATABLE, DIMENSION(:)                 :: a_present, b_present
-      REAL(dp)                                           :: subcells
-      REAL(dp), ALLOCATABLE, DIMENSION(:)                :: a_radius, b_radius
-      REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: pair_radius
-      TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
-      TYPE(cell_type), POINTER                           :: cell
-      TYPE(distribution_1d_type), POINTER                :: distribution_1d
-      TYPE(distribution_2d_type), POINTER                :: distribution_2d
-      TYPE(local_atoms_type), ALLOCATABLE, DIMENSION(:)  :: atom2d
-      TYPE(molecule_type), DIMENSION(:), POINTER         :: molecule_set
-      TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
-
-      NULLIFY (atomic_kind_set, distribution_1d, distribution_2d, molecule_set, particle_set, cell)
-
-!  Initialization
-      CALL get_qs_env(qs_env, nkind=nkind)
-      CALL section_vals_val_get(qs_env%input, "DFT%SUBCELLS", r_val=subcells)
-
-      my_restrictb = .FALSE.
-      IF (PRESENT(excited_atoms)) THEN
-         my_restrictb = .TRUE.
-      END IF
-
-      ALLOCATE (a_present(nkind), b_present(nkind))
-      a_present = .FALSE.
-      b_present = .FALSE.
-      ALLOCATE (a_radius(nkind), b_radius(nkind))
-      a_radius = 0.0_dp
-      b_radius = 0.0_dp
-
-!  Set up the radii
-      DO ikind = 1, nkind
-         IF (ASSOCIATED(basis_a(ikind)%gto_basis_set)) THEN
-            a_present(ikind) = .TRUE.
-            CALL get_gto_basis_set(basis_a(ikind)%gto_basis_set, kind_radius=a_radius(ikind))
-         END IF
-
-         IF (ASSOCIATED(basis_b(ikind)%gto_basis_set)) THEN
-            b_present(ikind) = .TRUE.
-            CALL get_gto_basis_set(basis_b(ikind)%gto_basis_set, kind_radius=b_radius(ikind))
-         END IF
-      END DO !ikind
-
-      ALLOCATE (pair_radius(nkind, nkind))
-      pair_radius = 0.0_dp
-      CALL pair_radius_setup(a_present, b_present, a_radius, b_radius, pair_radius)
-
-!  Set up the nl
-      CALL get_qs_env(qs_env, atomic_kind_set=atomic_kind_set, cell=cell, &
-                      distribution_2d=distribution_2d, local_particles=distribution_1d, &
-                      particle_set=particle_set, molecule_set=molecule_set)
-
-      !use an external distribution_2d if required
-      IF (PRESENT(ext_dist2d)) distribution_2d => ext_dist2d
-
-      ALLOCATE (atom2d(nkind))
-      CALL atom2d_build(atom2d, distribution_1d, distribution_2d, atomic_kind_set, &
-                        molecule_set, .FALSE., particle_set)
-
-      IF (my_restrictb) THEN
-
-         CALL build_neighbor_lists(ab_list, particle_set, atom2d, cell, pair_radius, subcells, &
-                                   atomb_to_keep=excited_atoms, nlname="XAS_TDP_ovlp_nl")
-
-      ELSE
-
-         CALL build_neighbor_lists(ab_list, particle_set, atom2d, cell, pair_radius, subcells, &
-                                   nlname="XAS_TDP_ovlp_nl")
-
-      END IF
-!  Clean-up
-      CALL atom2d_cleanup(atom2d)
-
-   END SUBROUTINE build_xas_tdp_ovlp_nl
-
-! **************************************************************************************************
-!> \brief Builds a neighbor lists set taylored for 3-center integral within XAS TDP, such that only
-!>        excited atoms are taken into account for the list_c
-!> \param ac_list the neighbor list ready for 3-center integrals
-!> \param basis_a basis set list for atom a
-!> \param basis_c basis set list for atom c
-!> \param op_type to indicate whther the list should be built with overlap or Coulomb in mind
-!> \param qs_env ...
-!> \param excited_atoms the indices of the excited atoms to consider (if not given, all atoms are taken)
-!> \param x_range in case some truncated/screened operator is used, gives its range
-!> \param ext_dist2d external distribution_2d to be used
-!> \note Based on setup_neighbor_list with added features
-! **************************************************************************************************
-   SUBROUTINE build_xas_tdp_3c_nl(ac_list, basis_a, basis_c, op_type, qs_env, excited_atoms, &
-                                  x_range, ext_dist2d)
-
-      TYPE(neighbor_list_set_p_type), DIMENSION(:), &
-         POINTER                                         :: ac_list
-      TYPE(gto_basis_set_p_type), DIMENSION(:), POINTER  :: basis_a, basis_c
-      INTEGER, INTENT(IN)                                :: op_type
-      TYPE(qs_environment_type), POINTER                 :: qs_env
-      INTEGER, DIMENSION(:), INTENT(IN), OPTIONAL        :: excited_atoms
-      REAL(dp), INTENT(IN), OPTIONAL                     :: x_range
-      TYPE(distribution_2d_type), OPTIONAL, POINTER      :: ext_dist2d
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_xas_tdp_3c_nl', &
-         routineP = moduleN//':'//routineN
-
-      INTEGER                                            :: ikind, nkind
-      LOGICAL                                            :: sort_atoms
-      LOGICAL, ALLOCATABLE, DIMENSION(:)                 :: a_present, c_present
-      REAL(dp)                                           :: subcells
-      REAL(dp), ALLOCATABLE, DIMENSION(:)                :: a_radius, c_radius
-      REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: pair_radius
-      TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
-      TYPE(cell_type), POINTER                           :: cell
-      TYPE(distribution_1d_type), POINTER                :: distribution_1d
-      TYPE(distribution_2d_type), POINTER                :: distribution_2d
-      TYPE(local_atoms_type), ALLOCATABLE, DIMENSION(:)  :: atom2d
-      TYPE(molecule_type), DIMENSION(:), POINTER         :: molecule_set
-      TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
-
-      NULLIFY (atomic_kind_set, distribution_1d, distribution_2d, molecule_set, particle_set, cell)
-
-!  Initialization
-      CALL get_qs_env(qs_env, nkind=nkind)
-      CALL section_vals_val_get(qs_env%input, "DFT%SUBCELLS", r_val=subcells)
-      sort_atoms = .FALSE.
-      IF ((PRESENT(excited_atoms))) sort_atoms = .TRUE.
-
-      ALLOCATE (a_present(nkind), c_present(nkind))
-      a_present = .FALSE.
-      c_present = .FALSE.
-      ALLOCATE (a_radius(nkind), c_radius(nkind))
-      a_radius = 0.0_dp
-      c_radius = 0.0_dp
-
-!  Set up the radii, depending on the operator type
-      IF (op_type == do_potential_id) THEN
-
-         !overlap => use the kind radius for both a and c
-         DO ikind = 1, nkind
-            !orbital basis set
-            IF (ASSOCIATED(basis_a(ikind)%gto_basis_set)) THEN
-               a_present(ikind) = .TRUE.
-               CALL get_gto_basis_set(basis_a(ikind)%gto_basis_set, kind_radius=a_radius(ikind))
-            END IF
-            !RI_XAS basis set
-            IF (ASSOCIATED(basis_c(ikind)%gto_basis_set)) THEN
-               c_present(ikind) = .TRUE.
-               CALL get_gto_basis_set(basis_c(ikind)%gto_basis_set, kind_radius=c_radius(ikind))
-            END IF
-         END DO !ikind
-
-      ELSE IF (op_type == do_potential_coulomb) THEN
-
-         !Coulomb operator, virtually infinite range => set c_radius to arbitrarily large number
-         DO ikind = 1, nkind
-            IF (ASSOCIATED(basis_c(ikind)%gto_basis_set)) THEN
-               c_present(ikind) = .TRUE.
-               c_radius(ikind) = 1000000.0_dp
-            END IF
-            IF (ASSOCIATED(basis_a(ikind)%gto_basis_set)) a_present(ikind) = .TRUE.
-         END DO !ikind
-
-      ELSE IF (op_type == do_potential_truncated .OR. op_type == do_potential_short) THEN
-
-         !Truncated coulomb/short range: set c_radius to x_range + the kind_radii
-         DO ikind = 1, nkind
-            IF (ASSOCIATED(basis_a(ikind)%gto_basis_set)) THEN
-               a_present(ikind) = .TRUE.
-               CALL get_gto_basis_set(basis_a(ikind)%gto_basis_set, kind_radius=a_radius(ikind))
-            END IF
-            IF (ASSOCIATED(basis_c(ikind)%gto_basis_set)) THEN
-               c_present(ikind) = .TRUE.
-               CALL get_gto_basis_set(basis_c(ikind)%gto_basis_set, kind_radius=c_radius(ikind))
-               c_radius(ikind) = c_radius(ikind)+x_range
-            END IF
-         END DO !ikind
-
-      ELSE
-         CPABORT("Operator not known")
-      END IF
-
-      ALLOCATE (pair_radius(nkind, nkind))
-      pair_radius = 0.0_dp
-      CALL pair_radius_setup(a_present, c_present, a_radius, c_radius, pair_radius)
-
-!  Actually setup the list
-      CALL get_qs_env(qs_env, atomic_kind_set=atomic_kind_set, cell=cell, &
-                      distribution_2d=distribution_2d, local_particles=distribution_1d, &
-                      particle_set=particle_set, molecule_set=molecule_set)
-
-      !use an external distribution_2d if required
-      IF (PRESENT(ext_dist2d)) distribution_2d => ext_dist2d
-
-      ALLOCATE (atom2d(nkind))
-      CALL atom2d_build(atom2d, distribution_1d, distribution_2d, atomic_kind_set, &
-                        molecule_set, .FALSE., particle_set)
-
-      IF (sort_atoms) THEN
-         CALL build_neighbor_lists(ac_list, particle_set, atom2d, cell, pair_radius, subcells, &
-                                   operator_type="ABC", atomb_to_keep=excited_atoms, &
-                                   nlname="XAS_TDP_3c_nl")
-      ELSE
-         CALL build_neighbor_lists(ac_list, particle_set, atom2d, cell, pair_radius, subcells, &
-                                   operator_type="ABC", nlname="XAS_TDP_3c_nl")
-      END IF
-
-!  Clean-up
-      CALL atom2d_cleanup(atom2d)
-
-   END SUBROUTINE build_xas_tdp_3c_nl
 
 ! **************************************************************************************************
 !> \brief Includes the SOC effects on the precomputed spin-conserving and spin-flip excitations
@@ -2258,7 +1264,7 @@ CONTAINS
       sf_evals => donor_state%sf_evals
       nsc = SIZE(sc_evals)
       nsf = SIZE(sf_evals)
-      ntot = 1+nsc+nsf
+      ntot = 1 + nsc + nsf
       nex = nsc !by contrutciotn nsc == nsf, but keep 2 counts for clarity
       ndo_mo = donor_state%ndo_mo
       ndo_so = 2*ndo_mo
@@ -2285,7 +1291,7 @@ CONTAINS
                                  t_firstcol=1)
          CALL cp_fm_to_fm_submat(msource=donor_state%gs_coeffs, mtarget=gs_coeffs, nrow=nao, &
                                  ncol=ndo_mo, s_firstrow=1, s_firstcol=1, t_firstrow=1, &
-                                 t_firstcol=ndo_mo+1)
+                                 t_firstcol=ndo_mo + 1)
 
          CALL cp_fm_struct_release(vec_struct)
       END IF
@@ -2298,10 +1304,10 @@ CONTAINS
 
 ! Put the excitation energies on the diagonal of the real  matrix. Element 1,1 is the ground state
       DO isc = 1, nsc
-         CALL cp_fm_set_element(real_fm, 1+isc, 1+isc, sc_evals(isc))
+         CALL cp_fm_set_element(real_fm, 1 + isc, 1 + isc, sc_evals(isc))
       END DO
       DO isf = 1, nsf
-         CALL cp_fm_set_element(real_fm, 1+nsc+isf, 1+nsc+isf, sf_evals(isf))
+         CALL cp_fm_set_element(real_fm, 1 + nsc + isf, 1 + nsc + isf, sf_evals(isf))
       END DO
 
 ! Create the bdcsr machinery
@@ -2310,8 +1316,8 @@ CONTAINS
                                   npcols=npcols, nprows=nprows)
       ALLOCATE (col_dist(nex), row_dist_new(nex))
       DO iex = 1, nex
-         col_dist(iex) = MODULO(npcols-iex, npcols)
-         row_dist_new(iex) = MODULO(nprows-iex, nprows)
+         col_dist(iex) = MODULO(npcols - iex, npcols)
+         row_dist_new(iex) = MODULO(nprows - iex, nprows)
       END DO
       ALLOCATE (coeffs_dist, prod_dist)
       CALL dbcsr_distribution_new(coeffs_dist, group=group, pgrid=pgrid, row_dist=row_dist, &
@@ -2390,7 +1396,7 @@ CONTAINS
       CALL cp_dbcsr_sm_fm_multiply(orb_soc_z, mo_coeff, vec_work, ncol=homo)
       CALL cp_gemm('T', 'N', homo, homo, nao, 1.0_dp, mo_coeff, vec_work, 0.0_dp, prod_work)
       CALL cp_fm_get_diag(prod_work, diag)
-      gs_sum = gs_sum-SUM(diag) ! -1 because of spin integration
+      gs_sum = gs_sum - SUM(diag) ! -1 because of spin integration
 
       CALL cp_fm_release(vec_work)
       CALL cp_fm_release(prod_work)
@@ -2445,13 +1451,13 @@ CONTAINS
       CALL cp_gemm('T', 'N', nex*ndo_so, ndo_so, nao, -1.0_dp, sc_coeffs, vec_soc_z, 0.0_dp, gsex_fm)
 
       DO isc = 1, nsc
-         CALL cp_fm_get_submatrix(fm=gsex_fm, target_m=gsex_block, start_row=(isc-1)*ndo_so+1, &
+         CALL cp_fm_get_submatrix(fm=gsex_fm, target_m=gsex_block, start_row=(isc - 1)*ndo_so + 1, &
                                   start_col=1, n_rows=ndo_so, n_cols=ndo_so)
          diag(:) = get_diag(gsex_block)
-         soc = SUM(diag(1:ndo_mo))-SUM(diag(ndo_mo+1:ndo_so)) !minus sign because of spin integration
+         soc = SUM(diag(1:ndo_mo)) - SUM(diag(ndo_mo + 1:ndo_so)) !minus sign because of spin integration
 
          !purely imaginary contribution
-         CALL cp_fm_set_element(img_fm, 1, 1+isc, soc)
+         CALL cp_fm_set_element(img_fm, 1, 1 + isc, soc)
       END DO !isc
 
 !  Then ground-state/spin-flip SOC:
@@ -2461,23 +1467,23 @@ CONTAINS
       CALL cp_gemm('T', 'N', nex*ndo_so, ndo_so, nao, -1.0_dp, sc_coeffs, vec_soc_x, 0.0_dp, gsex_fm)
 
       DO isf = 1, nsf
-         CALL cp_fm_get_submatrix(fm=gsex_fm, target_m=gsex_block, start_row=(isf-1)*ndo_so+1, &
+         CALL cp_fm_get_submatrix(fm=gsex_fm, target_m=gsex_block, start_row=(isf - 1)*ndo_so + 1, &
                                   start_col=1, n_rows=ndo_so, n_cols=ndo_so)
          diag(:) = get_diag(gsex_block)
          soc = SUM(diag) !alpha and beta parts are simply added due to spin integration
-         CALL cp_fm_set_element(img_fm, 1, 1+nsc+isf, soc)
+         CALL cp_fm_set_element(img_fm, 1, 1 + nsc + isf, soc)
       END DO !isf
 
       !compute -sc_coeffs*SOC_y*gs_coeffs, real contribution
       CALL cp_gemm('T', 'N', nex*ndo_so, ndo_so, nao, -1.0_dp, sc_coeffs, vec_soc_y, 0.0_dp, gsex_fm)
 
       DO isf = 1, nsf
-         CALL cp_fm_get_submatrix(fm=gsex_fm, target_m=gsex_block, start_row=(isf-1)*ndo_so+1, &
+         CALL cp_fm_get_submatrix(fm=gsex_fm, target_m=gsex_block, start_row=(isf - 1)*ndo_so + 1, &
                                   start_col=1, n_rows=ndo_so, n_cols=ndo_so)
          diag(:) = get_diag(gsex_block)
          soc = SUM(diag(1:ndo_mo)) ! alpha-beta
-         soc = soc-SUM(diag(ndo_mo+1:ndo_so)) !beta-alpha
-         CALL cp_fm_set_element(real_fm, 1, 1+nsc+isf, soc)
+         soc = soc - SUM(diag(ndo_mo + 1:ndo_so)) !beta-alpha
+         CALL cp_fm_set_element(real_fm, 1, 1 + nsc + isf, soc)
       END DO !isf
 
       !ground-state cleanup
@@ -2535,14 +1541,14 @@ CONTAINS
 
       CALL copy_dbcsr_to_fm(dbcsr_tmp, work_fm)
       CALL cp_fm_to_fm_submat(msource=work_fm, mtarget=img_fm, nrow=nex, ncol=nex, s_firstrow=1, &
-                              s_firstcol=1, t_firstrow=1+nsc+1, t_firstcol=1+nsc+1)
+                              s_firstcol=1, t_firstrow=1 + nsc + 1, t_firstcol=1 + nsc + 1)
 
 !  Finally the spin-conserving/spin-flip interaction
 ! <Psi_Isc|SOC|Psi_Jsf> =   sum_k,sigma <psi^Isc_k,sigma|SOC|psi^Isf_k,tau>
 !                           - sum_k,l,sigma <psi^0_k,tau|SOC|psi^0_l,sigma
 
-      tas(1) = 1; tbs(1) = ndo_mo+1
-      tas(2) = ndo_mo+1; tbs(2) = 1
+      tas(1) = 1; tbs(1) = ndo_mo + 1
+      tas(2) = ndo_mo + 1; tbs(2) = 1
 
       !the overlap
       CALL dbcsr_multiply('N', 'N', 1.0_dp, matrix_s(1)%matrix, dbcsr_sf, 0.0_dp, &
@@ -2559,7 +1565,7 @@ CONTAINS
 
       CALL copy_dbcsr_to_fm(dbcsr_tmp, work_fm)
       CALL cp_fm_to_fm_submat(msource=work_fm, mtarget=img_fm, nrow=nex, ncol=nex, s_firstrow=1, &
-                              s_firstcol=1, t_firstrow=2, t_firstcol=1+nsc+1)
+                              s_firstcol=1, t_firstrow=2, t_firstcol=1 + nsc + 1)
 
       !follow up with the real contribution
       CALL dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_y, dbcsr_sf, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
@@ -2571,7 +1577,7 @@ CONTAINS
 
       CALL copy_dbcsr_to_fm(dbcsr_tmp, work_fm)
       CALL cp_fm_to_fm_submat(msource=work_fm, mtarget=real_fm, nrow=nex, ncol=nex, s_firstrow=1, &
-                              s_firstcol=1, t_firstrow=2, t_firstcol=1+nsc+1)
+                              s_firstcol=1, t_firstrow=2, t_firstcol=1 + nsc + 1)
 
 !  Setting up the complex Hermitian perturbed matrix
       CALL cp_cfm_create(pert_cfm, full_struct)
@@ -2586,8 +1592,8 @@ CONTAINS
       CALL cp_cfm_heevd(pert_cfm, evecs_cfm, tmp_evals)
 
       !shift the energies such that the GS has zero and store all that in soc_evals (\wo the GS)
-      ALLOCATE (donor_state%soc_evals(ntot-1))
-      donor_state%soc_evals(:) = tmp_evals(2:ntot)-tmp_evals(1)
+      ALLOCATE (donor_state%soc_evals(ntot - 1))
+      donor_state%soc_evals(:) = tmp_evals(2:ntot) - tmp_evals(1)
 
 !  The SOC dipole oscillator strengths
       CALL compute_soc_dipole_fosc(evecs_cfm, dbcsr_soc_package, donor_state, xas_tdp_env, &
@@ -2693,7 +1699,7 @@ CONTAINS
       tp_evals => donor_state%tp_evals
       nsg = SIZE(sg_evals)
       ntp = SIZE(tp_evals)
-      ntot = 1+nsg+3*ntp
+      ntot = 1 + nsg + 3*ntp
       ndo_mo = donor_state%ndo_mo
       CALL get_qs_env(qs_env, matrix_s=matrix_s)
       CALL dbcsr_get_info(matrix_s(1)%matrix, nfullrows_total=nao)
@@ -2714,13 +1720,13 @@ CONTAINS
 
 !  Put the excitation energies on the diagonal of the real matrix
       DO isg = 1, nsg
-         CALL cp_fm_set_element(real_fm, 1+isg, 1+isg, sg_evals(isg))
+         CALL cp_fm_set_element(real_fm, 1 + isg, 1 + isg, sg_evals(isg))
       END DO
       DO itp = 1, ntp
          ! first T^-1, then T^0, then T^+1
-         CALL cp_fm_set_element(real_fm, 1+itp+nsg, 1+itp+nsg, tp_evals(itp))
-         CALL cp_fm_set_element(real_fm, 1+itp+ntp+nsg, 1+itp+ntp+nsg, tp_evals(itp))
-         CALL cp_fm_set_element(real_fm, 1+itp+2*ntp+nsg, 1+itp+2*ntp+nsg, tp_evals(itp))
+         CALL cp_fm_set_element(real_fm, 1 + itp + nsg, 1 + itp + nsg, tp_evals(itp))
+         CALL cp_fm_set_element(real_fm, 1 + itp + ntp + nsg, 1 + itp + ntp + nsg, tp_evals(itp))
+         CALL cp_fm_set_element(real_fm, 1 + itp + 2*ntp + nsg, 1 + itp + 2*ntp + nsg, tp_evals(itp))
       END DO
 
 !  Create the dbcsr machinery (for fast MM, the core of this routine)
@@ -2729,8 +1735,8 @@ CONTAINS
                                   npcols=npcols, nprows=nprows)
       ALLOCATE (col_dist(nex), row_dist_new(nex))
       DO iex = 1, nex
-         col_dist(iex) = MODULO(npcols-iex, npcols)
-         row_dist_new(iex) = MODULO(nprows-iex, nprows)
+         col_dist(iex) = MODULO(npcols - iex, npcols)
+         row_dist_new(iex) = MODULO(nprows - iex, nprows)
       END DO
       ALLOCATE (coeffs_dist, prod_dist)
       CALL dbcsr_distribution_new(coeffs_dist, group=group, pgrid=pgrid, row_dist=row_dist, &
@@ -2820,35 +1826,35 @@ CONTAINS
       CALL cp_gemm('T', 'N', ndo_mo*ntp, ndo_mo, nao, -1.0_dp, tp_coeffs, vec_soc_x, 0.0_dp, gstp_fm)
 
       DO itp = 1, ntp
-         CALL cp_fm_get_submatrix(fm=gstp_fm, target_m=gstp_block, start_row=(itp-1)*ndo_mo+1, &
+         CALL cp_fm_get_submatrix(fm=gstp_fm, target_m=gstp_block, start_row=(itp - 1)*ndo_mo + 1, &
                                   start_col=1, n_rows=ndo_mo, n_cols=ndo_mo)
          diag(:) = get_diag(gstp_block)
          soc_gst = SUM(diag)
-         CALL cp_fm_set_element(img_fm, 1, 1+nsg+itp, -1.0_dp*soc_gst) ! <0|H_x|T^-1>
-         CALL cp_fm_set_element(img_fm, 1, 1+nsg+2*ntp+itp, soc_gst) ! <0|H_x|T^+1>
+         CALL cp_fm_set_element(img_fm, 1, 1 + nsg + itp, -1.0_dp*soc_gst) ! <0|H_x|T^-1>
+         CALL cp_fm_set_element(img_fm, 1, 1 + nsg + 2*ntp + itp, soc_gst) ! <0|H_x|T^+1>
       END DO
 
       !gs-triplet with Ms=+-1, real part
       CALL cp_gemm('T', 'N', ndo_mo*ntp, ndo_mo, nao, -1.0_dp, tp_coeffs, vec_soc_y, 0.0_dp, gstp_fm)
 
       DO itp = 1, ntp
-         CALL cp_fm_get_submatrix(fm=gstp_fm, target_m=gstp_block, start_row=(itp-1)*ndo_mo+1, &
+         CALL cp_fm_get_submatrix(fm=gstp_fm, target_m=gstp_block, start_row=(itp - 1)*ndo_mo + 1, &
                                   start_col=1, n_rows=ndo_mo, n_cols=ndo_mo)
          diag(:) = get_diag(gstp_block)
          soc_gst = SUM(diag)
-         CALL cp_fm_set_element(real_fm, 1, 1+nsg+itp, -1.0_dp*soc_gst) ! <0|H_y|T^-1>
-         CALL cp_fm_set_element(real_fm, 1, 1+nsg+2*ntp+itp, -1.0_dp*soc_gst) ! <0|H_y|T^+1>
+         CALL cp_fm_set_element(real_fm, 1, 1 + nsg + itp, -1.0_dp*soc_gst) ! <0|H_y|T^-1>
+         CALL cp_fm_set_element(real_fm, 1, 1 + nsg + 2*ntp + itp, -1.0_dp*soc_gst) ! <0|H_y|T^+1>
       END DO
 
       !gs-triplet with Ms=0, purely imaginary
       CALL cp_gemm('T', 'N', ndo_mo*ntp, ndo_mo, nao, -1.0_dp, tp_coeffs, vec_soc_z, 0.0_dp, gstp_fm)
 
       DO itp = 1, ntp
-         CALL cp_fm_get_submatrix(fm=gstp_fm, target_m=gstp_block, start_row=(itp-1)*ndo_mo+1, &
+         CALL cp_fm_get_submatrix(fm=gstp_fm, target_m=gstp_block, start_row=(itp - 1)*ndo_mo + 1, &
                                   start_col=1, n_rows=ndo_mo, n_cols=ndo_mo)
          diag(:) = get_diag(gstp_block)
          soc_gst = sqrt2*SUM(diag)
-         CALL cp_fm_set_element(img_fm, 1, 1+nsg+ntp+itp, soc_gst)
+         CALL cp_fm_set_element(img_fm, 1, 1 + nsg + ntp + itp, soc_gst)
       END DO
 
       !gs clean-up
@@ -2878,13 +1884,13 @@ CONTAINS
       CALL copy_dbcsr_to_fm(dbcsr_tmp, tmp_fm)
       CALL cp_fm_to_fm_submat(msource=tmp_fm, mtarget=img_fm, nrow=nex, ncol=nex, &
                               s_firstrow=1, s_firstcol=1, t_firstrow=2, &
-                              t_firstcol=1+nsg+1)
+                              t_firstcol=1 + nsg + 1)
 
       !<S|H_x|T^+1> takes a minus sign
       CALL cp_fm_scale(-1.0_dp, tmp_fm)
       CALL cp_fm_to_fm_submat(msource=tmp_fm, mtarget=img_fm, nrow=nex, ncol=nex, &
                               s_firstrow=1, s_firstcol=1, t_firstrow=2, &
-                              t_firstcol=1+nsg+2*ntp+1)
+                              t_firstcol=1 + nsg + 2*ntp + 1)
 
       !singlet-triplet with Ms=+-1, real part
       CALL dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_y, dbcsr_tp, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
@@ -2897,12 +1903,12 @@ CONTAINS
       CALL copy_dbcsr_to_fm(dbcsr_tmp, tmp_fm)
       CALL cp_fm_to_fm_submat(msource=tmp_fm, mtarget=real_fm, nrow=nex, ncol=nex, &
                               s_firstrow=1, s_firstcol=1, t_firstrow=2, &
-                              t_firstcol=1+nsg+1)
+                              t_firstcol=1 + nsg + 1)
 
       !<S|H_y|T^+1>
       CALL cp_fm_to_fm_submat(msource=tmp_fm, mtarget=real_fm, nrow=nex, ncol=nex, &
                               s_firstrow=1, s_firstcol=1, t_firstrow=2, &
-                              t_firstcol=1+nsg+2*ntp+1)
+                              t_firstcol=1 + nsg + 2*ntp + 1)
 
       !singlet-triplet with Ms=0, purely imaginary
       CALL dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_z, dbcsr_tp, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
@@ -2915,7 +1921,7 @@ CONTAINS
       CALL copy_dbcsr_to_fm(dbcsr_tmp, tmp_fm)
       CALL cp_fm_to_fm_submat(msource=tmp_fm, mtarget=img_fm, nrow=nex, ncol=nex, &
                               s_firstrow=1, s_firstcol=1, t_firstrow=2, &
-                              t_firstcol=1+nsg+ntp+1)
+                              t_firstcol=1 + nsg + ntp + 1)
 
       !Now the triplet-triplet SOC
       !start by computing the overlap
@@ -2933,15 +1939,15 @@ CONTAINS
       !<T^0|H_x|T^+1>
       CALL copy_dbcsr_to_fm(dbcsr_tmp, tmp_fm)
       CALL cp_fm_to_fm_submat(msource=tmp_fm, mtarget=img_fm, nrow=nex, ncol=nex, &
-                              s_firstrow=1, s_firstcol=1, t_firstrow=1+nsg+ntp+1, &
-                              t_firstcol=1+nsg+2*ntp+1)
+                              s_firstrow=1, s_firstcol=1, t_firstrow=1 + nsg + ntp + 1, &
+                              t_firstcol=1 + nsg + 2*ntp + 1)
 
       !<T^-1|H_x|T^0>, takes a minus sign and a transpose (because computed <T^0|H_x|T^-1>)
       CALL cp_fm_transpose(tmp_fm, work_fm)
       CALL cp_fm_scale(-1.0_dp, work_fm)
       CALL cp_fm_to_fm_submat(msource=work_fm, mtarget=img_fm, nrow=nex, ncol=nex, &
-                              s_firstrow=1, s_firstcol=1, t_firstrow=1+nsg+1, &
-                              t_firstcol=1+nsg+ntp+1)
+                              s_firstrow=1, s_firstcol=1, t_firstrow=1 + nsg + 1, &
+                              t_firstcol=1 + nsg + ntp + 1)
 
       !Ms=0 to Ms=+-1 SOC, real part
       CALL dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_y, dbcsr_tp, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
@@ -2953,15 +1959,15 @@ CONTAINS
       !<T^0|H_y|T^+1>
       CALL copy_dbcsr_to_fm(dbcsr_tmp, tmp_fm)
       CALL cp_fm_to_fm_submat(msource=tmp_fm, mtarget=real_fm, nrow=nex, ncol=nex, &
-                              s_firstrow=1, s_firstcol=1, t_firstrow=1+nsg+ntp+1, &
-                              t_firstcol=1+nsg+2*ntp+1)
+                              s_firstrow=1, s_firstcol=1, t_firstrow=1 + nsg + ntp + 1, &
+                              t_firstcol=1 + nsg + 2*ntp + 1)
 
       !<T^-1|H_y|T^0>, takes a minus sign and a transpose
       CALL cp_fm_transpose(tmp_fm, work_fm)
       CALL cp_fm_scale(-1.0_dp, work_fm)
       CALL cp_fm_to_fm_submat(msource=work_fm, mtarget=real_fm, nrow=nex, ncol=nex, &
-                              s_firstrow=1, s_firstcol=1, t_firstrow=1+nsg+1, &
-                              t_firstcol=1+nsg+ntp+1)
+                              s_firstrow=1, s_firstcol=1, t_firstrow=1 + nsg + 1, &
+                              t_firstcol=1 + nsg + ntp + 1)
 
       !Ms=1 to Ms=1 and Ms=-1 to Ms=-1 SOC, purely imaginary
       CALL dbcsr_multiply('N', 'N', 1.0_dp, orb_soc_z, dbcsr_tp, 0.0_dp, dbcsr_work, filter_eps=eps_filter)
@@ -2973,14 +1979,14 @@ CONTAINS
       !<T^+1|H_z|T^+1>
       CALL copy_dbcsr_to_fm(dbcsr_tmp, tmp_fm)
       CALL cp_fm_to_fm_submat(msource=tmp_fm, mtarget=img_fm, nrow=nex, ncol=nex, &
-                              s_firstrow=1, s_firstcol=1, t_firstrow=1+nsg+2*ntp+1, &
-                              t_firstcol=1+nsg+2*ntp+1)
+                              s_firstrow=1, s_firstcol=1, t_firstrow=1 + nsg + 2*ntp + 1, &
+                              t_firstcol=1 + nsg + 2*ntp + 1)
 
       !<T^-1|H_z|T^-1>, takes a minus sign
       CALL cp_fm_scale(-1.0_dp, tmp_fm)
       CALL cp_fm_to_fm_submat(msource=tmp_fm, mtarget=img_fm, nrow=nex, ncol=nex, &
-                              s_firstrow=1, s_firstcol=1, t_firstrow=1+nsg+1, &
-                              t_firstcol=1+nsg+1)
+                              s_firstrow=1, s_firstcol=1, t_firstrow=1 + nsg + 1, &
+                              t_firstcol=1 + nsg + 1)
 
 !  Intermediate clean-up
       CALL cp_fm_struct_release(work_struct)
@@ -3001,8 +2007,8 @@ CONTAINS
       CALL cp_cfm_heevd(hami_cfm, evecs_cfm, tmp_evals)
 
       !  Adjust the energies so the GS has zero, and store in the donor_state (without the GS)
-      ALLOCATE (donor_state%soc_evals(ntot-1))
-      donor_state%soc_evals(:) = tmp_evals(2:ntot)-tmp_evals(1)
+      ALLOCATE (donor_state%soc_evals(ntot - 1))
+      donor_state%soc_evals(:) = tmp_evals(2:ntot) - tmp_evals(1)
 
 !  Compute the dipole oscillator strengths
       CALL compute_soc_dipole_fosc(evecs_cfm, dbcsr_soc_package, donor_state, xas_tdp_env, &
@@ -3035,7 +2041,7 @@ CONTAINS
 
 ! **************************************************************************************************
 !> \brief Computes the matrix elements of a one-body operator (given wrt AOs) in the basis of the
-!>        excited state AMEWs with groud state, for the open-shell case
+!>        excited state AMEWs with ground state, for the open-shell case
 !> \param amew_op the operator in the basis of the AMEWs (array because could have x,y,z components)
 !> \param ao_op the operator in the basis of the atomic orbitals
 !> \param gs_coeffs the coefficient of the GS donor MOs. Ecplicitely passed because of special
@@ -3091,7 +2097,7 @@ CONTAINS
       nsc = SIZE(donor_state%sc_evals)
       nsf = SIZE(donor_state%sf_evals)
       nex = nsc
-      ntot = 1+nsc+nsf
+      ntot = 1 + nsc + nsf
       ndo_mo = donor_state%ndo_mo
       ndo_so = 2*donor_state%ndo_mo !open-shell => nspins = 2
       CALL get_qs_env(qs_env, matrix_s=matrix_s, para_env=para_env, blacs_env=blacs_env, mos=mos)
@@ -3158,7 +2164,7 @@ CONTAINS
          CALL cp_dbcsr_sm_fm_multiply(ao_op_i, mo_coeff, vec_work, ncol=homo)
          CALL cp_gemm('T', 'N', homo, homo, nao, 1.0_dp, mo_coeff, vec_work, 0.0_dp, prod_work)
          CALL cp_fm_get_diag(prod_work, diag)
-         gsgs_op(i) = gsgs_op(i)+SUM(diag)
+         gsgs_op(i) = gsgs_op(i) + SUM(diag)
 
       END DO !i
 
@@ -3205,11 +2211,11 @@ CONTAINS
          !  Do the ground-state/spin-conserving operator
          CALL cp_gemm('T', 'N', ndo_so*nsc, ndo_so, nao, 1.0_dp, sc_coeffs, vec_work, 0.0_dp, gsex_fm)
          DO isc = 1, nsc
-            CALL cp_fm_get_submatrix(fm=gsex_fm, target_m=gsex_block, start_row=(isc-1)*ndo_so+1, &
+            CALL cp_fm_get_submatrix(fm=gsex_fm, target_m=gsex_block, start_row=(isc - 1)*ndo_so + 1, &
                                      start_col=1, n_rows=ndo_so, n_cols=ndo_so)
             diag(:) = get_diag(gsex_block)
             op = SUM(diag)
-            CALL cp_fm_set_element(amew_op_i, 1, 1+isc, op)
+            CALL cp_fm_set_element(amew_op_i, 1, 1 + isc, op)
          END DO !isc
 
          !  The spin-conserving/spin-conserving operator
@@ -3241,8 +2247,8 @@ CONTAINS
          CALL dbcsr_multiply('T', 'N', 1.0_dp, dbcsr_sf, dbcsr_work, 0.0_dp, dbcsr_prod, filter_eps=eps_filter)
 
          !need to reorganize the domo_op array by swapping the alpha-alpha and the beta-beta quarter
-         tmp(1:ndo_mo, 1:ndo_mo) = domo_op(ndo_mo+1:ndo_so, ndo_mo+1:ndo_so)
-         tmp(ndo_mo+1:ndo_so, ndo_mo+1:ndo_so) = domo_op(1:ndo_mo, 1:ndo_mo)
+         tmp(1:ndo_mo, 1:ndo_mo) = domo_op(ndo_mo + 1:ndo_so, ndo_mo + 1:ndo_so)
+         tmp(ndo_mo + 1:ndo_so, ndo_mo + 1:ndo_so) = domo_op(1:ndo_mo, 1:ndo_mo)
 
          CALL os_amew_soc_elements(dbcsr_tmp, dbcsr_prod, dbcsr_ovlp, tmp, pref_diaga=1.0_dp, &
                                    pref_diagb=1.0_dp, pref_tracea=-1.0_dp, pref_traceb=-1.0_dp, &
@@ -3250,7 +2256,7 @@ CONTAINS
 
          CALL copy_dbcsr_to_fm(dbcsr_tmp, tmp_fm)
          CALL cp_fm_to_fm_submat(msource=tmp_fm, mtarget=amew_op_i, nrow=nex, ncol=nex, &
-                                 s_firstrow=1, s_firstcol=1, t_firstrow=1+nsc+1, t_firstcol=1+nsc+1)
+                                 s_firstrow=1, s_firstcol=1, t_firstrow=1 + nsc + 1, t_firstcol=1 + nsc + 1)
 
          !Symmetry => only upper diag explicitly built
          CALL cp_fm_upper_to_full(amew_op_i, work_fm)
@@ -3326,7 +2332,7 @@ CONTAINS
       sg_coeffs => donor_state%sg_coeffs
       nsg = SIZE(donor_state%sg_evals)
       ntp = nsg; nex = nsg !all the same by construction, keep them separate for clarity
-      ntot = 1+nsg+3*ntp
+      ntot = 1 + nsg + 3*ntp
       ndo_mo = donor_state%ndo_mo
       CALL get_qs_env(qs_env, matrix_s=matrix_s, para_env=para_env, blacs_env=blacs_env, mos=mos)
       sqrt2 = SQRT(2.0_dp)
@@ -3408,11 +2414,11 @@ CONTAINS
          ! Compute the ground-state/singlet components. ao_op*gs_coeffs already stored in vec_op
          CALL cp_gemm('T', 'N', ndo_mo*nsg, ndo_mo, nao, 1.0_dp, sg_coeffs, vec_op, 0.0_dp, sggs_fm)
          DO isg = 1, nsg
-            CALL cp_fm_get_submatrix(fm=sggs_fm, target_m=sggs_block, start_row=(isg-1)*ndo_mo+1, &
+            CALL cp_fm_get_submatrix(fm=sggs_fm, target_m=sggs_block, start_row=(isg - 1)*ndo_mo + 1, &
                                      start_col=1, n_rows=ndo_mo, n_cols=ndo_mo)
             diag(:) = get_diag(sggs_block)
             op = sqrt2*SUM(diag)
-            CALL cp_fm_set_element(amew_op_i, 1, 1+isg, op)
+            CALL cp_fm_set_element(amew_op_i, 1, 1 + isg, op)
          END DO
 
          ! do the singlet-singlet components
@@ -3449,15 +2455,15 @@ CONTAINS
          CALL copy_dbcsr_to_fm(dbcsr_tmp, tmp_fm)
          !<T^-1|op|T^-1>
          CALL cp_fm_to_fm_submat(msource=tmp_fm, mtarget=amew_op_i, nrow=nex, ncol=nex, &
-                                 s_firstrow=1, s_firstcol=1, t_firstrow=1+nsg+1, t_firstcol=1+nsg+1)
+                                 s_firstrow=1, s_firstcol=1, t_firstrow=1 + nsg + 1, t_firstcol=1 + nsg + 1)
          !<T^0|op|T^0>
          CALL cp_fm_to_fm_submat(msource=tmp_fm, mtarget=amew_op_i, nrow=nex, ncol=nex, &
-                                 s_firstrow=1, s_firstcol=1, t_firstrow=1+nsg+ntp+1, &
-                                 t_firstcol=1+nsg+ntp+1)
+                                 s_firstrow=1, s_firstcol=1, t_firstrow=1 + nsg + ntp + 1, &
+                                 t_firstcol=1 + nsg + ntp + 1)
          !<T^-1|op|T^-1>
          CALL cp_fm_to_fm_submat(msource=tmp_fm, mtarget=amew_op_i, nrow=nex, ncol=nex, &
-                                 s_firstrow=1, s_firstcol=1, t_firstrow=1+nsg+2*ntp+1, &
-                                 t_firstcol=1+nsg+2*ntp+1)
+                                 s_firstrow=1, s_firstcol=1, t_firstrow=1 + nsg + 2*ntp + 1, &
+                                 t_firstcol=1 + nsg + 2*ntp + 1)
 
          ! Symmetrize the matrix (only upper triangle built)
          CALL cp_fm_upper_to_full(amew_op_i, work_fm)
@@ -3534,7 +2540,7 @@ CONTAINS
       !inverse order, that is: the beta-coeffs in the alpha spot and the alpha coeffs in the
       !beta spot
       tas = 1
-      tbs = ndo_mo+1
+      tbs = ndo_mo + 1
       IF (PRESENT(tracea_start)) tas = tracea_start
       IF (PRESENT(traceb_start)) tbs = traceb_start
 
@@ -3552,20 +2558,20 @@ CONTAINS
          CALL dbcsr_get_block_p(lr_soc, iex, jex, pblock, found)
          IF (found) THEN
             diag(:) = get_diag(pblock)
-            soc_elem = soc_elem+pref_diaga*SUM(diag(1:ndo_mo))+pref_diagb*(SUM(diag(ndo_mo+1:ndo_so)))
+            soc_elem = soc_elem + pref_diaga*SUM(diag(1:ndo_mo)) + pref_diagb*(SUM(diag(ndo_mo + 1:ndo_so)))
          END IF
 
          CALL dbcsr_get_block_p(lr_overlap, iex, jex, pblock, found)
          IF (found) THEN
             soc_elem = soc_elem &
-                       +pref_tracea*SUM(pblock(tas(1):tas(1)+ndo_mo-1, tas(2):tas(2)+ndo_mo-1)* &
-                                        TRANSPOSE(domo_soc(tas(1):tas(1)+ndo_mo-1, tas(2):tas(2)+ndo_mo-1))) &
-                       +pref_traceb*SUM(pblock(tbs(1):tbs(1)+ndo_mo-1, tbs(2):tbs(2)+ndo_mo-1)* &
-                                        TRANSPOSE(domo_soc(tbs(1):tbs(1)+ndo_mo-1, tbs(2):tbs(2)+ndo_mo-1)))
+                       + pref_tracea*SUM(pblock(tas(1):tas(1) + ndo_mo - 1, tas(2):tas(2) + ndo_mo - 1)* &
+                                         TRANSPOSE(domo_soc(tas(1):tas(1) + ndo_mo - 1, tas(2):tas(2) + ndo_mo - 1))) &
+                       + pref_traceb*SUM(pblock(tbs(1):tbs(1) + ndo_mo - 1, tbs(2):tbs(2) + ndo_mo - 1)* &
+                                         TRANSPOSE(domo_soc(tbs(1):tbs(1) + ndo_mo - 1, tbs(2):tbs(2) + ndo_mo - 1)))
 
             IF (do_diags) THEN
                diag(:) = get_diag(pblock)
-               soc_elem = soc_elem+pref_diags*SUM(diag)
+               soc_elem = soc_elem + pref_diags*SUM(diag)
             END IF
          END IF
 
@@ -3630,16 +2636,16 @@ CONTAINS
          CALL dbcsr_get_block_p(lr_soc, iex, jex, pblock, found)
          IF (found) THEN
             diag(:) = get_diag(pblock)
-            soc_elem = soc_elem+SUM(diag)
+            soc_elem = soc_elem + SUM(diag)
          END IF
 
          CALL dbcsr_get_block_p(lr_overlap, iex, jex, pblock, found)
          IF (found) THEN
-            soc_elem = soc_elem+pref_trace*SUM(pblock*TRANSPOSE(domo_soc))
+            soc_elem = soc_elem + pref_trace*SUM(pblock*TRANSPOSE(domo_soc))
 
             IF (do_diags) THEN
                diag(:) = get_diag(pblock)
-               soc_elem = soc_elem+pref_diags*SUM(diag)
+               soc_elem = soc_elem + pref_diags*SUM(diag)
             END IF
          END IF
 
@@ -3659,7 +2665,7 @@ CONTAINS
 !> \param xas_tdp_env ...
 !> \param xas_tdp_control ...
 !> \param qs_env ...
-!> \param gs_coeffs the groud state coefficients, given for open-shell because in ROKS, the gs_coeffs
+!> \param gs_coeffs the ground state coefficients, given for open-shell because in ROKS, the gs_coeffs
 !>                  are stored slightly differently within SOC for efficiency and code uniquness
 ! **************************************************************************************************
    SUBROUTINE compute_soc_dipole_fosc(soc_evecs_cfm, dbcsr_soc_package, donor_state, xas_tdp_env, &
@@ -3697,7 +2703,7 @@ CONTAINS
       do_rcs = xas_tdp_control%do_singlet
       soc_evals => donor_state%soc_evals
       nosc = SIZE(soc_evals)
-      ntot = nosc+1 !because GS AMEW is in there
+      ntot = nosc + 1 !because GS AMEW is in there
       ALLOCATE (donor_state%soc_osc_str(nosc))
       osc_str => donor_state%soc_osc_str
       osc_str(:) = 0.0_dp
@@ -3735,7 +2741,7 @@ CONTAINS
          CALL cp_cfm_get_submatrix(dip_cfm, transdip)
 
          !transition dipoles are real numbers
-         osc_str(:) = osc_str(:)+REAL(transdip(2:ntot, 1))**2+AIMAG(transdip(2:ntot, 1))**2
+         osc_str(:) = osc_str(:) + REAL(transdip(2:ntot, 1))**2 + AIMAG(transdip(2:ntot, 1))**2
 
       END DO !i
 
@@ -3768,7 +2774,7 @@ CONTAINS
 !> \param xas_tdp_env ...
 !> \param xas_tdp_control ...
 !> \param qs_env ...
-!> \param gs_coeffs the groud state coefficients, given for open-shell because in ROKS, the gs_coeffs
+!> \param gs_coeffs the ground state coefficients, given for open-shell because in ROKS, the gs_coeffs
 !>                  are stored slightly differently within SOC for efficiency and code uniquness
 ! **************************************************************************************************
    SUBROUTINE compute_soc_quadrupole_fosc(soc_evecs_cfm, dbcsr_soc_package, donor_state, &
@@ -3807,7 +2813,7 @@ CONTAINS
       do_rcs = xas_tdp_control%do_singlet
       soc_evals => donor_state%soc_evals
       nosc = SIZE(soc_evals)
-      ntot = nosc+1 !because GS AMEW is in there
+      ntot = nosc + 1 !because GS AMEW is in there
       ALLOCATE (donor_state%soc_quad_osc_str(nosc))
       osc_str => donor_state%soc_quad_osc_str
       osc_str(:) = 0.0_dp
@@ -3848,18 +2854,18 @@ CONTAINS
 
          !if x2, y2 or z2, need to keep track of trace
          IF (i == 1 .OR. i == 4 .OR. i == 6) THEN
-            osc_str(:) = osc_str(:)+REAL(transquad(2:ntot, 1))**2+AIMAG(transquad(2:ntot, 1))**2
-            trace(:) = trace(:)+transquad(2:ntot, 1)
+            osc_str(:) = osc_str(:) + REAL(transquad(2:ntot, 1))**2 + AIMAG(transquad(2:ntot, 1))**2
+            trace(:) = trace(:) + transquad(2:ntot, 1)
 
             !if xy, xz, or yz, need to count twice (for yx, zx and zy)
          ELSE
-            osc_str(:) = osc_str(:)+2.0_dp*(REAL(transquad(2:ntot, 1))**2+AIMAG(transquad(2:ntot, 1))**2)
+            osc_str(:) = osc_str(:) + 2.0_dp*(REAL(transquad(2:ntot, 1))**2 + AIMAG(transquad(2:ntot, 1))**2)
          END IF
 
       END DO !i
 
       !remove a third of the trace
-      osc_str(:) = osc_str(:)-1._dp/3._dp*(REAL(trace(:))**2+AIMAG(trace(:))**2)
+      osc_str(:) = osc_str(:) - 1._dp/3._dp*(REAL(trace(:))**2 + AIMAG(trace(:))**2)
 
       !multiply by the prefactor
       osc_str(:) = osc_str(:)*1._dp/20._dp*a_fine**2*soc_evals(:)**3

@@ -1,12 +1,12 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
 !> \brief A common interface (wrapper) for a callback into the md_run loop.
 !>        Currently this is only used by the glbopt machinery, but its meant
-!>        to be extended if others need to controll the md_run loop, too.
+!>        to be extended if others need to control the md_run loop, too.
 !>
 !> \par History
 !>      11.2012 created [Ole]

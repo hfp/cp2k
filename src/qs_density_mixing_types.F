@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -238,7 +238,7 @@ CONTAINS
 
       IF (ASSOCIATED(mixing_store)) THEN
          CPASSERT(mixing_store%ref_count > 0)
-         mixing_store%ref_count = mixing_store%ref_count-1
+         mixing_store%ref_count = mixing_store%ref_count - 1
          IF (mixing_store%ref_count == 0) THEN
 
             IF (ASSOCIATED(mixing_store%kerker_factor)) THEN
@@ -739,7 +739,7 @@ CONTAINS
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="GMIX_P", &
-                          description="Activate the mixing of the denisty matrix, using the same"// &
+                          description="Activate the mixing of the density matrix, using the same"// &
                           " mixing coefficient applied for the g-space mixing.", &
                           repeats=.FALSE., &
                           lone_keyword_l_val=.TRUE., &

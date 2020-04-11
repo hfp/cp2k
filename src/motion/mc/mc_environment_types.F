@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -56,7 +56,7 @@ CONTAINS
 
       ALLOCATE (mc_env)
 
-      last_mc_env_id = last_mc_env_id+1
+      last_mc_env_id = last_mc_env_id + 1
       mc_env%id_nr = last_mc_env_id
       mc_env%ref_count = 1
       mc_env%in_use = 0
@@ -126,7 +126,7 @@ CONTAINS
 
       IF (ASSOCIATED(mc_env)) THEN
          CPASSERT(mc_env%ref_count > 0)
-         mc_env%ref_count = mc_env%ref_count-1
+         mc_env%ref_count = mc_env%ref_count - 1
          IF (mc_env%ref_count == 0) THEN
             mc_env%ref_count = 1
             NULLIFY (mc_env%mc_par)

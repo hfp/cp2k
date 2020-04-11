@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -205,7 +205,7 @@ CONTAINS
 
       CALL keyword_create(keyword, __LOCATION__, name="NGRIDS", &
                           description="Specifies the number of grid points used for the Interpolation of the G-space term", &
-                          usage="NGRIDS <integer> <iteger> <integer> ", n_var=3, default_i_vals=(/50, 50, 50/))
+                          usage="NGRIDS <integer> <integer> <integer> ", n_var=3, default_i_vals=(/50, 50, 50/))
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 

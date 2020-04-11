@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -148,7 +148,7 @@ CONTAINS
 
       IF (ASSOCIATED(array_b)) THEN
          CPASSERT(ASSOCIATED(array_a))
-         array_a = array_a+array_b
+         array_a = array_a + array_b
       END IF
 
    END SUBROUTINE atprop_array_add

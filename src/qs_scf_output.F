@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 MODULE qs_scf_output
@@ -247,19 +247,19 @@ CONTAINS
             WRITE (UNIT=output_unit, &
                    FMT="(T2,I5,1X,A,T20,E8.2,1X,F6.1,16X,F20.10)") &
                scf_env%iter_count, TRIM(scf_env%iter_method), scf_env%iter_param, &
-               t2-t1, energy%total
+               t2 - t1, energy%total
          ELSE
             IF ((ABS(scf_env%iter_delta) < 1.0E-8_dp) .OR. &
                 (ABS(scf_env%iter_delta) >= 1.0E5_dp)) THEN
                WRITE (UNIT=output_unit, &
                       FMT="(T2,I5,1X,A,T20,E8.2,1X,F6.1,1X,ES14.4,1X,F20.10,1X,ES9.2)") &
                   scf_env%iter_count, TRIM(scf_env%iter_method), scf_env%iter_param, &
-                  t2-t1, scf_env%iter_delta, energy%total, energy%total-energy%tot_old
+                  t2 - t1, scf_env%iter_delta, energy%total, energy%total - energy%tot_old
             ELSE
                WRITE (UNIT=output_unit, &
                       FMT="(T2,I5,1X,A,T20,E8.2,1X,F6.1,1X,F14.8,1X,F20.10,1X,ES9.2)") &
                   scf_env%iter_count, TRIM(scf_env%iter_method), scf_env%iter_param, &
-                  t2-t1, scf_env%iter_delta, energy%total, energy%total-energy%tot_old
+                  t2 - t1, scf_env%iter_delta, energy%total, energy%total - energy%tot_old
             END IF
          END IF
       END IF
@@ -281,6 +281,7 @@ CONTAINS
 !> \param gapw_xc ...
 !> \par History
 !>      03.2006 created [Joost VandeVondele]
+!>      10.2019 print dipole moment [SGh]
 ! **************************************************************************************************
    SUBROUTINE qs_scf_print_scf_summary(output_unit, rho, qs_charges, energy, nelectron_total, &
                                        dft_control, qmmm, qs_env, gapw, gapw_xc)
@@ -298,8 +299,8 @@ CONTAINS
          routineP = moduleN//':'//routineN
 
       INTEGER                                            :: bc, handle, ispin, psolver
-      REAL(kind=dp)                                      :: exc_energy, implicit_ps_ehartree, &
-                                                            tot1_h, tot1_s
+      REAL(kind=dp)                                      :: exc1_energy, exc_energy, &
+                                                            implicit_ps_ehartree, tot1_h, tot1_s
       REAL(KIND=dp), DIMENSION(:), POINTER               :: tot_rho_r
       TYPE(pw_env_type), POINTER                         :: pw_env
 
@@ -317,32 +318,40 @@ CONTAINS
             WRITE (UNIT=output_unit, FMT="(/,(T3,A,T41,2F20.10))") &
                "Electronic density on regular grids: ", &
                accurate_sum(tot_rho_r), &
-               accurate_sum(tot_rho_r)+nelectron_total, &
+               accurate_sum(tot_rho_r) + nelectron_total, &
                "Core density on regular grids:", &
                qs_charges%total_rho_core_rspace, &
-               qs_charges%total_rho_core_rspace-REAL(nelectron_total+dft_control%charge, dp)
+               qs_charges%total_rho_core_rspace - REAL(nelectron_total + dft_control%charge, dp)
+
+            IF (dft_control%correct_surf_dip) THEN
+               WRITE (UNIT=output_unit, FMT="((T3,A,/,T3,A,T41,F20.10))") &
+                  "Total dipole moment perpendicular to ", &
+                  "the slab [electrons-Angstroem]: ", &
+                  qs_env%surface_dipole_moment
+            ENDIF
+
             IF (gapw) THEN
                tot1_h = qs_charges%total_rho1_hard(1)
                tot1_s = qs_charges%total_rho1_soft(1)
                DO ispin = 2, dft_control%nspins
-                  tot1_h = tot1_h+qs_charges%total_rho1_hard(ispin)
-                  tot1_s = tot1_s+qs_charges%total_rho1_soft(ispin)
+                  tot1_h = tot1_h + qs_charges%total_rho1_hard(ispin)
+                  tot1_s = tot1_s + qs_charges%total_rho1_soft(ispin)
                END DO
                WRITE (UNIT=output_unit, FMT="((T3,A,T41,2F20.10))") &
                   "Hard and soft densities (Lebedev):", &
                   tot1_h, tot1_s
                WRITE (UNIT=output_unit, FMT="(T3,A,T41,F20.10)") &
                   "Total Rho_soft + Rho1_hard - Rho1_soft (r-space): ", &
-                  accurate_sum(tot_rho_r)+tot1_h-tot1_s, &
+                  accurate_sum(tot_rho_r) + tot1_h - tot1_s, &
                   "Total charge density (r-space):      ", &
-                  accurate_sum(tot_rho_r)+tot1_h-tot1_s &
-                  +qs_charges%total_rho_core_rspace, &
+                  accurate_sum(tot_rho_r) + tot1_h - tot1_s &
+                  + qs_charges%total_rho_core_rspace, &
                   "Total Rho_soft + Rho0_soft (g-space):", &
                   qs_charges%total_rho_gspace
             ELSE
                WRITE (UNIT=output_unit, FMT="(T3,A,T41,F20.10)") &
                   "Total charge density on r-space grids:     ", &
-                  accurate_sum(tot_rho_r)+ &
+                  accurate_sum(tot_rho_r) + &
                   qs_charges%total_rho_core_rspace, &
                   "Total charge density g-space grids:     ", &
                   qs_charges%total_rho_gspace
@@ -354,7 +363,7 @@ CONTAINS
                "Core Hamiltonian energy [eV]:                  ", energy%core*evolt, &
                "Two-electron integral energy [eV]:             ", energy%hartree*evolt, &
                "Electronic energy [eV]:                        ", &
-               (energy%core+0.5_dp*energy%hartree)*evolt
+               (energy%core + 0.5_dp*energy%hartree)*evolt
             IF (energy%dispersion /= 0.0_dp) &
                WRITE (UNIT=output_unit, FMT="(T3,A,T56,F25.14)") &
                "Dispersion energy [eV]:                     ", energy%dispersion*evolt
@@ -382,9 +391,11 @@ CONTAINS
                "Electric field interaction energy:          ", energy%efield
          ELSE
             IF (dft_control%do_admm) THEN
-               exc_energy = energy%exc+energy%exc_aux_fit
+               exc_energy = energy%exc + energy%exc_aux_fit
+               IF (gapw .OR. gapw_xc) exc1_energy = energy%exc1 + energy%exc1_aux_fit
             ELSE
                exc_energy = energy%exc
+               IF (gapw .OR. gapw_xc) exc1_energy = energy%exc1
             END IF
 
             IF (psolver .EQ. pw_poisson_implicit) THEN
@@ -430,12 +441,12 @@ CONTAINS
                "gCP energy:                                    ", energy%gcp
             IF (gapw) THEN
                WRITE (UNIT=output_unit, FMT="(/,(T3,A,T56,F25.14))") &
-                  "GAPW| Exc from hard and soft atomic rho1:      ", energy%exc1, &
+                  "GAPW| Exc from hard and soft atomic rho1:      ", exc1_energy, &
                   "GAPW| local Eh = 1 center integrals:           ", energy%hartree_1c
             END IF
             IF (gapw_xc) THEN
                WRITE (UNIT=output_unit, FMT="(/,(T3,A,T56,F25.14))") &
-                  "GAPW_XC| Exc from hard and soft atomic rho1:      ", energy%exc1
+                  "GAPW_XC| Exc from hard and soft atomic rho1:      ", exc1_energy
             END IF
          END IF
          IF (dft_control%smear) THEN
@@ -474,7 +485,7 @@ CONTAINS
             WRITE (UNIT=output_unit, FMT="(/,(T3,A,T56,F25.14))") &
                "Atomic reference energy [eV]:                  ", energy%core_self*evolt, &
                "Heat of formation [kcal/mol]:                  ", &
-               (energy%total+energy%core_self)*kcalmol
+               (energy%total + energy%core_self)*kcalmol
          ELSE
             WRITE (UNIT=output_unit, FMT="(/,(T3,A,T56,F25.14))") &
                "Total energy:                                  ", energy%total
@@ -738,7 +749,7 @@ CONTAINS
             "  Reusing OT preconditioner: ", cdft_control%reuse_precond
          IF (cdft_control%reuse_precond) THEN
             WRITE (output_unit, '(A,I3,A,I3,A)') &
-               "       using old preconditioner for upto ", &
+               "       using old preconditioner for up to ", &
                cdft_control%max_reuse, " subsequent CDFT SCF"
             WRITE (output_unit, '(A,I3,A,I3,A)') &
                "       iterations if the relevant loop converged in less than ", &
@@ -853,7 +864,7 @@ CONTAINS
             IF (igroup > 1) WRITE (output_unit, '(T3,A)') ' '
             WRITE (output_unit, '(T3,A,T54,(3X,I18))') &
                'Atomic group                :', igroup
-            SELECT CASE (cdft_control%group (igroup)%constraint_type)
+            SELECT CASE (cdft_control%group(igroup)%constraint_type)
             CASE (cdft_charge_constraint)
                IF (cdft_control%group(igroup)%is_fragment_constraint) THEN
                   WRITE (output_unit, '(T3,A,T42,A)') &
@@ -894,7 +905,7 @@ CONTAINS
             WRITE (output_unit, '(T3,A,T54,(3X,F18.12))') &
                'Current value of constraint :', cdft_control%value(igroup)
             WRITE (output_unit, '(T3,A,T59,(3X,ES13.3))') &
-               'Deviation from target       :', cdft_control%value(igroup)-cdft_control%target(igroup)
+               'Deviation from target       :', cdft_control%value(igroup) - cdft_control%target(igroup)
             WRITE (output_unit, '(T3,A,T54,(3X,F18.12))') &
                'Strength of constraint      :', cdft_control%strength(igroup)
          END DO

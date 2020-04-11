@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -11,6 +11,7 @@
 !>      JGH: Add specific routine for 'forces only'
 !>           Major refactoring for new overlap routines
 !>      JGH: Kpoints
+!>      JGH: openMP refactoring
 !> \author Matthias Krack (03.09.2001,25.06.2003)
 ! **************************************************************************************************
 MODULE qs_overlap
@@ -33,7 +34,8 @@ MODULE qs_overlap
         dbcsr_p_type, dbcsr_type, dbcsr_type_antisymmetric, dbcsr_type_no_symmetry, &
         dbcsr_type_symmetric
    USE kinds,                           ONLY: default_string_length,&
-                                              dp
+                                              dp,&
+                                              int_8
    USE kpoint_types,                    ONLY: get_kpoint_info,&
                                               kpoint_type
    USE orbital_pointers,                ONLY: indco,&
@@ -47,19 +49,17 @@ MODULE qs_overlap
    USE qs_kind_types,                   ONLY: qs_kind_type
    USE qs_ks_types,                     ONLY: get_ks_env,&
                                               qs_ks_env_type
-   USE qs_neighbor_list_types,          ONLY: get_iterator_info,&
-                                              get_neighbor_list_set_p,&
-                                              neighbor_list_iterate,&
-                                              neighbor_list_iterator_create,&
-                                              neighbor_list_iterator_p_type,&
-                                              neighbor_list_iterator_release,&
+   USE qs_neighbor_list_types,          ONLY: get_neighbor_list_set_p,&
                                               neighbor_list_set_p_type
    USE string_utilities,                ONLY: compress,&
                                               uppercase
    USE virial_methods,                  ONLY: virial_pair_force
    USE virial_types,                    ONLY: virial_type
 
-!$ USE OMP_LIB, ONLY: omp_get_max_threads, omp_get_thread_num
+!$ USE OMP_LIB, ONLY: omp_lock_kind, &
+!$                    omp_init_lock, omp_set_lock, &
+!$                    omp_unset_lock, omp_destroy_lock
+
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE
@@ -72,8 +72,9 @@ MODULE qs_overlap
 
    ! should be a parameter, but this triggers a bug in OMPed code with gfortran 4.9
    INTEGER, DIMENSION(1:56), SAVE :: ndod = (/0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, &
-                       1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, &
-                                              1, 1, 1, 1, 1, 1, 1/)
+                                              1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, &
+                                              0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, &
+                                              1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1/)
 
    INTERFACE create_sab_matrix
       MODULE PROCEDURE create_sab_matrix_1d, create_sab_matrix_2d
@@ -87,7 +88,6 @@ MODULE qs_overlap
 CONTAINS
 
 ! **************************************************************************************************
-
 !> \brief   Calculation of the overlap matrix over Cartesian Gaussian functions.
 !> \param   ks_env the QS env
 !> \param   matrix_s The overlap matrix to be calculated (optional)
@@ -131,13 +131,59 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:, :), OPTIONAL, &
          POINTER                                         :: matrixkp_p
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_overlap_matrix', &
-         routineP = moduleN//':'//routineN
+      INTEGER                                            :: natom
 
-      INTEGER :: atom_a, atom_b, handle, i, iatom, ic, icol, ikind, irow, iset, jatom, jkind, &
-         jset, ldsab, maxder, maxs, mepos, n1, n2, natom, ncoa, ncob, nder, nimg, nkind, nseta, &
-         nsetb, nthread, sgfa, sgfb
-      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: atom_of_kind
+      MARK_USED(int_8)
+
+      CALL get_ks_env(ks_env, natom=natom)
+
+      CALL build_overlap_matrix_low(ks_env, matrix_s, matrixkp_s, matrix_name, nderivative, &
+                                    basis_type_a, basis_type_b, sab_nl, calculate_forces, &
+                                    matrix_p, matrixkp_p, natom)
+
+   END SUBROUTINE build_overlap_matrix
+
+! **************************************************************************************************
+!> \brief Implementation of build_overlap_matrix with the additional natom argument passed in to
+!>        allow for explicitly shaped force_thread array which is needed for OMP REDUCTION.
+!> \param ks_env ...
+!> \param matrix_s ...
+!> \param matrixkp_s ...
+!> \param matrix_name ...
+!> \param nderivative ...
+!> \param basis_type_a ...
+!> \param basis_type_b ...
+!> \param sab_nl ...
+!> \param calculate_forces ...
+!> \param matrix_p ...
+!> \param matrixkp_p ...
+!> \param natom ...
+! **************************************************************************************************
+   SUBROUTINE build_overlap_matrix_low(ks_env, matrix_s, matrixkp_s, matrix_name, nderivative, &
+                                       basis_type_a, basis_type_b, sab_nl, calculate_forces, &
+                                       matrix_p, matrixkp_p, natom)
+
+      TYPE(qs_ks_env_type), POINTER                      :: ks_env
+      TYPE(dbcsr_p_type), DIMENSION(:), OPTIONAL, &
+         POINTER                                         :: matrix_s
+      TYPE(dbcsr_p_type), DIMENSION(:, :), OPTIONAL, &
+         POINTER                                         :: matrixkp_s
+      CHARACTER(LEN=*), INTENT(IN), OPTIONAL             :: matrix_name
+      INTEGER, INTENT(IN), OPTIONAL                      :: nderivative
+      CHARACTER(LEN=*), INTENT(IN)                       :: basis_type_a, basis_type_b
+      TYPE(neighbor_list_set_p_type), DIMENSION(:), &
+         POINTER                                         :: sab_nl
+      LOGICAL, INTENT(IN), OPTIONAL                      :: calculate_forces
+      TYPE(dbcsr_type), OPTIONAL, POINTER                :: matrix_p
+      TYPE(dbcsr_p_type), DIMENSION(:, :), OPTIONAL, &
+         POINTER                                         :: matrixkp_p
+      INTEGER, INTENT(IN)                                :: natom
+
+      CHARACTER(len=*), PARAMETER :: routineN = 'build_overlap_matrix_low'
+
+      INTEGER :: atom_a, handle, i, iatom, ic, icol, ikind, irow, iset, jatom, jkind, jset, ldsab, &
+         maxder, maxs, n1, n2, ncoa, ncob, nder, nimg, nkind, nseta, nsetb, sgfa, sgfb, slot
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: atom_of_kind, kind_of
       INTEGER, DIMENSION(3)                              :: cell
       INTEGER, DIMENSION(:), POINTER                     :: la_max, la_min, lb_max, lb_min, npgfa, &
                                                             npgfb, nsgfa, nsgfb
@@ -149,7 +195,8 @@ CONTAINS
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: owork, pmat
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: oint
       REAL(KIND=dp), DIMENSION(3)                        :: force_a, rab
-      REAL(KIND=dp), DIMENSION(3, 3)                     :: pv_loc
+      REAL(KIND=dp), DIMENSION(3, 3)                     :: pv_loc, pv_thread
+      REAL(KIND=dp), DIMENSION(3, natom)                 :: force_thread
       REAL(KIND=dp), DIMENSION(:), POINTER               :: set_radius_a, set_radius_b
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: p_block, rpgfa, rpgfb, scon_a, scon_b, &
                                                             zeta, zetb
@@ -159,13 +206,15 @@ CONTAINS
       TYPE(gto_basis_set_p_type), DIMENSION(:), POINTER  :: basis_set_list_a, basis_set_list_b
       TYPE(gto_basis_set_type), POINTER                  :: basis_set_a, basis_set_b
       TYPE(kpoint_type), POINTER                         :: kpoints
-      TYPE(neighbor_list_iterator_p_type), &
-         DIMENSION(:), POINTER                           :: nl_iterator
       TYPE(qs_force_type), DIMENSION(:), POINTER         :: force
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(virial_type), POINTER                         :: virial
 
-      NULLIFY (dft_control)
+!$    INTEGER(kind=omp_lock_kind), &
+!$       ALLOCATABLE, DIMENSION(:) :: locks
+!$    INTEGER                                            :: lock_num, hash, hash1, hash2
+!$    INTEGER(KIND=int_8)                                :: iatom8
+!$    INTEGER, PARAMETER                                 :: nlock = 501
 
       CALL timeset(routineN, handle)
 
@@ -191,9 +240,6 @@ CONTAINS
 
       nimg = dft_control%nimages
       nkind = SIZE(qs_kind_set)
-
-      ALLOCATE (atom_of_kind(natom))
-      CALL get_atomic_kind_set(atomic_kind_set, atom_of_kind=atom_of_kind)
 
       IF (PRESENT(calculate_forces)) THEN
          do_forces = calculate_forces
@@ -236,6 +282,8 @@ CONTAINS
          use_virial = virial%pv_availability .AND. (.NOT. virial%pv_numer)
          pv_loc = virial%pv_virial
       END IF
+      force_thread = 0.0_dp
+      pv_thread = 0.0_dp
 
       ldsab = get_memory_usage(qs_kind_set, basis_type_a, basis_type_b)
       IF (do_forces) THEN
@@ -249,24 +297,30 @@ CONTAINS
       END IF
       maxder = ncoset(nder)
 
-      nthread = 1
-!$    nthread = omp_get_max_threads()
-      CALL neighbor_list_iterator_create(nl_iterator, sab_nl, nthread=nthread)
-
 !$OMP PARALLEL DEFAULT(NONE) &
-!$OMP SHARED (nthread,do_forces,ldsab,maxder,nl_iterator, use_cell_mapping, do_symmetric,maxs,dokp,&
-!$OMP         ncoset,nder,use_virial,force,virial,ndod,&
-!$OMP         matrix_s, matrix_p,basis_set_list_a, basis_set_list_b, atom_of_kind, cell_to_index, matrixkp_s, matrixkp_p)  &
-!$OMP PRIVATE (mepos,oint,owork,pmat,sint,ikind,jkind,iatom,jatom,rab,cell,basis_set_a,basis_set_b,atom_a,atom_b,&
+!$OMP SHARED (do_forces, ldsab, maxder, use_cell_mapping, do_symmetric, maxs, dokp, &
+!$OMP         ncoset, nder, use_virial, ndod, sab_nl, &
+!$OMP         matrix_s, matrix_p,basis_set_list_a, basis_set_list_b, cell_to_index, &
+!$OMP         matrixkp_s, matrixkp_p, locks, natom)  &
+!$OMP PRIVATE (oint, owork, pmat, sint, ikind, jkind, iatom, jatom, rab, cell, &
+!$OMP          basis_set_a, basis_set_b, &
 !$OMP          first_sgfa, la_max, la_min, npgfa, nsgfa, nseta, rpgfa, set_radius_a, ncoa, ncob, force_a, &
 !$OMP          zeta, first_sgfb, lb_max, lb_min, npgfb, nsetb, rpgfb, set_radius_b, nsgfb, p_block, dab, f,  &
-!$OMP          zetb, scon_a, scon_b, ic, irow, icol, f0, ff, found, trans, rab2, n1, n2, sgfa, sgfb, iset, jset )
+!$OMP          zetb, scon_a, scon_b, ic, irow, icol, f0, ff, found, trans, rab2, n1, n2, sgfa, sgfb, iset, jset, &
+!$OMP          hash, hash1, hash2, iatom8, slot ) &
+!$OMP REDUCTION (+ : pv_thread, force_thread )
 
-      mepos = 0
-!$    mepos = omp_get_thread_num()
+!$OMP SINGLE
+!$    ALLOCATE (locks(nlock))
+!$OMP END SINGLE
+
+!$OMP DO
+!$    DO lock_num = 1, nlock
+!$       call omp_init_lock(locks(lock_num))
+!$    END DO
+!$OMP END DO
 
       NULLIFY (p_block)
-
       ALLOCATE (oint(ldsab, ldsab, maxder), owork(ldsab, ldsab))
       IF (do_forces) ALLOCATE (pmat(ldsab, ldsab))
       ALLOCATE (sint(maxs))
@@ -274,15 +328,24 @@ CONTAINS
          NULLIFY (sint(i)%block)
       END DO
 
-      DO WHILE (neighbor_list_iterate(nl_iterator, mepos=mepos) == 0)
-         CALL get_iterator_info(nl_iterator, mepos=mepos, ikind=ikind, jkind=jkind, &
-                                iatom=iatom, jatom=jatom, r=rab, cell=cell)
+!$OMP DO SCHEDULE(GUIDED)
+      DO slot = 1, sab_nl(1)%nl_size
+
+         ikind = sab_nl(1)%nlist_task(slot)%ikind
+         jkind = sab_nl(1)%nlist_task(slot)%jkind
+         iatom = sab_nl(1)%nlist_task(slot)%iatom
+         jatom = sab_nl(1)%nlist_task(slot)%jatom
+         cell(:) = sab_nl(1)%nlist_task(slot)%cell(:)
+         rab(1:3) = sab_nl(1)%nlist_task(slot)%r(1:3)
+
          basis_set_a => basis_set_list_a(ikind)%gto_basis_set
          IF (.NOT. ASSOCIATED(basis_set_a)) CYCLE
          basis_set_b => basis_set_list_b(jkind)%gto_basis_set
          IF (.NOT. ASSOCIATED(basis_set_b)) CYCLE
-         atom_a = atom_of_kind(iatom)
-         atom_b = atom_of_kind(jatom)
+
+!$       iatom8 = INT(iatom - 1, int_8)*INT(natom, int_8) + INT(jatom, int_8)
+!$       hash1 = INT(MOD(iatom8, INT(nlock, int_8)) + 1)
+
          ! basis ikind
          first_sgfa => basis_set_a%first_sgf
          la_max => basis_set_a%lmax
@@ -356,21 +419,24 @@ CONTAINS
          END IF
          trans = do_symmetric .AND. (iatom > jatom)
 
-         rab2 = rab(1)*rab(1)+rab(2)*rab(2)+rab(3)*rab(3)
+         rab2 = rab(1)*rab(1) + rab(2)*rab(2) + rab(3)*rab(3)
          dab = SQRT(rab2)
 
          DO iset = 1, nseta
 
             ncoa = npgfa(iset)*ncoset(la_max(iset))
-            n1 = npgfa(iset)*(ncoset(la_max(iset))-ncoset(la_min(iset)-1))
+            n1 = npgfa(iset)*(ncoset(la_max(iset)) - ncoset(la_min(iset) - 1))
             sgfa = first_sgfa(1, iset)
 
             DO jset = 1, nsetb
 
-               IF (set_radius_a(iset)+set_radius_b(jset) < dab) CYCLE
+               IF (set_radius_a(iset) + set_radius_b(jset) < dab) CYCLE
+
+!$             hash2 = MOD((iset - 1)*nsetb + jset, nlock) + 1
+!$             hash = MOD(hash1 + hash2, nlock) + 1
 
                ncob = npgfb(jset)*ncoset(lb_max(jset))
-               n2 = npgfb(jset)*(ncoset(lb_max(jset))-ncoset(lb_min(jset)-1))
+               n2 = npgfb(jset)*(ncoset(lb_max(jset)) - ncoset(lb_min(jset) - 1))
                sgfb = first_sgfb(1, jset)
 
                ! calculate integrals and derivatives
@@ -394,16 +460,14 @@ CONTAINS
                   ! Decontract P matrix block
                   owork = 0.0_dp
                   CALL block_add("OUT", owork, nsgfa(iset), nsgfb(jset), p_block, sgfa, sgfb, trans=trans)
-                  CALL decontraction(owork, pmat, scon_a(:, sgfa:), n1, nsgfa(iset), scon_b(:, sgfb:), n2, nsgfb(jset), &
-                                     trans=trans)
+                  CALL decontraction(owork, pmat, scon_a(:, sgfa:), n1, nsgfa(iset), scon_b(:, sgfb:), n2, &
+                                     nsgfb(jset), trans=trans)
                   CALL force_trace(force_a, oint(:, :, 2:4), pmat, n1, n2, 3)
-!$OMP CRITICAL(forceupdate)
-                  force(ikind)%overlap(:, atom_a) = force(ikind)%overlap(:, atom_a)-ff*force_a(:)
-                  force(jkind)%overlap(:, atom_b) = force(jkind)%overlap(:, atom_b)+ff*force_a(:)
+                  force_thread(:, iatom) = force_thread(:, iatom) - ff*force_a(:)
+                  force_thread(:, jatom) = force_thread(:, jatom) + ff*force_a(:)
                   IF (use_virial) THEN
-                     CALL virial_pair_force(virial%pv_virial, -f0, force_a, rab)
+                     CALL virial_pair_force(pv_thread, -f0, force_a, rab)
                   END IF
-!$OMP END CRITICAL(forceupdate)
                END IF
                ! Contraction
                DO i = 1, maxs
@@ -411,10 +475,10 @@ CONTAINS
                   IF (ndod(i) == 1 .AND. trans) f = -1.0_dp
                   CALL contraction(oint(:, :, i), owork, ca=scon_a(:, sgfa:), na=n1, ma=nsgfa(iset), &
                                    cb=scon_b(:, sgfb:), nb=n2, mb=nsgfb(jset), fscale=f, trans=trans)
-!$OMP CRITICAL(blockadd)
+!$                CALL omp_set_lock(locks(hash))
                   CALL block_add("IN", owork, nsgfa(iset), nsgfb(jset), sint(i)%block, &
                                  sgfa, sgfb, trans=trans)
-!$OMP END CRITICAL(blockadd)
+!$                CALL omp_unset_lock(locks(hash))
                END DO
 
             END DO
@@ -424,11 +488,34 @@ CONTAINS
       IF (do_forces) DEALLOCATE (pmat)
       DEALLOCATE (oint, owork)
       DEALLOCATE (sint)
-!$OMP END PARALLEL
-      CALL neighbor_list_iterator_release(nl_iterator)
+!$OMP DO
+!$    DO lock_num = 1, nlock
+!$       call omp_destroy_lock(locks(lock_num))
+!$    END DO
+!$OMP END DO
 
+!$OMP SINGLE
+!$    DEALLOCATE (locks)
+!$OMP END SINGLE NOWAIT
+
+!$OMP END PARALLEL
+
+      IF (do_forces) THEN
+         ALLOCATE (atom_of_kind(natom), kind_of(natom))
+         CALL get_atomic_kind_set(atomic_kind_set, atom_of_kind=atom_of_kind, &
+                                  kind_of=kind_of)
+!$OMP DO
+         DO iatom = 1, natom
+            atom_a = atom_of_kind(iatom)
+            ikind = kind_of(iatom)
+            force(ikind)%overlap(:, atom_a) = force(ikind)%overlap(:, atom_a) + force_thread(:, iatom)
+         END DO
+!$OMP END DO
+         DEALLOCATE (atom_of_kind, kind_of)
+      END IF
       IF (do_forces .AND. use_virial) THEN
-         virial%pv_overlap = virial%pv_virial-pv_loc
+         virial%pv_virial = virial%pv_virial + pv_thread
+         virial%pv_overlap = virial%pv_virial - pv_loc
       ENDIF
 
       IF (dokp) THEN
@@ -448,12 +535,11 @@ CONTAINS
       END IF
 
       ! *** Release work storage ***
-      DEALLOCATE (atom_of_kind)
       DEALLOCATE (basis_set_list_a, basis_set_list_b)
 
       CALL timestop(handle)
 
-   END SUBROUTINE build_overlap_matrix
+   END SUBROUTINE build_overlap_matrix_low
 
 ! **************************************************************************************************
 !> \brief   Calculation of the overlap matrix over Cartesian Gaussian functions.
@@ -480,9 +566,10 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'build_overlap_matrix_simple', &
          routineP = moduleN//':'//routineN
 
-      INTEGER :: atom_a, atom_b, handle, iatom, icol, ikind, irow, iset, jatom, jkind, jset, &
-         ldsab, m1, m2, mepos, n1, n2, natom, ncoa, ncob, nkind, nseta, nsetb, nthread, sgfa, sgfb
-      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: atom_of_kind
+      INTEGER                                            :: handle, iatom, icol, ikind, irow, iset, &
+                                                            jatom, jkind, jset, ldsab, m1, m2, n1, &
+                                                            n2, natom, ncoa, ncob, nkind, nseta, &
+                                                            nsetb, sgfa, sgfb, slot
       INTEGER, DIMENSION(:), POINTER                     :: la_max, la_min, lb_max, lb_min, npgfa, &
                                                             npgfb, nsgfa, nsgfb
       INTEGER, DIMENSION(:, :), POINTER                  :: first_sgfa, first_sgfb
@@ -497,9 +584,13 @@ CONTAINS
       TYPE(block_p_type), ALLOCATABLE, DIMENSION(:)      :: sint
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(gto_basis_set_type), POINTER                  :: basis_set_a, basis_set_b
-      TYPE(neighbor_list_iterator_p_type), &
-         DIMENSION(:), POINTER                           :: nl_iterator
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
+
+!$    INTEGER(kind=omp_lock_kind), &
+!$       ALLOCATABLE, DIMENSION(:) :: locks
+!$    INTEGER                                            :: lock_num, hash, hash1, hash2
+!$    INTEGER(KIND=int_8)                                :: iatom8
+!$    INTEGER, PARAMETER                                 :: nlock = 501
 
       NULLIFY (dft_control)
 
@@ -518,9 +609,6 @@ CONTAINS
 
       nkind = SIZE(qs_kind_set)
 
-      ALLOCATE (atom_of_kind(natom))
-      CALL get_atomic_kind_set(atomic_kind_set, atom_of_kind=atom_of_kind)
-
       CALL dbcsr_allocate_matrix_set(matrix_s, 1)
       CALL create_sab_matrix(ks_env, matrix_s, "Matrix", basis_set_list_a, basis_set_list_b, &
                              sab_nl, do_symmetric)
@@ -535,34 +623,43 @@ CONTAINS
          ldsab = MAX(m1, m2, ldsab)
       END DO
 
-      nthread = 1
-!$    nthread = omp_get_max_threads()
-      CALL neighbor_list_iterator_create(nl_iterator, sab_nl, nthread=nthread)
-
 !$OMP PARALLEL DEFAULT(NONE) &
-!$OMP SHARED (nthread,ldsab,nl_iterator,do_symmetric,ncoset,&
-!$OMP         matrix_s,basis_set_list_a,basis_set_list_b,atom_of_kind)  &
-!$OMP PRIVATE (mepos,oint,owork,sint,ikind,jkind,iatom,jatom,rab,basis_set_a,basis_set_b,atom_a,atom_b,&
+!$OMP SHARED (ldsab,sab_nl,do_symmetric,ncoset,natom,&
+!$OMP         matrix_s,basis_set_list_a,basis_set_list_b,locks)  &
+!$OMP PRIVATE (oint,owork,sint,ikind,jkind,iatom,jatom,rab,basis_set_a,basis_set_b,&
 !$OMP          first_sgfa, la_max, la_min, npgfa, nsgfa, nseta, rpgfa, set_radius_a, ncoa, ncob, &
 !$OMP          zeta, first_sgfb, lb_max, lb_min, npgfb, nsetb, rpgfb, set_radius_b, nsgfb, dab, &
-!$OMP          zetb, scon_a, scon_b, irow, icol, found, trans, rab2, n1, n2, sgfa, sgfb, iset, jset )
+!$OMP          zetb, scon_a, scon_b, irow, icol, found, trans, rab2, n1, n2, sgfa, sgfb, iset, jset, &
+!$OMP          slot, lock_num, hash, hash1, hash2, iatom8 )
 
-      mepos = 0
-!$    mepos = omp_get_thread_num()
+!$OMP SINGLE
+!$    ALLOCATE (locks(nlock))
+!$OMP END SINGLE
+
+!$OMP DO
+!$    DO lock_num = 1, nlock
+!$       call omp_init_lock(locks(lock_num))
+!$    END DO
+!$OMP END DO
 
       ALLOCATE (oint(ldsab, ldsab, 1), owork(ldsab, ldsab))
       ALLOCATE (sint(1))
       NULLIFY (sint(1)%block)
 
-      DO WHILE (neighbor_list_iterate(nl_iterator, mepos=mepos) == 0)
-         CALL get_iterator_info(nl_iterator, mepos=mepos, ikind=ikind, jkind=jkind, &
-                                iatom=iatom, jatom=jatom, r=rab)
+!$OMP DO SCHEDULE(GUIDED)
+      DO slot = 1, sab_nl(1)%nl_size
+         ikind = sab_nl(1)%nlist_task(slot)%ikind
+         jkind = sab_nl(1)%nlist_task(slot)%jkind
+         iatom = sab_nl(1)%nlist_task(slot)%iatom
+         jatom = sab_nl(1)%nlist_task(slot)%jatom
+         rab(1:3) = sab_nl(1)%nlist_task(slot)%r(1:3)
+!$       iatom8 = (iatom - 1)*natom + jatom
+!$       hash1 = INT(MOD(iatom8, INT(nlock, int_8)) + 1)
+
          basis_set_a => basis_set_list_a(ikind)%gto_basis_set
          IF (.NOT. ASSOCIATED(basis_set_a)) CYCLE
          basis_set_b => basis_set_list_b(jkind)%gto_basis_set
          IF (.NOT. ASSOCIATED(basis_set_b)) CYCLE
-         atom_a = atom_of_kind(iatom)
-         atom_b = atom_of_kind(jatom)
          ! basis ikind
          first_sgfa => basis_set_a%first_sgf
          la_max => basis_set_a%lmax
@@ -605,21 +702,24 @@ CONTAINS
          CPASSERT(found)
          trans = do_symmetric .AND. (iatom > jatom)
 
-         rab2 = rab(1)*rab(1)+rab(2)*rab(2)+rab(3)*rab(3)
+         rab2 = rab(1)*rab(1) + rab(2)*rab(2) + rab(3)*rab(3)
          dab = SQRT(rab2)
 
          DO iset = 1, nseta
 
             ncoa = npgfa(iset)*ncoset(la_max(iset))
-            n1 = npgfa(iset)*(ncoset(la_max(iset))-ncoset(la_min(iset)-1))
+            n1 = npgfa(iset)*(ncoset(la_max(iset)) - ncoset(la_min(iset) - 1))
             sgfa = first_sgfa(1, iset)
 
             DO jset = 1, nsetb
 
-               IF (set_radius_a(iset)+set_radius_b(jset) < dab) CYCLE
+               IF (set_radius_a(iset) + set_radius_b(jset) < dab) CYCLE
+
+!$             hash2 = MOD((iset - 1)*nsetb + jset, nlock) + 1
+!$             hash = MOD(hash1 + hash2, nlock) + 1
 
                ncob = npgfb(jset)*ncoset(lb_max(jset))
-               n2 = npgfb(jset)*(ncoset(lb_max(jset))-ncoset(lb_min(jset)-1))
+               n2 = npgfb(jset)*(ncoset(lb_max(jset)) - ncoset(lb_min(jset) - 1))
                sgfb = first_sgfb(1, jset)
 
                ! calculate integrals and derivatives
@@ -640,21 +740,26 @@ CONTAINS
       END DO
       DEALLOCATE (oint, owork)
       DEALLOCATE (sint)
+!$OMP DO
+!$    DO lock_num = 1, nlock
+!$       call omp_destroy_lock(locks(lock_num))
+!$    END DO
+!$OMP END DO
+
+!$OMP SINGLE
+!$    DEALLOCATE (locks)
+!$OMP END SINGLE NOWAIT
+
 !$OMP END PARALLEL
-      CALL neighbor_list_iterator_release(nl_iterator)
 
       CALL dbcsr_finalize(matrix_s(1)%matrix)
       CALL dbcsr_filter(matrix_s(1)%matrix, dft_control%qs_control%eps_filter_matrix)
-
-      ! *** Release work storage ***
-      DEALLOCATE (atom_of_kind)
 
       CALL timestop(handle)
 
    END SUBROUTINE build_overlap_matrix_simple
 
 ! **************************************************************************************************
-
 !> \brief   Calculation of the force contribution from an overlap matrix
 !>          over Cartesian Gaussian functions.
 !> \param   ks_env the QS environment
@@ -688,24 +793,25 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'build_overlap_force', &
          routineP = moduleN//':'//routineN
 
-      INTEGER :: handle, iatom, icol, ikind, inode, irow, iset, jatom, jkind, jset, last_jatom, &
-         ldsab, n1, n2, ncoa, ncob, nder, nkind, nseta, nsetb, sgfa, sgfb
+      INTEGER                                            :: handle, iatom, icol, ikind, irow, iset, &
+                                                            jatom, jkind, jset, ldsab, n1, n2, &
+                                                            natom, ncoa, ncob, nder, nkind, nseta, &
+                                                            nsetb, sgfa, sgfb, slot
       INTEGER, DIMENSION(:), POINTER                     :: la_max, la_min, lb_max, lb_min, npgfa, &
                                                             npgfb, nsgfa, nsgfb
       INTEGER, DIMENSION(:, :), POINTER                  :: first_sgfa, first_sgfb
-      LOGICAL                                            :: do_symmetric, found, new_atom_b, trans, &
-                                                            use_virial
+      LOGICAL                                            :: do_symmetric, found, trans, use_virial
       REAL(KIND=dp)                                      :: dab, f0, ff, rab2
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: pab, sab
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: drab
       REAL(KIND=dp), DIMENSION(3)                        :: force_a, rab
+      REAL(KIND=dp), DIMENSION(3, 3)                     :: virial_thread
       REAL(KIND=dp), DIMENSION(:), POINTER               :: set_radius_a, set_radius_b
+      REAL(KIND=dp), DIMENSION(3, SIZE(force, 2))        :: force_thread
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: p_block, rpgfa, rpgfb, scon_a, scon_b, &
                                                             zeta, zetb
       TYPE(gto_basis_set_p_type), DIMENSION(:), POINTER  :: basis_set_list_a, basis_set_list_b
       TYPE(gto_basis_set_type), POINTER                  :: basis_set_a, basis_set_b
-      TYPE(neighbor_list_iterator_p_type), &
-         DIMENSION(:), POINTER                           :: nl_iterator
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(virial_type), POINTER                         :: virial
 
@@ -723,22 +829,41 @@ CONTAINS
 
       CALL get_ks_env(ks_env=ks_env, virial=virial)
       use_virial = virial%pv_availability .AND. (.NOT. virial%pv_numer)
-
-      ! *** Allocate work storage ***
-      ldsab = get_memory_usage(qs_kind_set, basis_type_a, basis_type_b)
-      ALLOCATE (sab(ldsab, ldsab), pab(ldsab, ldsab))
-      ALLOCATE (drab(ldsab, ldsab, 3))
+      virial_thread = 0.0_dp
 
       ! set up basis sets
       ALLOCATE (basis_set_list_a(nkind), basis_set_list_b(nkind))
       CALL basis_set_list_setup(basis_set_list_a, basis_type_a, qs_kind_set)
       CALL basis_set_list_setup(basis_set_list_b, basis_type_b, qs_kind_set)
+      ldsab = get_memory_usage(qs_kind_set, basis_type_a, basis_type_b)
+
+      natom = SIZE(force, 2)
+      force_thread = 0.0_dp
+
+!$OMP PARALLEL DEFAULT(NONE) &
+!$OMP SHARED (ldsab, do_symmetric, ncoset, nder, use_virial, force, virial, ndod, sab_nl, &
+!$OMP         matrix_p, basis_set_list_a, basis_set_list_b)  &
+!$OMP PRIVATE (ikind, jkind, iatom, jatom, rab, &
+!$OMP          basis_set_a, basis_set_b, sab, pab, drab, &
+!$OMP          first_sgfa, la_max, la_min, npgfa, nsgfa, nseta, rpgfa, set_radius_a, ncoa, ncob, force_a, &
+!$OMP          zeta, first_sgfb, lb_max, lb_min, npgfb, nsetb, rpgfb, set_radius_b, nsgfb, p_block, dab, &
+!$OMP          zetb, scon_a, scon_b, irow, icol, f0, ff, found, trans, rab2, n1, n2, sgfa, sgfb, iset, jset, &
+!$OMP          slot) &
+!$OMP REDUCTION (+ : virial_thread, force_thread )
+
+      ! *** Allocate work storage ***
+      ALLOCATE (sab(ldsab, ldsab), pab(ldsab, ldsab))
+      ALLOCATE (drab(ldsab, ldsab, 3))
 
       ! Loop over neighbor list
-      CALL neighbor_list_iterator_create(nl_iterator, sab_nl)
-      DO WHILE (neighbor_list_iterate(nl_iterator) == 0)
-         CALL get_iterator_info(nl_iterator, ikind=ikind, jkind=jkind, inode=inode, &
-                                iatom=iatom, jatom=jatom, r=rab)
+!$OMP DO SCHEDULE(GUIDED)
+      DO slot = 1, sab_nl(1)%nl_size
+         ikind = sab_nl(1)%nlist_task(slot)%ikind
+         jkind = sab_nl(1)%nlist_task(slot)%jkind
+         iatom = sab_nl(1)%nlist_task(slot)%iatom
+         jatom = sab_nl(1)%nlist_task(slot)%jatom
+         rab(1:3) = sab_nl(1)%nlist_task(slot)%r(1:3)
+
          basis_set_a => basis_set_list_a(ikind)%gto_basis_set
          IF (.NOT. ASSOCIATED(basis_set_a)) CYCLE
          basis_set_b => basis_set_list_b(jkind)%gto_basis_set
@@ -766,71 +891,61 @@ CONTAINS
          scon_b => basis_set_b%scon
          zetb => basis_set_b%zet
 
-         IF (inode == 1) last_jatom = 0
-
-         IF (jatom /= last_jatom) THEN
-            new_atom_b = .TRUE.
-            last_jatom = jatom
-         ELSE
-            new_atom_b = .FALSE.
-         END IF
-
-         IF (new_atom_b) THEN
-            IF (do_symmetric) THEN
-               IF (iatom <= jatom) THEN
-                  irow = iatom
-                  icol = jatom
-               ELSE
-                  irow = jatom
-                  icol = iatom
-               END IF
-               f0 = 2.0_dp
-               IF (iatom == jatom) f0 = 1.0_dp
-               ff = 2.0_dp
-            ELSE
+         IF (do_symmetric) THEN
+            IF (iatom <= jatom) THEN
                irow = iatom
                icol = jatom
-               f0 = 1.0_dp
-               ff = 1.0_dp
+            ELSE
+               irow = jatom
+               icol = iatom
             END IF
-            NULLIFY (p_block)
-            CALL dbcsr_get_block_p(matrix=matrix_p, row=irow, col=icol, &
-                                   block=p_block, found=found)
+            f0 = 2.0_dp
+            IF (iatom == jatom) f0 = 1.0_dp
+            ff = 2.0_dp
+         ELSE
+            irow = iatom
+            icol = jatom
+            f0 = 1.0_dp
+            ff = 1.0_dp
          END IF
+         NULLIFY (p_block)
+         CALL dbcsr_get_block_p(matrix=matrix_p, row=irow, col=icol, &
+                                block=p_block, found=found)
+
          trans = do_symmetric .AND. (iatom > jatom)
 
-         rab2 = rab(1)*rab(1)+rab(2)*rab(2)+rab(3)*rab(3)
+         rab2 = rab(1)*rab(1) + rab(2)*rab(2) + rab(3)*rab(3)
          dab = SQRT(rab2)
 
          DO iset = 1, nseta
 
             ncoa = npgfa(iset)*ncoset(la_max(iset))
-            n1 = npgfa(iset)*(ncoset(la_max(iset))-ncoset(la_min(iset)-1))
+            n1 = npgfa(iset)*(ncoset(la_max(iset)) - ncoset(la_min(iset) - 1))
             sgfa = first_sgfa(1, iset)
 
             DO jset = 1, nsetb
 
-               IF (set_radius_a(iset)+set_radius_b(jset) < dab) CYCLE
+               IF (set_radius_a(iset) + set_radius_b(jset) < dab) CYCLE
 
                ncob = npgfb(jset)*ncoset(lb_max(jset))
-               n2 = npgfb(jset)*(ncoset(lb_max(jset))-ncoset(lb_min(jset)-1))
+               n2 = npgfb(jset)*(ncoset(lb_max(jset)) - ncoset(lb_min(jset) - 1))
                sgfb = first_sgfb(1, jset)
 
                IF (ASSOCIATED(p_block) .AND. ((iatom /= jatom) .OR. use_virial)) THEN
                   ! Decontract P matrix block
                   sab = 0.0_dp
                   CALL block_add("OUT", sab, nsgfa(iset), nsgfb(jset), p_block, sgfa, sgfb, trans=trans)
-                  CALL decontraction(sab, pab, scon_a(:, sgfa:), n1, nsgfa(iset), scon_b(:, sgfb:), n2, nsgfb(jset), &
-                                     trans=trans)
+                  CALL decontraction(sab, pab, scon_a(:, sgfa:), n1, nsgfa(iset), scon_b(:, sgfb:), n2, &
+                                     nsgfb(jset), trans=trans)
                   ! calculate integrals and derivatives
                   CALL overlap_ab(la_max(iset), la_min(iset), npgfa(iset), rpgfa(:, iset), zeta(:, iset), &
                                   lb_max(jset), lb_min(jset), npgfb(jset), rpgfb(:, jset), zetb(:, jset), &
                                   rab, dab=drab)
                   CALL force_trace(force_a, drab, pab, n1, n2, 3)
-                  force(1:3, iatom) = force(1:3, iatom)-ff*force_a(1:3)
-                  force(1:3, jatom) = force(1:3, jatom)+ff*force_a(1:3)
+                  force_thread(1:3, iatom) = force_thread(1:3, iatom) - ff*force_a(1:3)
+                  force_thread(1:3, jatom) = force_thread(1:3, jatom) + ff*force_a(1:3)
                   IF (use_virial) THEN
-                     CALL virial_pair_force(virial%pv_virial, -f0, force_a, rab)
+                     CALL virial_pair_force(virial_thread, -f0, force_a, rab)
                   END IF
                END IF
 
@@ -838,10 +953,19 @@ CONTAINS
          END DO
 
       END DO
-      CALL neighbor_list_iterator_release(nl_iterator)
-
-      ! *** Release work storage ***
       DEALLOCATE (sab, pab, drab)
+!$OMP END PARALLEL
+
+!$OMP PARALLEL DEFAULT(NONE) &
+!$OMP SHARED(force,force_thread,natom)
+!$OMP WORKSHARE
+      force(1:3, 1:natom) = force(1:3, 1:natom) + force_thread(1:3, 1:natom)
+!$OMP END WORKSHARE
+!$OMP END PARALLEL
+      IF (use_virial) THEN
+         virial%pv_virial = virial%pv_virial + virial_thread
+      END IF
+
       DEALLOCATE (basis_set_list_a, basis_set_list_b)
 
       CALL timestop(handle)
@@ -1035,8 +1159,6 @@ CONTAINS
       DEALLOCATE (row_blk_sizes, col_blk_sizes)
 
    END SUBROUTINE create_sab_matrix_2d
-
-! **************************************************************************************************
 
 END MODULE qs_overlap
 

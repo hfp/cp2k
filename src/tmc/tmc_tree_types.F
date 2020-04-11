@@ -1,10 +1,10 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
-!> \brief module handels definition of the tree nodes for the global and
+!> \brief module handles definition of the tree nodes for the global and
 !>      the subtrees binary tree
 !>                   parent element
 !>                      /      \
@@ -85,7 +85,7 @@ MODULE tmc_tree_types
       REAL(KIND=dp), DIMENSION(:), POINTER     :: vel ! velocity array
       REAL(KIND=dp), DIMENSION(:), POINTER     :: frc ! force array
       REAL(KIND=dp), DIMENSION(:), POINTER     :: dipole ! dipole moments array
-      INTEGER, DIMENSION(:), POINTER           :: elem_stat ! status for every dimention
+      INTEGER, DIMENSION(:), POINTER           :: elem_stat ! status for every dimension
       INTEGER                                  :: nr ! tree node number
       REAL(KIND=dp), DIMENSION(3, 2, 3)        :: rng_seed ! random seed for childs
       !-- remembers which subtree number element is from

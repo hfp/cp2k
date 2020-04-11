@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -62,7 +62,7 @@ CONTAINS
                            basis_type=basis_type_a)
       ldmem = MAX(maxc, maxs)
 
-      CALL init_orbital_pointers(maxl+2)
+      CALL init_orbital_pointers(maxl + 2)
 
    END FUNCTION get_memory_usage_a
 
@@ -157,7 +157,7 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE basis_set_list_setup(basis_set_list, basis_type, qs_kind_set)
 
-      TYPE(gto_basis_set_p_type), DIMENSION(:), POINTER  :: basis_set_list
+      TYPE(gto_basis_set_p_type), DIMENSION(:)           :: basis_set_list
       CHARACTER(len=*), INTENT(IN)                       :: basis_type
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
 

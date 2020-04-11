@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -547,11 +547,14 @@ MODULE input_constants
                                                tddfpt_spin_flip = 3
    INTEGER, PARAMETER, PUBLIC               :: tddfpt_lanczos = 0, &
                                                tddfpt_davidson = 1
+   INTEGER, PARAMETER, PUBLIC               :: tddfpt_kernel_full = 1, &
+                                               tddfpt_kernel_stda = 0
    INTEGER, PARAMETER, PUBLIC               :: oe_none = 0, &
                                                oe_lb = 1, &
                                                oe_gllb = 2, &
                                                oe_saop = 3, &
-                                               oe_sic = 4
+                                               oe_sic = 44, &
+                                               oe_shift = 4
    INTEGER, PARAMETER, PUBLIC               :: no_excitations = 0, &
                                                tddfpt_excitations = 1
    INTEGER, PARAMETER, PUBLIC               :: xc_vdw_fun_none = 100, &
@@ -632,9 +635,7 @@ MODULE input_constants
    INTEGER, PARAMETER, PUBLIC               :: xas_tdp_by_index = 1, &
                                                xas_tdp_by_kind = 2, &
                                                xas_tdp_roks = 1, &
-                                               xas_tdp_uks = 2, &
-                                               xas_tdp_diag_std = 1, &
-                                               xas_tdp_diag_syevr = 2
+                                               xas_tdp_uks = 2
 
    ! Form of dipole operator for TDDFPT oscillator strength calculation
    INTEGER, PARAMETER, PUBLIC               :: tddfpt_dipole_berry = 1, &
@@ -764,6 +765,11 @@ MODULE input_constants
    INTEGER, PARAMETER, PUBLIC               :: hfx_do_eval_energy = 1, &
                                                hfx_do_eval_forces = 2
 
+   ! HFX RI matrix methods
+   INTEGER, PARAMETER, PUBLIC               :: hfx_ri_do_2c_iter = 1, &
+                                               hfx_ri_do_2c_diag = 2, &
+                                               hfx_ri_do_2c_cholesky = 3
+
    ! mode selctive vibrational analysis
    INTEGER, PARAMETER, PUBLIC               :: ms_guess_bfgs = 1, &
                                                ms_guess_atomic = 2, &
@@ -879,7 +885,9 @@ MODULE input_constants
    INTEGER, PARAMETER, PUBLIC               :: ls_scf_sign = 17, ls_scf_trs4 = 18, &
                                                ls_scf_tc2 = 19, ls_scf_pexsi = 20
 
-   INTEGER, PARAMETER, PUBLIC               :: ls_scf_sign_ns = 1, ls_scf_sign_proot = 2
+   INTEGER, PARAMETER, PUBLIC               :: ls_scf_sign_ns = 1, ls_scf_sign_proot = 2, ls_scf_sign_submatrix = 3
+
+   INTEGER, PARAMETER, PUBLIC               :: ls_scf_submatrix_sign_ns = 1, ls_scf_submatrix_sign_direct = 2
 
    INTEGER, PARAMETER, PUBLIC               :: ls_scf_line_search_3point = 3, &
                                                ls_scf_line_search_3point_2d = 6
@@ -913,10 +921,12 @@ MODULE input_constants
    INTEGER, PARAMETER, PUBLIC   :: almo_scf_dm_sign = 1, &
                                    almo_scf_diag = 2, &
                                    almo_scf_pcg = 3, &
-                                   almo_scf_skip = 4
+                                   almo_scf_trustr = 4, &
+                                   almo_scf_skip = 0
 
-   INTEGER, PARAMETER, PUBLIC   :: almo_occ_vol_penalty_none = 0, &
-                                   almo_occ_vol_penalty_lndet = 1
+   INTEGER, PARAMETER, PUBLIC   :: penalty_type_none = 0, &
+                                   penalty_type_lndet = 1, &
+                                   penalty_type_nlmo = 2
 
    ! optimizer parameters
    INTEGER, PARAMETER, PUBLIC   :: cg_zero = 0, &
@@ -927,8 +937,12 @@ MODULE input_constants
                                    cg_liu_storey = 5, &
                                    cg_dai_yuan = 6, &
                                    cg_hager_zhang = 7
+   INTEGER, PARAMETER, PUBLIC   :: trustr_steihaug = 1, &
+                                   trustr_cauchy = 2, &
+                                   trustr_dogleg = 3
    INTEGER, PARAMETER, PUBLIC   :: optimizer_diis = 1, &
                                    optimizer_pcg = 2, &
+                                   optimizer_trustr = 4, &
                                    optimizer_lin_eq_pcg = 3
    INTEGER, PARAMETER, PUBLIC   :: xalmo_prec_zero = 0, &
                                    xalmo_prec_domain = 1, &
@@ -964,8 +978,7 @@ MODULE input_constants
                                                wfc_mm_style_syrk = 12
 
    ! G0W0 parameter
-   INTEGER, PARAMETER, PUBLIC               :: ri_rpa_g0w0_crossing_none = 0, &
-                                               ri_rpa_g0w0_crossing_z_shot = 1, &
+   INTEGER, PARAMETER, PUBLIC               :: ri_rpa_g0w0_crossing_z_shot = 1, &
                                                ri_rpa_g0w0_crossing_newton = 2, &
                                                ri_rpa_g0w0_crossing_bisection = 3, &
                                                gw_no_print_exx = 5, &
@@ -992,7 +1005,7 @@ MODULE input_constants
                                                do_opt_coeff = 2, &
                                                do_opt_exps = 3
 
-   ! LRI paramters for inverse of overlap
+   ! LRI parameters for inverse of overlap
    INTEGER, PARAMETER, PUBLIC               :: do_lri_inv = 0, &
                                                do_lri_pseudoinv_svd = 1, &
                                                do_lri_pseudoinv_diag = 2, &
@@ -1022,12 +1035,15 @@ MODULE input_constants
                                                kg_tnadd_atomic = 200, &
                                                kg_tnadd_none = 300
 
-   ! kg energy corrections
-   INTEGER, PARAMETER, PUBLIC               :: kg_ec_diagonalization = 1001
-
-   INTEGER, PARAMETER, PUBLIC               :: kg_ec_functional_harris = 2001
-
    INTEGER, PARAMETER, PUBLIC               :: kg_cholesky = 3001
+
+   ! non-scf energy corrections
+   INTEGER, PARAMETER, PUBLIC               :: ec_diagonalization = 1001, &
+                                               ec_curvy_steps = 1002, &
+                                               ec_matrix_sign = 1003, &
+                                               ec_matrix_trs4 = 1004, &
+                                               ec_matrix_tc2 = 1005
+   INTEGER, PARAMETER, PUBLIC               :: ec_functional_harris = 2001
 
    ! swarm parameters
    INTEGER, PARAMETER, PUBLIC               :: swarm_do_glbopt = 1
@@ -1095,7 +1111,8 @@ MODULE input_constants
 
    INTEGER, PARAMETER, PUBLIC               :: do_eri_gpw = 0, &
                                                do_eri_mme = 1, &
-                                               do_eri_os = 2
+                                               do_eri_os = 2, &
+                                               eri_default = 3
 
    ! Cell optimisation constraints
    INTEGER, PARAMETER, PUBLIC               :: fix_none = 0, &
@@ -1125,5 +1142,9 @@ MODULE input_constants
                                                embed_diff = 1, &
                                                embed_fa = 2, &
                                                embed_resp = 3
+
+   ! MOLDEN format
+   INTEGER, PARAMETER, PUBLIC               :: gto_cartesian = 1, &
+                                               gto_spherical = 2
 
 END MODULE input_constants

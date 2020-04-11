@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -137,8 +137,9 @@ CONTAINS
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(qs_ks_env_type), POINTER                      :: ks_env
+      TYPE(section_vals_type), POINTER                   :: molden_section
 
-      ! only do MINBAS analysis if explicitely requested
+      ! only do MINBAS analysis if explicitly requested
       CALL section_vals_get(input_section, explicit=explicit)
       IF (.NOT. explicit) RETURN
 
@@ -294,7 +295,7 @@ CONTAINS
                DO i = 1, natom, 2
                   IF (i < natom) THEN
                      WRITE (unit_nr, '(T2,A,I8,T20,A,F10.6,T42,A,I8,T60,A,F10.6)') &
-                        " Atom:", i, "Projection:", prmao(i, ispin), " Atom:", i+1, "Projection:", prmao(i+1, ispin)
+                        " Atom:", i, "Projection:", prmao(i, ispin), " Atom:", i + 1, "Projection:", prmao(i + 1, ispin)
                   ELSE
                      WRITE (unit_nr, '(T2,A,I8,T20,A,F10.6)') " Atom:", i, "Projection:", prmao(i, ispin)
                   END IF
@@ -309,7 +310,7 @@ CONTAINS
                WRITE (unit_nr, '(T64,A)') 'Occupied Orbitals'
                WRITE (unit_nr, '(8F10.6)') fnorm(1:homo, ispin)
                WRITE (unit_nr, '(T65,A)') 'Virtual Orbitals'
-               WRITE (unit_nr, '(8F10.6)') fnorm(homo+1:nmo, ispin)
+               WRITE (unit_nr, '(8F10.6)') fnorm(homo + 1:nmo, ispin)
             END IF
          END DO
          ! Mulliken population
@@ -370,7 +371,8 @@ CONTAINS
             CALL post_minbas_cubes(qs_env, input_section, fm_mos, ispin)
          END DO
          ! Print basis functions: molden format
-         CALL write_mos_molden(mbas, qs_kind_set, particle_set, input_section)
+         molden_section => section_vals_get_subs_vals(input_section, "MINBAS_MOLDEN")
+         CALL write_mos_molden(mbas, qs_kind_set, particle_set, molden_section)
          DO ispin = 1, nspin
             CALL deallocate_mo_set(mbas(ispin)%mo_set)
          END DO
@@ -428,11 +430,11 @@ CONTAINS
             n = SIZE(qblock, 2)
             wij = ABS(SUM(qblock*sblock))/REAL(n, KIND=dp)
             IF (wij > 0.1_dp) THEN
-               ecount(jatom, 1) = ecount(jatom, 1)+1
+               ecount(jatom, 1) = ecount(jatom, 1) + 1
             ELSEIF (wij > 0.01_dp) THEN
-               ecount(jatom, 2) = ecount(jatom, 2)+1
+               ecount(jatom, 2) = ecount(jatom, 2) + 1
             ELSEIF (wij > 0.001_dp) THEN
-               ecount(jatom, 3) = ecount(jatom, 3)+1
+               ecount(jatom, 3) = ecount(jatom, 3) + 1
             END IF
          END IF
       END DO
@@ -469,7 +471,7 @@ CONTAINS
             n = SIZE(qblock, 2)
             DO i = 1, n
                wi = SUM(qblock(:, i)*sblock(:, i))
-               prmao(iatom) = prmao(iatom)+wi/so(i, i)
+               prmao(iatom) = prmao(iatom) + wi/so(i, i)
             END DO
          END IF
       END DO
@@ -528,7 +530,7 @@ CONTAINS
       CALL get_particle_set(particle_set, qs_kind_set, nmao=blk_sizes)
       first_bas(0) = 0
       DO i = 1, natom
-         first_bas(i) = first_bas(i-1)+blk_sizes(i)
+         first_bas(i) = first_bas(i - 1) + blk_sizes(i)
       END DO
 
       CALL pw_env_get(pw_env, auxbas_pw_pool=auxbas_pw_pool)
@@ -539,7 +541,7 @@ CONTAINS
       CALL section_vals_val_get(minbas_section, "ATOM_LIST", n_rep_val=n_rep)
       IF (n_rep == 0) THEN
          DO i = 1, natom
-            DO ivec = first_bas(i-1)+1, first_bas(i)
+            DO ivec = first_bas(i - 1) + 1, first_bas(i)
                WRITE (filename, '(a4,I5.5,a1,I1.1)') "MINBAS_", ivec, "_", ispin
                WRITE (title, *) "MINIMAL BASIS ", ivec, " atom ", i, " spin ", ispin
                mpi_io = .TRUE.
@@ -557,7 +559,7 @@ CONTAINS
             CALL section_vals_val_get(minbas_section, "ATOM_LIST", i_rep_val=i_rep, i_vals=ilist)
             DO i = 1, SIZE(ilist, 1)
                j = ilist(i)
-               DO ivec = first_bas(j-1)+1, first_bas(j)
+               DO ivec = first_bas(j - 1) + 1, first_bas(j)
                   WRITE (filename, '(a4,I5.5,a1,I1.1)') "MINBAS_", ivec, "_", ispin
                   WRITE (title, *) "MINIMAL BASIS ", ivec, " atom ", j, " spin ", ispin
                   mpi_io = .TRUE.

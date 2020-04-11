@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -40,7 +40,6 @@ MODULE qs_interactions
                                               paw_proj_set_type,&
                                               set_paw_proj_set
    USE qs_kind_types,                   ONLY: get_qs_kind,&
-                                              get_qs_kind_set,&
                                               qs_kind_type
    USE string_utilities,                ONLY: uppercase
 #include "./base/base_uses.f90"
@@ -65,23 +64,21 @@ CONTAINS
 ! **************************************************************************************************
 !> \brief   Initialize all the atomic kind radii for a given threshold value.
 !> \param qs_control ...
-!> \param atomic_kind_set ...
 !> \param qs_kind_set ...
 !> \date    24.09.2002
 !> \author  GT
 !> \version 1.0
 ! **************************************************************************************************
-   SUBROUTINE init_interaction_radii(qs_control, atomic_kind_set, qs_kind_set)
+   SUBROUTINE init_interaction_radii(qs_control, qs_kind_set)
 
       TYPE(qs_control_type), INTENT(IN)                  :: qs_control
-      TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
 
       CHARACTER(len=*), PARAMETER :: routineN = 'init_interaction_radii', &
          routineP = moduleN//':'//routineN
 
       INTEGER :: handle, i, iexp_ppl, ikind, ip, iprj_ppnl, j, l, lppl, lppnl, lprj, lprj_ppnl, &
-         maxl, maxnset, n_local, nexp_lpot, nexp_lsd, nexp_ppl, nkind, nloc
+         maxl, n_local, nexp_lpot, nexp_lsd, nexp_ppl, nkind, nloc
       INTEGER, DIMENSION(1:10)                           :: nrloc
       INTEGER, DIMENSION(:), POINTER                     :: nct_lpot, nct_lsd, nprj, nprj_ppnl
       LOGICAL                                            :: ecp_local, llsd, lpot, paw_atom
@@ -110,9 +107,7 @@ CONTAINS
       NULLIFY (nprj_ppnl, nprj)
       NULLIFY (alpha_ppnl, cexp_ppl, cprj_ppnl, zet)
 
-      nkind = SIZE(atomic_kind_set)
-      CALL get_qs_kind_set(qs_kind_set, maxnset=maxnset)
-
+      nkind = SIZE(qs_kind_set)
       nexp_ppl = 0
 
       DO ikind = 1, nkind
@@ -185,7 +180,7 @@ CONTAINS
             ppl_radius = exp_radius(0, alpha_ppl, qs_control%eps_ppl, cerf_ppl)
 
             DO iexp_ppl = 1, nexp_ppl
-               lppl = 2*(iexp_ppl-1)
+               lppl = 2*(iexp_ppl - 1)
                ppl_radius = MAX(ppl_radius, &
                                 exp_radius(lppl, alpha_ppl, &
                                            qs_control%eps_ppl, &
@@ -200,7 +195,7 @@ CONTAINS
                                   cval_lpot=cval_lpot)
                DO j = 1, nexp_lpot
                   DO i = 1, nct_lpot(j)
-                     lppl = 2*(i-1)
+                     lppl = 2*(i - 1)
                      ppl_radius = MAX(ppl_radius, &
                                       exp_radius(lppl, alpha_lpot(j), qs_control%eps_ppl, cval_lpot(i, j)))
                   END DO
@@ -215,7 +210,7 @@ CONTAINS
                                   cval_lsd=cval_lsd)
                DO j = 1, nexp_lsd
                   DO i = 1, nct_lsd(j)
-                     lppl = 2*(i-1)
+                     lppl = 2*(i - 1)
                      ppl_radius = MAX(ppl_radius, &
                                       exp_radius(lppl, alpha_lsd(j), qs_control%eps_ppl, cval_lsd(i, j)))
                   END DO
@@ -227,7 +222,7 @@ CONTAINS
             ppnl_radius = 0.0_dp
             DO l = 0, lppnl
                DO iprj_ppnl = 1, nprj_ppnl(l)
-                  lprj_ppnl = l+2*(iprj_ppnl-1)
+                  lprj_ppnl = l + 2*(iprj_ppnl - 1)
                   ppnl_radius = MAX(ppnl_radius, &
                                     exp_radius(lprj_ppnl, alpha_ppnl(l), &
                                                qs_control%eps_pgf_orb, &
@@ -254,7 +249,7 @@ CONTAINS
             IF (ecp_local) THEN
                CALL get_potential(potential=sgp_potential, nloc=nloc, nrloc=nrloc, aloc=aloc, bloc=bloc)
                DO i = 1, nloc
-                  lppl = MAX(0, nrloc(i)-2)
+                  lppl = MAX(0, nrloc(i) - 2)
                   ppl_radius = MAX(ppl_radius, &
                                    exp_radius(lppl, bloc(i), qs_control%eps_ppl, aloc(i)))
                END DO

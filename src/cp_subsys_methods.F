@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -341,7 +341,7 @@ CONTAINS
          !
          ! Defining element
          !
-         id_ = INDEX(id2str(topology%atom_info%id_atmname(iat)), "_")-1
+         id_ = INDEX(id2str(topology%atom_info%id_atmname(iat)), "_") - 1
          IF (id_ == -1) id_ = LEN_TRIM(id2str(topology%atom_info%id_atmname(iat)))
          strtmp1 = id2str(topology%atom_info%id_atmname(iat))
          strtmp1 = strtmp1(1:id_)

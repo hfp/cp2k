@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -276,7 +276,7 @@ CONTAINS
 
       IF (ASSOCIATED(linres_control)) THEN
          CPASSERT(linres_control%ref_count > 0)
-         linres_control%ref_count = linres_control%ref_count-1
+         linres_control%ref_count = linres_control%ref_count - 1
          IF (linres_control%ref_count < 1) THEN
             IF (ASSOCIATED(linres_control%qs_loc_env)) THEN
                CALL qs_loc_env_release(linres_control%qs_loc_env)
@@ -300,7 +300,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(linres_control))
       CPASSERT(linres_control%ref_count > 0)
-      linres_control%ref_count = linres_control%ref_count+1
+      linres_control%ref_count = linres_control%ref_count + 1
 
    END SUBROUTINE linres_control_retain
 
@@ -1496,7 +1496,7 @@ CONTAINS
 
       IF (ASSOCIATED(polar_env)) THEN
          CPASSERT(polar_env%ref_count > 0)
-         polar_env%ref_count = polar_env%ref_count-1
+         polar_env%ref_count = polar_env%ref_count - 1
          IF (polar_env%ref_count < 1) THEN
             IF (ASSOCIATED(polar_env%polar)) THEN
                DEALLOCATE (polar_env%polar)

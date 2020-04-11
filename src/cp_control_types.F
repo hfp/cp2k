@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -19,8 +19,6 @@ MODULE cp_control_types
                                               cdft_control_type
    USE xas_control,                     ONLY: xas_control_release,&
                                               xas_control_type
-   USE xas_tdp_types,                   ONLY: xas_tdp_control_release,&
-                                              xas_tdp_control_type
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE
@@ -266,7 +264,6 @@ MODULE cp_control_types
 !                     Gaussian-type functions (primitive basis functions).
 ! **************************************************************************************************
    TYPE qs_control_type
-      CHARACTER(LEN=10)                    :: method
       INTEGER                              :: method_id
       REAL(KIND=dp)                        :: eps_core_charge, &
                                               eps_kg_orb, &
@@ -284,7 +281,6 @@ MODULE cp_control_types
       LOGICAL                              :: do_kg
       LOGICAL                              :: commensurate_mgrids
       LOGICAL                              :: realspace_mgrids
-      LOGICAL                              :: map_consistent
       LOGICAL                              :: gapw, gapw_xc, gpw, pao
       LOGICAL                              :: lrigpw, rigpw
       LOGICAL                              :: lri_optbas
@@ -303,12 +299,11 @@ MODULE cp_control_types
       INTEGER                              :: wf_interpolation_method_nr
       INTEGER                              :: wf_extrapolation_order
       REAL(KIND=dp)                        :: cutoff
-      REAL(KIND=dp), DIMENSION(:), &
-         POINTER, CONTIGUOUS               :: e_cutoff
+      REAL(KIND=dp), DIMENSION(:), POINTER :: e_cutoff
       TYPE(mulliken_restraint_type), &
          POINTER                           :: mulliken_restraint_control
       TYPE(ddapc_restraint_p_type), &
-         DIMENSION(:), POINTER, CONTIGUOUS :: ddapc_restraint_control
+         DIMENSION(:), POINTER             :: ddapc_restraint_control
       TYPE(cdft_control_type), POINTER     :: cdft_control
       TYPE(s2_restraint_type), POINTER     :: s2_restraint_control
       TYPE(dftb_control_type), POINTER     :: dftb_control
@@ -360,7 +355,7 @@ MODULE cp_control_types
 !   - lumos_eigenvalues : holds the eigenvalues of the lumos (if calculated in QS)
 !
 ! \par  NOTES
-!   The lumos are helpfull in choosing a initial vector for the TDDFPT
+!   The lumos are helpful in choosing a initial vector for the TDDFPT
 !   calculation, since they can be used to construct the solutions of the
 !   TDDFPT operator without the perturbation kernel.
 ! **************************************************************************************************
@@ -389,6 +384,17 @@ MODULE cp_control_types
    END TYPE tddfpt_control_type
 
 ! **************************************************************************************************
+! \brief Control parameters for simplified Tamm Dancoff approximation (sTDA)
+! \par  ATTRIBUTES
+! \par  NOTES
+! **************************************************************************************************
+   TYPE stda_control_type
+      LOGICAL                                :: do_ewald
+      REAL(KIND=dp)                          :: hfx_fraction
+      REAL(KIND=dp)                          :: eps_td_filter
+   END TYPE stda_control_type
+
+! **************************************************************************************************
 ! \brief Control parameters for a Time-Dependent DFT calculation.
 ! **************************************************************************************************
    TYPE tddfpt2_control_type
@@ -404,6 +410,14 @@ MODULE cp_control_types
       INTEGER                              :: nlumo
       !> minimal number of MPI processes to be used per excited state
       INTEGER                              :: nprocs
+      !> type of kernel function/approximation to use
+      INTEGER                              :: kernel
+      !> options used in sTDA calculation (Kernel)
+      TYPE(stda_control_type)              :: stda_control
+      !> algorithm to correct orbital energies
+      INTEGER                              :: oe_corr
+      !> eigenvalue shifts
+      REAL(KIND=dp)                        :: ev_shift, eos_shift
       !> target accuracy
       REAL(kind=dp)                        :: conv
       !> the smallest excitation amplitude to print
@@ -453,6 +467,8 @@ MODULE cp_control_types
 
 ! **************************************************************************************************
 ! \brief Control parameters for a DFT calculation
+! \par History
+!      10.2019 added variables related to surface dipole correction [Soumya Ghosh]
 ! **************************************************************************************************
    TYPE dft_control_type
       TYPE(admm_control_type), POINTER     :: admm_control
@@ -463,9 +479,8 @@ MODULE cp_control_types
       TYPE(tddfpt_control_type), POINTER   :: tddfpt_control
       TYPE(tddfpt2_control_type), POINTER  :: tddfpt2_control
       TYPE(xas_control_type), POINTER      :: xas_control
-      TYPE(xas_tdp_control_type), POINTER  :: xas_tdp_control
       TYPE(efield_p_type), POINTER, &
-         DIMENSION(:), CONTIGUOUS          :: efield_fields
+         DIMENSION(:)                      :: efield_fields
       INTEGER                              :: nspins, &
                                               charge, &
                                               multiplicity, &
@@ -480,10 +495,12 @@ MODULE cp_control_types
                                               auto_basis_aux_fit = 1, &
                                               auto_basis_lri_aux = 1, &
                                               auto_basis_ri_hxc = 1, &
-                                              auto_basis_ri_xas = 1
+                                              auto_basis_ri_xas = 1, &
+                                              auto_basis_ri_hfx = 1
       REAL(KIND=dp)                        :: relax_multiplicity, &
                                               sic_scaling_a, &
-                                              sic_scaling_b
+                                              sic_scaling_b, &
+                                              pos_dir_surf_dip
       LOGICAL                              :: do_tddfpt_calculation, &
                                               do_xas_calculation, &
                                               do_xas_tdp_calculation, &
@@ -509,6 +526,9 @@ MODULE cp_control_types
                                               apply_external_vxc, &
                                               read_external_vxc, &
                                               correct_surf_dip, &
+                                              surf_dip_correct_switch, &
+                                              switch_surf_dip, &
+                                              correct_el_density_dip, &
                                               do_sccs, &
                                               apply_embed_pot, &
                                               apply_dmfet_pot
@@ -533,7 +553,8 @@ MODULE cp_control_types
              s2_restraint_type, &
              admm_control_type, &
              rtp_control_type, &
-             sccs_control_type
+             sccs_control_type, &
+             stda_control_type
 
    ! Public subroutines
 
@@ -583,7 +604,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(mulliken_restraint_control))
       CPASSERT(mulliken_restraint_control%ref_count > 0)
-      mulliken_restraint_control%ref_count = mulliken_restraint_control%ref_count-1
+      mulliken_restraint_control%ref_count = mulliken_restraint_control%ref_count - 1
       IF (mulliken_restraint_control%ref_count == 0) THEN
          IF (ASSOCIATED(mulliken_restraint_control%atoms)) &
             DEALLOCATE (mulliken_restraint_control%atoms)
@@ -609,7 +630,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(mulliken_restraint_control))
 
-      mulliken_restraint_control%ref_count = mulliken_restraint_control%ref_count+1
+      mulliken_restraint_control%ref_count = mulliken_restraint_control%ref_count + 1
    END SUBROUTINE mulliken_control_retain
 
 ! **************************************************************************************************
@@ -653,7 +674,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(ddapc_restraint_control))
       CPASSERT(ddapc_restraint_control%ref_count > 0)
-      ddapc_restraint_control%ref_count = ddapc_restraint_control%ref_count-1
+      ddapc_restraint_control%ref_count = ddapc_restraint_control%ref_count - 1
       IF (ddapc_restraint_control%ref_count == 0) THEN
          IF (ASSOCIATED(ddapc_restraint_control%atoms)) &
             DEALLOCATE (ddapc_restraint_control%atoms)
@@ -681,7 +702,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(ddapc_restraint_control))
 
-      ddapc_restraint_control%ref_count = ddapc_restraint_control%ref_count+1
+      ddapc_restraint_control%ref_count = ddapc_restraint_control%ref_count + 1
    END SUBROUTINE ddapc_control_retain
 
 ! **************************************************************************************************
@@ -720,7 +741,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(s2_restraint_control))
       CPASSERT(s2_restraint_control%ref_count > 0)
-      s2_restraint_control%ref_count = s2_restraint_control%ref_count-1
+      s2_restraint_control%ref_count = s2_restraint_control%ref_count - 1
       IF (s2_restraint_control%ref_count == 0) THEN
          s2_restraint_control%ref_count = 0
          s2_restraint_control%strength = 0.0_dp
@@ -742,7 +763,7 @@ CONTAINS
          routineP = moduleN//':'//routineN
 
       CPASSERT(ASSOCIATED(s2_restraint_control))
-      s2_restraint_control%ref_count = s2_restraint_control%ref_count+1
+      s2_restraint_control%ref_count = s2_restraint_control%ref_count + 1
    END SUBROUTINE s2_control_retain
 
 ! **************************************************************************************************
@@ -761,10 +782,9 @@ CONTAINS
       CPASSERT(.NOT. ASSOCIATED(dft_control))
       ALLOCATE (dft_control)
       dft_control%ref_count = 1
-      last_dft_control_id = last_dft_control_id+1
+      last_dft_control_id = last_dft_control_id + 1
       dft_control%id_nr = last_dft_control_id
       NULLIFY (dft_control%xas_control)
-      NULLIFY (dft_control%xas_tdp_control)
       NULLIFY (dft_control%qs_control)
       NULLIFY (dft_control%tddfpt_control)
       NULLIFY (dft_control%tddfpt2_control)
@@ -795,7 +815,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(dft_control))
       CPASSERT(dft_control%ref_count > 0)
-      dft_control%ref_count = dft_control%ref_count+1
+      dft_control%ref_count = dft_control%ref_count + 1
    END SUBROUTINE dft_control_retain
 
 ! **************************************************************************************************
@@ -813,13 +833,12 @@ CONTAINS
 
       IF (ASSOCIATED(dft_control)) THEN
          CPASSERT(dft_control%ref_count > 0)
-         dft_control%ref_count = dft_control%ref_count-1
+         dft_control%ref_count = dft_control%ref_count - 1
          IF (dft_control%ref_count == 0) THEN
             CALL qs_control_release(dft_control%qs_control)
             CALL tddfpt_control_release(dft_control%tddfpt_control)
             CALL tddfpt2_control_release(dft_control%tddfpt2_control)
             CALL xas_control_release(dft_control%xas_control)
-            CALL xas_tdp_control_release(dft_control%xas_tdp_control)
             CALL admm_control_release(dft_control%admm_control)
             CALL efield_fields_release(dft_control%efield_fields)
             CALL sccs_control_release(dft_control%sccs_control)
@@ -1224,7 +1243,7 @@ CONTAINS
 
       IF (ASSOCIATED(sccs_control)) THEN
          CPASSERT(sccs_control%ref_count > 0)
-         sccs_control%ref_count = sccs_control%ref_count-1
+         sccs_control%ref_count = sccs_control%ref_count - 1
          IF (sccs_control%ref_count == 0) THEN
             DEALLOCATE (sccs_control)
          END IF

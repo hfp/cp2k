@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -19,8 +19,9 @@ MODULE almo_scf_types
                                               domain_submatrix_type
    USE input_constants,                 ONLY: &
         cg_dai_yuan, cg_fletcher, cg_fletcher_reeves, cg_hager_zhang, cg_hestenes_stiefel, &
-        cg_liu_storey, cg_polak_ribiere, cg_zero, optimizer_diis, optimizer_pcg, &
-        xalmo_prec_domain, xalmo_prec_full, xalmo_prec_zero
+        cg_liu_storey, cg_polak_ribiere, cg_zero, optimizer_diis, optimizer_pcg, optimizer_trustr, &
+        trustr_cauchy, trustr_dogleg, trustr_steihaug, xalmo_prec_domain, xalmo_prec_full, &
+        xalmo_prec_zero
    USE kinds,                           ONLY: dp
 #include "./base/base_uses.f90"
 
@@ -45,8 +46,11 @@ MODULE almo_scf_types
    ! methods that add penalty terms to the energy functional
    TYPE penalty_type
 
-      REAL(KIND=dp)      :: occ_vol_coeff
-      INTEGER            :: occ_vol_method
+      REAL(KIND=dp)      :: final_determinant, penalty_strength, &
+                            determinant_tolerance, penalty_strength_dec_factor, &
+                            compactification_filter_start
+      INTEGER            :: operator_type
+      LOGICAL            :: virtual_nlmos
 
    END TYPE penalty_type
 
@@ -62,32 +66,25 @@ MODULE almo_scf_types
 
    TYPE optimizer_options_type
 
-      ! SCF procedure for the block-diagonal ALMOs
-      !REAL(KIND=dp)         :: eps_scf_bd -> eps_error
-      !INTEGER               :: max_scf_bd -> max_iter
-      !INTEGER               :: ndiis_bd -> ndiis
-
-      ! SCF procedure for the quenched ALMOs (xALMOs)
-      !REAL(KIND=dp)         :: eps_scf_q -> eps_error
-      !REAL(KIND=dp)         :: eps_lin_search ->  eps_lin_search_error
-      !INTEGER               :: max_scf_q -> max_iter
-      !INTEGER               :: scf_conjugator -> conjugator
-      !INTEGER               :: outer_max_scf_q -> max_iter for a separate optimizer
-      !INTEGER               :: ndiis_q -> ndiis
-
       REAL(KIND=dp)  :: eps_error, &
                         eps_error_early, &
                         lin_search_eps_error, &
                         lin_search_step_size_guess, &
+                        rho_do_not_update, &
+                        model_grad_norm_ratio, &
+                        initial_trust_radius, &
+                        max_trust_radius, &
                         neglect_threshold
 
       INTEGER        :: optimizer_type ! diis, pcg, etc.
+      TYPE(penalty_type)  :: opt_penalty
 
       INTEGER        :: preconditioner, & ! preconditioner type
                         conjugator, & ! conjugator type
                         max_iter, &
                         max_iter_early, &
                         max_iter_outer_loop, &
+                        trustr_algorithm, &
                         ndiis ! diis history length
 
       LOGICAL        :: early_stopping_on = .FALSE.
@@ -214,7 +211,7 @@ MODULE almo_scf_types
       LOGICAL              :: s_sqrt_done
       REAL(KIND=dp)        :: almo_scf_energy
       LOGICAL              :: orthogonal_basis, fixed_mu
-      LOGICAL              :: return_orthogonalized_mos
+      LOGICAL              :: return_orthogonalized_mos, construct_nlmos
 
       !! Smearing control
       !! smear flag allow to retrieve eigenvalues in almo_scf with diag algorithm and create occupation-scaled ALMO orbitals
@@ -245,6 +242,9 @@ MODULE almo_scf_types
       INTEGER               :: xalmo_update_algorithm
       ! mo overlap inversion algorithm
       INTEGER               :: sigma_inv_algorithm
+
+      ! Determinant of the ALMO overlap matrix
+      REAL(KIND=dp)         :: overlap_determinant
 
       ! ALMO SCF delocalization control
       LOGICAL               :: perturbative_delocalization
@@ -361,13 +361,14 @@ MODULE almo_scf_types
 
       ! Options for various subsection options collected neatly
       TYPE(almo_analysis_type)                       :: almo_analysis
-      TYPE(penalty_type)                             :: penalty
 
       ! Options for various optimizers collected neatly
       TYPE(optimizer_options_type)                   :: opt_block_diag_diis
       TYPE(optimizer_options_type)                   :: opt_block_diag_pcg
       TYPE(optimizer_options_type)                   :: opt_xalmo_diis
       TYPE(optimizer_options_type)                   :: opt_xalmo_pcg
+      TYPE(optimizer_options_type)                   :: opt_xalmo_trustr
+      TYPE(optimizer_options_type)                   :: opt_nlmo_pcg
       TYPE(optimizer_options_type)                   :: opt_xalmo_newton_pcg_solver
       TYPE(optimizer_options_type)                   :: opt_k_pcg
 
@@ -445,23 +446,23 @@ CONTAINS
             type_string = "DIIS"
          CASE (optimizer_pcg)
             type_string = "PCG"
+         CASE (optimizer_trustr)
+            type_string = "TRUST REGION"
          END SELECT
 
          WRITE (unit_nr, '(T4,A,T48,A33)') "optimizer type:", TRIM(type_string)
          WRITE (unit_nr, '(T4,A,T48,I33)') "maximum iterations:", optimizer%max_iter
          WRITE (unit_nr, '(T4,A,T48,E33.3)') "target error:", optimizer%eps_error
 
-         SELECT CASE (optimizer%optimizer_type)
-         CASE (optimizer_diis)
+         IF (optimizer%optimizer_type .EQ. optimizer_diis) THEN
 
             WRITE (unit_nr, '(T4,A,T48,I33)') "maximum DIIS history:", optimizer%ndiis
 
-         CASE (optimizer_pcg)
+         ENDIF
 
-            WRITE (unit_nr, '(T4,A,T48,E33.3)') "line search step size guess:", &
-               optimizer%lin_search_step_size_guess
-            WRITE (unit_nr, '(T4,A,T48,E33.3)') "line search target error:", &
-               optimizer%lin_search_eps_error
+         IF (optimizer%optimizer_type .EQ. optimizer_trustr .OR. &
+             optimizer%optimizer_type .EQ. optimizer_pcg) THEN
+
             WRITE (unit_nr, '(T4,A,T48,I33)') "maximum outer loop iterations:", &
                optimizer%max_iter_outer_loop
 
@@ -495,7 +496,39 @@ CONTAINS
             END SELECT
             WRITE (unit_nr, '(T4,A,T48,A33)') "conjugator:", TRIM(conj_string)
 
-         END SELECT !optimizer type
+         ENDIF
+
+         IF (optimizer%optimizer_type .EQ. optimizer_pcg) THEN
+
+            WRITE (unit_nr, '(T4,A,T48,E33.3)') "line search step size guess:", &
+               optimizer%lin_search_step_size_guess
+            WRITE (unit_nr, '(T4,A,T48,E33.3)') "line search target error:", &
+               optimizer%lin_search_eps_error
+
+         ENDIF
+
+         IF (optimizer%optimizer_type .EQ. optimizer_trustr) THEN
+
+            SELECT CASE (optimizer%trustr_algorithm)
+            CASE (trustr_steihaug)
+               conj_string = "Steihaug's CG"
+            CASE (trustr_cauchy)
+               conj_string = "Cauchy point"
+            CASE (trustr_dogleg)
+               conj_string = "Dogleg"
+            END SELECT
+            WRITE (unit_nr, '(T4,A,T48,A33)') "Subproblem algorithm:", TRIM(conj_string)
+
+            WRITE (unit_nr, '(T4,A,T48,E33.3)') "gradient decrease accepted:", &
+               optimizer%model_grad_norm_ratio
+            WRITE (unit_nr, '(T4,A,T48,E33.3)') "initial trust radius:", &
+               optimizer%initial_trust_radius
+            WRITE (unit_nr, '(T4,A,T48,E33.3)') "max trust radius:", &
+               optimizer%max_trust_radius
+            WRITE (unit_nr, '(T4,A,T48,E33.3)') "rho of no update lies between .0 and .25:", &
+               optimizer%rho_do_not_update
+
+         ENDIF
 
       ENDIF
 

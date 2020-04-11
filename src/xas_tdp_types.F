@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 !> *************************************************************************************************
@@ -11,29 +11,35 @@
 MODULE xas_tdp_types
    USE cp_array_utils,                  ONLY: cp_1d_i_p_type,&
                                               cp_1d_r_p_type,&
+                                              cp_2d_i_p_type,&
                                               cp_2d_r_p_type,&
                                               cp_3d_r_p_type
    USE cp_files,                        ONLY: file_exists
    USE cp_fm_types,                     ONLY: cp_fm_release,&
                                               cp_fm_type
+   USE cp_para_env,                     ONLY: cp_para_env_release
+   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: dbcsr_distribution_release,&
                                               dbcsr_distribution_type,&
                                               dbcsr_p_type,&
                                               dbcsr_release,&
                                               dbcsr_release_p,&
                                               dbcsr_type
+   USE dbcsr_tensor_api,                ONLY: dbcsr_t_destroy,&
+                                              dbcsr_t_type
    USE distribution_2d_types,           ONLY: distribution_2d_release,&
                                               distribution_2d_type
-   USE hfx_libint_wrapper,              ONLY: cp_libint_static_cleanup
    USE input_constants,                 ONLY: &
         do_potential_coulomb, do_potential_short, do_potential_truncated, tddfpt_singlet, &
         tddfpt_spin_cons, tddfpt_spin_flip, tddfpt_triplet, xas_dip_vel, xas_tdp_by_index, &
-        xas_tdp_by_kind, xas_tdp_diag_std
+        xas_tdp_by_kind
    USE input_section_types,             ONLY: section_vals_release,&
                                               section_vals_type,&
                                               section_vals_val_get
    USE kinds,                           ONLY: default_string_length,&
                                               dp
+   USE libint_2c_3c,                    ONLY: libint_potential_type
+   USE libint_wrapper,                  ONLY: cp_libint_static_cleanup
    USE mathlib,                         ONLY: erfc_cutoff
    USE memory_utilities,                ONLY: reallocate
    USE physcon,                         ONLY: bohr,&
@@ -44,8 +50,6 @@ MODULE xas_tdp_types
                                               harmonics_atom_type
    USE qs_loc_types,                    ONLY: qs_loc_env_new_type,&
                                               qs_loc_env_release
-   USE qs_o3c_types,                    ONLY: o3c_container_type,&
-                                              release_o3c_container
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE
@@ -59,19 +63,18 @@ MODULE xas_tdp_types
 !> \param n_search # of lowest energy MOs to search for donor orbitals
 !> \param check_only whether a check run for donor MOs is conducted
 !> \param do_hfx whether exact exchange is included
-!> \param do_xc wheter xc functional(s) is(are) included
-!> \param do_coulomb whether the coulomb kernel is computed, .FLASE. if no xc nor hfx => normal dft
+!> \param do_xc wheter xc functional(s) is(are) included (libxc)
+!> \param do_coulomb whether the coulomb kernel is computed, .FALSE. if no xc nor hfx => normal dft
 !> \param sx the scaling applied to exact exchange
-!> \param x_op the operator used for exact exchange (Coulomb, TC, SR)
-!> \param x_range the range for exact exchane operator (truncated coulomb or SR)
-!> \param x_t_c_filename the file where the parameters for the TC operator should be read
-!> \param x_omega the range parameter in the short range interation erfc(omega*r)/r
+!> \param x_potential the potential used for exact exchange (incl. cutoff, t_c_file, omega)
+!> \param ri_m_potential the potential used for exact exchange RI metric
+!> \param do_ri_metric whether a metric is used fir the RI
 !> \param eps_range the threshold to determine the effective range of the short range operator
 !> \param eps_pgf the threshold to determine the extent of all pgf in the method
 !> \param eps_filter threshold for dbcsr operations
 !> \param ri_radius the radius of the sphere defining the neighbors in the RI projection of the dens
 !> \param tamm_dancoff whether the calculations should be done in the Tamm-Dancoff approximation
-!> \param do_quad whther the electric quadrupole transition moments should be computed
+!> \param do_quad whether the electric quadrupole transition moments should be computed
 !> \param list_ex_atoms list of excited atom indices, kept empty if define_excited=by_kind
 !> \param list_ex_kinds list of excited atom kinds, kept empty if define_excited=by_index
 !> \param do_loc whether the core MOs should be localized
@@ -87,30 +90,26 @@ MODULE xas_tdp_types
 !> \param state_types columns correspond to the states to excite for each atom kind/index
 !>                    the number of rows is the number of times the keyword is repeated
 !> \param grid_info the information about the atomic grids used for the xc kernel integrals
-!> \param diag_type which of the CP2K standard or syevr
 !> \param is_periodic self-explanatory
-!> \param batch_size how many procs are allocated to the XC treatment of excited atoms
 ! **************************************************************************************************
    TYPE xas_tdp_control_type
       INTEGER                                 :: define_excited
       INTEGER                                 :: dipole_form
       INTEGER                                 :: n_search
       INTEGER                                 :: n_excited
-      INTEGER                                 :: batch_size
       REAL(dp)                                :: e_range
       REAL(dp)                                :: sx
-      REAL(dp)                                :: x_range
-      REAL(dp)                                :: x_omega
       REAL(dp)                                :: eps_range
       REAL(dp)                                :: eps_screen
       REAL(dp)                                :: eps_pgf
       REAL(dp)                                :: eps_filter
-      INTEGER                                 :: x_op
-      CHARACTER(len=default_string_length)    :: x_t_c_filename
+      TYPE(libint_potential_type)             :: x_potential
+      TYPE(libint_potential_type)             :: ri_m_potential
       REAL(dp)                                :: ri_radius
       LOGICAL                                 :: do_hfx
       LOGICAL                                 :: do_xc
       LOGICAL                                 :: do_coulomb
+      LOGICAL                                 :: do_ri_metric
       LOGICAL                                 :: check_only
       LOGICAL                                 :: tamm_dancoff
       LOGICAL                                 :: do_quad
@@ -122,7 +121,6 @@ MODULE xas_tdp_types
       LOGICAL                                 :: do_triplet
       LOGICAL                                 :: do_spin_cons
       LOGICAL                                 :: do_spin_flip
-      INTEGER                                 :: diag_type
       LOGICAL                                 :: is_periodic
       INTEGER, DIMENSION(:), POINTER          :: list_ex_atoms
       CHARACTER(len=default_string_length), &
@@ -143,13 +141,14 @@ MODULE xas_tdp_types
 !> \param ex_atom_indices array containing the indices of the excited atoms
 !> \param ex_kind_indices array containing the indices of the excited kinds
 !> \param state_types columns correspond to the different donor states of each excited atom
-!> \param qs_loc_env the environemnt type dealing with the possible localization of donor orbitals
+!> \param qs_loc_env the environment type dealing with the possible localization of donor orbitals
 !> \param mos_of_ex_atoms links lowest energy MOs to excited atoms. Elements of value 1 mark the
 !>        association between the MO irow and the excited atom icolumn. The third index is for spin
 !> \param ri_inv_coul the inverse coulomb RI integral (P|Q)^-1, updated for each excited kind
 !>        based on basis functions of the RI_XAS basis for that kind
 !> \param ri_inv_ex the inverse exchange RI integral (P|Q)^-1, updated for each excited kind
 !>        based on basis functions of the RI_XAS basis for that kind, and with the exchange operator
+!>        Optionally, if a RI metric is present, contains M^-1 (P|Q) M^-1
 !> \param q_projector the projector on the unperturbed, unoccupied ground state as a dbcsr matrix,
 !>        for each spin
 !> \param dipmat the dbcsr matrices containing the dipole in x,y,z directions evaluated on the
@@ -157,10 +156,10 @@ MODULE xas_tdp_types
 !>        representation. For length representation, it has to be computed once with the origin on
 !>        each excited atom
 !> \param quadmat the dbcsr matrices containing the electric quadrupole in x2, xy, xz, y2, yz and z2
-!>        directions in the AO basis. It is always in the lenght representation with the origin
+!>        directions in the AO basis. It is always in the length representation with the origin
 !>        set to the current excited atom
-!> \param ri_o3c_coul the container for the RI 3-center Coulomb integrals (computed once)
-!> \param ri_o3c_ex the container for the RI 3-center exchange integrals (updated for each ex atom)
+!> \param ri_3c_coul the tensor containing the RI 3-cetner Coulomb integrals (computed once)
+!> \param ri_3c_ex the tensor containing the RI 3-center exchange integrals (computed for each ex atom)
 !> \param opt_dist2d_coul an optimized distribution_2d for localized Coulomb 3-center integrals
 !> \param opt_dist2d_ex an optimized distribution_2d for localized exchange 3-center integrals
 !> \param ri_fxc the array of xc integrals of type (P|fxc|Q), for alpha-alpha, alpha-beta and beta-beta
@@ -174,9 +173,9 @@ MODULE xas_tdp_types
       INTEGER                                 :: nex_kinds
       INTEGER, DIMENSION(:), POINTER          :: ex_atom_indices
       INTEGER, DIMENSION(:), POINTER          :: ex_kind_indices
-      INTEGER, DIMENSION(:, :), POINTER        :: state_types
-      TYPE(o3c_container_type), POINTER       :: ri_o3c_coul
-      TYPE(o3c_container_type), POINTER       :: ri_o3c_ex
+      INTEGER, DIMENSION(:, :), POINTER       :: state_types
+      TYPE(dbcsr_t_type), POINTER             :: ri_3c_coul
+      TYPE(dbcsr_t_type), POINTER             :: ri_3c_ex
       TYPE(donor_state_type), DIMENSION(:), &
          POINTER   :: donor_states
       INTEGER, DIMENSION(:, :, :), POINTER      :: mos_of_ex_atoms
@@ -267,7 +266,7 @@ MODULE xas_tdp_types
 
    END TYPE donor_state_type
 
-!  Some helper types
+!  Some helper types for xas_tdp_atom
    TYPE grid_atom_p_type
       TYPE(grid_atom_type), POINTER                   :: grid_atom
    END TYPE grid_atom_p_type
@@ -275,6 +274,17 @@ MODULE xas_tdp_types
    TYPE harmonics_atom_p_type
       TYPE(harmonics_atom_type), POINTER              :: harmonics_atom
    END TYPE harmonics_atom_p_type
+
+   TYPE batch_info_type
+      TYPE(cp_para_env_type), POINTER             :: para_env
+      INTEGER                                     :: batch_size
+      INTEGER                                     :: nbatch
+      INTEGER                                     :: ibatch
+      INTEGER                                     :: ipe
+      INTEGER, DIMENSION(:), ALLOCATABLE          :: nso_proc
+      INTEGER, DIMENSION(:, :), ALLOCATABLE       :: so_bo
+      TYPE(cp_2d_i_p_type), POINTER, DIMENSION(:) :: so_proc_info
+   END TYPE batch_info_type
 
 ! **************************************************************************************************
 !> \brief a environment type that contains all the info needed for XAS_TDP atomic grid calculations
@@ -314,13 +324,15 @@ MODULE xas_tdp_types
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'xas_tdp_types'
 
 ! *** Public data types ***
-   PUBLIC :: xas_tdp_env_type, donor_state_type, xas_tdp_control_type, xas_atom_env_type
+   PUBLIC :: xas_tdp_env_type, donor_state_type, xas_tdp_control_type, xas_atom_env_type, &
+             batch_info_type
 
 ! *** Public subroutines ***
-   PUBLIC :: set_donor_state, free_ds_memory, &
+   PUBLIC :: set_donor_state, free_ds_memory, release_batch_info, &
              xas_tdp_env_create, xas_tdp_env_release, set_xas_tdp_env, &
              xas_tdp_control_create, xas_tdp_control_release, read_xas_tdp_control, &
-             xas_atom_env_create, xas_atom_env_release, donor_state_create, free_exat_memory
+             xas_atom_env_create, xas_atom_env_release, donor_state_create, free_exat_memory, &
+             get_proc_batch_sizes
 
 CONTAINS
 
@@ -344,16 +356,21 @@ CONTAINS
       xas_tdp_control%do_hfx = .FALSE.
       xas_tdp_control%do_xc = .FALSE.
       xas_tdp_control%do_coulomb = .TRUE.
+      xas_tdp_control%do_ri_metric = .FALSE.
       xas_tdp_control%sx = 1.0_dp
-      xas_tdp_control%x_range = 0.0_dp
-      xas_tdp_control%x_omega = 0.0_dp
       xas_tdp_control%eps_range = 1.0E-6_dp
       xas_tdp_control%eps_screen = 1.0E-10_dp
       xas_tdp_control%eps_pgf = -1.0_dp
       xas_tdp_control%eps_filter = 1.0E-10_dp
       xas_tdp_control%ri_radius = 0.0_dp
-      xas_tdp_control%x_op = do_potential_coulomb
-      xas_tdp_control%x_t_c_filename = " "
+      xas_tdp_control%x_potential%potential_type = do_potential_coulomb
+      xas_tdp_control%x_potential%cutoff_radius = 0.0_dp
+      xas_tdp_control%x_potential%omega = 0.0_dp
+      xas_tdp_control%x_potential%filename = " "
+      xas_tdp_control%ri_m_potential%potential_type = do_potential_coulomb
+      xas_tdp_control%ri_m_potential%cutoff_radius = 0.0_dp
+      xas_tdp_control%ri_m_potential%omega = 0.0_dp
+      xas_tdp_control%ri_m_potential%filename = " "
       xas_tdp_control%check_only = .FALSE.
       xas_tdp_control%tamm_dancoff = .FALSE.
       xas_tdp_control%do_quad = .FALSE.
@@ -365,7 +382,6 @@ CONTAINS
       xas_tdp_control%do_triplet = .FALSE.
       xas_tdp_control%do_spin_cons = .FALSE.
       xas_tdp_control%do_spin_flip = .FALSE.
-      xas_tdp_control%diag_type = xas_tdp_diag_std
       xas_tdp_control%is_periodic = .FALSE.
       xas_tdp_control%n_excited = -1
       xas_tdp_control%e_range = -1.0_dp
@@ -471,6 +487,13 @@ CONTAINS
          IF (excitation == tddfpt_spin_flip) xas_tdp_control%do_spin_flip = .TRUE.
       END DO
 
+      CALL section_vals_val_get(xas_tdp_section, "N_EXCITED", &
+                                i_val=xas_tdp_control%n_excited)
+      CALL section_vals_val_get(xas_tdp_section, "ENERGY_RANGE", &
+                                r_val=xas_tdp_control%e_range)
+      !store the range in Hartree, not eV
+      xas_tdp_control%e_range = xas_tdp_control%e_range/evolt
+
 !  Deal with the DONOR_STATES subsection
 
       CALL section_vals_val_get(xas_tdp_section, "DONOR_STATES%DEFINE_EXCITED", &
@@ -536,58 +559,84 @@ CONTAINS
       CALL section_vals_val_get(xas_tdp_section, "KERNEL%EXACT_EXCHANGE%_SECTION_PARAMETERS_", &
                                 l_val=xas_tdp_control%do_hfx)
 
-      CALL section_vals_val_get(xas_tdp_section, "KERNEL%NPROCS_GRID", i_val=xas_tdp_control%batch_size)
-
       CALL section_vals_val_get(xas_tdp_section, "KERNEL%RI_REGION", r_val=xas_tdp_control%ri_radius)
       xas_tdp_control%ri_radius = bohr*xas_tdp_control%ri_radius
 
       IF (xas_tdp_control%do_hfx) THEN
+         !The main exact echange potential and related params
          CALL section_vals_val_get(xas_tdp_section, "KERNEL%EXACT_EXCHANGE%SCALE", &
                                    r_val=xas_tdp_control%sx)
-         CALL section_vals_val_get(xas_tdp_section, "KERNEL%EXACT_EXCHANGE%OPERATOR", &
-                                   i_val=xas_tdp_control%x_op)
+         CALL section_vals_val_get(xas_tdp_section, "KERNEL%EXACT_EXCHANGE%POTENTIAL_TYPE", &
+                                   i_val=xas_tdp_control%x_potential%potential_type)
          !truncated Coulomb
-         IF (xas_tdp_control%x_op == do_potential_truncated) THEN
+         IF (xas_tdp_control%x_potential%potential_type == do_potential_truncated) THEN
             CALL section_vals_val_get(xas_tdp_section, "KERNEL%EXACT_EXCHANGE%T_C_G_DATA", &
-                                      c_val=xas_tdp_control%x_t_c_filename)
-            IF (.NOT. file_exists(xas_tdp_control%x_t_c_filename)) THEN
+                                      c_val=xas_tdp_control%x_potential%filename)
+            IF (.NOT. file_exists(xas_tdp_control%x_potential%filename)) THEN
                CPABORT("Could not find provided T_C_G_DATA file.")
             END IF
             CALL section_vals_val_get(xas_tdp_section, "KERNEL%EXACT_EXCHANGE%CUTOFF_RADIUS", &
-                                      r_val=xas_tdp_control%x_range)
+                                      r_val=xas_tdp_control%x_potential%cutoff_radius)
             !store the range in bohrs
-            xas_tdp_control%x_range = bohr*xas_tdp_control%x_range
+            xas_tdp_control%x_potential%cutoff_radius = bohr*xas_tdp_control%x_potential%cutoff_radius
          END IF
 
          !short range erfc
-         IF (xas_tdp_control%x_op == do_potential_short) THEN
+         IF (xas_tdp_control%x_potential%potential_type == do_potential_short) THEN
             CALL section_vals_val_get(xas_tdp_section, "KERNEL%EXACT_EXCHANGE%OMEGA", &
-                                      r_val=xas_tdp_control%x_omega)
+                                      r_val=xas_tdp_control%x_potential%omega)
             CALL section_vals_val_get(xas_tdp_section, "KERNEL%EXACT_EXCHANGE%EPS_RANGE", &
                                       r_val=xas_tdp_control%eps_range)
             !get the effective range (omega in 1/a0, range in a0)
-            CALL erfc_cutoff(xas_tdp_control%eps_range, xas_tdp_control%x_omega, xas_tdp_control%x_range)
+            CALL erfc_cutoff(xas_tdp_control%eps_range, xas_tdp_control%x_potential%omega, &
+                             xas_tdp_control%x_potential%cutoff_radius)
 
          END IF
 
          CALL section_vals_val_get(xas_tdp_section, "KERNEL%EXACT_EXCHANGE%EPS_SCREENING", &
                                    r_val=xas_tdp_control%eps_screen)
+         !The RI metric stuff
+         CALL section_vals_val_get(xas_tdp_section, "KERNEL%EXACT_EXCHANGE%RI_METRIC%_SECTION_PARAMETERS_", &
+                                   l_val=xas_tdp_control%do_ri_metric)
+         IF (xas_tdp_control%do_ri_metric) THEN
+
+            CALL section_vals_val_get(xas_tdp_section, "KERNEL%EXACT_EXCHANGE%RI_METRIC%POTENTIAL_TYPE", &
+                                      i_val=xas_tdp_control%ri_m_potential%potential_type)
+
+            !truncated Coulomb
+            IF (xas_tdp_control%ri_m_potential%potential_type == do_potential_truncated) THEN
+               CALL section_vals_val_get(xas_tdp_section, "KERNEL%EXACT_EXCHANGE%RI_METRIC%T_C_G_DATA", &
+                                         c_val=xas_tdp_control%ri_m_potential%filename)
+               IF (.NOT. file_exists(xas_tdp_control%ri_m_potential%filename)) THEN
+                  CPABORT("Could not find provided T_C_G_DATA file.")
+               END IF
+               CALL section_vals_val_get(xas_tdp_section, "KERNEL%EXACT_EXCHANGE%RI_METRIC%CUTOFF_RADIUS", &
+                                         r_val=xas_tdp_control%ri_m_potential%cutoff_radius)
+               !store the range in bohrs
+               xas_tdp_control%ri_m_potential%cutoff_radius = bohr*xas_tdp_control%ri_m_potential%cutoff_radius
+            END IF
+
+            !short range erfc
+            IF (xas_tdp_control%ri_m_potential%potential_type == do_potential_short) THEN
+               CALL section_vals_val_get(xas_tdp_section, "KERNEL%EXACT_EXCHANGE%RI_METRIC%OMEGA", &
+                                         r_val=xas_tdp_control%ri_m_potential%omega)
+               !get the effective range (omega in 1/a0, range in a0)
+               CALL erfc_cutoff(xas_tdp_control%eps_range, xas_tdp_control%ri_m_potential%omega, &
+                                xas_tdp_control%ri_m_potential%cutoff_radius)
+
+            END IF
+         ELSE
+            !No defined metric, V-approximation, set all ri_m_potential params to those of x_pot
+            xas_tdp_control%ri_m_potential = xas_tdp_control%x_potential
+
+         END IF
+
       END IF
 
       IF ((.NOT. xas_tdp_control%do_xc) .AND. (.NOT. xas_tdp_control%do_hfx)) THEN
          !then no coulomb either and go full DFT
          xas_tdp_control%do_coulomb = .FALSE.
       END IF
-
-!  Deal with the diagonalization subsection
-      CALL section_vals_val_get(xas_tdp_section, "DIAGONALIZATION%N_EXCITED", &
-                                i_val=xas_tdp_control%n_excited)
-      CALL section_vals_val_get(xas_tdp_section, "DIAGONALIZATION%DIAGONALIZATION_TYPE", &
-                                i_val=xas_tdp_control%diag_type)
-      CALL section_vals_val_get(xas_tdp_section, "DIAGONALIZATION%ENERGY_RANGE", &
-                                r_val=xas_tdp_control%e_range)
-      !store the range in Hartree, not eV
-      xas_tdp_control%e_range = xas_tdp_control%e_range/evolt
 
    END SUBROUTINE read_xas_tdp_control
 
@@ -621,8 +670,8 @@ CONTAINS
       NULLIFY (xas_tdp_env%q_projector)
       NULLIFY (xas_tdp_env%dipmat)
       NULLIFY (xas_tdp_env%quadmat)
-      NULLIFY (xas_tdp_env%ri_o3c_coul)
-      NULLIFY (xas_tdp_env%ri_o3c_ex)
+      NULLIFY (xas_tdp_env%ri_3c_coul)
+      NULLIFY (xas_tdp_env%ri_3c_ex)
       NULLIFY (xas_tdp_env%ri_fxc)
       NULLIFY (xas_tdp_env%orb_soc)
       NULLIFY (xas_tdp_env%matrix_shalf)
@@ -697,13 +746,13 @@ CONTAINS
             END DO
             DEALLOCATE (xas_tdp_env%quadmat)
          END IF
-         IF (ASSOCIATED(xas_tdp_env%ri_o3c_coul)) THEN
-            CALL release_o3c_container(xas_tdp_env%ri_o3c_coul)
-            DEALLOCATE (xas_tdp_env%ri_o3c_coul)
+         IF (ASSOCIATED(xas_tdp_env%ri_3c_coul)) THEN
+            CALL dbcsr_t_destroy(xas_tdp_env%ri_3c_coul)
+            DEALLOCATE (xas_tdp_env%ri_3c_coul)
          END IF
-         IF (ASSOCIATED(xas_tdp_env%ri_o3c_ex)) THEN
-            CALL release_o3c_container(xas_tdp_env%ri_o3c_ex)
-            DEALLOCATE (xas_tdp_env%ri_o3c_ex)
+         IF (ASSOCIATED(xas_tdp_env%ri_3c_ex)) THEN
+            CALL dbcsr_t_destroy(xas_tdp_env%ri_3c_ex)
+            DEALLOCATE (xas_tdp_env%ri_3c_ex)
          END IF
          IF (ASSOCIATED(xas_tdp_env%ri_fxc)) THEN
             DO i = 1, SIZE(xas_tdp_env%ri_fxc, 1)
@@ -1214,9 +1263,9 @@ CONTAINS
 
       INTEGER                                            :: i
 
-      IF (ASSOCIATED(xas_tdp_env%ri_o3c_ex)) THEN
-         CALL release_o3c_container(xas_tdp_env%ri_o3c_ex)
-         DEALLOCATE (xas_tdp_env%ri_o3c_ex)
+      IF (ASSOCIATED(xas_tdp_env%ri_3c_ex)) THEN
+         CALL dbcsr_t_destroy(xas_tdp_env%ri_3c_ex)
+         DEALLOCATE (xas_tdp_env%ri_3c_ex)
       END IF
 
       IF (ASSOCIATED(xas_tdp_env%ri_fxc)) THEN
@@ -1235,5 +1284,72 @@ CONTAINS
       xas_tdp_env%fxc_avail = .FALSE.
 
    END SUBROUTINE free_exat_memory
+
+! **************************************************************************************************
+!> \brief Releases a batch_info type
+!> \param batch_info ...
+! **************************************************************************************************
+   SUBROUTINE release_batch_info(batch_info)
+
+      TYPE(batch_info_type)                              :: batch_info
+
+      INTEGER                                            :: i
+
+      CALL cp_para_env_release(batch_info%para_env)
+
+      IF (ASSOCIATED(batch_info%so_proc_info)) THEN
+         DO i = 1, SIZE(batch_info%so_proc_info)
+            IF (ASSOCIATED(batch_info%so_proc_info(i)%array)) THEN
+               DEALLOCATE (batch_info%so_proc_info(i)%array)
+            END IF
+         END DO
+         DEALLOCATE (batch_info%so_proc_info)
+      END IF
+
+   END SUBROUTINE release_batch_info
+
+! **************************************************************************************************
+!> \brief Uses heuristics to determine a good batching of the processros for fxc integration
+!> \param batch_size ...
+!> \param nbatch ...
+!> \param nex_atom ...
+!> \param nprocs ...
+!> \note It is here and not in xas_tdp_atom because of circular dependencies issues
+! **************************************************************************************************
+   SUBROUTINE get_proc_batch_sizes(batch_size, nbatch, nex_atom, nprocs)
+
+      INTEGER, INTENT(OUT)                               :: batch_size, nbatch
+      INTEGER, INTENT(IN)                                :: nex_atom, nprocs
+
+      INTEGER                                            :: rest, test_size
+
+      !We have essentially 2 cases nex_atom >= nprocs or nex_atom < nprocs
+
+      IF (nex_atom >= nprocs) THEN
+
+         !If nex_atom >= nprocs, we look from batch size (starting from 1, ending with 4) that yields
+         !the best indicative load balance, i.e. the best spread of excited atom per batch
+         rest = 100000
+         DO test_size = 1, MIN(nprocs, 4)
+            nbatch = nprocs/test_size
+            IF (MODULO(nex_atom, nbatch) < rest) THEN
+               rest = MODULO(nex_atom, nbatch)
+               batch_size = test_size
+            END IF
+         END DO
+         nbatch = nprocs/batch_size
+
+      ELSE
+
+         !If nex_atom < nprocs, simply devide processors in nex_atom batches
+         nbatch = nex_atom
+         batch_size = nprocs/nbatch
+
+      END IF
+
+      !Note: because of possible odd numbers of MPI ranks / excited atoms, a couple of procs can
+      !      be excluded from the batching (max 4)
+
+   END SUBROUTINE get_proc_batch_sizes
 
 END MODULE xas_tdp_types

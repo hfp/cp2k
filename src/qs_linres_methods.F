@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -11,12 +11,14 @@
 !> \author MI
 ! **************************************************************************************************
 MODULE qs_linres_methods
+   USE admm_types,                      ONLY: admm_type
    USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                               get_atomic_kind
    USE cp_control_types,                ONLY: dft_control_type
    USE cp_dbcsr_operations,             ONLY: cp_dbcsr_plus_fm_fm_t,&
                                               cp_dbcsr_sm_fm_multiply,&
-                                              dbcsr_allocate_matrix_set
+                                              dbcsr_allocate_matrix_set,&
+                                              dbcsr_deallocate_matrix_set
    USE cp_external_control,             ONLY: external_control
    USE cp_files,                        ONLY: close_file,&
                                               open_file
@@ -46,22 +48,28 @@ MODULE qs_linres_methods
    USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: dbcsr_checksum,&
                                               dbcsr_copy,&
+                                              dbcsr_create,&
+                                              dbcsr_deallocate_matrix,&
                                               dbcsr_filter,&
                                               dbcsr_p_type,&
                                               dbcsr_set,&
                                               dbcsr_type
    USE hartree_local_methods,           ONLY: Vh_1c_gg_integrals
-   USE input_constants,                 ONLY: do_loc_none,&
-                                              op_loc_berry,&
-                                              ot_precond_none,&
-                                              ot_precond_solver_default,&
-                                              state_loc_all
+   USE hfx_energy_potential,            ONLY: integrate_four_center
+   USE hfx_types,                       ONLY: hfx_type
+   USE input_constants,                 ONLY: &
+        do_admm_aux_exch_func_none, do_admm_basis_projection, do_admm_exch_scaling_none, &
+        do_admm_purify_none, do_loc_none, kg_tnadd_embed, op_loc_berry, ot_precond_none, &
+        ot_precond_solver_default, state_loc_all
    USE input_section_types,             ONLY: section_get_ival,&
                                               section_get_lval,&
                                               section_get_rval,&
+                                              section_vals_get,&
                                               section_vals_get_subs_vals,&
                                               section_vals_type,&
                                               section_vals_val_get
+   USE kg_correction,                   ONLY: kg_ekin_subset
+   USE kg_environment_types,            ONLY: kg_environment_type
    USE kinds,                           ONLY: default_path_length,&
                                               default_string_length,&
                                               dp
@@ -87,7 +95,6 @@ MODULE qs_linres_methods
    USE pw_poisson_types,                ONLY: pw_poisson_type
    USE pw_pool_types,                   ONLY: pw_pool_create_pw,&
                                               pw_pool_give_back_pw,&
-                                              pw_pool_p_type,&
                                               pw_pool_type
    USE pw_types,                        ONLY: COMPLEXDATA1D,&
                                               REALDATA3D,&
@@ -97,6 +104,7 @@ MODULE qs_linres_methods
                                               pw_p_type,&
                                               pw_release,&
                                               pw_retain
+   USE qs_collocate_density,            ONLY: calculate_rho_elec
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
    USE qs_gapw_densities,               ONLY: prepare_gapw_den
@@ -108,6 +116,7 @@ MODULE qs_linres_methods
                                               qs_kind_type
    USE qs_kpp1_env_types,               ONLY: qs_kpp1_env_type
    USE qs_ks_atom,                      ONLY: update_ks_atom
+   USE qs_ks_types,                     ONLY: qs_ks_env_type
    USE qs_linres_types,                 ONLY: linres_control_type
    USE qs_loc_methods,                  ONLY: qs_loc_driver
    USE qs_loc_types,                    ONLY: get_qs_loc_env,&
@@ -129,6 +138,7 @@ MODULE qs_linres_methods
                                               qs_rho_type
    USE qs_vxc_atom,                     ONLY: calculate_xc_2nd_deriv_atom
    USE string_utilities,                ONLY: xstring
+   USE task_list_types,                 ONLY: task_list_type
    USE xc,                              ONLY: xc_calc_2nd_deriv,&
                                               xc_prep_2nd_deriv,&
                                               xc_vxc_pw_create
@@ -151,6 +161,7 @@ MODULE qs_linres_methods
    ! *** Public subroutines ***
    PUBLIC :: linres_localize, linres_solver
    PUBLIC :: linres_write_restart, linres_read_restart
+   PUBLIC :: build_dm_response
 
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'qs_linres_methods'
 
@@ -379,7 +390,7 @@ CONTAINS
       IF (iounit > 0) THEN
          WRITE (iounit, "(/,T3,A,T16,A,T25,A,T38,A,T52,A,T72,A,/,T3,A)") &
             "Iteration", "Method", "Restart", "Stepsize", "Convergence", "Time", &
-            REPEAT("-", 80)
+            REPEAT("-", 78)
       ENDIF
       !
       ! orthogonalize x with respect to the psi0
@@ -407,7 +418,7 @@ CONTAINS
          ENDIF
       ENDIF
       !
-      ! initalization of the linear solver
+      ! initialization of the linear solver
       !
       ! A * x0
       CALL apply_op(qs_env, p_env, psi0_order, psi1, Ap, chc)
@@ -468,7 +479,7 @@ CONTAINS
          IF (iter .EQ. 1 .OR. MOD(iter, 1) .EQ. 0 .OR. linres_control%converged .OR. restart .OR. should_stop) THEN
             IF (iounit > 0) THEN
                WRITE (iounit, "(T5,I5,T18,A3,T28,L1,T38,1E8.2,T48,F16.10,T68,F8.2)") &
-                  iter, linres_control%flag, restart, MAXVAL(alpha), norm_res, t2-t1
+                  iter, linres_control%flag, restart, MAXVAL(alpha), norm_res, t2 - t1
                CALL m_flush(iounit)
             ENDIF
          ENDIF
@@ -687,7 +698,7 @@ CONTAINS
 
          chksum = 0.0_dp
          DO ispin = 1, nspins
-            chksum = chksum+dbcsr_checksum(p_env%p1(ispin)%matrix)
+            chksum = chksum + dbcsr_checksum(p_env%p1(ispin)%matrix)
          ENDDO
 
          ! skip the kernel if the DM is very small
@@ -707,7 +718,7 @@ CONTAINS
             CALL get_qs_env(qs_env, rho=rho) ! that could be called before
             CALL qs_rho_update_rho(rho, qs_env=qs_env) ! that could be called before
 
-            CALL apply_op_2(qs_env, p_env, c0, v, Av, chc)
+            CALL apply_op_2(qs_env, p_env, c0, v, Av)
 
          ENDIF
 
@@ -806,13 +817,12 @@ CONTAINS
 !> \param c0 ...
 !> \param v ...
 !> \param Av ...
-!> \param chc ...
 ! **************************************************************************************************
-   SUBROUTINE apply_op_2(qs_env, p_env, c0, v, Av, chc)
+   SUBROUTINE apply_op_2(qs_env, p_env, c0, v, Av)
       !
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(qs_p_env_type), POINTER                       :: p_env
-      TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: c0, v, Av, chc
+      TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: c0, v, Av
 
       CHARACTER(len=*), PARAMETER :: routineN = 'apply_op_2', routineP = moduleN//':'//routineN
 
@@ -824,9 +834,11 @@ CONTAINS
       ELSEIF (dft_control%qs_control%dftb) THEN
          CPABORT("Linear response not available with DFTB")
       ELSEIF (dft_control%qs_control%xtb) THEN
-         CALL apply_op_2_xtb(qs_env, p_env, c0, v, Av, chc)
+         CALL apply_op_2_xtb(qs_env, p_env, c0, v, Av)
       ELSE
-         CALL apply_op_2_dft(qs_env, p_env, c0, v, Av, chc)
+         CALL apply_op_2_dft(qs_env, p_env, c0, v, Av)
+         CALL apply_hfx(qs_env, p_env, c0, v, Av)
+         CALL apply_xc_admm(qs_env, p_env, c0, v, Av)
       END IF
 
    END SUBROUTINE apply_op_2
@@ -838,12 +850,11 @@ CONTAINS
 !> \param c0 ...
 !> \param v ...
 !> \param Av ...
-!> \param chc ...
 ! **************************************************************************************************
-   SUBROUTINE apply_op_2_dft(qs_env, p_env, c0, v, Av, chc)
+   SUBROUTINE apply_op_2_dft(qs_env, p_env, c0, v, Av)
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(qs_p_env_type), POINTER                       :: p_env
-      TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: c0, v, Av, chc
+      TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: c0, v, Av
 
       CHARACTER(len=*), PARAMETER :: routineN = 'apply_op_2_dft', routineP = moduleN//':'//routineN
       REAL(KIND=dp), PARAMETER                           :: h = 0.001_dp
@@ -853,16 +864,18 @@ CONTAINS
       INTEGER, DIMENSION(2, 3)                           :: bo
       LOGICAL                                            :: deriv2_analytic, gapw, gapw_xc, &
                                                             lr_triplet, lrigpw, lsd
-      REAL(KIND=dp)                                      :: energy_hartree, energy_hartree_1c, exc, &
-                                                            fac
+      REAL(KIND=dp)                                      :: alpha, ekin_mol, energy_hartree, &
+                                                            energy_hartree_1c, exc, fac
       REAL(KIND=dp), DIMENSION(3, 3)                     :: virial_xc
       REAL(kind=dp), DIMENSION(:, :, :), POINTER         :: rho3, rhoa, rhob
+      TYPE(admm_type), POINTER                           :: admm_env
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: k1mat, rho1_ao, rho_ao
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: ksmat, psmat
       TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(kg_environment_type), POINTER                 :: kg_env
       TYPE(linres_control_type), POINTER                 :: linres_control
       TYPE(lri_density_type), POINTER                    :: lri_density
       TYPE(lri_environment_type), POINTER                :: lri_env
@@ -873,19 +886,17 @@ CONTAINS
       TYPE(pw_p_type), DIMENSION(:), POINTER :: rho1_g, rho1_g_pw, rho1_r, rho1_r_pw, rho_g, &
          rho_r, tau, tau_pw, v_rspace_new, v_xc, vxc_rho_1, vxc_rho_2, vxc_rho_3, vxc_rho_4
       TYPE(pw_poisson_type), POINTER                     :: poisson_env
-      TYPE(pw_pool_p_type), DIMENSION(:), POINTER        :: pw_pools
       TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
       TYPE(qs_rho_type), POINTER                         :: rho, rho1, rho1_xc
-      TYPE(section_vals_type), POINTER                   :: input, scf_section, xc_fun_section, &
-                                                            xc_section
+      TYPE(section_vals_type), POINTER                   :: input, xc_fun_section, xc_section
       TYPE(xc_rho_cflags_type)                           :: needs
       TYPE(xc_rho_set_type), POINTER                     :: rho1_set
 
       CALL timeset(routineN, handle)
 
-      NULLIFY (auxbas_pw_pool, pw_pools, pw_env, v_rspace_new, &
+      NULLIFY (auxbas_pw_pool, pw_env, v_rspace_new, para_env, &
                rho1_r, rho1_g_pw, tau_pw, v_xc, rho1_set, rho1_ao, rho_ao, &
-               poisson_env, input, scf_section, rho, dft_control, logger, rho1_g)
+               poisson_env, input, rho, dft_control, logger, rho1_g)
       logger => cp_get_default_logger()
 
       energy_hartree = 0.0_dp
@@ -894,7 +905,6 @@ CONTAINS
       CPASSERT(ASSOCIATED(c0))
       CPASSERT(ASSOCIATED(v))
       CPASSERT(ASSOCIATED(Av))
-      CPASSERT(ASSOCIATED(chc))
 
       CPASSERT(ASSOCIATED(p_env%kpp1_env))
       CPASSERT(ASSOCIATED(p_env%kpp1))
@@ -907,6 +917,7 @@ CONTAINS
       CALL get_qs_env(qs_env=qs_env, &
                       pw_env=pw_env, &
                       input=input, &
+                      para_env=para_env, &
                       rho=rho, &
                       linres_control=linres_control, &
                       dft_control=dft_control)
@@ -932,15 +943,19 @@ CONTAINS
       nspins = SIZE(p_env%kpp1)
       lsd = (nspins == 2)
 
-      xc_section => section_vals_get_subs_vals(input, "DFT%XC")
-      scf_section => section_vals_get_subs_vals(input, "DFT%SCF")
+      IF (dft_control%do_admm) THEN
+         CALL get_qs_env(qs_env, admm_env=admm_env)
+         xc_section => admm_env%xc_section_primary
+      ELSE
+         xc_section => section_vals_get_subs_vals(input, "DFT%XC")
+      END IF
 
-      p_env%kpp1_env%iter = p_env%kpp1_env%iter+1
+      p_env%kpp1_env%iter = p_env%kpp1_env%iter + 1
 
       ! gets the tmp grids
       CPASSERT(ASSOCIATED(pw_env))
       CALL pw_env_get(pw_env, auxbas_pw_pool=auxbas_pw_pool, &
-                      pw_pools=pw_pools, poisson_env=poisson_env)
+                      poisson_env=poisson_env)
       ALLOCATE (v_rspace_new(nspins))
       CALL pw_pool_create_pw(auxbas_pw_pool, v_hartree_gspace%pw, &
                              use_data=COMPLEXDATA1D, &
@@ -1049,8 +1064,8 @@ CONTAINS
          END DO
          DEALLOCATE (v_xc)
 
-         IF (gapw) CALL calculate_xc_2nd_deriv_atom(p_env, qs_env, xc_section, do_tddft=.FALSE., &
-                                                    do_triplet=lr_triplet)
+         IF (gapw) CALL calculate_xc_2nd_deriv_atom(p_env%local_rho_set, qs_env, xc_section, para_env, &
+                                                    do_tddft=.FALSE., do_triplet=lr_triplet)
 
          CALL xc_rho_set_release(rho1_set)
 
@@ -1074,16 +1089,16 @@ CONTAINS
                CALL pw_pool_create_pw(auxbas_pw_pool, rho_r(ispin)%pw, in_space=REALSPACE, use_data=REALDATA3D)
             END DO
             CALL xc_rho_set_get(p_env%kpp1_env%rho_set, rhoa=rhoa, rhob=rhob)
-            rho_r(1)%pw%cr3d(:, :, :) = rhoa(:, :, :)+0.5_dp*h*rho1_r(1)%pw%cr3d(:, :, :)
-            rho_r(2)%pw%cr3d(:, :, :) = rhob(:, :, :)+0.5_dp*h*rho1_r(2)%pw%cr3d(:, :, :)
+            rho_r(1)%pw%cr3d(:, :, :) = rhoa(:, :, :) + 0.5_dp*h*rho1_r(1)%pw%cr3d(:, :, :)
+            rho_r(2)%pw%cr3d(:, :, :) = rhob(:, :, :) + 0.5_dp*h*rho1_r(2)%pw%cr3d(:, :, :)
             CALL xc_vxc_pw_create(vxc_rho_1, tau_pw, exc, rho_r, rho_g, tau, xc_section, &
                                   auxbas_pw_pool, .FALSE., virial_xc)
-            rho_r(1)%pw%cr3d(:, :, :) = rhoa(:, :, :)-0.5_dp*h*rho1_r(1)%pw%cr3d(:, :, :)
-            rho_r(2)%pw%cr3d(:, :, :) = rhob(:, :, :)-0.5_dp*h*rho1_r(2)%pw%cr3d(:, :, :)
+            rho_r(1)%pw%cr3d(:, :, :) = rhoa(:, :, :) - 0.5_dp*h*rho1_r(1)%pw%cr3d(:, :, :)
+            rho_r(2)%pw%cr3d(:, :, :) = rhob(:, :, :) - 0.5_dp*h*rho1_r(2)%pw%cr3d(:, :, :)
             CALL xc_vxc_pw_create(vxc_rho_2, tau_pw, exc, rho_r, rho_g, tau, xc_section, &
                                   auxbas_pw_pool, .FALSE., virial_xc)
-            v_xc(1)%pw%cr3d(:, :, :) = (vxc_rho_1(1)%pw%cr3d(:, :, :)-vxc_rho_2(1)%pw%cr3d(:, :, :))/h
-            v_xc(2)%pw%cr3d(:, :, :) = (vxc_rho_1(2)%pw%cr3d(:, :, :)-vxc_rho_2(2)%pw%cr3d(:, :, :))/h
+            v_xc(1)%pw%cr3d(:, :, :) = (vxc_rho_1(1)%pw%cr3d(:, :, :) - vxc_rho_2(1)%pw%cr3d(:, :, :))/h
+            v_xc(2)%pw%cr3d(:, :, :) = (vxc_rho_1(2)%pw%cr3d(:, :, :) - vxc_rho_2(2)%pw%cr3d(:, :, :))/h
             DO ispin = 1, nspins
                CALL pw_pool_give_back_pw(auxbas_pw_pool, rho_r(ispin)%pw)
             END DO
@@ -1102,26 +1117,26 @@ CONTAINS
             END DO
             CALL xc_rho_set_get(p_env%kpp1_env%rho_set, rhoa=rhoa, rhob=rhob)
             ! K(alpha,alpha)
-            rho_r(1)%pw%cr3d(:, :, :) = rhoa(:, :, :)+0.5_dp*h*rho1_r(1)%pw%cr3d(:, :, :)
+            rho_r(1)%pw%cr3d(:, :, :) = rhoa(:, :, :) + 0.5_dp*h*rho1_r(1)%pw%cr3d(:, :, :)
             rho_r(2)%pw%cr3d(:, :, :) = rhob(:, :, :)
             CALL xc_vxc_pw_create(vxc_rho_1, tau_pw, exc, rho_r, rho_g, tau, xc_section, &
                                   auxbas_pw_pool, .FALSE., virial_xc)
-            rho_r(1)%pw%cr3d(:, :, :) = rhoa(:, :, :)-0.5_dp*h*rho1_r(1)%pw%cr3d(:, :, :)
+            rho_r(1)%pw%cr3d(:, :, :) = rhoa(:, :, :) - 0.5_dp*h*rho1_r(1)%pw%cr3d(:, :, :)
             rho_r(2)%pw%cr3d(:, :, :) = rhob(:, :, :)
             CALL xc_vxc_pw_create(vxc_rho_2, tau_pw, exc, rho_r, rho_g, tau, xc_section, &
                                   auxbas_pw_pool, .FALSE., virial_xc)
-            v_xc(1)%pw%cr3d(:, :, :) = (vxc_rho_1(1)%pw%cr3d(:, :, :)-vxc_rho_2(1)%pw%cr3d(:, :, :))/h
+            v_xc(1)%pw%cr3d(:, :, :) = (vxc_rho_1(1)%pw%cr3d(:, :, :) - vxc_rho_2(1)%pw%cr3d(:, :, :))/h
             ! K(alpha,beta)
             rho_r(1)%pw%cr3d(:, :, :) = rhoa(:, :, :)
-            rho_r(2)%pw%cr3d(:, :, :) = rhob(:, :, :)+0.5_dp*h*rho1_r(1)%pw%cr3d(:, :, :)
+            rho_r(2)%pw%cr3d(:, :, :) = rhob(:, :, :) + 0.5_dp*h*rho1_r(1)%pw%cr3d(:, :, :)
             CALL xc_vxc_pw_create(vxc_rho_3, tau_pw, exc, rho_r, rho_g, tau, xc_section, &
                                   auxbas_pw_pool, .FALSE., virial_xc)
             rho_r(1)%pw%cr3d(:, :, :) = rhoa(:, :, :)
-            rho_r(2)%pw%cr3d(:, :, :) = rhob(:, :, :)-0.5_dp*h*rho1_r(1)%pw%cr3d(:, :, :)
+            rho_r(2)%pw%cr3d(:, :, :) = rhob(:, :, :) - 0.5_dp*h*rho1_r(1)%pw%cr3d(:, :, :)
             CALL xc_vxc_pw_create(vxc_rho_4, tau_pw, exc, rho_r, rho_g, tau, xc_section, &
                                   auxbas_pw_pool, .FALSE., virial_xc)
-            v_xc(1)%pw%cr3d(:, :, :) = v_xc(1)%pw%cr3d(:, :, :)- &
-                                       (vxc_rho_3(1)%pw%cr3d(:, :, :)-vxc_rho_4(1)%pw%cr3d(:, :, :))/h
+            v_xc(1)%pw%cr3d(:, :, :) = v_xc(1)%pw%cr3d(:, :, :) - &
+                                       (vxc_rho_3(1)%pw%cr3d(:, :, :) - vxc_rho_4(1)%pw%cr3d(:, :, :))/h
             DO ispin = 1, 2
                CALL pw_pool_give_back_pw(auxbas_pw_pool, rho_r(ispin)%pw)
             END DO
@@ -1139,13 +1154,13 @@ CONTAINS
             NULLIFY (rho_r(1)%pw)
             CALL pw_pool_create_pw(auxbas_pw_pool, rho_r(1)%pw, in_space=REALSPACE, use_data=REALDATA3D)
             CALL xc_rho_set_get(p_env%kpp1_env%rho_set, rho=rho3)
-            rho_r(1)%pw%cr3d(:, :, :) = rho3(:, :, :)+0.5_dp*h*rho1_r(1)%pw%cr3d(:, :, :)
+            rho_r(1)%pw%cr3d(:, :, :) = rho3(:, :, :) + 0.5_dp*h*rho1_r(1)%pw%cr3d(:, :, :)
             CALL xc_vxc_pw_create(vxc_rho_1, tau_pw, exc, rho_r, rho_g, tau, xc_section, &
                                   auxbas_pw_pool, .FALSE., virial_xc)
-            rho_r(1)%pw%cr3d(:, :, :) = rho3(:, :, :)-0.5_dp*h*rho1_r(1)%pw%cr3d(:, :, :)
+            rho_r(1)%pw%cr3d(:, :, :) = rho3(:, :, :) - 0.5_dp*h*rho1_r(1)%pw%cr3d(:, :, :)
             CALL xc_vxc_pw_create(vxc_rho_2, tau_pw, exc, rho_r, rho_g, tau, xc_section, &
                                   auxbas_pw_pool, .FALSE., virial_xc)
-            v_xc(1)%pw%cr3d(:, :, :) = (vxc_rho_1(1)%pw%cr3d(:, :, :)-vxc_rho_2(1)%pw%cr3d(:, :, :))/h
+            v_xc(1)%pw%cr3d(:, :, :) = (vxc_rho_1(1)%pw%cr3d(:, :, :) - vxc_rho_2(1)%pw%cr3d(:, :, :))/h
             CALL pw_pool_give_back_pw(auxbas_pw_pool, rho_r(1)%pw)
             DEALLOCATE (rho_r)
             CALL pw_release(vxc_rho_1(1)%pw)
@@ -1257,7 +1272,7 @@ CONTAINS
 
             IF (lrigpw) THEN
                lri_v_int => lri_density%lri_coefs(ispin)%lri_kinds
-               CALL get_qs_env(qs_env, para_env=para_env, nkind=nkind)
+               CALL get_qs_env(qs_env, nkind=nkind)
                DO ikind = 1, nkind
                   lri_v_int(ikind)%v_int = 0.0_dp
                END DO
@@ -1290,12 +1305,14 @@ CONTAINS
       IF (gapw) THEN
 
          IF (.NOT. ((nspins == 1 .AND. lr_triplet))) THEN
-            CALL Vh_1c_gg_integrals(qs_env, energy_hartree_1c, tddft=.TRUE., do_triplet=lr_triplet, &
-                                    p_env=p_env)
+            CALL Vh_1c_gg_integrals(qs_env, energy_hartree_1c, &
+                                    p_env%hartree_local%ecoul_1c, &
+                                    p_env%local_rho_set, &
+                                    para_env, tddft=.TRUE.)
 
-            CALL integrate_vhg0_rspace(qs_env, v_hartree_rspace, &
-                                       .FALSE., tddft=.TRUE., do_triplet=lr_triplet, &
-                                       p_env=p_env)
+            CALL integrate_vhg0_rspace(qs_env, v_hartree_rspace, para_env, &
+                                       calculate_forces=.FALSE., &
+                                       local_rho_set=p_env%local_rho_set)
          END IF
 
          ! ***  Add single atom contributions to the KS matrix ***
@@ -1305,8 +1322,32 @@ CONTAINS
          ns = SIZE(rho_ao)
          psmat(1:ns, 1:1) => rho_ao(1:ns)
 
-         CALL update_ks_atom(qs_env, ksmat, psmat, .FALSE., .TRUE., p_env)
+         CALL update_ks_atom(qs_env, ksmat, psmat, forces=.FALSE., tddft=.TRUE., &
+                             rho_atom_external=p_env%local_rho_set%rho_atom_set)
 
+      END IF
+
+      ! KG embedding, contribution of kinetic energy functional to kernel
+      IF (dft_control%qs_control%do_kg .AND. .NOT. (lr_triplet .OR. gapw .OR. gapw_xc)) THEN
+         IF (qs_env%kg_env%tnadd_method == kg_tnadd_embed) THEN
+
+            CALL qs_rho_get(rho1, rho_ao=rho1_ao)
+            IF (nspins == 2) THEN
+               alpha = 1.0_dp
+            ELSE
+               alpha = 2.0_dp
+            END IF
+
+            ekin_mol = 0.0_dp
+            CALL get_qs_env(qs_env, kg_env=kg_env)
+            CALL kg_ekin_subset(qs_env=qs_env, &
+                                ks_matrix=p_env%kpp1, &
+                                ekin_mol=ekin_mol, &
+                                calc_force=.FALSE., &
+                                do_kernel=.TRUE., &
+                                pmat_ext=rho1_ao, &
+                                alpha=alpha)
+         END IF
       END IF
 
       CALL pw_pool_give_back_pw(auxbas_pw_pool, v_hartree_gspace%pw)
@@ -1323,9 +1364,9 @@ CONTAINS
                                       Av(ispin)%matrix, &
                                       ncol=ncol, alpha=1.0_dp, beta=1.0_dp)
       ENDDO
-      !
+
       CALL timestop(handle)
-      !
+
    END SUBROUTINE apply_op_2_dft
 
 ! **************************************************************************************************
@@ -1335,12 +1376,11 @@ CONTAINS
 !> \param c0 ...
 !> \param v ...
 !> \param Av ...
-!> \param chc ...
 ! **************************************************************************************************
-   SUBROUTINE apply_op_2_xtb(qs_env, p_env, c0, v, Av, chc)
+   SUBROUTINE apply_op_2_xtb(qs_env, p_env, c0, v, Av)
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(qs_p_env_type), POINTER                       :: p_env
-      TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: c0, v, Av, chc
+      TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: c0, v, Av
 
       CHARACTER(len=*), PARAMETER :: routineN = 'apply_op_2_xtb', routineP = moduleN//':'//routineN
 
@@ -1370,7 +1410,6 @@ CONTAINS
       CPASSERT(ASSOCIATED(c0))
       CPASSERT(ASSOCIATED(v))
       CPASSERT(ASSOCIATED(Av))
-      CPASSERT(ASSOCIATED(chc))
 
       CPASSERT(ASSOCIATED(p_env%kpp1_env))
       CPASSERT(ASSOCIATED(p_env%kpp1))
@@ -1393,7 +1432,7 @@ CONTAINS
       CPASSERT(.NOT. lr_triplet)
 
       nspins = SIZE(p_env%kpp1)
-      p_env%kpp1_env%iter = p_env%kpp1_env%iter+1
+      p_env%kpp1_env%iter = p_env%kpp1_env%iter + 1
 
       DO ispin = 1, nspins
          CALL dbcsr_set(p_env%kpp1(ispin)%matrix, 0.0_dp)
@@ -1428,9 +1467,9 @@ CONTAINS
                atom_a = atomic_kind_set(ikind)%atom_list(iatom)
                charges(atom_a, :) = REAL(occ(:), KIND=dp)
                DO is = 1, natorb
-                  ns = lao(is)+1
-                  charges(atom_a, ns) = charges(atom_a, ns)-aocg(is, atom_a)
-                  charges1(atom_a, ns) = charges1(atom_a, ns)-aocg1(is, atom_a)
+                  ns = lao(is) + 1
+                  charges(atom_a, ns) = charges(atom_a, ns) - aocg(is, atom_a)
+                  charges1(atom_a, ns) = charges1(atom_a, ns) - aocg1(is, atom_a)
                END DO
             END DO
          END DO
@@ -1456,6 +1495,423 @@ CONTAINS
       CALL timestop(handle)
 
    END SUBROUTINE apply_op_2_xtb
+
+! **************************************************************************************************
+!> \brief Update action of TDDFPT operator on trial vectors by adding exact-exchange term.
+!> \param qs_env ...
+!> \param p_env ...
+!> \param c0 ...
+!> \param v ...
+!> \param Av ...
+!> \par History
+!>    * 11.2019 adapted from tddfpt_apply_hfx
+! **************************************************************************************************
+   SUBROUTINE apply_hfx(qs_env, p_env, c0, v, Av)
+      TYPE(qs_environment_type), POINTER                 :: qs_env
+      TYPE(qs_p_env_type), POINTER                       :: p_env
+      TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: c0, v, Av
+
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'apply_hfx', routineP = moduleN//':'//routineN
+
+      INTEGER                                            :: handle, ispin, nao, nao_aux, ncol, nspins
+      LOGICAL                                            :: do_hfx
+      REAL(KIND=dp)                                      :: alpha
+      TYPE(admm_type), POINTER                           :: admm_env
+      TYPE(cp_fm_type), POINTER                          :: tc0, tv
+      TYPE(cp_logger_type), POINTER                      :: logger
+      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s, rho1_ao, work
+      TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(section_vals_type), POINTER                   :: hfx_section, input
+
+      CALL timeset(routineN, handle)
+
+      logger => cp_get_default_logger()
+
+      CPASSERT(ASSOCIATED(c0))
+      CPASSERT(ASSOCIATED(v))
+      CPASSERT(ASSOCIATED(Av))
+
+      CALL get_qs_env(qs_env=qs_env, &
+                      input=input, &
+                      matrix_s=matrix_s, &
+                      dft_control=dft_control)
+      nspins = dft_control%nspins
+
+      hfx_section => section_vals_get_subs_vals(input, "DFT%XC%HF")
+      CALL section_vals_get(hfx_section, explicit=do_hfx)
+
+      IF (do_hfx) THEN
+
+         IF (dft_control%do_admm) THEN
+            IF (dft_control%admm_control%purification_method /= do_admm_purify_none) THEN
+               CPABORT("ADMM: Linear Response needs purification_method=none")
+            END IF
+            IF (dft_control%admm_control%scaling_model /= do_admm_exch_scaling_none) THEN
+               CPABORT("ADMM: Linear Response needs scaling_model=none")
+            END IF
+            IF (dft_control%admm_control%method /= do_admm_basis_projection) THEN
+               CPABORT("ADMM: Linear Response needs admm_method=basis_projection")
+            END IF
+            !
+            CALL get_qs_env(qs_env, admm_env=admm_env)
+            CPASSERT(ASSOCIATED(admm_env%A))
+            CPASSERT(ASSOCIATED(admm_env%work_aux_orb))
+            CPASSERT(ASSOCIATED(admm_env%work_aux_orb2))
+            CALL cp_fm_get_info(admm_env%A, nrow_global=nao_aux)
+            CALL get_qs_env(qs_env=qs_env, matrix_s_aux_fit=matrix_s)
+            NULLIFY (work, rho1_ao)
+            CALL dbcsr_allocate_matrix_set(work, nspins)
+            CALL dbcsr_allocate_matrix_set(rho1_ao, nspins)
+            DO ispin = 1, nspins
+               ALLOCATE (work(ispin)%matrix, rho1_ao(ispin)%matrix)
+               CALL dbcsr_create(work(ispin)%matrix, template=matrix_s(1)%matrix)
+               CALL dbcsr_copy(work(ispin)%matrix, matrix_s(1)%matrix)
+               CALL dbcsr_set(work(ispin)%matrix, 0.0_dp)
+               CALL dbcsr_create(rho1_ao(ispin)%matrix, template=matrix_s(1)%matrix)
+               CALL dbcsr_copy(rho1_ao(ispin)%matrix, matrix_s(1)%matrix)
+               CALL dbcsr_set(rho1_ao(ispin)%matrix, 0.0_dp)
+            END DO
+            ! P1 -> AUX BASIS
+            DO ispin = 1, nspins
+               CALL cp_fm_get_info(c0(ispin)%matrix, nrow_global=nao, ncol_global=ncol)
+               tv => admm_env%work_aux_orb
+               tc0 => admm_env%work_aux_orb2
+               CALL cp_gemm('N', 'N', nao_aux, ncol, nao, 1.0_dp, admm_env%A, &
+                            v(ispin)%matrix, 0.0_dp, tv)
+               CALL cp_gemm('N', 'N', nao_aux, ncol, nao, 1.0_dp, admm_env%A, &
+                            c0(ispin)%matrix, 0.0_dp, tc0)
+               CALL cp_dbcsr_plus_fm_fm_t(rho1_ao(ispin)%matrix, matrix_v=tv, matrix_g=tc0, &
+                                          ncol=ncol, alpha=1.0_dp)
+               CALL cp_dbcsr_plus_fm_fm_t(rho1_ao(ispin)%matrix, matrix_v=tc0, matrix_g=tv, &
+                                          ncol=ncol, alpha=1.0_dp)
+            ENDDO
+         ELSE
+            NULLIFY (work, rho1_ao)
+            CALL get_qs_env(qs_env=qs_env, matrix_s=matrix_s)
+            CALL dbcsr_allocate_matrix_set(work, nspins)
+            DO ispin = 1, nspins
+               ALLOCATE (work(ispin)%matrix)
+               CALL dbcsr_create(work(ispin)%matrix, template=matrix_s(1)%matrix)
+               CALL dbcsr_copy(work(ispin)%matrix, matrix_s(1)%matrix)
+               CALL dbcsr_set(work(ispin)%matrix, 0.0_dp)
+            END DO
+            rho1_ao => p_env%p1
+         END IF
+
+         CALL hfx_matrix(work, rho1_ao, qs_env, hfx_section)
+
+         alpha = 2.0_dp
+         IF (nspins == 2) alpha = 1.0_dp
+         IF (dft_control%do_admm) THEN
+            DO ispin = 1, nspins
+               CALL cp_fm_get_info(c0(ispin)%matrix, nrow_global=nao, ncol_global=ncol)
+               CALL cp_gemm('N', 'N', nao_aux, ncol, nao, 1.0_dp, admm_env%A, &
+                            c0(ispin)%matrix, 0.0_dp, tc0)
+               CALL cp_dbcsr_sm_fm_multiply(work(ispin)%matrix, tc0, tv, &
+                                            ncol=ncol, alpha=alpha, beta=0.0_dp)
+               CALL cp_gemm('T', 'N', nao, ncol, nao_aux, 1.0_dp, admm_env%A, &
+                            tv, 1.0_dp, Av(ispin)%matrix)
+            END DO
+            CALL dbcsr_deallocate_matrix_set(rho1_ao)
+            CALL dbcsr_deallocate_matrix_set(work)
+         ELSE
+            DO ispin = 1, nspins
+               CALL cp_fm_get_info(c0(ispin)%matrix, ncol_global=ncol)
+               CALL cp_dbcsr_sm_fm_multiply(work(ispin)%matrix, c0(ispin)%matrix, Av(ispin)%matrix, &
+                                            ncol=ncol, alpha=alpha, beta=1.0_dp)
+            END DO
+            CALL dbcsr_deallocate_matrix_set(work)
+         END IF
+
+      END IF
+
+      CALL timestop(handle)
+
+   END SUBROUTINE apply_hfx
+
+! **************************************************************************************************
+!> \brief Add the hfx contributions to the Hamiltonian
+!>
+!> \param matrix_ks ...
+!> \param rho_ao ...
+!> \param qs_env ...
+!> \param hfx_sections ...
+!> \note
+!>     Simplified version of subroutine hfx_ks_matrix()
+! **************************************************************************************************
+   SUBROUTINE hfx_matrix(matrix_ks, rho_ao, qs_env, hfx_sections)
+      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_ks, rho_ao
+      TYPE(qs_environment_type), POINTER                 :: qs_env
+      TYPE(section_vals_type), POINTER                   :: hfx_sections
+
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'hfx_matrix', routineP = moduleN//':'//routineN
+
+      INTEGER                                            :: handle, irep, ispin, mspin, n_rep_hf, &
+                                                            nspins
+      LOGICAL                                            :: distribute_fock_matrix, &
+                                                            hfx_treat_lsd_in_core, &
+                                                            s_mstruct_changed
+      REAL(KIND=dp)                                      :: eh1
+      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: matrix_ks_kp, rho_ao_kp
+      TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(hfx_type), DIMENSION(:, :), POINTER           :: x_data
+
+      CALL timeset(routineN, handle)
+
+      NULLIFY (dft_control, para_env, matrix_ks_kp, rho_ao_kp)
+
+      CALL get_qs_env(qs_env=qs_env, &
+                      dft_control=dft_control, &
+                      para_env=para_env, &
+                      s_mstruct_changed=s_mstruct_changed, &
+                      x_data=x_data)
+
+      CPASSERT(dft_control%nimages == 1)
+      nspins = dft_control%nspins
+
+      CALL section_vals_get(hfx_sections, n_repetition=n_rep_hf)
+      CALL section_vals_val_get(hfx_sections, "TREAT_LSD_IN_CORE", l_val=hfx_treat_lsd_in_core, &
+                                i_rep_section=1)
+
+      CALL section_vals_get(hfx_sections, n_repetition=n_rep_hf)
+      distribute_fock_matrix = .TRUE.
+
+      mspin = 1
+      IF (hfx_treat_lsd_in_core) mspin = nspins
+
+      matrix_ks_kp(1:nspins, 1:1) => matrix_ks(1:nspins)
+      rho_ao_kp(1:nspins, 1:1) => rho_ao(1:nspins)
+
+      DO irep = 1, n_rep_hf
+         DO ispin = 1, mspin
+            CALL integrate_four_center(qs_env, x_data, matrix_ks_kp, eh1, rho_ao_kp, hfx_sections, para_env, &
+                                       s_mstruct_changed, irep, distribute_fock_matrix, ispin=ispin)
+         END DO
+      END DO
+
+      CALL timestop(handle)
+
+   END SUBROUTINE hfx_matrix
+
+! **************************************************************************************************
+!> \brief ...
+!> \param qs_env ...
+!> \param p_env ...
+!> \param c0 ...
+!> \param v ...
+!> \param Av ...
+! **************************************************************************************************
+   SUBROUTINE apply_xc_admm(qs_env, p_env, c0, v, Av)
+      TYPE(qs_environment_type), POINTER                 :: qs_env
+      TYPE(qs_p_env_type), POINTER                       :: p_env
+      TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: c0, v, Av
+
+      CHARACTER(len=*), PARAMETER :: routineN = 'apply_xc_admm', routineP = moduleN//':'//routineN
+
+      INTEGER                                            :: handle, ispin, nao, nao_aux, ncol, nspins
+      INTEGER, DIMENSION(2, 3)                           :: bo
+      LOGICAL                                            :: lsd
+      REAL(KIND=dp)                                      :: fac
+      TYPE(admm_type), POINTER                           :: admm_env
+      TYPE(cp_fm_type), POINTER                          :: tc0, tc1
+      TYPE(dbcsr_p_type)                                 :: xcmat
+      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s
+      TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(linres_control_type), POINTER                 :: linres_control
+      TYPE(pw_env_type), POINTER                         :: pw_env
+      TYPE(pw_p_type), DIMENSION(:), POINTER             :: rho1_aux_g, rho1_aux_r, tau_pw, v_xc
+      TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
+      TYPE(section_vals_type), POINTER                   :: xc_fun_section, xc_section
+      TYPE(task_list_type), POINTER                      :: task_list_aux_fit
+      TYPE(xc_rho_cflags_type)                           :: needs
+      TYPE(xc_rho_set_type), POINTER                     :: rho1_set
+
+      CALL timeset(routineN, handle)
+
+      CPASSERT(ASSOCIATED(c0))
+      CPASSERT(ASSOCIATED(v))
+      CPASSERT(ASSOCIATED(Av))
+
+      CALL get_qs_env(qs_env=qs_env, dft_control=dft_control, task_list_aux_fit=task_list_aux_fit)
+
+      IF (dft_control%do_admm) THEN
+         IF (dft_control%admm_control%aux_exch_func == do_admm_aux_exch_func_none) THEN
+            ! nothing to do
+         ELSE
+            CALL get_qs_env(qs_env=qs_env, linres_control=linres_control)
+            CPASSERT(.NOT. dft_control%qs_control%gapw)
+            CPASSERT(.NOT. dft_control%qs_control%gapw_xc)
+            CPASSERT(.NOT. dft_control%qs_control%lrigpw)
+            CPASSERT(.NOT. linres_control%lr_triplet)
+
+            nspins = dft_control%nspins
+
+            ! AUX basis contribution
+            CALL get_qs_env(qs_env=qs_env, pw_env=pw_env)
+            CPASSERT(ASSOCIATED(pw_env))
+            CALL pw_env_get(pw_env, auxbas_pw_pool=auxbas_pw_pool)
+            ALLOCATE (v_xc(nspins))
+            DO ispin = 1, nspins
+               NULLIFY (v_xc(ispin)%pw)
+               CALL pw_pool_create_pw(auxbas_pw_pool, v_xc(ispin)%pw, &
+                                      use_data=REALDATA3D, in_space=REALSPACE)
+               CALL pw_zero(v_xc(ispin)%pw)
+            END DO
+            NULLIFY (tau_pw)
+            ! calculate the xc potential
+            lsd = (nspins == 2)
+            CALL get_qs_env(qs_env=qs_env, matrix_s_aux_fit=matrix_s)
+            ALLOCATE (xcmat%matrix)
+            CALL dbcsr_create(xcmat%matrix, template=matrix_s(1)%matrix)
+            ALLOCATE (rho1_aux_r(nspins), rho1_aux_g(nspins))
+            DO ispin = 1, nspins
+               NULLIFY (rho1_aux_r(ispin)%pw, rho1_aux_g(ispin)%pw)
+               CALL pw_pool_create_pw(auxbas_pw_pool, rho1_aux_r(ispin)%pw, &
+                                      use_data=REALDATA3D, in_space=REALSPACE)
+               CALL pw_pool_create_pw(auxbas_pw_pool, rho1_aux_g(ispin)%pw, &
+                                      in_space=RECIPROCALSPACE, use_data=COMPLEXDATA1D)
+            END DO
+
+            CALL admm_aux_reponse_density(qs_env, c0, v, rho1_aux_r, rho1_aux_g)
+            CALL get_qs_env(qs_env, admm_env=admm_env)
+            xc_section => admm_env%xc_section_aux
+            bo = rho1_aux_r(1)%pw%pw_grid%bounds_local
+            ! create the place where to store the argument for the functionals
+            NULLIFY (rho1_set)
+            CALL xc_rho_set_create(rho1_set, bo, &
+                                   rho_cutoff=section_get_rval(xc_section, "DENSITY_CUTOFF"), &
+                                   drho_cutoff=section_get_rval(xc_section, "GRADIENT_CUTOFF"), &
+                                   tau_cutoff=section_get_rval(xc_section, "TAU_CUTOFF"))
+
+            xc_fun_section => section_vals_get_subs_vals(xc_section, "XC_FUNCTIONAL")
+            needs = xc_functionals_get_needs(xc_fun_section, lsd, .TRUE.)
+
+            ! calculate the arguments needed by the functionals
+            CALL xc_rho_set_update(rho1_set, rho1_aux_r, rho1_aux_g, tau_pw, needs, &
+                                   section_get_ival(xc_section, "XC_GRID%XC_DERIV"), &
+                                   section_get_ival(xc_section, "XC_GRID%XC_SMOOTH_RHO"), &
+                                   auxbas_pw_pool)
+            fac = 0._dp
+            CALL xc_calc_2nd_deriv(v_xc, p_env%kpp1_env%deriv_set_admm, &
+                                   p_env%kpp1_env%rho_set_admm, &
+                                   rho1_set, auxbas_pw_pool, xc_section=xc_section, &
+                                   tddfpt_fac=fac)
+            CALL xc_rho_set_release(rho1_set)
+
+            tc0 => admm_env%work_aux_orb
+            tc1 => admm_env%work_aux_orb2
+            CALL cp_fm_get_info(admm_env%A, nrow_global=nao_aux)
+            DO ispin = 1, nspins
+               v_xc(ispin)%pw%cr3d = v_xc(ispin)%pw%cr3d*v_xc(ispin)%pw%pw_grid%dvol
+               IF (nspins == 1) THEN
+                  v_xc(ispin)%pw%cr3d = 2.0_dp*v_xc(ispin)%pw%cr3d
+               END IF
+               CALL dbcsr_copy(xcmat%matrix, matrix_s(1)%matrix)
+               CALL dbcsr_set(xcmat%matrix, 0.0_dp)
+               CALL integrate_v_rspace(v_rspace=v_xc(ispin), hmat=xcmat, qs_env=qs_env, &
+                                       calculate_forces=.FALSE., basis_type="AUX_FIT", &
+                                       task_list_external=task_list_aux_fit)
+               CALL cp_fm_get_info(c0(ispin)%matrix, nrow_global=nao, ncol_global=ncol)
+               CALL cp_gemm('N', 'N', nao_aux, ncol, nao, 1.0_dp, admm_env%A, &
+                            c0(ispin)%matrix, 0.0_dp, tc0)
+               CALL cp_dbcsr_sm_fm_multiply(xcmat%matrix, tc0, tc1, &
+                                            ncol=ncol, alpha=1.0_dp, beta=0.0_dp)
+               CALL cp_gemm('T', 'N', nao, ncol, nao_aux, 1.0_dp, admm_env%A, &
+                            tc1, 1.0_dp, Av(ispin)%matrix)
+            END DO
+
+            DO ispin = 1, nspins
+               CALL pw_pool_give_back_pw(auxbas_pw_pool, v_xc(ispin)%pw)
+               CALL pw_pool_give_back_pw(auxbas_pw_pool, rho1_aux_r(ispin)%pw)
+               CALL pw_pool_give_back_pw(auxbas_pw_pool, rho1_aux_g(ispin)%pw)
+            END DO
+            DEALLOCATE (v_xc, rho1_aux_r, rho1_aux_g)
+            CALL dbcsr_deallocate_matrix(xcmat%matrix)
+
+         END IF
+      END IF
+
+      CALL timestop(handle)
+
+   END SUBROUTINE apply_xc_admm
+
+! **************************************************************************************************
+!> \brief Calculate ADMM auxiliary response density
+!> \param qs_env ...
+!> \param c0 ...
+!> \param c1 ...
+!> \param rho1_aux_r ...
+!> \param rho1_aux_g ...
+! **************************************************************************************************
+   SUBROUTINE admm_aux_reponse_density(qs_env, c0, c1, rho1_aux_r, rho1_aux_g)
+      TYPE(qs_environment_type), POINTER                 :: qs_env
+      TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: c0, c1
+      TYPE(pw_p_type), DIMENSION(:), POINTER             :: rho1_aux_r, rho1_aux_g
+
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'admm_aux_reponse_density', &
+         routineP = moduleN//':'//routineN
+
+      INTEGER                                            :: handle, ispin, nao, nao_aux, ncol, nspins
+      REAL(KIND=dp)                                      :: tot_rho_aux
+      TYPE(admm_type), POINTER                           :: admm_env
+      TYPE(cp_fm_type), POINTER                          :: tc0, tc1
+      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s, rho1_ao
+      TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(qs_ks_env_type), POINTER                      :: ks_env
+      TYPE(task_list_type), POINTER                      :: task_list_aux_fit
+
+      CALL timeset(routineN, handle)
+
+      CALL get_qs_env(qs_env=qs_env, &
+                      ks_env=ks_env, &
+                      matrix_s=matrix_s, &
+                      dft_control=dft_control)
+      nspins = dft_control%nspins
+
+      CALL get_qs_env(qs_env, admm_env=admm_env, &
+                      task_list_aux_fit=task_list_aux_fit)
+      CPASSERT(ASSOCIATED(admm_env%A))
+      CPASSERT(ASSOCIATED(admm_env%work_aux_orb))
+      CPASSERT(ASSOCIATED(admm_env%work_aux_orb2))
+      CALL cp_fm_get_info(admm_env%A, nrow_global=nao_aux)
+      CALL get_qs_env(qs_env=qs_env, matrix_s_aux_fit=matrix_s)
+      NULLIFY (rho1_ao)
+      CALL dbcsr_allocate_matrix_set(rho1_ao, nspins)
+      DO ispin = 1, nspins
+         ALLOCATE (rho1_ao(ispin)%matrix)
+         CALL dbcsr_create(rho1_ao(ispin)%matrix, template=matrix_s(1)%matrix)
+         CALL dbcsr_copy(rho1_ao(ispin)%matrix, matrix_s(1)%matrix)
+         CALL dbcsr_set(rho1_ao(ispin)%matrix, 0.0_dp)
+      END DO
+      ! P1 -> AUX BASIS
+      DO ispin = 1, nspins
+         CALL cp_fm_get_info(c0(ispin)%matrix, nrow_global=nao, ncol_global=ncol)
+         tc0 => admm_env%work_aux_orb
+         tc1 => admm_env%work_aux_orb2
+         CALL cp_gemm('N', 'N', nao_aux, ncol, nao, 1.0_dp, admm_env%A, &
+                      c1(ispin)%matrix, 0.0_dp, tc1)
+         CALL cp_gemm('N', 'N', nao_aux, ncol, nao, 1.0_dp, admm_env%A, &
+                      c0(ispin)%matrix, 0.0_dp, tc0)
+         CALL cp_dbcsr_plus_fm_fm_t(rho1_ao(ispin)%matrix, matrix_v=tc1, matrix_g=tc0, &
+                                    ncol=ncol, alpha=1.0_dp)
+         CALL cp_dbcsr_plus_fm_fm_t(rho1_ao(ispin)%matrix, matrix_v=tc0, matrix_g=tc1, &
+                                    ncol=ncol, alpha=1.0_dp)
+      ENDDO
+
+      DO ispin = 1, nspins
+         CALL calculate_rho_elec(matrix_p=rho1_ao(ispin)%matrix, &
+                                 rho=rho1_aux_r(ispin), rho_gspace=rho1_aux_g(ispin), &
+                                 total_rho=tot_rho_aux, ks_env=ks_env, &
+                                 basis_type="AUX_FIT", &
+                                 task_list_external=task_list_aux_fit)
+      END DO
+
+      CALL dbcsr_deallocate_matrix_set(rho1_ao)
+
+      CALL timestop(handle)
+
+   END SUBROUTINE admm_aux_reponse_density
 
 ! **************************************************************************************************
 !> \brief ...
@@ -1530,7 +1986,9 @@ CONTAINS
          routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ispin, nspins
+      TYPE(admm_type), POINTER                           :: admm_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s
+      TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(pw_env_type), POINTER                         :: pw_env
       TYPE(pw_p_type), DIMENSION(:), POINTER             :: my_rho_r, rho_r
       TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
@@ -1568,8 +2026,9 @@ CONTAINS
          END DO
       END IF
 
-      IF (.NOT. ASSOCIATED(kpp1_env%deriv_set)) THEN
+      CALL get_qs_env(qs_env, admm_env=admm_env, dft_control=dft_control)
 
+      IF (.NOT. ASSOCIATED(kpp1_env%deriv_set)) THEN
          IF (nspins == 1 .AND. lr_triplet) THEN
             ALLOCATE (my_rho_r(2))
             DO ispin = 1, 2
@@ -1585,7 +2044,11 @@ CONTAINS
             END DO
          END IF
 
-         xc_section => section_vals_get_subs_vals(input, "DFT%XC")
+         IF (dft_control%do_admm) THEN
+            xc_section => admm_env%xc_section_primary
+         ELSE
+            xc_section => section_vals_get_subs_vals(input, "DFT%XC")
+         END IF
 
          CALL xc_prep_2nd_deriv(kpp1_env%deriv_set, kpp1_env%rho_set, &
                                 my_rho_r, auxbas_pw_pool, &
@@ -1596,6 +2059,21 @@ CONTAINS
          ENDDO
          DEALLOCATE (my_rho_r)
       ENDIF
+
+      ! ADMM Correction
+      IF (dft_control%do_admm) THEN
+         IF (dft_control%admm_control%aux_exch_func /= do_admm_aux_exch_func_none) THEN
+            IF (.NOT. ASSOCIATED(kpp1_env%deriv_set_admm)) THEN
+               CPASSERT(.NOT. lr_triplet)
+               xc_section => admm_env%xc_section_aux
+               CALL get_qs_env(qs_env=qs_env, rho_aux_fit=rho)
+               CALL qs_rho_get(rho, rho_r=rho_r)
+               CALL xc_prep_2nd_deriv(kpp1_env%deriv_set_admm, kpp1_env%rho_set_admm, &
+                                      rho_r, auxbas_pw_pool, &
+                                      xc_section=xc_section)
+            END IF
+         END IF
+      END IF
 
    END SUBROUTINE kpp1_check_i_alloc
 
@@ -1803,7 +2281,7 @@ CONTAINS
             IF (rst_unit > 0) WRITE (rst_unit) nmo
 
             DO i = 1, nmo, MAX(max_block, 1)
-               i_block = MIN(max_block, nmo-i+1)
+               i_block = MIN(max_block, nmo - i + 1)
                CALL cp_fm_get_submatrix(vec(ispin)%matrix, vecbuffer, 1, i, nao, i_block)
                ! doing this in one write would increase efficiency, but breaks RESTART compatibility.
                ! to old ones, and in cases where max_block is different between runs, as might happen during
@@ -1961,7 +2439,7 @@ CONTAINS
                !
                ! read the response
                DO i = 1, nmo, MAX(max_block, 1)
-                  i_block = MIN(max_block, nmo-i+1)
+                  i_block = MIN(max_block, nmo - i + 1)
                   DO j = 1, i_block
                      IF (rst_unit > 0) READ (rst_unit) vecbuffer(1:nao, j)
                   ENDDO

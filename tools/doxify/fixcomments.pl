@@ -142,7 +142,7 @@ while (<>) {
     }
 
     # Look for procedure (SUBROUTINE/FUNCTION definitions)
-    # These can be the initial definiton line, or a continuation line
+    # These can be the initial definition line, or a continuation line
     # We don't add comments to code inside an interface block
     if ((matchSubroutineDefinition($currline) || $hasAmpersand)
         && !($insideInterface)) {
@@ -481,7 +481,7 @@ sub processSubroutineDefinition {
     # unrequired text stripped off, $currline will still contain the actual code
     my $functionLine = $EMPTY;
     if (!($hasAmpersand)) {
-        # Remove anything preceeding the SUBROUTINE or FUNCTION definition
+        # Remove anything preceding the SUBROUTINE or FUNCTION definition
         # e.g. RECURSIVE, REAL, INTEGER, (KIND=dp), ELEMENTAL etc etc.
         $currline =~ /((\bFUNCTION\b|\bSUBROUTINE\b).+)/x;
         # $1 contains whatever remains after removing anything before the
@@ -504,14 +504,20 @@ sub processSubroutineDefinition {
 
     # Split the subroutine or function definition by space or comma
     my @string = split(/([,\(\)\s+]+)/x, $functionLine);
-    foreach (@string) {
-        if (defined) {
-        my $p = $_;
+
+    while (my ($idx, $p) = each @string) {
+        defined $p or next;  # continue with the next item if $p is undefined
+
         $p =~ s/^\s+|\s+$//gx;
-        if (($p ne $EMPTY) && ($p ne ",")) {
+
+        $p ne $EMPTY or next;  # continue with the next item if empty
+        $p ne "," or next;  # or simply the ','
+
         print_debug("Processing item $p");
         if ($p eq "&") {
-            # If we encounter an & then it spans multiple lines
+            # If we encounter an & as the last element in this line it starts a line continuation,
+            # otherwise it is the continuation point of a previous one and we can ignore it
+            $idx == $#string or next;
             print_debug("Got & line continuation");
             $hasAmpersand = 1;
             # Buffer the line details as we can't print out yet
@@ -602,8 +608,6 @@ sub processSubroutineDefinition {
                 }
             }
             $lelement = $p; # Take a note of the array element for comparison, ignoring & and ()
-        } # End of if $p eq "&" conditional
-    }
         }
     } # End of for loop over @string
 
@@ -679,7 +683,7 @@ sub processSubroutineDefinition {
             print $notes;
         }
         if ($remainders ne $EMPTY) {
-            # Dumps out whatever else remainded in the header (e.g. stuff begining !> without a \ or stuff beginning with just a !) for the SUBROUTINE/FUNCTION at the end
+            # Dumps out whatever else remainded in the header (e.g. stuff beginning !> without a \ or stuff beginning with just a !) for the SUBROUTINE/FUNCTION at the end
             print $remainders;
         }
         print "! **************************************************************************************************\n";

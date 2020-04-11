@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 MODULE input_restart_force_eval
@@ -49,8 +49,7 @@ MODULE input_restart_force_eval
    USE molecule_types,                  ONLY: get_molecule,&
                                               molecule_type
    USE multipole_types,                 ONLY: multipole_type
-   USE parallel_rng_types,              ONLY: dump_rng_stream,&
-                                              rng_record_length
+   USE parallel_rng_types,              ONLY: rng_record_length
    USE particle_list_types,             ONLY: particle_list_type
    USE qmmm_ff_fist,                    ONLY: qmmm_ff_precond_only_qm
    USE qs_environment_types,            ONLY: get_qs_env
@@ -176,7 +175,7 @@ CONTAINS
                   dft_section => section_vals_get_subs_vals3(force_env_sections, "DFT", &
                                                              i_rep_section=i_force_eval(iforce_eval))
                   ALLOCATE (work(SIZE(force_env%mixed_env%strength, 2)))
-                  work = force_env%mixed_env%strength(iforce_eval-1, :)
+                  work = force_env%mixed_env%strength(iforce_eval - 1, :)
                   CALL section_vals_val_set(dft_section, "QS%CDFT%STRENGTH", &
                                             r_vals_ptr=work)
                   CALL section_vals_val_set(dft_section, "QS%CDFT%COUNTER", &
@@ -265,9 +264,8 @@ CONTAINS
                nparticle_local = local_particles%n_el(iparticle_kind)
                DO iparticle_local = 1, nparticle_local
                   IF (iparticle == local_particles%list(iparticle_kind)%array(iparticle_local)) THEN
-                     CALL dump_rng_stream(rng_stream=local_particles%local_particle_set(iparticle_kind)% &
-                                          rng(iparticle_local)%stream, &
-                                          rng_record=rng_record)
+                     CALL local_particles%local_particle_set(iparticle_kind)% &
+                        rng(iparticle_local)%stream%dump(rng_record=rng_record)
                      CALL string_to_ascii(rng_record, ascii(:, iparticle))
                   END IF
                END DO
@@ -581,7 +579,7 @@ CONTAINS
             NULLIFY (my_val)
          ELSE
             IF (last_atom < irk) THEN
-               imol = imol+1
+               imol = imol + 1
                molecule_now => molecules%els(imol)
                CALL get_molecule(molecule_now, last_atom=last_atom)
                CALL get_molecule_kind(molecule_now%molecule_kind, molname_generated=molname_generated, &
@@ -761,7 +759,7 @@ CONTAINS
          ind = 0
          DO i = 1, 3
             DO j = i, 3
-               ind = ind+1
+               ind = ind + 1
                work(ind) = quadrupoles(j, i, irk)
             END DO
          END DO
@@ -847,7 +845,7 @@ CONTAINS
          CALL get_atomic_kind(particles%els(iparticle)%atomic_kind, name=kind_name)
          IF (.NOT. core_or_shell) THEN
             IF (iparticle > last_atom) THEN
-               imolecule = imolecule+1
+               imolecule = imolecule + 1
                molecule => molecules%els(imolecule)
                CALL get_molecule(molecule, last_atom=last_atom)
                CALL get_molecule_kind(molecule%molecule_kind, &

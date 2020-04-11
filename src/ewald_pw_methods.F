@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -52,7 +52,7 @@ MODULE ewald_pw_methods
 CONTAINS
 
 ! **************************************************************************************************
-!> \brief Rescales pw_grids for given box, if nessecary
+!> \brief Rescales pw_grids for given box, if necessary
 !> \param ewald_pw ...
 !> \param ewald_env ...
 !> \param cell_hmat ...

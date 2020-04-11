@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -80,7 +80,7 @@ CONTAINS
 
 ! **************************************************************************************************
 !> \brief Set up for reading the restart
-!>      corresponing to the excitation of iatom
+!>      corresponding to the excitation of iatom
 !>      If the corresponding restart file does not exist
 !>      the GS orbitals are used as initial guess
 !> \param xas_env ...
@@ -238,7 +238,7 @@ CONTAINS
             END DO
             ! Skip extra MOs if there any
             IF (para_env%ionode) THEN
-               DO i = nmo+1, nmo_read
+               DO i = nmo + 1, nmo_read
                   READ (rst_unit) vecbuffer
                END DO
             END IF
@@ -400,7 +400,7 @@ CONTAINS
          IF (ispin == my_spin) THEN
             IF (xas_env%homo_occ == 0) THEN
                CALL get_mo_set(mos(ispin)%mo_set, nelectron=nelectron)
-               nelectron = nelectron-1
+               nelectron = nelectron - 1
                CALL set_mo_set(mos(ispin)%mo_set, nelectron=nelectron)
             END IF
             CALL set_mo_occupation(mo_set=qs_env%mos(ispin)%mo_set, smear=scf_control%smear, &

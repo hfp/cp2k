@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -14,7 +14,7 @@
 ! **************************************************************************************************
 MODULE cp_parser_inpp_types
 
-   USE kinds,                           ONLY: default_path_length
+   USE kinds, ONLY: default_path_length
 #include "../base/base_uses.f90"
 
    IMPLICIT NONE
@@ -57,7 +57,7 @@ CONTAINS
          DIMENSION(:, :), POINTER                        :: initial_variables
 
       CHARACTER(len=*), PARAMETER :: routineN = 'create_inpp_type', &
-         routineP = moduleN//':'//routineN
+                                     routineP = moduleN//':'//routineN
 
       CPASSERT(.NOT. ASSOCIATED(inpp))
       ALLOCATE (inpp)
@@ -91,7 +91,7 @@ CONTAINS
       TYPE(inpp_type), POINTER                           :: inpp
 
       CHARACTER(len=*), PARAMETER :: routineN = 'release_inpp_type', &
-         routineP = moduleN//':'//routineN
+                                     routineP = moduleN//':'//routineN
 
       CPASSERT(ASSOCIATED(inpp))
 

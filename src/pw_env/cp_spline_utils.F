@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -68,7 +68,7 @@ CONTAINS
       TYPE(pw_spline_precond_type), POINTER              :: precond
       TYPE(pw_type), POINTER                             :: coeffs, values
 
-      ifile = ifile+1
+      ifile = ifile + 1
       CALL timeset(routineN, handle)
       CALL section_vals_val_get(param_section, "safe_computation", &
                                 l_val=safe_computation)
@@ -167,7 +167,7 @@ CONTAINS
       TYPE(pw_spline_precond_type), POINTER              :: precond
       TYPE(pw_type), POINTER                             :: coeffs
 
-      ifile = ifile+1
+      ifile = ifile + 1
       CALL timeset(routineN, handle)
       NULLIFY (coeffs)
       CALL pw_pool_create_pw(coarse_pool, coeffs, use_data=REALDATA3D, &

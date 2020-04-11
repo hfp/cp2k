@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -39,6 +39,8 @@ MODULE qs_environment_types
    USE distribution_2d_types,           ONLY: distribution_2d_type
    USE dm_ls_scf_types,                 ONLY: ls_scf_env_type,&
                                               ls_scf_release
+   USE ec_env_types,                    ONLY: ec_env_release,&
+                                              energy_correction_type
    USE et_coupling_types,               ONLY: et_coupling_release,&
                                               et_coupling_type
    USE ewald_environment_types,         ONLY: ewald_env_release,&
@@ -136,7 +138,8 @@ MODULE qs_environment_types
    USE qs_scf_types,                    ONLY: qs_scf_env_type,&
                                               scf_env_release,&
                                               scf_env_retain
-   USE qs_subsys_types,                 ONLY: qs_subsys_type
+   USE qs_subsys_types,                 ONLY: qs_subsys_set,&
+                                              qs_subsys_type
    USE qs_wf_history_types,             ONLY: qs_wf_history_type,&
                                               wfi_release,&
                                               wfi_retain
@@ -242,7 +245,7 @@ MODULE qs_environment_types
       TYPE(mo_set_p_type), DIMENSION(:), POINTER            :: mos, mos_aux_fit
       TYPE(cp_fm_p_type), DIMENSION(:), POINTER             :: mo_derivs_aux_fit
       TYPE(cp_fm_p_type), DIMENSION(:), POINTER             :: mo_loc_history
-      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: mo_derivs
+      TYPE(dbcsr_p_type), DIMENSION(:), POINTER             :: mo_derivs
       TYPE(scf_control_type), POINTER                       :: scf_control
       TYPE(rel_control_type), POINTER                       :: rel_control
       ! ZMP adding variables
@@ -277,6 +280,9 @@ MODULE qs_environment_types
       ! LRI
       TYPE(lri_environment_type), POINTER                   :: lri_env
       TYPE(lri_density_type), POINTER                       :: lri_density
+      ! Energy correction
+      LOGICAL                                               :: energy_correction
+      TYPE(energy_correction_type), POINTER                 :: ec_env
       ! Empirical dispersion
       TYPE(qs_dispersion_type), POINTER                     :: dispersion_env
       ! Empirical geometrical BSSE correction
@@ -306,6 +312,9 @@ MODULE qs_environment_types
       TYPE(polar_env_type), POINTER                         :: polar_env
       ! Resp charges
       REAL(KIND=dp), DIMENSION(:), POINTER                  :: rhs => NULL()
+      REAL(KIND=dp)                                         :: total_zeff_corr, surface_dipole_moment
+      LOGICAL                                               :: surface_dipole_switch_off
+      TYPE(mo_set_p_type), DIMENSION(:), POINTER            :: mos_last_converged
    END TYPE qs_environment_type
 
 ! **************************************************************************************************
@@ -418,6 +427,7 @@ CONTAINS
 !> \param subsys ...
 !> \param cp_subsys ...
 !> \param oce ...
+!> \param local_rho_set ...
 !> \param rho_atom_set ...
 !> \param task_list ...
 !> \param task_list_aux_fit ...
@@ -459,6 +469,7 @@ CONTAINS
 !> \param admm_dm ...
 !> \param lri_env ...
 !> \param lri_density ...
+!> \param ec_env ...
 !> \param dispersion_env ...
 !> \param gcp_env ...
 !> \param vee ...
@@ -484,6 +495,7 @@ CONTAINS
 !> \param embed_pot ...
 !> \param spin_embed_pot ...
 !> \param polar_env ...
+!> \param mos_last_converged ... [SGh]
 !> \param rhs ...
 !> \date    23.01.2002
 !> \author  MK
@@ -502,7 +514,7 @@ CONTAINS
                          mpools, mpools_aux_fit, input, para_env, blacs_env, scf_control, rel_control, kinetic, qs_charges, &
                          vppl, rho_core, rho_nlcc, rho_nlcc_g, ks_env, ks_qmmm_env, wf_history, scf_env, id_nr, local_particles, &
                          local_molecules, distribution_2d, dbcsr_dist, molecule_kind_set, &
-                         molecule_set, subsys, cp_subsys, oce, rho_atom_set, &
+                         molecule_set, subsys, cp_subsys, oce, local_rho_set, rho_atom_set, &
                          task_list, &
                          task_list_aux_fit, &
                          task_list_soft, &
@@ -512,10 +524,10 @@ CONTAINS
                          neighbor_list_id, linres_control, xas_env, virial, cp_ddapc_env, cp_ddapc_ewald, &
                          outer_scf_history, outer_scf_ihistory, x_data, et_coupling, dftb_potential, results, &
                          se_taper, se_store_int_env, se_nddo_mpole, se_nonbond_env, admm_env, admm_dm, &
-                         lri_env, lri_density, dispersion_env, gcp_env, vee, rho_external, external_vxc, mask, &
+                         lri_env, lri_density, ec_env, dispersion_env, gcp_env, vee, rho_external, external_vxc, mask, &
                          mp2_env, kg_env, WannierCentres, atprop, ls_scf_env, do_transport, transport_env, v_hartree_rspace, &
                          s_mstruct_changed, rho_changed, potential_changed, forces_up_to_date, mscfg_env, almo_scf_env, &
-                         gradient_history, variable_history, embed_pot, spin_embed_pot, polar_env, rhs)
+                         gradient_history, variable_history, embed_pot, spin_embed_pot, polar_env, mos_last_converged, rhs)
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(atomic_kind_type), DIMENSION(:), OPTIONAL, &
          POINTER                                         :: atomic_kind_set
@@ -584,6 +596,7 @@ CONTAINS
       TYPE(qs_subsys_type), OPTIONAL, POINTER            :: subsys
       TYPE(cp_subsys_type), OPTIONAL, POINTER            :: cp_subsys
       TYPE(oce_matrix_type), OPTIONAL, POINTER           :: oce
+      TYPE(local_rho_type), OPTIONAL, POINTER            :: local_rho_set
       TYPE(rho_atom_type), DIMENSION(:), OPTIONAL, &
          POINTER                                         :: rho_atom_set
       TYPE(task_list_type), OPTIONAL, POINTER            :: task_list, task_list_aux_fit, &
@@ -625,6 +638,7 @@ CONTAINS
       TYPE(admm_dm_type), OPTIONAL, POINTER              :: admm_dm
       TYPE(lri_environment_type), OPTIONAL, POINTER      :: lri_env
       TYPE(lri_density_type), OPTIONAL, POINTER          :: lri_density
+      TYPE(energy_correction_type), OPTIONAL, POINTER    :: ec_env
       TYPE(qs_dispersion_type), OPTIONAL, POINTER        :: dispersion_env
       TYPE(qs_gcp_type), OPTIONAL, POINTER               :: gcp_env
       TYPE(pw_p_type), OPTIONAL, POINTER                 :: vee
@@ -647,6 +661,8 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), OPTIONAL, POINTER  :: gradient_history, variable_history
       TYPE(pw_p_type), OPTIONAL, POINTER                 :: embed_pot, spin_embed_pot
       TYPE(polar_env_type), OPTIONAL, POINTER            :: polar_env
+      TYPE(mo_set_p_type), DIMENSION(:), OPTIONAL, &
+         POINTER                                         :: mos_last_converged
       REAL(KIND=dp), DIMENSION(:), OPTIONAL, POINTER     :: rhs
 
       CHARACTER(len=*), PARAMETER :: routineN = 'get_qs_env', routineP = moduleN//':'//routineN
@@ -669,6 +685,7 @@ CONTAINS
       IF (PRESENT(qmmm_periodic)) qmmm_periodic = qs_env%qmmm_periodic
       IF (PRESENT(mos)) mos => qs_env%mos
       IF (PRESENT(mos_aux_fit)) mos_aux_fit => qs_env%mos_aux_fit
+      IF (PRESENT(mos_last_converged)) mos_last_converged => qs_env%mos_last_converged
       IF (PRESENT(ewald_env)) ewald_env => qs_env%ewald_env
       IF (PRESENT(ewald_pw)) ewald_pw => qs_env%ewald_pw
       IF (PRESENT(mpools)) mpools => qs_env%mpools
@@ -699,6 +716,7 @@ CONTAINS
       IF (PRESENT(admm_env)) admm_env => qs_env%admm_env
       IF (PRESENT(lri_env)) lri_env => qs_env%lri_env
       IF (PRESENT(lri_density)) lri_density => qs_env%lri_density
+      IF (PRESENT(ec_env)) ec_env => qs_env%ec_env
       IF (PRESENT(dispersion_env)) dispersion_env => qs_env%dispersion_env
       IF (PRESENT(gcp_env)) gcp_env => qs_env%gcp_env
       IF (PRESENT(run_rtp)) run_rtp = qs_env%run_rtp
@@ -720,6 +738,8 @@ CONTAINS
       ! Resp charges
       IF (PRESENT(rhs)) rhs => qs_env%rhs
 
+      IF (PRESENT(local_rho_set)) &
+         local_rho_set => qs_env%local_rho_set
       IF (PRESENT(rho_atom_set)) &
          CALL get_local_rho(qs_env%local_rho_set, rho_atom_set=rho_atom_set)
       IF (PRESENT(rho0_atom_set)) &
@@ -870,6 +890,7 @@ CONTAINS
       NULLIFY (qs_env%super_cell)
       NULLIFY (qs_env%mos)
       NULLIFY (qs_env%mos_aux_fit)
+      NULLIFY (qs_env%mos_last_converged)
       NULLIFY (qs_env%mpools)
       NULLIFY (qs_env%mpools_aux_fit)
       NULLIFY (qs_env%ewald_env)
@@ -915,6 +936,7 @@ CONTAINS
       NULLIFY (qs_env%admm_env)
       NULLIFY (qs_env%efield)
       NULLIFY (qs_env%lri_env)
+      NULLIFY (qs_env%ec_env)
       NULLIFY (qs_env%lri_density)
       NULLIFY (qs_env%gcp_env)
       NULLIFY (qs_env%rtp)
@@ -928,7 +950,7 @@ CONTAINS
       CALL local_rho_set_create(qs_env%local_rho_set)
       CALL hartree_local_create(qs_env%hartree_local)
       qs_env%ref_count = 1
-      last_qs_env_id_nr = last_qs_env_id_nr+1
+      last_qs_env_id_nr = last_qs_env_id_nr + 1
       qs_env%id_nr = last_qs_env_id_nr
       qs_env%run_rtp = .FALSE.
       qs_env%linres_run = .FALSE.
@@ -953,6 +975,11 @@ CONTAINS
 
       qs_env%sim_time = 0._dp
       qs_env%sim_step = 0
+
+      qs_env%total_zeff_corr = 0.0_dp
+      qs_env%surface_dipole_moment = 0.0_dp
+      qs_env%surface_dipole_switch_off = .FALSE.
+
       ! Zero all variables containing results
       NULLIFY (qs_env%mo_derivs)
       NULLIFY (qs_env%mo_derivs_aux_fit)
@@ -1018,10 +1045,12 @@ CONTAINS
 !> \param transport_env ...
 !> \param lri_env ...
 !> \param lri_density ...
+!> \param ec_env ...
 !> \param dispersion_env ...
 !> \param gcp_env ...
 !> \param mp2_env ...
 !> \param kg_env ...
+!> \param force ...
 !> \param kpoints ...
 !> \param WannierCentres ...
 !> \param almo_scf_env ...
@@ -1030,6 +1059,7 @@ CONTAINS
 !> \param embed_pot ...
 !> \param spin_embed_pot ...
 !> \param polar_env ...
+!> \param mos_last_converged ... [SGh]
 !> \param rhs ...
 !> \date    23.01.2002
 !> \author  MK
@@ -1047,9 +1077,10 @@ CONTAINS
                          linres_control, xas_env, cp_ddapc_env, cp_ddapc_ewald, &
                          outer_scf_history, outer_scf_ihistory, x_data, et_coupling, dftb_potential, &
                          se_taper, se_store_int_env, se_nddo_mpole, se_nonbond_env, admm_env, ls_scf_env, &
-                         do_transport, transport_env, lri_env, lri_density, dispersion_env, gcp_env, mp2_env, kg_env, &
+                         do_transport, transport_env, lri_env, lri_density, ec_env, dispersion_env, &
+                         gcp_env, mp2_env, kg_env, force, &
                          kpoints, WannierCentres, almo_scf_env, gradient_history, variable_history, embed_pot, &
-                         spin_embed_pot, polar_env, rhs)
+                         spin_embed_pot, polar_env, mos_last_converged, rhs)
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(cell_type), OPTIONAL, POINTER                 :: super_cell
@@ -1108,10 +1139,13 @@ CONTAINS
       TYPE(transport_env_type), OPTIONAL, POINTER        :: transport_env
       TYPE(lri_environment_type), OPTIONAL, POINTER      :: lri_env
       TYPE(lri_density_type), OPTIONAL, POINTER          :: lri_density
+      TYPE(energy_correction_type), OPTIONAL, POINTER    :: ec_env
       TYPE(qs_dispersion_type), OPTIONAL, POINTER        :: dispersion_env
       TYPE(qs_gcp_type), OPTIONAL, POINTER               :: gcp_env
       TYPE(mp2_type), OPTIONAL, POINTER                  :: mp2_env
       TYPE(kg_environment_type), OPTIONAL, POINTER       :: kg_env
+      TYPE(qs_force_type), DIMENSION(:), OPTIONAL, &
+         POINTER                                         :: force
       TYPE(kpoint_type), OPTIONAL, POINTER               :: kpoints
       TYPE(wannier_centres_type), DIMENSION(:), &
          OPTIONAL, POINTER                               :: WannierCentres
@@ -1119,9 +1153,13 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), OPTIONAL, POINTER  :: gradient_history, variable_history
       TYPE(pw_p_type), OPTIONAL, POINTER                 :: embed_pot, spin_embed_pot
       TYPE(polar_env_type), OPTIONAL, POINTER            :: polar_env
+      TYPE(mo_set_p_type), DIMENSION(:), OPTIONAL, &
+         POINTER                                         :: mos_last_converged
       REAL(KIND=dp), DIMENSION(:), OPTIONAL, POINTER     :: rhs
 
       CHARACTER(len=*), PARAMETER :: routineN = 'set_qs_env', routineP = moduleN//':'//routineN
+
+      TYPE(qs_subsys_type), POINTER                      :: subsys
 
 !    CPPrecondition(ASSOCIATED(qs_env),cp_failure_level,routineP,failure)
 
@@ -1138,6 +1176,7 @@ CONTAINS
       IF (PRESENT(qmmm_periodic)) qs_env%qmmm_periodic = qmmm_periodic
       IF (PRESENT(mos)) qs_env%mos => mos
       IF (PRESENT(mos_aux_fit)) qs_env%mos_aux_fit => mos_aux_fit
+      IF (PRESENT(mos_last_converged)) qs_env%mos_last_converged => mos_last_converged
       IF (PRESENT(ls_scf_env)) qs_env%ls_scf_env => ls_scf_env
       IF (PRESENT(almo_scf_env)) qs_env%almo_scf_env => almo_scf_env
       IF (PRESENT(do_transport)) qs_env%do_transport = do_transport
@@ -1290,6 +1329,7 @@ CONTAINS
       IF (PRESENT(admm_env)) qs_env%admm_env => admm_env
       IF (PRESENT(lri_env)) qs_env%lri_env => lri_env
       IF (PRESENT(lri_density)) qs_env%lri_density => lri_density
+      IF (PRESENT(ec_env)) qs_env%ec_env => ec_env
       IF (PRESENT(dispersion_env)) qs_env%dispersion_env => dispersion_env
       IF (PRESENT(gcp_env)) qs_env%gcp_env => gcp_env
       IF (PRESENT(WannierCentres)) qs_env%WannierCentres => WannierCentres
@@ -1297,6 +1337,11 @@ CONTAINS
 
       ! Resp charges
       IF (PRESENT(rhs)) qs_env%rhs => rhs
+
+      IF (PRESENT(force)) THEN
+         CALL get_qs_env(qs_env, subsys=subsys)
+         CALL qs_subsys_set(subsys, force=force)
+      END IF
 
    END SUBROUTINE set_qs_env
 
@@ -1332,7 +1377,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(qs_env))
       CPASSERT(qs_env%ref_count > 0)
-      qs_env%ref_count = qs_env%ref_count+1
+      qs_env%ref_count = qs_env%ref_count + 1
    END SUBROUTINE qs_env_retain
 
 ! **************************************************************************************************
@@ -1352,7 +1397,7 @@ CONTAINS
 
       IF (ASSOCIATED(qs_env)) THEN
          CPASSERT(qs_env%ref_count > 0)
-         qs_env%ref_count = qs_env%ref_count-1
+         qs_env%ref_count = qs_env%ref_count - 1
          IF (qs_env%ref_count < 1) THEN
             CALL cell_release(qs_env%super_cell)
             IF (ASSOCIATED(qs_env%mos)) THEN
@@ -1366,6 +1411,12 @@ CONTAINS
                   CALL deallocate_mo_set(qs_env%mos_aux_fit(i)%mo_set)
                END DO
                DEALLOCATE (qs_env%mos_aux_fit)
+            END IF
+            IF (ASSOCIATED(qs_env%mos_last_converged)) THEN
+               DO i = 1, SIZE(qs_env%mos_last_converged)
+                  CALL deallocate_mo_set(qs_env%mos_last_converged(i)%mo_set)
+               END DO
+               DEALLOCATE (qs_env%mos_last_converged)
             END IF
 
             IF (ASSOCIATED(qs_env%mo_derivs)) THEN
@@ -1510,6 +1561,9 @@ CONTAINS
             END IF
             IF (ASSOCIATED(qs_env%lri_density)) THEN
                CALL lri_density_release(qs_env%lri_density)
+            END IF
+            IF (ASSOCIATED(qs_env%ec_env)) THEN
+               CALL ec_env_release(qs_env%ec_env)
             END IF
             IF (ASSOCIATED(qs_env%mp2_env)) THEN
                CALL mp2_env_release(qs_env%mp2_env)

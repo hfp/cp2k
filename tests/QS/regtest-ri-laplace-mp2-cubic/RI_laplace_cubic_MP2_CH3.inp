@@ -1,4 +1,4 @@
-&GLOBAL                                                                                           
+&GLOBAL
   PROJECT  RI_laplace_MP2_cubic_CH3
   PRINT_LEVEL MEDIUM
   RUN_TYPE ENERGY
@@ -10,6 +10,7 @@
   METHOD Quickstep
   &DFT
     BASIS_SET_FILE_NAME  HFX_BASIS
+    SORT_BASIS EXP
     POTENTIAL_FILE_NAME  POTENTIAL
     &MGRID
       CUTOFF  100
@@ -36,19 +37,28 @@
         FRACTION 1.0000000
         &SCREENING
           EPS_SCHWARZ 1.0E-8
-          SCREEN_ON_INITIAL_P FALSE 
+          SCREEN_ON_INITIAL_P FALSE
         &END SCREENING
       &END HF
       &WF_CORRELATION
-        METHOD  RI_SOS_LAPLACE
-        &RI_LAPLACE
-          QUADRATURE_POINTS  5 
+        &RI_SOS_MP2
+          QUADRATURE_POINTS  5
         &END
-        IM_TIME
-        &WFC_GPW
-          CUTOFF  100
-          REL_CUTOFF 20
+        &LOW_SCALING
+          MEMORY_CUT 1
         &END
+        &INTEGRALS
+          ERI_METHOD GPW
+          &WFC_GPW
+            CUTOFF  100
+            REL_CUTOFF 20
+          &END WFC_GPW
+        &END INTEGRALS
+        &RI
+          &RI_METRIC
+            POTENTIAL_TYPE IDENTITY
+          &END
+        &END RI
         MEMORY  500.0
         NUMBER_PROC  1
       &END

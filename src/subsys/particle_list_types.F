@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -11,8 +11,8 @@
 !> \author Fawzi Mohamed
 ! **************************************************************************************************
 MODULE particle_list_types
-   USE particle_types,                  ONLY: deallocate_particle_set,&
-                                              particle_type
+   USE particle_types, ONLY: deallocate_particle_set, &
+                             particle_type
 
 #include "../base/base_uses.f90"
 

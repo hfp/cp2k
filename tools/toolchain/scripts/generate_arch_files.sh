@@ -30,13 +30,13 @@ FC_arch="IF_MPI(${MPIFC}|${FC})"
 LD_arch="IF_MPI(${MPIFC}|${FC})"
 
 # we always want good line information and backtraces
-BASEFLAGS="-march=native -fno-omit-frame-pointer -g ${TSANFLAGS}"
+BASEFLAGS="-march=native -mtune=native -fno-omit-frame-pointer -g ${TSANFLAGS}"
 OPT_FLAGS="-O3 -funroll-loops"
 NOOPT_FLAGS="-O1"
 
 # those flags that do not influence code generation are used always, the others if debug
-FCDEB_FLAGS="-ffree-form -std=f2008 -fimplicit-none"
-FCDEB_FLAGS_DEBUG="-fsanitize=leak -fcheck=all -ffpe-trap=invalid,zero,overflow -finit-derived -finit-real=snan -finit-integer=-42 -Werror=realloc-lhs-all -finline-matmul-limit=0"
+FCDEB_FLAGS="-fbacktrace -ffree-form -fimplicit-none -std=f2008"
+FCDEB_FLAGS_DEBUG="-fsanitize=leak -fcheck=all -ffpe-trap=invalid,zero,overflow -finit-derived -finit-real=snan -finit-integer=-42 -Werror=realloc-lhs -finline-matmul-limit=0"
 
 # code coverage generation flags
 COVERAGE_FLAGS="-O1 -coverage -fkeep-static-functions"
@@ -88,8 +88,8 @@ G_CFLAGS="$G_CFLAGS IF_DEBUG(|$PROFOPT_FLAGS)"
 G_CFLAGS="$G_CFLAGS $CP_CFLAGS"
 # FCFLAGS, for gfortran
 FCFLAGS="$G_CFLAGS \$(FCDEBFLAGS) \$(WFLAGS) \$(DFLAGS)"
-# CFLAGS, special flags for gcc (currently none)
-CFLAGS="$G_CFLAGS \$(DFLAGS)"
+# CFLAGS, special flags for gcc
+CFLAGS="$G_CFLAGS -std=c99 -Wall -Wextra -Werror \$(DFLAGS)"
 
 # Linker flags
 LDFLAGS="\$(FCFLAGS) ${CP_LDFLAGS}"
@@ -188,13 +188,13 @@ EOF
 rm -f ${INSTALLDIR}/arch/local*
 # normal production arch files
     { gen_arch_file "local.sopt" ;          arch_vers="sopt"; }
-    { gen_arch_file "local.sdbg" DEBUG;     arch_vers="${arch_vers} sdbg"; }
+    { gen_arch_file "local.sdbg" OMP DEBUG; arch_vers="${arch_vers} sdbg"; }
 [ "$ENABLE_OMP" = __TRUE__ ] && \
     { gen_arch_file "local.ssmp" OMP;       arch_vers="${arch_vers} ssmp"; }
 [ "$MPI_MODE" != no ] && \
     { gen_arch_file "local.popt" MPI;       arch_vers="${arch_vers} popt"; }
 [ "$MPI_MODE" != no ] && \
-    { gen_arch_file "local.pdbg" MPI DEBUG; arch_vers="${arch_vers} pdbg"; }
+    { gen_arch_file "local.pdbg" MPI OMP DEBUG; arch_vers="${arch_vers} pdbg"; }
 [ "$MPI_MODE" != no ] && \
 [ "$ENABLE_OMP" = __TRUE__ ] && \
     { gen_arch_file "local.psmp" MPI OMP;   arch_vers="${arch_vers} psmp"; }

@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -107,7 +107,7 @@ CONTAINS
       CALL cp_iterate(logger%iter_info, increment=0, iter_nr_out=iter_nr)
       converged = .FALSE.
 
-      DO its = iter_nr+1, gopt_param%max_iter
+      DO its = iter_nr + 1, gopt_param%max_iter
          CALL cp_iterate(logger%iter_info, last=(its == gopt_param%max_iter))
          CALL section_vals_val_set(geo_section, "STEP_START_VAL", i_val=its)
          CALL gopt_f_ii(its, output_unit)

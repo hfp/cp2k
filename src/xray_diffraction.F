@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -12,7 +12,6 @@
 !> \date   30.11.2005
 ! **************************************************************************************************
 MODULE xray_diffraction
-
    USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                               get_atomic_kind
    USE basis_set_types,                 ONLY: get_gto_basis_set,&
@@ -25,11 +24,13 @@ MODULE xray_diffraction
    USE cp_para_types,                   ONLY: cp_para_env_type
    USE kinds,                           ONLY: dp,&
                                               int_8
-   USE mathconstants,                   ONLY: twopi
+   USE mathconstants,                   ONLY: pi,&
+                                              twopi
    USE memory_utilities,                ONLY: reallocate
    USE message_passing,                 ONLY: mp_gather,&
                                               mp_gatherv
-   USE orbital_pointers,                ONLY: nco,&
+   USE orbital_pointers,                ONLY: indco,&
+                                              nco,&
                                               ncoset,&
                                               nso,&
                                               nsoset
@@ -51,8 +52,8 @@ MODULE xray_diffraction
                                               pw_pool_type
    USE pw_types,                        ONLY: COMPLEXDATA1D,&
                                               RECIPROCALSPACE,&
-                                              pw_p_type
-   USE qs_collocate_density,            ONLY: collocate_pgf_product_gspace
+                                              pw_p_type,&
+                                              pw_type
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
    USE qs_kind_types,                   ONLY: get_qs_kind,&
@@ -192,7 +193,7 @@ CONTAINS
                                         rho_hard=rho_hard, &
                                         rho_soft=rho_soft)
 
-      rho_total = rho_hard+rho_soft
+      rho_total = rho_hard + rho_soft
 
       ! Calculate the coherent X-ray spectrum
 
@@ -213,22 +214,22 @@ CONTAINS
 
       DO ig = 2, ng
          CPASSERT(gsq(ig) >= gsq(jg))
-         IF (ABS(gsq(ig)-gsq(jg)) > 1.0E-12_dp) THEN
-            nshell = nshell+1
+         IF (ABS(gsq(ig) - gsq(jg)) > 1.0E-12_dp) THEN
+            nshell = nshell + 1
             IF (nshell > SIZE(q_shell)) THEN
-               CALL reallocate(q_shell, 1, SIZE(q_shell)+nblock)
-               CALL reallocate(ng_shell, 1, SIZE(ng_shell)+nblock)
+               CALL reallocate(q_shell, 1, SIZE(q_shell) + nblock)
+               CALL reallocate(ng_shell, 1, SIZE(ng_shell) + nblock)
             END IF
             q = SQRT(gsq(ig))
             IF (q > q_max) THEN
-               nshell = nshell-1
+               nshell = nshell - 1
                EXIT
             END IF
             q_shell(nshell) = q
             ng_shell(nshell) = 1
             jg = ig
          ELSE
-            ng_shell(nshell) = ng_shell(nshell)+1
+            ng_shell(nshell) = ng_shell(nshell) + 1
          END IF
       END DO
 
@@ -248,19 +249,19 @@ CONTAINS
          f2sum(ishell) = 0.0_dp
          f4sum(ishell) = 0.0_dp
          DO ig_shell = 1, ng_shell(ishell)
-            f = ABS(rhotot_elec_gspace%pw%cc(ig+ig_shell))
+            f = ABS(rhotot_elec_gspace%pw%cc(ig + ig_shell))
             fmin(ishell) = MIN(fmin(ishell), f)
             fmax(ishell) = MAX(fmax(ishell), f)
-            fsum(ishell) = fsum(ishell)+f
+            fsum(ishell) = fsum(ishell) + f
             f2 = f*f
-            f2sum(ishell) = f2sum(ishell)+f2
-            f4sum(ishell) = f4sum(ishell)+f2*f2
+            f2sum(ishell) = f2sum(ishell) + f2
+            f4sum(ishell) = f4sum(ishell) + f2*f2
          END DO
-         ig = ig+ng_shell(ishell)
+         ig = ig + ng_shell(ishell)
       END DO
 
-      CALL reallocate(nshell_pe, 0, npe-1)
-      CALL reallocate(offset_pe, 0, npe-1)
+      CALL reallocate(nshell_pe, 0, npe - 1)
+      CALL reallocate(offset_pe, 0, npe - 1)
 
       ! Root (source) process gathers the number of shell of each process
 
@@ -272,8 +273,8 @@ CONTAINS
       IF (unit_number > 0) THEN
          nshell_gather = SUM(nshell_pe)
          offset_pe(0) = 0
-         DO ipe = 1, npe-1
-            offset_pe(ipe) = offset_pe(ipe-1)+nshell_pe(ipe-1)
+         DO ipe = 1, npe - 1
+            offset_pe(ipe) = offset_pe(ipe - 1) + nshell_pe(ipe - 1)
          END DO
       ELSE
          nshell_gather = 1 ! dummy value for the non-root processes
@@ -337,8 +338,8 @@ CONTAINS
 
          DO ig = 2, nshell_gather
             i = aux_index(ig)
-            IF (ABS(q_shell_gather(ig)-q_shell_gather(jg)) > 1.0E-12_dp) THEN
-               nshell = nshell+1
+            IF (ABS(q_shell_gather(ig) - q_shell_gather(jg)) > 1.0E-12_dp) THEN
+               nshell = nshell + 1
                q_shell(nshell) = q_shell_gather(ig)
                ng_shell(nshell) = ng_shell_gather(i)
                fmin(nshell) = fmin_gather(i)
@@ -348,12 +349,12 @@ CONTAINS
                f4sum(nshell) = f4sum_gather(i)
                jg = ig
             ELSE
-               ng_shell(nshell) = ng_shell(nshell)+ng_shell_gather(i)
+               ng_shell(nshell) = ng_shell(nshell) + ng_shell_gather(i)
                fmin(nshell) = MIN(fmin(nshell), fmin_gather(i))
                fmax(nshell) = MAX(fmax(nshell), fmax_gather(i))
-               fsum(nshell) = fsum(nshell)+fsum_gather(i)
-               f2sum(nshell) = f2sum(nshell)+f2sum_gather(i)
-               f4sum(nshell) = f4sum(nshell)+f4sum_gather(i)
+               fsum(nshell) = fsum(nshell) + fsum_gather(i)
+               f2sum(nshell) = f2sum(nshell) + f2sum_gather(i)
+               f4sum(nshell) = f4sum(nshell) + f4sum_gather(i)
             END IF
          END DO
 
@@ -659,35 +660,35 @@ CONTAINS
                ELSE
                   alpha = 1.0_dp
                END IF
-               delta_cpc = delta_cpc+alpha*(cpc_h(ispin)%r_coef-cpc_s(ispin)%r_coef)
+               delta_cpc = delta_cpc + alpha*(cpc_h(ispin)%r_coef - cpc_s(ispin)%r_coef)
             END DO
 
             scale = 1.0_dp
 
             DO iset = 1, nset
-               ico1_set = (iset-1)*maxco+1
-               iso1_set = (iset-1)*maxso+1
+               ico1_set = (iset - 1)*maxco + 1
+               iso1_set = (iset - 1)*maxso + 1
                ncoa = ncoset(lmax(iset))
                nsoa = nsoset(lmax(iset))
                DO jset = 1, nset
-                  jco1_set = (jset-1)*maxco+1
-                  jso1_set = (jset-1)*maxso+1
+                  jco1_set = (jset - 1)*maxco + 1
+                  jso1_set = (jset - 1)*maxso + 1
                   ncob = ncoset(lmax(jset))
                   nsob = nsoset(lmax(jset))
                   DO ipgf = 1, npgf(iset)
-                     ico1_pgf = ico1_set+(ipgf-1)*ncoa
-                     iso1_pgf = iso1_set+(ipgf-1)*nsoa
+                     ico1_pgf = ico1_set + (ipgf - 1)*ncoa
+                     iso1_pgf = iso1_set + (ipgf - 1)*nsoa
                      DO jpgf = 1, npgf(jset)
-                        jco1_pgf = jco1_set+(jpgf-1)*ncob
-                        jso1_pgf = jso1_set+(jpgf-1)*nsob
-                        ico = ico1_pgf+ncoset(lmin(iset)-1)
-                        iso = iso1_pgf+nsoset(lmin(iset)-1)
+                        jco1_pgf = jco1_set + (jpgf - 1)*ncob
+                        jso1_pgf = jso1_set + (jpgf - 1)*nsob
+                        ico = ico1_pgf + ncoset(lmin(iset) - 1)
+                        iso = iso1_pgf + nsoset(lmin(iset) - 1)
 
                         ! Transformation spherical to Cartesian
 
                         DO la = lmin(iset), lmax(iset)
-                           jco = jco1_pgf+ncoset(lmin(jset)-1)
-                           jso = jso1_pgf+nsoset(lmin(jset)-1)
+                           jco = jco1_pgf + ncoset(lmin(jset) - 1)
+                           jso = jso1_pgf + nsoset(lmin(jset) - 1)
                            DO lb = lmin(jset), lmax(jset)
                               ison = o2nindex(iso)
                               json = o2nindex(jso)
@@ -698,17 +699,17 @@ CONTAINS
                               CALL dgemm("T", "N", nco(la), nco(lb), nso(la), 1.0_dp, &
                                          orbtramat(la)%slm, nso(la), work, maxso, &
                                          0.0_dp, pab(ico, jco), SIZE(pab, 1))
-                              jco = jco+nco(lb)
-                              jso = jso+nso(lb)
+                              jco = jco + nco(lb)
+                              jso = jso + nso(lb)
                            END DO ! next lb
-                           ico = ico+nco(la)
-                           iso = iso+nso(la)
+                           ico = ico + nco(la)
+                           iso = iso + nso(la)
                         END DO ! next la
 
                         ! Collocate current product of primitive Cartesian functions
 
-                        na = ico1_pgf-1
-                        nb = jco1_pgf-1
+                        na = ico1_pgf - 1
+                        nb = jco1_pgf - 1
 
                         CALL collocate_pgf_product_gspace( &
                            la_max=lmax(iset), &
@@ -737,7 +738,7 @@ CONTAINS
 
       rho_total = pw_integrate_function(rhotot_elec_gspace%pw, isign=-1)/volume
 
-      rho_hard = rho_total-rho_soft
+      rho_hard = rho_total - rho_soft
 
       ! Release work storage
 
@@ -756,5 +757,219 @@ CONTAINS
       CALL timestop(handle)
 
    END SUBROUTINE calculate_rhotot_elec_gspace
+
+! **************************************************************************************************
+!> \brief low level collocation of primitive gaussian functions in g-space
+!> \param la_max ...
+!> \param zeta ...
+!> \param la_min ...
+!> \param lb_max ...
+!> \param zetb ...
+!> \param lb_min ...
+!> \param ra ...
+!> \param rab ...
+!> \param rab2 ...
+!> \param scale ...
+!> \param pab ...
+!> \param na ...
+!> \param nb ...
+!> \param eps_rho_gspace ...
+!> \param gsq_max ...
+!> \param pw ...
+! **************************************************************************************************
+   SUBROUTINE collocate_pgf_product_gspace(la_max, zeta, la_min, &
+                                           lb_max, zetb, lb_min, &
+                                           ra, rab, rab2, scale, pab, na, nb, &
+                                           eps_rho_gspace, gsq_max, pw)
+
+      ! NOTE: this routine is much slower than the real-space version of collocate_pgf_product
+
+      INTEGER, INTENT(IN)                                :: la_max
+      REAL(dp), INTENT(IN)                               :: zeta
+      INTEGER, INTENT(IN)                                :: la_min, lb_max
+      REAL(dp), INTENT(IN)                               :: zetb
+      INTEGER, INTENT(IN)                                :: lb_min
+      REAL(dp), DIMENSION(3), INTENT(IN)                 :: ra, rab
+      REAL(dp), INTENT(IN)                               :: rab2, scale
+      REAL(dp), DIMENSION(:, :), POINTER                 :: pab
+      INTEGER, INTENT(IN)                                :: na, nb
+      REAL(dp), INTENT(IN)                               :: eps_rho_gspace, gsq_max
+      TYPE(pw_type), POINTER                             :: pw
+
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'collocate_pgf_product_gspace', &
+         routineP = moduleN//':'//routineN
+
+      COMPLEX(dp), DIMENSION(3)                          :: phasefactor
+      COMPLEX(dp), DIMENSION(:), POINTER                 :: rag, rbg
+      COMPLEX(dp), DIMENSION(:, :, :, :), POINTER        :: cubeaxis
+      INTEGER                                            :: ax, ay, az, bx, by, bz, handle, i, ico, &
+                                                            ig, ig2, jco, jg, kg, la, lb, &
+                                                            lb_cube_min, lb_grid, ub_cube_max, &
+                                                            ub_grid
+      INTEGER, DIMENSION(3)                              :: lb_cube, ub_cube
+      REAL(dp)                                           :: f, fa, fb, pij, prefactor, rzetp, &
+                                                            twozetp, zetp
+      REAL(dp), DIMENSION(3)                             :: dg, expfactor, fap, fbp, rap, rbp, rp
+      REAL(dp), DIMENSION(:), POINTER                    :: g
+
+      CALL timeset(routineN, handle)
+
+      dg(:) = twopi/(pw%pw_grid%npts(:)*pw%pw_grid%dr(:))
+
+      zetp = zeta + zetb
+      rzetp = 1.0_dp/zetp
+      f = zetb*rzetp
+      rap(:) = f*rab(:)
+      rbp(:) = rap(:) - rab(:)
+      rp(:) = ra(:) + rap(:)
+      twozetp = 2.0_dp*zetp
+      fap(:) = twozetp*rap(:)
+      fbp(:) = twozetp*rbp(:)
+
+      prefactor = scale*SQRT((pi*rzetp)**3)*EXP(-zeta*f*rab2)
+      phasefactor(:) = EXP(CMPLX(0.0_dp, -rp(:)*dg(:), KIND=dp))
+      expfactor(:) = EXP(-0.25*rzetp*dg(:)*dg(:))
+
+      lb_cube(:) = pw%pw_grid%bounds(1, :)
+      ub_cube(:) = pw%pw_grid%bounds(2, :)
+
+      lb_cube_min = MINVAL(lb_cube(:))
+      ub_cube_max = MAXVAL(ub_cube(:))
+
+      NULLIFY (cubeaxis, g, rag, rbg)
+
+      CALL reallocate(cubeaxis, lb_cube_min, ub_cube_max, 1, 3, 0, la_max, 0, lb_max)
+      CALL reallocate(g, lb_cube_min, ub_cube_max)
+      CALL reallocate(rag, lb_cube_min, ub_cube_max)
+      CALL reallocate(rbg, lb_cube_min, ub_cube_max)
+
+      lb_grid = LBOUND(pw%cc, 1)
+      ub_grid = UBOUND(pw%cc, 1)
+
+      DO i = 1, 3
+
+         DO ig = lb_cube(i), ub_cube(i)
+            ig2 = ig*ig
+            cubeaxis(ig, i, 0, 0) = expfactor(i)**ig2*phasefactor(i)**ig
+         END DO
+
+         IF (la_max > 0) THEN
+            DO ig = lb_cube(i), ub_cube(i)
+               g(ig) = REAL(ig, dp)*dg(i)
+               rag(ig) = CMPLX(fap(i), -g(ig), KIND=dp)
+               cubeaxis(ig, i, 1, 0) = rag(ig)*cubeaxis(ig, i, 0, 0)
+            END DO
+            DO la = 2, la_max
+               fa = REAL(la - 1, dp)*twozetp
+               DO ig = lb_cube(i), ub_cube(i)
+                  cubeaxis(ig, i, la, 0) = rag(ig)*cubeaxis(ig, i, la - 1, 0) + &
+                                           fa*cubeaxis(ig, i, la - 2, 0)
+               END DO
+            END DO
+            IF (lb_max > 0) THEN
+               fa = twozetp
+               DO ig = lb_cube(i), ub_cube(i)
+                  rbg(ig) = CMPLX(fbp(i), -g(ig), KIND=dp)
+                  cubeaxis(ig, i, 0, 1) = rbg(ig)*cubeaxis(ig, i, 0, 0)
+                  cubeaxis(ig, i, 1, 1) = rbg(ig)*cubeaxis(ig, i, 1, 0) + &
+                                          fa*cubeaxis(ig, i, 0, 0)
+               END DO
+               DO lb = 2, lb_max
+                  fb = REAL(lb - 1, dp)*twozetp
+                  DO ig = lb_cube(i), ub_cube(i)
+                     cubeaxis(ig, i, 0, lb) = rbg(ig)*cubeaxis(ig, i, 0, lb - 1) + &
+                                              fb*cubeaxis(ig, i, 0, lb - 2)
+                     cubeaxis(ig, i, 1, lb) = rbg(ig)*cubeaxis(ig, i, 1, lb - 1) + &
+                                              fb*cubeaxis(ig, i, 1, lb - 2) + &
+                                              fa*cubeaxis(ig, i, 0, lb - 1)
+                  END DO
+               END DO
+               DO la = 2, la_max
+                  fa = REAL(la, dp)*twozetp
+                  DO ig = lb_cube(i), ub_cube(i)
+                     cubeaxis(ig, i, la, 1) = rbg(ig)*cubeaxis(ig, i, la, 0) + &
+                                              fa*cubeaxis(ig, i, la - 1, 0)
+                  END DO
+                  DO lb = 2, lb_max
+                     fb = REAL(lb - 1, dp)*twozetp
+                     DO ig = lb_cube(i), ub_cube(i)
+                        cubeaxis(ig, i, la, lb) = rbg(ig)*cubeaxis(ig, i, la, lb - 1) + &
+                                                  fb*cubeaxis(ig, i, la, lb - 2) + &
+                                                  fa*cubeaxis(ig, i, la - 1, lb - 1)
+                     END DO
+                  END DO
+               END DO
+            END IF
+         ELSE
+            IF (lb_max > 0) THEN
+               DO ig = lb_cube(i), ub_cube(i)
+                  g(ig) = REAL(ig, dp)*dg(i)
+                  rbg(ig) = CMPLX(fbp(i), -g(ig), KIND=dp)
+                  cubeaxis(ig, i, 0, 1) = rbg(ig)*cubeaxis(ig, i, 0, 0)
+               END DO
+               DO lb = 2, lb_max
+                  fb = REAL(lb - 1, dp)*twozetp
+                  DO ig = lb_cube(i), ub_cube(i)
+                     cubeaxis(ig, i, 0, lb) = rbg(ig)*cubeaxis(ig, i, 0, lb - 1) + &
+                                              fb*cubeaxis(ig, i, 0, lb - 2)
+                  END DO
+               END DO
+            END IF
+         END IF
+
+      END DO
+
+      DO la = 0, la_max
+         DO lb = 0, lb_max
+            IF (la + lb == 0) CYCLE
+            fa = (1.0_dp/twozetp)**(la + lb)
+            DO i = 1, 3
+               DO ig = lb_cube(i), ub_cube(i)
+                  cubeaxis(ig, i, la, lb) = fa*cubeaxis(ig, i, la, lb)
+               END DO
+            END DO
+         END DO
+      END DO
+
+      ! Add the current primitive Gaussian function product to grid
+
+      DO ico = ncoset(la_min - 1) + 1, ncoset(la_max)
+
+         ax = indco(1, ico)
+         ay = indco(2, ico)
+         az = indco(3, ico)
+
+         DO jco = ncoset(lb_min - 1) + 1, ncoset(lb_max)
+
+            pij = prefactor*pab(na + ico, nb + jco)
+
+            IF (ABS(pij) < eps_rho_gspace) CYCLE
+
+            bx = indco(1, jco)
+            by = indco(2, jco)
+            bz = indco(3, jco)
+
+            DO i = lb_grid, ub_grid
+               IF (pw%pw_grid%gsq(i) > gsq_max) CYCLE
+               ig = pw%pw_grid%g_hat(1, i)
+               jg = pw%pw_grid%g_hat(2, i)
+               kg = pw%pw_grid%g_hat(3, i)
+               pw%cc(i) = pw%cc(i) + pij*cubeaxis(ig, 1, ax, bx)* &
+                          cubeaxis(jg, 2, ay, by)* &
+                          cubeaxis(kg, 3, az, bz)
+            END DO
+
+         END DO
+
+      END DO
+
+      DEALLOCATE (cubeaxis)
+      DEALLOCATE (g)
+      DEALLOCATE (rag)
+      DEALLOCATE (rbg)
+
+      CALL timestop(handle)
+
+   END SUBROUTINE collocate_pgf_product_gspace
 
 END MODULE xray_diffraction

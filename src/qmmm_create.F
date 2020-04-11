@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -282,7 +282,7 @@ CONTAINS
       CALL get_cell(mm_cell, abc=abc_mm)
 
       IF (qmmm_env_qm%image_charge) THEN
-         IF (ANY(ABS(abc_mm-abc_qm) > 1.0E-12)) &
+         IF (ANY(ABS(abc_mm - abc_qm) > 1.0E-12)) &
             CPABORT("QM and MM box need to have the same size when using image charges")
       ENDIF
 
@@ -338,7 +338,7 @@ CONTAINS
 
       CALL section_vals_val_get(qmmm_section, "DELTA_CHARGE", i_val=delta_charge)
       CALL section_vals_val_get(force_env_section, "DFT%CHARGE", i_val=orig_charge)
-      CALL section_vals_val_set(force_env_section, "DFT%CHARGE", i_val=orig_charge+delta_charge)
+      CALL section_vals_val_set(force_env_section, "DFT%CHARGE", i_val=orig_charge + delta_charge)
 
       CALL section_vals_val_set(force_env_section, "METHOD", i_val=do_qs)
       CALL create_small_subsys(subsys_qm, &
@@ -417,14 +417,14 @@ CONTAINS
 
       CALL cell_release(qm_cell_small)
 
-      ! assemble the actuall qmmm_env
+      ! assemble the actual qmmm_env
       ALLOCATE (qmmm_env)
       qmmm_env%qs_env => qs_env
       qmmm_env%fist_env => fist_env
       qmmm_env%qm => qmmm_env_qm
 
       ! The qmmm_env inherits our ref_cout for qmmm_env_qm, fist_env, qs_env
-      ! An expection is qmmm_env_mm, because it's buried in the fist_env
+      ! An exception is qmmm_env_mm, because it's buried in the fist_env
       CALL qmmm_env_mm_release(qmmm_env_mm)
 
       CALL section_vals_val_set(force_env_section, "METHOD", i_val=do_qmmm)

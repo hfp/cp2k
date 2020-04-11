@@ -30,11 +30,12 @@ See [installation instructions](./INSTALL.md)
 * [The manual](https://manual.cp2k.org/) with descriptions of all the keywords for the CP2K input file
 * [The dashboard](https://dashboard.cp2k.org) to get an overview of the currently tested architectures
 * [The Google group](https://groups.google.com/group/cp2k) to get help if you could not find an answer in one of the previous links
+* [Acknowledgements](https://www.cp2k.org/funding) for list of institutions and grants that help to fund the development of CP2K
 
 ## Directory organization
 
 * [`arch`](./arch): Collection of definitions for different architectures and compilers
-* [`benchmarks`](./tests): Inputs for benchmarks
+* [`benchmarks`](./benchmarks): Inputs for benchmarks
 * [`data`](./data): Simulation parameters e.g. basis sets and pseudopotentials
 * [`exts`](./exts): Access to external libraries via GIT submodules
 * [`src`](./src): The source code

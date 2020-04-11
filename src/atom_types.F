@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -14,6 +14,9 @@ MODULE atom_types
    USE atom_upf,                        ONLY: atom_read_upf,&
                                               atom_release_upf,&
                                               atom_upfpot_type
+   USE bessel_lib,                      ONLY: bessel0
+   USE bibliography,                    ONLY: Limpanuparb2011,&
+                                              cite_reference
    USE cp_linked_list_input,            ONLY: cp_sll_val_next,&
                                               cp_sll_val_type
    USE cp_parser_methods,               ONLY: parser_get_next_line,&
@@ -25,8 +28,10 @@ MODULE atom_types
                                               parser_create,&
                                               parser_release
    USE input_constants,                 ONLY: &
-        barrier_conf, contracted_gto, do_gapw_log, ecp_pseudo, gaussian, geometrical_gto, &
-        gth_pseudo, no_conf, no_pseudo, numerical, poly_conf, sgp_pseudo, slater, upf_pseudo
+        barrier_conf, contracted_gto, do_gapw_log, do_numeric, do_potential_coulomb, &
+        do_potential_long, do_potential_mix_cl, do_potential_short, do_semi_analytic, ecp_pseudo, &
+        gaussian, geometrical_gto, gth_pseudo, no_conf, no_pseudo, numerical, poly_conf, &
+        sgp_pseudo, slater, upf_pseudo
    USE input_section_types,             ONLY: section_vals_get,&
                                               section_vals_get_subs_vals,&
                                               section_vals_list_get,&
@@ -38,7 +43,8 @@ MODULE atom_types
                                               dp
    USE mathconstants,                   ONLY: dfac,&
                                               fac,&
-                                              pi
+                                              pi,&
+                                              rootpi
    USE periodic_table,                  ONLY: get_ptable_info,&
                                               ptable
    USE qs_grid_atom,                    ONLY: allocate_grid_atom,&
@@ -170,6 +176,18 @@ MODULE atom_types
       TYPE(atom_sgppot_type)                        :: sgp_pot
    END TYPE atom_potential_type
 
+!> \brief Provides info about hartree-fock exchange (For now, we only support potentials that can be represented
+!>        with Coulomb and longrange-coulomb potential)
+! **************************************************************************************************
+   TYPE atom_hfx_type
+      REAL(KIND=dp)                                 :: scale_coulomb
+      REAL(KIND=dp)                                 :: scale_longrange
+      REAL(KIND=dp)                                 :: omega
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :) :: kernel
+      LOGICAL                                       :: do_gh
+      INTEGER                                       :: nr_gh
+   END TYPE atom_hfx_type
+
 !> \brief Provides all information on states and occupation
 ! **************************************************************************************************
    TYPE atom_state
@@ -294,6 +312,7 @@ MODULE atom_types
       TYPE(atom_optimization_type)                  :: optimization
       TYPE(section_vals_type), POINTER              :: xc_section, zmp_section
       TYPE(opmat_type), POINTER                     :: fmat
+      TYPE(atom_hfx_type)                           :: hfx_pot
    END TYPE atom_type
 ! **************************************************************************************************
    TYPE atom_p_type
@@ -302,7 +321,7 @@ MODULE atom_types
 
    PUBLIC :: lmat
    PUBLIC :: atom_p_type, atom_type, atom_basis_type, atom_state, atom_integrals
-   PUBLIC :: atom_orbitals, eri, atom_potential_type
+   PUBLIC :: atom_orbitals, eri, atom_potential_type, atom_hfx_type
    PUBLIC :: atom_gthpot_type, atom_ecppot_type, atom_sgppot_type
    PUBLIC :: atom_optimization_type
    PUBLIC :: atom_compare_grids
@@ -316,6 +335,7 @@ MODULE atom_types
    PUBLIC :: opmat_type, create_opmat, release_opmat
    PUBLIC :: opgrid_type, create_opgrid, release_opgrid
    PUBLIC :: no_pseudo, gth_pseudo, sgp_pseudo, upf_pseudo, ecp_pseudo
+   PUBLIC :: setup_hf_section
 
 ! **************************************************************************************************
 
@@ -424,7 +444,7 @@ CONTAINS
          ELSE
             basis%nbas = 0
             DO i = 1, SIZE(num_gto)
-               basis%nbas(i-1) = num_gto(i)
+               basis%nbas(i - 1) = num_gto(i)
             END DO
             basis%nprim = basis%nbas
             m = MAXVAL(basis%nbas)
@@ -468,9 +488,9 @@ CONTAINS
                   rk = basis%grid%rad(k)
                   ear = EXP(-al*basis%grid%rad(k)**2)
                   basis%bf(k, i, l) = rk**l*ear
-                  basis%dbf(k, i, l) = (REAL(l, dp)*rk**(l-1)-2._dp*al*rk**(l+1))*ear
-                  basis%ddbf(k, i, l) = (REAL(l*(l-1), dp)*rk**(l-2)- &
-                                         2._dp*al*REAL(2*l+1, dp)*rk**(l)+4._dp*al*rk**(l+2))*ear
+                  basis%dbf(k, i, l) = (REAL(l, dp)*rk**(l - 1) - 2._dp*al*rk**(l + 1))*ear
+                  basis%ddbf(k, i, l) = (REAL(l*(l - 1), dp)*rk**(l - 2) - &
+                                         2._dp*al*REAL(2*l + 1, dp)*rk**(l) + 4._dp*al*rk**(l + 2))*ear
                END DO
             END DO
          END DO
@@ -487,13 +507,13 @@ CONTAINS
                CALL Clementi_geobas(zval, cval, aval, basis%nbas, starti)
             ELSEIF (btyp == "AA") THEN
                CALL Clementi_geobas(zval, cval, aval, basis%nbas, starti)
-               amax = cval**(basis%nbas(0)-1)
+               amax = cval**(basis%nbas(0) - 1)
                basis%nbas(0) = NINT((LOG(amax)/LOG(1.6_dp)))
                cval = 1.6_dp
                starti = 0
-               basis%nbas(1) = basis%nbas(0)-4
-               basis%nbas(2) = basis%nbas(0)-8
-               basis%nbas(3) = basis%nbas(0)-12
+               basis%nbas(1) = basis%nbas(0) - 4
+               basis%nbas(2) = basis%nbas(0) - 8
+               basis%nbas(3) = basis%nbas(0) - 12
                IF (lmat > 3) basis%nbas(4:lmat) = 0
             ELSEIF (btyp == "AP") THEN
                CALL Clementi_geobas(zval, cval, aval, basis%nbas, starti)
@@ -509,14 +529,14 @@ CONTAINS
          ELSE
             basis%nbas = 0
             DO i = 1, SIZE(num_gto)
-               basis%nbas(i-1) = num_gto(i)
+               basis%nbas(i - 1) = num_gto(i)
             END DO
             basis%nprim = basis%nbas
             NULLIFY (sindex)
             CALL section_vals_val_get(basis_section, "START_INDEX", i_vals=sindex)
             starti = 0
             DO i = 1, SIZE(sindex)
-               starti(i-1) = sindex(i)
+               starti(i - 1) = sindex(i)
                CPASSERT(sindex(i) >= 0)
             END DO
             CALL section_vals_val_get(basis_section, "GEOMETRICAL_FACTOR", r_val=cval)
@@ -527,7 +547,7 @@ CONTAINS
          basis%am = 0._dp
          DO l = 0, lmat
             DO i = 1, basis%nbas(l)
-               ll = i-1+starti(l)
+               ll = i - 1 + starti(l)
                basis%am(i, l) = aval*cval**(ll)
             END DO
          END DO
@@ -553,9 +573,9 @@ CONTAINS
                   rk = basis%grid%rad(k)
                   ear = EXP(-al*basis%grid%rad(k)**2)
                   basis%bf(k, i, l) = rk**l*ear
-                  basis%dbf(k, i, l) = (REAL(l, dp)*rk**(l-1)-2._dp*al*rk**(l+1))*ear
-                  basis%ddbf(k, i, l) = (REAL(l*(l-1), dp)*rk**(l-2)- &
-                                         2._dp*al*REAL(2*l+1, dp)*rk**(l)+4._dp*al*rk**(l+2))*ear
+                  basis%dbf(k, i, l) = (REAL(l, dp)*rk**(l - 1) - 2._dp*al*rk**(l + 1))*ear
+                  basis%ddbf(k, i, l) = (REAL(l*(l - 1), dp)*rk**(l - 2) - &
+                                         2._dp*al*REAL(2*l + 1, dp)*rk**(l) + 4._dp*al*rk**(l + 2))*ear
                END DO
             END DO
          END DO
@@ -583,11 +603,11 @@ CONTAINS
                   rk = basis%grid%rad(k)
                   ear = EXP(-al*basis%grid%rad(k)**2)
                   DO j = 1, basis%nbas(l)
-                     basis%bf(k, j, l) = basis%bf(k, j, l)+rk**l*ear*basis%cm(i, j, l)
+                     basis%bf(k, j, l) = basis%bf(k, j, l) + rk**l*ear*basis%cm(i, j, l)
                      basis%dbf(k, j, l) = basis%dbf(k, j, l) &
-                                          +(REAL(l, dp)*rk**(l-1)-2._dp*al*rk**(l+1))*ear*basis%cm(i, j, l)
-                     basis%ddbf(k, j, l) = basis%ddbf(k, j, l)+ &
-                                           (REAL(l*(l-1), dp)*rk**(l-2)-2._dp*al*REAL(2*l+1, dp)*rk**(l)+4._dp*al*rk**(l+2))* &
+                                          + (REAL(l, dp)*rk**(l - 1) - 2._dp*al*rk**(l + 1))*ear*basis%cm(i, j, l)
+                     basis%ddbf(k, j, l) = basis%ddbf(k, j, l) + &
+                                    (REAL(l*(l - 1), dp)*rk**(l - 2) - 2._dp*al*REAL(2*l + 1, dp)*rk**(l) + 4._dp*al*rk**(l + 2))* &
                                            ear*basis%cm(i, j, l)
                   END DO
                END DO
@@ -602,7 +622,7 @@ CONTAINS
          ELSE
             basis%nbas = 0
             DO i = 1, SIZE(num_slater)
-               basis%nbas(i-1) = num_slater(i)
+               basis%nbas(i - 1) = num_slater(i)
             END DO
             basis%nprim = basis%nbas
             m = MAXVAL(basis%nbas)
@@ -664,11 +684,11 @@ CONTAINS
                pf = (2._dp*al)**nl*SQRT(2._dp*al/fac(2*nl))
                DO k = 1, nr
                   rk = basis%grid%rad(k)
-                  ear = rk**(nl-1)*EXP(-al*rk)
+                  ear = rk**(nl - 1)*EXP(-al*rk)
                   basis%bf(k, i, l) = pf*ear
-                  basis%dbf(k, i, l) = pf*(REAL(nl-1, dp)/rk-al)*ear
-                  basis%ddbf(k, i, l) = pf*(REAL((nl-2)*(nl-1), dp)/rk/rk &
-                                            -al*REAL(2*(nl-1), dp)/rk+al*al)*ear
+                  basis%dbf(k, i, l) = pf*(REAL(nl - 1, dp)/rk - al)*ear
+                  basis%ddbf(k, i, l) = pf*(REAL((nl - 2)*(nl - 1), dp)/rk/rk &
+                                            - al*REAL(2*(nl - 1), dp)/rk + al*al)*ear
                END DO
             END DO
          END DO
@@ -740,9 +760,9 @@ CONTAINS
                rk = basis%grid%rad(k)
                ear = EXP(-al*basis%grid%rad(k)**2)
                basis%bf(k, i, l) = rk**l*ear
-               basis%dbf(k, i, l) = (REAL(l, dp)*rk**(l-1)-2._dp*al*rk**(l+1))*ear
-               basis%ddbf(k, i, l) = (REAL(l*(l-1), dp)*rk**(l-2)- &
-                                      2._dp*al*REAL(2*l+1, dp)*rk**(l)+4._dp*al*rk**(l+2))*ear
+               basis%dbf(k, i, l) = (REAL(l, dp)*rk**(l - 1) - 2._dp*al*rk**(l + 1))*ear
+               basis%ddbf(k, i, l) = (REAL(l*(l - 1), dp)*rk**(l - 2) - &
+                                      2._dp*al*REAL(2*l + 1, dp)*rk**(l) + 4._dp*al*rk**(l + 2))*ear
             END DO
          END DO
       END DO
@@ -777,26 +797,26 @@ CONTAINS
       IF (ASSOCIATED(basis%am)) THEN
          n1 = SIZE(basis%am, 1)
          n2 = SIZE(basis%am, 2)
-         ALLOCATE (gbasis%am(n1, 0:n2-1))
+         ALLOCATE (gbasis%am(n1, 0:n2 - 1))
          gbasis%am = basis%am
       END IF
       IF (ASSOCIATED(basis%cm)) THEN
          n1 = SIZE(basis%cm, 1)
          n2 = SIZE(basis%cm, 2)
          n3 = SIZE(basis%cm, 3)
-         ALLOCATE (gbasis%cm(n1, n2, 0:n3-1))
+         ALLOCATE (gbasis%cm(n1, n2, 0:n3 - 1))
          gbasis%cm = basis%cm
       END IF
       IF (ASSOCIATED(basis%as)) THEN
          n1 = SIZE(basis%as, 1)
          n2 = SIZE(basis%as, 2)
-         ALLOCATE (gbasis%as(n1, 0:n2-1))
+         ALLOCATE (gbasis%as(n1, 0:n2 - 1))
          gbasis%as = basis%as
       END IF
       IF (ASSOCIATED(basis%ns)) THEN
          n1 = SIZE(basis%ns, 1)
          n2 = SIZE(basis%ns, 2)
-         ALLOCATE (gbasis%ns(n1, 0:n2-1))
+         ALLOCATE (gbasis%ns(n1, 0:n2 - 1))
          gbasis%ns = basis%ns
       END IF
       gbasis%eps_eig = basis%eps_eig
@@ -840,9 +860,9 @@ CONTAINS
                   rk = gbasis%grid%rad(k)
                   ear = EXP(-al*gbasis%grid%rad(k)**2)
                   gbasis%bf(k, i, l) = rk**l*ear
-                  gbasis%dbf(k, i, l) = (REAL(l, dp)*rk**(l-1)-2._dp*al*rk**(l+1))*ear
-                  gbasis%ddbf(k, i, l) = (REAL(l*(l-1), dp)*rk**(l-2)- &
-                                          2._dp*al*REAL(2*l+1, dp)*rk**(l)+4._dp*al*rk**(l+2))*ear
+                  gbasis%dbf(k, i, l) = (REAL(l, dp)*rk**(l - 1) - 2._dp*al*rk**(l + 1))*ear
+                  gbasis%ddbf(k, i, l) = (REAL(l*(l - 1), dp)*rk**(l - 2) - &
+                                          2._dp*al*REAL(2*l + 1, dp)*rk**(l) + 4._dp*al*rk**(l + 2))*ear
                END DO
             END DO
          END DO
@@ -854,11 +874,11 @@ CONTAINS
                   rk = gbasis%grid%rad(k)
                   ear = EXP(-al*gbasis%grid%rad(k)**2)
                   DO j = 1, gbasis%nbas(l)
-                     gbasis%bf(k, j, l) = gbasis%bf(k, j, l)+rk**l*ear*gbasis%cm(i, j, l)
+                     gbasis%bf(k, j, l) = gbasis%bf(k, j, l) + rk**l*ear*gbasis%cm(i, j, l)
                      gbasis%dbf(k, j, l) = gbasis%dbf(k, j, l) &
-                                           +(REAL(l, dp)*rk**(l-1)-2._dp*al*rk**(l+1))*ear*gbasis%cm(i, j, l)
-                     gbasis%ddbf(k, j, l) = gbasis%ddbf(k, j, l)+ &
-                                            (REAL(l*(l-1), dp)*rk**(l-2)-2._dp*al*REAL(2*l+1, dp)*rk**(l)+4._dp*al*rk**(l+2))* &
+                                           + (REAL(l, dp)*rk**(l - 1) - 2._dp*al*rk**(l + 1))*ear*gbasis%cm(i, j, l)
+                     gbasis%ddbf(k, j, l) = gbasis%ddbf(k, j, l) + &
+                                    (REAL(l*(l - 1), dp)*rk**(l - 2) - 2._dp*al*REAL(2*l + 1, dp)*rk**(l) + 4._dp*al*rk**(l + 2))* &
                                             ear*gbasis%cm(i, j, l)
                   END DO
                END DO
@@ -872,11 +892,11 @@ CONTAINS
                pf = (2._dp*al)**nl*SQRT(2._dp*al/fac(2*nl))
                DO k = 1, nr
                   rk = gbasis%grid%rad(k)
-                  ear = rk**(nl-1)*EXP(-al*rk)
+                  ear = rk**(nl - 1)*EXP(-al*rk)
                   gbasis%bf(k, i, l) = pf*ear
-                  gbasis%dbf(k, i, l) = pf*(REAL(nl-1, dp)/rk-al)*ear
-                  gbasis%ddbf(k, i, l) = pf*(REAL((nl-2)*(nl-1), dp)/rk/rk &
-                                             -al*REAL(2*(nl-1), dp)/rk+al*al)*ear
+                  gbasis%dbf(k, i, l) = pf*(REAL(nl - 1, dp)/rk - al)*ear
+                  gbasis%ddbf(k, i, l) = pf*(REAL((nl - 2)*(nl - 1), dp)/rk/rk &
+                                             - al*REAL(2*(nl - 1), dp)/rk + al*al)*ear
                END DO
             END DO
          END DO
@@ -945,6 +965,9 @@ CONTAINS
       atom%doread = .FALSE.
       atom%read_vxc = .FALSE.
       atom%dm = .FALSE.
+      atom%hfx_pot%scale_coulomb = 0.0_dp
+      atom%hfx_pot%scale_longrange = 0.0_dp
+      atom%hfx_pot%omega = 0.0_dp
 
    END SUBROUTINE create_atom_type
 
@@ -1156,6 +1179,181 @@ CONTAINS
       DEALLOCATE (orbs)
 
    END SUBROUTINE release_atom_orbs
+
+! **************************************************************************************************
+!> \brief ...
+!> \param hf_frac ...
+!> \param do_hfx ...
+!> \param atom ...
+!> \param xc_section ...
+!> \param extype ...
+! **************************************************************************************************
+   SUBROUTINE setup_hf_section(hf_frac, do_hfx, atom, xc_section, extype)
+      REAL(KIND=dp), INTENT(OUT)                         :: hf_frac
+      LOGICAL, INTENT(OUT)                               :: do_hfx
+      TYPE(atom_type), INTENT(IN), POINTER               :: atom
+      TYPE(section_vals_type), POINTER                   :: xc_section
+      INTEGER, INTENT(IN)                                :: extype
+
+      CHARACTER(len=*), PARAMETER :: routineN = 'setup_hf_section', &
+         routineP = moduleN//':'//routineN
+
+      INTEGER                                            :: i, j, nr, nu, pot_type
+      REAL(KIND=dp)                                      :: scale_coulomb, scale_longrange
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: abscissa, weights
+      TYPE(section_vals_type), POINTER                   :: hf_sub_section, hfx_sections
+
+      hf_frac = 0._dp
+      IF (ASSOCIATED(atom%xc_section)) THEN
+         xc_section => atom%xc_section
+         hfx_sections => section_vals_get_subs_vals(xc_section, "HF")
+         CALL section_vals_get(hfx_sections, explicit=do_hfx)
+
+         ! If nothing has been set explicitly, assume a Coulomb potential
+         atom%hfx_pot%scale_longrange = 0.0_dp
+         atom%hfx_pot%scale_coulomb = 1.0_dp
+
+         IF (do_hfx) THEN
+            CALL section_vals_val_get(hfx_sections, "FRACTION", r_val=hf_frac)
+
+            ! Get potential info
+            hf_sub_section => section_vals_get_subs_vals(hfx_sections, "INTERACTION_POTENTIAL", i_rep_section=1)
+            CALL section_vals_val_get(hf_sub_section, "POTENTIAL_TYPE", i_val=pot_type)
+            CALL section_vals_val_get(hf_sub_section, "OMEGA", r_val=atom%hfx_pot%omega)
+            CALL section_vals_val_get(hf_sub_section, "SCALE_COULOMB", r_val=scale_coulomb)
+            CALL section_vals_val_get(hf_sub_section, "SCALE_LONGRANGE", r_val=scale_longrange)
+
+            ! Setup atomic hfx potential
+            SELECT CASE (pot_type)
+            CASE DEFAULT
+               CPWARN("Potential not implemented, use Coulomb instead!")
+            CASE (do_potential_coulomb)
+               atom%hfx_pot%scale_longrange = 0.0_dp
+               atom%hfx_pot%scale_coulomb = scale_coulomb
+            CASE (do_potential_long)
+               atom%hfx_pot%scale_coulomb = 0.0_dp
+               atom%hfx_pot%scale_longrange = scale_longrange
+            CASE (do_potential_short)
+               atom%hfx_pot%scale_coulomb = 1.0_dp
+               atom%hfx_pot%scale_longrange = -1.0_dp
+            CASE (do_potential_mix_cl)
+               atom%hfx_pot%scale_coulomb = scale_coulomb
+               atom%hfx_pot%scale_longrange = scale_longrange
+            END SELECT
+         END IF
+
+         ! Check whether extype is supported
+         IF (atom%hfx_pot%scale_longrange /= 0.0_dp .AND. extype /= do_numeric .AND. extype /= do_semi_analytic) THEN
+            CPABORT("Only numerical and semi-analytic lrHF exchange available!")
+         END IF
+
+         IF (atom%hfx_pot%scale_longrange /= 0.0_dp .AND. extype == do_numeric .AND. .NOT. ALLOCATED(atom%hfx_pot%kernel)) THEN
+            CALL cite_reference(Limpanuparb2011)
+
+            IF (atom%hfx_pot%do_gh) THEN
+               ! Setup kernel for Ewald operator
+               ! Because of the high computational costs of its calculation, we precalculate it here
+               ! Use Gauss-Hermite grid instead of the external grid
+               ALLOCATE (weights(atom%hfx_pot%nr_gh), abscissa(atom%hfx_pot%nr_gh))
+               CALL get_gauss_hermite_weights(abscissa, weights, atom%hfx_pot%nr_gh)
+
+               nr = atom%basis%grid%nr
+               ALLOCATE (atom%hfx_pot%kernel(nr, atom%hfx_pot%nr_gh, 0:atom%state%maxl_calc + atom%state%maxl_occ))
+               atom%hfx_pot%kernel = 0.0_dp
+               DO nu = 0, atom%state%maxl_calc + atom%state%maxl_occ
+                  DO i = 1, atom%hfx_pot%nr_gh
+                     DO j = 1, nr
+                        atom%hfx_pot%kernel(j, i, nu) = bessel0(2.0_dp*atom%hfx_pot%omega &
+                                                                *abscissa(i)*atom%basis%grid%rad(j), nu)*SQRT(weights(i))
+                     END DO
+                  END DO
+               END DO
+            ELSE
+               ! Setup kernel for Ewald operator
+               ! Because of the high computational costs of its calculation, we precalculate it here
+               ! Choose it symmetric to further reduce the costs
+               nr = atom%basis%grid%nr
+               ALLOCATE (atom%hfx_pot%kernel(nr, nr, 0:atom%state%maxl_calc + atom%state%maxl_occ))
+               atom%hfx_pot%kernel = 0.0_dp
+               DO nu = 0, atom%state%maxl_calc + atom%state%maxl_occ
+                  DO i = 1, nr
+                     DO j = 1, i
+                        atom%hfx_pot%kernel(j, i, nu) = bessel0(2.0_dp*atom%hfx_pot%omega &
+                                                                *atom%basis%grid%rad(i)*atom%basis%grid%rad(j), nu)
+                     END DO
+                  END DO
+               END DO
+            END IF
+         END IF
+      ELSE
+         NULLIFY (xc_section)
+         do_hfx = .FALSE.
+      END IF
+
+   END SUBROUTINE setup_hf_section
+
+! **************************************************************************************************
+!> \brief ...
+!> \param abscissa ...
+!> \param weights ...
+!> \param nn ...
+! **************************************************************************************************
+   SUBROUTINE get_gauss_hermite_weights(abscissa, weights, nn)
+      REAL(KIND=dp), DIMENSION(:), INTENT(OUT)           :: abscissa, weights
+      INTEGER, INTENT(IN)                                :: nn
+
+      INTEGER                                            :: counter, ii, info, liwork, lwork
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: iwork
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: diag, subdiag, work
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: eigenvec
+
+      ! Setup matrix for Golub-Welsch-algorithm to determine roots and weights of Gauss-Hermite quadrature
+      ! If necessary, one can setup matrices differently for other quadratures
+      ALLOCATE (work(1), iwork(1), diag(2*nn), subdiag(2*nn - 1), eigenvec(2*nn, 2*nn))
+      lwork = -1
+      liwork = -1
+      diag = 0.0_dp
+      DO ii = 1, 2*nn - 1
+         subdiag(ii) = SQRT(REAL(ii, KIND=dp)/2.0_dp)
+      END DO
+
+      ! Get correct size for working matrices
+      CALL DSTEVD('V', 2*nn, diag, subdiag, eigenvec, 2*nn, work, lwork, iwork, liwork, info)
+      IF (info /= 0) THEN
+         ! This should not happen!
+         CPABORT('Finding size of working matrices failed!')
+      END IF
+
+      ! Setup working matrices with their respective optimal sizes
+      lwork = INT(work(1))
+      liwork = iwork(1)
+      DEALLOCATE (work, iwork)
+      ALLOCATE (work(lwork), iwork(liwork))
+
+      ! Perform the actual eigenvalue decomposition
+      CALL DSTEVD('V', 2*nn, diag, subdiag, eigenvec, 2*nn, work, lwork, iwork, liwork, info)
+      IF (info /= 0) THEN
+         ! This should not happen for the usual values of nn! (Checked for nn = 2000)
+         CPABORT('Eigenvalue decomposition failed!')
+      END IF
+
+      DEALLOCATE (work, iwork, subdiag)
+
+      ! Identify positive roots of hermite polynomials (zeros of Hermite polynomials are symmetric wrt the origin)
+      ! We will only keep the positive roots
+      counter = 0
+      DO ii = 1, 2*nn
+         IF (diag(ii) > 0.0_dp) THEN
+            counter = counter + 1
+            abscissa(counter) = diag(ii)
+            weights(counter) = rootpi*eigenvec(1, ii)**2
+         END IF
+      END DO
+      IF (counter /= nn) THEN
+         CPABORT('Have not found enough or too many zeros!')
+      END IF
+
+   END SUBROUTINE get_gauss_hermite_weights
 
 ! **************************************************************************************************
 !> \brief ...
@@ -2090,12 +2288,12 @@ CONTAINS
             CPASSERT(npgf(iset) <= maxpri)
             nshell(iset) = 0
             DO lshell = lmin(iset), lmax(iset)
-               nmin = n(iset)+lshell-lmin(iset)
+               nmin = n(iset) + lshell - lmin(iset)
                READ (line_att, *) ishell
                CALL remove_word(line_att)
-               nshell(iset) = nshell(iset)+ishell
+               nshell(iset) = nshell(iset) + ishell
                DO i = 1, ishell
-                  l(nshell(iset)-ishell+i, iset) = lshell
+                  l(nshell(iset) - ishell + i, iset) = lshell
                END DO
             END DO
             CPASSERT(LEN_TRIM(line_att) == 0)
@@ -2122,8 +2320,8 @@ CONTAINS
                line2 = " "//line//" "
                symbol2 = " "//TRIM(symbol)//" "
                bsname2 = " "//TRIM(bsname)//" "
-               strlen1 = LEN_TRIM(symbol2)+1
-               strlen2 = LEN_TRIM(bsname2)+1
+               strlen1 = LEN_TRIM(symbol2) + 1
+               strlen2 = LEN_TRIM(bsname2) + 1
 
                IF ((INDEX(line2, symbol2(:strlen1)) > 0) .AND. &
                    (INDEX(line2, bsname2(:strlen2)) > 0)) match = .TRUE.
@@ -2140,11 +2338,11 @@ CONTAINS
                      CPASSERT(npgf(iset) <= maxpri)
                      nshell(iset) = 0
                      DO lshell = lmin(iset), lmax(iset)
-                        nmin = n(iset)+lshell-lmin(iset)
+                        nmin = n(iset) + lshell - lmin(iset)
                         CALL parser_get_object(parser, ishell)
-                        nshell(iset) = nshell(iset)+ishell
+                        nshell(iset) = nshell(iset) + ishell
                         DO i = 1, ishell
-                           l(nshell(iset)-ishell+i, iset) = lshell
+                           l(nshell(iset) - ishell + i, iset) = lshell
                         END DO
                      END DO
                      DO ipgf = 1, npgf(iset)
@@ -2173,11 +2371,11 @@ CONTAINS
       basis%nbas = 0
       DO i = 1, nset
          DO j = lmin(i), MIN(lmax(i), lmat)
-            basis%nprim(j) = basis%nprim(j)+npgf(i)
+            basis%nprim(j) = basis%nprim(j) + npgf(i)
          END DO
          DO j = 1, nshell(i)
             k = l(j, i)
-            IF (k <= lmat) basis%nbas(k) = basis%nbas(k)+1
+            IF (k <= lmat) basis%nbas(k) = basis%nbas(k) + 1
          END DO
       END DO
 
@@ -2194,25 +2392,25 @@ CONTAINS
          DO i = 1, nset
             IF (j >= lmin(i) .AND. j <= lmax(i)) THEN
                DO ipgf = 1, npgf(i)
-                  basis%am(nj+ipgf, j) = zet(ipgf, i)
+                  basis%am(nj + ipgf, j) = zet(ipgf, i)
                END DO
                DO ii = 1, nshell(i)
                   IF (l(ii, i) == j) THEN
-                     ns = ns+1
+                     ns = ns + 1
                      DO ipgf = 1, npgf(i)
-                        basis%cm(nj+ipgf, ns, j) = gcc(ipgf, ii, i)
+                        basis%cm(nj + ipgf, ns, j) = gcc(ipgf, ii, i)
                      END DO
                   END IF
                END DO
-               nj = nj+npgf(i)
+               nj = nj + npgf(i)
             END IF
          END DO
       END DO
 
       ! Normalization
       DO j = 0, lmat
-         expzet = 0.25_dp*REAL(2*j+3, dp)
-         prefac = SQRT(SQRT(pi)/2._dp**(j+2)*dfac(2*j+1))
+         expzet = 0.25_dp*REAL(2*j + 3, dp)
+         prefac = SQRT(SQRT(pi)/2._dp**(j + 2)*dfac(2*j + 1))
          DO ipgf = 1, basis%nprim(j)
             DO ii = 1, basis%nbas(j)
                gcca = basis%cm(ipgf, ii, j)
@@ -2442,7 +2640,7 @@ CONTAINS
          READ (line_att, *) elec_conf(l)
          CALL remove_word(line_att)
          DO WHILE (LEN_TRIM(line_att) /= 0)
-            l = l+1
+            l = l + 1
             READ (line_att, *) elec_conf(l)
             CALL remove_word(line_att)
          END DO
@@ -2528,7 +2726,7 @@ CONTAINS
          CALL remove_word(line_att)
          IF (nlmax > 0) THEN
             ! Load the parameter for nlmax non-local projectors
-            DO l = 0, nlmax-1
+            DO l = 0, nlmax - 1
                is_ok = cp_sll_val_next(list, val)
                CPASSERT(is_ok)
                CALL val_get(val, c_val=line_att)
@@ -2548,7 +2746,7 @@ CONTAINS
                      READ (line_att, *) potential%hnl(i, i, l)
                      CALL remove_word(line_att)
                   END IF
-                  DO j = i+1, potential%nl(l)
+                  DO j = i + 1, potential%nl(l)
                      READ (line_att, *) potential%hnl(i, j, l)
                      potential%hnl(j, i, l) = potential%hnl(i, j, l)
                      CALL remove_word(line_att)
@@ -2572,8 +2770,8 @@ CONTAINS
                line2 = " "//line//" "
                symbol2 = " "//TRIM(symbol)//" "
                apname2 = " "//TRIM(apname)//" "
-               strlen1 = LEN_TRIM(symbol2)+1
-               strlen2 = LEN_TRIM(apname2)+1
+               strlen1 = LEN_TRIM(symbol2) + 1
+               strlen2 = LEN_TRIM(apname2) + 1
 
                IF ((INDEX(line2, symbol2(:strlen1)) > 0) .AND. &
                    (INDEX(line2, apname2(:strlen2)) > 0)) match = .TRUE.
@@ -2583,7 +2781,7 @@ CONTAINS
                   l = 0
                   CALL parser_get_object(parser, elec_conf(l), newline=.TRUE.)
                   DO WHILE (parser_test_next_token(parser) == "INT")
-                     l = l+1
+                     l = l + 1
                      CALL parser_get_object(parser, elec_conf(l))
                   END DO
                   potential%econf(0:lmat) = elec_conf(0:lmat)
@@ -2648,7 +2846,7 @@ CONTAINS
                   CALL parser_get_object(parser, nlmax)
                   IF (nlmax > 0) THEN
                      ! Load the parameter for n non-local projectors
-                     DO l = 0, nlmax-1
+                     DO l = 0, nlmax - 1
                         CALL parser_get_object(parser, potential%rcnl(l), newline=.TRUE.)
                         CALL parser_get_object(parser, potential%nl(l))
                         DO i = 1, potential%nl(l)
@@ -2657,7 +2855,7 @@ CONTAINS
                            ELSE
                               CALL parser_get_object(parser, potential%hnl(i, i, l), newline=.TRUE.)
                            END IF
-                           DO j = i+1, potential%nl(l)
+                           DO j = i + 1, potential%nl(l)
                               CALL parser_get_object(parser, potential%hnl(i, j, l))
                               potential%hnl(j, i, l) = potential%hnl(i, j, l)
                            END DO
@@ -2736,7 +2934,7 @@ CONTAINS
          CALL remove_word(line_att)
          ! read number of electrons
          READ (line_att, *) nel
-         potential%zion = REAL(ncore-nel, KIND=dp)
+         potential%zion = REAL(ncore - nel, KIND=dp)
          ! local potential (mandatory block)
          is_ok = cp_sll_val_next(list, val)
          CPASSERT(is_ok)
@@ -2745,7 +2943,7 @@ CONTAINS
             IF (.NOT. cp_sll_val_next(list, val)) EXIT
             CALL val_get(val, c_val=line_att)
             IF (INDEX(line_att, element_symbol) == 0) THEN
-               potential%nloc = potential%nloc+1
+               potential%nloc = potential%nloc + 1
                ic = potential%nloc
                READ (line_att, *) potential%nrloc(ic), potential%bloc(ic), potential%aloc(ic)
             ELSE
@@ -2756,11 +2954,11 @@ CONTAINS
          DO
             CALL val_get(val, c_val=line_att)
             IF (INDEX(line_att, element_symbol) == 0) THEN
-               potential%npot(l) = potential%npot(l)+1
+               potential%npot(l) = potential%npot(l) + 1
                ic = potential%npot(l)
                READ (line_att, *) potential%nrpot(ic, l), potential%bpot(ic, l), potential%apot(ic, l)
             ELSE
-               potential%lmax = potential%lmax+1
+               potential%lmax = potential%lmax + 1
                l = potential%lmax
             END IF
             IF (.NOT. cp_sll_val_next(list, val)) EXIT
@@ -2781,14 +2979,14 @@ CONTAINS
                      CPASSERT(TRIM(line) == "NELEC")
                      ! read number of electrons
                      CALL parser_get_object(parser, nel)
-                     potential%zion = REAL(ncore-nel, KIND=dp)
+                     potential%zion = REAL(ncore - nel, KIND=dp)
                      ! read local potential flag line "<XX> ul"
                      CALL parser_get_object(parser, line, newline=.TRUE.)
                      ! read local potential
                      DO i = 1, 10
                         CALL parser_read_line(parser, 1)
                         IF (parser_test_next_token(parser) == "STR") EXIT
-                        potential%nloc = potential%nloc+1
+                        potential%nloc = potential%nloc + 1
                         ic = potential%nloc
                         CALL parser_get_object(parser, potential%nrloc(ic))
                         CALL parser_get_object(parser, potential%bloc(ic))
@@ -2799,11 +2997,11 @@ CONTAINS
                         CALL parser_get_object(parser, symbol)
                         IF (symbol == element_symbol) THEN
                            ! new l block
-                           potential%lmax = potential%lmax+1
+                           potential%lmax = potential%lmax + 1
                            DO i = 1, 10
                               CALL parser_read_line(parser, 1)
                               IF (parser_test_next_token(parser) == "STR") EXIT
-                              potential%npot(l) = potential%npot(l)+1
+                              potential%npot(l) = potential%npot(l) + 1
                               ic = potential%npot(l)
                               CALL parser_get_object(parser, potential%nrpot(ic, l))
                               CALL parser_get_object(parser, potential%bpot(ic, l))
@@ -2833,32 +3031,32 @@ CONTAINS
       CASE DEFAULT
          CPABORT("Unknown Core State")
       CASE (2)
-         potential%econf(0:3) = potential%econf(0:3)-ptable(2)%e_conv(0:3)
+         potential%econf(0:3) = potential%econf(0:3) - ptable(2)%e_conv(0:3)
       CASE (10)
-         potential%econf(0:3) = potential%econf(0:3)-ptable(10)%e_conv(0:3)
+         potential%econf(0:3) = potential%econf(0:3) - ptable(10)%e_conv(0:3)
       CASE (18)
-         potential%econf(0:3) = potential%econf(0:3)-ptable(18)%e_conv(0:3)
+         potential%econf(0:3) = potential%econf(0:3) - ptable(18)%e_conv(0:3)
       CASE (28)
-         potential%econf(0:3) = potential%econf(0:3)-ptable(18)%e_conv(0:3)
-         potential%econf(2) = potential%econf(2)-10
+         potential%econf(0:3) = potential%econf(0:3) - ptable(18)%e_conv(0:3)
+         potential%econf(2) = potential%econf(2) - 10
       CASE (36)
-         potential%econf(0:3) = potential%econf(0:3)-ptable(36)%e_conv(0:3)
+         potential%econf(0:3) = potential%econf(0:3) - ptable(36)%e_conv(0:3)
       CASE (46)
-         potential%econf(0:3) = potential%econf(0:3)-ptable(36)%e_conv(0:3)
-         potential%econf(2) = potential%econf(2)-10
+         potential%econf(0:3) = potential%econf(0:3) - ptable(36)%e_conv(0:3)
+         potential%econf(2) = potential%econf(2) - 10
       CASE (54)
-         potential%econf(0:3) = potential%econf(0:3)-ptable(54)%e_conv(0:3)
+         potential%econf(0:3) = potential%econf(0:3) - ptable(54)%e_conv(0:3)
       CASE (60)
-         potential%econf(0:3) = potential%econf(0:3)-ptable(36)%e_conv(0:3)
-         potential%econf(2) = potential%econf(2)-10
-         potential%econf(3) = potential%econf(3)-14
+         potential%econf(0:3) = potential%econf(0:3) - ptable(36)%e_conv(0:3)
+         potential%econf(2) = potential%econf(2) - 10
+         potential%econf(3) = potential%econf(3) - 14
       CASE (68)
-         potential%econf(0:3) = potential%econf(0:3)-ptable(54)%e_conv(0:3)
-         potential%econf(3) = potential%econf(3)-14
+         potential%econf(0:3) = potential%econf(0:3) - ptable(54)%e_conv(0:3)
+         potential%econf(3) = potential%econf(3) - 14
       CASE (78)
-         potential%econf(0:3) = potential%econf(0:3)-ptable(54)%e_conv(0:3)
-         potential%econf(2) = potential%econf(2)-10
-         potential%econf(3) = potential%econf(3)-14
+         potential%econf(0:3) = potential%econf(0:3) - ptable(54)%e_conv(0:3)
+         potential%econf(2) = potential%econf(2) - 10
+         potential%econf(3) = potential%econf(3) - 14
       END SELECT
       !
       CPASSERT(ALL(potential%econf >= 0))
@@ -2880,9 +3078,9 @@ CONTAINS
       is_equal = .TRUE.
       IF (grid1%nr == grid2%nr) THEN
          DO i = 1, grid2%nr
-            dr = ABS(grid1%rad(i)-grid2%rad(i))
-            dw = ABS(grid1%wr(i)-grid2%wr(i))
-            IF (dr+dw > 1.0e-12_dp) THEN
+            dr = ABS(grid1%rad(i) - grid2%rad(i))
+            dw = ABS(grid1%wr(i) - grid2%wr(i))
+            IF (dr + dw > 1.0e-12_dp) THEN
                is_equal = .FALSE.
                EXIT
             END IF

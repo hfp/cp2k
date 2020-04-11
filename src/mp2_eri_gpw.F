@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -9,6 +9,7 @@
 !>      07.2019 separated from mp2_integrals.F [Frederick Stein]
 ! **************************************************************************************************
 MODULE mp2_eri_gpw
+   USE ao_util,                         ONLY: exp_radius_very_extended
    USE atomic_kind_types,               ONLY: atomic_kind_type
    USE basis_set_types,                 ONLY: gto_basis_set_type
    USE cell_types,                      ONLY: cell_type,&
@@ -46,7 +47,7 @@ MODULE mp2_eri_gpw
    USE qs_collocate_density,            ONLY: calculate_wavefunction
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
-   USE qs_integrate_potential,          ONLY: integrate_pgf_product_rspace,&
+   USE qs_integrate_potential,          ONLY: integrate_pgf_product,&
                                               integrate_v_rspace
    USE qs_kind_types,                   ONLY: get_qs_kind,&
                                               qs_kind_type
@@ -182,10 +183,10 @@ CONTAINS
       INTEGER, DIMENSION(:), POINTER                     :: la_max, la_min, npgfa, nsgfa
       INTEGER, DIMENSION(:, :), POINTER                  :: first_sgfa
       LOGICAL                                            :: map_it_here
-      REAL(KIND=dp)                                      :: cutoff_old, rab2, relative_cutoff_old
+      REAL(KIND=dp)                                      :: cutoff_old, radius, relative_cutoff_old
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: e_cutoff_old, wf_vector
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: I_ab
-      REAL(KIND=dp), DIMENSION(3)                        :: ra, rab
+      REAL(KIND=dp), DIMENSION(3)                        :: ra
       REAL(KIND=dp), DIMENSION(:), POINTER               :: set_radius_a
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: I_tmp2, rpgfa, sphi_a, zeta
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
@@ -216,7 +217,7 @@ CONTAINS
 
       i_counter = 0
       DO LLL = my_group_L_start, my_group_L_end
-         i_counter = i_counter+1
+         i_counter = i_counter + 1
 
          wf_vector = 0.0_dp
          wf_vector(LLL) = 1.0_dp
@@ -260,8 +261,6 @@ CONTAINS
             zeta => basis_set_a%zet
 
             ra(:) = pbc(particle_set(iatom)%r, cell)
-            rab = 0.0_dp
-            rab2 = 0.0_dp
 
             DO iset = 1, nseta
                ncoa = npgfa(iset)*ncoset(la_max(iset))
@@ -280,14 +279,14 @@ CONTAINS
                      tp(dir) = FLOOR(DOT_PRODUCT(cell%h_inv(dir, :), ra)*rs_v(igrid_level)%rs_grid%desc%npts(dir))
                      tp(dir) = MODULO(tp(dir), rs_v(igrid_level)%rs_grid%desc%npts(dir))
                      IF (rs_v(igrid_level)%rs_grid%desc%perd(dir) .NE. 1) THEN
-                        lb(dir) = rs_v(igrid_level)%rs_grid%lb_local(dir)+rs_v(igrid_level)%rs_grid%desc%border
-                        ub(dir) = rs_v(igrid_level)%rs_grid%ub_local(dir)-rs_v(igrid_level)%rs_grid%desc%border
+                        lb(dir) = rs_v(igrid_level)%rs_grid%lb_local(dir) + rs_v(igrid_level)%rs_grid%desc%border
+                        ub(dir) = rs_v(igrid_level)%rs_grid%ub_local(dir) - rs_v(igrid_level)%rs_grid%desc%border
                      ELSE
                         lb(dir) = rs_v(igrid_level)%rs_grid%lb_local(dir)
                         ub(dir) = rs_v(igrid_level)%rs_grid%ub_local(dir)
                      ENDIF
                      ! distributed grid, only map if it is local to the grid
-                     location(dir) = tp(dir)+rs_v(igrid_level)%rs_grid%desc%lb(dir)
+                     location(dir) = tp(dir) + rs_v(igrid_level)%rs_grid%desc%lb(dir)
                   ENDDO
                   IF (lb(1) <= location(1) .AND. location(1) <= ub(1) .AND. &
                       lb(2) <= location(2) .AND. location(2) <= ub(2) .AND. &
@@ -299,28 +298,32 @@ CONTAINS
                   IF (MODULO(offset, para_env_sub%num_pe) == para_env_sub%mepos) map_it_here = .TRUE.
                ENDIF
 
-               offset = offset+nsgfa(iset)
+               offset = offset + nsgfa(iset)
 
                IF (map_it_here) THEN
                   DO ipgf = 1, npgfa(iset)
                      sgfa = first_sgfa(1, iset)
-
-                     na1 = (ipgf-1)*ncoset(la_max(iset))+1
+                     na1 = (ipgf - 1)*ncoset(la_max(iset)) + 1
                      na2 = ipgf*ncoset(la_max(iset))
                      igrid_level = gaussian_gridlevel(pw_env_sub%gridlevel_info, zeta(ipgf, iset))
 
-                     CALL integrate_pgf_product_rspace( &
+                     radius = exp_radius_very_extended(la_min=la_min(iset), la_max=la_max(iset), &
+                                                       lb_min=0, lb_max=0, ra=ra, rb=ra, rp=ra, &
+                                                       zetp=zeta(ipgf, iset), &
+                                                       eps=dft_control%qs_control%eps_gvg_rspace, &
+                                                       prefactor=1.0_dp, cutoff=1.0_dp)
+
+                     CALL integrate_pgf_product( &
                         la_max=la_max(iset), zeta=zeta(ipgf, iset)/2.0_dp, la_min=la_min(iset), &
                         lb_max=0, zetb=zeta(ipgf, iset)/2.0_dp, lb_min=0, &
-                        ra=ra, rab=rab, rab2=rab2, &
+                        ra=ra, rab=(/0.0_dp, 0.0_dp, 0.0_dp/), &
                         rsgrid=rs_v(igrid_level)%rs_grid, &
                         cell=cell, &
                         cube_info=pw_env_sub%cube_info(igrid_level), &
                         hab=I_tmp2, &
-                        o1=na1-1, &
+                        o1=na1 - 1, &
                         o2=0, &
-                        map_consistent=.TRUE., &
-                        eps_gvg_rspace=dft_control%qs_control%eps_gvg_rspace, &
+                        radius=radius, &
                         calculate_forces=.FALSE.)
                   END DO
 
@@ -329,7 +332,7 @@ CONTAINS
                              I_tmp2(1, 1), SIZE(I_tmp2, 1), &
                              1.0_dp, I_ab(1, 1), SIZE(I_ab, 1))
 
-                  L_local_col(offset-nsgfa(iset)+1:offset, i_counter) = I_ab(1:nsgfa(iset), 1)
+                  L_local_col(offset - nsgfa(iset) + 1:offset, i_counter) = I_ab(1:nsgfa(iset), 1)
                END IF
 
                DEALLOCATE (I_tmp2)
@@ -410,7 +413,7 @@ CONTAINS
       dft_control%qs_control%cutoff = qs_env%mp2_env%mp2_gpw%cutoff*0.5_dp
       dft_control%qs_control%e_cutoff(1) = dft_control%qs_control%cutoff
       DO i_multigrid = 2, n_multigrid
-         dft_control%qs_control%e_cutoff(i_multigrid) = dft_control%qs_control%e_cutoff(i_multigrid-1) &
+         dft_control%qs_control%e_cutoff(i_multigrid) = dft_control%qs_control%e_cutoff(i_multigrid - 1) &
                                                         /progression_factor
       END DO
 

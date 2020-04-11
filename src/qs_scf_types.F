@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -98,7 +98,7 @@ MODULE qs_scf_types
       TYPE(qs_outer_scf_type) :: outer_scf
       INTEGER :: ref_count, id_nr, print_count, iter_count
       INTEGER :: cholesky_method, nelectron, method, mixing_method, nskip_mixing
-      REAL(KIND=dp) :: iter_param, iter_delta, p_mix_alpha
+      REAL(KIND=dp) :: iter_param, iter_delta, p_mix_alpha, sum_zeff_corr
       CHARACTER(len=15) :: iter_method
       COMPLEX(KIND=dp), DIMENSION(:, :, :), POINTER :: cc_buffer
       LOGICAL :: print_iter_line, skip_mixing, skip_diis, needs_ortho
@@ -142,7 +142,7 @@ CONTAINS
       ALLOCATE (scf_env)
       scf_env%ref_count = 1
       scf_env%print_count = 0
-      last_scf_env_id = last_scf_env_id+1
+      last_scf_env_id = last_scf_env_id + 1
       scf_env%id_nr = last_scf_env_id
       scf_env%print_count = 0
       scf_env%iter_count = 0
@@ -159,6 +159,7 @@ CONTAINS
       scf_env%p_mix_alpha = 1.0_dp
       scf_env%cholesky_method = -1
       scf_env%outer_scf%iter_count = 0
+      scf_env%sum_zeff_corr = 0.0_dp
       NULLIFY (scf_env%outer_scf%variables)
       NULLIFY (scf_env%outer_scf%gradient)
       NULLIFY (scf_env%outer_scf%energy)
@@ -213,7 +214,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(scf_env))
       CPASSERT(scf_env%ref_count > 0)
-      scf_env%ref_count = scf_env%ref_count+1
+      scf_env%ref_count = scf_env%ref_count + 1
 
       CALL timestop(handle)
 
@@ -276,7 +277,7 @@ CONTAINS
 
       IF (ASSOCIATED(scf_env)) THEN
          CPASSERT(scf_env%ref_count > 0)
-         scf_env%ref_count = scf_env%ref_count-1
+         scf_env%ref_count = scf_env%ref_count - 1
          IF (scf_env%ref_count < 1) THEN
             CALL cp_fm_vect_dealloc(scf_env%scf_work1)
             CALL cp_fm_release(scf_env%scf_work2)

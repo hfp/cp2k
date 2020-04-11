@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -97,7 +97,7 @@ MODULE rt_propagation_types
       REAL(KIND=dp)                               :: mixing_factor
       LOGICAL                                     :: mixing
       LOGICAL                                     :: do_hfx
-      LOGICAL                                     :: magnetic
+      LOGICAL                                     :: track_imag_density
       INTEGER, DIMENSION(:, :), ALLOCATABLE          :: orders
       INTEGER                                     :: nsteps, istep, i_start, max_steps
       INTEGER                                     :: iter
@@ -200,23 +200,23 @@ CONTAINS
          END IF
          DO i = 1, nspin
             DO j = 1, 2
-               NULLIFY (rtp%mos%old(2*(i-1)+j)%matrix)
-               NULLIFY (rtp%mos%new(2*(i-1)+j)%matrix)
-               NULLIFY (rtp%mos%next(2*(i-1)+j)%matrix)
-               CALL cp_fm_create(rtp%mos%old(2*(i-1)+j)%matrix, &
+               NULLIFY (rtp%mos%old(2*(i - 1) + j)%matrix)
+               NULLIFY (rtp%mos%new(2*(i - 1) + j)%matrix)
+               NULLIFY (rtp%mos%next(2*(i - 1) + j)%matrix)
+               CALL cp_fm_create(rtp%mos%old(2*(i - 1) + j)%matrix, &
                                  matrix_struct=mos(i)%mo_set%mo_coeff%matrix_struct, &
-                                 name="mos_old"//TRIM(ADJUSTL(cp_to_string(2*(i-1)+j))))
-               CALL cp_fm_create(rtp%mos%new(2*(i-1)+j)%matrix, &
+                                 name="mos_old"//TRIM(ADJUSTL(cp_to_string(2*(i - 1) + j))))
+               CALL cp_fm_create(rtp%mos%new(2*(i - 1) + j)%matrix, &
                                  matrix_struct=mos(i)%mo_set%mo_coeff%matrix_struct, &
-                                 name="mos_new"//TRIM(ADJUSTL(cp_to_string(2*(i-1)+j))))
-               CALL cp_fm_create(rtp%mos%next(2*(i-1)+j)%matrix, &
+                                 name="mos_new"//TRIM(ADJUSTL(cp_to_string(2*(i - 1) + j))))
+               CALL cp_fm_create(rtp%mos%next(2*(i - 1) + j)%matrix, &
                                  matrix_struct=mos(i)%mo_set%mo_coeff%matrix_struct, &
-                                 name="mos_next"//TRIM(ADJUSTL(cp_to_string(2*(i-1)+j))))
+                                 name="mos_next"//TRIM(ADJUSTL(cp_to_string(2*(i - 1) + j))))
                IF (dft_control%do_admm) THEN
-                  NULLIFY (rtp%mos%admm(2*(i-1)+j)%matrix)
-                  CALL cp_fm_create(rtp%mos%admm(2*(i-1)+j)%matrix, &
+                  NULLIFY (rtp%mos%admm(2*(i - 1) + j)%matrix)
+                  CALL cp_fm_create(rtp%mos%admm(2*(i - 1) + j)%matrix, &
                                     matrix_struct=mos_aux(i)%mo_set%mo_coeff%matrix_struct, &
-                                    name="mos_admm"//TRIM(ADJUSTL(cp_to_string(2*(i-1)+j))))
+                                    name="mos_admm"//TRIM(ADJUSTL(cp_to_string(2*(i - 1) + j))))
                END IF
             END DO
          END DO
@@ -283,7 +283,7 @@ CONTAINS
       rtp%istep = 0
       rtp%iter = 0
       rtp%do_hfx = .FALSE.
-      rtp%magnetic = .FALSE.
+      rtp%track_imag_density = .FALSE.
 
    END SUBROUTINE rt_prop_create
 

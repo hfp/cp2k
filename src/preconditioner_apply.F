@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -246,7 +246,7 @@ CONTAINS
       DO j = 1, ncol_local
       DO i = 1, nrow_local
          dum = 1.0_dp/MAX(preconditioner_env%energy_gap, &
-                          preconditioner_env%full_evals(row_indices(i))-preconditioner_env%occ_evals(col_indices(j)))
+                          preconditioner_env%full_evals(row_indices(i)) - preconditioner_env%occ_evals(col_indices(j)))
          local_data(i, j) = local_data(i, j)*dum
       ENDDO
       ENDDO
@@ -295,8 +295,8 @@ CONTAINS
          DO j = 1, col_size
          DO i = 1, row_size
             dum = 1.0_dp/MAX(preconditioner_env%energy_gap, &
-                             preconditioner_env%full_evals(row_offset+i-1) &
-                             -preconditioner_env%occ_evals(col_offset+j-1))
+                             preconditioner_env%full_evals(row_offset + i - 1) &
+                             - preconditioner_env%occ_evals(col_offset + j - 1))
             DATA(i, j) = DATA(i, j)*dum
          ENDDO
          ENDDO

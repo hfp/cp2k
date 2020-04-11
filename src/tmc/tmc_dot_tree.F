@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -345,7 +345,7 @@ CONTAINS
             ref_count = 0
             tmp_pt_list_elem => new_element%conf(i)%elem%gt_nodes_references
             DO WHILE (ASSOCIATED(tmp_pt_list_elem))
-               ref_count = ref_count+1
+               ref_count = ref_count + 1
                ! create a list with all references
                IF (.FALSE.) WRITE (list_of_nr, *) TRIM(ADJUSTL(list_of_nr)), " ", tmp_pt_list_elem%gt_elem%nr
                tmp_pt_list_elem => tmp_pt_list_elem%next
@@ -410,7 +410,7 @@ CONTAINS
          tmp_pt_list_elem => tree_element%gt_nodes_references
          ref_count = 0
          DO WHILE (ASSOCIATED(tmp_pt_list_elem))
-            ref_count = ref_count+1
+            ref_count = ref_count + 1
             ! print a list with all references
             IF (.FALSE.) THEN
                WRITE (list_of_nr, *) TRIM(ADJUSTL(list_of_nr)), " ", tmp_pt_list_elem%gt_elem%nr

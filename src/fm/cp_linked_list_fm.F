@@ -1,12 +1,12 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 #:include '../common/cp_linked_list.fypp'
 
 MODULE cp_linked_list_fm
-USE cp_fm_types, ONLY: cp_fm_type, cp_fm_p_type
+   USE cp_fm_types, ONLY: cp_fm_type, cp_fm_p_type
 #include "../base/base_uses.f90"
 
 #:mute

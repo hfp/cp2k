@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -144,17 +144,17 @@ CONTAINS
       CALL get_cell(cell=cell, h=hmat, periodic=periodic)
 
       IF (MODULO(nkp_grid(1), 2) == 1) THEN
-         factor = 3**(size_lattice_sum-1)
+         factor = 3**(size_lattice_sum - 1)
       ELSE IF (MODULO(nkp_grid(1), 2) == 0) THEN
-         factor = 2**(size_lattice_sum-1)
+         factor = 2**(size_lattice_sum - 1)
       END IF
 
       IF (MODULO(nkp_grid(1), 2) == 1) THEN
-         x_min = -(factor*nkp_grid(1)-1)/2
-         x_max = (factor*nkp_grid(1)-1)/2
+         x_min = -(factor*nkp_grid(1) - 1)/2
+         x_max = (factor*nkp_grid(1) - 1)/2
       ELSE IF (MODULO(nkp_grid(1), 2) == 0) THEN
          x_min = -factor*nkp_grid(1)/2
-         x_max = factor*nkp_grid(1)/2-1
+         x_max = factor*nkp_grid(1)/2 - 1
       END IF
       IF (periodic(1) == 0) THEN
          x_min = 0
@@ -162,11 +162,11 @@ CONTAINS
       END IF
 
       IF (MODULO(nkp_grid(2), 2) == 1) THEN
-         y_min = -(factor*nkp_grid(2)-1)/2
-         y_max = (factor*nkp_grid(2)-1)/2
+         y_min = -(factor*nkp_grid(2) - 1)/2
+         y_max = (factor*nkp_grid(2) - 1)/2
       ELSE IF (MODULO(nkp_grid(2), 2) == 0) THEN
          y_min = -factor*nkp_grid(2)/2
-         y_max = factor*nkp_grid(2)/2-1
+         y_max = factor*nkp_grid(2)/2 - 1
       END IF
       IF (periodic(2) == 0) THEN
          y_min = 0
@@ -174,11 +174,11 @@ CONTAINS
       END IF
 
       IF (MODULO(nkp_grid(3), 2) == 1) THEN
-         z_min = -(factor*nkp_grid(3)-1)/2
-         z_max = (factor*nkp_grid(3)-1)/2
+         z_min = -(factor*nkp_grid(3) - 1)/2
+         z_max = (factor*nkp_grid(3) - 1)/2
       ELSE IF (MODULO(nkp_grid(3), 2) == 0) THEN
          z_min = -factor*nkp_grid(3)/2
-         z_max = factor*nkp_grid(3)/2-1
+         z_max = factor*nkp_grid(3)/2 - 1
       END IF
       IF (periodic(3) == 0) THEN
          z_min = 0
@@ -189,17 +189,17 @@ CONTAINS
       CALL allocate_blocks_of_v_L(blocks_of_v_L, matrix_v_L_tmp)
       CALL allocate_blocks_of_v_L(blocks_of_v_L_store, matrix_v_L_tmp)
 
-      DO i_x_inner = 0, 2*nkp_grid(1)-1
-         DO j_y_inner = 0, 2*nkp_grid(2)-1
-            DO k_z_inner = 0, 2*nkp_grid(3)-1
+      DO i_x_inner = 0, 2*nkp_grid(1) - 1
+         DO j_y_inner = 0, 2*nkp_grid(2) - 1
+            DO k_z_inner = 0, 2*nkp_grid(3) - 1
 
-               DO i_x_outer = x_min, x_max+nkp_grid(1), 2*nkp_grid(1)
-                  DO j_y_outer = y_min, y_max+nkp_grid(2), 2*nkp_grid(2)
-                     DO k_z_outer = z_min, z_max+nkp_grid(3), 2*nkp_grid(3)
+               DO i_x_outer = x_min, x_max + nkp_grid(1), 2*nkp_grid(1)
+                  DO j_y_outer = y_min, y_max + nkp_grid(2), 2*nkp_grid(2)
+                     DO k_z_outer = z_min, z_max + nkp_grid(3), 2*nkp_grid(3)
 
-                        i_x = i_x_inner+i_x_outer
-                        j_y = j_y_inner+j_y_outer
-                        k_z = k_z_inner+k_z_outer
+                        i_x = i_x_inner + i_x_outer
+                        j_y = j_y_inner + j_y_outer
+                        k_z = k_z_inner + k_z_outer
 
                         IF (i_x > x_max .OR. i_x < x_min .OR. &
                             j_y > y_max .OR. j_y < y_min .OR. &
@@ -216,7 +216,7 @@ CONTAINS
 
                         DO i_block = 1, SIZE(blocks_of_v_L)
                            blocks_of_v_L_store(i_block)%block(:, :) = blocks_of_v_L_store(i_block)%block(:, :) &
-                                                                      +blocks_of_v_L(i_block)%block(:, :)
+                                                                      + blocks_of_v_L(i_block)%block(:, :)
                         END DO
 
                      END DO
@@ -233,9 +233,9 @@ CONTAINS
                   DO i_block = 1, SIZE(blocks_of_v_L)
 
                      blocks_of_v_kp(ik, 1, i_block)%block(:, :) = blocks_of_v_kp(ik, 1, i_block)%block(:, :) &
-                                                                  +coskl*blocks_of_v_L_store(i_block)%block(:, :)
+                                                                  + coskl*blocks_of_v_L_store(i_block)%block(:, :)
                      blocks_of_v_kp(ik, 2, i_block)%block(:, :) = blocks_of_v_kp(ik, 2, i_block)%block(:, :) &
-                                                                  +sinkl*blocks_of_v_L_store(i_block)%block(:, :)
+                                                                  + sinkl*blocks_of_v_L_store(i_block)%block(:, :)
 
                   END DO
 
@@ -295,7 +295,7 @@ CONTAINS
 
                data_block(:, :) = blocks_of_v_kp(ik, i_real_im, i_block)%block(:, :)
 
-               i_block = i_block+1
+               i_block = i_block + 1
 
             END DO
 
@@ -344,7 +344,7 @@ CONTAINS
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: kind_of
       REAL(dp), DIMENSION(3)                             :: ra, rab_L, rb
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: data_block
-      REAL(KIND=dp), DIMENSION(:, :, :), POINTER         :: contr_a, contr_b, dummy_force
+      REAL(KIND=dp), DIMENSION(:, :, :), POINTER         :: contr_a, contr_b
       TYPE(dbcsr_iterator_type)                          :: iter
       TYPE(gto_basis_set_type), POINTER                  :: basis_set_a, basis_set_b
 
@@ -377,18 +377,18 @@ CONTAINS
          ra(1:3) = pbc(particle_set(row)%r(1:3), cell)
          rb(1:3) = pbc(particle_set(col)%r(1:3), cell)
 
-         rab_L(1:3) = rb(1:3)-ra(1:3)+vec_L(1:3)
+         rab_L(1:3) = rb(1:3) - ra(1:3) + vec_L(1:3)
 
          CALL contraction_matrix_shg(basis_set_a, contr_a)
          CALL contraction_matrix_shg(basis_set_b, contr_b)
 
          blocks_of_v_L(i_block)%block = 0.0_dp
 
-         CALL int_operators_r12_ab_shg(operator_type, blocks_of_v_L(i_block)%block, dummy_force, rab_L, &
-                                       basis_set_a, basis_set_b, contr_a, contr_b, omega=cutoff, &
+         CALL int_operators_r12_ab_shg(operator_type, blocks_of_v_L(i_block)%block, rab=rab_L, &
+                                       fba=basis_set_a, fbb=basis_set_b, scona_shg=contr_a, sconb_shg=contr_b, omega=cutoff, &
                                        calculate_forces=.FALSE.)
 
-         i_block = i_block+1
+         i_block = i_block + 1
 
          DEALLOCATE (contr_a, contr_b)
 
@@ -481,7 +481,7 @@ CONTAINS
 
          CALL dbcsr_iterator_next_block(iter, row, col, data_block)
 
-         nblocks = nblocks+1
+         nblocks = nblocks + 1
 
       END DO
 
@@ -500,7 +500,7 @@ CONTAINS
          ALLOCATE (blocks_of_v_L(i_block)%block(SIZE(data_block, 1), SIZE(data_block, 2)))
          blocks_of_v_L(i_block)%block = 0.0_dp
 
-         i_block = i_block+1
+         i_block = i_block + 1
 
       END DO
 
@@ -538,7 +538,7 @@ CONTAINS
 
          CALL dbcsr_iterator_next_block(iter, row, col, data_block)
 
-         nblocks = nblocks+1
+         nblocks = nblocks + 1
 
       END DO
 
@@ -561,7 +561,7 @@ CONTAINS
                ALLOCATE (blocks_of_v_kp(ik, i_real_img, i_block)%block(SIZE(data_block, 1), SIZE(data_block, 2)))
                blocks_of_v_kp(ik, i_real_img, i_block)%block = 0.0_dp
 
-               i_block = i_block+1
+               i_block = i_block + 1
 
             END DO
 

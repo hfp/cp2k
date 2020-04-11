@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright (C) 2000 - 2019  CP2K developers group                                               !
+!   Copyright (C) 2000 - 2020  CP2K developers group                                               !
 !--------------------------------------------------------------------------------------------------!
 
 ! **************************************************************************************************
@@ -29,7 +29,7 @@ MODULE lgrid_types
 
    TYPE lgrid_type
       INTEGER :: ldim, ref_count
-      REAL(dp), DIMENSION(:, :), POINTER, CONTIGUOUS :: r
+      REAL(dp), DIMENSION(:, :), POINTER :: r
    END TYPE lgrid_type
 
    TYPE lgrid_p_type
@@ -82,7 +82,7 @@ CONTAINS
 
       IF (ASSOCIATED(lgrid)) THEN
          CPASSERT(lgrid%ref_count > 0)
-         lgrid%ref_count = lgrid%ref_count-1
+         lgrid%ref_count = lgrid%ref_count - 1
          IF (lgrid%ref_count < 1) THEN
             IF (ASSOCIATED(lgrid%r)) THEN
                DEALLOCATE (lgrid%r)
@@ -113,9 +113,7 @@ CONTAINS
 
       CPASSERT(ASSOCIATED(lgrid))
       CPASSERT(.NOT. ASSOCIATED(lgrid%r))
-!$OMP MASTER
-      ALLOCATE (lgrid%r(lgrid%ldim, 0:nthreads-1))
-!$OMP END MASTER
+      ALLOCATE (lgrid%r(lgrid%ldim, 0:nthreads - 1))
 
       CALL timestop(handle)
    END SUBROUTINE
