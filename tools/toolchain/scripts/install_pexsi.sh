@@ -2,8 +2,8 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")" && pwd -P)"
 
-pexsi_ver="0.10.2"
-pexsi_sha256="8714c71b76542e096211b537a9cb1ffb2c28f53eea4f5a92f94cc1ca1e7b499f"
+pexsi_ver="1.2.0"
+pexsi_sha256="8bfad6ec6866c6a29e1cc87fb1c17a39809795e79ede98373c8ba9a3aaf820dd"
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh
 source "${SCRIPT_DIR}"/signal_trap.sh
@@ -21,10 +21,6 @@ cd "${BUILDDIR}"
 case "$with_pexsi" in
     __INSTALL__)
         echo "==================== Installing PEXSI ===================="
-        require_env PARMETIS_LDFLAGS
-        require_env PARMETIS_LIBS
-        require_env METIS_LDFLAGS
-        require_env METIS_LIBS
         require_env SUPERLU_LDFLAGS
         require_env SUPERLU_LIBS
         require_env MATH_LIBS
@@ -50,20 +46,19 @@ case "$with_pexsi" in
                     -e "s|\(CXX *=\).*|\1 ${MPICXX}|g" \
                     -e "s|\(FC *=\).*|\1 ${MPIFC}|g" \
                     -e "s|\(LOADER *=\).*|\1 ${MPICXX}|g" \
-                    -e "s|\(PAR_ND_LIBRARY *=\).*|\1 parmetis|g" \
-                    -e "s|\(SEQ_ND_LIBRARY *=\).*|\1 metis|g" \
+                    -e "s|\(USE_SYMPACK *=\).*|\1 0|g" \
                     -e "s|\(PEXSI_DIR *=\).*|\1 ${PWD}|g" \
                     -e "s|\(PEXSI_BUILD_DIR *=\).*|\1 ${pkg_install_dir}|g" \
                     -e "s|\(CPP_LIB *=\).*|\1 -lstdc++ ${MPI_LDFLAGS} ${MPI_LIBS} |g" \
                     -e "s|\(LAPACK_LIB *=\).*|\1 ${MATH_LDFLAGS} $(resolve_string "${MATH_LIBS}")|g" \
                     -e "s|\(BLAS_LIB *=\).*|\1|g" \
                     -e "s|\(\bMETIS_LIB *=\).*|\1 ${METIS_LDFLAGS} ${METIS_LIBS}|g" \
-                    -e "s|\(PARMETIS_LIB *=\).*|\1 ${PARMETIS_LDFLAGS} ${PARMETIS_LIBS}|g" \
+                    -e "s|\(PARMETIS_LIB *=\).*|\1 |g" \
                     -e "s|\(DSUPERLU_LIB *=\).*|\1 ${SUPERLU_LDFLAGS} -lsuperlu_dist|g" \
                     -e "s|\(SCOTCH_LIB *=\).*|\1 ${SCOTCH_LDFLAGS} -lscotchmetis -lscotch -lscotcherr|g" \
                     -e "s|\(PTSCOTCH_LIB *=\).*|\1 ${SCOTCH_LDFLAGS} -lptscotchparmetis -lptscotch -lptscotcherr -lscotch|g" \
                     -e "s|\(DSUPERLU_INCLUDE *=\).*|\1 ${SUPERLU_CFLAGS}|g" \
-                    -e "s|\(INCLUDES *=\).*|\1 ${METIS_CFLAGS} ${PARMETIS_CFLAGS} ${MATH_CFLAGS} \${DSUPERLU_INCLUDE} \${PEXSI_INCLUDE}|g" \
+                    -e "s|\(INCLUDES *=\).*|\1 ${MATH_CFLAGS} \${DSUPERLU_INCLUDE} \${PEXSI_INCLUDE}|g" \
                     -e "s|\(COMPILE_FLAG *=\).*|\1 ${CFLAGS}|g" \
                     -e "s|\(SUFFIX *=\).*|\1 ${OPENBLAS_ARCH}|g" \
                     -e "s|\(DSUPERLU_DIR *=\).*|\1|g" \
@@ -72,7 +67,12 @@ case "$with_pexsi" in
                     -e "s|\(PTSCOTCH_DIR *=\).*|\1|g" \
                     -e "s|\(LAPACK_DIR *=\).*|\1|g" \
                     -e "s|\(BLAS_DIR *=\).*|\1|g" \
+                    -e "s|-DCOREDUMPER||g" \
+                    -e "s|\(COREDUMPER_LIB *=\).*||g" \
                     -e "s|\(GFORTRAN_LIB *=\).*|\1 -lgfortran|g" > make.inc
+
+            # Seemingly this should've been moved together with the other fortran files.
+            mv ./src/f_interface.f90 ./fortran/
 
             make finstall > make.log 2>&1 # still issues with parallel make (fortran_examples target)
 
@@ -117,10 +117,10 @@ EOF
 export PEXSI_CFLAGS="${PEXSI_CFLAGS}"
 export PEXSI_LDFLAGS="${PEXSI_LDFLAGS}"
 export PEXSI_LIBS="${PEXSI_LIBS}"
-export CP_DFLAGS="\${CP_DFLAGS} IF_MPI(-D__LIBPEXSI|)"
-export CP_CFLAGS="\${CP_CFLAGS} IF_MPI(${PEXSI_CFLAGS}|)"
-export CP_LDFLAGS="\${CP_LDFLAGS} IF_MPI(${PEXSI_LDFLAGS}|)"
-export CP_LIBS="IF_MPI(${PEXSI_LIBS}|) \${CP_LIBS}"
+export CP_DFLAGS="\${CP_DFLAGS} IF_MPI(IF_OMP(-D__LIBPEXSI|)|)"
+export CP_CFLAGS="\${CP_CFLAGS} IF_MPI(IF_OMP(${PEXSI_CFLAGS}|)|)"
+export CP_LDFLAGS="\${CP_LDFLAGS} IF_MPI(IF_OMP(${PEXSI_LDFLAGS}|)|)"
+export CP_LIBS="IF_MPI(IF_OMP(${PEXSI_LIBS}|)|) \${CP_LIBS}"
 EOF
 fi
 

@@ -51,9 +51,11 @@ RUN ./scripts/install_valgrind.sh && rm -rf ./build
 
 COPY ./scripts/install_mpich.sh \
      ./scripts/install_openmpi.sh \
+     ./scripts/install_intelmpi.sh \
      ./scripts/
 RUN ./scripts/install_openmpi.sh && \
     ./scripts/install_mpich.sh && \
+    ./scripts/install_intelmpi.sh && \
     rm -rf ./build
 
 COPY ./scripts/install_reflapack.sh \
@@ -76,24 +78,22 @@ RUN ./scripts/install_libxc.sh && rm -rf ./build
 COPY ./scripts/install_libsmm.sh \
      ./scripts/install_libxsmm.sh \
      ./scripts/install_scalapack.sh \
+     ./scripts/install_cosma.sh \
      ./scripts/
 RUN ./scripts/install_libsmm.sh && \
     ./scripts/install_libxsmm.sh && \
-    ./scripts/install_scalapack.sh && \
+    ./scripts/install_scalapack.sh && \ 
+    ./scripts/install_cosma.sh && \
     rm -rf ./build
 
 COPY ./scripts/install_elpa.sh ./scripts/
 RUN ./scripts/install_elpa.sh && rm -rf ./build
 
 COPY ./scripts/install_ptscotch.sh \
-     ./scripts/install_parmetis.sh \
-     ./scripts/install_metis.sh \
      ./scripts/install_superlu.sh \
      ./scripts/install_pexsi.sh \
      ./scripts/
 RUN ./scripts/install_ptscotch.sh && \
-    ./scripts/install_parmetis.sh && \
-    ./scripts/install_metis.sh && \
     ./scripts/install_superlu.sh && \
     ./scripts/install_pexsi.sh && \
     rm -rf ./build
