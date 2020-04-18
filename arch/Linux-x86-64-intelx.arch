@@ -101,6 +101,9 @@ else # GNU
   OMPRT ?= gomp
   ifeq (0,$(SYM))
     IPO ?= 1
+  #else
+    #OPT ?= 2
+    #OPTFLAGS += -fno-lto -Wl,-fno-lto
   endif
 endif
 IPO ?= 0
@@ -318,10 +321,10 @@ ifeq (0,$(GNU)) # Intel
     CFLAGS   += -fno-alias -ansi-alias $(FPCMODEL) $(FPFLAGS)
     CXXFLAGS += -fno-alias -ansi-alias $(FPCMODEL) $(FPFLAGS)
     ifneq (0,$(shell echo "$$((190004 <= $(CC_VERSION)))"))
-      OPT = 3
+      OPT ?= 3
     else
       FCFLAGS += -heap-arrays
-      OPT = 2
+      OPT ?= 2
     endif
     #OPTFLAGS += -qoverride_limits
     ifneq (0,$(shell echo $$((1 < $(OPT)))))
@@ -339,7 +342,7 @@ ifeq (0,$(GNU)) # Intel
     ifneq (0,$(FPE))
       FCFLAGS += -fpe0 # debugging NaNs
     endif
-    OPT = 0
+    OPT ?= 0
   endif
   FCFLAGS += -free -fpp
   # more recent IFORT versions enable F2008 by default
@@ -392,7 +395,7 @@ else # GNU GCC
     ifneq (0,$(IPO))
       OPTFLAGS += -flto -Wl,-flto -Wno-lto-type-mismatch
     endif
-    OPT = 3
+    OPT ?= 3
   else
     FCFLAGS += \
       -fimplicit-none -fsanitize=leak -fcheck=all -finit-derived -finit-real=snan -finit-integer=-42 -finline-matmul-limit=0 \
@@ -406,7 +409,7 @@ else # GNU GCC
     ifneq (0,$(FPE))
       FCFLAGS += -ffpe-trap=invalid,zero,overflow
     endif
-    OPT = 0
+    OPT ?= 0
   endif
   DFLAGS += -D__HAS_NO_MPI_MOD
   MKL_OMPRTL = gnu
