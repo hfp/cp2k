@@ -97,11 +97,13 @@ endif
 endif
 ifeq (0,$(GNU))
   OMPRT ?= iomp5
-  IPO ?= 0
 else # GNU
   OMPRT ?= gomp
-  IPO ?= 1
+  ifeq (0,$(SYM))
+    IPO ?= 1
+  endif
 endif
+IPO ?= 0
 
 ifneq (0,$(OMP))
   MKL ?= 2
