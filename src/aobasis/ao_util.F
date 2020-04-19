@@ -319,26 +319,24 @@ CONTAINS
 
       IF (l .LT. 0) THEN
          CPABORT("The angular momentum quantum number is negative")
-      END IF
+      ENDIF
 
       IF (alpha == 0.0_dp) THEN
          CPABORT("The Gaussian function exponent is zero")
       ELSE
          a = ABS(alpha)
-      END IF
+      ENDIF
 
       IF (threshold .NE. 0.0_dp) THEN
          t = ABS(threshold)
       ELSE
          CPABORT("The requested threshold is zero")
-      END IF
+      ENDIF
 
       IF (PRESENT(epsabs)) THEN
          absiter = epsabs
       ELSE
          absiter = EPSILON(absiter)*(1.0E-12_dp/2.22044604925031E-16_dp)
-      ENDIF
-      IF (PRESENT(rlow)) THEN
       ENDIF
 
       d = ABS(prefactor)
@@ -350,11 +348,18 @@ CONTAINS
       ! avoid system calls in tight/arithmetic loops
       IF (maxiter .LT. iter) THEN
          CPABORT("Maximum number of iterations reached")
-      END IF
-      IF (r0 .GE. r1) THEN
+      ENDIF
+      IF (r0 .EQ. r1) THEN
          radius = r1
          RETURN
-      END IF
+      ENDIF
+      ! early exit (search for maximum)
+      IF (PRESENT(rlow)) THEN
+         IF (r1 .LE. rlow) THEN
+            radius = rlow
+            RETURN
+         ENDIF
+      ENDIF
 
       ! calculate trip count (deterministic after exp_radius_fast)
       IF (PRESENT(epsrel)) THEN
@@ -365,6 +370,7 @@ CONTAINS
 
       ! GSS/CEILING is slightly faster
       rd = r1 - r0
+      CPASSERT(0 .LE. rd)
       IF (eps .LT. rd) THEN
          neps = CEILING(LOG(eps/rd)/logc)
       ELSE
@@ -837,7 +843,7 @@ CONTAINS
 
       IF (lmax1 > 3 .OR. lmax2 > 3) THEN
          CPABORT("l>3 not implemented")
-      END IF
+      ENDIF
       DO idx_l2 = 1, nsoset(lmax2)
 
          mat_aux(1, idx_l2, :) &
@@ -1019,7 +1025,7 @@ CONTAINS
 
       IF ((lmax1 > 3) .OR. (lmax2 > 3)) THEN
          CPABORT("l > 3 not implemented")
-      END IF
+      ENDIF
 
       DO idx_l2 = 1, ncoset(lmax2)
 
