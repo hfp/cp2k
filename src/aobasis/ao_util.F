@@ -290,6 +290,7 @@ CONTAINS
 !>                     coefficient).
 !> \param epsabs Convergence criterion
 !> \param epsrel ...
+!> \param rlow Optional lower bound radius when searching maximum radius
 !> \return Calculated radius of the Gaussian function
 !> \date    26.02.1999
 !> \par History
@@ -303,10 +304,10 @@ CONTAINS
 !> \author  MK
 !> \version 2.0
 ! **************************************************************************************************
-   FUNCTION exp_radius(l, alpha, threshold, prefactor, epsabs, epsrel) RESULT(radius)
+   FUNCTION exp_radius(l, alpha, threshold, prefactor, epsabs, epsrel, rlow) RESULT(radius)
       INTEGER, INTENT(IN)                                :: l
       REAL(KIND=dp), INTENT(IN)                          :: alpha, threshold, prefactor
-      REAL(KIND=dp), INTENT(IN), OPTIONAL                :: epsabs, epsrel
+      REAL(KIND=dp), INTENT(IN), OPTIONAL                :: epsabs, epsrel, rlow
       REAL(KIND=dp)                                      :: radius
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius', routineP = moduleN//':'//routineN
@@ -337,6 +338,8 @@ CONTAINS
       ELSE
          absiter = EPSILON(absiter)*(1.0E-12_dp/2.22044604925031E-16_dp)
       ENDIF
+      IF (PRESENT(rlow)) THEN
+      ENDIF
 
       d = ABS(prefactor)
       iter = maxiter
@@ -348,13 +351,10 @@ CONTAINS
       IF (maxiter .LT. iter) THEN
          CPABORT("Maximum number of iterations reached")
       END IF
-      IF (r0 .EQ. r1) THEN
+      IF (r0 .GE. r1) THEN
          radius = r1
          RETURN
       END IF
-
-      CPASSERT(r0 .LT. r1)
-      rd = r1 - r0
 
       ! calculate trip count (deterministic after exp_radius_fast)
       IF (PRESENT(epsrel)) THEN
@@ -364,6 +364,7 @@ CONTAINS
       ENDIF
 
       ! GSS/CEILING is slightly faster
+      rd = r1 - r0
       IF (eps .LT. rd) THEN
          neps = CEILING(LOG(eps/rd)/logc)
       ELSE
