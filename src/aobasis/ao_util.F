@@ -494,7 +494,7 @@ CONTAINS
       polycoef(0:la_max + lb_max) = polycoef(0:la_max + lb_max)*prefactor_local
       radius = 0.0_dp
       DO i = 0, la_max + lb_max
-         radius = MAX(radius, exp_radius(i, zetp, eps, polycoef(i), epsin_local))
+         radius = MAX(radius, exp_radius(i, zetp, eps, polycoef(i), epsin_local, rlow=radius))
       ENDDO
 
    END FUNCTION exp_radius_very_extended
