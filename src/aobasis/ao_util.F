@@ -11,7 +11,7 @@
 ! **************************************************************************************************
 MODULE ao_util
 
-   USE kinds,                           ONLY: dp
+   USE kinds,                           ONLY: dp, sp
    USE mathconstants,                   ONLY: &
         dfac, fac, fourpi, oorootpi, rootpi, sqrt105, sqrt15, sqrt2, sqrt21, sqrt3, sqrt35, sqrt5, &
         sqrt7, sqrthalf
@@ -228,9 +228,10 @@ CONTAINS
       CPASSERT(0 .LT. radius)
 
       ! optionally ensure t<=g(rlow) and g(radius)<t
+      ! use mixed precision to form interval (SP/DP)
       IF (PRESENT(rlow)) THEN
          DO i = i + 1, n
-            g = d*rtmp**l*EXP(-a*rtmp*rtmp)
+            g = d*rtmp**l*REAL(EXP(REAL(-a*rtmp*rtmp, KIND=sp)), KIND=dp)
             IF (t .LE. g) THEN
                rlow = rtmp
                EXIT
@@ -238,7 +239,7 @@ CONTAINS
             rtmp = MAX(rtmp*rscope, r)
          ENDDO
          DO i = i + 1, n
-            g = d*radius**l*EXP(-a*radius*radius)
+            g = d*radius**l*REAL(EXP(REAL(-a*radius*radius, KIND=sp)), KIND=dp)
             IF (g .LT. t) EXIT
             radius = scope*radius
          ENDDO
@@ -313,6 +314,7 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius', routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: maxiter = 5000
       REAL(KIND=dp), PARAMETER :: contract = 0.38_dp, logc = LOG(MAX(1.0_dp - contract, contract))
+      REAL(KIND=sp), PARAMETER :: invc = REAL(1.0_dp/logc, KIND=sp)
 
       INTEGER                                            :: iter, neps
       REAL(KIND=dp)                                      :: a, absiter, d, eps, g, r0, r1, rd, rg, t
@@ -354,7 +356,7 @@ CONTAINS
       IF (PRESENT(rlow)) THEN
          IF (r0 < rlow) THEN
             r0 = rlow
-         ELSE
+         ELSE IF (0 .LT. rlow) THEN
             r1 = r0
          ENDIF
       ENDIF
@@ -374,7 +376,7 @@ CONTAINS
       ! GSS/CEILING is slightly faster
       rd = r1 - r0
       IF (eps .LT. rd) THEN
-         neps = CEILING(LOG(eps/rd)/logc)
+         neps = CEILING(LOG(REAL(eps/rd, KIND=sp))*invc)
       ELSE
          neps = 1
       ENDIF
