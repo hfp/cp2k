@@ -347,7 +347,7 @@ CONTAINS
 
       ! early exit (search for maximum)
       IF (PRESENT(rlow)) THEN
-         r0 = rlow
+         r0 = MAX(r0, rlow)
       ENDIF
       IF (r0 .GE. r1) THEN
          radius = MAX(r0, r1)
