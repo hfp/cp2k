@@ -215,7 +215,7 @@ CONTAINS
                      lppl = 2*(i - 1)
                      ppl_radius = MAX(ppl_radius, &
                                       exp_radius(lppl, alpha_lsd(j), qs_control%eps_ppl, &
-                                      cval_lsd(i, j), rlow=ppl_radius))
+                                                 cval_lsd(i, j), rlow=ppl_radius))
                   END DO
                END DO
             END IF
@@ -346,9 +346,8 @@ CONTAINS
                DO ip = 1, nprj(lprj)
                   zeta = zet(ip, lprj)
                   rzetprj(ip, lprj) = MAX(rzetprj(ip, lprj), &
-                                          exp_radius(lprj, zeta, &
-                                                     qs_control%eps_pgf_orb, 1.0_dp,
-                                                     rlow=rzetprj(ip, lprj)))
+                                          exp_radius(lprj, zeta, qs_control%eps_pgf_orb, &
+                                                     1.0_dp, rlow=rzetprj(ip, lprj)))
                   rcprj = MAX(rcprj, rzetprj(ip, lprj))
                ENDDO
             ENDDO
