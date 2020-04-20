@@ -342,24 +342,25 @@ CONTAINS
       d = ABS(prefactor)
       iter = maxiter
 
-      ! assume data-dependent iterations only in exp_radius_fast (approximative)
+      ! aim for data-dependent iterations only in exp_radius_fast (approximative)
       r1 = exp_radius_fast(l, a, t, d, absiter, epsrel, rlow=r0, maxiter=iter)
+
+      ! avoid system calls in tight/arithmetic loops
+      IF (maxiter .LT. iter) THEN
+         CPABORT("Maximum number of iterations reached")
+      ENDIF
 
       ! early exit (search for maximum)
       IF (PRESENT(rlow)) THEN
          IF (r0 < rlow) THEN
             r0 = rlow
-         ELSE ! g(r1) <= t according to exp_radius_fast
-            r0 = r1
+         ELSE
+            r1 = r0
          ENDIF
       ENDIF
       IF (r0 .GE. r1) THEN
          radius = MAX(r0, r1)
          RETURN
-      ENDIF
-      ! avoid system calls in tight/arithmetic loops
-      IF (maxiter .LT. iter) THEN
-         CPABORT("Maximum number of iterations reached")
       ENDIF
       CPASSERT(r0 .LE. r1)
 
