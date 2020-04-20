@@ -347,7 +347,11 @@ CONTAINS
 
       ! early exit (search for maximum)
       IF (PRESENT(rlow)) THEN
-         r0 = MAX(r0, rlow)
+         IF (r0 < rlow) THEN
+            r0 = rlow
+         ELSE ! g(r1) <= t according to exp_radius_fast
+            r0 = r1
+         ENDIF
       ENDIF
       IF (r0 .GE. r1) THEN
          radius = MAX(r0, r1)
