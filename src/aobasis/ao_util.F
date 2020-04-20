@@ -345,21 +345,19 @@ CONTAINS
       ! assume data-dependent iterations only in exp_radius_fast (approximative)
       r1 = exp_radius_fast(l, a, t, d, absiter, epsrel, rlow=r0, maxiter=iter)
 
+      ! early exit (search for maximum)
+      IF (PRESENT(rlow)) THEN
+         r0 = rlow
+      ENDIF
+      IF (r0 .GE. r1) THEN
+         radius = MAX(r0, r1)
+         RETURN
+      ENDIF
       ! avoid system calls in tight/arithmetic loops
       IF (maxiter .LT. iter) THEN
          CPABORT("Maximum number of iterations reached")
       ENDIF
-      IF (r0 .EQ. r1) THEN
-         radius = r1
-         RETURN
-      ENDIF
-      ! early exit (search for maximum)
-      IF (PRESENT(rlow)) THEN
-         IF (r1 .LE. rlow) THEN
-            radius = rlow
-            RETURN
-         ENDIF
-      ENDIF
+      CPASSERT(r0 .LE. r1)
 
       ! calculate trip count (deterministic after exp_radius_fast)
       IF (PRESENT(epsrel)) THEN
@@ -370,7 +368,6 @@ CONTAINS
 
       ! GSS/CEILING is slightly faster
       rd = r1 - r0
-      CPASSERT(0 .LE. rd)
       IF (eps .LT. rd) THEN
          neps = CEILING(LOG(eps/rd)/logc)
       ELSE
