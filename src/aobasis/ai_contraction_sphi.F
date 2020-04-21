@@ -256,7 +256,7 @@ CONTAINS
       INTEGER                                            :: handle, i
 #if(__LIBXSMM)
       REAL(dp), DIMENSION(:, :), POINTER                 :: abc, ccp
-      INTEGER(libxsmm_blasint_kind)                      :: mnk(6)
+      INTEGER(libxsmm_blasint_kind)                      :: m, n, k
       TYPE(libxsmm_dmmfunction), DIMENSION(2)            :: xmm
 #endif
 
@@ -267,9 +267,10 @@ CONTAINS
       !We loop over the last index of the matrix and call libxsmm each time
 
       !pre-fetch the kernels
-      mnk = [nsgfa, nsgfb, nsgfc, ncoa, ncob, ncoc]
-      CALL libxsmm_dispatch(xmm(1), mnk(1), mnk(5), mnk(4), beta=0.0_dp, prefetch=LIBXSMM_PREFETCH_NONE)
-      CALL libxsmm_dispatch(xmm(2), mnk(1), mnk(2), mnk(5), beta=0.0_dp, prefetch=LIBXSMM_PREFETCH_NONE)
+      m = nsgfa; n = ncob; k = ncoa
+      CALL libxsmm_dispatch(xmm(1), m, n, k, beta=0.0_dp, prefetch=LIBXSMM_PREFETCH_NONE)
+      m = nsgfa; n = nsgfb; k = ncob
+      CALL libxsmm_dispatch(xmm(2), m, n, k, beta=0.0_dp, prefetch=LIBXSMM_PREFETCH_NONE)
 
       !contractions over a and b
       DO i = 1, ncoc
@@ -281,7 +282,8 @@ CONTAINS
       !note: libxsmm_dgemm falls back to BLAS if matrix too large
       CALL C_F_POINTER(C_LOC(ccp_buffer), ccp, [nsgfa*nsgfb, ncoc])
       CALL C_F_POINTER(C_LOC(abcint), abc, [nsgfa*nsgfb, nsgfc])
-      CALL libxsmm_dgemm(m=mnk(1)*mnk(2), n=mnk(3), k=mnk(6), a=ccp, b=sphi_c, beta=0.0_dp, c=abc)
+      m = nsgfa*nsgfb; n = nsgfc; k = ncoc
+      CALL libxsmm_dgemm(m=m, n=n, k=k, a=ccp, b=sphi_c, beta=0.0_dp, c=abc)
 
 #else
 
