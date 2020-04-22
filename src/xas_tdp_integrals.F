@@ -9,88 +9,93 @@
 ! **************************************************************************************************
 
 MODULE xas_tdp_integrals
-   USE ai_contraction_sphi,             ONLY: ab_contract,&
-                                              libxsmm_abc_contract
-   USE atomic_kind_types,               ONLY: atomic_kind_type
-   USE basis_set_types,                 ONLY: get_gto_basis_set,&
-                                              gto_basis_set_p_type,&
-                                              gto_basis_set_type
-   USE cell_types,                      ONLY: cell_type
-   USE constants_operator,              ONLY: operator_coulomb
-   USE cp_array_utils,                  ONLY: cp_1d_i_p_type,&
-                                              cp_2d_r_p_type
-   USE cp_blacs_env,                    ONLY: cp_blacs_env_type
-   USE cp_dbcsr_operations,             ONLY: cp_dbcsr_dist2d_to_dist
-   USE cp_eri_mme_interface,            ONLY: cp_eri_mme_param,&
-                                              cp_eri_mme_set_params
-   USE cp_files,                        ONLY: close_file,&
-                                              open_file
-   USE cp_para_types,                   ONLY: cp_para_env_type
-   USE dbcsr_api,                       ONLY: dbcsr_distribution_get,&
-                                              dbcsr_distribution_release,&
-                                              dbcsr_distribution_type
-   USE dbcsr_tensor_api,                ONLY: &
-        dbcsr_t_create, dbcsr_t_distribution_destroy, dbcsr_t_distribution_new, &
-        dbcsr_t_distribution_type, dbcsr_t_finalize, dbcsr_t_pgrid_create, dbcsr_t_pgrid_destroy, &
-        dbcsr_t_pgrid_type, dbcsr_t_put_block, dbcsr_t_reserve_blocks, dbcsr_t_type
-   USE distribution_1d_types,           ONLY: distribution_1d_type
-   USE distribution_2d_types,           ONLY: distribution_2d_create,&
-                                              distribution_2d_type
-   USE eri_mme_integrate,               ONLY: eri_mme_2c_integrate
-   USE eri_mme_types,                   ONLY: eri_mme_init,&
-                                              eri_mme_release
-   USE gamma,                           ONLY: init_md_ftable
-   USE generic_os_integrals,            ONLY: int_operators_r12_ab_os
-   USE input_constants,                 ONLY: do_potential_coulomb,&
-                                              do_potential_id,&
-                                              do_potential_short,&
-                                              do_potential_truncated
-   USE input_section_types,             ONLY: section_vals_val_get
-   USE kinds,                           ONLY: dp
-   USE libint_2c_3c,                    ONLY: cutoff_screen_factor,&
-                                              eri_2center,&
-                                              eri_3center,&
-                                              libint_potential_type
-   USE libint_wrapper,                  ONLY: cp_libint_cleanup_2eri,&
-                                              cp_libint_cleanup_3eri,&
-                                              cp_libint_init_2eri,&
-                                              cp_libint_init_3eri,&
-                                              cp_libint_set_contrdepth,&
-                                              cp_libint_t
-   USE mathlib,                         ONLY: invmat_symm
-   USE message_passing,                 ONLY: mp_sum,&
-                                              mp_sync
-   USE molecule_types,                  ONLY: molecule_type
-   USE orbital_pointers,                ONLY: ncoset
-   USE particle_methods,                ONLY: get_particle_set
-   USE particle_types,                  ONLY: particle_type
-   USE qs_environment_types,            ONLY: get_qs_env,&
-                                              qs_environment_type
-   USE qs_integral_utils,               ONLY: basis_set_list_setup
-   USE qs_kind_types,                   ONLY: get_qs_kind,&
-                                              qs_kind_type
-   USE qs_neighbor_list_types,          ONLY: &
-        get_iterator_info, get_neighbor_list_set_p, neighbor_list_iterate, &
-        neighbor_list_iterator_create, neighbor_list_iterator_p_type, &
-        neighbor_list_iterator_release, neighbor_list_set_p_type, nl_set_sub_iterator, &
-        nl_sub_iterate, release_neighbor_list_sets
-   USE qs_neighbor_lists,               ONLY: atom2d_build,&
-                                              atom2d_cleanup,&
-                                              build_neighbor_lists,&
-                                              local_atoms_type,&
-                                              pair_radius_setup
-   USE qs_o3c_types,                    ONLY: get_o3c_iterator_info,&
-                                              init_o3c_container,&
-                                              o3c_container_type,&
-                                              o3c_iterate,&
-                                              o3c_iterator_create,&
-                                              o3c_iterator_release,&
-                                              o3c_iterator_type,&
-                                              release_o3c_container
-   USE t_c_g0,                          ONLY: get_lmax_init,&
-                                              init
-   USE xas_tdp_types,                   ONLY: xas_tdp_control_type,&
-                                              xas_tdp_env_type
+   USE ai_contraction_sphi, ONLY: ab_contract, &
+                                  libxsmm_abc_contract
+   USE atomic_kind_types, ONLY: atomic_kind_type
+   USE basis_set_types, ONLY: get_gto_basis_set, &
+                              gto_basis_set_p_type, &
+                              gto_basis_set_type
+   USE cell_types, ONLY: cell_type
+   USE constants_operator, ONLY: operator_coulomb
+   USE cp_array_utils, ONLY: cp_1d_i_p_type, &
+                             cp_2d_r_p_type
+   USE cp_blacs_env, ONLY: cp_blacs_env_type
+   USE cp_dbcsr_operations, ONLY: cp_dbcsr_dist2d_to_dist
+   USE cp_eri_mme_interface, ONLY: cp_eri_mme_param, &
+                                   cp_eri_mme_set_params
+   USE cp_files, ONLY: close_file, &
+                       open_file
+   USE cp_para_types, ONLY: cp_para_env_type
+   USE dbcsr_api, ONLY: dbcsr_distribution_get, &
+                        dbcsr_distribution_release, &
+                        dbcsr_distribution_type
+   USE dbcsr_tensor_api, ONLY: &
+      dbcsr_t_create, dbcsr_t_distribution_destroy, dbcsr_t_distribution_new, &
+      dbcsr_t_distribution_type, dbcsr_t_finalize, dbcsr_t_pgrid_create, dbcsr_t_pgrid_destroy, &
+      dbcsr_t_pgrid_type, dbcsr_t_put_block, dbcsr_t_reserve_blocks, dbcsr_t_type
+   USE distribution_1d_types, ONLY: distribution_1d_type
+   USE distribution_2d_types, ONLY: distribution_2d_create, &
+                                    distribution_2d_type
+   USE eri_mme_integrate, ONLY: eri_mme_2c_integrate
+   USE eri_mme_types, ONLY: eri_mme_init, &
+                            eri_mme_release
+   USE gamma, ONLY: init_md_ftable
+   USE generic_os_integrals, ONLY: int_operators_r12_ab_os
+   USE input_constants, ONLY: do_potential_coulomb, &
+                              do_potential_id, &
+                              do_potential_short, &
+                              do_potential_truncated
+   USE input_section_types, ONLY: section_vals_val_get
+   USE kinds, ONLY: dp
+   USE libint_2c_3c, ONLY: cutoff_screen_factor, &
+                           eri_2center, &
+                           eri_3center, &
+                           libint_potential_type
+   USE libint_wrapper, ONLY: cp_libint_cleanup_2eri, &
+                             cp_libint_cleanup_3eri, &
+                             cp_libint_init_2eri, &
+                             cp_libint_init_3eri, &
+                             cp_libint_set_contrdepth, &
+                             cp_libint_t
+   USE mathlib, ONLY: invmat_symm
+   USE message_passing, ONLY: mp_sum, &
+                              mp_sync
+   USE molecule_types, ONLY: molecule_type
+   USE orbital_pointers, ONLY: ncoset
+   USE particle_methods, ONLY: get_particle_set
+   USE particle_types, ONLY: particle_type
+   USE qs_environment_types, ONLY: get_qs_env, &
+                                   qs_environment_type
+   USE qs_integral_utils, ONLY: basis_set_list_setup
+   USE qs_kind_types, ONLY: get_qs_kind, &
+                            qs_kind_type
+   USE qs_neighbor_list_types, ONLY: &
+      get_iterator_info, get_neighbor_list_set_p, neighbor_list_iterate, &
+      neighbor_list_iterator_create, neighbor_list_iterator_p_type, &
+      neighbor_list_iterator_release, neighbor_list_set_p_type, nl_set_sub_iterator, &
+      nl_sub_iterate, release_neighbor_list_sets
+   USE qs_neighbor_lists, ONLY: atom2d_build, &
+                                atom2d_cleanup, &
+                                build_neighbor_lists, &
+                                local_atoms_type, &
+                                pair_radius_setup
+   USE qs_o3c_types, ONLY: get_o3c_iterator_info, &
+                           init_o3c_container, &
+                           o3c_container_type, &
+                           o3c_iterate, &
+                           o3c_iterator_create, &
+                           o3c_iterator_release, &
+                           o3c_iterator_type, &
+                           release_o3c_container
+   USE t_c_g0, ONLY: get_lmax_init, &
+                     init
+   USE xas_tdp_types, ONLY: xas_tdp_control_type, &
+                            xas_tdp_env_type
+#if(__LIBXSMM)
+   USE libxsmm, ONLY: LIBXSMM_DATATYPE_F64, &
+                      libxsmm_otrans, &
+                      libxsmm_ptr
+#endif
 
 !$ USE OMP_LIB, ONLY: omp_get_max_threads, omp_get_thread_num
 #include "./base/base_uses.f90"
@@ -295,7 +300,8 @@ CONTAINS
                                                             max_contrc
       REAL(dp), ALLOCATABLE, DIMENSION(:, :, :)          :: iabc, sabc, work
       REAL(dp), DIMENSION(:), POINTER                    :: set_radius_a, set_radius_b, set_radius_c
-      REAL(dp), DIMENSION(:, :), POINTER                 :: rpgf_a, rpgf_b, rpgf_c, zeta, zetb, zetc
+      REAL(dp), DIMENSION(:, :), POINTER                 :: rpgf_a, rpgf_b, rpgf_c, sphi_a, sphi_b, &
+                                                            sphi_c, zeta, zetb, zetc
       TYPE(cp_2d_r_p_type), DIMENSION(:, :), POINTER     :: spb, spc, tspa
       TYPE(cp_libint_t)                                  :: lib
       TYPE(cp_para_env_type), POINTER                    :: para_env
@@ -308,7 +314,7 @@ CONTAINS
       NULLIFY (basis_set, basis_set_list, para_env, la_max, la_min)
       NULLIFY (lb_max, lb_min, lc_max, lc_min, npgfa, npgfb, npgfc, nsgfa, nsgfb, nsgfc)
       NULLIFY (first_sgfa, first_sgfb, first_sgfc, set_radius_a, set_radius_b, set_radius_c)
-      NULLIFY (rpgf_a, rpgf_b, rpgf_c, zeta, zetb, zetc)
+      NULLIFY (rpgf_a, rpgf_b, rpgf_c, sphi_a, sphi_b, sphi_c, zeta, zetb, zetc)
       NULLIFY (basis_set_a, basis_set_b, basis_set_c, tspa, spb, spc)
 
       CALL timeset(routineN, handle)
@@ -429,7 +435,13 @@ CONTAINS
 
                IF (ilist == 1) THEN
                   ALLOCATE (tspa(iset, ibasis)%array(basis_set%nsgf_set(iset), ncoa))
+#if defined(__LIBXSMM)
+                  CALL libxsmm_otrans(libxsmm_ptr(tspa(iset, ibasis)%array), &
+                                      libxsmm_ptr(basis_set%sphi(1:ncoa, sgfa:egfa)), &
+                                      LIBXSMM_DATATYPE_F64, ncoa, egfa - sgfa + 1)
+#else
                   tspa(iset, ibasis)%array(:, :) = TRANSPOSE(basis_set%sphi(1:ncoa, sgfa:egfa))
+#endif
                ELSE IF (ilist == 2) THEN
                   ALLOCATE (spb(iset, ibasis)%array(ncoa, basis_set%nsgf_set(iset)))
                   spb(iset, ibasis)%array(:, :) = basis_set%sphi(1:ncoa, sgfa:egfa)
@@ -483,8 +495,9 @@ CONTAINS
 !$OMP          iatom,ikind,jatom,jkind,katom,kkind,rij,rik,rjk,basis_set_a,nsetb,&
 !$OMP          la_max,la_min,lb_max,lb_min,lc_max,lc_min,npgfa,npgfb,npgfc,nsgfa,nsgfb,nsgfc,ri,rk,&
 !$OMP          first_sgfa,first_sgfb,first_sgfc,set_radius_a,set_radius_b,set_radius_c, nsetc,rj,&
-!$OMP          rpgf_a,rpgf_b,rpgf_c,zeta,zetb,zetc,basis_set_b,basis_set_c,dij,dik,djk,ni,nj,nk,&
-!$OMP          iabc,sabc,jset,kset,ncob,ncoc,sgfb,sgfc,egfb,egfc,sabc_ext,cpp_buffer,ccp_buffer)
+!$OMP          rpgf_a,rpgf_b,rpgf_c,sphi_a,sphi_b,sphi_c,zeta,zetb,zetc,basis_set_b,basis_set_c,&
+!$OMP          dij,dik,djk,ni,nj,nk,iabc,sabc,jset,kset,ncob,ncoc,sgfb,sgfc,egfb,egfc, &
+!$OMP          sabc_ext,cpp_buffer,ccp_buffer)
 
       mepos = 0
 !$    mepos = omp_get_thread_num()
@@ -512,6 +525,7 @@ CONTAINS
          npgfa => basis_set_a%npgf
          nseta = basis_set_a%nset
          nsgfa => basis_set_a%nsgf_set
+         sphi_a => basis_set_a%sphi
          zeta => basis_set_a%zet
          rpgf_a => basis_set_a%pgf_radius
          set_radius_a => basis_set_a%set_radius
@@ -524,6 +538,7 @@ CONTAINS
          npgfb => basis_set_b%npgf
          nsetb = basis_set_b%nset
          nsgfb => basis_set_b%nsgf_set
+         sphi_b => basis_set_b%sphi
          zetb => basis_set_b%zet
          rpgf_b => basis_set_b%pgf_radius
          set_radius_b => basis_set_b%set_radius
@@ -536,6 +551,7 @@ CONTAINS
          npgfc => basis_set_c%npgf
          nsetc = basis_set_c%nset
          nsgfc => basis_set_c%nsgf_set
+         sphi_c => basis_set_c%sphi
          zetc => basis_set_c%zet
          rpgf_c => basis_set_c%pgf_radius
          set_radius_c => basis_set_c%set_radius

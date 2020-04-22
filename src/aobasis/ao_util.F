@@ -11,7 +11,8 @@
 ! **************************************************************************************************
 MODULE ao_util
 
-   USE kinds,                           ONLY: dp, sp
+   USE kinds,                           ONLY: dp,&
+                                              sp
    USE mathconstants,                   ONLY: &
         dfac, fac, fourpi, oorootpi, rootpi, sqrt105, sqrt15, sqrt2, sqrt21, sqrt3, sqrt35, sqrt5, &
         sqrt7, sqrthalf
@@ -314,7 +315,6 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius', routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: maxiter = 5000
       REAL(KIND=dp), PARAMETER :: contract = 0.38_dp, logc = LOG(MAX(1.0_dp - contract, contract))
-      REAL(KIND=sp), PARAMETER :: invc = REAL(1.0_dp/logc, KIND=sp)
 
       INTEGER                                            :: iter, neps
       REAL(KIND=dp)                                      :: a, absiter, d, eps, g, r0, r1, rd, rg, t
@@ -376,7 +376,7 @@ CONTAINS
       ! GSS/CEILING is slightly faster
       rd = r1 - r0
       IF (eps .LT. rd) THEN
-         neps = CEILING(LOG(REAL(eps/rd, KIND=sp))*invc)
+         neps = CEILING(LOG(REAL(eps/rd, KIND=sp))/logc)
       ELSE
          neps = 1
       ENDIF
@@ -1174,3 +1174,4 @@ CONTAINS
    END SUBROUTINE cart2sph_mat
 
 END MODULE ao_util
+
