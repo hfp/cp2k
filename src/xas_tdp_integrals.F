@@ -92,8 +92,7 @@ MODULE xas_tdp_integrals
    USE xas_tdp_types,                   ONLY: xas_tdp_control_type,&
                                               xas_tdp_env_type
 #if(__LIBXSMM)
-   USE libxsmm,                         ONLY: LIBXSMM_DATATYPE_F64, &
-                                              libxsmm_otrans, &
+   USE libxsmm,                         ONLY: libxsmm_otrans, &
                                               libxsmm_ptr
 #endif
 
@@ -432,10 +431,10 @@ CONTAINS
 
                IF (ilist == 1) THEN
                   ALLOCATE (tspa(iset, ibasis)%array(basis_set%nsgf_set(iset), ncoa))
-#if defined(__LIBXSMM)
+#if defined(__LIBXSMM) && 0
                   CALL libxsmm_otrans(libxsmm_ptr(tspa(iset, ibasis)%array), &
                                       libxsmm_ptr(basis_set%sphi(1:ncoa, sgfa:egfa)), &
-                                      LIBXSMM_DATATYPE_F64, ncoa, egfa - sgfa + 1)
+                                      8, ncoa, egfa - sgfa + 1)
 #else
                   tspa(iset, ibasis)%array(:, :) = TRANSPOSE(basis_set%sphi(1:ncoa, sgfa:egfa))
 #endif
