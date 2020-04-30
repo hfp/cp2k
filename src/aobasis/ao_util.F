@@ -163,20 +163,26 @@ CONTAINS
 
       INTEGER                                            :: i, n
       REAL(KIND=dp)                                      :: a, d, dr, exp_2drsq, exp_2rdr, exp_drsq, &
-                                                            exp_rsq, g, h, r, rd, rtmp, t
+                                                            exp_rsq, g, h, r, r0, rd, rtmp, t
 
       CPASSERT((0 .LT. jump) .AND. (1 .LT. scope))
       t = ABS(threshold)
       d = ABS(prefactor)
       a = ABS(alpha)
-      r = SQRT(0.5_dp*REAL(l, dp)/a)
+      r0 = SQRT(0.5_dp*REAL(l, dp)/a)
+
+      ! facilitate early exit
+      IF (PRESENT(rlow)) THEN
+         rlow = MIN(rlow, r0)
+         r = MAX(rlow, r0)
+      ENDIF
+
       exp_rsq = d*EXP(-a*r*r)
       g = MERGE(exp_rsq*r**l, d, l .NE. 0)
 
-      IF (g .LT. t) THEN ! early exit (radius=0)
+      IF (g .LT. t) THEN ! early exit
          IF (PRESENT(maxiter)) maxiter = 0
-         IF (PRESENT(rlow)) rlow = 0.0_dp
-         radius = 0.0_dp
+         radius = r
          RETURN
       ENDIF
 
@@ -351,17 +357,12 @@ CONTAINS
       IF (maxiter .LT. iter) THEN
          CPABORT("Maximum number of iterations reached")
       ENDIF
+      CPASSERT(r0 .LE. r1)
 
-      ! early exit (search for maximum)
-      IF (PRESENT(rlow)) THEN
-         IF (r0 < rlow) THEN
-            r0 = rlow
-         ELSE IF (0 .LT. rlow) THEN
-            r1 = r0
-         ENDIF
-      ENDIF
-      IF (r0 .GE. r1) THEN
-         radius = MAX(r0, r1)
+      ! facilitate early exit (e.g., search maximum radius)
+      IF (PRESENT(rlow)) r0 = MAX(rlow, r0)
+      IF (r0 .GE. r1) THEN ! early exit
+         radius = r0
          RETURN
       ENDIF
       CPASSERT(r0 .LE. r1)
