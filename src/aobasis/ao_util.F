@@ -163,7 +163,7 @@ CONTAINS
 
       INTEGER                                            :: i, n
       REAL(KIND=dp)                                      :: a, d, dr, exp_2drsq, exp_2rdr, exp_drsq, &
-                                                            exp_rsq, g, h, r, r0, rd, rtmp, t
+                                                            exp_rsq, f, g, h, r, r0, rd, rtmp, t
 
       CPASSERT((0 .LT. jump) .AND. (1 .LT. scope))
       t = ABS(threshold)
@@ -193,10 +193,11 @@ CONTAINS
       ENDIF
 
       ! automatically select initial step size
-      radius = r + jump
-      h = d*radius**l*EXP(-a*radius*radius)
-      dr = (0.5_dp*scope)*(g*radius - h*r)/MAX(g - h, t)
-      CPASSERT(h .LE. g)
+      radius = r + jump; h = d*radius**l*EXP(-a*radius*radius)
+      rd = (0.5_dp*scope)*(g*radius - h*r)/MERGE(g - h, t, g.NE.h)
+      radius = r + rd; f = d*radius**l*EXP(-a*radius*radius)
+      CPASSERT((f .LE. h).AND.(h .LE. g))
+      dr = (0.5_dp*scope)*(g*radius - f*r)/MERGE(g - f, t, g.NE.f)
 
       ! setup fast contraction
       exp_drsq = EXP(-a*dr*dr)
