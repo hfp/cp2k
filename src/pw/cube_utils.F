@@ -90,8 +90,8 @@ CONTAINS
 
       TYPE(cube_info_type), INTENT(IN)                   :: info
       REAL(KIND=dp), INTENT(IN)                          :: radius
-      REAL(KIND=dp), INTENT(IN)                          :: rp(3)
       INTEGER, INTENT(OUT)                               :: lb(3), ub(3)
+      REAL(KIND=dp), INTENT(IN)                          :: rp(3)
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'return_cube_nonortho', &
          routineP = moduleN//':'//routineN

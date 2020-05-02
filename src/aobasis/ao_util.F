@@ -158,8 +158,7 @@ CONTAINS
       REAL(KIND=dp), PARAMETER                           :: scale_step = 0.1_dp
 
       INTEGER                                            :: i, n
-      REAL(KIND=dp)                                      :: a, d, dr, &
-                                                            g, h, r, r0, t
+      REAL(KIND=dp)                                      :: a, d, dr, g, h, r, r0, t
 
       CPASSERT(0 .LT. scale_step)
       t = ABS(threshold)
@@ -187,7 +186,7 @@ CONTAINS
       ENDIF
 
       ! ensure g(radius)<t
-      dr = MAX(scale_step * r, t)
+      dr = MAX(scale_step*r, t)
       DO i = 1, n
          radius = r + dr
          h = d*radius**l*EXP(-a*radius*radius)
@@ -196,7 +195,7 @@ CONTAINS
             IF (PRESENT(rlow)) rlow = r
             EXIT
          ENDIF
-         dr = (g*radius - h*r)/MERGE(g - h, t, g.NE.h)
+         dr = (g*radius - h*r)/MERGE(g - h, t, g .NE. h)
          r = radius
          g = h
       ENDDO
