@@ -142,30 +142,26 @@ CONTAINS
 !> \param alpha Exponent of the primitive Gaussian function.
 !> \param threshold Determines if g(r) is accepted to be zero.
 !> \param prefactor Prefactor of the Gaussian function g(r).
-!> \param epsabs Optional interval width of bracketed radius (automatically chosen if not present).
-!> \param epsrel Optional interval width relative to radius (not enforced if not present).
 !> \param rlow Optional lower bound of interval; ensures (rlow, radius] are not approximated.
 !> \param maxiter Optional maximum number of iterations (HUGE if not present).
 !> \return Calculated radius of the Gaussian function such that g(r) < threshold.
 ! **************************************************************************************************
-   FUNCTION exp_radius_fast(l, alpha, threshold, prefactor, epsabs, epsrel, rlow, maxiter) RESULT(radius)
+   FUNCTION exp_radius_fast(l, alpha, threshold, prefactor, rlow, maxiter) RESULT(radius)
       INTEGER, INTENT(IN)                                :: l
       REAL(KIND=dp), INTENT(IN)                          :: alpha, threshold, prefactor
-      REAL(KIND=dp), INTENT(IN), OPTIONAL                :: epsabs, epsrel
       REAL(KIND=dp), INTENT(OUT), OPTIONAL               :: rlow
       INTEGER, INTENT(INOUT), OPTIONAL                   :: maxiter
       REAL(KIND=dp)                                      :: radius
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius_fast', &
          routineP = moduleN//':'//routineN
-      REAL(KIND=dp), PARAMETER                           :: jump = 1.0_dp, scope = 2.0_dp, &
-                                                            rscope = 1.0_dp/scope
+      REAL(KIND=dp), PARAMETER                           :: scale_step = 0.1_dp
 
       INTEGER                                            :: i, n
-      REAL(KIND=dp)                                      :: a, d, dr, exp_2drsq, exp_2rdr, exp_drsq, &
-                                                            exp_rsq, f, g, h, r, r0, rd, rtmp, t
+      REAL(KIND=dp)                                      :: a, d, dr, &
+                                                            g, h, r, r0, t
 
-      CPASSERT((0 .LT. jump) .AND. (1 .LT. scope))
+      CPASSERT(0 .LT. scale_step)
       t = ABS(threshold)
       d = ABS(prefactor)
       a = ABS(alpha)
@@ -177,9 +173,7 @@ CONTAINS
          r = MAX(rlow, r0)
       ENDIF
 
-      exp_rsq = d*EXP(-a*r*r)
-      g = MERGE(exp_rsq*r**l, d, l .NE. 0)
-
+      g = MERGE(d*EXP(-a*r*r)*r**l, d, l .NE. 0)
       IF (g .LT. t) THEN ! early exit
          IF (PRESENT(maxiter)) maxiter = 0
          radius = r
@@ -192,66 +186,20 @@ CONTAINS
          n = HUGE(i)
       ENDIF
 
-      ! automatically select initial step size
-      radius = r + jump; h = d*radius**l*EXP(-a*radius*radius)
-      rd = (0.5_dp*scope)*(g*radius - h*r)/MERGE(g - h, t, g.NE.h)
-      radius = r + rd; f = d*radius**l*EXP(-a*radius*radius)
-      CPASSERT((f .LE. h).AND.(h .LE. g))
-      dr = (0.5_dp*scope)*(g*radius - f*r)/MERGE(g - f, t, g.NE.f)
-
-      ! setup fast contraction
-      exp_drsq = EXP(-a*dr*dr)
-      exp_2drsq = exp_drsq*exp_drsq
-      exp_2rdr = EXP(-2.0_dp*a*r*dr)
-      radius = r
-      rtmp = r
-      rd = dr
-
-      ! fast contraction (no EXP in loop)
+      ! ensure g(radius)<t
+      dr = MAX(scale_step * r, t)
       DO i = 1, n
-         g = radius**l*exp_rsq
-         IF (g .LT. t) THEN
-            IF (PRESENT(epsabs)) THEN
-               rd = MAX(ABS(epsabs), dr)
-            ENDIF
-            IF (PRESENT(epsrel)) THEN
-               rd = MIN(epsrel*radius, rd)
-            ENDIF
-            IF (rd .LT. dr) THEN
-               radius = rtmp + rd
-               exp_rsq = d*EXP(-a*radius*radius)
-               exp_drsq = EXP(-a*rd*rd)
-               exp_2drsq = exp_drsq*exp_drsq
-               exp_2rdr = EXP(-2.0_dp*a*radius*rd)
-               dr = rd
-               CYCLE
-            ENDIF
+         radius = r + dr
+         h = d*radius**l*EXP(-a*radius*radius)
+         IF (h .LT. t) THEN
+            IF (PRESENT(rlow)) rlow = r
             EXIT
          ENDIF
-         rtmp = radius
-         radius = radius + dr
-         exp_rsq = exp_rsq*exp_drsq*exp_2rdr
-         exp_2rdr = exp_2rdr*exp_2drsq
+         dr = (g*radius - h*r)/MERGE(g - h, t, g.NE.h)
+         r = radius
+         g = h
       ENDDO
-      CPASSERT(0 .LT. radius)
 
-      ! optionally ensure t<=g(rlow) and g(radius)<t
-      ! use mixed precision to form interval (SP/DP)
-      IF (PRESENT(rlow)) THEN
-         DO i = i + 1, n
-            g = d*rtmp**l*REAL(EXP(REAL(-a*rtmp*rtmp, KIND=sp)), KIND=dp)
-            IF (t .LE. g) THEN
-               rlow = rtmp
-               EXIT
-            ENDIF
-            rtmp = MAX(rtmp*rscope, r)
-         ENDDO
-         DO i = i + 1, n
-            g = d*radius**l*REAL(EXP(REAL(-a*radius*radius, KIND=sp)), KIND=dp)
-            IF (g .LT. t) EXIT
-            radius = scope*radius
-         ENDDO
-      ENDIF
       IF (PRESENT(maxiter)) THEN
          maxiter = i
       ENDIF
@@ -265,13 +213,12 @@ CONTAINS
 !> \param threshold Determines if g(r) is accepted to be zero.
 !> \param prefactor Prefactor of the Gaussian function g(r).
 !> \param epsabs Optional interval width of bracketed radius (automatically chosen if not present).
-!> \param epsrel Optional interval width relative to radius (not enforced if not present).
 !> \return Calculated radius of the Gaussian function such that g(r) < threshold.
 ! **************************************************************************************************
-   FUNCTION exp_radius_simple(l, alpha, threshold, prefactor, epsabs, epsrel) RESULT(radius)
+   FUNCTION exp_radius_simple(l, alpha, threshold, prefactor, epsabs) RESULT(radius)
       INTEGER, INTENT(IN)                                :: l
       REAL(KIND=dp), INTENT(IN)                          :: alpha, threshold, prefactor
-      REAL(KIND=dp), INTENT(IN), OPTIONAL                :: epsabs, epsrel
+      REAL(KIND=dp), INTENT(IN), OPTIONAL                :: epsabs
       REAL(KIND=dp)                                      :: radius
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius_simple', &
@@ -285,7 +232,7 @@ CONTAINS
          absiter = EPSILON(absiter)*(1.0E-12_dp/2.22044604925031E-16_dp)
       ENDIF
 
-      radius = exp_radius_fast(l, alpha, threshold, prefactor, absiter, epsrel)
+      radius = exp_radius_fast(l, alpha, threshold, prefactor, absiter)
    END FUNCTION exp_radius_simple
 
 ! **************************************************************************************************
@@ -352,7 +299,7 @@ CONTAINS
       iter = maxiter
 
       ! aim for data-dependent iterations only in exp_radius_fast (approximative)
-      r1 = exp_radius_fast(l, a, t, d, absiter, epsrel, rlow=r0, maxiter=iter)
+      r1 = exp_radius_fast(l, a, t, d, rlow=r0, maxiter=iter)
 
       ! avoid system calls in tight/arithmetic loops
       IF (maxiter .LT. iter) THEN
