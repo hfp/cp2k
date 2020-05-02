@@ -169,8 +169,8 @@ CONTAINS
 
       ! facilitate early exit
       IF (PRESENT(rlow)) THEN
-         rlow = MIN(rlow, r0)
-         r = MAX(rlow, r0)
+         rlow = r0
+         r = r0
       ENDIF
 
       g = MERGE(d*EXP(-a*r*r)*r**l, d, l .NE. 0)
@@ -192,6 +192,7 @@ CONTAINS
          radius = r + dr
          h = d*radius**l*EXP(-a*radius*radius)
          IF (h .LT. t) THEN
+            CPASSERT(r .LE. radius)
             IF (PRESENT(rlow)) rlow = r
             EXIT
          ENDIF
@@ -305,7 +306,6 @@ CONTAINS
       IF (maxiter .LT. iter) THEN
          CPABORT("Maximum number of iterations reached")
       ENDIF
-      CPASSERT(r0 .LE. r1)
 
       ! facilitate early exit (e.g., search maximum radius)
       IF (PRESENT(rlow)) r0 = MAX(rlow, r0)
