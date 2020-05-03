@@ -155,21 +155,19 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius_fast', &
          routineP = moduleN//':'//routineN
-      REAL(KIND=dp), PARAMETER                           :: scale_step = 0.1_dp
+      REAL(KIND=dp), PARAMETER                           :: step_max = 1.0_dp, step_scale = 0.1_dp
 
       INTEGER                                            :: i, n
-      REAL(KIND=dp)                                      :: a, d, dr, g, h, r, r0, t
+      REAL(KIND=dp)                                      :: a, d, dr, g, h, r, t
 
-      CPASSERT(0 .LT. scale_step)
       t = ABS(threshold)
       d = ABS(prefactor)
       a = ABS(alpha)
-      r0 = SQRT(0.5_dp*REAL(l, dp)/a)
+      r = SQRT(0.5_dp*REAL(l, dp)/a)
 
       ! facilitate early exit
       IF (PRESENT(rlow)) THEN
-         rlow = r0
-         r = r0
+         rlow = r
       ENDIF
 
       g = MERGE(d*EXP(-a*r*r)*r**l, d, l .NE. 0)
@@ -186,7 +184,7 @@ CONTAINS
       ENDIF
 
       ! ensure g(radius)<t
-      dr = MAX(scale_step*r, t)
+      dr = MIN(step_max, MAX(step_scale*r, t))
       DO i = 1, n
          radius = r + dr
          h = d*radius**l*EXP(-a*radius*radius)
@@ -195,7 +193,7 @@ CONTAINS
             IF (PRESENT(rlow)) rlow = r
             EXIT
          ENDIF
-         dr = (g*radius - h*r)/MERGE(g - h, t, g .NE. h)
+         dr = (g*radius - h*r)/(g - h + t)
          r = radius
          g = h
       ENDDO
