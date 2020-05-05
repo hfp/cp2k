@@ -155,11 +155,11 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius_fast', &
          routineP = moduleN//':'//routineN
-      REAL(KIND=dp), PARAMETER                           :: scale_init = 0.1_dp, scale_max = 2.0_dp, &
+      REAL(KIND=dp), PARAMETER                           :: scale_init = 0.1_dp, scale_max = 1.2_dp, &
                                                             step = 1.0_dp
 
       INTEGER                                            :: i, n
-      REAL(KIND=dp)                                      :: a, d, g, h, r, s, t
+      REAL(KIND=dp)                                      :: a, d, ds, g, h, r, s, t
 
       t = ABS(threshold)
       d = ABS(prefactor)
@@ -184,16 +184,22 @@ CONTAINS
          n = HUGE(i)
       ENDIF
 
-      radius = r + MIN(step, MAX(scale_init*r, t))
+      s = r + MAX(MIN(scale_init*r, step), t)
+      radius = s; ds = 1.0_dp
       DO i = 1, n
          h = d*radius**l*EXP(-a*radius*radius)
          ! threshold reached or no progress
          IF (MIN(g, h) .LT. t) EXIT
-         ! linear extrapolation g(r) -> t
-         s = (radius*g - r*h)/(g - h)
-         ! limit progress
-         s = MIN(s, scale_max*radius)
-         ! update for next step
+         ! record previous progress
+         IF (0.0_dp .LT. r) ds = radius**2/r
+         IF (h .LT. g) THEN
+            ! estimated next radius
+            s = (radius*g - r*h)/(g - h)
+            ! adjusted progress
+            s = MIN(MAX(s, ds*r), scale_max*radius)
+         ELSE
+            s = MAX(s, scale_max*radius)
+         ENDIF
          r = radius; radius = s; g = h
       ENDDO
 
