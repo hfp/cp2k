@@ -188,7 +188,7 @@ CONTAINS
       DO i = 1, n
          h = d*radius**l*EXP(-a*radius*radius)
          ! threshold reached or no progress
-         IF ((MIN(g, h) .LT. t) .OR. (h .EQ. g)) EXIT
+         IF (MIN(g, h) .LT. t) EXIT
          ! linear extrapolation g(r) -> t
          s = (radius*g - r*h)/(g - h)
          ! limit progress
