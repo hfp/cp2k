@@ -286,7 +286,7 @@ CONTAINS
       REAL(KIND=dp), PARAMETER :: contract = 0.38_dp, logc = LOG(MAX(1.0_dp - contract, contract))
 
       INTEGER                                            :: iter, neps
-      REAL(KIND=dp)                                      :: a, absiter, d, eps, g, r0, r1, rd, rg, t
+      REAL(KIND=dp)                                      :: a, d, eps, g, r0, r1, rd, rg, t
 
       IF (l .LT. 0) THEN
          CPABORT("The angular momentum quantum number is negative")
@@ -304,12 +304,6 @@ CONTAINS
          CPABORT("The requested threshold is zero")
       ENDIF
 
-      IF (PRESENT(epsabs)) THEN
-         absiter = epsabs
-      ELSE
-         absiter = EPSILON(absiter)*(1.0E-12_dp/2.22044604925031E-16_dp)
-      ENDIF
-
       d = ABS(prefactor)
       iter = maxiter
 
@@ -323,15 +317,17 @@ CONTAINS
          IF (r1 .LE. rlow) RETURN
       ENDIF
 
-      ! calculate trip count (deterministic after exp_radius_fast)
-      IF (PRESENT(epsrel)) THEN
-         eps = MIN(absiter, epsrel*r1)
+      ! consider absolute and relative accuracy (interval width)
+      IF (PRESENT(epsabs)) THEN
+         eps = epsabs
       ELSE
-         eps = absiter
+         eps = EPSILON(eps)*(1.0E-12_dp/2.22044604925031E-16_dp)
       ENDIF
+      IF (PRESENT(epsrel)) eps = MIN(eps, epsrel*r1)
 
       rd = r1 - r0
       IF (rd .LE. eps) RETURN ! no need to shrink interval
+      ! calculate deterministic trip count
       neps = CEILING(LOG(REAL(eps/rd, KIND=sp))/logc)
       IF (iter + neps .LT. maxiter) THEN
          DO iter = 1, neps
