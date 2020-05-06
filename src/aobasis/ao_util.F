@@ -315,14 +315,13 @@ CONTAINS
 
       ! aim for data-dependent iterations only in exp_radius_fast (approximative)
       r1 = exp_radius_fast(l, a, t, d, rlow=r0, maxiter=iter)
+      CPASSERT(r0 .LE. r1)
+      radius = r1
 
       ! facilitate early exit (e.g., search maximum radius)
-      IF (PRESENT(rlow)) r0 = MAX(rlow, r0)
-      IF (r0 .GE. r1) THEN ! early exit
-         radius = r0
-         RETURN
+      IF (PRESENT(rlow)) THEN
+         IF (r1 .LE. rlow) RETURN
       ENDIF
-      CPASSERT(r0 .LE. r1)
 
       ! calculate trip count (deterministic after exp_radius_fast)
       IF (PRESENT(epsrel)) THEN
@@ -331,15 +330,9 @@ CONTAINS
          eps = absiter
       ENDIF
 
-      ! GSS/CEILING is slightly faster
       rd = r1 - r0
-      IF (eps .LT. rd) THEN
-         neps = CEILING(LOG(REAL(eps/rd, KIND=sp))/logc)
-      ELSE
-         radius = r1
-         RETURN
-      ENDIF
-
+      IF (rd .LE. eps) RETURN ! no need to shrink interval
+      neps = CEILING(LOG(REAL(eps/rd, KIND=sp))/logc)
       IF (iter + neps .LT. maxiter) THEN
          DO iter = 1, neps
             rg = r0 + rd*contract ! Golden Section
