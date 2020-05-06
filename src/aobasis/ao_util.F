@@ -336,7 +336,8 @@ CONTAINS
       IF (eps .LT. rd) THEN
          neps = CEILING(LOG(REAL(eps/rd, KIND=sp))/logc)
       ELSE
-         neps = 1
+         radius = r1
+         RETURN
       ENDIF
 
       IF (iter + neps .LT. maxiter) THEN
