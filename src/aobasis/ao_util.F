@@ -94,7 +94,7 @@ MODULE ao_util
    ! *** Public subroutines ***
 
    PUBLIC :: exp_radius, &
-             exp_radius_fast, &
+             exp_radius_base, &
              exp_radius_very_extended, &
              gauss_exponent, &
              gaussint_sph, &
@@ -146,14 +146,14 @@ CONTAINS
 !> \param maxiter Optional maximum number of iterations (HUGE if not present).
 !> \return Calculated radius of the Gaussian function such that g(r) < threshold.
 ! **************************************************************************************************
-   FUNCTION exp_radius_fast(l, alpha, threshold, prefactor, rlow, maxiter) RESULT(radius)
+   FUNCTION exp_radius_base(l, alpha, threshold, prefactor, rlow, maxiter) RESULT(radius)
       INTEGER, INTENT(IN)                                :: l
       REAL(KIND=dp), INTENT(IN)                          :: alpha, threshold, prefactor
       REAL(KIND=dp), INTENT(OUT), OPTIONAL               :: rlow
       INTEGER, INTENT(INOUT), OPTIONAL                   :: maxiter
       REAL(KIND=dp)                                      :: radius
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius_fast', &
+      CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius_base', &
          routineP = moduleN//':'//routineN
       REAL(KIND=dp), PARAMETER                           :: scale_init = 0.1_dp, scale_max = 1.2_dp, &
                                                             step = 1.0_dp
@@ -210,45 +210,9 @@ CONTAINS
          IF (PRESENT(rlow)) rlow = radius
          radius = r
       ENDIF
+      IF (PRESENT(maxiter)) maxiter = i
 
-      IF (PRESENT(maxiter)) THEN
-         ! avoid system calls in tight/arithmetic loops
-         IF (maxiter .LT. i) THEN
-            CPABORT("Maximum number of iterations reached")
-         ENDIF
-         maxiter = i
-      ENDIF
-   END FUNCTION exp_radius_fast
-
-! **************************************************************************************************
-!> \brief  The radius of a primitive Gaussian function for a given threshold is calculated.
-!>         g(r) = prefactor*r**l*exp(-alpha*r**2) - threshold = 0
-!> \param l Angular momentum quantum number l.
-!> \param alpha Exponent of the primitive Gaussian function.
-!> \param threshold Determines if g(r) is accepted to be zero.
-!> \param prefactor Prefactor of the Gaussian function g(r).
-!> \param epsabs Optional interval width of bracketed radius (automatically chosen if not present).
-!> \return Calculated radius of the Gaussian function such that g(r) < threshold.
-! **************************************************************************************************
-   FUNCTION exp_radius_simple(l, alpha, threshold, prefactor, epsabs) RESULT(radius)
-      INTEGER, INTENT(IN)                                :: l
-      REAL(KIND=dp), INTENT(IN)                          :: alpha, threshold, prefactor
-      REAL(KIND=dp), INTENT(IN), OPTIONAL                :: epsabs
-      REAL(KIND=dp)                                      :: radius
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius_simple', &
-         routineP = moduleN//':'//routineN
-
-      REAL(KIND=dp)                                      :: absiter
-
-      IF (PRESENT(epsabs)) THEN
-         absiter = epsabs
-      ELSE ! arbitrary scaled epsilon?
-         absiter = EPSILON(absiter)*(1.0E-12_dp/2.22044604925031E-16_dp)
-      ENDIF
-
-      radius = exp_radius_fast(l, alpha, threshold, prefactor, absiter)
-   END FUNCTION exp_radius_simple
+   END FUNCTION exp_radius_base
 
 ! **************************************************************************************************
 !> \brief  The radius of a primitive Gaussian function for a given threshold
@@ -282,7 +246,7 @@ CONTAINS
       REAL(KIND=dp)                                      :: radius
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius', routineP = moduleN//':'//routineN
-      INTEGER, PARAMETER                                 :: maxiter = 5000
+      INTEGER, PARAMETER                                 :: itermax = 5000
       REAL(KIND=dp), PARAMETER :: contract = 0.38_dp, logc = LOG(MAX(1.0_dp - contract, contract))
 
       INTEGER                                            :: iter, neps
@@ -292,7 +256,7 @@ CONTAINS
          CPABORT("The angular momentum quantum number is negative")
       ENDIF
 
-      IF (alpha == 0.0_dp) THEN
+      IF (alpha .EQ. 0.0_dp) THEN
          CPABORT("The Gaussian function exponent is zero")
       ELSE
          a = ABS(alpha)
@@ -305,16 +269,16 @@ CONTAINS
       ENDIF
 
       d = ABS(prefactor)
-      iter = maxiter
+      iter = itermax
 
-      ! aim for data-dependent iterations only in exp_radius_fast (approximative)
-      r1 = exp_radius_fast(l, a, t, d, rlow=r0, maxiter=iter)
+      ! data-dependent iterations are only in exp_radius_base
+      r1 = exp_radius_base(l, a, t, d, rlow=r0, maxiter=iter)
       CPASSERT(r0 .LE. r1)
       radius = r1
 
       ! facilitate early exit (e.g., search maximum radius)
       IF (PRESENT(rlow)) THEN
-         IF (r1 .LE. rlow) RETURN
+         IF ((0.0_dp .LT. rlow) .AND. (r1 .LE. rlow)) RETURN
       ENDIF
 
       ! consider absolute and relative accuracy (interval width)
@@ -329,7 +293,7 @@ CONTAINS
       IF (rd .LE. eps) RETURN ! no need to shrink interval
       ! calculate deterministic trip count
       neps = CEILING(LOG(REAL(eps/rd, KIND=sp))/logc)
-      IF (iter + neps .LT. maxiter) THEN
+      IF (iter + neps .LT. itermax) THEN
          DO iter = 1, neps
             rg = r0 + rd*contract ! Golden Section
             g = d*rg**l*EXP(-a*rg*rg)
