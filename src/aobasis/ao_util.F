@@ -155,7 +155,7 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius_base', &
          routineP = moduleN//':'//routineN
-      REAL(KIND=dp), PARAMETER                           :: scale_init = 0.1_dp, scale_max = 1.5_dp, &
+      REAL(KIND=dp), PARAMETER                           :: scale_init = 0.1_dp, scale_max = 4.8_dp, &
                                                             step = 1.0_dp
 
       INTEGER                                            :: i, n
@@ -243,7 +243,8 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius', routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: itermax = 5000
-      REAL(KIND=dp), PARAMETER :: contract = 0.38_dp, logc = LOG(MAX(1.0_dp - contract, contract))
+      REAL(KIND=dp), PARAMETER :: contract = 0.38_dp, &
+         logc = LOG(MAX(1.0_dp - contract, contract)), scale_eps = 1.0_dp
 
       INTEGER                                            :: iter, neps
       REAL(KIND=dp)                                      :: a, d, eps, g, r0, r1, rd, rg, t
@@ -281,9 +282,9 @@ CONTAINS
          eps = epsabs
       ELSE
          ! eps = EPSILON(0.0_dp)*(1.0E-12_dp/2.22044604925031E-16_dp)
-         eps = r0*t
+         eps = r0*t*scale_eps
       ENDIF
-      IF (PRESENT(epsrel)) eps = MIN(eps, epsrel*r1)
+      IF (PRESENT(epsrel)) eps = MIN(eps, epsrel*r0)
 
       IF (rd .LE. eps) RETURN ! no need to shrink interval
       ! calculate deterministic trip count
