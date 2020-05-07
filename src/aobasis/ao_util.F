@@ -155,7 +155,7 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius_base', &
          routineP = moduleN//':'//routineN
-      REAL(KIND=dp), PARAMETER                           :: scale_init = 0.1_dp, scale_max = 1.2_dp, &
+      REAL(KIND=dp), PARAMETER                           :: scale_init = 0.1_dp, scale_max = 1.5_dp, &
                                                             step = 1.0_dp
 
       INTEGER                                            :: i, n
@@ -298,9 +298,9 @@ CONTAINS
             rg = r0 + rd*contract ! Golden Section
             g = d*rg**l*EXP(-a*rg*rg)
             IF (g .LT. t) THEN
-               r1 = rg ! interval [r0, rg)
-            ELSE
                r0 = rg ! interval [rg, r1)
+            ELSE
+               r1 = rg ! interval [r0, rg)
             ENDIF
             rd = r1 - r0
          ENDDO
