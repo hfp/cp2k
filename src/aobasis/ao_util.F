@@ -142,14 +142,14 @@ CONTAINS
 !> \param alpha Exponent of the primitive Gaussian function.
 !> \param threshold Determines if g(r) is accepted to be zero.
 !> \param prefactor Prefactor of the Gaussian function g(r).
-!> \param rlow Optional lower bound of interval; ensures (rlow, radius] are not approximated.
+!> \param rlow Optional lower bound of interval with t <= g(rlow).
 !> \param maxiter Optional maximum number of iterations (HUGE if not present).
 !> \return Calculated radius of the Gaussian function such that g(r) < threshold.
 ! **************************************************************************************************
    FUNCTION exp_radius_base(l, alpha, threshold, prefactor, rlow, maxiter) RESULT(radius)
       INTEGER, INTENT(IN)                                :: l
       REAL(KIND=dp), INTENT(IN)                          :: alpha, threshold, prefactor
-      REAL(KIND=dp), INTENT(OUT), OPTIONAL               :: rlow
+      REAL(KIND=dp), INTENT(INOUT), OPTIONAL             :: rlow
       INTEGER, INTENT(INOUT), OPTIONAL                   :: maxiter
       REAL(KIND=dp)                                      :: radius
 
@@ -167,14 +167,13 @@ CONTAINS
       r = SQRT(0.5_dp*REAL(l, dp)/a)
 
       ! facilitate early exit
-      IF (PRESENT(rlow)) THEN
-         rlow = r
-      ENDIF
+      IF (PRESENT(rlow)) r = MAX(r, rlow)
 
-      g = MERGE(d*EXP(-a*r*r)*r**l, d, l .NE. 0)
+      radius = r
+      g = d*EXP(-a*r*r)*r**l
       IF (g .LT. t) THEN ! early exit
          IF (PRESENT(maxiter)) maxiter = 0
-         radius = r
+         IF (PRESENT(rlow)) rlow = r
          RETURN
       ENDIF
 
@@ -184,30 +183,27 @@ CONTAINS
          n = HUGE(i)
       ENDIF
 
-      s = r + MAX(MIN(scale_init*r, step), t)
-      radius = s; ds = 1.0_dp
+      ds = 1.0_dp
+      s = r + MAX(MIN(r*scale_init, step), t)
       DO i = 1, n
-         h = d*radius**l*EXP(-a*radius*radius)
+         h = d*EXP(-a*s*s)*s**l
+         radius = s
          ! threshold reached or no progress
          IF (MIN(g, h) .LT. t) EXIT
-         ! record previous progress
-         IF (0.0_dp .LT. r) ds = radius**2/r
+         ! estimate next radius
          IF (h .LT. g) THEN
-            ! estimated next radius
-            s = (radius*g - r*h)/(g - h)
-            ! adjusted progress
-            s = MIN(MAX(s, ds*r), scale_max*radius)
+            s = MIN((s*g - r*h)/(g - h), s*scale_max)
          ELSE
-            s = MAX(s, scale_max*radius)
+            s = s*scale_max
          ENDIF
-         r = radius; radius = s; g = h
+         r = radius; g = h
       ENDDO
 
       ! postcondition: rlow <= radius
-      IF (r .LE. radius) THEN
+      IF (r .LE. s) THEN
          IF (PRESENT(rlow)) rlow = r
       ELSE
-         IF (PRESENT(rlow)) rlow = radius
+         IF (PRESENT(rlow)) rlow = s
          radius = r
       ENDIF
       IF (PRESENT(maxiter)) maxiter = i
@@ -270,33 +266,32 @@ CONTAINS
 
       d = ABS(prefactor)
       iter = itermax
+      r0 = 0.0_dp
+
+      ! facilitate early exit
+      IF (PRESENT(rlow)) r0 = MAX(r0, rlow)
 
       ! data-dependent iterations are only in exp_radius_base
       r1 = exp_radius_base(l, a, t, d, rlow=r0, maxiter=iter)
-      CPASSERT(r0 .LE. r1)
-      radius = r1
-
-      ! facilitate early exit (e.g., search maximum radius)
-      IF (PRESENT(rlow)) THEN
-         IF ((0.0_dp .LT. rlow) .AND. (r1 .LE. rlow)) RETURN
-      ENDIF
+      rd = r1 - r0; radius = r1
+      CPASSERT(0.0_dp .LE. rd)
 
       ! consider absolute and relative accuracy (interval width)
       IF (PRESENT(epsabs)) THEN
          eps = epsabs
       ELSE
-         eps = EPSILON(eps)*(1.0E-12_dp/2.22044604925031E-16_dp)
+         ! eps = EPSILON(0.0_dp)*(1.0E-12_dp/2.22044604925031E-16_dp)
+         eps = r0*t
       ENDIF
       IF (PRESENT(epsrel)) eps = MIN(eps, epsrel*r1)
 
-      rd = r1 - r0
       IF (rd .LE. eps) RETURN ! no need to shrink interval
       ! calculate deterministic trip count
       neps = CEILING(LOG(REAL(eps/rd, KIND=sp))/logc)
       IF (iter + neps .LT. itermax) THEN
          DO iter = 1, neps
             rg = r0 + rd*contract ! Golden Section
-            g = d*rg**l*EXP(-a*rg*rg)
+            g = d*EXP(-a*rg*rg)*rg**l
             IF (g .LT. t) THEN
                r0 = rg ! interval [rg, r1)
             ELSE
@@ -304,7 +299,7 @@ CONTAINS
             ENDIF
             rd = r1 - r0
          ENDDO
-         radius = rg
+         radius = r1
       ELSE
          CPABORT("Maximum number of iterations exceeded")
       ENDIF
