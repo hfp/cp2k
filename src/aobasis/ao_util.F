@@ -156,7 +156,7 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius_base', &
          routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: prec_exp = sp
-      REAL(KIND=dp), PARAMETER                           :: scale_next = 1.6_dp, step = 1.0_dp
+      REAL(KIND=dp), PARAMETER                           :: scale_next = 2.0_dp, step = 1.0_dp
 
       INTEGER                                            :: i, n
       REAL(KIND=dp)                                      :: a, d, g, h, r, s, t
@@ -183,24 +183,20 @@ CONTAINS
          n = HUGE(i)
       ENDIF
 
-      s = MAX(MIN(r*scale_next, r + step), r + t)
+      s = r*scale_next + step
+#if 0
       h = d*EXP(REAL(-a*s*s, KIND=prec_exp))*s**l
       s = (s*g - r*h)/MAX(g - h, t)
+#endif
       DO i = 1, n
-         h = d*EXP(REAL(-a*s*s, KIND=prec_exp))*s**l
-         IF (MIN(g, h) .LT. t) EXIT
-         r = s; s = s*scale_next; g = h
+         g = d*EXP(REAL(-a*s*s, KIND=prec_exp))*s**l
+         IF (g .LT. t) EXIT
+         r = s; s = s*scale_next + step
       ENDDO
+      radius = s
 
-      ! postcondition: rlow <= radius
-      IF (r .LE. s) THEN
-         IF (PRESENT(rlow)) rlow = r
-         radius = s
-      ELSE
-         IF (PRESENT(rlow)) rlow = s
-         radius = r
-      ENDIF
       IF (PRESENT(maxiter)) maxiter = i
+      IF (PRESENT(rlow)) rlow = r
       CPASSERT(radius .EQ. radius) ! NaN
 
    END FUNCTION exp_radius_base
@@ -223,10 +219,11 @@ CONTAINS
 !>            - Modified to bisection to avoid division by zero (01.2002, Joost)
 !>            - that means the old version contains bugs .......(04.2002, Joost)
 !>              so keep this one ...
-!>            - Golden Section Search (GSS), several tweaks     (06.2019, HansP)
+!>            - Golden Section Search (GSS): contract = 0.38    (06.2019, HansP)
+!>              Bisection  (orig. approach): contract = 0.50
 !> \par Variables
 !>        - g      : The function g(r).
-!>        - maxiter: Maximum number of iterations.
+!>        - itermax: Maximum number of iterations.
 !> \author  MK
 !> \version 2.0
 ! **************************************************************************************************
@@ -238,11 +235,11 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius', routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: itermax = 5000, prec_exp = sp
-      REAL(KIND=dp), PARAMETER :: contract = 0.38_dp, &
-         logc = LOG(MAX(1.0_dp - contract, contract)), scale_eps = 1.0E3_dp
+      REAL(KIND=dp), PARAMETER                           :: contract = 0.38_dp, scale_eps = 1.0E3_dp
 
-      INTEGER                                            :: iter, neps
-      REAL(KIND=dp)                                      :: a, d, eps, g, r0, r1, rd, rg, t
+      INTEGER                                            :: iter
+      LOGICAL                                            :: iterexit
+      REAL(KIND=dp)                                      :: a, d, eps, g, r0, r1, rd, t
 
       IF (l .LT. 0) THEN
          CPABORT("The angular momentum quantum number is negative")
@@ -269,8 +266,8 @@ CONTAINS
 
       ! data-dependent iterations are only in exp_radius_base
       r1 = exp_radius_base(l, a, t, d, rlow=r0, maxiter=iter)
-      rd = r1 - r0; radius = r1
-      CPASSERT(0.0_dp .LE. rd)
+      CPASSERT(r1 .EQ. r1) ! NaN
+      radius = r1
 
       ! consider absolute and relative accuracy (interval width)
       IF (PRESENT(epsabs)) THEN
@@ -281,25 +278,27 @@ CONTAINS
       ENDIF
       IF (PRESENT(epsrel)) eps = MIN(eps, epsrel*r0)
 
-      IF (rd .LE. eps) RETURN ! no need to shrink interval
-      ! calculate deterministic trip count
-      neps = CEILING(LOG(REAL(eps/rd, KIND=sp))/logc) ! sp
-      IF (iter + neps .LT. itermax) THEN
-         DO iter = 1, neps
-            rg = r0 + rd*contract ! Golden Section
-            g = d*EXP(REAL(-a*rg*rg, KIND=prec_exp))*rg**l
-            IF (g .LT. t) THEN
-               r1 = rg ! interval [r0, rg)
-            ELSE
-               r0 = rg ! interval [rg, r1)
-            ENDIF
-            rd = r1 - r0
-         ENDDO
-         radius = r1
-      ELSE
-         CPABORT("Maximum number of iterations exceeded")
+      rd = r1 - r0
+      iterexit = .FALSE.
+      DO iter = iter, itermax
+         IF (rd .LT. eps) EXIT ! finshed contraction
+         radius = r0 + rd*contract ! interval contraction
+         g = d*EXP(REAL(-a*radius*radius, KIND=prec_exp))*radius**l
+         ! original Bisection exits if g(r) < t OR rd < eps,
+         ! which likely never reached rd < eps
+         IF (g .LT. t) THEN
+            IF (iterexit) RETURN
+            r1 = radius ! interval [r0, radius)
+         ELSE
+            r0 = radius ! interval [radius, r1)
+            iterexit = .TRUE.
+         ENDIF
+         rd = r1 - r0
+      ENDDO
+      IF (iter .EQ. itermax) THEN
+         CPABORT("Maximum number of iterations reached")
       ENDIF
-      CPASSERT(radius .EQ. radius) ! NaN
+      radius = r1
 
    END FUNCTION exp_radius
 
