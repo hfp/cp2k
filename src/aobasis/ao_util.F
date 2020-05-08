@@ -155,11 +155,11 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius_base', &
          routineP = moduleN//':'//routineN
-      REAL(KIND=dp), PARAMETER                           :: scale_init = 0.1_dp, scale_max = 4.8_dp, &
-                                                            step = 1.0_dp
+      INTEGER, PARAMETER                                 :: prec_exp = sp
+      REAL(KIND=dp), PARAMETER                           :: scale_next = 1.6_dp, step = 1.0_dp
 
       INTEGER                                            :: i, n
-      REAL(KIND=dp)                                      :: a, d, ds, g, h, r, s, t
+      REAL(KIND=dp)                                      :: a, d, g, h, r, s, t
 
       t = ABS(threshold)
       d = ABS(prefactor)
@@ -170,7 +170,7 @@ CONTAINS
       IF (PRESENT(rlow)) r = MAX(r, rlow)
 
       radius = r
-      g = d*EXP(-a*r*r)*r**l
+      g = d*EXP(REAL(-a*r*r, KIND=prec_exp))*r**l
       IF (g .LT. t) THEN ! early exit
          IF (PRESENT(maxiter)) maxiter = 0
          IF (PRESENT(rlow)) rlow = r
@@ -183,30 +183,25 @@ CONTAINS
          n = HUGE(i)
       ENDIF
 
-      ds = 1.0_dp
-      s = r + MAX(MIN(r*scale_init, step), t)
+      s = MAX(MIN(r*scale_next, r + step), r + t)
+      h = d*EXP(REAL(-a*s*s, KIND=prec_exp))*s**l
+      s = (s*g - r*h)/MAX(g - h, t)
       DO i = 1, n
-         h = d*EXP(-a*s*s)*s**l
-         radius = s
-         ! threshold reached or no progress
+         h = d*EXP(REAL(-a*s*s, KIND=prec_exp))*s**l
          IF (MIN(g, h) .LT. t) EXIT
-         ! estimate next radius
-         IF (h .LT. g) THEN
-            s = MIN((s*g - r*h)/(g - h), s*scale_max)
-         ELSE
-            s = s*scale_max
-         ENDIF
-         r = radius; g = h
+         r = s; s = s*scale_next; g = h
       ENDDO
 
       ! postcondition: rlow <= radius
       IF (r .LE. s) THEN
          IF (PRESENT(rlow)) rlow = r
+         radius = s
       ELSE
          IF (PRESENT(rlow)) rlow = s
          radius = r
       ENDIF
       IF (PRESENT(maxiter)) maxiter = i
+      CPASSERT(radius .EQ. radius) ! NaN
 
    END FUNCTION exp_radius_base
 
@@ -242,9 +237,9 @@ CONTAINS
       REAL(KIND=dp)                                      :: radius
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius', routineP = moduleN//':'//routineN
-      INTEGER, PARAMETER                                 :: itermax = 5000
+      INTEGER, PARAMETER                                 :: itermax = 5000, prec_exp = sp
       REAL(KIND=dp), PARAMETER :: contract = 0.38_dp, &
-         logc = LOG(MAX(1.0_dp - contract, contract)), scale_eps = 1.0_dp
+         logc = LOG(MAX(1.0_dp - contract, contract)), scale_eps = 1.0E3_dp
 
       INTEGER                                            :: iter, neps
       REAL(KIND=dp)                                      :: a, d, eps, g, r0, r1, rd, rg, t
@@ -288,15 +283,15 @@ CONTAINS
 
       IF (rd .LE. eps) RETURN ! no need to shrink interval
       ! calculate deterministic trip count
-      neps = CEILING(LOG(REAL(eps/rd, KIND=sp))/logc)
+      neps = CEILING(LOG(REAL(eps/rd, KIND=sp))/logc) ! sp
       IF (iter + neps .LT. itermax) THEN
          DO iter = 1, neps
             rg = r0 + rd*contract ! Golden Section
-            g = d*EXP(-a*rg*rg)*rg**l
+            g = d*EXP(REAL(-a*rg*rg, KIND=prec_exp))*rg**l
             IF (g .LT. t) THEN
-               r0 = rg ! interval [rg, r1)
-            ELSE
                r1 = rg ! interval [r0, rg)
+            ELSE
+               r0 = rg ! interval [rg, r1)
             ENDIF
             rd = r1 - r0
          ENDDO
