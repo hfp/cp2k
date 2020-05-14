@@ -23,7 +23,7 @@ ACC      = $(NULL)
 # ELPA:   https://xconfigure.readthedocs.io/elpa/
 #ELPAROOT = /path/to/elpa
 
-which = $(shell which $1 2>/dev/null)
+which = $(shell which $(firstword $1) 2>/dev/null)
 which ?= $(shell command -v $1)
 
 # Automatically pickup the environment (make -e is not required),
