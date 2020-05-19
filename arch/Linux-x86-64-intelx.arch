@@ -122,8 +122,9 @@ endif
 
 # FP compiler flags
 FPFLAGS += -complex-limited-range
-#FPFLAGS += -fast-transcendentals
+#FPFLAGS += -nostandard-realloc-lhs
 #FPFLAGS += -fimf-domain-exclusion=1
+#FPFLAGS += -fast-transcendentals
 
 # TBB malloc proxy is enabled if TBBROOT is set
 TBBMALLOC ?= 0
@@ -317,7 +318,7 @@ ifeq (0,$(GNU)) # Intel
     endif
   endif
   ifeq (0,$(DBG))
-    FCFLAGS  += -align array64byte     $(FPFMODEL) $(FPFLAGS) -nostandard-realloc-lhs
+    FCFLAGS  += -align array64byte     $(FPFMODEL) $(FPFLAGS)
     CFLAGS   += -fno-alias -ansi-alias $(FPCMODEL) $(FPFLAGS)
     CXXFLAGS += -fno-alias -ansi-alias $(FPCMODEL) $(FPFLAGS)
     ifneq (0,$(shell echo "$$((190004 <= $(CC_VERSION)))"))
@@ -510,7 +511,7 @@ ifeq (0,$(GNU))
   ifneq (0,$(shell echo "$$((180002 >= $(CC_VERSION) && 0 != $(CC_VERSION)))"))
     CFLAGS += -D_Float128=__float128
     FPCMODEL ?= precise
-    FPFMODEL ?= source  
+    FPFMODEL ?= source
     # Workaround (see bottom of this file); disabled for older
     # versions of CP2K (use recommended toolchain!) due to
     # fypp preprocessed files, renamed translation units, etc.
