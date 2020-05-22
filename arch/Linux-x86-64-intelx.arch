@@ -91,7 +91,7 @@ else
 endif
 
 ifneq (,$(LIBXSMM))
-ifneq (0,$(shell echo $$((2 < $(LIBXSMM)))))
+ifneq (0,$(shell echo "$$((2 < $(LIBXSMM)))"))
   IPO ?= 0
 endif
 endif
@@ -181,8 +181,6 @@ ifeq (,$(strip $(MKLROOT)))
 endif
 
 SCALAPACK ?= $(MPI)
-COSMA ?= 0
-
 ifneq (0,$(MPI))
   ifeq (0,$(GNU))
     CXX = mpiicpc
@@ -197,10 +195,22 @@ ifneq (0,$(MPI))
   endif
   DFLAGS += -D__parallel
   # COSMA section must appear before SCALAPACK section
-  ifneq (0,$(COSMA))
-  ifneq (,$(wildcard $(COSMAROOT)/lib64/libcosma_pxgemm.*))
-    LIBS += -L$(COSMAROOT)/lib64 -lcosma_pxgemm -lcosma -lgrid2grid
-  endif
+  ifneq (0,$(COSMA)) # incl. undefined
+    ifneq (,$(NVCC))
+      COSMATGT = gpu
+    else
+      COSMATGT = cpu
+    endif
+    COSMAROOT ?= $(abspath $(dir $(firstword $(wildcard $(CP2KHOME)/../cosma*$(COSMATGT)/lib64/libcosma_pxgemm.*)))/..)
+    COSMAROOT ?= $(abspath $(dir $(firstword $(wildcard $(HOME)/cosma*$(COSMATGT)/lib64/libcosma_pxgemm.*)))/..)
+    COSMAROOT ?= $(abspath $(dir $(firstword $(wildcard $(CP2KHOME)/../cosma*/lib64/libcosma_pxgemm.*)))/..)
+    COSMAROOT ?= $(abspath $(dir $(firstword $(wildcard $(HOME)/cosma*/lib64/libcosma_pxgemm.*)))/..)
+    ifneq (,$(COSMAROOT))
+      LIBS += -L$(COSMAROOT)/lib64 -lcosma_pxgemm -lcosma -lgrid2grid
+      ifneq (,$(NVCC))
+        LIBS += -lTiled-MM
+      endif
+    endif
   endif
   ifneq (0,$(SCALAPACK))
     DFLAGS += -D__BLACS -D__SCALAPACK
@@ -285,7 +295,7 @@ ifeq (0,$(GNU)) # Intel
     $(info ================================================================================)
     $(error Intel Development Tools not found!)
   endif
-  ifneq (0,$(shell echo $$((2 > $(DBG)))))
+  ifneq (0,$(shell echo "$$((2 > $(DBG)))"))
     ifeq (1,$(AVX))
       TARGET = -xAVX
       TGT = snb
@@ -328,7 +338,7 @@ ifeq (0,$(GNU)) # Intel
       OPT ?= 2
     endif
     #OPTFLAGS += -qoverride_limits
-    ifneq (0,$(shell echo $$((1 < $(OPT)))))
+    ifneq (0,$(shell echo "$$((1 < $(OPT)))"))
       OPTFLAGS += -qopt-matmul
     endif
     ifneq (0,$(IPO))
@@ -361,7 +371,7 @@ else # GNU GCC
     $(info ================================================================================)
     $(error Intel MKL not found!)
   endif
-  ifneq (0,$(shell echo $$((2 > $(DBG)))))
+  ifneq (0,$(shell echo "$$((2 > $(DBG)))"))
     ifeq (1,$(AVX))
       TARGET = -mavx
       TGT = snb
@@ -435,6 +445,11 @@ endif
 
 $(info ================================================================================)
 $(info Using the following libraries:)
+ifneq (0,$(MKL)) # incl. undefined
+ifneq (,$(MKLROOT))
+  $(info MKLROOT=$(MKLROOT))
+endif
+endif
 ifneq (0,$(LIBXSMM)) # incl. undefined
   ifneq (,$(wildcard $(CP2KHOME)/../libxsmm/Makefile))
     LIBXSMMROOT ?= $(abspath $(CP2KHOME)/../libxsmm)
@@ -476,10 +491,15 @@ ifneq (0,$(ELPA)) # incl. undefined
     $(info ELPAROOT=$(ELPAROOT))
   endif
 endif
+ifneq (0,$(COSMA)) # incl. undefined
+ifneq (,$(COSMAROOT))
+  $(info COSMAROOT=$(COSMAROOT))
+endif
+endif
 $(info ================================================================================)
 
-OPT1 = $(shell echo $$((1<$(OPT)?1:$(OPT))))
-OPT2 = $(shell echo $$((2<$(OPT)?2:$(OPT))))
+OPT1 = $(shell echo "$$((1<$(OPT)?1:$(OPT)))")
+OPT2 = $(shell echo "$$((2<$(OPT)?2:$(OPT)))")
 ifeq (0,$(ATTRIBS))
   DFLAGS += -DCP_DISABLE_ATTRIBS
 endif
@@ -558,21 +578,21 @@ ifneq (,$(LIBXCROOT))
 endif
 
 ifneq (,$(ELPAROOT))
-  ifneq (0,$(ELPA))
-    ifneq (1,$(ELPA))
-      DFLAGS += -D__ELPA=$(ELPA)
-    else
-      DFLAGS += -D__ELPA
-    endif
-    ELPAINCDIR = $(dir $(shell ls -1 $(ELPAROOT)/include/*/elpa/elpa_*constants.h | head -n1))
-    ELPAMODDIR = $(ELPAINCDIR)../modules
-    IFLAGS += -I$(ELPAINCDIR) -I$(ELPAMODDIR)
-    LIBS += $(ELPAROOT)/lib/libelpa.a
-    # in case ELPA is built with OpenMP
-    ifeq (0,$(OMP))
-      LIBS += -Wl,--as-needed -l$(OMPRT) -Wl,--no-as-needed
-    endif
+ifneq (0,$(ELPA))
+  ifneq (1,$(ELPA))
+    DFLAGS += -D__ELPA=$(ELPA)
+  else
+    DFLAGS += -D__ELPA
   endif
+  ELPAINCDIR = $(dir $(shell ls -1 $(ELPAROOT)/include/*/elpa/elpa_*constants.h | head -n1))
+  ELPAMODDIR = $(ELPAINCDIR)../modules
+  IFLAGS += -I$(ELPAINCDIR) -I$(ELPAMODDIR)
+  LIBS += $(ELPAROOT)/lib/libelpa.a
+  # in case ELPA is built with OpenMP
+  ifeq (0,$(OMP))
+    LIBS += -Wl,--as-needed -l$(OMPRT) -Wl,--no-as-needed
+  endif
+endif
 endif
 
 ifneq (0,$(TBBMALLOC))
@@ -611,10 +631,10 @@ endif
 
 MEMKIND ?= 1
 ifneq (0,$(MEMKIND))
-  ifneq (,$(MEMKINDROOT))
-    #LIBS += -L$(MEMKINDROOT)/lib -lmemkind
-    LIBS += $(MEMKINDROOT)/lib/libmemkind.a
-  endif
+ifneq (,$(MEMKINDROOT))
+  #LIBS += -L$(MEMKINDROOT)/lib -lmemkind
+  LIBS += $(MEMKINDROOT)/lib/libmemkind.a
+endif
 endif
 
 # Allow for LIBSMM to ease performance comparison...
@@ -633,7 +653,6 @@ OBJDIRNAME = obj
 
 ifneq (,$(LIBXSMMROOT))
   # 1: SMMs, 2: 1+UnreleasedFeat, 3: 2+AllGEMM
-  #
   LIBXSMM ?= 1
   ifneq (0,$(LIBXSMM))
     DFLAGS += -D__LIBXSMM=$(LIBXSMM)
@@ -668,10 +687,10 @@ ifneq (,$(LIBXSMMROOT))
       endif
     endif
     # enable additional use cases for LIBXSMM
-    ifneq (0,$(shell echo $$((1 < $(LIBXSMM)))))
+    ifneq (0,$(shell echo "$$((1 < $(LIBXSMM)))"))
       BIGVERNUM = echo "99" > version.txt
       # substitute all GEMM calls with LIBXSMM
-      WRAP ?= $(shell echo $$(((2<$(LIBXSMM))*($(LIBXSMM)-2))))
+      WRAP ?= $(shell echo "$$(((2<$(LIBXSMM))*($(LIBXSMM)-2)))")
       ifneq (0,$(WRAP))
         ifneq (0,$(shell echo "$$((2<$(WRAP)))"))
           LDFLAGS += -Wl,--wrap=dgemm_,--wrap=sgemm_,--wrap=dgemv_,--wrap=sgemv_
@@ -799,7 +818,7 @@ minimax_exp_k53.o: minimax_exp_k53.F
 	$(FC) -c $(filter-out -qoverride_limits,$(FCFLAGS)) -D__SHORT_FILE__="\"$(subst $(SRCDIR)/,,$<)\"" -I'$(dir $<)' $*.F90 $(FCLOGPIPE)
 endif
 
-ifneq (0,$(shell echo $$((1<=$(BEEP) && 0==$(GNU)))))
+ifneq (0,$(shell echo "$$((1<=$(BEEP) && 0==$(GNU)))"))
 helium_sampling.o: helium_sampling.F
 	$(eval MAKE_FYPP := $(if $(wildcard $(TOOLSRC)/build_utils/fypp),$(TOOLSRC)/build_utils/fypp $(FYPPFLAGS) $< $*.F90,$(NULL)))
 	$(MAKE_FYPP)
