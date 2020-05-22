@@ -79,7 +79,7 @@ MKL_STATIC ?= 1
 
 # NDEBUG=1: apply to DBCSR (should be fine)
 # NDEBUG=2: apply to CP2K (regtests may fail)
-NDEBUG ?= 1
+NDEBUG ?= 0
 
 EXTSDIR ?= exts
 EXTSHOME ?= $(CP2KHOME)/$(EXTSDIR)
