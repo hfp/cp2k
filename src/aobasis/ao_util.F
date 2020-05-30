@@ -33,68 +33,67 @@ MODULE ao_util
 
    !MK sqrt* constants moved to mathconstants
 
-   REAL(KIND=dp), PARAMETER ::  s_root1o4pi = 0.5_dp*oorootpi
+   REAL(KIND=dp), PARAMETER :: s_root1o4pi = 0.5_dp*oorootpi
    REAL(KIND=dp), PARAMETER :: root4pi = 2.0_dp*rootpi
-   REAL(KIND=dp), PARAMETER ::  s_root3o4pi = sqrt3*s_root1o4pi
+   REAL(KIND=dp), PARAMETER :: s_root3o4pi = sqrt3*s_root1o4pi
    REAL(KIND=dp), PARAMETER :: root4pio3 = root4pi/sqrt3
    REAL(KIND=dp), PARAMETER :: root4pio5 = root4pi/sqrt5
-   REAL(KIND=dp), PARAMETER ::  s_root15o4pi = sqrt15*s_root1o4pi
+   REAL(KIND=dp), PARAMETER :: s_root15o4pi = sqrt15*s_root1o4pi
    REAL(KIND=dp), PARAMETER :: root4pio15 = root4pi/sqrt15
-   REAL(KIND=dp), PARAMETER ::  s_root105o4pi = sqrt105*s_root1o4pi
+   REAL(KIND=dp), PARAMETER :: s_root105o4pi = sqrt105*s_root1o4pi
    REAL(KIND=dp), PARAMETER :: root4pio105 = root4pi/sqrt105
-   REAL(KIND=dp), PARAMETER ::  s_root1o16pi = 0.25_dp*oorootpi
+   REAL(KIND=dp), PARAMETER :: s_root1o16pi = 0.25_dp*oorootpi
    REAL(KIND=dp), PARAMETER :: root16pi = 4.0_dp*rootpi
-   REAL(KIND=dp), PARAMETER ::  s_root5o16pi = sqrt5*s_root1o16pi
+   REAL(KIND=dp), PARAMETER :: s_root5o16pi = sqrt5*s_root1o16pi
    REAL(KIND=dp), PARAMETER :: root16pio5 = root16pi/sqrt5
-   REAL(KIND=dp), PARAMETER ::  s_2root5o16pi = 2.0_dp*s_root5o16pi
+   REAL(KIND=dp), PARAMETER :: s_2root5o16pi = 2.0_dp*s_root5o16pi
    REAL(KIND=dp), PARAMETER :: root16pio5o2 = root16pio5*0.5_dp
-   REAL(KIND=dp), PARAMETER ::  s_3root5o16pi = 3.0_dp*s_root5o16pi
+   REAL(KIND=dp), PARAMETER :: s_3root5o16pi = 3.0_dp*s_root5o16pi
    REAL(KIND=dp), PARAMETER :: root16pio5o3 = root16pio5/3.0_dp
-   REAL(KIND=dp), PARAMETER ::  s_18root5o16pi = 18.0_dp*s_root5o16pi
+   REAL(KIND=dp), PARAMETER :: s_18root5o16pi = 18.0_dp*s_root5o16pi
    REAL(KIND=dp), PARAMETER :: root16pio5o18 = root16pio5/18.0_dp
-   REAL(KIND=dp), PARAMETER ::  s_2root7o16pi = 2.0_dp*sqrt7*s_root1o16pi
+   REAL(KIND=dp), PARAMETER :: s_2root7o16pi = 2.0_dp*sqrt7*s_root1o16pi
    REAL(KIND=dp), PARAMETER :: root16pio7o2 = root16pi/sqrt7*0.5_dp
-   REAL(KIND=dp), PARAMETER ::  s_3root7o16pi = 3.0_dp*sqrt7*s_root1o16pi
+   REAL(KIND=dp), PARAMETER :: s_3root7o16pi = 3.0_dp*sqrt7*s_root1o16pi
    REAL(KIND=dp), PARAMETER :: root16pio7o3 = root16pi/sqrt7/3.0_dp
-   REAL(KIND=dp), PARAMETER ::  s_root15o16pi = sqrt15*s_root1o16pi
+   REAL(KIND=dp), PARAMETER :: s_root15o16pi = sqrt15*s_root1o16pi
    REAL(KIND=dp), PARAMETER :: root16pio15 = root16pi/sqrt15
-   REAL(KIND=dp), PARAMETER ::  s_3root35o16pi = sqrt5*s_3root7o16pi
+   REAL(KIND=dp), PARAMETER :: s_3root35o16pi = sqrt5*s_3root7o16pi
    REAL(KIND=dp), PARAMETER :: root16pio35o3 = root16pio7o3/sqrt5
-   REAL(KIND=dp), PARAMETER ::  s_root105o16pi = 0.5_dp*s_root105o4pi
-   REAL(KIND=dp), PARAMETER ::  root16pio105 = root4pio105*2.0_dp
-   REAL(KIND=dp), PARAMETER ::  s_root1o32pi = 0.25_dp*sqrthalf*oorootpi
-   REAL(KIND=dp), PARAMETER ::  root32pi = root16pi*sqrt2
-   REAL(KIND=dp), PARAMETER ::  s_3root5o32pi = 3.0_dp*sqrt5*s_root1o32pi
-   REAL(KIND=dp), PARAMETER ::  root32pio5o3 = root32pi/sqrt5/3.0_dp
-   REAL(KIND=dp), PARAMETER ::  s_9root5o32pi = 9.0_dp*sqrt5*s_root1o32pi
-   REAL(KIND=dp), PARAMETER ::  root32pio5o9 = root32pi/sqrt5/9.0_dp
-   REAL(KIND=dp), PARAMETER ::  s_12root5o32pi = 12.0_dp*sqrt5*s_root1o32pi
-   REAL(KIND=dp), PARAMETER ::  root32pio5o12 = root32pi/sqrt5/12.0_dp
-   REAL(KIND=dp), PARAMETER ::  s_root21o32pi = sqrt21*s_root1o32pi
-   REAL(KIND=dp), PARAMETER ::  root32pio21 = root32pi/sqrt21
-   REAL(KIND=dp), PARAMETER ::  s_4root21o32pi = 4.0_dp*s_root21o32pi
-   REAL(KIND=dp), PARAMETER ::  root32pio21o4 = root32pio21/4.0_dp
-   REAL(KIND=dp), PARAMETER ::  s_root35o32pi = sqrt35*s_root1o32pi
-   REAL(KIND=dp), PARAMETER ::  root32pio35 = root32pi/sqrt35
-   REAL(KIND=dp), PARAMETER ::  s_3root35o32pi = 3.0_dp*s_root35o32pi
-   REAL(KIND=dp), PARAMETER ::  s_9root35o32pi = 9.0_dp*s_root35o32pi
-   REAL(KIND=dp), PARAMETER ::  s_18root35o32pi = 18.0_dp*s_root35o32pi
-   REAL(KIND=dp), PARAMETER ::  s_root1o64pi = 0.125_dp*oorootpi
-   REAL(KIND=dp), PARAMETER ::  s_3root5o64pi = 3.0_dp*sqrt5*s_root1o64pi
-   REAL(KIND=dp), PARAMETER ::  s_18root5o64pi = 18.0_dp*sqrt5*s_root1o64pi
-   REAL(KIND=dp), PARAMETER ::  s_root1o256pi = 0.0625_dp*oorootpi
-   REAL(KIND=dp), PARAMETER ::  s_3root1o256pi = 3.0_dp*s_root1o256pi
-   REAL(KIND=dp), PARAMETER ::  s_9root1o256pi = 9.0_dp*s_root1o256pi
-   REAL(KIND=dp), PARAMETER ::  s_18root1o256pi = 18.0_dp*s_root1o256pi
-   REAL(KIND=dp), PARAMETER ::  s_24root1o256pi = 24.0_dp*s_root1o256pi
-   REAL(KIND=dp), PARAMETER ::  s_72root1o256pi = 72.0_dp*s_root1o256pi
-   REAL(KIND=dp), PARAMETER ::  s_3root35o256pi = 3.0_dp*sqrt35*s_root1o256pi
-   REAL(KIND=dp), PARAMETER ::  s_18root35o256pi = 18.0_dp*sqrt35*s_root1o256pi
+   REAL(KIND=dp), PARAMETER :: s_root105o16pi = 0.5_dp*s_root105o4pi
+   REAL(KIND=dp), PARAMETER :: root16pio105 = root4pio105*2.0_dp
+   REAL(KIND=dp), PARAMETER :: s_root1o32pi = 0.25_dp*sqrthalf*oorootpi
+   REAL(KIND=dp), PARAMETER :: root32pi = root16pi*sqrt2
+   REAL(KIND=dp), PARAMETER :: s_3root5o32pi = 3.0_dp*sqrt5*s_root1o32pi
+   REAL(KIND=dp), PARAMETER :: root32pio5o3 = root32pi/sqrt5/3.0_dp
+   REAL(KIND=dp), PARAMETER :: s_9root5o32pi = 9.0_dp*sqrt5*s_root1o32pi
+   REAL(KIND=dp), PARAMETER :: root32pio5o9 = root32pi/sqrt5/9.0_dp
+   REAL(KIND=dp), PARAMETER :: s_12root5o32pi = 12.0_dp*sqrt5*s_root1o32pi
+   REAL(KIND=dp), PARAMETER :: root32pio5o12 = root32pi/sqrt5/12.0_dp
+   REAL(KIND=dp), PARAMETER :: s_root21o32pi = sqrt21*s_root1o32pi
+   REAL(KIND=dp), PARAMETER :: root32pio21 = root32pi/sqrt21
+   REAL(KIND=dp), PARAMETER :: s_4root21o32pi = 4.0_dp*s_root21o32pi
+   REAL(KIND=dp), PARAMETER :: root32pio21o4 = root32pio21/4.0_dp
+   REAL(KIND=dp), PARAMETER :: s_root35o32pi = sqrt35*s_root1o32pi
+   REAL(KIND=dp), PARAMETER :: root32pio35 = root32pi/sqrt35
+   REAL(KIND=dp), PARAMETER :: s_3root35o32pi = 3.0_dp*s_root35o32pi
+   REAL(KIND=dp), PARAMETER :: s_9root35o32pi = 9.0_dp*s_root35o32pi
+   REAL(KIND=dp), PARAMETER :: s_18root35o32pi = 18.0_dp*s_root35o32pi
+   REAL(KIND=dp), PARAMETER :: s_root1o64pi = 0.125_dp*oorootpi
+   REAL(KIND=dp), PARAMETER :: s_3root5o64pi = 3.0_dp*sqrt5*s_root1o64pi
+   REAL(KIND=dp), PARAMETER :: s_18root5o64pi = 18.0_dp*sqrt5*s_root1o64pi
+   REAL(KIND=dp), PARAMETER :: s_root1o256pi = 0.0625_dp*oorootpi
+   REAL(KIND=dp), PARAMETER :: s_3root1o256pi = 3.0_dp*s_root1o256pi
+   REAL(KIND=dp), PARAMETER :: s_9root1o256pi = 9.0_dp*s_root1o256pi
+   REAL(KIND=dp), PARAMETER :: s_18root1o256pi = 18.0_dp*s_root1o256pi
+   REAL(KIND=dp), PARAMETER :: s_24root1o256pi = 24.0_dp*s_root1o256pi
+   REAL(KIND=dp), PARAMETER :: s_72root1o256pi = 72.0_dp*s_root1o256pi
+   REAL(KIND=dp), PARAMETER :: s_3root35o256pi = 3.0_dp*sqrt35*s_root1o256pi
+   REAL(KIND=dp), PARAMETER :: s_18root35o256pi = 18.0_dp*sqrt35*s_root1o256pi
 
    ! *** Public subroutines ***
 
    PUBLIC :: exp_radius, &
-             exp_radius_fast, &
              exp_radius_very_extended, &
              gauss_exponent, &
              gaussint_sph, &
@@ -136,175 +135,26 @@ CONTAINS
    END FUNCTION gauss_exponent
 
 ! **************************************************************************************************
-!> \brief  The radius of a primitive Gaussian function for a given threshold is calculated.
-!>         g(r) = prefactor*r**l*exp(-alpha*r**2) - threshold = 0
-!> \param l Angular momentum quantum number l.
-!> \param alpha Exponent of the primitive Gaussian function.
-!> \param threshold Determines if g(r) is accepted to be zero.
-!> \param prefactor Prefactor of the Gaussian function g(r).
-!> \param epsabs Optional interval width of bracketed radius (automatically chosen if not present).
-!> \param epsrel Optional interval width relative to radius (not enforced if not present).
-!> \param rlow Optional lower bound of interval; ensures (rlow, radius] are not approximated.
-!> \param maxiter Optional maximum number of iterations (HUGE if not present).
-!> \return Calculated radius of the Gaussian function such that g(r) < threshold.
-! **************************************************************************************************
-   FUNCTION exp_radius_fast(l, alpha, threshold, prefactor, epsabs, epsrel, rlow, maxiter) RESULT(radius)
-      INTEGER, INTENT(IN)                                :: l
-      REAL(KIND=dp), INTENT(IN)                          :: alpha, threshold, prefactor
-      REAL(KIND=dp), INTENT(IN), OPTIONAL                :: epsabs, epsrel
-      REAL(KIND=dp), INTENT(OUT), OPTIONAL               :: rlow
-      INTEGER, INTENT(INOUT), OPTIONAL                   :: maxiter
-      REAL(KIND=dp)                                      :: radius
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius_fast', &
-         routineP = moduleN//':'//routineN
-      REAL(KIND=dp), PARAMETER                           :: jump = 1.0_dp, scope = 2.0_dp, &
-                                                            rscope = 1.0_dp/scope
-
-      INTEGER                                            :: i, n
-      REAL(KIND=dp)                                      :: a, d, dr, exp_2drsq, exp_2rdr, exp_drsq, &
-                                                            exp_rsq, g, h, r, rd, rtmp, t
-
-      CPASSERT((0 .LT. jump) .AND. (1 .LT. scope))
-      t = ABS(threshold)
-      d = ABS(prefactor)
-      a = ABS(alpha)
-      r = SQRT(0.5_dp*REAL(l, dp)/a)
-      exp_rsq = d*EXP(-a*r*r)
-      g = MERGE(exp_rsq*r**l, d, l .NE. 0)
-
-      IF (g .LT. t) THEN ! early exit (radius=0)
-         IF (PRESENT(maxiter)) maxiter = 0
-         IF (PRESENT(rlow)) rlow = 0.0_dp
-         radius = 0.0_dp
-         RETURN
-      ENDIF
-
-      IF (PRESENT(maxiter)) THEN
-         n = maxiter
-      ELSE
-         n = HUGE(i)
-      ENDIF
-
-      ! automatically select initial step size
-      radius = r + jump
-      h = d*radius**l*EXP(-a*radius*radius)
-      dr = (0.5_dp*scope)*(g*radius - h*r)/MAX(g - h, t)
-      CPASSERT(h .LE. g)
-
-      ! setup fast contraction
-      exp_drsq = EXP(-a*dr*dr)
-      exp_2drsq = exp_drsq*exp_drsq
-      exp_2rdr = EXP(-2.0_dp*a*r*dr)
-      radius = r
-      rtmp = r
-      rd = dr
-
-      ! fast contraction (no EXP in loop)
-      DO i = 1, n
-         g = radius**l*exp_rsq
-         IF (g .LT. t) THEN
-            IF (PRESENT(epsabs)) THEN
-               rd = MAX(ABS(epsabs), dr)
-            ENDIF
-            IF (PRESENT(epsrel)) THEN
-               rd = MIN(epsrel*radius, rd)
-            ENDIF
-            IF (rd .LT. dr) THEN
-               radius = rtmp + rd
-               exp_rsq = d*EXP(-a*radius*radius)
-               exp_drsq = EXP(-a*rd*rd)
-               exp_2drsq = exp_drsq*exp_drsq
-               exp_2rdr = EXP(-2.0_dp*a*radius*rd)
-               dr = rd
-               CYCLE
-            ENDIF
-            EXIT
-         ENDIF
-         rtmp = radius
-         radius = radius + dr
-         exp_rsq = exp_rsq*exp_drsq*exp_2rdr
-         exp_2rdr = exp_2rdr*exp_2drsq
-      ENDDO
-      CPASSERT(0 .LT. radius)
-
-      ! optionally ensure t<=g(rlow) and g(radius)<t
-      ! use mixed precision to form interval (SP/DP)
-      IF (PRESENT(rlow)) THEN
-         DO i = i + 1, n
-            g = d*rtmp**l*REAL(EXP(REAL(-a*rtmp*rtmp, KIND=sp)), KIND=dp)
-            IF (t .LE. g) THEN
-               rlow = rtmp
-               EXIT
-            ENDIF
-            rtmp = MAX(rtmp*rscope, r)
-         ENDDO
-         DO i = i + 1, n
-            g = d*radius**l*REAL(EXP(REAL(-a*radius*radius, KIND=sp)), KIND=dp)
-            IF (g .LT. t) EXIT
-            radius = scope*radius
-         ENDDO
-      ENDIF
-      IF (PRESENT(maxiter)) THEN
-         maxiter = i
-      ENDIF
-   END FUNCTION exp_radius_fast
-
-! **************************************************************************************************
-!> \brief  The radius of a primitive Gaussian function for a given threshold is calculated.
-!>         g(r) = prefactor*r**l*exp(-alpha*r**2) - threshold = 0
-!> \param l Angular momentum quantum number l.
-!> \param alpha Exponent of the primitive Gaussian function.
-!> \param threshold Determines if g(r) is accepted to be zero.
-!> \param prefactor Prefactor of the Gaussian function g(r).
-!> \param epsabs Optional interval width of bracketed radius (automatically chosen if not present).
-!> \param epsrel Optional interval width relative to radius (not enforced if not present).
-!> \return Calculated radius of the Gaussian function such that g(r) < threshold.
-! **************************************************************************************************
-   FUNCTION exp_radius_simple(l, alpha, threshold, prefactor, epsabs, epsrel) RESULT(radius)
-      INTEGER, INTENT(IN)                                :: l
-      REAL(KIND=dp), INTENT(IN)                          :: alpha, threshold, prefactor
-      REAL(KIND=dp), INTENT(IN), OPTIONAL                :: epsabs, epsrel
-      REAL(KIND=dp)                                      :: radius
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius_simple', &
-         routineP = moduleN//':'//routineN
-
-      REAL(KIND=dp)                                      :: absiter
-
-      IF (PRESENT(epsabs)) THEN
-         absiter = epsabs
-      ELSE ! arbitrary scaled epsilon?
-         absiter = EPSILON(absiter)*(1.0E-12_dp/2.22044604925031E-16_dp)
-      ENDIF
-
-      radius = exp_radius_fast(l, alpha, threshold, prefactor, absiter, epsrel)
-   END FUNCTION exp_radius_simple
-
-! **************************************************************************************************
 !> \brief  The radius of a primitive Gaussian function for a given threshold
 !>         is calculated.
 !>               g(r) = prefactor*r**l*exp(-alpha*r**2) - threshold = 0
 !> \param l Angular momentum quantum number l.
 !> \param alpha Exponent of the primitive Gaussian function.
-!> \param threshold Threshold for radius.
+!> \param threshold Threshold for function g(r).
 !> \param prefactor Prefactor of the Gaussian function (e.g. a contraction
 !>                     coefficient).
-!> \param epsabs Convergence criterion
-!> \param epsrel ...
-!> \param rlow Optional lower bound radius when searching maximum radius
+!> \param epsabs Absolute tolerance (radius)
+!> \param epsrel Relative tolerance (radius)
+!> \param rlow Optional lower bound radius, e.g., when searching maximum radius
 !> \return Calculated radius of the Gaussian function
-!> \date    26.02.1999
-!> \par History
-!>            - Modified to bisection to avoid division by zero (01.2002, Joost)
-!>            - that means the old version contains bugs .......(04.2002, Joost)
-!>              so keep this one ...
-!>            - Golden Section Search (GSS), several tweaks     (06.2019, HansP)
 !> \par Variables
-!>        - g      : The function g(r).
-!>        - maxiter: Maximum number of iterations.
-!> \author  MK
-!> \version 2.0
+!>        - g       : function g(r)
+!>        - prec_exp: single/double precision exponential function
+!>        - itermax : Maximum number of iterations
+!>        - contract: Golden Section Search (GSS): [0.38, 0.62]
+!>                    Equidistant sampling: [0.2, 0.4, 0.6, 0.8]
+!>                    Bisection (original approach): [0.5]
+!>                    Array size may trigger vectorization
 ! **************************************************************************************************
    FUNCTION exp_radius(l, alpha, threshold, prefactor, epsabs, epsrel, rlow) RESULT(radius)
       INTEGER, INTENT(IN)                                :: l
@@ -313,17 +163,20 @@ CONTAINS
       REAL(KIND=dp)                                      :: radius
 
       CHARACTER(len=*), PARAMETER :: routineN = 'exp_radius', routineP = moduleN//':'//routineN
-      INTEGER, PARAMETER                                 :: maxiter = 5000
-      REAL(KIND=dp), PARAMETER :: contract = 0.38_dp, logc = LOG(MAX(1.0_dp - contract, contract))
+      INTEGER, PARAMETER                                 :: itermax = 5000, prec_exp = sp
+      REAL(KIND=dp), PARAMETER                           :: contract(*) = (/0.38, 0.62/), &
+                                                            mineps = 1.0E-12, next = 2.0, &
+                                                            step = 1.0
 
-      INTEGER                                            :: iter, neps
-      REAL(KIND=dp)                                      :: a, absiter, d, eps, g, r0, r1, rd, rg, t
+      INTEGER                                            :: i, j
+      REAL(KIND=dp)                                      :: a, d, dr, eps, r, rd, t
+      REAL(KIND=dp), DIMENSION(SIZE(contract))           :: g, s
 
       IF (l .LT. 0) THEN
          CPABORT("The angular momentum quantum number is negative")
       ENDIF
 
-      IF (alpha == 0.0_dp) THEN
+      IF (alpha .EQ. 0.0_dp) THEN
          CPABORT("The Gaussian function exponent is zero")
       ELSE
          a = ABS(alpha)
@@ -335,68 +188,59 @@ CONTAINS
          CPABORT("The requested threshold is zero")
       ENDIF
 
+      radius = 0.0_dp
+      IF (PRESENT(rlow)) radius = rlow
+      IF (prefactor .EQ. 0.0_dp) RETURN
+
+      ! MAX: facilitate early exit
+      r = MAX(SQRT(0.5_dp*REAL(l, dp)/a), radius)
+
+      d = ABS(prefactor); g(1) = d
+      IF (l .NE. 0) THEN
+         g(1) = g(1)*EXP(REAL(-a*r*r, KIND=prec_exp))*r**l
+      END IF
+      ! original approach may return radius=0
+      ! with g(r) != g(radius)
+      !radius = r
+      IF (g(1) .LT. t) RETURN ! early exit
+
+      radius = r*next + step
+      DO i = 1, itermax
+         g(1) = d*EXP(REAL(-a*radius*radius, KIND=prec_exp))*radius**l
+         IF (g(1) .LT. t) EXIT
+         r = radius; radius = r*next + step
+      ENDDO
+
+      ! consider absolute and relative accuracy (interval width)
       IF (PRESENT(epsabs)) THEN
-         absiter = epsabs
+         eps = epsabs
+      ELSE IF (.NOT. PRESENT(epsrel)) THEN
+         eps = mineps
       ELSE
-         absiter = EPSILON(absiter)*(1.0E-12_dp/2.22044604925031E-16_dp)
+         eps = HUGE(eps)
       ENDIF
+      IF (PRESENT(epsrel)) eps = MIN(eps, epsrel*r)
 
-      d = ABS(prefactor)
-      iter = maxiter
-
-      ! aim for data-dependent iterations only in exp_radius_fast (approximative)
-      r1 = exp_radius_fast(l, a, t, d, absiter, epsrel, rlow=r0, maxiter=iter)
-
-      ! avoid system calls in tight/arithmetic loops
-      IF (maxiter .LT. iter) THEN
+      dr = 0.0_dp
+      DO i = i + 1, itermax
+         rd = radius - r
+         ! check if finished or no further progress
+         IF ((rd .LT. eps) .OR. (rd .EQ. dr)) RETURN
+         s = r + rd*contract ! interval contraction
+         g = d*EXP(REAL(-a*s*s, KIND=prec_exp))*s**l
+         DO j = 1, SIZE(contract)
+            IF (g(j) .LT. t) THEN
+               radius = s(j) ! interval [r, sj)
+               EXIT
+            ELSE
+               r = s(j) ! interval [sj, radius)
+            ENDIF
+         ENDDO
+         dr = rd
+      ENDDO
+      IF (i .GE. itermax) THEN
          CPABORT("Maximum number of iterations reached")
       ENDIF
-
-      ! early exit (search for maximum)
-      IF (PRESENT(rlow)) THEN
-         IF (r0 < rlow) THEN
-            r0 = rlow
-         ELSE IF (0 .LT. rlow) THEN
-            r1 = r0
-         ENDIF
-      ENDIF
-      IF (r0 .GE. r1) THEN
-         radius = MAX(r0, r1)
-         RETURN
-      ENDIF
-      CPASSERT(r0 .LE. r1)
-
-      ! calculate trip count (deterministic after exp_radius_fast)
-      IF (PRESENT(epsrel)) THEN
-         eps = MIN(absiter, epsrel*r1)
-      ELSE
-         eps = absiter
-      ENDIF
-
-      ! GSS/CEILING is slightly faster
-      rd = r1 - r0
-      IF (eps .LT. rd) THEN
-         neps = CEILING(LOG(REAL(eps/rd, KIND=sp))/logc)
-      ELSE
-         neps = 1
-      ENDIF
-
-      IF (iter + neps .LT. maxiter) THEN
-         DO iter = 1, neps
-            rg = r0 + rd*contract ! Golden Section
-            g = d*rg**l*EXP(-a*rg*rg)
-            IF (g .LT. t) THEN
-               r1 = rg ! interval [r0, rg)
-            ELSE
-               r0 = rg ! interval [rg, r1)
-            ENDIF
-            rd = r1 - r0
-         ENDDO
-         radius = rg
-      ELSE
-         CPABORT("Maximum number of iterations exceeded")
-      ENDIF
-      CPASSERT(radius .EQ. radius) ! NaN
 
    END FUNCTION exp_radius
 
