@@ -273,10 +273,15 @@ XFC := $(FC)
 ifneq (0,$(NDEBUG))
   ifneq (1,$(NDEBUG)) # CP2K and DBCSR
     DFLAGS += -DNDEBUG
-  else ifneq (,$(wildcard $(CP2KHOME)/.inject.sh)) # only DBCSR
-    CXX := $(CP2KHOME)/.inject.sh dbcsr_ -DNDEBUG $(CXX)
-    CC  := $(CP2KHOME)/.inject.sh dbcsr_ -DNDEBUG $(CC)
-    FC  := $(CP2KHOME)/.inject.sh dbcsr_ -DNDEBUG $(FC)
+  else # only DBCSR
+    ifeq (,$(wildcard $(CP2KHOME)/.inject.sh))
+      INJECT := $(shell echo "if [ \"\$$4\" ] && [ \"\$$(echo \"\$${@:4}\" | sed -n \"/\$$1/p\" 2>/dev/null)\" ]; then exec \$$3 \$$2 \"\$${@:4}\"; elif [ \"\$$4\" ]; then exec \$$3 \"\$${@:4}\"; else exec \$$3; fi" > $(CP2KHOME)/.inject.sh && chmod +x $(CP2KHOME)/.inject.sh)
+    endif
+    ifneq (,$(wildcard $(CP2KHOME)/.inject.sh))
+      CXX := $(CP2KHOME)/.inject.sh dbcsr_ -DNDEBUG $(CXX)
+      CC  := $(CP2KHOME)/.inject.sh dbcsr_ -DNDEBUG $(CC)
+      FC  := $(CP2KHOME)/.inject.sh dbcsr_ -DNDEBUG $(FC)
+    endif
   endif
 endif
 
