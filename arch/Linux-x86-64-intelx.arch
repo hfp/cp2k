@@ -157,7 +157,7 @@ ifneq (,$(filter-out 0 undefined,$(OCL) $(GPUVER)))
     IPO = 0
   else
     $(info ===============)
-    $(info NVCC not found!
+    $(info NVCC not found!)
     $(info ===============)
   endif
 else # ACC off
