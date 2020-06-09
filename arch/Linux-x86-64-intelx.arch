@@ -155,6 +155,10 @@ ifneq (,$(filter-out 0 undefined,$(OCL) $(GPUVER)))
     NVFLAGS += $(addprefix -Xcompiler $(NULL),$(filter-out -Wl%,$(OPTFLAGS)))
     NVCC = nvcc
     IPO = 0
+  else
+    $(info ===============)
+    $(info NVCC not found!
+    $(info ===============)
   endif
 else # ACC off
   ifeq (0,$(GNU))
