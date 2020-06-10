@@ -5,7 +5,7 @@
 
 PROGRAM dumpdcd
 
-! Version: 3.0
+! Version: 3.1
 ! Author:  Matthias Krack (MK)
 ! History: - Creation (13.02.2012,MK)
 !          - XYZ file option added (13.02.2012,MK)
@@ -20,6 +20,7 @@ PROGRAM dumpdcd
 !          - Dump the atomic displacements (CORD file) or temperatures (VEL file as x-coordinates of a DCD file (28.06.2012,MK)
 !          - FRC to CORD (-frc2cord flag) hack added (28.01.2016,MK)
 !          - Option -eformat added (15.02.2016,MK)
+!          - Fix box unit string for velocity dump (07.06.2020,MK)
 !
 ! Note: For -ekin a XYZ file is required to obtain the atomic labels.
 !       The -info and the -debug flags provide a more detailed output which is especially handy for tracing problems.
@@ -527,11 +528,12 @@ PROGRAM dumpdcd
          ! Print unit cell information, if available
          IF (info .AND. dump_frame) THEN
             IF (have_unit_cell == 1) THEN
-               WRITE (UNIT=error_unit, FMT="(A,/,(A,F12.6))") &
+               WRITE (UNIT=error_unit, FMT="(A,/,(A,T19,A,F12.6))") &
                   "#", &
-                  "# a [Angstrom]    : ", a, &
-                  "# b [Angstrom]    : ", b, &
-                  "# c [Angstrom]    : ", c, &
+                  "# a "//TRIM(unit_string), ": ", a, &
+                  "# b "//TRIM(unit_string), ": ", b, &
+                  "# c "//TRIM(unit_string), ": ", c
+               WRITE (UNIT=error_unit, FMT="(A,F12.6)") &
                   "# alpha [degree]  : ", alpha, &
                   "# beta  [degree]  : ", beta, &
                   "# gamma [degree]  : ", gamma
@@ -848,7 +850,7 @@ CONTAINS
 
       error_message = "*** ERROR in "//TRIM(routine)//": "//TRIM(message)//" ***"
       WRITE (UNIT=default_error_unit, FMT="(/,A,/)") TRIM(error_message)
-      STOP "*** ABNORMAL PROGRAM TERMINATION of dumpdcd v3.0 ***"
+      STOP "*** ABNORMAL PROGRAM TERMINATION of dumpdcd v3.1 ***"
 
    END SUBROUTINE abort_program
 
