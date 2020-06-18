@@ -92,7 +92,8 @@ MODULE xas_tdp_integrals
    USE xas_tdp_types, ONLY: xas_tdp_control_type, &
                             xas_tdp_env_type
 #if(__LIBXSMM)
-   USE libxsmm, ONLY: libxsmm_otrans, &
+   USE libxsmm, ONLY: libxsmm_matcopy, &
+                      libxsmm_otrans, &
                       libxsmm_ptr
 #endif
 
@@ -431,19 +432,35 @@ CONTAINS
 
                IF (ilist == 1) THEN
                   ALLOCATE (tspa(iset, ibasis)%array(basis_set%nsgf_set(iset), ncoa))
-#if defined(__LIBXSMM) && 0
+#if defined(__LIBXSMM)
                   CALL libxsmm_otrans(libxsmm_ptr(tspa(iset, ibasis)%array), &
-                                      libxsmm_ptr(basis_set%sphi(1:ncoa, sgfa:egfa)), &
-                                      8, ncoa, egfa - sgfa + 1)
+                                      libxsmm_ptr(basis_set%sphi(1, sgfa)), &
+                                      8, ncoa, egfa - sgfa + 1, &
+                                      SIZE(basis_set%sphi, 1), &
+                                      basis_set%nsgf_set(iset))
 #else
                   tspa(iset, ibasis)%array(:, :) = TRANSPOSE(basis_set%sphi(1:ncoa, sgfa:egfa))
 #endif
                ELSE IF (ilist == 2) THEN
                   ALLOCATE (spb(iset, ibasis)%array(ncoa, basis_set%nsgf_set(iset)))
+#if defined(__LIBXSMM)
+                  CALL libxsmm_matcopy(libxsmm_ptr(spb(iset, ibasis)%array), &
+                                       libxsmm_ptr(basis_set%sphi(1, sgfa)), &
+                                       8, ncoa, egfa - sgfa + 1, &
+                                       SIZE(basis_set%sphi, 1), ncoa)
+#else
                   spb(iset, ibasis)%array(:, :) = basis_set%sphi(1:ncoa, sgfa:egfa)
+#endif
                ELSE
                   ALLOCATE (spc(iset, ibasis)%array(ncoa, basis_set%nsgf_set(iset)))
+#if defined(__LIBXSMM)
+                  CALL libxsmm_matcopy(libxsmm_ptr(spc(iset, ibasis)%array), &
+                                       libxsmm_ptr(basis_set%sphi(1, sgfa)), &
+                                       8, ncoa, egfa - sgfa + 1, &
+                                       SIZE(basis_set%sphi, 1), ncoa)
+#else
                   spc(iset, ibasis)%array(:, :) = basis_set%sphi(1:ncoa, sgfa:egfa)
+#endif
                END IF
 
             END DO !iset

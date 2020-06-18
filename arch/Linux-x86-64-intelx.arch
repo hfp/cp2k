@@ -155,6 +155,10 @@ ifneq (,$(filter-out 0 undefined,$(OCL) $(GPUVER)))
     NVFLAGS += $(addprefix -Xcompiler $(NULL),$(filter-out -Wl%,$(OPTFLAGS)))
     NVCC = nvcc
     IPO = 0
+  else
+    $(info ===============)
+    $(info NVCC not found!)
+    $(info ===============)
   endif
 else # ACC off
   ifeq (0,$(GNU))
@@ -184,6 +188,10 @@ ifeq (,$(strip $(MKLROOT)))
     MKLROOT = $(abspath $(dir $(MKL_INCFILE))/../..)
   endif
 endif
+ifeq (/,$(MKLROOT))
+  MKL_INCFILE = $(NULL)
+  MKLROOT = $(NULL)
+endif
 
 SCALAPACK ?= $(MPI)
 ifneq (0,$(MPI))
@@ -210,6 +218,9 @@ ifneq (0,$(MPI))
     COSMAROOT ?= $(abspath $(dir $(firstword $(wildcard $(HOME)/cosma*$(COSMATGT)/lib64/libcosma_pxgemm.*)))/..)
     COSMAROOT ?= $(abspath $(dir $(firstword $(wildcard $(CP2KHOME)/../cosma*/lib64/libcosma_pxgemm.*)))/..)
     COSMAROOT ?= $(abspath $(dir $(firstword $(wildcard $(HOME)/cosma*/lib64/libcosma_pxgemm.*)))/..)
+    ifeq (/,$(COSMAROOT))
+      COSMAROOT = $(NULL)
+    endif
     ifneq (,$(COSMAROOT))
       LIBS += -L$(COSMAROOT)/lib64 -lcosma_pxgemm -lcosma -lgrid2grid
       ifneq (,$(NVCC))
@@ -266,10 +277,15 @@ XFC := $(FC)
 ifneq (0,$(NDEBUG))
   ifneq (1,$(NDEBUG)) # CP2K and DBCSR
     DFLAGS += -DNDEBUG
-  else ifneq (,$(wildcard $(CP2KHOME)/.inject.sh)) # only DBCSR
-    CXX := $(CP2KHOME)/.inject.sh dbcsr_ -DNDEBUG $(CXX)
-    CC  := $(CP2KHOME)/.inject.sh dbcsr_ -DNDEBUG $(CC)
-    FC  := $(CP2KHOME)/.inject.sh dbcsr_ -DNDEBUG $(FC)
+  else # only DBCSR
+    ifeq (,$(wildcard $(CP2KHOME)/.inject.sh))
+      INJECT := $(shell echo "if [ \"\$$4\" ] && [ \"\$$(echo \"\$${@:4}\" | sed -n \"/\$$1/p\" 2>/dev/null)\" ]; then exec \$$3 \$$2 \"\$${@:4}\"; elif [ \"\$$4\" ]; then exec \$$3 \"\$${@:4}\"; else exec \$$3; fi" > $(CP2KHOME)/.inject.sh && chmod +x $(CP2KHOME)/.inject.sh)
+    endif
+    ifneq (,$(wildcard $(CP2KHOME)/.inject.sh))
+      CXX := $(CP2KHOME)/.inject.sh dbcsr_ -DNDEBUG $(CXX)
+      CC  := $(CP2KHOME)/.inject.sh dbcsr_ -DNDEBUG $(CC)
+      FC  := $(CP2KHOME)/.inject.sh dbcsr_ -DNDEBUG $(FC)
+    endif
   endif
 endif
 
@@ -469,6 +485,9 @@ ifneq (0,$(LIBXSMM)) # incl. undefined
   else ifneq (,$(wildcard $(TOOLSRC)/toolchain/build/libxsmm*/Makefile))
     LIBXSMMROOT ?= $(abspath $(dir $(lastword $(sort $(wildcard $(TOOLSRC)/toolchain/build/libxsmm*/Makefile)))))
   endif
+  ifeq (/,$(LIBXSMMROOT))
+    LIBXSMMROOT = $(NULL)
+  endif
   ifneq (,$(LIBXSMMROOT))
     $(info LIBXSMMROOT=$(LIBXSMMROOT))
   endif
@@ -476,6 +495,9 @@ endif
 ifneq (0,$(LIBINT)) # incl. undefined
   LIBINTROOT ?= $(abspath $(wildcard $(CP2KHOME)/../libint/$(XCFG)))
   LIBINTROOT ?= $(abspath $(wildcard $(HOME)/libint/$(XCFG)))
+  ifeq (/,$(LIBINTROOT))
+    LIBINTROOT = $(NULL)
+  endif
   ifneq (,$(LIBINTROOT))
     $(info LIBINTROOT=$(LIBINTROOT))
   endif
@@ -483,6 +505,9 @@ endif
 ifneq (0,$(LIBXC)) # incl. undefined
   LIBXCROOT ?= $(abspath $(wildcard $(CP2KHOME)/../libxc/$(XCFG)))
   LIBXCROOT ?= $(abspath $(wildcard $(HOME)/libxc/$(XCFG)))
+  ifeq (/,$(LIBXCROOT))
+    LIBXCROOT = $(NULL)
+  endif
   ifneq (,$(LIBXCROOT))
     $(info LIBXCROOT=$(LIBXCROOT))
   endif
@@ -490,6 +515,9 @@ endif
 ifneq (0,$(ELPA)) # incl. undefined
   ELPAROOT ?= $(abspath $(wildcard $(CP2KHOME)/../elpa/$(XCFGOMP)))
   ELPAROOT ?= $(abspath $(wildcard $(HOME)/elpa/$(XCFG)))
+  ifeq (/,$(COSMAROOT))
+    ELPAROOT = $(NULL)
+  endif
   ifneq (,$(ELPAROOT))
     $(info ELPAROOT=$(ELPAROOT))
   endif
