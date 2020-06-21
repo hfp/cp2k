@@ -2,8 +2,8 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")" && pwd -P)"
 
-sirius_ver="6.4.4"
-sirius_sha256="1c5de9565781847658c3cc11edcb404e6e6d1c5a9dfc81e977de7a9a7a162c8a"
+sirius_ver="6.5.4"
+sirius_sha256="5f731926b882a567d117afa5e0ed33291f1db887fce52f371ba51f014209b85d"
 
 
 source "${SCRIPT_DIR}"/common_vars.sh
@@ -100,12 +100,12 @@ case "$with_sirius" in
             mkdir build
             cd build
             COMPILATION_OPTIONS="-DHDF5_DIR=${HDF5_DIR}"
-            if [ -n "$ELPA_LIBS" ] ; then
-                if [ -s "$ELPAROOT" ] ; then
-                    export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:$ELPAROOT/lib/pkgconfig:$ELPAROOT/lib64/pkgconfig
-                fi
-                COMPILATION_OPTIONS="-DUSE_ELPA=ON -DELPA_INCLUDE_DIR=${ELPAROOT}/include/elpa_openmp-${ELPAVERSION}/elpa $COMPILATION_OPTIONS"
-            fi
+            #if [ -n "$ELPA_LIBS" ] ; then
+            #    if [ -s "$ELPAROOT" ] ; then
+            #        export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:$ELPAROOT/lib/pkgconfig:$ELPAROOT/lib64/pkgconfig
+            #    fi
+            #    COMPILATION_OPTIONS="-DUSE_ELPA=ON -DELPA_INCLUDE_DIR=${ELPAROOT}/include/elpa-${ELPAVERSION} $COMPILATION_OPTIONS"
+            #fi
 
             if [ -n "$SCALAPACK_LIBS" ] ; then
                 export SCALAPACK_LIB="$SCALAPACK_LIBS"
@@ -132,8 +132,11 @@ case "$with_sirius" in
                   -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="${SIRIUS_DBG}" \
                   -DCMAKE_CXX_COMPILER="${MPICXX}" \
                   -DCMAKE_C_COMPILER="${MPICC}" \
-                  ${COMPILATION_OPTIONS} .. > compile.log 2>&1
-            make -j $NPROCS -C src >> compile.log 2>&1
+		  -DBUILD_SHARED_LIBS=OFF \
+		  -DUSE_ELPA=OFF \
+		  ${COMPILATION_OPTIONS} .. > compile.log 2>&1
+            
+	    make -j $NPROCS -C src >> compile.log 2>&1 
 
             install -d ${pkg_install_dir}/include >> install.log 2>&1
             install -d ${pkg_install_dir}/lib >> install.log 2>&1
@@ -153,7 +156,9 @@ case "$with_sirius" in
                       -DCMAKE_CXXFLAGS_RELEASE="${SIRIUS_OPT}" \
                       -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="${SIRIUS_DBG}" \
                       -DUSE_CUDA=ON \
+		      -DUSE_ELPA=OFF \
                       -DGPU_MODEL=P100 \
+		      -DBUILD_SHARED_LIBS=OFF \
                       -DCMAKE_CXX_COMPILER="${MPICXX}" \
                       -DCMAKE_C_COMPILER="${MPICC}" ${COMPILATION_OPTIONS} .. >> compile.log 2>&1
                 make -j $NPROCS -C src >> compile.log 2>&1
