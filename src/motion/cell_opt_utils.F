@@ -255,11 +255,12 @@ CONTAINS
 !> \param keep_angles ...
 !> \param keep_symmetry ...
 !> \param pres_int ...
+!> \param pres_constr ...
 !> \param constraint_id ...
 !> \author Teodoro Laino [tlaino] - University of Zurich - 03.2008
 ! **************************************************************************************************
    SUBROUTINE get_dg_dh(gradient, av_ptens, pres_ext, cell, mtrx, keep_angles, &
-                        keep_symmetry, pres_int, constraint_id)
+                        keep_symmetry, pres_int, pres_constr, constraint_id)
 
       REAL(KIND=dp), DIMENSION(:), POINTER               :: gradient
       REAL(KIND=dp), DIMENSION(3, 3), INTENT(IN)         :: av_ptens
@@ -267,7 +268,7 @@ CONTAINS
       TYPE(cell_type), POINTER                           :: cell
       REAL(KIND=dp), DIMENSION(3, 3), INTENT(IN)         :: mtrx
       LOGICAL, INTENT(IN), OPTIONAL                      :: keep_angles, keep_symmetry
-      REAL(KIND=dp), INTENT(OUT)                         :: pres_int
+      REAL(KIND=dp), INTENT(OUT)                         :: pres_int, pres_constr
       INTEGER, INTENT(IN), OPTIONAL                      :: constraint_id
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'get_dg_dh', routineP = moduleN//':'//routineN
@@ -297,6 +298,24 @@ CONTAINS
          pres_int = pres_int + ptens(i, i)
       ENDDO
       pres_int = pres_int/3.0_dp
+
+      SELECT CASE (my_constraint_id)
+      CASE (fix_x)
+         pres_constr = ptens(2, 2) + ptens(3, 3)
+      CASE (fix_y)
+         pres_constr = ptens(1, 1) + ptens(3, 3)
+      CASE (fix_z)
+         pres_constr = ptens(1, 1) + ptens(2, 2)
+      CASE (fix_xy)
+         pres_constr = ptens(3, 3)
+      CASE (fix_xz)
+         pres_constr = ptens(2, 2)
+      CASE (fix_yz)
+         pres_constr = ptens(1, 1)
+      CASE (fix_none)
+         pres_constr = ptens(1, 1) + ptens(2, 2) + ptens(3, 3)
+      END SELECT
+      pres_constr = pres_constr/3.0_dp
 
       ptens(1, 1) = av_ptens(1, 1) - pres_ext
       ptens(2, 2) = av_ptens(2, 2) - pres_ext
