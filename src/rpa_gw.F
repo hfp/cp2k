@@ -377,8 +377,8 @@ CONTAINS
 
       IF (mp2_env%ri_g0w0%analytic_continuation == gw_pade_approx) THEN
          IF (mp2_env%ri_g0w0%nparam_pade > num_fit_points) THEN
-            IF (unit_nr > 0) &
-               CPWARN("Pade approximation: more parameters than data points. Reset # of parameters.")
+            IF (unit_nr > 0) WRITE (UNIT=unit_nr, FMT="(T3,A)") &
+               "Pade approximation: more parameters than data points. Reset # of parameters."
             mp2_env%ri_g0w0%nparam_pade = num_fit_points
             IF (unit_nr > 0) WRITE (UNIT=unit_nr, FMT="(T3,A,T74,I7)") &
                "Number of pade parameters:", mp2_env%ri_g0w0%nparam_pade
@@ -566,6 +566,8 @@ CONTAINS
          END IF
 
       END DO
+
+      CALL mp_sync(para_env%group)
 
       CALL mp_sum(vec_Sigma_x_gw, para_env%group)
 
@@ -950,6 +952,8 @@ CONTAINS
                                           mp2_env%ri_g0w0%do_aux_bas_gw, mp2_env%ri_g0w0%frac_aux_mos)
          END IF
 
+         CALL mp_sync(para_env%group)
+
          ! subtract 1 from the diagonal to get rid of exchange self-energy
 !$OMP           PARALLEL DO DEFAULT(NONE) PRIVATE(jjB,iiB,i_global,j_global) &
 !$OMP                       SHARED(ncol_local,nrow_local,col_indices,row_indices,fm_mat_Q,dimen_RI)
@@ -962,6 +966,8 @@ CONTAINS
                END IF
             END DO
          END DO
+
+         CALL mp_sync(para_env%group)
 
          CALL compute_self_energy_gw(vec_Sigma_c_gw, dimen_nm_gw, dimen_RI, gw_corr_lev_occ, homo, jquad, nmo, num_fit_points, &
                                      do_periodic, fermi_level_offset, omega, Eigenval, delta_corr, vec_omega_fit_gw, vec_W_gw, &
@@ -2121,6 +2127,8 @@ CONTAINS
                              ncol_local=ncol_local, &
                              col_indices=col_indices)
 
+         CALL mp_sync(para_env%group)
+
          ! multiply eigenvectors with inverse sqrt of eigenvalues
          DO i_col_local = 1, ncol_local
 
@@ -2130,6 +2138,8 @@ CONTAINS
                fm_mat_scaled_eigv_P%local_data(:, i_col_local)*evals_P_sqrt_inv(col_index)
 
          END DO
+
+         CALL mp_sync(para_env%group)
 
          CALL cp_gemm(transa="N", transb="T", m=nmo, n=nmo, k=nmo, alpha=1.0_dp, &
                       matrix_a=fm_mat_eigv_P, matrix_b=fm_mat_scaled_eigv_P, beta=0.0_dp, &
@@ -4668,7 +4678,7 @@ CONTAINS
                                            fm_mo_coeff_occ, fm_mo_coeff_virt, &
                                            fm_mo_coeff_occ_scaled, fm_mo_coeff_virt_scaled, &
                                            fm_scaled_dm_occ_tau, fm_scaled_dm_virt_tau, Eigenval, &
-                                           nmo, eps_filter, e_fermi, tau_tj(jquad))
+                                           nmo, eps_filter, e_fermi, tau_tj(jquad), para_env)
 
          CALL dbcsr_set(mat_W, 0.0_dp)
          CALL copy_fm_to_dbcsr(fm_mat_W(jquad)%matrix, mat_W, keep_sparsity=.FALSE.)
@@ -5037,11 +5047,12 @@ CONTAINS
 !> \param eps_filter ...
 !> \param e_fermi ...
 !> \param tau ...
+!> \param para_env ...
 ! **************************************************************************************************
    SUBROUTINE compute_Greens_function_time(mat_greens_fct_occ, mat_greens_fct_virt, fm_mo_coeff_occ, fm_mo_coeff_virt, &
                                            fm_mo_coeff_occ_scaled, fm_mo_coeff_virt_scaled, &
                                            fm_scaled_dm_occ_tau, fm_scaled_dm_virt_tau, Eigenval, nmo, &
-                                           eps_filter, e_fermi, tau)
+                                           eps_filter, e_fermi, tau, para_env)
 
       TYPE(dbcsr_type), POINTER                          :: mat_greens_fct_occ, mat_greens_fct_virt
       TYPE(cp_fm_type), POINTER :: fm_mo_coeff_occ, fm_mo_coeff_virt, fm_mo_coeff_occ_scaled, &
@@ -5049,6 +5060,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: Eigenval
       INTEGER, INTENT(IN)                                :: nmo
       REAL(KIND=dp), INTENT(IN)                          :: eps_filter, e_fermi, tau
+      TYPE(cp_para_env_type), POINTER                    :: para_env
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'compute_Greens_function_time', &
          routineP = moduleN//':'//routineN
@@ -5059,6 +5071,8 @@ CONTAINS
       REAL(KIND=dp)                                      :: stabilize_exp
 
       CALL timeset(routineN, handle)
+
+      CALL mp_sync(para_env%group)
 
       ! get info of fm_mo_coeff_occ
       CALL cp_fm_get_info(matrix=fm_mo_coeff_occ, &
@@ -5103,6 +5117,8 @@ CONTAINS
          END DO
       END DO
 
+      CALL mp_sync(para_env%group)
+
       CALL cp_gemm(transa="N", transb="T", m=nmo, n=nmo, k=nmo, alpha=1.0_dp, &
                    matrix_a=fm_mo_coeff_occ_scaled, matrix_b=fm_mo_coeff_occ_scaled, beta=0.0_dp, &
                    matrix_c=fm_scaled_dm_occ_tau)
@@ -5130,137 +5146,6 @@ CONTAINS
       CALL timestop(handle)
 
    END SUBROUTINE compute_Greens_function_time
-
-! **************************************************************************************************
-!> \brief ...
-!> \param mat_greens_fct_occ ...
-!> \param mat_greens_fct_virt ...
-!> \param fm_mo_coeff ...
-!> \param fm_mo_coeff_occ_scaled ...
-!> \param fm_mo_coeff_virt_scaled ...
-!> \param fm_scaled_dm_occ_tau ...
-!> \param fm_scaled_dm_virt_tau ...
-!> \param Eigenval ...
-!> \param fermi_level_offset ...
-!> \param nmo ...
-!> \param homo ...
-!> \param eps_filter ...
-!> \param omega ...
-!> \param real_imaginary ...
-! **************************************************************************************************
-   SUBROUTINE compute_Greens_function_freq(mat_greens_fct_occ, mat_greens_fct_virt, fm_mo_coeff, &
-                                           fm_mo_coeff_occ_scaled, fm_mo_coeff_virt_scaled, fm_scaled_dm_occ_tau, &
-                                           fm_scaled_dm_virt_tau, Eigenval, fermi_level_offset, nmo, &
-                                           homo, eps_filter, omega, real_imaginary)
-
-      TYPE(dbcsr_type), POINTER                          :: mat_greens_fct_occ, mat_greens_fct_virt
-      TYPE(cp_fm_type), POINTER :: fm_mo_coeff, fm_mo_coeff_occ_scaled, fm_mo_coeff_virt_scaled, &
-         fm_scaled_dm_occ_tau, fm_scaled_dm_virt_tau
-      REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: Eigenval
-      REAL(KIND=dp), INTENT(IN)                          :: fermi_level_offset
-      INTEGER, INTENT(IN)                                :: nmo, homo
-      REAL(KIND=dp), INTENT(IN)                          :: eps_filter, omega
-      INTEGER, INTENT(IN)                                :: real_imaginary
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'compute_Greens_function_freq', &
-         routineP = moduleN//':'//routineN
-
-      INTEGER                                            :: handle, ncol_local
-      INTEGER, DIMENSION(:), POINTER                     :: col_indices
-      REAL(KIND=dp)                                      :: e_fermi
-
-      CALL timeset(routineN, handle)
-
-      ! get info of fm_mo_coeff
-      CALL cp_fm_get_info(matrix=fm_mo_coeff, &
-                          ncol_local=ncol_local, &
-                          col_indices=col_indices)
-
-      ! we have two different fermi levels for correcting occupied and virtual energy levels
-      e_fermi = Eigenval(homo) + fermi_level_offset
-      CALL scale_mo_coeff(fm_mo_coeff_occ_scaled, fm_mo_coeff, e_fermi, ncol_local, &
-                          Eigenval, omega, real_imaginary, col_indices)
-
-      e_fermi = Eigenval(homo + 1) - fermi_level_offset
-      CALL scale_mo_coeff(fm_mo_coeff_virt_scaled, fm_mo_coeff, e_fermi, ncol_local, &
-                          Eigenval, omega, real_imaginary, col_indices)
-
-      CALL cp_gemm(transa="N", transb="T", m=nmo, n=nmo, k=nmo, alpha=1.0_dp, &
-                   matrix_a=fm_mo_coeff, matrix_b=fm_mo_coeff_occ_scaled, beta=0.0_dp, &
-                   matrix_c=fm_scaled_dm_occ_tau)
-
-      CALL cp_gemm(transa="N", transb="T", m=nmo, n=nmo, k=nmo, alpha=1.0_dp, &
-                   matrix_a=fm_mo_coeff, matrix_b=fm_mo_coeff_virt_scaled, beta=0.0_dp, &
-                   matrix_c=fm_scaled_dm_virt_tau)
-
-      CALL dbcsr_set(mat_greens_fct_occ, 0.0_dp)
-
-      CALL copy_fm_to_dbcsr(fm_scaled_dm_occ_tau, &
-                            mat_greens_fct_occ, &
-                            keep_sparsity=.FALSE.)
-
-      CALL dbcsr_filter(mat_greens_fct_occ, eps_filter)
-
-      CALL dbcsr_set(mat_greens_fct_virt, 0.0_dp)
-
-      CALL copy_fm_to_dbcsr(fm_scaled_dm_virt_tau, &
-                            mat_greens_fct_virt, &
-                            keep_sparsity=.FALSE.)
-
-      CALL dbcsr_filter(mat_greens_fct_virt, eps_filter)
-
-      CALL timestop(handle)
-
-   END SUBROUTINE compute_Greens_function_freq
-
-! **************************************************************************************************
-!> \brief ...
-!> \param fm_mo_coeff_scaled ...
-!> \param fm_mo_coeff ...
-!> \param e_fermi ...
-!> \param ncol_local ...
-!> \param Eigenval ...
-!> \param omega ...
-!> \param real_imaginary ...
-!> \param col_indices ...
-! **************************************************************************************************
-   SUBROUTINE scale_mo_coeff(fm_mo_coeff_scaled, fm_mo_coeff, e_fermi, ncol_local, &
-                             Eigenval, omega, real_imaginary, col_indices)
-
-      TYPE(cp_fm_type), POINTER                          :: fm_mo_coeff_scaled, fm_mo_coeff
-      REAL(KIND=dp)                                      :: e_fermi
-      INTEGER, INTENT(IN)                                :: ncol_local
-      REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: Eigenval
-      REAL(KIND=dp), INTENT(IN)                          :: omega
-      INTEGER, INTENT(IN)                                :: real_imaginary
-      INTEGER, DIMENSION(:), POINTER                     :: col_indices
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'scale_mo_coeff', routineP = moduleN//':'//routineN
-
-      INTEGER                                            :: handle, i_global, iiB
-      REAL(KIND=dp)                                      :: energy_diff
-
-      CALL timeset(routineN, handle)
-
-      DO iiB = 1, ncol_local
-
-         i_global = col_indices(iiB)
-
-         energy_diff = e_fermi - Eigenval(i_global)
-
-         IF (real_imaginary == 1) THEN
-            fm_mo_coeff_scaled%local_data(:, iiB) = fm_mo_coeff%local_data(:, iiB)* &
-                                                    energy_diff/(omega**2 + energy_diff**2)
-         ELSE IF (real_imaginary == 2) THEN
-            fm_mo_coeff_scaled%local_data(:, iiB) = fm_mo_coeff%local_data(:, iiB)* &
-                                                    (-omega/(omega**2 + energy_diff**2))
-         END IF
-
-      END DO
-
-      CALL timestop(handle)
-
-   END SUBROUTINE scale_mo_coeff
 
 END MODULE rpa_gw
 

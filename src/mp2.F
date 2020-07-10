@@ -158,7 +158,7 @@ CONTAINS
       INTEGER(KIND=int_8)                                :: mem
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: kind_of
       LOGICAL :: calc_ex, do_admm, do_admm_rpa_exx, do_dynamic_load_balancing, do_exx, do_gw, &
-         do_kpoints_cubic_RPA, free_hfx_buffer
+         do_kpoints_cubic_RPA, free_hfx_buffer, update_xc_energy
       REAL(KIND=dp) :: E_ex_from_GW, Emp2, Emp2_AA, Emp2_AA_Cou, Emp2_AA_ex, Emp2_AB, Emp2_AB_Cou, &
          Emp2_AB_ex, Emp2_BB, Emp2_BB_Cou, Emp2_BB_ex, Emp2_Cou, Emp2_ex, Emp2_S, Emp2_T, maxocc, &
          mem_real, t1, t2, t3
@@ -470,6 +470,7 @@ CONTAINS
       IF (mp2_env%ri_rpa%do_ri_g0w0) THEN
          CALL compute_vec_Sigma_x_minus_vxc_gw(qs_env, mp2_env, mos_mp2, E_ex_from_GW, t3, unit_nr)
       END IF
+
       IF (free_hfx_buffer) THEN
          CALL timeset(routineN//"_free_hfx", handle2)
          CALL section_vals_get(hfx_sections, n_repetition=n_rep_hf)
@@ -689,6 +690,7 @@ CONTAINS
       CASE DEFAULT
          CPABORT("")
       END SELECT
+
       t2 = m_walltime()
       IF (unit_nr > 0) WRITE (unit_nr, *)
       IF (mp2_env%method .NE. ri_rpa_method_gpw) THEN
@@ -722,7 +724,12 @@ CONTAINS
          IF (unit_nr > 0) WRITE (unit_nr, '(T3,A,T56,F25.14)') 'Second order perturbation energy  =   ', Emp2
       ELSE
          IF (unit_nr > 0) WRITE (unit_nr, '(T3,A,T56,F25.6)') 'Total RI-RPA Time=', t2 - t1
-         IF (unit_nr > 0) WRITE (unit_nr, '(T3,A,T56,F25.14)') 'RI-RPA energy  =   ', Emp2
+
+         update_xc_energy = .TRUE.
+         IF (mp2_env%ri_rpa%do_ri_g0w0 .AND. .NOT. mp2_env%ri_g0w0%update_xc_energy) update_xc_energy = .FALSE.
+         IF (.NOT. update_xc_energy) Emp2 = 0.0_dp
+
+         IF (unit_nr > 0 .AND. update_xc_energy) WRITE (unit_nr, '(T3,A,T56,F25.14)') 'RI-RPA energy  =   ', Emp2
          IF (mp2_env%ri_rpa%do_ri_axk) THEN
             IF (unit_nr > 0) WRITE (unit_nr, '(T3,A,T56,F25.14)') 'RI-RPA-AXK energy=', mp2_env%ri_rpa%ener_axk
          ENDIF
@@ -1198,21 +1205,22 @@ CONTAINS
          END IF
       END DO
 
-      ! Remove the Exchange-correlation energy contributions from the total energy
-      energy%total = energy%total - (energy%exc + energy%exc1 + energy%ex + &
-                                     energy%exc_aux_fit + energy%exc1_aux_fit)
-
-      energy%exc = 0.0_dp
-      energy%exc1 = 0.0_dp
-      energy%exc_aux_fit = 0.0_dp
-      energy%exc1_aux_fit = 0.0_dp
-      energy%ex = 0.0_dp
-
       ! take the exact exchange energy from GW or calculate it
       IF (do_gw) THEN
-         energy%total = energy%total + E_ex_from_GW
-         energy%ex = E_ex_from_GW
+
+         IF (qs_env%mp2_env%ri_g0w0%update_xc_energy) THEN
+            CALL remove_exc_energy(energy)
+            energy%total = energy%total + E_ex_from_GW
+            energy%ex = E_ex_from_GW
+            t2 = m_walltime()
+
+            IF (unit_nr > 0) WRITE (unit_nr, '(T3,A,T56,F25.6)') 'Total EXX Time=', t2 - t1 + t3
+            IF (unit_nr > 0) WRITE (unit_nr, '(T3,A,T56,F25.14)') 'EXX energy  =   ', energy%ex
+         END IF
+
       ELSE
+
+         CALL remove_exc_energy(energy)
 
          ehfx = 0.0_dp
          DO irep = 1, n_rep_hf
@@ -1234,12 +1242,13 @@ CONTAINS
          ! include the EXX contribution to the total energy
          energy%ex = ehfx
          energy%total = energy%total + energy%ex
+
+         t2 = m_walltime()
+
+         IF (unit_nr > 0) WRITE (unit_nr, '(T3,A,T56,F25.6)') 'Total EXX Time=', t2 - t1 + t3
+         IF (unit_nr > 0) WRITE (unit_nr, '(T3,A,T56,F25.14)') 'EXX energy  =   ', energy%ex
+
       END IF
-
-      t2 = m_walltime()
-
-      IF (unit_nr > 0) WRITE (unit_nr, '(T3,A,T56,F25.6)') 'Total EXX Time=', t2 - t1 + t3
-      IF (unit_nr > 0) WRITE (unit_nr, '(T3,A,T56,F25.14)') 'EXX energy  =   ', energy%ex
 
       ! reset to zero the Hartree-Fock energy
       energy%ex = 0.0_dp
@@ -1247,6 +1256,34 @@ CONTAINS
       CALL timestop(handle)
 
    END SUBROUTINE calculate_exx
+
+! **************************************************************************************************
+!> \brief ...
+!> \param energy ...
+! **************************************************************************************************
+   SUBROUTINE remove_exc_energy(energy)
+      TYPE(qs_energy_type), POINTER                      :: energy
+
+      CHARACTER(len=*), PARAMETER :: routineN = 'remove_exc_energy', &
+         routineP = moduleN//':'//routineN
+
+      INTEGER                                            :: handle
+
+      CALL timeset(routineN, handle)
+
+      ! Remove the Exchange-correlation energy contributions from the total energy
+      energy%total = energy%total - (energy%exc + energy%exc1 + energy%ex + &
+                                     energy%exc_aux_fit + energy%exc1_aux_fit)
+
+      energy%exc = 0.0_dp
+      energy%exc1 = 0.0_dp
+      energy%exc_aux_fit = 0.0_dp
+      energy%exc1_aux_fit = 0.0_dp
+      energy%ex = 0.0_dp
+
+      CALL timestop(handle)
+
+   END SUBROUTINE
 
 ! **************************************************************************************************
 !> \brief ...
@@ -1278,8 +1315,8 @@ CONTAINS
       LOGICAL                                            :: charge_constrain_tmp, do_admm_rpa, &
                                                             do_hfx, do_kpoints_cubic_RPA, &
                                                             do_ri_Sigma_x, really_read_line
-      REAL(KIND=dp)                                      :: eh1, ehfx, exx_minus_vxc, hfx_fraction, &
-                                                            t1, t2, tmp
+      REAL(KIND=dp) :: eh1, ehfx, energy_exc, energy_exc1, energy_exc1_aux_fit, &
+         energy_exc_aux_fit, energy_total, exx_minus_vxc, hfx_fraction, t1, t2, tmp
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: vec_Sigma_x_minus_vxc_gw, &
                                                             vec_Sigma_x_minus_vxc_gw_im
       TYPE(admm_type), POINTER                           :: admm_env
@@ -1292,6 +1329,7 @@ CONTAINS
       TYPE(dbcsr_type)                                   :: matrix_tmp, matrix_tmp_2, mo_coeff_b
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(kpoint_type), POINTER                         :: kpoints
+      TYPE(qs_energy_type), POINTER                      :: energy
       TYPE(qs_ks_env_type), POINTER                      :: ks_env
       TYPE(qs_rho_type), POINTER                         :: rho
       TYPE(section_vals_type), POINTER                   :: hfx_sections, input, xc_section, &
@@ -1325,7 +1363,8 @@ CONTAINS
                          input=input, &
                          dft_control=dft_control, &
                          para_env=para_env, &
-                         ks_env=ks_env)
+                         ks_env=ks_env, &
+                         energy=energy)
 
          ! RPA/GW with ADMM for EXX or the exchange self-energy only implemented for
          ! ADMM_PURIFICATION_METHOD  NONE
@@ -1345,7 +1384,8 @@ CONTAINS
                             dft_control=dft_control, &
                             para_env=para_env, &
                             kpoints=kpoints, &
-                            ks_env=ks_env)
+                            ks_env=ks_env, &
+                            energy=energy)
 
             nkp = kpoints%nkp
 
@@ -1357,7 +1397,8 @@ CONTAINS
                             input=input, &
                             dft_control=dft_control, &
                             para_env=para_env, &
-                            ks_env=ks_env)
+                            ks_env=ks_env, &
+                            energy=energy)
 
             nkp = 1
 
@@ -1483,9 +1524,31 @@ CONTAINS
          END DO
       END IF
 
+      IF (.NOT. mp2_env%ri_g0w0%update_xc_energy) THEN
+         energy_total = energy%total
+         energy_exc = energy%exc
+         energy_exc1 = energy%exc1
+         energy_exc_aux_fit = energy%ex
+         energy_exc1_aux_fit = energy%exc_aux_fit
+         energy_ex = energy%exc1_aux_fit
+      END IF
+
+      ! Remove the Exchange-correlation energy contributions from the total energy
+      energy%total = energy%total - (energy%exc + energy%exc1 + energy%ex + &
+                                     energy%exc_aux_fit + energy%exc1_aux_fit)
+
       ! calculate KS-matrix without XC and without HF
       CALL qs_ks_build_kohn_sham_matrix(qs_env=qs_env, calculate_forces=.FALSE., &
                                         just_energy=.FALSE.)
+
+      IF (.NOT. mp2_env%ri_g0w0%update_xc_energy) THEN
+         energy%exc = energy_exc
+         energy%exc1 = energy_exc1
+         energy%exc_aux_fit = energy_ex
+         energy%exc1_aux_fit = energy_exc_aux_fit
+         energy%ex = energy_exc1_aux_fit
+         energy%total = energy_total
+      END IF
 
       ! set the DFT functional and HF fraction back
       CALL section_vals_val_set(xc_section, "XC_FUNCTIONAL%_SECTION_PARAMETERS_", &
