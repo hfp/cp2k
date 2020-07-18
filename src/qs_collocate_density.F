@@ -63,8 +63,7 @@ MODULE qs_collocate_density
    USE input_constants,                 ONLY: &
         orb_dx2, orb_dxy, orb_dy2, orb_dyz, orb_dz2, orb_dzx, orb_px, orb_py, orb_pz, orb_s
    USE kinds,                           ONLY: default_string_length,&
-                                              dp,&
-                                              int_8
+                                              dp
    USE lgrid_types,                     ONLY: lgrid_allocate_grid,&
                                               lgrid_type
    USE lri_environment_types,           ONLY: lri_kind_type
@@ -107,10 +106,8 @@ MODULE qs_collocate_density
                                               rs_pw_transfer
    USE rs_pw_interface,                 ONLY: density_rs2pw,&
                                               density_rs2pw_basic
-   USE task_list_methods,               ONLY: rs_blocks_type,&
-                                              rs_copy_matrix,&
+   USE task_list_methods,               ONLY: rs_copy_matrix,&
                                               rs_distribute_matrix,&
-                                              rs_get_block_p,&
                                               rs_scatter_matrix
    USE task_list_types,                 ONLY: atom_pair_type,&
                                               task_list_type,&
@@ -158,8 +155,7 @@ CONTAINS
 
       INTEGER                                            :: atom_a, handle, iatom, iexp_nlcc, ikind, &
                                                             ithread, j, n, natom, nc, nexp_nlcc, &
-                                                            ni, npme, nthread
-      INTEGER(KIND=int_8)                                :: subpatch_pattern
+                                                            ni, npme, nthread, subpatch_pattern
       INTEGER, DIMENSION(:), POINTER                     :: atom_list, cores, nct_nlcc
       LOGICAL                                            :: nlcc
       REAL(KIND=dp)                                      :: alpha, eps_rho_rspace, radius
@@ -342,8 +338,8 @@ CONTAINS
          routineP = moduleN//':'//routineN
 
       INTEGER                                            :: atom_a, handle, iatom, ikind, ithread, &
-                                                            j, lppl, n, natom, ni, npme, nthread
-      INTEGER(KIND=int_8)                                :: subpatch_pattern
+                                                            j, lppl, n, natom, ni, npme, nthread, &
+                                                            subpatch_pattern
       INTEGER, DIMENSION(:), POINTER                     :: atom_list, cores
       REAL(KIND=dp)                                      :: alpha, eps_rho_rspace, radius
       REAL(KIND=dp), DIMENSION(3)                        :: ra
@@ -865,8 +861,8 @@ CONTAINS
          routineP = moduleN//':'//routineN
 
       INTEGER                                            :: atom_a, handle, iatom, ikind, ithread, &
-                                                            j, natom, npme, nthread
-      INTEGER(KIND=int_8)                                :: subpatch_pattern
+                                                            j, natom, npme, nthread, &
+                                                            subpatch_pattern
       INTEGER, DIMENSION(:), POINTER                     :: atom_list, cores
       LOGICAL                                            :: my_only_nopaw, paw_atom
       REAL(KIND=dp)                                      :: alpha, eps_rho_rspace, radius
@@ -998,8 +994,8 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'calculate_rho_single_gaussian', &
          routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: atom_a, handle, iatom, npme
-      INTEGER(KIND=int_8)                                :: subpatch_pattern
+      INTEGER                                            :: atom_a, handle, iatom, npme, &
+                                                            subpatch_pattern
       REAL(KIND=dp)                                      :: eps_rho_rspace, radius
       REAL(KIND=dp), DIMENSION(3)                        :: ra
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: pab
@@ -1093,8 +1089,8 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'calculate_rho_metal', &
          routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: atom_a, handle, iatom, j, natom, npme
-      INTEGER(KIND=int_8)                                :: subpatch_pattern
+      INTEGER                                            :: atom_a, handle, iatom, j, natom, npme, &
+                                                            subpatch_pattern
       INTEGER, DIMENSION(:), POINTER                     :: cores
       REAL(KIND=dp)                                      :: eps_rho_rspace, radius
       REAL(KIND=dp), DIMENSION(3)                        :: ra
@@ -1203,8 +1199,7 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'calculate_rho_resp_single', &
          routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: handle, iatom, npme
-      INTEGER(KIND=int_8)                                :: subpatch_pattern
+      INTEGER                                            :: handle, iatom, npme, subpatch_pattern
       REAL(KIND=dp)                                      :: eps_rho_rspace, radius
       REAL(KIND=dp), DIMENSION(3)                        :: ra
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: pab
@@ -1301,8 +1296,7 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'calculate_rho_resp_all', &
          routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: handle, iatom, j, npme
-      INTEGER(KIND=int_8)                                :: subpatch_pattern
+      INTEGER                                            :: handle, iatom, j, npme, subpatch_pattern
       INTEGER, DIMENSION(:), POINTER                     :: cores
       REAL(KIND=dp)                                      :: eps_rho_rspace, radius
       REAL(KIND=dp), DIMENSION(3)                        :: ra
@@ -1430,23 +1424,23 @@ CONTAINS
          routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_string_length)               :: my_basis_type
-      INTEGER :: ga_gb_function, handle, iatom, iatom_old, igrid_level, ikind, ikind_old, img, &
-         img_old, ipair, ipgf, iset, iset_old, itask, ithread, jatom, jatom_old, jkind, jkind_old, &
-         jpgf, jset, jset_old, lb, lbr, lbw, maxco, maxsgf_set, n, na1, na2, natoms, nb1, nb2, &
-         nblock, ncoa, ncob, nimages, nr, nrlevel, nseta, nsetb, ntasks, nthread, nw, nxy, nz, &
-         nzsize, sgfa, sgfb, ub
+      INTEGER :: block_size, ga_gb_function, handle, iatom, iatom_old, igrid_level, ikind, &
+         ikind_old, img, img_old, ipair, ipgf, iset, iset_old, itask, ithread, jatom, jatom_old, &
+         jkind, jkind_old, jpgf, jset, jset_old, lb, lbr, lbw, maxco, maxsgf_set, n, na1, na2, &
+         natoms, nb1, nb2, nblock, ncoa, ncob, nimages, nr, nrlevel, nseta, nsetb, nsgfa, nsgfb, &
+         ntasks, nthread, nw, nxy, nz, nzsize, offset, pair_index, sgfa, sgfb, ub
       INTEGER, DIMENSION(:), POINTER                     :: la_max, la_min, lb_max, lb_min, npgfa, &
-                                                            npgfb, nsgfa, nsgfb
+                                                            npgfb, nsgf_seta, nsgf_setb
       INTEGER, DIMENSION(:, :), POINTER                  :: first_sgfa, first_sgfb
       LOGICAL                                            :: atom_pair_changed, distributed_rs_grids, &
                                                             do_kp, my_compute_grad, &
                                                             my_compute_tau, my_soft, use_subpatch
       REAL(KIND=dp)                                      :: scale
-      REAL(KIND=dp), DIMENSION(3)                        :: ra, rab, rab_inv, rb
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: p_block_set
+      REAL(KIND=dp), DIMENSION(3)                        :: ra, rab, rb
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: p_block, pab, sphi_a, sphi_b, work, &
                                                             zeta, zetb
       REAL(KIND=dp), DIMENSION(:, :, :), POINTER         :: pabt, workt
-      TYPE(atom_pair_type), DIMENSION(:), POINTER        :: atom_pair_recv, atom_pair_send
       TYPE(cell_type), POINTER                           :: cell
       TYPE(cube_info_type), DIMENSION(:), POINTER        :: cube_info
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: deltap
@@ -1462,7 +1456,6 @@ CONTAINS
          POINTER                                         :: rs_descs
       TYPE(realspace_grid_p_type), DIMENSION(:), POINTER :: rs_rho
       TYPE(realspace_grid_type)                          :: threadlocal_rsgrid
-      TYPE(rs_blocks_type)                               :: blocks_recv
       TYPE(task_list_type), POINTER                      :: task_list, task_list_soft
       TYPE(task_type), DIMENSION(:), POINTER             :: tasks
 
@@ -1473,7 +1466,7 @@ CONTAINS
 
       NULLIFY (qs_kind, cell, dft_control, orb_basis_set, deltap, &
                qs_kind_set, particle_set, rs_rho, pw_env, rs_descs, la_max, &
-               la_min, lb_max, lb_min, npgfa, npgfb, nsgfa, nsgfb, p_block, &
+               la_min, lb_max, lb_min, npgfa, npgfb, nsgf_seta, nsgf_setb, p_block, &
                sphi_a, sphi_b, zeta, zetb, first_sgfa, first_sgfb, tasks, pabt, &
                workt, lgrid)
 
@@ -1588,8 +1581,6 @@ CONTAINS
       IF (my_soft) task_list => task_list_soft
       CPASSERT(ASSOCIATED(task_list))
       tasks => task_list%tasks
-      atom_pair_send => task_list%atom_pair_send
-      atom_pair_recv => task_list%atom_pair_recv
       ntasks = task_list%ntasks
 
       ! *** set up the pw multi-grids
@@ -1644,10 +1635,9 @@ CONTAINS
 
       ! distribute the matrix
       IF (distributed_rs_grids) THEN
-         CALL rs_scatter_matrix(rs_descs=rs_descs, pmats=deltap, blocks_recv=blocks_recv, &
-                                atom_pair_send=atom_pair_send, atom_pair_recv=atom_pair_recv)
+         CALL rs_scatter_matrix(task_list, rs_descs, deltap)
       ELSE
-         CALL rs_copy_matrix(pmats=deltap, blocks_recv=blocks_recv, atom_pair_recv=atom_pair_recv)
+         CALL rs_copy_matrix(task_list, deltap)
       ENDIF
 
       ! map all tasks on the grids
@@ -1656,14 +1646,15 @@ CONTAINS
 !$OMP          SHARED(ntasks,tasks,nimages,natoms,particle_set,pabt,workt), &
 !$OMP          SHARED(my_basis_type,my_soft,maxco,ncoset,nthread), &
 !$OMP          SHARED(cell,cube_info,ga_gb_function), &
-!$OMP          SHARED(rs_rho,lgrid,gridlevel_info,task_list,qs_kind_set, blocks_recv), &
+!$OMP          SHARED(rs_rho,lgrid,gridlevel_info,task_list,qs_kind_set), &
 !$OMP          PRIVATE(igrid_level,iatom,jatom,iset,jset,ipgf,jpgf,ikind,jkind,pab,work), &
 !$OMP          PRIVATE(img,img_old,iatom_old,jatom_old,iset_old,jset_old,ikind_old,jkind_old), &
 !$OMP          PRIVATE(qs_kind,orb_basis_set,first_sgfa,la_max,la_min), &
-!$OMP          PRIVATE(npgfa,nseta,nsgfa,sphi_a,zeta,first_sgfb,lb_max,lb_min,npgfb), &
-!$OMP          PRIVATE(nsetb,nsgfb,sphi_b,zetb,p_block), &
+!$OMP          PRIVATE(npgfa,nseta,nsgf_seta,sphi_a,zeta,first_sgfb,lb_max,lb_min,npgfb), &
+!$OMP          PRIVATE(nsetb,nsgf_setb,sphi_b,zetb,p_block, p_block_set), &
 !$OMP          PRIVATE(atom_pair_changed,ncoa,sgfa,ncob,sgfb,rab,ra,rb), &
-!$OMP          PRIVATE(na1,na2,nb1,nb2,scale,use_subpatch,rab_inv,ithread,lb,ub,n,nw), &
+!$OMP          PRIVATE(na1,na2,nb1,nb2,scale,use_subpatch,ithread,lb,ub,n,nw), &
+!$OMP          PRIVATE(nsgfa,nsgfb,pair_index,block_size,offset), &
 !$OMP          PRIVATE(itask,nz,nxy,nzsize,nrlevel,nblock,lbw,lbr,nr,threadlocal_rsgrid)
 
       ithread = 0
@@ -1700,6 +1691,7 @@ CONTAINS
             jset = tasks(itask)%jset
             ipgf = tasks(itask)%ipgf
             jpgf = tasks(itask)%jpgf
+            pair_index = tasks(itask)%pair_index
             ikind = particle_set(iatom)%atomic_kind%kind_number
             jkind = particle_set(jatom)%atomic_kind%kind_number
 
@@ -1716,7 +1708,8 @@ CONTAINS
                                          lmin=la_min, &
                                          npgf=npgfa, &
                                          nset=nseta, &
-                                         nsgf_set=nsgfa, &
+                                         nsgf_set=nsgf_seta, &
+                                         nsgf=nsgfa, &
                                          sphi=sphi_a, &
                                          zet=zeta)
                ENDIF
@@ -1730,12 +1723,21 @@ CONTAINS
                                          lmin=lb_min, &
                                          npgf=npgfb, &
                                          nset=nsetb, &
-                                         nsgf_set=nsgfb, &
+                                         nsgf_set=nsgf_setb, &
+                                         nsgf=nsgfb, &
                                          sphi=sphi_b, &
                                          zet=zetb)
                ENDIF
 
-               CALL rs_get_block_p(blocks_recv, tasks(itask), symmetric=.TRUE., block=p_block)
+               ! fetch block from buffer
+               block_size = nsgfa*nsgfb
+               offset = task_list%pair_offsets_recv(pair_index)
+               IF (iatom <= jatom) THEN
+                  p_block(1:nsgfa, 1:nsgfb) => task_list%buffer_recv(offset + 1:offset + block_size)
+               ELSE
+                  !iatom / jatom swapped
+                  p_block(1:nsgfb, 1:nsgfa) => task_list%buffer_recv(offset + 1:offset + block_size)
+               ENDIF
 
                iatom_old = iatom
                jatom_old = jatom
@@ -1756,17 +1758,17 @@ CONTAINS
                ncob = npgfb(jset)*ncoset(lb_max(jset))
                sgfb = first_sgfb(1, jset)
 
+               IF (ALLOCATED(p_block_set)) DEALLOCATE (p_block_set)
+               ALLOCATE (p_block_set(nsgf_seta(iset), nsgf_setb(jset)))
                IF (iatom <= jatom) THEN
-                  work(1:ncoa, 1:nsgfb(jset)) = MATMUL(sphi_a(1:ncoa, sgfa:sgfa + nsgfa(iset) - 1), &
-                                                       p_block(sgfa:sgfa + nsgfa(iset) - 1, sgfb:sgfb + nsgfb(jset) - 1))
-                  pab(1:ncoa, 1:ncob) = MATMUL(work(1:ncoa, 1:nsgfb(jset)), &
-                                               TRANSPOSE(sphi_b(1:ncob, sgfb:sgfb + nsgfb(jset) - 1)))
+                  p_block_set(:, :) = p_block(sgfa:sgfa + nsgf_seta(iset) - 1, sgfb:sgfb + nsgf_setb(jset) - 1)
                ELSE
-                  work(1:ncob, 1:nsgfa(iset)) = MATMUL(sphi_b(1:ncob, sgfb:sgfb + nsgfb(jset) - 1), &
-                                                       p_block(sgfb:sgfb + nsgfb(jset) - 1, sgfa:sgfa + nsgfa(iset) - 1))
-                  pab(1:ncob, 1:ncoa) = MATMUL(work(1:ncob, 1:nsgfa(iset)), &
-                                               TRANSPOSE(sphi_a(1:ncoa, sgfa:sgfa + nsgfa(iset) - 1)))
-               END IF
+                  p_block_set(:, :) = TRANSPOSE(p_block(sgfb:sgfb + nsgf_setb(jset) - 1, sgfa:sgfa + nsgf_seta(iset) - 1))
+               ENDIF
+
+               work(1:ncoa, 1:nsgf_setb(jset)) = MATMUL(sphi_a(1:ncoa, sgfa:sgfa + nsgf_seta(iset) - 1), p_block_set)
+               pab(1:ncoa, 1:ncob) = MATMUL(work(1:ncoa, 1:nsgf_setb(jset)), &
+                                            TRANSPOSE(sphi_b(1:ncob, sgfb:sgfb + nsgf_setb(jset) - 1)))
 
                iset_old = iset
                jset_old = jset
@@ -1799,28 +1801,15 @@ CONTAINS
                use_subpatch = .FALSE.
             ENDIF
 
-            IF (iatom <= jatom) THEN
-               CALL collocate_pgf_product( &
-                  la_max(iset), zeta(ipgf, iset), la_min(iset), &
-                  lb_max(jset), zetb(jpgf, jset), lb_min(jset), &
-                  ra, rab, scale, pab, na1 - 1, nb1 - 1, &
-                  threadlocal_rsgrid, cell, cube_info(igrid_level), &
-                  radius=tasks(itask)%radius, &
-                  ga_gb_function=ga_gb_function, &
-                  use_subpatch=use_subpatch, &
-                  subpatch_pattern=tasks(itask)%subpatch_pattern)
-            ELSE
-               rab_inv = -rab
-               CALL collocate_pgf_product( &
-                  lb_max(jset), zetb(jpgf, jset), lb_min(jset), &
-                  la_max(iset), zeta(ipgf, iset), la_min(iset), &
-                  rb, rab_inv, scale, pab, nb1 - 1, na1 - 1, &
-                  threadlocal_rsgrid, cell, cube_info(igrid_level), &
-                  radius=tasks(itask)%radius, &
-                  ga_gb_function=ga_gb_function, &
-                  use_subpatch=use_subpatch, &
-                  subpatch_pattern=tasks(itask)%subpatch_pattern)
-            END IF
+            CALL collocate_pgf_product( &
+               la_max(iset), zeta(ipgf, iset), la_min(iset), &
+               lb_max(jset), zetb(jpgf, jset), lb_min(jset), &
+               ra, rab, scale, pab, na1 - 1, nb1 - 1, &
+               threadlocal_rsgrid, cell, cube_info(igrid_level), &
+               radius=tasks(itask)%radius, &
+               ga_gb_function=ga_gb_function, &
+               use_subpatch=use_subpatch, &
+               subpatch_pattern=tasks(itask)%subpatch_pattern)
          END DO loop_tasks
          END DO loop_pairs
 !$OMP END DO
