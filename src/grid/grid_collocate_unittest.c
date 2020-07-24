@@ -4,22 +4,25 @@
  *****************************************************************************/
 
 #include <stdio.h>
-#include <assert.h>
+#include <stdlib.h>
 #include <string.h>
-//
+
 #include "grid_collocate_replay.h"
 
 static int run_test(const char cp2k_root_dir[], const char task_file[]) {
-    char filename[1024] = "";
-
-    GRID_COLLOCATE_ASSERT(strlen(cp2k_root_dir) < 512);
-    GRID_COLLOCATE_ASSERT(strcpy(filename, cp2k_root_dir) != NULL);
-    if (filename[strlen(filename) - 1] != '/') {
-        GRID_COLLOCATE_ASSERT(strcat(filename, "/") != NULL);
+    if (strlen(cp2k_root_dir) > 512) {
+        fprintf(stderr, "Error: cp2k_root_dir too long.\n");
+        abort();
     }
 
-    GRID_COLLOCATE_ASSERT(strcat(filename, "src/grid/sample_tasks/") != NULL);
-    GRID_COLLOCATE_ASSERT(strcat(filename, task_file) != NULL);
+    char filename[1024];
+    strcpy(filename, cp2k_root_dir);
+    if (filename[strlen(filename) - 1] != '/') {
+        strcat(filename, "/");
+    }
+
+    strcat(filename, "src/grid/sample_tasks/");
+    strcat(filename, task_file);
 
     const double max_diff = grid_collocate_replay(filename, 1);
     if (max_diff > 1e-12) {
