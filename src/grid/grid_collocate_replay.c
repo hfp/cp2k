@@ -14,11 +14,19 @@
 #include <float.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <assert.h>
 
 #include "grid_collocate_replay.h"
 #include "grid_collocate_cpu.h"
+#include "grid_task_list.h"
+#include "grid_common.h"
 
-// *****************************************************************************
+
+//******************************************************************************
+// \brief Writes the given arguments into a .task file.
+//        See grid_collocate_replay.h for details.
+// \author Ole Schuett
+//******************************************************************************
 void grid_collocate_record(const bool orthorhombic,
                            const bool use_subpatch,
                            const int subpatch,
@@ -46,10 +54,14 @@ void grid_collocate_record(const bool orthorhombic,
                            const double pab[n2][n1],
                            const double* grid){
 
-    static int counter = 0;
-    counter++;
+    static int counter = 1;
+    int my_number;
+
+    #pragma omp critical
+    my_number = counter++;
+
     char filename[100];
-    snprintf(filename, sizeof(filename), "grid_collocate_%05i.task", counter);
+    snprintf(filename, sizeof(filename), "grid_collocate_%05i.task", my_number);
 
     const int D = DECIMAL_DIG;  // In C11 we could use DBL_DECIMAL_DIG.
     FILE *fp = fopen(filename, "w+");
@@ -113,7 +125,11 @@ void grid_collocate_record(const bool orthorhombic,
 
 }
 
-// *****************************************************************************
+
+//******************************************************************************
+// \brief Reads next line from given filehandle and handles errors.
+// \author Ole Schuett
+//******************************************************************************
 static void read_next_line(char line[], int length, FILE *fp) {
     if (fgets(line, length, fp) == NULL) {
         fprintf(stderr, "Error: Could not read line.\n");
@@ -121,7 +137,11 @@ static void read_next_line(char line[], int length, FILE *fp) {
     }
 }
 
-// *****************************************************************************
+
+//******************************************************************************
+// \brief Parses next line from file, expecting it to match "${key} ${format}".
+// \author Ole Schuett
+//******************************************************************************
 static void parse_next_line(const char key[], FILE *fp, const char format[],
                             const int nargs, ...) {
     char line[100];
@@ -140,34 +160,55 @@ static void parse_next_line(const char key[], FILE *fp, const char format[],
         fprintf(stderr, "Format: %s\n", full_format);
         abort();
     }
+    va_end(varargs);
 }
 
-// *****************************************************************************
-int parse_int(const char key[], FILE *fp) {
+
+//******************************************************************************
+// \brief Shorthand for parsing a single integer value.
+// \author Ole Schuett
+//******************************************************************************
+static int parse_int(const char key[], FILE *fp) {
     int value;
     parse_next_line(key, fp, "%i", 1, &value);
     return value;
 }
 
-// *****************************************************************************
-void parse_int3(const char key[], FILE *fp, int vec[3]) {
+
+//******************************************************************************
+// \brief Shorthand for parsing a vector of three integer values.
+// \author Ole Schuett
+//******************************************************************************
+static void parse_int3(const char key[], FILE *fp, int vec[3]) {
     parse_next_line(key, fp, "%i %i %i", 3, &vec[0], &vec[1], &vec[2]);
 }
 
-// *****************************************************************************
-double parse_double(const char key[], FILE *fp) {
+
+//******************************************************************************
+// \brief Shorthand for parsing a single double value.
+// \author Ole Schuett
+//******************************************************************************
+static double parse_double(const char key[], FILE *fp) {
     double value;
     parse_next_line(key, fp, "%le", 1, &value);
     return value;
 }
 
+
+//******************************************************************************
+// \brief Shorthand for parsing a vector of three double values.
+// \author Ole Schuett
 // *****************************************************************************
-void parse_double3(const char key[], FILE *fp, double vec[3]) {
+static void parse_double3(const char key[], FILE *fp, double vec[3]) {
     parse_next_line(key, fp, "%le %le %le", 3, &vec[0], &vec[1], &vec[2]);
 }
 
+
+//******************************************************************************
+// \brief Shorthand for parsing a 3x3 matrix of doubles.
+// \author Ole Schuett
 // *****************************************************************************
-void parse_double3x3(const char key[], FILE *fp, double mat[3][3]) {
+static void parse_double3x3(const char key[], FILE *fp, double mat[3][3]) {
     char format[100];
     for (int i=0; i<3; i++) {
         sprintf(format, "%i %%le %%le %%le", i);
@@ -175,8 +216,133 @@ void parse_double3x3(const char key[], FILE *fp, double mat[3][3]) {
     }
 }
 
+
+//******************************************************************************
+// \brief Creates mock basis set using the identity as decontraction matrix.
+// \author Ole Schuett
 // *****************************************************************************
-double grid_collocate_replay(const char* filename, const int cycles){
+static void create_dummy_basis_set(const int size,
+                                   const int lmin,
+                                   const int lmax,
+                                   const double zet,
+                                   grid_basis_set_t* basis_set) {
+
+    double sphi[size][size];
+    for (int i=0; i< size; i++) {
+    for (int j=0; j< size; j++) {
+        sphi[i][j] = (i==j) ? 1.0 : 0.0;  // identity matrix
+    }
+    }
+
+    const int npgf = size / ncoset[lmax];
+    assert(size == npgf * ncoset[lmax]);
+
+    const int first_sgf[1] = {1};
+
+    double zet_array[1][npgf];
+    for (int i=0; i< npgf; i++){
+        zet_array[0][i] = zet;
+    }
+
+    grid_create_basis_set(/*nset=*/ 1,
+                          /*nsgf=*/ size,
+                          /*maxco=*/ size,
+                          /*maxpgf=*/ size,
+                          /*lmin=*/ &lmin,
+                          /*lmax=*/ &lmax,
+                          /*npgf=*/ &npgf,
+                          /*nsgf_set=*/ &size,
+                          /*first_sgf=*/ first_sgf,
+                          /*sphi=*/ sphi,
+                          /*zet=*/ zet_array,
+                          basis_set);
+}
+
+
+//******************************************************************************
+// \brief Creates mock task list with one task per cycle.
+// \author Ole Schuett
+// *****************************************************************************
+static void create_dummy_task_list(const bool use_subpatch,
+                                   const int subpatch,
+                                   const double rscale,
+                                   const double ra[3],
+                                   const double rab[3],
+                                   const double radius,
+                                   const grid_basis_set_t basis_set_a,
+                                   const grid_basis_set_t basis_set_b,
+                                   const int n1,
+                                   const int n2,
+                                   const int o1,
+                                   const int o2,
+                                   const int la_max,
+                                   const int lb_max,
+                                   const double pab[n2][n1],
+                                   const int cycles,
+                                   grid_task_list_t* task_list) {
+
+    const int ntasks = cycles;
+    const int nlevels = 1;
+    const int natoms = 2;
+    const int nkinds = 2;
+    const int nblocks = 1;
+    const int buffer_size = n1 * n2;
+    const int block_offsets[1] = {0};
+    const double atom_positions[2][3] = {
+        {         ra[0],          ra[1],          ra[2]},
+        {rab[0] + ra[0], rab[1] + ra[1], rab[2] + ra[2]}
+    };
+    const int atom_kinds[2] = {1, 2};
+    const grid_basis_set_t basis_sets[2] = {basis_set_a, basis_set_b};
+    const int ipgf = o1 / ncoset[la_max] + 1;
+    const int jpgf = o2 / ncoset[lb_max] + 1;
+    assert(o1 == (ipgf - 1) * ncoset[la_max]);
+    assert(o2 == (jpgf - 1) * ncoset[lb_max]);
+
+    int level_list[ntasks], iatom_list[ntasks], jatom_list[ntasks];
+    int iset_list[ntasks], jset_list[ntasks], ipgf_list[ntasks], jpgf_list[ntasks];
+    int subpatch_list[ntasks], dist_type_list[ntasks], block_num_list[ntasks];
+    double radius_list[ntasks], rab_list[ntasks][3];
+    for (int i=0; i< cycles; i++){
+        level_list[i] = 1;
+        iatom_list[i] = 1;
+        jatom_list[i] = 2;
+        iset_list[i] = 1;
+        jset_list[i] = 1;
+        ipgf_list[i] = ipgf;
+        jpgf_list[i] = jpgf;
+        subpatch_list[i] = subpatch;
+        dist_type_list[i] = use_subpatch ? 2 : 0;
+        block_num_list[i] = 1;
+        radius_list[i] = radius;
+        rab_list[i][0] = rab[0];
+        rab_list[i][1] = rab[1];
+        rab_list[i][2] = rab[2];
+    }
+
+    double *blocks_buffer = NULL;
+
+    grid_create_task_list(ntasks, nlevels, natoms, nkinds, nblocks, buffer_size,
+                          block_offsets, atom_positions, atom_kinds, basis_sets,
+                          level_list, iatom_list, jatom_list, iset_list, jset_list,
+                          ipgf_list, jpgf_list, subpatch_list, dist_type_list,
+                          block_num_list, radius_list, rab_list,
+                          &blocks_buffer, task_list);
+
+    for (int i=0; i < n1; i++) {
+    for (int j=0; j < n2; j++) {
+        blocks_buffer[j * n1 + i] = rscale / 2.0 * pab[j][i];
+    }
+    }
+}
+
+
+//******************************************************************************
+// \brief Reads a .task file, collocates it, and compares results to reference.
+//        See grid_collocate_replay.h for details.
+// \author Ole Schuett
+//******************************************************************************
+double grid_collocate_replay(const char* filename, const int cycles, const bool batch){
     FILE *fp = fopen(filename, "r");
     if (fp == NULL) {
         fprintf(stderr, "Could not open task file: %s\n", filename);
@@ -252,40 +418,69 @@ double grid_collocate_replay(const char* filename, const int cycles){
     double* grid_test = malloc(sizeof_grid);
     memset(grid_test, 0, sizeof_grid);
 
-    struct timespec start_time;
-    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start_time);
+    struct timespec start_time, end_time;
 
-    for (int i=0; i < cycles ; i++) {
-        grid_collocate_pgf_product_cpu(orthorhombic,
-                                       use_subpatch,
-                                       subpatch,
-                                       border,
-                                       func,
-                                       la_max,
-                                       la_min,
-                                       lb_max,
-                                       lb_min,
-                                       zeta,
-                                       zetb,
-                                       rscale,
-                                       dh,
-                                       dh_inv,
-                                       ra,
-                                       rab,
-                                       npts_global,
-                                       npts_local,
-                                       shift_local,
-                                       radius,
-                                       o1,
-                                       o2,
-                                       n1,
-                                       n2,
-                                       pab,
-                                       grid_test);
+    if (batch) {
+        grid_basis_set_t basisa = {NULL}, basisb = {NULL};
+        create_dummy_basis_set(n1, la_min, la_max, zeta, &basisa);
+        create_dummy_basis_set(n2, lb_min, lb_max, zetb, &basisb);
+        grid_task_list_t task_list = {NULL};
+        create_dummy_task_list(use_subpatch, subpatch, rscale, ra, rab, radius,
+                               basisa, basisb, n1, n2, o1, o2, la_max, lb_max,
+                               pab, cycles, &task_list);
+        bool distributed = true;
+        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start_time);
+        double* grids_array[1] = {grid_test};
+        grid_collocate_task_list(/*task_list=*/ task_list,
+                                 /*orthorhombic=*/ orthorhombic,
+                                 /*func=*/ func,
+                                 /*nlevels=*/ 1,
+                                 /*npts_global=*/ (int (*)[3])npts_global,
+                                 /*npts_local=*/ (int (*)[3])npts_local,
+                                 /*shift_local=*/ (int (*)[3])shift_local,
+                                 /*border=*/ &border,
+                                 /*distributed=*/ &distributed,
+                                 /*dh=*/ (double (*)[3][3])dh,
+                                 /*dh_inv=*/ (double (*)[3][3])dh_inv,
+                                 /*grid=*/ grids_array);
+        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end_time);
+        grid_free_basis_set(basisa);
+        grid_free_basis_set(basisb);
+        grid_free_task_list(task_list);
+
+    } else {
+
+        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start_time);
+        for (int i=0; i < cycles ; i++) {
+            grid_collocate_pgf_product_cpu(orthorhombic,
+                                           use_subpatch,
+                                           subpatch,
+                                           border,
+                                           func,
+                                           la_max,
+                                           la_min,
+                                           lb_max,
+                                           lb_min,
+                                           zeta,
+                                           zetb,
+                                           rscale,
+                                           dh,
+                                           dh_inv,
+                                           ra,
+                                           rab,
+                                           npts_global,
+                                           npts_local,
+                                           shift_local,
+                                           radius,
+                                           o1,
+                                           o2,
+                                           n1,
+                                           n2,
+                                           pab,
+                                           grid_test);
+        }
+        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end_time);
     }
-
-    struct timespec end_time;
-    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end_time);
     const double delta_sec = (end_time.tv_sec - start_time.tv_sec) + 1e-9 * (end_time.tv_nsec - start_time.tv_nsec);
 
     double max_value = 0.0;
@@ -297,8 +492,8 @@ double grid_collocate_replay(const char* filename, const int cycles){
         max_value = fmax(max_value, fabs(grid_test[i]));
     }
 
-    printf("Task: %-65s   Cycles: %e   Max value: %le   Max diff: %le   Time: %le sec\n",
-           filename, (float)cycles, max_value, max_diff, delta_sec);
+    printf("Task: %-65s   Batched: %-3s   Cycles: %e   Max value: %le   Max diff: %le   Time: %le sec\n",
+           filename, batch?"yes":"no", (float)cycles, max_value, max_diff, delta_sec);
 
     free(grid_ref);
     free(grid_test);

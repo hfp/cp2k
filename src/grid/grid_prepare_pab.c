@@ -8,7 +8,25 @@
 #include <stdlib.h>
 #include <assert.h>
 
-// *****************************************************************************
+
+//******************************************************************************
+// \brief Returns block size changes due to transformation grid_prepare_pab.
+// \author Ole Schuett
+//******************************************************************************
+int coset(int lx, int ly, int lz) {
+    const int l = lx + ly + lz;
+    if (l==0) {
+        return 0;
+    } else {
+        return ncoset[l-1] + ((l-lx) * (l-lx+1)) /2 + lz;
+    }
+}
+
+
+//******************************************************************************
+// \brief Implementation of function GRID_FUNC_AB, ie. identity transformation.
+// \author Ole Schuett
+//******************************************************************************
 static void grid_prepare_pab_AB(const int o1,
                                 const int o2,
                                 const int la_max,
@@ -39,6 +57,10 @@ static void grid_prepare_pab_AB(const int o1,
     }
 }
 
+
+//******************************************************************************
+// \brief Implementation of function GRID_FUNC_DADB.
+// \author Ole Schuett
 // *****************************************************************************
 static void grid_prepare_pab_DADB(const int o1,
                                   const int o2,
@@ -121,6 +143,10 @@ static void grid_prepare_pab_DADB(const int o1,
     }
 }
 
+
+//******************************************************************************
+// \brief Implementation of function GRID_FUNC_ADBmDAB_{X,Y,Z}.
+// \author Ole Schuett
 // *****************************************************************************
 static void grid_prepare_pab_ADBmDAB(const int idir,
                                      const int o1,
@@ -208,6 +234,10 @@ static void grid_prepare_pab_ADBmDAB(const int idir,
     }
 }
 
+
+//******************************************************************************
+// \brief Implementation of function GRID_FUNC_ARDBmDARB_{X,Y,Z}{X,Y,Z}.
+// \author Ole Schuett
 // *****************************************************************************
 static void grid_prepare_pab_ARDBmDARB(const int idir,
                                        const int ir,
@@ -376,6 +406,10 @@ static void grid_prepare_pab_ARDBmDARB(const int idir,
     }
 }
 
+
+//******************************************************************************
+// \brief Implementation of function GRID_FUNC_DABpADB_{X,Y,Z}.
+// \author Ole Schuett
 // *****************************************************************************
 static void grid_prepare_pab_DABpADB(const int idir,
                                      const int o1,
@@ -462,6 +496,10 @@ static void grid_prepare_pab_DABpADB(const int idir,
     }
 }
 
+
+//******************************************************************************
+// \brief Implementation of function GRID_FUNC_{DX,DY,DZ}.
+// \author Ole Schuett
 // *****************************************************************************
 static void grid_prepare_pab_Di(const int ider,
                                 const int o1,
@@ -551,6 +589,10 @@ static void grid_prepare_pab_Di(const int ider,
     }
 }
 
+
+//******************************************************************************
+// \brief Helper for grid_prepare_pab_DiDj.
+// \author Ole Schuett
 // *****************************************************************************
 static void oneterm_dijdij(const int idir,
                            const double func_a,
@@ -603,6 +645,10 @@ static void oneterm_dijdij(const int idir,
     }
 }
 
+
+//******************************************************************************
+// \brief Implementation of function GRID_FUNC_{DXDY,DYDZ,DZDX}
+// \author Ole Schuett
 // *****************************************************************************
 static void grid_prepare_pab_DiDj(const int ider1,
                                   const int ider2,
@@ -692,6 +738,10 @@ static void grid_prepare_pab_DiDj(const int ider1,
     }
 }
 
+
+//******************************************************************************
+// \brief Helper for grid_prepare_pab_Di2.
+// \author Ole Schuett
 // *****************************************************************************
 static void oneterm_diidii(const int idir,
                            const double func_a,
@@ -735,6 +785,10 @@ static void oneterm_diidii(const int idir,
     }
 }
 
+
+//******************************************************************************
+// \brief Implementation of function GRID_FUNC_{DXDX,DYDY,DZDZ}
+// \author Ole Schuett
 // *****************************************************************************
 static void grid_prepare_pab_Di2(const int ider,
                                  const int o1,
@@ -814,7 +868,11 @@ static void grid_prepare_pab_Di2(const int ider,
     }
 }
 
-// *****************************************************************************
+
+//******************************************************************************
+// \brief Returns difference in angular momentum range for given func.
+// \author Ole Schuett
+//******************************************************************************
 void grid_prepare_get_ldiffs(const int func,
                              int* la_min_diff,
                              int* la_max_diff,
@@ -878,7 +936,12 @@ void grid_prepare_get_ldiffs(const int func,
     }
 }
 
-// *****************************************************************************
+
+//******************************************************************************
+// \brief Selects and transforms a sub-block of the given density matrix block.
+//        See grid_prepare_pab.h for details.
+// \author Ole Schuett
+//******************************************************************************
 void grid_prepare_pab(const int func,
                       const int o1,
                       const int o2,
