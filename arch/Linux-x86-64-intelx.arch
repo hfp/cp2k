@@ -49,13 +49,14 @@ ifeq (0,$(GNU))
   else ifneq (,$(filter icx icx2,$(notdir $(call which,icx))$(INTEL)))
     ICX = 2
   endif
+  # check if the Intel Development Tools are available
+  INTEL = $(shell echo "$$((2==$(words $(filter icpc icpx icc icx, \
+    $(shell $(CXX) --version 2> /dev/null | head -n1 | cut -d' ' -f1) \
+    $(shell $(CC) --version 2> /dev/null | head -n1 | cut -d' ' -f1)))))")
 endif
+INTEL ?= 0
 ICX ?= 0
 
-# check if the Intel Development Tools are available
-INTEL ?= $(shell echo "$$((2==$(words $(filter icpc icpx icc icx, \
-  $(shell $(CXX) --version 2> /dev/null | head -n1 | cut -d' ' -f1) \
-  $(shell $(CC) --version 2> /dev/null | head -n1 | cut -d' ' -f1)))))")
 
 ifneq (0,$(INTEL))
   CFG = intel
