@@ -39,15 +39,14 @@ COPY ./scripts/install_gcc.sh \
      ./scripts/setup_buildtools.sh \
      ./scripts/openblas-0.3.6-disable-avx512.patch \
      ./scripts/
+COPY ./scripts/files/gcc-10.2.0-cpp-__has_include.patch \
+     ./scripts/files/
 RUN ./scripts/install_gcc.sh && \
     ./scripts/setup_buildtools.sh && \
     rm -rf ./build
 
 COPY ./scripts/install_cmake.sh ./scripts/
 RUN ./scripts/install_cmake.sh && rm -rf ./build
-
-COPY ./scripts/install_valgrind.sh ./scripts/
-RUN ./scripts/install_valgrind.sh && rm -rf ./build
 
 COPY ./scripts/install_mpich.sh \
      ./scripts/install_openmpi.sh \
@@ -57,6 +56,9 @@ RUN ./scripts/install_openmpi.sh && \
     ./scripts/install_mpich.sh && \
     ./scripts/install_intelmpi.sh && \
     rm -rf ./build
+
+COPY ./scripts/install_valgrind.sh ./scripts/
+RUN ./scripts/install_valgrind.sh && rm -rf ./build
 
 COPY ./scripts/install_reflapack.sh \
      ./scripts/install_mkl.sh \
@@ -80,9 +82,11 @@ COPY ./scripts/install_libsmm.sh \
      ./scripts/install_scalapack.sh \
      ./scripts/install_cosma.sh \
      ./scripts/
+COPY ./scripts/files/scalapack-2.1.0-gcc10.patch \
+     ./scripts/files/
 RUN ./scripts/install_libsmm.sh && \
     ./scripts/install_libxsmm.sh && \
-    ./scripts/install_scalapack.sh && \ 
+    ./scripts/install_scalapack.sh && \
     ./scripts/install_cosma.sh && \
     rm -rf ./build
 

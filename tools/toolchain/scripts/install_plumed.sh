@@ -2,9 +2,9 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")" && pwd -P)"
 
-plumed_ver="2.5.2"
-plumed_pkg="plumed-${plumed_ver}.tgz"
-plumed_sha256="873b694ad3c480f7855cd4c02fe5fbee4759679db1604ef4056e0571c61b9979"
+plumed_ver="2.6.1"
+plumed_pkg="plumed-src-${plumed_ver}.tgz"
+plumed_sha256="b76dd05e81b11e996744ecd83f2f7f15bc0960e1fb1b945ca904baf3554928aa"
 
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh
@@ -40,8 +40,11 @@ case "$with_plumed" in
 
             echo "Installing from scratch into ${pkg_install_dir}"
             cd plumed-${plumed_ver}
-            ./configure CXX="${MPICXX}" --prefix=${pkg_install_dir} --libdir="${pkg_install_dir}/lib" > configure.log 2>&1
-            make -j $NPROCS > make.log 2>&1
+            # disable generating debugging infos for now to work around an issue in gcc-10.2:
+            # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=96354
+            # note: some MPI wrappers carry a -g forward, thus stripping is not enough
+            ./configure CXX="${MPICXX}" CXXFLAGS="${CXXFLAGS//-g/-g0}" --prefix=${pkg_install_dir} --libdir="${pkg_install_dir}/lib" > configure.log 2>&1
+            make VERBOSE=1 -j $NPROCS > make.log 2>&1
             make install > install.log 2>&1
             write_checksums "${install_lock_file}" "${SCRIPT_DIR}/$(basename ${SCRIPT_NAME})"
         fi
