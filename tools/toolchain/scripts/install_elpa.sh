@@ -15,8 +15,7 @@ source "${INSTALLDIR}"/toolchain.env
 ELPA_CFLAGS=''
 ELPA_LDFLAGS=''
 ELPA_LIBS=''
-# ELPA 2019.05.001 has a parallel build issue, restricting to -j1
-ELPA_MAKEOPTS='-j1'
+ELPA_MAKEOPTS=''
 
 ! [ -d "${BUILDDIR}" ] && mkdir -p "${BUILDDIR}"
 cd "${BUILDDIR}"
@@ -84,7 +83,7 @@ case "$with_elpa" in
                AVX512_flags=""
                FMA_flag=""
                SSE4_flag=""
-               config_flags="--disable-avx --disable-avx2 --disable-sse --disable-sse-assembly"
+               config_flags="--disable-avx --disable-avx2 --disable-avx512 --disable-sse --disable-sse-assembly"
             fi
             mkdir -p build; cd build
             ../configure  --prefix="${pkg_install_dir}" \
