@@ -112,7 +112,7 @@ CONTAINS
       TYPE(tmc_ana_list_type), DIMENSION(:), OPTIONAL, &
          POINTER                                         :: ana_list
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'do_tmc_worker', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'do_tmc_worker'
 
       CHARACTER(LEN=default_string_length)               :: c_tmp
       INTEGER                                            :: calc_stat, handle, i1, i2, ierr, itmp, &
@@ -597,8 +597,7 @@ CONTAINS
       TYPE(tmc_env_type), POINTER                        :: tmc_env
       INTEGER, INTENT(OUT)                               :: calc_status
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'nested_markov_chain_MC', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'nested_markov_chain_MC'
 
       INTEGER                                            :: comm_dest, handle, substeps
       LOGICAL                                            :: accept, change_rejected, flag
@@ -766,8 +765,7 @@ CONTAINS
       TYPE(tree_type), POINTER                           :: init_conf
       INTEGER                                            :: env_id
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'get_initial_conf', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'get_initial_conf'
 
       INTEGER                                            :: handle, ierr, mol, ndim, nr_atoms
       TYPE(cp_subsys_type), POINTER                      :: subsys
@@ -815,9 +813,6 @@ CONTAINS
       TYPE(tmc_atom_type), DIMENSION(:), POINTER         :: atoms
       TYPE(cell_type), POINTER                           :: cell
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'get_atom_kinds_and_cell', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: iparticle, nr_atoms, nunits_tot
       TYPE(cell_type), POINTER                           :: cell_tmp
       TYPE(cp_subsys_type), POINTER                      :: subsys
@@ -861,9 +856,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: comm
       INTEGER                                            :: env_id
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'set_intermediate_info_comm', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=default_string_length)               :: description
       REAL(KIND=dp), DIMENSION(3)                        :: values
       TYPE(cp_result_type), POINTER                      :: results
@@ -902,9 +894,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE remove_intermediate_info_comm(env_id)
       INTEGER                                            :: env_id
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'remove_intermediate_info_comm', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_string_length)               :: description
       TYPE(cp_result_type), POINTER                      :: results

@@ -63,8 +63,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(IN)                          :: cutoff
       TYPE(section_vals_type), POINTER                   :: vwn_params
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'vwn_init', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: TYPE
 
       CALL section_vals_val_get(vwn_params, "functional_type", i_val=TYPE)
@@ -140,7 +138,7 @@ CONTAINS
       INTEGER, INTENT(in)                                :: order
       TYPE(section_vals_type), POINTER                   :: vwn_params
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'vwn_lda_eval', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'vwn_lda_eval'
 
       INTEGER                                            :: handle, npoints
       INTEGER, DIMENSION(:, :), POINTER                  :: bo
@@ -502,7 +500,7 @@ CONTAINS
       INTEGER, INTENT(in)                                :: order
       TYPE(section_vals_type), POINTER                   :: vwn_params
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'vwn_lsd_eval', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'vwn_lsd_eval'
 
       INTEGER                                            :: handle, npoints, TYPE
       INTEGER, DIMENSION(:, :), POINTER                  :: bo

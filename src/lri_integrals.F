@@ -82,8 +82,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: iatom, jatom, ikind, jkind
       LOGICAL, INTENT(IN)                                :: calculate_forces
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'lri_int', routineP = moduleN//':'//routineN
-
       IF (lri_env%use_shg_integrals) THEN
          CALL lri_int_shg(lri_env, lrii, rab, obasa, obasb, fbasa, fbasb, &
                           iatom, jatom, ikind, jkind, calculate_forces)
@@ -117,8 +115,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(3), INTENT(IN)            :: rab
       TYPE(gto_basis_set_type), POINTER                  :: obasa, obasb, fbasa, fbasb
       INTEGER, INTENT(IN)                                :: iatom, jatom, ikind, jkind
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'lri_int2', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: nba, nfa
       INTEGER, DIMENSION(:, :, :), POINTER               :: fba_index, fbb_index, oba_index, &
@@ -240,8 +236,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: iatom, jatom, ikind, jkind
       LOGICAL, INTENT(IN)                                :: calculate_forces
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'lri_dint', routineP = moduleN//':'//routineN
-
       IF (lri_env%use_shg_integrals) THEN
          CALL lri_int_shg(lri_env, lrii, rab, obasa, obasb, fbasa, fbasb, &
                           iatom, jatom, ikind, jkind, calculate_forces)
@@ -276,8 +270,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(3), INTENT(IN)            :: rab
       TYPE(gto_basis_set_type), POINTER                  :: obasa, obasb, fbasa, fbasb
       INTEGER, INTENT(IN)                                :: iatom, jatom, ikind, jkind
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'lri_dint2', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: nba, nbb, nfa, nfb
       INTEGER, DIMENSION(:, :, :), POINTER               :: fba_index, fbb_index, oba_index, &
@@ -408,7 +400,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: iatom, jatom, ikind
       LOGICAL, INTENT(IN)                                :: calculate_forces
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'lri_int_os', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'lri_int_os'
 
       INTEGER                                            :: handle, nba, nbb, nfa, nfb
       LOGICAL                                            :: do_force
@@ -487,7 +479,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: iatom, jatom, ikind, jkind
       LOGICAL, INTENT(IN)                                :: calculate_forces
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'lri_int_shg', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'lri_int_shg'
 
       INTEGER                                            :: handle, nba, nbb, nfa, nfb
       INTEGER, DIMENSION(:, :, :), POINTER               :: fba_index, fbb_index, oba_index, &
@@ -599,9 +591,6 @@ CONTAINS
                                                             skip_dsab, skip_dsoo, skip_daba, &
                                                             skip_dabb
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'allocate_int_type', &
-         routineP = moduleN//':'//routineN
-
       LOGICAL                                            :: do_aba, do_abb, do_daba, do_dabb, &
                                                             do_dsab, do_dsoo, do_sab, do_soo
 
@@ -680,9 +669,6 @@ CONTAINS
 
       TYPE(int_type), INTENT(INOUT), OPTIONAL            :: lriint
       TYPE(dint_type), INTENT(INOUT), OPTIONAL           :: lridint
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'deallocate_int_type', &
-         routineP = moduleN//':'//routineN
 
       IF (PRESENT(lriint)) THEN
          IF (ALLOCATED(lriint%sabint)) DEALLOCATE (lriint%sabint)

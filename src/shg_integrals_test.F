@@ -69,9 +69,6 @@ CONTAINS
    SUBROUTINE create_shg_integrals_test_section(section)
       TYPE(section_type), INTENT(INOUT), POINTER         :: section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_shg_integrals_test_section', &
-         routineP = moduleN//':'//routineN
-
       TYPE(keyword_type), POINTER                        :: keyword
       TYPE(section_type), POINTER                        :: subsection
 
@@ -206,8 +203,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: iw
       TYPE(section_vals_type), INTENT(INOUT), POINTER    :: shg_integrals_test_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'shg_integrals_perf_acc_test', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'shg_integrals_perf_acc_test'
 
       CHARACTER(LEN=default_string_length)               :: basis_type
       INTEGER                                            :: count_ab, handle, iab, jab, kab, lamax, &
@@ -350,9 +346,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(IN)                          :: acc_param
       LOGICAL, INTENT(IN)                                :: calc_derivatives
       INTEGER, INTENT(IN)                                :: iw
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'test_shg_operator12_integrals', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: iab, irep, nab, nfa, nfb
       LOGICAL                                            :: test_any, test_coulomb, test_gauss, &
@@ -522,9 +515,6 @@ CONTAINS
       LOGICAL, INTENT(IN)                                :: calc_derivatives
       INTEGER, INTENT(IN)                                :: iw
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'test_shg_overlap_integrals', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: iab, irep, nab, nfa, nfb
       LOGICAL                                            :: test_overlap
       REAL(KIND=dp)                                      :: ddmax_overlap, ddtemp, dmax_overlap, &
@@ -603,9 +593,6 @@ CONTAINS
       LOGICAL, INTENT(IN)                                :: calc_derivatives
       INTEGER, INTENT(IN)                                :: iw
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'test_shg_ra2m_integrals', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: iab, irep, m, nab, nfa, nfb
       LOGICAL                                            :: test_ra2m
       REAL(KIND=dp)                                      :: ddmax, ddtemp, dmax, dtemp
@@ -680,9 +667,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(IN)                          :: acc_param
       LOGICAL, INTENT(IN)                                :: calc_derivatives
       INTEGER, INTENT(IN)                                :: iw
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'test_shg_overlap_aba_integrals', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: iab, irep, la_max, lb_max, lbb_max, &
                                                             maxl_orb, maxl_ri, nab, nba, nbb, nfa, &
@@ -814,9 +798,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :, :), INTENT(IN)      :: dvab_shg, dvab_os
       REAL(KIND=dp), INTENT(OUT)                         :: dmax, ddmax
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_deviation_ab', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, j, k
       REAL(KIND=dp)                                      :: diff
 
@@ -857,9 +838,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :, :), INTENT(IN)      :: vab_shg, vab_os
       REAL(KIND=dp), DIMENSION(:, :, :, :), INTENT(IN)   :: dvab_shg, dvab_os
       REAL(KIND=dp), INTENT(OUT)                         :: dmax, ddmax
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_deviation_abx', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, j, k, l
       REAL(KIND=dp)                                      :: diff

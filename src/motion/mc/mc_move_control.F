@@ -48,7 +48,7 @@ CONTAINS
 
       TYPE(mc_moves_type), POINTER                       :: moves
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'init_mc_moves', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'init_mc_moves'
 
       INTEGER                                            :: handle
 
@@ -166,8 +166,7 @@ CONTAINS
 
       TYPE(mc_moves_type), POINTER                       :: moves
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mc_moves_release', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'mc_moves_release'
 
       INTEGER                                            :: handle
 
@@ -221,7 +220,7 @@ CONTAINS
       TYPE(mc_moves_type), POINTER                       :: moves
       LOGICAL, INTENT(IN)                                :: lbias
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'move_q_reinit', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'move_q_reinit'
 
       INTEGER                                            :: handle
 
@@ -271,7 +270,7 @@ CONTAINS
       TYPE(mc_moves_type), POINTER                       :: moves
       LOGICAL, INTENT(IN)                                :: lbias
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'q_move_accept', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'q_move_accept'
 
       INTEGER                                            :: handle
 
@@ -344,8 +343,7 @@ CONTAINS
       TYPE(mc_moves_type), POINTER                       :: moves
       INTEGER, INTENT(IN)                                :: nnstep, unit
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'write_move_stats', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'write_move_stats'
 
       INTEGER                                            :: handle
 
@@ -436,7 +434,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: nnstep
       LOGICAL, INTENT(IN)                                :: ionode
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mc_move_update', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'mc_move_update'
 
       INTEGER                                            :: handle, nmol_types, rm
       REAL(dp), DIMENSION(:), POINTER                    :: rmangle, rmbond, rmdihedral, rmrot, &

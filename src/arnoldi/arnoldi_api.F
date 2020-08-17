@@ -67,8 +67,6 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:)                   :: matrix
       TYPE(arnoldi_data_type)                            :: arnoldi_data
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'arnoldi_ev', routineP = moduleN//':'//routineN
-
       TYPE(arnoldi_control_type), POINTER                :: control
 
       control => get_control(arnoldi_data)
@@ -100,8 +98,7 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:)                   :: matrix
       TYPE(arnoldi_data_type)                            :: arnoldi_data
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'arnoldi_normal_ev', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'arnoldi_normal_ev'
 
       INTEGER                                            :: handle, i_loop, ncol_local, nrow_local
       TYPE(arnoldi_control_type), POINTER                :: control
@@ -181,8 +178,7 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:)                   :: matrix
       TYPE(arnoldi_data_type)                            :: arnoldi_data
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'arnoldi_generalized_ev', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'arnoldi_generalized_ev'
 
       INTEGER                                            :: handle, i_loop, ncol_local, nrow_local
       TYPE(arnoldi_control_type), POINTER                :: control
@@ -259,8 +255,7 @@ CONTAINS
       REAL(KIND=dp), INTENT(IN)                          :: threshold
       INTEGER, INTENT(IN)                                :: max_iter
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'arnoldi_extremal', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'arnoldi_extremal'
 
       INTEGER                                            :: handle, max_iter_internal, nrestarts
       TYPE(arnoldi_data_type)                            :: my_arnoldi
@@ -310,8 +305,7 @@ CONTAINS
       REAL(KIND=dp), INTENT(IN)                          :: threshold
       INTEGER, INTENT(IN)                                :: max_iter
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'arnoldi_conjugate_gradient', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'arnoldi_conjugate_gradient'
 
       INTEGER                                            :: handle, i, j, mpgrp, nb, nloc, no
       INTEGER, DIMENSION(:), POINTER                     :: rb_offset, rb_size
@@ -398,9 +392,6 @@ CONTAINS
       TYPE(arnoldi_data_type)                            :: arnoldi_data
       TYPE(dbcsr_p_type), DIMENSION(:)                   :: arnoldi_matrices
       TYPE(m_x_v_vectors_type)                           :: vectors
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'conjugate_gradient', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: iter, mpgrp, pcgrp
       REAL(KIND=dp)                                      :: alpha, beta, pap, rsnew, rsold

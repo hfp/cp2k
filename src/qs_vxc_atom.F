@@ -96,8 +96,7 @@ CONTAINS
          POINTER                                         :: rho_atom_set_external
       TYPE(section_vals_type), OPTIONAL, POINTER         :: xc_section_external
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_vxc_atom', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_vxc_atom'
 
       INTEGER                                            :: bo(2), handle, ia, iat, iatom, idir, &
                                                             ikind, ir, ispin, mepos, myfun, na, &
@@ -473,8 +472,7 @@ CONTAINS
       LOGICAL, INTENT(IN)                                :: do_tddft
       LOGICAL, INTENT(IN), OPTIONAL                      :: do_triplet
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_xc_2nd_deriv_atom', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_xc_2nd_deriv_atom'
 
       INTEGER                                            :: atom, excitations, handle, iatom, ikind, &
                                                             ir, na, natom, nr, nspins, res_etype
@@ -755,9 +753,6 @@ CONTAINS
       TYPE(rho_atom_coeff), DIMENSION(:, :), POINTER     :: r_h_d, r_s_d
       REAL(KIND=dp), DIMENSION(:, :, :, :), POINTER      :: drho_h, drho_s
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_rho_angular', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ia, iso, ispin, na
       REAL(KIND=dp)                                      :: rad, urad
 
@@ -870,9 +865,6 @@ CONTAINS
       TYPE(rho_atom_coeff), DIMENSION(:, :), POINTER     :: trho_h, trho_s
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: tau_h, tau_s
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_tau_angular', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ia, iso, ispin, na
 
       CPASSERT(ASSOCIATED(trho_h))
@@ -932,8 +924,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: rho_h, rho_s
       REAL(KIND=dp), DIMENSION(:)                        :: drho_nlcc
       REAL(KIND=dp), DIMENSION(:, :, :, :), POINTER      :: drho_h, drho_s
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_rho_nlcc', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ia, ispin, na
       REAL(KIND=dp)                                      :: drho, dx, dy, dz, rad, rho, urad, xsp
@@ -1009,7 +999,7 @@ CONTAINS
       TYPE(rho_atom_type), POINTER                       :: rho_atom
       INTEGER, INTENT(IN)                                :: nspins
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'gaVxcgb_noGC', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'gaVxcgb_noGC'
 
       INTEGER :: handle, ia, ic, icg, ipgf1, ipgf2, ir, iset1, iset2, iso, iso1, iso2, ispin, l, &
                  ld, lmax12, lmax_expansion, lmin12, m1, m2, max_iso_not0, max_iso_not0_local, max_s_harm, &
@@ -1182,7 +1172,7 @@ CONTAINS
       TYPE(rho_atom_type), POINTER                       :: rho_atom
       INTEGER, INTENT(IN)                                :: nspins
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'gaVxcgb_GC', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'gaVxcgb_GC'
 
       INTEGER :: dmax_iso_not0, dmax_iso_not0_local, handle, ia, ic, icg, ipgf1, ipgf2, ir, iset1, &
          iset2, iso, iso1, iso2, ispin, l, lmax12, lmax_expansion, lmin12, m1, m2, max_iso_not0, &
@@ -1444,7 +1434,7 @@ CONTAINS
       TYPE(rho_atom_type), POINTER                       :: rho_atom
       INTEGER, INTENT(IN)                                :: nspins
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'dgaVtaudgb', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'dgaVtaudgb'
 
       INTEGER :: dmax_iso_not0_local, handle, ic, icg, ipgf1, ipgf2, iset1, iset2, iso, iso1, &
          iso2, isom1, isom2, ispin, l1, l2, lmax12, lmax_expansion, lmin12, m1, m2, max_iso_not0, &

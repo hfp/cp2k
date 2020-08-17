@@ -74,8 +74,7 @@ CONTAINS
       TYPE(qs_control_type), INTENT(IN)                  :: qs_control
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'init_interaction_radii', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'init_interaction_radii'
 
       INTEGER :: handle, i, iexp_ppl, ikind, ip, iprj_ppnl, j, l, lppl, lppnl, lprj, lprj_ppnl, &
          maxl, n_local, nexp_lpot, nexp_lsd, nexp_ppl, nkind, nloc
@@ -374,9 +373,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(IN)                          :: eps_pgf_orb
       REAL(KIND=dp), INTENT(IN), OPTIONAL                :: eps_pgf_short
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'init_interaction_radii_orb_basis', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ipgf, iset, ishell, l, nset
       INTEGER, DIMENSION(:), POINTER                     :: npgf, nshell
       INTEGER, DIMENSION(:, :), POINTER                  :: lshell
@@ -451,9 +447,6 @@ CONTAINS
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(section_vals_type), POINTER                   :: subsys_section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'init_se_nlradius', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ikind, nkind
       REAL(KIND=dp)                                      :: kind_radius
@@ -612,9 +605,6 @@ CONTAINS
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(section_vals_type), POINTER                   :: subsys_section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'write_pgf_orb_radii', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=10)                                  :: bas
       CHARACTER(LEN=default_string_length)               :: name, unit_str

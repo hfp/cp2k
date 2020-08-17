@@ -98,8 +98,6 @@ CONTAINS
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(section_vals_type), OPTIONAL, POINTER         :: input
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'kg_env_create', routineP = moduleN//':'//routineN
-
       ALLOCATE (kg_env)
       CALL init_kg_env(qs_env, kg_env, qs_kind_set, input)
    END SUBROUTINE kg_env_create
@@ -121,7 +119,7 @@ CONTAINS
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(section_vals_type), OPTIONAL, POINTER         :: input
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'init_kg_env', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'init_kg_env'
 
       CHARACTER(LEN=10)                                  :: intgrid
       INTEGER                                            :: handle, i, iatom, ib, ikind, iunit, n, &
@@ -302,8 +300,7 @@ CONTAINS
       INTEGER, DIMENSION(:), OPTIONAL, POINTER           :: subset_of_mol
       INTEGER, OPTIONAL                                  :: current_subset
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'kg_build_neighborlist', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'kg_build_neighborlist'
 
       INTEGER                                            :: handle, ikind, nkind
       LOGICAL                                            :: mic, molecule_only
@@ -438,8 +435,7 @@ CONTAINS
          INTENT(INOUT)                                   :: pairs_buffer
       INTEGER, INTENT(INOUT)                             :: n
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'kg_remove_duplicates', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'kg_remove_duplicates'
 
       INTEGER                                            :: handle, i, npairs
       INTEGER, DIMENSION(n)                              :: ind
@@ -494,7 +490,7 @@ CONTAINS
          DIMENSION(:, :), INTENT(IN)                     :: pairs
       INTEGER, INTENT(IN)                                :: nnodes
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'write_to_file', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'write_to_file'
 
       INTEGER                                            :: handle, i, imol, jmol, npairs, unit_nr
       INTEGER(KIND=int_4), ALLOCATABLE, DIMENSION(:, :)  :: sorted_pairs
@@ -554,8 +550,7 @@ CONTAINS
       TYPE(kg_environment_type), POINTER                 :: kg_env
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'kg_build_subsets', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'kg_build_subsets'
 
       INTEGER                                            :: color, handle, i, iatom, imol, isub, &
                                                             jatom, jmol, nmol, npairs, npairs_local

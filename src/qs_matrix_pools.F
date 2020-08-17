@@ -85,8 +85,6 @@ CONTAINS
    SUBROUTINE mpools_retain(mpools)
       TYPE(qs_matrix_pools_type), POINTER                :: mpools
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mpools_retain', routineP = moduleN//':'//routineN
-
       CPASSERT(ASSOCIATED(mpools))
       CPASSERT(mpools%ref_count > 0)
       mpools%ref_count = mpools%ref_count + 1
@@ -101,8 +99,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE mpools_release(mpools)
       TYPE(qs_matrix_pools_type), POINTER                :: mpools
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'mpools_release', routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(mpools)) THEN
          CPASSERT(mpools%ref_count > 0)
@@ -151,8 +147,6 @@ CONTAINS
                                                             maxao_maxao_fm_pool, &
                                                             maxmo_maxmo_fm_pool
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mpools_get', routineP = moduleN//':'//routineN
-
       IF (PRESENT(ao_mo_fm_pools)) ao_mo_fm_pools => mpools%ao_mo_fm_pools
       IF (PRESENT(maxao_maxmo_fm_pool)) THEN
          IF (ASSOCIATED(mpools%ao_mo_fm_pools)) THEN
@@ -191,8 +185,6 @@ CONTAINS
    SUBROUTINE mpools_create(mpools)
       TYPE(qs_matrix_pools_type), POINTER                :: mpools
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mpools_create', routineP = moduleN//':'//routineN
-
       ALLOCATE (mpools)
       NULLIFY (mpools%ao_ao_fm_pools, mpools%ao_mo_fm_pools, &
                mpools%mo_mo_fm_pools, mpools%ao_mosub_fm_pools, &
@@ -224,8 +216,7 @@ CONTAINS
       TYPE(cp_para_env_type), POINTER                    :: para_env
       INTEGER, DIMENSION(2), INTENT(IN), OPTIONAL        :: nmosub
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mpools_rebuild_fm_pools', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'mpools_rebuild_fm_pools'
 
       INTEGER                                            :: handle, ispin, max_nmo, min_nmo, nao, &
                                                             ncg, ncol_block, nmo, nrg, nrow_block, &

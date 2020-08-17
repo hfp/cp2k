@@ -143,7 +143,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: order
       TYPE(section_vals_type), POINTER                   :: xwpbe_params
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'xwpbe_lda_eval', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'xwpbe_lda_eval'
 
       INTEGER                                            :: handle, npoints
       INTEGER, DIMENSION(:, :), POINTER                  :: bo
@@ -260,8 +260,6 @@ CONTAINS
       REAL(kind=dp), DIMENSION(1:npoints), INTENT(inout) :: rho, norm_drho, e_0, e_rho, e_ndrho, &
                                                             e_rho_rho, e_ndrho_rho, e_ndrho_ndrho
       REAL(kind=dp), INTENT(in)                          :: epsilon_rho, sx, sx0, omega
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'xwpbe_lda_calc', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ip
       REAL(dp)                                           :: my_ndrho, my_rho
@@ -5251,7 +5249,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: order
       TYPE(section_vals_type), POINTER                   :: xwpbe_params
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'xwpbe_lsd_eval', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'xwpbe_lsd_eval'
 
       INTEGER                                            :: handle, npoints
       INTEGER, DIMENSION(:, :), POINTER                  :: bo
@@ -5404,8 +5402,6 @@ CONTAINS
       REAL(kind=dp), DIMENSION(1:npoints), INTENT(inout) :: rho, norm_drho, e_0, e_rho, e_ndrho, &
                                                             e_rho_rho, e_ndrho_rho, e_ndrho_ndrho
       REAL(kind=dp), INTENT(in)                          :: epsilon_rho, sx, sx0, omega
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'xwpbe_lsd_calc', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ip
       REAL(dp)                                           :: e_0_temp, my_ndrho, my_rho

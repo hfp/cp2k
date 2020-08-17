@@ -118,8 +118,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(task_list_type), POINTER                      :: task_list_sub
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'mp2_eri_3c_integrate_gpw', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'mp2_eri_3c_integrate_gpw'
 
       INTEGER                                            :: handle
 
@@ -175,8 +174,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), INTENT(OUT)        :: L_local_col
       INTEGER, DIMENSION(:), INTENT(IN)                  :: kind_of
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'mp2_eri_2c_integrate_gpw', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'mp2_eri_2c_integrate_gpw'
 
       INTEGER :: dir, handle, handle2, i, i_counter, iatom, igrid_level, ikind, ipgf, iset, lb(3), &
          LLL, location(3), na1, na2, ncoa, nseta, offset, sgfa, tp(3), ub(3)
@@ -392,7 +390,7 @@ CONTAINS
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
          INTENT(IN), POINTER                             :: sab_orb_sub
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'prepare_gpw', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'prepare_gpw'
 
       INTEGER                                            :: handle, i_multigrid, n_multigrid
       LOGICAL                                            :: skip_load_balance_distributed
@@ -486,7 +484,7 @@ CONTAINS
       TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
       TYPE(pw_p_type), INTENT(INOUT)                     :: rho_r, rho_g, pot_g, psi_L
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cleanup_gpw', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'cleanup_gpw'
 
       INTEGER                                            :: handle
       TYPE(dft_control_type), POINTER                    :: dft_control
@@ -529,8 +527,7 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: potential_type
       REAL(KIND=dp), INTENT(IN), OPTIONAL                :: omega
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_potential_gpw', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_potential_gpw'
 
       INTEGER                                            :: handle, my_potential_type
 

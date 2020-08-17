@@ -156,7 +156,7 @@ CONTAINS
       TYPE(global_environment_type), POINTER             :: globenv
       TYPE(average_quantities_type), OPTIONAL, POINTER   :: averages
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'qs_tamc', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'qs_tamc'
 
       CHARACTER(LEN=20)                                  :: ensemble
       INTEGER                                            :: handle, i, initialStep, iprint, isos, &
@@ -673,8 +673,7 @@ CONTAINS
       TYPE(force_env_type), POINTER                      :: force_env
       REAL(KIND=dp), DIMENSION(:), INTENT(INOUT)         :: An
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'tamc_velocities_colvar', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'tamc_velocities_colvar'
 
       INTEGER                                            :: handle, i_c
       REAL(kind=dp)                                      :: dt, fft, sigma
@@ -713,8 +712,7 @@ CONTAINS
       TYPE(force_env_type), POINTER                      :: force_env
       REAL(KIND=dp), DIMENSION(:), INTENT(INOUT)         :: xieta
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'tamc_position_colvar', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'tamc_position_colvar'
 
       INTEGER                                            :: handle, i_c
       REAL(kind=dp)                                      :: dt, sigma
@@ -759,7 +757,7 @@ CONTAINS
       TYPE(force_env_type), POINTER                      :: force_env
       REAL(KIND=dp), INTENT(inout), OPTIONAL             :: zpot
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'tamc_force', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'tamc_force'
 
       INTEGER                                            :: handle, i, i_c, icolvar, ii
       LOGICAL                                            :: explicit
@@ -881,8 +879,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), INTENT(INOUT)         :: xieta, An, fz
       TYPE(mc_averages_type), INTENT(INOUT), POINTER     :: averages
       REAL(KIND=dp), DIMENSION(:), INTENT(INOUT)         :: zbuff
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'langevinVEC', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: iprint, ivar, nparticle, nparticle_kind, &
                                                             nstep, output_unit
@@ -1139,7 +1135,7 @@ CONTAINS
       TYPE(rng_stream_type), INTENT(INOUT)               :: rng_stream
       REAL(KIND=dp), DIMENSION(:), INTENT(INOUT)         :: zbuff
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'mc_hmc_move', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'mc_hmc_move'
 
       INTEGER                                            :: group, handle, iatom, j, nAtoms, source
       LOGICAL                                            :: ionode, localise
@@ -1265,8 +1261,7 @@ CONTAINS
    SUBROUTINE metadyn_write_colvar_header(force_env)
       TYPE(force_env_type), POINTER                      :: force_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'metadyn_write_colvar_header', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'metadyn_write_colvar_header'
 
       CHARACTER(len=100)                                 :: aux, fmt
       CHARACTER(len=255)                                 :: label1, label2, label3, label4, label5, &
@@ -1345,8 +1340,7 @@ CONTAINS
    SUBROUTINE metadyn_write_colvar(force_env)
       TYPE(force_env_type), POINTER                      :: force_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'metadyn_write_colvar', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'metadyn_write_colvar'
 
       INTEGER                                            :: handle, i, i_c, iw
       REAL(KIND=dp)                                      :: temp

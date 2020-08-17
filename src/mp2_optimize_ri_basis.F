@@ -111,8 +111,7 @@ CONTAINS
          OPTIONAL                                        :: C_beta
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), OPTIONAL :: Auto_beta
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'optimize_ri_basis_main', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'optimize_ri_basis_main'
 
       INTEGER :: color_sub, comm_sub, dimen_RI, elements_ij_proc, handle, i, iiter, ikind, ipgf, &
          iset, ishell, j, local_unit_nr, max_l_am, max_num_iter, ndof, nkind, number_groups, &
@@ -619,8 +618,7 @@ CONTAINS
       INTEGER                                            :: number_groups, color_sub, unit_nr
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: p, lower_B, max_dev, deriv
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_energy_func_der', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_energy_func_der'
 
       INTEGER                                            :: handle, ideriv, ikind, iset, nseta
       REAL(KIND=dp)                                      :: DI, DRI, Emp2_RI, new_basis_val, &
@@ -750,8 +748,7 @@ CONTAINS
       INTEGER                                            :: unit_nr
       LOGICAL                                            :: no_write
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_energy_func', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'calc_energy_func'
 
       INTEGER                                            :: handle
       REAL(KIND=dp)                                      :: DI_AA, DI_AB, DI_BB, DRI_AA, DRI_AB, &
@@ -888,8 +885,6 @@ CONTAINS
       REAL(KIND=dp)                                      :: reset_edge
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: pnew, Lower_B, max_dev, max_rel_dev
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: exp_limits
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'reset_basis', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: am_max, iexpo, ikind, ipos, ipos_p, &
                                                             iset, la
@@ -1058,9 +1053,6 @@ CONTAINS
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: Lai, Lai_beta
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'contract_integrals', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: a, b, i, ij_counter, j
       REAL(KIND=dp)                                      :: t_iajb, t_iajb_RI
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: mat_ab
@@ -1119,9 +1111,6 @@ CONTAINS
       TYPE(cp_para_env_type), POINTER                    :: para_env
       INTEGER                                            :: elements_ij_proc
       INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: ij_list_proc
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_elem_ij_proc', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, ij_counter, j
 
@@ -1183,8 +1172,7 @@ CONTAINS
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: max_rel_dev_output
       LOGICAL, ALLOCATABLE, DIMENSION(:)                 :: basis_was_assoc
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'generate_RI_init_basis', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'generate_RI_init_basis'
 
       INTEGER :: basis_quality, handle, iexpo, iii, ikind, ipgf, iset, ishell, jexpo, jjj, la, &
          max_am, nexpo_shell, nseta, nsgfa, nsgfa_RI, prog_func, prog_l, RI_max_am, RI_nset, &
@@ -1570,8 +1558,7 @@ CONTAINS
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: RI_l_expo
       REAL(dp), ALLOCATABLE, DIMENSION(:)                :: RI_exponents
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'create_ri_basis', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'create_ri_basis'
 
       INTEGER                                            :: handle, i, ico, ipgf, iset, ishell, &
                                                             lshell, m, maxco, maxl, maxpgf, &

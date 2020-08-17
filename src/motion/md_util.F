@@ -53,7 +53,7 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: md_section, root_section
       LOGICAL, INTENT(IN)                                :: forced_io
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'md_output', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'md_output'
 
       INTEGER                                            :: handle
       LOGICAL                                            :: do_print
@@ -101,9 +101,6 @@ CONTAINS
       INTEGER, INTENT(OUT)                               :: dof
       REAL(KIND=dp), DIMENSION(:), INTENT(OUT)           :: eigenvalues
       REAL(KIND=dp), DIMENSION(:, :), INTENT(OUT)        :: eigenvectors
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'read_vib_eigs_unformatted', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_path_length)                 :: filename
       INTEGER                                            :: jj, n_rep_val, unit_nr

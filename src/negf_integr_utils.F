@@ -49,9 +49,6 @@ CONTAINS
       INTEGER, INTENT(in)                                :: nnodes
       ${type1}$, DIMENSION(nnodes), INTENT(out)          :: xnodes
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'equidistant_${nametype1}$nodes_a_b', &
-                                     routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i
       ${type1}$                                          :: rscale
 
@@ -72,8 +69,7 @@ CONTAINS
       COMPLEX(kind=dp), DIMENSION(nnodes), INTENT(out), &
          OPTIONAL                                        :: xnodes, weights
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'rescale_normalised_nodes', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'rescale_normalised_nodes'
 
       INTEGER :: handle, i
       REAL(kind=dp)                                      :: rscale
@@ -165,9 +161,6 @@ CONTAINS
       COMPLEX(kind=dp), INTENT(in)                       :: a, b
       REAL(kind=dp)                                      :: phi
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_arc_smallest_angle', &
-                                     routineP = moduleN//':'//routineN
-
       COMPLEX(kind=dp) :: b_minus_a
       REAL(kind=dp)    :: delta2, l2
 
@@ -186,9 +179,6 @@ CONTAINS
    PURE FUNCTION get_axis_rotation_angle(a, b) RESULT(phi)
       COMPLEX(kind=dp), INTENT(in)                       :: a, b
       REAL(kind=dp)                                      :: phi
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_axis_rotation_angle', &
-                                     routineP = moduleN//':'//routineN
 
       COMPLEX(kind=dp) :: b_minus_a
 
@@ -213,9 +203,6 @@ CONTAINS
       COMPLEX(kind=dp), INTENT(in)                       :: a, b
       COMPLEX(kind=dp), DIMENSION(:), INTENT(out)        :: xnodes
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'rescale_nodes_arc', &
-                                     routineP = moduleN//':'//routineN
-
       COMPLEX(kind=dp)                                   :: origin
       INTEGER                                            :: i
       REAL(kind=dp)                                      :: radius
@@ -239,9 +226,6 @@ CONTAINS
       INTEGER, INTENT(in)                                :: nnodes
       REAL(kind=dp), DIMENSION(nnodes), INTENT(inout)    :: tnodes
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'rescale_nodes_cos', &
-                                     routineP = moduleN//':'//routineN
-
       tnodes(:) = COS(0.5_dp*pi*(1.0_dp - tnodes(:)))
    END SUBROUTINE rescale_nodes_cos
 
@@ -260,9 +244,6 @@ CONTAINS
       REAL(kind=dp), DIMENSION(nnodes), INTENT(in)       :: tnodes
       COMPLEX(kind=dp), INTENT(in)                       :: a, b
       COMPLEX(kind=dp), DIMENSION(nnodes), INTENT(out)   :: xnodes
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'rescale_nodes_linear', &
-                                     routineP = moduleN//':'//routineN
 
       COMPLEX(kind=dp)                                   :: half_len, median
 
@@ -286,9 +267,6 @@ CONTAINS
       COMPLEX(kind=dp), INTENT(in)                       :: a, b
       INTEGER, INTENT(in)                                :: nnodes
       REAL(kind=dp), DIMENSION(nnodes), INTENT(inout)    :: tnodes
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'rescale_nodes_pi_phi', &
-                                     routineP = moduleN//':'//routineN
 
       REAL(kind=dp)                                      :: half_pi_minus_phi, phi
 

@@ -43,9 +43,6 @@ CONTAINS
       TYPE(md_environment_type), POINTER                 :: md_env
       LOGICAL, INTENT(inout)                             :: should_stop
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'glbopt_md_callback', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, iw, n_atoms
       INTEGER, POINTER                                   :: itimes
       LOGICAL                                            :: passed_minimum

@@ -100,9 +100,6 @@ CONTAINS
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(tmc_env_type), POINTER                        :: tmc_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cancel_calculations', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, stat, wg
       TYPE(elem_list_type), POINTER                      :: tmp_element
 
@@ -173,9 +170,6 @@ CONTAINS
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(tmc_env_type), POINTER                        :: tmc_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'send_analysis_tasks', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: dest, stat, wg
       TYPE(elem_list_type), POINTER                      :: list_tmp
 
@@ -215,7 +209,7 @@ CONTAINS
       TYPE(tmc_env_type), POINTER                        :: tmc_env
       TYPE(global_environment_type), POINTER             :: globenv
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'do_tmc_master', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'do_tmc_master'
 
       INTEGER :: cancel_count, handle, last_output, reactivation_cc_count, &
          reactivation_ener_count, restart_count, restarted_elem_nr, stat, walltime_delay, &
@@ -933,9 +927,6 @@ CONTAINS
    SUBROUTINE set_walltime_delay(time, walltime_delay)
       REAL(KIND=dp)                                      :: time
       INTEGER                                            :: walltime_delay
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'set_walltime_delay', &
-         routineP = moduleN//':'//routineN
 
       CPASSERT(time .GE. 0.0_dp)
 

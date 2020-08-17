@@ -202,8 +202,7 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: gw_corr_lev_occ_beta, &
                                                             gw_corr_lev_virt_beta
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'rpa_ri_compute_en', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'rpa_ri_compute_en'
 
       INTEGER :: best_integ_group_size, best_num_integ_point, color_rpa_group, dimen_homo_square, &
          dimen_ia, dimen_ia_beta, dimen_nm_gw, dimen_virt_square, handle, handle2, handle3, i, &
@@ -781,8 +780,6 @@ CONTAINS
       INTEGER                                            :: my_ia_size, my_ia_start, my_ia_end, &
                                                             my_group_L_size
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_BIb_C_2D', &
-         routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: occ_chunk = 128
 
       INTEGER :: ia_global, iiB, itmp(2), jjB, my_B_size, my_B_virtual_start, occ_high, occ_low, &
@@ -917,8 +914,7 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: nmo, homo
       TYPE(cp_fm_type), OPTIONAL, POINTER                :: fm_mat_Q_beta
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'create_integ_mat', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'create_integ_mat'
 
       INTEGER :: comm_exchange, comm_rpa, grid_2D(2), handle, handle2, i, iproc, iproc_col, &
          iproc_row, mepos_in_RPA_group, row_col_proc_ratio, sub_sub_color
@@ -1152,8 +1148,7 @@ CONTAINS
                                                             mo_coeff
       INTEGER, INTENT(IN)                                :: nmo, homo
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'create_occ_virt_mo_coeffs', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'create_occ_virt_mo_coeffs'
 
       INTEGER                                            :: handle, icol_global, irow_global
 
@@ -1314,7 +1309,7 @@ CONTAINS
       TYPE(cp_fm_type), OPTIONAL, POINTER                :: mo_coeff_beta
       LOGICAL, INTENT(IN)                                :: do_ri_sos_laplace_mp2
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'rpa_num_int', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'rpa_num_int'
 
       COMPLEX(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)  :: vec_Sigma_c_gw, vec_Sigma_c_gw_beta
       INTEGER :: count_ev_sc_GW, cut_memory, group_size_P, gw_corr_lev_tot, handle, handle3, &

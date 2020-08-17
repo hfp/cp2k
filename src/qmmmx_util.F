@@ -72,9 +72,6 @@ CONTAINS
    SUBROUTINE apply_qmmmx_translate(qmmmx_env)
       TYPE(qmmmx_env_type), POINTER                      :: qmmmx_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'apply_qmmmx_translate', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ip
       TYPE(cell_type), POINTER                           :: cell_core, cell_extended
       TYPE(cp_subsys_type), POINTER                      :: subsys_core, subsys_extended
@@ -117,9 +114,6 @@ CONTAINS
       TYPE(cp_subsys_type), POINTER                      :: subsys
       TYPE(section_vals_type), POINTER                   :: qmmm_section
       LOGICAL, OPTIONAL                                  :: labels_changed
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'update_force_mixing_labels', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_string_length), POINTER      :: adaptive_exclude_molecules(:)
       INTEGER :: i_rep_section, i_rep_val, ip, max_n_qm, n_new, n_rep_exclude, n_rep_section, &
@@ -372,8 +366,6 @@ CONTAINS
       INTEGER, POINTER                                   :: new_indices(:), new_labels(:)
       INTEGER                                            :: new_full_labels(:), max_n_qm
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'add_new_label', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, old_index
 
       IF (new_full_labels(ip) > force_mixing_label_none) THEN ! already marked, just change mark
@@ -442,9 +434,6 @@ CONTAINS
       TYPE(molecule_type), DIMENSION(:), OPTIONAL, &
          POINTER                                         :: molecule_set
       INTEGER, OPTIONAL, POINTER                         :: broken_bonds(:)
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'add_layer_hysteretically', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i_ind, im, im_exclude, ip, ipair, &
                                                             ipairkind, j_ind, output_unit
@@ -534,9 +523,6 @@ CONTAINS
       REAL(dp)                                           :: r_max
       TYPE(fist_neighbor_type), POINTER                  :: nlist
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'make_neighbor_list', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=default_string_length)               :: kind_name
       CHARACTER(LEN=default_string_length), POINTER      :: kind_name_a(:)
       INTEGER                                            :: ik
@@ -599,9 +585,6 @@ CONTAINS
       TYPE(cp_subsys_type), POINTER                      :: subsys
       TYPE(section_vals_type), POINTER                   :: qmmm_section, qmmm_core_section, &
                                                             qmmm_extended_section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'setup_force_mixing_qmmm_sections', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(len=default_string_length), POINTER      :: elem_mapping(:, :), elem_mapping_entry(:)
       INTEGER :: delta_charge, i_rep_section_core, i_rep_section_extended, i_rep_val_core, &
@@ -767,9 +750,6 @@ CONTAINS
    SUBROUTINE get_force_mixing_indices(force_mixing_section, indices, labels)
       TYPE(section_vals_type), POINTER                   :: force_mixing_section
       INTEGER, POINTER                                   :: indices(:), labels(:)
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_force_mixing_indices', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i_rep_val, n_indices, n_labels, n_reps
       INTEGER, POINTER                                   :: indices_entry(:), labels_entry(:)

@@ -79,8 +79,6 @@ CONTAINS
       TYPE(tddfpt_env_type), INTENT(out)                 :: t_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'tddfpt_init', routineP = moduleN//':'//routineN
-
 !------------------!
 ! create the p_env !
 !------------------!
@@ -105,9 +103,6 @@ CONTAINS
 
       TYPE(tddfpt_env_type), INTENT(inout)               :: t_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'tddfpt_env_init', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: n_spins, spin
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s
@@ -137,8 +132,6 @@ CONTAINS
       TYPE(tddfpt_env_type), INTENT(inout)               :: t_env
       TYPE(qs_p_env_type), POINTER                       :: p_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'tddfpt_cleanup', routineP = moduleN//':'//routineN
-
       CALL tddfpt_env_deallocate(t_env)
       CALL p_env_release(p_env)
 
@@ -157,9 +150,6 @@ CONTAINS
       REAL(kind=DP), DIMENSION(:), INTENT(OUT)           :: energies
       INTEGER, INTENT(IN)                                :: n_v
       TYPE(qs_environment_type), POINTER                 :: qs_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'co_initial_guess', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, n_cols, n_lumos, n_orbits, n_rows, &
                                                             n_spins, oo, spin, vo
@@ -283,9 +273,6 @@ CONTAINS
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(tddfpt_env_type), INTENT(IN)                  :: t_env
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'find_contributions', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, j, n_ev, n_spins, occ, output_unit, &
                                                             spin, virt
@@ -426,8 +413,7 @@ CONTAINS
       TYPE(cp_fm_p_type), DIMENSION(:)                   :: work
       INTEGER, INTENT(IN)                                :: n
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'reorthogonalize', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'reorthogonalize'
 
       INTEGER                                            :: handle, i, n_spins, spin
       REAL(DP)                                           :: dot_product, tmp

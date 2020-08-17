@@ -57,9 +57,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: nspins
       TYPE(section_vals_type), POINTER                   :: scf_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'block_davidson_env_create', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ispin
 
       CPASSERT(.NOT. ASSOCIATED(bdav_env))
@@ -108,8 +105,7 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                          :: mo_coeff
       INTEGER, INTENT(IN)                                :: nao, nmo
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'block_davidson_allocate', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'block_davidson_allocate'
 
       INTEGER                                            :: handle, nmox2
       TYPE(cp_fm_struct_type), POINTER                   :: fm_struct_tmp
@@ -146,9 +142,6 @@ CONTAINS
 
       TYPE(davidson_type), DIMENSION(:), POINTER         :: bdav_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'block_davidson_deallocate', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ispin, nspins
 
       IF (ASSOCIATED(bdav_env)) THEN
@@ -176,9 +169,6 @@ CONTAINS
    SUBROUTINE block_davidson_release(bdav_env)
 
       TYPE(davidson_type), DIMENSION(:), POINTER         :: bdav_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'block_davidson_release', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ispin, nspins
 

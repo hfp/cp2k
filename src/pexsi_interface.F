@@ -94,9 +94,6 @@ CONTAINS
                                                   ordering, rowOrdering, npSymbFact, &
                                                   verbosity
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_pexsi_set_options', &
-                                     routineP = moduleN//':'//routineN
-
 #ifdef __LIBPEXSI
       IF (PRESENT(temperature)) pexsi_options%options%temperature = temperature
       IF (PRESENT(gap)) pexsi_options%options%gap = gap
@@ -194,9 +191,6 @@ CONTAINS
                                                   ordering, rowOrdering, npSymbFact, &
                                                   verbosity
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_pexsi_get_options', &
-                                     routineP = moduleN//':'//routineN
-
 #ifdef __LIBPEXSI
       IF (PRESENT(temperature)) temperature = pexsi_options%options%temperature
       IF (PRESENT(gap)) gap = pexsi_options%options%gap
@@ -255,9 +249,6 @@ CONTAINS
    SUBROUTINE cp_pexsi_set_default_options(pexsi_options)
       TYPE(cp_pexsi_options), INTENT(OUT)      :: pexsi_options
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_pexsi_set_default_options', &
-                                     routineP = moduleN//':'//routineN
-
 #ifdef  __LIBPEXSI
       CALL f_ppexsi_set_default_options(pexsi_options%options)
 #else
@@ -277,9 +268,6 @@ CONTAINS
       INTEGER, INTENT(IN)                      :: comm, numProcRow, numProcCol, &
                                                   outputFileIndex
       INTEGER(KIND=int_8)                      :: cp_pexsi_plan_initialize
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_pexsi_plan_initialize', &
-                                     routineP = moduleN//':'//routineN
 
 #ifdef  __LIBPEXSI
       INTEGER                                  :: info, handle
@@ -325,10 +313,6 @@ CONTAINS
       REAL(KIND=real_8), INTENT(IN)            :: HnzvalLocal(*)
       INTEGER, INTENT(IN)                      :: isSIdentity
       REAL(KIND=real_8), INTENT(IN)            :: SnzvalLocal(*)
-
-      CHARACTER(LEN=*), PARAMETER :: &
-         routineN = 'cp_pexsi_load_real_symmetric_hs_matrix', &
-         routineP = moduleN//':'//routineN
 
 #ifdef  __LIBPEXSI
       INTEGER                                  :: handle, info
@@ -379,9 +363,6 @@ CONTAINS
                                                   muMinInertia, muMaxInertia
       INTEGER, INTENT(out)                     :: numTotalInertiaIter, &
                                                   numTotalPEXSIIter
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_pexsi_dft_driver', &
-                                     routineP = moduleN//':'//routineN
 
 #ifdef  __LIBPEXSI
       INTEGER                                  :: handle, info
@@ -441,10 +422,6 @@ CONTAINS
       REAL(KIND=real_8), INTENT(out) :: DMnzvalLocal(*), EDMnzvalLocal(*), &
                                         FDMnzvalLocal(*), totalEnergyH, totalEnergyS, totalFreeEnergy
 
-      CHARACTER(LEN=*), PARAMETER :: &
-         routineN = 'cp_pexsi_retrieve_real_symmetric_dft_matrix', &
-         routineP = moduleN//':'//routineN
-
 #ifdef  __LIBPEXSI
       INTEGER                                  :: handle, info
 
@@ -475,9 +452,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE cp_pexsi_plan_finalize(plan)
       INTEGER(KIND=int_8), INTENT(IN)          :: plan
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_pexsi_plan_finalize', &
-                                     routineP = moduleN//':'//routineN
 
 #ifdef  __LIBPEXSI
       INTEGER                                  :: info, handle

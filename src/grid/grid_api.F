@@ -133,9 +133,6 @@ CONTAINS
       LOGICAL, OPTIONAL                                  :: use_subpatch
       INTEGER, INTENT(IN), OPTIONAL                      :: subpatch_pattern
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'collocate_pgf_product', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: border_mask, i, iw, j, k, my_pos
       INTEGER, DIMENSION(3), TARGET                      :: border_width, npts_global, npts_local, &
                                                             shift_local
@@ -380,9 +377,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), INTENT(IN), TARGET :: sphi, zet
       TYPE(grid_basis_set_type), INTENT(INOUT)           :: basis_set
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'grid_create_basis_set', &
-         routineP = moduleN//':'//routineN
-
       INTEGER, DIMENSION(nset), TARGET                   :: my_first_sgf
       TYPE(C_PTR)                                        :: first_sgf_c, lmax_c, lmin_c, npgf_c, &
                                                             nsgf_set_c, sphi_c, zet_c
@@ -543,9 +537,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), INTENT(OUT), POINTER  :: blocks_buffer
       TYPE(grid_task_list_type), INTENT(INOUT)           :: task_list
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'grid_create_task_list', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ikind
       TYPE(C_PTR)                                        :: blocks_buffer_c
       TYPE(C_PTR), ALLOCATABLE, DIMENSION(:), TARGET     :: basis_sets_c
@@ -699,9 +690,6 @@ CONTAINS
       TYPE(grid_task_list_type), INTENT(IN)              :: task_list
       INTEGER, INTENT(IN)                                :: ga_gb_function
       TYPE(realspace_grid_p_type), DIMENSION(:), POINTER :: rs_grids
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'grid_collocate_task_list', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ilevel, nlevels
       INTEGER, ALLOCATABLE, DIMENSION(:, :), TARGET      :: border_width, npts_global, npts_local, &

@@ -109,9 +109,6 @@ CONTAINS
       TYPE(force_env_type), POINTER                      :: force_env
       TYPE(simpar_type), POINTER                         :: simpar
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'initialize_md_ener', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: nkind
       LOGICAL                                            :: shell_adiabatic
       TYPE(atomic_kind_list_type), POINTER               :: atomic_kinds
@@ -173,8 +170,6 @@ CONTAINS
       TYPE(md_environment_type), POINTER                 :: md_env
       TYPE(md_ener_type), POINTER                        :: md_ener
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'md_energy', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: natom
       LOGICAL                                            :: shell_adiabatic, tkind, tshell
       TYPE(atomic_kind_list_type), POINTER               :: atomic_kinds
@@ -220,9 +215,6 @@ CONTAINS
       TYPE(md_environment_type), POINTER                 :: md_env
       TYPE(md_ener_type), POINTER                        :: md_ener
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'md_ener_reftraj', &
-         routineP = moduleN//':'//routineN
-
       TYPE(force_env_type), POINTER                      :: force_env
       TYPE(reftraj_type), POINTER                        :: reftraj
 
@@ -252,8 +244,7 @@ CONTAINS
 
       TYPE(md_environment_type), POINTER                 :: md_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'md_write_output', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'md_write_output'
 
       CHARACTER(LEN=default_string_length)               :: fmd, my_act, my_pos
       INTEGER                                            :: ene, ener_mix, handle, i, nat, nkind, &
@@ -617,9 +608,6 @@ CONTAINS
       TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(section_vals_type), POINTER                   :: motion_section
       CHARACTER(LEN=default_string_length), INTENT(IN)   :: my_pos, my_act
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'md_write_info_low', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: iw
       TYPE(enumeration_type), POINTER                    :: enum

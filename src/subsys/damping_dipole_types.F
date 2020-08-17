@@ -66,9 +66,6 @@ CONTAINS
       TYPE(damping_p_type), POINTER                      :: damping
       INTEGER, INTENT(IN)                                :: nkinds
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'damping_p_create', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i
 
       CPASSERT(.NOT. ASSOCIATED(damping))
@@ -86,9 +83,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE damping_p_release(damping)
       TYPE(damping_p_type), POINTER                      :: damping
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'damping_p_release', &
-         routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(damping)) THEN
          IF (ASSOCIATED(damping%damp)) THEN

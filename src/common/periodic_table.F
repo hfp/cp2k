@@ -76,9 +76,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(OUT), OPTIONAL               :: covalent_radius, vdw_radius
       LOGICAL, OPTIONAL                                  :: found
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_ptable_info', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=2)                                   :: symb_ielem, symbol_in
       INTEGER                                            :: ielem, ielem_found
 

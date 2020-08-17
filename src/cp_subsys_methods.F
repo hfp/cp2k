@@ -104,9 +104,6 @@ CONTAINS
          POINTER                                         :: exclusions
       LOGICAL, INTENT(IN), OPTIONAL                      :: elkind
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_subsys_create', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: stress_tensor
       INTEGER, DIMENSION(:), POINTER                     :: seed_vals
       LOGICAL                                            :: atomic_energy, atomic_stress, &
@@ -232,9 +229,6 @@ CONTAINS
       TYPE(cp_subsys_type), POINTER                      :: subsys
       TYPE(section_vals_type), POINTER                   :: colvar_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_subsys_read_colvar', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ig, ncol
 
       CALL section_vals_get(colvar_section, n_repetition=ncol)
@@ -278,9 +272,6 @@ CONTAINS
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(section_vals_type), POINTER                   :: force_env_section, subsys_section
       LOGICAL, INTENT(in), OPTIONAL                      :: ignore_outside_box
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_small_subsys', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(len=default_string_length)               :: my_element, strtmp1
       INTEGER                                            :: iat, id_, nat

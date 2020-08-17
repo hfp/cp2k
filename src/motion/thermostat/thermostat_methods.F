@@ -115,9 +115,6 @@ CONTAINS
       TYPE(global_environment_type), POINTER             :: globenv
       TYPE(section_vals_type), POINTER                   :: global_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_thermostats', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=default_path_length)                 :: binary_restart_file_name
       INTEGER                                            :: n_rep, region, thermostat_type
       LOGICAL :: apply_general_thermo, apply_thermo_adiabatic, apply_thermo_baro, &
@@ -416,9 +413,6 @@ CONTAINS
       TYPE(thermostat_type), POINTER                     :: thermostat
       TYPE(section_vals_type), POINTER                   :: section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'update_thermo_baro_section', &
-         routineP = moduleN//':'//routineN
-
       TYPE(section_vals_type), POINTER                   :: work_section
 
       CALL section_vals_val_set(section, "TYPE", i_val=thermostat%type_of_thermostat)
@@ -456,9 +450,6 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: section
       TYPE(simpar_type), POINTER                         :: simpar
       TYPE(cp_para_env_type), POINTER                    :: para_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'thermostat_info', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: iw
       REAL(KIND=dp)                                      :: kin_energy, pot_energy, tmp
@@ -522,9 +513,6 @@ CONTAINS
       TYPE(npt_info_type), DIMENSION(:, :), POINTER      :: npt
       INTEGER, INTENT(IN)                                :: group
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'apply_thermostat_baro', &
-         routineP = moduleN//':'//routineN
-
       IF (ASSOCIATED(thermostat)) THEN
          IF (thermostat%type_of_thermostat == do_thermo_nose) THEN
             ! Apply Nose-Hoover Thermostat
@@ -575,9 +563,6 @@ CONTAINS
                                                             core_particle_set(:)
       REAL(KIND=dp), INTENT(INOUT), OPTIONAL             :: vel(:, :), shell_vel(:, :), &
                                                             core_vel(:, :)
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'apply_thermostat_particles', &
-         routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(thermostat)) THEN
          IF (thermostat%type_of_thermostat == do_thermo_nose) THEN
@@ -636,9 +621,6 @@ CONTAINS
                                                             core_particle_set(:)
       REAL(KIND=dp), INTENT(INOUT), OPTIONAL             :: vel(:, :), shell_vel(:, :), &
                                                             core_vel(:, :)
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'apply_thermostat_shells', &
-         routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(thermostat)) THEN
          IF (thermostat%type_of_thermostat == do_thermo_nose) THEN

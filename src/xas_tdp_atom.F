@@ -156,8 +156,7 @@ CONTAINS
       TYPE(xas_tdp_control_type), POINTER                :: xas_tdp_control
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'init_xas_atom_env', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'init_xas_atom_env'
 
       INTEGER                                            :: handle, ikind, natom, nex_atoms, &
                                                             nex_kinds, nkind, nspins
@@ -234,9 +233,6 @@ CONTAINS
          DIMENSION(:, :), POINTER                        :: grid_info
       LOGICAL, INTENT(IN)                                :: do_xc
       TYPE(qs_environment_type), POINTER                 :: qs_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'init_xas_atom_grid_harmo', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_string_length)               :: kind_name
       INTEGER :: igrid, ikind, il, iso, iso1, iso2, l1, l1l2, l2, la, lc1, lc2, lcleb, ll, llmax, &
@@ -401,9 +397,6 @@ CONTAINS
       TYPE(grid_atom_type), POINTER                      :: grid_atom
       REAL(dp), INTENT(IN)                               :: max_radius
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'truncate_radial_grid', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: first_ir, ir, llmax_p1, na, new_nr, nr
 
       nr = grid_atom%nr
@@ -452,9 +445,6 @@ CONTAINS
       CHARACTER(len=*), INTENT(IN)                       :: basis_type
       REAL(dp), DIMENSION(:, :), POINTER                 :: sphi_so
       TYPE(qs_environment_type), POINTER                 :: qs_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'compute_sphi_so', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ico, ipgf, iset, iso, l, lx, ly, lz, &
                                                             maxso, nset, sgfi, start_c, start_s
@@ -525,8 +515,6 @@ CONTAINS
       INTEGER, DIMENSION(:), OPTIONAL, POINTER           :: all_neighbors
       TYPE(cp_1d_i_p_type), DIMENSION(:), OPTIONAL, &
          POINTER                                         :: neighbor_set
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'find_neighbors', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: blk, i, iat, ibase, iblk, jblk, mepos, &
                                                             natom, nb, nbase
@@ -684,8 +672,7 @@ CONTAINS
       TYPE(gto_basis_set_p_type), DIMENSION(:), POINTER  :: basis_set_ri
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_exat_ri_sinv', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'get_exat_ri_sinv'
 
       INTEGER                                            :: blk, dest, group, handle, iat, ikind, &
                                                             inb, ir, is, jat, jnb, natom, nnb, &
@@ -860,8 +847,7 @@ CONTAINS
       TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'calculate_density_coeffs', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'calculate_density_coeffs'
 
       INTEGER                                            :: blk, exat, handle, i, iat, iatom, iex, &
                                                             inb, ind(3), ispin, jatom, jnb, katom, &
@@ -1165,8 +1151,7 @@ CONTAINS
       TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'put_density_on_atomic_grid', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'put_density_on_atomic_grid'
 
       INTEGER                                            :: dir, handle, ipgf, iset, iso, iso_proc, &
                                                             ispin, maxso, n, na, nr, nset, nsgfi, &
@@ -1348,8 +1333,7 @@ CONTAINS
       TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'put_density_on_other_grid', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'put_density_on_other_grid'
 
       INTEGER                                            :: dir, handle, ia, ico, ipgf, ir, iset, &
                                                             isgf, lx, ly, lz, n, na, nr, nset, &
@@ -1670,9 +1654,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: atom_kind
       TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'compute_norm_drho', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: dir, ia, ir, n, na, nr, nspins
 
       na = xas_atom_env%grid_atom_set(atom_kind)%grid_atom%ng_sphere
@@ -1738,8 +1719,7 @@ CONTAINS
       TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'precompute_so_dso', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'precompute_so_dso'
 
       INTEGER                                            :: bo(2), dir, handle, ikind, ipgf, iset, &
                                                             iso, iso_proc, l, maxso, n, na, nkind, &
@@ -1898,8 +1878,7 @@ CONTAINS
       TYPE(xas_tdp_control_type), POINTER                :: xas_tdp_control
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'integrate_fxc_atoms', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'integrate_fxc_atoms'
 
       INTEGER :: batch_size, dir, er, ex_bo(2), handle, i, iatom, ibatch, iex, ikind, inb, ipe, &
          mepos, na, natom, nb, nb_bo(2), nbatch, nbk, nex_atom, nr, num_pe, sr, subcomm
@@ -2085,8 +2064,7 @@ CONTAINS
       TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'integrate_gga_fxc', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'integrate_gga_fxc'
 
       INTEGER                                            :: bo(2), dir, handle, i, ia, ir, jpgf, &
                                                             jset, jso, l, maxso, na, nr, nset, &
@@ -2294,7 +2272,7 @@ CONTAINS
       TYPE(xc_derivative_set_type), POINTER              :: deriv_set
       REAL(dp), DIMENSION(:, :), POINTER                 :: weight
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_vxc_vxg', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'get_vxc_vxg'
 
       INTEGER                                            :: dir, handle, i, ia, ir, ub
       REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: dot_proda, dot_prodb, tmp
@@ -2831,9 +2809,6 @@ CONTAINS
       TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'integrate_sc_fxc', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, maxso, na, nr, nset, nsotot, nspins, &
                                                             ri_nsgf, ub
       REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: fxc, int_so
@@ -2908,9 +2883,6 @@ CONTAINS
       TYPE(xc_derivative_set_type), POINTER              :: deriv_set
       TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'integrate_sf_fxc', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ia, ir, maxso, na, nr, nset, nsotot, &
                                                             ri_nsgf
@@ -3000,9 +2972,6 @@ CONTAINS
       TYPE(gto_basis_set_type), POINTER                  :: basis
       REAL(dp), DIMENSION(:, :)                          :: sphi_so
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'contract_so2sgf', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: iset, jset, maxso, nset, nsoi, nsoj, &
                                                             sgfi, sgfj, starti, startj
       INTEGER, DIMENSION(:), POINTER                     :: lmax, npgf, nsgf_set
@@ -3052,8 +3021,7 @@ CONTAINS
       TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'integrate_so_prod', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'integrate_so_prod'
 
       INTEGER :: handle, ia, ic, icg, ipgf1, ipgf2, iset1, iset2, iso, iso1, iso2, l, ld, lmax12, &
          lmin12, m1, m2, max_iso_not0, max_iso_not0_local, max_s_harm, maxl, maxso, n1, n2, na, &
@@ -3189,9 +3157,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: ikind
       TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'integrate_so_dxdy_prod', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, ipgf, iset, iso, j, jpgf, jset, jso, &
                                                             k, l, maxso, na, nr, nset, starti, &
@@ -3347,8 +3312,7 @@ CONTAINS
       TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'integrate_soc_atoms', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'integrate_soc_atoms'
 
       INTEGER                                            :: blk, handle, i, iat, ikind, ir, jat, &
                                                             maxso, na, nkind, nr, nset, nsgf

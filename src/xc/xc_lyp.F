@@ -52,8 +52,6 @@ CONTAINS
       TYPE(xc_rho_cflags_type), INTENT(inout), OPTIONAL  :: needs
       INTEGER, INTENT(out), OPTIONAL                     :: max_deriv
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'lyp_lda_info', routineP = moduleN//':'//routineN
-
       IF (PRESENT(reference)) THEN
          reference = "C. Lee, W. Yang, R.G. Parr, Phys. Rev. B, 37, 785 (1988) {LDA version}"
       END IF
@@ -84,8 +82,6 @@ CONTAINS
       CHARACTER(LEN=*), INTENT(OUT), OPTIONAL            :: reference, shortform
       TYPE(xc_rho_cflags_type), INTENT(inout), OPTIONAL  :: needs
       INTEGER, INTENT(out), OPTIONAL                     :: max_deriv
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'lyp_lsd_info', routineP = moduleN//':'//routineN
 
       IF (PRESENT(reference)) THEN
          reference = "C. Lee, W. Yang, R.G. Parr, Phys. Rev. B, 37, 785 (1988) {LSD version}"
@@ -122,7 +118,7 @@ CONTAINS
       INTEGER, INTENT(in)                                :: grad_deriv
       TYPE(section_vals_type), POINTER                   :: lyp_params
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'lyp_lda_eval', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'lyp_lda_eval'
 
       INTEGER                                            :: handle, npoints
       INTEGER, DIMENSION(:, :), POINTER                  :: bo
@@ -259,8 +255,6 @@ CONTAINS
                                                             e_rho, e_0
       REAL(kind=dp), DIMENSION(1:npoints), INTENT(in)    :: norm_drho, rho_1_3, rho
       REAL(kind=dp), INTENT(in)                          :: epsilon_rho, sc
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'lyp_lda_calc', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ii
       REAL(kind=dp) :: cf, epsilon_rho13, my_ndrho, my_rho, my_rho_1_3, t1, t102, t103, t105, &
@@ -733,7 +727,7 @@ CONTAINS
       INTEGER, INTENT(in)                                :: grad_deriv
       TYPE(section_vals_type), POINTER                   :: lyp_params
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'lyp_lsd_eval', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'lyp_lsd_eval'
 
       INTEGER                                            :: handle, npoints
       INTEGER, DIMENSION(:, :), POINTER                  :: bo
@@ -910,8 +904,6 @@ CONTAINS
          e_ra_ra, e_ra_rb, e_rb_rb, e_ndr_ra, e_ndr_rb
       INTEGER, INTENT(in)                                :: grad_deriv, npoints
       REAL(kind=dp), INTENT(in)                          :: epsilon_rho, sc
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'lyp_lsd_calc', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ii
       REAL(kind=dp) :: cf, my_ndrho, my_ndrhoa, my_ndrhob, my_rho, my_rhoa, my_rhob, t1, t100, &

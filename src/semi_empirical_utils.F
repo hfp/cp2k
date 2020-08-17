@@ -56,9 +56,6 @@ CONTAINS
       TYPE(cell_type), POINTER                           :: cell
       INTEGER, INTENT(IN)                                :: output_unit
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'se_cutoff_compatible', &
-         routineP = moduleN//':'//routineN
-
       LOGICAL                                            :: explicit1, explicit2
       REAL(KIND=dp)                                      :: rc
 
@@ -164,9 +161,6 @@ CONTAINS
       TYPE(se_taper_type), POINTER                       :: se_taper
       LOGICAL, INTENT(IN), OPTIONAL                      :: coulomb, exchange, lr_corr
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'initialize_se_taper', &
-         routineP = moduleN//':'//routineN
-
       LOGICAL                                            :: check, l_coulomb, l_exchange, l_lrc
 
       check = .NOT. ASSOCIATED(se_taper%taper)
@@ -202,9 +196,6 @@ CONTAINS
    SUBROUTINE finalize_se_taper(se_taper)
       TYPE(se_taper_type), POINTER                       :: se_taper
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'finalize_se_taper', &
-         routineP = moduleN//':'//routineN
-
       LOGICAL                                            :: check
 
       check = ASSOCIATED(se_taper%taper)
@@ -222,8 +213,6 @@ CONTAINS
       TYPE(semi_empirical_type), POINTER                 :: sep
       TYPE(gto_basis_set_type), POINTER                  :: orb_basis_set
       INTEGER, INTENT(IN)                                :: ngauss
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'init_se_param', routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=6), DIMENSION(:), POINTER            :: symbol
       INTEGER                                            :: l, nshell
@@ -280,9 +269,6 @@ CONTAINS
 
       TYPE(semi_empirical_type), POINTER                 :: sep
       INTEGER, INTENT(IN)                                :: z, method
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'se_param_set_default', &
-         routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(sep)) THEN
          IF (z < 0) THEN
@@ -348,8 +334,6 @@ CONTAINS
 
       INTEGER, INTENT(IN)                                :: se_method
       INTEGER                                            :: se_type
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_se_type', routineP = moduleN//':'//routineN
 
       SELECT CASE (se_method)
       CASE DEFAULT

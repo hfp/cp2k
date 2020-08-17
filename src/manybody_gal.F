@@ -67,8 +67,6 @@ CONTAINS
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(section_vals_type), POINTER                   :: mm_section
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'gal_energy', routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=2)                                   :: element_symbol
       INTEGER                                            :: index_outfile
       REAL(KIND=dp)                                      :: anglepart, cosalpha, drji2, gcn_weight, &
@@ -211,8 +209,6 @@ CONTAINS
       TYPE(cell_type), POINTER                           :: cell
       REAL(KIND=dp)                                      :: normale(3)
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'normale', routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=2)                                   :: element_symbol_k
       INTEGER                                            :: kparticle, natom
       REAL(KIND=dp)                                      :: drjk2, rjk(3)
@@ -255,8 +251,6 @@ CONTAINS
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(cell_type), POINTER                           :: cell
       REAL(KIND=dp)                                      :: somme
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'somme', routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=2)                                   :: element_symbol_k
       INTEGER                                            :: kparticle, natom
@@ -304,8 +298,6 @@ CONTAINS
       LOGICAL                                            :: energy
       TYPE(section_vals_type), POINTER                   :: mm_section
       REAL(KIND=dp)                                      :: angular
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'angular', routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=2)                                   :: element_symbol
       INTEGER                                            :: count_h, iatom, index_h1, index_h2, &
@@ -385,8 +377,6 @@ CONTAINS
       LOGICAL, INTENT(IN)                                :: use_virial
       TYPE(cell_type), POINTER                           :: cell
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'gal_forces', routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=2)                                   :: element_symbol
       REAL(KIND=dp) :: anglepart, cosalpha, dGauss(3), drji, drjicosalpha(3), drjisinalpha(3), &
@@ -528,8 +518,6 @@ CONTAINS
       TYPE(cell_type), POINTER                           :: cell
       REAL(KIND=dp), INTENT(IN)                          :: anglepart, sum_weight
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'somme_d', routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=2)                                   :: element_symbol_k
       INTEGER                                            :: kparticle, natom
       REAL(KIND=dp)                                      :: drki, dwdr(3), rji(3), rki(3), &
@@ -581,8 +569,6 @@ CONTAINS
       TYPE(cell_type), POINTER                           :: cell
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       REAL(KIND=dp), DIMENSION(3)                        :: nvec
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'angular_d', routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=2)                                   :: element_symbol
       INTEGER                                            :: count_h, iatom, index_h1, index_h2, natom
@@ -661,8 +647,7 @@ CONTAINS
       INTEGER, DIMENSION(:), POINTER                     :: glob_loc_list_a
       TYPE(cell_type), POINTER                           :: cell
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'setup_gal_arrays', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'setup_gal_arrays'
 
       INTEGER                                            :: handle, i, iend, igrp, ikind, ilist, &
                                                             ipair, istart, jkind, nkinds, npairs, &
@@ -760,9 +745,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: glob_cell_v
       INTEGER, DIMENSION(:), POINTER                     :: glob_loc_list_a
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'destroy_gal_arrays', &
-         routineP = moduleN//':'//routineN
-
       IF (ASSOCIATED(glob_loc_list)) THEN
          DEALLOCATE (glob_loc_list)
       END IF
@@ -790,9 +772,6 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: mm_section
       TYPE(cp_para_env_type), OPTIONAL, POINTER          :: para_env
       LOGICAL, INTENT(IN)                                :: print_oh, print_h3o, print_o
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'print_nr_ions_gal', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: iw
       TYPE(cp_logger_type), POINTER                      :: logger

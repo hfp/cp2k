@@ -87,9 +87,6 @@ CONTAINS
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(section_vals_type), POINTER                   :: dft_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'read_dft_control', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(len=default_path_length)                 :: basis_set_file_name, potential_file_name
       CHARACTER(LEN=default_string_length), &
          DIMENSION(:), POINTER                           :: tmpstringlist
@@ -519,8 +516,7 @@ CONTAINS
       TYPE(qs_control_type), INTENT(INOUT)               :: qs_control
       TYPE(section_vals_type), POINTER                   :: dft_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'read_mgrid_section', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'read_mgrid_section'
 
       INTEGER                                            :: handle, igrid_level, ngrid_level
       LOGICAL                                            :: explicit, multigrid_set
@@ -610,8 +606,7 @@ CONTAINS
       TYPE(qs_control_type), INTENT(INOUT)               :: qs_control
       TYPE(section_vals_type), POINTER                   :: qs_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'read_qs_section', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'read_qs_section'
 
       CHARACTER(LEN=default_string_length), &
          DIMENSION(:), POINTER                           :: clist
@@ -1156,9 +1151,6 @@ CONTAINS
       TYPE(tddfpt_control_type)                          :: t_control
       TYPE(section_vals_type), POINTER                   :: dft_section
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'read_tddfpt_control', &
-         routineP = moduleN//':'//routineN
-
       LOGICAL                                            :: kenergy_den
       TYPE(section_vals_type), POINTER                   :: sic_section, t_section
 
@@ -1199,8 +1191,7 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: t_section
       TYPE(qs_control_type), POINTER                     :: qs_control
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'read_tddfpt2_control', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'read_tddfpt2_control'
 
       INTEGER                                            :: handle
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: inds
@@ -1340,8 +1331,7 @@ CONTAINS
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(section_vals_type), POINTER                   :: dft_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'write_dft_control', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'write_dft_control'
 
       CHARACTER(LEN=20)                                  :: tmpStr
       INTEGER                                            :: handle, output_unit
@@ -1541,8 +1531,7 @@ CONTAINS
       TYPE(xtb_control_type), POINTER                    :: xtb_control
       TYPE(section_vals_type), POINTER                   :: dft_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'write_xtb_control', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'write_xtb_control'
 
       INTEGER                                            :: handle, output_unit
       TYPE(cp_logger_type), POINTER                      :: logger
@@ -1603,8 +1592,7 @@ CONTAINS
       TYPE(qs_control_type), INTENT(IN)                  :: qs_control
       TYPE(section_vals_type), POINTER                   :: dft_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'write_qs_control', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'write_qs_control'
 
       CHARACTER(len=20)                                  :: method, quadrature
       INTEGER                                            :: handle, i, igrid_level, ngrid_level, &
@@ -1812,9 +1800,6 @@ CONTAINS
       TYPE(qs_control_type), INTENT(INOUT)               :: qs_control
       TYPE(section_vals_type), OPTIONAL, POINTER         :: qs_section, ddapc_restraint_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'read_ddapc_section', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, j, jj, k, n_rep
       INTEGER, DIMENSION(:), POINTER                     :: tmplist
       REAL(KIND=dp), DIMENSION(:), POINTER               :: rtmplist
@@ -1917,9 +1902,6 @@ CONTAINS
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(section_vals_type), POINTER                   :: efield_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'read_efield_sections', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(len=default_path_length)                 :: file_name
       INTEGER                                            :: i, io, j, n, unit_nr
       REAL(KIND=dp), DIMENSION(:), POINTER               :: tmp_vals
@@ -2006,9 +1988,6 @@ CONTAINS
       TYPE(dft_control_type), INTENT(INOUT)              :: dft_control
       TYPE(section_vals_type), POINTER                   :: rtp_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'read_rtp_section', &
-         routineP = moduleN//':'//routineN
-
       INTEGER, DIMENSION(:), POINTER                     :: tmp
 
       ALLOCATE (dft_control%rtp_control)
@@ -2058,9 +2037,6 @@ CONTAINS
    SUBROUTINE read_admm_block_list(admm_control, dft_section)
       TYPE(admm_control_type), POINTER                   :: admm_control
       TYPE(section_vals_type), POINTER                   :: dft_section
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'read_admm_block_list', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: irep, list_size, n_rep
       INTEGER, DIMENSION(:), POINTER                     :: tmplist

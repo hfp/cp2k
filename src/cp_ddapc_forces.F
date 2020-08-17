@@ -84,8 +84,7 @@ CONTAINS
          POINTER                                         :: dq
       REAL(KIND=dp), DIMENSION(:), OPTIONAL, POINTER     :: charges
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'ewald_ddapc_force', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'ewald_ddapc_force'
 
       INTEGER                                            :: handle, ip1, ip2, iparticle1, &
                                                             iparticle2, k1, k2, k3, n_rep, nmax1, &
@@ -246,8 +245,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: d_el
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_decpl_ddapc_forces', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'cp_decpl_ddapc_forces'
 
       INTEGER                                            :: handle, i, iatom, ikind, j, k, natom
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: atom_of_kind, kind_of
@@ -302,7 +300,7 @@ CONTAINS
    SUBROUTINE reset_ch_pulay(qs_env)
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'reset_ch_pulay', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'reset_ch_pulay'
 
       INTEGER                                            :: handle, ind
       TYPE(qs_force_type), DIMENSION(:), POINTER         :: force
@@ -337,9 +335,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:)                        :: uv
       REAL(KIND=dp), DIMENSION(:), POINTER               :: charges
       REAL(KIND=dp), INTENT(INOUT)                       :: energy_res
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'evaluate_restraint_functional', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: I, ind
       REAL(KIND=dp)                                      :: dE, order_p
@@ -403,8 +398,7 @@ CONTAINS
       INTEGER, INTENT(in)                                :: n_gauss
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'restraint_functional_force', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'restraint_functional_force'
 
       INTEGER                                            :: handle, i, iatom, ikind, j, k, natom
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: atom_of_kind, kind_of
@@ -475,9 +469,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :, :), OPTIONAL, &
          POINTER                                         :: dq
       REAL(KIND=dp), DIMENSION(:), OPTIONAL, POINTER     :: charges
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'solvation_ddapc_force', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, ip1, ip2, iparticle1, iparticle2, l, &
                                                             lmax, n_rep1, n_rep2, weight

@@ -157,8 +157,7 @@ CONTAINS
       TYPE(xas_tdp_env_type), POINTER                    :: xas_tdp_env
       TYPE(xas_tdp_control_type), POINTER                :: xas_tdp_control
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'setup_xas_tdp_prob', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'setup_xas_tdp_prob'
 
       INTEGER                                            :: handle
       INTEGER, DIMENSION(:), POINTER                     :: submat_blk_size
@@ -449,8 +448,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       INTEGER, INTENT(IN)                                :: ex_type
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'solve_xas_tdp_prob', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'solve_xas_tdp_prob'
 
       INTEGER                                            :: first_ex, handle, i, imo, ispin, nao, &
                                                             ndo_mo, nelectron, nevals, nocc, nrow, &
@@ -670,9 +668,6 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                          :: lr_coeffs
       TYPE(donor_state_type), POINTER                    :: donor_state
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_normal_scaling', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: nrow, nscal, nvals
       REAL(dp), ALLOCATABLE, DIMENSION(:)                :: diag
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
@@ -724,9 +719,6 @@ CONTAINS
       TYPE(donor_state_type), POINTER                    :: donor_state
       LOGICAL, INTENT(IN)                                :: do_os
       TYPE(qs_environment_type), POINTER                 :: qs_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'compute_submat_dist_and_blk_size', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: group, i, nao, nblk_row, ndo_mo, nspins, &
                                                             scol_dist, srow_dist
@@ -799,8 +791,7 @@ CONTAINS
       TYPE(xas_tdp_env_type), POINTER                    :: xas_tdp_env
       LOGICAL, INTENT(IN), OPTIONAL                      :: do_sf
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_q_projector', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'get_q_projector'
 
       INTEGER                                            :: blk, handle, iblk, imo, ispin, jblk, &
                                                             nblk_row, ndo_mo, nspins
@@ -887,8 +878,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       LOGICAL, INTENT(IN), OPTIONAL                      :: do_sf
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_gs_contribution', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'build_gs_contribution'
 
       INTEGER                                            :: blk, handle, iblk, imo, ispin, jblk, &
                                                             nblk_row, ndo_mo, nspins
@@ -1020,7 +1010,7 @@ CONTAINS
       LOGICAL, INTENT(IN)                                :: do_os
       LOGICAL, INTENT(IN), OPTIONAL                      :: do_inv
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_metric', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'build_metric'
 
       INTEGER                                            :: blk, handle, i, iblk, jblk, nao, &
                                                             nblk_row, ndo_mo, nspins
@@ -1155,8 +1145,7 @@ CONTAINS
       REAL(dp), INTENT(IN)                               :: eps_filter
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_aux_matrix', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'build_aux_matrix'
 
       INTEGER                                            :: handle, ndep
       REAL(dp)                                           :: evals(2)
@@ -1221,7 +1210,7 @@ CONTAINS
       TYPE(xas_tdp_control_type), POINTER                :: xas_tdp_control
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'include_os_soc', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'include_os_soc'
 
       INTEGER                                            :: group, handle, homo, iex, isc, isf, nao, &
                                                             ndo_mo, ndo_so, nex, npcols, nprows, &
@@ -1653,8 +1642,7 @@ CONTAINS
       TYPE(xas_tdp_control_type), POINTER                :: xas_tdp_control
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'include_rcs_soc', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'include_rcs_soc'
 
       INTEGER                                            :: group, handle, iex, isg, itp, nao, &
                                                             ndo_mo, nex, npcols, nprows, nsg, &
@@ -2068,8 +2056,6 @@ CONTAINS
       REAL(dp), INTENT(IN)                               :: eps_filter
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_os_amew_op', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: dim_op, homo, i, isc, nao, ndo_mo, &
                                                             ndo_so, nex, nsc, nsf, ntot
       REAL(dp)                                           :: op
@@ -2302,9 +2288,6 @@ CONTAINS
       REAL(dp), INTENT(IN)                               :: eps_filter
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_rcs_amew_op', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: dim_op, homo, i, isg, nao, ndo_mo, nex, &
                                                             nsg, ntot, ntp
       REAL(dp)                                           :: op, sqrt2
@@ -2518,9 +2501,6 @@ CONTAINS
       LOGICAL, OPTIONAL                                  :: symmetric
       INTEGER, DIMENSION(2), OPTIONAL                    :: tracea_start, traceb_start
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'os_amew_soc_elements', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: blk, iex, jex, ndo_mo, ndo_so
       INTEGER, DIMENSION(2)                              :: tas, tbs
       LOGICAL                                            :: do_diags, found, my_symm
@@ -2608,9 +2588,6 @@ CONTAINS
       REAL(dp), OPTIONAL                                 :: pref_diags
       LOGICAL, OPTIONAL                                  :: symmetric
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'rcs_amew_soc_elements', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: blk, iex, jex
       LOGICAL                                            :: do_diags, found, my_symm
       REAL(dp)                                           :: soc_elem
@@ -2681,8 +2658,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(cp_fm_type), OPTIONAL, POINTER                :: gs_coeffs
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'compute_soc_dipole_fosc', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'compute_soc_dipole_fosc'
 
       COMPLEX(dp), ALLOCATABLE, DIMENSION(:, :)          :: transdip
       INTEGER                                            :: handle, i, nosc, ntot
@@ -2790,8 +2766,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(cp_fm_type), OPTIONAL, POINTER                :: gs_coeffs
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'compute_soc_quadrupole_fosc', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'compute_soc_quadrupole_fosc'
 
       COMPLEX(dp), ALLOCATABLE, DIMENSION(:)             :: trace
       COMPLEX(dp), ALLOCATABLE, DIMENSION(:, :)          :: transquad

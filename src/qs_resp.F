@@ -139,7 +139,7 @@ CONTAINS
    SUBROUTINE resp_fit(qs_env)
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'resp_fit', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'resp_fit'
 
       INTEGER                                            :: handle, info, my_per, natom, nvar, &
                                                             output_unit
@@ -258,9 +258,6 @@ CONTAINS
       TYPE(resp_type), POINTER                           :: resp_env
       TYPE(resp_p_type), DIMENSION(:), POINTER           :: rep_sys
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_resp_type', &
-         routineP = moduleN//':'//routineN
-
       IF (ASSOCIATED(resp_env)) CALL resp_dealloc(resp_env, rep_sys)
       ALLOCATE (resp_env)
 
@@ -300,8 +297,6 @@ CONTAINS
       TYPE(resp_type), POINTER                           :: resp_env
       INTEGER, INTENT(IN)                                :: natom, nvar
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'resp_allocate', routineP = moduleN//':'//routineN
-
       IF (.NOT. ASSOCIATED(resp_env%matrix)) THEN
          ALLOCATE (resp_env%matrix(nvar, nvar))
       ENDIF
@@ -325,8 +320,6 @@ CONTAINS
    SUBROUTINE resp_dealloc(resp_env, rep_sys)
       TYPE(resp_type), POINTER                           :: resp_env
       TYPE(resp_p_type), DIMENSION(:), POINTER           :: rep_sys
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'resp_dealloc', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i
 
@@ -382,7 +375,7 @@ CONTAINS
       TYPE(cell_type), POINTER                           :: cell
       TYPE(section_vals_type), POINTER                   :: resp_section, cons_section, rest_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'init_resp', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'init_resp'
 
       INTEGER                                            :: handle, i, nrep
       INTEGER, DIMENSION(:), POINTER                     :: atom_list_cons, my_stride
@@ -506,9 +499,6 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: sphere_section
       TYPE(cell_type), POINTER                           :: cell
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_parameter_molecular_sys', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=2)                                   :: symbol
       CHARACTER(LEN=default_string_length)               :: missing_rmax, missing_rmin
@@ -703,8 +693,7 @@ CONTAINS
       INTEGER, DIMENSION(:), POINTER                     :: atom_list
       INTEGER, INTENT(IN), OPTIONAL                      :: rep
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_atom_list', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'build_atom_list'
 
       INTEGER                                            :: atom_a, atom_b, handle, i, irep, j, &
                                                             max_index, n_var, num_atom
@@ -777,8 +766,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), POINTER               :: rhs
       INTEGER, INTENT(IN)                                :: natom
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'calc_resp_matrix_nonper', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'calc_resp_matrix_nonper'
 
       INTEGER                                            :: bo(2, 3), gbo(2, 3), handle, i, ikind, &
                                                             jx, jy, jz, k, kind_number, l, m, &
@@ -932,8 +920,7 @@ CONTAINS
       TYPE(cell_type), POINTER                           :: cell
       INTEGER, INTENT(IN)                                :: natom
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'calc_resp_matrix_periodic', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'calc_resp_matrix_periodic'
 
       INTEGER                                            :: handle, i, ip, j, jx, jy, jz
       INTEGER, DIMENSION(3)                              :: periodic
@@ -1049,8 +1036,7 @@ CONTAINS
       TYPE(particle_list_type), POINTER                  :: particles
       TYPE(cell_type), POINTER                           :: cell
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_fitting_points', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'get_fitting_points'
 
       INTEGER                                            :: bo(2, 3), gbo(2, 3), handle, i, iatom, &
                                                             ikind, in_x, in_y, in_z, jx, jy, jz, &
@@ -1197,7 +1183,7 @@ CONTAINS
       REAL(KIND=dp), INTENT(INOUT)                       :: rhs
       REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: vpot
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'calculate_rhs', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'calculate_rhs'
 
       INTEGER                                            :: handle, ip, jx, jy, jz
       REAL(KIND=dp)                                      :: dvol
@@ -1247,8 +1233,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(resp_type), POINTER                           :: resp_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'print_fitting_points', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'print_fitting_points'
 
       CHARACTER(LEN=2)                                   :: element_symbol
       CHARACTER(LEN=default_path_length)                 :: filename
@@ -1396,8 +1381,7 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: cons_section
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'add_restraints_and_constraints', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'add_restraints_and_constraints'
 
       INTEGER                                            :: handle, i, k, m, ncons_v, z
       INTEGER, DIMENSION(:), POINTER                     :: atom_list_cons, atom_list_res
@@ -1518,8 +1502,7 @@ CONTAINS
       TYPE(resp_p_type), DIMENSION(:), POINTER           :: rep_sys
       INTEGER, INTENT(IN)                                :: my_per
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'print_resp_parameter_info', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'print_resp_parameter_info'
 
       CHARACTER(len=2)                                   :: symbol
       INTEGER                                            :: handle, i, ikind, kind_number, nkinds, &
@@ -1639,8 +1622,7 @@ CONTAINS
       TYPE(resp_type), POINTER                           :: resp_env
       INTEGER, INTENT(IN)                                :: output_runinfo, natom
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'print_resp_charges', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'print_resp_charges'
 
       CHARACTER(LEN=default_path_length)                 :: filename
       INTEGER                                            :: handle, output_file
@@ -1705,8 +1687,7 @@ CONTAINS
       TYPE(particle_list_type), POINTER                  :: particles
       INTEGER, INTENT(IN)                                :: natom, output_runinfo
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'print_pot_from_resp_charges', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'print_pot_from_resp_charges'
 
       CHARACTER(LEN=default_path_length)                 :: my_pos_cube
       INTEGER                                            :: handle, ip, jx, jy, jz, unit_nr

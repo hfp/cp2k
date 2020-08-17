@@ -75,7 +75,7 @@ CONTAINS
       TYPE(pair_potential_pp_type), POINTER              :: potparm
       INTEGER, INTENT(IN)                                :: ntype
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'init_genpot', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'init_genpot'
 
       INTEGER                                            :: handle, i, j, k, ngp
       TYPE(pair_potential_single_type), POINTER          :: pot
@@ -141,8 +141,7 @@ CONTAINS
       LOGICAL, INTENT(IN)                                :: do_zbl, shift_cutoff
       CHARACTER(LEN=*), INTENT(IN)                       :: nonbonded_type
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'spline_nonbond_control', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'spline_nonbond_control'
 
       INTEGER                                            :: handle, i, ip, j, k, n, ncount, &
                                                             npoints_spline, ntype
@@ -288,9 +287,6 @@ CONTAINS
       LOGICAL, INTENT(IN)                                :: do_zbl
       REAL(KIND=dp), INTENT(IN)                          :: energy_cutoff, emax_spline
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_spline_cutoff', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ilevel, jx
       REAL(KIND=dp)                                      :: dx2, e, locut_found, x
 
@@ -356,9 +352,6 @@ CONTAINS
       LOGICAL, INTENT(IN)                                :: found_locut, do_zbl
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       CHARACTER(LEN=*), INTENT(IN)                       :: nonbonded_type
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'generate_spline_low', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=2*default_string_length)             :: message, tmp
       CHARACTER(LEN=default_path_length)                 :: file_name
@@ -560,8 +553,7 @@ CONTAINS
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       LOGICAL, INTENT(IN)                                :: do_zbl, shift_cutoff
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_nonbond_storage', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'get_nonbond_storage'
 
       INTEGER                                            :: handle, i, idim, iend, istart, j, k, &
                                                             locij, n, ndim, nk, ntype, nunique, &
@@ -939,8 +931,7 @@ CONTAINS
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       LOGICAL, INTENT(IN)                                :: shift_cutoff, do_zbl
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'set_potparm_index', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'set_potparm_index'
 
       INTEGER                                            :: handle, i, min_val, nvalues, tmpij(2), &
                                                             value, zi, zj

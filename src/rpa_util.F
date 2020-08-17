@@ -184,7 +184,7 @@ CONTAINS
       TYPE(dbcsr_type), POINTER                          :: mat_work
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: mat_P_omega_beta
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'alloc_im_time', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'alloc_im_time'
 
       INTEGER                                            :: cell_grid_dm(3), first_ikp_local, &
                                                             handle, i_dim, periodic(3)
@@ -368,8 +368,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: num_integ_points, size_P
       TYPE(dbcsr_type), POINTER                          :: template
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'alloc_mat_P_omega', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'alloc_mat_P_omega'
 
       INTEGER                                            :: handle, i_kp, jquad
 
@@ -415,7 +414,7 @@ CONTAINS
       INTEGER, DIMENSION(:), INTENT(IN), OPTIONAL        :: ikp_local
       TYPE(cp_fm_struct_type), OPTIONAL, POINTER         :: fm_struct_sub_kp
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'reorder_mat_L', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'reorder_mat_L'
 
       INTEGER                                            :: handle, i_size, j_size, nblk
       INTEGER, DIMENSION(:), POINTER                     :: col_blk_size, row_blk_size
@@ -539,9 +538,6 @@ CONTAINS
       INTEGER, DIMENSION(:), POINTER                     :: blk_size_new
       INTEGER, INTENT(IN)                                :: dimen_RI_red, nblk
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_equal_blk_size', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: col_per_blk, remainder
 
       NULLIFY (blk_size_new)
@@ -618,7 +614,7 @@ CONTAINS
       INTEGER, INTENT(INOUT)                             :: my_num_dgemm_call
       REAL(KIND=dp), INTENT(INOUT)                       :: my_flop_rate
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_mat_Q', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'calc_mat_Q'
 
       INTEGER                                            :: handle
 
@@ -669,8 +665,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: homo
       REAL(KIND=dp), INTENT(IN)                          :: omega, omega_old
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_fm_mat_S_rpa', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'calc_fm_mat_S_rpa'
 
       INTEGER                                            :: avirt, handle, i_global, iiB, iocc, &
                                                             j_global, jjB, ncol_local, nrow_local
@@ -793,8 +788,7 @@ CONTAINS
          INTENT(IN)                                      :: local_size_source
       REAL(KIND=dp), INTENT(INOUT)                       :: my_flop_rate
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'contract_S_to_Q', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'contract_S_to_Q'
 
       INTEGER                                            :: handle
       REAL(KIND=dp)                                      :: actual_flop_rate, t_end, t_start
@@ -843,8 +837,7 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                          :: fm_mat_Q
       TYPE(cp_para_env_type), POINTER                    :: para_env_RPA
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'RPA_postprocessing_start', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'RPA_postprocessing_start'
 
       INTEGER                                            :: handle, i_global, iiB, j_global, jjB, &
                                                             ncol_local, nrow_local
@@ -896,8 +889,7 @@ CONTAINS
       REAL(KIND=dp), INTENT(INOUT)                       :: Erpa
       REAL(KIND=dp), INTENT(IN)                          :: wjquad
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'RPA_postprocessing_nokp', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'RPA_postprocessing_nokp'
 
       INTEGER                                            :: handle, i_global, iiB, info_chol, &
                                                             j_global, jjB, ncol_local, nrow_local
@@ -974,8 +966,7 @@ CONTAINS
       INTEGER, INTENT(OUT)                               :: first_ikp_local
       LOGICAL, INTENT(IN)                                :: do_kpoints_cubic_RPA
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_sub_para_kp', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'get_sub_para_kp'
 
       INTEGER                                            :: color_sub_kp, comm_sub_kp, handle, ikp, &
                                                             num_proc_per_kp
@@ -1096,8 +1087,7 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:, :), OPTIONAL, &
          POINTER                                         :: mat_P_omega_beta
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'dealloc_im_time', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'dealloc_im_time'
 
       INTEGER                                            :: handle, i_size, j_size
       LOGICAL                                            :: my_open_shell
@@ -1199,8 +1189,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: dimen_RI, dimen_RI_red
       TYPE(cp_fm_type), POINTER                          :: fm_mat_L, fm_mat_Q
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'contract_P_omega_with_mat_L', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'contract_P_omega_with_mat_L'
 
       INTEGER                                            :: handle
 

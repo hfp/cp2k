@@ -68,8 +68,6 @@ CONTAINS
       TYPE(xc_rho_cflags_type), INTENT(inout), OPTIONAL  :: needs
       INTEGER, INTENT(out), OPTIONAL                     :: max_deriv
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pz_info', routineP = moduleN//':'//routineN
-
       CHARACTER(len=4)                                   :: p_string
 
       SELECT CASE (method)
@@ -138,7 +136,7 @@ CONTAINS
       INTEGER, INTENT(in)                                :: order
       TYPE(section_vals_type), POINTER                   :: pz_params
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pz_lda_eval', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'pz_lda_eval'
 
       INTEGER                                            :: npoints, timer_handle
       INTEGER, DIMENSION(:, :), POINTER                  :: bo
@@ -272,7 +270,7 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: order
       TYPE(section_vals_type), POINTER                   :: pz_params
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pz_lsd_eval', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'pz_lsd_eval'
 
       INTEGER                                            :: npoints, timer_handle
       INTEGER, DIMENSION(:, :), POINTER                  :: bo
@@ -432,8 +430,6 @@ CONTAINS
 
       INTEGER, INTENT(IN)                                :: method
       REAL(KIND=dp), INTENT(IN)                          :: cutoff
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'pz_init', routineP = moduleN//':'//routineN
 
       CALL set_util(cutoff)
 

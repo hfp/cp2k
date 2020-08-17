@@ -288,9 +288,6 @@ CONTAINS
       TYPE(pw_type), TARGET, INTENT(INOUT)     :: pw2
       REAL(KIND=dp)                            :: scale
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_cuda_r3dc1d_3d', &
-                                     routineP = moduleN//':'//routineN
-
 #if ! defined (__PW_CUDA)
       MARK_USED(pw1)
       MARK_USED(pw2)
@@ -338,9 +335,6 @@ CONTAINS
       TYPE(pw_type), TARGET, INTENT(IN)        :: pw1
       TYPE(pw_type), TARGET, INTENT(INOUT)     :: pw2
       REAL(KIND=dp)                            :: scale
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_cuda_c1dr3d_3d', &
-                                     routineP = moduleN//':'//routineN
 
 #if ! defined (__PW_CUDA)
       MARK_USED(pw1)
@@ -391,9 +385,6 @@ CONTAINS
       TYPE(pw_type), TARGET, INTENT(IN)        :: pw1
       TYPE(pw_type), TARGET, INTENT(INOUT)     :: pw2
       REAL(KIND=dp)                            :: scale
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_cuda_r3dc1d_3d_ps', &
-                                     routineP = moduleN//':'//routineN
 
 #if ! defined (__PW_CUDA)
       MARK_USED(pw1)
@@ -580,9 +571,6 @@ CONTAINS
       TYPE(pw_type), TARGET, INTENT(IN)        :: pw1
       TYPE(pw_type), TARGET, INTENT(INOUT)     :: pw2
       REAL(KIND=dp)                            :: scale
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_cuda_c1dr3d_3d_ps', &
-                                     routineP = moduleN//':'//routineN
 
 #if ! defined (__PW_CUDA)
       MARK_USED(pw1)
@@ -773,9 +761,6 @@ CONTAINS
       COMPLEX(KIND=dp), DIMENSION(:, :, :), &
          POINTER, INTENT(INOUT)                 :: pwbuf
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_cuda_cff', &
-                                     routineP = moduleN//':'//routineN
-
 #if ! defined (__PW_CUDA)
       MARK_USED(pw1)
       MARK_USED(pwbuf)
@@ -814,9 +799,6 @@ CONTAINS
       COMPLEX(KIND=dp), DIMENSION(:, :, :), &
          POINTER, INTENT(IN)                    :: pwbuf
       TYPE(pw_type), TARGET, INTENT(INOUT)     :: pw2
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_cuda_ffc', &
-                                     routineP = moduleN//':'//routineN
 
 #if ! defined (__PW_CUDA)
       MARK_USED(pwbuf)
@@ -857,9 +839,6 @@ CONTAINS
       COMPLEX(KIND=dp), DIMENSION(:, :), &
          POINTER, INTENT(INOUT)                 :: pwbuf
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_cuda_cf', &
-                                     routineP = moduleN//':'//routineN
-
 #if ! defined (__PW_CUDA)
       MARK_USED(pw1)
       MARK_USED(pwbuf)
@@ -898,9 +877,6 @@ CONTAINS
       COMPLEX(KIND=dp), DIMENSION(:, :), &
          POINTER, INTENT(IN)                    :: pwbuf
       TYPE(pw_type), TARGET, INTENT(INOUT)     :: pw2
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_cuda_fc', &
-                                     routineP = moduleN//':'//routineN
 
 #if ! defined (__PW_CUDA)
       MARK_USED(pwbuf)
@@ -947,9 +923,6 @@ CONTAINS
       INTEGER, INTENT(IN)                      :: n
       INTEGER, INTENT(IN)                      :: m
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_cuda_f', &
-                                     routineP = moduleN//':'//routineN
-
 #if ! defined (__PW_CUDA)
       MARK_USED(pwbuf1)
       MARK_USED(pwbuf2)
@@ -987,9 +960,6 @@ CONTAINS
          POINTER, INTENT(IN)                    :: pwbuf
       TYPE(pw_type), TARGET, INTENT(INOUT)     :: pw2
       REAL(KIND=dp), INTENT(IN)                :: scale
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_cuda_fg', &
-                                     routineP = moduleN//':'//routineN
 
 #if ! defined (__PW_CUDA)
       MARK_USED(pwbuf)
@@ -1038,9 +1008,6 @@ CONTAINS
       COMPLEX(KIND=dp), DIMENSION(:, :), &
          POINTER, INTENT(INOUT)                 :: pwbuf
       REAL(KIND=dp), INTENT(IN)                :: scale
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_cuda_sf', &
-                                     routineP = moduleN//':'//routineN
 
 #if ! defined (__PW_CUDA)
       MARK_USED(pw1)

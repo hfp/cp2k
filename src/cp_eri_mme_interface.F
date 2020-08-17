@@ -95,9 +95,6 @@ CONTAINS
       TYPE(section_type), POINTER                        :: section
       INTEGER, INTENT(IN), OPTIONAL                      :: default_n_minimax
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_eri_mme_section', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: my_default_n_minimax
       TYPE(keyword_type), POINTER                        :: keyword
       TYPE(section_type), POINTER                        :: print_key, subsection
@@ -246,9 +243,6 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: mme_section
       TYPE(cp_eri_mme_param), INTENT(INOUT)              :: param
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_eri_mme_init_read_input', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: debug_nsum, n_minimax, unit_nr
       LOGICAL                                            :: debug, do_calib_cutoff, do_error_est, &
                                                             print_calib
@@ -302,9 +296,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE cp_eri_mme_finalize(param)
       TYPE(cp_eri_mme_param), INTENT(INOUT)              :: param
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_eri_mme_finalize', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: count_2c, count_3c, unit_nr
 
@@ -360,8 +351,7 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: potential
       REAL(KIND=dp), INTENT(IN), OPTIONAL                :: pot_par
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'eri_mme_set_params_from_basis', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'eri_mme_set_params_from_basis'
 
       INTEGER                                            :: handle, l_max, l_max_zet
       REAL(KIND=dp)                                      :: zet_max, zet_min
@@ -449,8 +439,7 @@ CONTAINS
       REAL(KIND=dp), INTENT(OUT)                         :: zet_min, zet_max
       INTEGER, INTENT(OUT)                               :: l_max_zet, l_max
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'error_est_pgf_params_from_basis', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'error_est_pgf_params_from_basis'
 
       CHARACTER(len=default_string_length)               :: basis_type
       INTEGER                                            :: handle, ibasis, ikind, ipgf, iset, l_m, &
@@ -589,9 +578,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE create_eri_mme_test_section(section)
       TYPE(section_type), INTENT(INOUT), POINTER         :: section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_eri_mme_test_section', &
-         routineP = moduleN//':'//routineN
 
       TYPE(keyword_type), POINTER                        :: keyword
       TYPE(section_type), POINTER                        :: subsection
@@ -761,9 +747,6 @@ CONTAINS
       TYPE(cp_para_env_type), INTENT(IN), POINTER        :: para_env
       INTEGER, INTENT(IN)                                :: iw
       TYPE(section_vals_type), POINTER                   :: eri_mme_test_section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_eri_mme_perf_acc_test', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: count_r, G_count, GG_count, GR_count, i, &
                                                             ix, iy, iz, l_max, min_nR, nR, nR_xyz, &

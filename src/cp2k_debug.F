@@ -78,9 +78,6 @@ CONTAINS
 
       TYPE(force_env_type), POINTER                      :: force_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp2k_debug_energy_and_forces', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=3*default_string_length)             :: message
       CHARACTER(LEN=default_string_length)               :: description
       INTEGER                                            :: i, ip, iw, j, k, np, stress_tensor

@@ -6,6 +6,7 @@ import argparse
 import re
 import ast
 from os import path
+from argparse import RawTextHelpFormatter  # enable newline
 
 blas_re = re.compile(
     r"[SDCZ]"
@@ -28,7 +29,7 @@ lapack_re = re.compile(
 )
 
 warning_re = re.compile(r".*[Ww]arning: (.*)")
-warning_re_subst = re.compile(r"'\d+'")  # replace occurrences of '49' with *
+warning_re_subst = re.compile(r"‘\d+’")  # replace occurrences of '49' with *
 
 IGNORED_WARNINGS = (
     "-Wrealloc-lhs",
@@ -41,7 +42,7 @@ IGNORED_WARNINGS = (
     "defined but not used",
     "Removing call to function",
     "Conversion from",
-    "Non-significant digits in 'REAL(8)'",
+    "Non-significant digits in ‘REAL(8)’",
     "POINTER-valued function appears on right-hand side",
     "style of line directive is a GCC extension",
 )
@@ -87,9 +88,9 @@ def check_warnings(fhandle):
             continue
 
         if "Unused" in warning:
-            if "'error'" in warning:
+            if "‘error’" in warning:
                 continue
-            if "'routinep'" in warning:
+            if "‘routinep’" in warning:
                 continue
             if loc_short == "cp_common_uses.f90":
                 continue
@@ -101,7 +102,7 @@ def check_warnings(fhandle):
         if "called with an implicit interface" in warning:
             parts = warning.split()
             assert parts[0] == "Procedure"
-            routine = parts[1].strip("'").upper()
+            routine = parts[1].strip("‘’").upper()
             if may_call_implicit(loc, routine):
                 continue
             print(
@@ -136,9 +137,10 @@ if __name__ == "__main__":
         epilog="""\
 For generating the warn-files run gfortran with all warning flags and redirect the output to a file.
 This can be achieved by putting
-    FCLOGPIPE = 2>$(notdir $<).warn
+    FCLOGPIPE   = 2>&1 | tee $(notdir $<).warn
 in the cp2k arch-file.
 """,
+        formatter_class=RawTextHelpFormatter,
     )
     parser.add_argument(
         "files",

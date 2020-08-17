@@ -110,8 +110,7 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: input_section
       INTEGER, INTENT(IN)                                :: unit_nr
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'minbas_analysis', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'minbas_analysis'
 
       INTEGER                                            :: handle, homo, i, ispin, nao, natom, &
                                                             nimages, nmao, nmo, nspin
@@ -414,8 +413,6 @@ CONTAINS
       TYPE(dbcsr_type)                                   :: quambo, smao
       INTEGER, DIMENSION(:, :), INTENT(INOUT)            :: ecount
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pm_extend', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: iatom, jatom, n
       LOGICAL                                            :: found
       REAL(KIND=dp)                                      :: wij
@@ -453,8 +450,6 @@ CONTAINS
       TYPE(dbcsr_type)                                   :: mao, smao, sovl
       REAL(KIND=dp), DIMENSION(:), INTENT(INOUT)         :: prmao
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'project_mao', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, iatom, jatom, n
       LOGICAL                                            :: found
       REAL(KIND=dp)                                      :: wi
@@ -491,9 +486,6 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: print_section
       TYPE(cp_fm_type), POINTER                          :: minbas_coeff
       INTEGER, INTENT(IN)                                :: ispin
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'post_minbas_cubes', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_path_length)                 :: filename, title
       INTEGER                                            :: i, i_rep, ivec, iw, j, n_rep, natom

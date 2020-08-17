@@ -56,9 +56,6 @@ CONTAINS
       TYPE(atom_optimization_type), INTENT(IN)           :: optimization
       REAL(dp), DIMENSION(:, :, :), INTENT(IN)           :: matrix
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'atom_history_init', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, n1, n2, n3, ndiis
       REAL(dp)                                           :: damp, eps
 
@@ -106,9 +103,6 @@ CONTAINS
       REAL(dp), DIMENSION(:, :, :), INTENT(IN)           :: pmat, fmat, emat
       REAL(dp), INTENT(IN)                               :: energy, error
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'atom_history_update', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: nlen, nmax, nnow
 
       nmax = history%max_history
@@ -135,9 +129,6 @@ CONTAINS
 ! **************************************************************************************************
    PURE SUBROUTINE atom_history_release(history)
       TYPE(atom_history_type), INTENT(INOUT)             :: history
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'atom_history_release', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i
 
@@ -179,8 +170,6 @@ CONTAINS
       REAL(dp), DIMENSION(:, :, :), INTENT(INOUT)        :: fmat
       TYPE(atom_history_type), INTENT(INOUT)             :: history
       REAL(dp), INTENT(IN)                               :: err
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'atom_opt_fmat', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, info, j, lwork, na, nb, nlen, nm, &
                                                             nmax, nnow, rank

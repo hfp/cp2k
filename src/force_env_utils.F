@@ -76,8 +76,7 @@ CONTAINS
          OPTIONAL, TARGET                                :: pos, vel
       LOGICAL, INTENT(IN), OPTIONAL                      :: compold, reset
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'force_env_shake', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'force_env_shake'
 
       INTEGER :: handle, i, iparticle, iparticle_kind, iparticle_local, j, my_lagrange_mult, &
          my_log_unit, nparticle_kind, nparticle_local
@@ -245,8 +244,7 @@ CONTAINS
          OPTIONAL, TARGET                                :: vel
       LOGICAL, INTENT(IN), OPTIONAL                      :: reset
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'force_env_rattle', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'force_env_rattle'
 
       INTEGER :: handle, i, iparticle, iparticle_kind, iparticle_local, j, my_lagrange_mult, &
          my_log_unit, nparticle_kind, nparticle_local
@@ -370,7 +368,7 @@ CONTAINS
    SUBROUTINE rescale_forces(force_env)
       TYPE(force_env_type), POINTER                      :: force_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'rescale_forces', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'rescale_forces'
 
       INTEGER                                            :: handle, iparticle
       LOGICAL                                            :: explicit
@@ -417,9 +415,6 @@ CONTAINS
       TYPE(cell_type), POINTER                           :: cell
       INTEGER, INTENT(IN)                                :: ndigits
       LOGICAL, INTENT(IN)                                :: numerical
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'write_stress_tensor', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=15)                                  :: fmtstr3
       CHARACTER(LEN=16)                                  :: fmtstr4
@@ -501,8 +496,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(3), INTENT(INOUT), &
          OPTIONAL                                        :: grand_total_force
       LOGICAL, INTENT(IN), OPTIONAL                      :: zero_force_core_shell_atom
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'write_forces', routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=23)                                  :: fmtstr3
       CHARACTER(LEN=36)                                  :: fmtstr2

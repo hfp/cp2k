@@ -86,8 +86,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       LOGICAL, INTENT(IN)                                :: calc_forces
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'qs_energies_compute_matrix_w', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'qs_energies_compute_matrix_w'
 
       INTEGER                                            :: handle, is, ispin, nao, nspin
       LOGICAL                                            :: do_kpoints, has_unit_metric
@@ -212,8 +211,7 @@ CONTAINS
    SUBROUTINE qs_energies_properties(qs_env)
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'qs_energies_properties', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'qs_energies_properties'
 
       INTEGER                                            :: handle
       LOGICAL                                            :: do_et, do_et_proj
@@ -319,9 +317,6 @@ CONTAINS
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'qs_energies_mulliken', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ispin
       TYPE(atprop_type), POINTER                         :: atprop
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_h, matrix_ks, rho_ao
@@ -360,8 +355,6 @@ CONTAINS
       TYPE(dbcsr_type), POINTER                          :: amat, bmat
       REAL(kind=dp), INTENT(IN)                          :: factor
       REAL(KIND=dp), DIMENSION(:), POINTER               :: atrace
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'atom_trace', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: blk, iblock_col, iblock_row, nblock
       LOGICAL                                            :: found
@@ -404,9 +397,6 @@ CONTAINS
    SUBROUTINE qs_energies_mp2(qs_env, calc_forces)
       TYPE(qs_environment_type), POINTER                 :: qs_env
       LOGICAL, INTENT(IN)                                :: calc_forces
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'qs_energies_mp2', &
-         routineP = moduleN//':'//routineN
 
       LOGICAL                                            :: should_stop
 

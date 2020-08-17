@@ -87,8 +87,6 @@ CONTAINS
    SUBROUTINE pw_retain(pw)
       TYPE(pw_type), POINTER                             :: pw
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_retain', routineP = moduleN//':'//routineN
-
       CPASSERT(ASSOCIATED(pw))
       CPASSERT(pw%ref_count > 0)
       pw%ref_count = pw%ref_count + 1
@@ -105,8 +103,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE pw_release(pw)
       TYPE(pw_type), POINTER                             :: pw
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_release', routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(pw)) THEN
          CPASSERT(pw%ref_count > 0)
@@ -159,7 +155,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :, :), OPTIONAL, &
          POINTER                                         :: cr3d_ptr
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_create', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'pw_create'
 
       INTEGER                                            :: handle
       INTEGER, DIMENSION(:, :), POINTER                  :: bounds

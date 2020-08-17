@@ -3709,8 +3709,6 @@ CONTAINS
       INTEGER, INTENT(in)                                :: job
       INTEGER, INTENT(out)                               :: info
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'dtrsl', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: CASE, j, jj
       REAL(KIND=dp)                                      :: ddot, temp
 

@@ -95,9 +95,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: row, col
       REAL(KIND=dp), DIMENSION(:, :), INTENT(IN)         :: blk
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_matrix_data_add', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: existing_ii, ii, ncols, nrows, old_nblks
       INTEGER(KIND=int_8)                                :: pair_ind
       INTEGER, DIMENSION(:), POINTER                     :: new_lds
@@ -158,9 +155,6 @@ CONTAINS
       TYPE(fb_matrix_data_obj), INTENT(INOUT)            :: matrix_data
       INTEGER, INTENT(IN)                                :: nmax, nencode
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_matrix_data_create', &
-         routineP = moduleN//':'//routineN
-
       LOGICAL                                            :: check_ok
 
       check_ok = .NOT. fb_matrix_data_has_data(matrix_data)
@@ -196,9 +190,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: row, col
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: blk_p
       LOGICAL, INTENT(OUT)                               :: found
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_matrix_data_get', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ind_in_blks
       INTEGER(KIND=int_8)                                :: pair_ind
@@ -245,9 +236,6 @@ CONTAINS
       TYPE(fb_matrix_data_obj), INTENT(INOUT)            :: matrix_data
       INTEGER, INTENT(IN), OPTIONAL                      :: nmax, nencode
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_matrix_data_init', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: my_nmax
       LOGICAL                                            :: check_ok
 
@@ -291,9 +279,6 @@ CONTAINS
    SUBROUTINE fb_matrix_data_release(matrix_data)
       TYPE(fb_matrix_data_obj), INTENT(INOUT)            :: matrix_data
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_matrix_data_release', &
-         routineP = moduleN//':'//routineN
-
       LOGICAL                                            :: check_ok
 
       IF (ASSOCIATED(matrix_data%obj)) THEN
@@ -327,9 +312,6 @@ CONTAINS
    SUBROUTINE fb_matrix_data_retain(matrix_data)
       TYPE(fb_matrix_data_obj), INTENT(INOUT)            :: matrix_data
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_matrix_data_retain', &
-         routineP = moduleN//':'//routineN
-
       LOGICAL                                            :: check_ok
 
       check_ok = ASSOCIATED(matrix_data%obj)
@@ -353,9 +335,6 @@ CONTAINS
       TYPE(fb_matrix_data_obj), INTENT(INOUT)            :: matrix_data
       INTEGER, INTENT(OUT), OPTIONAL                     :: nmax, nblks, nencode
       INTEGER, DIMENSION(:, :), INTENT(OUT), OPTIONAL    :: blk_sizes
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_matrix_data_status', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ii
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: buffer_sizes

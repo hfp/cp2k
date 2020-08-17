@@ -90,9 +90,6 @@ CONTAINS
       TYPE(neb_type), POINTER                            :: neb_env
       TYPE(section_vals_type), POINTER                   :: neb_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'read_neb_section', &
-         routineP = moduleN//':'//routineN
-
       LOGICAL                                            :: explicit
       TYPE(section_vals_type), POINTER                   :: wrk_section
 
@@ -176,7 +173,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: energies, distances
       INTEGER, INTENT(IN)                                :: output_unit
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'dump_neb_info', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'dump_neb_info'
 
       CHARACTER(LEN=20)                                  :: mytype
       CHARACTER(LEN=default_string_length)               :: line, title, unit_str
@@ -405,8 +402,7 @@ CONTAINS
       TYPE(replica_env_type), POINTER                    :: rep_env
       INTEGER, INTENT(IN)                                :: irep, n_rep, istep
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'handle_band_file_names', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'handle_band_file_names'
 
       CHARACTER(LEN=default_path_length)                 :: output_file_path, replica_proj_name
       INTEGER                                            :: handle, handle2, i, ierr, j, lp, unit_nr
@@ -492,9 +488,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: n_rep, j
       CHARACTER(LEN=default_path_length)                 :: replica_proj_name
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_replica_project_name', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=default_string_length)               :: padding
       INTEGER                                            :: i, lp, ndigits
 
@@ -524,9 +517,6 @@ CONTAINS
    SUBROUTINE neb_rep_env_map_info(rep_env, neb_env)
       TYPE(replica_env_type), POINTER                    :: rep_env
       TYPE(neb_type), POINTER                            :: neb_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'neb_rep_env_map_info', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_path_length)                 :: replica_proj_name
       INTEGER                                            :: handle2, ierr, irep, n_rep, n_rep_neb, &

@@ -145,8 +145,7 @@ CONTAINS
       LOGICAL, INTENT(OUT)                               :: lreject
       TYPE(rng_stream_type), INTENT(INOUT)               :: rng_stream
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mc_conformation_change', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'mc_conformation_change'
 
       CHARACTER(default_string_length)                   :: name
       CHARACTER(default_string_length), DIMENSION(:), &
@@ -441,8 +440,7 @@ CONTAINS
       LOGICAL, INTENT(OUT)                               :: lreject
       TYPE(rng_stream_type), INTENT(INOUT)               :: rng_stream
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mc_molecule_translation', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'mc_molecule_translation'
 
       INTEGER :: atom_number, end_atom, end_mol, group, handle, imolecule, ipart, iparticle, jbox, &
          molecule_number, move_direction, nunits_mol, source, start_mol
@@ -664,8 +662,7 @@ CONTAINS
       LOGICAL, INTENT(OUT)                               :: lreject
       TYPE(rng_stream_type), INTENT(INOUT)               :: rng_stream
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mc_molecule_rotation', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'mc_molecule_rotation'
 
       INTEGER :: atom_number, dir, end_atom, end_mol, group, handle, ii, imolecule, ipart, iunit, &
          jbox, molecule_number, nunits_mol, source, start_mol
@@ -969,7 +966,7 @@ CONTAINS
       INTEGER, DIMENSION(1:3, 1:2), INTENT(INOUT)        :: discrete_array
       TYPE(rng_stream_type), INTENT(INOUT)               :: rng_stream
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'mc_volume_move', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'mc_volume_move'
 
       CHARACTER(LEN=200)                                 :: fft_lib
       CHARACTER(LEN=40)                                  :: dat_file
@@ -1312,8 +1309,7 @@ CONTAINS
       TYPE(particle_list_type), POINTER                  :: particles
       TYPE(rng_stream_type), INTENT(INOUT)               :: rng_stream
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'change_bond_length', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'change_bond_length'
 
       INTEGER                                            :: bond_number, group, handle, i, iatom, &
                                                             ibond, ipart, natom, nbond, source
@@ -1479,8 +1475,7 @@ CONTAINS
       TYPE(particle_list_type), POINTER                  :: particles
       TYPE(rng_stream_type), INTENT(INOUT)               :: rng_stream
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'change_bond_angle', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'change_bond_angle'
 
       INTEGER                                            :: bend_number, group, handle, i, iatom, &
                                                             ibond, ipart, natom, nbend, nbond, &
@@ -1739,8 +1734,7 @@ CONTAINS
       TYPE(particle_list_type), POINTER                  :: particles
       TYPE(rng_stream_type), INTENT(INOUT)               :: rng_stream
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'change_dihedral', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'change_dihedral'
 
       INTEGER                                            :: group, handle, i, iatom, ibond, ipart, &
                                                             natom, nbond, ntorsion, source, &
@@ -1960,7 +1954,7 @@ CONTAINS
       CHARACTER(LEN=*), INTENT(IN)                       :: move_type
       TYPE(rng_stream_type), INTENT(INOUT)               :: rng_stream
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mc_avbmc_move', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'mc_avbmc_move'
 
       INTEGER                                            :: end_mol, group, handle, ipart, jbox, &
                                                             natom, nswapmoves, source, start_mol
@@ -2356,7 +2350,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), INTENT(INOUT)      :: r_old
       TYPE(rng_stream_type), INTENT(INOUT)               :: rng_stream
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'mc_hmc_move', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'mc_hmc_move'
 
       INTEGER                                            :: group, handle, iatom, source
       INTEGER, DIMENSION(:), POINTER                     :: nunits_tot
@@ -2491,8 +2485,7 @@ CONTAINS
       LOGICAL, INTENT(OUT)                               :: lreject
       TYPE(rng_stream_type), INTENT(INOUT)               :: rng_stream
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mc_cluster_translation', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'mc_cluster_translation'
 
       INTEGER :: cstart, end_mol, group, handle, imol, ipart, iparticle, iunit, jbox, jpart, &
          junit, move_direction, nend, nunit, source, start_mol, total_clus, total_clusafmo

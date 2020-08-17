@@ -109,9 +109,6 @@ CONTAINS
    SUBROUTINE allocate_thermostats(thermostats)
       TYPE(thermostats_type), POINTER                    :: thermostats
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'allocate_thermostats', &
-         routineP = moduleN//':'//routineN
-
       LOGICAL                                            :: check
 
       check = .NOT. ASSOCIATED(thermostats)
@@ -156,9 +153,6 @@ CONTAINS
    SUBROUTINE retain_thermostats(thermostats)
       TYPE(thermostats_type), POINTER                    :: thermostats
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'retain_thermostats', &
-         routineP = moduleN//':'//routineN
-
       IF (ASSOCIATED(thermostats)) THEN
          CPASSERT(thermostats%ref_count > 0)
          thermostats%ref_count = thermostats%ref_count + 1
@@ -175,9 +169,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE release_thermostats(thermostats)
       TYPE(thermostats_type), POINTER                    :: thermostats
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'release_thermostats', &
-         routineP = moduleN//':'//routineN
 
       LOGICAL                                            :: check
 
@@ -233,9 +224,6 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: section
       LOGICAL, INTENT(IN), OPTIONAL                      :: skip_region
       CHARACTER(LEN=*), INTENT(IN)                       :: label
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_thermostat_type', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: region
       LOGICAL                                            :: skip_region_loc
@@ -294,9 +282,6 @@ CONTAINS
    SUBROUTINE release_thermostat_info(thermostat_info)
       TYPE(thermostat_info_type), POINTER                :: thermostat_info
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'release_thermostat_info', &
-         routineP = moduleN//':'//routineN
-
       IF (ASSOCIATED(thermostat_info)) THEN
          IF (ASSOCIATED(thermostat_info%map_loc_thermo_gen)) THEN
             DEALLOCATE (thermostat_info%map_loc_thermo_gen)
@@ -314,9 +299,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE release_thermostat_type(thermostat)
       TYPE(thermostat_type), POINTER                     :: thermostat
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'release_thermostat_type', &
-         routineP = moduleN//':'//routineN
 
       LOGICAL                                            :: check
 
@@ -355,9 +337,6 @@ CONTAINS
    SUBROUTINE set_thermostats(thermostats, dt_fact)
       TYPE(thermostats_type), POINTER                    :: thermostats
       REAL(KIND=dp), INTENT(IN), OPTIONAL                :: dt_fact
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'set_thermostats', &
-         routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(thermostats)) THEN
          IF (PRESENT(dt_fact)) THEN

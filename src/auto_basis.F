@@ -59,9 +59,6 @@ CONTAINS
       CHARACTER(LEN=*), INTENT(IN), OPTIONAL             :: basis_type
       INTEGER, INTENT(IN), OPTIONAL                      :: basis_sort
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_ri_aux_basis_set', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=2)                                   :: element_symbol
       CHARACTER(LEN=default_string_length)               :: bsname
       INTEGER                                            :: i, j, jj, l, laux, linc, lmax, lval, lx, &
@@ -226,9 +223,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: basis_cntrl
       LOGICAL, INTENT(IN)                                :: exact_1c_terms
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_lri_aux_basis_set', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=2)                                   :: element_symbol
       CHARACTER(LEN=default_string_length)               :: bsname
       INTEGER                                            :: i, j, l, laux, linc, lm, lmax, lval, n1, &
@@ -368,9 +362,6 @@ CONTAINS
       TYPE(gto_basis_set_type), POINTER                  :: aux_fit_basis
       TYPE(qs_kind_type), INTENT(IN)                     :: qs_kind
       INTEGER, INTENT(IN)                                :: basis_cntrl
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_aux_fit_basis_set', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=2)                                   :: element_symbol
       CHARACTER(LEN=default_string_length)               :: bsname
@@ -586,9 +577,6 @@ CONTAINS
       INTEGER, INTENT(OUT)                               :: lmax
       REAL(KIND=dp), DIMENSION(0:9), INTENT(OUT)         :: zmin, zmax, zeff
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_basis_keyfigures', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, ipgf, iset, ishell, j, l, nset
       INTEGER, DIMENSION(:), POINTER                     :: lm, npgf, nshell
       INTEGER, DIMENSION(:, :), POINTER                  :: lshell
@@ -663,9 +651,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(0:9), INTENT(IN)          :: zmin, zmax, zeff
       REAL(KIND=dp), DIMENSION(0:18), INTENT(OUT)        :: pmin, pmax, peff
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_basis_products', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: l1, l2, la
 
       pmin = HUGE(0.0_dp)
@@ -703,9 +688,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: afit
       REAL(KIND=dp), INTENT(IN)                          :: amet
       REAL(KIND=dp), INTENT(OUT)                         :: eval
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'overlap_maximum', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, ia, ib, info
       REAL(KIND=dp)                                      :: fij, fxij, intab, p, xij
@@ -781,8 +763,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: n
       REAL(KIND=dp), INTENT(INOUT)                       :: eval
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'neb_potential', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i
 
       DO i = 2, n
@@ -807,9 +787,6 @@ CONTAINS
       INTEGER, INTENT(OUT)                               :: np, nf
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: zval
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: gcval
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_basis_functions', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: iset, ishell, j1, j2, jf, jp, l, nset
       INTEGER, DIMENSION(:), POINTER                     :: lm, npgf, nshell

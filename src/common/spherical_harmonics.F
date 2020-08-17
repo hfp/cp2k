@@ -75,9 +75,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: l1, m1, l2, m2
       REAL(KIND=dp), DIMENSION(:), INTENT(OUT)           :: clm
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'clebsch_gordon_complex', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: icase, ind, l, lm, lp, n
 
       l = l1 + l2
@@ -110,9 +107,6 @@ CONTAINS
    SUBROUTINE clebsch_gordon_real(l1, m1, l2, m2, rlm)
       INTEGER, INTENT(IN)                                :: l1, m1, l2, m2
       REAL(KIND=dp), DIMENSION(:, :), INTENT(OUT)        :: rlm
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'clebsch_gordon_real', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: icase1, icase2, ind, l, lm, lp, mm(2), n
       REAL(KIND=dp)                                      :: xsi
@@ -218,8 +212,7 @@ CONTAINS
 !> \brief ...
 ! **************************************************************************************************
    SUBROUTINE clebsch_gordon_deallocate()
-      CHARACTER(len=*), PARAMETER :: routineN = 'clebsch_gordon_deallocate', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'clebsch_gordon_deallocate'
 
       INTEGER                                            :: handle
 
@@ -239,8 +232,7 @@ CONTAINS
    SUBROUTINE clebsch_gordon_init(l)
       INTEGER, INTENT(IN)                                :: l
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'clebsch_gordon_init', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'clebsch_gordon_init'
 
       INTEGER                                            :: handle, i1, i2, ix, iy, l1, l2, lp, m, &
                                                             m1, m2, ml, mp, n
@@ -302,8 +294,6 @@ CONTAINS
    FUNCTION cgc(l1, m1, l2, m2, lp, mp)
       INTEGER, INTENT(IN)                                :: l1, m1, l2, m2, lp, mp
       REAL(KIND=dp)                                      :: cgc
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'cgc', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: la, lb, ll, ma, mb, s, t, tmax, tmin, &
                                                             z1, z2, z3, z4, z5
@@ -422,8 +412,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), INTENT(IN)         :: r
       REAL(KIND=dp), DIMENSION(:), INTENT(OUT)           :: y
       INTEGER, INTENT(IN)                                :: l, m
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'rvy_lm', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i
       REAL(KIND=dp)                                      :: cp, lmm, lpm, pf, plm, rxy, sp, t, z
@@ -556,8 +544,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(OUT)                         :: y
       INTEGER, INTENT(IN)                                :: l, m
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'rry_lm', routineP = moduleN//':'//routineN
-
       REAL(KIND=dp)                                      :: cp, lmm, lpm, pf, plm, rxy, sp, t, z
 
       SELECT CASE (l)
@@ -684,8 +670,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), INTENT(IN)         :: r
       COMPLEX(KIND=dp), DIMENSION(:), INTENT(OUT)        :: y
       INTEGER, INTENT(IN)                                :: l, m
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'cvy_lm', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, n
       REAL(KIND=dp)                                      :: cp, lmm, lpm, pf, plm, rxy, sp, t, ym, &
@@ -867,8 +851,6 @@ CONTAINS
       COMPLEX(KIND=dp), INTENT(OUT)                      :: y
       INTEGER, INTENT(IN)                                :: l, m
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'ccy_lm', routineP = moduleN//':'//routineN
-
       REAL(KIND=dp)                                      :: cp, lmm, lpm, pf, plm, rxy, sp, t, ym, &
                                                             yp, z
 
@@ -1029,8 +1011,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(2), INTENT(OUT)           :: dy
       INTEGER, INTENT(IN)                                :: l, m
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'dry_lm', routineP = moduleN//':'//routineN
-
       REAL(KIND=dp)                                      :: cp, ct, dplm, lmm, lpm, p, pf, rxy, sp, &
                                                             st, t, tt, y, z
       REAL(KIND=dp), DIMENSION(3)                        :: r
@@ -1184,8 +1164,6 @@ CONTAINS
       COMPLEX(KIND=dp), DIMENSION(2), INTENT(OUT)        :: dy
       INTEGER, INTENT(IN)                                :: l, m
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'dcy_lm', routineP = moduleN//':'//routineN
-
       REAL(KIND=dp), DIMENSION(2)                        :: dd
 
       CPABORT("Not implemented")
@@ -1207,8 +1185,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(IN)                          :: x
       INTEGER, INTENT(IN)                                :: l, m
       REAL(KIND=dp)                                      :: plm
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'legendre', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: il, im, mm
       REAL(KIND=dp)                                      :: fact, pll, pmm, pmmp1, somx2
@@ -1353,8 +1329,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: l, m
       REAL(KIND=dp)                                      :: dplm
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'dlegendre', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: mm
 
       IF (ABS(x) > 1.0_dp) CPABORT("x value > 1")
@@ -1492,8 +1466,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(IN)                          :: x
       INTEGER, INTENT(IN)                                :: l
       REAL(KIND=dp)                                      :: dPof1
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'dPof1', routineP = moduleN//':'//routineN
 
       IF (ABS(x) - 1.0_dp > EPSILON(1.0_dp)) THEN
          CPABORT("|x| is not 1")

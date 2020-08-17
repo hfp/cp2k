@@ -82,7 +82,7 @@ CONTAINS
       LOGICAL, INTENT(IN), OPTIONAL                      :: energy_only, epr_xc
       REAL(dp), INTENT(IN), OPTIONAL                     :: adiabatic_rescale_factor
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'vxc_of_r_new', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'vxc_of_r_new'
 
       INTEGER                                            :: handle, ia, idir, ir, my_deriv_order
       LOGICAL                                            :: gradient_f, my_epr_xc, my_only_energy
@@ -343,8 +343,7 @@ CONTAINS
       REAL(dp), DIMENSION(:, :, :), POINTER              :: vxc
       REAL(dp), DIMENSION(:, :, :, :), POINTER           :: vxg
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'xc_2nd_deriv_of_r', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'xc_2nd_deriv_of_r'
 
       INTEGER                                            :: handle, ispin, nspins
       LOGICAL                                            :: lsd
@@ -427,9 +426,6 @@ CONTAINS
       TYPE(xc_rho_cflags_type)                           :: needs
       INTEGER, INTENT(IN)                                :: nspins
       INTEGER, DIMENSION(2, 3), INTENT(IN)               :: bo
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'xc_rho_set_atom_update', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: idir
 
@@ -595,7 +591,6 @@ CONTAINS
       REAL(dp), DIMENSION(:, :), POINTER                 :: tau
       INTEGER, INTENT(IN)                                :: na, ir
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'fill_rho_set', routineP = moduleN//':'//routineN
       REAL(KIND=dp), PARAMETER                           :: f13 = (1.0_dp/3.0_dp)
 
       INTEGER                                            :: ia, idir, my_nspins

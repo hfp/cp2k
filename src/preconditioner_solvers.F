@@ -68,9 +68,6 @@ CONTAINS
       TYPE(dbcsr_type), OPTIONAL, POINTER                :: matrix_s
       TYPE(dbcsr_type), POINTER                          :: matrix_h
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'solve_preconditioner', &
-         routineP = moduleN//':'//routineN
-
       REAL(dp)                                           :: occ_matrix
 
 ! here comes the solver
@@ -125,8 +122,7 @@ CONTAINS
       TYPE(preconditioner_type)                          :: preconditioner_env
       TYPE(dbcsr_type), OPTIONAL, POINTER                :: matrix_s
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'make_full_inverse_cholesky', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'make_full_inverse_cholesky'
 
       INTEGER                                            :: handle, info
       TYPE(cp_fm_type), POINTER                          :: fm, fm_work
@@ -178,8 +174,7 @@ CONTAINS
       TYPE(preconditioner_type)                          :: preconditioner_env
       TYPE(dbcsr_type), OPTIONAL, POINTER                :: matrix_s
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'make_full_fact_cholesky', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'make_full_fact_cholesky'
 
       INTEGER                                            :: handle, info_out
       TYPE(cp_fm_type), POINTER                          :: fm
@@ -221,8 +216,7 @@ CONTAINS
       TYPE(preconditioner_type)                          :: preconditioner_env
       TYPE(dbcsr_type), POINTER                          :: matrix_h
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'make_inverse_update', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'make_inverse_update'
 
       INTEGER                                            :: handle
       LOGICAL                                            :: use_guess
@@ -268,8 +262,7 @@ CONTAINS
       TYPE(dbcsr_type), POINTER                          :: matrix
       REAL(KIND=dp)                                      :: cond_num
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'estimate_cond_num', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'estimate_cond_num'
 
       INTEGER                                            :: handle
       REAL(KIND=dp)                                      :: max_ev, min_ev
@@ -311,8 +304,7 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                          :: fm_matrix
       TYPE(dbcsr_type), POINTER                          :: dbcsr_matrix, template_mat
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'transfer_fm_to_dbcsr', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'transfer_fm_to_dbcsr'
 
       INTEGER                                            :: handle
 
@@ -350,8 +342,7 @@ CONTAINS
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(cp_blacs_env_type), POINTER                   :: context
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'transfer_dbcsr_to_fm', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'transfer_dbcsr_to_fm'
 
       INTEGER                                            :: handle, n
       TYPE(cp_fm_struct_type), POINTER                   :: fm_struct_tmp

@@ -84,9 +84,6 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: tmc_ana_section
       TYPE(tmc_analysis_env), POINTER                    :: tmc_ana
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'tmc_read_ana_input', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=default_path_length)                 :: c_tmp
       CHARACTER(LEN=default_string_length), POINTER      :: charge_atm(:)
       INTEGER                                            :: i_tmp, ntot
@@ -205,8 +202,6 @@ CONTAINS
       TYPE(tmc_analysis_env), POINTER                    :: ana_env
       INTEGER                                            :: nr_dim
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'analysis_init', routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=default_path_length)                 :: tmp_cell_file, tmp_dip_file, tmp_pos_file
 
       CPASSERT(ASSOCIATED(ana_env))
@@ -270,9 +265,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE analysis_restart_print(ana_env)
       TYPE(tmc_analysis_env), POINTER                    :: ana_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'analysis_restart_print', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_path_length)                 :: file_name, file_name_tmp, &
                                                             restart_file_name
@@ -371,9 +363,6 @@ CONTAINS
    SUBROUTINE analysis_restart_read(ana_env, elem)
       TYPE(tmc_analysis_env), POINTER                    :: ana_env
       TYPE(tree_type), POINTER                           :: elem
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'analysis_restart_read', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_path_length)                 :: file_name, file_name_tmp
       INTEGER                                            :: file_ptr
@@ -474,8 +463,7 @@ CONTAINS
       TYPE(tree_type), POINTER                           :: elem
       TYPE(tmc_analysis_env), POINTER                    :: ana_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'do_tmc_analysis', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'do_tmc_analysis'
 
       INTEGER                                            :: handle, weight_act
       REAL(KIND=dp), DIMENSION(3)                        :: dip_tmp
@@ -596,8 +584,7 @@ CONTAINS
    SUBROUTINE finalize_tmc_analysis(ana_env)
       TYPE(tmc_analysis_env), POINTER                    :: ana_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'finalize_tmc_analysis', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'finalize_tmc_analysis'
 
       INTEGER                                            :: handle
 
@@ -646,8 +633,7 @@ CONTAINS
       TYPE(tmc_analysis_env), POINTER                    :: ana_env
       TYPE(tmc_param_type), POINTER                      :: tmc_params
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'analyze_file_configurations', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'analyze_file_configurations'
 
       INTEGER                                            :: conf_nr, handle, nr_dim, stat
       TYPE(tree_type), POINTER                           :: elem
@@ -733,8 +719,7 @@ CONTAINS
       TYPE(tmc_atom_type), DIMENSION(:), POINTER         :: atoms
       TYPE(tmc_analysis_env), POINTER                    :: ana_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_density_3d', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'calc_density_3d'
 
       CHARACTER(LEN=default_path_length)                 :: file_name, file_name_tmp
       INTEGER                                            :: atom, bin_x, bin_y, bin_z, file_ptr, &
@@ -898,7 +883,7 @@ CONTAINS
       TYPE(tmc_analysis_env), POINTER                    :: ana_env
 
       CHARACTER(LEN=*), PARAMETER :: fmt_my = '(T2,A,"| ",A,T41,A40)', plabel = "TMC_ANA", &
-         routineN = 'print_density_3d', routineP = moduleN//':'//routineN
+         routineN = 'print_density_3d'
 
       CHARACTER(LEN=default_path_length)                 :: file_name, file_name_vari
       INTEGER                                            :: bin_x, bin_y, bin_z, file_ptr_dens, &
@@ -1009,8 +994,7 @@ CONTAINS
       TYPE(tmc_atom_type), DIMENSION(:), POINTER         :: atoms
       TYPE(cell_type), POINTER                           :: cell
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'ana_pair_correl_init', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'ana_pair_correl_init'
 
       INTEGER                                            :: counter, f_n, handle, list, list_ind, s_n
       REAL(KIND=dp), DIMENSION(3)                        :: cell_size
@@ -1083,8 +1067,7 @@ CONTAINS
       TYPE(tmc_atom_type), DIMENSION(:), POINTER         :: atoms
       TYPE(tmc_analysis_env), POINTER                    :: ana_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_paircorrelation', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_paircorrelation'
 
       INTEGER                                            :: handle, i, ind, j, pair_ind
       REAL(KIND=dp)                                      :: dist
@@ -1139,8 +1122,7 @@ CONTAINS
    SUBROUTINE print_paircorrelation(ana_env)
       TYPE(tmc_analysis_env), POINTER                    :: ana_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'print_paircorrelation', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'print_paircorrelation'
 
       CHARACTER(LEN=default_path_length)                 :: file_name
       INTEGER                                            :: bin, file_ptr, handle, pair
@@ -1213,8 +1195,7 @@ CONTAINS
       TYPE(dipole_moment_type), POINTER                  :: ana_dip_mom
       TYPE(tmc_atom_type), DIMENSION(:), POINTER         :: atoms
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'ana_dipole_moment_init', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'ana_dipole_moment_init'
 
       INTEGER                                            :: atom, charge, handle
 
@@ -1255,8 +1236,7 @@ CONTAINS
       INTEGER                                            :: weight
       TYPE(tmc_analysis_env), POINTER                    :: ana_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_dipole_moment', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_dipole_moment'
 
       CHARACTER(LEN=default_path_length)                 :: file_name
       INTEGER                                            :: handle, i
@@ -1310,9 +1290,6 @@ CONTAINS
    SUBROUTINE print_dipole_moment(ana_env)
       TYPE(tmc_analysis_env), POINTER                    :: ana_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'print_dipole_moment', &
-         routineP = moduleN//':'//routineN
-
       IF (ana_env%print_test_output) &
          WRITE (*, *) "TMC|ANALYSIS_FINAL_CLASS_CELL_DIPOLE_MOMENT_X= ", &
          ana_env%dip_mom%last_dip_cl(:)
@@ -1330,9 +1307,6 @@ CONTAINS
       TYPE(tree_type), POINTER                           :: elem
       INTEGER                                            :: weight
       TYPE(tmc_analysis_env), POINTER                    :: ana_env
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_dipole_analysis', &
-         routineP = moduleN//':'//routineN
 
       REAL(KIND=dp)                                      :: vol, weight_act
       REAL(KIND=dp), DIMENSION(3, 3)                     :: tmp_dip
@@ -1400,9 +1374,6 @@ CONTAINS
    SUBROUTINE print_act_dipole_analysis(elem, ana_env)
       TYPE(tree_type), POINTER                           :: elem
       TYPE(tmc_analysis_env), POINTER                    :: ana_env
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'print_act_dipole_analysis', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_path_length)                 :: file_name, file_name_tmp
       INTEGER                                            :: counter_tmp, file_ptr
@@ -1501,8 +1472,7 @@ CONTAINS
    SUBROUTINE print_dipole_analysis(ana_env)
       TYPE(tmc_analysis_env), POINTER                    :: ana_env
 
-      CHARACTER(LEN=*), PARAMETER :: fmt_my = '(T2,A,"| ",A,T41,A40)', plabel = "TMC_ANA", &
-         routineN = 'print_dipole_analysis', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: fmt_my = '(T2,A,"| ",A,T41,A40)', plabel = "TMC_ANA"
 
       INTEGER                                            :: i
       REAL(KIND=dp)                                      :: diel_const_scalar, kB
@@ -1591,8 +1561,7 @@ CONTAINS
       TYPE(tree_type), POINTER                           :: elem
       TYPE(tmc_analysis_env), POINTER                    :: ana_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_displacement', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'calc_displacement'
 
       CHARACTER(LEN=default_path_length)                 :: file_name, file_name_tmp
       INTEGER                                            :: file_ptr, handle, ind
@@ -1651,8 +1620,7 @@ CONTAINS
    SUBROUTINE print_average_displacement(ana_env)
       TYPE(tmc_analysis_env), POINTER                    :: ana_env
 
-      CHARACTER(LEN=*), PARAMETER :: fmt_my = '(T2,A,"| ",A,T41,A40)', plabel = "TMC_ANA", &
-         routineN = 'print_average_displacement', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: fmt_my = '(T2,A,"| ",A,T41,A40)', plabel = "TMC_ANA"
 
       WRITE (ana_env%io_unit, FMT="(/,T2,A)") REPEAT("-", 79)
       WRITE (ana_env%io_unit, FMT="(T2,A,T35,A,T80,A)") "-", "average displacement", "-"

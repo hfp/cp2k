@@ -190,8 +190,6 @@ CONTAINS
       CHARACTER(len=*), INTENT(in), OPTIONAL             :: deprecation_notice
       LOGICAL, INTENT(in), OPTIONAL                      :: removed
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'keyword_create', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, n
       LOGICAL                                            :: check
 
@@ -411,8 +409,6 @@ CONTAINS
    SUBROUTINE keyword_retain(keyword)
       TYPE(keyword_type), POINTER                        :: keyword
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'keyword_retain', routineP = moduleN//':'//routineN
-
       CPASSERT(ASSOCIATED(keyword))
       CPASSERT(keyword%ref_count > 0)
       keyword%ref_count = keyword%ref_count + 1
@@ -425,9 +421,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE keyword_release(keyword)
       TYPE(keyword_type), POINTER                        :: keyword
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'keyword_release', &
-         routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(keyword)) THEN
          CPASSERT(keyword%ref_count > 0)
@@ -475,8 +468,6 @@ CONTAINS
       TYPE(enumeration_type), OPTIONAL, POINTER          :: enum
       INTEGER, DIMENSION(:), OPTIONAL, POINTER           :: citations
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'keyword_get', routineP = moduleN//':'//routineN
-
       CPASSERT(ASSOCIATED(keyword))
       CPASSERT(keyword%ref_count > 0)
       IF (PRESENT(names)) names => keyword%names
@@ -503,9 +494,6 @@ CONTAINS
    SUBROUTINE keyword_describe(keyword, unit_nr, level)
       TYPE(keyword_type), POINTER                        :: keyword
       INTEGER, INTENT(in)                                :: unit_nr, level
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'keyword_describe', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(len=default_string_length)               :: c_string
       INTEGER                                            :: i, l
@@ -641,9 +629,6 @@ CONTAINS
 
       TYPE(keyword_type), POINTER                        :: keyword
       INTEGER, INTENT(IN)                                :: level, unit_number
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'write_keyword_xml', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=1000)                                :: string
       CHARACTER(LEN=3)                                   :: removed, repeats
@@ -838,9 +823,6 @@ CONTAINS
       INTEGER, DIMENSION(:), INTENT(INOUT)               :: matching_rank
       CHARACTER(LEN=*), DIMENSION(:), INTENT(INOUT)      :: matching_string
       INTEGER, INTENT(IN)                                :: bonus
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'keyword_typo_match', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=LEN(matching_string(1)))             :: line
       INTEGER                                            :: i, imatch, imax, irank, j, k

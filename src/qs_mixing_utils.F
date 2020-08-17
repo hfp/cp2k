@@ -62,8 +62,7 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: p_out
       REAL(KIND=dp), INTENT(INOUT)                       :: delta
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'self_consistency_check', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'self_consistency_check'
 
       INTEGER                                            :: handle, ic, ispin, nimg, nspins
       REAL(KIND=dp)                                      :: tmp
@@ -118,8 +117,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: nspins
       TYPE(mixing_storage_type), POINTER                 :: mixing_store
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'mixing_allocate', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'mixing_allocate'
 
       INTEGER                                            :: handle, i, ia, iat, ic, ikind, ispin, &
                                                             max_shell, na, natom, nbuffer, nel, &
@@ -515,7 +513,7 @@ CONTAINS
       TYPE(rho_atom_type), DIMENSION(:), OPTIONAL, &
          POINTER                                         :: rho_atom
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mixing_init', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'mixing_init'
 
       INTEGER                                            :: handle, iat, ib, ig, ig1, ig_count, &
                                                             iproc, ispin, n1, n2, natom, nbuffer, &
@@ -789,8 +787,7 @@ CONTAINS
    SUBROUTINE charge_mixing_init(mixing_store)
       TYPE(mixing_storage_type), POINTER                 :: mixing_store
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'charge_mixing_init', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'charge_mixing_init'
 
       INTEGER                                            :: handle
 

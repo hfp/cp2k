@@ -168,8 +168,7 @@ CONTAINS
       CHARACTER(LEN=*)                                   :: tb_type
       LOGICAL, INTENT(IN)                                :: no_mos
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'scf_post_calculation_tb', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'scf_post_calculation_tb'
 
       CHARACTER(LEN=6)                                   :: ana
       CHARACTER(LEN=default_string_length)               :: aname
@@ -670,8 +669,6 @@ CONTAINS
       INTEGER, INTENT(in)                                :: unit_nr
       REAL(KIND=dp), DIMENSION(:), INTENT(in)            :: charges
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'tb_dipole', routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=default_string_length)               :: description, dipole_type
       COMPLEX(KIND=dp)                                   :: dzeta, dzphase(3), zeta, zphase(3)
       COMPLEX(KIND=dp), DIMENSION(3)                     :: dggamma, ggamma
@@ -780,8 +777,6 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: dft_section
       TYPE(qs_scf_env_type), POINTER                     :: scf_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'wfn_mix_tb', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: iounit, ispin, nao, nmo
       REAL(dp), DIMENSION(:), POINTER                    :: mo_eigenvalues
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
@@ -861,8 +856,6 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(section_vals_type), POINTER                   :: dft_section
       CHARACTER(LEN=*)                                   :: tb_type
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'print_mos', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ik, iounit
       LOGICAL                                            :: do_kpoints
@@ -949,8 +942,6 @@ CONTAINS
       INTEGER                                            :: nlumo
       INTEGER, INTENT(OUT)                               :: nlumos
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'make_lumo_tb', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: homo, iounit, ispin, n, nao, nmo
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
       TYPE(cp_fm_struct_type), POINTER                   :: fm_struct_tmp
@@ -1028,8 +1019,6 @@ CONTAINS
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'rebuild_pw_env', routineP = moduleN//':'//routineN
-
       LOGICAL                                            :: skip_load_balance_distributed
       TYPE(cell_type), POINTER                           :: cell
       TYPE(dft_control_type), POINTER                    :: dft_control
@@ -1073,9 +1062,6 @@ CONTAINS
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(section_vals_type), POINTER                   :: cube_section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'print_e_density', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_path_length)                 :: filename, mpi_filename, my_pos_cube
       INTEGER                                            :: iounit, ispin, unit_nr
@@ -1217,8 +1203,6 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: cube_section
       LOGICAL, INTENT(IN), OPTIONAL                      :: total_density, v_hartree, efield
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'print_density_cubes', &
-         routineP = moduleN//':'//routineN
       CHARACTER(len=1), DIMENSION(3), PARAMETER          :: cdir = (/"x", "y", "z"/)
 
       CHARACTER(LEN=default_path_length)                 :: filename, mpi_filename, my_pos_cube
@@ -1417,8 +1401,6 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(section_vals_type), POINTER                   :: elf_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'print_elf', routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=default_path_length)                 :: filename, mpi_filename, my_pos_cube, &
                                                             title
       INTEGER                                            :: iounit, ispin, unit_nr
@@ -1516,8 +1498,6 @@ CONTAINS
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(section_vals_type), POINTER                   :: cube_section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'print_mo_cubes', routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_path_length)                 :: filename, my_pos_cube, title
       INTEGER                                            :: homo, i, ifirst, ilast, iounit, ir, &

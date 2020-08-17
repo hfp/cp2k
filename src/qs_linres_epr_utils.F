@@ -84,7 +84,7 @@ CONTAINS
       TYPE(epr_env_type)                                 :: epr_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'epr_env_init', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'epr_env_init'
 
       INTEGER                                            :: handle, i_B, idir, ispin, n_mo(2), nao, &
                                                             natom, nmoloc, nspins, output_unit
@@ -239,9 +239,6 @@ CONTAINS
    SUBROUTINE epr_env_cleanup(epr_env)
 
       TYPE(epr_env_type)                                 :: epr_env
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'epr_env_cleanup', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i_B, idir, ispin
 

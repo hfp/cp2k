@@ -78,9 +78,6 @@ CONTAINS
 
       TYPE(sap_int_type), DIMENSION(:), POINTER          :: sap_int
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'release_sap_int', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, j, k
       TYPE(clist_type), POINTER                          :: clist
 
@@ -130,8 +127,6 @@ CONTAINS
       TYPE(sap_int_type), INTENT(IN)                     :: sap_int
       TYPE(alist_type), INTENT(OUT), POINTER             :: alist
       INTEGER, INTENT(IN)                                :: atom
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'get_alist', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i
 
@@ -237,8 +232,6 @@ CONTAINS
    SUBROUTINE sap_sort(sap_int)
       TYPE(sap_int_type), DIMENSION(:), POINTER          :: sap_int
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'sap_sort', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: iac, na
 
 ! *** Set up a sorting index
@@ -283,7 +276,7 @@ CONTAINS
          OPTIONAL, POINTER                               :: particle_set
       TYPE(cell_type), INTENT(IN), OPTIONAL, POINTER     :: cell
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'build_sap_ints', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'build_sap_ints'
 
       INTEGER :: first_col, handle, i, iac, iatom, ikind, ilist, iset, j, jneighbor, katom, kkind, &
          l, lc_max, lc_min, ldai, ldsab, lppnl, maxco, maxder, maxl, maxlgto, maxlppnl, maxppnl, &

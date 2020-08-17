@@ -69,8 +69,7 @@ CONTAINS
          DIMENSION(:, :), INTENT(IN)                     :: pairs
       TYPE(vertex_p_type), DIMENSION(:), POINTER         :: graph
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'kg_create_graph', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'kg_create_graph'
 
       INTEGER                                            :: handle, i, imol, ineighbor, jmol, kmol, &
                                                             maxdegree, nneighbors, nnodes
@@ -168,8 +167,7 @@ CONTAINS
       INTEGER, INTENT(in)                                :: maxdegree
       INTEGER, INTENT(out)                               :: ncolors
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'color_graph_greedy', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'color_graph_greedy'
 
       INTEGER                                            :: color, handle, i, j, newcolor, &
                                                             nneighbors, nnodes
@@ -220,7 +218,7 @@ CONTAINS
       TYPE(vertex_p_type), DIMENSION(:), POINTER         :: graph
       INTEGER, INTENT(IN)                                :: ncolors, unit_nr
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'print_subsets', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'print_subsets'
 
       INTEGER                                            :: counter, handle, i, j, nnodes
 
@@ -284,9 +282,6 @@ CONTAINS
       TYPE(vertex_p_type), DIMENSION(:), INTENT(IN), &
          POINTER                                         :: graph
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'kg_cp_heap_fill', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, nnodes
       INTEGER(kind=valt), ALLOCATABLE, DIMENSION(:)      :: values
 
@@ -313,8 +308,6 @@ CONTAINS
    SUBROUTINE kg_update_node(heap, node)
       TYPE(cp_heap_type)                                 :: heap
       TYPE(vertex), INTENT(IN), POINTER                  :: node
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'kg_update_node', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: degree, dsat, id
       INTEGER(KIND=valt)                                 :: value
@@ -347,7 +340,7 @@ CONTAINS
       TYPE(vertex_p_type), DIMENSION(:), POINTER         :: graph
       INTEGER(KIND=int_4), INTENT(OUT)                   :: ncolors
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'kg_dsatur', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'kg_dsatur'
 
       INTEGER                                            :: color_limit, handle, i, j, key, &
                                                             maxdegree, nneighbors, nnodes
@@ -508,8 +501,7 @@ CONTAINS
       TYPE(vertex_p_type), DIMENSION(:), POINTER         :: graph
       INTEGER                                            :: ncolors
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'kg_pair_switching', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'kg_pair_switching'
 
       INTEGER                                            :: depth, handle, i, iter, j, low_col, &
                                                             low_col_neigh, maxdepth, &
@@ -576,7 +568,7 @@ CONTAINS
          POINTER                                         :: graph
       LOGICAL, INTENT(out)                               :: valid
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'check_coloring', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'check_coloring'
 
       INTEGER                                            :: handle, i, j, nneighbors, nnodes
       TYPE(vertex), POINTER                              :: neighbor, node
@@ -638,8 +630,7 @@ CONTAINS
       INTEGER(KIND=int_4), ALLOCATABLE, DIMENSION(:), &
          INTENT(out)                                     :: color_of_node
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'kg_vertex_coloring', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'kg_vertex_coloring'
 
       INTEGER                                            :: color, handle, i, nnodes, unit_nr
       LOGICAL                                            :: valid

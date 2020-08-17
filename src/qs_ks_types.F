@@ -236,9 +236,6 @@ CONTAINS
    SUBROUTINE qs_ks_env_create(ks_env)
       TYPE(qs_ks_env_type), POINTER                      :: ks_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'qs_ks_env_create', &
-         routineP = moduleN//':'//routineN
-
       IF (ASSOCIATED(ks_env)) CPABORT("ks_env already associated")
       ALLOCATE (ks_env)
       CALL qs_rho_create(ks_env%rho)
@@ -771,8 +768,6 @@ CONTAINS
    SUBROUTINE qs_ks_release(ks_env)
       TYPE(qs_ks_env_type), POINTER                      :: ks_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'qs_ks_release', routineP = moduleN//':'//routineN
-
       IF (ASSOCIATED(ks_env)) THEN
          CPASSERT(ks_env%ref_count > 0)
          ks_env%ref_count = ks_env%ref_count - 1
@@ -894,8 +889,6 @@ CONTAINS
    SUBROUTINE qs_ks_retain(ks_env)
       TYPE(qs_ks_env_type), POINTER                      :: ks_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'qs_ks_retain', routineP = moduleN//':'//routineN
-
       CPASSERT(ASSOCIATED(ks_env))
       CPASSERT(ks_env%ref_count > 0)
       ks_env%ref_count = ks_env%ref_count + 1
@@ -923,8 +916,7 @@ CONTAINS
       LOGICAL, INTENT(in), OPTIONAL                      :: s_mstruct_changed, rho_changed, &
                                                             potential_changed, full_reset
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'qs_ks_did_change', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'qs_ks_did_change'
 
       INTEGER                                            :: handle
       LOGICAL                                            :: my_mstruct_chg

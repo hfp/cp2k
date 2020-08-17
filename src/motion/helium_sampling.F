@@ -77,8 +77,6 @@ CONTAINS
       TYPE(helium_solvent_p_type), DIMENSION(:), POINTER :: helium_env
       TYPE(global_environment_type), POINTER             :: globenv
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'helium_do_run', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: k, num_steps, step, tot_steps
       LOGICAL                                            :: should_stop
       TYPE(cp_logger_type), POINTER                      :: logger
@@ -182,8 +180,6 @@ CONTAINS
 
       TYPE(helium_solvent_p_type), DIMENSION(:), POINTER :: helium_env
       TYPE(pint_env_type), POINTER                       :: pint_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'helium_sample', routineP = moduleN//':'//routineN
 
       CHARACTER(len=default_string_length)               :: msg_str
       INTEGER                                            :: i, irot, iweight, k, nslices, nsteps, &
@@ -412,7 +408,7 @@ CONTAINS
       TYPE(helium_solvent_p_type), DIMENSION(:), POINTER :: helium_env
       TYPE(pint_env_type), POINTER                       :: pint_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'helium_step', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'helium_step'
 
       CHARACTER(len=default_string_length)               :: msgstr, stmp, time_unit
       INTEGER                                            :: handle, k
@@ -570,9 +566,6 @@ CONTAINS
    SUBROUTINE helium_try_permutations(helium, pint_env)
       TYPE(helium_solvent_type), POINTER                 :: helium
       TYPE(pint_env_type), POINTER                       :: pint_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'helium_try_permutations', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(len=default_string_length)               :: err_str, stmp
       INTEGER                                            :: cyclen, ni
@@ -741,9 +734,6 @@ CONTAINS
       TYPE(pint_env_type), POINTER                       :: pint_env
       INTEGER, INTENT(IN)                                :: cyclen
       LOGICAL                                            :: res
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'helium_slice_metro_cyclic', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(len=default_string_length)               :: err_str, stmp
       INTEGER                                            :: c, ia, ib, ic, ifix, j, k, l, level, &

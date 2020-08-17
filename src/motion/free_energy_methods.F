@@ -67,8 +67,7 @@ CONTAINS
       LOGICAL, INTENT(OUT)                               :: converged
       TYPE(section_vals_type), POINTER                   :: fe_section
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'free_energy_evaluate', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'free_energy_evaluate'
 
       CHARACTER(LEN=default_path_length)                 :: coupling_function
       CHARACTER(LEN=default_string_length), &
@@ -167,9 +166,6 @@ CONTAINS
    SUBROUTINE print_fe_prolog(output_unit)
       INTEGER, INTENT(IN)                                :: output_unit
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'print_fe_prolog', &
-         routineP = moduleN//':'//routineN
-
       IF (output_unit > 0) THEN
          WRITE (output_unit, '(T2,79("*"))')
          WRITE (output_unit, '(T30,"FREE ENERGY CALCULATION",/)')
@@ -184,9 +180,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE print_fe_epilog(output_unit)
       INTEGER, INTENT(IN)                                :: output_unit
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'print_fe_epilog', &
-         routineP = moduleN//':'//routineN
 
       IF (output_unit > 0) THEN
          WRITE (output_unit, '(T2,79("*"),/)')
@@ -207,7 +200,7 @@ CONTAINS
       LOGICAL, INTENT(OUT)                               :: trend_free
       INTEGER, INTENT(IN)                                :: nr_points, output_unit
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'ui_check_trend', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'ui_check_trend'
 
       INTEGER                                            :: handle, i, ii, j, k, my_reject, ncolvar, &
                                                             ng_points, rejected_points
@@ -308,9 +301,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), OPTIONAL, POINTER     :: wrk
       INTEGER, INTENT(IN)                                :: ng_points, ncolvar
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'create_tmp_data', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i
 
       ALLOCATE (fe_env%cg_data(ng_points))
@@ -336,9 +326,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), OPTIONAL, POINTER     :: wrk
       INTEGER, INTENT(IN)                                :: ng_points
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'destroy_tmp_data', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i
 
       DO i = 1, ng_points
@@ -362,9 +349,6 @@ CONTAINS
    SUBROUTINE create_csg_data(fe_env, ng_points, output_unit)
       TYPE(free_energy_type), POINTER                    :: fe_env
       INTEGER, INTENT(IN)                                :: ng_points, output_unit
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'create_csg_data', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, iend, istart
 
@@ -394,8 +378,7 @@ CONTAINS
       LOGICAL, INTENT(OUT)                               :: test_passed
       INTEGER, INTENT(IN)                                :: nr_points, output_unit
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'ui_check_norm_sc', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'ui_check_norm_sc'
 
       INTEGER                                            :: handle, ng_points
 
@@ -433,8 +416,7 @@ CONTAINS
       TYPE(free_energy_type), POINTER                    :: fe_env
       INTEGER, INTENT(IN)                                :: nr_points, output_unit
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'ui_check_norm_sc_low', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'ui_check_norm_sc_low'
 
       INTEGER                                            :: handle, i, j, k, ncolvar, ng_points
       LOGICAL                                            :: avg_test_passed, sdv_test_passed
@@ -526,8 +508,7 @@ CONTAINS
       LOGICAL, INTENT(OUT)                               :: converged
       INTEGER, INTENT(IN)                                :: nr_points, output_unit
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'ui_check_convergence', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'ui_check_convergence'
 
       INTEGER                                            :: handle, i, ic, ncolvar, ng_points
       LOGICAL                                            :: test_passed
@@ -621,9 +602,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: covmx
       REAL(KIND=dp), DIMENSION(:), POINTER               :: avg_std
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: cov_std
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'compute_avg_std_errors', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, ind, j, k, nvar
       REAL(KIND=dp)                                      :: fac
@@ -730,8 +708,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), OPTIONAL, POINTER  :: covmx
       REAL(KIND=dp), DIMENSION(:), OPTIONAL, POINTER     :: avgs
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'eval_cov_matrix', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'eval_cov_matrix'
 
       INTEGER                                            :: handle, ic, jc, jstep, ncolvar, nlength
       REAL(KIND=dp)                                      :: tmp_ic, tmp_jc
@@ -806,8 +783,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: cum_res
       INTEGER, POINTER                                   :: istep
       REAL(KIND=dp), INTENT(IN)                          :: beta
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'dump_ac_info', routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_path_length)                 :: coupling_function
       CHARACTER(LEN=default_string_length)               :: def_error, par, this_error

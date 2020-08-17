@@ -72,8 +72,7 @@ CONTAINS
       TYPE(qs_dispersion_type), POINTER                  :: dispersion_env
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'qs_dispersion_nonloc_init', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'qs_dispersion_nonloc_init'
 
       CHARACTER(LEN=default_string_length)               :: filename
       INTEGER                                            :: funit, handle, nqs, nr_points, q1_i, &
@@ -176,8 +175,7 @@ CONTAINS
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(virial_type), OPTIONAL, POINTER               :: virial
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_dispersion_nonloc', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_dispersion_nonloc'
       INTEGER, DIMENSION(3, 3), PARAMETER :: nd = RESHAPE((/1, 0, 0, 0, 1, 0, 0, 0, 1/), (/3, 3/))
 
       INTEGER                                            :: handle, i, i_grid, idir, ispin, nl_type, &
@@ -586,7 +584,7 @@ CONTAINS
       LOGICAL, INTENT(IN)                                :: energy_only
       TYPE(virial_type), OPTIONAL, POINTER               :: virial
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'vdW_energy', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'vdW_energy'
 
       COMPLEX(KIND=dp)                                   :: uu
       COMPLEX(KIND=dp), ALLOCATABLE, DIMENSION(:)        :: theta
@@ -750,7 +748,7 @@ CONTAINS
       REAL(dp), INTENT(IN), OPTIONAL                     :: dvol
       TYPE(virial_type), OPTIONAL, POINTER               :: virial
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_potential', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'get_potential'
 
       INTEGER                                            :: handle, i_grid, l, m, nl_type, nqs, P_i, &
                                                             q, q_hi, q_low
@@ -964,8 +962,6 @@ CONTAINS
       REAL(dp), INTENT(OUT)                              :: q0(:), dq0_drho(:), dq0_dgradrho(:)
       TYPE(qs_dispersion_type), POINTER                  :: dispersion_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_q0_on_grid_vdw', &
-         routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: m_cut = 12
       REAL(dp), PARAMETER :: LDA_A = 0.031091_dp, LDA_a1 = 0.2137_dp, LDA_b1 = 7.5957_dp, &
          LDA_b2 = 3.5876_dp, LDA_b3 = 1.6382_dp, LDA_b4 = 0.49294_dp
@@ -1149,8 +1145,6 @@ CONTAINS
       REAL(dp), INTENT(OUT)                              :: q0(:)
       TYPE(qs_dispersion_type), POINTER                  :: dispersion_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_q0_on_grid_eo_vdw', &
-         routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: m_cut = 12
       REAL(dp), PARAMETER :: LDA_A = 0.031091_dp, LDA_a1 = 0.2137_dp, LDA_b1 = 7.5957_dp, &
          LDA_b2 = 3.5876_dp, LDA_b3 = 1.6382_dp, LDA_b4 = 0.49294_dp
@@ -1422,9 +1416,6 @@ CONTAINS
       REAL(dp), INTENT(out)                              :: kernel_of_k(:, :)
       TYPE(qs_dispersion_type), POINTER                  :: dispersion_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'interpolate_kernel', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: k_i, Nr_points, q1_i, q2_i
       REAL(dp)                                           :: A, B, C, const, D, dk, r_max
       REAL(dp), DIMENSION(:, :, :), POINTER              :: d2phi_dk2, kernel
@@ -1490,9 +1481,6 @@ CONTAINS
       REAL(dp), INTENT(in)                               :: k
       REAL(dp), INTENT(out)                              :: dkernel_of_dk(:, :)
       TYPE(qs_dispersion_type), POINTER                  :: dispersion_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'interpolate_dkernel_dk', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: k_i, Nr_points, q1_i, q2_i
       REAL(dp)                                           :: A, B, dAdk, dBdk, dCdk, dDdk, dk, dk_6

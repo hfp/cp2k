@@ -54,8 +54,6 @@ CONTAINS
       COMPLEX(real_8), DIMENSION(:)                      :: evals
       COMPLEX(real_8), DIMENSION(:, :)                   :: revec
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'arnoldi_zheevd', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, info, liwork, lrwork, lwork, &
                                                             iwork(3 + 5*ndim)
       COMPLEX(real_8)                                    :: work(2*ndim + ndim**2), &
@@ -89,8 +87,6 @@ CONTAINS
       INTEGER                                            :: ndim
       COMPLEX(real_4), DIMENSION(:)                      :: evals
       COMPLEX(real_4), DIMENSION(:, :)                   :: revec
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'arnoldi_cheevd', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, info, liwork, lrwork, lwork, &
                                                             iwork(3 + 5*ndim)
@@ -126,8 +122,6 @@ CONTAINS
       COMPLEX(real_8), DIMENSION(:)                      :: evals
       COMPLEX(real_8), DIMENSION(:, :)                   :: revec
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'arnoldi_dsyevd', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, info, liwork, lwork, iwork(3 + 5*ndim)
       REAL(real_8)                                       :: tmp_array(ndim, ndim), &
                                                             work(1 + 6*ndim + 2*ndim**2)
@@ -160,8 +154,6 @@ CONTAINS
       INTEGER                                            :: ndim
       COMPLEX(real_4), DIMENSION(:)                      :: evals
       COMPLEX(real_4), DIMENSION(:, :)                   :: revec
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'arnoldi_ssyevd', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, info, liwork, lwork, iwork(3 + 5*ndim)
       REAL(real_4)                                       :: tmp_array(ndim, ndim), &
@@ -198,8 +190,6 @@ CONTAINS
       INTEGER                                            :: ndim
       COMPLEX(real_4), DIMENSION(:)                      :: evals
       COMPLEX(real_4), DIMENSION(:, :)                   :: revec, levec
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'arnoldi_sstev', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, info
       REAL(real_4)                                       :: work(20*ndim)
@@ -241,8 +231,6 @@ CONTAINS
       COMPLEX(real_8), DIMENSION(:)                      :: evals
       COMPLEX(real_8), DIMENSION(:, :)                   :: revec, levec
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'arnoldi_dstev', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, info
       REAL(real_8)                                       :: work(20*ndim)
       REAL(real_8), DIMENSION(ndim)                      :: diag, offdiag
@@ -282,8 +270,6 @@ CONTAINS
       INTEGER                                            :: ndim
       COMPLEX(real_4), DIMENSION(:)                      :: evals
       COMPLEX(real_4), DIMENSION(:, :)                   :: revec, levec
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'arnoldi_sgeev', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, info, lwork
       LOGICAL                                            :: selects(ndim)
@@ -351,8 +337,6 @@ CONTAINS
       COMPLEX(real_8), DIMENSION(:)                      :: evals
       COMPLEX(real_8), DIMENSION(:, :)                   :: revec, levec
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'arnoldi_dgeev', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, info, lwork
       LOGICAL                                            :: selects(ndim)
       REAL(real_8)                                       :: norm, tmp_array(ndim, ndim), &
@@ -419,8 +403,6 @@ CONTAINS
       COMPLEX(real_8), DIMENSION(:)                      :: evals
       COMPLEX(real_8), DIMENSION(:, :)                   :: revec, levec
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'arnoldi_zgeev', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: info, lwork
       COMPLEX(real_8)                                    :: work(20*ndim), tmp_array(ndim, ndim)
       REAL(real_8)                                       :: work2(2*ndim)
@@ -452,8 +434,6 @@ CONTAINS
       INTEGER                                            :: ndim
       COMPLEX(real_4), DIMENSION(:)                      :: evals
       COMPLEX(real_4), DIMENSION(:, :)                   :: revec, levec
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'arnoldi_cgeev', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: info, lwork
       COMPLEX(real_4)                                    :: work(20*ndim), tmp_array(ndim, ndim)

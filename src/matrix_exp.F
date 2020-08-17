@@ -74,8 +74,7 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                          :: im_matrix
       INTEGER, INTENT(in)                                :: nsquare, ntaylor
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'taylor_only_imaginary', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'taylor_only_imaginary'
       REAL(KIND=dp), PARAMETER                           :: one = 1.0_dp, zero = 0.0_dp
 
       INTEGER                                            :: handle, i, ndim, nloop
@@ -170,8 +169,7 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                          :: re_part, im_part
       INTEGER, INTENT(in)                                :: nsquare, ntaylor
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'taylor_full_complex', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'taylor_full_complex'
 
       COMPLEX(KIND=dp)                                   :: Tfac
       INTEGER                                            :: handle, i, ndim
@@ -251,9 +249,6 @@ CONTAINS
       REAL(dp), INTENT(in)                               :: eps_exp
       INTEGER, INTENT(in)                                :: method
       LOGICAL, INTENT(in)                                :: do_emd
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_nsquare_norder', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: cost, i, iscale, orders(3), p, &
                                                             prev_cost, q
@@ -350,8 +345,7 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                          :: re_part, im_part
       INTEGER, INTENT(in)                                :: nsquare, npade
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'exp_pade_full_complex', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'exp_pade_full_complex'
 
       COMPLEX(KIND=dp)                                   :: scaleD, scaleN
       INTEGER                                            :: handle, i, ldim, ndim, p, q
@@ -457,8 +451,7 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                          :: im_part
       INTEGER, INTENT(in)                                :: nsquare, npade
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'exp_pade_only_imaginary', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'exp_pade_only_imaginary'
       REAL(KIND=dp), PARAMETER                           :: rone = 1.0_dp, rzero = 0.0_dp
 
       COMPLEX(KIND=dp)                                   :: scaleD, scaleN
@@ -581,7 +574,7 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                          :: matrix
       INTEGER, INTENT(in)                                :: nsquare, npade
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'exp_pade_real', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'exp_pade_real'
       REAL(KIND=dp), PARAMETER                           :: one = 1.0_dp, zero = 0.0_dp
 
       INTEGER                                            :: handle, i, j, k, ldim, ndim, p, q
@@ -699,7 +692,7 @@ CONTAINS
       TYPE(cp_fm_p_type), DIMENSION(2), OPTIONAL         :: mos_next
       INTEGER, INTENT(inout)                             :: narn_old
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'arnoldi', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'arnoldi'
       REAL(KIND=dp), PARAMETER                           :: rone = 1.0_dp, rzero = 0.0_dp
 
       INTEGER                                            :: col_group, handle, i, icol_local, idim, &

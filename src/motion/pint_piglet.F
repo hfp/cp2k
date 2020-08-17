@@ -95,9 +95,6 @@ CONTAINS
       TYPE(pint_env_type), POINTER                       :: pint_env
       TYPE(section_vals_type), POINTER                   :: section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pint_piglet_create', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ndim, p
 
       NULLIFY (piglet_therm)
@@ -158,9 +155,6 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: section
       REAL(KIND=dp), INTENT(IN)                          :: dt
       TYPE(cp_para_env_type), POINTER                    :: para_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'pint_piglet_init', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(len=20)                                  :: default_format, read_unit
       CHARACTER(len=default_path_length)                 :: matrices_file_name
@@ -433,8 +427,7 @@ CONTAINS
       REAL(kind=dp), DIMENSION(:, :), INTENT(IN)         :: masses
       TYPE(piglet_therm_type), POINTER                   :: piglet_therm
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pint_piglet_step', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'pint_piglet_step'
 
       INTEGER                                            :: handle, i, ibead, idim, j, ndim, ndimp, &
                                                             nsp1, p
@@ -536,9 +529,6 @@ CONTAINS
 
       TYPE(piglet_therm_type), POINTER                   :: piglet_therm
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pint_piglet_release', &
-         routineP = moduleN//':'//routineN
-
       IF (ASSOCIATED(piglet_therm)) THEN
          piglet_therm%ref_count = piglet_therm%ref_count - 1
          IF (piglet_therm%ref_count == 0) THEN
@@ -576,8 +566,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: p, nsp1
       CHARACTER(LEN=20), INTENT(IN)                      :: myunit
       CHARACTER(default_string_length), INTENT(OUT)      :: msg
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'a_mat_to_cp2k', routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=20)                                  :: isunit
       INTEGER                                            :: i, imode, j
@@ -625,8 +613,6 @@ CONTAINS
       CHARACTER(LEN=20), INTENT(IN)                      :: myunit
       CHARACTER(default_string_length), INTENT(OUT)      :: msg
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'c_mat_to_cp2k', routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=20)                                  :: isunit
       INTEGER                                            :: i, imode, j
 
@@ -668,9 +654,6 @@ CONTAINS
       CHARACTER(len=*), INTENT(IN)                       :: line
       INTEGER, INTENT(IN)                                :: propagator
       REAL(KIND=dp), INTENT(IN)                          :: targettemp
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'check_temperature', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(len=default_string_length)               :: msg
       INTEGER                                            :: posnumber
@@ -729,9 +712,6 @@ CONTAINS
    SUBROUTINE pint_calc_piglet_energy(pint_env)
       TYPE(pint_env_type), POINTER                       :: pint_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pint_calc_piglet_energy', &
-         routineP = moduleN//':'//routineN
-
       IF (ASSOCIATED(pint_env%piglet_therm)) THEN
          pint_env%e_piglet = pint_env%piglet_therm%thermostat_energy
       ELSE
@@ -762,9 +742,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: n
       REAL(KIND=dp), DIMENSION(n, n), INTENT(IN)         :: SST
       REAL(KIND=dp), DIMENSION(n, n), INTENT(OUT)        :: S
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'sqrt_pos_def_mat', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, info, lwork
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: work

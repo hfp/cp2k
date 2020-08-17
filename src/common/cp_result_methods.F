@@ -60,8 +60,6 @@ CONTAINS
       CHARACTER(LEN=default_string_length)               :: description
       REAL(KIND=dp), DIMENSION(:)                        :: values
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'put_result_r1', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: isize, jsize
       LOGICAL                                            :: check
 
@@ -96,8 +94,6 @@ CONTAINS
       CHARACTER(LEN=default_string_length)               :: description
       REAL(KIND=dp), DIMENSION(:, :)                     :: values
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'put_result_r2', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: isize, jsize
       LOGICAL                                            :: check
 
@@ -130,9 +126,6 @@ CONTAINS
       TYPE(cp_result_type), POINTER                      :: results
       CHARACTER(LEN=default_string_length)               :: description
       LOGICAL                                            :: res_exist
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'test_for_result', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, nlist
 
@@ -167,8 +160,6 @@ CONTAINS
       CHARACTER(LEN=default_string_length)               :: description
       REAL(KIND=dp), DIMENSION(:)                        :: values
       INTEGER, OPTIONAL                                  :: nval, n_rep, n_entries
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_result_r1', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, k, nlist, nrep, size_res, size_values
 
@@ -242,8 +233,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :)                     :: values
       INTEGER, OPTIONAL                                  :: nval, n_rep, n_entries
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_result_r2', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, k, nlist, nrep, size_res, size_values
 
       CPASSERT(ASSOCIATED(results))
@@ -314,8 +303,6 @@ CONTAINS
       CHARACTER(LEN=default_string_length)               :: description
       INTEGER, OPTIONAL                                  :: n_rep, n_entries, type_in_use
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_nreps', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: I, nlist
 
       CPASSERT(ASSOCIATED(results))
@@ -372,9 +359,6 @@ CONTAINS
       TYPE(cp_result_type), POINTER                      :: results
       CHARACTER(LEN=default_string_length), OPTIONAL     :: description
       INTEGER, OPTIONAL                                  :: nval
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_results_erase', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: entry_deleted, i, k, new_size, nlist, &
                                                             nrep
@@ -446,9 +430,6 @@ CONTAINS
       TYPE(cp_result_type), POINTER                      :: results
       INTEGER, INTENT(IN)                                :: source
       TYPE(cp_para_env_type), POINTER                    :: para_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_results_mp_bcast', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, nlist
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: size_value, type_in_use

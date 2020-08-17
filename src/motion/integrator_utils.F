@@ -116,8 +116,6 @@ CONTAINS
       TYPE(particle_type), POINTER                       :: particle_set(:)
       TYPE(npt_info_type), POINTER                       :: npt(:, :)
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'allocate_old', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: idim, jdim, natoms
 
       natoms = SIZE(particle_set)
@@ -148,8 +146,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE deallocate_old(old)
       TYPE(old_variables_type), POINTER                  :: old
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'deallocate_old', routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(old)) THEN
          IF (ASSOCIATED(old%v)) THEN
@@ -189,8 +185,6 @@ CONTAINS
       TYPE(tmp_variables_type), POINTER                  :: tmp
       INTEGER, INTENT(IN)                                :: nparticle, nshell
       LOGICAL, INTENT(IN)                                :: shell_adiabatic
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'allocate_tmp', routineP = moduleN//':'//routineN
 
       CPASSERT(.NOT. ASSOCIATED(tmp))
       ALLOCATE (tmp)
@@ -271,9 +265,6 @@ CONTAINS
       LOGICAL, INTENT(IN)                                :: shell_adiabatic
       LOGICAL, INTENT(IN), OPTIONAL                      :: pos, vel, should_deall_vel
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'update_dealloc_tmp', &
-         routineP = moduleN//':'//routineN
-
       LOGICAL                                            :: my_deall, my_pos, my_vel
 
       CPASSERT(ASSOCIATED(tmp))
@@ -344,8 +335,6 @@ CONTAINS
       TYPE(cp_para_env_type), POINTER                    :: para_env
       LOGICAL, INTENT(IN), OPTIONAL                      :: tmpv
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_s_ds', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: iparticle, iparticle_kind, &
                                                             iparticle_local, nparticle_local
       LOGICAL                                            :: my_tmpv
@@ -413,9 +402,6 @@ CONTAINS
       TYPE(npt_info_type), DIMENSION(:, :), POINTER      :: npt
       CHARACTER(LEN=*), INTENT(IN)                       :: char
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'set_particle_set', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: idim, iparticle, iparticle_kind, &
                                                             iparticle_local, nparticle_kind, &
                                                             nparticle_local
@@ -477,8 +463,6 @@ CONTAINS
       TYPE(cell_type), POINTER                           :: cell
       TYPE(npt_info_type), DIMENSION(:, :), POINTER      :: npt
       CHARACTER(LEN=*), INTENT(IN)                       :: char
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'set_vel', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: idim, iparticle, iparticle_kind, &
                                                             iparticle_local, nparticle_kind, &
@@ -1143,8 +1127,6 @@ CONTAINS
       REAL(KIND=dp)                                      :: dt
       REAL(KIND=dp), DIMENSION(3, 3), OPTIONAL           :: u
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'vv_first', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: iparticle, iparticle_kind, &
                                                             iparticle_local, nparticle_local, &
                                                             shell_index
@@ -1349,8 +1331,6 @@ CONTAINS
       REAL(KIND=dp)                                      :: dt
       REAL(KIND=dp), DIMENSION(3, 3), OPTIONAL           :: u
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'vv_second', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: iparticle, iparticle_kind, &
                                                             iparticle_local, nparticle_local, &
                                                             shell_index
@@ -1481,9 +1461,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(IN)                          :: u(3, 3), dm, dt, poly_v(3), poly_r(3), &
                                                             scale_v(3), scale_r(3)
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'transform_first', &
-         routineP = moduleN//':'//routineN
-
       REAL(KIND=dp), DIMENSION(3)                        :: uf, ur, uv
 
       CALL matvec_3x3(ur, TRANSPOSE_3D(u), particle_set(index)%r(:))
@@ -1523,9 +1500,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: vel
       INTEGER, INTENT(IN)                                :: index
       REAL(KIND=dp), INTENT(IN)                          :: u(3, 3), dm, poly_v(3), scale_v(3)
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'transform_second', &
-         routineP = moduleN//':'//routineN
 
       REAL(KIND=dp), DIMENSION(3)                        :: uf, uv
 
@@ -1574,9 +1548,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: nparticle_kind
       LOGICAL, INTENT(IN)                                :: shell_adiabatic
       TYPE(npt_info_type), OPTIONAL, POINTER             :: npt(:, :)
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'variable_timestep', &
-         routineP = moduleN//':'//routineN
 
       INTEGER, SAVE                                      :: itime = 0
       REAL(KIND=dp)                                      :: dt_fact, dt_fact_f, dt_fact_old, &
@@ -1687,8 +1658,6 @@ CONTAINS
       LOGICAL, INTENT(IN)                                :: shell_adiabatic
       TYPE(npt_info_type), OPTIONAL, POINTER             :: npt(:, :)
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'rescaled_vv_first', &
-         routineP = moduleN//':'//routineN
       REAL(KIND=dp), PARAMETER                           :: e2 = 1.0_dp/6.0_dp, e4 = e2/20.0_dp, &
                                                             e6 = e4/42.0_dp, e8 = e6/72.0_dp
 

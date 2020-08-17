@@ -158,7 +158,7 @@ CONTAINS
       CHARACTER(len=*), INTENT(in), OPTIONAL             :: name
       LOGICAL, INTENT(in), OPTIONAL                      :: use_sp
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_create', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'cp_fm_create'
 
       INTEGER                                            :: handle, ncol_local, npcol, nprow, &
                                                             nrow_local
@@ -226,8 +226,6 @@ CONTAINS
    SUBROUTINE cp_fm_retain(matrix)
       TYPE(cp_fm_type), POINTER                          :: matrix
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_retain', routineP = moduleN//':'//routineN
-
       CPASSERT(ASSOCIATED(matrix))
       CPASSERT(matrix%ref_count > 0)
       matrix%ref_count = matrix%ref_count + 1
@@ -244,7 +242,7 @@ CONTAINS
    SUBROUTINE cp_fm_release(matrix)
       TYPE(cp_fm_type), POINTER                          :: matrix
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_release', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'cp_fm_release'
 
       INTEGER                                            :: handle
 
@@ -284,8 +282,7 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                          :: matrix
       INTEGER, INTENT(IN), OPTIONAL                      :: ncol, start_col
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_init_random', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'cp_fm_init_random'
 
       INTEGER :: handle, icol_global, icol_local, irow_local, my_ncol, my_start_col, ncol_global, &
          ncol_local, nrow_global, nrow_local
@@ -368,7 +365,7 @@ CONTAINS
       REAL(KIND=dp), INTENT(IN)                          :: alpha
       REAL(KIND=dp), INTENT(IN), OPTIONAL                :: beta
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_set_all', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'cp_fm_set_all'
 
       INTEGER                                            :: handle, i, n
 
@@ -404,9 +401,6 @@ CONTAINS
       ! arguments
       TYPE(cp_fm_type), POINTER                  :: matrix
       REAL(KIND=dp), DIMENSION(:), INTENT(OUT) :: diag
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_get_diag', &
-                                     routineP = moduleN//':'//routineN
 
       ! locals
       INTEGER :: i, nrow_global
@@ -539,9 +533,6 @@ CONTAINS
       INTEGER, INTENT(IN)                      :: irow_global, icol_global
       REAL(KIND=dp), INTENT(IN)                :: alpha
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_set_element', &
-                                     routineP = moduleN//':'//routineN
-
       INTEGER                                  :: mypcol, myprow, npcol, nprow
       TYPE(cp_blacs_env_type), POINTER         :: context
 #if defined(__SCALAPACK)
@@ -611,9 +602,6 @@ CONTAINS
       INTEGER, INTENT(in), OPTIONAL                      :: start_row, start_col, n_rows, n_cols
       REAL(KIND=dp), INTENT(in), OPTIONAL                :: alpha, beta
       LOGICAL, INTENT(in), OPTIONAL                      :: transpose
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_set_submatrix', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, i0, j, j0, ncol, ncol_block, &
                                                             ncol_global, ncol_local, nrow, &
@@ -750,8 +738,7 @@ CONTAINS
       INTEGER, INTENT(in), OPTIONAL                      :: start_row, start_col, n_rows, n_cols
       LOGICAL, INTENT(in), OPTIONAL                      :: transpose
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_get_submatrix', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_get_submatrix'
 
       INTEGER                                            :: handle, i, i0, j, j0, ncol, ncol_global, &
                                                             ncol_local, nrow, nrow_global, &
@@ -876,8 +863,6 @@ CONTAINS
       TYPE(cp_fm_struct_type), OPTIONAL, POINTER         :: matrix_struct
       TYPE(cp_para_env_type), OPTIONAL, POINTER          :: para_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_get_info', routineP = moduleN//':'//routineN
-
       IF (PRESENT(name)) name = matrix%name
       IF (PRESENT(context)) context => matrix%matrix_struct%context
       IF (PRESENT(matrix_struct)) matrix_struct => matrix%matrix_struct
@@ -930,8 +915,7 @@ CONTAINS
       REAL(KIND=dp), INTENT(OUT)                         :: a_max
       INTEGER, INTENT(OUT), OPTIONAL                     :: ir_max, ic_max
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_maxabsval', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'cp_fm_maxabsval'
 
       INTEGER                                            :: handle, i, ic_max_local, ir_max_local, &
                                                             j, mepos, ncol_local, nrow_local, &
@@ -1032,8 +1016,7 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                          :: matrix
       REAL(KIND=dp), INTENT(OUT)                         :: a_max
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_maxabsrownorm', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_maxabsrownorm'
 
       INTEGER                                            :: handle, i, j, ncol_local, nrow_global, &
                                                             nrow_local
@@ -1074,8 +1057,7 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                          :: matrix
       REAL(KIND=dp), DIMENSION(:), INTENT(OUT)           :: norm_array
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_vectorsnorm', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'cp_fm_vectorsnorm'
 
       INTEGER                                            :: handle, i, j, ncol_global, ncol_local, &
                                                             nrow_local
@@ -1121,8 +1103,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), INTENT(OUT)           :: sum_array
       CHARACTER(LEN=1), INTENT(IN), OPTIONAL             :: dir
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_vectorssum', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'cp_fm_vectorssum'
 
       INTEGER                                            :: handle, i, j, ncol_local, nrow_local
       INTEGER, DIMENSION(:), POINTER                     :: col_indices, row_indices
@@ -1181,8 +1162,7 @@ CONTAINS
 
       TYPE(cp_fm_type), POINTER                          :: source, destination
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_to_fm_matrix', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_to_fm_matrix'
 
       INTEGER                                            :: handle, npcol, nprow
 
@@ -1252,8 +1232,7 @@ CONTAINS
       INTEGER, INTENT(IN)                      :: ncol
       INTEGER, INTENT(IN), OPTIONAL            :: source_start, target_start
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_to_fm_columns', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_to_fm_columns'
 
       INTEGER                                  :: handle, n, ss, ts
       REAL(KIND=dp), DIMENSION(:, :), POINTER  :: a, b
@@ -1300,8 +1279,7 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                :: msource, mtarget
       CHARACTER(LEN=*), INTENT(IN)             :: uplo
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_to_fm_triangular', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_to_fm_triangular'
 
       INTEGER                                  :: handle, ncol, nrow
       REAL(KIND=dp), DIMENSION(:, :), POINTER  :: a, b
@@ -1348,8 +1326,7 @@ CONTAINS
                                                   s_firstcol, t_firstrow, &
                                                   t_firstcol
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_to_fm_submat', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_to_fm_submat'
 
       INTEGER                                  :: handle, i, na, nb, ss, ts
       REAL(KIND=dp), DIMENSION(:, :), POINTER  :: a, b
@@ -1411,8 +1388,7 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                          :: source, destination
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_copy_general', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_copy_general'
 
       INTEGER                                            :: handle
       TYPE(copy_info_type)                               :: info
@@ -1443,8 +1419,7 @@ CONTAINS
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(copy_info_type), INTENT(OUT)                  :: info
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_start_copy_general', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_start_copy_general'
 
       INTEGER :: dest_p_i, dest_q_j, global_comm, global_rank, global_size, handle, i, j, k, &
          mpi_rank, ncol_block_dest, ncol_block_src, ncol_local_recv, ncol_local_send, ncols, &
@@ -1775,8 +1750,7 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                          :: destination
       TYPE(copy_info_type), INTENT(INOUT)                :: info
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_finish_copy_general', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_finish_copy_general'
 
       INTEGER                                            :: handle, i, j, k, mpi_rank, send_size, &
                                                             src_p_i, src_q_j
@@ -1857,8 +1831,7 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                          :: source
       TYPE(copy_info_type), INTENT(INOUT)                :: info
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_cleanup_copy_general', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_cleanup_copy_general'
 
       INTEGER                                            :: handle
       INTEGER, DIMENSION(:), POINTER                     :: send_request
@@ -1932,8 +1905,7 @@ CONTAINS
                                                   d_firstrow, d_firstcol, &
                                                   global_context
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_to_fm_submat_general', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_to_fm_submat_general'
 
       LOGICAL                                  :: debug
       INTEGER                                  :: handle
@@ -2026,9 +1998,6 @@ CONTAINS
       INTEGER, INTENT(IN)                      :: irow_global, icol_global
       REAL(KIND=dp), INTENT(IN)                :: alpha
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_add_to_element', &
-                                     routineP = moduleN//':'//routineN
-
       INTEGER                                  :: mypcol, myprow, npcol, nprow
       REAL(KIND=dp), DIMENSION(:, :), POINTER  :: a
       TYPE(cp_blacs_env_type), POINTER         :: context
@@ -2078,8 +2047,7 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                :: fm
       INTEGER                                  :: unit
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_write_unformatted', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_write_unformatted'
 
       INTEGER                                  :: handle, j, max_block, &
                                                   ncol_global, nrow_global
@@ -2182,8 +2150,7 @@ CONTAINS
       INTEGER                                  :: unit
       CHARACTER(LEN=*), OPTIONAL               :: header, value_format
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_write_formatted', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_write_formatted'
 
       CHARACTER(LEN=21)                        :: my_value_format
       INTEGER                                  :: handle, i, j, max_block, &
@@ -2309,8 +2276,7 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                :: fm
       INTEGER                                  :: unit
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_read_unformatted', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_read_unformatted'
 
       INTEGER                                  :: handle, j, max_block, &
                                                   ncol_global, nrow_global
@@ -2397,9 +2363,6 @@ CONTAINS
       INTEGER, INTENT(IN)                      :: INDXGLOB, NB, IPROC, ISRCPROC, NPROCS
       INTEGER                                  :: G2P
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_indxg2p', &
-                                     routineP = moduleN//':'//routineN
-
 #if defined(__SCALAPACK)
       INTEGER, EXTERNAL :: indxg2p
 #endif
@@ -2458,9 +2421,6 @@ CONTAINS
    FUNCTION cp_fm_indxg2l(INDXGLOB, NB, IPROC, ISRCPROC, NPROCS) RESULT(G2L)
       INTEGER, INTENT(IN)                      :: INDXGLOB, NB, IPROC, ISRCPROC, NPROCS
       INTEGER                                  :: G2L
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_indxg2l', &
-                                     routineP = moduleN//':'//routineN
 
 #if defined(__SCALAPACK)
       INTEGER, EXTERNAL :: indxg2l
@@ -2521,9 +2481,6 @@ CONTAINS
    FUNCTION cp_fm_indxl2g(INDXLOC, NB, IPROC, ISRCPROC, NPROCS) RESULT(L2G)
       INTEGER, INTENT(IN)                      :: INDXLOC, NB, IPROC, ISRCPROC, NPROCS
       INTEGER                                  :: L2G
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_indxl2g', &
-                                     routineP = moduleN//':'//routineN
 
 #if defined(__SCALAPACK)
       INTEGER, EXTERNAL :: indxl2g

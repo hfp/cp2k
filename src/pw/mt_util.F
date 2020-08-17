@@ -61,8 +61,7 @@ CONTAINS
       REAL(KIND=dp), INTENT(in)                          :: slab_size
       TYPE(pw_grid_type), POINTER                        :: super_ref_pw_grid
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'MTin_create_screen_fn', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'MTin_create_screen_fn'
 
       INTEGER                                            :: handle, ig, iz
       REAL(KIND=dp)                                      :: alpha2, g2, g3d, gxy, gz, zlength
@@ -143,7 +142,7 @@ CONTAINS
       TYPE(pw_type), POINTER                             :: Vloc
       REAL(KIND=dp), INTENT(in)                          :: alpha
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mt0din', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'mt0din'
 
       INTEGER                                            :: handle, i, ii, j, jj, k, kk
       INTEGER, DIMENSION(:), POINTER                     :: glb
@@ -203,7 +202,7 @@ CONTAINS
    SUBROUTINE mt1din(screen_function)
       TYPE(pw_type), POINTER                             :: screen_function
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mt1din', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'mt1din'
 
       INTEGER                                            :: handle
       REAL(KIND=dp)                                      :: dx, dy, dz, omega

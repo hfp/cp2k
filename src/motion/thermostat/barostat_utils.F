@@ -57,9 +57,6 @@ CONTAINS
       TYPE(npt_info_type), DIMENSION(:, :), INTENT(IN)   :: npt
       REAL(KIND=dp), INTENT(OUT)                         :: baro_kin, baro_pot
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'get_baro_energies', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, j
       REAL(dp)                                           :: iv0, v0, v_shock
 
@@ -105,9 +102,6 @@ CONTAINS
       TYPE(cell_type), POINTER                           :: cell
       INTEGER, INTENT(IN)                                :: itimes
       REAL(KIND=dp), INTENT(IN)                          :: time
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'print_barostat_status', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: baro, nfree
       LOGICAL                                            :: new_file

@@ -116,7 +116,7 @@ CONTAINS
       TYPE(cp_para_env_type), POINTER                    :: para_env
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: Lai
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'libint_ri_mp2', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'libint_ri_mp2'
 
       INTEGER                                            :: handle, nkind
 
@@ -166,9 +166,6 @@ CONTAINS
       INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: RI_index_table
       INTEGER                                            :: RI_dimen
       TYPE(hfx_basis_type), DIMENSION(:), POINTER        :: basis_S0
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'read_RI_basis_set', &
-         routineP = moduleN//':'//routineN
 
       INTEGER :: co_counter, counter, i, iatom, ikind, ipgf, iset, j, k, la, max_am_kind, &
          max_coeff, max_nsgfl, max_pgf, max_pgf_kind, max_set, nl_count, nset, nseta, offset_a, &
@@ -358,9 +355,6 @@ CONTAINS
    SUBROUTINE release_RI_basis_set(RI_basis_parameter, basis_S0)
       TYPE(hfx_basis_type), DIMENSION(:), POINTER        :: RI_basis_parameter, basis_S0
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'release_RI_basis_set', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i
 
 ! RI basis
@@ -429,8 +423,7 @@ CONTAINS
       TYPE(hfx_basis_type), DIMENSION(:), POINTER        :: basis_S0
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: Lai
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_lai_libint', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'calc_lai_libint'
 
       INTEGER :: counter_L_blocks, handle, i, i_list_kl, i_set_list_kl, i_set_list_kl_start, &
          i_set_list_kl_stop, iatom, iatom_end, iatom_start, iiB, ikind, info_chol, iset, jatom, &
@@ -1042,8 +1035,7 @@ CONTAINS
          POINTER                                         :: RI_basis_parameter
       TYPE(hfx_basis_info_type), INTENT(IN), OPTIONAL    :: RI_basis_info
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'prepare_integral_calc', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'prepare_integral_calc'
 
       INTEGER                                            :: handle, i_thread, ii, ikind, irep, &
                                                             l_max, n_threads, ncos_max, nkind, &

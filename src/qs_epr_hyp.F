@@ -79,9 +79,6 @@ CONTAINS
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'qs_epr_hyp_calc', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=2)                                   :: element_symbol
       INTEGER                                            :: bo(2), group, ia, iat, iatom, idir1, &
                                                             idir2, ig, ikind, ir, iso, jatom, &

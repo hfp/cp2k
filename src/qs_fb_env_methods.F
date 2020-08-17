@@ -138,7 +138,7 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: scf_section
       LOGICAL, INTENT(INOUT)                             :: diis_step
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'fb_env_do_diag', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'fb_env_do_diag'
 
       CHARACTER(len=2)                                   :: spin_string
       CHARACTER(len=default_string_length)               :: name
@@ -619,8 +619,7 @@ CONTAINS
       INTEGER, INTENT(OUT)                               :: ndep
       INTEGER, INTENT(IN)                                :: method
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_env_eigensolver', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'fb_env_eigensolver'
 
       CHARACTER(len=8)                                   :: ndep_string
       INTEGER                                            :: handle, info, my_method, nao, nmo
@@ -737,8 +736,7 @@ CONTAINS
       TYPE(fb_env_obj), INTENT(INOUT)                    :: fb_env
       TYPE(section_vals_type), POINTER                   :: scf_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_env_read_input', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'fb_env_read_input'
 
       INTEGER                                            :: handle
       LOGICAL                                            :: l_val
@@ -787,8 +785,7 @@ CONTAINS
       TYPE(fb_env_obj), INTENT(INOUT)                    :: fb_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_env_build_rcut_auto', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'fb_env_build_rcut_auto'
 
       INTEGER                                            :: handle, ikind, nkinds
       REAL(KIND=dp)                                      :: auto_cutoff_scale, kind_radius
@@ -856,8 +853,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(section_vals_type), POINTER                   :: scf_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_env_build_atomic_halos', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'fb_env_build_atomic_halos'
 
       INTEGER :: handle, iatom, ihalo, max_natoms_local, natoms_global, natoms_local, nelectrons, &
          nhalo_atoms, nkinds_global, owner_id_in_halo
@@ -977,8 +973,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       REAL(KIND=dp), INTENT(IN)                          :: maxocc
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_env_build_trial_fns_auto', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'fb_env_build_trial_fns_auto'
 
       INTEGER                                            :: counter, handle, icgf, ico, ikind, iset, &
                                                             ishell, itrial, lshell, max_n_trial, &
@@ -1138,9 +1133,6 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix_out
       TYPE(dbcsr_type), INTENT(IN)                       :: matrix_in
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_dbcsr_copy_sparse_struct', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: iatom, iblk, jatom, nblkcols_total, &
                                                             nblkrows_total, nblks
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: cols, rows
@@ -1188,8 +1180,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(section_vals_type), POINTER                   :: scf_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_env_write_info', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'fb_env_write_info'
 
       CHARACTER(LEN=2)                                   :: element_symbol
       INTEGER                                            :: handle, ikind, nkinds, unit_nr

@@ -67,9 +67,6 @@ CONTAINS
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       INTEGER, INTENT(IN)                                :: nparticle
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'allocate_particle_set', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: iparticle
 
       IF (ASSOCIATED(particle_set)) THEN
@@ -99,9 +96,6 @@ CONTAINS
    SUBROUTINE deallocate_particle_set(particle_set)
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'deallocate_particle_set', &
-         routineP = moduleN//':'//routineN
-
       IF (ASSOCIATED(particle_set)) THEN
          DEALLOCATE (particle_set)
       ELSE
@@ -128,8 +122,7 @@ CONTAINS
       REAL(KIND=dp), INTENT(INOUT), OPTIONAL             :: pos(:, :), vel(:, :), for(:, :)
       LOGICAL, INTENT(IN), OPTIONAL                      :: add
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'update_particle_set', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'update_particle_set'
 
       INTEGER                                            :: handle, iparticle, nparticle
       LOGICAL                                            :: my_add, update_for, update_pos, &

@@ -85,9 +85,6 @@ CONTAINS
       REAL(KIND=dp)                                      :: energy_gap
       INTEGER                                            :: my_solver_type
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'make_preconditioner_matrix', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: precon_type
 
       precon_type = preconditioner_env%in_use
@@ -145,8 +142,7 @@ CONTAINS
       TYPE(preconditioner_type)                          :: preconditioner_env
       TYPE(dbcsr_type), POINTER                          :: matrix_s
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'make_full_s_inverse', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'make_full_s_inverse'
 
       INTEGER                                            :: handle
 
@@ -177,8 +173,7 @@ CONTAINS
       TYPE(dbcsr_type), POINTER                          :: matrix_t, matrix_s
       REAL(KIND=dp)                                      :: energy_gap
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'make_full_kinetic', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'make_full_kinetic'
 
       INTEGER                                            :: handle
       REAL(KIND=dp)                                      :: shift
@@ -218,8 +213,7 @@ CONTAINS
       TYPE(dbcsr_type), POINTER                          :: matrix_h, matrix_s
       REAL(KIND=dp)                                      :: energy_homo, energy_gap
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'make_full_single', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'make_full_single'
 
       INTEGER                                            :: handle, i, n
       REAL(KIND=dp), DIMENSION(:), POINTER               :: evals
@@ -309,8 +303,7 @@ CONTAINS
       TYPE(dbcsr_type), POINTER                          :: matrix_h
       REAL(KIND=dp)                                      :: energy_homo, energy_gap
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'make_full_single_ortho', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'make_full_single_ortho'
 
       INTEGER                                            :: handle, i, n
       REAL(KIND=dp), DIMENSION(:), POINTER               :: evals
@@ -379,7 +372,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), POINTER               :: c0_evals
       REAL(KIND=dp)                                      :: energy_gap
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'make_full_all', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'make_full_all'
       REAL(KIND=dp), PARAMETER                           :: fudge_factor = 0.25_dp, &
                                                             lambda_base = 10.0_dp
 
@@ -548,8 +541,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), POINTER               :: c0_evals
       REAL(KIND=dp)                                      :: energy_gap
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'make_full_all_ortho', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'make_full_all_ortho'
       REAL(KIND=dp), PARAMETER                           :: fudge_factor = 0.25_dp, &
                                                             lambda_base = 10.0_dp
 
@@ -688,8 +680,7 @@ CONTAINS
       REAL(KIND=dp)                                      :: energy_gap
       TYPE(dbcsr_type), OPTIONAL, POINTER                :: matrix_s
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'make_full_single_inverse', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'make_full_single_inverse'
 
       INTEGER                                            :: handle, k, n
       REAL(KIND=dp)                                      :: max_ev, min_ev, pre_shift

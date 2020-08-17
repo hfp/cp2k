@@ -36,9 +36,6 @@ CONTAINS
    SUBROUTINE create_mao_type(mao_env)
       TYPE(mao_type), POINTER                            :: mao_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_mao_type', &
-         routineP = moduleN//':'//routineN
-
       IF (ASSOCIATED(mao_env)) THEN
          CALL release_mao_type(mao_env)
       END IF
@@ -53,9 +50,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE release_mao_type(mao_env)
       TYPE(mao_type), POINTER                            :: mao_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'release_mao_type', &
-         routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(mao_env)) THEN
          DEALLOCATE (mao_env)

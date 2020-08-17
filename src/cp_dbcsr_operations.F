@@ -374,9 +374,6 @@ CONTAINS
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'dbcsr_copy_columns_hack', &
-                                     routineP = moduleN//':'//routineN
-
       INTEGER                                            :: nfullcols_total, nfullrows_total
       TYPE(cp_fm_struct_type), POINTER                   :: fm_struct
       TYPE(cp_fm_type), POINTER                          :: fm_matrix_a, fm_matrix_b
@@ -460,8 +457,7 @@ CONTAINS
       INTEGER, INTENT(in), OPTIONAL                      :: ncol
       REAL(dp), INTENT(IN), OPTIONAL                     :: alpha
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'dbcsr_multiply_local', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'dbcsr_multiply_local'
 
       INTEGER                                            :: blk, col, coloff, my_ncol, row, rowoff, &
                                                             timing_handle
@@ -553,8 +549,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: ncol
       REAL(dp), INTENT(IN), OPTIONAL                     :: alpha, beta
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_dbcsr_sm_fm_multiply', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_dbcsr_sm_fm_multiply'
 
       INTEGER                                            :: k_in, k_out, timing_handle, &
                                                             timing_handle_mult, &
@@ -694,8 +689,7 @@ CONTAINS
       REAL(KIND=dp), INTENT(IN), OPTIONAL                :: alpha
       LOGICAL, INTENT(IN), OPTIONAL                      :: keep_sparsity
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_dbcsr_plus_fm_fm_t_native', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_dbcsr_plus_fm_fm_t_native'
 
       INTEGER                                            :: npcols, k, nao, timing_handle, data_type
       INTEGER, DIMENSION(:), POINTER                     :: col_blk_size_left, &
@@ -836,9 +830,6 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                          :: fm_in
       TYPE(dbcsr_type), INTENT(IN)                    :: template
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_to_dbcsr_row_template', &
-                                     routineP = moduleN//':'//routineN
-
       INTEGER                                            :: k_in, data_type
       INTEGER, DIMENSION(:), POINTER                     :: col_blk_size_right_in, row_blk_size
       TYPE(dbcsr_distribution_type)                       :: tmpl_dist, dist_right_in
@@ -874,9 +865,6 @@ CONTAINS
       INTEGER                                            :: m, n
       CHARACTER, OPTIONAL                                :: sym
       INTEGER, OPTIONAL                                  :: data_type
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_dbcsr_m_by_n_from_template', &
-                                     routineP = moduleN//':'//routineN
 
       CHARACTER                                          :: mysym
       INTEGER                                            :: my_data_type, nprows, npcols
@@ -928,9 +916,6 @@ CONTAINS
       INTEGER                                            :: n
       CHARACTER, OPTIONAL                                :: sym
       INTEGER, OPTIONAL                                  :: data_type
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_dbcsr_m_by_n_from_row_template', &
-                                     routineP = moduleN//':'//routineN
 
       CHARACTER                                          :: mysym
       INTEGER                                            :: my_data_type, npcols
@@ -1079,9 +1064,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: ncolumns
       INTEGER, DIMENSION(:), INTENT(OUT), POINTER        :: right_col_blk_sizes
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'dbcsr_create_dist_r_unrot', &
-                                     routineP = moduleN//':'//routineN
-
       INTEGER                                            :: multiplicity, nimages, ncols, nprows, npcols
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: tmp_images
       INTEGER, DIMENSION(:), POINTER                     :: right_col_dist, right_row_dist, old_col_dist, dummy
@@ -1150,9 +1132,6 @@ CONTAINS
       INTEGER, DIMENSION(:), INTENT(IN)                  :: source_bins
       INTEGER, INTENT(IN)                                :: nbins, multiplicity, nimages
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'rebin_distribution', &
-                                     routineP = moduleN//':'//routineN
-
       INTEGER                                            :: bin, i, old_nbins, virtual_bin
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: bin_multiplier
 
@@ -1202,8 +1181,7 @@ CONTAINS
       INTEGER, DIMENSION(:, :), POINTER                  :: pgrid
       INTEGER, DIMENSION(:), INTENT(OUT), POINTER        :: row_blk_sizes, col_blk_sizes
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'dbcsr_create_dist_block_cyclic', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'dbcsr_create_dist_block_cyclic'
 
       INTEGER                                            :: nblkcols, nblkrows, npcols, nprows, &
                                                             pdim, sz
@@ -1278,9 +1256,6 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_set
       INTEGER, INTENT(IN)                                :: nmatrix
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'allocate_dbcsr_matrix_set_1d', &
-                                     routineP = moduleN//':'//routineN
-
       INTEGER                                            :: imatrix
 
       IF (ASSOCIATED(matrix_set)) CALL dbcsr_deallocate_matrix_set(matrix_set)
@@ -1301,9 +1276,6 @@ CONTAINS
    SUBROUTINE allocate_dbcsr_matrix_set_2d(matrix_set, nmatrix, mmatrix)
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: matrix_set
       INTEGER, INTENT(IN)                                :: nmatrix, mmatrix
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'allocate_dbcsr_matrix_set_2d', &
-                                     routineP = moduleN//':'//routineN
 
       INTEGER                                            :: imatrix, jmatrix
 
@@ -1328,9 +1300,6 @@ CONTAINS
    SUBROUTINE allocate_dbcsr_matrix_set_3d(matrix_set, nmatrix, mmatrix, pmatrix)
       TYPE(dbcsr_p_type), DIMENSION(:, :, :), POINTER    :: matrix_set
       INTEGER, INTENT(IN)                                :: nmatrix, mmatrix, pmatrix
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'allocate_dbcsr_matrix_set_3d', &
-                                     routineP = moduleN//':'//routineN
 
       INTEGER                                            :: imatrix, jmatrix, kmatrix
 
@@ -1357,9 +1326,6 @@ CONTAINS
    SUBROUTINE allocate_dbcsr_matrix_set_4d(matrix_set, nmatrix, mmatrix, pmatrix, qmatrix)
       TYPE(dbcsr_p_type), DIMENSION(:, :, :, :), POINTER    :: matrix_set
       INTEGER, INTENT(IN)                                :: nmatrix, mmatrix, pmatrix, qmatrix
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'allocate_dbcsr_matrix_set_4d', &
-                                     routineP = moduleN//':'//routineN
 
       INTEGER                                            :: imatrix, jmatrix, kmatrix, lmatrix
 
@@ -1389,9 +1355,6 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:, :, :, :, :), POINTER    :: matrix_set
       INTEGER, INTENT(IN)                                :: nmatrix, mmatrix, pmatrix, qmatrix, smatrix
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'allocate_dbcsr_matrix_set_5d', &
-                                     routineP = moduleN//':'//routineN
-
       INTEGER                                            :: imatrix, jmatrix, kmatrix, lmatrix, hmatrix
 
       IF (ASSOCIATED(matrix_set)) CALL dbcsr_deallocate_matrix_set(matrix_set)
@@ -1419,9 +1382,6 @@ CONTAINS
 
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_set
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'deallocate_dbcsr_matrix_set_1d', &
-                                     routineP = moduleN//':'//routineN
-
       INTEGER                                            :: imatrix
 
       IF (ASSOCIATED(matrix_set)) THEN
@@ -1442,9 +1402,6 @@ CONTAINS
    SUBROUTINE deallocate_dbcsr_matrix_set_2d(matrix_set)
 
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: matrix_set
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'deallocate_dbcsr_matrix_set_2d', &
-                                     routineP = moduleN//':'//routineN
 
       INTEGER                                            :: imatrix, jmatrix
 
@@ -1467,9 +1424,6 @@ CONTAINS
    SUBROUTINE deallocate_dbcsr_matrix_set_3d(matrix_set)
 
       TYPE(dbcsr_p_type), DIMENSION(:, :, :), POINTER    :: matrix_set
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'deallocate_dbcsr_matrix_set_3d', &
-                                     routineP = moduleN//':'//routineN
 
       INTEGER                                            :: imatrix, jmatrix, kmatrix
 
@@ -1494,9 +1448,6 @@ CONTAINS
    SUBROUTINE deallocate_dbcsr_matrix_set_4d(matrix_set)
 
       TYPE(dbcsr_p_type), DIMENSION(:, :, :, :), POINTER    :: matrix_set
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'deallocate_dbcsr_matrix_set_4d', &
-                                     routineP = moduleN//':'//routineN
 
       INTEGER                                            :: imatrix, jmatrix, kmatrix, lmatrix
 
@@ -1523,9 +1474,6 @@ CONTAINS
    SUBROUTINE deallocate_dbcsr_matrix_set_5d(matrix_set)
 
       TYPE(dbcsr_p_type), DIMENSION(:, :, :, :, :), POINTER    :: matrix_set
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'deallocate_dbcsr_matrix_set_5d', &
-                                     routineP = moduleN//':'//routineN
 
       INTEGER                                            :: imatrix, jmatrix, kmatrix, hmatrix, lmatrix
 

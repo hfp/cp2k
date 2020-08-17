@@ -70,9 +70,6 @@ CONTAINS
       CHARACTER&
          (len=default_path_length+default_string_length) :: res
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'parser_location', &
-         routineP = moduleN//':'//routineN
-
       CPASSERT(ASSOCIATED(parser))
       CPASSERT(parser%ref_count > 0)
       res = ", File: '"//TRIM(parser%input_file_name)//"', Line: "// &
@@ -97,9 +94,6 @@ CONTAINS
 
       TYPE(cp_parser_type), POINTER                      :: parser
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'parser_store_status', &
-         routineP = moduleN//':'//routineN
-
       CPASSERT(ASSOCIATED(parser))
       CPASSERT(parser%ref_count > 0)
       CPASSERT(ASSOCIATED(parser%status))
@@ -123,9 +117,6 @@ CONTAINS
    SUBROUTINE parser_retrieve_status(parser)
 
       TYPE(cp_parser_type), POINTER                      :: parser
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'parser_retrieve_status', &
-         routineP = moduleN//':'//routineN
 
       CPASSERT(ASSOCIATED(parser))
       CPASSERT(parser%ref_count > 0)
@@ -163,8 +154,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: nline
       LOGICAL, INTENT(out), OPTIONAL                     :: at_end
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'parser_read_line', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'parser_read_line'
 
       INTEGER                                            :: handle, iline, istat
 
@@ -218,9 +208,6 @@ CONTAINS
       TYPE(cp_parser_type), POINTER                      :: parser
       INTEGER, INTENT(OUT)                               :: istat
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'parser_get_line_from_buffer', &
-         routineP = moduleN//':'//routineN
-
       istat = 0
       ! Check buffer
       IF (parser%buffer%present_line_number == parser%buffer%size) THEN
@@ -252,8 +239,7 @@ CONTAINS
 
       TYPE(cp_parser_type), POINTER                      :: parser
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'parser_read_line_low', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'parser_read_line_low'
 
       INTEGER                                            :: handle, iline, imark, islen, istat, &
                                                             last_buffered_line_number
@@ -360,8 +346,7 @@ CONTAINS
 
       TYPE(cp_parser_type), POINTER                      :: parser
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'broadcast_input_information', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'broadcast_input_information'
 
       INTEGER                                            :: handle
       TYPE(cp_para_env_type), POINTER                    :: para_env
@@ -398,9 +383,6 @@ CONTAINS
       CHARACTER(LEN=*), INTENT(IN)                       :: line
       LOGICAL                                            :: resval
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'is_comment_line', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=1)                                   :: thischar
       INTEGER                                            :: icol
 
@@ -430,8 +412,6 @@ CONTAINS
       CHARACTER(LEN=1), INTENT(IN)                       :: testchar
       LOGICAL                                            :: resval
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'is_comment', routineP = moduleN//':'//routineN
-
       resval = .FALSE.
       ! We are in a private function, and parser has been tested before...
       IF (ANY(parser%comment_character == testchar)) resval = .TRUE.
@@ -453,9 +433,6 @@ CONTAINS
       TYPE(cp_parser_type), POINTER                      :: parser
       INTEGER, INTENT(IN)                                :: nline
       LOGICAL, INTENT(out), OPTIONAL                     :: at_end
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'parser_get_next_line', &
-         routineP = moduleN//':'//routineN
 
       LOGICAL                                            :: my_at_end
 
@@ -483,9 +460,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE parser_skip_space(parser)
       TYPE(cp_parser_type), POINTER                      :: parser
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'parser_skip_space', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i
       LOGICAL                                            :: at_end
@@ -564,9 +538,6 @@ CONTAINS
 
       TYPE(cp_parser_type), POINTER                      :: parser
       INTEGER, INTENT(IN), OPTIONAL                      :: string_length
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'parser_next_token', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=1)                                   :: token
       INTEGER                                            :: i, len_trim_inputline, length
@@ -737,9 +708,6 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: string_length
       CHARACTER(LEN=3)                                   :: test_result
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'parser_test_next_token', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=max_line_length)                     :: error_message, string
       INTEGER                                            :: iz, n
       LOGICAL                                            :: ilist_in_use
@@ -839,9 +807,6 @@ CONTAINS
       LOGICAL, INTENT(OUT)                               :: found
       CHARACTER(LEN=*), INTENT(OUT), OPTIONAL            :: line
       LOGICAL, INTENT(IN), OPTIONAL                      :: begin_line, search_from_begin_of_file
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'parser_search_string', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=LEN(string))                         :: pattern
       CHARACTER(LEN=max_line_length+1)                   :: current_line
@@ -1011,9 +976,6 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: skip_lines, string_length
       LOGICAL, INTENT(out), OPTIONAL                     :: at_end
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'parser_get_integer', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=max_line_length)                     :: error_message
       INTEGER                                            :: nline
       LOGICAL                                            :: my_at_end
@@ -1101,9 +1063,6 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: skip_lines, string_length
       LOGICAL, INTENT(out), OPTIONAL                     :: at_end
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'parser_get_logical', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=max_line_length)                     :: input_string
       INTEGER                                            :: input_string_length, nline
       LOGICAL                                            :: my_at_end
@@ -1183,9 +1142,6 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: skip_lines, string_length
       LOGICAL, INTENT(out), OPTIONAL                     :: at_end
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'parser_get_real', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=max_line_length)                     :: error_message
       INTEGER                                            :: nline
       LOGICAL                                            :: my_at_end
@@ -1255,9 +1211,6 @@ CONTAINS
       LOGICAL, INTENT(IN), OPTIONAL                      :: lower_to_upper, newline
       INTEGER, INTENT(IN), OPTIONAL                      :: skip_lines, string_length
       LOGICAL, INTENT(out), OPTIONAL                     :: at_end
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'parser_get_string', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: input_string_length, nline
       LOGICAL                                            :: my_at_end

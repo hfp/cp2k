@@ -158,7 +158,7 @@ CONTAINS
       LOGICAL, INTENT(IN)                                :: do_dbc_cube
       TYPE(pw_pool_type), INTENT(IN), OPTIONAL, POINTER  :: pw_pool
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'dbc_release', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'dbc_release'
 
       INTEGER                                            :: handle, i, n_contacts
 
@@ -196,8 +196,7 @@ CONTAINS
       TYPE(dirichlet_bc_type), INTENT(INOUT), POINTER    :: dbc
       TYPE(pw_pool_type), INTENT(IN), OPTIONAL, POINTER  :: pw_pool
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'dbc_tile_release', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'dbc_tile_release'
 
       INTEGER                                            :: handle, k, n_tiles
 
@@ -232,9 +231,6 @@ CONTAINS
    SUBROUTINE dbc_parameters_dealloc(dbc_params)
 
       TYPE(dirichlet_bc_parameters), INTENT(INOUT)       :: dbc_params
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'dbc_parameters_dealloc', &
-         routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(dbc_params%aa_planar_nprtn)) DEALLOCATE (dbc_params%aa_planar_nprtn)
       IF (ASSOCIATED(dbc_params%aa_planar_pplane)) DEALLOCATE (dbc_params%aa_planar_pplane)

@@ -66,9 +66,6 @@ CONTAINS
       TYPE(section_type), POINTER                        :: section
       LOGICAL, INTENT(IN), OPTIONAL                      :: coupled_thermostat
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_thermo_slow_section', &
-         routineP = moduleN//':'//routineN
-
       LOGICAL                                            :: my_coupled_thermostat
       TYPE(keyword_type), POINTER                        :: keyword
       TYPE(section_type), POINTER                        :: nose_section, region_section
@@ -142,9 +139,6 @@ CONTAINS
       TYPE(section_type), POINTER                        :: section
       LOGICAL, INTENT(IN), OPTIONAL                      :: coupled_thermostat
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_thermo_fast_section', &
-         routineP = moduleN//':'//routineN
-
       LOGICAL                                            :: my_coupled_thermostat
       TYPE(keyword_type), POINTER                        :: keyword
       TYPE(section_type), POINTER                        :: nose_section, region_section
@@ -217,9 +211,6 @@ CONTAINS
    SUBROUTINE create_thermostat_section(section, coupled_thermostat)
       TYPE(section_type), POINTER                        :: section
       LOGICAL, INTENT(IN), OPTIONAL                      :: coupled_thermostat
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_thermostat_section', &
-         routineP = moduleN//':'//routineN
 
       LOGICAL                                            :: my_coupled_thermostat
       TYPE(keyword_type), POINTER                        :: keyword
@@ -310,9 +301,6 @@ CONTAINS
    SUBROUTINE create_print_section(section)
       TYPE(section_type), POINTER                        :: section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_print_section', &
-         routineP = moduleN//':'//routineN
-
       TYPE(section_type), POINTER                        :: print_key
 
       CPASSERT(.NOT. ASSOCIATED(section))
@@ -353,9 +341,6 @@ CONTAINS
    SUBROUTINE create_region_section(section, label)
       TYPE(section_type), POINTER                        :: section
       CHARACTER(LEN=*), INTENT(IN)                       :: label
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_region_section', &
-         routineP = moduleN//':'//routineN
 
       TYPE(keyword_type), POINTER                        :: keyword
 
@@ -416,9 +401,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE create_nose_section(section)
       TYPE(section_type), POINTER                        :: section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_nose_section', &
-         routineP = moduleN//':'//routineN
 
       TYPE(keyword_type), POINTER                        :: keyword
       TYPE(section_type), POINTER                        :: subsection
@@ -484,9 +466,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE create_gle_section(section)
       TYPE(section_type), POINTER                        :: section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_gle_section', &
-         routineP = moduleN//':'//routineN
 
       TYPE(keyword_type), POINTER                        :: keyword
       TYPE(section_type), POINTER                        :: subsection
@@ -556,9 +535,6 @@ CONTAINS
    SUBROUTINE create_gles_section(section)
       TYPE(section_type), POINTER                        :: section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_gles_section', &
-         routineP = moduleN//':'//routineN
-
       TYPE(keyword_type), POINTER                        :: keyword
 
       CPASSERT(.NOT. ASSOCIATED(section))
@@ -582,9 +558,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE create_csvr_section(section)
       TYPE(section_type), POINTER                        :: section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_csvr_section', &
-         routineP = moduleN//':'//routineN
 
       TYPE(keyword_type), POINTER                        :: keyword
       TYPE(section_type), POINTER                        :: subsection
@@ -624,9 +597,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE create_al_section(section)
       TYPE(section_type), POINTER                        :: section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_al_section', &
-         routineP = moduleN//':'//routineN
 
       TYPE(keyword_type), POINTER                        :: keyword
       TYPE(section_type), POINTER                        :: subsection
@@ -684,9 +654,6 @@ CONTAINS
       TYPE(section_type), POINTER                        :: section
       CHARACTER(len=*)                                   :: sec_name
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_thermo_chi_mass_section', &
-         routineP = moduleN//':'//routineN
-
       TYPE(keyword_type), POINTER                        :: keyword
 
       CPASSERT(.NOT. ASSOCIATED(section))
@@ -711,9 +678,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE create_thermo_energy_section(section)
       TYPE(section_type), POINTER                        :: section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_thermo_energy_section', &
-         routineP = moduleN//':'//routineN
 
       TYPE(keyword_type), POINTER                        :: keyword
 
@@ -741,9 +705,6 @@ CONTAINS
       TYPE(section_type), POINTER                        :: section
       CHARACTER(LEN=*), INTENT(IN)                       :: name
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_force_section', &
-         routineP = moduleN//':'//routineN
-
       TYPE(keyword_type), POINTER                        :: keyword
 
       CPASSERT(.NOT. ASSOCIATED(section))
@@ -769,9 +730,6 @@ CONTAINS
    SUBROUTINE create_mass_section(section, name)
       TYPE(section_type), POINTER                        :: section
       CHARACTER(LEN=*), INTENT(IN)                       :: name
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_mass_section', &
-         routineP = moduleN//':'//routineN
 
       TYPE(keyword_type), POINTER                        :: keyword
 
@@ -799,9 +757,6 @@ CONTAINS
       TYPE(section_type), POINTER                        :: section
       CHARACTER(LEN=*), INTENT(IN)                       :: name
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_velocity_section', &
-         routineP = moduleN//':'//routineN
-
       TYPE(keyword_type), POINTER                        :: keyword
 
       CPASSERT(.NOT. ASSOCIATED(section))
@@ -827,9 +782,6 @@ CONTAINS
    SUBROUTINE create_coord_section(section, name)
       TYPE(section_type), POINTER                        :: section
       CHARACTER(LEN=*), INTENT(IN)                       :: name
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_coord_section', &
-         routineP = moduleN//':'//routineN
 
       TYPE(keyword_type), POINTER                        :: keyword
 

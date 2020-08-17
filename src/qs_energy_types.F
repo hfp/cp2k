@@ -95,8 +95,7 @@ CONTAINS
 
       TYPE(qs_energy_type), POINTER                      :: qs_energy
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'allocate_qs_energy', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'allocate_qs_energy'
 
       INTEGER                                            :: handle
 
@@ -121,9 +120,6 @@ CONTAINS
    SUBROUTINE deallocate_qs_energy(qs_energy)
       TYPE(qs_energy_type), POINTER                      :: qs_energy
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'deallocate_qs_energy', &
-         routineP = moduleN//':'//routineN
-
       IF (ASSOCIATED(qs_energy)) THEN
          IF (ASSOCIATED(qs_energy%ddapc_restraint)) THEN
             DEALLOCATE (qs_energy%ddapc_restraint)
@@ -147,8 +143,6 @@ CONTAINS
    SUBROUTINE init_qs_energy(qs_energy)
 
       TYPE(qs_energy_type), POINTER                      :: qs_energy
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'init_qs_energy', routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(qs_energy)) THEN
          qs_energy%core = 0.0_dp

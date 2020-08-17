@@ -120,8 +120,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(section_vals_type), POINTER                   :: scf_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_distribution_build', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'fb_distribution_build'
 
       INTEGER :: handle, i_common_set, iatom, ii, ipe, lb, lowest_cost_ind, my_pe, n_common_sets, &
          natoms, nhalo_atoms, nkinds, nprocs, owner_id_in_halo, pref_pe, ub
@@ -375,9 +374,6 @@ CONTAINS
          INTENT(IN)                                      :: dist_set
       TYPE(section_vals_type), POINTER                   :: scf_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_distribution_write_info', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ii, max_natoms, min_natoms, natoms, &
                                                             nprocs, unit_nr
       REAL(KIND=dp)                                      :: ave_cost, ave_natoms, max_cost, &
@@ -456,9 +452,6 @@ CONTAINS
       INTEGER, DIMENSION(:), INTENT(OUT)                 :: common_set_ids
       INTEGER, INTENT(OUT)                               :: n_common_sets
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_build_preferred_procs', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: icol, nprows, pcol, prow
       INTEGER, DIMENSION(:), POINTER                     :: col_dist
       INTEGER, DIMENSION(:, :), POINTER                  :: pgrid
@@ -502,9 +495,6 @@ CONTAINS
    SUBROUTINE fb_preferred_procs_list_release(preferred_procs_list)
       TYPE(fb_preferred_procs_list), INTENT(INOUT)       :: preferred_procs_list
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_preferred_procs_list_release', &
-         routineP = moduleN//':'//routineN
-
       IF (ASSOCIATED(preferred_procs_list%list)) THEN
          DEALLOCATE (preferred_procs_list%list)
       END IF
@@ -529,9 +519,6 @@ CONTAINS
          INTENT(IN)                                      :: dist_set
       INTEGER, DIMENSION(:), INTENT(OUT)                 :: local_atoms, local_atoms_starts, &
                                                             local_atoms_sizes
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_distribution_to_local_atoms', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: iatom, ipe, n_procs, pos
       LOGICAL                                            :: check_ok
@@ -568,9 +555,6 @@ CONTAINS
       TYPE(fb_distribution_list), INTENT(INOUT)          :: dist
       INTEGER, INTENT(IN), OPTIONAL                      :: nmax
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_distribution_init', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ii, my_nmax
 
       my_nmax = 0
@@ -599,9 +583,6 @@ CONTAINS
    SUBROUTINE fb_distribution_resize(dist, nmax)
       TYPE(fb_distribution_list), INTENT(INOUT)          :: dist
       INTEGER, INTENT(IN)                                :: nmax
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_distribution_resize', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ii, my_nmax
       TYPE(fb_distribution_element), DIMENSION(:), &
@@ -634,9 +615,6 @@ CONTAINS
    SUBROUTINE fb_distribution_add(dist, element)
       TYPE(fb_distribution_list), INTENT(INOUT)          :: dist
       TYPE(fb_distribution_element), INTENT(IN)          :: element
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_distribution_add', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ii, new_nelements, pos
 
@@ -710,9 +688,6 @@ CONTAINS
       TYPE(fb_distribution_list), INTENT(INOUT)          :: dist
       INTEGER, INTENT(IN)                                :: pos
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_distribution_remove_ind', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ii
       LOGICAL                                            :: check_ok
 
@@ -743,9 +718,6 @@ CONTAINS
       TYPE(fb_distribution_list), INTENT(INOUT)          :: dist
       TYPE(fb_distribution_element), INTENT(IN)          :: element
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_distribution_remove_el', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ii, pos
 
       pos = dist%nelements + 1
@@ -769,9 +741,6 @@ CONTAINS
       TYPE(fb_distribution_list), INTENT(INOUT)          :: dist_from
       INTEGER, INTENT(IN)                                :: pos
       TYPE(fb_distribution_list), INTENT(INOUT)          :: dist_to
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_distribution_move_ind', &
-         routineP = moduleN//':'//routineN
 
       LOGICAL                                            :: check_ok
       TYPE(fb_distribution_element)                      :: element
@@ -797,9 +766,6 @@ CONTAINS
       TYPE(fb_distribution_element), INTENT(IN)          :: element
       TYPE(fb_distribution_list), INTENT(INOUT)          :: dist_to
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_distribution_move_el', &
-         routineP = moduleN//':'//routineN
-
       LOGICAL                                            :: check_ok
 
       check_ok = ASSOCIATED(dist_from%list)
@@ -815,9 +781,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE fb_distribution_release(dist)
       TYPE(fb_distribution_list), INTENT(INOUT)          :: dist
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_distribution_release', &
-         routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(dist%list)) THEN
          DEALLOCATE (dist%list)

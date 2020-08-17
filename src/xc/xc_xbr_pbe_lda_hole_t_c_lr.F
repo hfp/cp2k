@@ -110,9 +110,6 @@ CONTAINS
       TYPE(xc_rho_cflags_type), INTENT(inout), OPTIONAL  :: needs
       INTEGER, INTENT(out), OPTIONAL                     :: max_deriv
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'xbr_pbe_lda_hole_tc_lr_lda_info', &
-         routineP = moduleN//':'//routineN
-
       IF (PRESENT(reference)) THEN
          reference = "{LDA version}"
       END IF
@@ -144,9 +141,6 @@ CONTAINS
       CHARACTER(LEN=*), INTENT(OUT), OPTIONAL            :: reference, shortform
       TYPE(xc_rho_cflags_type), INTENT(inout), OPTIONAL  :: needs
       INTEGER, INTENT(out), OPTIONAL                     :: max_deriv
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'xbr_pbe_lda_hole_tc_lr_lsd_info', &
-         routineP = moduleN//':'//routineN
 
       IF (PRESENT(reference)) THEN
          reference = "{LDA version}"
@@ -182,8 +176,7 @@ CONTAINS
       INTEGER, INTENT(in)                                :: grad_deriv
       TYPE(section_vals_type), POINTER                   :: params
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'xbr_pbe_lda_hole_tc_lr_lda_eval', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'xbr_pbe_lda_hole_tc_lr_lda_eval'
 
       INTEGER                                            :: handle, npoints
       INTEGER, DIMENSION(:, :), POINTER                  :: bo
@@ -292,9 +285,6 @@ CONTAINS
       REAL(kind=dp), DIMENSION(1:npoints), INTENT(inout) :: e_laplace_rho, e_tau, e_ndrho, e_rho, e_0
       REAL(kind=dp), DIMENSION(1:npoints), INTENT(in)    :: tau, laplace_rho, norm_drho, rho
       REAL(kind=dp), INTENT(in)                          :: epsilon_rho, sx, R, gamma
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'xbr_pbe_lda_hole_tc_lr_lda_calc', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ip
       REAL(dp) :: dFermi_dlaplace_rho, dFermi_dndrho, dFermi_drho, dFermi_dtau, e_0_br, e_0_lda, &
@@ -448,8 +438,7 @@ CONTAINS
       INTEGER, INTENT(in)                                :: grad_deriv
       TYPE(section_vals_type), POINTER                   :: params
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'xbr_pbe_lda_hole_tc_lr_lsd_eval', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'xbr_pbe_lda_hole_tc_lr_lsd_eval'
 
       INTEGER                                            :: handle, npoints
       INTEGER, DIMENSION(:, :), POINTER                  :: bo
@@ -586,9 +575,6 @@ CONTAINS
       REAL(kind=dp), DIMENSION(1:npoints), INTENT(inout) :: e_laplace_rho, e_tau, e_ndrho, e_rho, e_0
       REAL(kind=dp), DIMENSION(1:npoints), INTENT(in)    :: tau, laplace_rho, norm_drho, rho
       REAL(kind=dp), INTENT(in)                          :: epsilon_rho, sx, R, gamma
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'xbr_pbe_lda_hole_tc_lr_lsd_calc', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ip
       REAL(dp) :: dFermi_dlaplace_rho, dFermi_dndrho, dFermi_drho, dFermi_dtau, e_0_br, e_0_lda, &

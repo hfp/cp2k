@@ -59,9 +59,6 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: root_section
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'optimize_basis_init_read_input', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=default_path_length)                 :: main_dir
       INTEGER                                            :: iset, iweight, nrep
       TYPE(section_vals_type), POINTER                   :: kind_section, optbas_section, &
@@ -132,8 +129,6 @@ CONTAINS
    SUBROUTINE print_opt_info(opt_bas)
       TYPE(basis_optimization_type)                      :: opt_bas
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'print_opt_info', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: icomb, ikind, unit_nr
       TYPE(cp_logger_type), POINTER                      :: logger
 
@@ -167,9 +162,6 @@ CONTAINS
    SUBROUTINE generate_basis_combinations(opt_bas, optbas_section)
       TYPE(basis_optimization_type)                      :: opt_bas
       TYPE(section_vals_type), POINTER                   :: optbas_section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'generate_basis_combinations', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, ikind, j, n_rep
       INTEGER, DIMENSION(:), POINTER                     :: i_vals, tmp_i, tmp_i2
@@ -231,9 +223,6 @@ CONTAINS
       TYPE(basis_optimization_type)                      :: opt_bas
       INTEGER                                            :: set_id, bas_id
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_set_and_basis_id', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ncom, nset
 
       ncom = opt_bas%ncombinations
@@ -257,9 +246,6 @@ CONTAINS
       TYPE(basis_optimization_type)                      :: opt_bas
       TYPE(section_vals_type), POINTER                   :: optbas_section
       TYPE(cp_para_env_type), POINTER                    :: para_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'generate_computation_groups', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: iadd1, iadd2, icount, igroup, isize, j, &
                                                             ncalc, nproc, nptot
@@ -356,9 +342,6 @@ CONTAINS
       CHARACTER(LEN=default_path_length)                 :: output_file
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'update_derived_basis_sets', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ibasis, ikind, unit_nr
 
       DO ikind = 1, opt_bas%nkind
@@ -399,9 +382,6 @@ CONTAINS
       TYPE(derived_basis_info)                           :: info_new
       TYPE(flex_basis_type)                              :: basis, basis_new
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'update_used_parts', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: icont, iset, jcont, jset
 
       jset = 0
@@ -431,9 +411,6 @@ CONTAINS
    SUBROUTINE generate_derived_basis_sets(opt_bas, para_env)
       TYPE(basis_optimization_type)                      :: opt_bas
       TYPE(cp_para_env_type), POINTER                    :: para_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'generate_derived_basis_sets', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ibasis, ikind, iref, jbasis, unit_nr
 
@@ -488,8 +465,6 @@ CONTAINS
       CHARACTER(LEN=default_string_length)               :: element
       INTEGER                                            :: unit_nr
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'write_basis', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: iexp, iset
 
       IF (unit_nr > 0) THEN
@@ -520,9 +495,6 @@ CONTAINS
    SUBROUTINE setup_used_parts_init_basis(info_new, info_ref, basis, basis_new)
       TYPE(derived_basis_info)                           :: info_new, info_ref
       TYPE(flex_basis_type)                              :: basis, basis_new
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'setup_used_parts_init_basis', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, jset, lind, nsets
 
@@ -574,9 +546,6 @@ CONTAINS
       TYPE(subset_type)                                  :: subset, subset_new
       LOGICAL, DIMENSION(:)                              :: in_use
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_new_subset', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: icon, iind, il
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: tmp_l
 
@@ -625,9 +594,6 @@ CONTAINS
       TYPE(derived_basis_info)                           :: info
       TYPE(flex_basis_type)                              :: basis
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'init_deriv_info_ref', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i
 
       ALLOCATE (info%in_use_set(basis%nsets))
@@ -653,9 +619,6 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: kind_section
       TYPE(basis_optimization_type)                      :: opt_bas
       TYPE(cp_para_env_type), POINTER                    :: para_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'generate_initial_basis', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ikind, variable_counter
       LOGICAL                                            :: explicit
@@ -712,9 +675,6 @@ CONTAINS
       TYPE(derived_basis_info), DIMENSION(:)             :: deriv_info
       INTEGER                                            :: ikind
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'parse_derived_basis', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i_rep, iset, jset, n_rep, nsets
       INTEGER, DIMENSION(:), POINTER                     :: i_vals
       LOGICAL                                            :: explicit
@@ -766,9 +726,6 @@ CONTAINS
    SUBROUTINE setup_exp_constraints(kind1_section, flex_basis)
       TYPE(section_vals_type), POINTER                   :: kind1_section
       TYPE(flex_basis_type)                              :: flex_basis
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'setup_exp_constraints', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ipgf, irep, iset, nrep
       INTEGER, DIMENSION(:), POINTER                     :: def_exp
@@ -842,8 +799,6 @@ CONTAINS
       LOGICAL                                            :: is_bound, is_varlim
       INTEGER                                            :: irep
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'set_constraint', routineP = moduleN//':'//routineN
-
       REAL(KIND=dp)                                      :: r_val
       REAL(KIND=dp), DIMENSION(:), POINTER               :: r_vals
 
@@ -889,9 +844,6 @@ CONTAINS
       TYPE(flex_basis_type)                              :: basis
       INTEGER                                            :: x_ind
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'assign_x_to_basis', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: icont, ipgf, iset
 
       DO iset = 1, basis%nsets
@@ -932,9 +884,6 @@ CONTAINS
       CHARACTER(LEN=default_string_length)               :: element, basis_name
       TYPE(cp_para_env_type), POINTER                    :: para_env
       INTEGER                                            :: ikind
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'fill_basis_template', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: icont, idof, ipgf, irep, iset, nrep
       INTEGER, DIMENSION(:), POINTER                     :: switch
@@ -1077,8 +1026,6 @@ CONTAINS
       CHARACTER(LEN=default_string_length)               :: element, basis_name
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'parse_basis', routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=240)                                 :: line
       CHARACTER(LEN=242)                                 :: line2
       CHARACTER(LEN=LEN(basis_name)+2)                   :: basis_name2
@@ -1138,8 +1085,6 @@ CONTAINS
    SUBROUTINE parse_subset(parser, subset)
       TYPE(cp_parser_type), POINTER                      :: parser
       TYPE(subset_type)                                  :: subset
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'parse_subset', routineP = moduleN//':'//routineN
 
       CHARACTER(len=20*default_string_length)            :: line_att
       INTEGER                                            :: icon1, icon2, il, ipgf, ishell, istart
@@ -1210,9 +1155,6 @@ CONTAINS
    SUBROUTINE init_powell_var(p_param, powell_section)
       TYPE(opt_state_type)                               :: p_param
       TYPE(section_vals_type), POINTER                   :: powell_section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'init_powell_var', &
-         routineP = moduleN//':'//routineN
 
       p_param%state = 0
       p_param%nvar = 0

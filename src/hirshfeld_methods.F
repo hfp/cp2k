@@ -92,9 +92,6 @@ CONTAINS
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       INTEGER, INTENT(IN)                                :: unit_nr
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'write_hirshfeld_charges', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(len=2)                                   :: element_symbol
       INTEGER                                            :: iatom, ikind, natom, nspin
       REAL(KIND=dp)                                      :: refc, tc1, zeff
@@ -146,8 +143,6 @@ CONTAINS
       REAL(KIND=dp), OPTIONAL                            :: radius
       REAL(KIND=dp), DIMENSION(:), OPTIONAL, POINTER     :: radii_list
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_shape_function', &
-         routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: ngto = 8
 
       CHARACTER(len=2)                                   :: esym
@@ -237,9 +232,6 @@ CONTAINS
       TYPE(hirshfeld_type), POINTER                      :: hirshfeld_env
       REAL(KIND=dp), DIMENSION(:, :), INTENT(inout)      :: charges
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'comp_hirshfeld_charges', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: is
       LOGICAL                                            :: rho_r_valid
       REAL(KIND=dp)                                      :: tnfun
@@ -288,7 +280,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :, :), INTENT(OUT)     :: fout
       REAL(KIND=dp), DIMENSION(:, :, :), INTENT(IN)      :: fun1, fun2
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'hfun_scale', routineP = moduleN//':'//routineN
       REAL(KIND=dp), PARAMETER                           :: small = 1.0e-12_dp
 
       INTEGER                                            :: i1, i2, i3, n1, n2, n3
@@ -330,8 +321,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), INTENT(inout)      :: charges
       INTEGER, INTENT(IN)                                :: ounit
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'comp_hirshfeld_i_charges', &
-         routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: maxloop = 100
       REAL(KIND=dp), PARAMETER                           :: maxres = 1.0e-2_dp
 
@@ -411,8 +400,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(hirshfeld_type), POINTER                      :: hirshfeld_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'calculate_hirshfeld_normalization', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'calculate_hirshfeld_normalization'
 
       INTEGER                                            :: atom_a, handle, iatom, iex, ikind, &
                                                             ithread, j, natom, npme, nthread, &
@@ -531,8 +519,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), INTENT(inout), &
          OPTIONAL                                        :: fderiv
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'hirshfeld_integration', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'hirshfeld_integration'
 
       INTEGER                                            :: atom_a, handle, iatom, iex, ikind, &
                                                             ithread, j, natom, npme, nthread, &

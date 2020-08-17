@@ -86,9 +86,6 @@ CONTAINS
       TYPE(dbcsr_type), OPTIONAL, POINTER                :: rho_beta
       LOGICAL, INTENT(IN)                                :: antisymmetric
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'get_full_density', &
-         routineP = moduleN//':'//routineN
-
       INTEGER :: blk, block_size, data_from, dest, i, iatom, icpu, ikind, iset, jatom, jkind, &
          jset, mepos, ncpu, nseta, nsetb, pa, pa1, pb, pb1, req(2), source, source_cpu
       INTEGER, DIMENSION(:), POINTER                     :: nsgfa, nsgfb
@@ -213,9 +210,6 @@ CONTAINS
       TYPE(hfx_basis_type), DIMENSION(:), POINTER        :: basis_parameter
       REAL(dp), INTENT(IN), OPTIONAL                     :: off_diag_fac, diag_fac
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'distribute_ks_matrix', &
-         routineP = moduleN//':'//routineN
-
       INTEGER :: blk, block_size, data_to, dest, dest_cpu, i, iatom, icpu, ikind, iset, jatom, &
          jkind, jset, mepos, ncpu, nseta, nsetb, pa, pa1, pb, pb1, req(2), source
       INTEGER, DIMENSION(:), POINTER                     :: nsgfa, nsgfb
@@ -317,9 +311,6 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: ks_matrix
       INTEGER, INTENT(IN)                                :: irep
       REAL(dp), INTENT(IN)                               :: scaling_factor
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'scale_and_add_fock_to_ks_matrix', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: iatom, ikind, img, natom, nimages, nspins
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: kind_of, last_sgf_global
@@ -448,8 +439,7 @@ CONTAINS
       TYPE(hfx_2D_map), DIMENSION(:), POINTER            :: map_atoms_to_cpus
       INTEGER                                            :: nkind
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'get_atomic_block_maps', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'get_atomic_block_maps'
 
       INTEGER :: blk, handle, iatom, ibuf, icpu, ikind, ilist, iset, itask, jatom, jkind, jset, &
          natom, ncpu, nseta, nsetb, number_of_p_blocks, offset, tmp(2)

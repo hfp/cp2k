@@ -103,8 +103,7 @@ CONTAINS
       LOGICAL, INTENT(IN), OPTIONAL                      :: convert_precond_to_dbcsr
       INTEGER, INTENT(IN), OPTIONAL                      :: chol_type
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'make_preconditioner', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'make_preconditioner'
 
       INTEGER                                            :: handle, k, my_solver_type
       LOGICAL                                            :: my_convert_precond_to_dbcsr, &
@@ -228,9 +227,6 @@ CONTAINS
       TYPE(preconditioner_p_type), DIMENSION(:), POINTER :: preconditioner
       INTEGER, INTENT(IN)                                :: prec_type, nspins
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'restart_preconditioner', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ispin
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
       TYPE(cp_para_env_type), POINTER                    :: para_env
@@ -301,8 +297,7 @@ CONTAINS
       LOGICAL, INTENT(IN), OPTIONAL                      :: has_unit_metric, convert_to_dbcsr
       INTEGER, INTENT(IN), OPTIONAL                      :: chol_type
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'prepare_preconditioner', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'prepare_preconditioner'
 
       CHARACTER(LEN=default_string_length)               :: msg
       INTEGER                                            :: handle, icall, ispin, n_loops

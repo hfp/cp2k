@@ -97,8 +97,7 @@ CONTAINS
       TYPE(global_tree_type), POINTER                    :: next_el
       INTEGER                                            :: nr_temp
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'allocate_new_global_tree_node', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'allocate_new_global_tree_node'
 
       INTEGER                                            :: handle, itmp
 
@@ -131,8 +130,7 @@ CONTAINS
    SUBROUTINE deallocate_global_tree_node(gt_elem)
       TYPE(global_tree_type), POINTER                    :: gt_elem
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'deallocate_global_tree_node', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'deallocate_global_tree_node'
 
       INTEGER                                            :: handle
 
@@ -161,8 +159,7 @@ CONTAINS
       TYPE(tree_type), POINTER                           :: next_el
       INTEGER                                            :: nr_dim
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'allocate_new_sub_tree_node', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'allocate_new_sub_tree_node'
 
       INTEGER                                            :: handle
 
@@ -220,8 +217,7 @@ CONTAINS
    SUBROUTINE deallocate_sub_tree_node(tree_elem)
       TYPE(tree_type), POINTER                           :: tree_elem
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'deallocate_sub_tree_node', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'deallocate_sub_tree_node'
 
       INTEGER                                            :: handle
 
@@ -267,7 +263,7 @@ CONTAINS
       INTEGER, DIMENSION(:)                              :: job_counts
       REAL(KIND=dp), DIMENSION(4)                        :: worker_timings
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'init_tree_mod', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'init_tree_mod'
 
       INTEGER                                            :: handle, i
       TYPE(global_tree_type), POINTER                    :: global_tree
@@ -425,7 +421,7 @@ CONTAINS
       TYPE(global_tree_type), POINTER                    :: gt_tree_ptr
       TYPE(tmc_env_type), POINTER                        :: tmc_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'finalize_init', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'finalize_init'
 
       INTEGER                                            :: handle, i
 
@@ -492,8 +488,7 @@ CONTAINS
       TYPE(global_tree_type), INTENT(OUT), POINTER       :: new_elem
       INTEGER                                            :: reactivation_cc_count
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'create_new_gt_tree_node', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'create_new_gt_tree_node'
 
       INTEGER                                            :: handle, swap_conf
       LOGICAL                                            :: keep_on, n_acc
@@ -831,8 +826,7 @@ CONTAINS
       TYPE(global_tree_type), POINTER                    :: act_gt_el
       TYPE(tmc_env_type), POINTER                        :: tmc_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'create_new_subtree_node', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'create_new_subtree_node'
 
       INTEGER                                            :: conf, handle, itmp
       LOGICAL                                            :: mv_rejected, new_subbox
@@ -990,7 +984,7 @@ CONTAINS
       LOGICAL, OPTIONAL                                  :: draw
       TYPE(tmc_env_type), POINTER                        :: tmc_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'remove_gt_elem', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'remove_gt_elem'
 
       INTEGER                                            :: handle
 
@@ -1050,7 +1044,7 @@ CONTAINS
       LOGICAL, OPTIONAL                                  :: draw
       TYPE(tmc_env_type), POINTER                        :: tmc_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'remove_st_elem', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'remove_st_elem'
 
       INTEGER                                            :: handle
       LOGICAL                                            :: ready
@@ -1134,8 +1128,7 @@ CONTAINS
       LOGICAL                                            :: removed
       TYPE(tmc_env_type), POINTER                        :: tmc_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'remove_unused_g_tree', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'remove_unused_g_tree'
 
       INTEGER                                            :: handle
       LOGICAL                                            :: acc_removed, nacc_removed
@@ -1212,8 +1205,7 @@ CONTAINS
       LOGICAL                                            :: removed
       TYPE(tmc_env_type), POINTER                        :: tmc_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'remove_unused_s_tree', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'remove_unused_s_tree'
 
       INTEGER                                            :: handle, i
       LOGICAL                                            :: acc_removed, nacc_removed, remove_this
@@ -1327,8 +1319,7 @@ CONTAINS
       TYPE(global_tree_type), POINTER                    :: end_of_clean_tree, actual_ptr
       TYPE(tmc_env_type), POINTER                        :: tmc_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'remove_result_g_tree', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'remove_result_g_tree'
 
       INTEGER                                            :: handle
       TYPE(global_tree_type), POINTER                    :: tmp_ptr
@@ -1370,8 +1361,7 @@ CONTAINS
       TYPE(tree_type), POINTER                           :: end_of_clean_tree, actual_ptr
       TYPE(tmc_env_type), POINTER                        :: tmc_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'remove_result_s_tree', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'remove_result_s_tree'
 
       INTEGER                                            :: handle
       TYPE(tree_type), POINTER                           :: tmp_ptr
@@ -1419,8 +1409,7 @@ CONTAINS
       TYPE(elem_array_type), DIMENSION(:), POINTER       :: working_elem_list
       TYPE(tmc_env_type), POINTER                        :: tmc_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'remove_all_trees', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'remove_all_trees'
 
       INTEGER                                            :: handle, i, tree
       LOGICAL                                            :: change_trajec, flag
@@ -1512,9 +1501,6 @@ CONTAINS
       LOGICAL                                            :: removed
       TYPE(tmc_env_type), POINTER                        :: tmc_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'dealloc_whole_g_tree', &
-         routineP = moduleN//':'//routineN
-
       LOGICAL                                            :: acc_removed, nacc_removed
       TYPE(global_tree_type), POINTER                    :: acc_ptr, nacc_ptr, tmp_ptr
 
@@ -1556,9 +1542,6 @@ CONTAINS
       LOGICAL                                            :: removed
       TYPE(tmc_param_type), POINTER                      :: tmc_params
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'dealloc_whole_subtree', &
-         routineP = moduleN//':'//routineN
-
       LOGICAL                                            :: acc_removed, nacc_removed
       TYPE(tree_type), POINTER                           :: acc_ptr, nacc_ptr, tmp_ptr
 
@@ -1596,8 +1579,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE finalize_trees(tmc_env)
       TYPE(tmc_env_type), POINTER                        :: tmc_env
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'finalize_trees', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i
       LOGICAL                                            :: flag

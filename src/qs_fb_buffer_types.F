@@ -153,9 +153,6 @@ CONTAINS
    SUBROUTINE fb_buffer_i_retain(buffer)
       TYPE(fb_buffer_i_obj), INTENT(INOUT)               :: buffer
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_buffer_i_retain', &
-         routineP = moduleN//':'//routineN
-
       CPASSERT(ASSOCIATED(buffer%obj))
       buffer%obj%ref_count = buffer%obj%ref_count + 1
    END SUBROUTINE fb_buffer_i_retain
@@ -167,9 +164,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE fb_buffer_i_release(buffer)
       TYPE(fb_buffer_i_obj), INTENT(INOUT)               :: buffer
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_buffer_i_release', &
-         routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(buffer%obj)) THEN
          CPASSERT(buffer%obj%ref_count > 0)
@@ -198,9 +192,6 @@ CONTAINS
    SUBROUTINE fb_buffer_i_nullify(buffer)
       TYPE(fb_buffer_i_obj), INTENT(INOUT)               :: buffer
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_buffer_i_nullify', &
-         routineP = moduleN//':'//routineN
-
       NULLIFY (buffer%obj)
    END SUBROUTINE fb_buffer_i_nullify
 
@@ -213,9 +204,6 @@ CONTAINS
    SUBROUTINE fb_buffer_i_associate(a, b)
       TYPE(fb_buffer_i_obj), INTENT(OUT)                 :: a
       TYPE(fb_buffer_i_obj), INTENT(IN)                  :: b
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_buffer_i_associate', &
-         routineP = moduleN//':'//routineN
 
       a%obj => b%obj
       CALL fb_buffer_retain(a)
@@ -251,9 +239,6 @@ CONTAINS
       TYPE(fb_buffer_i_obj), INTENT(INOUT)               :: buffer
       INTEGER, INTENT(IN), OPTIONAL                      :: max_size, nslices
       INTEGER, DIMENSION(:), INTENT(IN), OPTIONAL        :: data_1d, sizes
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_buffer_i_create', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: my_max_size, my_ndata, my_nslices
       LOGICAL                                            :: check_ok
@@ -314,9 +299,6 @@ CONTAINS
       TYPE(fb_buffer_i_obj), INTENT(INOUT)               :: buffer
       INTEGER, DIMENSION(:), INTENT(IN)                  :: data_1d
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_buffer_i_add', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: new_data_size, new_n, this_size
       INTEGER, DIMENSION(:), POINTER                     :: new_data, new_disps
 
@@ -359,9 +341,6 @@ CONTAINS
       TYPE(fb_buffer_i_obj), INTENT(INOUT)               :: buffer
       INTEGER, DIMENSION(:), INTENT(IN)                  :: sizes
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_buffer_i_calc_disps', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ii
 
       CPASSERT(SIZE(sizes) .GE. buffer%obj%n)
@@ -380,9 +359,6 @@ CONTAINS
    SUBROUTINE fb_buffer_i_calc_sizes(buffer, sizes)
       TYPE(fb_buffer_i_obj), INTENT(IN)                  :: buffer
       INTEGER, DIMENSION(:), INTENT(OUT)                 :: sizes
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_buffer_i_calc_sizes', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ii
 
@@ -426,9 +402,6 @@ CONTAINS
       INTEGER, DIMENSION(:), OPTIONAL, POINTER           :: data_1d
       INTEGER, DIMENSION(:, :), OPTIONAL, POINTER        :: data_2d
       INTEGER, INTENT(IN), OPTIONAL                      :: data_2d_ld
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_buffer_i_get', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ncols, slice_size
 
@@ -480,9 +453,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: i_slice
       INTEGER, DIMENSION(:), INTENT(IN)                  :: data_1d
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_buffer_i_replace', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: slice_size
 
       slice_size = buffer%obj%disps(i_slice + 1) - buffer%obj%disps(i_slice)
@@ -501,9 +471,6 @@ CONTAINS
    SUBROUTINE fb_buffer_d_retain(buffer)
       TYPE(fb_buffer_d_obj), INTENT(INOUT)               :: buffer
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_buffer_d_retain', &
-         routineP = moduleN//':'//routineN
-
       CPASSERT(ASSOCIATED(buffer%obj))
       buffer%obj%ref_count = buffer%obj%ref_count + 1
    END SUBROUTINE fb_buffer_d_retain
@@ -515,9 +482,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE fb_buffer_d_release(buffer)
       TYPE(fb_buffer_d_obj), INTENT(INOUT)               :: buffer
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_buffer_d_release', &
-         routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(buffer%obj)) THEN
          CPASSERT(buffer%obj%ref_count > 0)
@@ -546,9 +510,6 @@ CONTAINS
    SUBROUTINE fb_buffer_d_nullify(buffer)
       TYPE(fb_buffer_d_obj), INTENT(INOUT)               :: buffer
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_buffer_d_nullify', &
-         routineP = moduleN//':'//routineN
-
       NULLIFY (buffer%obj)
    END SUBROUTINE fb_buffer_d_nullify
 
@@ -561,9 +522,6 @@ CONTAINS
    SUBROUTINE fb_buffer_d_associate(a, b)
       TYPE(fb_buffer_d_obj), INTENT(OUT)                 :: a
       TYPE(fb_buffer_d_obj), INTENT(IN)                  :: b
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_buffer_d_associate', &
-         routineP = moduleN//':'//routineN
 
       a%obj => b%obj
       CALL fb_buffer_retain(a)
@@ -600,9 +558,6 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: max_size, nslices
       REAL(KIND=dp), DIMENSION(:), INTENT(IN), OPTIONAL  :: data_1d
       INTEGER, DIMENSION(:), INTENT(IN), OPTIONAL        :: sizes
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_buffer_d_create', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: my_max_size, my_ndata, my_nslices
       LOGICAL                                            :: check_ok
@@ -663,9 +618,6 @@ CONTAINS
       TYPE(fb_buffer_d_obj), INTENT(INOUT)               :: buffer
       REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: data_1d
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_buffer_d_add', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: new_data_size, new_n, this_size
       INTEGER, DIMENSION(:), POINTER                     :: new_disps
       REAL(KIND=dp), DIMENSION(:), POINTER               :: new_data
@@ -709,9 +661,6 @@ CONTAINS
       TYPE(fb_buffer_d_obj), INTENT(INOUT)               :: buffer
       INTEGER, DIMENSION(:), INTENT(IN)                  :: sizes
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_buffer_d_calc_disps', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ii
 
       CPASSERT(SIZE(sizes) .GE. buffer%obj%n)
@@ -730,9 +679,6 @@ CONTAINS
    SUBROUTINE fb_buffer_d_calc_sizes(buffer, sizes)
       TYPE(fb_buffer_d_obj), INTENT(IN)                  :: buffer
       INTEGER, DIMENSION(:), INTENT(OUT)                 :: sizes
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_buffer_d_calc_sizes', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ii
 
@@ -776,9 +722,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), OPTIONAL, POINTER     :: data_1d
       REAL(KIND=dp), DIMENSION(:, :), OPTIONAL, POINTER  :: data_2d
       INTEGER, INTENT(IN), OPTIONAL                      :: data_2d_ld
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_buffer_d_get', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ncols, slice_size
 
@@ -829,9 +772,6 @@ CONTAINS
       TYPE(fb_buffer_d_obj), INTENT(INOUT)               :: buffer
       INTEGER, INTENT(IN)                                :: i_slice
       REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: data_1d
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'fb_buffer_d_replace', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: slice_size
 

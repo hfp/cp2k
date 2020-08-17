@@ -72,8 +72,6 @@ CONTAINS
       TYPE(normalmode_env_type), POINTER                 :: normalmode_env
       TYPE(section_vals_type), POINTER                   :: section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pint_qtb_init', routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=rng_record_length)                   :: rng_record
       INTEGER                                            :: i, j, p
       LOGICAL                                            :: restart
@@ -160,7 +158,7 @@ CONTAINS
       REAL(kind=dp), DIMENSION(:, :), INTENT(IN)         :: masses
       TYPE(qtb_therm_type), POINTER                      :: qtb_therm
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pint_qtb_step', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'pint_qtb_step'
 
       INTEGER                                            :: handle, i, ibead, idim
       REAL(KIND=dp)                                      :: delta_ekin
@@ -226,9 +224,6 @@ CONTAINS
 
       TYPE(qtb_therm_type), POINTER                      :: qtb_therm
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pint_qtb_release', &
-         routineP = moduleN//':'//routineN
-
       IF (ASSOCIATED(qtb_therm)) THEN
          qtb_therm%ref_count = qtb_therm%ref_count - 1
          IF (qtb_therm%ref_count == 0) THEN
@@ -260,9 +255,6 @@ CONTAINS
    SUBROUTINE pint_calc_qtb_energy(pint_env)
       TYPE(pint_env_type), POINTER                       :: pint_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pint_calc_qtb_energy', &
-         routineP = moduleN//':'//routineN
-
       IF (ASSOCIATED(pint_env%qtb_therm)) THEN
          pint_env%e_qtb = pint_env%qtb_therm%thermostat_energy
       END IF
@@ -288,8 +280,7 @@ CONTAINS
       TYPE(qtb_therm_type), POINTER                      :: qtb_therm
       LOGICAL                                            :: restart
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pint_qtb_forces_init', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'pint_qtb_forces_init'
 
       COMPLEX(KIND=dp)                                   :: tmp1
       COMPLEX(KIND=dp), ALLOCATABLE, DIMENSION(:)        :: filter
@@ -552,9 +543,6 @@ CONTAINS
       REAL(KIND=dp)                                      :: dw, aa, bb
       INTEGER                                            :: log_unit, ibead, print_level
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pint_qtb_computefp0', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(len=200)                                 :: line
       INTEGER                                            :: i, j, k, n, niter, nx, p
       INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: kk
@@ -764,9 +752,6 @@ CONTAINS
       REAL(KIND=dp)                                      :: dw, aa, bb
       INTEGER                                            :: log_unit, ibead, print_level
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pint_qtb_computefp1', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(len=200)                                 :: line
       INTEGER                                            :: i, j, k, n, niter, nx, p
       INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: kk
@@ -956,9 +941,6 @@ CONTAINS
       REAL(KIND=dp)                                      :: a, b, r2
       INTEGER                                            :: log_unit, print_level
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pint_qtb_linreg', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(len=200)                                 :: line
       INTEGER                                            :: i, n
       REAL(KIND=dp)                                      :: xav, xvar, xycov, yav, yvar
@@ -1016,8 +998,6 @@ CONTAINS
       INTEGER                                            :: n
       TYPE(fft_plan_type)                                :: plan
       COMPLEX(KIND=dp), DIMENSION(n)                     :: z_out, z_in
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'pint_qtb_fft', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: stat
 

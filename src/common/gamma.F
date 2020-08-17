@@ -64,9 +64,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: nmax
       REAL(KIND=dp), INTENT(IN)                          :: tmin, tmax, tdelta
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_md_ftable', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: itab, itabmax, itabmin, n
       REAL(KIND=dp)                                      :: t
 
@@ -119,9 +116,6 @@ CONTAINS
 !> \version 1.0
 ! **************************************************************************************************
    SUBROUTINE deallocate_md_ftable()
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'deallocate_md_ftable', &
-         routineP = moduleN//':'//routineN
 
       IF (current_nmax > -1) THEN
 
@@ -429,7 +423,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(IN)                          :: t
       REAL(KIND=dp), DIMENSION(0:nmax)                   :: f
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fgamma_ref', routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: kmax = 50
       REAL(KIND=dp), PARAMETER                           :: eps = EPSILON(0.0_dp)
 
@@ -543,8 +536,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE init_md_ftable(nmax)
       INTEGER, INTENT(IN)                                :: nmax
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'init_md_ftable', routineP = moduleN//':'//routineN
 
       IF (nmax < 0) THEN
          CALL cp_abort(__LOCATION__, &

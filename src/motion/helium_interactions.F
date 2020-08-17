@@ -62,9 +62,6 @@ CONTAINS
       TYPE(helium_solvent_type), POINTER                 :: helium
       TYPE(pint_env_type), POINTER                       :: pint_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'helium_calc_energy', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: b, bead, i, j, n
       INTEGER, DIMENSION(:), POINTER                     :: perm
       LOGICAL                                            :: nperiodic
@@ -170,9 +167,6 @@ CONTAINS
 
       TYPE(helium_solvent_type), POINTER                 :: helium
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'helium_total_link_action', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: iatom, ibead
       INTEGER, DIMENSION(:), POINTER                     :: perm
       REAL(KIND=dp), DIMENSION(3)                        :: r
@@ -211,9 +205,6 @@ CONTAINS
    REAL(KIND=dp) FUNCTION helium_total_pair_action(helium) RESULT(pairaction)
 
       TYPE(helium_solvent_type), POINTER                 :: helium
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'helium_total_pair_action', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: iatom, ibead, jatom, opatom, patom
       INTEGER, DIMENSION(:), POINTER                     :: perm
@@ -298,9 +289,6 @@ CONTAINS
       TYPE(pint_env_type), POINTER                       :: pint_env
       TYPE(helium_solvent_type), POINTER                 :: helium
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'helium_total_inter_action', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: iatom, ibead
       REAL(KIND=dp)                                      :: e
 
@@ -361,9 +349,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(OUT)                         :: energy
       REAL(KIND=dp), DIMENSION(:, :), INTENT(INOUT), &
          OPTIONAL, POINTER                               :: force
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'helium_bead_solute_e_f', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: hbeads, hi, qi, stride
       REAL(KIND=dp), DIMENSION(3)                        :: helium_r
@@ -438,9 +423,6 @@ CONTAINS
       TYPE(helium_solvent_type), POINTER                 :: helium
       REAL(KIND=dp), INTENT(OUT)                         :: energy
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'helium_solute_e_f', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ia, ib, jb, jc
       REAL(KIND=dp)                                      :: my_energy
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: force
@@ -511,8 +493,7 @@ CONTAINS
       TYPE(pint_env_type), POINTER                       :: pint_env
       TYPE(helium_solvent_p_type), DIMENSION(:), POINTER :: helium_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'helium_intpot_scan', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'helium_intpot_scan'
 
       INTEGER                                            :: handle, ic, ix, iy, iz, k, nbin
       LOGICAL                                            :: wrapped
@@ -590,9 +571,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(OUT)                         :: energy
       REAL(KIND=dp), DIMENSION(:), INTENT(INOUT), &
          OPTIONAL, POINTER                               :: force
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'helium_intpot_model_water', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, ig
       REAL(KIND=dp)                                      :: d, d2, dd, ep, eps, s1, s2, sig

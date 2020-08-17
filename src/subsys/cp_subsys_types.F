@@ -136,9 +136,6 @@ CONTAINS
    SUBROUTINE cp_subsys_retain(subsys)
       TYPE(cp_subsys_type), POINTER                      :: subsys
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_subsys_retain', &
-         routineP = moduleN//':'//routineN
-
       CPASSERT(ASSOCIATED(subsys))
       CPASSERT(subsys%ref_count > 0)
       subsys%ref_count = subsys%ref_count + 1
@@ -153,9 +150,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE cp_subsys_release(subsys)
       TYPE(cp_subsys_type), POINTER                      :: subsys
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_subsys_release', &
-         routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(subsys)) THEN
          CPASSERT(subsys%ref_count > 0)
@@ -222,8 +216,6 @@ CONTAINS
       TYPE(multipole_type), OPTIONAL, POINTER            :: multipoles
       TYPE(cp_result_type), OPTIONAL, POINTER            :: results
       TYPE(cell_type), OPTIONAL, POINTER                 :: cell
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_subsys_set', routineP = moduleN//':'//routineN
 
       CPASSERT(ASSOCIATED(subsys))
       CPASSERT(subsys%ref_count > 0)
@@ -374,8 +366,6 @@ CONTAINS
       TYPE(cp_result_type), OPTIONAL, POINTER            :: results
       TYPE(cell_type), OPTIONAL, POINTER                 :: cell
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_subsys_get', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: n_atom, n_core, n_shell
 
       n_atom = 0
@@ -454,9 +444,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), INTENT(OUT), OPTIONAL :: f, r, s, v
       REAL(KIND=dp), INTENT(IN), OPTIONAL                :: fscale
       TYPE(cell_type), OPTIONAL, POINTER                 :: cell
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'pack_subsys_particles', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, iatom, j, k, natom, nparticle, nsize, &
                                                             shell_index
@@ -609,9 +596,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), INTENT(IN), OPTIONAL  :: f, r, s, v
       REAL(KIND=dp), INTENT(IN), OPTIONAL                :: fscale
       TYPE(cell_type), OPTIONAL, POINTER                 :: cell
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'unpack_subsys_particles', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, iatom, j, k, natom, nparticle, nsize, &
                                                             shell_index

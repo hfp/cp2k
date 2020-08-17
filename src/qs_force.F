@@ -105,9 +105,6 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       LOGICAL                                            :: calc_force, consistent_energies, linres
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'qs_calc_energy_force', &
-         routineP = moduleN//':'//routineN
-
       qs_env%linres_run = linres
       CALL set_qs_env(qs_env)
       IF (calc_force) THEN
@@ -130,7 +127,7 @@ CONTAINS
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'qs_forces', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'qs_forces'
 
       INTEGER                                            :: after, dir, handle, i, iatom, ic, ikind, &
                                                             ispin, iw, natom, nkind, nspin, &
@@ -479,8 +476,6 @@ CONTAINS
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       INTEGER, INTENT(IN)                                :: ftype, output_unit
       TYPE(section_vals_type), POINTER                   :: print_section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'write_forces', routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=13)                                  :: fmtstr5
       CHARACTER(LEN=15)                                  :: fmtstr4

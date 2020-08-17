@@ -101,7 +101,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       LOGICAL, INTENT(in), OPTIONAL                      :: do_mp2_hfx
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'hfx_admm_init', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'hfx_admm_init'
 
       INTEGER                                            :: handle, n_rep_hf, natoms, nspins
       LOGICAL                                            :: do_hfx, my_do_mp2_hfx, s_mstruct_changed
@@ -199,8 +199,6 @@ CONTAINS
    SUBROUTINE init_admm_gapw(qs_env)
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'init_admm_gapw', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ikind, nkind
       TYPE(admm_gapw_type), POINTER                      :: admm_gapw_env
@@ -314,7 +312,7 @@ CONTAINS
       LOGICAL, INTENT(in)                                :: calculate_forces, just_energy
       TYPE(pw_p_type), DIMENSION(:), POINTER             :: v_rspace_new, v_tau_rspace
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'hfx_ks_matrix', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'hfx_ks_matrix'
 
       INTEGER                                            :: handle, ikind, img, irep, ispin, mspin, &
                                                             n_rep_hf, nimages, ns, nspins
@@ -608,8 +606,6 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: xc_section
       TYPE(admm_type), POINTER                           :: admm_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'create_admm_xc_section', &
-         routineP = moduleN//':'//routineN
       LOGICAL, PARAMETER                                 :: debug_functional = .FALSE.
 
       CHARACTER(LEN=20)                                  :: name_x_func
@@ -1156,8 +1152,7 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_ks, rho_ao
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'tddft_hfx_matrix', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'tddft_hfx_matrix'
 
       INTEGER                                            :: handle, irep, ispin, mspin, n_rep_hf, &
                                                             nspins

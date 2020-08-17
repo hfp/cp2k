@@ -305,8 +305,6 @@ CONTAINS
       TYPE(cp_fm_struct_type), POINTER                   :: fm_struct_ref
       INTEGER, OPTIONAL                                  :: ortho_k
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'qs_ot_allocate', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, k, m_diis, my_ortho_k, n, ncoef
       TYPE(cp_blacs_env_type), POINTER                   :: context
       TYPE(cp_para_env_type), POINTER                    :: para_env
@@ -637,8 +635,6 @@ CONTAINS
    SUBROUTINE qs_ot_destroy(qs_ot_env)
       TYPE(qs_ot_type)                                   :: qs_ot_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'qs_ot_destroy', routineP = moduleN//':'//routineN
-
       CALL cp_para_env_release(qs_ot_env%para_env)
       CALL cp_blacs_env_release(qs_ot_env%blacs_env)
 
@@ -738,8 +734,7 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: ot_section
       INTEGER, INTENT(IN)                                :: output_unit
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'ot_readwrite_input', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'ot_readwrite_input'
 
       INTEGER                                            :: handle, ls_method, ot_algorithm, &
                                                             ot_method, ot_ortho_irac

@@ -106,8 +106,7 @@ CONTAINS
       TYPE(qmmm_env_qm_type), POINTER                    :: qmmm_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_image_pot', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_image_pot'
 
       INTEGER                                            :: handle
 
@@ -161,8 +160,7 @@ CONTAINS
       TYPE(qmmm_env_qm_type), POINTER                    :: qmmm_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_image_coeff_gaussalgorithm', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_image_coeff_gaussalgorithm'
 
       INTEGER                                            :: handle, info, natom
       REAL(KIND=dp)                                      :: eta, V0
@@ -218,8 +216,7 @@ CONTAINS
       TYPE(qmmm_env_qm_type), POINTER                    :: qmmm_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_image_coeff_iterative', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'calc_image_coeff_iterative'
 
       INTEGER                                            :: handle, iter_steps, natom, output_unit
       REAL(KIND=dp)                                      :: alpha, eta, rsnew, rsold, V0
@@ -348,8 +345,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), POINTER               :: int_res
       INTEGER, INTENT(IN), OPTIONAL                      :: atom_num, atom_num_ref
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'integrate_potential_ga_rspace', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'integrate_potential_ga_rspace'
 
       INTEGER                                            :: atom_a, atom_b, atom_ref, handle, iatom, &
                                                             j, k, natom, npme
@@ -468,8 +464,7 @@ CONTAINS
       TYPE(qmmm_env_qm_type), POINTER                    :: qmmm_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'integrate_potential_devga_rspace', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'integrate_potential_devga_rspace'
 
       INTEGER                                            :: atom_a, handle, iatom, j, natom, npme
       INTEGER, DIMENSION(:), POINTER                     :: cores
@@ -591,9 +586,6 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(qmmm_env_qm_type), POINTER                    :: qmmm_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'conditional_calc_image_matrix', &
-         routineP = moduleN//':'//routineN
-
       IF (.NOT. qmmm_env%image_charge_pot%coeff_iterative) THEN
          SELECT CASE (qmmm_env%image_charge_pot%state_image_matrix)
          CASE (calc_always)
@@ -633,8 +625,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(qmmm_env_qm_type), POINTER                    :: qmmm_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_image_matrix', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_image_matrix'
 
       INTEGER                                            :: handle, j, k, natom, output_unit, stat
       TYPE(cp_logger_type), POINTER                      :: logger
@@ -717,8 +708,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(qmmm_env_qm_type), POINTER                    :: qmmm_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_image_matrix_gpw', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_image_matrix_gpw'
 
       INTEGER                                            :: handle, iatom, iatom_ref, natom
       REAL(KIND=dp), DIMENSION(:), POINTER               :: int_res
@@ -795,8 +785,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(qmmm_env_qm_type), POINTER                    :: qmmm_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_image_matrix_mme', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_image_matrix_mme'
 
       INTEGER                                            :: atom_a, handle, iatom, natom
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: zeta
@@ -842,8 +831,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), INTENT(INOUT)      :: hab
       TYPE(cp_para_env_type), INTENT(IN), POINTER        :: para_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'integrate_s_mme', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'integrate_s_mme'
 
       INTEGER                                            :: G_count, handle, ipgf, ipgf_prod, jpgf, &
                                                             npgf_prod, npgfa, npgfb, R_count
@@ -894,8 +882,7 @@ CONTAINS
       TYPE(qs_energy_type), OPTIONAL, POINTER            :: energy
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'calculate_potential_metal', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'calculate_potential_metal'
 
       INTEGER                                            :: handle
       REAL(KIND=dp)                                      :: en_external, en_vmetal_rhohartree, &
@@ -969,8 +956,7 @@ CONTAINS
       TYPE(pw_p_type), INTENT(IN)                        :: v_metal
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'add_image_pot_to_hartree_pot', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'add_image_pot_to_hartree_pot'
 
       INTEGER                                            :: handle, output_unit
       TYPE(cp_logger_type), POINTER                      :: logger
@@ -1010,8 +996,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: image_matrix
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'write_image_matrix', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'write_image_matrix'
 
       CHARACTER(LEN=default_path_length)                 :: filename
       INTEGER                                            :: handle, rst_unit
@@ -1071,8 +1056,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(qmmm_env_qm_type), POINTER                    :: qmmm_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'restart_image_matrix', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'restart_image_matrix'
 
       CHARACTER(LEN=default_path_length)                 :: image_filename
       INTEGER                                            :: handle, natom, output_unit, rst_unit
@@ -1145,9 +1129,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: forces
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'print_gradients_image_atoms', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: atom_a, iatom, natom, output_unit
       REAL(KIND=dp), DIMENSION(3)                        :: sum_gradients
       TYPE(cp_logger_type), POINTER                      :: logger
@@ -1198,9 +1179,6 @@ CONTAINS
 
       REAL(KIND=dp), DIMENSION(:), POINTER               :: image_coeff
       TYPE(qs_environment_type), POINTER                 :: qs_env
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'print_image_coefficients', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: atom_a, iatom, natom, output_unit
       REAL(KIND=dp)                                      :: normalize_factor, sum_coeff
@@ -1263,9 +1241,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(IN)                          :: en_vmetal_rhohartree, en_external, &
                                                             total_rho_metal
       TYPE(qs_environment_type), POINTER                 :: qs_env
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'print_image_energy_terms', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: output_unit
       TYPE(cp_logger_type), POINTER                      :: logger

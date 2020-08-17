@@ -69,8 +69,7 @@ CONTAINS
          POINTER                                         :: mo_derivs
       REAL(KIND=dp), OPTIONAL                            :: strength
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'compute_s_square', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'compute_s_square'
 
       INTEGER                                            :: handle, i, j, na, nalpha, nb, nbeta, &
                                                             ncol_local, nrow, nrow_local
@@ -173,7 +172,7 @@ CONTAINS
       TYPE(s2_restraint_type), POINTER                   :: s2_restraint_control
       LOGICAL                                            :: just_energy
 
-      CHARACTER(len=*), PARAMETER :: routineN = 's2_restraint', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 's2_restraint'
 
       INTEGER                                            :: handle
       REAL(kind=dp)                                      :: s_square, s_square_ideal

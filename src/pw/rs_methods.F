@@ -62,7 +62,7 @@ CONTAINS
       TYPE(pw_p_type), DIMENSION(3), INTENT(INOUT)       :: df
       TYPE(realspace_grid_type), POINTER                 :: rs_grid
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'derive_fdm_cd3', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'derive_fdm_cd3'
 
       INTEGER                                            :: handle, i, j, k
       INTEGER, DIMENSION(3)                              :: lb, ub
@@ -133,7 +133,7 @@ CONTAINS
       TYPE(pw_p_type), DIMENSION(3), INTENT(INOUT)       :: df
       TYPE(realspace_grid_type), POINTER                 :: rs_grid
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'derive_fdm_cd5', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'derive_fdm_cd5'
 
       INTEGER                                            :: handle, i, j, k
       INTEGER, DIMENSION(3)                              :: lb, ub
@@ -204,7 +204,7 @@ CONTAINS
       TYPE(pw_p_type), DIMENSION(3), INTENT(INOUT)       :: df
       TYPE(realspace_grid_type), POINTER                 :: rs_grid
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'derive_fdm_cd7', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'derive_fdm_cd7'
 
       INTEGER                                            :: handle, i, j, k
       INTEGER, DIMENSION(3)                              :: lb, ub
@@ -282,8 +282,7 @@ CONTAINS
       REAL(dp), ALLOCATABLE, DIMENSION(:), INTENT(OUT)   :: x_glbl, y_glbl, z_glbl, x_locl, y_locl, &
                                                             z_locl
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'setup_grid_axes', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'setup_grid_axes'
 
       INTEGER                                            :: glb1, glb2, glb3, gub1, gub2, gub3, &
                                                             handle, i, lb1, lb2, lb3, ub1, ub2, ub3
@@ -378,8 +377,7 @@ CONTAINS
       TYPE(pw_type), INTENT(IN), POINTER       :: pw_in
       TYPE(pw_type), INTENT(INOUT), POINTER    :: pw_out
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'pw_mollifier', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'pw_mollifier'
 
       INTEGER                                  :: handle, i, j, k, lb1, lb2, &
                                                   lb3, ub1, ub2, ub3

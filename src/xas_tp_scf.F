@@ -141,7 +141,7 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: xas_section, scf_section
       LOGICAL, INTENT(OUT)                               :: converged, should_stop
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'xas_do_tp_scf', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'xas_do_tp_scf'
 
       INTEGER                                            :: handle, handle2, hole_spin, ispin, &
                                                             iter_count, my_spin, nspin, occ_spin, &
@@ -399,8 +399,7 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: xas_section
       INTEGER, INTENT(IN)                                :: output_unit
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cls_prepare_states', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'cls_prepare_states'
 
       INTEGER :: handle, i, ikind, isgf, ispin, istate, j, my_kind, my_spin, my_state, nao, natom, &
          nexc_search, nmo, nvirtual2, uno_iter, xas_estate
@@ -642,7 +641,7 @@ CONTAINS
       TYPE(xas_environment_type), POINTER                :: xas_env
       LOGICAL, INTENT(OUT)                               :: converged, should_stop
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'xes_scf_once', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'xes_scf_once'
 
       INTEGER                                            :: handle, ispin, istate, my_spin, nmo, &
                                                             nvirtual, nvirtual2, output_unit

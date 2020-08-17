@@ -55,7 +55,7 @@ CONTAINS
       TYPE(force_env_type), POINTER                      :: force_env
       TYPE(global_environment_type), POINTER             :: globenv
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_cell_opt', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'cp_cell_opt'
 
       INTEGER                                            :: handle, step_start_val
       REAL(KIND=dp), DIMENSION(:), POINTER               :: x0
@@ -114,9 +114,6 @@ CONTAINS
       TYPE(gopt_f_type), POINTER                         :: gopt_env
       TYPE(section_vals_type), POINTER                   :: force_env_section, geo_section
       REAL(KIND=dp), DIMENSION(:), POINTER               :: x0
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_cell_opt_low', &
-         routineP = moduleN//':'//routineN
 
       CPASSERT(ASSOCIATED(force_env))
       CPASSERT(ASSOCIATED(globenv))

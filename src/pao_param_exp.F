@@ -43,8 +43,7 @@ CONTAINS
       TYPE(pao_env_type), POINTER                        :: pao
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pao_param_init_exp', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'pao_param_init_exp'
 
       INTEGER                                            :: acol, arow, handle, iatom, N
       LOGICAL                                            :: found
@@ -126,9 +125,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: ikind
       INTEGER, INTENT(OUT)                               :: nparams
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pao_param_count_exp', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: cols, pao_basis_size, pri_basis_size, &
                                                             rows
       TYPE(gto_basis_set_type), POINTER                  :: basis_set
@@ -154,9 +150,6 @@ CONTAINS
    SUBROUTINE pao_param_initguess_exp(pao)
       TYPE(pao_env_type), POINTER                        :: pao
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pao_param_initguess_exp', &
-         routineP = moduleN//':'//routineN
-
       CALL dbcsr_set(pao%matrix_X, 0.0_dp) ! actual initial guess is matrix_U0
 
    END SUBROUTINE pao_param_initguess_exp
@@ -171,7 +164,7 @@ CONTAINS
       TYPE(pao_env_type), POINTER                        :: pao
       TYPE(dbcsr_type), OPTIONAL                         :: matrix_M, matrix_G
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pao_calc_U_exp', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'pao_calc_U_exp'
 
       COMPLEX(dp)                                        :: denom
       COMPLEX(dp), DIMENSION(:), POINTER                 :: evals
@@ -290,9 +283,6 @@ CONTAINS
       COMPLEX(dp), DIMENSION(:, :), INTENT(IN)           :: D, R
       REAL(dp), DIMENSION(SIZE(M, 1), SIZE(M, 1))        :: G
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'fold_derivatives', &
-         routineP = moduleN//':'//routineN
-
       COMPLEX(dp), DIMENSION(:, :), POINTER              :: F, RF, RM, RMR
       INTEGER                                            :: n
       REAL(dp), DIMENSION(:, :), POINTER                 :: RFR
@@ -324,8 +314,6 @@ CONTAINS
       COMPLEX(dp), DIMENSION(:, :)                       :: evecs
       COMPLEX(dp), DIMENSION(:)                          :: evals
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'diag_antisym', routineP = moduleN//':'//routineN
-
       COMPLEX(dp), DIMENSION(:, :), POINTER              :: matrix_c
       INTEGER                                            :: N
       REAL(dp), DIMENSION(:), POINTER                    :: evals_r
@@ -351,7 +339,7 @@ CONTAINS
       COMPLEX(dp), DIMENSION(:, :)                       :: matrix, eigenvectors
       REAL(dp), DIMENSION(:)                             :: eigenvalues
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'zheevd_wrapper', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'zheevd_wrapper'
 
       COMPLEX(KIND=dp), DIMENSION(:), POINTER            :: work
       COMPLEX(KIND=dp), DIMENSION(:, :), POINTER         :: A

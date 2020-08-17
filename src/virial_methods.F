@@ -46,8 +46,6 @@ CONTAINS
       TYPE(cp_subsys_type), POINTER                      :: subsys
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'virial_update', routineP = moduleN//':'//routineN
-
       TYPE(atomic_kind_list_type), POINTER               :: atomic_kinds
       TYPE(distribution_1d_type), POINTER                :: local_particles
       TYPE(particle_list_type), POINTER                  :: particles
@@ -81,8 +79,7 @@ CONTAINS
       TYPE(virial_type), INTENT(INOUT)                   :: virial
       INTEGER, INTENT(IN)                                :: igroup
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'virial_evaluate', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'virial_evaluate'
 
       INTEGER                                            :: handle, i, iparticle, iparticle_kind, &
                                                             iparticle_local, j, nparticle_kind, &
@@ -138,9 +135,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(IN)                          :: f0
       REAL(KIND=dp), DIMENSION(3), INTENT(IN)            :: force, rab
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'virial_pair_force', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, j
 
       DO i = 1, 3
@@ -159,9 +153,6 @@ CONTAINS
    SUBROUTINE write_stress_components(virial, iounit)
       TYPE(virial_type), INTENT(IN)                      :: virial
       INTEGER, INTENT(IN)                                :: iounit
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'write_stress_components', &
-         routineP = moduleN//':'//routineN
 
       REAL(KIND=dp), DIMENSION(3, 3)                     :: pv
 

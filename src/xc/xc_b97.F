@@ -74,8 +74,6 @@ CONTAINS
       REAL(dp), INTENT(in)                               :: sx, sc
       CHARACTER(LEN=*), INTENT(OUT), OPTIONAL            :: reference, shortform
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'b97_ref', routineP = moduleN//':'//routineN
-
       CHARACTER(20)                                      :: pol
 
       IF (lda) THEN
@@ -183,8 +181,6 @@ CONTAINS
       TYPE(xc_rho_cflags_type), INTENT(inout), OPTIONAL  :: needs
       INTEGER, INTENT(out), OPTIONAL                     :: max_deriv
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'b97_lda_info', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: param
       REAL(kind=dp)                                      :: sc, sx
 
@@ -216,8 +212,6 @@ CONTAINS
       CHARACTER(LEN=*), INTENT(OUT), OPTIONAL            :: reference, shortform
       TYPE(xc_rho_cflags_type), INTENT(inout), OPTIONAL  :: needs
       INTEGER, INTENT(out), OPTIONAL                     :: max_deriv
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'b97_lsd_info', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: param
       REAL(kind=dp)                                      :: sc, sx
@@ -252,7 +246,7 @@ CONTAINS
       INTEGER, INTENT(in)                                :: grad_deriv
       TYPE(section_vals_type), POINTER                   :: b97_params
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'b97_lda_eval', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'b97_lda_eval'
 
       INTEGER                                            :: handle, npoints, param
       INTEGER, DIMENSION(:, :), POINTER                  :: bo
@@ -370,7 +364,7 @@ CONTAINS
       INTEGER, INTENT(in)                                :: grad_deriv
       TYPE(section_vals_type), POINTER                   :: b97_params
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'b97_lsd_eval', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'b97_lsd_eval'
 
       INTEGER                                            :: handle, npoints, param
       INTEGER, DIMENSION(:, :), POINTER                  :: bo
@@ -510,8 +504,6 @@ CONTAINS
       INTEGER, INTENT(in)                                :: param
       REAL(dp), DIMENSION(10)                            :: res
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'b97_coeffs', routineP = moduleN//':'//routineN
-
       SELECT CASE (param)
       CASE (xc_b97_orig)
          res = params_b97_orig
@@ -571,8 +563,6 @@ CONTAINS
       REAL(kind=dp), INTENT(in)                          :: epsilon_rho
       INTEGER, INTENT(in)                                :: param
       REAL(kind=dp), INTENT(in)                          :: scale_c_in, scale_x_in
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'b97_lsd_calc', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ii
       REAL(kind=dp) :: A_1, A_2, A_3, alpha_1_1, alpha_1_2, alpha_1_3, alpha_c, alpha_c1rhoa, &
@@ -1588,8 +1578,6 @@ CONTAINS
       REAL(kind=dp), INTENT(in)                          :: epsilon_rho
       INTEGER, INTENT(in)                                :: param
       REAL(kind=dp), INTENT(in)                          :: scale_c_in, scale_x_in
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'b97_lda_calc', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ii
       REAL(kind=dp) :: A_1, A_2, A_3, alpha_1_1, alpha_1_2, alpha_1_3, alpha_c, alpha_c1rhoa, &

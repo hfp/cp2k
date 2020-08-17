@@ -80,8 +80,6 @@ CONTAINS
       TYPE(neb_type), POINTER                            :: neb_env
       LOGICAL, INTENT(IN), OPTIONAL                      :: full_allocation
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'neb_var_create', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: neb_nr_replica
       LOGICAL                                            :: allocate_all
 
@@ -122,9 +120,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE neb_var_release(neb_var)
       TYPE(neb_var_type), POINTER                        :: neb_var
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'neb_var_release', &
-         routineP = moduleN//':'//routineN
 
       CPASSERT(ASSOCIATED(neb_var))
       IF (ASSOCIATED(neb_var%xyz)) THEN

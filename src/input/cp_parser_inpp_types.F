@@ -56,9 +56,6 @@ CONTAINS
       CHARACTER(len=default_path_length), &
          DIMENSION(:, :), POINTER                        :: initial_variables
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_inpp_type', &
-                                     routineP = moduleN//':'//routineN
-
       CPASSERT(.NOT. ASSOCIATED(inpp))
       ALLOCATE (inpp)
 
@@ -89,9 +86,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE release_inpp_type(inpp)
       TYPE(inpp_type), POINTER                           :: inpp
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'release_inpp_type', &
-                                     routineP = moduleN//':'//routineN
 
       CPASSERT(ASSOCIATED(inpp))
 

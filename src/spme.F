@@ -106,7 +106,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), OPTIONAL, POINTER     :: charges
       TYPE(atprop_type), POINTER                         :: atprop
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'spme_evaluate', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'spme_evaluate'
 
       INTEGER                                            :: group, handle, i, ig, ipart, j, n, &
                                                             ncore, npart, nshell, o_spline, p1, &
@@ -468,7 +468,7 @@ CONTAINS
       TYPE(particle_type), DIMENSION(:), INTENT(IN)      :: particle_set_b
       REAL(KIND=dp), DIMENSION(:), INTENT(INOUT)         :: potential
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'spme_potential', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'spme_potential'
 
       INTEGER                                            :: group, handle, ipart, n, npart_a, &
                                                             npart_b, o_spline, p1
@@ -603,7 +603,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), POINTER               :: charges_b
       REAL(KIND=dp), DIMENSION(:, :), INTENT(INOUT)      :: forces_b
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'spme_forces', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'spme_forces'
 
       INTEGER                                            :: group, handle, i, ipart, n, npart_a, &
                                                             npart_b, o_spline, p1
@@ -762,8 +762,6 @@ CONTAINS
       LOGICAL, INTENT(IN)                                :: is_core, is_shell, unit_charge
       REAL(KIND=dp), DIMENSION(:), OPTIONAL, POINTER     :: charges
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_patch_a', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: nbox
       LOGICAL                                            :: use_charge_array
       REAL(KIND=dp)                                      :: q
@@ -820,8 +818,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :, :), INTENT(OUT)     :: rhos
       REAL(KIND=dp), DIMENSION(:), POINTER               :: charges
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_patch_b', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: nbox
       REAL(KIND=dp)                                      :: q
       REAL(KIND=dp), DIMENSION(3)                        :: delta, r
@@ -854,7 +850,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(-(n-1):n-1, 0:n-1), &
          INTENT(IN)                                      :: coeff
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'spme_get_patch', routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: nmax = 12
 
       INTEGER                                            :: i, i1, i2, i3, j, l
@@ -920,8 +915,6 @@ CONTAINS
       INTEGER, DIMENSION(3), INTENT(IN)                  :: npts
       REAL(KIND=dp), DIMENSION(3), INTENT(OUT)           :: delta
       INTEGER, INTENT(IN)                                :: n
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_delta', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: mp
       INTEGER, DIMENSION(3)                              :: center

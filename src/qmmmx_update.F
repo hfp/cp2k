@@ -48,9 +48,6 @@ CONTAINS
       TYPE(force_env_type), POINTER                      :: force_env
       TYPE(section_vals_type), POINTER                   :: root_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'qmmmx_update_force_env', &
-         routineP = moduleN//':'//routineN
-
       LOGICAL                                            :: force_mixing_active, labels_changed
       TYPE(atomic_kind_list_type), POINTER               :: atomic_kinds, new_atomic_kinds
       TYPE(cp_subsys_type), POINTER                      :: subsys, subsys_new
@@ -138,8 +135,7 @@ CONTAINS
       TYPE(atomic_kind_list_type), POINTER               :: to_local_particle_kinds
       TYPE(distribution_1d_type), POINTER                :: to_local_particles
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'copy_wiener_process', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'copy_wiener_process'
 
       INTEGER :: from_iparticle_kind, from_iparticle_local(1), from_nparticle_kind, &
          from_nparticle_local, handle, to_iparticle_global, to_iparticle_kind, to_iparticle_local, &

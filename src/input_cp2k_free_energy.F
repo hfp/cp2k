@@ -55,9 +55,6 @@ CONTAINS
    SUBROUTINE create_fe_section(section)
       TYPE(section_type), POINTER                        :: section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_fe_section', &
-         routineP = moduleN//':'//routineN
-
       TYPE(keyword_type), POINTER                        :: keyword
       TYPE(section_type), POINTER                        :: print_key, subsection
 
@@ -109,9 +106,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE create_metadyn_section(section)
       TYPE(section_type), POINTER                        :: section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_metadyn_section', &
-         routineP = moduleN//':'//routineN
 
       TYPE(keyword_type), POINTER                        :: keyword
       TYPE(section_type), POINTER                        :: print_key, subsection
@@ -375,9 +369,6 @@ CONTAINS
    SUBROUTINE create_multiple_walkers_section(section)
       TYPE(section_type), POINTER                        :: section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_multiple_walkers_section', &
-         routineP = moduleN//':'//routineN
-
       TYPE(keyword_type), POINTER                        :: keyword
       TYPE(section_type), POINTER                        :: subsection
 
@@ -441,9 +432,6 @@ CONTAINS
    SUBROUTINE create_ac_section(section)
       TYPE(section_type), POINTER                        :: section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_ac_section', &
-         routineP = moduleN//':'//routineN
-
       TYPE(keyword_type), POINTER                        :: keyword
 
       NULLIFY (keyword)
@@ -491,9 +479,6 @@ CONTAINS
    SUBROUTINE create_ui_section(section)
       TYPE(section_type), POINTER                        :: section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_ui_section', &
-         routineP = moduleN//':'//routineN
-
       TYPE(section_type), POINTER                        :: subsection
 
       CPASSERT(.NOT. ASSOCIATED(section))
@@ -521,9 +506,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE create_metadyn_history(section, metadyn_section)
       TYPE(section_type), POINTER                        :: section, metadyn_section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_metadyn_history', &
-         routineP = moduleN//':'//routineN
 
       TYPE(keyword_type), POINTER                        :: keyword
 
@@ -647,9 +629,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE create_metavar_section(section)
       TYPE(section_type), POINTER                        :: section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_metavar_section', &
-         routineP = moduleN//':'//routineN
 
       TYPE(keyword_type), POINTER                        :: keyword
       TYPE(section_type), POINTER                        :: subsection, wall_section
@@ -827,9 +806,6 @@ CONTAINS
    SUBROUTINE create_uvar_section(section)
       TYPE(section_type), POINTER                        :: section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_uvar_section', &
-         routineP = moduleN//':'//routineN
-
       TYPE(keyword_type), POINTER                        :: keyword
 
       CPASSERT(.NOT. ASSOCIATED(section))
@@ -855,9 +831,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE create_uvar_conv_section(section)
       TYPE(section_type), POINTER                        :: section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_uvar_conv_section', &
-         routineP = moduleN//':'//routineN
 
       TYPE(keyword_type), POINTER                        :: keyword
 

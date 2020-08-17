@@ -57,8 +57,6 @@ CONTAINS
       TYPE(xc_rho_cflags_type), INTENT(inout), OPTIONAL  :: needs
       INTEGER, INTENT(out), OPTIONAL                     :: max_deriv
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'tpss_lda_info', routineP = moduleN//':'//routineN
-
       REAL(kind=dp)                                      :: sc, sx
 
       CALL section_vals_val_get(tpss_params, "SCALE_C", r_val=sc)
@@ -106,8 +104,6 @@ CONTAINS
       CHARACTER(LEN=*), INTENT(OUT), OPTIONAL            :: reference, shortform
       TYPE(xc_rho_cflags_type), INTENT(inout), OPTIONAL  :: needs
       INTEGER, INTENT(out), OPTIONAL                     :: max_deriv
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'tpss_lsd_info', routineP = moduleN//':'//routineN
 
       REAL(kind=dp)                                      :: sc, sx
 
@@ -159,7 +155,7 @@ CONTAINS
       INTEGER, INTENT(in)                                :: grad_deriv
       TYPE(section_vals_type), POINTER                   :: tpss_params
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'tpss_lda_eval', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'tpss_lda_eval'
 
       INTEGER                                            :: handle, non_coer, npoints
       INTEGER, DIMENSION(:, :), POINTER                  :: bo
@@ -250,7 +246,7 @@ CONTAINS
       INTEGER, INTENT(in)                                :: grad_deriv
       TYPE(section_vals_type), POINTER                   :: tpss_params
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'tpss_lsd_eval', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'tpss_lsd_eval'
 
       INTEGER                                            :: handle, non_coer, npoints
       INTEGER, DIMENSION(:, :), POINTER                  :: bo
@@ -374,8 +370,6 @@ CONTAINS
       REAL(kind=dp), INTENT(in)                          :: epsilon_rho, epsilon_tau, scale_ec, &
                                                             scale_ex
       INTEGER, INTENT(inout)                             :: non_coer
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'tpss_lda_calc', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: abs_grad_deriv, ii
       LOGICAL                                            :: t571, t639
@@ -916,8 +910,6 @@ CONTAINS
       REAL(kind=dp), INTENT(in)                          :: epsilon_rho, epsilon_tau, scale_ec, &
                                                             scale_ex
       INTEGER, INTENT(inout)                             :: non_coer
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'tpss_lsd_calc', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: abs_grad_deriv, ii
       LOGICAL                                            :: t784, t863

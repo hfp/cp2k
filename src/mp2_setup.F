@@ -51,8 +51,7 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: input
       TYPE(mp2_type), INTENT(INOUT)                      :: mp2_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'read_mp2_section', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'read_mp2_section'
 
       INTEGER                                            :: handle, ival, unit_nr
       INTEGER, DIMENSION(:), POINTER                     :: tmplist
@@ -348,7 +347,7 @@ CONTAINS
    SUBROUTINE check_method(method)
       INTEGER, INTENT(IN)                                :: method
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'check_method', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'check_method'
 
       INTEGER                                            :: handle
 

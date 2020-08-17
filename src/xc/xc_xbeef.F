@@ -66,8 +66,6 @@ CONTAINS
       TYPE(xc_rho_cflags_type), INTENT(inout), OPTIONAL  :: needs
       INTEGER, INTENT(out), OPTIONAL                     :: max_deriv
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'xbeef_lda_info', routineP = moduleN//':'//routineN
-
       IF (PRESENT(reference)) THEN
          reference = "Wellendorff, J. et al., Phys. Rev. B 85, 235149 (2012) {LDA}"
       END IF
@@ -98,8 +96,6 @@ CONTAINS
       CHARACTER(LEN=*), INTENT(OUT), OPTIONAL            :: reference, shortform
       TYPE(xc_rho_cflags_type), INTENT(inout), OPTIONAL  :: needs
       INTEGER, INTENT(out), OPTIONAL                     :: max_deriv
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'xbeef_lsd_info', routineP = moduleN//':'//routineN
 
       IF (PRESENT(reference)) THEN
          reference = "Wellendorff, J. et al., Phys. Rev. B 85, 235149 (2012) {LSD}"
@@ -135,7 +131,7 @@ CONTAINS
       INTEGER, INTENT(in)                                :: grad_deriv
       TYPE(section_vals_type), POINTER                   :: xbeef_params
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'xbeef_lda_eval', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'xbeef_lda_eval'
 
       INTEGER                                            :: handle, npoints
       INTEGER, DIMENSION(:, :), POINTER                  :: bo
@@ -222,7 +218,6 @@ CONTAINS
       REAL(kind=dp), DIMENSION(1:npoints), INTENT(in)    :: norm_drho, rho_1_3, rho
       REAL(kind=dp), INTENT(in)                          :: epsilon_rho, sx
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'xbeef_lda_calc', routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: m = 30
 
       INTEGER                                            :: i, ii
@@ -314,7 +309,7 @@ CONTAINS
       INTEGER, INTENT(in)                                :: grad_deriv
       TYPE(section_vals_type), POINTER                   :: xbeef_params
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'xbeef_lsd_eval', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'xbeef_lsd_eval'
 
       INTEGER                                            :: handle, i, ispin, npoints
       INTEGER, DIMENSION(:, :), POINTER                  :: bo
@@ -423,7 +418,6 @@ CONTAINS
       INTEGER, INTENT(in)                                :: grad_deriv, npoints
       REAL(kind=dp), INTENT(in)                          :: epsilon_rho, sx
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'xbeef_lsd_calc', routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: m = 30
 
       INTEGER                                            :: i, ii

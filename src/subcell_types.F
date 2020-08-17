@@ -56,9 +56,6 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: maxatom
       TYPE(cell_type), OPTIONAL, POINTER                 :: cell
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'allocate_subcell', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, j, k, na, nb, nc
       REAL(dp)                                           :: a_max, a_min, b_max, b_min, c_max, &
                                                             c_min, delta_a, delta_b, delta_c
@@ -122,9 +119,6 @@ CONTAINS
    SUBROUTINE deallocate_subcell(subcell)
 
       TYPE(subcell_type), DIMENSION(:, :, :), POINTER    :: subcell
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'deallocate_subcell', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, j, k
 

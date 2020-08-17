@@ -80,7 +80,7 @@ CONTAINS
    SUBROUTINE ls_scf_create(qs_env)
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'ls_scf_create', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'ls_scf_create'
 
       INTEGER                                            :: handle, unit_nr
       TYPE(cp_logger_type), POINTER                      :: logger
@@ -173,8 +173,7 @@ CONTAINS
       TYPE(ls_scf_env_type), INTENT(INOUT)               :: ls_scf_env
       INTEGER, INTENT(IN)                                :: unit_nr
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'ls_scf_init_read_write_input', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'ls_scf_init_read_write_input'
 
       INTEGER                                            :: handle
       REAL(KIND=dp)                                      :: mu

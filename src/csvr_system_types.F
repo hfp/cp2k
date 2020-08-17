@@ -65,8 +65,6 @@ CONTAINS
       TYPE(simpar_type), POINTER                         :: simpar
       TYPE(section_vals_type), POINTER                   :: section
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'csvr_init', routineP = moduleN//':'//routineN
-
       NULLIFY (csvr%nvt)
       NULLIFY (csvr%map_info)
       csvr%loc_num_csvr = 0
@@ -89,9 +87,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE csvr_thermo_create(csvr)
       TYPE(csvr_system_type), POINTER                    :: csvr
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'csvr_thermo_create', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=40)                                  :: name
       INTEGER                                            :: i, ithermo, my_index
@@ -135,8 +130,6 @@ CONTAINS
    SUBROUTINE csvr_dealloc(csvr)
       TYPE(csvr_system_type), POINTER                    :: csvr
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'csvr_dealloc', routineP = moduleN//':'//routineN
-
       IF (ASSOCIATED(csvr)) THEN
          CALL csvr_thermo_dealloc(csvr%nvt)
          CALL release_map_info_type(csvr%map_info)
@@ -152,9 +145,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE csvr_thermo_dealloc(nvt)
       TYPE(csvr_thermo_type), DIMENSION(:), POINTER      :: nvt
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'csvr_thermo_dealloc', &
-         routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(nvt)) &
          DEALLOCATE (nvt)

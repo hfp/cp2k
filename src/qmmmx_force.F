@@ -65,9 +65,6 @@ CONTAINS
       LOGICAL, INTENT(IN)                                :: calc_force, consistent_energies, linres
       LOGICAL, INTENT(IN), OPTIONAL :: require_consistent_energy_force
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'qmmmx_calc_energy_force', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ip, mom_conserv_min_label, &
                                                             mom_conserv_n, mom_conserv_region, &
                                                             mom_conserv_type
@@ -175,9 +172,6 @@ CONTAINS
       TYPE(qmmm_env_type), POINTER                       :: qmmm_env
       LOGICAL, INTENT(IN)                                :: calc_force, consistent_energies, linres
       CHARACTER(*)                                       :: label
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'qmmmx_calc_energy_force_low', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(default_string_length)                   :: new_restart_fn, new_restart_hist_fn, &
                                                             old_restart_fn, old_restart_hist_fn

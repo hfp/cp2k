@@ -71,8 +71,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_lin_mom_matrix', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'build_lin_mom_matrix'
 
       INTEGER :: handle, i, iatom, icol, ikind, inode, irow, iset, jatom, jkind, jset, last_jatom, &
          ldai, maxco, maxlgto, maxsgf, natom, ncoa, ncob, neighbor_list_id, nkind, nseta, nsetb, &
@@ -313,8 +312,6 @@ CONTAINS
       REAL(dp), DIMENSION(0:ldrr-1, 0:ldrr-1, 3), &
          INTENT(INOUT)                                   :: rr
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'lin_mom', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ax, ay, az, bx, by, bz, coa, cob, i, &
                                                             ipgf, j, jpgf, la, lb, ma, mb, na, nb
       REAL(dp)                                           :: dab, dumx, dumy, dumz, f0, rab2, xhi, zet
@@ -426,8 +423,7 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix
       REAL(dp), DIMENSION(:), INTENT(IN)                 :: rc
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_ang_mom_matrix', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'build_ang_mom_matrix'
 
       INTEGER :: handle, i, iatom, icol, ikind, inode, irow, iset, jatom, jkind, jset, last_jatom, &
          ldai, maxco, maxlgto, maxsgf, natom, ncoa, ncob, neighbor_list_id, nkind, nseta, nsetb, &
@@ -681,8 +677,6 @@ CONTAINS
       REAL(dp), DIMENSION(0:ldrr-1, 0:ldrr-1, 3), &
          INTENT(INOUT)                                   :: rr
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'ang_mom', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ax, ay, az, bx, by, bz, coa, cob, i, &
                                                             ipgf, j, jpgf, la, lb, ma, mb, na, nb
       REAL(dp)                                           :: dab, dumx, dumy, dumz, f0, rab2, xhi, zet
@@ -803,7 +797,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       LOGICAL, INTENT(IN), OPTIONAL                      :: minimum_image
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'p_xyz_ao', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'p_xyz_ao'
 
       INTEGER :: handle, i, iatom, icol, ikind, inode, irow, iset, jatom, jkind, jset, last_jatom, &
          ldab, ldsa, ldsb, ldwork, maxl, ncoa, ncob, nkind, nseta, nsetb, sgfa, sgfb
@@ -1071,7 +1065,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: order
       LOGICAL, INTENT(IN), OPTIONAL                      :: minimum_image, soft
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'rRc_xyz_ao', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'rRc_xyz_ao'
 
       INTEGER :: handle, iatom, icol, ikind, imom, inode, irow, iset, jatom, jkind, jset, &
          last_jatom, ldab, ldsa, ldsb, ldwork, M_dim, maxl, ncoa, ncob, nkind, nseta, nsetb, sgfa, &
@@ -1333,7 +1327,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: order
       LOGICAL, INTENT(IN), OPTIONAL                      :: minimum_image, soft
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'rRc_xyz_der_ao', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'rRc_xyz_der_ao'
 
       INTEGER :: handle, i, iatom, icol, idir, ikind, imom, inode, ipgf, irow, iset, j, jatom, &
          jkind, jpgf, jset, last_jatom, lda_min, ldab, ldb_min, ldsa, ldsb, ldwork, M_dim, maxl, &

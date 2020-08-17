@@ -105,8 +105,7 @@ CONTAINS
       TYPE(cell_type), POINTER                           :: mm_cell
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_tb_qmmm_matrix', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'build_tb_qmmm_matrix'
 
       INTEGER                                            :: blk, handle, i, iatom, ikind, jatom, &
                                                             natom, natorb, nkind
@@ -245,8 +244,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_tb_qmmm_matrix_zero', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'build_tb_qmmm_matrix_zero'
 
       INTEGER                                            :: handle
       LOGICAL                                            :: do_dftb, do_xtb
@@ -315,8 +313,7 @@ CONTAINS
       TYPE(cell_type), POINTER                           :: mm_cell
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_tb_qmmm_matrix_pc', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'build_tb_qmmm_matrix_pc'
 
       INTEGER                                            :: blk, do_ipol, ewald_type, handle, i, &
                                                             iatom, ikind, imm, imp, indmm, ipot, &
@@ -597,8 +594,7 @@ CONTAINS
       LOGICAL, INTENT(in), OPTIONAL                      :: calc_force
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: Forces, Forces_added_charges
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'deriv_tb_qmmm_matrix', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'deriv_tb_qmmm_matrix'
 
       INTEGER                                            :: atom_a, blk, handle, i, iatom, ikind, &
                                                             iqm, jatom, natom, natorb, nkind, &
@@ -835,8 +831,7 @@ CONTAINS
       LOGICAL, INTENT(in), OPTIONAL                      :: calc_force
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: Forces, Forces_added_charges
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'deriv_tb_qmmm_matrix_pc', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'deriv_tb_qmmm_matrix_pc'
 
       INTEGER :: atom_a, blk, do_ipol, ewald_type, handle, i, iatom, ikind, imm, imp, indmm, ipot, &
          iqm, jatom, natom, natorb, nkind, nmm, nspins, number_qm_atoms
@@ -1262,7 +1257,7 @@ CONTAINS
       REAL(KIND=dp), INTENT(IN)                          :: qmmm_spherical_cutoff(2)
       TYPE(particle_type), DIMENSION(:), POINTER         :: particles_qm
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_mm_pot', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'build_mm_pot'
       REAL(KIND=dp), PARAMETER                           :: qsmall = 1.0e-15_dp
 
       INTEGER                                            :: handle, Imm, Imp, IndMM, Ipot
@@ -1346,7 +1341,7 @@ CONTAINS
       REAL(KIND=dp), INTENT(IN)                          :: qmmm_spherical_cutoff(2)
       TYPE(particle_type), DIMENSION(:), POINTER         :: particles_qm
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_mm_dpot', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'build_mm_dpot'
       REAL(KIND=dp), PARAMETER                           :: qsmall = 1.0e-15_dp
 
       INTEGER                                            :: handle, Imm, Imp, IndMM, Ipot

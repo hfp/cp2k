@@ -87,9 +87,6 @@ CONTAINS
    SUBROUTINE pw_poisson_cleanup(poisson_env)
       TYPE(pw_poisson_type), POINTER                     :: poisson_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_poisson_cleanup', &
-         routineP = moduleN//':'//routineN
-
       TYPE(pw_pool_type), POINTER                        :: pw_pool
 
       CPASSERT(ASSOCIATED(poisson_env))
@@ -111,9 +108,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE pw_poisson_check(poisson_env)
       TYPE(pw_poisson_type), POINTER                     :: poisson_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_poisson_check', &
-         routineP = moduleN//':'//routineN
 
       LOGICAL                                            :: rebuild
       TYPE(greens_fn_type), POINTER                      :: green
@@ -179,8 +173,7 @@ CONTAINS
       TYPE(pw_poisson_type), POINTER                     :: poisson_env
       TYPE(pw_type), OPTIONAL, POINTER                   :: density
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_poisson_rebuild', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'pw_poisson_rebuild'
 
       INTEGER                                            :: handle
 
@@ -253,8 +246,7 @@ CONTAINS
       TYPE(pw_p_type), OPTIONAL, POINTER                 :: rho_core
       TYPE(pw_type), OPTIONAL, POINTER                   :: greenfn
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_poisson_solve', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'pw_poisson_solve'
 
       INTEGER                                            :: alpha, beta, handle, i
       INTEGER, DIMENSION(3)                              :: n
@@ -530,7 +522,7 @@ CONTAINS
       TYPE(pw_grid_type), OPTIONAL, POINTER              :: mt_super_ref_pw_grid, dct_pw_grid
       LOGICAL, INTENT(in), OPTIONAL                      :: force_rebuild
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_poisson_set', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'pw_poisson_set'
 
       INTEGER                                            :: handle, i
       LOGICAL                                            :: same

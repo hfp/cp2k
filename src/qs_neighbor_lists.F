@@ -128,7 +128,7 @@ CONTAINS
    SUBROUTINE atom2d_cleanup(atom2d)
       TYPE(local_atoms_type), DIMENSION(:)               :: atom2d
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'atom2d_cleanup', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'atom2d_cleanup'
 
       INTEGER                                            :: handle, ikind
 
@@ -176,7 +176,7 @@ CONTAINS
       LOGICAL                                            :: molecule_only
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'atom2d_build', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'atom2d_build'
 
       INTEGER                                            :: atom_a, handle, ia, iat, iatom, &
                                                             iatom_local, ikind, imol, natom, &
@@ -291,8 +291,7 @@ CONTAINS
       LOGICAL, OPTIONAL                                  :: molecular
       TYPE(section_vals_type), POINTER                   :: force_env_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_qs_neighbor_lists', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'build_qs_neighbor_lists'
 
       CHARACTER(LEN=default_string_length)               :: print_key_path
       INTEGER                                            :: handle, ikind, iw, maxatom, nkind, &
@@ -984,8 +983,7 @@ CONTAINS
       CHARACTER(LEN=*), INTENT(IN)                       :: nlname
       INTEGER, DIMENSION(:), INTENT(IN), OPTIONAL        :: atomb_to_keep
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_neighbor_lists', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'build_neighbor_lists'
 
       TYPE local_lists
          INTEGER, DIMENSION(:), POINTER           :: list
@@ -1419,9 +1417,6 @@ CONTAINS
       LOGICAL, INTENT(IN), OPTIONAL                      :: mic, symmetric, molecular
       CHARACTER(LEN=*), INTENT(IN), OPTIONAL             :: operator_type
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'setup_neighbor_list', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=4)                                   :: otype
       INTEGER                                            :: ikind, nkind
       LOGICAL                                            :: my_mic, my_molecular, my_symmetric
@@ -1525,8 +1520,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: ikind
       TYPE(local_atoms_type), DIMENSION(:), INTENT(IN)   :: atom
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'combine_lists', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, ib, na, nb
       INTEGER, DIMENSION(:), POINTER                     :: lista, listb
 
@@ -1577,9 +1570,6 @@ CONTAINS
       REAL(dp), DIMENSION(:), INTENT(IN)                 :: radius_a, radius_b
       REAL(dp), DIMENSION(:, :), INTENT(OUT)             :: pair_radius
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pair_radius_setup', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, j, nkind
 
       nkind = SIZE(present_a)
@@ -1613,8 +1603,7 @@ CONTAINS
       INTEGER, INTENT(in)                                :: output_unit
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'write_neighbor_distribution', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'write_neighbor_distribution'
       LOGICAL, PARAMETER                                 :: full_output = .FALSE.
 
       INTEGER                                            :: group, handle, ikind, inode, ipe, jkind, &

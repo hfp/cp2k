@@ -87,9 +87,6 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       LOGICAL, INTENT(IN)                                :: calculate_forces
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'build_ri_matrices', &
-         routineP = moduleN//':'//routineN
-
       CALL calculate_ri_integrals(lri_env, qs_env, calculate_forces)
 
    END SUBROUTINE build_ri_matrices
@@ -107,8 +104,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       LOGICAL, INTENT(IN)                                :: calculate_forces
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_ri_integrals', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_ri_integrals'
       REAL(KIND=dp), DIMENSION(2), PARAMETER             :: fx = (/0.0_dp, 1.0_dp/)
 
       INTEGER                                            :: handle, i, i1, i2, iatom, ispin, izero, &
@@ -295,8 +291,7 @@ CONTAINS
       CHARACTER(LEN=*), INTENT(IN)                       :: solver
       INTEGER, DIMENSION(:, :), INTENT(IN)               :: ptr
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'ri_metric_solver', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'ri_metric_solver'
 
       INTEGER                                            :: handle, max_iter, n
       LOGICAL                                            :: converged
@@ -365,8 +360,7 @@ CONTAINS
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_ri_densities', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_ri_densities'
 
       INTEGER                                            :: atom_a, handle, i1, i2, iatom, ikind, &
                                                             ispin, n, natom, nspin
@@ -433,8 +427,7 @@ CONTAINS
       TYPE(o3c_container_type), POINTER                  :: o3c
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_tvec_ri', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'calculate_tvec_ri'
       INTEGER, PARAMETER                                 :: msweep = 32
 
       INTEGER                                            :: handle, i1, i2, ibl, ibu, il, ispin, &
@@ -536,8 +529,7 @@ CONTAINS
       TYPE(lri_environment_type), POINTER                :: lri_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: pmatrix
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_avec_ri', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'calculate_avec_ri'
 
       INTEGER                                            :: handle, ispin, nspin
       REAL(KIND=dp)                                      :: etr, nelec, nrm1t
@@ -592,7 +584,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), INTENT(OUT)           :: vo
       INTEGER, DIMENSION(:, :), INTENT(IN)               :: ptr
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'ri_matvec', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'ri_matvec'
 
       CHARACTER                                          :: matrix_type
       INTEGER                                            :: group, handle, iatom, jatom, m1, m2, mb, &

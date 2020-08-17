@@ -55,8 +55,6 @@ CONTAINS
       TYPE(normalmode_env_type), POINTER                 :: normalmode_env
       TYPE(section_vals_type), POINTER                   :: section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pint_pile_init', routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=rng_record_length)                   :: rng_record
       INTEGER                                            :: i, j, p
       LOGICAL                                            :: explicit
@@ -137,7 +135,7 @@ CONTAINS
       REAL(kind=dp), DIMENSION(:, :), INTENT(IN)         :: masses
       TYPE(pile_therm_type), POINTER                     :: pile_therm
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pint_pile_step', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'pint_pile_step'
 
       INTEGER                                            :: handle, ibead, idim
       REAL(KIND=dp)                                      :: delta_ekin
@@ -172,9 +170,6 @@ CONTAINS
 
       TYPE(pile_therm_type), POINTER                     :: pile_therm
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pint_pile_release', &
-         routineP = moduleN//':'//routineN
-
       IF (ASSOCIATED(pile_therm)) THEN
          pile_therm%ref_count = pile_therm%ref_count - 1
          IF (pile_therm%ref_count == 0) THEN
@@ -200,9 +195,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE pint_calc_pile_energy(pint_env)
       TYPE(pint_env_type), POINTER                       :: pint_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'pint_calc_pile_energy', &
-         routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(pint_env%pile_therm)) THEN
          pint_env%e_pile = pint_env%pile_therm%thermostat_energy

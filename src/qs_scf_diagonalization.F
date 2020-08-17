@@ -147,9 +147,6 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: scf_section
       LOGICAL, INTENT(INOUT)                             :: diis_step
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'general_eigenproblem', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ispin, nspin
       LOGICAL                                            :: do_level_shift, use_jacobi
       REAL(KIND=dp)                                      :: diis_error, eps_diis
@@ -292,9 +289,6 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: scf_section
       LOGICAL, INTENT(INOUT)                             :: diis_step
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'do_general_diag', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ispin, nspin
       REAL(KIND=dp)                                      :: total_zeff_corr
 
@@ -344,8 +338,7 @@ CONTAINS
       TYPE(scf_control_type), POINTER                    :: scf_control
       LOGICAL, INTENT(IN)                                :: update_p
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'do_general_diag_kp', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'do_general_diag_kp'
       COMPLEX(KIND=dp), PARAMETER :: cone = CMPLX(1.0_dp, 0.0_dp, KIND=dp), &
          czero = CMPLX(0.0_dp, 0.0_dp, KIND=dp), ione = CMPLX(0.0_dp, 1.0_dp, KIND=dp)
 
@@ -625,8 +618,7 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: scf_section
       TYPE(scf_control_type), POINTER                    :: scf_control
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'do_scf_diag_subspace', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'do_scf_diag_subspace'
       REAL(KIND=dp), PARAMETER                           :: rone = 1.0_dp, rzero = 0.0_dp
 
       INTEGER                                            :: handle, i, iloop, ispin, nao, nmo, &
@@ -828,8 +820,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(mo_set_p_type), DIMENSION(:), POINTER         :: mos
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'diag_subspace_allocate', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'diag_subspace_allocate'
 
       INTEGER                                            :: handle, i, ispin, nmo, nspin
       TYPE(cp_fm_struct_type), POINTER                   :: fm_struct_tmp
@@ -998,8 +989,6 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: scf_section
       LOGICAL, INTENT(INOUT)                             :: diis_step
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'do_ot_diag', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: homo, ispin, nmo, nspin
       REAL(KIND=dp)                                      :: diis_error, eps_iter
       REAL(KIND=dp), DIMENSION(:), POINTER               :: eigenvalues
@@ -1112,7 +1101,7 @@ CONTAINS
       LOGICAL, INTENT(INOUT)                             :: diis_step
       LOGICAL, INTENT(IN)                                :: orthogonal_basis
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'do_roks_diag', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'do_roks_diag'
 
       INTEGER                                            :: handle, homoa, homob, imo, nalpha, nao, &
                                                             nbeta, nmo
@@ -1380,8 +1369,7 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: scf_section
       LOGICAL, INTENT(IN), OPTIONAL                      :: check_moconv_only
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'do_block_krylov_diag', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'do_block_krylov_diag'
       REAL(KIND=dp), PARAMETER                           :: rone = 1.0_dp, rzero = 0.0_dp
 
       INTEGER                                            :: handle, homo, ispin, iter, nao, nmo, &
@@ -1582,8 +1570,7 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: scf_section
       LOGICAL, INTENT(IN), OPTIONAL                      :: check_moconv_only
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'do_block_davidson_diag', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'do_block_davidson_diag'
 
       INTEGER                                            :: handle, ispin, nspins, output_unit
       LOGICAL                                            :: do_prec, my_check_moconv_only

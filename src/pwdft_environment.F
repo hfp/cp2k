@@ -83,7 +83,7 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: force_env_section, subsys_section
       LOGICAL, INTENT(IN)                                :: use_motion_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pwdft_init', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'pwdft_init'
 
       INTEGER                                            :: handle, iw, natom
       LOGICAL                                            :: use_ref_cell
@@ -215,8 +215,7 @@ CONTAINS
       TYPE(pwdft_environment_type), POINTER              :: pwdft_env
       LOGICAL, INTENT(IN)                                :: calculate_forces, calculate_stress
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pwdft_calc_energy_force', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'pwdft_calc_energy_force'
 
       INTEGER                                            :: handle, iatom, iw, natom
       REAL(KIND=dp), DIMENSION(1:3, 1:3)                 :: stress

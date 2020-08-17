@@ -77,9 +77,6 @@ CONTAINS
    SUBROUTINE qs_ks_qmmm_release(ks_qmmm_env)
       TYPE(qs_ks_qmmm_env_type), POINTER                 :: ks_qmmm_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'qs_ks_qmmm_release', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i
       TYPE(pw_pool_type), POINTER                        :: pool
 
@@ -115,9 +112,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE qs_ks_qmmm_retain(ks_qmmm_env)
       TYPE(qs_ks_qmmm_env_type), POINTER                 :: ks_qmmm_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'qs_ks_qmmm_retain', &
-         routineP = moduleN//':'//routineN
 
       CPASSERT(ASSOCIATED(ks_qmmm_env))
       CPASSERT(ks_qmmm_env%ref_count > 0)

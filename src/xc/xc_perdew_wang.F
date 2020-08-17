@@ -64,9 +64,6 @@ CONTAINS
       INTEGER, INTENT(out), OPTIONAL                     :: max_deriv
       REAL(kind=dp), INTENT(in)                          :: scale
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'perdew_wang_info', &
-                                     routineP = moduleN//':'//routineN
-
       CHARACTER(len=3)                                   :: p_string
 
       SELECT CASE (method)
@@ -143,8 +140,7 @@ CONTAINS
       INTEGER, INTENT(in)                                :: order
       REAL(kind=dp), INTENT(in)                          :: scale
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'perdew_wang_lda_eval', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'perdew_wang_lda_eval'
 
       INTEGER                                            :: npoints, timer_handle
       INTEGER, DIMENSION(:, :), POINTER                  :: bo
@@ -278,8 +274,7 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: order
       REAL(kind=dp), INTENT(in)                          :: scale
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'perdew_wang_lsd_eval', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'perdew_wang_lsd_eval'
 
       INTEGER                                            :: npoints, timer_handle
       INTEGER, DIMENSION(:, :), POINTER                  :: bo

@@ -111,8 +111,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: elpa_kernel
       LOGICAL, INTENT(IN)                                :: elpa_qr, elpa_print, elpa_qr_unsafe
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'diag_init', routineP = moduleN//':'//routineN
-
       fallback_applied = .FALSE.
 
       IF (diag_lib .EQ. "SL") THEN
@@ -143,7 +141,6 @@ CONTAINS
 !> \brief Finalize the diagonalization library
 ! **************************************************************************************************
    SUBROUTINE diag_finalize()
-      CHARACTER(len=*), PARAMETER :: routineN = 'diag_finalize', routineP = moduleN//':'//routineN
 #if defined (__ELPA)
       IF (diag_type == DIAG_TYPE_ELPA) &
          CALL finalize_elpa_library()
@@ -166,9 +163,6 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                          :: matrix, eigenvectors
       REAL(KIND=dp), DIMENSION(:), INTENT(OUT)           :: eigenvalues
       INTEGER, INTENT(OUT), OPTIONAL                     :: info
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'choose_eigv_solver', &
-                                     routineP = moduleN//':'//routineN
 
       INTEGER                                            :: myinfo, nmo
 #if defined(__CHECK_DIAG)
@@ -290,8 +284,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), INTENT(OUT) :: eigenvalues
       INTEGER, INTENT(OUT), OPTIONAL           :: info
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_syevd', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_syevd'
 
       INTEGER                                  :: handle, myinfo, n, nmo
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:) :: eig
@@ -395,8 +388,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:)              :: eig
       INTEGER, INTENT(OUT)                     :: info
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_syevd_base', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_syevd_base'
 
       INTEGER                                  :: handle
 #if defined(__SCALAPACK)
@@ -502,8 +494,7 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                :: neig
       REAL(KIND=dp), DIMENSION(:), INTENT(OUT)   :: eigenvalues
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = "cp_fm_syevx", &
-                                     routineP = moduleN//":"//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = "cp_fm_syevx"
 
 #if defined(__SCALAPACK)
       REAL(KIND=dp), PARAMETER                     :: orfac = -1.0_dp
@@ -746,8 +737,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(2), INTENT(OUT), &
          OPTIONAL                               :: eigvals
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_power', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_power'
 
       INTEGER                                    :: handle, icol_global, &
                                                     mypcol, myprow, &
@@ -927,8 +917,7 @@ CONTAINS
       INTEGER, INTENT(IN)                       :: start_sec_block
       REAL(KIND=dp), INTENT(IN)               :: thresh
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_block_jacobi', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_block_jacobi'
 
       INTEGER :: handle
       REAL(KIND=dp), DIMENSION(:, :), POINTER  :: a, ev
@@ -1134,7 +1123,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:)                        :: eigenvalues
       TYPE(cp_fm_type), POINTER                          :: work
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_geeig', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'cp_fm_geeig'
 
       INTEGER                                            :: handle, nao, nmo
 
@@ -1177,8 +1166,7 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                          :: work
       REAL(KIND=dp), INTENT(IN)                          :: epseig
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_geeig_canon', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'cp_fm_geeig_canon'
 
       INTEGER                                            :: handle, i, icol, irow, nao, nc, ncol, &
                                                             nmo, nx

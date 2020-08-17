@@ -77,9 +77,6 @@ CONTAINS
       LOGICAL, INTENT(OUT)                               :: sgf_soft_only
       REAL(dp), INTENT(IN)                               :: eps_fit
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_oce_block', &
-         routineP = moduleN//':'//routineN
-
       INTEGER :: first_col, ic, ico, ider, ig1, igau, ip, ipgf, is, isgfb, isgfb_cnt, iso, isp, &
          jc, jset, lds, lm, lpoint, lprj, lsgfb, lsgfb_cnt, lshell, lx, ly, lz, m, m1, maxcob, &
          maxder, maxlb, maxlprj, maxnprja, maxsoa, msab, n, ncob, np_car, np_sph, nsatbas, nseta, &
@@ -278,9 +275,6 @@ CONTAINS
       INTEGER, DIMENSION(:), INTENT(OUT)                 :: sgf_list
       INTEGER, INTENT(OUT)                               :: nsgf_cnt
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_oce_block_local', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, iset, isgfa, j, jc, lsgfa, maxlprj, &
                                                             maxsoa, n, nsatbas, nseta, nsgfa
       INTEGER, DIMENSION(:), POINTER                     :: n2oindex, nsgf_seta
@@ -364,8 +358,7 @@ CONTAINS
          POINTER                                         :: sap_oce
       REAL(dp), INTENT(IN)                               :: eps_fit
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'build_oce_matrices', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'build_oce_matrices'
 
       INTEGER :: atom_a, atom_b, handle, i, iac, ikind, ilist, jkind, jneighbor, ldai, ldsab, &
          maxco, maxder, maxl, maxlgto, maxlprj, maxprj, maxsgf, maxsoa, maxsob, mlprj, natom, &
@@ -688,8 +681,6 @@ CONTAINS
       REAL(dp), DIMENSION(:, :), INTENT(INOUT)           :: aout
       TYPE(qs_kind_type), INTENT(IN)                     :: atom
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'prj_gather', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, ip, j, jp, nbas
       INTEGER, DIMENSION(:), POINTER                     :: n2oindex
       LOGICAL                                            :: paw_atom
@@ -721,8 +712,6 @@ CONTAINS
       REAL(dp), DIMENSION(:, :), INTENT(IN)              :: ain
       REAL(dp), DIMENSION(:, :), INTENT(INOUT)           :: aout
       TYPE(qs_kind_type), INTENT(IN)                     :: atom
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'prj_scatter', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, ip, j, jp, nbas
       INTEGER, DIMENSION(:), POINTER                     :: n2oindex

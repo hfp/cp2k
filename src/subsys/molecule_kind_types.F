@@ -237,9 +237,6 @@ CONTAINS
          POINTER                                         :: colv_list
       TYPE(colvar_counters)                              :: ncolv
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'setup_colvar_counters', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: k
 
       ncolv%ndist = 0
@@ -344,9 +341,6 @@ CONTAINS
       TYPE(molecule_kind_type), DIMENSION(:), POINTER    :: molecule_kind_set
       INTEGER, INTENT(IN)                                :: nmolecule_kind
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'allocate_molecule_kind_set', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: imolecule_kind
 
       IF (ASSOCIATED(molecule_kind_set)) THEN
@@ -414,9 +408,6 @@ CONTAINS
    SUBROUTINE deallocate_molecule_kind_set(molecule_kind_set)
 
       TYPE(molecule_kind_type), DIMENSION(:), POINTER    :: molecule_kind_set
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'deallocate_molecule_kind_set', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, imolecule_kind, j, nmolecule_kind
 
@@ -624,9 +615,6 @@ CONTAINS
          POINTER                                         :: torsion_kind_set
       LOGICAL, INTENT(OUT), OPTIONAL                     :: molname_generated
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_molecule_kind', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i
 
       IF (ASSOCIATED(molecule_kind)) THEN
@@ -742,9 +730,6 @@ CONTAINS
                                                             ntorsion, nimpr, nopbend, nconstraint, &
                                                             nconstraint_fixd, nmolecule, &
                                                             nrestraints
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_molecule_kind_set', &
-         routineP = moduleN//':'//routineN
 
       INTEGER :: ibend, ibond, iimpr, imolecule_kind, iopbend, itorsion, iub, na, nc, nc_fixd, &
          nfixd_restraint, nm, nmolecule_kind, nrestraints_tot
@@ -922,9 +907,6 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: nelectron, nsgf
       LOGICAL, INTENT(IN), OPTIONAL                      :: molname_generated
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'set_molecule_kind', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: n
 
       IF (ASSOCIATED(molecule_kind)) THEN
@@ -1000,9 +982,6 @@ CONTAINS
    SUBROUTINE write_molecule_kind(molecule_kind, output_unit)
       TYPE(molecule_kind_type), POINTER                  :: molecule_kind
       INTEGER, INTENT(in)                                :: output_unit
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'write_molecule_kind', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_string_length)               :: name
       INTEGER                                            :: iatom, imolecule, natom, nmolecule
@@ -1080,8 +1059,7 @@ CONTAINS
       TYPE(molecule_kind_type), DIMENSION(:), POINTER    :: molecule_kind_set
       TYPE(section_vals_type), POINTER                   :: subsys_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'write_molecule_kind_set', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'write_molecule_kind_set'
 
       INTEGER                                            :: handle, imolecule_kind, natom, nbend, &
                                                             nbond, nimpr, nmolecule, &

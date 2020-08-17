@@ -111,8 +111,7 @@ CONTAINS
 
       TYPE(force_env_type), POINTER                      :: force_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'linres_calculation', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'linres_calculation'
 
       INTEGER                                            :: handle
       TYPE(qs_environment_type), POINTER                 :: qs_env
@@ -156,8 +155,7 @@ CONTAINS
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'linres_calculation_low', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'linres_calculation_low'
 
       INTEGER                                            :: handle, iounit
       LOGICAL                                            :: epr_present, issc_present, &
@@ -254,8 +252,6 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: lr_section
       TYPE(qs_p_env_type), POINTER                       :: p_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'linres_init', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: iounit, ispin
       LOGICAL                                            :: do_it
@@ -396,8 +392,6 @@ CONTAINS
       LOGICAL                                            :: nmr_present, epr_present
       INTEGER                                            :: iounit
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'nmr_epr_linres', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: iB
       LOGICAL                                            :: do_qmmm
       TYPE(current_env_type)                             :: current_env
@@ -505,8 +499,6 @@ CONTAINS
       TYPE(qs_p_env_type), POINTER                       :: p_env
       TYPE(dft_control_type), POINTER                    :: dft_control
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'issc_linres', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: iatom
       LOGICAL                                            :: do_qmmm
       TYPE(current_env_type)                             :: current_env
@@ -558,8 +550,6 @@ CONTAINS
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(qs_p_env_type), POINTER                       :: p_env
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'polar_linres', routineP = moduleN//':'//routineN
 
       CALL polar_env_init(qs_env)
       CALL polar_operators(qs_env)

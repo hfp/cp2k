@@ -72,8 +72,6 @@ CONTAINS
       INTEGER                                            :: mv_conf
       LOGICAL                                            :: new_subbox, move_rejected
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'change_pos', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: act_nr_elem_mv, counter, d, i, ind, &
                                                             ind_e, m, nr_molec, nr_sub_box_elem
       INTEGER, DIMENSION(:), POINTER                     :: mol_in_sb
@@ -368,9 +366,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: mol
       INTEGER, INTENT(OUT)                               :: start_ind, end_ind
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'get_mol_indeces', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i
 
       start_ind = -1
@@ -417,8 +412,7 @@ CONTAINS
       TYPE(tmc_param_type), POINTER                      :: tmc_params
       LOGICAL                                            :: inside
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'check_pos_in_subbox', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'check_pos_in_subbox'
 
       INTEGER                                            :: handle
       LOGICAL                                            :: flag
@@ -472,8 +466,7 @@ CONTAINS
       TYPE(tree_type), POINTER                           :: elem
       INTEGER, INTENT(OUT)                               :: nr_of_sub_box_elements
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'elements_in_new_subbox', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'elements_in_new_subbox'
 
       INTEGER                                            :: handle, i
       REAL(KIND=dp)                                      :: rnd
@@ -549,8 +542,6 @@ CONTAINS
       TYPE(rng_stream_type), INTENT(INOUT)               :: rng_stream
       INTEGER                                            :: dim_per_elem
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'do_mol_rot', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i
       REAL(KIND=dp)                                      :: a1, a2, a3, q0, q1, q2, q3, rnd
       REAL(KIND=dp), DIMENSION(3, 3)                     :: rot
@@ -612,8 +603,6 @@ CONTAINS
       LOGICAL                                            :: rnd_sign_change
       TYPE(rng_stream_type), INTENT(INOUT)               :: rng_stream
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'vel_change', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: d
       REAL(KIND=dp)                                      :: delta_vel, kB, rnd1, rnd2, rnd3, rnd_g
 
@@ -665,8 +654,7 @@ CONTAINS
       TYPE(rng_stream_type), INTENT(INOUT)               :: rng_stream
       TYPE(tmc_param_type), POINTER                      :: tmc_params
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'search_and_do_proton_displace_loop', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'search_and_do_proton_displace_loop'
 
       CHARACTER(LEN=1000)                                :: tmp_chr
       INTEGER                                            :: counter, donor_acceptor, handle, k, mol, &
@@ -767,8 +755,7 @@ CONTAINS
       TYPE(tmc_param_type), POINTER                      :: tmc_params
       TYPE(rng_stream_type), INTENT(INOUT)               :: rng_stream
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'find_nearest_proton_acceptor_donator', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'find_nearest_proton_acceptor_donator'
 
       INTEGER                                            :: handle, ind, ind_e, ind_n, mol_tmp, &
                                                             nr_mol
@@ -907,9 +894,6 @@ CONTAINS
       TYPE(tmc_param_type), POINTER                      :: tmc_params
       INTEGER                                            :: donor_acceptor
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'check_donor_acceptor', &
-         routineP = moduleN//':'//routineN
-
       REAL(KIND=dp), DIMENSION(4)                        :: distances
 
       CPASSERT(ASSOCIATED(elem))
@@ -966,8 +950,7 @@ CONTAINS
       INTEGER, DIMENSION(:)                              :: mol_arr_in
       INTEGER                                            :: donor_acceptor
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'rotate_molecules_in_chain', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'rotate_molecules_in_chain'
 
       INTEGER                                            :: H_offset, handle, i, ind
       INTEGER, DIMENSION(:), POINTER                     :: ind_arr
@@ -1121,7 +1104,7 @@ CONTAINS
       TYPE(tmc_param_type), POINTER                      :: tmc_params
       LOGICAL                                            :: mv_cen_of_mass
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'change_volume', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'change_volume'
 
       INTEGER                                            :: atom, dir, handle, ind, ind_e, mol
       REAL(KIND=dp)                                      :: rnd, vol
@@ -1247,8 +1230,6 @@ CONTAINS
       TYPE(tmc_move_type), POINTER                       :: move_types
       TYPE(rng_stream_type), INTENT(INOUT)               :: rng_stream
       TYPE(tmc_param_type), POINTER                      :: tmc_params
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'swap_atoms', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: a_1, a_2, ind_1, ind_2
       LOGICAL                                            :: found

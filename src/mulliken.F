@@ -76,9 +76,6 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:), OPTIONAL, &
          POINTER                                         :: ks_matrix, w_matrix
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mulliken_restraint', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: blk, iblock_col, iblock_row, ispin, &
                                                             nblock, nspin
       LOGICAL                                            :: found
@@ -386,8 +383,7 @@ CONTAINS
       INTEGER                                            :: scr
       CHARACTER(LEN=*)                                   :: title
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mulliken_charges_a', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'mulliken_charges_a'
 
       INTEGER                                            :: handle, nblock, nspin
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: charges
@@ -425,8 +421,7 @@ CONTAINS
       TYPE(cp_para_env_type), POINTER                    :: para_env
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: mcharge
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mulliken_charges_b', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'mulliken_charges_b'
 
       INTEGER                                            :: handle
 
@@ -454,8 +449,7 @@ CONTAINS
       TYPE(cp_para_env_type), POINTER                    :: para_env
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: mcharge, dmcharge
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mulliken_charges_c', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'mulliken_charges_c'
 
       INTEGER                                            :: handle
 
@@ -482,8 +476,7 @@ CONTAINS
       TYPE(cp_para_env_type), POINTER                    :: para_env
       REAL(KIND=dp), DIMENSION(:)                        :: mcharge
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mulliken_charges_s', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'mulliken_charges_s'
 
       INTEGER                                            :: handle
 
@@ -517,8 +510,7 @@ CONTAINS
       INTEGER                                            :: scr
       CHARACTER(LEN=*)                                   :: title
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mulliken_charges_akp', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'mulliken_charges_akp'
 
       INTEGER                                            :: handle, ic, nblock, nspin
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: charges, charges_im
@@ -565,8 +557,7 @@ CONTAINS
       TYPE(cp_para_env_type), POINTER                    :: para_env
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: mcharge
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mulliken_charges_bkp', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'mulliken_charges_bkp'
 
       INTEGER                                            :: handle, ic, natom, nspin
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: mcharge_im
@@ -615,8 +606,7 @@ CONTAINS
       TYPE(cp_para_env_type), POINTER                    :: para_env
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: mcharge, dmcharge
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mulliken_charges_ckp', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'mulliken_charges_ckp'
 
       INTEGER                                            :: handle, ic, natom, nder, nspin
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: dmcharge_im, mcharge_im
@@ -704,7 +694,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: iatom
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'ao_charges_1', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'ao_charges_1'
 
       INTEGER                                            :: blk, handle, i, iblock_col, iblock_row, &
                                                             ispin, j, nspin
@@ -767,7 +757,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), INTENT(INOUT)      :: charges
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'ao_charges_2', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'ao_charges_2'
 
       INTEGER                                            :: blk, handle, i, iblock_col, iblock_row, &
                                                             ispin, j, nspin
@@ -828,7 +818,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: iatom
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'ao_charges_kp', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'ao_charges_kp'
 
       INTEGER                                            :: handle, ic, na
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: charge_im
@@ -874,8 +864,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), INTENT(INOUT)      :: charges
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'ao_charges_kp_2', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'ao_charges_kp_2'
 
       INTEGER                                            :: handle, ic, na, nb
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: charge_im

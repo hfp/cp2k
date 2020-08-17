@@ -119,9 +119,6 @@ CONTAINS
    SUBROUTINE linesearch_create_section(section)
       TYPE(section_type), POINTER                        :: section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'linesearch_create_section', &
-         routineP = moduleN//':'//routineN
-
       TYPE(keyword_type), POINTER                        :: keyword
       TYPE(section_type), POINTER                        :: print_section, printkey
 
@@ -197,9 +194,6 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: section
       CHARACTER(LEN=*)                                   :: label
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'linesearch_init', &
-         routineP = moduleN//':'//routineN
-
       TYPE(cp_logger_type), POINTER                      :: logger
 
       CALL section_vals_val_get(section, "METHOD", i_val=this%method)
@@ -262,9 +256,6 @@ CONTAINS
    SUBROUTINE linesearch_finalize(this)
       TYPE(linesearch_type), INTENT(INOUT)               :: this
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'linesearch_finalize', &
-         routineP = moduleN//':'//routineN
-
       SELECT CASE (this%method)
       CASE (linesearch_method_adapt)
          DEALLOCATE (this%state_adapt)
@@ -305,9 +296,6 @@ CONTAINS
    SUBROUTINE linesearch_step(this, energy, slope)
       TYPE(linesearch_type), INTENT(INOUT)               :: this
       REAL(KIND=dp), INTENT(IN)                          :: energy, slope
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'linesearch_step', &
-         routineP = moduleN//':'//routineN
 
       LOGICAL                                            :: is_done
       REAL(KIND=dp)                                      :: step_size
@@ -350,9 +338,6 @@ CONTAINS
       LOGICAL, INTENT(OUT)                               :: is_done
       INTEGER, INTENT(IN)                                :: unit_nr
       CHARACTER(len=*), INTENT(IN)                       :: label
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'linesearch_2pnt', &
-         routineP = moduleN//':'//routineN
 
       REAL(KIND=dp)                                      :: a, b, c, pred_energy, x2
 
@@ -502,8 +487,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: unit_nr
       CHARACTER(len=*), INTENT(IN)                       :: label
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'linesearch_adapt', &
-         routineP = moduleN//':'//routineN
       REAL(KIND=dp), PARAMETER                           :: grow_factor = 2.0_dp, &
                                                             shrink_factor = 0.5_dp
 
@@ -619,8 +602,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: unit_nr
       CHARACTER(len=*), INTENT(IN)                       :: label
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'linesearch_gold', &
-         routineP = moduleN//':'//routineN
       REAL(KIND=dp), PARAMETER :: phi = (1.0_dp + SQRT(5.0_dp))/2.0_dp
 
       REAL(KIND=dp)                                      :: a, b, d

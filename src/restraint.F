@@ -66,8 +66,7 @@ CONTAINS
 
       TYPE(force_env_type), POINTER                      :: force_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'restraint_control', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'restraint_control'
 
       INTEGER                                            :: handle, i, ifixd, ii, ikind, imol, &
                                                             iparticle, n3x3con_restraint, &
@@ -247,9 +246,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(INOUT)                       :: energy
       REAL(KIND=dp), DIMENSION(:, :), INTENT(INOUT)      :: force
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'restraint_3x3_int', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: first_atom, ng3x3
       TYPE(fixd_constraint_type), DIMENSION(:), POINTER  :: fixd_list
       TYPE(g3x3_constraint_type), POINTER                :: g3x3_list(:)
@@ -278,9 +274,6 @@ CONTAINS
       TYPE(particle_type), POINTER                       :: particle_set(:)
       REAL(KIND=dp), INTENT(INOUT)                       :: energy
       REAL(KIND=dp), DIMENSION(:, :), INTENT(INOUT)      :: force
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'restraint_4x6_int', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: first_atom, ng4x6
       TYPE(fixd_constraint_type), DIMENSION(:), POINTER  :: fixd_list
@@ -313,9 +306,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(INOUT)                       :: energy
       REAL(KIND=dp), DIMENSION(:, :), INTENT(INOUT)      :: force
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'restraint_colv_int', &
-         routineP = moduleN//':'//routineN
-
       TYPE(colvar_constraint_type), POINTER              :: colv_list(:)
       TYPE(fixd_constraint_type), DIMENSION(:), POINTER  :: fixd_list
       TYPE(local_colvar_constraint_type), POINTER        :: lcolv(:)
@@ -346,9 +336,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(INOUT)                       :: energy
       REAL(KIND=dp), DIMENSION(:, :), INTENT(INOUT)      :: force
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'restraint_3x3_ext', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: first_atom, ng3x3
       TYPE(fixd_constraint_type), DIMENSION(:), POINTER  :: fixd_list
       TYPE(g3x3_constraint_type), POINTER                :: g3x3_list(:)
@@ -376,9 +363,6 @@ CONTAINS
       TYPE(particle_type), POINTER                       :: particle_set(:)
       REAL(KIND=dp), INTENT(INOUT)                       :: energy
       REAL(KIND=dp), DIMENSION(:, :), INTENT(INOUT)      :: force
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'restraint_4x6_ext', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: first_atom, ng4x6
       TYPE(fixd_constraint_type), DIMENSION(:), POINTER  :: fixd_list
@@ -409,9 +393,6 @@ CONTAINS
       TYPE(cell_type), POINTER                           :: cell
       REAL(KIND=dp), INTENT(INOUT)                       :: energy
       REAL(KIND=dp), DIMENSION(:, :), INTENT(INOUT)      :: force
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'restraint_colv_ext', &
-         routineP = moduleN//':'//routineN
 
       TYPE(colvar_constraint_type), POINTER              :: colv_list(:)
       TYPE(fixd_constraint_type), DIMENSION(:), POINTER  :: fixd_list
@@ -446,9 +427,6 @@ CONTAINS
       TYPE(particle_type), POINTER                       :: particle_set(:)
       REAL(KIND=dp), INTENT(INOUT)                       :: energy
       REAL(KIND=dp), DIMENSION(:, :), INTENT(INOUT)      :: force
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'restraint_3x3_low', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: iconst, index_a, index_b, index_c
       REAL(KIND=dp)                                      :: k, rab, rac, rbc, tab, tac, tbc
@@ -509,9 +487,6 @@ CONTAINS
       TYPE(particle_type), POINTER                       :: particle_set(:)
       REAL(KIND=dp), INTENT(INOUT)                       :: energy
       REAL(KIND=dp), DIMENSION(:, :), INTENT(INOUT)      :: force
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'restraint_4x6_low', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: iconst, index_a, index_b, index_c, &
                                                             index_d
@@ -588,9 +563,6 @@ CONTAINS
       TYPE(cell_type), POINTER                           :: cell
       REAL(KIND=dp), INTENT(INOUT)                       :: energy
       REAL(KIND=dp), DIMENSION(:, :), INTENT(INOUT)      :: force
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'restraint_colv_low', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: iatm, iconst, ind
       REAL(KIND=dp)                                      :: k, tab, targ

@@ -113,8 +113,7 @@ CONTAINS
       TYPE(current_env_type)                             :: current_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'current_operators', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'current_operators'
 
       INTEGER                                            :: handle, iao, icenter, idir, ii, iii, &
                                                             ispin, istate, j, nao, natom, &
@@ -440,7 +439,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       INTEGER, INTENT(IN)                                :: iatom
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'issc_operators', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'issc_operators'
 
       INTEGER                                            :: handle, idir, ispin, nmo, nspins, &
                                                             output_unit
@@ -636,9 +635,6 @@ CONTAINS
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'polar_operators', &
-         routineP = moduleN//':'//routineN
-
       LOGICAL                                            :: do_periodic
       TYPE(polar_env_type), POINTER                      :: polar_env
 
@@ -669,8 +665,7 @@ CONTAINS
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'polar_operators_berry', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'polar_operators_berry'
       COMPLEX(KIND=dp), PARAMETER                        :: one = (1.0_dp, 0.0_dp), &
                                                             zero = (0.0_dp, 0.0_dp)
 
@@ -844,8 +839,7 @@ CONTAINS
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'polar_operators_local', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'polar_operators_local'
 
       INTEGER                                            :: handle, i, ispin, nmo, nspins
       LOGICAL                                            :: do_raman
@@ -1013,8 +1007,7 @@ CONTAINS
       TYPE(cell_type), POINTER                 :: cell
       INTEGER, INTENT(IN)                      :: ixyz
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'fm_scale_by_pbc_AC', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'fm_scale_by_pbc_AC'
 
       INTEGER :: handle, icol_local, irow_local, m, mypcol, myprow, n, &
                  ncol_block, ncol_global, ncol_local, npcol, nprow, nrow_block, &

@@ -110,8 +110,6 @@ CONTAINS
       INTEGER, INTENT(in)                                :: run_type
       REAL(dp), INTENT(in), OPTIONAL                     :: delta_iter, used_time
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'rt_prop_output', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: n_electrons, nspin, output_unit, spin
       REAL(dp)                                           :: orthonormality, tot_rho_r
       REAL(KIND=dp), DIMENSION(:), POINTER               :: qs_tot_rho_r
@@ -264,8 +262,7 @@ CONTAINS
       TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: mos_new
       TYPE(dbcsr_type), OPTIONAL, POINTER                :: matrix_s
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'rt_calculate_orthonormality', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'rt_calculate_orthonormality'
 
       INTEGER                                            :: handle, i, im, ispin, j, k, n, &
                                                             ncol_local, nrow_local, nspin, re
@@ -345,7 +342,7 @@ CONTAINS
       TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: delta_mos
       REAL(dp), INTENT(out)                              :: delta_eps
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'rt_convergence', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'rt_convergence'
       REAL(KIND=dp), PARAMETER                           :: one = 1.0_dp, zero = 0.0_dp
 
       INTEGER                                            :: handle, i, icol, im, ispin, j, lcol, &
@@ -456,8 +453,7 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: delta_P
       REAL(dp), INTENT(out)                              :: delta_eps
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'rt_convergence_density', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'rt_convergence_density'
       REAL(KIND=dp), PARAMETER                           :: one = 1.0_dp, zero = 0.0_dp
 
       INTEGER                                            :: col_atom, group, handle, i, ispin, &
@@ -521,7 +517,7 @@ CONTAINS
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'make_moment', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'make_moment'
 
       INTEGER                                            :: handle, output_unit
       TYPE(cp_logger_type), POINTER                      :: logger
@@ -557,8 +553,7 @@ CONTAINS
       REAL(KIND=dp)                                      :: filter_eps
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: rho
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'report_density_occupation', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'report_density_occupation'
 
       INTEGER                                            :: handle, i, im, ispin, re, unit_nr
       REAL(KIND=dp)                                      :: eps, occ
@@ -613,8 +608,7 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: rho_new
       LOGICAL                                            :: history
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'write_rt_p_to_restart', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'write_rt_p_to_restart'
 
       CHARACTER(LEN=default_path_length)                 :: file_name, project_name
       INTEGER                                            :: handle, im, ispin, re, unit_nr
@@ -676,7 +670,7 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: dft_section
       INTEGER                                            :: spin, nspin
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'rt_current', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'rt_current'
 
       CHARACTER(len=1)                                   :: char_spin
       CHARACTER(len=14)                                  :: ext

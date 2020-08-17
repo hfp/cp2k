@@ -59,8 +59,7 @@ MODULE parallel_rng_types
 
    ! Global parameters in this module
 
-   CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'parallel_rng_types', &
-                                           rng_record_format = "(A40,I2,3L2,ES25.16,18F20.1)"
+   CHARACTER(LEN=*), PARAMETER, PRIVATE :: rng_record_format = "(A40,I2,3L2,ES25.16,18F20.1)"
    INTEGER, PARAMETER                   :: rng_record_length = 433
    INTEGER, PARAMETER                   :: rng_name_length = 40
 
@@ -280,8 +279,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: output_unit
       LOGICAL, INTENT(IN)                                :: ionode
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'check_rng', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, sumi
       REAL(KIND=dp)                                      :: sum, sum3
       REAL(KIND=dp), DIMENSION(3, 2)                     :: germe
@@ -440,8 +437,7 @@ CONTAINS
    SUBROUTINE check_seed(seed)
       REAL(KIND=dp), DIMENSION(3, 2), INTENT(IN)         :: seed
 
-      CHARACTER(LEN=*), PARAMETER :: fmtstr = "(A,I1,A,ES23.14,A,ES23.14)", &
-         routineN = 'check_seed', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: fmtstr = "(A,I1,A,ES23.14,A,ES23.14)"
 
       CHARACTER(LEN=default_string_length)               :: message
       INTEGER                                            :: i
@@ -513,9 +509,6 @@ CONTAINS
       LOGICAL, INTENT(IN), OPTIONAL                      :: antithetic, extended_precision
       TYPE(rng_stream_type)                              :: rng_stream
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'rng_stream_constructor', &
-         routineP = moduleN//':'//routineN
-
       IF (LEN_TRIM(name) .GT. rng_name_length) &
          CPABORT("given random number generator name is too long")
 
@@ -567,9 +560,6 @@ CONTAINS
    FUNCTION rng_stream_type_from_record(rng_record) RESULT(rng_stream)
       CHARACTER(LEN=rng_record_length), INTENT(IN)       :: rng_record
       TYPE(rng_stream_type)                              :: rng_stream
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'rng_stream_type_from_record', &
-         routineP = moduleN//':'//routineN
 
       READ (UNIT=rng_record, FMT=rng_record_format) &
          rng_stream%name, &
@@ -793,9 +783,6 @@ CONTAINS
       CLASS(rng_stream_type), INTENT(INOUT)              :: self
       INTEGER, INTENT(IN)                                :: low, high
       INTEGER                                            :: u
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'next_integer_random_number', &
-                                     routineP = moduleN//':'//routineN
 
       REAL(KIND=dp)                                      :: r
 

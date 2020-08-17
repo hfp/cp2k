@@ -73,7 +73,7 @@ CONTAINS
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(section_vals_type), POINTER                   :: force_env_section, subsys_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'eip_init', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'eip_init'
 
       INTEGER                                            :: handle
       LOGICAL                                            :: use_ref_cell
@@ -138,8 +138,7 @@ CONTAINS
       LOGICAL, INTENT(in)                                :: use_ref_cell
       TYPE(section_vals_type), POINTER                   :: subsys_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'eip_init_subsys', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'eip_init_subsys'
 
       INTEGER                                            :: handle, natom
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
@@ -211,7 +210,7 @@ CONTAINS
    SUBROUTINE eip_init_model(eip_env)
       TYPE(eip_environment_type), POINTER                :: eip_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'eip_init_model', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'eip_init_model'
 
       CHARACTER(LEN=default_string_length)               :: eip_atomic_kind_name
       INTEGER                                            :: handle, i

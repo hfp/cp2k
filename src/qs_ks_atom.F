@@ -115,7 +115,7 @@ CONTAINS
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
          OPTIONAL, POINTER                               :: sab_external
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'update_ks_atom', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'update_ks_atom'
 
       INTEGER :: bo(2), handle, ia_kind, iac, iat, iatom, ibc, ikind, img, ip, ispin, ja_kind, &
          jatom, jkind, ka_kind, kac, katom, kbc, kkind, ldCPC, max_gau, max_nsgf, maxsoc, mepos, &
@@ -596,9 +596,6 @@ CONTAINS
       LOGICAL, INTENT(IN)                                :: dista, distb
       REAL(dp), DIMENSION(:)                             :: coc
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'add_vhxca_to_ks', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, ispin, j, k
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: h_block, int_hard, int_soft
       TYPE(rho_atom_coeff), DIMENSION(:), POINTER        :: int_local_h, int_local_s
@@ -745,9 +742,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: ldCPC
       REAL(KIND=dp), DIMENSION(:, :, :)                  :: PC_h, PC_s
       REAL(KIND=dp), DIMENSION(:, :)                     :: p_matrix
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'add_vhxca_forces', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: dir, ispin
       REAL(dp), DIMENSION(:, :), POINTER                 :: int_hard, int_soft

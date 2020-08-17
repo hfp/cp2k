@@ -146,9 +146,6 @@ CONTAINS
       TYPE(distribution_2d_type), OPTIONAL, POINTER      :: dist_2d
       INTEGER, INTENT(IN), OPTIONAL                      :: pot_to_rad
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_2c_neighbor_lists', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ikind, nkind, pot_to_rad_prv
       LOGICAL, ALLOCATABLE, DIMENSION(:)                 :: i_present, j_present
       REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: pair_radius
@@ -287,8 +284,7 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: op_pos
       LOGICAL, INTENT(IN), OPTIONAL                      :: own_dist
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_3c_neighbor_lists', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'build_3c_neighbor_lists'
 
       INTEGER                                            :: handle, op_pos_prv, sym_level
       TYPE(libint_potential_type)                        :: pot_par_1, pot_par_2
@@ -399,8 +395,7 @@ CONTAINS
       TYPE(neighbor_list_3c_iterator_type), INTENT(OUT)  :: iterator
       TYPE(neighbor_list_3c_type), INTENT(IN)            :: ijk_nl
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'neighbor_list_3c_iterator_create', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'neighbor_list_3c_iterator_create'
 
       INTEGER                                            :: handle
 
@@ -443,8 +438,7 @@ CONTAINS
       TYPE(neighbor_list_3c_iterator_type), &
          INTENT(INOUT)                                   :: iterator
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'neighbor_list_3c_iterator_destroy', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'neighbor_list_3c_iterator_destroy'
 
       INTEGER                                            :: handle
 
@@ -466,9 +460,6 @@ CONTAINS
       TYPE(neighbor_list_3c_iterator_type), &
          INTENT(INOUT)                                   :: iterator
       INTEGER                                            :: iter_stat
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'neighbor_list_3c_iterate', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: iatom, iter_level, jatom, jatom_1, &
                                                             jatom_2, katom
@@ -570,9 +561,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(3), INTENT(OUT), OPTIONAL :: rij, rjk, rik
       INTEGER, DIMENSION(3), INTENT(OUT), OPTIONAL       :: cell_j, cell_k
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_3c_iterator_info', &
-         routineP = moduleN//':'//routineN
-
       INTEGER, DIMENSION(2)                              :: atoms_1, atoms_2, kinds_1, kinds_2
       INTEGER, DIMENSION(3)                              :: cell_1, cell_2
       REAL(KIND=dp), DIMENSION(3)                        :: r_1, r_2
@@ -628,7 +616,7 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: op_pos
       LOGICAL, INTENT(IN), OPTIONAL                      :: do_kpoints
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'alloc_block_3c', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'alloc_block_3c'
 
       INTEGER :: blk_cnt, handle, i, i_img, iatom, iblk, ikind, iproc, j_img, jatom, jcell, jkind, &
          katom, kcell, kkind, natom, nimg, op_ij, op_jk, op_pos_prv
@@ -874,8 +862,7 @@ CONTAINS
       LOGICAL, INTENT(IN), OPTIONAL                      :: do_kpoints, desymmetrize
       INTEGER, DIMENSION(2), INTENT(IN), OPTIONAL        :: bounds_i, bounds_j, bounds_k
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'build_3c_integrals', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'build_3c_integrals'
 
       INTEGER :: block_end_i, block_end_j, block_end_k, block_start_i, block_start_j, &
          block_start_k, egfi, handle, handle2, i, iatom, ibasis, ikind, ilist, imax, iset, jatom, &
@@ -1350,8 +1337,7 @@ CONTAINS
       TYPE(libint_potential_type), INTENT(IN)            :: potential_parameter
       LOGICAL, INTENT(IN), OPTIONAL                      :: do_kpoints
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_2c_integrals', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'build_2c_integrals'
 
       INTEGER :: handle, iatom, ibasis, icol, ikind, imax, img, irow, iset, jatom, jkind, jset, &
          m_max, maxli, maxlj, n1, n2, natom, ncoi, ncoj, nimg, nseti, nsetj, offi, offj, op_prv, &
@@ -1612,8 +1598,7 @@ CONTAINS
       REAL(dp), INTENT(IN), OPTIONAL                     :: eps
       INTEGER, INTENT(IN), OPTIONAL                      :: unit_nr
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'tensor_change_pgrid', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'tensor_change_pgrid'
 
       CHARACTER(default_string_length)                   :: name
       INTEGER                                            :: handle, imem, memcut_1, memcut_2, &

@@ -44,8 +44,7 @@ CONTAINS
 
       TYPE(mc_averages_type), POINTER                    :: averages
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mc_averages_create', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'mc_averages_create'
 
       INTEGER                                            :: handle
 
@@ -76,8 +75,7 @@ CONTAINS
 
       TYPE(mc_averages_type), POINTER                    :: averages
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mc_averages_release', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'mc_averages_release'
 
       INTEGER                                            :: handle
 
@@ -120,7 +118,7 @@ CONTAINS
                                                             final_energy
       TYPE(mc_averages_type), POINTER                    :: averages
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'final_mc_write', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'final_mc_write'
 
       CHARACTER(LEN=5)                                   :: molecule_string, tab_string
       CHARACTER(LEN=default_string_length)               :: format_string, string1, string2, string3
@@ -466,9 +464,6 @@ CONTAINS
       CHARACTER(LEN=*), INTENT(IN)                       :: filename
       INTEGER, DIMENSION(:), INTENT(IN)                  :: nchains
       TYPE(mc_input_file_type), POINTER                  :: mc_input_file
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'mc_make_dat_file_new', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(60)                                      :: cell_string, mol_string
       CHARACTER(default_string_length)                   :: line_text

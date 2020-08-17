@@ -213,8 +213,6 @@ CONTAINS
       INTEGER                                            :: id
       CHARACTER(LEN=10)                                  :: s
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'id2str', routineP = moduleN//':'//routineN
-
       SELECT CASE (id)
       CASE (pao_gth_param)
          s = "GTH"
@@ -257,9 +255,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE create_pao_section(section)
       TYPE(section_type), POINTER                        :: section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_pao_section', &
-         routineP = moduleN//':'//routineN
 
       TYPE(keyword_type), POINTER                        :: keyword
       TYPE(section_type), POINTER                        :: printkey, subsection, subsubsection

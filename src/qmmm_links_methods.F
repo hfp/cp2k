@@ -46,9 +46,6 @@ CONTAINS
       TYPE(particle_type), DIMENSION(:), POINTER         :: particles
       INTEGER, DIMENSION(:), POINTER                     :: qm_atom_index
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'qmmm_link_Imomm_coord', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ilink, ip, ip_mm, ip_qm, mm_index, &
                                                             n_imomm, qm_index
       REAL(KIND=dp)                                      :: alpha
@@ -96,9 +93,6 @@ CONTAINS
       TYPE(particle_type), DIMENSION(:), POINTER         :: particles_qm
       INTEGER, DIMENSION(:), POINTER                     :: qm_atom_index
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'qmmm_link_Imomm_forces', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ilink, ip, ip_mm, ip_qm, mm_index, &
                                                             n_imomm, qm_index
       REAL(KIND=dp)                                      :: alpha
@@ -145,9 +139,6 @@ CONTAINS
       TYPE(qmmm_env_qm_type), POINTER                    :: qmmm_env
       TYPE(particle_type), DIMENSION(:), POINTER         :: particles
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'qmmm_added_chrg_coord', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: I, Index1, Index2
       REAL(KIND=dp)                                      :: alpha
       TYPE(add_set_type), POINTER                        :: added_charges
@@ -174,9 +165,6 @@ CONTAINS
    SUBROUTINE qmmm_added_chrg_forces(qmmm_env, particles)
       TYPE(qmmm_env_qm_type), POINTER                    :: qmmm_env
       TYPE(particle_type), DIMENSION(:), POINTER         :: particles
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'qmmm_added_chrg_forces', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: I, Index1, Index2
       REAL(KIND=dp)                                      :: alpha

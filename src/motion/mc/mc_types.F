@@ -431,8 +431,6 @@ CONTAINS
       LOGICAL, INTENT(OUT), OPTIONAL                     :: lhmc
       INTEGER, INTENT(OUT), OPTIONAL                     :: rand2skip
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'get_mc_par', routineP = moduleN//':'//routineN
-
       IF (PRESENT(nstep)) nstep = mc_par%nstep
       IF (PRESENT(nvirial)) nvirial = mc_par%nvirial
       IF (PRESENT(iuptrans)) iuptrans = mc_par%iuptrans
@@ -556,9 +554,6 @@ CONTAINS
       CHARACTER(LEN=default_string_length), &
          DIMENSION(:, :), OPTIONAL, POINTER              :: atom_names
       REAL(dp), DIMENSION(:, :), OPTIONAL, POINTER       :: mass
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'get_mc_molecule_info', &
-         routineP = moduleN//':'//routineN
 
       IF (PRESENT(nboxes)) nboxes = mc_molecule_info%nboxes
       IF (PRESENT(nchain_total)) nchain_total = mc_molecule_info%nchain_total
@@ -691,8 +686,6 @@ CONTAINS
                                                             max_val, pmhmc, pmhmc_box
       LOGICAL, INTENT(IN), OPTIONAL                      :: lhmc, ionode
       INTEGER, INTENT(IN), OPTIONAL                      :: source, group, rand2skip
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'set_mc_par', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: iparm
 
@@ -846,9 +839,6 @@ CONTAINS
       TYPE(mc_simpar_type), POINTER                      :: mc_par
       INTEGER, INTENT(IN)                                :: nmol_types
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mc_sim_par_create', &
-         routineP = moduleN//':'//routineN
-
       NULLIFY (mc_par)
 
       ALLOCATE (mc_par)
@@ -884,9 +874,6 @@ CONTAINS
    SUBROUTINE mc_sim_par_destroy(mc_par)
 
       TYPE(mc_simpar_type), POINTER                      :: mc_par
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'mc_sim_par_destroy', &
-         routineP = moduleN//':'//routineN
 
       DEALLOCATE (mc_par%mc_input_file)
       DEALLOCATE (mc_par%mc_bias_file)
@@ -935,9 +922,6 @@ CONTAINS
       TYPE(mc_molecule_info_type), POINTER               :: mc_molecule_info
       REAL(dp), DIMENSION(:, :)                          :: empty_coords
       LOGICAL, INTENT(IN)                                :: lhmc
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'mc_input_file_create', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(default_string_length)                   :: cdum, line, method_name
       CHARACTER(default_string_length), &
@@ -1123,9 +1107,6 @@ CONTAINS
 
       TYPE(mc_input_file_type), POINTER                  :: mc_input_file
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mc_input_file_destroy', &
-         routineP = moduleN//':'//routineN
-
       DEALLOCATE (mc_input_file%mol_set_nmol_row)
       DEALLOCATE (mc_input_file%mol_set_nmol_column)
       DEALLOCATE (mc_input_file%text)
@@ -1215,8 +1196,7 @@ CONTAINS
       CHARACTER(LEN=*), INTENT(IN)                       :: input_file_name
       TYPE(section_vals_type), POINTER                   :: input_file, force_env_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'read_mc_section', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'read_mc_section'
 
       CHARACTER(LEN=5)                                   :: box_string, molecule_string, &
                                                             tab_box_string, tab_string, &
@@ -1733,8 +1713,6 @@ CONTAINS
       TYPE(force_env_type), POINTER                      :: force_env
       LOGICAL, INTENT(OUT)                               :: lterminate
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'find_mc_rcut', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: itype, jtype
       REAL(KIND=dp)                                      :: rcutsq_max
       REAL(KIND=dp), DIMENSION(1:3)                      :: abc
@@ -1794,9 +1772,6 @@ CONTAINS
       TYPE(mc_molecule_info_type), POINTER               :: mc_molecule_info
       INTEGER, INTENT(IN), OPTIONAL                      :: box_number
       REAL(dp), DIMENSION(:, :), OPTIONAL, POINTER       :: coordinates_empty
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'mc_determine_molecule_info', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_string_length)               :: name
       CHARACTER(LEN=default_string_length), &
@@ -2009,9 +1984,6 @@ CONTAINS
 
       TYPE(mc_molecule_info_type), POINTER               :: mc_molecule_info
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'mc_molecule_info_destroy', &
-         routineP = moduleN//':'//routineN
-
       DEALLOCATE (mc_molecule_info%nchains)
       DEALLOCATE (mc_molecule_info%nunits)
       DEALLOCATE (mc_molecule_info%mol_type)
@@ -2041,9 +2013,6 @@ CONTAINS
 !>    Suitable for parallel.
 !> \author MJM
       TYPE(mc_simpar_type), POINTER                      :: mc_par
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'mc_input_parameters_check', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: imol_type, nboxes, nchain_total, &
                                                             nmol_types

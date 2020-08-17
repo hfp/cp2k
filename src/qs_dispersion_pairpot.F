@@ -118,8 +118,7 @@ CONTAINS
       TYPE(section_vals_type), OPTIONAL, POINTER         :: pp_section
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'qs_dispersion_pairpot_init', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'qs_dispersion_pairpot_init'
 
       CHARACTER(LEN=2)                                   :: symbol
       CHARACTER(LEN=default_string_length)               :: aname, filename
@@ -358,9 +357,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(inout)                       :: scaling
       TYPE(section_vals_type), POINTER                   :: vdw_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'qs_scaling_init', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=default_string_length)               :: functional
 
       CALL section_vals_val_get(vdw_section, "PAIR_POTENTIAL%REFERENCE_FUNCTIONAL", c_val=functional)
@@ -401,9 +397,6 @@ CONTAINS
    SUBROUTINE qs_scaling_dftd3(s6, sr6, s8, vdw_section)
       REAL(KIND=dp), INTENT(inout)                       :: s6, sr6, s8
       TYPE(section_vals_type), POINTER                   :: vdw_section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'qs_scaling_dftd3', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_string_length)               :: functional
 
@@ -777,9 +770,6 @@ CONTAINS
    SUBROUTINE qs_scaling_dftd3bj(s6, a1, s8, a2, vdw_section)
       REAL(KIND=dp), INTENT(inout)                       :: s6, a1, s8, a2
       TYPE(section_vals_type), POINTER                   :: vdw_section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'qs_scaling_dftd3bj', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_string_length)               :: functional
 
@@ -1200,8 +1190,7 @@ CONTAINS
       REAL(KIND=dp), INTENT(OUT)                         :: energy
       LOGICAL, INTENT(IN)                                :: calculate_forces
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_dispersion_pairpot', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_dispersion_pairpot'
 
       INTEGER :: atom_a, atom_b, atom_c, atom_d, handle, hashb, hashc, i, ia, iat, iatom, icx, &
          icy, icz, idmp, ikind, ilist, imol, jatom, jkind, katom, kkind, kstart, latom, lkind, &
@@ -2134,8 +2123,6 @@ CONTAINS
       INTEGER, DIMENSION(3), INTENT(IN)                  :: cell, ncell
       INTEGER                                            :: hash
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'cellhash', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: ix, iy, iz, nx, ny, nz
 
       CPASSERT(ALL(ABS(cell) <= ncell))
@@ -2173,7 +2160,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(inout)                       :: c6, r
       LOGICAL, INTENT(inout)                             :: found
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'dftd2_param', routineP = moduleN//':'//routineN
       REAL(KIND=dp), DIMENSION(54), PARAMETER :: c6val = (/0.14_dp, 0.08_dp, 1.61_dp, 1.61_dp, &
          3.13_dp, 1.75_dp, 1.23_dp, 0.70_dp, 0.75_dp, 0.63_dp, 5.71_dp, 5.71_dp, 10.79_dp, 9.23_dp,&
          7.84_dp, 5.57_dp, 5.07_dp, 4.61_dp, 10.80_dp, 10.80_dp, 10.80_dp, 10.80_dp, 10.80_dp, &
@@ -2223,8 +2209,6 @@ CONTAINS
       INTEGER, DIMENSION(:)                              :: maxci
       CHARACTER(LEN=*)                                   :: filename
       TYPE(cp_para_env_type), POINTER                    :: para_env
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'dftd3_c6_param', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: funit, iadr, iat, jadr, jat, kk, nl, &
                                                             nlines, nn
@@ -3315,9 +3299,6 @@ CONTAINS
       TYPE(dcnum_type), DIMENSION(:)                     :: dcnum
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'dcnum_distribute', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: group, i, ia, ipe, jn, n, natom, ntmax, &
                                                             ntot
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: list, nloc
@@ -3405,7 +3386,7 @@ CONTAINS
       INTEGER, DIMENSION(:), INTENT(IN)                  :: atomnumber
       LOGICAL, INTENT(IN)                                :: calculate_forces, debugall
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'd3_cnumber', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'd3_cnumber'
 
       INTEGER                                            :: handle, iatom, ikind, jatom, jkind, &
                                                             mepos, natom, ni, nj, num_pe, za, zb
@@ -3549,8 +3530,7 @@ CONTAINS
       INTEGER, INTENT(in), OPTIONAL                      :: zc
       LOGICAL, INTENT(out)                               :: exclude
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'exclude_d3_kind_pair', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'exclude_d3_kind_pair'
 
       INTEGER                                            :: handle, i
 

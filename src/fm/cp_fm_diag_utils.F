@@ -160,9 +160,6 @@ CONTAINS
       INTEGER                                            :: a, x
       LOGICAL                                            :: should_print, elpa_force_redistribute
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_redistribute_init', &
-         routineP = moduleN//':'//routineN
-
       work_redistribute%a = a
       work_redistribute%x = x
       work_redistribute%should_print = should_print
@@ -182,9 +179,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: size
       INTEGER                                            :: ncpu
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_diag_get_optimal_ncpu', &
-         routineP = moduleN//':'//routineN
-
       ncpu = ((size + work_redistribute%a*work_redistribute%x - 1)/ &
               (work_redistribute%a*work_redistribute%x))*work_redistribute%a
 
@@ -201,9 +195,6 @@ CONTAINS
    FUNCTION cp_fm_max_ncpu_non_zero_column(matrix) RESULT(ncpu)
       TYPE(cp_fm_type), INTENT(IN), POINTER              :: matrix
       INTEGER                                            :: ncpu
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_max_ncpu_non_zero_column', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: gcd_max, ipe, jpe, ncol_block, &
                                                             ncol_global, npcol, nrow_block, &
@@ -287,8 +278,7 @@ CONTAINS
       TYPE(cp_fm_type), POINTER, INTENT(OUT)   :: matrix_new, eigenvectors_new
       LOGICAL, OPTIONAL, INTENT(IN)            :: caller_is_elpa
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_redistribute_start', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_redistribute_start'
 
       INTEGER                                  :: handle
       LOGICAL                                  :: is_elpa
@@ -460,8 +450,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:)              :: eig
       TYPE(cp_fm_type), POINTER, INTENT(OUT)   :: matrix_new, eigenvectors_new
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_redistribute_end', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_redistribute_end'
 
       INTEGER                                  :: handle
 #if defined(__SCALAPACK)

@@ -64,9 +64,6 @@ CONTAINS
 
       TYPE(harmonics_atom_type), POINTER                 :: harmonics
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'allocate_harmonics_atom', &
-         routineP = moduleN//':'//routineN
-
       IF (ASSOCIATED(harmonics)) CALL deallocate_harmonics_atom(harmonics)
 
       ALLOCATE (harmonics)
@@ -98,9 +95,6 @@ CONTAINS
    SUBROUTINE deallocate_harmonics_atom(harmonics)
 
       TYPE(harmonics_atom_type), POINTER                 :: harmonics
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'deallocate_harmonics_atom', &
-         routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(harmonics)) THEN
 
@@ -170,8 +164,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: na, llmax, maxs, max_s_harm, ll
       REAL(dp), DIMENSION(:), INTENT(IN)                 :: wa, azi, pol
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_harmonics_atom', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'create_harmonics_atom'
 
       INTEGER                                            :: handle, i, ia, ic, is, is1, is2, iso, &
                                                             iso1, iso2, l, l1, l2, lx, ly, lz, m, &
@@ -434,7 +427,7 @@ CONTAINS
       TYPE(gto_basis_set_type), POINTER                  :: orb_basis
       INTEGER, INTENT(IN)                                :: llmax, max_s_harm
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_maxl_CG', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'get_maxl_CG'
 
       INTEGER                                            :: damax_iso_not0, dmax_iso_not0, handle, &
                                                             is1, is2, itmp, max_iso_not0, nset
@@ -497,9 +490,6 @@ CONTAINS
       INTEGER, DIMENSION(:), INTENT(OUT), OPTIONAL       :: n_list
       INTEGER, INTENT(OUT)                               :: max_iso_not0
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_none0_cg_list4', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: iso, iso1, iso2, l1, l2, nlist
 
       CPASSERT(nsoset(lmax1) .LE. SIZE(cgc, 2))
@@ -557,9 +547,6 @@ CONTAINS
       INTEGER, DIMENSION(:, :, :), INTENT(OUT), OPTIONAL :: list
       INTEGER, DIMENSION(:), INTENT(OUT), OPTIONAL       :: n_list
       INTEGER, INTENT(OUT)                               :: max_iso_not0
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_none0_cg_list3', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: iso, iso1, iso2, l1, l2, nlist
 

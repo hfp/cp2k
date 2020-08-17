@@ -53,8 +53,7 @@ CONTAINS
       TYPE(topology_parameters_type)                     :: topology
       TYPE(section_vals_type), POINTER                   :: topology_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'read_topology_section', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'read_topology_section'
 
       INTEGER                                            :: handle, ival
 
@@ -109,9 +108,6 @@ CONTAINS
       TYPE(topology_parameters_type), INTENT(INOUT)      :: topology
       TYPE(colvar_p_type), DIMENSION(:), POINTER         :: colvar_p
       TYPE(section_vals_type), POINTER                   :: constraint_section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'read_constraints_section', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_string_length), &
          DIMENSION(:), POINTER                           :: tmpstringlist
@@ -583,9 +579,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(OUT)                         :: k0
       INTEGER, INTENT(IN), OPTIONAL                      :: i_rep_section
       CHARACTER(LEN=*), INTENT(IN)                       :: label
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'check_restraint', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_string_length)               :: nlabel
       INTEGER                                            :: output_unit

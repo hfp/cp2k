@@ -64,8 +64,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:)                        :: Eigenval
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'do_subspace_iterations', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'do_subspace_iterations'
 
       INTEGER                                            :: handle, i_iter, local_RI_size
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: M_ia_tmp, M_ji_tmp, RI_vector
@@ -140,8 +139,6 @@ CONTAINS
                                                             local_RI_size
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'compute_BZ', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i_Z_vector, LLL
 
       BZ(:, :, :) = 0.0_dp
@@ -196,7 +193,7 @@ CONTAINS
                                                             local_RI_size
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'compute_AZ', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'compute_AZ'
 
       INTEGER                                            :: a_virt, handle, i_occ, i_Z_vector, LLL
       REAL(KIND=dp)                                      :: eigen_diff
@@ -262,8 +259,7 @@ CONTAINS
       INTEGER                                            :: local_RI_size, num_Z_vectors, homo, &
                                                             virtual
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'compute_v_ia_jb_part', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'compute_v_ia_jb_part'
 
       INTEGER                                            :: a_virt, handle, i_occ, i_Z_vector, LLL
 
@@ -319,8 +315,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:)                        :: Eigenval
       INTEGER                                            :: num_Z_vectors, homo, virtual
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'initial_guess_Z_vectors', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'initial_guess_Z_vectors'
 
       INTEGER                                            :: a_virt, handle, i_occ, i_Z_vector, &
                                                             min_loc(2)
@@ -387,8 +382,7 @@ CONTAINS
       INTEGER                                            :: color_sub
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'mult_B_with_W_and_fill_local_3c_arrays', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'mult_B_with_W_and_fill_local_3c_arrays'
 
       INTEGER                                            :: handle, i_global, iiB, info_chol, &
                                                             j_global, jjB, ncol_local, nrow_local
@@ -485,8 +479,7 @@ CONTAINS
       INTEGER                                            :: color_sub, small_size, big_size, dimen_RI
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'allocate_and_fill_local_array', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'allocate_and_fill_local_array'
 
       INTEGER :: combi_index, end_RI, handle, handle1, i_comm, i_entry, iiB, imepos, jjB, &
          level_big_size, level_small_size, ncol_local, nrow_local, num_comm_cycles, RI_index, &

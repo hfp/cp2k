@@ -62,9 +62,6 @@ CONTAINS
 
       TYPE(md_environment_type), POINTER                 :: md_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'create_wiener_process', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=40)                                  :: name
       INTEGER                                            :: iparticle, iparticle_kind, &
                                                             iparticle_local, nparticle, &
@@ -166,9 +163,6 @@ CONTAINS
       INTEGER, INTENT(in)                                :: nparticle_kind
       TYPE(section_vals_type), POINTER                   :: work_section
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'init_local_particle_set', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(LEN=rng_record_length)                   :: rng_record
       INTEGER                                            :: iparticle, iparticle_kind, &
                                                             iparticle_local, nparticle_local
@@ -212,9 +206,6 @@ CONTAINS
    SUBROUTINE create_wiener_process_cv(meta_env)
 
       TYPE(meta_env_type), POINTER                       :: meta_env
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'create_wiener_process_cv', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=40)                                  :: name
       INTEGER                                            :: i_c

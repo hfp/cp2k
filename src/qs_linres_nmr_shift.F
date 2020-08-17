@@ -106,7 +106,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       INTEGER, INTENT(IN)                                :: iB
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'nmr_shift', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'nmr_shift'
 
       INTEGER                                            :: handle, idir, idir2, idir3, iiB, iiiB, &
                                                             ispin, natom, nspins
@@ -259,7 +259,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       INTEGER, INTENT(IN)                                :: IB, idir
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'nmr_shift_gapw', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'nmr_shift_gapw'
 
       INTEGER :: handle, ia, iat, iatom, idir2_1, idir3_1, ikind, ir, ira, ispin, j, jatom, mepos, &
          n_nics, na, natom, natom_local, natom_tot, nkind, nnics_local, nr, nra, nspins, num_pe, &
@@ -515,8 +515,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: i_B, idir
       TYPE(section_vals_type), POINTER                   :: nmr_section
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'interpolate_shift_pwgrid', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'interpolate_shift_pwgrid'
 
       INTEGER                                            :: aint_precond, handle, iat, iatom, &
                                                             max_iter, n_nics, natom, precond_kind
@@ -619,8 +618,7 @@ CONTAINS
       TYPE(pw_p_type)                                    :: shift_pw_gspace
       INTEGER, INTENT(IN)                                :: i_B, idir
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'gsum_shift_pwgrid', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'gsum_shift_pwgrid'
 
       COMPLEX(dp)                                        :: cplx
       INTEGER                                            :: handle, iat, iatom, n_nics, natom
@@ -711,9 +709,6 @@ CONTAINS
       TYPE(nmr_env_type)                                 :: nmr_env
       TYPE(current_env_type)                             :: current_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'nmr_shift_print', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=2)                                   :: element_symbol
       CHARACTER(LEN=default_string_length)               :: name, title

@@ -112,8 +112,6 @@ CONTAINS
       INTEGER, INTENT(in)                                :: pe_group
       LOGICAL, INTENT(IN), OPTIONAL                      :: local
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_grid_create', routineP = moduleN//':'//routineN
-
       LOGICAL                                            :: my_local
 
       my_local = .FALSE.
@@ -224,9 +222,6 @@ CONTAINS
       REAL(dp), DIMENSION(:, :), OPTIONAL, POINTER       :: gvectors
       REAL(dp), DIMENSION(:), OPTIONAL, POINTER          :: gsquare
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_pw_grid_info', &
-         routineP = moduleN//':'//routineN
-
       CPASSERT(pw_grid%ref_count > 0)
 
       IF (PRESENT(id_nr)) id_nr = pw_grid%id_nr
@@ -264,9 +259,6 @@ CONTAINS
       INTEGER, DIMENSION(2, 3), INTENT(IN), OPTIONAL     :: bounds
       REAL(KIND=dp), INTENT(IN), OPTIONAL                :: cutoff
       LOGICAL, INTENT(IN), OPTIONAL                      :: spherical
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'set_pw_grid_info', &
-         routineP = moduleN//':'//routineN
 
       CPASSERT(pw_grid%ref_count > 0)
 
@@ -333,7 +325,7 @@ CONTAINS
       INTEGER, DIMENSION(2), INTENT(in), OPTIONAL        :: rs_dims
       INTEGER, INTENT(in), OPTIONAL                      :: iounit
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_grid_setup', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'pw_grid_setup'
 
       INTEGER                                            :: handle, my_icommensurate, &
                                                             my_ncommensurate
@@ -560,8 +552,7 @@ CONTAINS
       INTEGER, DIMENSION(2), INTENT(in), OPTIONAL        :: rs_dims
       INTEGER, INTENT(in), OPTIONAL                      :: iounit
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_grid_setup_internal', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'pw_grid_setup_internal'
 
       INTEGER                                            :: handle, ires, n(3)
       INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: yz_mask
@@ -684,8 +675,6 @@ CONTAINS
 
       TYPE(pw_grid_type), POINTER                        :: pw_grid
       INTEGER, INTENT(IN)                                :: info
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_grid_print', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i
       INTEGER(KIND=int_8)                                :: n(3)
@@ -818,8 +807,7 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: blocked
       INTEGER, DIMENSION(2), INTENT(in), OPTIONAL        :: rs_dims
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_grid_distribute', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'pw_grid_distribute'
 
       INTEGER                                            :: blocked_local, coor(2), gmax, handle, i, &
                                                             i1, i2, ip, ipl, ipp, itmp, j, l, lby, &
@@ -1276,8 +1264,6 @@ CONTAINS
       INTEGER, DIMENSION(:, :), INTENT(IN)               :: yz_mask
       INTEGER, DIMENSION(:, :), INTENT(OUT)              :: yz_index
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'order_mask', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i1, i2, ic, icount, ii, im, jc, jj
 
 !NB load balance
@@ -1409,8 +1395,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(IN)                          :: cutoff
       INTEGER, DIMENSION(:, :), INTENT(OUT)              :: yz_mask
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_grid_count', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: l, m, mm, n, n_upperlimit, nlim(2), nn
       INTEGER(KIND=int_8)                                :: gpt
       INTEGER, DIMENSION(:, :), POINTER                  :: bounds
@@ -1485,7 +1469,7 @@ CONTAINS
       TYPE(pw_grid_type), POINTER                        :: pw_grid
       REAL(KIND=dp), INTENT(IN)                          :: cutoff
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_grid_assign', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'pw_grid_assign'
 
       INTEGER                                            :: gpt, handle, i, ip, l, lby, lbz, ll, m, &
                                                             mm, n, n_upperlimit, nn
@@ -1726,8 +1710,7 @@ CONTAINS
       INTEGER, INTENT(IN)                      :: ng
       INTEGER, DIMENSION(:, :), INTENT(IN)     :: bounds
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_grid_allocate', &
-                                     routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'pw_grid_allocate'
 
       INTEGER                                    :: nmaps
 #if defined ( __PW_CUDA ) && !defined ( __PW_CUDA_NO_HOSTALLOC )
@@ -1799,7 +1782,7 @@ CONTAINS
       TYPE(pw_grid_type), INTENT(INOUT)                  :: pw_grid
       TYPE(pw_grid_type), INTENT(IN), OPTIONAL           :: ref_grid
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_grid_sort', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'pw_grid_sort'
 
       INTEGER                                            :: handle, i, ig, ih, ip, is, it, ng, ngr
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: idx
@@ -1979,7 +1962,7 @@ CONTAINS
       INTEGER, DIMENSION(:, :), INTENT(IN)               :: g_hat
       INTEGER, DIMENSION(:), INTENT(INOUT)               :: idx
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'sort_shells', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'sort_shells'
       REAL(KIND=dp), PARAMETER                           :: small = 5.e-16_dp
 
       INTEGER                                            :: handle, ig, ng, s1, s2
@@ -2025,8 +2008,6 @@ CONTAINS
       INTEGER, DIMENSION(:), INTENT(INOUT)               :: idx
       INTEGER, INTENT(IN)                                :: s1, s2
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'redist', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, ii, n1, n2, n3, ns
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: indl
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: slen
@@ -2070,7 +2051,7 @@ CONTAINS
       TYPE(pw_grid_type), POINTER                        :: pw_grid
       INTEGER, DIMENSION(:, :), INTENT(OUT)              :: yz
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_grid_remap', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'pw_grid_remap'
 
       INTEGER                                            :: gpt, handle, i, ip, is, j, m, n, ny, nz
       INTEGER, DIMENSION(:), POINTER                     :: mapm, mapn
@@ -2142,8 +2123,6 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(3, 3), INTENT(IN)         :: cell_hmat
       TYPE(pw_grid_type), POINTER                        :: pw_grid
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_grid_change', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: gpt
       REAL(KIND=dp)                                      :: cell_deth, l, m, n
       REAL(KIND=dp), DIMENSION(3, 3)                     :: cell_h_inv
@@ -2191,8 +2170,6 @@ CONTAINS
    SUBROUTINE pw_grid_retain(pw_grid)
       TYPE(pw_grid_type), POINTER                        :: pw_grid
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_grid_retain', routineP = moduleN//':'//routineN
-
       CPASSERT(ASSOCIATED(pw_grid))
       CPASSERT(pw_grid%ref_count > 0)
       pw_grid%ref_count = pw_grid%ref_count + 1
@@ -2210,9 +2187,6 @@ CONTAINS
    SUBROUTINE pw_grid_release(pw_grid)
 
       TYPE(pw_grid_type), POINTER              :: pw_grid
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_grid_release', &
-                                     routineP = moduleN//':'//routineN
 
 #if defined ( __PW_CUDA ) && !defined ( __PW_CUDA_NO_HOSTALLOC )
       INTEGER, POINTER :: dummy_ptr

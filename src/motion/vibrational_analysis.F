@@ -101,7 +101,7 @@ CONTAINS
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(global_environment_type), POINTER             :: globenv
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'vb_anal', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'vb_anal'
       CHARACTER(LEN=1), DIMENSION(3), PARAMETER          :: lab = (/"X", "Y", "Z"/)
 
       CHARACTER(LEN=default_string_length)               :: description
@@ -555,8 +555,7 @@ CONTAINS
       TYPE(force_env_type), POINTER                      :: force_env
       INTEGER, DIMENSION(:), POINTER                     :: Ilist
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_moving_atoms', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'get_moving_atoms'
 
       INTEGER                                            :: handle, i, ii, ikind, j, ndim, &
                                                             nfixed_atoms, nfixed_atoms_total, nkind
@@ -709,7 +708,7 @@ CONTAINS
       LOGICAL, OPTIONAL                                  :: full
       INTEGER, INTENT(IN)                                :: natoms
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_D_matrix', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'build_D_matrix'
 
       INTEGER                                            :: handle, i, ifound, iseq, j, nvib
       LOGICAL                                            :: my_full
@@ -791,9 +790,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(IN)                          :: inertia(3)
       INTEGER, INTENT(IN)                                :: spin
       REAL(KIND=dp), INTENT(IN)                          :: totene, temp, pressure
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_thch_values', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, natoms, sym_num
       REAL(KIND=dp) :: el_entropy, entropy, exp_min_one, fact, fact2, freq_arg, freq_arg2, &
@@ -935,8 +931,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: eigenvalues
       REAL(KIND=dp), DIMENSION(:, :), INTENT(IN)         :: eigenvectors
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'write_eigs_unformatted', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'write_eigs_unformatted'
 
       INTEGER                                            :: handle, jj
 
@@ -973,8 +968,7 @@ CONTAINS
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: Hessian
       TYPE(cp_logger_type), POINTER                      :: logger
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'write_va_hessian', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'write_va_hessian'
 
       INTEGER                                            :: handle, hesunit, i, j, ndf
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env

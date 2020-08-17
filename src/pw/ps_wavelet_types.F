@@ -51,9 +51,6 @@ CONTAINS
 
       TYPE(ps_wavelet_type), POINTER                     :: wavelet
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'ps_wavelet_release', &
-         routineP = moduleN//':'//routineN
-
       IF (ASSOCIATED(wavelet)) THEN
          IF (ASSOCIATED(wavelet%karray)) &
             DEALLOCATE (wavelet%karray)

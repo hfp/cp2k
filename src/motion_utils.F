@@ -85,7 +85,7 @@ CONTAINS
       INTEGER, INTENT(OUT), OPTIONAL                     :: rot_dof
       REAL(KIND=dp), INTENT(OUT), OPTIONAL               :: inertia(3)
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'rot_ana', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'rot_ana'
 
       INTEGER                                            :: handle, i, iparticle, iseq, iw, j, k, &
                                                             lrot(3)
@@ -271,8 +271,7 @@ CONTAINS
       TYPE(particle_list_type), OPTIONAL, POINTER        :: particles
       LOGICAL, INTENT(IN), OPTIONAL                      :: extended_xmol_title
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'write_trajectory', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'write_trajectory'
 
       CHARACTER(LEN=4)                                   :: id_dcd
       CHARACTER(LEN=default_string_length)               :: id_label, id_wpc, my_act, my_ext, &
@@ -468,9 +467,6 @@ CONTAINS
       CHARACTER(LEN=*), INTENT(IN), OPTIONAL             :: path
       CHARACTER(LEN=*), INTENT(OUT)                      :: my_form, my_ext
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_output_format', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: output_format
 
       IF (PRESENT(path)) THEN
@@ -516,9 +512,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(IN)                          :: time
       CHARACTER(LEN=default_string_length), INTENT(IN), &
          OPTIONAL                                        :: pos, act
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'write_stress_tensor', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_string_length)               :: my_act, my_pos
       INTEGER                                            :: output_unit
@@ -590,9 +583,6 @@ CONTAINS
       REAL(KIND=dp), INTENT(IN)                          :: time
       CHARACTER(LEN=default_string_length), INTENT(IN), &
          OPTIONAL                                        :: pos, act
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'write_simulation_cell', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(LEN=default_string_length)               :: my_act, my_pos
       INTEGER                                            :: output_unit

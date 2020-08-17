@@ -71,9 +71,6 @@ CONTAINS
       LOGICAL, INTENT(in), OPTIONAL                      :: allocate_deriv
       TYPE(xc_derivative_type), POINTER                  :: res
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'xc_dset_get_derivative', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(len=MAX_DERIVATIVE_DESC_LENGTH)          :: std_deriv_desc
       LOGICAL                                            :: my_allocate_deriv
       REAL(kind=dp), DIMENSION(:, :, :), POINTER         :: cr3d_ptr
@@ -118,8 +115,6 @@ CONTAINS
       TYPE(pw_pool_type), OPTIONAL, POINTER              :: pw_pool
       INTEGER, DIMENSION(2, 3), OPTIONAL                 :: local_bounds
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'xc_dset_create', routineP = moduleN//':'//routineN
-
       TYPE(pw_grid_type), POINTER                        :: pw_grid
 
       NULLIFY (pw_grid)
@@ -158,9 +153,6 @@ CONTAINS
 
       TYPE(xc_derivative_set_type), POINTER              :: derivative_set
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'xc_dset_release', &
-         routineP = moduleN//':'//routineN
-
       TYPE(cp_sll_xc_deriv_type), POINTER                :: pos
       TYPE(xc_derivative_type), POINTER                  :: deriv_att
 
@@ -193,8 +185,6 @@ CONTAINS
    SUBROUTINE xc_dset_retain(deriv_set)
       TYPE(xc_derivative_set_type), POINTER              :: deriv_set
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'xc_dset_retain', routineP = moduleN//':'//routineN
-
       CPASSERT(ASSOCIATED(deriv_set))
       CPASSERT(deriv_set%ref_count > 0)
       deriv_set%ref_count = deriv_set%ref_count + 1
@@ -207,9 +197,6 @@ CONTAINS
    SUBROUTINE xc_dset_zero_all(deriv_set)
 
       TYPE(xc_derivative_set_type), POINTER              :: deriv_set
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'xc_dset_zero_all', &
-         routineP = moduleN//':'//routineN
 
       TYPE(cp_sll_xc_deriv_type), POINTER                :: pos
       TYPE(xc_derivative_type), POINTER                  :: deriv_att

@@ -56,9 +56,6 @@ CONTAINS
       INTEGER                                            :: ind
       CHARACTER(LEN=50)                                  :: filename
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'get_dot_file_name', &
-         routineP = moduleN//':'//routineN
-
       filename = ""
 
       CPASSERT(ASSOCIATED(tmc_params))
@@ -82,9 +79,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE init_draw_trees(tmc_params)
       TYPE(tmc_param_type), POINTER                      :: tmc_params
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'init_draw_trees', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: file_ptr, i
 
@@ -117,9 +111,6 @@ CONTAINS
    SUBROUTINE finalize_draw_tree(tmc_params)
       TYPE(tmc_param_type), POINTER                      :: tmc_params
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'finalize_draw_tree', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: file_ptr, i
 
       CPASSERT(ASSOCIATED(tmc_params))
@@ -146,8 +137,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE write_legend(file_ptr)
       INTEGER, INTENT(IN)                                :: file_ptr
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'write_legend', routineP = moduleN//':'//routineN
 
       CPASSERT(file_ptr .GT. 0)
 
@@ -196,8 +185,6 @@ CONTAINS
    SUBROUTINE write_color(node_nr, stat, filename)
       INTEGER                                            :: node_nr, stat
       CHARACTER(LEN=50)                                  :: filename
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'write_color', routineP = moduleN//':'//routineN
 
       CHARACTER(len=11)                                  :: label
       INTEGER                                            :: file_ptr
@@ -262,9 +249,6 @@ CONTAINS
       TYPE(tmc_param_type), POINTER                      :: tmc_params
       INTEGER                                            :: tree
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'create_dot_branch', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: file_ptr
 
       CPASSERT(ASSOCIATED(tmc_params))
@@ -292,8 +276,6 @@ CONTAINS
       INTEGER                                            :: conf
       TYPE(tmc_param_type), POINTER                      :: tmc_params
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'create_dot', routineP = moduleN//':'//routineN
-
       CPASSERT(ASSOCIATED(new_element))
       CPASSERT(conf .GT. 0)
       CPASSERT(ASSOCIATED(tmc_params))
@@ -314,9 +296,6 @@ CONTAINS
    SUBROUTINE create_global_tree_dot(new_element, tmc_params)
       TYPE(global_tree_type), POINTER                    :: new_element
       TYPE(tmc_param_type), POINTER                      :: tmc_params
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'create_global_tree_dot', &
-         routineP = moduleN//':'//routineN
 
       CHARACTER(len=1000)                                :: list_of_nr
       INTEGER                                            :: file_ptr, i, ref_count
@@ -395,9 +374,6 @@ CONTAINS
       TYPE(tree_type), POINTER                           :: tree_element
       TYPE(tmc_param_type), POINTER                      :: tmc_params
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'create_dot_color', &
-         routineP = moduleN//':'//routineN
-
       CHARACTER(len=1000)                                :: list_of_nr
       INTEGER                                            :: ref_count
       TYPE(gt_elem_list_type), POINTER                   :: tmp_pt_list_elem
@@ -438,9 +414,6 @@ CONTAINS
    SUBROUTINE create_global_tree_dot_color(gt_tree_element, tmc_params)
       TYPE(global_tree_type), POINTER                    :: gt_tree_element
       TYPE(tmc_param_type), POINTER                      :: tmc_params
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'create_global_tree_dot_color', &
-         routineP = moduleN//':'//routineN
 
       CPASSERT(ASSOCIATED(gt_tree_element))
       CPASSERT(ASSOCIATED(tmc_params))

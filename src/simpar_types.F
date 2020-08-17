@@ -103,9 +103,6 @@ CONTAINS
    SUBROUTINE create_simpar_type(simpar)
       TYPE(simpar_type), POINTER                         :: simpar
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_simpar_type', &
-         routineP = moduleN//':'//routineN
-
       CPASSERT(.NOT. ASSOCIATED(simpar))
       ALLOCATE (simpar)
    END SUBROUTINE create_simpar_type
@@ -117,9 +114,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE release_simpar_type(simpar)
       TYPE(simpar_type), POINTER                         :: simpar
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'release_simpar_type', &
-         routineP = moduleN//':'//routineN
 
       CPASSERT(ASSOCIATED(simpar))
       DEALLOCATE (simpar)

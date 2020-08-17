@@ -47,9 +47,6 @@ CONTAINS
 
       TYPE(structure_factor_type), INTENT(INOUT)         :: exp_igr
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'structure_factor_deallocate', &
-         routineP = moduleN//':'//routineN
-
       DEALLOCATE (exp_igr%ex)
       DEALLOCATE (exp_igr%ey)
       DEALLOCATE (exp_igr%ez)
@@ -97,9 +94,6 @@ CONTAINS
       LOGICAL, INTENT(IN), OPTIONAL                      :: allocate_centre, allocate_shell_e, &
                                                             allocate_shell_centre
       INTEGER, INTENT(IN), OPTIONAL                      :: nshell
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'structure_factor_allocate', &
-         routineP = moduleN//':'//routineN
 
       ALLOCATE (exp_igr%ex(bds(1, 1):bds(2, 1) + 1, nparts))
       ALLOCATE (exp_igr%ey(bds(1, 2):bds(2, 2) + 1, nparts))

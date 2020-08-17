@@ -56,8 +56,7 @@ CONTAINS
       REAL(KIND=dp)                                      :: energy
       LOGICAL                                            :: check_conv
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'dm_ls_curvy_optimization', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'dm_ls_curvy_optimization'
 
       INTEGER                                            :: handle, i, lsstep
 
@@ -150,8 +149,7 @@ CONTAINS
       TYPE(ls_scf_curvy_type)                            :: curvy_data
       TYPE(ls_scf_env_type)                              :: ls_scf_env
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'optimization_step', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'optimization_step'
 
       INTEGER                                            :: handle, ispin
       REAL(KIND=dp)                                      :: filter, step_size(2)
@@ -218,8 +216,6 @@ CONTAINS
    SUBROUTINE line_search_2d(energies, step_size)
       REAL(KIND=dp)                                      :: energies(6), step_size(2)
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'line_search_2d', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: info, unit_nr
       REAL(KIND=dp)                                      :: e_pred, param(6), s1, s1sq, s2, s2sq, &
                                                             sys_lin_eq(6, 6), tmp_e, v1, v2
@@ -273,9 +269,6 @@ CONTAINS
 
    SUBROUTINE line_search_3pnt(energies, step_size)
       REAL(KIND=dp)                                      :: energies(3), step_size(2)
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'line_search_3pnt', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: unit_nr
       REAL(KIND=dp)                                      :: a, b, c, e_pred, min_val, step1, tmp, &
@@ -338,8 +331,7 @@ CONTAINS
       REAL(KIND=dp)                                      :: curvy_shift(2), cg_numer(2), &
                                                             cg_denom(2), min_shift
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'compute_direction_newton', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'compute_direction_newton'
 
       INTEGER                                            :: handle, i, ispin, ncyc, nspin, unit_nr
       LOGICAL                                            :: at_limit
@@ -482,9 +474,6 @@ CONTAINS
       REAL(KIND=dp)                                      :: eps_filter
       LOGICAL                                            :: at_limit
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'compute_cg_matrices', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, info
       REAL(KIND=dp)                                      :: alpha, beta, devi(3), fac, fac1, &
                                                             lin_eq(3, 3), new_norm, norm_cA, &
@@ -590,8 +579,7 @@ CONTAINS
       TYPE(dbcsr_type)                                   :: a, b, res
       REAL(KIND=dp)                                      :: eps_filter, prefac
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'commutator_symm', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'commutator_symm'
 
       INTEGER                                            :: handle
       TYPE(dbcsr_type)                                   :: work
@@ -633,7 +621,7 @@ CONTAINS
       REAL(KIND=dp)                                      :: threshold, step_size(2)
       INTEGER                                            :: BCH_saved(2), n_bch_hist
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'update_p_exp', routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'update_p_exp'
 
       INTEGER                                            :: handle, i, ispin, nsave, nspin, unit_nr
       LOGICAL                                            :: save_BCH
@@ -734,8 +722,7 @@ CONTAINS
       TYPE(dbcsr_type)                                   :: matrix_trafo
       REAL(KIND=dp)                                      :: eps_filter
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'transform_matrix_orth', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'transform_matrix_orth'
 
       INTEGER                                            :: handle, ispin
       TYPE(dbcsr_type)                                   :: matrix_tmp, matrix_work
@@ -769,9 +756,6 @@ CONTAINS
    SUBROUTINE deallocate_curvy_data(curvy_data)
       TYPE(ls_scf_curvy_type)                            :: curvy_data
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'deallocate_curvy_data', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i, j
 
       CALL release_dbcsr_array(curvy_data%matrix_dp)
@@ -802,9 +786,6 @@ CONTAINS
    SUBROUTINE release_dbcsr_array(matrix)
       TYPE(dbcsr_type), ALLOCATABLE, DIMENSION(:)        :: matrix
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'release_dbcsr_array', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i
 
       IF (ALLOCATED(matrix)) THEN
@@ -825,8 +806,6 @@ CONTAINS
       TYPE(ls_scf_curvy_type)                            :: curvy_data
       TYPE(dbcsr_type)                                   :: matrix_s
       INTEGER                                            :: nspins
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'init_curvy', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: ispin, j
 

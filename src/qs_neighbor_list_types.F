@@ -167,9 +167,6 @@ CONTAINS
       LOGICAL, INTENT(IN), OPTIONAL                      :: search
       INTEGER, INTENT(IN), OPTIONAL                      :: nthread
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'neighbor_list_iterator_create', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: iatom, il, ilist, mthread, nlist
       TYPE(list_search_type), DIMENSION(:), POINTER      :: list_search
       TYPE(neighbor_list_iterator_type), POINTER         :: iterator
@@ -252,9 +249,6 @@ CONTAINS
       TYPE(neighbor_list_iterator_p_type), &
          DIMENSION(:), POINTER                           :: iterator_set
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'neighbor_list_iterator_release', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: il, mthread
       TYPE(neighbor_list_iterator_type), POINTER         :: iterator
 
@@ -293,9 +287,6 @@ CONTAINS
          DIMENSION(:), POINTER                           :: iterator_set
       INTEGER, INTENT(IN)                                :: ikind, jkind, iatom
       INTEGER, INTENT(IN), OPTIONAL                      :: mepos
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'nl_set_sub_iterator', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i, ij, ilist, me, nlist, nnode
       TYPE(list_search_type), POINTER                    :: list_search
@@ -359,9 +350,6 @@ CONTAINS
          DIMENSION(:), POINTER                           :: iterator_set
       INTEGER, OPTIONAL                                  :: mepos
       INTEGER                                            :: istat
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'neighbor_list_iterate', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: iab, last, me
       TYPE(neighbor_list_iterator_type), POINTER         :: iterator
@@ -451,8 +439,6 @@ CONTAINS
          DIMENSION(:), POINTER                           :: iterator_set
       INTEGER, INTENT(IN), OPTIONAL                      :: mepos
       INTEGER                                            :: istat
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'nl_sub_iterate', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: me
       TYPE(neighbor_list_iterator_type), POINTER         :: iterator
@@ -565,9 +551,6 @@ CONTAINS
       REAL(dp), DIMENSION(3), OPTIONAL                   :: r
       INTEGER, DIMENSION(3), OPTIONAL                    :: cell
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_iterator_info', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: me
       TYPE(neighbor_list_iterator_type), POINTER         :: iterator
 
@@ -645,9 +628,6 @@ CONTAINS
       TYPE(neighbor_list_set_type), POINTER              :: neighbor_list_set
       INTEGER, INTENT(IN)                                :: atom
       TYPE(neighbor_list_type), POINTER                  :: neighbor_list
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'add_neighbor_list', &
-         routineP = moduleN//':'//routineN
 
       TYPE(neighbor_list_type), POINTER                  :: new_neighbor_list
 
@@ -742,9 +722,6 @@ CONTAINS
       INTEGER, DIMENSION(:), OPTIONAL, POINTER           :: exclusion_list
       INTEGER, INTENT(IN), OPTIONAL                      :: nkind
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'add_neighbor_node', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: iatom, my_nkind
       TYPE(neighbor_node_type), POINTER                  :: new_neighbor_node
 
@@ -837,9 +814,6 @@ CONTAINS
       TYPE(neighbor_list_set_type), POINTER              :: neighbor_list_set
       LOGICAL, INTENT(IN)                                :: symmetric
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'allocate_neighbor_list_set', &
-         routineP = moduleN//':'//routineN
-
 !   *** Deallocate the old neighbor list set ***
 
       IF (ASSOCIATED(neighbor_list_set)) THEN
@@ -869,9 +843,6 @@ CONTAINS
 
       TYPE(neighbor_list_type), POINTER                  :: neighbor_list
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'deallocate_neighbor_list', &
-         routineP = moduleN//':'//routineN
-
       TYPE(neighbor_node_type), POINTER                  :: neighbor_node, next_neighbor_node
 
       IF (ASSOCIATED(neighbor_list)) THEN
@@ -899,9 +870,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE deallocate_neighbor_list_set(neighbor_list_set)
       TYPE(neighbor_list_set_type), POINTER              :: neighbor_list_set
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'deallocate_neighbor_list_set', &
-         routineP = moduleN//':'//routineN
 
       TYPE(neighbor_list_type), POINTER                  :: neighbor_list, next_neighbor_list
 
@@ -969,9 +937,6 @@ CONTAINS
       TYPE(neighbor_list_type), POINTER                  :: neighbor_list
       INTEGER, INTENT(OUT), OPTIONAL                     :: atom, nnode
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_neighbor_list', &
-         routineP = moduleN//':'//routineN
-
       IF (ASSOCIATED(neighbor_list)) THEN
 
          IF (PRESENT(atom)) atom = neighbor_list%atom
@@ -999,9 +964,6 @@ CONTAINS
       TYPE(neighbor_list_set_type), POINTER              :: neighbor_list_set
       INTEGER, INTENT(OUT), OPTIONAL                     :: nlist
       LOGICAL, INTENT(OUT), OPTIONAL                     :: symmetric
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_neighbor_list_set', &
-         routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(neighbor_list_set)) THEN
 
@@ -1031,9 +993,6 @@ CONTAINS
          POINTER                                         :: neighbor_list_sets
       INTEGER, INTENT(OUT), OPTIONAL                     :: nlist
       LOGICAL, INTENT(OUT), OPTIONAL                     :: symmetric
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_neighbor_list_set_p', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i
       TYPE(neighbor_list_set_type), POINTER              :: neighbor_list_set
@@ -1079,9 +1038,6 @@ CONTAINS
       INTEGER, DIMENSION(3), INTENT(OUT), OPTIONAL       :: cell
       REAL(dp), DIMENSION(3), INTENT(OUT), OPTIONAL      :: r
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'get_neighbor_node', &
-         routineP = moduleN//':'//routineN
-
       IF (ASSOCIATED(neighbor_node)) THEN
 
          IF (PRESENT(neighbor)) neighbor = neighbor_node%neighbor
@@ -1110,9 +1066,6 @@ CONTAINS
 
       TYPE(neighbor_list_set_type), POINTER              :: neighbor_list_set
       LOGICAL, INTENT(IN)                                :: symmetric
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'init_neighbor_list_set', &
-         routineP = moduleN//':'//routineN
 
       IF (ASSOCIATED(neighbor_list_set)) THEN
 

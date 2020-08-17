@@ -117,8 +117,7 @@ CONTAINS
       TYPE(cp_para_env_type), POINTER                    :: para_env
       LOGICAL, INTENT(IN)                                :: calculate_forces
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'build_xtb_matrices', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'build_xtb_matrices'
 
       INTEGER :: after, atom_a, atom_b, atom_c, handle, i, iatom, ic, icol, ikind, img, ir, irow, &
          iset, iw, j, jatom, jkind, jset, katom, kkind, la, lb, ldsab, lmaxa, lmaxb, maxder, maxs, &
@@ -953,8 +952,7 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:), OPTIONAL, &
          POINTER                                         :: ext_ks_matrix
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'build_xtb_ks_matrix', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'build_xtb_ks_matrix'
 
       INTEGER                                            :: atom_a, handle, iatom, ikind, img, &
                                                             iounit, is, ispin, na, natom, natorb, &
@@ -1178,8 +1176,6 @@ CONTAINS
          INTENT(INOUT)                                   :: neighbor_atoms
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'xb_neighbors', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: iatom, ikind, natom, nkind
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: matom
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: dmloc
@@ -1249,8 +1245,6 @@ CONTAINS
       TYPE(qs_force_type), DIMENSION(:), POINTER         :: force
       TYPE(virial_type), POINTER                         :: virial
       TYPE(atprop_type), POINTER                         :: atprop
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'xb_interaction', routineP = moduleN//':'//routineN
 
       INTEGER                                            :: atom_a, atom_b, atom_c, iatom, ikind, &
                                                             jatom, jkind, katom, kkind

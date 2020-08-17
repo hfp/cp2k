@@ -41,7 +41,6 @@ CONTAINS
 
       INTEGER, INTENT(IN)                                :: iw
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'eri_test', routineP = moduleN//':'//routineN
       INTEGER, PARAMETER                                 :: lmax = 6
 
       CHARACTER(LEN=11), DIMENSION(0:lmax)               :: i2g

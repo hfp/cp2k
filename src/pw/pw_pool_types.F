@@ -110,8 +110,6 @@ CONTAINS
       TYPE(pw_grid_type), POINTER                        :: pw_grid
       INTEGER, OPTIONAL                                  :: max_cache
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_pool_create', routineP = moduleN//':'//routineN
-
       TYPE(cp_logger_type), POINTER                      :: logger
 
       logger => cp_get_default_logger()
@@ -144,8 +142,6 @@ CONTAINS
    SUBROUTINE pw_pool_retain(pool)
       TYPE(pw_pool_type), POINTER                        :: pool
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_pool_retain', routineP = moduleN//':'//routineN
-
       TYPE(cp_logger_type), POINTER                      :: logger
 
       logger => cp_get_default_logger()
@@ -171,9 +167,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE pw_pool_flush_cache(pool)
       TYPE(pw_pool_type), POINTER                        :: pool
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_pool_flush_cache', &
-         routineP = moduleN//':'//routineN
 
       REAL(kind=dp), DIMENSION(:, :, :), POINTER         :: array_att
       TYPE(cp_logger_type), POINTER                      :: logger
@@ -247,9 +240,6 @@ CONTAINS
    SUBROUTINE pw_pool_release(pool)
       TYPE(pw_pool_type), POINTER                        :: pool
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_pool_release', &
-         routineP = moduleN//':'//routineN
-
       TYPE(cp_logger_type), POINTER                      :: logger
 
       logger => cp_get_default_logger()
@@ -315,8 +305,7 @@ CONTAINS
       INTEGER, INTENT(in)                                :: use_data
       INTEGER, INTENT(in), OPTIONAL                      :: in_space
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_pool_create_pw', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'pw_pool_create_pw'
 
       INTEGER                                            :: handle
       REAL(kind=dp), DIMENSION(:, :, :), POINTER         :: cr3d_ptr
@@ -404,8 +393,7 @@ CONTAINS
       TYPE(pw_type), POINTER                             :: pw
       LOGICAL, INTENT(in), OPTIONAL                      :: accept_non_compatible
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_pool_give_back_pw', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER :: routineN = 'pw_pool_give_back_pw'
 
       INTEGER                                            :: handle
       LOGICAL                                            :: failure, my_accept_non_compatible
@@ -521,9 +509,6 @@ CONTAINS
       TYPE(pw_pool_type), POINTER                        :: pw_pool
       REAL(kind=dp), DIMENSION(:, :, :), POINTER         :: cr3d
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_pool_create_cr3d', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: stat
       TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(pw_type), POINTER                             :: pw
@@ -580,9 +565,6 @@ CONTAINS
       TYPE(pw_pool_type), POINTER                        :: pw_pool
       REAL(kind=dp), DIMENSION(:, :, :), POINTER         :: cr3d
       LOGICAL, INTENT(in), OPTIONAL                      :: accept_non_compatible
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_pool_give_back_cr3d', &
-         routineP = moduleN//':'//routineN
 
       LOGICAL                                            :: compatible, my_accept_non_compatible
       TYPE(cp_logger_type), POINTER                      :: logger
@@ -650,9 +632,6 @@ CONTAINS
       INTEGER, INTENT(in)                                :: use_data
       INTEGER, INTENT(in), OPTIONAL                      :: in_space
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_pools_create_pws', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i
 
       CPASSERT(ASSOCIATED(pools))
@@ -676,9 +655,6 @@ CONTAINS
       TYPE(pw_pool_p_type), DIMENSION(:), POINTER        :: pools
       TYPE(pw_p_type), DIMENSION(:), POINTER             :: pws
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_pools_give_back_pws', &
-         routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i
 
       CPASSERT(ASSOCIATED(pools))
@@ -701,8 +677,6 @@ CONTAINS
    SUBROUTINE pw_pools_copy(source_pools, target_pools)
       TYPE(pw_pool_p_type), DIMENSION(:), POINTER        :: source_pools, target_pools
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_pools_copy', routineP = moduleN//':'//routineN
-
       INTEGER                                            :: i
 
       CPASSERT(ASSOCIATED(source_pools))
@@ -723,9 +697,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE pw_pools_dealloc(pools)
       TYPE(pw_pool_p_type), DIMENSION(:), POINTER        :: pools
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'pw_pools_dealloc', &
-         routineP = moduleN//':'//routineN
 
       INTEGER                                            :: i
 

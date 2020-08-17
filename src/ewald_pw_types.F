@@ -78,9 +78,6 @@ CONTAINS
    SUBROUTINE ewald_pw_retain(ewald_pw)
       TYPE(ewald_pw_type), POINTER                       :: ewald_pw
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'ewald_pw_retain', &
-         routineP = moduleN//':'//routineN
-
       CPASSERT(ASSOCIATED(ewald_pw))
       CPASSERT(ewald_pw%ref_count > 0)
       ewald_pw%ref_count = ewald_pw%ref_count + 1
@@ -99,9 +96,6 @@ CONTAINS
       TYPE(ewald_environment_type), POINTER              :: ewald_env
       TYPE(cell_type), POINTER                           :: cell, cell_ref
       TYPE(section_vals_type), POINTER                   :: print_section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'ewald_pw_create', &
-         routineP = moduleN//':'//routineN
 
       TYPE(dg_type), POINTER                             :: dg
 
@@ -128,8 +122,7 @@ CONTAINS
    SUBROUTINE ewald_pw_release(ewald_pw)
       TYPE(ewald_pw_type), POINTER                       :: ewald_pw
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'ewald_pw_release', &
-         routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'ewald_pw_release'
 
       INTEGER                                            :: handle
 
@@ -171,7 +164,7 @@ CONTAINS
       TYPE(cell_type), POINTER                           :: cell, cell_ref
       TYPE(section_vals_type), POINTER                   :: print_section
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'ewald_pw_init', routineP = moduleN//':'//routineN
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'ewald_pw_init'
 
       INTEGER                                            :: bo(2, 3), ewald_type, gmax(3), handle, &
                                                             npts_s(3), ns_max, o_spline, &
@@ -371,8 +364,6 @@ CONTAINS
       TYPE(pw_poisson_type), OPTIONAL, POINTER           :: poisson_env
       TYPE(dg_type), OPTIONAL, POINTER                   :: dg
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'ewald_pw_get', routineP = moduleN//':'//routineN
-
       IF (PRESENT(poisson_env)) poisson_env => ewald_pw%poisson_env
       IF (PRESENT(pw_big_pool)) pw_big_pool => ewald_pw%pw_big_pool
       IF (PRESENT(pw_small_pool)) pw_small_pool => ewald_pw%pw_small_pool
@@ -401,8 +392,6 @@ CONTAINS
       TYPE(realspace_grid_desc_type), OPTIONAL, POINTER  :: rs_desc
       TYPE(dg_type), OPTIONAL, POINTER                   :: dg
       TYPE(pw_poisson_type), OPTIONAL, POINTER           :: poisson_env
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'ewald_pw_set', routineP = moduleN//':'//routineN
 
       IF (PRESENT(pw_big_pool)) THEN
          CALL pw_pool_retain(pw_big_pool)
