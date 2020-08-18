@@ -10,7 +10,8 @@ MODULE xc_write_output
 
    USE input_constants,                 ONLY: xc_none
    USE input_cp2k_check,                ONLY: xc_functionals_expand
-   USE input_section_types,             ONLY: section_vals_duplicate,&
+   USE input_section_types,             ONLY: section_get_keyword_index,&
+                                              section_vals_duplicate,&
                                               section_vals_get,&
                                               section_vals_get_subs_vals,&
                                               section_vals_get_subs_vals2,&
@@ -55,10 +56,15 @@ CONTAINS
                                                       "XC_FUNCTIONAL")
          CALL section_vals_val_get(xc_fun_section, "_SECTION_PARAMETERS_", i_val=myfun)
          IF (myfun /= xc_none) THEN
-            CALL section_vals_val_get(xc_section, "FUNCTIONAL_ROUTINE", &
-                                      c_val=tmpStr)
-            WRITE (output_unit, fmt="(' FUNCTIONAL| ROUTINE=',a)") &
-               TRIM(tmpStr)
+
+            !check if FUNCTIONAL_ROUTINE keyword present
+            IF (section_get_keyword_index(xc_section%section, "FUNCTIONAL_ROUTINE") .NE. -2) THEN
+               CALL section_vals_val_get(xc_section, "FUNCTIONAL_ROUTINE", &
+                                         c_val=tmpStr)
+               WRITE (output_unit, fmt="(' FUNCTIONAL| ROUTINE=',a)") &
+                  TRIM(tmpStr)
+            END IF
+
             CALL xc_functionals_expand(xc_fun_section, xc_section)
             ifun = 0
             DO
