@@ -10,6 +10,7 @@ FCFLAGS  = $(NULL)
 LDFLAGS  = $(NULL)
 ACCFLAGS = $(NULL)
 ACC      = $(NULL)
+MIC ?= 0
 
 # LIBXSMM (https://github.com/hfp/libxsmm)
 #LIBXSMMROOT = /path/to/libxsmm
