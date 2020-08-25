@@ -8,7 +8,6 @@ import json
 from time import time, sleep
 import re
 import os
-from os import path
 import sys
 import concurrent.futures
 from subprocess import PIPE, STDOUT
@@ -18,9 +17,11 @@ from urllib.request import urlopen, Request
 from urllib.error import HTTPError
 import uuid
 from difflib import unified_diff
+from pathlib import Path
+import shutil
 
-SCRATCH_DIR = "./obj/precommit"
-CACHE_FILE = path.join(SCRATCH_DIR, "cache.json")
+SCRATCH_DIR = Path("./obj/precommit")
+CACHE_FILE = SCRATCH_DIR / "cache.json"
 SERVER = os.environ.get("CP2K_PRECOMMIT_SERVER", "https://precommit.cp2k.org")
 
 
@@ -46,15 +47,17 @@ def main():
         "-j",
         "--num_workers",
         type=int,
-        default=min(32, os.cpu_count() + 4),  # copied from ThreadPoolExecutor
+        default=min(16, os.cpu_count() + 2),
         help="number of parallel workers",
     )
     parser.add_argument(
         "--progressbar-wait",
+        metavar="SECONDS",
         type=int,
         default=1,
         help="number seconds in between progressbar updates",
     )
+    parser.add_argument("files", metavar="FILE", nargs="*", help="files to process")
     args = parser.parse_args()
 
     # Say hello to the server.
@@ -64,50 +67,57 @@ def main():
     server_hello = urlopen(Request(SERVER + "/"), timeout=10).read().decode("utf8")
     assert server_hello.startswith("cp2k precommit server")
 
-    # Change into base dir and create scratch dir.
-    base_dir = path.realpath(path.join(path.dirname(__file__), "../../"))
+    # Store candidate before changing base directory and creating scratch dir.
+    candidate_file_list = [os.path.abspath(fn) for fn in args.files]
+    base_dir = Path(__file__).parent.parent.parent.resolve()
     os.chdir(base_dir)
-    os.makedirs(SCRATCH_DIR, exist_ok=True)
+    SCRATCH_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Collect eligible files.
-    sys.stdout.write("Searching for files...\r")
-    sys.stdout.flush()
-    filename_pattern = re.compile(r".*\.(F|fypp|c|cu|h|py)$")
-    file_list = []
-    for root, dirs, files in os.walk("."):
-        if root.startswith("./tools/toolchain/build"):
-            continue
-        if root.startswith("./tools/toolchain/install"):
-            continue
-        if root.startswith("./tools/prettify/fprettify"):
-            continue
-        if root.startswith("./tools/build_utils/fypp"):
-            continue
-        if root.startswith("./tools/autotune_grid"):
-            continue
-        if root.startswith("./exts"):
-            continue
-        if root.startswith("./obj"):
-            continue
-        if root.startswith("./lib"):
-            continue
-        if root.startswith("./exe"):
-            continue
-        if root.startswith("./regtesting"):
-            continue
-        if root.startswith("./.git"):
-            continue
-        file_list += [path.join(root, fn) for fn in files if filename_pattern.match(fn)]
+    # Collect candidate files.
+    if not candidate_file_list:
+        sys.stdout.write("Searching for files...\r")
+        sys.stdout.flush()
+        for root, dirs, files in os.walk("."):
+            if root.startswith("./tools/toolchain/build"):
+                continue
+            if root.startswith("./tools/toolchain/install"):
+                continue
+            if root.startswith("./tools/prettify/fprettify"):
+                continue
+            if root.startswith("./tools/build_utils/fypp"):
+                continue
+            if root.startswith("./tools/autotune_grid"):
+                continue
+            if root.startswith("./exts"):
+                continue
+            if root.startswith("./obj"):
+                continue
+            if root.startswith("./lib"):
+                continue
+            if root.startswith("./exe"):
+                continue
+            if root.startswith("./regtesting"):
+                continue
+            if root.startswith("./.git"):
+                continue
+            candidate_file_list += [os.path.join(root, fn) for fn in files]
+
+    # Find eligible files and sort by size as larger ones will take longer to process.
+    eligible_file_pattern = re.compile(
+        r"(./data/.*POTENTIALS?)|(.*\.(F|fypp|c|cu|h|py|md))$"
+    )
+    file_list = [fn for fn in candidate_file_list if eligible_file_pattern.match(fn)]
+    file_list.sort(reverse=True, key=lambda fn: os.path.getsize(fn))
 
     # Load cache.
-    should_load_cache = path.exists(CACHE_FILE) and not args.no_cache
-    cache = json.load(open(CACHE_FILE)) if should_load_cache else {}
+    should_load_cache = CACHE_FILE.exists() and not args.no_cache
+    cache = json.loads(CACHE_FILE.read_text()) if should_load_cache else {}
 
     # Launch async processing of files.
     futures = {}
     executor = concurrent.futures.ThreadPoolExecutor(max_workers=args.num_workers)
     for fn in file_list:
-        if path.getmtime(fn) != cache.get(fn, -1):
+        if os.path.getmtime(fn) != cache.get(fn, -1):
             futures[fn] = executor.submit(process_file, fn, args.allow_modifications)
     num_skipped = len(file_list) - len(futures)
 
@@ -119,11 +129,11 @@ def main():
             if f.done():
                 num_done += 1
                 if not f.exception():
-                    cache[fn] = path.getmtime(fn)
+                    cache[fn] = os.path.getmtime(fn)
                 elif fn not in failed_files:
                     failed_files.add(fn)
                     print_box(fn, str(f.exception()))
-        json.dump(cache, open(CACHE_FILE, "w"))
+        CACHE_FILE.write_text(json.dumps(cache))
         progressbar = "=" * int(60 * num_done / len(file_list))
         sys.stdout.write(
             f"[{progressbar:60s}] {num_done} / {len(file_list)} files processed\r"
@@ -157,7 +167,10 @@ def print_box(fn, message):
 
 # ======================================================================================
 def process_file(fn, allow_modifications):
-    orig_content = open(fn, "rb").read()
+    # Make a backup copy.
+    orig_content = Path(fn).read_bytes()
+    bak_fn = SCRATCH_DIR / f"{Path(fn).name}_{time()}.bak"
+    shutil.copy2(fn, bak_fn)
 
     if re.match(r".*\.(F|fypp)$", fn):
         run_local_tool("./tools/doxify/doxify.sh", fn)
@@ -179,19 +192,18 @@ def process_file(fn, allow_modifications):
     elif re.match(r".*\.md$", fn):
         run_remote_tool("markdownlint", fn)
 
+    elif re.match(r"./data/.*POTENTIALS?$", fn):
+        check_data_files()
+
     else:
         raise Exception("Unknown file extension: " + fn)
 
-    new_content = open(fn, "rb").read()
+    new_content = Path(fn).read_bytes()
     if new_content == orig_content:
-        return
+        bak_fn.unlink()  # remove backup
 
-    # Deal with a modified file.
-    if allow_modifications:
-        bak_fn = path.join(SCRATCH_DIR, f"{path.basename(fn)}_{int(time())}.bak")
-        open(bak_fn, "wb").write(orig_content)  # make a backup copy
-    else:
-        open(fn, "wb").write(orig_content)  # restore origin content
+    elif not allow_modifications:
+        bak_fn.replace(fn)  # restore origin content
         try:
             orig_lines = orig_content.decode("utf8").split("\n")
             new_lines = new_content.decode("utf8").split("\n")
@@ -225,7 +237,15 @@ def run_analyze_src(fn):
 
 
 # ======================================================================================
-def run_local_tool(*cmd, timeout=10):
+def check_data_files():
+    potential_files = [f"./data/{x}_POTENTIALS" for x in ("GTH", "HF", "NLCC", "ALL")]
+    expected_content = "".join([Path(fn).read_text() for fn in potential_files])
+    if Path("./data/POTENTIAL").read_text() != expected_content:
+        raise Exception("The data files are out of sync - please run `make data`.")
+
+
+# ======================================================================================
+def run_local_tool(*cmd, timeout=20):
     p = subprocess.run(cmd, timeout=timeout, stdout=PIPE, stderr=STDOUT)
     if p.returncode != 0:
         raise Exception(p.stdout.decode("utf8"))
@@ -238,7 +258,7 @@ def run_remote_tool(tool, fn):
     if r.status == 304:
         pass  # file not modified
     elif r.status == 200:
-        open(fn, "wb").write(r.read())
+        Path(fn).write_bytes(r.read())
     else:
         raise Exception(r.read().decode("utf8"))  # something went wrong
 
@@ -246,15 +266,15 @@ def run_remote_tool(tool, fn):
 # ======================================================================================
 def http_post(url, fn):
     # This would be so much easier with the Requests library where it'd be a one-liner:
-    #    return requests.post(url, files={path.basename(fn): open(fn, "rb").read()})
+    #    return requests.post(url, files={Path(fn).name: Path(fn).read_bytes()})
 
     boundary = uuid.uuid1().hex
-    name = path.basename(fn)
+    name = Path(fn).name
     data = b"".join(
         [
             f"--{boundary}\r\nContent-Disposition: ".encode("utf8"),
             f'form-data; name="{name}"; filename="{name}"\r\n\r\n'.encode("utf8"),
-            open(fn, "rb").read(),
+            Path(fn).read_bytes(),
             f"\r\n--{boundary}--\r\n".encode("utf8"),
         ]
     )
