@@ -456,7 +456,7 @@ else # GNU GCC
   ifeq (0,$(DBG))
     OPTFLAGS += -funroll-loops -ftree-vectorize #-fexternal-blas #-fstack-arrays
     ifneq (0,$(IPO))
-      OPTFLAGS += -fwhole-program -flto -Wl,-flto -Wno-lto-type-mismatch
+      OPTFLAGS += -flto -Wl,-flto -Wno-lto-type-mismatch
     endif
     OPT ?= 3
   else
