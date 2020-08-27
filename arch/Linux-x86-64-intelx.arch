@@ -5,7 +5,7 @@ CPP = #cpp
 
 LIBS     = $(NULL)
 CXXFLAGS = $(NULL)
-CFLAGS   = $(NULL)
+CFLAGS   = -std=c99
 FCFLAGS  = $(NULL)
 LDFLAGS  = $(NULL)
 ACCFLAGS = $(NULL)
