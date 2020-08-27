@@ -454,7 +454,9 @@ else # GNU GCC
   endif
   FCFLAGS += -ffree-form -ffree-line-length-none
   ifeq (0,$(DBG))
-    OPTFLAGS += -funroll-loops -ftree-vectorize #-fexternal-blas #-fstack-arrays
+    OPTFLAGS += -funroll-loops -ftree-vectorize
+    FCFLAGS += -fexternal-blas -fblas-matmul-limit=4
+    #FCFLAGS += -fstack-arrays
     ifneq (0,$(IPO))
       OPTFLAGS += -flto -Wl,-flto -Wno-lto-type-mismatch
     endif
