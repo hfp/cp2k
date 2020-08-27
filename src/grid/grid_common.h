@@ -38,11 +38,11 @@ static const double fac[] = {
     0.26525285981219105864E+33};
 
 //******************************************************************************
-// \brief Macros for minimum and maximum as they are missing from the C standard
+// \brief Macros for integer minimum and maximum (missing from the C standard)
 // \author Ole Schuett
 //******************************************************************************
-#define min(x, y) (((x) < (y)) ? x : y)
-#define max(x, y) (((x) > (y)) ? x : y)
+#define imin(x, y) (((x) < (y)) ? x : y)
+#define imax(x, y) (((x) > (y)) ? x : y)
 
 //******************************************************************************
 // \brief Equivalent of Fortran's MODULO, which always return a positive number.

@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
 
   // All optional args have been parsed.
   if (argc - iarg != nrequired_args) {
-    fprintf(stderr, "Usage: grid_base_ref_miniapp.x [--batch "
+    fprintf(stderr, "Usage: grid_collocate_miniapp.x [--batch "
                     "<cycles-per-block>] <cycles> <task-file>\n");
     return 1;
   }

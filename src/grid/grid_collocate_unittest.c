@@ -41,7 +41,7 @@ static int run_test(const char cp2k_root_dir[], const char task_file[]) {
 
 int main(int argc, char *argv[]) {
   if (argc != 2) {
-    printf("Usage: grid_base_ref_unittest.x <cp2k-root-dir>\n");
+    printf("Usage: grid_collocate_unittest.x <cp2k-root-dir>\n");
     return 1;
   }
 
