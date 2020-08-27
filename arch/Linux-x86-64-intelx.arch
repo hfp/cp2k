@@ -89,10 +89,12 @@ endif
 
 EXTSDIR ?= exts
 EXTSHOME ?= $(CP2KHOME)/$(EXTSDIR)
-ifneq (,$(wildcard $(EXTSHOME)/dbcsr))
+LEGACY ?= $(if $(wildcard $(EXTSHOME)/dbcsr),0,1)
+
+ifeq (0,$(LEGACY))
   IFLAGS += -I$(CP2KHOME)/$(OBJDIRNAME)/$(ARCH)/$(ONEVERSION)/exts/dbcsr
   ELPA ?= 1
-else
+else # legacy
   ELPA ?= 201705
 endif
 
@@ -541,8 +543,12 @@ SYM ?= $(DBG)
 ifneq (0,$(SYM))
   LDFLAGS += -Wl,--export-dynamic
   ifeq (0,$(GNU))
-    DFLAGS += -D__USE_CP2K_TRACE
+  ifneq (0,$(shell echo "$$((3 > $(OPT)))"))
+    ifneq (0,$(LEGACY))
+      DFLAGS += -D__USE_CP2K_TRACE
+    endif
     OPTFLAGS += -traceback
+  endif
   endif
   ifneq (1,$(SYM))
     CXXFLAGS := -ggdb3 $(CXXFLAGS)
