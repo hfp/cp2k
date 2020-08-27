@@ -76,7 +76,6 @@ DBG ?= 0
 SYM ?= $(DBG)
 FPE ?= 0
 VMAX ?= 0
-MATMUL ?= 0
 MKL_DIRECT ?= 0
 MKL_STATIC ?= 1
 
@@ -107,12 +106,14 @@ endif
 endif
 ifeq (0,$(GNU))
   OMPRT ?= iomp5
+  MATMUL ?= 0
 else # GNU
   OMPRT ?= gomp
   ifeq (0,$(SYM))
     IPO ?= 1
   endif
 endif
+MATMUL ?= 1
 IPO ?= 0
 
 ifneq (0,$(OMP))
