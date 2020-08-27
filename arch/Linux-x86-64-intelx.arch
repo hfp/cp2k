@@ -206,11 +206,14 @@ ifneq (0,$(MPI))
     CC  = mpiicc
     FC  = mpiifort
     LD  = mpiifort
-  else
+  else # GNU
     CXX = mpicxx
     CC  = mpicc
     FC  = mpif90
     LD  = mpif90
+    ifneq (0,$(LEGACY))
+      DFLAGS += -D__HAS_NO_MPI_MOD
+    endif
   endif
   DFLAGS += -D__parallel
   # COSMA section must appear before SCALAPACK section
@@ -455,7 +458,6 @@ else # GNU GCC
     endif
     OPT ?= 0
   endif
-  DFLAGS += -D__HAS_NO_MPI_MOD
   MKL_OMPRTL = gnu
   MKL_FCRTL = gf
   INTEL ?= 0
