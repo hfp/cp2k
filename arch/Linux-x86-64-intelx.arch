@@ -76,6 +76,7 @@ DBG ?= 0
 SYM ?= $(DBG)
 FPE ?= 0
 VMAX ?= 0
+MATMUL ?= 0
 MKL_DIRECT ?= 0
 MKL_STATIC ?= 1
 
@@ -343,6 +344,8 @@ ifeq (0,$(GNU)) # Intel
         TARGET = -xCORE-AVX512
         ifneq (0,$(VMAX))
           TARGET += -qopt-zmm-usage=high
+        else
+          TARGET += -qopt-zmm-usage=low
         endif
         TGT = skx
       endif
@@ -353,6 +356,8 @@ ifeq (0,$(GNU)) # Intel
       ifneq (,$(shell grep -om1 '\bavx512vl\b' /proc/cpuinfo))
         ifneq (0,$(VMAX))
           TARGET += -qopt-zmm-usage=high
+        else
+          TARGET += -qopt-zmm-usage=low
         endif
         TGT = skx
       else ifneq (,$(shell grep -om1 '\bavx2\b' /proc/cpuinfo))
@@ -373,7 +378,7 @@ ifeq (0,$(GNU)) # Intel
       OPT ?= 2
     endif
     #OPTFLAGS += -qoverride_limits
-    ifneq (0,$(shell echo "$$((1 < $(OPT)))"))
+    ifeq (0,$(MATMUL))
       OPTFLAGS += -qopt-matmul
     endif
     ifneq (0,$(IPO))
@@ -455,8 +460,10 @@ else # GNU GCC
   FCFLAGS += -ffree-form -ffree-line-length-none
   ifeq (0,$(DBG))
     OPTFLAGS += -funroll-loops -ftree-vectorize
-    FCFLAGS += -fexternal-blas -fblas-matmul-limit=4
     #FCFLAGS += -fstack-arrays
+    ifeq (0,$(MATMUL))
+      FCFLAGS += -fexternal-blas -fblas-matmul-limit=4
+    endif
     ifneq (0,$(IPO))
       OPTFLAGS += -flto -Wl,-flto -Wno-lto-type-mismatch
     endif
