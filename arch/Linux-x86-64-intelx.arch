@@ -165,10 +165,13 @@ ifneq (,$(filter-out 0 undefined,$(OCL) $(GPUVER)))
   endif
 else # ACC off
   ifeq (0,$(GNU))
+  ifneq (0,$(LEGACY))
     OPTFLAGS += -qno-offload
+  endif
   endif
 endif
 
+# MKL_MPIRTL: intelmpi, openmpi
 MKL_MPIRTL ?= intelmpi
 ifneq (0,$(BLAS))
   ifneq (Darwin,$(UNAME))
