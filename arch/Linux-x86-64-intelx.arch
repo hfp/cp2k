@@ -235,7 +235,10 @@ ifneq (0,$(MPI))
     endif
   endif
   ifneq (0,$(SCALAPACK))
-    DFLAGS += -D__BLACS -D__SCALAPACK
+    DFLAGS += -D__SCALAPACK
+    ifneq (0,$(LEGACY))
+      DFLAGS += -D__BLACS
+    endif
     ifeq (0,$(shell echo $(SCALAPACK) | grep -q "^-*[0-9]\+$$"; echo $$?)) # number
       ifneq (-1,$(SCALAPACK))
         ifneq (1,$(SCALAPACK))
@@ -382,8 +385,10 @@ ifeq (0,$(GNU)) # Intel
     OPT ?= 0
   endif
   FCFLAGS += -free -fpp
-  # more recent IFORT versions enable F2008 by default
-  DFLAGS += -D__INTEL -D__F2008
+  DFLAGS += -D__INTEL
+  ifneq (0,$(LEGACY))
+    DFLAGS += -D__F2008
+  endif
   MKL_OMPRTL = intel
   MKL_FCRTL = intel
   RANLIB = xiar -s
@@ -813,7 +818,9 @@ ifneq (0,$(MKL))
   LIBS += -Wl,--as-needed -lpthread -lm -ldl -Wl,--no-as-needed
 endif
 
-DFLAGS += -D__HAS_ISO_C_BINDING
+ifneq (0,$(LEGACY))
+  DFLAGS += -D__HAS_ISO_C_BINDING
+endif
 # general include paths
 #IFLAGS +=
 
