@@ -41,15 +41,15 @@ static const double fac[] = {
 // \brief Macros for integer minimum and maximum (missing from the C standard)
 // \author Ole Schuett
 //******************************************************************************
-#define imin(x, y) (((x) < (y)) ? x : y)
-#define imax(x, y) (((x) > (y)) ? x : y)
+#define LIBGRID_MIN(x, y) (((x) < (y)) ? x : y)
+#define LIBGRID_MAX(x, y) (((x) > (y)) ? x : y)
 
 //******************************************************************************
-// \brief Equivalent of Fortran's MODULO, which always return a positive number.
-//        https://gcc.gnu.org/onlinedocs/gfortran/MODULO.html
+// \brief Equivalent of Fortran's LIBGRID_MOD, which always return a positive number.
+//        https://gcc.gnu.org/onlinedocs/gfortran/LIBGRID_MOD.html
 // \author Ole Schuett
 //******************************************************************************
-#define modulo(a, m) (((a) % (m) + (m)) % (m))
+#define LIBGRID_MOD(a, m) (((a) % (m) + (m)) % (m))
 
 #endif // GRID_COMMON_H
 
