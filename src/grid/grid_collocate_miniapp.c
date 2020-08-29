@@ -16,7 +16,7 @@ void mpi_sum_func(long *number, int mpi_comm) {
 }
 
 void print_func(char *message, int output_unit) {
-  output_unit += 0; // Pretent argument is used.
+  output_unit += 0; // Pretend argument is used.
   printf("%s", message);
 }
 
