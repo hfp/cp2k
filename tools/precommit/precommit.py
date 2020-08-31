@@ -69,7 +69,7 @@ def main():
 
     # Store candidate before changing base directory and creating scratch dir.
     candidate_file_list = [os.path.abspath(fn) for fn in args.files]
-    base_dir = Path(__file__).parent.parent.parent.resolve()
+    base_dir = Path(__file__).resolve().parent.parent.parent
     os.chdir(base_dir)
     SCRATCH_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -220,7 +220,7 @@ def run_prettify(fn):
 
     # The prettify tool processes only about 1k lines of code per second.
     # Hence, setting a generous timeout as our largest file has 100k lines.
-    run_local_tool("./tools/prettify/prettify.py", fn, timeout=300)
+    run_local_tool("./tools/prettify/prettify.py", fn, timeout=600)
 
 
 # ======================================================================================
