@@ -47,8 +47,8 @@ static const double fac[] = {
 #define LIBGRID_MAX(x, y) (((x) > (y)) ? x : y)
 
 //******************************************************************************
-// \brief Equivalent of Fortran's LIBGRID_MOD, which always return a positive number.
-//        https://gcc.gnu.org/onlinedocs/gfortran/LIBGRID_MOD.html
+// \brief Equivalent of Fortran's MODULO, which always return a positive number.
+//        https://gcc.gnu.org/onlinedocs/gfortran/MODULO.html
 // \author Ole Schuett
 //******************************************************************************
 #define LIBGRID_MOD(a, m) (((a) % (m) + (m)) % (m))
