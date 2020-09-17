@@ -129,10 +129,12 @@ endif
 #FPFMODEL = fast=2
 
 # FP compiler flags
-FPFLAGS += -complex-limited-range
-#FPFLAGS += -nostandard-realloc-lhs
-#FPFLAGS += -fimf-domain-exclusion=1
-#FPFLAGS += -fast-transcendentals
+ifeq (1,$(INTEL))
+  FPFLAGS += -complex-limited-range
+  #FPFLAGS += -nostandard-realloc-lhs
+  #FPFLAGS += -fimf-domain-exclusion=1
+  #FPFLAGS += -fast-transcendentals
+endif
 
 # TBB malloc proxy is enabled if TBBROOT is set
 TBBMALLOC ?= 0
@@ -202,10 +204,17 @@ endif
 SCALAPACK ?= $(MPI)
 ifneq (0,$(MPI))
   ifeq (0,$(GNU))
-    CXX = mpiicpc
-    CC  = mpiicc
-    FC  = mpiifort
-    LD  = mpiifort
+    ifeq (1,$(INTEL))
+      CXX = mpiicpc
+      CC  = mpiicc
+      FC  = mpiifort
+      LD  = mpiifort
+    else
+      CXX = mpiicpx
+      CC  = mpiicx
+      FC  = mpiifx
+      LD  = mpiifx
+    endif
   else # GNU
     CXX = mpicxx
     CC  = mpicc
@@ -871,7 +880,11 @@ ifeq (0,$(GNU))
   CFLAGS    += -diag-disable $(DIAG_DISABLE)
   FCFLAGS   += -diag-disable $(DIAG_DISABLE)
   LDFLAGS   += -diag-disable $(DIAG_DISABLE)
-  LDFLAGS_C += -nofor_main
+  ifeq (1,$(INTEL))
+    LDFLAGS_C += -nofor_main
+  else
+    LDFLAGS_C += -nofor-main
+  endif
 endif
 
 LIBS += -Wl,--as-needed -lstdc++ -Wl,--no-as-needed
@@ -885,6 +898,7 @@ DFLAGS := $(call cleanup,$(DFLAGS))
 IFLAGS := $(call cleanup,$(IFLAGS))
 
 # filter-out override_limits flag since IFORT can run out of memory (SIGKILL)
+ifeq (1,$(INTEL))
 ifneq (,$(filter -qoverride_limits,$(FCFLAGS)))
 mp2_eri.o: mp2_eri.F
 	$(eval MAKE_FYPP := $(if $(wildcard $(TOOLSRC)/build_utils/fypp),$(TOOLSRC)/build_utils/fypp $(FYPPFLAGS) $< $*.F90,$(NULL)))
@@ -894,6 +908,7 @@ minimax_exp_k53.o: minimax_exp_k53.F
 	$(eval MAKE_FYPP := $(if $(wildcard $(TOOLSRC)/build_utils/fypp),$(TOOLSRC)/build_utils/fypp $(FYPPFLAGS) $< $*.F90,$(NULL)))
 	$(MAKE_FYPP)
 	$(FC) -c $(filter-out -qoverride_limits,$(FCFLAGS)) -D__SHORT_FILE__="\"$(subst $(SRCDIR)/,,$<)\"" -I'$(dir $<)' $*.F90 $(FCLOGPIPE)
+endif
 endif
 
 ifneq (0,$(shell echo "$$((1<=$(BEEP) && 0==$(GNU)))"))
