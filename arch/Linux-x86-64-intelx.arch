@@ -3,13 +3,14 @@
 PERL = perl
 CPP = #cpp
 
-LIBS     = $(NULL)
-CXXFLAGS = $(NULL)
+DFLAGS   = -D__NO_IPI_DRIVER
 CFLAGS   = -std=c99
+CXXFLAGS = $(NULL)
 FCFLAGS  = $(NULL)
 LDFLAGS  = $(NULL)
 ACCFLAGS = $(NULL)
 ACC      = $(NULL)
+LIBS     = $(NULL)
 MIC ?= 0
 
 # LIBXSMM (https://github.com/hfp/libxsmm)
