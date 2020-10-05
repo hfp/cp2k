@@ -552,16 +552,6 @@ ifneq (0,$(LIBINT)) # incl. undefined
     $(info LIBINTROOT=$(LIBINTROOT))
   endif
 endif
-ifneq (0,$(LIBXC)) # incl. undefined
-  LIBXCROOT ?= $(abspath $(wildcard $(CP2KHOME)/../libxc/$(XCFG)))
-  LIBXCROOT ?= $(abspath $(wildcard $(HOME)/libxc/$(XCFG)))
-  ifeq (/,$(LIBXCROOT))
-    LIBXCROOT = $(NULL)
-  endif
-  ifneq (,$(LIBXCROOT))
-    $(info LIBXCROOT=$(LIBXCROOT))
-  endif
-endif
 ifneq (0,$(PLUMED)) # incl. undefined
   PLUMEDROOT ?= $(abspath $(wildcard $(CP2KHOME)/../plumed/$(XCFG)))
   PLUMEDROOT ?= $(abspath $(wildcard $(HOME)/plumed/$(XCFG)))
@@ -570,6 +560,16 @@ ifneq (0,$(PLUMED)) # incl. undefined
   endif
   ifneq (,$(PLUMEDROOT))
     $(info PLUMEDROOT=$(PLUMEDROOT))
+  endif
+endif
+ifneq (0,$(LIBXC)) # incl. undefined
+  LIBXCROOT ?= $(abspath $(wildcard $(CP2KHOME)/../libxc/$(XCFG)))
+  LIBXCROOT ?= $(abspath $(wildcard $(HOME)/libxc/$(XCFG)))
+  ifeq (/,$(LIBXCROOT))
+    LIBXCROOT = $(NULL)
+  endif
+  ifneq (,$(LIBXCROOT))
+    $(info LIBXCROOT=$(LIBXCROOT))
   endif
 endif
 ifneq (0,$(ELPA)) # incl. undefined
