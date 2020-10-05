@@ -559,6 +559,16 @@ ifneq (0,$(LIBXC)) # incl. undefined
     $(info LIBXCROOT=$(LIBXCROOT))
   endif
 endif
+ifneq (0,$(PLUMED)) # incl. undefined
+  PLUMEDROOT ?= $(abspath $(wildcard $(CP2KHOME)/../plumed/$(XCFG)))
+  PLUMEDROOT ?= $(abspath $(wildcard $(HOME)/plumed/$(XCFG)))
+  ifeq (/,$(PLUMEDROOT))
+    PLUMEDROOT = $(NULL)
+  endif
+  ifneq (,$(PLUMEDROOT))
+    $(info PLUMEDROOT=$(PLUMEDROOT))
+  endif
+endif
 ifneq (0,$(ELPA)) # incl. undefined
   ELPAROOT ?= $(abspath $(wildcard $(CP2KHOME)/../elpa/$(XCFGOMP)))
   ELPAROOT ?= $(abspath $(wildcard $(HOME)/elpa/$(XCFG)))
@@ -657,6 +667,14 @@ ifneq (,$(LIBXCROOT))
   DFLAGS += -D__LIBXC
   IFLAGS += -I$(LIBXCROOT)/include
   LIBS   += $(LIBXCROOT)/lib/libxcf03.a $(LIBXCROOT)/lib/libxc.a
+endif
+
+ifneq (,$(PLUMEDROOT))
+  include $(PLUMEDROOT)/lib/plumed/src/lib/Plumed.inc
+  EXTERNAL_OBJECTS = $(PLUMED_STATIC_DEPENDENCIES)
+  #IFLAGS += -I$(PLUMEDROOT)/include
+  DFLAGS += -D__PLUMED2
+  LIBS   += -lz -ldl -lstdc++
 endif
 
 ifneq (,$(ELPAROOT))
