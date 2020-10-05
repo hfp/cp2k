@@ -19,10 +19,13 @@ MIC ?= 0
 # LIBINT: https://xconfigure.readthedocs.io/libint/
 #LIBINTROOT = /path/to/libint
 
-# LIBXC:  https://xconfigure.readthedocs.io/libxc/
+# PLUMED: https://xconfigure.readthedocs.io/plumed/
+#PLUMEDROOT = /path/to/plumed
+
+# LIBXC: https://xconfigure.readthedocs.io/libxc/
 #LIBXCROOT = /path/to/libxc
 
-# ELPA:   https://xconfigure.readthedocs.io/elpa/
+# ELPA: https://xconfigure.readthedocs.io/elpa/
 #ELPAROOT = /path/to/elpa
 
 which = $(shell which $(firstword $1) 2>/dev/null)
