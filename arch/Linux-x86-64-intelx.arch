@@ -673,11 +673,8 @@ ifneq (,$(LIBXCROOT))
 endif
 
 ifneq (,$(PLUMEDROOT))
-  include $(PLUMEDROOT)/lib/plumed/src/lib/Plumed.inc
-  EXTERNAL_OBJECTS = $(PLUMED_STATIC_DEPENDENCIES)
-  #IFLAGS += -I$(PLUMEDROOT)/include
   DFLAGS += -D__PLUMED2
-  LIBS   += -lz -ldl -lstdc++
+  LIBS   += $(PLUMEDROOT)/lib/libplumed.a -lz -ldl -lstdc++
 endif
 
 ifneq (,$(ELPAROOT))
