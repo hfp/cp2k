@@ -674,7 +674,7 @@ endif
 
 ifneq (,$(PLUMEDROOT))
   DFLAGS += -D__PLUMED2
-  LIBS   += $(PLUMEDROOT)/lib/libplumed.a -lz -ldl -lstdc++
+  LIBS   += $(PLUMEDROOT)/lib/libplumed.a -lz
 endif
 
 ifneq (,$(ELPAROOT))
