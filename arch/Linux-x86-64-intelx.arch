@@ -674,6 +674,7 @@ endif
 
 ifneq (,$(PLUMEDROOT))
   DFLAGS += -D__PLUMED2
+  # avoid duplicated libraries (-ldl -lstdc++)
   LIBS   += $(PLUMEDROOT)/lib/libplumed.a -lz
 endif
 
