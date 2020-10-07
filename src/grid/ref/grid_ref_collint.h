@@ -24,14 +24,14 @@
 #endif
 
 /*******************************************************************************
- * \brief Collocates coefficients C_s onto the grid for orthorhombic case.
+ * \brief Collocates registers reg onto the grid for orthorhombic case.
  * \author Ole Schuett
  ******************************************************************************/
-static inline void ortho_cs_to_grid(const int k, const int k2, const int j,
-                                    const int j2, const int i, const int i2,
-                                    const int npts_local[3],
-                                    GRID_CONST_WHEN_COLLOCATE double *cs,
-                                    GRID_CONST_WHEN_INTEGRATE double *grid) {
+static inline void ortho_reg_to_grid(const int k, const int k2, const int j,
+                                     const int j2, const int i, const int i2,
+                                     const int npts_local[3],
+                                     GRID_CONST_WHEN_COLLOCATE double *reg,
+                                     GRID_CONST_WHEN_INTEGRATE double *grid) {
 
   const int stride = npts_local[1] * npts_local[0];
   const int grid_index_0 = k * stride + j * npts_local[0] + i;
@@ -45,35 +45,35 @@ static inline void ortho_cs_to_grid(const int k, const int k2, const int j,
 
 #if (GRID_DO_COLLOCATE)
   // collocate
-  grid[grid_index_0] += cs[0];
-  grid[grid_index_1] += cs[1];
-  grid[grid_index_2] += cs[2];
-  grid[grid_index_3] += cs[3];
-  grid[grid_index_4] += cs[4];
-  grid[grid_index_5] += cs[5];
-  grid[grid_index_6] += cs[6];
-  grid[grid_index_7] += cs[7];
+  grid[grid_index_0] += reg[0];
+  grid[grid_index_1] += reg[1];
+  grid[grid_index_2] += reg[2];
+  grid[grid_index_3] += reg[3];
+  grid[grid_index_4] += reg[4];
+  grid[grid_index_5] += reg[5];
+  grid[grid_index_6] += reg[6];
+  grid[grid_index_7] += reg[7];
 #else
   // integrate
-  cs[0] += grid[grid_index_0];
-  cs[1] += grid[grid_index_1];
-  cs[2] += grid[grid_index_2];
-  cs[3] += grid[grid_index_3];
-  cs[4] += grid[grid_index_4];
-  cs[5] += grid[grid_index_5];
-  cs[6] += grid[grid_index_6];
-  cs[7] += grid[grid_index_7];
+  reg[0] += grid[grid_index_0];
+  reg[1] += grid[grid_index_1];
+  reg[2] += grid[grid_index_2];
+  reg[3] += grid[grid_index_3];
+  reg[4] += grid[grid_index_4];
+  reg[5] += grid[grid_index_5];
+  reg[6] += grid[grid_index_6];
+  reg[7] += grid[grid_index_7];
 #endif
 }
 
 /*******************************************************************************
- * \brief Transforms coefficients C_x into C_s by fixing grid index i.
+ * \brief Transforms coefficients C_x into registers reg by fixing grid index i.
  * \author Ole Schuett
  ******************************************************************************/
-static inline void ortho_cx_to_cs(const int lp, const double pol_ig[lp + 1],
-                                  const double pol_ig2[lp + 1],
-                                  GRID_CONST_WHEN_COLLOCATE double *cx,
-                                  GRID_CONST_WHEN_INTEGRATE double *cs) {
+static inline void ortho_cx_to_reg(const int lp, const double pol_ig[lp + 1],
+                                   const double pol_ig2[lp + 1],
+                                   GRID_CONST_WHEN_COLLOCATE double *cx,
+                                   GRID_CONST_WHEN_INTEGRATE double *reg) {
 
   for (int lxp = 0; lxp <= lp; lxp++) {
     const double p1 = pol_ig[lxp];
@@ -81,24 +81,24 @@ static inline void ortho_cx_to_cs(const int lp, const double pol_ig[lp + 1],
 
 #if (GRID_DO_COLLOCATE)
     // collocate
-    cs[0] += cx[lxp * 4 + 0] * p1;
-    cs[1] += cx[lxp * 4 + 1] * p1;
-    cs[2] += cx[lxp * 4 + 2] * p1;
-    cs[3] += cx[lxp * 4 + 3] * p1;
-    cs[4] += cx[lxp * 4 + 0] * p2;
-    cs[5] += cx[lxp * 4 + 1] * p2;
-    cs[6] += cx[lxp * 4 + 2] * p2;
-    cs[7] += cx[lxp * 4 + 3] * p2;
+    reg[0] += cx[lxp * 4 + 0] * p1;
+    reg[1] += cx[lxp * 4 + 1] * p1;
+    reg[2] += cx[lxp * 4 + 2] * p1;
+    reg[3] += cx[lxp * 4 + 3] * p1;
+    reg[4] += cx[lxp * 4 + 0] * p2;
+    reg[5] += cx[lxp * 4 + 1] * p2;
+    reg[6] += cx[lxp * 4 + 2] * p2;
+    reg[7] += cx[lxp * 4 + 3] * p2;
 #else
     // integrate
-    cx[lxp * 4 + 0] += cs[0] * p1;
-    cx[lxp * 4 + 1] += cs[1] * p1;
-    cx[lxp * 4 + 2] += cs[2] * p1;
-    cx[lxp * 4 + 3] += cs[3] * p1;
-    cx[lxp * 4 + 0] += cs[4] * p2;
-    cx[lxp * 4 + 1] += cs[5] * p2;
-    cx[lxp * 4 + 2] += cs[6] * p2;
-    cx[lxp * 4 + 3] += cs[7] * p2;
+    cx[lxp * 4 + 0] += reg[0] * p1;
+    cx[lxp * 4 + 1] += reg[1] * p1;
+    cx[lxp * 4 + 2] += reg[2] * p1;
+    cx[lxp * 4 + 3] += reg[3] * p1;
+    cx[lxp * 4 + 0] += reg[4] * p2;
+    cx[lxp * 4 + 1] += reg[5] * p2;
+    cx[lxp * 4 + 2] += reg[6] * p2;
+    cx[lxp * 4 + 3] += reg[7] * p2;
 #endif
   }
 }
@@ -121,21 +121,23 @@ ortho_cx_to_grid(const int lp, const int k, const int k2, const int jg,
   const int jd = (2 * jg - 1) / 2; // distance from center in grid points
   const double jr = jd * dh[1][1]; // distance from center in a.u.
   const double jremain = kremain - jr * jr;
-  const int igmin = ceil(-1e-8 - sqrt(fmax(0.0, jremain)) * dh_inv[0][0]);
+  const int igmin = (int)ceil(-1e-8 - sqrt(fmax(0.0, jremain)) * dh_inv[0][0]);
   for (int ig = igmin; ig <= 0; ig++) {
     const int ig2 = 1 - ig;
     const int i = map[0][ig + cmax];
     const int i2 = map[0][ig2 + cmax];
-    double cs[8] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+
+    // In all likelihood the compiler will keep these variables in registers.
+    double reg[8] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
 #if (GRID_DO_COLLOCATE)
     // collocate
-    ortho_cx_to_cs(lp, pol[0][ig + cmax], pol[0][ig2 + cmax], cx, cs);
-    ortho_cs_to_grid(k, k2, j, j2, i, i2, npts_local, cs, grid);
+    ortho_cx_to_reg(lp, pol[0][ig + cmax], pol[0][ig2 + cmax], cx, reg);
+    ortho_reg_to_grid(k, k2, j, j2, i, i2, npts_local, reg, grid);
 #else
     // integrate
-    ortho_cs_to_grid(k, k2, j, j2, i, i2, npts_local, cs, grid);
-    ortho_cx_to_cs(lp, pol[0][ig + cmax], pol[0][ig2 + cmax], cx, cs);
+    ortho_reg_to_grid(k, k2, j, j2, i, i2, npts_local, reg, grid);
+    ortho_cx_to_reg(lp, pol[0][ig + cmax], pol[0][ig2 + cmax], cx, reg);
 #endif
   }
 }
@@ -191,7 +193,7 @@ static inline void ortho_cxy_to_grid(
   const int kd = (2 * kg - 1) / 2; // distance from center in grid points
   const double kr = kd * dh[2][2]; // distance from center in a.u.
   const double kremain = disr_radius * disr_radius - kr * kr;
-  const int jgmin = ceil(-1e-8 - sqrt(fmax(0.0, kremain)) * dh_inv[1][1]);
+  const int jgmin = (int)ceil(-1e-8 - sqrt(fmax(0.0, kremain)) * dh_inv[1][1]);
   for (int jg = jgmin; jg <= 0; jg++) {
     const int jg2 = 1 - jg;
 
@@ -270,7 +272,7 @@ ortho_cxyz_to_grid(const int lp, const double zetp, const double dh[3][3],
     for (int j = 0; j < 3; j++) {
       dh_inv_rp += dh_inv[j][i] * rp[j];
     }
-    cubecenter[i] = floor(dh_inv_rp);
+    cubecenter[i] = (int)floor(dh_inv_rp);
   }
 
   double roffset[3];
@@ -284,7 +286,7 @@ ortho_cxyz_to_grid(const int lp, const double zetp, const double dh[3][3],
 
   int lb_cube[3], ub_cube[3];
   for (int i = 0; i < 3; i++) {
-    lb_cube[i] = ceil(-1e-8 - disr_radius * dh_inv[i][i]);
+    lb_cube[i] = (int)ceil(-1e-8 - disr_radius * dh_inv[i][i]);
     ub_cube[i] = 1 - lb_cube[i];
     // If grid is not period check that cube fits without wrapping.
     if (npts_global[i] != npts_local[i]) {
@@ -348,7 +350,7 @@ ortho_cxyz_to_grid(const int lp, const double zetp, const double dh[3][3],
   const int(*map)[2 * cmax + 1] = (const int(*)[2 * cmax + 1]) map_mutable;
 
   // Loop over k dimension of the cube.
-  const int kgmin = ceil(-1e-8 - disr_radius * dh_inv[2][2]);
+  const int kgmin = (int)ceil(-1e-8 - disr_radius * dh_inv[2][2]);
   for (int kg = kgmin; kg <= 0; kg++) {
     const int kg2 = 1 - kg;
 
@@ -369,6 +371,26 @@ ortho_cxyz_to_grid(const int lp, const double zetp, const double dh[3][3],
                       npts_local, cxy, grid);
     ortho_cxyz_to_cxy(lp, pol[2][kg + cmax], pol[2][kg2 + cmax], cxyz, cxy);
 #endif
+  }
+}
+
+/*******************************************************************************
+ * \brief Collocates coefficients C_i into register reg for general case.
+ * \author Ole Schuett
+ ******************************************************************************/
+static inline void general_ci_to_reg(const int lp, const double exp_aiibic,
+                                     const double di,
+                                     GRID_CONST_WHEN_COLLOCATE double *ci,
+                                     GRID_CONST_WHEN_INTEGRATE double *reg) {
+  double dip = exp_aiibic;
+
+  for (int il = 0; il <= lp; il++) {
+#if (GRID_DO_COLLOCATE)
+    (*reg) += ci[il] * dip; // collocate
+#else
+    ci[il] += (*reg) * dip; // integrate
+#endif
+    dip *= di;
   }
 }
 
@@ -416,8 +438,8 @@ general_ci_to_grid(const int lp, const int j, const int jg, const int k,
     return;
   }
   const double sqrt_d = sqrt(d);
-  const int ismin = ceil((-b - sqrt_d) / (2.0 * a));
-  const int ismax = floor((-b + sqrt_d) / (2.0 * a));
+  const int ismin = (int)ceil((-b - sqrt_d) / (2.0 * a));
+  const int ismax = (int)floor((-b + sqrt_d) / (2.0 * a));
 
   const double exp_ab = exp(-zetp * (a + b));
   const double exp_2a = exp(-zetp * 2.0 * a);
@@ -432,6 +454,7 @@ general_ci_to_grid(const int lp, const int j, const int jg, const int k,
       continue;
     }
 
+    const double di = i - gp[0];
     const int stride = npts_local[1] * npts_local[0];
     const int grid_index =
         kg * stride + jg * npts_local[0] + ig; // [kg, jg, ig]
@@ -442,20 +465,21 @@ general_ci_to_grid(const int lp, const int j, const int jg, const int k,
       exp_is_invalid = false;
     }
 
-    // polynomial terms
-    double dip = exp_aiibic; // exp(-zetp * ((a * i + b) * i + c));
-    const double di = i - gp[0];
-    for (int il = 0; il <= lp; il++) {
+    // In all likelihood the compiler will keep this variable in a register.
+    double reg = 0.0;
+
 #if (GRID_DO_COLLOCATE)
-      grid[grid_index] += ci[il] * dip; // collocate
+    // collocate
+    general_ci_to_reg(lp, exp_aiibic, di, ci, &reg);
+    grid[grid_index] += reg;
 #else
-      ci[il] += grid[grid_index] * dip; // integrate
+    // integrate
+    reg += grid[grid_index];
+    general_ci_to_reg(lp, exp_aiibic, di, ci, &reg);
 #endif
-      dip *= di;
-    }
 
     // update exponential term
-    exp_aiibic *= exp_2ai * exp_ab;
+    exp_aiibic *= exp_2ai * exp_ab; // exp(-zetp * ((a * i + b) * i + c));
     exp_2ai *= exp_2a;
   }
 }
@@ -474,7 +498,7 @@ static inline void general_cij_to_ci(const int lp, const double dj,
 #if (GRID_DO_COLLOCATE)
       ci[il] += cij[cij_index] * djp; // collocate
 #else
-      cij[cij_index] += ci[il] * djp;   // integrate
+      cij[cij_index] += ci[il] * djp; // integrate
 #endif
     }
     djp *= dj;
@@ -602,8 +626,8 @@ general_cijk_to_grid(const int border_mask, const int lp, const double zetp,
         for (int idir = 0; idir < 3; idir++) {
           const double resc =
               dh_inv[0][idir] * x + dh_inv[1][idir] * y + dh_inv[2][idir] * z;
-          index_min[idir] = imin(index_min[idir], floor(resc));
-          index_max[idir] = imax(index_max[idir], ceil(resc));
+          index_min[idir] = imin(index_min[idir], (int)floor(resc));
+          index_max[idir] = imax(index_max[idir], (int)ceil(resc));
         }
       }
     }
