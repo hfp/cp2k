@@ -197,17 +197,17 @@ static void collocate_one_grid_level(
         double work[nsgf_setb * ncoa];
         const double zero = 0.0, one = 1.0;
         if (iatom <= jatom) {
-          // work = MATMUL(ibasis->sphi, subblock)
+          // work[nsgf_setb][ncoa] = MATMUL(ibasis->sphi, subblock)
           dgemm_("N", "N", &ncoa, &nsgf_setb, &nsgf_seta, &one,
                  &ibasis->sphi[sgfa * maxcoa], &maxcoa,
                  &block[sgfb * nsgfa + sgfa], &nsgfa, &zero, work, &ncoa);
         } else {
-          // work = MATMUL(ibasis->sphi, TRANSPOSE(subblock))
+          // work[nsgf_setb][ncoa] = MATMUL(ibasis->sphi, TRANSPOSE(subblock))
           dgemm_("N", "T", &ncoa, &nsgf_setb, &nsgf_seta, &one,
                  &ibasis->sphi[sgfa * maxcoa], &maxcoa,
                  &block[sgfa * nsgfb + sgfb], &nsgfb, &zero, work, &ncoa);
         }
-        // double pab[ncob][ncoa] = MATMUL(work, TRANSPOSE(jbasis->sphi))
+        // pab[ncob][ncoa] = MATMUL(work, TRANSPOSE(jbasis->sphi))
         dgemm_("N", "T", &ncoa, &ncob, &nsgf_setb, &one, work, &ncoa,
                &jbasis->sphi[sgfb * maxcob], &maxcob, &zero, pab, &ncoa);
 
