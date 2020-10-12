@@ -62,9 +62,9 @@ endif
 ICX ?= 0
 
 # check if the Intel Development Tools are available
-INTEL ?= $(shell echo "$$((2==$(words $(filter icpc icpx icc icx, \
-  $(shell $(CXX) --version 2> /dev/null | head -n1 | cut -d' ' -f1) \
-  $(shell $(CC) --version 2> /dev/null | head -n1 | cut -d' ' -f1)))))")
+INTEL ?= $(if $(filter 2,$(words $(filter icpc% icpx% icc% icx%, \
+  $(shell $(CXX) --version 2>/dev/null | head -n1 | cut -d' ' -f1) \
+  $(shell $(CC)  --version 2>/dev/null | head -n1 | cut -d' ' -f1)))))
 
 ifneq (0,$(INTEL))
   CFG := intel
@@ -663,14 +663,14 @@ endif
 BEEP ?= 0
 
 ifneq (0,$(OMP))
-  NESTED ?= 0
   ifeq (0,$(GNU))
     FCFLAGS += -threads #-parallel
     LDFLAGS += -threads
   endif
-  OPTFLAGS += -fopenmp
-  ifneq (0,$(NESTED))
-    DFLAGS += -D__NESTED_OPENMP
+  ifneq (,$(filter-out 0 1,$(INTEL)))
+    OPTFLAGS += -fiopenmp
+  else
+    OPTFLAGS += -fopenmp
   endif
 endif
 
