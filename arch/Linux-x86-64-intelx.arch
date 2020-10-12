@@ -213,11 +213,16 @@ ifneq (0,$(MPI))
       CC  = mpiicc
       FC  = mpiifort
       LD  = mpiifort
-    else
+    else ifneq (,$(call which,mpiifx))
       CXX = mpiicpx
       CC  = mpiicx
       FC  = mpiifx
       LD  = mpiifx
+    else
+      CXX = mpiicpc  --cxx=icpx
+      CC  = mpiicc   --cc=icx
+      FC  = mpiifort --fc=ifx
+      LD  = mpiifort --fc=ifx
     endif
   else # GNU
     CXX = mpicxx
@@ -698,7 +703,7 @@ endif
 
 ifneq (0,$(TBBMALLOC))
   ifneq (,$(TBBROOT))
-    GCC = $(notdir $(shell which gcc 2> /dev/null))
+    GCC = $(notdir $(call which,gcc))
     ifneq (,$(GCC))
       GCC_VERSION_STRING = $(shell $(GCC) --version 2> /dev/null | head -n1 | sed "s/..* \([0-9][0-9]*\.[0-9][0-9]*\.*[0-9]*\)[ \S]*.*/\1/")
       GCC_VERSION_MAJOR = $(shell echo "$(GCC_VERSION_STRING)" | cut -d"." -f1)
