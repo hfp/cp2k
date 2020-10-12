@@ -322,9 +322,11 @@ ifneq (0,$(NDEBUG))
     endif
     ifneq (,$(wildcard $(CP2KHOME)/.inject.sh))
       INJECT := $(shell chmod +x $(CP2KHOME)/.inject.sh)
-      CXX := $(CP2KHOME)/.inject.sh \"\" -DNDEBUG $(CXX)
-      CC  := $(CP2KHOME)/.inject.sh \"\" -DNDEBUG $(CC)
-      FC  := $(CP2KHOME)/.inject.sh dbcsr_ -DNDEBUG $(FC)
+      FC := $(CP2KHOME)/.inject.sh dbcsr_ -DNDEBUG $(FC)
+      #CXX := $(CP2KHOME)/.inject.sh \"\" -DNDEBUG $(CXX)
+      CXX := $(CXX) -DNDEBUG
+      #CC := $(CP2KHOME)/.inject.sh \"\" -DNDEBUG $(CC)
+      CC := $(CC) -DNDEBUG
     endif
   endif
 endif
