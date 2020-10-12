@@ -406,6 +406,9 @@ ifeq (0,$(GNU)) # Intel
     ifneq (0,$(FPE))
       FCFLAGS += -fpe0 # debugging NaNs
     endif
+    ifneq (1,$(INTEL))
+      OPT ?= 1
+    endif
     OPT ?= 0
   endif
   FCFLAGS += -free -fpp
