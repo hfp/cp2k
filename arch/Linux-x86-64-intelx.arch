@@ -1,32 +1,32 @@
 # Arch file targeting Linux 64-bit using the Intel tool chain
 #
-PERL = perl
-CPP = #cpp
+PERL := perl
+CPP := #cpp
 
-DFLAGS   = -D__NO_IPI_DRIVER
-CFLAGS   = -std=c99
-CXXFLAGS = $(NULL)
-FCFLAGS  = $(NULL)
-LDFLAGS  = $(NULL)
-ACCFLAGS = $(NULL)
-ACC      = $(NULL)
-LIBS     = $(NULL)
+DFLAGS   := -D__NO_IPI_DRIVER
+CFLAGS   := -std=c99
+CXXFLAGS := $(NULL)
+FCFLAGS  := $(NULL)
+LDFLAGS  := $(NULL)
+ACCFLAGS := $(NULL)
+ACC      := $(NULL)
+LIBS     := $(NULL)
 MIC ?= 0
 
 # LIBXSMM (https://github.com/hfp/libxsmm)
-#LIBXSMMROOT = /path/to/libxsmm
+#LIBXSMMROOT := /path/to/libxsmm
 
 # LIBINT: https://xconfigure.readthedocs.io/libint/
-#LIBINTROOT = /path/to/libint
+#LIBINTROOT := /path/to/libint
 
 # PLUMED: https://xconfigure.readthedocs.io/plumed/
-#PLUMEDROOT = /path/to/plumed
+#PLUMEDROOT := /path/to/plumed
 
 # LIBXC: https://xconfigure.readthedocs.io/libxc/
-#LIBXCROOT = /path/to/libxc
+#LIBXCROOT := /path/to/libxc
 
 # ELPA: https://xconfigure.readthedocs.io/elpa/
-#ELPAROOT = /path/to/elpa
+#ELPAROOT := /path/to/elpa
 
 COMMAND := $(shell which command 2>/dev/null)
 ifneq (,$(COMMAND))
@@ -41,22 +41,22 @@ GNU ?= 0
 ifeq (0,$(GNU))
   ifeq (,$(shell echo "$${CXX}"))
     ifneq (,$(filter icpc icpc1,$(notdir $(call which,icpc))$(INTEL)))
-      CXX = icpc
+      CXX := icpc
     else ifneq (,$(filter icpx icpx2,$(notdir $(call which,icpx))$(INTEL)))
-      CXX = icpx
+      CXX := icpx
     endif
   endif
   ifeq (,$(shell echo "$${CC}"))
     ifneq (,$(filter icc icc1,$(notdir $(call which,icc))$(INTEL)))
-      CC = icc
+      CC := icc
     else ifneq (,$(filter icx icx2,$(notdir $(call which,icx))$(INTEL)))
-      CC = icx
+      CC := icx
     endif
   endif
   ifeq (__INTEL_COMPILER,$(shell echo "__INTEL_COMPILER" | $(CC) $(ECFLAGS) $(EFLAGS) -E -P - 2>/dev/null))
-    ICX = 1
+    ICX := 1
   else ifneq (,$(filter icx icx2,$(notdir $(call which,icx))$(INTEL)))
-    ICX = 2
+    ICX := 2
   endif
 endif
 ICX ?= 0
@@ -67,11 +67,11 @@ INTEL ?= $(shell echo "$$((2==$(words $(filter icpc icpx icc icx, \
   $(shell $(CC) --version 2> /dev/null | head -n1 | cut -d' ' -f1)))))")
 
 ifneq (0,$(INTEL))
-  CFG = intel
-  GNU = 0
+  CFG := intel
+  GNU := 0
 else
-  CFG = gnu
-  GNU = 1
+  CFG := gnu
+  GNU := 1
 endif
 
 # DEFAULTS
@@ -133,8 +133,8 @@ else
 endif
 
 # consider more accurate FP-model
-#FPCMODEL = fast=2
-#FPFMODEL = fast=2
+#FPCMODEL := fast=2
+#FPFMODEL := fast=2
 
 # FP compiler flags
 ifeq (1,$(INTEL))
@@ -150,7 +150,7 @@ TBBMALLOC ?= 0
 TBBGCC_OLD ?= 1
 
 OCL ?= 0
-GPUVER = undefined
+GPUVER := undefined
 ifneq (,$(filter-out 0 undefined,$(OCL) $(GPUVER)))
   CUDA_PATH ?= $(if $(call which,nvcc),$(abspath $(dir $(call which,nvcc))/..))
   ifneq (0,$(OCL))
@@ -166,8 +166,8 @@ ifneq (,$(filter-out 0 undefined,$(OCL) $(GPUVER)))
       LIBS += -lcufft
     endif
     NVFLAGS += $(addprefix -Xcompiler $(NULL),$(filter-out -Wl%,$(OPTFLAGS)))
-    NVCC = nvcc
-    IPO = 0
+    NVCC := nvcc
+    IPO := 0
   else
     $(info ===============)
     $(info NVCC not found!)
@@ -185,49 +185,49 @@ endif
 MKL_MPIRTL ?= intelmpi
 ifneq (0,$(BLAS))
   ifneq (Darwin,$(UNAME))
-    MKL_PLATFORM = linux
+    MKL_PLATFORM := linux
   else # OSX
-    MKL_PLATFORM = mac
+    MKL_PLATFORM := mac
   endif
 endif
 
 # enable MKL if available
 ifeq (,$(strip $(MKLROOT)))
-  MKL_INCFILE = $(strip $(lastword $(sort $(wildcard /opt/intel/compilers_and_libraries_*/$(MKL_PLATFORM)/mkl/include/mkl.h))))
+  MKL_INCFILE := $(strip $(lastword $(sort $(wildcard /opt/intel/compilers_and_libraries_*/$(MKL_PLATFORM)/mkl/include/mkl.h))))
   ifneq (,$(MKL_INCFILE))
-    MKLROOT = $(abspath $(dir $(MKL_INCFILE))/..)
+    MKLROOT := $(abspath $(dir $(MKL_INCFILE))/..)
   endif
 endif
 ifeq (,$(strip $(MKLROOT)))
-  MKL_INCFILE = $(strip $(wildcard /usr/include/mkl/mkl.h))
+  MKL_INCFILE := $(strip $(wildcard /usr/include/mkl/mkl.h))
   ifneq (,$(MKL_INCFILE))
-    MKLROOT = $(abspath $(dir $(MKL_INCFILE))/../..)
+    MKLROOT := $(abspath $(dir $(MKL_INCFILE))/../..)
   endif
 endif
 ifeq (/,$(MKLROOT))
-  MKL_INCFILE = $(NULL)
-  MKLROOT = $(NULL)
+  MKL_INCFILE := $(NULL)
+  MKLROOT := $(NULL)
 endif
 
 SCALAPACK ?= $(MPI)
 ifneq (0,$(MPI))
   ifeq (0,$(GNU))
     ifeq (1,$(INTEL))
-      CXX = mpiicpc
-      CC  = mpiicc
-      FC  = mpiifort
-      LD  = mpiifort
+      CXX := mpiicpc
+      CC  := mpiicc
+      FC  := mpiifort
+      LD  := mpiifort
     else
-      CXX = mpiicpc  -cxx=icpx
-      CC  = mpiicc   -cc=icx
-      FC  = mpiifort -fc=ifx
-      LD  = mpiifort -fc=ifx
+      CXX := mpiicpc  -cxx=icpx
+      CC  := mpiicc   -cc=icx
+      FC  := mpiifort -fc=ifx
+      LD  := mpiifort -fc=ifx
     endif
   else # GNU
-    CXX = mpicxx
-    CC  = mpicc
-    FC  = mpif90
-    LD  = mpif90
+    CXX := mpicxx
+    CC  := mpicc
+    FC  := mpif90
+    LD  := mpif90
     ifneq (0,$(LEGACY))
       DFLAGS += -D__HAS_NO_MPI_MOD
     endif
@@ -236,16 +236,16 @@ ifneq (0,$(MPI))
   # COSMA section must appear before SCALAPACK section
   ifneq (0,$(COSMA)) # incl. undefined
     ifneq (,$(NVCC))
-      COSMATGT = gpu
+      COSMATGT := gpu
     else
-      COSMATGT = cpu
+      COSMATGT := cpu
     endif
     COSMAROOT ?= $(abspath $(dir $(firstword $(wildcard $(CP2KHOME)/../cosma*$(COSMATGT)/lib64/libcosma_pxgemm.*)))/..)
     COSMAROOT ?= $(abspath $(dir $(firstword $(wildcard $(HOME)/cosma*$(COSMATGT)/lib64/libcosma_pxgemm.*)))/..)
     COSMAROOT ?= $(abspath $(dir $(firstword $(wildcard $(CP2KHOME)/../cosma*/lib64/libcosma_pxgemm.*)))/..)
     COSMAROOT ?= $(abspath $(dir $(firstword $(wildcard $(HOME)/cosma*/lib64/libcosma_pxgemm.*)))/..)
     ifeq (/,$(COSMAROOT))
-      COSMAROOT = $(NULL)
+      COSMAROOT := $(NULL)
     endif
     ifneq (,$(COSMAROOT))
       LIBS += -L$(COSMAROOT)/lib64 -lcosma_pxgemm -lcosma -lgrid2grid
@@ -265,20 +265,20 @@ ifneq (0,$(MPI))
           DFLAGS += -D__SCALAPACK$(SCALAPACK)
         endif
       else
-        SCALAPACKDIR = $(HOME)/scalapack-2.0.2
+        SCALAPACKDIR := $(HOME)/scalapack-2.0.2
       endif
       ifeq (,$(SCALAPACKDIR))
-        SCALAPACKDIR = $(MKLROOT)/lib/intel64
-        SCALAPACKLIB = mkl_scalapack_lp64
+        SCALAPACKDIR := $(MKLROOT)/lib/intel64
+        SCALAPACKLIB := mkl_scalapack_lp64
       else
         ifeq (,$(SCALAPACKLIB))
-          SCALAPACKLIB = scalapack
+          SCALAPACKLIB := scalapack
         endif
         LIBS += -L$(SCALAPACKDIR)
       endif
     else # NaN
-      SCALAPACKDIR = $(SCALAPACK)
-      SCALAPACKLIB = scalapack
+      SCALAPACKDIR := $(SCALAPACK)
+      SCALAPACKLIB := scalapack
       LIBS += -L$(SCALAPACKDIR)
     endif
   endif
@@ -288,15 +288,15 @@ ifneq (0,$(MPI))
     DFLAGS += -D__MPI_VERSION=3
   endif
 else ifeq (0,$(GNU))
-  CXX = icpc
-  CC  = icc
-  FC  = ifort
-  LD  = ifort
+  CXX := icpc
+  CC  := icc
+  FC  := ifort
+  LD  := ifort
 else # GNU
-  CXX = g++
-  CC  = gcc
-  FC  = gfortran
-  LD  = gfortran
+  CXX := g++
+  CC  := gcc
+  FC  := gfortran
+  LD  := gfortran
 endif
 
 XCXX := $(CXX)
@@ -308,32 +308,42 @@ ifneq (0,$(NDEBUG))
     DFLAGS += -DNDEBUG
   else # only DBCSR
     ifeq (,$(wildcard $(CP2KHOME)/.inject.sh))
-      INJECT := $(shell echo "if [ \"\$$4\" ] && [ \"\$$(echo \"\$${@:4}\" | sed -n \"/\$$1/p\" 2>/dev/null)\" ]; then exec \$$3 \$$2 \"\$${@:4}\"; elif [ \"\$$4\" ]; then exec \$$3 \"\$${@:4}\"; else exec \$$3; fi" > $(CP2KHOME)/.inject.sh)
+      INJECT := $(shell echo \
+        "if [ \"\$$4\" ]; then \
+           if [ \"\$$(echo \"\$${@:4}\" | sed -n \"/\$$1/p\" 2>/dev/null)\" ]; then \
+             exec \$$3 \$$2 \"\$${@:4}\"; \
+           elif [ \"\$$1\" ]; then \
+             exec \$$3 \"\$${@:4}\"; \
+           else \
+             exec \$$3 \$$2 \"\$${@:4}\"; \
+           fi; \
+         else exec \$$3; \
+       fi" > $(CP2KHOME)/.inject.sh)
     endif
     ifneq (,$(wildcard $(CP2KHOME)/.inject.sh))
       INJECT := $(shell chmod +x $(CP2KHOME)/.inject.sh)
-      CXX := $(CP2KHOME)/.inject.sh dbcsr_ -DNDEBUG $(CXX)
-      CC  := $(CP2KHOME)/.inject.sh dbcsr_ -DNDEBUG $(CC)
+      CXX := $(CP2KHOME)/.inject.sh \"\" -DNDEBUG $(CXX)
+      CC  := $(CP2KHOME)/.inject.sh \"\" -DNDEBUG $(CC)
       FC  := $(CP2KHOME)/.inject.sh dbcsr_ -DNDEBUG $(FC)
     endif
   endif
 endif
 
 # Diagnostic message to be turned off
-DIAG_DISABLE = 8290,8291,10010,10212,10411,11060
+DIAG_DISABLE := 8290,8291,10010,10212,10411,11060
 
-CC_VERSION_STRING = $(shell $(CC) --version 2> /dev/null | head -n1 | sed "s/..* \([0-9][0-9]*\.[0-9][0-9]*\.*[0-9]*\)[ \S]*.*/\1/")
-CC_VERSION_MAJOR = $(shell echo "$(CC_VERSION_STRING)" | cut -d"." -f1)
-CC_VERSION_MINOR = $(shell echo "$(CC_VERSION_STRING)" | cut -d"." -f2)
-CC_VERSION_PATCH = $(shell echo "$(CC_VERSION_STRING)" | cut -d"." -f3)
+CC_VERSION_STRING := $(shell $(CC) --version 2> /dev/null | head -n1 | sed "s/..* \([0-9][0-9]*\.[0-9][0-9]*\.*[0-9]*\)[ \S]*.*/\1/")
+CC_VERSION_MAJOR := $(shell echo "$(CC_VERSION_STRING)" | cut -d"." -f1)
+CC_VERSION_MINOR := $(shell echo "$(CC_VERSION_STRING)" | cut -d"." -f2)
+CC_VERSION_PATCH := $(shell echo "$(CC_VERSION_STRING)" | cut -d"." -f3)
 ifeq (3,$(words $(CC_VERSION_MAJOR) $(CC_VERSION_MINOR) $(CC_VERSION_PATCH)))
-  CC_VERSION = $(shell echo "$$(($(CC_VERSION_MAJOR) * 10000 + $(CC_VERSION_MINOR) * 100 + $(CC_VERSION_PATCH)))")
+  CC_VERSION := $(shell echo "$$(($(CC_VERSION_MAJOR) * 10000 + $(CC_VERSION_MINOR) * 100 + $(CC_VERSION_PATCH)))")
 else ifeq (2,$(words $(CC_VERSION_MAJOR) $(CC_VERSION_MINOR)))
-  CC_VERSION = $(shell echo "$$(($(CC_VERSION_MAJOR) * 10000 + $(CC_VERSION_MINOR) * 100))")
-  CC_VERSION_PATCH = 0
+  CC_VERSION := $(shell echo "$$(($(CC_VERSION_MAJOR) * 10000 + $(CC_VERSION_MINOR) * 100))")
+  CC_VERSION_PATCH := 0
 else
-  CC_VERSION_STRING = $(NULL)
-  CC_VERSION = 0
+  CC_VERSION_STRING := $(NULL)
+  CC_VERSION := 0
 endif
 
 ifeq (0,$(GNU)) # Intel
@@ -346,42 +356,42 @@ ifeq (0,$(GNU)) # Intel
   endif
   ifneq (0,$(shell echo "$$((2 > $(DBG)))"))
     ifeq (1,$(AVX))
-      TARGET = -xAVX
-      TGT = snb
+      TARGET := -xAVX
+      TGT := snb
     else ifeq (2,$(AVX))
-      TARGET = -march=core-avx2
-      TGT = hsw
+      TARGET := -march=core-avx2
+      TGT := hsw
     else ifeq (3,$(AVX))
       ifeq (,$(MIC))
-        TARGET = -xCOMMON-AVX512
-        TGT = hsw
+        TARGET := -xCOMMON-AVX512
+        TGT := hsw
       else ifneq (0,$(MIC))
-        TARGET = -xMIC-AVX512
-        TGT = knl
+        TARGET := -xMIC-AVX512
+        TGT := knl
       else
-        TARGET = -xCORE-AVX512
+        TARGET := -xCORE-AVX512
         ifneq (0,$(VMAX))
           TARGET += -qopt-zmm-usage=high
         else
           TARGET += -qopt-zmm-usage=low
         endif
-        TGT = skx
+        TGT := skx
       endif
     else ifneq (0,$(SSE))
-      TARGET = -xSSE3
+      TARGET := -xSSE3
     else
-      TARGET = -xHost
+      TARGET := -xHost
       ifneq (,$(shell grep -om1 '\bavx512vl\b' /proc/cpuinfo))
         ifneq (0,$(VMAX))
           TARGET += -qopt-zmm-usage=high
         else
           TARGET += -qopt-zmm-usage=low
         endif
-        TGT = skx
+        TGT := skx
       else ifneq (,$(shell grep -om1 '\bavx2\b' /proc/cpuinfo))
-        TGT = hsw
+        TGT := hsw
       else ifneq (,$(shell grep -om1 '\bavx\b' /proc/cpuinfo))
-        TGT = snb
+        TGT := snb
       endif
     endif
   endif
@@ -416,10 +426,10 @@ ifeq (0,$(GNU)) # Intel
   ifneq (0,$(LEGACY))
     DFLAGS += -D__F2008
   endif
-  MKL_OMPRTL = intel
-  MKL_FCRTL = intel
-  RANLIB = xiar -s
-  AR = xiar -r
+  MKL_OMPRTL := intel
+  MKL_FCRTL := intel
+  RANLIB := xiar -s
+  AR := xiar -r
 else # GNU GCC
   ifeq (,$(MKLROOT))
     $(info ================================================================================)
@@ -431,45 +441,45 @@ else # GNU GCC
   endif
   ifneq (0,$(shell echo "$$((2 > $(DBG)))"))
     ifeq (1,$(AVX))
-      TARGET = -mavx
-      TGT = snb
+      TARGET := -mavx
+      TGT := snb
     else ifeq (2,$(AVX))
-      TARGET = -march=core-avx2
-      TGT = hsw
+      TARGET := -march=core-avx2
+      TGT := hsw
       ifneq (0,$(VMAX))
         TARGET += -mprefer-vector-width=256
       endif
     else ifeq (3,$(AVX))
-      TARGET = -mfma -mavx512f -mavx512cd
+      TARGET := -mfma -mavx512f -mavx512cd
       ifneq (,$(filter-out 0,$(MIC))) # AVX512/MIC
         TARGET += -mavx512pf -mavx512er
         ifneq (0,$(VMAX))
           TARGET += -mprefer-vector-width=512
         endif
-        TGT = knl
+        TGT := knl
       else # AVX512/Core
         TARGET += -mavx512dq -mavx512bw -mavx512vl
         ifneq (0,$(VMAX))
           TARGET += -mprefer-vector-width=512
         endif
-        TGT = skx
+        TGT := skx
       endif
     else ifneq (0,$(SSE))
-      TARGET = -mSSE3
+      TARGET := -mSSE3
     else
-      TARGET = -march=native
+      TARGET := -march=native
       ifneq (,$(shell grep -om1 '\bavx512vl\b' /proc/cpuinfo))
         ifneq (0,$(VMAX))
           TARGET += -mprefer-vector-width=512
         endif
-        TGT = skx
+        TGT := skx
       else ifneq (,$(shell grep -om1 '\bavx2\b' /proc/cpuinfo))
         ifneq (0,$(VMAX))
           TARGET += -mprefer-vector-width=256
         endif
-        TGT = hsw
+        TGT := hsw
       else ifneq (,$(shell grep -om1 '\bavx\b' /proc/cpuinfo))
-        TGT = snb
+        TGT := snb
       endif
     endif
   endif
@@ -501,22 +511,22 @@ else # GNU GCC
     endif
     OPT ?= 0
   endif
-  MKL_OMPRTL = gnu
-  MKL_FCRTL = gf
+  MKL_OMPRTL := gnu
+  MKL_FCRTL := gf
   INTEL ?= 0
-  RANLIB = gcc-ranlib
-  AR = gcc-ar -r
+  RANLIB := gcc-ranlib
+  AR := gcc-ar -r
 endif
 
 ifneq (,$(TGT))
-  XCFG = $(CFG)-$(TGT)
+  XCFG := $(CFG)-$(TGT)
 else
-  XCFG = $(CFG)
+  XCFG := $(CFG)
 endif
 ifneq (0,$(OMP))
-  XCFGOMP = $(XCFG)-omp
+  XCFGOMP := $(XCFG)-omp
 else
-  XCFGOMP = $(XCFG)
+  XCFGOMP := $(XCFG)
 endif
 
 $(info ================================================================================)
@@ -543,7 +553,7 @@ ifneq (0,$(LIBXSMM)) # incl. undefined
     LIBXSMMROOT ?= $(abspath $(dir $(lastword $(sort $(wildcard $(TOOLSRC)/toolchain/build/libxsmm*/Makefile)))))
   endif
   ifeq (/,$(LIBXSMMROOT))
-    LIBXSMMROOT = $(NULL)
+    LIBXSMMROOT := $(NULL)
   endif
   ifneq (,$(LIBXSMMROOT))
     $(info LIBXSMMROOT=$(LIBXSMMROOT))
@@ -553,7 +563,7 @@ ifneq (0,$(LIBINT)) # incl. undefined
   LIBINTROOT ?= $(abspath $(wildcard $(CP2KHOME)/../libint/$(XCFG)))
   LIBINTROOT ?= $(abspath $(wildcard $(HOME)/libint/$(XCFG)))
   ifeq (/,$(LIBINTROOT))
-    LIBINTROOT = $(NULL)
+    LIBINTROOT := $(NULL)
   endif
   ifneq (,$(LIBINTROOT))
     $(info LIBINTROOT=$(LIBINTROOT))
@@ -563,7 +573,7 @@ ifneq (0,$(PLUMED)) # incl. undefined
   PLUMEDROOT ?= $(abspath $(wildcard $(CP2KHOME)/../plumed/$(XCFG)))
   PLUMEDROOT ?= $(abspath $(wildcard $(HOME)/plumed/$(XCFG)))
   ifeq (/,$(PLUMEDROOT))
-    PLUMEDROOT = $(NULL)
+    PLUMEDROOT := $(NULL)
   endif
   ifneq (,$(PLUMEDROOT))
     $(info PLUMEDROOT=$(PLUMEDROOT))
@@ -573,7 +583,7 @@ ifneq (0,$(LIBXC)) # incl. undefined
   LIBXCROOT ?= $(abspath $(wildcard $(CP2KHOME)/../libxc/$(XCFG)))
   LIBXCROOT ?= $(abspath $(wildcard $(HOME)/libxc/$(XCFG)))
   ifeq (/,$(LIBXCROOT))
-    LIBXCROOT = $(NULL)
+    LIBXCROOT := $(NULL)
   endif
   ifneq (,$(LIBXCROOT))
     $(info LIBXCROOT=$(LIBXCROOT))
@@ -583,7 +593,7 @@ ifneq (0,$(ELPA)) # incl. undefined
   ELPAROOT ?= $(abspath $(wildcard $(CP2KHOME)/../elpa/$(XCFGOMP)))
   ELPAROOT ?= $(abspath $(wildcard $(HOME)/elpa/$(XCFG)))
   ifeq (/,$(COSMAROOT))
-    ELPAROOT = $(NULL)
+    ELPAROOT := $(NULL)
   endif
   ifneq (,$(ELPAROOT))
     $(info ELPAROOT=$(ELPAROOT))
@@ -596,8 +606,8 @@ endif
 endif
 $(info ================================================================================)
 
-OPT1 = $(shell echo "$$((1<$(OPT)?1:$(OPT)))")
-OPT2 = $(shell echo "$$((2<$(OPT)?2:$(OPT)))")
+OPT1 := $(shell echo "$$((1<$(OPT)?1:$(OPT)))")
+OPT2 := $(shell echo "$$((2<$(OPT)?2:$(OPT)))")
 ifeq (0,$(ATTRIBS))
   DFLAGS += -DCP_DISABLE_ATTRIBS
 endif
@@ -692,8 +702,8 @@ ifneq (0,$(ELPA))
   else
     DFLAGS += -D__ELPA
   endif
-  ELPAINCDIR = $(dir $(shell ls -1 $(ELPAROOT)/include/*/elpa/elpa_*constants.h | head -n1))
-  ELPAMODDIR = $(ELPAINCDIR)../modules
+  ELPAINCDIR := $(dir $(shell ls -1 $(ELPAROOT)/include/*/elpa/elpa_*constants.h | head -n1))
+  ELPAMODDIR := $(ELPAINCDIR)../modules
   IFLAGS += -I$(ELPAINCDIR) -I$(ELPAMODDIR)
   LIBS += $(ELPAROOT)/lib/libelpa.a
   # in case ELPA is built with OpenMP
@@ -705,23 +715,23 @@ endif
 
 ifneq (0,$(TBBMALLOC))
   ifneq (,$(TBBROOT))
-    GCC = $(notdir $(call which,gcc))
+    GCC := $(notdir $(call which,gcc))
     ifneq (,$(GCC))
-      GCC_VERSION_STRING = $(shell $(GCC) --version 2> /dev/null | head -n1 | sed "s/..* \([0-9][0-9]*\.[0-9][0-9]*\.*[0-9]*\)[ \S]*.*/\1/")
-      GCC_VERSION_MAJOR = $(shell echo "$(GCC_VERSION_STRING)" | cut -d"." -f1)
-      GCC_VERSION_MINOR = $(shell echo "$(GCC_VERSION_STRING)" | cut -d"." -f2)
-      GCC_VERSION_PATCH = $(shell echo "$(GCC_VERSION_STRING)" | cut -d"." -f3)
-      TBBLIBDIR = $(TBBROOT)/lib/intel64/gcc$(GCC_VERSION_MAJOR).$(GCC_VERSION_MINOR)
-      TBBMALLOCLIB = $(wildcard $(TBBLIBDIR)/libtbbmalloc_proxy.so)
+      GCC_VERSION_STRING := $(shell $(GCC) --version 2> /dev/null | head -n1 | sed "s/..* \([0-9][0-9]*\.[0-9][0-9]*\.*[0-9]*\)[ \S]*.*/\1/")
+      GCC_VERSION_MAJOR := $(shell echo "$(GCC_VERSION_STRING)" | cut -d"." -f1)
+      GCC_VERSION_MINOR := $(shell echo "$(GCC_VERSION_STRING)" | cut -d"." -f2)
+      GCC_VERSION_PATCH := $(shell echo "$(GCC_VERSION_STRING)" | cut -d"." -f3)
+      TBBLIBDIR := $(TBBROOT)/lib/intel64/gcc$(GCC_VERSION_MAJOR).$(GCC_VERSION_MINOR)
+      TBBMALLOCLIB := $(wildcard $(TBBLIBDIR)/libtbbmalloc_proxy.so)
     endif
     ifeq (,$(TBBMALLOCLIB))
       ifneq (0,$(TBBGCC_OLD))
-        TBBGCCDIR = $(shell ls -1 "$(TBBROOT)/lib/intel64" | tr "\n" " " | cut -d" " -f1)
+        TBBGCCDIR := $(shell ls -1 "$(TBBROOT)/lib/intel64" | tr "\n" " " | cut -d" " -f1)
       else
-        TBBGCCDIR = $(shell ls -1 "$(TBBROOT)/lib/intel64" | tr "\n" " " | rev | cut -d" " -f2 | rev)
+        TBBGCCDIR := $(shell ls -1 "$(TBBROOT)/lib/intel64" | tr "\n" " " | rev | cut -d" " -f2 | rev)
       endif
-      TBBLIBDIR = $(TBBROOT)/lib/intel64/$(TBBGCCDIR)
-      TBBMALLOCLIB = $(wildcard $(TBBLIBDIR)/libtbbmalloc_proxy.so)
+      TBBLIBDIR := $(TBBROOT)/lib/intel64/$(TBBGCCDIR)
+      TBBMALLOCLIB := $(wildcard $(TBBLIBDIR)/libtbbmalloc_proxy.so)
     endif
     ifneq (,$(TBBMALLOCLIB))
       IFLAGS += -I$(TBBROOT)/include
@@ -749,15 +759,15 @@ endif
 LIBSMM ?= 0
 ifneq (0,$(LIBSMM))
   LIBSMM_INSTALL := $(shell cd $(TOOLSRC)/toolchain; ./scripts/install_libsmm.sh)
-  LIBSMM_LIB = $(TOOLSRC)/toolchain/install/lib/libsmm_dnn.a
+  LIBSMM_LIB := $(TOOLSRC)/toolchain/install/lib/libsmm_dnn.a
 endif
 ifneq (,$(wildcard $(LIBSMM_LIB))) # LIBSMM successfully downloaded
   DFLAGS += -D__HAS_smm_dnn
   LIBS += $(LIBSMM_LIB)
 endif
 
-LIBDIRNAME = lib
-OBJDIRNAME = obj
+LIBDIRNAME := lib
+OBJDIRNAME := obj
 
 ifneq (,$(LIBXSMMROOT))
   # 1: SMMs, 2: 1+UnreleasedFeat, 3: 2+AllGEMM
@@ -796,7 +806,7 @@ ifneq (,$(LIBXSMMROOT))
     endif
     # enable additional use cases for LIBXSMM
     ifneq (0,$(shell echo "$$((1 < $(LIBXSMM)))"))
-      BIGVERNUM = echo "99" > version.txt
+      BIGVERNUM := echo "99" > version.txt
       # substitute all GEMM calls with LIBXSMM
       WRAP ?= $(shell echo "$$(((2<$(LIBXSMM))*($(LIBXSMM)-2)))")
       ifneq (0,$(WRAP))
@@ -807,7 +817,7 @@ ifneq (,$(LIBXSMMROOT))
         endif
       endif
     else
-      BIGVERNUM = rm -f version.txt
+      BIGVERNUM := rm -f version.txt
     endif
     WRAP ?= 0
     JIT ?= 1
@@ -819,7 +829,7 @@ ifneq (,$(LIBXSMMROOT))
       BLDDIR="$(CP2KHOME)/$(OBJDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/build" \
       BINDIR="$(CP2KHOME)/$(LIBDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/bin" \
       OUTDIR="$(CP2KHOME)/$(LIBDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/lib" \
-      CXX="$(CXX)" CC="$(CC)" FC="$(FC)" "AR=$(firstword $(AR))" "LD=$(LD)" \
+      CXX="$(XCXX)" CC="$(XCC)" FC="$(XFC)" "AR=$(firstword $(AR))" "LD=$(LD)" \
       JIT=$(JIT) SYM=$(SYM) DBG=$(DBG) \
       MNK=$(LIBXSMM_MNK) M=$(LIBXSMM_M) N=$(LIBXSMM_N) K=$(LIBXSMM_K) PRECISION=2 OPT=$(OPT) IPO=0 \
       TARGET="$(TARGET)" SSE=$(SSE) AVX=$(AVX) MIC=$(MIC) INIT=0 WRAP=$(WRAP) LNKSOFT=0 >&2)
@@ -831,9 +841,9 @@ ifeq (1,$(MKL_DIRECT))
 endif
 
 ifeq (1,$(MKL)) # sequential
-  MKL_THREADS = sequential
+  MKL_THREADS := sequential
 else ifneq (0,$(MKL)) # multi-threaded
-  MKL_THREADS = $(MKL_OMPRTL)_thread
+  MKL_THREADS := $(MKL_OMPRTL)_thread
   ifeq (0,$(OMP))
     LIBS += -l$(OMPRT)
   endif
