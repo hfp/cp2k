@@ -219,10 +219,10 @@ ifneq (0,$(MPI))
       FC  = mpiifx
       LD  = mpiifx
     else
-      CXX = mpiicpc  --cxx=icpx
-      CC  = mpiicc   --cc=icx
-      FC  = mpiifort --fc=ifx
-      LD  = mpiifort --fc=ifx
+      CXX = mpiicpc  -cxx=icpx
+      CC  = mpiicc   -cc=icx
+      FC  = mpiifort -fc=ifx
+      LD  = mpiifort -fc=ifx
     endif
   else # GNU
     CXX = mpicxx
