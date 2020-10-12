@@ -28,8 +28,12 @@ MIC ?= 0
 # ELPA: https://xconfigure.readthedocs.io/elpa/
 #ELPAROOT = /path/to/elpa
 
-which = $(shell which $(firstword $1) 2>/dev/null)
-which ?= $(shell command -v $1)
+COMMAND := $(shell which command 2>/dev/null)
+ifneq (,$(COMMAND))
+  which = $(shell $(COMMAND) -v $1)
+else
+  which = $(shell which $(firstword $1) 2>/dev/null)
+endif
 
 # Automatically pickup the environment (make -e is not required),
 # or pickup the Intel Compiler (if available).
@@ -213,11 +217,6 @@ ifneq (0,$(MPI))
       CC  = mpiicc
       FC  = mpiifort
       LD  = mpiifort
-    else ifneq (,$(call which,mpiifx))
-      CXX = mpiicpx
-      CC  = mpiicx
-      FC  = mpiifx
-      LD  = mpiifx
     else
       CXX = mpiicpc  -cxx=icpx
       CC  = mpiicc   -cc=icx
@@ -817,7 +816,7 @@ ifneq (,$(LIBXSMMROOT))
       BLDDIR="$(CP2KHOME)/$(OBJDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/build" \
       BINDIR="$(CP2KHOME)/$(LIBDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/bin" \
       OUTDIR="$(CP2KHOME)/$(LIBDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/lib" \
-      CXX="$(XCXX)" CC="$(XCC)" FC="$(XFC)" AR=$(AR) LD=$(LD) JIT=$(JIT) SYM=$(SYM) DBG=$(DBG) \
+      CXX="$(CXX)" CC="$(CC)" FC="$(FC)" "AR=$(AR)" "LD=$(LD)" JIT=$(JIT) SYM=$(SYM) DBG=$(DBG) \
       MNK=$(LIBXSMM_MNK) M=$(LIBXSMM_M) N=$(LIBXSMM_N) K=$(LIBXSMM_K) PRECISION=2 OPT=$(OPT) IPO=0 \
       TARGET="$(TARGET)" SSE=$(SSE) AVX=$(AVX) MIC=$(MIC) INIT=0 WRAP=$(WRAP) LNKSOFT=0 >&2)
   endif
