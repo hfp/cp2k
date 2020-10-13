@@ -114,7 +114,9 @@ endif
 endif
 ifeq (0,$(GNU))
   OMPRT ?= iomp5
-  MATMUL ?= 0
+  ifeq (1,$(INTEL))
+    MATMUL ?= 0
+  endif
 else # GNU
   OMPRT ?= gomp
   ifeq (0,$(SYM))
