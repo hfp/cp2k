@@ -64,7 +64,7 @@ ICX ?= 0
 # check if the Intel Development Tools are available
 INTEL ?= $(if $(filter 2,$(words $(filter icpc% icpx% icc% icx%, \
   $(shell $(CXX) --version 2>/dev/null | head -n1 | cut -d' ' -f1) \
-  $(shell $(CC)  --version 2>/dev/null | head -n1 | cut -d' ' -f1)))))
+  $(shell $(CC)  --version 2>/dev/null | head -n1 | cut -d' ' -f1)))),1,0)
 
 ifneq (0,$(INTEL))
   CFG := intel
