@@ -165,7 +165,7 @@ MODULE force_env_methods
    USE virial_methods,                  ONLY: write_stress_tensor,&
                                               write_stress_tensor_components
    USE virial_types,                    ONLY: cp_virial,&
-                                              sym_virial,&
+                                              symmetrize_virial,&
                                               virial_create,&
                                               virial_p_type,&
                                               virial_release,&
@@ -301,7 +301,7 @@ CONTAINS
          ELSE
             IF (calculate_forces) THEN
                ! Symmetrize analytical stress tensor
-               CALL sym_virial(virial)
+               CALL symmetrize_virial(virial)
             ELSE
                IF (calculate_stress_tensor) THEN
                   CALL cp_warn(__LOCATION__, "The calculation of the stress tensor "// &
@@ -653,14 +653,14 @@ CONTAINS
             numer_stress(ip, iq) = 0.5_dp*(numer_energy(1) - numer_energy(2))/dx_w
             IF (output_unit > 0) THEN
                IF (globenv%run_type_id == debug_run) THEN
-                  WRITE (UNIT=output_unit, FMT="(T2,A,T19,A,F7.4,A,T44,A,F7.4,A,T69,A)") &
+                  WRITE (UNIT=output_unit, FMT="(/,T2,A,T19,A,F7.4,A,T44,A,F7.4,A,T69,A)") &
                      "DEBUG|", "E("//ACHAR(119 + ip)//ACHAR(119 + iq)//" +", dx_w, ")", &
                      "E("//ACHAR(119 + ip)//ACHAR(119 + iq)//" -", dx_w, ")", &
                      "f(numerical)"
                   WRITE (UNIT=output_unit, FMT="(T2,A,2(1X,F24.8),1X,F22.8)") &
                      "DEBUG|", numer_energy(1:2), numer_stress(ip, iq)
                ELSE
-                  WRITE (UNIT=output_unit, FMT="(T7,A,F7.4,A,T27,A,F7.4,A,T49,A)") &
+                  WRITE (UNIT=output_unit, FMT="(/,T7,A,F7.4,A,T27,A,F7.4,A,T49,A)") &
                      "E("//ACHAR(119 + ip)//ACHAR(119 + iq)//" +", dx_w, ")", &
                      "E("//ACHAR(119 + ip)//ACHAR(119 + iq)//" -", dx_w, ")", &
                      "f(numerical)"
