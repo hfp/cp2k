@@ -23,6 +23,7 @@ case "$with_cosma" in
         echo "==================== Installing cosma ===================="
         pkg_install_dir="${INSTALLDIR}/cosma-${cosma_ver}"
         install_lock_file="$pkg_install_dir/install_successful"
+
         if verify_checksums "${install_lock_file}" ; then
             echo "cosma-${cosma_ver} is already installed, skipping it."
         else
@@ -43,7 +44,9 @@ case "$with_cosma" in
             cd build-cpu
             case "$FAST_MATH_MODE" in
                 mkl)
-                    cmake -DCMAKE_INSTALL_PREFIX="${pkg_install_dir}" \
+                    cmake \
+                          -DCMAKE_INSTALL_PREFIX="${pkg_install_dir}" \
+                          -DCMAKE_INSTALL_LIBDIR=lib \
                           -DCOSMA_BLAS=MKL \
                           -DCOSMA_SCALAPACK=MKL \
                           -DCOSMA_WITH_TESTS=NO \
@@ -51,7 +54,9 @@ case "$with_cosma" in
                           -DCOSMA_WITH_BENCHMARKS=NO .. > cmake.log 2>&1
                     ;;
                 *)
-                    cmake -DCMAKE_INSTALL_PREFIX="${pkg_install_dir}" \
+                    cmake \
+                          -DCMAKE_INSTALL_PREFIX="${pkg_install_dir}" \
+                          -DCMAKE_INSTALL_LIBDIR=lib \
                           -DCOSMA_BLAS=OPENBLAS \
                           -DCOSMA_SCALAPACK=CUSTOM \
                           -DCOSMA_WITH_TESTS=NO \
@@ -63,14 +68,16 @@ case "$with_cosma" in
             make -j $NPROCS > make.log 2>&1
             make -j $NPROCS install > install.log 2>&1
             cd ..
-            write_checksums "${install_lock_file}" "${SCRIPT_DIR}/$(basename ${SCRIPT_NAME})"
+
             if [ "$ENABLE_CUDA" = "__TRUE__" ] ; then
                 [ -d build-cuda ] && rm -rf "build-cuda"
                 mkdir build-cuda
                 cd build-cuda
                 case "$FAST_MATH_MODE" in
                     mkl)
-                        cmake -DCMAKE_INSTALL_PREFIX="${pkg_install_dir}" \
+                        cmake \
+                              -DCMAKE_INSTALL_PREFIX="${pkg_install_dir}" \
+                              -DCMAKE_INSTALL_LIBDIR=lib \
                               -DCOSMA_BLAS=CUDA \
                               -DCOSMA_SCALAPACK=MKL \
                               -DCOSMA_WITH_TESTS=NO \
@@ -78,7 +85,9 @@ case "$with_cosma" in
                               -DCOSMA_WITH_APPS=NO .. > cmake.log 2>&1
                         ;;
                     *)
-                        cmake -DCMAKE_INSTALL_PREFIX="${pkg_install_dir}" \
+                        cmake \
+                              -DCMAKE_INSTALL_PREFIX="${pkg_install_dir}" \
+                              -DCMAKE_INSTALL_LIBDIR=lib \
                               -DCOSMA_BLAS=CUDA \
                               -DCOSMA_SCALAPACK=CUSTOM \
                               -DCOSMA_WITH_TESTS=NO \
@@ -93,15 +102,14 @@ case "$with_cosma" in
                 install -m 644 src/cosma/*.a ${pkg_install_dir}/lib/cuda >> install.log 2>&1
                 [ -f libs/Tiled-MM/src/Tiled-MM/*.a ] && install -m 644 libs/Tiled-MM/src/Tiled-MM/*.a ${pkg_install_dir}/lib/cuda >> install.log 2>&1
             fi
+
+            write_checksums "${install_lock_file}" "${SCRIPT_DIR}/$(basename ${SCRIPT_NAME})"
         fi
         COSMA_ROOT="${pkg_install_dir}"
         COSMA_CFLAGS="-I'${pkg_install_dir}/include'"
 
         # check if cosma is compiled with 64bits and set up COSMA_LIBDIR accordingly
         COSMA_LIBDIR="${pkg_install_dir}/lib"
-
-        [ -d  ${pkg_install_dir}/lib64 ] && COSMA_LIBDIR="${pkg_install_dir}/lib64"
-
         COSMA_LDFLAGS="-L'${COSMA_LIBDIR}' -Wl,-rpath='${COSMA_LIBDIR}'"
         COSMA_CUDA_LDFLAGS="-L'${COSMA_LIBDIR}/cuda' -Wl,-rpath='${COSMA_LIBDIR}/cuda'"
         ;;
@@ -116,14 +124,13 @@ case "$with_cosma" in
     *)
         echo "==================== Linking cosma to user paths ===================="
         pkg_install_dir="$with_cosma"
+
+        # use the lib64 directory if present (multi-abi distros may link lib/ to lib32/ instead)
+        COSMA_LIBDIR="${pkg_install_dir}/lib"
+        [ -d  "${pkg_install_dir}/lib64" ] && COSMA_LIBDIR="${pkg_install_dir}/lib64"
+
         check_dir "$pkg_install_dir/lib"
         check_dir "$pkg_install_dir/include"
-
-
-        # check if cosma is compiled with 64bits and set up COSMA_LIBDIR accordingly
-        COSMA_LIBDIR="${pkg_install_dir}/lib"
-
-        [ -d  ${pkg_install_dir}/lib64 ] && COSMA_LIBDIR="${pkg_install_dir}/lib64"
 
         COSMA_CFLAGS="-I'${pkg_install_dir}/include'"
         COSMA_LDFLAGS="-L'${COSMA_LIBDIR}' -Wl,-rpath='${COSMA_LIBDIR}'"
