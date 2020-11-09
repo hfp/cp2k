@@ -669,8 +669,8 @@ ifneq (0,$(OMP))
     FCFLAGS += -threads #-parallel
     LDFLAGS += -threads
   endif
-  ifneq (,$(filter-out 0 1,$(INTEL)))
-    OPTFLAGS += -fiopenmp
+  ifneq (0,$(INTEL))
+    OPTFLAGS += -qopenmp
   else
     OPTFLAGS += -fopenmp
   endif
