@@ -55,7 +55,7 @@ extern void initialize_tensor_blocked(struct tensor_ *a, const int dim,
 
 /* initialize a tensor structure for a tensor of dimension dim <= 4 */
 
-inline void initialize_tensor(struct tensor_ *a, const int dim,
+static inline void initialize_tensor(struct tensor_ *a, const int dim,
                               const int *const sizes) {
   if (a == NULL)
     return;
@@ -91,7 +91,7 @@ inline void initialize_tensor(struct tensor_ *a, const int dim,
   return;
 }
 
-/* inline void allocate_tensor_on_gpu(struct tensor_ *a) */
+/* static inline void allocate_tensor_on_gpu(struct tensor_ *a) */
 /* { */
 /* #ifdef __USE_GPU */
 /*     cudaMalloc((void**)&a->data_gpu_, sizeof(double) * a->alloc_size_); */
@@ -103,7 +103,7 @@ inline void initialize_tensor(struct tensor_ *a, const int dim,
 
 /* initialize a tensor structure for a tensor of dimension dim = 2 */
 
-inline void initialize_tensor_2(struct tensor_ *a, int n1, int n2) {
+static inline void initialize_tensor_2(struct tensor_ *a, int n1, int n2) {
   if (a == NULL)
     return;
 
@@ -113,7 +113,7 @@ inline void initialize_tensor_2(struct tensor_ *a, int n1, int n2) {
 
 /* initialize a tensor structure for a tensor of dimension dim = 2 */
 
-inline void initialize_tensor_3(struct tensor_ *a, int n1, int n2, int n3) {
+static inline void initialize_tensor_3(struct tensor_ *a, int n1, int n2, int n3) {
   if (a == NULL)
     return;
   int size_[3] = {n1, n2, n3};
@@ -122,7 +122,7 @@ inline void initialize_tensor_3(struct tensor_ *a, int n1, int n2, int n3) {
 
 /* initialize a tensor structure for a tensor of dimension dim = 2 */
 
-inline void initialize_tensor_4(struct tensor_ *a, int n1, int n2, int n3,
+static inline void initialize_tensor_4(struct tensor_ *a, int n1, int n2, int n3,
                                 int n4) {
   if (a == NULL)
     return;
@@ -132,7 +132,7 @@ inline void initialize_tensor_4(struct tensor_ *a, int n1, int n2, int n3,
 
 /* initialize a tensor structure for a tensor of dimension dim = 2 */
 
-inline void initialize_tensor_blocked_2(struct tensor_ *a, int n1, int n2,
+static inline void initialize_tensor_blocked_2(struct tensor_ *a, int n1, int n2,
                                         int *blockdim) {
   if (a == NULL)
     return;
@@ -144,7 +144,7 @@ inline void initialize_tensor_blocked_2(struct tensor_ *a, int n1, int n2,
 
 /* initialize a tensor structure for a tensor of dimension dim = 2 */
 
-inline void initialize_tensor_blocked_3(struct tensor_ *a, int n1, int n2,
+static inline void initialize_tensor_blocked_3(struct tensor_ *a, int n1, int n2,
                                         int n3, int *blockdim) {
   if (a == NULL)
     return;
@@ -155,7 +155,7 @@ inline void initialize_tensor_blocked_3(struct tensor_ *a, int n1, int n2,
 
 /* initialize a tensor structure for a tensor of dimension dim = 2 */
 
-inline void initialize_tensor_blocked_4(struct tensor_ *a, int n1, int n2,
+static inline void initialize_tensor_blocked_4(struct tensor_ *a, int n1, int n2,
                                         int n3, int n4, int *blockdim) {
   if (a == NULL)
     return;
@@ -165,7 +165,7 @@ inline void initialize_tensor_blocked_4(struct tensor_ *a, int n1, int n2,
 
 /* initialize a tensor structure for a tensor of dimension dim = 2 */
 
-inline tensor *create_tensor(const int dim, const int *sizes) {
+static inline tensor *create_tensor(const int dim, const int *sizes) {
   tensor *a = (tensor *)malloc(sizeof(struct tensor_));
 
   if (a == NULL)
@@ -180,7 +180,7 @@ inline tensor *create_tensor(const int dim, const int *sizes) {
 }
 
 /* destroy a tensor created with the function above */
-inline void destroy_tensor(tensor *a) {
+static inline void destroy_tensor(tensor *a) {
   if (a->block != NULL)
     free(a->block);
 
@@ -189,32 +189,32 @@ inline void destroy_tensor(tensor *a) {
   free(a);
 }
 
-inline size_t tensor_return_memory_size(const struct tensor_ *const a) {
+static inline size_t tensor_return_memory_size(const struct tensor_ *const a) {
   if (a == NULL)
     abort();
 
   return a->alloc_size_;
 }
 
-inline void tensor_assign_memory(struct tensor_ *a, void *data) {
+static inline void tensor_assign_memory(struct tensor_ *a, void *data) {
   if (a == NULL)
     abort();
   a->data = (double *)data;
 }
 
-inline int tensor_get_leading_dimension(struct tensor_ *a) {
+static inline int tensor_get_leading_dimension(struct tensor_ *a) {
   if (a == NULL)
     abort();
   return a->ld_;
 }
 
-inline void tensor_set_leading_dimension(struct tensor_ *a, const int ld) {
+static inline void tensor_set_leading_dimension(struct tensor_ *a, const int ld) {
   if (a == NULL)
     abort();
   a->ld_ = ld;
 }
 
-inline void recompute_tensor_offsets(struct tensor_ *a) {
+static inline void recompute_tensor_offsets(struct tensor_ *a) {
   if (a == NULL)
     abort();
 
@@ -244,17 +244,17 @@ inline void recompute_tensor_offsets(struct tensor_ *a) {
   }
 }
 
-inline size_t compute_memory_space_tensor_3(const int n1, const int n2,
+static inline size_t compute_memory_space_tensor_3(const int n1, const int n2,
                                             const int n3) {
   return (n1 * n2 * n3);
 }
 
-inline size_t compute_memory_space_tensor_4(const int n1, const int n2,
+static inline size_t compute_memory_space_tensor_4(const int n1, const int n2,
                                             const int n3, const int n4) {
   return (n1 * n2 * n3 * n4);
 }
 
-inline void setup_global_grid_size(tensor *const grid,
+static inline void setup_global_grid_size(tensor *const grid,
                                    const int *const full_size) {
   switch (grid->dim_) {
   case 1:
@@ -276,7 +276,7 @@ inline void setup_global_grid_size(tensor *const grid,
   }
 }
 
-inline void setup_grid_window(tensor *const grid, const int *const shift_local,
+static inline void setup_grid_window(tensor *const grid, const int *const shift_local,
                               const int *const border_width,
                               const int border_mask) {
   for (int d = 0; d < grid->dim_; d++) {
