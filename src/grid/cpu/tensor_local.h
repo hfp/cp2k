@@ -14,11 +14,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __COLLOCATE_GPU
-#include <cuda.h>
-#include <cuda_runtime.h>
-#endif
-
 typedef struct tensor_ {
   int dim_;
   int size[4];
