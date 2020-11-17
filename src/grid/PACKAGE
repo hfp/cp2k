@@ -10,7 +10,7 @@
         "./common",
         "./ref",
         "./cpu",
-        "./hybrid",
+        "./gpu",
     ],
     "public": ["grid_api.F"],
 }
