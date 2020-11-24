@@ -42,12 +42,16 @@ MODULE mp2_integrals
    USE dbcsr_tensor_api,                ONLY: &
         dbcsr_t_clear, dbcsr_t_contract, dbcsr_t_copy, dbcsr_t_create, dbcsr_t_destroy, &
         dbcsr_t_distribution_destroy, dbcsr_t_distribution_new, dbcsr_t_distribution_type, &
-        dbcsr_t_filter, dbcsr_t_get_block, dbcsr_t_get_stored_coordinates, &
-        dbcsr_t_mp_environ_pgrid, dbcsr_t_pgrid_create, dbcsr_t_pgrid_destroy, dbcsr_t_pgrid_type, &
-        dbcsr_t_put_block, dbcsr_t_reserve_blocks, dbcsr_t_split_blocks, dbcsr_t_type
+        dbcsr_t_filter, dbcsr_t_get_block, dbcsr_t_get_info, dbcsr_t_get_num_blocks, &
+        dbcsr_t_get_stored_coordinates, dbcsr_t_mp_environ_pgrid, dbcsr_t_pgrid_create, &
+        dbcsr_t_pgrid_destroy, dbcsr_t_pgrid_type, dbcsr_t_put_block, dbcsr_t_reserve_blocks, &
+        dbcsr_t_reserved_block_indices, dbcsr_t_split_blocks, dbcsr_t_type
    USE group_dist_types,                ONLY: create_group_dist,&
                                               get_group_dist,&
                                               group_dist_d1_type
+   USE hfx_types,                       ONLY: alloc_containers,&
+                                              block_ind_type,&
+                                              hfx_compression_type
    USE input_constants,                 ONLY: do_eri_gpw,&
                                               do_eri_mme,&
                                               do_eri_os,&
@@ -56,7 +60,8 @@ MODULE mp2_integrals
                                               do_potential_long,&
                                               do_potential_short,&
                                               do_potential_truncated
-   USE kinds,                           ONLY: dp
+   USE kinds,                           ONLY: dp,&
+                                              int_8
    USE kpoint_methods,                  ONLY: kpoint_init_cell_index
    USE kpoint_types,                    ONLY: kpoint_type
    USE libint_2c_3c,                    ONLY: libint_potential_type
@@ -65,6 +70,7 @@ MODULE mp2_integrals
                                               mp_environ,&
                                               mp_max,&
                                               mp_sendrecv,&
+                                              mp_sum,&
                                               mp_sync
    USE mp2_eri,                         ONLY: mp2_eri_3c_integrate
    USE mp2_eri_gpw,                     ONLY: cleanup_gpw,&
@@ -85,6 +91,8 @@ MODULE mp2_integrals
    USE qs_neighbor_list_types,          ONLY: neighbor_list_set_p_type
    USE qs_tensors,                      ONLY: build_3c_integrals,&
                                               build_3c_neighbor_lists,&
+                                              compress_tensor,&
+                                              get_tensor_occupancy,&
                                               neighbor_list_3c_destroy
    USE qs_tensors_types,                ONLY: create_3c_tensor,&
                                               create_tensor_batches,&
@@ -156,6 +164,8 @@ CONTAINS
 !> \param kpoints ...
 !> \param t_3c_M ...
 !> \param t_3c_O ...
+!> \param t_3c_O_compressed ...
+!> \param t_3c_O_ind ...
 !> \param ri_metric ...
 !> \param gd_B_occ_bse ...
 !> \param gd_B_virt_bse ...
@@ -181,7 +191,7 @@ CONTAINS
                                     starts_array_mc_block, ends_array_mc_block, &
                                     gw_corr_lev_occ, gw_corr_lev_virt, &
                                     do_im_time, do_kpoints_cubic_RPA, kpoints, &
-                                    t_3c_M, t_3c_O, &
+                                    t_3c_M, t_3c_O, t_3c_O_compressed, t_3c_O_ind, &
                                     ri_metric, gd_B_occ_bse, gd_B_virt_bse, BIb_C_beta, BIb_C_gw_beta, &
                                     gd_B_virtual_beta, homo_beta, mo_coeff_o_beta, mo_coeff_v_beta, &
                                     mo_coeff_all_beta, mo_coeff_gw_beta)
@@ -222,6 +232,10 @@ CONTAINS
       TYPE(dbcsr_t_type), INTENT(OUT)                    :: t_3c_M
       TYPE(dbcsr_t_type), ALLOCATABLE, DIMENSION(:, :), &
          INTENT(OUT)                                     :: t_3c_O
+      TYPE(hfx_compression_type), ALLOCATABLE, &
+         DIMENSION(:, :, :), INTENT(INOUT)               :: t_3c_O_compressed
+      TYPE(block_ind_type), ALLOCATABLE, &
+         DIMENSION(:, :, :)                              :: t_3c_O_ind
       TYPE(libint_potential_type), INTENT(IN)            :: ri_metric
       TYPE(group_dist_d1_type), INTENT(OUT)              :: gd_B_occ_bse, gd_B_virt_bse
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :), &
@@ -234,7 +248,7 @@ CONTAINS
       CHARACTER(LEN=*), PARAMETER :: routineN = 'mp2_ri_gpw_compute_in'
 
       INTEGER :: cm, cut_memory, cut_memory_int, eri_method, gw_corr_lev_total, handle, handle2, &
-         handle4, i, i_counter, itmp(2), j, jcell, kcell, LLL, max_row_col_local, &
+         handle4, i, i_counter, i_mem, itmp(2), j, jcell, kcell, LLL, max_row_col_local, &
          max_row_col_local_beta, max_row_col_local_gw, max_row_col_local_occ_bse, &
          max_row_col_local_virt_bse, min_bsize, mp_comm_t3c_2, my_B_all_end, my_B_all_size, &
          my_B_all_start, my_B_occ_bse_end, my_B_occ_bse_size, my_B_occ_bse_start, my_B_size, &
@@ -243,18 +257,20 @@ CONTAINS
          my_group_L_end
       INTEGER :: my_group_L_size, my_group_L_start, natom, ngroup, nimg, nkind, num_small_eigen, &
          potential_type, ri_metric_type, virtual, virtual_beta
+      INTEGER(int_8)                                     :: nze
       INTEGER, ALLOCATABLE, DIMENSION(:) :: dist_AO_1, dist_AO_2, dist_RI, &
          ends_array_mc_block_int, ends_array_mc_int, sizes_AO, sizes_AO_split, sizes_RI, &
          sizes_RI_split, starts_array_mc_block_int, starts_array_mc_int, sub_proc_map
       INTEGER, ALLOCATABLE, DIMENSION(:, :) :: local_col_row_info, local_col_row_info_beta, &
          local_col_row_info_gw, local_col_row_info_occ_bse, local_col_row_info_virt_bse
-      INTEGER, DIMENSION(3)                              :: pcoord, pdims, pdims_t3c, periodic
+      INTEGER, DIMENSION(2, 3)                           :: bounds
+      INTEGER, DIMENSION(3)                              :: bounds_3c, pcoord, pdims, pdims_t3c, &
+                                                            periodic
       LOGICAL                                            :: do_alpha_beta, do_gpw, &
                                                             do_kpoints_from_Gamma, do_svd, &
                                                             memory_info
-      REAL(KIND=dp)                                      :: cond_num, cutoff_old, eps_svd, &
-                                                            mem_for_iaK, omega_pot, rc_ang, &
-                                                            relative_cutoff_old
+      REAL(KIND=dp) :: compression_factor, cond_num, cutoff_old, eps_svd, mem_for_iaK, memory_3c, &
+         occ, omega_pot, rc_ang, relative_cutoff_old
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: e_cutoff_old
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: my_Lrows
       TYPE(cp_eri_mme_param), POINTER                    :: eri_param
@@ -851,6 +867,8 @@ CONTAINS
          CALL dbcsr_t_pgrid_destroy(pgrid_t3c_M)
 
          ALLOCATE (t_3c_O(SIZE(t_3c_overl_int, 1), SIZE(t_3c_overl_int, 2)))
+         ALLOCATE (t_3c_O_compressed(SIZE(t_3c_overl_int, 1), SIZE(t_3c_overl_int, 2), cut_memory))
+         ALLOCATE (t_3c_O_ind(SIZE(t_3c_overl_int, 1), SIZE(t_3c_overl_int, 2), cut_memory))
          CALL create_3c_tensor(t_3c_O(1, 1), dist_RI, dist_AO_1, dist_AO_2, pgrid_t3c_overl, &
                                sizes_RI_split, sizes_AO_split, sizes_AO_split, &
                                map1=[1, 2], map2=[3], &
@@ -917,6 +935,41 @@ CONTAINS
                CALL dbcsr_t_filter(t_3c_O(kcell, jcell), qs_env%mp2_env%ri_rpa_im_time%eps_filter)
             ENDDO
          ENDDO
+
+         CALL dbcsr_t_get_info(t_3c_O(1, 1), nfull_total=bounds_3c)
+         CALL get_tensor_occupancy(t_3c_O(1, 1), nze, occ)
+         memory_3c = 0.0_dp
+
+         bounds(:, 1) = [1, bounds_3c(1)]
+         bounds(:, 3) = [1, bounds_3c(3)]
+         DO i = 1, SIZE(t_3c_O, 1)
+            DO j = 1, SIZE(t_3c_O, 2)
+               DO i_mem = 1, cut_memory
+                  bounds(:, 2) = [starts_array_mc(i_mem), ends_array_mc(i_mem)]
+                  CALL dbcsr_t_copy(t_3c_O(i, j), t_3c_tmp, bounds=bounds)
+
+                  ALLOCATE (t_3c_O_ind(i, j, i_mem)%ind(dbcsr_t_get_num_blocks(t_3c_tmp), 3))
+                  CALL dbcsr_t_reserved_block_indices(t_3c_tmp, t_3c_O_ind(i, j, i_mem)%ind)
+                  CALL alloc_containers(t_3c_O_compressed(i, j, i_mem), 1)
+                  CALL compress_tensor(t_3c_tmp, t_3c_O_compressed(i, j, i_mem), &
+                                       qs_env%mp2_env%ri_rpa_im_time%eps_compress, memory_3c)
+               ENDDO
+               CALL dbcsr_t_clear(t_3c_O(i, j))
+            ENDDO
+         ENDDO
+
+         CALL mp_sum(memory_3c, para_env%group)
+
+         compression_factor = REAL(nze, dp)*1.0E-06*8.0_dp/memory_3c
+
+         IF (unit_nr > 0) THEN
+            WRITE (UNIT=unit_nr, FMT="((T3,A,T66,F11.2,A4))") &
+               "MEMORY_INFO| Memory for 3-center integrals (compressed):", memory_3c, ' MiB'
+
+            WRITE (UNIT=unit_nr, FMT="((T3,A,T60,F21.2))") &
+               "MEMORY_INFO| Compression factor:                  ", compression_factor
+         END IF
+
          CALL dbcsr_t_destroy(t_3c_tmp)
 
          CALL timestop(handle4)

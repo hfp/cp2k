@@ -38,6 +38,8 @@ MODULE rpa_im_time
         dbcsr_t_copy, dbcsr_t_copy_matrix_to_tensor, dbcsr_t_copy_tensor_to_matrix, &
         dbcsr_t_create, dbcsr_t_destroy, dbcsr_t_filter, dbcsr_t_get_info, dbcsr_t_nblks_total, &
         dbcsr_t_nd_mp_comm, dbcsr_t_pgrid_destroy, dbcsr_t_pgrid_type, dbcsr_t_type
+   USE hfx_types,                       ONLY: block_ind_type,&
+                                              hfx_compression_type
    USE kinds,                           ONLY: dp,&
                                               int_8
    USE kpoint_types,                    ONLY: get_kpoint_info,&
@@ -53,7 +55,8 @@ MODULE rpa_im_time
                                               mo_set_p_type,&
                                               mo_set_type
    USE qs_neighbor_list_types,          ONLY: neighbor_list_set_p_type
-   USE qs_tensors,                      ONLY: get_tensor_occupancy
+   USE qs_tensors,                      ONLY: decompress_tensor,&
+                                              get_tensor_occupancy
    USE qs_tensors_types,                ONLY: create_2c_tensor
 #include "./base/base_uses.f90"
 
@@ -84,6 +87,8 @@ CONTAINS
 !> \param ispin ...
 !> \param t_3c_M ...
 !> \param t_3c_O ...
+!> \param t_3c_O_compressed ...
+!> \param t_3c_O_ind ...
 !> \param starts_array_mc ...
 !> \param ends_array_mc ...
 !> \param starts_array_mc_block ...
@@ -116,7 +121,7 @@ CONTAINS
                                   mat_P_global, &
                                   matrix_s, &
                                   ispin, &
-                                  t_3c_M, t_3c_O, &
+                                  t_3c_M, t_3c_O, t_3c_O_compressed, t_3c_O_ind, &
                                   starts_array_mc, ends_array_mc, &
                                   starts_array_mc_block, ends_array_mc_block, &
                                   weights_cos_tf_t_to_w, &
@@ -135,6 +140,10 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: ispin
       TYPE(dbcsr_t_type), INTENT(INOUT)                  :: t_3c_M
       TYPE(dbcsr_t_type), DIMENSION(:, :), INTENT(INOUT) :: t_3c_O
+      TYPE(hfx_compression_type), DIMENSION(:, :, :), &
+         INTENT(INOUT)                                   :: t_3c_O_compressed
+      TYPE(block_ind_type), DIMENSION(:, :, :), &
+         INTENT(INOUT)                                   :: t_3c_O_ind
       INTEGER, DIMENSION(:), INTENT(IN)                  :: starts_array_mc, ends_array_mc, &
                                                             starts_array_mc_block, &
                                                             ends_array_mc_block
@@ -208,10 +217,7 @@ CONTAINS
       DO i = 1, SIZE(t_3c_O, 1)
          DO j = 1, SIZE(t_3c_O, 2)
             CALL dbcsr_t_create(t_3c_O(i, j), t_3c_O_occ(i, j))
-            CALL dbcsr_t_copy(t_3c_O(i, j), t_3c_O_occ(i, j))
             CALL dbcsr_t_create(t_3c_O(i, j), t_3c_O_virt(i, j))
-            CALL dbcsr_t_copy(t_3c_O(i, j), t_3c_O_virt(i, j))
-            !CALL dbcsr_t_clear(t_3c_O(i, j)) ! clearing t_3c_O is not safe because it may be used later
          ENDDO
       ENDDO
 
@@ -271,7 +277,6 @@ CONTAINS
 
          CALL get_tensor_occupancy(t_dm_occ(1), nze_dm_occ, occ_dm_occ)
          CALL get_tensor_occupancy(t_dm_virt(1), nze_dm_virt, occ_dm_virt)
-         IF (do_Gamma_RPA) CALL get_tensor_occupancy(t_3c_O(1, 1), nze_O, occ_O)
 
          CALL dbcsr_t_destroy(t_dm)
 
@@ -305,10 +310,12 @@ CONTAINS
             CALL dbcsr_t_batched_contract_init(t_P)
 
             IF (do_Gamma_RPA) THEN
+               nze_O = 0
                nze_M_virt = 0
                nze_M_occ = 0
                occ_M_virt = 0.0_dp
                occ_M_occ = 0.0_dp
+               occ_O = 0.0_dp
             ENDIF
 
             DO j_mem = 1, cut_memory
@@ -352,6 +359,19 @@ CONTAINS
                            IF (R_1_minus_S_needed) THEN
 
                               CALL timeset(routineN//"_calc_M_occ_t", handle3)
+                              CALL decompress_tensor(t_3c_O(i_cell_R_1_minus_S, i_cell_R_2), &
+                                                     t_3c_O_ind(i_cell_R_1_minus_S, i_cell_R_2, j_mem)%ind, &
+                                                     t_3c_O_compressed(i_cell_R_1_minus_S, i_cell_R_2, j_mem), &
+                                                     qs_env%mp2_env%ri_rpa_im_time%eps_compress)
+
+                              IF (do_Gamma_RPA .AND. i_mem == 1) THEN
+                                 CALL get_tensor_occupancy(t_3c_O(1, 1), nze, occ)
+                                 nze_O = nze_O + nze
+                                 occ_O = occ_O + occ
+                              END IF
+
+                              CALL dbcsr_t_copy(t_3c_O(i_cell_R_1_minus_S, i_cell_R_2), &
+                                                t_3c_O_occ(i_cell_R_1_minus_S, i_cell_R_2), move_data=.TRUE.)
 
                               CALL dbcsr_t_contract(alpha=dbcsr_scalar(1.0_dp), &
                                                     tensor_1=t_3c_O_occ(i_cell_R_1_minus_S, i_cell_R_2), &
@@ -393,6 +413,13 @@ CONTAINS
                                                        R_2_minus_S_minus_T_needed, do_kpoints_cubic_RPA)
 
                            IF (R_1_minus_T_needed .AND. R_2_minus_S_minus_T_needed) THEN
+                              CALL decompress_tensor(t_3c_O(i_cell_R_2_minus_S_minus_T, i_cell_R_1_minus_T), &
+                                                     t_3c_O_ind(i_cell_R_2_minus_S_minus_T, i_cell_R_1_minus_T, i_mem)%ind, &
+                                                     t_3c_O_compressed(i_cell_R_2_minus_S_minus_T, i_cell_R_1_minus_T, i_mem), &
+                                                     qs_env%mp2_env%ri_rpa_im_time%eps_compress)
+
+                              CALL dbcsr_t_copy(t_3c_O(i_cell_R_2_minus_S_minus_T, i_cell_R_1_minus_T), &
+                                                t_3c_O_virt(i_cell_R_2_minus_S_minus_T, i_cell_R_1_minus_T), move_data=.TRUE.)
 
                               CALL timeset(routineN//"_calc_M_virt_t", handle3)
                               CALL dbcsr_t_contract(alpha=dbcsr_scalar(alpha/2.0_dp), &

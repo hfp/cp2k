@@ -52,10 +52,12 @@ MODULE rpa_util
                                               dbcsr_type
    USE dbcsr_tensor_api,                ONLY: dbcsr_t_destroy,&
                                               dbcsr_t_type
+   USE hfx_types,                       ONLY: block_ind_type,&
+                                              dealloc_containers,&
+                                              hfx_compression_type
    USE input_constants,                 ONLY: wfc_mm_style_gemm,&
                                               wfc_mm_style_syrk
-   USE kinds,                           ONLY: dp,&
-                                              int_8
+   USE kinds,                           ONLY: dp
    USE kpoint_types,                    ONLY: get_kpoint_info,&
                                               kpoint_type
    USE machine,                         ONLY: m_walltime
@@ -66,7 +68,6 @@ MODULE rpa_util
    USE mp2_types,                       ONLY: integ_mat_buffer_type
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
-   USE qs_tensors,                      ONLY: get_tensor_occupancy
    USE rpa_communication,               ONLY: fm_redistribute
    USE rpa_gw_kpoints,                  ONLY: compute_wkp_W
 #include "./base/base_uses.f90"
@@ -131,7 +132,6 @@ CONTAINS
 !> \param mat_P_omega_kp ...
 !> \param mat_work ...
 !> \param mat_P_omega_beta ...
-!> \param unit_nr ...
 ! **************************************************************************************************
    SUBROUTINE alloc_im_time(qs_env, para_env, dimen_RI, dimen_RI_red, num_integ_points, &
                             fm_mat_Q, fm_mo_coeff_occ, fm_mo_coeff_virt, &
@@ -149,7 +149,7 @@ CONTAINS
                             fm_mo_coeff_virt_scaled, mat_dm, mat_L, mat_M_P_munu_occ, mat_M_P_munu_virt, mat_P_global_copy, &
                             mat_SinvVSinv, mat_P_omega, mat_P_omega_kp, &
                             mat_work, &
-                            mat_P_omega_beta, unit_nr)
+                            mat_P_omega_beta)
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(cp_para_env_type), POINTER                    :: para_env
@@ -188,15 +188,12 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: mat_P_omega, mat_P_omega_kp
       TYPE(dbcsr_type), POINTER                          :: mat_work
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: mat_P_omega_beta
-      INTEGER, INTENT(IN)                                :: unit_nr
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'alloc_im_time'
 
       INTEGER                                            :: cell_grid_dm(3), first_ikp_local, &
                                                             handle, i_dim, periodic(3)
-      INTEGER(int_8)                                     :: nze_O
       INTEGER, DIMENSION(:), POINTER                     :: row_blk_size
-      REAL(KIND=dp)                                      :: occ_O
       TYPE(cell_type), POINTER                           :: cell
       TYPE(cp_fm_struct_type), POINTER                   :: fm_struct, fm_struct_sub_kp
 
@@ -225,11 +222,6 @@ CONTAINS
          ALLOCATE (cell_to_index_3c(0:0, 0:0, 0:0))
          cell_to_index_3c(0, 0, 0) = 1
          num_cells_dm = 1
-         CALL get_tensor_occupancy(t_3c_O(1, 1), nze_O, occ_O)
-         IF (unit_nr > 0) WRITE (unit_nr, '(T3,A,T71,F7.1,1X,A2)') &
-            'MEMORY_INFO| Memory of 3c integrals:', 8.0_dp*REAL(nze_O, dp)/1.0E9_dp, 'GB'
-         IF (unit_nr > 0) WRITE (unit_nr, '(T3,A,T73,1X,F6.3,A1)') &
-            'MEMORY_INFO| Occupancy of 3c integrals:', occ_O*100.0_dp, '%'
       END IF
 
       IF (do_kpoints_cubic_RPA .OR. do_kpoints_from_Gamma) THEN
@@ -1054,6 +1046,8 @@ CONTAINS
 !> \param mat_P_omega_kp ...
 !> \param t_3c_M ...
 !> \param t_3c_O ...
+!> \param t_3c_O_compressed ...
+!> \param t_3c_O_ind ...
 !> \param mat_work ...
 !> \param fm_mo_coeff_occ_beta ...
 !> \param fm_mo_coeff_virt_beta ...
@@ -1067,7 +1061,7 @@ CONTAINS
                               wkp_W, cfm_mat_Q, fm_mat_L, fm_mat_RI_global_work, fm_mat_work, &
                               fm_mo_coeff_occ_scaled, fm_mo_coeff_virt_scaled, mat_dm, mat_L, &
                               mat_SinvVSinv, mat_P_omega, mat_P_omega_kp, &
-                              t_3c_M, t_3c_O, &
+                              t_3c_M, t_3c_O, t_3c_O_compressed, t_3c_O_ind, &
                               mat_work, &
                               fm_mo_coeff_occ_beta, fm_mo_coeff_virt_beta, mat_P_omega_beta)
 
@@ -1094,6 +1088,10 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: mat_P_omega, mat_P_omega_kp
       TYPE(dbcsr_t_type)                                 :: t_3c_M
       TYPE(dbcsr_t_type), ALLOCATABLE, DIMENSION(:, :)   :: t_3c_O
+      TYPE(hfx_compression_type), ALLOCATABLE, &
+         DIMENSION(:, :, :), INTENT(INOUT)               :: t_3c_O_compressed
+      TYPE(block_ind_type), ALLOCATABLE, &
+         DIMENSION(:, :, :), INTENT(INOUT)               :: t_3c_O_ind
       TYPE(dbcsr_type), POINTER                          :: mat_work
       TYPE(cp_fm_type), OPTIONAL, POINTER                :: fm_mo_coeff_occ_beta, &
                                                             fm_mo_coeff_virt_beta
@@ -1102,7 +1100,8 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'dealloc_im_time'
 
-      INTEGER                                            :: handle, i_size, j_size
+      INTEGER                                            :: cut_memory, handle, i_mem, i_size, &
+                                                            j_size, unused
       LOGICAL                                            :: my_open_shell
 
       CALL timeset(routineN, handle)
@@ -1176,6 +1175,18 @@ CONTAINS
          CALL dbcsr_deallocate_matrix_set(mat_P_omega_kp)
          DEALLOCATE (wkp_W)
       END IF
+
+      cut_memory = SIZE(t_3c_O_compressed, 3)
+
+      DEALLOCATE (t_3c_O_ind)
+      DO i_size = 1, SIZE(t_3c_O_compressed, 1)
+         DO j_size = 1, SIZE(t_3c_O_compressed, 2)
+            DO i_mem = 1, cut_memory
+               CALL dealloc_containers(t_3c_O_compressed(i_size, j_size, i_mem), unused)
+            ENDDO
+         ENDDO
+      ENDDO
+      DEALLOCATE (t_3c_O_compressed)
 
       CALL timestop(handle)
 

@@ -53,6 +53,9 @@ MODULE rpa_gw
         dbcsr_t_iterator_next_block, dbcsr_t_iterator_start, dbcsr_t_iterator_stop, &
         dbcsr_t_iterator_type, dbcsr_t_nblks_total, dbcsr_t_pgrid_create, dbcsr_t_pgrid_destroy, &
         dbcsr_t_pgrid_type, dbcsr_t_type
+   USE hfx_types,                       ONLY: block_ind_type,&
+                                              dealloc_containers,&
+                                              hfx_compression_type
    USE input_constants,                 ONLY: gw_pade_approx,&
                                               gw_two_pole_model,&
                                               ri_rpa_g0w0_crossing_bisection,&
@@ -89,6 +92,7 @@ MODULE rpa_gw
                                               release_neighbor_list_sets
    USE qs_neighbor_lists,               ONLY: setup_neighbor_list
    USE qs_overlap,                      ONLY: build_overlap_matrix_simple
+   USE qs_tensors,                      ONLY: decompress_tensor
    USE qs_tensors_types,                ONLY: create_2c_tensor
    USE rpa_gw_im_time_util,             ONLY: get_tensor_3c_overl_int_gw
 #include "./base/base_uses.f90"
@@ -118,18 +122,27 @@ CONTAINS
 !> \param fm_mat_W ...
 !> \param fm_mat_Q ...
 !> \param mo_coeff ...
+!> \param t_3c_overl_int_ao_mo ...
+!> \param t_3c_O_mo_compressed ...
+!> \param t_3c_O_mo_ind ...
 !> \param t_3c_overl_int_gw_RI ...
 !> \param t_3c_overl_int_gw_AO ...
+!> \param starts_array_mc ...
+!> \param ends_array_mc ...
 !> \param t_3c_overl_nnP_ic ...
 !> \param t_3c_overl_nnP_ic_reflected ...
 !> \param matrix_s ...
 !> \param mat_W ...
 !> \param t_3c_overl_int ...
+!> \param t_3c_O_compressed ...
+!> \param t_3c_O_ind ...
 !> \param qs_env ...
 !> \param gw_corr_lev_occ_beta ...
 !> \param gw_corr_lev_virt_beta ...
 !> \param homo_beta ...
 !> \param mo_coeff_beta ...
+!> \param t_3c_O_mo_compressed_beta ...
+!> \param t_3c_O_mo_ind_beta ...
 !> \param t_3c_overl_int_gw_RI_beta ...
 !> \param t_3c_overl_int_gw_AO_beta ...
 !> \param t_3c_overl_nnP_ic_beta ...
@@ -140,12 +153,16 @@ CONTAINS
                                            RI_blk_sizes, do_ic_model, &
                                            para_env, fm_mat_W, fm_mat_Q, &
                                            mo_coeff, &
+                                           t_3c_overl_int_ao_mo, t_3c_O_mo_compressed, t_3c_O_mo_ind, &
                                            t_3c_overl_int_gw_RI, t_3c_overl_int_gw_AO, &
+                                           starts_array_mc, ends_array_mc, &
                                            t_3c_overl_nnP_ic, t_3c_overl_nnP_ic_reflected, &
                                            matrix_s, mat_W, t_3c_overl_int, &
+                                           t_3c_O_compressed, t_3c_O_ind, &
                                            qs_env, &
                                            gw_corr_lev_occ_beta, gw_corr_lev_virt_beta, homo_beta, &
                                            mo_coeff_beta, &
+                                           t_3c_O_mo_compressed_beta, t_3c_O_mo_ind_beta, &
                                            t_3c_overl_int_gw_RI_beta, t_3c_overl_int_gw_AO_beta, &
                                            t_3c_overl_nnP_ic_beta, t_3c_overl_nnP_ic_reflected_beta)
 
@@ -156,17 +173,25 @@ CONTAINS
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: fm_mat_W
       TYPE(cp_fm_type), POINTER                          :: fm_mat_Q, mo_coeff
+      TYPE(dbcsr_t_type)                                 :: t_3c_overl_int_ao_mo
+      TYPE(hfx_compression_type)                         :: t_3c_O_mo_compressed
+      INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: t_3c_O_mo_ind
       TYPE(dbcsr_t_type)                                 :: t_3c_overl_int_gw_RI, &
-                                                            t_3c_overl_int_gw_AO, &
-                                                            t_3c_overl_nnP_ic, &
+                                                            t_3c_overl_int_gw_AO
+      INTEGER, DIMENSION(:), INTENT(IN)                  :: starts_array_mc, ends_array_mc
+      TYPE(dbcsr_t_type)                                 :: t_3c_overl_nnP_ic, &
                                                             t_3c_overl_nnP_ic_reflected
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s
       TYPE(dbcsr_type), POINTER                          :: mat_W
       TYPE(dbcsr_t_type), DIMENSION(:, :)                :: t_3c_overl_int
+      TYPE(hfx_compression_type), DIMENSION(:, :, :)     :: t_3c_O_compressed
+      TYPE(block_ind_type), DIMENSION(:, :, :)           :: t_3c_O_ind
       TYPE(qs_environment_type), POINTER                 :: qs_env
       INTEGER, INTENT(IN), OPTIONAL                      :: gw_corr_lev_occ_beta, &
                                                             gw_corr_lev_virt_beta, homo_beta
       TYPE(cp_fm_type), OPTIONAL, POINTER                :: mo_coeff_beta
+      TYPE(hfx_compression_type), OPTIONAL               :: t_3c_O_mo_compressed_beta
+      INTEGER, ALLOCATABLE, DIMENSION(:, :), OPTIONAL    :: t_3c_O_mo_ind_beta
       TYPE(dbcsr_t_type), OPTIONAL :: t_3c_overl_int_gw_RI_beta, t_3c_overl_int_gw_AO_beta, &
          t_3c_overl_nnP_ic_beta, t_3c_overl_nnP_ic_reflected_beta
 
@@ -174,6 +199,7 @@ CONTAINS
 
       INTEGER                                            :: handle, jquad
       LOGICAL                                            :: my_open_shell
+      TYPE(dbcsr_t_type)                                 :: t_3c_overl_int_ao_mo_beta
 
       CALL timeset(routineN, handle)
 
@@ -187,7 +213,10 @@ CONTAINS
       END IF
 
       CALL get_tensor_3c_overl_int_gw(t_3c_overl_int, &
+                                      t_3c_O_compressed, t_3c_O_ind, &
+                                      t_3c_overl_int_ao_mo, t_3c_O_mo_compressed, t_3c_O_mo_ind, &
                                       t_3c_overl_int_gw_RI, t_3c_overl_int_gw_AO, &
+                                      starts_array_mc, ends_array_mc, &
                                       mo_coeff, matrix_s, &
                                       gw_corr_lev_occ, gw_corr_lev_virt, homo, nmo, &
                                       para_env, &
@@ -198,13 +227,18 @@ CONTAINS
       IF (my_open_shell) THEN
 
          CALL get_tensor_3c_overl_int_gw(t_3c_overl_int, &
+                                         t_3c_O_compressed, t_3c_O_ind, &
+                                         t_3c_overl_int_ao_mo_beta, t_3c_O_mo_compressed_beta, t_3c_O_mo_ind_beta, &
                                          t_3c_overl_int_gw_RI_beta, t_3c_overl_int_gw_AO_beta, &
+                                         starts_array_mc, ends_array_mc, &
                                          mo_coeff_beta, matrix_s, &
                                          gw_corr_lev_occ_beta, gw_corr_lev_virt_beta, homo_beta, nmo, &
                                          para_env, &
                                          do_ic_model, &
                                          t_3c_overl_nnP_ic_beta, t_3c_overl_nnP_ic_reflected_beta, &
                                          qs_env, unit_nr)
+
+         CALL dbcsr_t_destroy(t_3c_overl_int_ao_mo_beta)
 
       END IF
 
@@ -694,6 +728,9 @@ CONTAINS
 !> \param do_ic_model ...
 !> \param do_kpoints_cubic_RPA ...
 !> \param fm_mat_W ...
+!> \param t_3c_overl_int_ao_mo ...
+!> \param t_3c_O_mo_compressed ...
+!> \param t_3c_O_mo_ind ...
 !> \param t_3c_overl_int_gw_RI ...
 !> \param t_3c_overl_int_gw_AO ...
 !> \param t_3c_overl_nnP_ic ...
@@ -701,15 +738,20 @@ CONTAINS
 !> \param mat_W ...
 !> \param ikp_local ...
 !> \param cfm_mat_W_kp_tau ...
+!> \param t_3c_O_mo_compressed_beta ...
+!> \param t_3c_O_mo_ind_beta ...
 !> \param t_3c_overl_int_gw_RI_beta ...
 !> \param t_3c_overl_int_gw_AO_beta ...
 !> \param t_3c_overl_nnP_ic_beta ...
 !> \param t_3c_overl_nnP_ic_reflected_beta ...
 ! **************************************************************************************************
    SUBROUTINE deallocate_matrices_gw_im_time(weights_cos_tf_w_to_t, weights_sin_tf_t_to_w, do_ic_model, do_kpoints_cubic_RPA, &
-                                             fm_mat_W, t_3c_overl_int_gw_RI, t_3c_overl_int_gw_AO, &
+                                             fm_mat_W, &
+                                             t_3c_overl_int_ao_mo, t_3c_O_mo_compressed, t_3c_O_mo_ind, &
+                                             t_3c_overl_int_gw_RI, t_3c_overl_int_gw_AO, &
                                              t_3c_overl_nnP_ic, t_3c_overl_nnP_ic_reflected, mat_W, &
                                              ikp_local, cfm_mat_W_kp_tau, &
+                                             t_3c_O_mo_compressed_beta, t_3c_O_mo_ind_beta, &
                                              t_3c_overl_int_gw_RI_beta, t_3c_overl_int_gw_AO_beta, &
                                              t_3c_overl_nnP_ic_beta, t_3c_overl_nnP_ic_reflected_beta)
 
@@ -718,6 +760,9 @@ CONTAINS
                                                             weights_sin_tf_t_to_w
       LOGICAL, INTENT(IN)                                :: do_ic_model, do_kpoints_cubic_RPA
       TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: fm_mat_W
+      TYPE(dbcsr_t_type), INTENT(INOUT)                  :: t_3c_overl_int_ao_mo
+      TYPE(hfx_compression_type)                         :: t_3c_O_mo_compressed
+      INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: t_3c_O_mo_ind
       TYPE(dbcsr_t_type)                                 :: t_3c_overl_int_gw_RI, &
                                                             t_3c_overl_int_gw_AO, &
                                                             t_3c_overl_nnP_ic, &
@@ -725,12 +770,14 @@ CONTAINS
       TYPE(dbcsr_type), POINTER                          :: mat_W
       INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(IN)     :: ikp_local
       TYPE(cp_cfm_p_type), DIMENSION(:, :), POINTER      :: cfm_mat_W_kp_tau
+      TYPE(hfx_compression_type), OPTIONAL               :: t_3c_O_mo_compressed_beta
+      INTEGER, ALLOCATABLE, DIMENSION(:, :), OPTIONAL    :: t_3c_O_mo_ind_beta
       TYPE(dbcsr_t_type), OPTIONAL :: t_3c_overl_int_gw_RI_beta, t_3c_overl_int_gw_AO_beta, &
          t_3c_overl_nnP_ic_beta, t_3c_overl_nnP_ic_reflected_beta
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'deallocate_matrices_gw_im_time'
 
-      INTEGER                                            :: handle, ikp, jquad
+      INTEGER                                            :: handle, ikp, jquad, unused
       LOGICAL                                            :: my_open_shell
 
       CALL timeset(routineN, handle)
@@ -775,6 +822,14 @@ CONTAINS
          IF (PRESENT(t_3c_overl_nnP_ic_beta)) CALL dbcsr_t_destroy(t_3c_overl_nnP_ic_beta)
          IF (PRESENT(t_3c_overl_nnP_ic_reflected_beta)) CALL dbcsr_t_destroy(t_3c_overl_nnP_ic_reflected_beta)
       ENDIF
+
+      DEALLOCATE (t_3c_O_mo_ind)
+      IF (PRESENT(t_3c_O_mo_ind_beta)) DEALLOCATE (t_3c_O_mo_ind_beta)
+      CALL dealloc_containers(t_3c_O_mo_compressed, unused)
+
+      IF (PRESENT(t_3c_O_mo_compressed_beta)) CALL dealloc_containers(t_3c_O_mo_compressed_beta, unused)
+
+      CALL dbcsr_t_destroy(t_3c_overl_int_ao_mo)
 
       CALL timestop(handle)
 
@@ -1197,6 +1252,9 @@ CONTAINS
 !> \param para_env_RPA ...
 !> \param mat_dm ...
 !> \param mat_SinvVSinv ...
+!> \param t_3c_overl_int_ao_mo ...
+!> \param t_3c_O_mo_compressed ...
+!> \param t_3c_O_mo_ind ...
 !> \param t_3c_overl_int_gw_RI ...
 !> \param t_3c_overl_int_gw_AO ...
 !> \param matrix_berry_im_mo_mo ...
@@ -1222,6 +1280,8 @@ CONTAINS
 !> \param ic_corr_list_beta ...
 !> \param fm_mo_coeff_occ_beta ...
 !> \param fm_mo_coeff_virt_beta ...
+!> \param t_3c_O_mo_compressed_beta ...
+!> \param t_3c_O_mo_ind_beta ...
 !> \param t_3c_overl_int_gw_RI_beta ...
 !> \param t_3c_overl_int_gw_AO_beta ...
 ! **************************************************************************************************
@@ -1238,6 +1298,7 @@ CONTAINS
                                   fm_mo_coeff_occ_scaled, fm_mo_coeff_virt_scaled, fm_mo_coeff_occ, &
                                   fm_mo_coeff_virt, fm_scaled_dm_occ_tau, fm_scaled_dm_virt_tau, &
                                   mo_coeff, fm_mat_W, para_env, para_env_RPA, mat_dm, mat_SinvVSinv, &
+                                  t_3c_overl_int_ao_mo, t_3c_O_mo_compressed, t_3c_O_mo_ind, &
                                   t_3c_overl_int_gw_RI, t_3c_overl_int_gw_AO, matrix_berry_im_mo_mo, &
                                   matrix_berry_re_mo_mo, mat_W, matrix_s, &
                                   kpoints, mp2_env, qs_env, &
@@ -1245,6 +1306,7 @@ CONTAINS
                                   vec_Sigma_c_gw_beta, gw_corr_lev_occ_beta, gw_corr_lev_virt_beta, homo_beta, &
                                   e_fermi_beta, Eigenval_beta, Eigenval_last_beta, Eigenval_scf_beta, &
                                   vec_Sigma_x_gw_beta, ic_corr_list_beta, fm_mo_coeff_occ_beta, fm_mo_coeff_virt_beta, &
+                                  t_3c_O_mo_compressed_beta, t_3c_O_mo_ind_beta, &
                                   t_3c_overl_int_gw_RI_beta, t_3c_overl_int_gw_AO_beta)
 
       COMPLEX(KIND=dp), ALLOCATABLE, &
@@ -1278,6 +1340,9 @@ CONTAINS
       TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: fm_mat_W
       TYPE(cp_para_env_type), POINTER                    :: para_env, para_env_RPA
       TYPE(dbcsr_p_type), INTENT(IN)                     :: mat_dm, mat_SinvVSinv
+      TYPE(dbcsr_t_type)                                 :: t_3c_overl_int_ao_mo
+      TYPE(hfx_compression_type)                         :: t_3c_O_mo_compressed
+      INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: t_3c_O_mo_ind
       TYPE(dbcsr_t_type)                                 :: t_3c_overl_int_gw_RI, &
                                                             t_3c_overl_int_gw_AO
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_berry_im_mo_mo, &
@@ -1305,6 +1370,8 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), OPTIONAL, POINTER     :: ic_corr_list_beta
       TYPE(cp_fm_type), OPTIONAL, POINTER                :: fm_mo_coeff_occ_beta, &
                                                             fm_mo_coeff_virt_beta
+      TYPE(hfx_compression_type), OPTIONAL               :: t_3c_O_mo_compressed_beta
+      INTEGER, ALLOCATABLE, DIMENSION(:, :), OPTIONAL    :: t_3c_O_mo_ind_beta
       TYPE(dbcsr_t_type), OPTIONAL                       :: t_3c_overl_int_gw_RI_beta, &
                                                             t_3c_overl_int_gw_AO_beta
 
@@ -1343,6 +1410,7 @@ CONTAINS
                                               e_fermi, fm_mat_W, &
                                               gw_corr_lev_tot, gw_corr_lev_occ, gw_corr_lev_virt, homo, &
                                               count_ev_sc_GW, count_sc_GW0, &
+                                              t_3c_overl_int_ao_mo, t_3c_O_mo_compressed, t_3c_O_mo_ind, &
                                               t_3c_overl_int_gw_RI, t_3c_overl_int_gw_AO, &
                                               mat_W, mat_SinvVSinv, mat_dm, &
                                               weights_cos_tf_t_to_w, weights_sin_tf_t_to_w, vec_Sigma_c_gw, &
@@ -1360,6 +1428,7 @@ CONTAINS
                                                  e_fermi_beta, fm_mat_W, &
                                                  gw_corr_lev_tot, gw_corr_lev_occ_beta, gw_corr_lev_virt_beta, homo_beta, &
                                                  count_ev_sc_GW, count_sc_GW0, &
+                                                 t_3c_overl_int_ao_mo, t_3c_O_mo_compressed_beta, t_3c_O_mo_ind_beta, &
                                                  t_3c_overl_int_gw_RI_beta, t_3c_overl_int_gw_AO_beta, &
                                                  mat_W, mat_SinvVSinv, mat_dm, &
                                                  weights_cos_tf_t_to_w, weights_sin_tf_t_to_w, vec_Sigma_c_gw_beta, &
@@ -4529,6 +4598,9 @@ CONTAINS
 !> \param homo ...
 !> \param count_ev_sc_GW ...
 !> \param count_sc_GW0 ...
+!> \param t_3c_overl_int_ao_mo ...
+!> \param t_3c_O_mo_compressed ...
+!> \param t_3c_O_mo_ind ...
 !> \param t_3c_overl_int_gw_RI ...
 !> \param t_3c_overl_int_gw_AO ...
 !> \param mat_W ...
@@ -4562,6 +4634,7 @@ CONTAINS
                                            e_fermi, fm_mat_W, &
                                            gw_corr_lev_tot, gw_corr_lev_occ, gw_corr_lev_virt, homo, &
                                            count_ev_sc_GW, count_sc_GW0, &
+                                           t_3c_overl_int_ao_mo, t_3c_O_mo_compressed, t_3c_O_mo_ind, &
                                            t_3c_overl_int_gw_RI, t_3c_overl_int_gw_AO, &
                                            mat_W, mat_SinvVSinv, mat_dm, &
                                            weights_cos_tf_t_to_w, weights_sin_tf_t_to_w, vec_Sigma_c_gw, &
@@ -4582,6 +4655,9 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: gw_corr_lev_tot, gw_corr_lev_occ, &
                                                             gw_corr_lev_virt, homo, &
                                                             count_ev_sc_GW, count_sc_GW0
+      TYPE(dbcsr_t_type)                                 :: t_3c_overl_int_ao_mo
+      TYPE(hfx_compression_type)                         :: t_3c_O_mo_compressed
+      INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: t_3c_O_mo_ind
       TYPE(dbcsr_t_type)                                 :: t_3c_overl_int_gw_RI, &
                                                             t_3c_overl_int_gw_AO
       TYPE(dbcsr_type), POINTER                          :: mat_W
@@ -4634,6 +4710,12 @@ CONTAINS
       TYPE(dbcsr_type), POINTER                          :: mat_greens_fct_occ, mat_greens_fct_virt
 
       CALL timeset(routineN, handle)
+
+      CALL decompress_tensor(t_3c_overl_int_ao_mo, t_3c_O_mo_ind, t_3c_O_mo_compressed, &
+                             mp2_env%ri_rpa_im_time%eps_compress)
+
+      CALL dbcsr_t_copy(t_3c_overl_int_ao_mo, t_3c_overl_int_gw_RI)
+      CALL dbcsr_t_copy(t_3c_overl_int_ao_mo, t_3c_overl_int_gw_AO, order=[2, 1, 3], move_data=.TRUE.)
 
       memory_info = mp2_env%ri_rpa_im_time%memory_info
       IF (memory_info) THEN
