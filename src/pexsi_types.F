@@ -16,6 +16,7 @@
 ! **************************************************************************************************
 
 MODULE pexsi_types
+   USE ISO_C_BINDING,                   ONLY: C_INTPTR_T
    USE bibliography,                    ONLY: Lin2009,&
                                               Lin2013,&
                                               cite_reference
@@ -26,8 +27,7 @@ MODULE pexsi_types
                                               dbcsr_p_type,&
                                               dbcsr_scale,&
                                               dbcsr_type
-   USE kinds,                           ONLY: dp,&
-                                              int_8
+   USE kinds,                           ONLY: dp
    USE message_passing,                 ONLY: mp_dims_create,&
                                               mp_environ
    USE pexsi_interface,                 ONLY: cp_pexsi_get_options,&
@@ -85,22 +85,20 @@ MODULE pexsi_types
 !> \author Patrick Seewald
 ! **************************************************************************************************
    TYPE lib_pexsi_env
-      TYPE(dbcsr_type)                      :: dbcsr_template_matrix_sym, &
-                                               dbcsr_template_matrix_nonsym
-      TYPE(dbcsr_csr_type)                           :: csr_mat_p, csr_mat_ks, csr_mat_s, &
-                                                        csr_mat_E, csr_mat_F
+      TYPE(dbcsr_type)                         :: dbcsr_template_matrix_sym, &
+                                                  dbcsr_template_matrix_nonsym
+      TYPE(dbcsr_csr_type)                     :: csr_mat_p, csr_mat_ks, csr_mat_s, &
+                                                  csr_mat_E, csr_mat_F
       TYPE(cp_pexsi_options)                   :: options
       REAL(KIND=dp), DIMENSION(:), POINTER     :: kTS => NULL()
-
       TYPE(dbcsr_p_type), DIMENSION(:), &
-         POINTER                                :: matrix_w => NULL()
-
-      INTEGER(kind=int_8)                      :: plan
+         POINTER                               :: matrix_w => NULL()
+      INTEGER(KIND=C_INTPTR_T)                 :: plan
       INTEGER                                  :: nspin, num_ranks_per_pole, mp_group
 
       TYPE(dbcsr_type), DIMENSION(:), &
-         POINTER                                :: max_ev_vector
-      TYPE(dbcsr_type)                      :: csr_sparsity
+         POINTER                               :: max_ev_vector
+      TYPE(dbcsr_type)                         :: csr_sparsity
       INTEGER, DIMENSION(2)                    :: mp_dims
 
       LOGICAL                                  :: csr_screening, do_adaptive_tol_nel
