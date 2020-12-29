@@ -24,6 +24,10 @@ static grid_library_config config = {.backend = GRID_BACKEND_AUTO,
                                      .apply_cutoff = false,
                                      .queue_length = 8192};
 
+#if !defined(_OPENMP)
+#error "OpenMP is required. Please add -fopenmp to your C compiler flags."
+#endif
+
 /*******************************************************************************
  * \brief Initializes the grid library.
  * \author Ole Schuett
@@ -34,11 +38,11 @@ void grid_library_init() {
     abort();
   }
 
-  per_thread_globals =
-      malloc(sizeof(grid_library_globals *) * omp_get_max_threads());
+  const int n = omp_get_max_threads();
+  per_thread_globals = malloc(n * sizeof(grid_library_globals *));
 
 // Using parallel regions to ensure memory is allocated near a thread's core.
-#pragma omp parallel default(none) shared(per_thread_globals)
+#pragma omp parallel default(none) shared(per_thread_globals) num_threads(n)
   {
     const int ithread = omp_get_thread_num();
     per_thread_globals[ithread] = malloc(sizeof(grid_library_globals));
