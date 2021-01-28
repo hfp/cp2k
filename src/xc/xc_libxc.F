@@ -119,9 +119,7 @@ CONTAINS
       LOGICAL, INTENT(IN)                      :: lsd
       INTEGER                                  :: length
 
-#if !defined (__LIBXC)
-      MARK_USED(lsd)
-#else
+#if defined (__LIBXC)
       CHARACTER(LEN=default_string_length)     :: func_name
       INTEGER                                  :: func_id
       TYPE(xc_f03_func_t)                      :: xc_func
@@ -145,6 +143,7 @@ CONTAINS
       CALL xc_f03_func_end(xc_func)
 #else
       MARK_USED(libxc_params)
+      MARK_USED(lsd)
       length = 0
       CPABORT("In order to use LibXC you have to download and install it!")
 #endif
