@@ -119,7 +119,9 @@ CONTAINS
       LOGICAL, INTENT(IN)                      :: lsd
       INTEGER                                  :: length
 
-#if defined (__LIBXC)
+#if !defined (__LIBXC)
+      MARK_USED(lsd)
+#else
       CHARACTER(LEN=default_string_length)     :: func_name
       INTEGER                                  :: func_id
       TYPE(xc_f03_func_t)                      :: xc_func
