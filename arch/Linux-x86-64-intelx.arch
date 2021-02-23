@@ -409,7 +409,7 @@ ifeq (0,$(GNU)) # Intel
       OPTFLAGS += -qopt-matmul
     endif
     ifneq (0,$(IPO))
-      OPTFLAGS += -ipo-separate
+      IPOFLAGS += -ipo-separate
     else ifeq (0,$(IPO))
       LDFLAGS += -no-ipo
     endif
@@ -495,7 +495,7 @@ else # GNU GCC
       FCFLAGS += -fexternal-blas -fblas-matmul-limit=4
     endif
     ifneq (0,$(IPO))
-      OPTFLAGS += -flto -Wl,-flto -Wno-lto-type-mismatch
+      IPOFLAGS += -flto -Wl,-flto -Wno-lto-type-mismatch
     endif
     OPT ?= 3
   else
@@ -906,11 +906,18 @@ ifneq (,$(strip $(CPP)))
   CPPFLAGS += -C $(IFLAGS) $(DFLAGS) -D__INTEL_COMPILER -P -traditional
 endif
 
-OPTFLAGS  += -O$(OPT) $(TARGET)
-CXXFLAGS  += $(OPTFLAGS) $(DFLAGS) $(IFLAGS) #-std=c++0x
-CFLAGS    += $(OPTFLAGS) $(DFLAGS) $(IFLAGS)
-FCFLAGS   += $(OPTFLAGS) $(DFLAGS) $(IFLAGS)
-LDFLAGS   += $(OPTFLAGS) #-static-intel -static-libgcc -static-libstdc++
+OPTFLAGS += -O$(OPT) $(IPOFLAGS) $(TARGET)
+ifneq (,$(IPOFLAGS))
+ifneq (0,$(GNU))
+  COPTFLAGS = $(filter-out $(IPOFLAGS),$(OPTFLAGS))
+endif
+endif
+COPTFLAGS ?= $(OPTFLAGS)
+
+CXXFLAGS  += $(COPTFLAGS) $(DFLAGS) $(IFLAGS) #-std=c++0x
+CFLAGS    += $(COPTFLAGS) $(DFLAGS) $(IFLAGS)
+FCFLAGS   += $(OPTFLAGS)  $(DFLAGS) $(IFLAGS)
+LDFLAGS   += $(OPTFLAGS)  #-static-intel -static-libgcc -static-libstdc++
 
 ifeq (0,$(GNU))
   CXXFLAGS  += -diag-disable $(DIAG_DISABLE)
