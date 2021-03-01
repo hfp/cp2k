@@ -46,8 +46,11 @@ typedef struct {
   int *atom_kinds;
   grid_basis_set **basis_sets;
   grid_ref_task *tasks;
-  int *tasks_per_level;
+  int *first_level_block_task;
+  int *last_level_block_task;
   int maxco;
+  double **threadlocals;
+  size_t *threadlocal_sizes;
 } grid_ref_task_list;
 
 /*******************************************************************************
