@@ -22,7 +22,7 @@
   METHOD Quickstep
   &DFT
     &MGRID
-      CUTOFF    290
+      CUTOFF    200
       REL_CUTOFF 40
     &END MGRID
     &QS
@@ -47,9 +47,8 @@
     &END SCF
     &XC
       &XC_FUNCTIONAL                                       
-        &LIBXC                                               
-          FUNCTIONAL  XC_GGA_XC_PBE1W                        
-        &END LIBXC                                           
+        &GGA_XC_PBE1W
+        &END GGA_XC_PBE1W
       &END XC_FUNCTIONAL                                     
       &VDW_POTENTIAL                                         
          POTENTIAL_TYPE PAIR_POTENTIAL
@@ -66,7 +65,7 @@
   &SUBSYS
     &CELL
        ! ABC 9.8528 9.8528 9.8528
-       ABC 6.0 6.0 6.0
+       ABC 5.0 5.0 5.0
     &END CELL
     &COORD
        O  7.06151e+00  9.49296e+00  5.05644e+00
