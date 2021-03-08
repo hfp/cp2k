@@ -3,7 +3,7 @@
   ECHO_INPUT .false.
   PRINT_LEVEL low
   PROGRAM_NAME cp2k
-  PROJECT_NAME hellium-pbe-4A
+  PROJECT_NAME helium-pbe-3A
   RUN_TYPE energy
   SAVE_MEM .true.
   SEED 50801
@@ -91,8 +91,8 @@
     &END CELL
     # Coordinates [A]
     &COORD
-      He     4.000000     4.000000     3.000000
-      He     4.000000     4.000000     7.000000
+      He     4.000000     4.000000     3.500000
+      He     4.000000     4.000000     6.500000
     &END COORD
     # Atomic types
     &KIND He
