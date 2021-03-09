@@ -88,7 +88,7 @@ MODULE bibliography
                             Toulouse2004, Limpanuparb2011, Martin2003, Yin2017, Goerigk2017, &
                             Wilhelm2016a, Wilhelm2016b, Wilhelm2017, Wilhelm2018, Lass2018, cp2kqs2020, &
                             Behler2007, Behler2011, Schran2020a, Schran2020b, &
-                            Rycroft2009, Thomas2015, Brehm2018, Brehm2020, Shigeta2001
+                            Rycroft2009, Thomas2015, Brehm2018, Brehm2020, Shigeta2001, Heinecke2016
 
 CONTAINS
 
