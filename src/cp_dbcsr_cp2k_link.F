@@ -13,13 +13,13 @@
 ! **************************************************************************************************
 MODULE cp_dbcsr_cp2k_link
    USE ao_util,                         ONLY: exp_radius
-   USE atomic_kind_types,               ONLY: atomic_kind_type, &
+   USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                               get_atomic_kind_set
-   USE basis_set_types,                 ONLY: gto_basis_set_p_type, &
+   USE basis_set_types,                 ONLY: gto_basis_set_p_type,&
                                               gto_basis_set_type
-   USE bibliography,                    ONLY: Borstnik2014, &
-                                              Heinecke2016, &
-                                              Schuett2016, &
+   USE bibliography,                    ONLY: Borstnik2014,&
+                                              Heinecke2016,&
+                                              Schuett2016,&
                                               cite_reference
    USE cp_control_types,                ONLY: dft_control_type
    USE cp_dbcsr_operations,             ONLY: max_elements_per_block
