@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(__AVX2__) && defined(__FMA__)
+#if defined(__AVX2__) && defined(__FMA__) && !defined(GRID_AUTOVEC)
 #include <immintrin.h>
 #endif
 
@@ -46,6 +46,7 @@ ortho_cx_to_grid_scalar(const int lp, const int cmax, const int i,
 #if (GRID_DO_COLLOCATE)
   // collocate
   double reg[4] = {0.0, 0.0, 0.0, 0.0};
+# pragma omp simd reduction(+: reg[0], reg[1], reg[2], reg[3])
   for (int lxp = 0; lxp <= lp; lxp++) {
     const double p = pol[0][lxp][i + cmax];
     reg[0] += cx[lxp * 4 + 0] * p;
@@ -61,6 +62,7 @@ ortho_cx_to_grid_scalar(const int lp, const int cmax, const int i,
 #else
   // integrate
   const double reg[4] = {*grid_0, *grid_1, *grid_2, *grid_3};
+# pragma omp simd
   for (int lxp = 0; lxp <= lp; lxp++) {
     const double p = pol[0][lxp][i + cmax];
     cx[lxp * 4 + 0] += reg[0] * p;
@@ -76,7 +78,7 @@ ortho_cx_to_grid_scalar(const int lp, const int cmax, const int i,
  *        This routine always processes four consecutive grid elements at once.
  * \author Ole Schuett
  ******************************************************************************/
-#if defined(__AVX2__) && defined(__FMA__)
+#if defined(__AVX2__) && defined(__FMA__) && !defined(GRID_AUTOVEC)
 static inline void __attribute__((always_inline))
 ortho_cx_to_grid_avx2(const int lp, const int cmax, const int i,
                       const double pol[3][lp + 1][2 * cmax + 1],
@@ -188,7 +190,7 @@ ortho_cx_to_grid(const int lp, const int kg1, const int kg2, const int jg1,
     GRID_CONST_WHEN_INTEGRATE double *grid_base_3 = &grid[grid_index_3];
 
     // Use AVX2 to process grid points in chunks of four, ie. 256 bit vectors.
-#if defined(__AVX2__) && defined(__FMA__)
+#if defined(__AVX2__) && defined(__FMA__) && !defined(GRID_AUTOVEC)
     const int istop_vec = istart + 4 * ((istop - istart + 1) / 4) - 1;
     for (int i = istart; i <= istop_vec; i += 4) {
       const int ig = i + cube2grid;
