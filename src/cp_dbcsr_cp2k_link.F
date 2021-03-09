@@ -13,12 +13,13 @@
 ! **************************************************************************************************
 MODULE cp_dbcsr_cp2k_link
    USE ao_util,                         ONLY: exp_radius
-   USE atomic_kind_types,               ONLY: atomic_kind_type,&
+   USE atomic_kind_types,               ONLY: atomic_kind_type, &
                                               get_atomic_kind_set
-   USE basis_set_types,                 ONLY: gto_basis_set_p_type,&
+   USE basis_set_types,                 ONLY: gto_basis_set_p_type, &
                                               gto_basis_set_type
-   USE bibliography,                    ONLY: Borstnik2014,&
-                                              Schuett2016,&
+   USE bibliography,                    ONLY: Borstnik2014, &
+                                              Heinecke2016, &
+                                              Schuett2016, &
                                               cite_reference
    USE cp_control_types,                ONLY: dft_control_type
    USE cp_dbcsr_operations,             ONLY: max_elements_per_block
@@ -123,7 +124,8 @@ CONTAINS
                                         "Fortran MATMUL", &
                                         "Library optimised for Small Matrix Multiplies "// &
                                         "(requires the SMM library at link time)", &
-                                        "Intel's libxsmm"))
+                                        "LIBXSMM"), &
+                          citations=(/Heinecke2016/))
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -446,6 +448,7 @@ CONTAINS
          CALL dbcsr_set_config(mm_driver="SMM")
       CASE (mm_driver_xsmm)
          CALL dbcsr_set_config(mm_driver="XSMM")
+         CALL cite_reference(Heinecke2016)
       CASE DEFAULT
          CPABORT("Unknown mm_driver")
       END SELECT

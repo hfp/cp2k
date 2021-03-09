@@ -13,19 +13,16 @@
 !>      of documentation.
 !>
 !>      reference_manager.F provides an easy way to cite these references from the code
-!>      (e.g. whenever the relevant part of the code is executed)
+!>      (e.g., whenever the relevant part of the code is executed)
 !>      and to add citations to the input
-!>      at the end of the run a bibliography is printed that can be used e.g. in papers
+!>      at the end of the run a bibliography is printed that can be used, e.g., in papers
 !> \note
 !>      references need to be input using the ISI citation format, because it is
 !>      uniform, easy to parse, and can be exported for example from web of science.
 !>      (mark the reference, and click 'export to reference software', open the resulting file)
 !>      Furthermore, it can be easily converted to and from using the bibutils tools
 !>      a collection of easy to use conversion programs that can be found at
-!>      http://www.scripps.edu/~cdputnam/software/bibutils/ by Chris Putnam
-!> \par History
-!>      08.2007 [Joost VandeVondele] Created
-!>      01.2014 [Lianheng Tong] Added Kantorovich2008, Kantorovich2008a
+!>      https://ctan.org/pkg/bibutils by Chris Putnam
 !> \author Joost VandeVondele
 ! **************************************************************************************************
 MODULE bibliography
@@ -4687,6 +4684,22 @@ CONTAINS
                          "IS 4-5", &
                          "ER"), &
                          DOI="10.1002/qua.1543")
+
+      CALL add_reference(key=Heinecke2016, ISI_record=s2a( &
+                         "AU Heinecke, A", &
+                         "   Henry, G", &
+                         "   Hutchinson, M", &
+                         "   Pabst, H", &
+                         "TI LIBXSMM: Accelerating Small Matrix Multiplications", &
+                         "   by Runtime Code Generation", &
+                         "SE SC: International Conference for High Performance Computing,", &
+                         "   Networking, Storage and Analysis", &
+                         "PY 2016", &
+                         "BP 981", &
+                         "EP 991", &
+                         "DI 10.1109/SC.2016.83", &
+                         "ER"), &
+                         DOI="10.1109/SC.2016.83")
 
    END SUBROUTINE add_all_references
 
