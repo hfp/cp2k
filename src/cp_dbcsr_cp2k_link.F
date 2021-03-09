@@ -26,7 +26,7 @@ MODULE cp_dbcsr_cp2k_link
    USE dbcsr_api,                       ONLY: &
         dbcsr_finalize, dbcsr_get_block_p, dbcsr_get_default_config, dbcsr_get_matrix_type, &
         dbcsr_has_symmetry, dbcsr_reserve_blocks, dbcsr_set, dbcsr_set_config, dbcsr_type, &
-        dbcsr_type_no_symmetry, dbcsr_cfg
+        dbcsr_type_no_symmetry
    USE input_keyword_types,             ONLY: keyword_create,&
                                               keyword_release,&
                                               keyword_type
@@ -440,6 +440,9 @@ CONTAINS
       SELECT CASE (ival)
       CASE (mm_driver_auto)
          CALL dbcsr_set_config(mm_driver="AUTO")
+#if defined(__LIBXSMM)
+         CALL cite_reference(Heinecke2016)
+#endif
       CASE (mm_driver_blas)
          CALL dbcsr_set_config(mm_driver="BLAS")
       CASE (mm_driver_matmul)
@@ -448,13 +451,10 @@ CONTAINS
          CALL dbcsr_set_config(mm_driver="SMM")
       CASE (mm_driver_xsmm)
          CALL dbcsr_set_config(mm_driver="XSMM")
+         CALL cite_reference(Heinecke2016)
       CASE DEFAULT
          CPABORT("Unknown mm_driver")
       END SELECT
-
-      IF (mm_driver_xsmm == dbcsr_cfg%mm_driver) THEN
-         CALL cite_reference(Heinecke2016)
-      END IF
 
       CALL timestop(handle)
    END SUBROUTINE cp_dbcsr_config
