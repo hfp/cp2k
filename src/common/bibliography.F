@@ -4686,14 +4686,20 @@ CONTAINS
                          DOI="10.1002/qua.1543")
 
       CALL add_reference(key=Heinecke2016, ISI_record=s2a( &
+                         "PT S", &
                          "AU Heinecke, A", &
                          "   Henry, G", &
                          "   Hutchinson, M", &
                          "   Pabst, H", &
                          "TI LIBXSMM: Accelerating Small Matrix Multiplications", &
                          "   by Runtime Code Generation", &
-                         "SE SC: International Conference for High Performance Computing,", &
-                         "   Networking, Storage and Analysis", &
+                         "CT SC'16: International Conference for High Performance Computing,", &
+                         "   Networking, Storage, and Analysis", &
+                         "SO Proceedings of Intl. Supercomputing Conference", &
+                         "CL Salt Lake City, UT, USA", &
+                         "PU IEEE", &
+                         "EI 2167-4337", &
+                         "UT 16757864", &
                          "PY 2016", &
                          "BP 981", &
                          "EP 991", &
