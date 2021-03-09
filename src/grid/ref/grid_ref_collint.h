@@ -46,7 +46,7 @@ ortho_cx_to_grid_scalar(const int lp, const int cmax, const int i,
 #if (GRID_DO_COLLOCATE)
   // collocate
   double reg[4] = {0.0, 0.0, 0.0, 0.0};
-# pragma omp simd reduction(+: reg[0], reg[1], reg[2], reg[3])
+# pragma omp simd reduction(+:reg)
   for (int lxp = 0; lxp <= lp; lxp++) {
     const double p = pol[0][lxp][i + cmax];
     reg[0] += cx[lxp * 4 + 0] * p;
