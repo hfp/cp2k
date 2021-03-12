@@ -46,7 +46,9 @@ static inline void initialize_tensor(struct tensor_ *a, const int dim,
                                      const int *const sizes) {
   if (a == NULL)
     return;
-
+#if !defined(NDEBUG)
+  memset(a, 0, sizeof(*a));
+#endif
   a->dim_ = dim;
   for (int d = 0; d < dim; d++)
     a->size[d] = sizes[d];

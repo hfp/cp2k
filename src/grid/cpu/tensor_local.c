@@ -28,8 +28,9 @@ size_t realloc_tensor(tensor *t) {
   t->data = NULL;
 
   if (t->data == NULL) {
+    const long pagesize = sysconf(_SC_PAGESIZE);
     t->data =
-        aligned_alloc(sysconf(_SC_PAGESIZE), sizeof(double) * t->alloc_size_);
+        aligned_alloc(0 < pagesize ? pagesize : 64, sizeof(double) * t->alloc_size_);
     if (!t->data)
       abort();
     t->old_alloc_size_ = t->alloc_size_;
@@ -43,8 +44,9 @@ void alloc_tensor(tensor *t) {
     abort();
   }
 
+  const long pagesize = sysconf(_SC_PAGESIZE);
   t->data =
-      aligned_alloc(sysconf(_SC_PAGESIZE), sizeof(double) * t->alloc_size_);
+      aligned_alloc(0 < pagesize ? pagesize : 64, sizeof(double) * t->alloc_size_);
   if (!t->data)
     abort();
   t->old_alloc_size_ = t->alloc_size_;

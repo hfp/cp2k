@@ -43,8 +43,10 @@ struct collocation_integration_ *collocate_create_handle(void) {
   handle->coef_alloc_size = realloc_tensor(&handle->coef);
   handle->pol_alloc_size = realloc_tensor(&handle->pol);
 
+  const long pagesize = sysconf(_SC_PAGESIZE);
   handle->scratch =
-      aligned_alloc(sysconf(_SC_PAGESIZE), sizeof(double) * 32768);
+      aligned_alloc(0 < pagesize ? pagesize : 64, sizeof(double) * 32768);
+
   handle->scratch_alloc_size = 32768;
   handle->T_alloc_size = 8192;
   handle->W_alloc_size = 2048;
