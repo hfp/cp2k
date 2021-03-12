@@ -468,8 +468,7 @@ void grid_hybrid_collocate_task_list(
 
     max_size = ((max_size / sysconf(_SC_PAGESIZE)) + 1) * sysconf(_SC_PAGESIZE);
 
-    ctx->scratch = aligned_alloc(sysconf(_SC_PAGESIZE),
-                                 sizeof(double) * max_size * max_threads);
+    ctx->scratch = malloc(sizeof(double) * max_size * max_threads);
   }
 
   /*
