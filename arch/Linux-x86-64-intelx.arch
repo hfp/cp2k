@@ -171,29 +171,33 @@ ifneq (,$(filter-out 0,$(OCL) $(CUDA)))
     endif
     ACCFLAGS += $(CFLAGS)
     ACC := $(CC)
-  else ifneq (undefined,$(origin GPUVER))
+  else
     CUDA_PATH ?= $(if $(call which,nvcc),$(abspath $(dir $(call which,nvcc))/..))
     ifneq (,$(CUDA_PATH))
-      NVCC := nvcc
-      DFLAGS += -D__ACC -D__DBCSR_ACC -D__CUDA
-      LIBS += -L$(CUDA_PATH)/lib64 -lcudart -lcublas -lnvrtc -lcuda
-      IFLAGS += -I$(CUDA_PATH)/include
-      ifneq (,$(filter-out 0 1,$(CUDA)))
-        DFLAGS += -D__PW_CUDA
-        LIBS += -lcufft
+      ifneq (undefined,$(origin GPUVER))
+        NVCC := nvcc
+        DFLAGS += -D__ACC -D__DBCSR_ACC -D__CUDA
+        LIBS += -L$(CUDA_PATH)/lib64 -lcudart -lcublas -lnvrtc -lcuda
+        IFLAGS += -I$(CUDA_PATH)/include
+        ifneq (,$(filter-out 0 1,$(CUDA)))
+          DFLAGS += -D__PW_CUDA
+          LIBS += -lcufft
+        endif
+        ACCFLAGS += $(addprefix -Xcompiler $(NULL),$(filter-out -Wl%,$(OPTFLAGS)))
+        ACC := $(NVCC)
+        IPO := 0
+      else
+        $(info ===================)
+        $(info GPUVER not defined!)
+        $(info ===================)
+        $(error GPUVER)
       endif
-      ACCFLAGS += $(addprefix -Xcompiler $(NULL),$(filter-out -Wl%,$(OPTFLAGS)))
-      ACC := $(NVCC)
-      IPO := 0
     else
       $(info ===============)
       $(info NVCC not found!)
       $(info ===============)
+      $(error NVCC)
     endif
-  else
-    $(info ===================)
-    $(info GPUVER not defined!)
-    $(info ===================)
   endif
 else # ACC off
   ifeq (0,$(GNU))
