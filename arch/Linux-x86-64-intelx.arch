@@ -99,6 +99,7 @@ endif
 EXTSDIR ?= exts
 EXTSHOME ?= $(CP2KHOME)/$(EXTSDIR)
 LEGACY ?= $(if $(wildcard $(EXTSHOME)/dbcsr),0,1)
+UNAME ?= $(shell uname 2>/dev/null)
 
 ifeq (0,$(LEGACY))
   IFLAGS += -I$(CP2KHOME)/$(OBJDIRNAME)/$(ARCH)/$(ONEVERSION)/exts/dbcsr
@@ -154,22 +155,37 @@ TBBGCC_OLD ?= 1
 OCL ?= 0
 GPUVER := undefined
 ifneq (,$(filter-out 0 undefined,$(OCL) $(GPUVER)))
-  CUDA_PATH ?= $(if $(call which,nvcc),$(abspath $(dir $(call which,nvcc))/..))
   ifneq (0,$(OCL))
-    DFLAGS += -D__ACC -D__DBCSR_ACC
-    DFLAGS += -D__OPENCL -D__USE_INTEL_CL
-    LIBS += -L/usr/lib64 -lOpenCL -lrt
-  else ifneq (,$(CUDA_PATH))
-    DFLAGS += -D__ACC -D__DBCSR_ACC
-    LIBS += -L$(CUDA_PATH)/lib64 -lcudart -lcublas -lnvrtc -lcuda
-    IFLAGS += -I$(CUDA_PATH)/include
-    ifneq (,$(filter-out 0 1,$(CUDA)))
-      DFLAGS += -D__PW_CUDA
-      LIBS += -lcufft
+    DFLAGS += -D__ACC -D__DBCSR_ACC -D__OPENCL
+    ifeq (Darwin,$(UNAME))
+      LDFLAGS += -framework OpenCL
+    else
+      ifneq (,$(CUDATOOLKIT_HOME))
+        CFLAGS += -I$(CUDATOOLKIT_HOME)/include
+        LDFLAGS += -L$(CUDATOOLKIT_HOME)/lib64
+      else ifneq (,$(NVSDKCOMPUTE_ROOT))
+        CFLAGS += -I$(NVSDKCOMPUTE_ROOT)/include
+        LDFLAGS += -L$(NVSDKCOMPUTE_ROOT)/lib64
+      endif
+      LDFLAGS += -lOpenCL
     endif
-    NVFLAGS += $(addprefix -Xcompiler $(NULL),$(filter-out -Wl%,$(OPTFLAGS)))
-    NVCC := nvcc
-    IPO := 0
+    ACCFLAGS += $(CFLAGS)
+    ACC := $(CC)
+  else
+    CUDA_PATH ?= $(if $(call which,nvcc),$(abspath $(dir $(call which,nvcc))/..))
+    ifneq (,$(CUDA_PATH))
+      NVCC := nvcc
+      DFLAGS += -D__ACC -D__DBCSR_ACC -D__CUDA
+      LIBS += -L$(CUDA_PATH)/lib64 -lcudart -lcublas -lnvrtc -lcuda
+      IFLAGS += -I$(CUDA_PATH)/include
+      ifneq (,$(filter-out 0 1,$(CUDA)))
+        DFLAGS += -D__PW_CUDA
+        LIBS += -lcufft
+      endif
+      ACCFLAGS += $(addprefix -Xcompiler $(NULL),$(filter-out -Wl%,$(OPTFLAGS)))
+      ACC := $(NVCC)
+      IPO := 0
+    endif
   else
     $(info ===============)
     $(info NVCC not found!)
