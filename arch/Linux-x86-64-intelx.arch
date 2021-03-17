@@ -185,11 +185,11 @@ ifneq (,$(filter-out 0 undefined,$(OCL) $(GPUVER)))
       ACCFLAGS += $(addprefix -Xcompiler $(NULL),$(filter-out -Wl%,$(OPTFLAGS)))
       ACC := $(NVCC)
       IPO := 0
+    else
+      $(info ===============)
+      $(info NVCC not found!)
+      $(info ===============)
     endif
-  else
-    $(info ===============)
-    $(info NVCC not found!)
-    $(info ===============)
   endif
 else # ACC off
   ifeq (0,$(GNU))
