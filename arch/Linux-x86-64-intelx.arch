@@ -153,8 +153,8 @@ TBBMALLOC ?= 0
 TBBGCC_OLD ?= 1
 
 OCL ?= 0
-GPUVER := undefined
-ifneq (,$(filter-out 0 undefined,$(OCL) $(GPUVER)))
+CUDA ?= 0
+ifneq (,$(filter-out 0,$(OCL) $(CUDA)))
   ifneq (0,$(OCL))
     DFLAGS += -D__ACC -D__DBCSR_ACC -D__OPENCL
     ifeq (Darwin,$(UNAME))
@@ -171,7 +171,7 @@ ifneq (,$(filter-out 0 undefined,$(OCL) $(GPUVER)))
     endif
     ACCFLAGS += $(CFLAGS)
     ACC := $(CC)
-  else
+  else ifneq (undefined,$(origin GPUVER))
     CUDA_PATH ?= $(if $(call which,nvcc),$(abspath $(dir $(call which,nvcc))/..))
     ifneq (,$(CUDA_PATH))
       NVCC := nvcc
@@ -190,6 +190,10 @@ ifneq (,$(filter-out 0 undefined,$(OCL) $(GPUVER)))
       $(info NVCC not found!)
       $(info ===============)
     endif
+  else
+    $(info ===================)
+    $(info GPUVER not defined!)
+    $(info ===================)
   endif
 else # ACC off
   ifeq (0,$(GNU))
