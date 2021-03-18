@@ -840,6 +840,9 @@ ifneq (,$(LIBXSMMROOT))
       ifneq (0,$(WRAP))
         ifneq (0,$(shell echo "$$((2<$(WRAP)))"))
           LDFLAGS += -Wl,--wrap=dgemm_,--wrap=sgemm_,--wrap=dgemv_,--wrap=sgemv_
+          ifneq (0,$(shell echo "$$((3<$(WRAP)))"))
+            LIBS += $(CP2KHOME)/$(LIBDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/lib/libxsmmnoblas.a
+          endif
         else
           LDFLAGS += -Wl,--wrap=dgemm_,--wrap=sgemm_
         endif
@@ -858,9 +861,10 @@ ifneq (,$(LIBXSMMROOT))
       BINDIR="$(CP2KHOME)/$(LIBDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/bin" \
       OUTDIR="$(CP2KHOME)/$(LIBDIRNAME)/$(ARCH)/$(ONEVERSION)/libxsmm/lib" \
       CXX="$(XCXX)" CC="$(XCC)" FC="$(XFC)" "AR=$(firstword $(AR))" "LD=$(LD)" \
-      JIT=$(JIT) SYM=$(SYM) DBG=$(DBG) \
-      MNK=$(LIBXSMM_MNK) M=$(LIBXSMM_M) N=$(LIBXSMM_N) K=$(LIBXSMM_K) PRECISION=2 OPT=$(OPT) IPO=0 \
-      TARGET="$(TARGET)" SSE=$(SSE) AVX=$(AVX) MIC=$(MIC) INIT=0 WRAP=$(WRAP) LNKSOFT=0 MALLOC=-1 >&2)
+      JIT=$(JIT) SYM=$(SYM) DBG=$(DBG) OPT=$(OPT) IPO=0 LNKSOFT=0 INIT=0 MALLOC=-1 \
+      MNK=$(LIBXSMM_MNK) M=$(LIBXSMM_M) N=$(LIBXSMM_N) K=$(LIBXSMM_K) PRECISION=2 \
+      TARGET="$(TARGET)" SSE=$(SSE) AVX=$(AVX) MIC=$(MIC) WRAP=$(WRAP) \
+      $(if $(filter-out 0,$(shell echo "$$((3<$(WRAP)))")),BLAS=0) >&2)
   endif
 endif
 
