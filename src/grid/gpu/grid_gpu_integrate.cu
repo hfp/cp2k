@@ -38,9 +38,9 @@ __device__ static void store_hab(const kernel_params *params,
   for (int i = threadIdx.x; i < task->nsgf_setb; i += blockDim.x) {
     for (int j = threadIdx.y; j < task->nsgf_seta; j += blockDim.y) {
       const int jco_start = task->first_cosetb + threadIdx.z;
+      double block_val = 0.0;
       for (int jco = jco_start; jco < task->ncosetb; jco += blockDim.z) {
         const orbital b = coset_inv[jco];
-        double block_val = 0.0;
         const double sphib = task->sphib[i * task->maxcob + jco];
         for (int ico = task->first_coseta; ico < task->ncoseta; ico++) {
           const orbital a = coset_inv[ico];
@@ -49,11 +49,11 @@ __device__ static void store_hab(const kernel_params *params,
           const double sphia = task->sphia[j * task->maxcoa + ico];
           block_val += hab * sphia * sphib;
         }
-        if (task->block_transposed) {
-          atomicAddDouble(&task->hab_block[j * task->nsgfb + i], block_val);
-        } else {
-          atomicAddDouble(&task->hab_block[i * task->nsgfa + j], block_val);
-        }
+      }
+      if (task->block_transposed) {
+        atomicAddDouble(&task->hab_block[j * task->nsgfb + i], block_val);
+      } else {
+        atomicAddDouble(&task->hab_block[i * task->nsgfa + j], block_val);
       }
     }
   }
@@ -87,11 +87,11 @@ __device__ static void store_forces_and_virial(const kernel_params *params,
           for (int k = 0; k < 3; k++) {
             const double force_a = get_force_a(a, b, k, task->zeta, task->zetb,
                                                task->n1, cab, COMPUTE_TAU);
-            coalescedAtomicAdd(&task->forces_a[k], force_a * pabval);
+            atomicAddDouble(&task->forces_a[k], force_a * pabval);
             const double force_b =
                 get_force_b(a, b, k, task->zeta, task->zetb, task->rab,
                             task->n1, cab, COMPUTE_TAU);
-            coalescedAtomicAdd(&task->forces_b[k], force_b * pabval);
+            atomicAddDouble(&task->forces_b[k], force_b * pabval);
           }
           if (params->virial != NULL) {
             for (int k = 0; k < 3; k++) {
@@ -103,7 +103,7 @@ __device__ static void store_forces_and_virial(const kernel_params *params,
                     get_virial_b(a, b, k, l, task->zeta, task->zetb, task->rab,
                                  task->n1, cab, COMPUTE_TAU);
                 const double virial = pabval * (virial_a + virial_b);
-                coalescedAtomicAdd(&params->virial[k * 3 + l], virial);
+                atomicAddDouble(&params->virial[k * 3 + l], virial);
               }
             }
           }
@@ -275,7 +275,8 @@ void grid_gpu_integrate_one_grid_level(
 
   // Launch !
   const int nblocks = ntasks;
-  const dim3 threads_per_block(4, 8, 8);
+  const dim3 threads_per_block(32, 2, 1);
+  assert(threads_per_block.x == 32); // needed for __syncwarp
 
   if (!compute_tau && !calculate_forces) {
     grid_integrate_density<<<nblocks, threads_per_block, smem_per_block,
