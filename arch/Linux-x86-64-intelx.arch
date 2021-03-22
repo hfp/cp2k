@@ -1,16 +1,18 @@
 # Arch file targeting Linux 64-bit using the Intel tool chain
 #
 PERL := perl
-CPP := #cpp
+# use compiler to preprocess Fortran code
+CPP := $(NULL)
+ACC := $(NULL)
 
-DFLAGS   := -D__NO_IPI_DRIVER
-CFLAGS   := -std=c99
-CXXFLAGS := $(NULL)
-FCFLAGS  := $(NULL)
-LDFLAGS  := $(NULL)
-ACCFLAGS := $(NULL)
-ACC      := $(NULL)
-LIBS     := $(NULL)
+DFLAGS   += -D__NO_IPI_DRIVER
+CFLAGS   += -std=c99
+IFLAGS   += $(NULL)
+CXXFLAGS += $(NULL)
+FCFLAGS  += $(NULL)
+LDFLAGS  += $(NULL)
+ACCFLAGS += $(NULL)
+LIBS     += $(NULL)
 MIC ?= 0
 
 # LIBXSMM (https://github.com/hfp/libxsmm)
@@ -161,10 +163,10 @@ ifneq (,$(filter-out 0,$(OCL) $(CUDA)))
       LDFLAGS += -framework OpenCL
     else
       ifneq (,$(CUDATOOLKIT_HOME))
-        CFLAGS += -I$(CUDATOOLKIT_HOME)/include
+        IFLAGS += -I$(CUDATOOLKIT_HOME)/include
         LDFLAGS += -L$(CUDATOOLKIT_HOME)/lib64
       else ifneq (,$(NVSDKCOMPUTE_ROOT))
-        CFLAGS += -I$(NVSDKCOMPUTE_ROOT)/include
+        IFLAGS += -I$(NVSDKCOMPUTE_ROOT)/include
         LDFLAGS += -L$(NVSDKCOMPUTE_ROOT)/lib64
       endif
       LDFLAGS += -lOpenCL
