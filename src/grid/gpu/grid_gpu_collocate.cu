@@ -133,10 +133,6 @@ __global__ static void collocate_kernel_anyfunc(const kernel_params params) {
   collocate_kernel<false>(&params);
 }
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /*******************************************************************************
  * \brief Launches the Cuda kernel that collocates all tasks of one grid level.
  * \author Ole Schuett
@@ -219,10 +215,6 @@ void grid_gpu_collocate_one_grid_level(
                                stream>>>(params);
   }
 }
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // __GRID_CUDA
 // EOF

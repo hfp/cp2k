@@ -196,10 +196,6 @@ __global__ static void grid_integrate_tau_forces(const kernel_params params) {
   integrate_kernel<true, true>(&params);
 }
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /*******************************************************************************
  * \brief Launches the Cuda kernel that integrates all tasks of one grid level.
  * \author Ole Schuett
@@ -296,10 +292,6 @@ void grid_gpu_integrate_one_grid_level(
                                 stream>>>(params);
   }
 }
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // __GRID_CUDA
 // EOF

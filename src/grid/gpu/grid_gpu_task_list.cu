@@ -34,9 +34,6 @@
     abort();                                                                   \
   }
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 /*******************************************************************************
  * \brief Allocates a task list for the GPU backend.
  *        See grid_task_list.h for details.
@@ -475,10 +472,6 @@ void grid_gpu_integrate_task_list(
     CHECK(cudaFree(virial_dev));
   }
 }
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // __GRID_CUDA
 // EOF
