@@ -178,14 +178,16 @@ ifneq (,$(filter-out 0,$(OCL) $(CUDA)))
     ifneq (,$(CUDA_PATH))
       ifneq (undefined,$(origin GPUVER))
         NVCC := nvcc
-        DFLAGS += -D__ACC -D__DBCSR_ACC -D__CUDA
+        DFLAGS += -D__ACC -D__DBCSR_ACC -D__CUDA -D__GRID_CUDA
         LIBS += -L$(CUDA_PATH)/lib64 -lcudart -lcublas -lnvrtc -lcuda
         IFLAGS += -I$(CUDA_PATH)/include
         ifneq (,$(filter-out 0 1,$(CUDA)))
           DFLAGS += -D__PW_CUDA
           LIBS += -lcufft
         endif
-        ACCFLAGS += $(addprefix -Xcompiler $(NULL),$(filter-out -Wl%,$(OPTFLAGS)))
+        NVCFLAGS := $(addprefix -Xcompiler $(NULL),$(filter-out -Wl%,$(OPTFLAGS)))
+        ACCFLAGS += $(NVCFLAGS) $(DFLAGS)
+        NVFLAGS += $(NVCFLAGS) $(DFLAGS)
         ACC := $(NVCC)
         IPO := 0
       else
