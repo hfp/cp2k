@@ -4,38 +4,54 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: GPL-2.0-or-later                                 */
 /*----------------------------------------------------------------------------*/
-#ifndef GRID_BUFFER_H
-#define GRID_BUFFER_H
+#ifndef OFFLOAD_LIBRARY_H
+#define OFFLOAD_LIBRARY_H
 
-#include <stddef.h>
+#if defined(__GRID_CUDA) || defined(__PW_CUDA)
+#define __OFFLOAD_CUDA
+#endif
 
-/*******************************************************************************
- * \brief Internal representation of a buffer.
- * \author Ole Schuett
- ******************************************************************************/
-typedef struct {
-  size_t size;
-  double *host_buffer;
-  double *device_buffer;
-} grid_buffer;
+#ifdef __OFFLOAD_CUDA
+#include <cuda_runtime.h>
 
 /*******************************************************************************
- * \brief Allocates a buffer of given length, ie. number of elements.
+ * \brief Checks given Cuda status and upon failure abort with a nice message.
  * \author Ole Schuett
  ******************************************************************************/
-void grid_create_buffer(const int length, grid_buffer **buffer);
+#define OFFLOAD_CHECK(status)                                                  \
+  if (status != cudaSuccess) {                                                 \
+    fprintf(stderr, "ERROR: %s %s %d\n", cudaGetErrorString(status), __FILE__, \
+            __LINE__);                                                         \
+    abort();                                                                   \
+  }
+
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*******************************************************************************
- * \brief Deallocate given buffer.
+ * \brief Returns the number of available devices.
  * \author Ole Schuett
  ******************************************************************************/
-void grid_free_buffer(grid_buffer *buffer);
+int offload_get_device_count();
 
 /*******************************************************************************
- * \brief Returns a pointer to the host buffer.
+ * \brief Selects the device to be used.
  * \author Ole Schuett
  ******************************************************************************/
-double *grid_buffer_get_host_pointer(grid_buffer *buffer);
+void offload_set_device_id(int device_id);
+
+/*******************************************************************************
+ * \brief Returns the device to be used.
+ * \author Ole Schuett
+ ******************************************************************************/
+int offload_get_device_id();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 

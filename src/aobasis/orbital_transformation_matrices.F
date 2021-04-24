@@ -40,17 +40,16 @@ MODULE orbital_transformation_matrices
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'orbital_transformation_matrices'
 
    TYPE orbtramat_type
-      REAL(KIND=dp), DIMENSION(:, :), POINTER :: c2s, slm, s2c
+      REAL(KIND=dp), DIMENSION(:, :), POINTER :: c2s, slm, slm_inv, s2c
    END TYPE orbtramat_type
 
-   REAL(KIND=dp), DIMENSION(:, :), ALLOCATABLE  :: c2s_tramat, s2c_tramat
    TYPE(orbtramat_type), DIMENSION(:), POINTER :: orbtramat
 
    INTEGER, SAVE :: current_maxl = -1
 
    ! Public variables
 
-   PUBLIC :: orbtramat, c2s_tramat
+   PUBLIC :: orbtramat
 
    ! Public subroutines
 
@@ -95,26 +94,27 @@ CONTAINS
       ALLOCATE (orbtramat(0:maxl))
       nc = ncoset(maxl)
       ns = nsoset(maxl)
-      ALLOCATE (c2s_tramat(ns, nc), s2c_tramat(ns, nc))
-      c2s_tramat = 0.0_dp
-      s2c_tramat = 0.0_dp
 
       DO l = 0, maxl
          nc = nco(l)
          ns = nso(l)
          ALLOCATE (orbtramat(l)%c2s(ns, nc))
          orbtramat(l)%c2s = 0.0_dp
-         ALLOCATE (orbtramat(l)%slm(ns, nc))
-         orbtramat(l)%slm = 0.0_dp
          ALLOCATE (orbtramat(l)%s2c(ns, nc))
          orbtramat(l)%s2c = 0.0_dp
+         ALLOCATE (orbtramat(l)%slm(ns, nc))
+         orbtramat(l)%slm = 0.0_dp
+         ALLOCATE (orbtramat(l)%slm_inv(ns, nc))
+         orbtramat(l)%slm_inv = 0.0_dp
       END DO
 
       ! Loop over all angular momentum quantum numbers l
 
       DO l = 0, maxl
+
          ! Build the orbital transformation matrix for the transformation
          ! from Cartesian to spherical orbitals (c2s, formula 15)
+
          DO lx = 0, l
             DO ly = 0, l - lx
                lz = l - lx - ly
@@ -198,37 +198,11 @@ CONTAINS
                ic = co(lx, ly, lz)
                DO m = -l, l
                   is = l + m + 1
-                  !MK s2 = (-1.0_dp)**m*s !-> alternative S(lm) definition
-                  orbtramat(l)%slm(is, ic) = &
-                     s*orbtramat(l)%c2s(is, ic)/ &
-                     !MK s2*orbtramat(l)%c2s(is,ic)/&
-                     SQRT(dfac(2*lx - 1)*dfac(2*ly - 1)*dfac(2*lz - 1))
-               END DO
-            END DO
-         END DO
-
-         ! Build up one shot transformation for unnormalized functions
-
-         nc = nco(l)
-         ns = nso(l)
-         lx1 = ncoset(l - 1) + 1
-         ly1 = nsoset(l - 1) + 1
-         lx2 = ncoset(l)
-         ly2 = nsoset(l)
-         s2c_tramat(ly1:ly2, lx1:lx2) = orbtramat(l)%s2c(1:ns, 1:nc)
-         c2s_tramat(ly1:ly2, lx1:lx2) = orbtramat(l)%c2s(1:ns, 1:nc)
-
-         s1 = 8.0_dp*pi*fac(l + 1)/fac(2*l + 2)
-         DO lx = 0, l
-            DO ly = 0, l - lx
-               lz = l - lx - ly
-               s2 = fac(2*lx)*fac(2*ly)*fac(2*lz)/(fac(lx)*fac(ly)*fac(lz))
-               s = SQRT(s1*s2)
-               ic = ncoset(l - 1) + co(lx, ly, lz)
-               DO m = -l, l
-                  is = nsoset(l - 1) + l + m + 1
-                  s2c_tramat(is, ic) = s2c_tramat(is, ic)*s
-                  c2s_tramat(is, ic) = c2s_tramat(is, ic)/s
+                  s1 = SQRT(dfac(2*lx - 1)*dfac(2*ly - 1)*dfac(2*lz - 1))
+                  orbtramat(l)%slm(is, ic) = s*orbtramat(l)%c2s(is, ic)/s1
+                  !MK s2 = (-1.0_dp)**m*s ! alternative S(lm) definition
+                  !MK orbtramat(l)%slm(is, ic) = s2*orbtramat(l)%c2s(is,ic)/s1
+                  orbtramat(l)%slm_inv(is, ic) = s1*orbtramat(l)%s2c(is, ic)/s
                END DO
             END DO
          END DO
@@ -257,12 +231,11 @@ CONTAINS
       IF (current_maxl > -1) THEN
          DO l = 0, SIZE(orbtramat, 1) - 1
             DEALLOCATE (orbtramat(l)%c2s)
-            DEALLOCATE (orbtramat(l)%slm)
             DEALLOCATE (orbtramat(l)%s2c)
+            DEALLOCATE (orbtramat(l)%slm)
+            DEALLOCATE (orbtramat(l)%slm_inv)
          END DO
          DEALLOCATE (orbtramat)
-         DEALLOCATE (c2s_tramat)
-         DEALLOCATE (s2c_tramat)
          current_maxl = -1
       END IF
 
@@ -309,9 +282,6 @@ CONTAINS
                nc = nco(l)
                ns = nso(l)
 
-               headline = "SPHERICAL HARMONICS"
-               CALL write_matrix(orbtramat(l)%slm, l, output_unit, headline)
-
                headline = "CARTESIAN ORBITAL TO SPHERICAL ORBITAL "// &
                           "TRANSFORMATION MATRIX"
                CALL write_matrix(orbtramat(l)%c2s, l, output_unit, headline)
@@ -319,6 +289,12 @@ CONTAINS
                headline = "SPHERICAL ORBITAL TO CARTESIAN ORBITAL "// &
                           "TRANSFORMATION MATRIX"
                CALL write_matrix(orbtramat(l)%s2c, l, output_unit, headline)
+
+               headline = "SPHERICAL HARMONICS"
+               CALL write_matrix(orbtramat(l)%slm, l, output_unit, headline)
+
+               headline = "INVERSE SPHERICAL HARMONICS"
+               CALL write_matrix(orbtramat(l)%slm_inv, l, output_unit, headline)
 
             END DO
 
