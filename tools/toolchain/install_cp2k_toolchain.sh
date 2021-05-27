@@ -93,16 +93,13 @@ OPTIONS:
                           options to values other than no will also switch --mpi-mode
                           to the respective mode.
 --math-mode               Selects which core math library to use. Available options
-                          are: acml, cray, mkl, openblas and reflapack. cray
+                          are: acml, cray, mkl, and openblas. cray
                           corresponds to cray libsci, and is the default for CRAY
                           (CLE) systems. For non-CRAY systems, if env variable MKLROOT
                           exists then mkl will be default, otherwise openblas is the
-                          default option. Note that reflapack corresponds to the
-                          reference LAPACK library, and is not really recommended for
-                          CP2K binaries used for real simulations. Explicitly setting
+                          default option. Explicitly setting
                           --with-acml, --with-mkl or --with-openblas options will
-                          switch --math-mode to the respective modes, BUT
-                          --with-reflapack option do not have this effect.
+                          switch --math-mode to the respective modes.
 --gpu-ver                 Selects the GPU architecture for which to compile. Available
                           options are: K20X, K40, K80, P100, V100, no. Default: no.
                           The script will determine the correct corresponding value for
@@ -118,10 +115,6 @@ The --enable-FEATURE options follow the rules:
   --enable-FEATURE        The option keyword alone is equivalent to
                           --enable-FEATURE=yes
 
-  --enable-tsan           If you are installing GCC using this script
-                          this option enables thread sanitizer support.
-                          This is only relevant for debugging purposes.
-                          Default = no
   --enable-gcc-master     If you are installing GCC using this script
                           this option forces the master development version
                           to be installed.
@@ -154,9 +147,6 @@ The --with-PKG options follow the rules:
                           Default = system
   --with-cmake            Cmake utilities
                           Default = install
-  --with-valgrind         Valgrind memory debugging tool, only used for
-                          debugging purposes.
-                          Default = no
   --with-openmpi          OpenMPI, important if you want parallel version
                           of CP2K.
                           Default = system
@@ -174,11 +164,6 @@ The --with-PKG options follow the rules:
                           Default = install
   --with-fftw             FFTW3, library for fast fourier transform
                           Default = install
-  --with-reflapack        Reference (vanilla) LAPACK and BLAS linear algebra libraries.
-                          One should use only ONE linear algebra library. This
-                          one is really mostly used for debugging purposes as it is
-                          non-optimised.
-                          Default = no
   --with-acml             AMD core maths library, which provides LAPACK and BLAS
                           Default = system
   --with-mkl              Intel Math Kernel Library, which provides LAPACK, and BLAS.
@@ -267,9 +252,9 @@ EOF
 # PACKAGE LIST: register all new dependent tools and libs here. Order
 # is important, the first in the list gets installed first
 # ------------------------------------------------------------------------
-tool_list="gcc cmake valgrind"
+tool_list="gcc cmake"
 mpi_list="mpich openmpi intelmpi"
-math_list="mkl acml openblas reflapack"
+math_list="mkl acml openblas"
 lib_list="fftw libint libxc libsmm libxsmm cosma scalapack elpa plumed \
           spfft spla ptscotch superlu pexsi quip gsl spglib hdf5 libvdwxc sirius
           libvori"
@@ -294,19 +279,18 @@ with_libint=__INSTALL__
 with_libxsmm=__INSTALL__
 with_libxc=__INSTALL__
 with_scalapack=__INSTALL__
-# default math library settings, FAST_MATH_MODE picks the math library
+# default math library settings, MATH_MODE picks the math library
 # to use, and with_* defines the default method of installation if it
 # is picked. For non-CRAY systems defaults to mkl if $MKLROOT is
 # available, otherwise defaults to openblas
 if [ "$MKLROOT" ]; then
-  export FAST_MATH_MODE=mkl
+  export MATH_MODE=mkl
 else
-  export FAST_MATH_MODE=openblas
+  export MATH_MODE=openblas
 fi
 with_acml=__SYSTEM__
 with_mkl=__SYSTEM__
 with_openblas=__INSTALL__
-with_reflapack=__DONTUSE__
 
 # sirius is activated by default
 with_sirius="__INSTALL__"
@@ -365,7 +349,7 @@ export LIBINT_LMAX=5
 # defaults for CRAY Linux Environment
 if [ "$CRAY_LD_LIBRARY_PATH" ]; then
   enable_cray=__TRUE__
-  export FAST_MATH_MODE=cray
+  export MATH_MODE=cray
   # Default MPI used by CLE is assumed to be MPICH, in any case
   # don't use the installers for the MPI libraries
   with_mpich="__DONTUSE__"
@@ -426,23 +410,20 @@ while [ $# -ge 1 ]; do
       user_input="${1#*=}"
       case "$user_input" in
         cray)
-          export FAST_MATH_MODE=cray
+          export MATH_MODE=cray
           ;;
         mkl)
-          export FAST_MATH_MODE=mkl
+          export MATH_MODE=mkl
           ;;
         acml)
-          export FAST_MATH_MODE=acml
+          export MATH_MODE=acml
           ;;
         openblas)
-          export FAST_MATH_MODE=openblas
-          ;;
-        reflapack)
-          export FAST_MATH_MODE=reflapack
+          export MATH_MODE=openblas
           ;;
         *)
           report_error ${LINENO} \
-            "--math-mode currently only supports mkl, acml, openblas and reflapack as options"
+            "--math-mode currently only supports mkl, acml, and openblas as options"
           ;;
       esac
       ;;
@@ -523,9 +504,6 @@ while [ $# -ge 1 ]; do
     --with-cmake*)
       with_cmake=$(read_with $1)
       ;;
-    --with-valgrind*)
-      with_valgrind=$(read_with $1)
-      ;;
     --with-mpich*)
       with_mpich=$(read_with $1)
       if [ $with_mpich != __DONTUSE__ ]; then
@@ -553,25 +531,22 @@ while [ $# -ge 1 ]; do
     --with-fftw*)
       with_fftw=$(read_with $1)
       ;;
-    --with-reflapack*)
-      with_reflapack=$(read_with $1)
-      ;;
     --with-mkl*)
       with_mkl=$(read_with $1)
       if [ $with_mkl != __DONTUSE__ ]; then
-        export FAST_MATH_MODE=mkl
+        export MATH_MODE=mkl
       fi
       ;;
     --with-acml*)
       with_acml=$(read_with $1)
       if [ $with_acml != __DONTUSE__ ]; then
-        export FAST_MATH_MODE=acml
+        export MATH_MODE=acml
       fi
       ;;
     --with-openblas*)
       with_openblas=$(read_with $1)
       if [ $with_openblas != __DONTUSE__ ]; then
-        export FAST_MATH_MODE=openblas
+        export MATH_MODE=openblas
       fi
       ;;
     --with-scalapack*)
@@ -650,30 +625,10 @@ export ENABLE_CUDA=$enable_cuda
 export ENABLE_CRAY=$enable_cray
 [ "$enable_gcc_master" = "__TRUE__" ] && export gcc_ver=master
 [ "$enable_libxsmm_master" = "__TRUE__" ] && export libxsmm_ver=master
-[ "$with_valgrind" != "__DONTUSE__" ] && export ENABLE_VALGRIND="__TRUE__"
 
 # ------------------------------------------------------------------------
 # Check and solve known conflicts before installations proceed
 # ------------------------------------------------------------------------
-
-# GCC thread sanitizer conflicts
-if [ $ENABLE_TSAN = "__TRUE__" ]; then
-  if [ "$with_openblas" != "__DONTUSE__" ]; then
-    echo "TSAN is enabled, cannot use openblas, we will use reflapack instead"
-    [ "$with_reflapack" = "__DONTUSE__" ] && with_reflapack="__INSTALL__"
-    export FAST_MATH_MODE=reflapack
-  fi
-  echo "TSAN is enabled, cannot use libsmm"
-  with_libsmm="__DONTUSE__"
-fi
-
-# valgrind conflicts
-if [ "$ENABLE_VALGRIND" = "__TRUE__" ]; then
-  if [ "$with_reflapack" = "__DONTUSE__" ]; then
-    echo "reflapack is automatically installed when valgrind is enabled"
-    with_reflapack="__INSTALL__"
-  fi
-fi
 
 # mpi library conflicts
 if [ $MPI_MODE = no ]; then
