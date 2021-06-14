@@ -442,14 +442,15 @@ ifeq (0,$(GNU)) # Intel
       LDFLAGS += -no-ipo
     endif
   else
-    CXXFLAGS := -debug $(CXXFLAGS)
-    FCFLAGS  := -debug $(FCFLAGS)
-    CFLAGS   := -debug $(CFLAGS)
-    ifneq (0,$(FPE))
-      FCFLAGS += -fpe0 # debugging NaNs
-    endif
-    ifneq (1,$(INTEL))
-      OPT ?= 1
+    ifeq (1,$(INTEL))
+      CXXFLAGS := -debug $(CXXFLAGS)
+      FCFLAGS  := -debug $(FCFLAGS)
+      CFLAGS   := -debug $(CFLAGS)
+      ifneq (0,$(FPE))
+        FCFLAGS += -fpe0 # debugging NaNs
+      endif
+    #else
+      #OPT ?= 1
     endif
     OPT ?= 0
   endif
