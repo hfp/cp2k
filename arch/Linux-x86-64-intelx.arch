@@ -1,19 +1,17 @@
 # Arch file targeting Linux 64-bit using the Intel tool chain
 #
-PERL := perl
+PERL      := perl
 # use compiler to preprocess Fortran code
-CPP := $(NULL)
-ACC := $(NULL)
-
-DFLAGS   += -D__NO_IPI_DRIVER
-CFLAGS   += -std=c99
-IFLAGS   += $(NULL)
-CXXFLAGS += $(NULL)
-FCFLAGS  += $(NULL)
-LDFLAGS  += $(NULL)
-ACCFLAGS += $(NULL)
-LIBS     += $(NULL)
-MIC ?= 0
+CPP       := $(NULL)
+ACC       := $(NULL)
+DFLAGS    := -D__NO_IPI_DRIVER
+CFLAGS    := -std=c99
+IFLAGS    := $(NULL)
+CXXFLAGS  := $(NULL)
+FCFLAGS   := $(NULL)
+LDFLAGS   := $(NULL)
+ACCFLAGS  := $(NULL)
+LIBS      := $(NULL)
 
 # LIBXSMM (https://github.com/hfp/libxsmm)
 #LIBXSMMROOT := /path/to/libxsmm
@@ -378,6 +376,7 @@ else
   CC_VERSION := 0
 endif
 
+MIC ?= 0
 ifeq (0,$(GNU)) # Intel
   ifeq (0,$(INTEL))
     $(info ================================================================================)
