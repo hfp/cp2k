@@ -1,17 +1,20 @@
 # Arch file targeting Linux 64-bit using the Intel tool chain
 #
-PERL      := perl
+PERL        := perl
 # use compiler to preprocess Fortran code
-CPP       := $(NULL)
-ACC       := $(NULL)
-DFLAGS    := -D__NO_IPI_DRIVER
-CFLAGS    := -std=c99
-IFLAGS    := $(NULL)
-CXXFLAGS  := $(NULL)
-FCFLAGS   := $(NULL)
-LDFLAGS   := $(NULL)
-ACCFLAGS  := $(NULL)
-LIBS      := $(NULL)
+CPP         := $(NULL)
+ACC         := $(NULL)
+DFLAGS      := -D__NO_IPI_DRIVER
+CFLAGS      := -std=c99
+IFLAGS      := $(NULL)
+CXXFLAGS    := $(NULL)
+FCFLAGS     := $(NULL)
+LDFLAGS     := $(NULL)
+ACCFLAGS    := $(NULL)
+LIBS        := $(NULL)
+LIBDIRNAME  := lib
+OBJDIRNAME  := obj
+EXTSDIR     := exts
 
 # LIBXSMM (https://github.com/hfp/libxsmm)
 #LIBXSMMROOT := /path/to/libxsmm
@@ -96,7 +99,6 @@ else
   NDEBUG ?= 0
 endif
 
-EXTSDIR ?= exts
 EXTSHOME ?= $(CP2KHOME)/$(EXTSDIR)
 LEGACY ?= $(if $(wildcard $(EXTSHOME)/dbcsr),0,1)
 UNAME ?= $(shell uname 2>/dev/null)
@@ -797,9 +799,6 @@ ifneq (,$(wildcard $(LIBSMM_LIB))) # LIBSMM successfully downloaded
   DFLAGS += -D__HAS_smm_dnn
   LIBS += $(LIBSMM_LIB)
 endif
-
-LIBDIRNAME := lib
-OBJDIRNAME := obj
 
 ifneq (,$(LIBXSMMROOT))
   # 1: SMMs, 2: 1+UnreleasedFeat, 3: 2+AllGEMM
