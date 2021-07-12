@@ -156,6 +156,17 @@ TBBMALLOC ?= 0
 # TBB runtime compatible with oldest supported GCC
 TBBGCC_OLD ?= 1
 
+ifeq (opencl,$(USE_ACCEL))
+  OCL := 1
+else ifeq (cuda,$(USE_ACCEL))
+  CUDA := 1
+else ifeq (,$(USE_ACCEL))
+  $(info ============================)
+  $(info USE_ACCEL=$(USE_ACCEL) not supported!)
+  $(info ============================)
+  $(error USE_ACCEL)
+endif
+
 OCL ?= 0
 CUDA ?= 0
 ifneq (,$(filter-out 0,$(OCL) $(CUDA)))
