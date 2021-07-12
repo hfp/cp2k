@@ -102,7 +102,9 @@ else
 endif
 
 EXTSHOME ?= $(CP2KHOME)/$(EXTSDIR)
-LEGACY ?= $(if $(wildcard $(EXTSHOME)/dbcsr),0,1)
+EXTDBCSR ?= $(EXTSHOME)/dbcsr
+DBCSRSRC ?= $(EXTDBCSR)/src
+LEGACY ?= $(if $(wildcard $(EXTDBCSR)),0,1)
 UNAME ?= $(shell uname 2>/dev/null)
 
 ifeq (0,$(LEGACY))
@@ -160,7 +162,7 @@ ifeq (opencl,$(USE_ACCEL))
   OCL := 1
 else ifeq (cuda,$(USE_ACCEL))
   CUDA := 1
-else ifeq (,$(USE_ACCEL))
+else ifneq (,$(USE_ACCEL))
   $(info ============================)
   $(info USE_ACCEL=$(USE_ACCEL) not supported!)
   $(info ============================)
