@@ -173,6 +173,7 @@ ifneq (,$(filter-out 0,$(OCL) $(CUDA)))
       endif
       LDFLAGS += -lOpenCL
     endif
+    USE_ACCEL := opencl
     ACCFLAGS += $(CFLAGS)
     ACC := $(CC)
   else
@@ -190,6 +191,7 @@ ifneq (,$(filter-out 0,$(OCL) $(CUDA)))
         NVCFLAGS := $(addprefix -Xcompiler $(NULL),$(filter-out -Wl%,$(OPTFLAGS)))
         ACCFLAGS += $(NVCFLAGS) $(DFLAGS)
         NVFLAGS += $(NVCFLAGS) $(DFLAGS)
+        USE_ACCEL := cuda
         ACC := $(NVCC)
         IPO := 0
       else
