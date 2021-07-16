@@ -9,8 +9,8 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")/.." && pwd -P)"
 
-libxc_ver="5.1.4"
-libxc_sha256="a7a370f029ea55a241399ce7e6d1077614bc5fa49be8b40208d623e5e419e00c"
+libxc_ver="5.1.5"
+libxc_sha256="02e4615a22dc3ec87a23efbd3d9be5bfad2445337140bad1720699571c45c3f9"
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh
 source "${SCRIPT_DIR}"/signal_trap.sh
@@ -43,7 +43,8 @@ case "$with_libxc" in
       [ -d libxc-${libxc_ver} ] && rm -rf libxc-${libxc_ver}
       tar -xzf libxc-${libxc_ver}.tar.gz
       cd libxc-${libxc_ver}
-      ./configure --prefix="${pkg_install_dir}" --libdir="${pkg_install_dir}/lib" > configure.log 2>&1
+      # CP2K does not make use of fourth derivatives, so skip their compilation with --disable-lxc
+      ./configure --prefix="${pkg_install_dir}" --libdir="${pkg_install_dir}/lib" --disable-lxc > configure.log 2>&1
       make -j $(get_nprocs) > make.log 2>&1
       make install > install.log 2>&1
       cd ..
