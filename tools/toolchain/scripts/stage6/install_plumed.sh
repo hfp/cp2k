@@ -52,7 +52,10 @@ case "$with_plumed" in
       # note: some MPI wrappers carry a -g forward, thus stripping is not enough
 
       libs=""
-      [ -n "${MKL_LIBS}" ] && libs+="${MKL_LIBS}"
+      [ -n "${MKL_LIBS}" ] && libs+="$(resolve_string "${MKL_LIBS}" "MPI")"
+
+      # Patch to include <limits> explicitly as required by gcc >= 11.
+      sed -i '/^#include <algorithm>/a #include <limits>' ./src/lepton/Operation.h
 
       ./configure \
         CXX="${MPICXX}" \
