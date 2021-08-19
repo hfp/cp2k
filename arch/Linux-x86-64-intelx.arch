@@ -616,13 +616,13 @@ ifneq (0,$(LIBINT)) # incl. undefined
   else ifneq (0,$(GNU))
     ifneq (,$(wildcard $(CP2KHOME)/../libint/gnu))
       LIBINTROOT ?= $(abspath $(CP2KHOME)/../libint/gnu)
-    else ifneq (,$(wildcard $(HOME)/libint/gnu)
+    else ifneq (,$(wildcard $(HOME)/libint/gnu))
       LIBINTROOT ?= $(abspath $(HOME)/libint/gnu)
     endif
   else ifneq (0,$(INTEL))
     ifneq (,$(wildcard $(CP2KHOME)/../libint/intel))
       LIBINTROOT ?= $(abspath $(CP2KHOME)/../libint/intel)
-    else ifneq (,$(wildcard $(HOME)/libint/intel)
+    else ifneq (,$(wildcard $(HOME)/libint/intel))
       LIBINTROOT ?= $(abspath $(HOME)/libint/intel)
     endif
   endif
@@ -641,13 +641,13 @@ ifneq (0,$(PLUMED)) # incl. undefined
   else ifneq (0,$(GNU))
     ifneq (,$(wildcard $(CP2KHOME)/../plumed/gnu))
       PLUMEDROOT ?= $(abspath $(CP2KHOME)/../plumed/gnu)
-    else ifneq (,$(wildcard $(HOME)/plumed/gnu)
+    else ifneq (,$(wildcard $(HOME)/plumed/gnu))
       PLUMEDROOT ?= $(abspath $(HOME)/plumed/gnu)
     endif
   else ifneq (0,$(INTEL))
     ifneq (,$(wildcard $(CP2KHOME)/../plumed/intel))
       PLUMEDROOT ?= $(abspath $(CP2KHOME)/../plumed/intel)
-    else ifneq (,$(wildcard $(HOME)/plumed/intel)
+    else ifneq (,$(wildcard $(HOME)/plumed/intel))
       PLUMEDROOT ?= $(abspath $(HOME)/plumed/intel)
     endif
   endif
@@ -666,13 +666,13 @@ ifneq (0,$(LIBXC)) # incl. undefined
   else ifneq (0,$(GNU))
     ifneq (,$(wildcard $(CP2KHOME)/../libxc/gnu))
       LIBXCROOT ?= $(abspath $(CP2KHOME)/../libxc/gnu)
-    else ifneq (,$(wildcard $(HOME)/libxc/gnu)
+    else ifneq (,$(wildcard $(HOME)/libxc/gnu))
       LIBXCROOT ?= $(abspath $(HOME)/libxc/gnu)
     endif
   else ifneq (0,$(INTEL))
     ifneq (,$(wildcard $(CP2KHOME)/../libxc/intel))
       LIBXCROOT ?= $(abspath $(CP2KHOME)/../libxc/intel)
-    else ifneq (,$(wildcard $(HOME)/libxc/intel)
+    else ifneq (,$(wildcard $(HOME)/libxc/intel))
       LIBXCROOT ?= $(abspath $(HOME)/libxc/intel)
     endif
   endif
@@ -691,13 +691,13 @@ ifneq (0,$(ELPA)) # incl. undefined
   else ifneq (0,$(GNU))
     ifneq (,$(wildcard $(CP2KHOME)/../elpa/gnu))
       ELPAROOT ?= $(abspath $(CP2KHOME)/../elpa/gnu)
-    else ifneq (,$(wildcard $(HOME)/elpa/gnu)
+    else ifneq (,$(wildcard $(HOME)/elpa/gnu))
       ELPAROOT ?= $(abspath $(HOME)/elpa/gnu)
     endif
   else ifneq (0,$(INTEL))
     ifneq (,$(wildcard $(CP2KHOME)/../elpa/intel))
       ELPAROOT ?= $(abspath $(CP2KHOME)/../elpa/intel)
-    else ifneq (,$(wildcard $(HOME)/elpa/intel)
+    else ifneq (,$(wildcard $(HOME)/elpa/intel))
       ELPAROOT ?= $(abspath $(HOME)/elpa/intel)
     endif
   endif
