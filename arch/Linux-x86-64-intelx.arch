@@ -577,11 +577,6 @@ ifneq (,$(TGT))
 else
   XCFG := $(CFG)
 endif
-ifneq (0,$(OMP))
-  XCFGOMP := $(XCFG)-omp
-else
-  XCFGOMP := $(XCFG)
-endif
 
 $(info ================================================================================)
 $(info Using the following libraries:)
@@ -616,6 +611,15 @@ endif
 ifneq (0,$(LIBINT)) # incl. undefined
   LIBINTROOT ?= $(abspath $(wildcard $(CP2KHOME)/../libint/$(XCFG)))
   LIBINTROOT ?= $(abspath $(wildcard $(HOME)/libint/$(XCFG)))
+  ifeq (,$(LIBINTROOT))
+    ifneq (0,$(GNU))
+      LIBINTROOT ?= $(abspath $(wildcard $(CP2KHOME)/../libint/gnu))
+      LIBINTROOT ?= $(abspath $(wildcard $(HOME)/libint/gnu))
+    else ifneq (0,$(INTEL))
+      LIBINTROOT ?= $(abspath $(wildcard $(CP2KHOME)/../libint/intel))
+      LIBINTROOT ?= $(abspath $(wildcard $(HOME)/libint/intel))
+    endif
+  endif
   ifeq (/,$(LIBINTROOT))
     LIBINTROOT := $(NULL)
   endif
@@ -626,6 +630,15 @@ endif
 ifneq (0,$(PLUMED)) # incl. undefined
   PLUMEDROOT ?= $(abspath $(wildcard $(CP2KHOME)/../plumed/$(XCFG)))
   PLUMEDROOT ?= $(abspath $(wildcard $(HOME)/plumed/$(XCFG)))
+  ifeq (,$(PLUMEDROOT))
+    ifneq (0,$(GNU))
+      PLUMEDROOT ?= $(abspath $(wildcard $(CP2KHOME)/../plumed/gnu))
+      PLUMEDROOT ?= $(abspath $(wildcard $(HOME)/plumed/gnu))
+    else ifneq (0,$(INTEL))
+      PLUMEDROOT ?= $(abspath $(wildcard $(CP2KHOME)/../plumed/intel))
+      PLUMEDROOT ?= $(abspath $(wildcard $(HOME)/plumed/intel))
+    endif
+  endif
   ifeq (/,$(PLUMEDROOT))
     PLUMEDROOT := $(NULL)
   endif
@@ -636,6 +649,15 @@ endif
 ifneq (0,$(LIBXC)) # incl. undefined
   LIBXCROOT ?= $(abspath $(wildcard $(CP2KHOME)/../libxc/$(XCFG)))
   LIBXCROOT ?= $(abspath $(wildcard $(HOME)/libxc/$(XCFG)))
+  ifeq (,$(LIBXCROOT))
+    ifneq (0,$(GNU))
+      LIBXCROOT ?= $(abspath $(wildcard $(CP2KHOME)/../libxc/gnu))
+      LIBXCROOT ?= $(abspath $(wildcard $(HOME)/libxc/gnu))
+    else ifneq (0,$(INTEL))
+      LIBXCROOT ?= $(abspath $(wildcard $(CP2KHOME)/../libxc/intel))
+      LIBXCROOT ?= $(abspath $(wildcard $(HOME)/libxc/intel))
+    endif
+  endif
   ifeq (/,$(LIBXCROOT))
     LIBXCROOT := $(NULL)
   endif
@@ -644,8 +666,22 @@ ifneq (0,$(LIBXC)) # incl. undefined
   endif
 endif
 ifneq (0,$(ELPA)) # incl. undefined
-  ELPAROOT ?= $(abspath $(wildcard $(CP2KHOME)/../elpa/$(XCFGOMP)))
+  ELPAROOT ?= $(abspath $(wildcard $(CP2KHOME)/../elpa/$(XCFG)))
   ELPAROOT ?= $(abspath $(wildcard $(HOME)/elpa/$(XCFG)))
+  ifeq (,$(ELPAROOT))
+    ifneq (0,$(GNU))
+      ELPAROOT ?= $(abspath $(wildcard $(CP2KHOME)/../elpa/gnu))
+      ELPAROOT ?= $(abspath $(wildcard $(HOME)/elpa/gnu))
+    else ifneq (0,$(INTEL))
+      ELPAROOT ?= $(abspath $(wildcard $(CP2KHOME)/../libxc/intel))
+      ELPAROOT ?= $(abspath $(wildcard $(HOME)/elpa/intel))
+    endif
+  endif
+  ifneq (,$(ELPAROOT))
+  ifneq (0,$(OMP))
+    ELPAROOT := $(ELPAROOT)-omp
+  endif
+  endif
   ifeq (/,$(COSMAROOT))
     ELPAROOT := $(NULL)
   endif
