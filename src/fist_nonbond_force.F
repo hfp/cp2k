@@ -38,14 +38,9 @@ MODULE fist_nonbond_force
    USE mathlib,                         ONLY: matvec_3x3
    USE message_passing,                 ONLY: mp_sum
    USE pair_potential_coulomb,          ONLY: potential_coulomb
-   USE pair_potential_types,            ONLY: gal_type,&
-                                              nosh_nosh,&
-                                              nosh_sh,&
-                                              pair_potential_pp_type,&
-                                              pair_potential_single_type,&
-                                              sh_sh,&
-                                              siepmann_type,&
-                                              tersoff_type
+   USE pair_potential_types,            ONLY: &
+        gal21_type, gal_type, nosh_nosh, nosh_sh, pair_potential_pp_type, &
+        pair_potential_single_type, sh_sh, siepmann_type, tersoff_type
    USE particle_types,                  ONLY: particle_type
    USE shell_potential_types,           ONLY: get_shell,&
                                               shell_kind_type
@@ -234,7 +229,7 @@ CONTAINS
                fac_ei = fac_kind
                fac_vdw = fac_kind
                full_nl = ANY(pot%type == tersoff_type) .OR. ANY(pot%type == siepmann_type) &
-                         .OR. ANY(pot%type == gal_type)
+                         .OR. ANY(pot%type == gal_type) .OR. ANY(pot%type == gal21_type)
                IF ((.NOT. full_nl) .AND. (atom_a == atom_b)) THEN
                   fac_ei = 0.5_dp*fac_ei
                   fac_vdw = 0.5_dp*fac_vdw
@@ -343,6 +338,8 @@ CONTAINS
                      rab_list(1:3, 2) = 0.0_dp
                      rab_list(1:3, 3) = 0.0_dp
                      rab_list(1:3, 4) = rab_ss(1:3) + cell_v(1:3)
+                  ELSE
+                     rab_list(:, :) = 0.0_dp
                   END IF
                   ! Compute the term only if all the pairs (cc,cs,sc,ss) are within the cut-off
                   Check_terms: DO i = 1, 4
@@ -359,6 +356,7 @@ CONTAINS
                   rab_com = rab_cc
                   shell_a = 0
                   shell_b = 0
+                  rab_list(:, :) = 0.0_dp
                END IF
                rab_com = rab_com + cell_v
                rab2_com = rab_com(1)**2 + rab_com(2)**2 + rab_com(3)**2
@@ -728,7 +726,7 @@ CONTAINS
                ! Determine the scaling factors
                fac_ei = ij_kind_full_fac(kind_a, kind_b)
                full_nl = ANY(pot%type == tersoff_type) .OR. ANY(pot%type == siepmann_type) &
-                         .OR. ANY(pot%type == gal_type)
+                         .OR. ANY(pot%type == gal_type) .OR. ANY(pot%type == gal21_type)
                IF ((.NOT. full_nl) .AND. (atom_a == atom_b)) THEN
                   fac_ei = fac_ei*0.5_dp
                END IF

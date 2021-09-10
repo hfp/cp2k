@@ -47,7 +47,7 @@ case "$with_fftw" in
       [ -d fftw-${fftw_ver} ] && rm -rf fftw-${fftw_ver}
       tar -xzf ${fftw_pkg}
       cd fftw-${fftw_ver}
-      FFTW_FLAGS="--enable-openmp --enable-shared --enable-static"
+      FFTW_FLAGS="--enable-openmp --disable-shared --enable-static"
       # fftw has mpi support but not compiled by default. so compile it if we build with mpi.
       # it will create a second library to link with if needed
       [ "$MPI_MODE" != "no" ] && FFTW_FLAGS="--enable-mpi ${FFTW_FLAGS}"
@@ -58,7 +58,7 @@ case "$with_fftw" in
       make -j $(get_nprocs) > make.log 2>&1
       make install > install.log 2>&1
       cd ..
-      write_checksums "${install_lock_file}" "${SCRIPT_DIR}/stage2/$(basename ${SCRIPT_NAME})"
+      write_checksums "${install_lock_file}" "${SCRIPT_DIR}/stage3/$(basename ${SCRIPT_NAME})"
     fi
     FFTW_CFLAGS="-I'${pkg_install_dir}/include'"
     FFTW_LDFLAGS="-L'${pkg_install_dir}/lib' -Wl,-rpath='${pkg_install_dir}/lib'"
@@ -83,7 +83,8 @@ case "$with_fftw" in
     ;;
 esac
 if [ "$with_fftw" != "__DONTUSE__" ]; then
-  FFTW_LIBS="-lfftw3 -lfftw3_omp"
+  [ "$MPI_MODE" != "no" ] && FFTW_LIBS="IF_MPI(-lfftw3_mpi|) "
+  FFTW_LIBS+="-lfftw3 -lfftw3_omp"
   if [ "$with_fftw" != "__SYSTEM__" ]; then
     cat << EOF > "${BUILDDIR}/setup_fftw"
 prepend_path LD_LIBRARY_PATH "$pkg_install_dir/lib"
@@ -94,17 +95,18 @@ EOF
   fi
   # we may also want to cover FFT_SG
   cat << EOF >> "${BUILDDIR}/setup_fftw"
+export FFTW3_INCLUDES="${FFTW_CFLAGS}"
+export FFTW3_LIBS="${FFTW_LIBS}"
 export FFTW_CFLAGS="${FFTW_CFLAGS}"
 export FFTW_LDFLAGS="${FFTW_LDFLAGS}"
 export FFTW_LIBS="${FFTW_LIBS}"
 export CP_DFLAGS="\${CP_DFLAGS} -D__FFTW3 IF_COVERAGE(IF_MPI(|-U__FFTW3)|)"
 export CP_CFLAGS="\${CP_CFLAGS} ${FFTW_CFLAGS}"
 export CP_LDFLAGS="\${CP_LDFLAGS} ${FFTW_LDFLAGS}"
-export CP_LIBS="IF_MPI(-lfftw3_mpi|) ${FFTW_LIBS} \${CP_LIBS}"
+export CP_LIBS="${FFTW_LIBS} \${CP_LIBS}"
 prepend_path PKG_CONFIG_PATH "$pkg_install_dir/lib/pkgconfig"
 export FFTW_ROOT="$pkg_install_dir"
 EOF
-
   cat "${BUILDDIR}/setup_fftw" >> $SETUPFILE
 fi
 cd "${ROOTDIR}"

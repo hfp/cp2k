@@ -83,13 +83,13 @@ MODULE bibliography
                             Stoychev2016, Futera2017, Bailey2006, Papior2017, Lehtola2018, &
                             Brieuc2016, Barca2018, Scheiber2018, Huang2011, Heaton_Burgess2007, &
                             Schuett2018, Holmberg2018, Togo2018, Staub2019, Grimme2013, Grimme2016, &
-                            Grimme2017, Kondov2007, Clabaut2020, &
+                            Grimme2017, Kondov2007, Clabaut2020, Clabaut2021, &
                             Ren2011, Ren2013, Cohen2000, Rogers2002, Filippetti2000, &
                             Limpanuparb2011, Martin2003, Yin2017, Goerigk2017, &
                             Wilhelm2016a, Wilhelm2016b, Wilhelm2017, Wilhelm2018, Lass2018, cp2kqs2020, &
                             Behler2007, Behler2011, Schran2020a, Schran2020b, &
                             Rycroft2009, Thomas2015, Brehm2018, Brehm2020, Shigeta2001, Heinecke2016, &
-                            Brehm2021
+                            Brehm2021, Bussy2021a, Bussy2021b
 
 CONTAINS
 
@@ -4118,6 +4118,18 @@ CONTAINS
                          "ER"), &
                          DOI="10.1021/acs.jctc.0c00091")
 
+      CALL add_reference(key=Clabaut2021, ISI_record=s2a( &
+                         "AU Clabaut, P", &
+                         "AF Clabaut, P", &
+                         "TI Ph.D. Solvation and adsorptions at the solid/water interface : Developments and applications", &
+                         "SO ", &
+                         "SN None", &
+                         "PY 2021", &
+                         "VL None", &
+                         "DI None", &
+                         "ER"), &
+                         DOI="None")
+
       CALL add_reference(key=Richters2018, ISI_record=s2a( &
                          "AU Richters, D", &
                          "   Lass, M", &
@@ -4614,6 +4626,40 @@ CONTAINS
                          "IS 4-5", &
                          "ER"), &
                          DOI="10.1002/qua.1543")
+
+      CALL add_reference(key=Bussy2021a, ISI_record=s2a( &
+                         "TI Efficient and low-scaling linear-response time-dependent density ", &
+                         "   functional theory implementation for core-level spectroscopy of ", &
+                         "   large and periodic systems", &
+                         "AU Bussy, Augustin", &
+                         "   Hutter, Juerg", &
+                         "PY 2021", &
+                         "BP 4736", &
+                         "EP 4746", &
+                         "JF Physical Chemistry Chemical Physics", &
+                         "SO Phys. Chem. Chem. Phys.", &
+                         "VL 23", &
+                         "IS 8", &
+                         "PB The Royal Society of Chemistry", &
+                         "DI 10.1039/D0CP06164F ", &
+                         "ER"), &
+                         DOI="10.1039/D0CP06164F")
+
+      CALL add_reference(key=Bussy2021b, ISI_record=s2a( &
+                         "TI First-principles correction scheme for linear-response time-dependent ", &
+                         "   density functional theory calculations of core electronic states", &
+                         "AU Bussy, Augustin", &
+                         "   Hutter, Juerg", &
+                         "PY 2021", &
+                         "SP 034108", &
+                         "JF The Journal of Chemical Physics", &
+                         "SO J. Chem. Phys.", &
+                         "VL 155", &
+                         "IS 3", &
+                         "PB American Institute of Physics", &
+                         "DI 10.1063/5.0058124 ", &
+                         "ER"), &
+                         DOI="10.1063/5.0058124")
 
       CALL add_reference(key=Heinecke2016, ISI_record=s2a( &
                          "PT S", &

@@ -177,8 +177,8 @@ the FFTW3 threading library libfftw3_threads (or libfftw3_omp) is required.
 
 ### 2j. CUDA (optional, improved performance on GPU systems)
 
-- Specify NVCC (e.g. `NVCC = nvcc`) and
-  NVFLAGS (e.g. `NVFLAGS = -O3 -g -w --std=c++11`) variables.
+- Specify OFFLOAD_CC (e.g. `OFFLOAD_CC = nvcc`) and
+  OFFLOAD_FLAGS (e.g. `OFFLOAD_FLAGS = -O3 -g -w --std=c++11`) variables.
 - Use the `-D__DBCSR_ACC` to enable accelerator support for matrix multiplications.
 - Add `-lstdc++ -lcudart -lnvrtc -lcuda -lcublas` to LIBS.
 - Specify the GPU type (e.g. `GPUVER   = P100`),
@@ -189,7 +189,7 @@ the FFTW3 threading library libfftw3_threads (or libfftw3_omp) is required.
 - CUFFT 7.0 has a known bug and is therefore disabled by default.
   NVIDIA's webpage list a patch (an upgraded version cufft i.e. >= 7.0.35) -
   use this together with `-D__HAS_PATCHED_CUFFT_70`.
-- Use `-D__CUDA_PROFILING` to turn on Nvidia Tools Extensions.
+- Use `-D__OFFLOAD_PROFILING` to turn on Nvidia Tools Extensions.
   It requires to link `-lnvToolsExt`.
 - Link to a blas/scalapack library that accelerates large DGEMMs (e.g. libsci_acc)
 - Use the `-D__GRID_CUDA` to compile the GPU and HYBRID backends for the grid library.
@@ -197,6 +197,8 @@ the FFTW3 threading library libfftw3_threads (or libfftw3_omp) is required.
 ### 2k. libxc (optional, wider choice of xc functionals)
 
 - The version 5.1.0 (or later) of libxc can be downloaded from <https://www.tddft.org/programs/libxc>
+- CP2K does not make use of fourth derivates such that libxc may be configured
+  with './configure --disable-lxc \<other libxc configuration flags\>'.
 - During the installation, the directories `$(LIBXC_DIR)/lib`
   and `$(LIBXC_DIR)/include` are created.
 - Add `-D__LIBXC` to DFLAGS, `-I$(LIBXC_DIR)/include` to FCFLAGS
@@ -212,6 +214,8 @@ Library ELPA for the solution of the eigenvalue problem
 - During the installation the `libelpa_openmp.a` is created.
 - Minimal supported version of ELPA is 2018.05.001.
 - Add `-D__ELPA` to `DFLAGS`
+- Add `-D__ELPA_NVIDIA_GPU`, `-D__ELPA_AMD_GPU`, or `-D__ELPA_INTEL_GPU`
+  to `DFLAGS` to enable GPU support for the respective vendor.
 - Add `-I$(ELPA_INCLUDE_DIR)/modules` to `FCFLAGS`
 - Add `-I$(ELPA_INCLUDE_DIR)/elpa` to `FCFLAGS`
 - Add `-L$(ELPA_DIR)` to `LDFLAGS`
@@ -277,7 +281,7 @@ SIRIUS is a domain specific library for electronic structure calculations.
 
 - The code is available at <https://github.com/electronic-structure/SIRIUS>
 - For building CP2K with SIRIUS add `-D__SIRIUS` to DFLAGS.
-- See <https://electronic-structure.github.io/SIRIUS/> for more information.
+- See <https://electronic-structure.github.io/SIRIUS-doc/> for more information.
 
 ### 2r. FPGA (optional, plane wave FFT calculations)
 
@@ -301,10 +305,9 @@ SIRIUS is a domain specific library for electronic structure calculations.
 
 ### 2s. COSMA (Distributed Communication-Optimal Matrix-Matrix Multiplication Algorithm)
 
-- COSMA is a replacement of the pdgemm routine included in scalapack. The
-  library supports both CPU and GPUs. No specific flag during compilation is
-  needed to use the library in cp2k, excepted during linking time where the
-  library should be placed in front of the scalapack library.
+- COSMA is an alternative for the pdgemm routine included in ScaLAPACK.
+  The library supports both CPU and GPUs.
+- Add `-D__COSMA` to the DFLAGS to enable support for COSMA.
 - see <https://github.com/eth-cscs/COSMA> for more information.
 
 ### 2t. LibVori (Voronoi Integration for Electrostatic Properties from Electron Density)
@@ -317,6 +320,28 @@ SIRIUS is a domain specific library for electronic structure calculations.
 - LibVori also enables support for the BQB file format for compressed trajectories,
   please see <https://brehm-research.de/bqb> for more information as well as
   the `bqbtool` to inspect BQB files.
+
+### 2u. ROCM/HIP (Support for AMD GPU)
+
+The code for the grid backend was developed and tested on Mi100 but should work
+out of the box on Nvidia hardware as well.
+
+- USE `-D__GRID_HIP` to enable AMD GPU support for collocate and integrate
+  runtines.
+- Add `GPUVER=Mi50, Mi60, Mi100`
+- Add 'OFFLOAD_CC = hipcc'
+- Add  `-lamdhip64` to the `LIBS` variable
+- Add `OFFLOAD_FLAGS ='-fopenmp -m64 -pthread -fPIC -D__GRID_HIP -O2
+  --offload-arch=gfx908 --rocm-path=$(ROCM_PATH)`' where 'ROCM_PATH' is the path
+  where the rocm dsk resides. Architectures Mi100 (gfx908), Mi50 (gfx906)
+- the hip backend for the grid library supports nvidia hardware as well. It uses
+  the same code and can be used to validate the backend in case of access to
+  Nvidia hardware only. To get the compilation working, follow the steps above
+  and set the `OFFLOAD_FLAGS` with right `nvcc` parameters (see the cuda section
+  of this document). The environment variable `HIP_PLATFORM` should be set to
+  `HIP_PLATFORM=nvidia` to indicate to hipcc to use the nvcc compiler instead.
+- Use `-D__OFFLOAD_PROFILING` to turn on the AMD ROC TX and Tracer libray.
+  It requires to link `-lroctx64 -lroctracer64`.
 
 <!---
 ### 2u. LibMaxwell (External Maxwell Solver)
@@ -427,7 +452,7 @@ partially depending on installed libraries (see 2.)
 Features useful to deal with legacy systems
 
 - `-D__NO_MPI_THREAD_SUPPORT_CHECK`  - Workaround for MPI libraries that do not
-  declare they are thread safe (funneled).
+  declare they are thread safe (serialized).
 - `-D__NO_IPI_DRIVER` disables the socket interface in case of troubles compiling
   on systems that do not support POSIX sockets.
 - `-D__HAS_IEEE_EXCEPTIONS` disables trapping temporarily for libraries like scalapack.

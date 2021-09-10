@@ -9,12 +9,8 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")/.." && pwd -P)"
 
-gcc_ver="10.2.0"
-gcc_sha256="27e879dccc639cd7b0cc08ed575c1669492579529b53c9ff27b0b96265fa867d"
-
-patches=(
-  "${SCRIPT_DIR}/stage0/gcc-${gcc_ver}-cpp-__has_include.patch"
-)
+gcc_ver="11.2.0"
+gcc_sha256="f0837f1bf8244a5cc23bd96ff6366712a791cfae01df8e25b137698aca26efc1"
 
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh
@@ -54,14 +50,19 @@ case "$with_gcc" in
       echo "Installing GCC from scratch into ${pkg_install_dir}"
       cd gcc-${gcc_ver}
 
-      for patch in "${patches[@]}"; do
-        patch -p1 < "${patch}"
-      done
-
       ./contrib/download_prerequisites > prereq.log 2>&1
       GCCROOT=${PWD}
       mkdir obj
       cd obj
+      # TODO: Maybe use --disable-libquadmath-support to improve static linking:
+      # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=46539
+      #
+      # TODO: Maybe use --disable-gnu-unique-object to improve static linking:
+      # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=60348#c13
+      # https://stackoverflow.com/questions/11931420
+      #
+      # TODO: Unfortunately, we can not simply use --disable-shared, because
+      # it would break OpenBLAS build and probably others too.
       ${GCCROOT}/configure --prefix="${pkg_install_dir}" \
         --libdir="${pkg_install_dir}/lib" \
         --enable-languages=c,c++,fortran \

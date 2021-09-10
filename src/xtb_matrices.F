@@ -876,8 +876,14 @@ CONTAINS
       ENDIF
       ! set repulsive energy
       erep = erep + exb + enonbonded
-      IF (xb_inter) energy%xtb_xb_inter = exb
-      IF (do_nonbonded) energy%xtb_nonbonded = enonbonded
+      IF (xb_inter) THEN
+         CALL mp_sum(exb, para_env%group)
+         energy%xtb_xb_inter = exb
+      END IF
+      IF (do_nonbonded) THEN
+         CALL mp_sum(enonbonded, para_env%group)
+         energy%xtb_nonbonded = enonbonded
+      END IF
       CALL mp_sum(erep, para_env%group)
       energy%repulsive = erep
 
@@ -1308,8 +1314,8 @@ CONTAINS
                                                             jatom, jkind, kk, ntype
       INTEGER, DIMENSION(3)                              :: cell
       LOGICAL                                            :: do_ewald
-      REAL(KIND=dp)                                      :: dedf, dr, dx, energy_cutoff, err, lerr, &
-                                                            rcut
+      REAL(KIND=dp)                                      :: dedf, dr, dx, energy_cutoff, err, fval, &
+                                                            lerr, rcut
       REAL(KIND=dp), DIMENSION(3)                        :: fij, rij
       TYPE(ewald_environment_type), POINTER              :: ewald_env
       TYPE(neighbor_list_iterator_p_type), &
@@ -1318,8 +1324,6 @@ CONTAINS
       TYPE(pair_potential_pp_type), POINTER              :: potparm
       TYPE(pair_potential_single_type), POINTER          :: pot
       TYPE(section_vals_type), POINTER                   :: nonbonded_section
-
-!
 
       CALL timeset(routineN, handle)
 
@@ -1348,12 +1352,14 @@ CONTAINS
          pot => potparm%pot(ikind, jkind)%pot
          dr = SQRT(rij(1)**2 + rij(2)**2 + rij(3)**2)
          rcut = SQRT(pot%rcutsq)
-         IF (dr <= rcut) THEN
-! splines not implemented
-            enonbonded = enonbonded + ener_pot(pot, dr, energy_cutoff)
+         IF (dr <= rcut .AND. dr > 1.E-3_dp) THEN
+            fval = 1.0_dp
+            IF (ikind == jkind) fval = 0.5_dp
+            ! splines not implemented
+            enonbonded = enonbonded + fval*ener_pot(pot, dr, energy_cutoff)
             IF (atprop%energy) THEN
-               atprop%atecc(iatom) = atprop%atecc(iatom) + 0.5_dp*ener_pot(pot, dr, energy_cutoff)
-               atprop%atecc(jatom) = atprop%atecc(jatom) + 0.5_dp*ener_pot(pot, dr, energy_cutoff)
+               atprop%atecc(iatom) = atprop%atecc(iatom) + 0.5_dp*fval*ener_pot(pot, dr, energy_cutoff)
+               atprop%atecc(jatom) = atprop%atecc(jatom) + 0.5_dp*fval*ener_pot(pot, dr, energy_cutoff)
             END IF
          ENDIF
 
@@ -1364,19 +1370,19 @@ CONTAINS
                CALL cp_warn(__LOCATION__, "Generic potential with type > 1 not implemented.")
                CPABORT("pot type")
             ENDIF
-! rmin and rmax and rcut
+            ! rmin and rmax and rcut
             IF ((pot%set(kk)%rmin /= not_initialized) .AND. (dr < pot%set(kk)%rmin)) CYCLE
             ! An upper boundary for the potential definition was defined
             IF ((pot%set(kk)%rmax /= not_initialized) .AND. (dr >= pot%set(kk)%rmax)) CYCLE
             ! If within limits let's compute the potential...
-            IF (dr <= rcut) THEN
+            IF (dr <= rcut .AND. dr > 1.E-3_dp) THEN
 
                NULLIFY (nonbonded_section)
                nonbonded_section => section_vals_get_subs_vals(qs_env%input, "DFT%QS%xTB%NONBONDED")
                CALL section_vals_val_get(nonbonded_section, "DX", r_val=dx)
                CALL section_vals_val_get(nonbonded_section, "ERROR_LIMIT", r_val=lerr)
 
-               dedf = evalfd(pot%set(kk)%gp%myid, 1, pot%set(kk)%gp%values, dx, err)
+               dedf = fval*evalfd(pot%set(kk)%gp%myid, 1, pot%set(kk)%gp%values, dx, err)
                IF (ABS(err) > lerr) THEN
                   WRITE (this_error, "(A,G12.6,A)") "(", err, ")"
                   WRITE (def_error, "(A,G12.6,A)") "(", lerr, ")"
@@ -1387,10 +1393,10 @@ CONTAINS
                                ' Error '//TRIM(this_error)//' in computing numerical derivatives larger then'// &
                                TRIM(def_error)//' .')
                END IF
-!
+
                atom_i = atom_of_kind(iatom)
                atom_j = atom_of_kind(jatom)
-!
+
                fij(1:3) = dedf*rij(1:3)/pot%set(kk)%gp%values(1)
 
                force(ikind)%repulsive(:, atom_i) = force(ikind)%repulsive(:, atom_i) - fij(:)
@@ -1416,7 +1422,7 @@ CONTAINS
       ENDIF
 
       CALL timestop(handle)
-!
+
    END SUBROUTINE nonbonded_correction
 ! **************************************************************************************************
 !> \brief ...
@@ -1428,7 +1434,7 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE force_field_pack_nonbond_pot_correction(atomic_kind_set, nonbonded, potparm, ewald_env, do_ewald)
 
-! routine based on force_field_pack_nonbond
+      ! routine based on force_field_pack_nonbond
       TYPE(atomic_kind_type), DIMENSION(:), INTENT(IN), &
          POINTER                                         :: atomic_kind_set
       TYPE(pair_potential_p_type), INTENT(IN), POINTER   :: nonbonded
@@ -1468,9 +1474,9 @@ CONTAINS
                   IF ((TRIM(nonbonded%pot(ingp)%pot%at1) == "*") .OR. &
                       (TRIM(nonbonded%pot(ingp)%pot%at2) == "*")) CYCLE
 
-                  IF (iw > 0) WRITE (iw, *) "TESTING ", TRIM(name_atm_a), TRIM(name_atm_b), &
-                     " with ", TRIM(nonbonded%pot(ingp)%pot%at1), &
-                     TRIM(nonbonded%pot(ingp)%pot%at2)
+                  !IF (iw > 0) WRITE (iw, *) "TESTING ", TRIM(name_atm_a), TRIM(name_atm_b), &
+                  !   " with ", TRIM(nonbonded%pot(ingp)%pot%at1), &
+                  !   TRIM(nonbonded%pot(ingp)%pot%at2)
                   IF ((((name_atm_a) == (nonbonded%pot(ingp)%pot%at1)) .AND. &
                        ((name_atm_b) == (nonbonded%pot(ingp)%pot%at2))) .OR. &
                       (((name_atm_b) == (nonbonded%pot(ingp)%pot%at1)) .AND. &
@@ -1481,13 +1487,14 @@ CONTAINS
                         CALL cp_warn(__LOCATION__, &
                                      "Multiple NONBONDED declaration: "//TRIM(name_atm_a)// &
                                      " and "//TRIM(name_atm_b)//" OVERWRITING! ")
+                     !IF (iw > 0) WRITE (iw, *) "    FOUND ", TRIM(name_atm_a), " ", TRIM(name_atm_b)
+                     found = .TRUE.
                   END IF
-                  IF (iw > 0) WRITE (iw, *) "    FOUND ", TRIM(name_atm_a), " ", TRIM(name_atm_b)
-                  found = .TRUE.
                END DO
             ENDIF
             IF (.NOT. found) THEN
                CALL pair_potential_single_clean(pot)
+               !IF (iw > 0) WRITE (iw, *) " NOTFOUND ", TRIM(name_atm_a), " ", TRIM(name_atm_b)
             ENDIF
          ENDDO !jkind
       ENDDO !ikind
@@ -1496,6 +1503,7 @@ CONTAINS
       IF (do_ewald) THEN
          CALL ewald_env_get(ewald_env, rcut=ewald_rcut)
          pot%rcutsq = MAX(pot%rcutsq, ewald_rcut*ewald_rcut)
+         !IF (iw > 0) WRITE (iw, *) " RCUT     ", SQRT(pot%rcutsq), ewald_rcut
       ENDIF
 
    END SUBROUTINE force_field_pack_nonbond_pot_correction

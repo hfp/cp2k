@@ -49,10 +49,19 @@ case "$with_mpich" in
       unset F90
       unset F90FLAGS
 
-      # workaround for compilation with GCC-10, until properly fixed:
+      # workaround for compilation with GCC >= 10, until properly fixed:
       #   https://github.com/pmodels/mpich/issues/4300
-      ("${FC}" --version | grep -Eq 'GNU.+\s10\.') && compat_flag="-fallow-argument-mismatch" || compat_flag=""
-      ./configure --prefix="${pkg_install_dir}" --libdir="${pkg_install_dir}/lib" MPICC="" FFLAGS="${FCFLAGS} ${compat_flag}" FCFLAGS="${FCFLAGS} ${compat_flag}" --without-x --enable-gl=no > configure.log 2>&1
+      ("${FC}" --version | grep -q 'GNU') && compat_flag="-fallow-argument-mismatch" || compat_flag=""
+      ./configure \
+        --prefix="${pkg_install_dir}" \
+        --libdir="${pkg_install_dir}/lib" \
+        MPICC="" \
+        FFLAGS="${FCFLAGS} ${compat_flag}" \
+        FCFLAGS="${FCFLAGS} ${compat_flag}" \
+        --without-x \
+        --enable-gl=no \
+        --disable-shared \
+        > configure.log 2>&1
       make -j $(get_nprocs) > make.log 2>&1
       make install > install.log 2>&1
       cd ..
@@ -66,7 +75,12 @@ case "$with_mpich" in
     check_command mpirun "mpich"
     check_command mpicc "mpich"
     check_command mpif90 "mpich"
-    check_command mpic++ "mpich"
+    if [ $(command -v mpic++ >&- 2>&-) ]; then
+      check_command mpic++ "mpich"
+    else
+      check_command mpicxx "mpich"
+      export MPICXX=mpicxx
+    fi
     check_lib -lmpi "mpich"
     check_lib -lmpicxx "mpich"
     add_include_from_paths MPICH_CFLAGS "mpi.h" $INCLUDE_PATHS
@@ -121,6 +135,7 @@ export CP_DFLAGS="\${CP_DFLAGS} IF_MPI(-D__parallel ${mpi2_dflags}|)"
 export CP_CFLAGS="\${CP_CFLAGS} IF_MPI(${MPICH_CFLAGS}|)"
 export CP_LDFLAGS="\${CP_LDFLAGS} IF_MPI(${MPICH_LDFLAGS}|)"
 export CP_LIBS="\${CP_LIBS} IF_MPI(${MPICH_LIBS}|)"
+export MPICXX="${MPICXX}"
 EOF
 fi
 

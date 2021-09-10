@@ -48,7 +48,7 @@ MODULE cp2k_info
 #endif
 
    CHARACTER(LEN=*), PARAMETER :: version_nr = "9.0"
-   CHARACTER(LEN=*), PARAMETER :: cp2k_year = "2020"
+   CHARACTER(LEN=*), PARAMETER :: cp2k_year = "2021"
    CHARACTER(LEN=*), PARAMETER :: cp2k_version = "CP2K version "//TRIM(version_nr)
    CHARACTER(LEN=*), PARAMETER :: cp2k_home = "https://www.cp2k.org/"
 
@@ -115,6 +115,15 @@ CONTAINS
 #if defined(__ELPA)
       flags = TRIM(flags)//" elpa"
 #endif
+#if defined(__ELPA_NVIDIA_GPU)
+      flags = TRIM(flags)//" elpa_nvidia_gpu"
+#endif
+#if defined(__ELPA_AMD_GPU)
+      flags = TRIM(flags)//" elpa_amd_gpu"
+#endif
+#if defined(__ELPA_INTEL_GPU)
+      flags = TRIM(flags)//" elpa_intel_gpu"
+#endif
 #if defined(__parallel)
       flags = TRIM(flags)//" parallel"
 #if !defined(__MPI_VERSION) || (__MPI_VERSION > 2)
@@ -125,6 +134,9 @@ CONTAINS
 #endif
 #if defined(__SCALAPACK)
       flags = TRIM(flags)//" scalapack"
+#endif
+#if defined(__COSMA)
+      flags = TRIM(flags)//" cosma"
 #endif
 
 #if defined(__QUIP)
@@ -212,9 +224,6 @@ CONTAINS
 #if defined(__CRAY_PM_FAKE_ENERGY)
       flags = TRIM(flags)//" cray_pm_fake_energy"
 #endif
-#if defined(__CUDA_PROFILING)
-      flags = TRIM(flags)//" cuda_profiling"
-#endif
 #if defined(__DBCSR_ACC)
       flags = TRIM(flags)//" dbcsr_acc"
 #endif
@@ -276,6 +285,12 @@ CONTAINS
 #endif
 #if defined(__GRID_CUDA)
       flags = TRIM(flags)//" grid_cuda"
+#endif
+#if defined(__GRID_HIP)
+      flags = TRIM(flags)//" grid_hip"
+#endif
+#if defined(__OFFLOAD_PROFILING)
+      flags = TRIM(flags)//" offload_profiling"
 #endif
 
    END FUNCTION cp2k_flags

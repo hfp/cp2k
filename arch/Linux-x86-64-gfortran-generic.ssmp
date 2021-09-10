@@ -1,25 +1,25 @@
-# Tested with: GFortran 8.3.0, LAPACK 3.9.0, FFTW 3.3, LIBINT 2.6.0,
-#              LIBXC 5.1.3, SPGLIB 1.16.0, LIBVORI 210412
-# Author: Matthias Krack (matthias.krack@psi.ch, PSI, April 2021)
+# Tested with: GFortran 8.3.0, LAPACK 3.9.1, FFTW 3.3.9, LIBINT 2.6.0,
+#              LIBXC 5.1.6, SPGLIB 1.16.2, LIBVORI 210412
+# Author: Matthias Krack (matthias.krack@psi.ch, PSI, September 2021)
 
 CC          = gcc
 FC          = gfortran
 LD          = gfortran
 AR          = ar -r
 
-FFTW_INC    = $(GNU_PATH)/fftw/3.3-generic/include
-FFTW_LIB    = $(GNU_PATH)/fftw/3.3-generic/lib
+FFTW_INC    = $(GNU_PATH)/fftw/3.3.9/include
+FFTW_LIB    = $(GNU_PATH)/fftw/3.3.9/lib
 
-LIBINT_INC  = $(GNU_PATH)/libint/2.6.0-lmax-4-generic/include
-LIBINT_LIB  = $(GNU_PATH)/libint/2.6.0-lmax-4-generic/lib
+LIBINT_INC  = $(GNU_PATH)/libint/2.6.0-lmax-4/include
+LIBINT_LIB  = $(GNU_PATH)/libint/2.6.0-lmax-4/lib
 
-LIBVORI_LIB = $(GNU_PATH)/libvori/210412-generic/lib
+LIBVORI_LIB = $(GNU_PATH)/libvori/210412/lib
 
-LIBXC_INC   = $(GNU_PATH)/libxc/5.1.3-generic/include
-LIBXC_LIB   = $(GNU_PATH)/libxc/5.1.3-generic/lib
+LIBXC_INC   = $(GNU_PATH)/libxc/5.1.6/include
+LIBXC_LIB   = $(GNU_PATH)/libxc/5.1.6/lib
 
-SPGLIB_INC  = $(GNU_PATH)/spglib/1.16.0-generic/include
-SPGLIB_LIB  = $(GNU_PATH)/spglib/1.16.0-generic/lib
+SPGLIB_INC  = $(GNU_PATH)/spglib/1.16.2/include
+SPGLIB_LIB  = $(GNU_PATH)/spglib/1.16.2/lib
 
 CFLAGS      = -O2 -fopenmp -fopenmp-simd -g -mtune=generic
 
@@ -47,8 +47,8 @@ LIBS       += $(LIBXC_LIB)/libxcf03.a
 LIBS       += $(LIBXC_LIB)/libxc.a
 LIBS       += $(LIBINT_LIB)/libint2.a
 LIBS       += $(SPGLIB_LIB)/libsymspg.a
+LIBS       += $(FFTW_LIB)/libfftw3_omp.a
 LIBS       += $(FFTW_LIB)/libfftw3.a
-LIBS       += $(FFTW_LIB)/libfftw3_threads.a
-LIBS       += $(LIBPATH)/liblapack-generic.a
-LIBS       += $(LIBPATH)/libblas-generic.a
+LIBS       += $(LIBPATH)/liblapack.a
+LIBS       += $(LIBPATH)/libblas.a
 LIBS       += -ldl -lstdc++

@@ -42,7 +42,6 @@ MODULE cp2k_runs
                                               cp_unit_set_release,&
                                               cp_unit_set_type,&
                                               print_all_units
-   USE cuda_profiling,                  ONLY: cuda_nvtx_init
    USE dbcsr_api,                       ONLY: dbcsr_finalize_lib,&
                                               dbcsr_init_lib,&
                                               dbcsr_print_config,&
@@ -145,8 +144,11 @@ MODULE cp2k_runs
    IMPLICIT NONE
 
    PRIVATE
+
    PUBLIC :: write_xml_file, run_input
+
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'cp2k_runs'
+
 CONTAINS
 
 ! **************************************************************************************************
@@ -196,14 +198,16 @@ CONTAINS
       NULLIFY (para_env, f_env, dft_control)
       CALL cp_para_env_create(para_env, group=mpi_comm, owns_group=.FALSE.)
 
+#if defined(__DBCSR_ACC)
       IF (offload_get_device_count() > 0) THEN
          CALL dbcsr_init_lib(mpi_comm, io_unit=output_unit, &
                              accdrv_active_device_id=offload_get_device_id())
       ELSE
          CALL dbcsr_init_lib(mpi_comm, io_unit=output_unit)
       ENDIF
-
-      CALL cuda_nvtx_init()
+#else
+      CALL dbcsr_init_lib(mpi_comm, io_unit=output_unit)
+#endif
 
       CALL pw_cuda_init()
 
@@ -282,12 +286,16 @@ CONTAINS
          CALL pw_cuda_finalize()
          CALL pw_fpga_finalize()
          CALL farming_run(input_declaration, root_section, para_env, initial_variables)
+#if defined(__DBCSR_ACC)
          IF (offload_get_device_count() > 0) THEN
             CALL dbcsr_init_lib(mpi_comm, io_unit=output_unit, &
                                 accdrv_active_device_id=offload_get_device_id())
          ELSE
             CALL dbcsr_init_lib(mpi_comm, io_unit=output_unit)
          ENDIF
+#else
+         CALL dbcsr_init_lib(mpi_comm, io_unit=output_unit)
+#endif
          CALL pw_cuda_init()
          CALL pw_fpga_init()
          CALL cp_sirius_init()
@@ -971,24 +979,22 @@ CONTAINS
 
       IF (PRESENT(mpi_comm)) THEN
          NULLIFY (para_env)
-         CALL cp_para_env_create(para_env, group=mpi_comm, owns_group=.FALSE.) !XXXXXXXXXXXX uninitiliased error
+         CALL cp_para_env_create(para_env, group=mpi_comm, owns_group=.FALSE.)
       ELSE
          para_env => f77_default_para_env
-         CALL cp_para_env_retain(para_env) !XXXXXXXXXXXX uninitiliased error
+         CALL cp_para_env_retain(para_env)
       END IF
       IF (para_env%ionode) THEN
          IF (output_file_path == "__STD_OUT__") THEN
             unit_nr = default_output_unit
          ELSE
-            CALL open_file(file_name=output_file_path, file_status="UNKNOWN", &
-                           file_action="WRITE", file_position="APPEND", &
-                           unit_number=unit_nr)
+            INQUIRE (FILE=output_file_path, NUMBER=unit_nr)
          END IF
       ELSE
          unit_nr = -1
       END IF
       CALL cp2k_run(input_declaration, input_file_path, unit_nr, para_env%group, initial_variables)
-      CALL cp_para_env_release(para_env) !XXXXXXXXXXXX uninitiliased error
+      CALL cp_para_env_release(para_env)
    END SUBROUTINE run_input
 
 END MODULE cp2k_runs

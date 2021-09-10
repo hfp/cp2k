@@ -156,25 +156,26 @@ create_tasks(const bool orthorhombic, const int ntasks,
     task->ab_block_offset = block_offset + subblock_offset;
 
     // Stuff for the ortho kernel ----------------------------------------------
+    if (orthorhombic) {
+      // Discretize the radius.
+      const double drmin =
+          fmin(dh[level][0][0], fmin(dh[level][1][1], dh[level][2][2]));
+      const int imr = imax(1, (int)ceil(task->radius / drmin));
+      task->disr_radius = drmin * imr;
 
-    // Discretize the radius.
-    const double drmin =
-        fmin(dh[level][0][0], fmin(dh[level][1][1], dh[level][2][2]));
-    const int imr = imax(1, (int)ceil(task->radius / drmin));
-    task->disr_radius = drmin * imr;
-
-    // Position of the gaussian product:
-    // this is the actual definition of the position on the grid
-    // i.e. a point rp(:) gets here grid coordinates
-    // MODULO(rp(:)/dr(:),npts_global(:))+1
-    // hence (0.0,0.0,0.0) in real space is rsgrid%lb on the rsgrid in Fortran
-    // and (1,1,1) on grid here in C.
-    //
-    // cubecenter(:) = FLOOR(MATMUL(dh_inv, rp))
-    for (int i = 0; i < 3; i++) {
-      const int cubecenter = floor(task->gp[i]);
-      task->cube_center_shifted[i] = cubecenter - shift_local[level][i];
-      task->cube_offset[i] = cubecenter * dh[level][i][i] - task->rp[i];
+      // Position of the gaussian product:
+      // this is the actual definition of the position on the grid
+      // i.e. a point rp(:) gets here grid coordinates
+      // MODULO(rp(:)/dr(:),npts_global(:))+1
+      // hence (0.0,0.0,0.0) in real space is rsgrid%lb on the rsgrid in Fortran
+      // and (1,1,1) on grid here in C.
+      //
+      // cubecenter(:) = FLOOR(MATMUL(dh_inv, rp))
+      for (int i = 0; i < 3; i++) {
+        const int cubecenter = floor(task->gp[i]);
+        task->cube_center_shifted[i] = cubecenter - shift_local[level][i];
+        task->cube_offset[i] = cubecenter * dh[level][i][i] - task->rp[i];
+      }
     }
 
     // Stuff for the general kernel --------------------------------------------
@@ -251,7 +252,7 @@ void grid_gpu_create_task_list(
     const double dh_inv[][3][3], grid_gpu_task_list **task_list_out) {
 
   // Select GPU device.
-  CHECK(cudaSetDevice(offload_get_device_id()));
+  offload_set_device();
 
   if (*task_list_out != NULL) {
     // This is actually an opportunity to reuse some buffers.
@@ -390,7 +391,7 @@ void grid_gpu_collocate_task_list(const grid_gpu_task_list *task_list,
                                   offload_buffer *grids[]) {
 
   // Select GPU device.
-  CHECK(cudaSetDevice(offload_get_device_id()));
+  offload_set_device();
 
   // Upload blocks buffer using the main stream
   CHECK(cudaMemcpyAsync(pab_blocks->device_buffer, pab_blocks->host_buffer,
@@ -466,7 +467,7 @@ void grid_gpu_integrate_task_list(const grid_gpu_task_list *task_list,
                                   double forces[][3], double virial[3][3]) {
 
   // Select GPU device.
-  CHECK(cudaSetDevice(offload_get_device_id()));
+  offload_set_device();
 
   // Prepare shared buffers using the main stream
   double *forces_dev = NULL;

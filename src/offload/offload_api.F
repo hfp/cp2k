@@ -11,11 +11,15 @@
 ! **************************************************************************************************
 MODULE offload_api
    USE ISO_C_BINDING,                   ONLY: C_ASSOCIATED,&
+                                              C_CHAR,&
                                               C_F_POINTER,&
                                               C_INT,&
+                                              C_NULL_CHAR,&
                                               C_NULL_PTR,&
-                                              C_PTR
-   USE kinds,                           ONLY: dp
+                                              C_PTR,&
+                                              C_SIZE_T
+   USE kinds,                           ONLY: dp,&
+                                              int_8
 #include "../base/base_uses.f90"
 
    IMPLICIT NONE
@@ -25,7 +29,8 @@ MODULE offload_api
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'offload_api'
 
    PUBLIC :: offload_get_device_count
-   PUBLIC :: offload_set_device_id, offload_get_device_id
+   PUBLIC :: offload_set_device_id, offload_get_device_id, offload_set_device
+   PUBLIC :: offload_timeset, offload_timestop, offload_mem_info
    PUBLIC :: offload_buffer_type, offload_create_buffer, offload_free_buffer
 
    TYPE offload_buffer_type
@@ -97,6 +102,81 @@ CONTAINS
          CPABORT("Offload device not selected.")
 
    END FUNCTION offload_get_device_id
+
+! **************************************************************************************************
+!> \brief Activates the device selected via offload_set_device_id()
+!> \author Ole Schuett
+! **************************************************************************************************
+   SUBROUTINE offload_set_device()
+
+      INTERFACE
+         SUBROUTINE offload_set_device_c() &
+            BIND(C, name="offload_set_device")
+         END SUBROUTINE offload_set_device_c
+      END INTERFACE
+
+      CALL offload_set_device_c()
+
+   END SUBROUTINE offload_set_device
+
+! **************************************************************************************************
+!> \brief Starts a timing range.
+!> \param routineN ...
+!> \author Ole Schuett
+! **************************************************************************************************
+   SUBROUTINE offload_timeset(routineN)
+      CHARACTER(LEN=*), INTENT(IN)                       :: routineN
+
+      INTERFACE
+         SUBROUTINE offload_timeset_c(message) BIND(C, name="offload_timeset")
+            IMPORT :: C_CHAR
+            CHARACTER(kind=C_CHAR), DIMENSION(*), INTENT(IN) :: message
+         END SUBROUTINE offload_timeset_c
+      END INTERFACE
+
+      CALL offload_timeset_c(TRIM(routineN)//C_NULL_CHAR)
+
+   END SUBROUTINE offload_timeset
+
+! **************************************************************************************************
+!> \brief  Ends a timing range.
+!> \author Ole Schuett
+! **************************************************************************************************
+   SUBROUTINE offload_timestop()
+
+      INTERFACE
+         SUBROUTINE offload_timestop_c() BIND(C, name="offload_timestop")
+         END SUBROUTINE offload_timestop_c
+      END INTERFACE
+
+      CALL offload_timestop_c()
+
+   END SUBROUTINE offload_timestop
+
+! **************************************************************************************************
+!> \brief Gets free and total device memory.
+!> \param free ...
+!> \param total ...
+!> \author Ole Schuett
+! **************************************************************************************************
+   SUBROUTINE offload_mem_info(free, total)
+      INTEGER(KIND=int_8), INTENT(OUT)                   :: free, total
+
+      INTEGER(KIND=C_SIZE_T)                             :: my_free, my_total
+      INTERFACE
+         SUBROUTINE offload_mem_info_c(free, total) BIND(C, name="offload_mem_info")
+            IMPORT :: C_SIZE_T
+            INTEGER(KIND=C_SIZE_T)                   :: free, total
+         END SUBROUTINE offload_mem_info_c
+      END INTERFACE
+
+      CALL offload_mem_info_c(my_free, my_total)
+
+      ! On 32-bit architectures this converts from int_4 to int_8.
+      free = my_free
+      total = my_total
+
+   END SUBROUTINE offload_mem_info
 
 ! **************************************************************************************************
 !> \brief Allocates a buffer of given length, ie. number of elements.

@@ -55,7 +55,7 @@ OBJDIR  := $(MAINOBJDIR)/$(ARCH)/$(ONEVERSION)
 OBJEXTSDIR := $(OBJDIR)/$(EXTSDIR)
 OBJEXTSINCL := $(foreach dir,$(EXTSPACKAGES),-I'$(OBJEXTSDIR)/$(dir)')
 TSTDIR     := $(MAINTSTDIR)/$(ARCH)/$(ONEVERSION)
-ifeq ($(NVCC),)
+ifeq ($(OFFLOAD_CC),)
 EXE_NAMES := $(basename $(notdir $(filter-out %.cu, $(ALL_EXE_FILES))))
 endif
 ifneq ($(LD_SHARED),)
@@ -68,15 +68,15 @@ endif
 
 # Declare PHONY targets =====================================================
 .PHONY : $(VERSION) $(EXE_NAMES) \
-         dirs makedep default_target all \
-         toolversions extversions extclean libcp2k cp2k_shell exts python-bindings \
-         pre-commit pre-commit-clean \
-         pretty precommit precommitclean doxygenclean doxygen \
-         fpretty fprettyclean \
-         doxify doxifyclean \
-         install clean realclean distclean mrproper help \
-         test testbg testclean testrealclean \
-         data \
+				 dirs makedep default_target all \
+				 toolversions extversions extclean libcp2k cp2k_shell exts python-bindings \
+				 pre-commit pre-commit-clean \
+				 pretty precommit precommitclean doxygenclean doxygen \
+				 fpretty fprettyclean \
+				 doxify doxifyclean \
+				 install clean realclean distclean mrproper help \
+				 test testbg testclean testrealclean \
+				 data \
 	 $(EXTSPACKAGES)
 
 # Discover files and directories ============================================
@@ -88,10 +88,21 @@ OBJ_SRC_FILES  = $(shell cd $(SRCDIR); find . ! -path "*/preprettify/*" -name "*
 OBJ_SRC_FILES += $(shell cd $(SRCDIR); find . ! -path "*/preprettify/*" ! -path "*/python*" -name "*.c")
 OBJ_SRC_FILES += $(shell cd $(SRCDIR); find . ! -path "*/preprettify/*" -name "*.cpp")
 OBJ_SRC_FILES += $(shell cd $(SRCDIR); find . ! -path "*/preprettify/*" -name "*.cxx")
-OBJ_SRC_FILES += $(shell cd $(SRCDIR); find . ! -path "*/preprettify/*" -name "*.cc")
-ifneq ($(NVCC),)
+OBJ_SRC_FILES += $(shell cd $(SRCDIR); find . ! -path "*/preprettify/*" -path "./grid/hip" -prune -type f -name "*.cc")
+
+ifneq (,$(findstring hipcc,$(OFFLOAD_CC)))
+OBJ_SRC_FILES += ./grid/hip/grid_hip_integrate.cc
+OBJ_SRC_FILES += ./grid/hip/grid_hip_collocate.cc
+OBJ_SRC_FILES += ./grid/hip/grid_hip_context.cc
+#exclude the src/grid/gpu directory from the list to avoid poluting the C namespace with empty functions.
+OBJ_SRC_FILES += $(shell cd $(SRCDIR); find . ! -path "*/preprettify/*" -path "./grid/gpu" -prune -type f -name "*.cu")
+endif
+
+# if we compile for cuda by directly calling nvcc then include all cuda files.
+ifneq (,$(findstring nvcc,$(OFFLOAD_CC)))
 OBJ_SRC_FILES += $(shell cd $(SRCDIR); find . ! -path "*/preprettify/*" -name "*.cu")
 endif
+
 
 # Included files used by Fypp preprocessor and standard includes
 INCLUDED_SRC_FILES = $(filter-out base_uses.f90, $(notdir $(shell find $(SRCDIR) ! -path "*/preprettify/*" -name "*.f90")))
@@ -194,9 +205,9 @@ else
 	$(CC) --version
 endif
 endif
-ifneq ($(NVCC),)
-	@echo "========== NVCC ($(ONEVERSION)) =========="
-	$(NVCC) --version
+ifneq ($(OFFLOAD_CC),)
+	@echo "========== OFFLOAD_CC ($(ONEVERSION)) =========="
+	$(OFFLOAD_CC) --version
 	@echo ""
 endif
 ifneq ($(AR),)
@@ -490,10 +501,10 @@ cp2k_info.o: $(GIT_REF)
 
 # Add some practical metadata about the build.
 FCFLAGS += -D__COMPILE_ARCH="\"$(ARCH)\""\
-           -D__COMPILE_DATE="\"$(shell date)\""\
-           -D__COMPILE_HOST="\"$(shell hostname)\""\
-           -D__COMPILE_REVISION="\"$(strip $(REVISION))\""\
-           -D__DATA_DIR="\"$(DATA_DIR)\""
+					 -D__COMPILE_DATE="\"$(shell date)\""\
+					 -D__COMPILE_HOST="\"$(shell hostname 2>/dev/null || hostnamectl --transient)\""\
+					 -D__COMPILE_REVISION="\"$(strip $(REVISION))\""\
+					 -D__DATA_DIR="\"$(DATA_DIR)\""
 
 # $(FCLOGPIPE) can be used to store compiler output, e.g. warnings, for each F-file separately.
 # This is used e.g. by the convention checker.
@@ -525,8 +536,23 @@ endif
 endif
 
 %.o: %.cu
-	$(NVCC) -c $(NVFLAGS) $<
+	$(OFFLOAD_CC) -c $(OFFLOAD_FLAGS) $<
 
+
+ifneq (,$(findstring hipcc,$(OFFLOAD_CC)))
+
+#define specific rules for the hip backend since they need to be propcessed by hipcc
+
+grid_hip_collocate.o: grid_hip_collocate.cc
+	$(OFFLOAD_CC) -c $(OFFLOAD_FLAGS) $<
+grid_hip_integrate.o: grid_hip_integrate.cc
+	$(OFFLOAD_CC) -c $(OFFLOAD_FLAGS) $<
+grid_hip_context.o: grid_hip_context.cc
+	$(OFFLOAD_CC) -c $(OFFLOAD_FLAGS) $<
+
+#%.o: %.cc
+#	$(OFFLOAD_CC) -c $(OFFLOAD_FLAGS) $<
+endif
 
 # module compiler magic =====================================================
 ifeq ($(MC),)

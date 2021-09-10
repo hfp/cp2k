@@ -706,16 +706,26 @@ CONTAINS
             ELSE
                ngauss = xtb_control%sto_ng
             END IF
-            CALL init_xtb_basis(qs_kind%xtb_parameter, tmp_basis_set, ngauss)
-            CALL add_basis_set_to_container(qs_kind%basis_sets, tmp_basis_set, "ORB")
+            IF (qs_kind%xtb_parameter%defined) THEN
+               CALL init_xtb_basis(qs_kind%xtb_parameter, tmp_basis_set, ngauss)
+               CALL add_basis_set_to_container(qs_kind%basis_sets, tmp_basis_set, "ORB")
+            ELSE
+               CALL set_qs_kind(qs_kind, ghost=.TRUE.)
+               IF (ASSOCIATED(qs_kind%all_potential)) THEN
+                  DEALLOCATE (qs_kind%all_potential%elec_conf)
+                  DEALLOCATE (qs_kind%all_potential)
+               END IF
+            END IF
             ! potential
-            zeff_correction = 0.0_dp
-            CALL init_potential(qs_kind%all_potential, itype="BARE", &
-                                zeff=qs_kind%xtb_parameter%zeff, zeff_correction=zeff_correction)
-            CALL get_potential(qs_kind%all_potential, alpha_core_charge=alpha)
-            ccore = qs_kind%xtb_parameter%zeff*SQRT((alpha/pi)**3)
-            CALL set_potential(qs_kind%all_potential, ccore_charge=ccore)
-            qs_kind%xtb_parameter%zeff = qs_kind%xtb_parameter%zeff - zeff_correction
+            IF (qs_kind%xtb_parameter%defined) THEN
+               zeff_correction = 0.0_dp
+               CALL init_potential(qs_kind%all_potential, itype="BARE", &
+                                   zeff=qs_kind%xtb_parameter%zeff, zeff_correction=zeff_correction)
+               CALL get_potential(qs_kind%all_potential, alpha_core_charge=alpha)
+               ccore = qs_kind%xtb_parameter%zeff*SQRT((alpha/pi)**3)
+               CALL set_potential(qs_kind%all_potential, ccore_charge=ccore)
+               qs_kind%xtb_parameter%zeff = qs_kind%xtb_parameter%zeff - zeff_correction
+            END IF
          END DO
          !
          ! check for Ewald
@@ -950,8 +960,12 @@ CONTAINS
          ! cutoff radius
          DO ikind = 1, nkind
             qs_kind => qs_kind_set(ikind)
-            CALL get_qs_kind(qs_kind, basis_set=tmp_basis_set)
-            CALL get_gto_basis_set(tmp_basis_set, kind_radius=qs_kind%xtb_parameter%rcut)
+            IF (qs_kind%xtb_parameter%defined) THEN
+               CALL get_qs_kind(qs_kind, basis_set=tmp_basis_set)
+               CALL get_gto_basis_set(tmp_basis_set, kind_radius=qs_kind%xtb_parameter%rcut)
+            ELSE
+               qs_kind%xtb_parameter%rcut = 0.0_dp
+            END IF
          END DO
       END IF
 
@@ -1389,13 +1403,15 @@ CONTAINS
 
       ! Check and set number of added (unoccupied) MOs
       IF (dft_control%nspins == 2) THEN
-         IF (scf_control%added_mos(2) > 0) THEN
+         IF (scf_control%added_mos(2) < 0) THEN
+            n_mo_add = n_ao - n_mo(2)  ! use all available MOs
+         ELSEIF (scf_control%added_mos(2) > 0) THEN
             n_mo_add = scf_control%added_mos(2)
          ELSE
             n_mo_add = scf_control%added_mos(1)
          END IF
          IF (n_mo_add > n_ao - n_mo(2)) &
-            CPWARN("More added MOs requested for beta spin than available.")
+            CPWARN("More ADDED_MOs requested for beta spin than available.")
          scf_control%added_mos(2) = MIN(n_mo_add, n_ao - n_mo(2))
          n_mo(2) = n_mo(2) + scf_control%added_mos(2)
       END IF
@@ -1408,10 +1424,15 @@ CONTAINS
       ! However, if we try to proceed alpha orbitals first, this leads us n_mo(1:2) = (10,8)
       ! due to the following assignment instruction above:
       !   IF (scf_control%added_mos(2) > 0) THEN ... ELSE; n_mo_add = scf_control%added_mos(1); END IF
-      IF (scf_control%added_mos(1) > n_ao - n_mo(1)) &
+      IF (scf_control%added_mos(1) < 0) THEN
+         scf_control%added_mos(1) = n_ao - n_mo(1)  ! use all available MOs
+      ELSEIF (scf_control%added_mos(1) > n_ao - n_mo(1)) THEN
          CALL cp_warn(__LOCATION__, &
                       "More added MOs requested than available. "// &
-                      "The full set of unoccupied MOs will be used.")
+                      "The full set of unoccupied MOs will be used. "// &
+                      "Use 'ADDED_MOS -1' to always use all available MOs "// &
+                      "and to get rid of this warning.")
+      END IF
       scf_control%added_mos(1) = MIN(scf_control%added_mos(1), n_ao - n_mo(1))
       n_mo(1) = n_mo(1) + scf_control%added_mos(1)
 

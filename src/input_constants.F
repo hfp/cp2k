@@ -1085,8 +1085,8 @@ MODULE input_constants
                                                sccs_derivative_cd7 = 3
 
    ! fm matrix multiplication
-   INTEGER, PARAMETER, PUBLIC               :: do_pdgemm = 1, &
-                                               do_dbcsr = 2
+   INTEGER, PARAMETER, PUBLIC               :: do_scalapack = 1, &
+                                               do_cosma = 2
 
    ! Dispersion DFTB
    INTEGER, PARAMETER, PUBLIC               :: dispersion_uff = 100, &
@@ -1168,5 +1168,14 @@ MODULE input_constants
    ! MOLDEN format
    INTEGER, PARAMETER, PUBLIC               :: gto_cartesian = 1, &
                                                gto_spherical = 2
+
+   ! Tip scan directions
+   INTEGER, PARAMETER, PUBLIC               :: scan_x = 1, &
+                                               scan_y = 2, &
+                                               scan_z = 3, &
+                                               scan_xy = 12, &
+                                               scan_xz = 13, &
+                                               scan_yz = 23, &
+                                               scan_xyz = 123
 
 END MODULE input_constants

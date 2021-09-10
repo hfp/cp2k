@@ -2,8 +2,8 @@
 
 # Compare CP2K outputs
 # Author: Alfio Lazzaro
-# Email: alfio.lazzaro@mat.ethz.ch
-# Year: 2016
+# Email: alfio.lazzaro@hpe.com
+# Year: 2016-2021
 
 # Example 1: show timings for a CP2K output
 #       > diff_cp2k.py <name_file>
@@ -86,7 +86,7 @@ def read_file(filename, field, special_keys, stats_keys):
                 if "NAMEOUT=" in line:
                     nameout[0] = line.split("=", 2)[1].strip()
                     continue
-                if "ENERGY| Total FORCE_EVAL ( QS ) energy (a.u.):" in line:
+                if "ENERGY| Total FORCE_EVAL ( QS ) energy " in line:
                     nameout[1] = line.split(":", 2)[1].strip()
                     continue
                 if "DBCSR STATISTICS" not in line and nstats == 0:
@@ -131,7 +131,7 @@ def read_file(filename, field, special_keys, stats_keys):
         sys.exit(-1)
 
 
-def print_value(ref, value):
+def print_value(ref, value, show_comp):
     if ref > 0:
         comp = (value - ref) / ref * 100
     else:
@@ -144,7 +144,10 @@ def print_value(ref, value):
         color = "\033[94m"
     if abs(comp) > 100:
         color += "\033[1m"
-    sys.stdout.write(color + "%10.3f" % value + "%5.0f" % comp + endc)
+    if show_comp:
+        sys.stdout.write(color + "%10.3f" % value + "%5.0f" % comp + endc)
+    else:
+        sys.stdout.write(color + "%10.3f" % value + endc)
 
 
 #################
@@ -190,6 +193,12 @@ def main():
     )
     parser.add_argument(
         "-k", metavar="file_keys", dest="file_keys", default="", help="File of keys"
+    )
+    parser.add_argument(
+        "--show_comp",
+        action="store_true",
+        default=False,
+        help="show comparison values",
     )
     args = parser.parse_args()
 
@@ -239,6 +248,7 @@ def main():
     sorted_values = sorted(
         dict_values[args.file_lists[args.base - 1]].items(), key=operator.itemgetter(1)
     )
+    ndash = 10 if args.show_comp else 5
     for key in sorted_values:
         # Apply filtering
         if key[0] != "CP2K_Total" and (
@@ -251,9 +261,9 @@ def main():
             if filename == args.file_lists[args.base - 1]:
                 continue
             if key[0] not in dict_values[filename]:
-                sys.stdout.write(("-" * 10).rjust(15))
+                sys.stdout.write(("-" * ndash).rjust(5 + ndash))
                 continue
-            print_value(key[1], dict_values[filename][key[0]])
+            print_value(key[1], dict_values[filename][key[0]], args.show_comp)
             del dict_values[filename][key[0]]
         print("")
 
@@ -265,7 +275,7 @@ def main():
     color = "\033[0m"
     endc = "\033[0m"
     for filename in args.file_lists:
-        if len(files[filename][1]) > 0:
+        if len(files[filename][1]) > 0 and ref != 0:
             comp = (float(files[filename][1]) - ref) / ref
             if abs(comp) > 1e-14:
                 color = "\033[91m"

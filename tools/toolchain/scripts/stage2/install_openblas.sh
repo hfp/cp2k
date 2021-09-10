@@ -54,6 +54,8 @@ case "$with_openblas" in
       #
       # wrt NUM_THREADS=64: this is what the most common Linux distros seem to choose atm
       #                     for a good compromise between memory usage and scalability
+      #
+      # Unfortunately, NO_SHARED=1 breaks ScaLAPACK build.
       (
         make -j $(get_nprocs) \
           MAKE_NB_JOBS=0 \
@@ -137,9 +139,9 @@ export OPENBLASROOT="${pkg_install_dir}"
 export OPENBLAS_CFLAGS="${OPENBLAS_CFLAGS}"
 export OPENBLAS_LDFLAGS="${OPENBLAS_LDFLAGS}"
 export OPENBLAS_LIBS="${OPENBLAS_LIBS}"
-export FAST_MATH_CFLAGS="\${FAST_MATH_CFLAGS} ${OPENBLAS_CFLAGS}"
-export FAST_MATH_LDFLAGS="\${FAST_MATH_LDFLAGS} ${OPENBLAS_LDFLAGS}"
-export FAST_MATH_LIBS="\${FAST_MATH_LIBS} ${OPENBLAS_LIBS}"
+export MATH_CFLAGS="\${MATH_CFLAGS} ${OPENBLAS_CFLAGS}"
+export MATH_LDFLAGS="\${MATH_LDFLAGS} ${OPENBLAS_LDFLAGS}"
+export MATH_LIBS="\${MATH_LIBS} ${OPENBLAS_LIBS}"
 EOF
 fi
 

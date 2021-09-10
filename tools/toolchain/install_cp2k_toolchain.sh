@@ -93,18 +93,15 @@ OPTIONS:
                           options to values other than no will also switch --mpi-mode
                           to the respective mode.
 --math-mode               Selects which core math library to use. Available options
-                          are: acml, cray, mkl, openblas and reflapack. cray
+                          are: acml, cray, mkl, and openblas. cray
                           corresponds to cray libsci, and is the default for CRAY
                           (CLE) systems. For non-CRAY systems, if env variable MKLROOT
                           exists then mkl will be default, otherwise openblas is the
-                          default option. Note that reflapack corresponds to the
-                          reference LAPACK library, and is not really recommended for
-                          CP2K binaries used for real simulations. Explicitly setting
+                          default option. Explicitly setting
                           --with-acml, --with-mkl or --with-openblas options will
-                          switch --math-mode to the respective modes, BUT
-                          --with-reflapack option do not have this effect.
+                          switch --math-mode to the respective modes.
 --gpu-ver                 Selects the GPU architecture for which to compile. Available
-                          options are: K20X, K40, K80, P100, V100, no. Default: no.
+                          options are: K20X, K40, K80, P100, V100, Mi50, Mi100, no. Default: no.
                           The script will determine the correct corresponding value for
                           nvcc's '-arch' flag.
 --libint-lmax             Maximum supported angular momentum by libint.
@@ -118,10 +115,6 @@ The --enable-FEATURE options follow the rules:
   --enable-FEATURE        The option keyword alone is equivalent to
                           --enable-FEATURE=yes
 
-  --enable-tsan           If you are installing GCC using this script
-                          this option enables thread sanitizer support.
-                          This is only relevant for debugging purposes.
-                          Default = no
   --enable-gcc-master     If you are installing GCC using this script
                           this option forces the master development version
                           to be installed.
@@ -131,6 +124,8 @@ The --enable-FEATURE options follow the rules:
                           to be installed.
                           Default = no
   --enable-cuda           Turn on GPU (CUDA) support.
+                          Default = no
+  --enable-hip            Turn on GPU (HIP) support.
                           Default = no
   --enable-cray           Turn on or off support for CRAY Linux Environment
                           (CLE) manually. By default the script will automatically
@@ -154,9 +149,6 @@ The --with-PKG options follow the rules:
                           Default = system
   --with-cmake            Cmake utilities
                           Default = install
-  --with-valgrind         Valgrind memory debugging tool, only used for
-                          debugging purposes.
-                          Default = no
   --with-openmpi          OpenMPI, important if you want parallel version
                           of CP2K.
                           Default = system
@@ -174,17 +166,12 @@ The --with-PKG options follow the rules:
                           Default = install
   --with-fftw             FFTW3, library for fast fourier transform
                           Default = install
-  --with-reflapack        Reference (vanilla) LAPACK and BLAS linear algebra libraries.
-                          One should use only ONE linear algebra library. This
-                          one is really mostly used for debugging purposes as it is
-                          non-optimised.
-                          Default = no
   --with-acml             AMD core maths library, which provides LAPACK and BLAS
                           Default = system
-  --with-mkl              Intel maths kernel library, which provides LAPACK and BLAS,
-                          and depending on your system, may also provide ScaLAPACK.
-                          If the MKL version of ScaLAPACK is found, then it will replace
-                          the one specified by --with-scalapack option.
+  --with-mkl              Intel Math Kernel Library, which provides LAPACK, and BLAS.
+                          If MKL's FFTW3 interface is suitable (no FFTW-MPI support),
+                          it replaces the FFTW library. If the ScaLAPACK component is
+                          found, it replaces the one specified by --with-scalapack.
                           Default = system
   --with-openblas         OpenBLAS is a free high performance LAPACK and BLAS library,
                           the successor to GotoBLAS.
@@ -199,9 +186,8 @@ The --with-PKG options follow the rules:
                           try to download a preexisting version from the CP2K website
                           that is compatible with your system.
                           Default = no
-  --with-libxsmm          Small matrix multiplication library for x86_64 systems. If
-                          your system arch is x86_64, then you can use libxsmm
-                          instead of libsmm.
+  --with-libxsmm          Small matrix multiplication library. If the system architecture
+                          is x86_64, then LIBXSMM can be used instead of libsmm.
                           Default = install
   --with-elpa             Eigenvalue SoLvers for Petaflop-Applications library.
                           Fast library for large parallel jobs.
@@ -268,9 +254,9 @@ EOF
 # PACKAGE LIST: register all new dependent tools and libs here. Order
 # is important, the first in the list gets installed first
 # ------------------------------------------------------------------------
-tool_list="gcc cmake valgrind"
+tool_list="gcc cmake"
 mpi_list="mpich openmpi intelmpi"
-math_list="mkl acml openblas reflapack"
+math_list="mkl acml openblas"
 lib_list="fftw libint libxc libsmm libxsmm cosma scalapack elpa plumed \
           spfft spla ptscotch superlu pexsi quip gsl spglib hdf5 libvdwxc sirius
           libvori"
@@ -295,19 +281,18 @@ with_libint=__INSTALL__
 with_libxsmm=__INSTALL__
 with_libxc=__INSTALL__
 with_scalapack=__INSTALL__
-# default math library settings, FAST_MATH_MODE picks the math library
+# default math library settings, MATH_MODE picks the math library
 # to use, and with_* defines the default method of installation if it
 # is picked. For non-CRAY systems defaults to mkl if $MKLROOT is
 # available, otherwise defaults to openblas
 if [ "$MKLROOT" ]; then
-  export FAST_MATH_MODE=mkl
+  export MATH_MODE=mkl
 else
-  export FAST_MATH_MODE=openblas
+  export MATH_MODE=openblas
 fi
 with_acml=__SYSTEM__
 with_mkl=__SYSTEM__
 with_openblas=__INSTALL__
-with_reflapack=__DONTUSE__
 
 # sirius is activated by default
 with_sirius="__INSTALL__"
@@ -321,9 +306,9 @@ with_spla="__DONTUSE__"
 with_cosma="__INSTALL__"
 with_libvori="__INSTALL__"
 # for MPI, we try to detect system MPI variant
-with_openmpi=__SYSTEM__
-with_mpich=__SYSTEM__
-with_intelmpi=__SYSTEM__
+with_openmpi="__SYSTEM__"
+with_mpich="__SYSTEM__"
+with_intelmpi="__SYSTEM__"
 if (command -v mpirun >&- 2>&-); then
   # check if we are dealing with openmpi, mpich or intelmpi
   if (mpirun --version 2>&1 | grep -s -q "HYDRA"); then
@@ -336,8 +321,8 @@ if (command -v mpirun >&- 2>&-); then
     echo "MPI is detected and it appears to be Intel MPI"
     with_gcc=__DONTUSE__
     export MPI_MODE=intelmpi
-  else
-    # default to mpich
+  else # default to mpich
+    echo "MPI is detected and defaults to MPICH"
     export MPI_MODE=mpich
   fi
 else
@@ -350,15 +335,9 @@ dry_run=__FALSE__
 enable_tsan=__FALSE__
 enable_gcc_master=__FALSE__
 enable_libxsmm_master=__FALSE__
-if (command -v nvcc >&- 2>&-); then
-  echo "nvcc found, enabling CUDA by default"
-  enable_cuda=__TRUE__
-  export GPUVER=no
-else
-  echo "nvcc not found, disabling CUDA by default"
-  enable_cuda=__FALSE__
-  export GPUVER=no
-fi
+enable_cuda=__FALSE__
+enable_hip=__FALSE__
+export GPUVER=no
 
 # default for libint
 export LIBINT_LMAX=5
@@ -366,7 +345,7 @@ export LIBINT_LMAX=5
 # defaults for CRAY Linux Environment
 if [ "$CRAY_LD_LIBRARY_PATH" ]; then
   enable_cray=__TRUE__
-  export FAST_MATH_MODE=cray
+  export MATH_MODE=cray
   # Default MPI used by CLE is assumed to be MPICH, in any case
   # don't use the installers for the MPI libraries
   with_mpich="__DONTUSE__"
@@ -427,23 +406,20 @@ while [ $# -ge 1 ]; do
       user_input="${1#*=}"
       case "$user_input" in
         cray)
-          export FAST_MATH_MODE=cray
+          export MATH_MODE=cray
           ;;
         mkl)
-          export FAST_MATH_MODE=mkl
+          export MATH_MODE=mkl
           ;;
         acml)
-          export FAST_MATH_MODE=acml
+          export MATH_MODE=acml
           ;;
         openblas)
-          export FAST_MATH_MODE=openblas
-          ;;
-        reflapack)
-          export FAST_MATH_MODE=reflapack
+          export MATH_MODE=openblas
           ;;
         *)
           report_error ${LINENO} \
-            "--math-mode currently only supports mkl, acml, openblas and reflapack as options"
+            "--math-mode currently only supports mkl, acml, and openblas as options"
           ;;
       esac
       ;;
@@ -465,13 +441,22 @@ while [ $# -ge 1 ]; do
         V100)
           export GPUVER=V100
           ;;
+        A100)
+          export GPUVER=A100
+          ;;
+        Mi50)
+          export GPUVER=Mi50
+          ;;
+        Mi100)
+          export GPUVER=Mi100
+          ;;
         no)
           export GPUVER=no
           ;;
         *)
           export GPUVER=no
           report_error ${LINENO} \
-            "--gpu-ver currently only supports K20X, K40, K80, P100, V100 and no as options"
+            "--gpu-ver currently only supports K20X, K40, K80, P100, V100, A100, Mi50, Mi100 and no as options"
           exit 1
           ;;
       esac
@@ -511,6 +496,13 @@ while [ $# -ge 1 ]; do
         exit 1
       fi
       ;;
+    --enable-hip*)
+      enable_hip=$(read_enable $1)
+      if [ $enable_hip = "__INVALID__" ]; then
+        report_error "invalid value for --enable-hip, please use yes or no"
+        exit 1
+      fi
+      ;;
     --enable-cray*)
       enable_cray=$(read_enable $1)
       if [ $enable_cray = "__INVALID__" ]; then
@@ -523,9 +515,6 @@ while [ $# -ge 1 ]; do
       ;;
     --with-cmake*)
       with_cmake=$(read_with $1)
-      ;;
-    --with-valgrind*)
-      with_valgrind=$(read_with $1)
       ;;
     --with-mpich*)
       with_mpich=$(read_with $1)
@@ -554,25 +543,22 @@ while [ $# -ge 1 ]; do
     --with-fftw*)
       with_fftw=$(read_with $1)
       ;;
-    --with-reflapack*)
-      with_reflapack=$(read_with $1)
-      ;;
     --with-mkl*)
       with_mkl=$(read_with $1)
       if [ $with_mkl != __DONTUSE__ ]; then
-        export FAST_MATH_MODE=mkl
+        export MATH_MODE=mkl
       fi
       ;;
     --with-acml*)
       with_acml=$(read_with $1)
       if [ $with_acml != __DONTUSE__ ]; then
-        export FAST_MATH_MODE=acml
+        export MATH_MODE=acml
       fi
       ;;
     --with-openblas*)
       with_openblas=$(read_with $1)
       if [ $with_openblas != __DONTUSE__ ]; then
-        export FAST_MATH_MODE=openblas
+        export MATH_MODE=openblas
       fi
       ;;
     --with-scalapack*)
@@ -648,33 +634,14 @@ done
 # consolidate settings after user input
 export ENABLE_TSAN=$enable_tsan
 export ENABLE_CUDA=$enable_cuda
+export ENABLE_HIP=$enable_hip
 export ENABLE_CRAY=$enable_cray
 [ "$enable_gcc_master" = "__TRUE__" ] && export gcc_ver=master
 [ "$enable_libxsmm_master" = "__TRUE__" ] && export libxsmm_ver=master
-[ "$with_valgrind" != "__DONTUSE__" ] && export ENABLE_VALGRIND="__TRUE__"
 
 # ------------------------------------------------------------------------
 # Check and solve known conflicts before installations proceed
 # ------------------------------------------------------------------------
-
-# GCC thread sanitizer conflicts
-if [ $ENABLE_TSAN = "__TRUE__" ]; then
-  if [ "$with_openblas" != "__DONTUSE__" ]; then
-    echo "TSAN is enabled, cannot use openblas, we will use reflapack instead"
-    [ "$with_reflapack" = "__DONTUSE__" ] && with_reflapack="__INSTALL__"
-    export FAST_MATH_MODE=reflapack
-  fi
-  echo "TSAN is enabled, cannot use libsmm"
-  with_libsmm="__DONTUSE__"
-fi
-
-# valgrind conflicts
-if [ "$ENABLE_VALGRIND" = "__TRUE__" ]; then
-  if [ "$with_reflapack" = "__DONTUSE__" ]; then
-    echo "reflapack is automatically installed when valgrind is enabled"
-    with_reflapack="__INSTALL__"
-  fi
-fi
 
 # mpi library conflicts
 if [ $MPI_MODE = no ]; then
@@ -716,10 +683,10 @@ else
   fi
 fi
 
-# If CUDA is enabled, make sure the GPU version has been defined
-if [ $ENABLE_CUDA = __TRUE__ ]; then
+# If CUDA or HIP are enabled, make sure the GPU version has been defined.
+if [ $ENABLE_CUDA = __TRUE__ ] || [ $ENABLE_HIP = __TRUE__ ]; then
   if [ "$GPUVER" = no ]; then
-    report_error "CUDA enabled, please choose GPU architecture to compile for with --gpu-ver"
+    report_error "Please choose GPU architecture to compile for with --gpu-ver"
     exit 1
   fi
 fi
@@ -762,8 +729,8 @@ if [ "$with_sirius" = "__INSTALL__" ]; then
   [ "$with_fftw" = "__DONTUSE__" ] && with_fftw="__INSTALL__"
   [ "$with_spglib" = "__DONTUSE__" ] && with_spglib="__INSTALL__"
   [ "$with_hdf5" = "__DONTUSE__" ] && with_hdf5="__INSTALL__"
-  [ "$with_libvdwxc" = "__DONTUSE__" ] && with_libvdwxc="__INSTALL__"
-  [ "$with_cosma" = "__DONTUSE__" ] && with_cosma="__INSTALL__"
+#  [ "$with_libvdwxc" = "__DONTUSE__" ] && with_libvdwxc="__INSTALL__"
+#  [ "$with_cosma" = "__DONTUSE__" ] && with_cosma="__INSTALL__"
 fi
 
 if [ "$with_plumed" = "__INSTALL__" ]; then
@@ -901,12 +868,19 @@ case $GPUVER in
   V100)
     export ARCH_NUM=70
     ;;
+  A100)
+    export ARCH_NUM=80
+    ;;
+  Mi50) ;;
+
+  Mi100) ;;
+
   no)
     export ARCH_NUM=no
     ;;
   *)
     report_error ${LINENO} \
-      "--gpu-ver currently only supports K20X, K40, K80, P100, V100 as options"
+      "--gpu-ver currently only supports K20X, K40, K80, P100, V100, A100, Mi50, Mi100 as options"
     ;;
 esac
 

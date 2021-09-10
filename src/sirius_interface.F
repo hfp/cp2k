@@ -61,15 +61,15 @@ MODULE sirius_interface
    USE sirius,                          ONLY: &
         sirius_add_atom, sirius_add_atom_type, sirius_add_atom_type_radial_function, &
         sirius_create_context, sirius_create_ground_state, sirius_create_kset_from_grid, &
-        sirius_dump_runtime_setup, sirius_finalize, sirius_find_ground_state, &
-        sirius_get_band_energies, sirius_get_band_occupancies, sirius_get_energy, &
-        sirius_get_forces, sirius_get_kpoint_properties, sirius_get_num_bands, &
-        sirius_get_num_kpoints, sirius_get_num_spin_components, sirius_get_stress_tensor, &
-        sirius_import_parameters, sirius_initialize, sirius_initialize_context, &
-        sirius_option_add_string_to, sirius_option_get_length, sirius_option_get_name_and_type, &
-        sirius_option_set_double, sirius_option_set_int, sirius_option_set_logical, &
-        sirius_option_set_string, sirius_set_atom_position, sirius_set_atom_type_dion, &
-        sirius_set_atom_type_radial_grid, sirius_set_lattice_vectors, sirius_update_ground_state
+        sirius_finalize, sirius_find_ground_state, sirius_get_band_energies, &
+        sirius_get_band_occupancies, sirius_get_energy, sirius_get_forces, &
+        sirius_get_kpoint_properties, sirius_get_num_kpoints, sirius_get_parameters, &
+        sirius_get_stress_tensor, sirius_import_parameters, sirius_initialize, &
+        sirius_initialize_context, sirius_option_add_string_to, sirius_option_get_length, &
+        sirius_option_get_name_and_type, sirius_option_set_double, sirius_option_set_int, &
+        sirius_option_set_logical, sirius_option_set_string, sirius_set_atom_position, &
+        sirius_set_atom_type_dion, sirius_set_atom_type_radial_grid, sirius_set_lattice_vectors, &
+        sirius_update_ground_state
    USE xc_libxc,                        ONLY: libxc_check_existence_in_libxc
 #include "./base/base_uses.f90"
 
@@ -147,7 +147,7 @@ CONTAINS
       TYPE(C_PTR)                                        :: gs_handler = C_NULL_PTR, &
                                                             ks_handler = C_NULL_PTR, &
                                                             sctx = C_NULL_PTR
-      TYPE(cell_type), POINTER                           :: my_cell, my_cell_ref
+      TYPE(cell_type), POINTER                           :: my_cell
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(grid_atom_type), POINTER                      :: atom_grid
       TYPE(gth_potential_type), POINTER                  :: gth_potential
@@ -231,16 +231,20 @@ CONTAINS
          CALL cp_sirius_fill_in_section(sctx, pwdft_sub_section, "iterative_solver")
       ENDIF
 
-      CALL sirius_dump_runtime_setup(sctx, "runtime.json")
+      !CALL sirius_dump_runtime_setup(sctx, "runtime.json")
       CALL sirius_import_parameters(sctx)
 
 ! lattice vectors of the unit cell should be in [a.u.] (length is in [a.u.])
       CALL pwdft_env_get(pwdft_env=pwdft_env, qs_subsys=qs_subsys)
-      CALL qs_subsys_get(qs_subsys, cell=my_cell, cell_ref=my_cell_ref, use_ref_cell=use_ref_cell)
+      CALL qs_subsys_get(qs_subsys, cell=my_cell, use_ref_cell=use_ref_cell)
       a1(:) = my_cell%hmat(:, 1)
       a2(:) = my_cell%hmat(:, 2)
       a3(:) = my_cell%hmat(:, 3)
       CALL sirius_set_lattice_vectors(sctx, a1(1), a2(1), a3(1))
+
+      IF (use_ref_cell) THEN
+         CPWARN("The specified CELL_REF will be ignored for PW_DFT calculations")
+      END IF
 
 ! set up the atomic type definitions
       CALL qs_subsys_get(qs_subsys, &
@@ -690,9 +694,9 @@ CONTAINS
 
          CALL sirius_get_num_kpoints(ks_handler, cint)
          nkpts = cint
-         CALL sirius_get_num_bands(sctx, cint)
+         CALL sirius_get_parameters(sctx, num_bands=cint)
          nbands = cint
-         CALL sirius_get_num_spin_components(sctx, cint)
+         CALL sirius_get_parameters(sctx, num_spins=cint)
          nspins = cint
          e_fermi(:) = 0.0_dp
          ALLOCATE (energies(nbands, nspins, nkpts))
