@@ -1,19 +1,22 @@
 # Arch file targeting Linux 64-bit using the Intel tool chain
 #
-PERL := perl
+PERL          := perl
 # use compiler to preprocess Fortran code
-CPP := $(NULL)
-ACC := $(NULL)
-
-DFLAGS   += -D__NO_IPI_DRIVER
-CFLAGS   += -std=c99
-IFLAGS   += $(NULL)
-CXXFLAGS += $(NULL)
-FCFLAGS  += $(NULL)
-LDFLAGS  += $(NULL)
-ACCFLAGS += $(NULL)
-LIBS     += $(NULL)
-MIC ?= 0
+CPP           := $(NULL)
+ACC           := $(NULL)
+OFFLOAD_CC    := $(NULL)
+OFFLOAD_FLAGS := $(NULL)
+DFLAGS        := -D__NO_IPI_DRIVER
+CFLAGS        := -std=c99
+IFLAGS        := $(NULL)
+CXXFLAGS      := $(NULL)
+FCFLAGS       := $(NULL)
+LDFLAGS       := $(NULL)
+ACCFLAGS      := $(NULL)
+LIBS          := $(NULL)
+LIBDIRNAME    := lib
+OBJDIRNAME    := obj
+EXTSDIR       := exts
 
 # LIBXSMM (https://github.com/hfp/libxsmm)
 #LIBXSMMROOT := /path/to/libxsmm
@@ -98,9 +101,10 @@ else
   NDEBUG ?= 0
 endif
 
-EXTSDIR ?= exts
 EXTSHOME ?= $(CP2KHOME)/$(EXTSDIR)
-LEGACY ?= $(if $(wildcard $(EXTSHOME)/dbcsr),0,1)
+EXTDBCSR ?= $(EXTSHOME)/dbcsr
+DBCSRSRC ?= $(EXTDBCSR)/src
+LEGACY ?= $(if $(wildcard $(EXTDBCSR)),0,1)
 UNAME ?= $(shell uname 2>/dev/null)
 
 ifeq (0,$(LEGACY))
@@ -154,6 +158,17 @@ TBBMALLOC ?= 0
 # TBB runtime compatible with oldest supported GCC
 TBBGCC_OLD ?= 1
 
+ifeq (opencl,$(USE_ACCEL))
+  OCL := 1
+else ifeq (cuda,$(USE_ACCEL))
+  CUDA := 1
+else ifneq (,$(USE_ACCEL))
+  $(info ============================)
+  $(info USE_ACCEL=$(USE_ACCEL) not supported!)
+  $(info ============================)
+  $(error USE_ACCEL)
+endif
+
 OCL ?= 0
 CUDA ?= 0
 ifneq (,$(filter-out 0,$(OCL) $(CUDA)))
@@ -171,6 +186,7 @@ ifneq (,$(filter-out 0,$(OCL) $(CUDA)))
       endif
       LDFLAGS += -lOpenCL
     endif
+    USE_ACCEL := opencl
     ACCFLAGS += $(CFLAGS)
     ACC := $(CC)
   else
@@ -188,6 +204,7 @@ ifneq (,$(filter-out 0,$(OCL) $(CUDA)))
         NVCFLAGS := $(addprefix -Xcompiler $(NULL),$(filter-out -Wl%,$(OPTFLAGS)))
         ACCFLAGS += $(NVCFLAGS) $(DFLAGS)
         NVFLAGS += $(NVCFLAGS) $(DFLAGS)
+        USE_ACCEL := cuda
         ACC := $(NVCC)
         IPO := 0
       else
@@ -210,6 +227,9 @@ else # ACC off
   endif
   endif
 endif
+# apply ACC settings for CP2K/GRID code
+OFFLOAD_CC := $(ACC)
+OFFLOAD_FLAGS := $(ACCFLAGS)
 
 # MKL_MPIRTL: intelmpi, openmpi
 MKL_MPIRTL ?= intelmpi
@@ -378,6 +398,7 @@ else
   CC_VERSION := 0
 endif
 
+MIC ?= 0
 ifeq (0,$(GNU)) # Intel
   ifeq (0,$(INTEL))
     $(info ================================================================================)
@@ -442,14 +463,15 @@ ifeq (0,$(GNU)) # Intel
       LDFLAGS += -no-ipo
     endif
   else
-    CXXFLAGS := -debug $(CXXFLAGS)
-    FCFLAGS  := -debug $(FCFLAGS)
-    CFLAGS   := -debug $(CFLAGS)
-    ifneq (0,$(FPE))
-      FCFLAGS += -fpe0 # debugging NaNs
-    endif
-    ifneq (1,$(INTEL))
-      OPT ?= 1
+    ifeq (1,$(INTEL))
+      CXXFLAGS := -debug $(CXXFLAGS)
+      FCFLAGS  := -debug $(FCFLAGS)
+      CFLAGS   := -debug $(CFLAGS)
+      ifneq (0,$(FPE))
+        FCFLAGS += -fpe0 # debugging NaNs
+      endif
+    #else
+      #OPT ?= 1
     endif
     OPT ?= 0
   endif
@@ -592,8 +614,23 @@ ifneq (0,$(LIBXSMM)) # incl. undefined
   endif
 endif
 ifneq (0,$(LIBINT)) # incl. undefined
-  LIBINTROOT ?= $(abspath $(wildcard $(CP2KHOME)/../libint/$(XCFG)))
-  LIBINTROOT ?= $(abspath $(wildcard $(HOME)/libint/$(XCFG)))
+  ifneq (,$(wildcard $(CP2KHOME)/../libint/$(XCFG)))
+    LIBINTROOT ?= $(abspath $(CP2KHOME)/../libint/$(XCFG))
+  else ifneq (,$(wildcard $(HOME)/libint/$(XCFG)))
+    LIBINTROOT ?= $(abspath $(HOME)/libint/$(XCFG))
+  else ifneq (0,$(GNU))
+    ifneq (,$(wildcard $(CP2KHOME)/../libint/gnu))
+      LIBINTROOT ?= $(abspath $(CP2KHOME)/../libint/gnu)
+    else ifneq (,$(wildcard $(HOME)/libint/gnu))
+      LIBINTROOT ?= $(abspath $(HOME)/libint/gnu)
+    endif
+  else ifneq (0,$(INTEL))
+    ifneq (,$(wildcard $(CP2KHOME)/../libint/intel))
+      LIBINTROOT ?= $(abspath $(CP2KHOME)/../libint/intel)
+    else ifneq (,$(wildcard $(HOME)/libint/intel))
+      LIBINTROOT ?= $(abspath $(HOME)/libint/intel)
+    endif
+  endif
   ifeq (/,$(LIBINTROOT))
     LIBINTROOT := $(NULL)
   endif
@@ -602,8 +639,23 @@ ifneq (0,$(LIBINT)) # incl. undefined
   endif
 endif
 ifneq (0,$(PLUMED)) # incl. undefined
-  PLUMEDROOT ?= $(abspath $(wildcard $(CP2KHOME)/../plumed/$(XCFG)))
-  PLUMEDROOT ?= $(abspath $(wildcard $(HOME)/plumed/$(XCFG)))
+  ifneq (,$(wildcard $(CP2KHOME)/../plumed/$(XCFG)))
+    PLUMEDROOT ?= $(abspath $(CP2KHOME)/../plumed/$(XCFG))
+  else ifneq (,$(wildcard $(HOME)/plumed/$(XCFG)))
+    PLUMEDROOT ?= $(abspath $(HOME)/plumed/$(XCFG))
+  else ifneq (0,$(GNU))
+    ifneq (,$(wildcard $(CP2KHOME)/../plumed/gnu))
+      PLUMEDROOT ?= $(abspath $(CP2KHOME)/../plumed/gnu)
+    else ifneq (,$(wildcard $(HOME)/plumed/gnu))
+      PLUMEDROOT ?= $(abspath $(HOME)/plumed/gnu)
+    endif
+  else ifneq (0,$(INTEL))
+    ifneq (,$(wildcard $(CP2KHOME)/../plumed/intel))
+      PLUMEDROOT ?= $(abspath $(CP2KHOME)/../plumed/intel)
+    else ifneq (,$(wildcard $(HOME)/plumed/intel))
+      PLUMEDROOT ?= $(abspath $(HOME)/plumed/intel)
+    endif
+  endif
   ifeq (/,$(PLUMEDROOT))
     PLUMEDROOT := $(NULL)
   endif
@@ -612,8 +664,23 @@ ifneq (0,$(PLUMED)) # incl. undefined
   endif
 endif
 ifneq (0,$(LIBXC)) # incl. undefined
-  LIBXCROOT ?= $(abspath $(wildcard $(CP2KHOME)/../libxc/$(XCFG)))
-  LIBXCROOT ?= $(abspath $(wildcard $(HOME)/libxc/$(XCFG)))
+  ifneq (,$(wildcard $(CP2KHOME)/../libxc/$(XCFG)))
+    LIBXCROOT ?= $(abspath $(CP2KHOME)/../libxc/$(XCFG))
+  else ifneq (,$(wildcard $(HOME)/libxc/$(XCFG)))
+    LIBXCROOT ?= $(abspath $(HOME)/libxc/$(XCFG))
+  else ifneq (0,$(GNU))
+    ifneq (,$(wildcard $(CP2KHOME)/../libxc/gnu))
+      LIBXCROOT ?= $(abspath $(CP2KHOME)/../libxc/gnu)
+    else ifneq (,$(wildcard $(HOME)/libxc/gnu))
+      LIBXCROOT ?= $(abspath $(HOME)/libxc/gnu)
+    endif
+  else ifneq (0,$(INTEL))
+    ifneq (,$(wildcard $(CP2KHOME)/../libxc/intel))
+      LIBXCROOT ?= $(abspath $(CP2KHOME)/../libxc/intel)
+    else ifneq (,$(wildcard $(HOME)/libxc/intel))
+      LIBXCROOT ?= $(abspath $(HOME)/libxc/intel)
+    endif
+  endif
   ifeq (/,$(LIBXCROOT))
     LIBXCROOT := $(NULL)
   endif
@@ -622,8 +689,37 @@ ifneq (0,$(LIBXC)) # incl. undefined
   endif
 endif
 ifneq (0,$(ELPA)) # incl. undefined
-  ELPAROOT ?= $(abspath $(wildcard $(CP2KHOME)/../elpa/$(XCFGOMP)))
-  ELPAROOT ?= $(abspath $(wildcard $(HOME)/elpa/$(XCFG)))
+  ifneq (,$(wildcard $(CP2KHOME)/../elpa/$(XCFGOMP)))
+    ELPAROOT ?= $(abspath $(CP2KHOME)/../elpa/$(XCFGOMP))
+  else ifneq (,$(wildcard $(HOME)/elpa/$(XCFGOMP)))
+    ELPAROOT ?= $(abspath $(HOME)/elpa/$(XCFGOMP))
+  else ifneq (0,$(OMP))
+    ifneq (0,$(GNU))
+      ifneq (,$(wildcard $(CP2KHOME)/../elpa/gnu-omp))
+        ELPAROOT ?= $(abspath $(CP2KHOME)/../elpa/gnu-omp)
+      else ifneq (,$(wildcard $(HOME)/elpa/gnu-omp))
+        ELPAROOT ?= $(abspath $(HOME)/elpa/gnu-omp)
+      endif
+    else ifneq (0,$(INTEL))
+      ifneq (,$(wildcard $(CP2KHOME)/../elpa/intel-omp))
+        ELPAROOT ?= $(abspath $(CP2KHOME)/../elpa/intel-omp)
+      else ifneq (,$(wildcard $(HOME)/elpa/intel-omp))
+        ELPAROOT ?= $(abspath $(HOME)/elpa/intel-omp)
+      endif
+    endif
+  else ifneq (0,$(GNU))
+    ifneq (,$(wildcard $(CP2KHOME)/../elpa/gnu))
+      ELPAROOT ?= $(abspath $(CP2KHOME)/../elpa/gnu)
+    else ifneq (,$(wildcard $(HOME)/elpa/gnu))
+      ELPAROOT ?= $(abspath $(HOME)/elpa/gnu)
+    endif
+  else ifneq (0,$(INTEL))
+    ifneq (,$(wildcard $(CP2KHOME)/../elpa/intel))
+      ELPAROOT ?= $(abspath $(CP2KHOME)/../elpa/intel)
+    else ifneq (,$(wildcard $(HOME)/elpa/intel))
+      ELPAROOT ?= $(abspath $(HOME)/elpa/intel)
+    endif
+  endif
   ifeq (/,$(COSMAROOT))
     ELPAROOT := $(NULL)
   endif
@@ -797,9 +893,6 @@ ifneq (,$(wildcard $(LIBSMM_LIB))) # LIBSMM successfully downloaded
   DFLAGS += -D__HAS_smm_dnn
   LIBS += $(LIBSMM_LIB)
 endif
-
-LIBDIRNAME := lib
-OBJDIRNAME := obj
 
 ifneq (,$(LIBXSMMROOT))
   # 1: SMMs, 2: 1+UnreleasedFeat, 3: 2+AllGEMM
