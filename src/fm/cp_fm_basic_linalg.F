@@ -38,6 +38,7 @@ MODULE cp_fm_basic_linalg
 
    PUBLIC :: cp_fm_scale, & ! scale a matrix
              cp_fm_scale_and_add, & ! scale and add two matrices
+             cp_fm_geadd, & ! general addition
              cp_fm_column_scale, & ! scale columns of a matrix
              cp_fm_row_scale, & ! scale rows of a matrix
              cp_fm_trace, & ! trace of the transpose(A)*B
@@ -741,8 +742,8 @@ CONTAINS
          trace = accurate_sum(a(1:nrow_local, 1:ncol_local)* &
                               REAL(b_sp(1:nrow_local, 1:ncol_local), dp))
       ELSE
-         trace = accurate_sum(a(1:nrow_local, 1:ncol_local)* &
-                              b(1:nrow_local, 1:ncol_local))
+         trace = accurate_dot_product(a(1:nrow_local, 1:ncol_local), &
+                                      b(1:nrow_local, 1:ncol_local))
       ENDIF
 
       CALL mp_sum(trace, group)

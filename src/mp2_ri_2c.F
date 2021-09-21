@@ -50,8 +50,9 @@ MODULE mp2_ri_2c
         cp_fm_copy_general, cp_fm_create, cp_fm_get_info, cp_fm_indxg2p, cp_fm_p_type, &
         cp_fm_release, cp_fm_set_all, cp_fm_to_fm, cp_fm_type
    USE cp_gemm_interface,               ONLY: cp_gemm
-   USE cp_para_env,                     ONLY: cp_para_env_create,&
-                                              cp_para_env_release
+   USE cp_log_handling,                 ONLY: cp_to_string
+   USE cp_para_env,                     ONLY: cp_para_env_release,&
+                                              cp_para_env_split
    USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: &
         dbcsr_create, dbcsr_deallocate_matrix, dbcsr_desymmetrize, dbcsr_distribution_release, &
@@ -73,10 +74,11 @@ MODULE mp2_ri_2c
    USE kpoint_methods,                  ONLY: rskp_transform
    USE kpoint_types,                    ONLY: get_kpoint_info,&
                                               kpoint_type
-   USE libint_2c_3c,                    ONLY: libint_potential_type
-   USE message_passing,                 ONLY: mp_alltoall,&
+   USE libint_2c_3c,                    ONLY: compare_potential_types,&
+                                              libint_potential_type
+   USE message_passing,                 ONLY: mp_allgather,&
+                                              mp_alltoall,&
                                               mp_bcast,&
-                                              mp_comm_split_direct,&
                                               mp_sendrecv,&
                                               mp_sum
    USE mp2_eri,                         ONLY: mp2_eri_2c_integrate
@@ -120,6 +122,7 @@ CONTAINS
 !> \param para_env_L ...
 !> \param mp2_memory ...
 !> \param fm_matrix_L ...
+!> \param fm_matrix_V ...
 !> \param ngroup ...
 !> \param color_sub ...
 !> \param dimen_RI ...
@@ -133,7 +136,6 @@ CONTAINS
 !> \param calc_PQ_cond_num ...
 !> \param cond_num ...
 !> \param do_svd ...
-!> \param eps_svd ...
 !> \param num_small_eigen ...
 !> \param potential ...
 !> \param ri_metric ...
@@ -143,21 +145,22 @@ CONTAINS
 !> \param mp2_eps_pgf_orb_S ...
 !> \param qs_kind_set ...
 !> \param sab_orb_sub ...
+!> \param calc_forces ...
 ! **************************************************************************************************
    SUBROUTINE get_2c_integrals(qs_env, eri_method, eri_param, para_env, para_env_sub, para_env_L, mp2_memory, &
-                               fm_matrix_L, ngroup, color_sub, dimen_RI, dimen_RI_red, kpoints, mo_coeff, &
+                               fm_matrix_L, fm_matrix_V, ngroup, color_sub, dimen_RI, dimen_RI_red, kpoints, mo_coeff, &
                                my_group_L_size, my_group_L_start, my_group_L_end, &
-                               gd_array, calc_PQ_cond_num, cond_num, do_svd, eps_svd, &
+                               gd_array, calc_PQ_cond_num, cond_num, do_svd, &
                                num_small_eigen, potential, ri_metric, &
                                fm_matrix_L_RI_metric, &
-                               do_im_time, do_kpoints, mp2_eps_pgf_orb_S, qs_kind_set, sab_orb_sub)
+                               do_im_time, do_kpoints, mp2_eps_pgf_orb_S, qs_kind_set, sab_orb_sub, calc_forces)
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
       INTEGER, INTENT(IN)                                :: eri_method
       TYPE(cp_eri_mme_param), POINTER                    :: eri_param
       TYPE(cp_para_env_type), POINTER                    :: para_env, para_env_sub, para_env_L
       REAL(KIND=dp), INTENT(IN)                          :: mp2_memory
-      TYPE(cp_fm_type), POINTER                          :: fm_matrix_L
+      TYPE(cp_fm_type), POINTER                          :: fm_matrix_L, fm_matrix_V
       INTEGER, INTENT(IN)                                :: ngroup, color_sub
       INTEGER, INTENT(OUT)                               :: dimen_RI, dimen_RI_red
       TYPE(kpoint_type), POINTER                         :: kpoints
@@ -168,7 +171,6 @@ CONTAINS
       LOGICAL, INTENT(IN)                                :: calc_PQ_cond_num
       REAL(KIND=dp), INTENT(OUT)                         :: cond_num
       LOGICAL, INTENT(IN)                                :: do_svd
-      REAL(KIND=dp), INTENT(IN)                          :: eps_svd
       INTEGER, INTENT(OUT)                               :: num_small_eigen
       TYPE(libint_potential_type)                        :: potential, ri_metric
       TYPE(cp_fm_p_type), DIMENSION(:, :), POINTER       :: fm_matrix_L_RI_metric
@@ -177,6 +179,7 @@ CONTAINS
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
          POINTER                                         :: sab_orb_sub
+      LOGICAL, INTENT(IN)                                :: calc_forces
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'get_2c_integrals'
 
@@ -197,8 +200,8 @@ CONTAINS
 
       dimen_RI_red = dimen_RI
 
-      IF (ri_metric%potential_type == potential%potential_type .AND. .NOT. do_im_time) THEN
-         CALL decomp_mat_L(fm_matrix_L, do_svd, eps_svd, num_small_eigen, cond_num, .TRUE., gd_array, ngroup, &
+      IF (compare_potential_types(ri_metric, potential) .AND. .NOT. do_im_time) THEN
+         CALL decomp_mat_L(fm_matrix_L, do_svd, num_small_eigen, cond_num, .TRUE., gd_array, ngroup, &
                            dimen_RI, dimen_RI_red, para_env)
       ELSE
 
@@ -244,11 +247,20 @@ CONTAINS
                                                             dimen_RI, kpoints)
 
          ELSE
+            IF (calc_forces) THEN
+               ! For the gradients, we make a copy of the inverse root of L
+               NULLIFY (fm_matrix_V)
+               CALL cp_fm_create(fm_matrix_V, fm_matrix_L%matrix_struct)
+               CALL cp_fm_to_fm(fm_matrix_L, fm_matrix_V)
 
-            CALL decomp_mat_L(fm_matrix_L, do_svd, eps_svd, num_small_eigen, cond_num, .FALSE., gd_array, ngroup, &
+               CALL decomp_mat_L(fm_matrix_V, do_svd, num_small_eigen, cond_num, .TRUE., gd_array, ngroup, &
+                                 dimen_RI, dimen_RI_red, para_env)
+            END IF
+
+            CALL decomp_mat_L(fm_matrix_L, do_svd, num_small_eigen, cond_num, .FALSE., gd_array, ngroup, &
                               dimen_RI, dimen_RI_red, para_env)
 
-            CALL decomp_mat_L(fm_matrix_L_RI_metric(1, 1)%matrix, .FALSE., 0.0_dp, num_small_eigen, cond_num, .TRUE., &
+            CALL decomp_mat_L(fm_matrix_L_RI_metric(1, 1)%matrix, .FALSE., num_small_eigen, cond_num, .TRUE., &
                               gd_array, ngroup, dimen_RI, dimen_RI_red, para_env)
 
             NULLIFY (fm_matrix_S_inv_work)
@@ -312,7 +324,6 @@ CONTAINS
 !> \brief ...
 !> \param fm_matrix_L ...
 !> \param do_svd ...
-!> \param eps_svd ...
 !> \param num_small_eigen ...
 !> \param cond_num ...
 !> \param do_inversion ...
@@ -322,12 +333,11 @@ CONTAINS
 !> \param dimen_RI_red ...
 !> \param para_env ...
 ! **************************************************************************************************
-   SUBROUTINE decomp_mat_L(fm_matrix_L, do_svd, eps_svd, num_small_eigen, cond_num, do_inversion, gd_array, ngroup, &
+   SUBROUTINE decomp_mat_L(fm_matrix_L, do_svd, num_small_eigen, cond_num, do_inversion, gd_array, ngroup, &
                            dimen_RI, dimen_RI_red, para_env)
 
       TYPE(cp_fm_type), POINTER                          :: fm_matrix_L
       LOGICAL, INTENT(IN)                                :: do_svd
-      REAL(KIND=dp), INTENT(IN)                          :: eps_svd
       INTEGER, INTENT(INOUT)                             :: num_small_eigen
       REAL(KIND=dp), INTENT(INOUT)                       :: cond_num
       LOGICAL, INTENT(IN)                                :: do_inversion
@@ -337,7 +347,7 @@ CONTAINS
       TYPE(cp_para_env_type), POINTER                    :: para_env
 
       IF (do_svd) THEN
-         CALL matrix_root_with_svd(fm_matrix_L, eps_svd, num_small_eigen, cond_num, do_inversion, para_env)
+         CALL matrix_root_with_svd(fm_matrix_L, num_small_eigen, cond_num, do_inversion, para_env)
 
          dimen_RI_red = dimen_RI - num_small_eigen
 
@@ -714,10 +724,10 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'compute_2c_integrals'
 
-      INTEGER :: best_group_size, color_L, comm_exchange, comm_L, group_size, handle, handle2, i, &
-         i_global, iatom, iiB, ikind, iproc, j_global, jjB, natom, ncol_local, nkind, nrow_local, &
-         nsgf, potential_type, proc_receive, proc_receive_static, proc_send, proc_send_static, &
-         proc_shift, rec_L_end, rec_L_size, rec_L_start, strat_group_size, sub_sub_color
+      INTEGER :: best_group_size, color_L, group_size, handle, handle2, i, i_global, iatom, iiB, &
+         ikind, iproc, j_global, jjB, natom, ncol_local, nkind, nrow_local, nsgf, potential_type, &
+         proc_receive, proc_receive_static, proc_send, proc_send_static, proc_shift, rec_L_end, &
+         rec_L_size, rec_L_start, strat_group_size, sub_sub_color
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: kind_of, proc_map
       INTEGER, DIMENSION(:), POINTER                     :: col_indices, row_indices
       LOGICAL                                            :: my_do_im_time
@@ -764,7 +774,9 @@ CONTAINS
       END DO
 
       ! check that very small systems are not running on too many processes
-      CPASSERT(dimen_RI >= para_env%num_pe)
+      IF (dimen_RI < para_env%num_pe) THEN
+         CPABORT("Too large number of MPI processes. Maximum allowed number: "//cp_to_string(dimen_RI))
+      END IF
 
       CALL create_group_dist(gd_array, ngroup, dimen_RI)
 
@@ -781,7 +793,7 @@ CONTAINS
           .AND. potential_type .EQ. do_potential_coulomb .OR. &
           (eri_method .EQ. do_eri_mme .AND. potential_type .EQ. do_potential_long)) THEN
 
-         CALL mp2_eri_2c_integrate(eri_param, potential_type, potential%omega, para_env_sub, qs_env, &
+         CALL mp2_eri_2c_integrate(eri_param, potential, para_env_sub, qs_env, &
                                    basis_type_a="RI_AUX", basis_type_b="RI_AUX", &
                                    hab=L_local_col, first_b=my_group_L_start, last_b=my_group_L_end, &
                                    eri_method=eri_method)
@@ -791,8 +803,7 @@ CONTAINS
               .OR. (potential_type == do_potential_id .AND. qs_env%mp2_env%eri_method == do_eri_mme)) THEN
 
          CALL mp2_eri_2c_integrate_gpw(qs_env, para_env_sub, dimen_RI, mo_coeff, my_group_L_start, my_group_L_end, &
-                                       potential_type, &
-                                       natom, potential%omega, sab_orb_sub, L_local_col, kind_of)
+                                       natom, potential, sab_orb_sub, L_local_col, kind_of)
 
       ELSE
          CPABORT("unknown ERI method")
@@ -829,9 +840,7 @@ CONTAINS
 
       ! create the L group
       color_L = para_env%mepos/best_group_size
-      CALL mp_comm_split_direct(para_env%group, comm_L, color_L)
-      NULLIFY (para_env_L)
-      CALL cp_para_env_create(para_env_L, comm_L)
+      CALL cp_para_env_split(para_env_L, para_env, color_L)
 
       ! create the blacs_L
       NULLIFY (blacs_env_L)
@@ -840,9 +849,7 @@ CONTAINS
       ! now create the exchange group (for communication only between members not belonging to the
       ! same group
       sub_sub_color = para_env_sub%mepos
-      CALL mp_comm_split_direct(para_env_L%group, comm_exchange, sub_sub_color)
-      NULLIFY (para_env_exchange)
-      CALL cp_para_env_create(para_env_exchange, comm_exchange)
+      CALL cp_para_env_split(para_env_exchange, para_env_L, sub_sub_color)
 
       ! crate the proc maps
       ALLOCATE (proc_map(-para_env_exchange%num_pe:2*para_env_exchange%num_pe - 1))
@@ -927,9 +934,7 @@ CONTAINS
 
       ! create the new group for the mp_sum of the local data
       sub_sub_color = para_env_L%mepos
-      CALL mp_comm_split_direct(para_env%group, comm_exchange, sub_sub_color)
-      NULLIFY (para_env_exchange)
-      CALL cp_para_env_create(para_env_exchange, comm_exchange)
+      CALL cp_para_env_split(para_env_exchange, para_env, sub_sub_color)
 
       CALL mp_sum(fm_matrix_L%local_data, para_env_exchange%group)
 
@@ -972,15 +977,13 @@ CONTAINS
 ! **************************************************************************************************
 !> \brief ...
 !> \param matrix ...
-!> \param eps_svd ...
 !> \param num_small_evals ...
 !> \param cond_num ...
 !> \param do_inversion ...
 !> \param para_env ...
 ! **************************************************************************************************
-   SUBROUTINE matrix_root_with_svd(matrix, eps_svd, num_small_evals, cond_num, do_inversion, para_env)
+   SUBROUTINE matrix_root_with_svd(matrix, num_small_evals, cond_num, do_inversion, para_env)
       TYPE(cp_fm_type), POINTER                          :: matrix
-      REAL(KIND=dp), INTENT(IN)                          :: eps_svd
       INTEGER, INTENT(OUT)                               :: num_small_evals
       REAL(KIND=dp), INTENT(OUT)                         :: cond_num
       LOGICAL, INTENT(IN)                                :: do_inversion
@@ -988,16 +991,14 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'matrix_root_with_svd'
 
-      INTEGER                                            :: comm_exchange, group_size_L, handle, ii, &
-                                                            needed_evals, nrow, pos_max
+      INTEGER                                            :: group_size_L, handle, ii, needed_evals, &
+                                                            nrow, pos_max(1)
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: num_eval
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: evals
       TYPE(cp_fm_type), POINTER                          :: evecs
       TYPE(cp_para_env_type), POINTER                    :: para_env_exchange
 
       CALL timeset(routineN, handle)
-
-      CPASSERT(eps_svd >= 0)
 
       ! Create arrays carrying eigenvalues and eigenvectors later
       CALL cp_fm_get_info(matrix=matrix, nrow_global=nrow)
@@ -1014,7 +1015,7 @@ CONTAINS
       ! Determine the number of neglectable eigenvalues assuming that the eigenvalues are in ascending order
       num_small_evals = 0
       DO ii = 1, nrow
-         IF (evals(ii) > eps_svd) THEN
+         IF (evals(ii) > 0.0_dp) THEN
             num_small_evals = ii - 1
             EXIT
          END IF
@@ -1039,31 +1040,22 @@ CONTAINS
       ! Step 1: Get a communicator connecting processes with same id within subgroups
       ! use that group_size_L is divisible by the total number of processes (see above)
       group_size_L = para_env%num_pe/matrix%matrix_struct%para_env%num_pe
-      CALL mp_comm_split_direct(para_env%group, comm_exchange, matrix%matrix_struct%para_env%mepos)
-      NULLIFY (para_env_exchange)
-      CALL cp_para_env_create(para_env_exchange, comm_exchange)
+      CALL cp_para_env_split(para_env_exchange, para_env, matrix%matrix_struct%para_env%mepos)
 
       ALLOCATE (num_eval(0:group_size_L - 1))
-      num_eval = 0
-      num_eval(para_env_exchange%mepos) = num_small_evals
-      CALL mp_sum(num_eval, para_env_exchange%group)
+      CALL mp_allgather(num_small_evals, num_eval, para_env_exchange%group)
 
       num_small_evals = MINVAL(num_eval)
 
       IF (num_small_evals /= MAXVAL(num_eval)) THEN
          ! Step 2: Get position of maximum value
-         DO ii = 0, group_size_L - 1
-            IF (num_eval(ii) == num_small_evals) THEN
-               pos_max = ii
-               EXIT
-            END IF
-         END DO
-         num_small_evals = num_eval(pos_max)
+         pos_max = MAXLOC(num_eval)
+         num_small_evals = num_eval(pos_max(1))
          needed_evals = nrow - num_small_evals
 
          ! Step 3: Broadcast your local data to all other processes
-         CALL mp_bcast(evecs%local_data, pos_max, para_env_exchange%group)
-         CALL mp_bcast(cond_num, pos_max, para_env_exchange%group)
+         CALL mp_bcast(evecs%local_data, pos_max(1), para_env_exchange%group)
+         CALL mp_bcast(cond_num, pos_max(1), para_env_exchange%group)
       END IF
 
       DEALLOCATE (num_eval)

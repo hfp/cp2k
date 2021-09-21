@@ -453,7 +453,11 @@ CONTAINS
                CALL scale_dm(qs_env, rho_ao_orb, scale_back=.FALSE.)
             END IF
             IF (ASSOCIATED(qs_env%mp2_env)) THEN
-               CALL get_qs_env(qs_env, matrix_p_mp2=rho_ao_resp)
+               IF (dft_control%do_admm) THEN
+                  CALL get_qs_env(qs_env, matrix_p_mp2_admm=rho_ao_resp)
+               ELSE
+                  CALL get_qs_env(qs_env, matrix_p_mp2=rho_ao_resp)
+               END IF
             ELSE
                NULLIFY (rho_ao_resp)
             END IF
@@ -653,9 +657,9 @@ CONTAINS
 
       !in case of no admm exchange corr., no auxiliary exchange functional needed
       IF (admm_env%aux_exch_func == do_admm_aux_exch_func_none) THEN
-         hfx_fraction = 0.0_dp
          CALL section_vals_val_set(xc_fun_section, "_SECTION_PARAMETERS_", &
                                    i_val=xc_none)
+         hfx_fraction = 0.0_dp
       ELSE IF (admm_env%aux_exch_func == do_admm_aux_exch_func_default) THEN
          ! default PBE Functional
          !! ** Add functionals evaluated with auxiliary basis
@@ -1142,20 +1146,24 @@ CONTAINS
 !> \param matrix_ks Kohn-Sham matrix (updated on exit)
 !> \param rho_ao    electron density expressed in terms of atomic orbitals
 !> \param qs_env    Quickstep environment
+!> \param update_energy whether to update energy (default: yes)
+!> \param recalc_integrals whether to recalculate integrals (default: value of HF%TREAT_LSD_IN_CORE)
 !> \note
 !>     Simplified version of subroutine hfx_ks_matrix()
 ! **************************************************************************************************
-   SUBROUTINE tddft_hfx_matrix(matrix_ks, rho_ao, qs_env)
-      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_ks, rho_ao
+   SUBROUTINE tddft_hfx_matrix(matrix_ks, rho_ao, qs_env, update_energy, recalc_integrals)
+      TYPE(dbcsr_p_type), DIMENSION(:), INTENT(INOUT), &
+         TARGET                                          :: matrix_ks, rho_ao
       TYPE(qs_environment_type), POINTER                 :: qs_env
+      LOGICAL, INTENT(IN), OPTIONAL                      :: update_energy, recalc_integrals
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'tddft_hfx_matrix'
 
       INTEGER                                            :: handle, irep, ispin, mspin, n_rep_hf, &
                                                             nspins
-      LOGICAL                                            :: distribute_fock_matrix, do_hfx, &
+      LOGICAL                                            :: distribute_fock_matrix, &
                                                             hfx_treat_lsd_in_core, &
-                                                            s_mstruct_changed
+                                                            my_update_energy, s_mstruct_changed
       REAL(KIND=dp)                                      :: eh1, ehfx
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: matrix_ks_kp, rho_ao_kp
@@ -1177,36 +1185,38 @@ CONTAINS
                       x_data=x_data)
 
       hfx_sections => section_vals_get_subs_vals(input, "DFT%XC%HF")
-      CALL section_vals_get(hfx_sections, explicit=do_hfx)
 
-      IF (do_hfx) THEN
-         CPASSERT(dft_control%nimages == 1)
-         nspins = dft_control%nspins
+      my_update_energy = .TRUE.
+      IF (PRESENT(update_energy)) my_update_energy = update_energy
 
-         CALL section_vals_get(hfx_sections, n_repetition=n_rep_hf)
-         CALL section_vals_val_get(hfx_sections, "TREAT_LSD_IN_CORE", l_val=hfx_treat_lsd_in_core, &
-                                   i_rep_section=1)
+      IF (PRESENT(recalc_integrals)) s_mstruct_changed = recalc_integrals
 
-         CALL section_vals_get(hfx_sections, n_repetition=n_rep_hf)
-         distribute_fock_matrix = .TRUE.
+      CPASSERT(dft_control%nimages == 1)
+      nspins = dft_control%nspins
 
-         mspin = 1
-         IF (hfx_treat_lsd_in_core) mspin = nspins
+      CALL section_vals_get(hfx_sections, n_repetition=n_rep_hf)
+      CALL section_vals_val_get(hfx_sections, "TREAT_LSD_IN_CORE", l_val=hfx_treat_lsd_in_core, &
+                                i_rep_section=1)
 
-         matrix_ks_kp(1:nspins, 1:1) => matrix_ks(1:nspins)
-         rho_ao_kp(1:nspins, 1:1) => rho_ao(1:nspins)
+      CALL section_vals_get(hfx_sections, n_repetition=n_rep_hf)
+      distribute_fock_matrix = .TRUE.
 
-         DO irep = 1, n_rep_hf
-            ! the real hfx calulation
-            ehfx = 0.0_dp
-            DO ispin = 1, mspin
-               CALL integrate_four_center(qs_env, x_data, matrix_ks_kp, eh1, rho_ao_kp, hfx_sections, para_env, &
-                                          s_mstruct_changed, irep, distribute_fock_matrix, ispin=ispin)
-               ehfx = ehfx + eh1
-            END DO
+      mspin = 1
+      IF (hfx_treat_lsd_in_core) mspin = nspins
+
+      matrix_ks_kp(1:nspins, 1:1) => matrix_ks(1:nspins)
+      rho_ao_kp(1:nspins, 1:1) => rho_ao(1:nspins)
+
+      DO irep = 1, n_rep_hf
+         ! the real hfx calulation
+         ehfx = 0.0_dp
+         DO ispin = 1, mspin
+            CALL integrate_four_center(qs_env, x_data, matrix_ks_kp, eh1, rho_ao_kp, hfx_sections, para_env, &
+                                       s_mstruct_changed, irep, distribute_fock_matrix, ispin=ispin)
+            ehfx = ehfx + eh1
          END DO
-         energy%ex = ehfx
-      END IF
+      END DO
+      IF (my_update_energy) energy%ex = ehfx
 
       CALL timestop(handle)
    END SUBROUTINE tddft_hfx_matrix

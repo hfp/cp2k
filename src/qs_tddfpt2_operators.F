@@ -22,6 +22,9 @@ MODULE qs_tddfpt2_operators
    USE dbcsr_api,                       ONLY: dbcsr_p_type,&
                                               dbcsr_set
    USE hfx_admm_utils,                  ONLY: tddft_hfx_matrix
+   USE input_section_types,             ONLY: section_vals_get,&
+                                              section_vals_get_subs_vals,&
+                                              section_vals_type
    USE kinds,                           ONLY: dp
    USE pw_env_types,                    ONLY: pw_env_get,&
                                               pw_env_type
@@ -30,24 +33,18 @@ MODULE qs_tddfpt2_operators
                                               pw_zero
    USE pw_poisson_methods,              ONLY: pw_poisson_solve
    USE pw_poisson_types,                ONLY: pw_poisson_type
-   USE pw_pool_types,                   ONLY: pw_pool_create_pw,&
-                                              pw_pool_give_back_pw,&
-                                              pw_pool_type
-   USE pw_types,                        ONLY: REALDATA3D,&
-                                              REALSPACE,&
-                                              pw_p_type,&
-                                              pw_release,&
+   USE pw_pool_types,                   ONLY: pw_pool_type
+   USE pw_types,                        ONLY: pw_p_type,&
                                               pw_type
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
+   USE qs_kernel_types,                 ONLY: full_kernel_env_type
    USE qs_rho_types,                    ONLY: qs_rho_get,&
                                               qs_rho_type
-   USE qs_tddfpt2_types,                ONLY: full_kernel_env_type,&
-                                              tddfpt_ground_state_mos
-   USE xc,                              ONLY: xc_calc_2nd_deriv,&
-                                              xc_vxc_pw_create
-   USE xc_rho_set_types,                ONLY: xc_rho_set_get,&
-                                              xc_rho_set_type,&
+   USE qs_tddfpt2_types,                ONLY: tddfpt_ground_state_mos
+   USE xc,                              ONLY: xc_calc_2nd_deriv_analytical,&
+                                              xc_calc_2nd_deriv_numerical
+   USE xc_rho_set_types,                ONLY: xc_rho_set_type,&
                                               xc_rho_set_update
 #include "./base/base_uses.f90"
 
@@ -209,6 +206,8 @@ CONTAINS
       TYPE(pw_env_type), POINTER                         :: pw_env
       TYPE(pw_p_type), DIMENSION(:), POINTER             :: work_v_xc
 
+      INTEGER                                            :: ispin
+
       IF (kernel_env%deriv2_analytic) THEN
          CALL tddfpt_apply_xc_analytic(A_ia_rspace, kernel_env, rho_ia_struct, is_rks_triplets, &
                                        pw_env, work_v_xc)
@@ -216,6 +215,11 @@ CONTAINS
          CALL tddfpt_apply_xc_fd(A_ia_rspace, kernel_env, rho_ia_struct, is_rks_triplets, &
                                  pw_env, work_v_xc)
       END IF
+
+      DO ispin = 1, SIZE(work_v_xc)
+         ! pw2 = pw2 + alpha * pw1
+         CALL pw_axpy(work_v_xc(ispin)%pw, A_ia_rspace(ispin)%pw, kernel_env%alpha)
+      END DO
 
    END SUBROUTINE tddfpt_apply_xc
 
@@ -305,14 +309,9 @@ CONTAINS
                              needs=kernel_env%xc_rho1_cflags, xc_deriv_method_id=kernel_env%deriv_method_id, &
                              xc_rho_smooth_id=kernel_env%rho_smooth_id, pw_pool=auxbas_pw_pool)
 
-      CALL xc_calc_2nd_deriv(v_xc=work_v_xc, deriv_set=kernel_env%xc_deriv_set, rho_set=kernel_env%xc_rho_set, &
-                             rho1_set=kernel_env%xc_rho1_set, pw_pool=auxbas_pw_pool, &
-                             xc_section=kernel_env%xc_section, gapw=.FALSE., tddfpt_fac=kernel_env%beta)
-
-      DO ispin = 1, nspins
-         ! pw2 = pw2 + alpha * pw1
-         CALL pw_axpy(work_v_xc(ispin)%pw, A_ia_rspace(ispin)%pw, kernel_env%alpha)
-      END DO
+      CALL xc_calc_2nd_deriv_analytical(v_xc=work_v_xc, deriv_set=kernel_env%xc_deriv_set, rho_set=kernel_env%xc_rho_set, &
+                                        rho1_set=kernel_env%xc_rho1_set, pw_pool=auxbas_pw_pool, &
+                                        xc_section=kernel_env%xc_section, gapw=.FALSE., tddfpt_fac=kernel_env%beta)
 
       DEALLOCATE (rho_ia_g2, rho_ia_r2)
 
@@ -341,23 +340,17 @@ CONTAINS
       TYPE(pw_p_type), DIMENSION(:), POINTER             :: work_v_xc
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'tddfpt_apply_xc_fd'
-      REAL(KIND=dp), PARAMETER                           :: h = 0.001_dp
 
       INTEGER                                            :: handle, ispin, nspins
       LOGICAL                                            :: lsd, singlet, triplet
-      REAL(KIND=dp)                                      :: exc
-      REAL(KIND=dp), DIMENSION(3, 3)                     :: virial_xc
-      REAL(kind=dp), DIMENSION(:, :, :), POINTER         :: rho, rhoa, rhob
-      TYPE(pw_p_type), DIMENSION(:), POINTER             :: rho1, rho_g, rho_r, tau, vxc_rho_1, &
-                                                            vxc_rho_2, vxc_rho_3, vxc_rho_4, &
-                                                            vxc_tau
+      TYPE(pw_p_type), DIMENSION(:), POINTER             :: rho1_g, rho1_r, tau
       TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
       TYPE(xc_rho_set_type), POINTER                     :: rho_set
 
       CALL timeset(routineN, handle)
 
       nspins = SIZE(A_ia_rspace)
-      CALL qs_rho_get(rho_ia_struct, rho_r=rho1, tau_r=tau)
+      CALL qs_rho_get(rho_ia_struct, rho_r=rho1_r, rho_g=rho1_g, tau_r=tau)
       CALL pw_env_get(pw_env, auxbas_pw_pool=auxbas_pw_pool)
       DO ispin = 1, nspins
          CALL pw_zero(work_v_xc(ispin)%pw)
@@ -380,98 +373,10 @@ CONTAINS
       IF (ASSOCIATED(tau)) THEN
          CPABORT("Tau (meta) functionals not possible")
       END IF
-      NULLIFY (vxc_tau)
 
-      IF (singlet) THEN
-         NULLIFY (vxc_rho_1, vxc_rho_2, rho_g)
-         ALLOCATE (rho_r(1))
-         NULLIFY (rho_r(1)%pw)
-         CALL pw_pool_create_pw(auxbas_pw_pool, rho_r(1)%pw, in_space=REALSPACE, use_data=REALDATA3D)
-         CALL xc_rho_set_get(rho_set, rho=rho)
-         rho_r(1)%pw%cr3d(:, :, :) = rho(:, :, :) + 0.5_dp*h*rho1(1)%pw%cr3d(:, :, :)
-         CALL xc_vxc_pw_create(vxc_rho_1, vxc_tau, exc, rho_r, rho_g, tau, kernel_env%xc_section, &
-                               auxbas_pw_pool, .FALSE., virial_xc)
-         rho_r(1)%pw%cr3d(:, :, :) = rho(:, :, :) - 0.5_dp*h*rho1(1)%pw%cr3d(:, :, :)
-         CALL xc_vxc_pw_create(vxc_rho_2, vxc_tau, exc, rho_r, rho_g, tau, kernel_env%xc_section, &
-                               auxbas_pw_pool, .FALSE., virial_xc)
-         work_v_xc(1)%pw%cr3d(:, :, :) = (vxc_rho_1(1)%pw%cr3d(:, :, :) - vxc_rho_2(1)%pw%cr3d(:, :, :))/h
-         CALL pw_pool_give_back_pw(auxbas_pw_pool, rho_r(1)%pw)
-         DEALLOCATE (rho_r)
-         CALL pw_axpy(work_v_xc(1)%pw, A_ia_rspace(1)%pw, kernel_env%alpha)
-         CALL pw_release(vxc_rho_1(1)%pw)
-         CALL pw_release(vxc_rho_2(1)%pw)
-         DEALLOCATE (vxc_rho_1, vxc_rho_2)
-      ELSE IF (triplet) THEN
-         NULLIFY (vxc_rho_1, vxc_rho_2, vxc_rho_3, vxc_rho_4, rho_g)
-         ALLOCATE (rho_r(2))
-         DO ispin = 1, 2
-            NULLIFY (rho_r(ispin)%pw)
-            CALL pw_pool_create_pw(auxbas_pw_pool, rho_r(ispin)%pw, in_space=REALSPACE, use_data=REALDATA3D)
-         END DO
-         CALL xc_rho_set_get(rho_set, rhoa=rhoa, rhob=rhob)
-         ! K(alpha,alpha)
-         rho_r(1)%pw%cr3d(:, :, :) = rhoa(:, :, :) + 0.5_dp*h*rho1(1)%pw%cr3d(:, :, :)
-         rho_r(2)%pw%cr3d(:, :, :) = rhob(:, :, :)
-         CALL xc_vxc_pw_create(vxc_rho_1, vxc_tau, exc, rho_r, rho_g, tau, kernel_env%xc_section, &
-                               auxbas_pw_pool, .FALSE., virial_xc)
-         rho_r(1)%pw%cr3d(:, :, :) = rhoa(:, :, :) - 0.5_dp*h*rho1(1)%pw%cr3d(:, :, :)
-         rho_r(2)%pw%cr3d(:, :, :) = rhob(:, :, :)
-         CALL xc_vxc_pw_create(vxc_rho_2, vxc_tau, exc, rho_r, rho_g, tau, kernel_env%xc_section, &
-                               auxbas_pw_pool, .FALSE., virial_xc)
-         work_v_xc(1)%pw%cr3d(:, :, :) = (vxc_rho_1(1)%pw%cr3d(:, :, :) - vxc_rho_2(1)%pw%cr3d(:, :, :))/h
-         ! K(alpha,beta)
-         rho_r(1)%pw%cr3d(:, :, :) = rhoa(:, :, :)
-         rho_r(2)%pw%cr3d(:, :, :) = rhob(:, :, :) + 0.5_dp*h*rho1(1)%pw%cr3d(:, :, :)
-         CALL xc_vxc_pw_create(vxc_rho_3, vxc_tau, exc, rho_r, rho_g, tau, kernel_env%xc_section, &
-                               auxbas_pw_pool, .FALSE., virial_xc)
-         rho_r(1)%pw%cr3d(:, :, :) = rhoa(:, :, :)
-         rho_r(2)%pw%cr3d(:, :, :) = rhob(:, :, :) - 0.5_dp*h*rho1(1)%pw%cr3d(:, :, :)
-         CALL xc_vxc_pw_create(vxc_rho_4, vxc_tau, exc, rho_r, rho_g, tau, kernel_env%xc_section, &
-                               auxbas_pw_pool, .FALSE., virial_xc)
-         work_v_xc(1)%pw%cr3d(:, :, :) = work_v_xc(1)%pw%cr3d(:, :, :) - &
-                                         (vxc_rho_3(1)%pw%cr3d(:, :, :) - vxc_rho_4(1)%pw%cr3d(:, :, :))/h
-         DO ispin = 1, 2
-            CALL pw_pool_give_back_pw(auxbas_pw_pool, rho_r(ispin)%pw)
-         END DO
-         DEALLOCATE (rho_r)
-         CALL pw_axpy(work_v_xc(1)%pw, A_ia_rspace(1)%pw, kernel_env%alpha)
-         DO ispin = 1, 2
-            CALL pw_release(vxc_rho_1(ispin)%pw)
-            CALL pw_release(vxc_rho_2(ispin)%pw)
-            CALL pw_release(vxc_rho_3(ispin)%pw)
-            CALL pw_release(vxc_rho_4(ispin)%pw)
-         END DO
-         DEALLOCATE (vxc_rho_1, vxc_rho_2, vxc_rho_3, vxc_rho_4)
-      ELSE IF (lsd) THEN
-         NULLIFY (vxc_rho_1, vxc_rho_2, vxc_rho_3, vxc_rho_4, rho_g)
-         ALLOCATE (rho_r(2))
-         DO ispin = 1, 2
-            NULLIFY (rho_r(ispin)%pw)
-            CALL pw_pool_create_pw(auxbas_pw_pool, rho_r(ispin)%pw, in_space=REALSPACE, use_data=REALDATA3D)
-         END DO
-         CALL xc_rho_set_get(rho_set, rhoa=rhoa, rhob=rhob)
-         rho_r(1)%pw%cr3d(:, :, :) = rhoa(:, :, :) + 0.5_dp*h*rho1(1)%pw%cr3d(:, :, :)
-         rho_r(2)%pw%cr3d(:, :, :) = rhob(:, :, :) + 0.5_dp*h*rho1(2)%pw%cr3d(:, :, :)
-         CALL xc_vxc_pw_create(vxc_rho_1, vxc_tau, exc, rho_r, rho_g, tau, kernel_env%xc_section, &
-                               auxbas_pw_pool, .FALSE., virial_xc)
-         rho_r(1)%pw%cr3d(:, :, :) = rhoa(:, :, :) - 0.5_dp*h*rho1(1)%pw%cr3d(:, :, :)
-         rho_r(2)%pw%cr3d(:, :, :) = rhob(:, :, :) - 0.5_dp*h*rho1(2)%pw%cr3d(:, :, :)
-         CALL xc_vxc_pw_create(vxc_rho_2, vxc_tau, exc, rho_r, rho_g, tau, kernel_env%xc_section, &
-                               auxbas_pw_pool, .FALSE., virial_xc)
-         work_v_xc(1)%pw%cr3d(:, :, :) = (vxc_rho_1(1)%pw%cr3d(:, :, :) - vxc_rho_2(1)%pw%cr3d(:, :, :))/h
-         work_v_xc(2)%pw%cr3d(:, :, :) = (vxc_rho_1(2)%pw%cr3d(:, :, :) - vxc_rho_2(2)%pw%cr3d(:, :, :))/h
-         DO ispin = 1, 2
-            CALL pw_pool_give_back_pw(auxbas_pw_pool, rho_r(ispin)%pw)
-         END DO
-         DEALLOCATE (rho_r)
-         CALL pw_axpy(work_v_xc(1)%pw, A_ia_rspace(1)%pw, kernel_env%alpha)
-         CALL pw_axpy(work_v_xc(2)%pw, A_ia_rspace(2)%pw, kernel_env%alpha)
-         DO ispin = 1, 2
-            CALL pw_release(vxc_rho_1(ispin)%pw)
-            CALL pw_release(vxc_rho_2(ispin)%pw)
-         END DO
-         DEALLOCATE (vxc_rho_1, vxc_rho_2)
-      END IF
+      CALL xc_calc_2nd_deriv_numerical(work_v_xc, rho_set, rho1_r, rho1_g, &
+                                       auxbas_pw_pool, kernel_env%xc_section, &
+                                       is_rks_triplets)
 
       CALL timestop(handle)
 
@@ -505,80 +410,91 @@ CONTAINS
          INTENT(in)                                      :: gs_mos
       LOGICAL, INTENT(in)                                :: do_admm
       TYPE(qs_environment_type), POINTER                 :: qs_env
-      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: work_rho_ia_ao, work_hmat
-      TYPE(cp_fm_type), POINTER                          :: wfm_rho_orb
+      TYPE(dbcsr_p_type), DIMENSION(:), INTENT(INOUT)    :: work_rho_ia_ao
+      TYPE(dbcsr_p_type), DIMENSION(:), INTENT(INOUT), &
+         TARGET                                          :: work_hmat
+      TYPE(cp_fm_type), INTENT(IN), POINTER              :: wfm_rho_orb
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'tddfpt_apply_hfx'
 
       INTEGER                                            :: handle, ispin, ivect, nao, nao_aux, &
                                                             nspins, nvects
       INTEGER, DIMENSION(maxspins)                       :: nactive
+      LOGICAL                                            :: do_hfx
       REAL(kind=dp)                                      :: alpha
       TYPE(admm_type), POINTER                           :: admm_env
+      TYPE(section_vals_type), POINTER                   :: hfx_section, input
 
       CALL timeset(routineN, handle)
 
-      nspins = SIZE(evects, 1)
-      nvects = SIZE(evects, 2)
+      ! Check for hfx section
+      CALL get_qs_env(qs_env, input=input)
+      hfx_section => section_vals_get_subs_vals(input, "DFT%XC%HF")
+      CALL section_vals_get(hfx_section, explicit=do_hfx)
 
-      IF (nspins > 1) THEN
-         alpha = 2.0_dp
-      ELSE
-         alpha = 4.0_dp
-      END IF
+      IF (do_hfx) THEN
+         nspins = SIZE(evects, 1)
+         nvects = SIZE(evects, 2)
 
-      CALL cp_fm_get_info(gs_mos(1)%mos_occ, nrow_global=nao)
-      DO ispin = 1, nspins
-         CALL cp_fm_get_info(evects(ispin, 1)%matrix, ncol_global=nactive(ispin))
-      END DO
+         IF (nspins > 1) THEN
+            alpha = 1.0_dp
+         ELSE
+            alpha = 2.0_dp
+         END IF
 
-      IF (do_admm) THEN
-         CALL get_qs_env(qs_env, admm_env=admm_env)
-         CALL cp_fm_get_info(admm_env%A, nrow_global=nao_aux)
-      END IF
-
-      ! some stuff from qs_ks_build_kohn_sham_matrix
-      ! TO DO: add SIC support
-      DO ivect = 1, nvects
+         CALL cp_fm_get_info(gs_mos(1)%mos_occ, nrow_global=nao)
          DO ispin = 1, nspins
-            CALL cp_gemm('N', 'T', nao, nao, nactive(ispin), 0.5_dp, gs_mos(ispin)%mos_occ, &
-                         evects(ispin, ivect)%matrix, 0.0_dp, wfm_rho_orb)
-            CALL cp_gemm('N', 'T', nao, nao, nactive(ispin), 0.5_dp, evects(ispin, ivect)%matrix, &
-                         gs_mos(ispin)%mos_occ, 1.0_dp, wfm_rho_orb)
-
-            CALL dbcsr_set(work_hmat(ispin)%matrix, 0.0_dp)
-            IF (do_admm) THEN
-               CALL cp_gemm('N', 'N', nao_aux, nao, nao, 1.0_dp, admm_env%A, &
-                            wfm_rho_orb, 0.0_dp, admm_env%work_aux_orb)
-               CALL cp_gemm('N', 'T', nao_aux, nao_aux, nao, 1.0_dp, admm_env%A, admm_env%work_aux_orb, &
-                            0.0_dp, admm_env%work_aux_aux)
-               CALL copy_fm_to_dbcsr(admm_env%work_aux_aux, work_rho_ia_ao(ispin)%matrix, keep_sparsity=.TRUE.)
-            ELSE
-               CALL copy_fm_to_dbcsr(wfm_rho_orb, work_rho_ia_ao(ispin)%matrix, keep_sparsity=.TRUE.)
-            END IF
+            CALL cp_fm_get_info(evects(ispin, 1)%matrix, ncol_global=nactive(ispin))
          END DO
 
-         CALL tddft_hfx_matrix(work_hmat, work_rho_ia_ao, qs_env)
-
          IF (do_admm) THEN
-            DO ispin = 1, nspins
-               CALL cp_dbcsr_sm_fm_multiply(work_hmat(ispin)%matrix, admm_env%A, admm_env%work_aux_orb, &
-                                            ncol=nao, alpha=1.0_dp, beta=0.0_dp)
-
-               CALL cp_gemm('T', 'N', nao, nao, nao_aux, 1.0_dp, admm_env%A, &
-                            admm_env%work_aux_orb, 0.0_dp, wfm_rho_orb)
-
-               CALL cp_gemm('N', 'N', nao, nactive(ispin), nao, alpha, wfm_rho_orb, &
-                            gs_mos(ispin)%mos_occ, 1.0_dp, Aop_evects(ispin, ivect)%matrix)
-            END DO
-         ELSE
-            DO ispin = 1, nspins
-               CALL cp_dbcsr_sm_fm_multiply(work_hmat(ispin)%matrix, gs_mos(ispin)%mos_occ, &
-                                            Aop_evects(ispin, ivect)%matrix, ncol=nactive(ispin), &
-                                            alpha=alpha, beta=1.0_dp)
-            END DO
+            CALL get_qs_env(qs_env, admm_env=admm_env)
+            CALL cp_fm_get_info(admm_env%A, nrow_global=nao_aux)
          END IF
-      END DO
+
+         ! some stuff from qs_ks_build_kohn_sham_matrix
+         ! TO DO: add SIC support
+         DO ivect = 1, nvects
+            DO ispin = 1, nspins
+               CALL cp_gemm('N', 'T', nao, nao, nactive(ispin), 1.0_dp, gs_mos(ispin)%mos_occ, &
+                            evects(ispin, ivect)%matrix, 0.0_dp, wfm_rho_orb)
+               CALL cp_gemm('N', 'T', nao, nao, nactive(ispin), 1.0_dp, evects(ispin, ivect)%matrix, &
+                            gs_mos(ispin)%mos_occ, 1.0_dp, wfm_rho_orb)
+
+               CALL dbcsr_set(work_hmat(ispin)%matrix, 0.0_dp)
+               IF (do_admm) THEN
+                  CALL cp_gemm('N', 'N', nao_aux, nao, nao, 1.0_dp, admm_env%A, &
+                               wfm_rho_orb, 0.0_dp, admm_env%work_aux_orb)
+                  CALL cp_gemm('N', 'T', nao_aux, nao_aux, nao, 1.0_dp, admm_env%A, admm_env%work_aux_orb, &
+                               0.0_dp, admm_env%work_aux_aux)
+                  CALL copy_fm_to_dbcsr(admm_env%work_aux_aux, work_rho_ia_ao(ispin)%matrix, keep_sparsity=.TRUE.)
+               ELSE
+                  CALL copy_fm_to_dbcsr(wfm_rho_orb, work_rho_ia_ao(ispin)%matrix, keep_sparsity=.TRUE.)
+               END IF
+            END DO
+
+            CALL tddft_hfx_matrix(work_hmat, work_rho_ia_ao, qs_env)
+
+            IF (do_admm) THEN
+               DO ispin = 1, nspins
+                  CALL cp_dbcsr_sm_fm_multiply(work_hmat(ispin)%matrix, admm_env%A, admm_env%work_aux_orb, &
+                                               ncol=nao, alpha=1.0_dp, beta=0.0_dp)
+
+                  CALL cp_gemm('T', 'N', nao, nao, nao_aux, 1.0_dp, admm_env%A, &
+                               admm_env%work_aux_orb, 0.0_dp, wfm_rho_orb)
+
+                  CALL cp_gemm('N', 'N', nao, nactive(ispin), nao, alpha, wfm_rho_orb, &
+                               gs_mos(ispin)%mos_occ, 1.0_dp, Aop_evects(ispin, ivect)%matrix)
+               END DO
+            ELSE
+               DO ispin = 1, nspins
+                  CALL cp_dbcsr_sm_fm_multiply(work_hmat(ispin)%matrix, gs_mos(ispin)%mos_occ, &
+                                               Aop_evects(ispin, ivect)%matrix, ncol=nactive(ispin), &
+                                               alpha=alpha, beta=1.0_dp)
+               END DO
+            END IF
+         END DO
+      END IF
 
       CALL timestop(handle)
 

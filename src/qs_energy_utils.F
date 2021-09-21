@@ -25,9 +25,9 @@ MODULE qs_energy_utils
                                               cp_fm_release,&
                                               cp_fm_type
    USE dbcsr_api,                       ONLY: &
-        dbcsr_add, dbcsr_get_block_p, dbcsr_get_info, dbcsr_iterator_blocks_left, &
-        dbcsr_iterator_next_block, dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, &
-        dbcsr_p_type, dbcsr_set, dbcsr_type
+        dbcsr_get_block_p, dbcsr_get_info, dbcsr_iterator_blocks_left, dbcsr_iterator_next_block, &
+        dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, dbcsr_p_type, dbcsr_set, &
+        dbcsr_type
    USE et_coupling,                     ONLY: calc_et_coupling
    USE et_coupling_proj,                ONLY: calc_et_coupling_proj
    USE input_section_types,             ONLY: section_vals_get,&
@@ -97,7 +97,7 @@ CONTAINS
       TYPE(cp_fm_struct_type), POINTER                   :: ao_ao_fmstruct
       TYPE(cp_fm_type), POINTER                          :: mo_coeff
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_ks, matrix_s, matrix_w, &
-                                                            matrix_w_mp2, mo_derivs, rho_ao
+                                                            mo_derivs, rho_ao
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: matrix_s_kp, matrix_w_kp
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(kpoint_type), POINTER                         :: kpoints
@@ -154,7 +154,6 @@ CONTAINS
                             matrix_w=matrix_w, &
                             matrix_ks=matrix_ks, &
                             matrix_s=matrix_s, &
-                            matrix_w_mp2=matrix_w_mp2, &
                             mo_derivs=mo_derivs, &
                             scf_control=scf_control, &
                             mos=mos, &
@@ -188,10 +187,6 @@ CONTAINS
                   ELSE
                      CALL calculate_w_matrix(mo_set, matrix_w(ispin)%matrix)
                   END IF
-               END IF
-               ! if MP2 time to update the W matrix with the MP2 contribution
-               IF (ASSOCIATED(qs_env%mp2_env)) THEN
-                  CALL dbcsr_add(matrix_w(ispin)%matrix, matrix_w_mp2(ispin)%matrix, 1.0_dp, -1.0_dp)
                END IF
             END DO
 

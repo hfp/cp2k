@@ -44,8 +44,8 @@ MODULE rpa_gw
         dbcsr_add_on_diag, dbcsr_copy, dbcsr_create, dbcsr_desymmetrize, dbcsr_filter, &
         dbcsr_get_info, dbcsr_init_p, dbcsr_iterator_blocks_left, dbcsr_iterator_next_block, &
         dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, dbcsr_multiply, &
-        dbcsr_p_type, dbcsr_release_p, dbcsr_scalar, dbcsr_scale, dbcsr_set, dbcsr_type, &
-        dbcsr_type_no_symmetry
+        dbcsr_p_type, dbcsr_release, dbcsr_release_p, dbcsr_scalar, dbcsr_scale, dbcsr_set, &
+        dbcsr_type, dbcsr_type_no_symmetry
    USE dbcsr_tensor_api,                ONLY: &
         dbcsr_t_batched_contract_finalize, dbcsr_t_batched_contract_init, dbcsr_t_clear, &
         dbcsr_t_contract, dbcsr_t_copy, dbcsr_t_copy_matrix_to_tensor, dbcsr_t_create, &
@@ -69,11 +69,16 @@ MODULE rpa_gw
                                               kpoint_sym_create,&
                                               kpoint_type
    USE mathconstants,                   ONLY: fourpi,&
+                                              gaussi,&
                                               pi,&
-                                              twopi
+                                              twopi,&
+                                              z_one,&
+                                              z_zero
    USE message_passing,                 ONLY: mp_sum,&
                                               mp_sync
-   USE mp2_types,                       ONLY: mp2_type
+   USE mp2_types,                       ONLY: mp2_type,&
+                                              one_dim_real_array,&
+                                              two_dim_int_array
    USE particle_types,                  ONLY: particle_type
    USE physcon,                         ONLY: evolt
    USE qs_band_structure,               ONLY: calculate_kp_orbitals
@@ -94,6 +99,7 @@ MODULE rpa_gw
    USE qs_overlap,                      ONLY: build_overlap_matrix_simple
    USE qs_tensors,                      ONLY: decompress_tensor
    USE qs_tensors_types,                ONLY: create_2c_tensor
+   USE rpa_gw_ic,                       ONLY: apply_ic_corr
    USE rpa_gw_im_time_util,             ONLY: get_tensor_3c_overl_int_gw
 #include "./base/base_uses.f90"
 
@@ -137,16 +143,6 @@ CONTAINS
 !> \param t_3c_O_compressed ...
 !> \param t_3c_O_ind ...
 !> \param qs_env ...
-!> \param gw_corr_lev_occ_beta ...
-!> \param gw_corr_lev_virt_beta ...
-!> \param homo_beta ...
-!> \param mo_coeff_beta ...
-!> \param t_3c_O_mo_compressed_beta ...
-!> \param t_3c_O_mo_ind_beta ...
-!> \param t_3c_overl_int_gw_RI_beta ...
-!> \param t_3c_overl_int_gw_AO_beta ...
-!> \param t_3c_overl_nnP_ic_beta ...
-!> \param t_3c_overl_nnP_ic_reflected_beta ...
 ! **************************************************************************************************
    SUBROUTINE allocate_matrices_gw_im_time(gw_corr_lev_occ, gw_corr_lev_virt, homo, nmo, &
                                            num_integ_points, unit_nr, &
@@ -159,27 +155,28 @@ CONTAINS
                                            t_3c_overl_nnP_ic, t_3c_overl_nnP_ic_reflected, &
                                            matrix_s, mat_W, t_3c_overl_int, &
                                            t_3c_O_compressed, t_3c_O_ind, &
-                                           qs_env, &
-                                           gw_corr_lev_occ_beta, gw_corr_lev_virt_beta, homo_beta, &
-                                           mo_coeff_beta, &
-                                           t_3c_O_mo_compressed_beta, t_3c_O_mo_ind_beta, &
-                                           t_3c_overl_int_gw_RI_beta, t_3c_overl_int_gw_AO_beta, &
-                                           t_3c_overl_nnP_ic_beta, t_3c_overl_nnP_ic_reflected_beta)
+                                           qs_env)
 
-      INTEGER, INTENT(IN)                                :: gw_corr_lev_occ, gw_corr_lev_virt, homo, &
-                                                            nmo, num_integ_points, unit_nr
+      INTEGER, DIMENSION(:), INTENT(IN)                  :: gw_corr_lev_occ, gw_corr_lev_virt, homo
+      INTEGER, INTENT(IN)                                :: nmo, num_integ_points, unit_nr
       INTEGER, DIMENSION(:), POINTER                     :: RI_blk_sizes
       LOGICAL, INTENT(IN)                                :: do_ic_model
       TYPE(cp_para_env_type), POINTER                    :: para_env
-      TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: fm_mat_W
-      TYPE(cp_fm_type), POINTER                          :: fm_mat_Q, mo_coeff
+      TYPE(cp_fm_p_type), ALLOCATABLE, DIMENSION(:), &
+         INTENT(OUT)                                     :: fm_mat_W
+      TYPE(cp_fm_type), POINTER                          :: fm_mat_Q
+      TYPE(cp_fm_p_type), DIMENSION(:), INTENT(IN)       :: mo_coeff
       TYPE(dbcsr_t_type)                                 :: t_3c_overl_int_ao_mo
-      TYPE(hfx_compression_type)                         :: t_3c_O_mo_compressed
-      INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: t_3c_O_mo_ind
-      TYPE(dbcsr_t_type)                                 :: t_3c_overl_int_gw_RI, &
+      TYPE(hfx_compression_type), ALLOCATABLE, &
+         DIMENSION(:)                                    :: t_3c_O_mo_compressed
+      TYPE(two_dim_int_array), ALLOCATABLE, &
+         DIMENSION(:), INTENT(OUT)                       :: t_3c_O_mo_ind
+      TYPE(dbcsr_t_type), ALLOCATABLE, DIMENSION(:), &
+         INTENT(INOUT)                                   :: t_3c_overl_int_gw_RI, &
                                                             t_3c_overl_int_gw_AO
       INTEGER, DIMENSION(:), INTENT(IN)                  :: starts_array_mc, ends_array_mc
-      TYPE(dbcsr_t_type)                                 :: t_3c_overl_nnP_ic, &
+      TYPE(dbcsr_t_type), ALLOCATABLE, DIMENSION(:), &
+         INTENT(INOUT)                                   :: t_3c_overl_nnP_ic, &
                                                             t_3c_overl_nnP_ic_reflected
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s
       TYPE(dbcsr_type), POINTER                          :: mat_W
@@ -187,62 +184,50 @@ CONTAINS
       TYPE(hfx_compression_type), DIMENSION(:, :, :)     :: t_3c_O_compressed
       TYPE(block_ind_type), DIMENSION(:, :, :)           :: t_3c_O_ind
       TYPE(qs_environment_type), POINTER                 :: qs_env
-      INTEGER, INTENT(IN), OPTIONAL                      :: gw_corr_lev_occ_beta, &
-                                                            gw_corr_lev_virt_beta, homo_beta
-      TYPE(cp_fm_type), OPTIONAL, POINTER                :: mo_coeff_beta
-      TYPE(hfx_compression_type), OPTIONAL               :: t_3c_O_mo_compressed_beta
-      INTEGER, ALLOCATABLE, DIMENSION(:, :), OPTIONAL    :: t_3c_O_mo_ind_beta
-      TYPE(dbcsr_t_type), OPTIONAL :: t_3c_overl_int_gw_RI_beta, t_3c_overl_int_gw_AO_beta, &
-         t_3c_overl_nnP_ic_beta, t_3c_overl_nnP_ic_reflected_beta
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'allocate_matrices_gw_im_time'
 
-      INTEGER                                            :: handle, jquad
+      INTEGER                                            :: handle, jquad, nspins
       LOGICAL                                            :: my_open_shell
       TYPE(dbcsr_t_type)                                 :: t_3c_overl_int_ao_mo_beta
 
       CALL timeset(routineN, handle)
 
-      my_open_shell = .FALSE.
-      IF (PRESENT(gw_corr_lev_occ_beta) .AND. PRESENT(gw_corr_lev_virt_beta) .AND. PRESENT(homo_beta) .AND. &
-          PRESENT(mo_coeff_beta) .AND. PRESENT(t_3c_overl_int_gw_RI_beta) .AND. PRESENT(t_3c_overl_int_gw_AO_beta) .AND. &
-          PRESENT(t_3c_overl_nnP_ic_beta) &
-          .AND. PRESENT(t_3c_overl_nnP_ic_reflected_beta)) THEN
-         my_open_shell = .TRUE.
+      nspins = SIZE(homo)
+      my_open_shell = (nspins == 2)
 
-      END IF
-
+      ALLOCATE (t_3c_O_mo_ind(nspins), t_3c_overl_int_gw_AO(nspins), t_3c_overl_int_gw_RI(nspins), &
+                t_3c_overl_nnP_ic(nspins), t_3c_overl_nnP_ic_reflected(nspins), t_3c_O_mo_compressed(nspins))
       CALL get_tensor_3c_overl_int_gw(t_3c_overl_int, &
                                       t_3c_O_compressed, t_3c_O_ind, &
-                                      t_3c_overl_int_ao_mo, t_3c_O_mo_compressed, t_3c_O_mo_ind, &
-                                      t_3c_overl_int_gw_RI, t_3c_overl_int_gw_AO, &
+                                      t_3c_overl_int_ao_mo, t_3c_O_mo_compressed(1), t_3c_O_mo_ind(1)%array, &
+                                      t_3c_overl_int_gw_RI(1), t_3c_overl_int_gw_AO(1), &
                                       starts_array_mc, ends_array_mc, &
-                                      mo_coeff, matrix_s, &
-                                      gw_corr_lev_occ, gw_corr_lev_virt, homo, nmo, &
+                                      mo_coeff(1)%matrix, matrix_s, &
+                                      gw_corr_lev_occ(1), gw_corr_lev_virt(1), homo(1), nmo, &
                                       para_env, &
                                       do_ic_model, &
-                                      t_3c_overl_nnP_ic, t_3c_overl_nnP_ic_reflected, &
+                                      t_3c_overl_nnP_ic(1), t_3c_overl_nnP_ic_reflected(1), &
                                       qs_env, unit_nr)
 
       IF (my_open_shell) THEN
 
          CALL get_tensor_3c_overl_int_gw(t_3c_overl_int, &
                                          t_3c_O_compressed, t_3c_O_ind, &
-                                         t_3c_overl_int_ao_mo_beta, t_3c_O_mo_compressed_beta, t_3c_O_mo_ind_beta, &
-                                         t_3c_overl_int_gw_RI_beta, t_3c_overl_int_gw_AO_beta, &
+                                         t_3c_overl_int_ao_mo_beta, t_3c_O_mo_compressed(2), t_3c_O_mo_ind(2)%array, &
+                                         t_3c_overl_int_gw_RI(2), t_3c_overl_int_gw_AO(2), &
                                          starts_array_mc, ends_array_mc, &
-                                         mo_coeff_beta, matrix_s, &
-                                         gw_corr_lev_occ_beta, gw_corr_lev_virt_beta, homo_beta, nmo, &
+                                         mo_coeff(2)%matrix, matrix_s, &
+                                         gw_corr_lev_occ(2), gw_corr_lev_virt(2), homo(2), nmo, &
                                          para_env, &
                                          do_ic_model, &
-                                         t_3c_overl_nnP_ic_beta, t_3c_overl_nnP_ic_reflected_beta, &
+                                         t_3c_overl_nnP_ic(2), t_3c_overl_nnP_ic_reflected(2), &
                                          qs_env, unit_nr)
 
          CALL dbcsr_t_destroy(t_3c_overl_int_ao_mo_beta)
 
       END IF
 
-      NULLIFY (fm_mat_W)
       ALLOCATE (fm_mat_W(num_integ_points))
 
       DO jquad = 1, num_integ_points
@@ -304,16 +289,6 @@ CONTAINS
 !> \param nkp_self_energy ...
 !> \param do_kpoints_cubic_RPA ...
 !> \param do_kpoints_from_Gamma ...
-!> \param vec_Sigma_c_gw_beta ...
-!> \param gw_corr_lev_occ_beta ...
-!> \param homo_beta ...
-!> \param Eigenval_beta ...
-!> \param vec_Sigma_x_gw_beta ...
-!> \param Eigenval_last_beta ...
-!> \param Eigenval_scf_beta ...
-!> \param vec_W_gw_beta ...
-!> \param fm_mat_S_gw_work_beta ...
-!> \param fm_mat_S_gw_beta ...
 ! **************************************************************************************************
    SUBROUTINE allocate_matrices_gw(vec_Sigma_c_gw, color_rpa_group, dimen_nm_gw, &
                                    gw_corr_lev_occ, gw_corr_lev_virt, homo, &
@@ -325,68 +300,54 @@ CONTAINS
                                    delta_corr, Eigenval_last, Eigenval_scf, vec_W_gw, &
                                    fm_mat_S_gw, fm_mat_S_gw_work, &
                                    para_env, mp2_env, kpoints, nkp, nkp_self_energy, &
-                                   do_kpoints_cubic_RPA, do_kpoints_from_Gamma, &
-                                   vec_Sigma_c_gw_beta, gw_corr_lev_occ_beta, homo_beta, Eigenval_beta, &
-                                   vec_Sigma_x_gw_beta, Eigenval_last_beta, Eigenval_scf_beta, vec_W_gw_beta, &
-                                   fm_mat_S_gw_work_beta, fm_mat_S_gw_beta)
+                                   do_kpoints_cubic_RPA, do_kpoints_from_Gamma)
 
       COMPLEX(KIND=dp), ALLOCATABLE, &
-         DIMENSION(:, :, :), INTENT(OUT)                 :: vec_Sigma_c_gw
-      INTEGER, INTENT(IN) :: color_rpa_group, dimen_nm_gw, gw_corr_lev_occ, gw_corr_lev_virt, &
-         homo, nmo, num_integ_group, num_integ_points, unit_nr
+         DIMENSION(:, :, :, :), INTENT(OUT)              :: vec_Sigma_c_gw
+      INTEGER, INTENT(IN)                                :: color_rpa_group, dimen_nm_gw
+      INTEGER, DIMENSION(:), INTENT(IN)                  :: gw_corr_lev_occ, gw_corr_lev_virt, homo
+      INTEGER, INTENT(IN)                                :: nmo, num_integ_group, num_integ_points, &
+                                                            unit_nr
       INTEGER, INTENT(INOUT)                             :: gw_corr_lev_tot, num_fit_points
       REAL(KIND=dp)                                      :: omega_max_fit
       LOGICAL, INTENT(IN)                                :: do_minimax_quad, do_periodic, &
                                                             do_ri_Sigma_x, my_do_gw
       LOGICAL, INTENT(OUT) :: first_cycle_periodic_correction
       REAL(KIND=dp), INTENT(IN)                          :: a_scaling
-      REAL(KIND=dp), DIMENSION(:), INTENT(INOUT)         :: Eigenval
+      REAL(KIND=dp), DIMENSION(:, :), INTENT(INOUT)      :: Eigenval
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
          INTENT(IN)                                      :: tj
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
          INTENT(OUT)                                     :: vec_omega_fit_gw
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :), &
          INTENT(OUT)                                     :: vec_Sigma_x_gw
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
-         INTENT(INOUT)                                   :: delta_corr, Eigenval_last, Eigenval_scf, &
-                                                            vec_W_gw
-      TYPE(cp_fm_type), POINTER                          :: fm_mat_S_gw, fm_mat_S_gw_work
+         INTENT(INOUT)                                   :: delta_corr
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
+         INTENT(OUT)                                     :: Eigenval_last, Eigenval_scf, vec_W_gw
+      TYPE(cp_fm_p_type), DIMENSION(:), INTENT(IN)       :: fm_mat_S_gw
+      TYPE(cp_fm_p_type), ALLOCATABLE, DIMENSION(:), &
+         INTENT(INOUT)                                   :: fm_mat_S_gw_work
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(mp2_type), POINTER                            :: mp2_env
       TYPE(kpoint_type), POINTER                         :: kpoints
       INTEGER, INTENT(OUT)                               :: nkp, nkp_self_energy
       LOGICAL, INTENT(IN)                                :: do_kpoints_cubic_RPA, &
                                                             do_kpoints_from_Gamma
-      COMPLEX(KIND=dp), ALLOCATABLE, &
-         DIMENSION(:, :, :), INTENT(OUT), OPTIONAL       :: vec_Sigma_c_gw_beta
-      INTEGER, INTENT(IN), OPTIONAL                      :: gw_corr_lev_occ_beta, homo_beta
-      REAL(KIND=dp), DIMENSION(:), INTENT(INOUT), &
-         OPTIONAL                                        :: Eigenval_beta
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
-         INTENT(OUT), OPTIONAL                           :: vec_Sigma_x_gw_beta
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
-         INTENT(INOUT), OPTIONAL                         :: Eigenval_last_beta, Eigenval_scf_beta, &
-                                                            vec_W_gw_beta
-      TYPE(cp_fm_type), OPTIONAL, POINTER                :: fm_mat_S_gw_work_beta, fm_mat_S_gw_beta
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'allocate_matrices_gw'
 
-      INTEGER                                            :: handle, iquad, jquad
+      INTEGER                                            :: handle, iquad, ispin, jquad, nspins
       LOGICAL                                            :: my_open_shell
       REAL(KIND=dp)                                      :: omega
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: vec_omega_gw
 
       CALL timeset(routineN, handle)
 
-      my_open_shell = .FALSE.
-      IF (PRESENT(vec_Sigma_c_gw_beta) .AND. PRESENT(gw_corr_lev_occ_beta) .AND. PRESENT(homo_beta) .AND. &
-          PRESENT(Eigenval_beta) .AND. PRESENT(vec_Sigma_x_gw_beta) .AND. PRESENT(Eigenval_last_beta) .AND. &
-          PRESENT(Eigenval_scf_beta) .AND. PRESENT(vec_W_gw_beta) .AND. PRESENT(fm_mat_S_gw_work_beta) .AND. &
-          PRESENT(fm_mat_S_gw_beta)) THEN
-         my_open_shell = .TRUE.
-      END IF
+      nspins = SIZE(Eigenval, 2)
+      my_open_shell = (nspins == 2)
 
-      gw_corr_lev_tot = gw_corr_lev_occ + gw_corr_lev_virt
+      gw_corr_lev_tot = gw_corr_lev_occ(1) + gw_corr_lev_virt(1)
 
       ! fill the omega_frequency vector
       ALLOCATE (vec_omega_gw(num_integ_points))
@@ -448,32 +409,18 @@ CONTAINS
          nkp = 1
          nkp_self_energy = 1
       END IF
-      ALLOCATE (vec_Sigma_c_gw(gw_corr_lev_tot, num_fit_points, nkp_self_energy))
-      vec_Sigma_c_gw = (0.0_dp, 0.0_dp)
+      ALLOCATE (vec_Sigma_c_gw(gw_corr_lev_tot, num_fit_points, nkp_self_energy, nspins))
+      vec_Sigma_c_gw = z_zero
 
-      IF (my_open_shell) THEN
-         ALLOCATE (vec_Sigma_c_gw_beta(gw_corr_lev_tot, num_fit_points, nkp_self_energy))
-         vec_Sigma_c_gw_beta = (0.0_dp, 0.0_dp)
-      END IF
+      ALLOCATE (Eigenval_scf(nmo, nspins))
+      Eigenval_scf(:, :) = Eigenval(:, :)
 
-      ALLOCATE (Eigenval_scf(nmo))
-      Eigenval_scf(:) = Eigenval(:)
-
-      ALLOCATE (Eigenval_last(nmo))
-      Eigenval_last(:) = Eigenval(:)
-
-      ! Eigenval for beta
-      IF (my_open_shell) THEN
-         ALLOCATE (Eigenval_scf_beta(nmo))
-         Eigenval_scf_beta(:) = Eigenval_beta(:)
-
-         ALLOCATE (Eigenval_last_beta(nmo))
-         Eigenval_last_beta(:) = Eigenval_beta(:)
-      END IF
+      ALLOCATE (Eigenval_last(nmo, nspins))
+      Eigenval_last(:, :) = Eigenval(:, :)
 
       IF (do_periodic) THEN
 
-         ALLOCATE (delta_corr(1 + homo - gw_corr_lev_occ:homo + gw_corr_lev_virt))
+         ALLOCATE (delta_corr(1 + homo(1) - gw_corr_lev_occ(1):homo(1) + gw_corr_lev_virt(1)))
          delta_corr(:) = 0.0_dp
 
          first_cycle_periodic_correction = .TRUE.
@@ -481,13 +428,8 @@ CONTAINS
       END IF
 
       IF (do_ri_Sigma_x) THEN
-         ALLOCATE (vec_Sigma_x_gw(nmo, nkp_self_energy))
+         ALLOCATE (vec_Sigma_x_gw(nmo, nkp_self_energy, nspins))
          vec_Sigma_x_gw = 0.0_dp
-
-         IF (my_open_shell) THEN
-            ALLOCATE (vec_Sigma_x_gw_beta(nmo, nkp_self_energy))
-            vec_Sigma_x_gw_beta = 0.0_dp
-         END IF
       END IF
 
       IF (my_do_gw) THEN
@@ -496,33 +438,25 @@ CONTAINS
          CPASSERT(.NOT. do_minimax_quad)
 
          ! create temporary matrix to store B*([1+Q(iw')]^-1-1), has the same size as B
-         NULLIFY (fm_mat_S_gw_work)
-         CALL cp_fm_create(fm_mat_S_gw_work, fm_mat_S_gw%matrix_struct)
-         CALL cp_fm_set_all(matrix=fm_mat_S_gw_work, alpha=0.0_dp)
+         ALLOCATE (fm_mat_S_gw_work(nspins))
+         DO ispin = 1, nspins
+            NULLIFY (fm_mat_S_gw_work(ispin)%matrix)
+            CALL cp_fm_create(fm_mat_S_gw_work(ispin)%matrix, fm_mat_S_gw(ispin)%matrix%matrix_struct)
+            CALL cp_fm_set_all(matrix=fm_mat_S_gw_work(ispin)%matrix, alpha=0.0_dp)
+         END DO
 
-         IF (my_open_shell) THEN
-            NULLIFY (fm_mat_S_gw_work_beta)
-            CALL cp_fm_create(fm_mat_S_gw_work_beta, fm_mat_S_gw%matrix_struct)
-            CALL cp_fm_set_all(matrix=fm_mat_S_gw_work_beta, alpha=0.0_dp)
-         END IF
-
-         ALLOCATE (vec_W_gw(dimen_nm_gw))
+         ALLOCATE (vec_W_gw(dimen_nm_gw, nspins))
          vec_W_gw = 0.0_dp
-
-         IF (my_open_shell) THEN
-            ALLOCATE (vec_W_gw_beta(dimen_nm_gw))
-            vec_W_gw_beta = 0.0_dp
-         END IF
 
          ! in case we do RI for Sigma_x, we calculate Sigma_x right here
          IF (do_ri_Sigma_x) THEN
 
-            CALL get_vec_sigma_x(vec_Sigma_x_gw, nmo, fm_mat_S_gw, para_env, num_integ_group, color_rpa_group, &
-                                 homo, gw_corr_lev_occ, mp2_env%ri_g0w0%vec_Sigma_x_minus_vxc_gw(:, 1, 1))
+            CALL get_vec_sigma_x(vec_Sigma_x_gw(:, :, 1), nmo, fm_mat_S_gw(1)%matrix, para_env, num_integ_group, color_rpa_group, &
+                                 homo(1), gw_corr_lev_occ(1), mp2_env%ri_g0w0%vec_Sigma_x_minus_vxc_gw(:, 1, 1))
 
             IF (my_open_shell) THEN
-               CALL get_vec_sigma_x(vec_Sigma_x_gw_beta, nmo, fm_mat_S_gw_beta, para_env, num_integ_group, &
-                                    color_rpa_group, homo_beta, gw_corr_lev_occ_beta, &
+               CALL get_vec_sigma_x(vec_Sigma_x_gw(:, :, 2), nmo, fm_mat_S_gw(2)%matrix, para_env, num_integ_group, &
+                                    color_rpa_group, homo(2), gw_corr_lev_occ(2), &
                                     mp2_env%ri_g0w0%vec_Sigma_x_minus_vxc_gw(:, 2, 1))
             END IF
 
@@ -629,81 +563,56 @@ CONTAINS
 !> \param do_ri_Sigma_x ...
 !> \param vec_Sigma_x_gw ...
 !> \param my_do_gw ...
-!> \param fm_mat_S_gw_work_beta ...
-!> \param vec_W_gw_beta ...
-!> \param vec_Sigma_c_gw_beta ...
-!> \param Eigenval_last_beta ...
-!> \param Eigenval_scf_beta ...
-!> \param vec_Sigma_x_gw_beta ...
 ! **************************************************************************************************
    SUBROUTINE deallocate_matrices_gw(fm_mat_S_gw_work, vec_W_gw, vec_Sigma_c_gw, vec_omega_fit_gw, &
                                      vec_Sigma_x_minus_vxc_gw, Eigenval_last, &
                                      Eigenval_scf, do_periodic, matrix_berry_re_mo_mo, matrix_berry_im_mo_mo, kpoints, &
-                                     do_ri_Sigma_x, vec_Sigma_x_gw, my_do_gw, &
-                                     fm_mat_S_gw_work_beta, vec_W_gw_beta, &
-                                     vec_Sigma_c_gw_beta, Eigenval_last_beta, Eigenval_scf_beta, vec_Sigma_x_gw_beta)
+                                     do_ri_Sigma_x, vec_Sigma_x_gw, my_do_gw)
 
-      TYPE(cp_fm_type), POINTER                          :: fm_mat_S_gw_work
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
+      TYPE(cp_fm_p_type), ALLOCATABLE, DIMENSION(:), &
+         INTENT(INOUT)                                   :: fm_mat_S_gw_work
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
          INTENT(INOUT)                                   :: vec_W_gw
       COMPLEX(KIND=dp), ALLOCATABLE, &
-         DIMENSION(:, :, :), INTENT(INOUT)               :: vec_Sigma_c_gw
+         DIMENSION(:, :, :, :), INTENT(INOUT)            :: vec_Sigma_c_gw
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
          INTENT(INOUT)                                   :: vec_omega_fit_gw
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :), &
          INTENT(INOUT)                                   :: vec_Sigma_x_minus_vxc_gw
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
          INTENT(INOUT)                                   :: Eigenval_last, Eigenval_scf
       LOGICAL, INTENT(IN)                                :: do_periodic
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_berry_re_mo_mo, &
                                                             matrix_berry_im_mo_mo
       TYPE(kpoint_type), POINTER                         :: kpoints
       LOGICAL, INTENT(IN)                                :: do_ri_Sigma_x
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :), &
          INTENT(INOUT)                                   :: vec_Sigma_x_gw
       LOGICAL, INTENT(IN)                                :: my_do_gw
-      TYPE(cp_fm_type), OPTIONAL, POINTER                :: fm_mat_S_gw_work_beta
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
-         INTENT(INOUT), OPTIONAL                         :: vec_W_gw_beta
-      COMPLEX(KIND=dp), ALLOCATABLE, &
-         DIMENSION(:, :, :), INTENT(INOUT), OPTIONAL     :: vec_Sigma_c_gw_beta
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
-         INTENT(INOUT), OPTIONAL                         :: Eigenval_last_beta, Eigenval_scf_beta
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
-         INTENT(INOUT), OPTIONAL                         :: vec_Sigma_x_gw_beta
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'deallocate_matrices_gw'
 
-      INTEGER                                            :: handle
+      INTEGER                                            :: handle, ispin, nspins
       LOGICAL                                            :: my_open_shell
 
       CALL timeset(routineN, handle)
 
-      my_open_shell = .FALSE.
-      IF (PRESENT(fm_mat_S_gw_work_beta) .AND. PRESENT(vec_W_gw_beta) .AND. PRESENT(vec_Sigma_c_gw_beta) .AND. &
-          PRESENT(Eigenval_last_beta) .AND. PRESENT(Eigenval_scf_beta) .AND. PRESENT(vec_Sigma_x_gw_beta)) THEN
-         my_open_shell = .TRUE.
-      END IF
+      nspins = SIZE(Eigenval_last, 2)
+      my_open_shell = (nspins == 2)
 
       IF (my_do_gw) THEN
-         CALL cp_fm_release(fm_mat_S_gw_work)
+         DO ispin = 1, nspins
+            CALL cp_fm_release(fm_mat_S_gw_work(ispin)%matrix)
+         END DO
+         DEALLOCATE (fm_mat_S_gw_work)
          DEALLOCATE (vec_Sigma_x_minus_vxc_gw)
          DEALLOCATE (vec_W_gw)
-         IF (my_open_shell) THEN
-            CALL cp_fm_release(fm_mat_S_gw_work_beta)
-            DEALLOCATE (vec_W_gw_beta)
-         END IF
       END IF
 
       DEALLOCATE (vec_Sigma_c_gw)
       DEALLOCATE (vec_omega_fit_gw)
       DEALLOCATE (Eigenval_last)
       DEALLOCATE (Eigenval_scf)
-      IF (my_open_shell) THEN
-         DEALLOCATE (vec_Sigma_c_gw_beta)
-         DEALLOCATE (Eigenval_last_beta)
-         DEALLOCATE (Eigenval_scf_beta)
-      END IF
 
       IF (do_periodic) THEN
          CALL dbcsr_deallocate_matrix_set(matrix_berry_re_mo_mo)
@@ -712,9 +621,6 @@ CONTAINS
       END IF
       IF (do_ri_Sigma_x) THEN
          DEALLOCATE (vec_Sigma_x_gw)
-         IF (my_open_shell) THEN
-            DEALLOCATE (vec_Sigma_x_gw_beta)
-         END IF
       END IF
 
       CALL timestop(handle)
@@ -738,55 +644,43 @@ CONTAINS
 !> \param mat_W ...
 !> \param ikp_local ...
 !> \param cfm_mat_W_kp_tau ...
-!> \param t_3c_O_mo_compressed_beta ...
-!> \param t_3c_O_mo_ind_beta ...
-!> \param t_3c_overl_int_gw_RI_beta ...
-!> \param t_3c_overl_int_gw_AO_beta ...
-!> \param t_3c_overl_nnP_ic_beta ...
-!> \param t_3c_overl_nnP_ic_reflected_beta ...
 ! **************************************************************************************************
    SUBROUTINE deallocate_matrices_gw_im_time(weights_cos_tf_w_to_t, weights_sin_tf_t_to_w, do_ic_model, do_kpoints_cubic_RPA, &
                                              fm_mat_W, &
                                              t_3c_overl_int_ao_mo, t_3c_O_mo_compressed, t_3c_O_mo_ind, &
                                              t_3c_overl_int_gw_RI, t_3c_overl_int_gw_AO, &
                                              t_3c_overl_nnP_ic, t_3c_overl_nnP_ic_reflected, mat_W, &
-                                             ikp_local, cfm_mat_W_kp_tau, &
-                                             t_3c_O_mo_compressed_beta, t_3c_O_mo_ind_beta, &
-                                             t_3c_overl_int_gw_RI_beta, t_3c_overl_int_gw_AO_beta, &
-                                             t_3c_overl_nnP_ic_beta, t_3c_overl_nnP_ic_reflected_beta)
+                                             ikp_local, cfm_mat_W_kp_tau)
 
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
          INTENT(INOUT)                                   :: weights_cos_tf_w_to_t, &
                                                             weights_sin_tf_t_to_w
       LOGICAL, INTENT(IN)                                :: do_ic_model, do_kpoints_cubic_RPA
-      TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: fm_mat_W
+      TYPE(cp_fm_p_type), ALLOCATABLE, DIMENSION(:), &
+         INTENT(INOUT)                                   :: fm_mat_W
       TYPE(dbcsr_t_type), INTENT(INOUT)                  :: t_3c_overl_int_ao_mo
-      TYPE(hfx_compression_type)                         :: t_3c_O_mo_compressed
-      INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: t_3c_O_mo_ind
-      TYPE(dbcsr_t_type)                                 :: t_3c_overl_int_gw_RI, &
+      TYPE(hfx_compression_type), ALLOCATABLE, &
+         DIMENSION(:)                                    :: t_3c_O_mo_compressed
+      TYPE(two_dim_int_array), ALLOCATABLE, DIMENSION(:) :: t_3c_O_mo_ind
+      TYPE(dbcsr_t_type), ALLOCATABLE, DIMENSION(:), &
+         INTENT(INOUT)                                   :: t_3c_overl_int_gw_RI, &
                                                             t_3c_overl_int_gw_AO, &
                                                             t_3c_overl_nnP_ic, &
                                                             t_3c_overl_nnP_ic_reflected
       TYPE(dbcsr_type), POINTER                          :: mat_W
       INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(IN)     :: ikp_local
-      TYPE(cp_cfm_p_type), DIMENSION(:, :), POINTER      :: cfm_mat_W_kp_tau
-      TYPE(hfx_compression_type), OPTIONAL               :: t_3c_O_mo_compressed_beta
-      INTEGER, ALLOCATABLE, DIMENSION(:, :), OPTIONAL    :: t_3c_O_mo_ind_beta
-      TYPE(dbcsr_t_type), OPTIONAL :: t_3c_overl_int_gw_RI_beta, t_3c_overl_int_gw_AO_beta, &
-         t_3c_overl_nnP_ic_beta, t_3c_overl_nnP_ic_reflected_beta
+      TYPE(cp_cfm_p_type), ALLOCATABLE, &
+         DIMENSION(:, :), INTENT(INOUT)                  :: cfm_mat_W_kp_tau
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'deallocate_matrices_gw_im_time'
 
-      INTEGER                                            :: handle, ikp, jquad, unused
+      INTEGER                                            :: handle, ikp, ispin, jquad, nspins, unused
       LOGICAL                                            :: my_open_shell
 
       CALL timeset(routineN, handle)
 
-      my_open_shell = .FALSE.
-      IF (PRESENT(t_3c_overl_int_gw_RI_beta) .AND. PRESENT(t_3c_overl_int_gw_AO_beta) .AND. PRESENT(t_3c_overl_nnP_ic_beta) &
-          .AND. PRESENT(t_3c_overl_nnP_ic_reflected_beta)) THEN
-         my_open_shell = .TRUE.
-      END IF
+      nspins = SIZE(t_3c_overl_int_gw_RI)
+      my_open_shell = (nspins == 2)
 
       IF (ALLOCATED(weights_cos_tf_w_to_t)) DEALLOCATE (weights_cos_tf_w_to_t)
       IF (ALLOCATED(weights_sin_tf_t_to_w)) DEALLOCATE (weights_sin_tf_t_to_w)
@@ -812,22 +706,24 @@ CONTAINS
 
       END IF
 
-      CALL dbcsr_t_destroy(t_3c_overl_int_gw_RI)
-      CALL dbcsr_t_destroy(t_3c_overl_int_gw_AO)
-      IF (PRESENT(t_3c_overl_int_gw_RI_beta)) CALL dbcsr_t_destroy(t_3c_overl_int_gw_RI_beta)
-      IF (PRESENT(t_3c_overl_int_gw_AO_beta)) CALL dbcsr_t_destroy(t_3c_overl_int_gw_AO_beta)
+      DO ispin = 1, nspins
+         CALL dbcsr_t_destroy(t_3c_overl_int_gw_RI(ispin))
+         CALL dbcsr_t_destroy(t_3c_overl_int_gw_AO(ispin))
+      END DO
+      DEALLOCATE (t_3c_overl_int_gw_AO, t_3c_overl_int_gw_RI)
       IF (do_ic_model) THEN
-         CALL dbcsr_t_destroy(t_3c_overl_nnP_ic)
-         CALL dbcsr_t_destroy(t_3c_overl_nnP_ic_reflected)
-         IF (PRESENT(t_3c_overl_nnP_ic_beta)) CALL dbcsr_t_destroy(t_3c_overl_nnP_ic_beta)
-         IF (PRESENT(t_3c_overl_nnP_ic_reflected_beta)) CALL dbcsr_t_destroy(t_3c_overl_nnP_ic_reflected_beta)
+         DO ispin = 1, nspins
+            CALL dbcsr_t_destroy(t_3c_overl_nnP_ic(ispin))
+            CALL dbcsr_t_destroy(t_3c_overl_nnP_ic_reflected(ispin))
+         END DO
+         DEALLOCATE (t_3c_overl_nnP_ic, t_3c_overl_nnP_ic_reflected)
       ENDIF
 
-      DEALLOCATE (t_3c_O_mo_ind)
-      IF (PRESENT(t_3c_O_mo_ind_beta)) DEALLOCATE (t_3c_O_mo_ind_beta)
-      CALL dealloc_containers(t_3c_O_mo_compressed, unused)
-
-      IF (PRESENT(t_3c_O_mo_compressed_beta)) CALL dealloc_containers(t_3c_O_mo_compressed_beta, unused)
+      DO ispin = 1, nspins
+         DEALLOCATE (t_3c_O_mo_ind(ispin)%array)
+         CALL dealloc_containers(t_3c_O_mo_compressed(ispin), unused)
+      END DO
+      DEALLOCATE (t_3c_O_mo_ind, t_3c_O_mo_compressed)
 
       CALL dbcsr_t_destroy(t_3c_overl_int_ao_mo)
 
@@ -880,13 +776,6 @@ CONTAINS
 !> \param mp2_env ...
 !> \param do_kpoints_cubic_RPA ...
 !> \param do_kpoints_from_Gamma ...
-!> \param vec_Sigma_c_gw_beta ...
-!> \param gw_corr_lev_occ_beta ...
-!> \param homo_beta ...
-!> \param Eigenval_beta ...
-!> \param vec_W_gw_beta ...
-!> \param fm_mat_S_gw_beta ...
-!> \param fm_mat_S_gw_work_beta ...
 ! **************************************************************************************************
    SUBROUTINE GW_matrix_operations(vec_Sigma_c_gw, dimen_nm_gw, dimen_RI, gw_corr_lev_occ, &
                                    gw_corr_lev_virt, homo, jquad, nmo, num_fit_points, num_integ_points, &
@@ -897,36 +786,36 @@ CONTAINS
                                    fm_mat_Q, fm_mat_Q_static_bse, fm_mat_R_gw, fm_mat_S_gw, &
                                    fm_mat_S_gw_work, fm_mat_work, mo_coeff, para_env, &
                                    para_env_RPA, matrix_berry_im_mo_mo, matrix_berry_re_mo_mo, &
-                                   kpoints, qs_env, mp2_env, do_kpoints_cubic_RPA, do_kpoints_from_Gamma, &
-                                   vec_Sigma_c_gw_beta, gw_corr_lev_occ_beta, homo_beta, Eigenval_beta, &
-                                   vec_W_gw_beta, fm_mat_S_gw_beta, fm_mat_S_gw_work_beta)
+                                   kpoints, qs_env, mp2_env, do_kpoints_cubic_RPA, do_kpoints_from_Gamma)
 
       COMPLEX(KIND=dp), ALLOCATABLE, &
-         DIMENSION(:, :, :), INTENT(INOUT)               :: vec_Sigma_c_gw
-      INTEGER, INTENT(IN)                                :: dimen_nm_gw, dimen_RI, gw_corr_lev_occ, &
-                                                            gw_corr_lev_virt, homo, jquad, nmo, &
-                                                            num_fit_points, num_integ_points
+         DIMENSION(:, :, :, :), INTENT(INOUT)            :: vec_Sigma_c_gw
+      INTEGER, INTENT(IN)                                :: dimen_nm_gw, dimen_RI
+      INTEGER, DIMENSION(:), INTENT(IN)                  :: gw_corr_lev_occ, gw_corr_lev_virt, homo
+      INTEGER, INTENT(IN)                                :: jquad, nmo, num_fit_points, &
+                                                            num_integ_points
       LOGICAL, INTENT(IN)                                :: do_bse, do_im_time, do_periodic
       LOGICAL, INTENT(INOUT) :: first_cycle_periodic_correction
       REAL(KIND=dp), INTENT(INOUT)                       :: fermi_level_offset
       REAL(KIND=dp), INTENT(IN)                          :: fermi_level_offset_input
       REAL(KIND=dp), INTENT(INOUT)                       :: omega
-      REAL(KIND=dp), DIMENSION(:), INTENT(INOUT)         :: Eigenval
+      REAL(KIND=dp), DIMENSION(:, :), INTENT(INOUT)      :: Eigenval
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
          INTENT(INOUT)                                   :: delta_corr
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
          INTENT(IN)                                      :: tau_tj, tj, vec_omega_fit_gw
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
          INTENT(INOUT)                                   :: vec_W_gw
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
          INTENT(IN)                                      :: wj
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
          INTENT(IN)                                      :: weights_cos_tf_w_to_t
-      TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: fm_mat_W
+      TYPE(cp_fm_p_type), DIMENSION(:), INTENT(IN)       :: fm_mat_W
       TYPE(cp_fm_p_type), DIMENSION(:, :), POINTER       :: fm_mat_L
       TYPE(cp_fm_type), POINTER                          :: fm_mat_Q, fm_mat_Q_static_bse, &
-                                                            fm_mat_R_gw, fm_mat_S_gw, &
-                                                            fm_mat_S_gw_work, fm_mat_work, mo_coeff
+                                                            fm_mat_R_gw
+      TYPE(cp_fm_p_type), DIMENSION(:), INTENT(IN)       :: fm_mat_S_gw, fm_mat_S_gw_work
+      TYPE(cp_fm_type), POINTER                          :: fm_mat_work, mo_coeff
       TYPE(cp_para_env_type), POINTER                    :: para_env, para_env_RPA
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_berry_im_mo_mo, &
                                                             matrix_berry_re_mo_mo
@@ -935,45 +824,28 @@ CONTAINS
       TYPE(mp2_type), POINTER                            :: mp2_env
       LOGICAL, INTENT(IN)                                :: do_kpoints_cubic_RPA, &
                                                             do_kpoints_from_Gamma
-      COMPLEX(KIND=dp), ALLOCATABLE, &
-         DIMENSION(:, :, :), INTENT(INOUT), OPTIONAL     :: vec_Sigma_c_gw_beta
-      INTEGER, INTENT(IN), OPTIONAL                      :: gw_corr_lev_occ_beta, homo_beta
-      REAL(KIND=dp), DIMENSION(:), INTENT(INOUT), &
-         OPTIONAL                                        :: Eigenval_beta
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
-         INTENT(INOUT), OPTIONAL                         :: vec_W_gw_beta
-      TYPE(cp_fm_type), OPTIONAL, POINTER                :: fm_mat_S_gw_beta, fm_mat_S_gw_work_beta
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'GW_matrix_operations'
 
-      INTEGER                                            :: handle, i_global, iiB, iquad, j_global, &
-                                                            jjB, ncol_local, nrow_local
+      INTEGER                                            :: handle, i_global, iiB, iquad, ispin, &
+                                                            j_global, jjB, ncol_local, nrow_local, &
+                                                            nspins
       INTEGER, DIMENSION(:), POINTER                     :: col_indices, row_indices
       LOGICAL                                            :: my_open_shell
       REAL(KIND=dp)                                      :: tau, weight
 
       CALL timeset(routineN, handle)
 
-      my_open_shell = .FALSE.
-      IF (PRESENT(vec_Sigma_c_gw_beta) .AND. PRESENT(gw_corr_lev_occ_beta) .AND. PRESENT(homo_beta) &
-          .AND. PRESENT(Eigenval_beta) .AND. PRESENT(vec_W_gw_beta) .AND. PRESENT(fm_mat_S_gw_beta) &
-          .AND. PRESENT(fm_mat_S_gw_work_beta)) THEN
-         my_open_shell = .TRUE.
-      END IF
+      nspins = SIZE(fm_mat_S_gw)
+      my_open_shell = (nspins == 2)
 
       ! Fermi level offset should have a maximum such that the Fermi level of occupied orbitals
       ! is always closer to occupied orbitals than to virtual orbitals and vice versa
       ! that means, the Fermi level offset is at most as big as half the bandgap
-      IF (fermi_level_offset_input > 0.5_dp*(Eigenval(homo + 1) - Eigenval(homo))) THEN
-         fermi_level_offset = (Eigenval(homo + 1) - Eigenval(homo))*0.5_dp
-      ELSE
-         fermi_level_offset = fermi_level_offset_input
-      END IF
-      IF (my_open_shell) THEN
-         IF (fermi_level_offset > 0.5_dp*(Eigenval_beta(homo_beta + 1) - Eigenval_beta(homo_beta))) THEN
-            fermi_level_offset = (Eigenval_beta(homo_beta + 1) - Eigenval_beta(homo_beta))*0.5_dp
-         END IF
-      END IF
+      fermi_level_offset = fermi_level_offset_input
+      DO ispin = 1, nspins
+         fermi_level_offset = MIN(fermi_level_offset, (Eigenval(homo(ispin) + 1, ispin) - Eigenval(homo(ispin), ispin))*0.5_dp)
+      END DO
 
       CALL cp_fm_get_info(matrix=fm_mat_Q, &
                           nrow_local=nrow_local, &
@@ -994,8 +866,8 @@ CONTAINS
          ! periodic correction for GW
          IF (do_periodic) THEN
             CALL calc_periodic_correction(delta_corr, qs_env, para_env, para_env_RPA, &
-                                          mp2_env%ri_g0w0%kp_grid, homo, nmo, gw_corr_lev_occ, &
-                                          gw_corr_lev_virt, omega, mo_coeff, Eigenval, &
+                                          mp2_env%ri_g0w0%kp_grid, homo(1), nmo, gw_corr_lev_occ(1), &
+                                          gw_corr_lev_virt(1), omega, mo_coeff, Eigenval(:, 1), &
                                           matrix_berry_re_mo_mo, matrix_berry_im_mo_mo, &
                                           first_cycle_periodic_correction, kpoints, &
                                           mp2_env%ri_g0w0%do_mo_coeff_gamma, &
@@ -1021,15 +893,13 @@ CONTAINS
 
          CALL mp_sync(para_env%group)
 
-         CALL compute_self_energy_gw(vec_Sigma_c_gw, dimen_nm_gw, dimen_RI, gw_corr_lev_occ, homo, jquad, nmo, num_fit_points, &
-                                     do_periodic, fermi_level_offset, omega, Eigenval, delta_corr, vec_omega_fit_gw, vec_W_gw, &
-                                     wj, fm_mat_Q, fm_mat_S_gw, fm_mat_S_gw_work)
-
-         IF (my_open_shell) THEN
-            CALL compute_self_energy_gw(vec_Sigma_c_gw_beta, dimen_nm_gw, dimen_RI, gw_corr_lev_occ_beta, homo_beta, jquad, nmo, &
-                                        num_fit_points, do_periodic, fermi_level_offset, omega, Eigenval_beta, delta_corr, &
-                                        vec_omega_fit_gw, vec_W_gw_beta, wj, fm_mat_Q, fm_mat_S_gw_beta, fm_mat_S_gw_work_beta)
-         END IF
+         DO ispin = 1, nspins
+            CALL compute_self_energy_gw(vec_Sigma_c_gw(:, :, :, ispin), dimen_nm_gw, dimen_RI, &
+                                        gw_corr_lev_occ(ispin), homo(ispin), jquad, nmo, &
+                                        num_fit_points, do_periodic, fermi_level_offset, omega, Eigenval(:, ispin), delta_corr, &
+                                        vec_omega_fit_gw, vec_W_gw(:, ispin), wj, fm_mat_Q, &
+                                        fm_mat_S_gw(ispin)%matrix, fm_mat_S_gw_work(ispin)%matrix)
+         END DO
 
       END IF ! GW
 
@@ -1111,8 +981,8 @@ CONTAINS
                                      do_periodic, fermi_level_offset, omega, Eigenval, delta_corr, vec_omega_fit_gw, vec_W_gw, &
                                      wj, fm_mat_Q, fm_mat_S_gw, fm_mat_S_gw_work)
 
-      COMPLEX(KIND=dp), ALLOCATABLE, &
-         DIMENSION(:, :, :), INTENT(INOUT)               :: vec_Sigma_c_gw
+      COMPLEX(KIND=dp), DIMENSION(:, :, :), &
+         INTENT(INOUT)                                   :: vec_Sigma_c_gw
       INTEGER, INTENT(IN)                                :: dimen_nm_gw, dimen_RI, gw_corr_lev_occ, &
                                                             homo, jquad, nmo, num_fit_points
       LOGICAL, INTENT(IN)                                :: do_periodic
@@ -1125,7 +995,6 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                          :: fm_mat_Q, fm_mat_S_gw, fm_mat_S_gw_work
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'compute_self_energy_gw'
-      COMPLEX(KIND=dp), PARAMETER                        :: im_unit = (0.0_dp, 1.0_dp)
 
       INTEGER                                            :: handle, iiB, iquad, jjB, m_global, &
                                                             n_global, ncol_local, nm_global, &
@@ -1196,8 +1065,8 @@ CONTAINS
             vec_Sigma_c_gw(n_global - homo + gw_corr_lev_occ, iquad, 1) = &
                vec_Sigma_c_gw(n_global - homo + gw_corr_lev_occ, iquad, 1) - &
                0.5_dp/pi*wj(jquad)/2.0_dp*(vec_W_gw(nm_global) + delta_corr_nn)* &
-               (1.0_dp/(im_unit*(omega + omega_i) + e_fermi - Eigenval(m_global)) + &
-                1.0_dp/(im_unit*(-omega + omega_i) + e_fermi - Eigenval(m_global)))
+               (1.0_dp/(gaussi*(omega + omega_i) + e_fermi - Eigenval(m_global)) + &
+                1.0_dp/(gaussi*(-omega + omega_i) + e_fermi - Eigenval(m_global)))
          END DO
 
       END DO
@@ -1217,7 +1086,6 @@ CONTAINS
 !> \param nmo ...
 !> \param num_fit_points ...
 !> \param num_integ_points ...
-!> \param num_points_corr ...
 !> \param unit_nr ...
 !> \param do_apply_ic_corr_to_gw ...
 !> \param do_im_time ...
@@ -1268,27 +1136,11 @@ CONTAINS
 !> \param do_kpoints_cubic_RPA ...
 !> \param Eigenval_kp ...
 !> \param Eigenval_scf_kp ...
-!> \param vec_Sigma_c_gw_beta ...
-!> \param gw_corr_lev_occ_beta ...
-!> \param gw_corr_lev_virt_beta ...
-!> \param homo_beta ...
-!> \param e_fermi_beta ...
-!> \param Eigenval_beta ...
-!> \param Eigenval_last_beta ...
-!> \param Eigenval_scf_beta ...
-!> \param vec_Sigma_x_gw_beta ...
-!> \param ic_corr_list_beta ...
-!> \param fm_mo_coeff_occ_beta ...
-!> \param fm_mo_coeff_virt_beta ...
-!> \param t_3c_O_mo_compressed_beta ...
-!> \param t_3c_O_mo_ind_beta ...
-!> \param t_3c_overl_int_gw_RI_beta ...
-!> \param t_3c_overl_int_gw_AO_beta ...
 ! **************************************************************************************************
    SUBROUTINE compute_QP_energies(vec_Sigma_c_gw, count_ev_sc_GW, gw_corr_lev_occ, &
                                   gw_corr_lev_tot, gw_corr_lev_virt, homo, &
                                   nmo, num_fit_points, num_integ_points, &
-                                  num_points_corr, unit_nr, do_apply_ic_corr_to_gw, do_im_time, &
+                                  unit_nr, do_apply_ic_corr_to_gw, do_im_time, &
                                   do_periodic, do_ri_Sigma_x, &
                                   first_cycle_periodic_correction, e_fermi, eps_filter, &
                                   fermi_level_offset, delta_corr, Eigenval, &
@@ -1302,48 +1154,48 @@ CONTAINS
                                   t_3c_overl_int_gw_RI, t_3c_overl_int_gw_AO, matrix_berry_im_mo_mo, &
                                   matrix_berry_re_mo_mo, mat_W, matrix_s, &
                                   kpoints, mp2_env, qs_env, &
-                                  nkp_self_energy, do_kpoints_cubic_RPA, Eigenval_kp, Eigenval_scf_kp, &
-                                  vec_Sigma_c_gw_beta, gw_corr_lev_occ_beta, gw_corr_lev_virt_beta, homo_beta, &
-                                  e_fermi_beta, Eigenval_beta, Eigenval_last_beta, Eigenval_scf_beta, &
-                                  vec_Sigma_x_gw_beta, ic_corr_list_beta, fm_mo_coeff_occ_beta, fm_mo_coeff_virt_beta, &
-                                  t_3c_O_mo_compressed_beta, t_3c_O_mo_ind_beta, &
-                                  t_3c_overl_int_gw_RI_beta, t_3c_overl_int_gw_AO_beta)
+                                  nkp_self_energy, do_kpoints_cubic_RPA, Eigenval_kp, Eigenval_scf_kp)
 
-      COMPLEX(KIND=dp), ALLOCATABLE, &
-         DIMENSION(:, :, :), INTENT(INOUT)               :: vec_Sigma_c_gw
-      INTEGER, INTENT(IN) :: count_ev_sc_GW, gw_corr_lev_occ, gw_corr_lev_tot, gw_corr_lev_virt, &
-         homo, nmo, num_fit_points, num_integ_points
-      INTEGER                                            :: num_points_corr
-      INTEGER, INTENT(IN)                                :: unit_nr
+      COMPLEX(KIND=dp), DIMENSION(:, :, :, :), &
+         INTENT(OUT)                                     :: vec_Sigma_c_gw
+      INTEGER, INTENT(IN)                                :: count_ev_sc_GW
+      INTEGER, DIMENSION(:), INTENT(IN)                  :: gw_corr_lev_occ
+      INTEGER, INTENT(IN)                                :: gw_corr_lev_tot
+      INTEGER, DIMENSION(:), INTENT(IN)                  :: gw_corr_lev_virt, homo
+      INTEGER, INTENT(IN)                                :: nmo, num_fit_points, num_integ_points, &
+                                                            unit_nr
       LOGICAL, INTENT(IN)                                :: do_apply_ic_corr_to_gw, do_im_time, &
                                                             do_periodic, do_ri_Sigma_x
       LOGICAL, INTENT(INOUT) :: first_cycle_periodic_correction
-      REAL(KIND=dp), INTENT(INOUT)                       :: e_fermi
+      REAL(KIND=dp), DIMENSION(:), INTENT(INOUT)         :: e_fermi
       REAL(KIND=dp), INTENT(IN)                          :: eps_filter, fermi_level_offset
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
          INTENT(INOUT)                                   :: delta_corr
-      REAL(KIND=dp), DIMENSION(:), INTENT(INOUT)         :: Eigenval
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
+      REAL(KIND=dp), DIMENSION(:, :), INTENT(INOUT)      :: Eigenval
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
          INTENT(INOUT)                                   :: Eigenval_last, Eigenval_scf
       INTEGER, INTENT(IN)                                :: iter_sc_GW0
       LOGICAL, INTENT(INOUT)                             :: exit_ev_gw
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
          INTENT(INOUT)                                   :: tau_tj, tj, vec_omega_fit_gw
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :), &
          INTENT(INOUT)                                   :: vec_Sigma_x_gw
-      REAL(KIND=dp), DIMENSION(:), POINTER               :: ic_corr_list
+      TYPE(one_dim_real_array), DIMENSION(2), INTENT(IN) :: ic_corr_list
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
          INTENT(IN)                                      :: weights_cos_tf_t_to_w, &
                                                             weights_sin_tf_t_to_w
-      TYPE(cp_fm_type), POINTER :: fm_mo_coeff_occ_scaled, fm_mo_coeff_virt_scaled, &
-         fm_mo_coeff_occ, fm_mo_coeff_virt, fm_scaled_dm_occ_tau, fm_scaled_dm_virt_tau, mo_coeff
-      TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: fm_mat_W
+      TYPE(cp_fm_type), POINTER                          :: fm_mo_coeff_occ_scaled, &
+                                                            fm_mo_coeff_virt_scaled
+      TYPE(cp_fm_p_type), DIMENSION(:), INTENT(IN)       :: fm_mo_coeff_occ, fm_mo_coeff_virt
+      TYPE(cp_fm_type), POINTER                          :: fm_scaled_dm_occ_tau, &
+                                                            fm_scaled_dm_virt_tau, mo_coeff
+      TYPE(cp_fm_p_type), DIMENSION(:), INTENT(IN)       :: fm_mat_W
       TYPE(cp_para_env_type), POINTER                    :: para_env, para_env_RPA
       TYPE(dbcsr_p_type), INTENT(IN)                     :: mat_dm, mat_SinvVSinv
       TYPE(dbcsr_t_type)                                 :: t_3c_overl_int_ao_mo
-      TYPE(hfx_compression_type)                         :: t_3c_O_mo_compressed
-      INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: t_3c_O_mo_ind
-      TYPE(dbcsr_t_type)                                 :: t_3c_overl_int_gw_RI, &
+      TYPE(hfx_compression_type), DIMENSION(:)           :: t_3c_O_mo_compressed
+      TYPE(two_dim_int_array), DIMENSION(:)              :: t_3c_O_mo_ind
+      TYPE(dbcsr_t_type), DIMENSION(:)                   :: t_3c_overl_int_gw_RI, &
                                                             t_3c_overl_int_gw_AO
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_berry_im_mo_mo, &
                                                             matrix_berry_re_mo_mo
@@ -1356,46 +1208,19 @@ CONTAINS
       LOGICAL, INTENT(IN)                                :: do_kpoints_cubic_RPA
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
          INTENT(INOUT)                                   :: Eigenval_kp, Eigenval_scf_kp
-      COMPLEX(KIND=dp), ALLOCATABLE, &
-         DIMENSION(:, :, :), INTENT(INOUT), OPTIONAL     :: vec_Sigma_c_gw_beta
-      INTEGER, INTENT(IN), OPTIONAL                      :: gw_corr_lev_occ_beta, &
-                                                            gw_corr_lev_virt_beta, homo_beta
-      REAL(KIND=dp), INTENT(INOUT), OPTIONAL             :: e_fermi_beta
-      REAL(KIND=dp), DIMENSION(:), INTENT(INOUT), &
-         OPTIONAL                                        :: Eigenval_beta
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
-         INTENT(INOUT), OPTIONAL                         :: Eigenval_last_beta, Eigenval_scf_beta
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
-         INTENT(INOUT), OPTIONAL                         :: vec_Sigma_x_gw_beta
-      REAL(KIND=dp), DIMENSION(:), OPTIONAL, POINTER     :: ic_corr_list_beta
-      TYPE(cp_fm_type), OPTIONAL, POINTER                :: fm_mo_coeff_occ_beta, &
-                                                            fm_mo_coeff_virt_beta
-      TYPE(hfx_compression_type), OPTIONAL               :: t_3c_O_mo_compressed_beta
-      INTEGER, ALLOCATABLE, DIMENSION(:, :), OPTIONAL    :: t_3c_O_mo_ind_beta
-      TYPE(dbcsr_t_type), OPTIONAL                       :: t_3c_overl_int_gw_RI_beta, &
-                                                            t_3c_overl_int_gw_AO_beta
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'compute_QP_energies'
 
-      INTEGER                                            :: count_ev_sc_GW_print, count_sc_GW0, &
-                                                            count_sc_GW0_print, crossing_search, &
-                                                            handle, ikp, n_level_gw, num_poles
+      INTEGER :: count_ev_sc_GW_print, count_sc_GW0, count_sc_GW0_print, crossing_search, handle, &
+         ikp, ispin, n_level_gw, nspins, num_points_corr, num_poles
       LOGICAL                                            :: my_open_shell
       REAL(KIND=dp)                                      :: stop_crit
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: m_value, m_value_beta, vec_gw_energ, &
-                                                            vec_gw_energ_beta, z_value, &
-                                                            z_value_beta
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: m_value, vec_gw_energ, z_value
 
       CALL timeset(routineN, handle)
 
-      my_open_shell = .FALSE.
-      IF (PRESENT(vec_Sigma_c_gw_beta) .AND. PRESENT(gw_corr_lev_occ_beta) .AND. PRESENT(gw_corr_lev_virt_beta) .AND. &
-          PRESENT(homo_beta) .AND. PRESENT(e_fermi_beta) .AND. PRESENT(Eigenval_beta) .AND. PRESENT(Eigenval_last_beta) &
-          .AND. PRESENT(Eigenval_scf_beta) .AND. PRESENT(vec_Sigma_x_gw_beta) .AND. &
-          PRESENT(ic_corr_list_beta) .AND. PRESENT(fm_mo_coeff_occ_beta) .AND. PRESENT(fm_mo_coeff_virt_beta) .AND. &
-          PRESENT(t_3c_overl_int_gw_RI_beta) .AND. PRESENT(t_3c_overl_int_gw_AO_beta)) THEN
-         my_open_shell = .TRUE. ! todo: this should be refactored (and any similar occurrence of my_open_shell)
-      END IF
+      nspins = SIZE(homo)
+      my_open_shell = (nspins == 2)
 
       DO count_sc_GW0 = 1, iter_sc_GW0
 
@@ -1404,63 +1229,57 @@ CONTAINS
             num_points_corr = mp2_env%ri_g0w0%num_omega_points
 
             CALL compute_self_energy_cubic_gw(num_integ_points, nmo, tau_tj, tj, &
-                                              matrix_s, fm_mo_coeff_occ, fm_mo_coeff_virt, fm_mo_coeff_occ_scaled, &
+                                              matrix_s, fm_mo_coeff_occ(1)%matrix, &
+                                              fm_mo_coeff_virt(1)%matrix, fm_mo_coeff_occ_scaled, &
                                               fm_mo_coeff_virt_scaled, fm_scaled_dm_occ_tau, &
-                                              fm_scaled_dm_virt_tau, Eigenval, eps_filter, &
-                                              e_fermi, fm_mat_W, &
-                                              gw_corr_lev_tot, gw_corr_lev_occ, gw_corr_lev_virt, homo, &
+                                              fm_scaled_dm_virt_tau, Eigenval(:, 1), eps_filter, &
+                                              e_fermi(1), fm_mat_W, &
+                                              gw_corr_lev_tot, gw_corr_lev_occ(1), gw_corr_lev_virt(1), homo(1), &
                                               count_ev_sc_GW, count_sc_GW0, &
-                                              t_3c_overl_int_ao_mo, t_3c_O_mo_compressed, t_3c_O_mo_ind, &
-                                              t_3c_overl_int_gw_RI, t_3c_overl_int_gw_AO, &
+                                              t_3c_overl_int_ao_mo, t_3c_O_mo_compressed(1), t_3c_O_mo_ind(1)%array, &
+                                              t_3c_overl_int_gw_RI(1), t_3c_overl_int_gw_AO(1), &
                                               mat_W, mat_SinvVSinv, mat_dm, &
-                                              weights_cos_tf_t_to_w, weights_sin_tf_t_to_w, vec_Sigma_c_gw, &
+                                              weights_cos_tf_t_to_w, weights_sin_tf_t_to_w, vec_Sigma_c_gw(:, :, :, 1), &
                                               do_periodic, num_points_corr, delta_corr, qs_env, para_env, para_env_RPA, &
                                               mp2_env, matrix_berry_re_mo_mo, matrix_berry_im_mo_mo, &
                                               first_cycle_periodic_correction, kpoints, num_fit_points, mo_coeff, &
-                                              do_ri_Sigma_x, vec_Sigma_x_gw, unit_nr)
+                                              do_ri_Sigma_x, vec_Sigma_x_gw(:, :, 1), unit_nr, 1)
 
             IF (my_open_shell) THEN
 
                CALL compute_self_energy_cubic_gw(num_integ_points, nmo, tau_tj, tj, &
-                                                 matrix_s, fm_mo_coeff_occ_beta, fm_mo_coeff_virt_beta, fm_mo_coeff_occ_scaled, &
+                                                 matrix_s, fm_mo_coeff_occ(2)%matrix, &
+                                                 fm_mo_coeff_virt(2)%matrix, fm_mo_coeff_occ_scaled, &
                                                  fm_mo_coeff_virt_scaled, fm_scaled_dm_occ_tau, &
-                                                 fm_scaled_dm_virt_tau, Eigenval_beta, eps_filter, &
-                                                 e_fermi_beta, fm_mat_W, &
-                                                 gw_corr_lev_tot, gw_corr_lev_occ_beta, gw_corr_lev_virt_beta, homo_beta, &
+                                                 fm_scaled_dm_virt_tau, Eigenval(:, 2), eps_filter, &
+                                                 e_fermi(2), fm_mat_W, &
+                                                 gw_corr_lev_tot, gw_corr_lev_occ(2), gw_corr_lev_virt(2), homo(2), &
                                                  count_ev_sc_GW, count_sc_GW0, &
-                                                 t_3c_overl_int_ao_mo, t_3c_O_mo_compressed_beta, t_3c_O_mo_ind_beta, &
-                                                 t_3c_overl_int_gw_RI_beta, t_3c_overl_int_gw_AO_beta, &
+                                                 t_3c_overl_int_ao_mo, t_3c_O_mo_compressed(2), t_3c_O_mo_ind(2)%array, &
+                                                 t_3c_overl_int_gw_RI(2), t_3c_overl_int_gw_AO(2), &
                                                  mat_W, mat_SinvVSinv, mat_dm, &
-                                                 weights_cos_tf_t_to_w, weights_sin_tf_t_to_w, vec_Sigma_c_gw_beta, &
+                                                 weights_cos_tf_t_to_w, weights_sin_tf_t_to_w, vec_Sigma_c_gw(:, :, :, 2), &
                                                  do_periodic, num_points_corr, delta_corr, qs_env, para_env, para_env_RPA, &
                                                  mp2_env, matrix_berry_re_mo_mo, matrix_berry_im_mo_mo, &
                                                  first_cycle_periodic_correction, kpoints, num_fit_points, mo_coeff, &
-                                                 do_ri_Sigma_x, vec_Sigma_x_gw_beta, unit_nr, do_beta=.TRUE.)
+                                                 do_ri_Sigma_x, vec_Sigma_x_gw(:, :, 2), unit_nr, 2)
 
             END IF
-
-         END IF
-
-         IF (.NOT. do_im_time) THEN
-
-            CALL mp_sum(vec_Sigma_c_gw, para_env%group)
 
          END IF
 
          IF (do_periodic .AND. mp2_env%ri_g0w0%do_average_deg_levels) THEN
 
-            CALL average_degenerate_levels(vec_Sigma_c_gw, Eigenval(1 + homo - gw_corr_lev_occ:homo + gw_corr_lev_virt), &
-                                           mp2_env%ri_g0w0%eps_eigenval)
-            IF (my_open_shell) THEN
-               CALL average_degenerate_levels(vec_Sigma_c_gw_beta, &
-                                              Eigenval_beta(1 + homo_beta - gw_corr_lev_occ_beta: &
-                                                            homo_beta + gw_corr_lev_virt_beta), &
+            DO ispin = 1, nspins
+               CALL average_degenerate_levels(vec_Sigma_c_gw(:, :, :, ispin), &
+                                              Eigenval(1 + homo(ispin) - gw_corr_lev_occ(ispin): &
+                                                       homo(ispin) + gw_corr_lev_virt(ispin), ispin), &
                                               mp2_env%ri_g0w0%eps_eigenval)
-            END IF
+            END DO
          END IF
 
-         IF (my_open_shell .AND. .NOT. do_im_time) THEN
-            CALL mp_sum(vec_Sigma_c_gw_beta, para_env%group)
+         IF (.NOT. do_im_time) THEN
+            CALL mp_sum(vec_Sigma_c_gw, para_env%group)
          END IF
 
          CALL mp_sync(para_env%group)
@@ -1470,22 +1289,12 @@ CONTAINS
          crossing_search = mp2_env%ri_g0w0%crossing_search
 
          ! arrays storing the correlation self-energy, stat. error and z-shot value
-         ALLOCATE (vec_gw_energ(gw_corr_lev_tot))
+         ALLOCATE (vec_gw_energ(gw_corr_lev_tot, nspins))
          vec_gw_energ = 0.0_dp
-         ALLOCATE (z_value(gw_corr_lev_tot))
+         ALLOCATE (z_value(gw_corr_lev_tot, nspins))
          z_value = 0.0_dp
-         ALLOCATE (m_value(gw_corr_lev_tot))
+         ALLOCATE (m_value(gw_corr_lev_tot, nspins))
          m_value = 0.0_dp
-
-         ! the same for beta
-         IF (my_open_shell) THEN
-            ALLOCATE (vec_gw_energ_beta(gw_corr_lev_tot))
-            vec_gw_energ_beta = 0.0_dp
-            ALLOCATE (z_value_beta(gw_corr_lev_tot))
-            z_value_beta = 0.0_dp
-            ALLOCATE (m_value_beta(gw_corr_lev_tot))
-            m_value_beta = 0.0_dp
-         END IF
 
          ! for the normal code for molecules or Gamma only: nkp = 1
          DO ikp = 1, nkp_self_energy
@@ -1496,7 +1305,7 @@ CONTAINS
                z_value = 0.0_dp
                m_value = 0.0_dp
 
-               CALL get_eigenval_for_conti(Eigenval, Eigenval_scf, Eigenval_kp, Eigenval_scf_kp, kpoints, &
+               CALL get_eigenval_for_conti(Eigenval(:, 1), Eigenval_scf(:, 1), Eigenval_kp, Eigenval_scf_kp, kpoints, &
                                            ikp, my_open_shell)
             END IF
 
@@ -1507,19 +1316,20 @@ CONTAINS
 
                SELECT CASE (mp2_env%ri_g0w0%analytic_continuation)
                CASE (gw_two_pole_model)
-                  CALL fit_and_continuation_2pole(vec_gw_energ, vec_omega_fit_gw, &
-                                                  z_value, m_value, vec_Sigma_c_gw(:, :, ikp), &
+                  CALL fit_and_continuation_2pole(vec_gw_energ(:, 1), vec_omega_fit_gw, &
+                                                  z_value(:, 1), m_value(:, 1), vec_Sigma_c_gw(:, :, ikp, 1), &
                                                   mp2_env%ri_g0w0%vec_Sigma_x_minus_vxc_gw(:, 1, ikp), &
-                                                  Eigenval, Eigenval_scf, n_level_gw, gw_corr_lev_occ, num_poles, &
-                                                  num_fit_points, crossing_search, homo, stop_crit, &
+                                                  Eigenval(:, 1), Eigenval_scf(:, 1), n_level_gw, gw_corr_lev_occ(1), num_poles, &
+                                                  num_fit_points, crossing_search, homo(1), stop_crit, &
                                                   fermi_level_offset, do_im_time)
 
                CASE (gw_pade_approx)
-                  CALL continuation_pade(vec_gw_energ, vec_omega_fit_gw, &
-                                         z_value, m_value, vec_Sigma_c_gw(:, :, ikp), &
+                  CALL continuation_pade(vec_gw_energ(:, 1), vec_omega_fit_gw, &
+                                         z_value(:, 1), m_value(:, 1), vec_Sigma_c_gw(:, :, ikp, 1), &
                                          mp2_env%ri_g0w0%vec_Sigma_x_minus_vxc_gw(:, 1, ikp), &
-                                         Eigenval, Eigenval_scf, n_level_gw, gw_corr_lev_occ, mp2_env%ri_g0w0%nparam_pade, &
-                                         num_fit_points, crossing_search, homo, fermi_level_offset, &
+                                         Eigenval(:, 1), Eigenval_scf(:, 1), n_level_gw, &
+                                         gw_corr_lev_occ(1), mp2_env%ri_g0w0%nparam_pade, &
+                                         num_fit_points, crossing_search, homo(1), fermi_level_offset, &
                                          do_im_time, mp2_env%ri_g0w0%print_self_energy, count_ev_sc_GW)
                CASE DEFAULT
                   CPABORT("Only two-model and Pade approximation are implemented.")
@@ -1529,20 +1339,20 @@ CONTAINS
                   SELECT CASE (mp2_env%ri_g0w0%analytic_continuation)
                   CASE (gw_two_pole_model)
                      CALL fit_and_continuation_2pole( &
-                        vec_gw_energ_beta, vec_omega_fit_gw, &
-                        z_value_beta, m_value_beta, vec_Sigma_c_gw_beta(:, :, ikp), &
+                        vec_gw_energ(:, 2), vec_omega_fit_gw, &
+                        z_value(:, 2), m_value(:, 2), vec_Sigma_c_gw(:, :, ikp, 2), &
                         mp2_env%ri_g0w0%vec_Sigma_x_minus_vxc_gw(:, 2, ikp), &
-                        Eigenval_beta, Eigenval_scf_beta, n_level_gw, &
-                        gw_corr_lev_occ_beta, num_poles, &
-                        num_fit_points, crossing_search, homo_beta, stop_crit, &
+                        Eigenval(:, 2), Eigenval_scf(:, 2), n_level_gw, &
+                        gw_corr_lev_occ(2), num_poles, &
+                        num_fit_points, crossing_search, homo(2), stop_crit, &
                         fermi_level_offset, do_im_time)
                   CASE (gw_pade_approx)
-                     CALL continuation_pade(vec_gw_energ_beta, vec_omega_fit_gw, &
-                                            z_value_beta, m_value_beta, vec_Sigma_c_gw_beta(:, :, ikp), &
+                     CALL continuation_pade(vec_gw_energ(:, 2), vec_omega_fit_gw, &
+                                            z_value(:, 2), m_value(:, 2), vec_Sigma_c_gw(:, :, ikp, 2), &
                                             mp2_env%ri_g0w0%vec_Sigma_x_minus_vxc_gw(:, 2, ikp), &
-                                            Eigenval_beta, Eigenval_scf_beta, n_level_gw, &
-                                            gw_corr_lev_occ_beta, mp2_env%ri_g0w0%nparam_pade, &
-                                            num_fit_points, crossing_search, homo_beta, &
+                                            Eigenval(:, 2), Eigenval_scf(:, 2), n_level_gw, &
+                                            gw_corr_lev_occ(2), mp2_env%ri_g0w0%nparam_pade, &
+                                            num_fit_points, crossing_search, homo(2), &
                                             fermi_level_offset, do_im_time, &
                                             mp2_env%ri_g0w0%print_self_energy, count_ev_sc_GW)
                   CASE DEFAULT
@@ -1557,12 +1367,6 @@ CONTAINS
             CALL mp_sum(z_value, para_env%group)
             CALL mp_sum(m_value, para_env%group)
 
-            IF (my_open_shell) THEN
-               CALL mp_sum(vec_gw_energ_beta, para_env%group)
-               CALL mp_sum(z_value_beta, para_env%group)
-               CALL mp_sum(m_value_beta, para_env%group)
-            END IF
-
             IF (do_im_time .OR. mp2_env%ri_g0w0%iter_sc_GW0 == 1) THEN
                count_ev_sc_GW_print = count_ev_sc_GW
                count_sc_GW0_print = count_sc_GW0
@@ -1575,45 +1379,45 @@ CONTAINS
             IF (my_open_shell) THEN
 
                CALL print_and_update_for_ev_sc( &
-                  vec_gw_energ, &
-                  z_value, m_value, mp2_env%ri_g0w0%vec_Sigma_x_minus_vxc_gw(:, 1, ikp), Eigenval, &
-                  Eigenval_last, Eigenval_scf, gw_corr_lev_occ, gw_corr_lev_tot, &
-                  crossing_search, homo, unit_nr, count_ev_sc_GW_print, count_sc_GW0_print, &
-                  ikp, nkp_self_energy, kpoints, do_alpha=.TRUE.)
+                  vec_gw_energ(:, 1), &
+                  z_value(:, 1), m_value(:, 1), mp2_env%ri_g0w0%vec_Sigma_x_minus_vxc_gw(:, 1, ikp), Eigenval(:, 1), &
+                  Eigenval_last(:, 1), Eigenval_scf(:, 1), gw_corr_lev_occ(1), gw_corr_lev_tot, &
+                  crossing_search, homo(1), unit_nr, count_ev_sc_GW_print, count_sc_GW0_print, &
+                  ikp, nkp_self_energy, kpoints, 1)
 
                CALL print_and_update_for_ev_sc( &
-                  vec_gw_energ_beta, &
-                  z_value_beta, m_value_beta, mp2_env%ri_g0w0%vec_Sigma_x_minus_vxc_gw(:, 2, ikp), Eigenval_beta, &
-                  Eigenval_last_beta, Eigenval_scf_beta, gw_corr_lev_occ_beta, gw_corr_lev_tot, &
-                  crossing_search, homo_beta, unit_nr, count_ev_sc_GW_print, count_sc_GW0_print, &
-                  ikp, nkp_self_energy, kpoints, do_beta=.TRUE.)
+                  vec_gw_energ(:, 2), &
+                  z_value(:, 2), m_value(:, 2), mp2_env%ri_g0w0%vec_Sigma_x_minus_vxc_gw(:, 2, ikp), Eigenval(:, 2), &
+                  Eigenval_last(:, 2), Eigenval_scf(:, 2), gw_corr_lev_occ(2), gw_corr_lev_tot, &
+                  crossing_search, homo(2), unit_nr, count_ev_sc_GW_print, count_sc_GW0_print, &
+                  ikp, nkp_self_energy, kpoints, 2)
 
                IF (do_apply_ic_corr_to_gw .AND. count_ev_sc_GW == 1) THEN
 
-                  CALL apply_ic_corr(Eigenval, Eigenval_scf, ic_corr_list, &
-                                     gw_corr_lev_occ, gw_corr_lev_virt, gw_corr_lev_tot, &
-                                     homo, nmo, unit_nr, do_alpha=.TRUE.)
+                  CALL apply_ic_corr(Eigenval(:, 1), Eigenval_scf(:, 1), ic_corr_list(1)%array, &
+                                     gw_corr_lev_occ(1), gw_corr_lev_virt(1), gw_corr_lev_tot, &
+                                     homo(1), nmo, unit_nr, do_alpha=.TRUE.)
 
-                  CALL apply_ic_corr(Eigenval_beta, Eigenval_scf_beta, ic_corr_list_beta, &
-                                     gw_corr_lev_occ_beta, gw_corr_lev_virt_beta, gw_corr_lev_tot, &
-                                     homo_beta, nmo, unit_nr, do_beta=.TRUE.)
+                  CALL apply_ic_corr(Eigenval(:, 2), Eigenval_scf(:, 2), ic_corr_list(2)%array, &
+                                     gw_corr_lev_occ(2), gw_corr_lev_virt(2), gw_corr_lev_tot, &
+                                     homo(2), nmo, unit_nr, do_beta=.TRUE.)
 
                END IF
 
             ELSE
 
                CALL print_and_update_for_ev_sc( &
-                  vec_gw_energ, &
-                  z_value, m_value, mp2_env%ri_g0w0%vec_Sigma_x_minus_vxc_gw(:, 1, ikp), Eigenval, &
-                  Eigenval_last, Eigenval_scf, gw_corr_lev_occ, gw_corr_lev_tot, &
-                  crossing_search, homo, unit_nr, count_ev_sc_GW_print, count_sc_GW0_print, &
-                  ikp, nkp_self_energy, kpoints)
+                  vec_gw_energ(:, 1), &
+                  z_value(:, 1), m_value(:, 1), mp2_env%ri_g0w0%vec_Sigma_x_minus_vxc_gw(:, 1, ikp), Eigenval(:, 1), &
+                  Eigenval_last(:, 1), Eigenval_scf(:, 1), gw_corr_lev_occ(1), gw_corr_lev_tot, &
+                  crossing_search, homo(1), unit_nr, count_ev_sc_GW_print, count_sc_GW0_print, &
+                  ikp, nkp_self_energy, kpoints, 0)
 
                IF (do_apply_ic_corr_to_gw .AND. count_ev_sc_GW == 1) THEN
 
-                  CALL apply_ic_corr(Eigenval, Eigenval_scf, ic_corr_list, &
-                                     gw_corr_lev_occ, gw_corr_lev_virt, gw_corr_lev_tot, &
-                                     homo, nmo, unit_nr)
+                  CALL apply_ic_corr(Eigenval(:, 1), Eigenval_scf(:, 1), ic_corr_list(1)%array, &
+                                     gw_corr_lev_occ(1), gw_corr_lev_virt(1), gw_corr_lev_tot, &
+                                     homo(1), nmo, unit_nr)
 
                END IF
 
@@ -1624,27 +1428,20 @@ CONTAINS
          DEALLOCATE (z_value)
          DEALLOCATE (m_value)
          DEALLOCATE (vec_gw_energ)
-         IF (my_open_shell) THEN
-            DEALLOCATE (z_value_beta)
-            DEALLOCATE (m_value_beta)
-            DEALLOCATE (vec_gw_energ_beta)
-         END IF
 
          exit_ev_gw = .FALSE.
 
          ! if HOMO-LUMO gap differs by less than mp2_env%ri_g0w0%eps_sc_iter, exit ev sc GW loop
-         IF (ABS(Eigenval(homo) - Eigenval_last(homo) - Eigenval(homo + 1) + Eigenval_last(homo + 1)) &
+         IF (ABS(Eigenval(homo(1), 1) - Eigenval_last(homo(1), 1) - Eigenval(homo(1) + 1, 1) + Eigenval_last(homo(1) + 1, 1)) &
              < mp2_env%ri_g0w0%eps_iter) THEN
             IF (count_sc_GW0 == 1) exit_ev_gw = .TRUE.
             EXIT
          END IF
 
-         CALL shift_unshifted_levels(Eigenval, Eigenval_last, gw_corr_lev_occ, gw_corr_lev_virt, &
-                                     homo, nmo)
-         IF (my_open_shell) THEN
-            CALL shift_unshifted_levels(Eigenval_beta, Eigenval_last_beta, gw_corr_lev_occ_beta, &
-                                        gw_corr_lev_virt_beta, homo_beta, nmo)
-         END IF
+         DO ispin = 1, nspins
+            CALL shift_unshifted_levels(Eigenval(:, ispin), Eigenval_last(:, ispin), gw_corr_lev_occ(ispin), &
+                                        gw_corr_lev_virt(ispin), homo(ispin), nmo)
+         END DO
 
          ! in case of N^4 scaling GW, the scGW0 cycle is the eigenvalue sc cycle
          IF (.NOT. do_im_time) EXIT
@@ -1761,9 +1558,9 @@ CONTAINS
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
          INTENT(OUT)                                     :: eps_head
       TYPE(kpoint_type), POINTER                         :: kpoints
-      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_berry_re_mo_mo, &
+      TYPE(dbcsr_p_type), DIMENSION(:), INTENT(IN)       :: matrix_berry_re_mo_mo, &
                                                             matrix_berry_im_mo_mo
-      TYPE(cp_para_env_type), POINTER                    :: para_env_RPA
+      TYPE(cp_para_env_type), INTENT(IN)                 :: para_env_RPA
       TYPE(qs_environment_type), POINTER                 :: qs_env
       INTEGER, INTENT(IN)                                :: homo
       REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: Eigenval
@@ -2034,9 +1831,7 @@ CONTAINS
          CALL dbcsr_allocate_matrix_set(matrix_berry_re_mo_mo, nkp)
          CALL dbcsr_allocate_matrix_set(matrix_berry_im_mo_mo, nkp)
 
-      END IF
-
-      IF (do_aux_bas) THEN
+      ELSE
 
          NULLIFY (gw_aux_basis_set_list)
          ALLOCATE (gw_aux_basis_set_list(nkind))
@@ -2473,14 +2268,13 @@ CONTAINS
 
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
          INTENT(INOUT)                                   :: delta_corr
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
-         INTENT(IN)                                      :: eps_inv_head
+      REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: eps_inv_head
       TYPE(kpoint_type), POINTER                         :: kpoints
       TYPE(qs_environment_type), POINTER                 :: qs_env
-      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_berry_re_mo_mo, &
+      TYPE(dbcsr_p_type), DIMENSION(:), INTENT(IN)       :: matrix_berry_re_mo_mo, &
                                                             matrix_berry_im_mo_mo
       INTEGER, INTENT(IN)                                :: homo, gw_corr_lev_occ, gw_corr_lev_virt
-      TYPE(cp_para_env_type), OPTIONAL, POINTER          :: para_env_RPA
+      TYPE(cp_para_env_type), INTENT(IN), OPTIONAL       :: para_env_RPA
       LOGICAL, INTENT(IN)                                :: do_extra_kpoints
 
       INTEGER                                            :: col, col_offset, col_size, i_col, i_row, &
@@ -2659,8 +2453,7 @@ CONTAINS
    SUBROUTINE compute_eps_inv_head(eps_inv_head, eps_head, kpoints)
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
          INTENT(OUT)                                     :: eps_inv_head
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
-         INTENT(IN)                                      :: eps_head
+      REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: eps_head
       TYPE(kpoint_type), POINTER                         :: kpoints
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'compute_eps_inv_head'
@@ -2897,9 +2690,9 @@ CONTAINS
 !> \param Eigenval_DFT ...
 !> \param eps_eigenval ...
 ! **************************************************************************************************
-   SUBROUTINE average_degenerate_levels(vec_Sigma_c_gw, Eigenval_DFT, eps_eigenval)
-      COMPLEX(KIND=dp), ALLOCATABLE, &
-         DIMENSION(:, :, :), INTENT(INOUT)               :: vec_Sigma_c_gw
+   PURE SUBROUTINE average_degenerate_levels(vec_Sigma_c_gw, Eigenval_DFT, eps_eigenval)
+      COMPLEX(KIND=dp), DIMENSION(:, :, :), &
+         INTENT(INOUT)                                   :: vec_Sigma_c_gw
       REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: Eigenval_DFT
       REAL(KIND=dp), INTENT(IN)                          :: eps_eigenval
 
@@ -3060,8 +2853,7 @@ CONTAINS
                                          num_fit_points, crossing_search, homo, stop_crit, &
                                          fermi_level_offset, do_gw_im_time)
 
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
-         INTENT(INOUT)                                   :: vec_gw_energ, vec_omega_fit_gw, z_value, &
+      REAL(KIND=dp), DIMENSION(:), INTENT(INOUT)         :: vec_gw_energ, vec_omega_fit_gw, z_value, &
                                                             m_value
       COMPLEX(KIND=dp), DIMENSION(:, :), INTENT(IN)      :: vec_Sigma_c_gw
       REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: vec_Sigma_x_minus_vxc_gw, Eigenval, &
@@ -3073,8 +2865,7 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'fit_and_continuation_2pole'
 
-      COMPLEX(KIND=dp)                                   :: func_val, im_unit, one, re_unit, rho1, &
-                                                            zero
+      COMPLEX(KIND=dp)                                   :: func_val, rho1
       COMPLEX(KIND=dp), ALLOCATABLE, DIMENSION(:)        :: dLambda, dLambda_2, Lambda, &
                                                             Lambda_without_offset, vec_b_gw, &
                                                             vec_b_gw_copy
@@ -3091,16 +2882,13 @@ CONTAINS
                                                             vec_N_gw, vec_omega_fit_gw_sign
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: mat_N_gw
 
-      im_unit = (0.0_dp, 1.0_dp)
-      re_unit = (1.0_dp, 0.0_dp)
-
       max_iter_fit = 10000
 
       num_var = 2*num_poles + 1
       ALLOCATE (Lambda(num_var))
-      Lambda = (0.0_dp, 0.0_dp)
+      Lambda = z_zero
       ALLOCATE (Lambda_without_offset(num_var))
-      Lambda_without_offset = (0.0_dp, 0.0_dp)
+      Lambda_without_offset = z_zero
       ALLOCATE (Lambda_Re(num_var))
       Lambda_Re = 0.0_dp
       ALLOCATE (Lambda_Im(num_var))
@@ -3131,7 +2919,7 @@ CONTAINS
       END DO
 
       DO iii = 1, num_var
-         Lambda(iii) = Lambda_Re(iii) + im_unit*Lambda_Im(iii)
+         Lambda(iii) = Lambda_Re(iii) + gaussi*Lambda_Im(iii)
       END DO
 
       CALL calc_chi2(chi2_old, Lambda, vec_Sigma_c_gw, vec_omega_fit_gw_sign, num_poles, &
@@ -3140,12 +2928,10 @@ CONTAINS
       ALLOCATE (mat_A_gw(num_poles + 1, num_poles + 1))
       ALLOCATE (vec_b_gw(num_poles + 1))
       ALLOCATE (ipiv(num_poles + 1))
-      mat_A_gw = (0.0_dp, 0.0_dp)
+      mat_A_gw = z_zero
       vec_b_gw = 0.0_dp
 
-      DO iii = 1, num_poles + 1
-         mat_A_gw(iii, 1) = (1.0_dp, 0.0_dp)
-      END DO
+      mat_A_gw(1:num_poles + 1, 1) = z_one
       integ_range = num_fit_points/num_poles
       DO kkk = 1, num_poles + 1
          xpos = (kkk - 1)*integ_range + 1
@@ -3153,8 +2939,8 @@ CONTAINS
          ! calculate coefficient at this point
          DO iii = 1, num_poles
             jjj = iii*2
-            func_val = (1.0_dp, 0.0_dp)/(im_unit*vec_omega_fit_gw_sign(xpos) - &
-                                         CMPLX(Lambda_Re(jjj + 1), Lambda_Im(jjj + 1), KIND=dp))
+            func_val = z_one/(gaussi*vec_omega_fit_gw_sign(xpos) - &
+                              CMPLX(Lambda_Re(jjj + 1), Lambda_Im(jjj + 1), KIND=dp))
             mat_A_gw(kkk, iii + 1) = func_val
          END DO
          vec_b_gw(kkk) = vec_Sigma_c_gw(n_level_gw, xpos)
@@ -3197,34 +2983,34 @@ CONTAINS
 
          ! calc delta lambda
          DO iii = 1, num_var
-            Lambda(iii) = Lambda_Re(iii) + im_unit*Lambda_Im(iii)
+            Lambda(iii) = Lambda_Re(iii) + gaussi*Lambda_Im(iii)
          END DO
-         dLambda = (0.0_dp, 0.0_dp)
+         dLambda = z_zero
 
          DO kkk = 1, num_fit_points
             func_val = Lambda(1)
             DO iii = 1, num_poles
                jjj = iii*2
-               func_val = func_val + Lambda(jjj)/(vec_omega_fit_gw_sign(kkk)*im_unit - Lambda(jjj + 1))
+               func_val = func_val + Lambda(jjj)/(vec_omega_fit_gw_sign(kkk)*gaussi - Lambda(jjj + 1))
             END DO
             dLambda(kkk) = vec_Sigma_c_gw(n_level_gw, kkk) - func_val
          END DO
          rho1 = SUM(dLambda*dLambda)
 
          ! fill matrix
-         mat_B_gw = (0.0_dp, 0.0_dp)
+         mat_B_gw = z_zero
          DO iii = 1, num_fit_points
             mat_B_gw(iii, 1) = 1.0_dp
-            mat_B_gw(iii, num_var + 1) = im_unit
+            mat_B_gw(iii, num_var + 1) = gaussi
          END DO
          DO iii = 1, num_poles
             jjj = iii*2
             DO kkk = 1, num_fit_points
-               mat_B_gw(kkk, jjj) = 1.0_dp/(im_unit*vec_omega_fit_gw_sign(kkk) - Lambda(jjj + 1))
-               mat_B_gw(kkk, jjj + num_var) = im_unit/(im_unit*vec_omega_fit_gw_sign(kkk) - Lambda(jjj + 1))
-               mat_B_gw(kkk, jjj + 1) = Lambda(jjj)/(im_unit*vec_omega_fit_gw_sign(kkk) - Lambda(jjj + 1))**2
-               mat_B_gw(kkk, jjj + 1 + num_var) = (-Lambda_Im(jjj) + im_unit*Lambda_Re(jjj))/ &
-                                                  (im_unit*vec_omega_fit_gw_sign(kkk) - Lambda(jjj + 1))**2
+               mat_B_gw(kkk, jjj) = 1.0_dp/(gaussi*vec_omega_fit_gw_sign(kkk) - Lambda(jjj + 1))
+               mat_B_gw(kkk, jjj + num_var) = gaussi/(gaussi*vec_omega_fit_gw_sign(kkk) - Lambda(jjj + 1))
+               mat_B_gw(kkk, jjj + 1) = Lambda(jjj)/(gaussi*vec_omega_fit_gw_sign(kkk) - Lambda(jjj + 1))**2
+               mat_B_gw(kkk, jjj + 1 + num_var) = (-Lambda_Im(jjj) + gaussi*Lambda_Re(jjj))/ &
+                                                  (gaussi*vec_omega_fit_gw_sign(kkk) - Lambda(jjj + 1))**2
             END DO
          END DO
 
@@ -3232,15 +3018,13 @@ CONTAINS
 
          CALL timeset(routineN//"_fit_matmul_1", handle4)
 
-         one = (1.0_dp, 0.0_dp)
-         zero = (0.0_dp, 0.0_dp)
-         CALL zgemm('C', 'N', num_var*2, num_var*2, num_fit_points, one, mat_B_gw, num_fit_points, mat_B_gw, num_fit_points, &
-                    zero, mat_A_gw, num_var*2)
+         CALL zgemm('C', 'N', num_var*2, num_var*2, num_fit_points, z_one, mat_B_gw, num_fit_points, mat_B_gw, num_fit_points, &
+                    z_zero, mat_A_gw, num_var*2)
          CALL timestop(handle4)
 
          CALL timeset(routineN//"_fit_zgemv_1", handle4)
-         CALL zgemv('C', num_fit_points, num_var*2, one, mat_B_gw, num_fit_points, dLambda, 1, &
-                    zero, vec_b_gw, 1)
+         CALL zgemv('C', num_fit_points, num_var*2, z_one, mat_B_gw, num_fit_points, dLambda, 1, &
+                    z_zero, vec_b_gw, 1)
 
          CALL timestop(handle4)
 
@@ -3262,7 +3046,7 @@ CONTAINS
          CALL timestop(handle4)
 
          DO iii = 1, num_var
-            Lambda(iii) = Lambda_Re(iii) + im_unit*Lambda_Im(iii) + vec_b_gw(iii) + vec_b_gw(iii + num_var)
+            Lambda(iii) = Lambda_Re(iii) + gaussi*Lambda_Im(iii) + vec_b_gw(iii) + vec_b_gw(iii + num_var)
          END DO
 
          ! calculate chi2
@@ -3501,8 +3285,7 @@ CONTAINS
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'continuation_pade'
 
       CHARACTER(len=default_path_length)                 :: filename
-      COMPLEX(KIND=dp)                                   :: im_unit, re_unit, sigma_c_pade, &
-                                                            sigma_c_pade_im_freq
+      COMPLEX(KIND=dp)                                   :: sigma_c_pade, sigma_c_pade_im_freq
       COMPLEX(KIND=dp), ALLOCATABLE, DIMENSION(:)        :: coeff_pade, omega_points_pade, &
                                                             Sigma_c_gw_reorder
       INTEGER                                            :: handle, i_omega, iunit, jquad, &
@@ -3513,9 +3296,6 @@ CONTAINS
                                                             vec_omega_fit_gw_sign_reorder
 
       CALL timeset(routineN, handle)
-
-      im_unit = (0.0_dp, 1.0_dp)
-      re_unit = (1.0_dp, 0.0_dp)
 
       ALLOCATE (vec_omega_fit_gw_sign(num_fit_points))
 
@@ -3705,7 +3485,7 @@ CONTAINS
 !> \param xpoints set of points used in pade approximation, selection of x
 !> \param coeff pade coefficients
 ! **************************************************************************************************
-   SUBROUTINE get_pade_parameters(y, x, num_fit_points, nparam, xpoints, coeff)
+   PURE SUBROUTINE get_pade_parameters(y, x, num_fit_points, nparam, xpoints, coeff)
 
       COMPLEX(KIND=dp), DIMENSION(:), INTENT(IN)         :: y
       REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: x
@@ -3714,28 +3494,21 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'get_pade_parameters'
 
-      COMPLEX(KIND=dp)                                   :: im_unit
       COMPLEX(KIND=dp), ALLOCATABLE, DIMENSION(:)        :: ypoints
       COMPLEX(KIND=dp), ALLOCATABLE, DIMENSION(:, :)     :: g_mat
-      INTEGER                                            :: handle, idat, iparam, nstep
-
-      CALL timeset(routineN, handle)
-
-      im_unit = (0.0_dp, 1.0_dp)
+      INTEGER                                            :: idat, iparam, nstep
 
       nstep = INT(num_fit_points/(nparam - 1))
-      CPASSERT(LBOUND(x, 1) == 1)
-      CPASSERT(LBOUND(y, 1) == 1)
 
       ALLOCATE (ypoints(nparam))
       !omega=i0 is in element x(1)
       idat = 1
       DO iparam = 1, nparam - 1
-         xpoints(iparam) = im_unit*x(idat)
+         xpoints(iparam) = gaussi*x(idat)
          ypoints(iparam) = y(idat)
          idat = idat + nstep
       ENDDO
-      xpoints(nparam) = im_unit*x(num_fit_points)
+      xpoints(nparam) = gaussi*x(num_fit_points)
       ypoints(nparam) = y(num_fit_points)
 
       !*** generate parameters recursively
@@ -3756,8 +3529,6 @@ CONTAINS
       DEALLOCATE (ypoints)
       DEALLOCATE (g_mat)
 
-      CALL timestop(handle)
-
    END SUBROUTINE get_pade_parameters
 
 ! **************************************************************************************************
@@ -3769,7 +3540,7 @@ CONTAINS
 !> \param func_val function value
 !> \param do_imag_freq ...
 ! **************************************************************************************************
-   SUBROUTINE evaluate_pade_function(x_val, nparam, xpoints, coeff, func_val, do_imag_freq)
+   PURE SUBROUTINE evaluate_pade_function(x_val, nparam, xpoints, coeff, func_val, do_imag_freq)
 
       REAL(KIND=dp), INTENT(IN)                          :: x_val
       INTEGER, INTENT(IN)                                :: nparam
@@ -3779,30 +3550,22 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'evaluate_pade_function'
 
-      COMPLEX(KIND=dp)                                   :: im_unit, re_unit
-      INTEGER                                            :: handle, iparam
+      INTEGER                                            :: iparam
       LOGICAL                                            :: my_do_imag_freq
-
-      CALL timeset(routineN, handle)
 
       my_do_imag_freq = .FALSE.
       IF (PRESENT(do_imag_freq)) my_do_imag_freq = do_imag_freq
 
-      im_unit = (0.0_dp, 1.0_dp)
-      re_unit = (1.0_dp, 0.0_dp)
-
-      func_val = re_unit
+      func_val = z_one
       DO iparam = nparam, 2, -1
          IF (my_do_imag_freq) THEN
-            func_val = re_unit + coeff(iparam)*(im_unit*x_val - xpoints(iparam - 1))/func_val
+            func_val = z_one + coeff(iparam)*(gaussi*x_val - xpoints(iparam - 1))/func_val
          ELSE
-            func_val = re_unit + coeff(iparam)*(re_unit*x_val - xpoints(iparam - 1))/func_val
+            func_val = z_one + coeff(iparam)*(z_one*x_val - xpoints(iparam - 1))/func_val
          END IF
       ENDDO
 
       func_val = coeff(1)/func_val
-
-      CALL timestop(handle)
 
    END SUBROUTINE evaluate_pade_function
 
@@ -3815,7 +3578,7 @@ CONTAINS
 !> \param z_value 1/(1-dev)
 !> \param m_value derivative
 ! **************************************************************************************************
-   SUBROUTINE get_z_and_m_value_pade(x_val, nparam, xpoints, coeff, z_value, m_value)
+   PURE SUBROUTINE get_z_and_m_value_pade(x_val, nparam, xpoints, coeff, z_value, m_value)
 
       REAL(KIND=dp), INTENT(IN)                          :: x_val
       INTEGER, INTENT(IN)                                :: nparam
@@ -3824,21 +3587,18 @@ CONTAINS
 
       COMPLEX(KIND=dp)                                   :: denominator, dev_denominator, &
                                                             dev_numerator, dev_val, func_val, &
-                                                            im_unit, numerator, re_unit
+                                                            numerator
       INTEGER                                            :: iparam
 
-      im_unit = (0.0_dp, 1.0_dp)
-      re_unit = (1.0_dp, 0.0_dp)
-
-      func_val = re_unit
-      dev_val = (0.0_dp, 0.0_dp)
+      func_val = z_one
+      dev_val = z_zero
       DO iparam = nparam, 2, -1
-         numerator = coeff(iparam)*(re_unit*x_val - xpoints(iparam - 1))
-         dev_numerator = coeff(iparam)*re_unit
+         numerator = coeff(iparam)*(z_one*x_val - xpoints(iparam - 1))
+         dev_numerator = coeff(iparam)*z_one
          denominator = func_val
          dev_denominator = dev_val
          dev_val = dev_numerator/denominator - (numerator*dev_denominator)/(denominator**2)
-         func_val = re_unit + coeff(iparam)*(re_unit*x_val - xpoints(iparam - 1))/func_val
+         func_val = z_one + coeff(iparam)*(z_one*x_val - xpoints(iparam - 1))/func_val
       ENDDO
 
       dev_val = -1.0_dp*coeff(1)/(func_val**2)*dev_val
@@ -4018,48 +3778,35 @@ CONTAINS
 !> \param ikp ...
 !> \param nkp_self_energy ...
 !> \param kpoints ...
-!> \param do_alpha ...
-!> \param do_beta ...
+!> \param ispin requested spin-state (1 for alpha, 2 for beta, else closed-shell)
 ! **************************************************************************************************
    SUBROUTINE print_and_update_for_ev_sc(vec_gw_energ, &
                                          z_value, m_value, vec_Sigma_x_minus_vxc_gw, Eigenval, &
                                          Eigenval_last, Eigenval_scf, gw_corr_lev_occ, gw_corr_lev_tot, &
                                          crossing_search, homo, unit_nr, count_ev_sc_GW, count_sc_GW0, &
-                                         ikp, nkp_self_energy, kpoints, do_alpha, do_beta)
+                                         ikp, nkp_self_energy, kpoints, ispin)
 
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
-         INTENT(IN)                                      :: vec_gw_energ, z_value, m_value
-      REAL(KIND=dp), DIMENSION(:), INTENT(INOUT)         :: vec_Sigma_x_minus_vxc_gw, Eigenval
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
-         INTENT(INOUT)                                   :: Eigenval_last, Eigenval_scf
+      REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: vec_gw_energ, z_value, m_value
+      REAL(KIND=dp), DIMENSION(:), INTENT(INOUT)         :: vec_Sigma_x_minus_vxc_gw, Eigenval, &
+                                                            Eigenval_last, Eigenval_scf
       INTEGER, INTENT(IN) :: gw_corr_lev_occ, gw_corr_lev_tot, crossing_search, homo, unit_nr, &
          count_ev_sc_GW, count_sc_GW0, ikp, nkp_self_energy
       TYPE(kpoint_type), INTENT(IN), POINTER             :: kpoints
-      LOGICAL, INTENT(IN), OPTIONAL                      :: do_alpha, do_beta
+      INTEGER, INTENT(IN)                                :: ispin
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'print_and_update_for_ev_sc'
 
       CHARACTER(4)                                       :: occ_virt
       INTEGER                                            :: handle, n_level_gw, n_level_gw_ref
-      LOGICAL                                            :: do_closed_shell, do_kpoints, &
-                                                            is_energy_okay, my_do_alpha, my_do_beta
+      LOGICAL                                            :: do_alpha, do_beta, do_closed_shell, &
+                                                            do_kpoints, is_energy_okay
       REAL(KIND=dp)                                      :: new_energy
 
       CALL timeset(routineN, handle)
 
-      IF (PRESENT(do_alpha)) THEN
-         my_do_alpha = do_alpha
-      ELSE
-         my_do_alpha = .FALSE.
-      END IF
-
-      IF (PRESENT(do_beta)) THEN
-         my_do_beta = do_beta
-      ELSE
-         my_do_beta = .FALSE.
-      END IF
-
-      do_closed_shell = .NOT. (my_do_alpha .OR. my_do_beta)
+      do_alpha = (ispin == 1)
+      do_beta = (ispin == 2)
+      do_closed_shell = .NOT. (do_alpha .OR. do_beta)
       do_kpoints = (nkp_self_energy > 1)
 
       Eigenval_last(:) = Eigenval(:)
@@ -4078,12 +3825,12 @@ CONTAINS
                WRITE (unit_nr, '(T3,A)') '**                                                                          **'
                WRITE (unit_nr, '(T3,A)') '******************************************************************************'
 
-            ELSE IF (my_do_alpha) THEN
+            ELSE IF (do_alpha) THEN
                WRITE (unit_nr, *) ' '
                WRITE (unit_nr, '(T3,A)') '---------------------------------------'
                WRITE (unit_nr, '(T3,A)') 'GW quasiparticle energies of alpha spins'
                WRITE (unit_nr, '(T3,A)') '----------------------------------------'
-            ELSE IF (my_do_beta) THEN
+            ELSE IF (do_beta) THEN
                WRITE (unit_nr, *) ' '
                WRITE (unit_nr, '(T3,A)') '---------------------------------------'
                WRITE (unit_nr, '(T3,A)') 'GW quasiparticle energies of beta spins'
@@ -4197,10 +3944,10 @@ CONTAINS
          IF (do_closed_shell) THEN
             WRITE (unit_nr, '(T3,A)') ' '
             WRITE (unit_nr, '(T3,A,F57.2)') 'GW HOMO-LUMO gap (eV)', (Eigenval(homo + 1) - Eigenval(homo))*evolt
-         ELSE IF (my_do_alpha) THEN
+         ELSE IF (do_alpha) THEN
             WRITE (unit_nr, '(T3,A)') ' '
             WRITE (unit_nr, '(T3,A,F51.2)') 'Alpha GW HOMO-LUMO gap (eV)', (Eigenval(homo + 1) - Eigenval(homo))*evolt
-         ELSE IF (my_do_beta) THEN
+         ELSE IF (do_beta) THEN
             WRITE (unit_nr, '(T3,A)') ' '
             WRITE (unit_nr, '(T3,A,F52.2)') 'Beta GW HOMO-LUMO gap (eV)', (Eigenval(homo + 1) - Eigenval(homo))*evolt
          END IF
@@ -4223,21 +3970,17 @@ CONTAINS
 !> \param homo ...
 !> \param nmo ...
 ! **************************************************************************************************
-   SUBROUTINE shift_unshifted_levels(Eigenval, Eigenval_last, gw_corr_lev_occ, gw_corr_lev_virt, &
-                                     homo, nmo)
+   PURE SUBROUTINE shift_unshifted_levels(Eigenval, Eigenval_last, gw_corr_lev_occ, gw_corr_lev_virt, &
+                                          homo, nmo)
 
-      REAL(KIND=dp), DIMENSION(:), INTENT(INOUT)         :: Eigenval
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
-         INTENT(INOUT)                                   :: Eigenval_last
+      REAL(KIND=dp), DIMENSION(:), INTENT(INOUT)         :: Eigenval, Eigenval_last
       INTEGER, INTENT(IN)                                :: gw_corr_lev_occ, gw_corr_lev_virt, homo, &
                                                             nmo
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'shift_unshifted_levels'
 
-      INTEGER                                            :: handle, n_level_gw, n_level_gw_ref
+      INTEGER                                            :: n_level_gw, n_level_gw_ref
       REAL(KIND=dp)                                      :: eigen_diff
-
-      CALL timeset(routineN, handle)
 
       ! for eigenvalue self-consistent GW, all eigenvalues have to be corrected
       ! 1) the occupied; check if there are occupied MOs not being corrected by GW
@@ -4277,8 +4020,6 @@ CONTAINS
 
       END IF
 
-      CALL timestop(handle)
-
    END SUBROUTINE shift_unshifted_levels
 
 ! **************************************************************************************************
@@ -4310,7 +4051,6 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'calc_mat_N'
 
-      COMPLEX(KIND=dp)                                   :: im_unit, re_unit
       COMPLEX(KIND=dp), ALLOCATABLE, DIMENSION(:)        :: Lambda_tmp
       INTEGER                                            :: handle, num_var
       REAL(KIND=dp)                                      :: chi2, chi2_sum
@@ -4319,10 +4059,8 @@ CONTAINS
 
       num_var = 2*num_poles + 1
       ALLOCATE (Lambda_tmp(num_var))
-      Lambda_tmp = (0.0_dp, 0.0_dp)
+      Lambda_tmp = z_zero
       chi2_sum = 0.0_dp
-      re_unit = (1.0_dp, 0.0_dp)
-      im_unit = (0.0_dp, 1.0_dp)
 
       !test
       Lambda_tmp(:) = Lambda(:)
@@ -4332,41 +4070,41 @@ CONTAINS
       ! Fitting parameters with offset h
       Lambda_tmp(:) = Lambda(:)
       IF (MODULO(i, 2) == 0) THEN
-         Lambda_tmp(i/2) = Lambda_tmp(i/2) + h*re_unit
+         Lambda_tmp(i/2) = Lambda_tmp(i/2) + h*z_one
       ELSE
-         Lambda_tmp((i + 1)/2) = Lambda_tmp((i + 1)/2) + h*im_unit
+         Lambda_tmp((i + 1)/2) = Lambda_tmp((i + 1)/2) + h*gaussi
       END IF
       IF (MODULO(j, 2) == 0) THEN
-         Lambda_tmp(j/2) = Lambda_tmp(j/2) + h*re_unit
+         Lambda_tmp(j/2) = Lambda_tmp(j/2) + h*z_one
       ELSE
-         Lambda_tmp((j + 1)/2) = Lambda_tmp((j + 1)/2) + h*im_unit
+         Lambda_tmp((j + 1)/2) = Lambda_tmp((j + 1)/2) + h*gaussi
       END IF
       CALL calc_chi2(chi2, Lambda_tmp, Sigma_c, vec_omega_fit_gw, num_poles, &
                      num_fit_points, n_level_gw)
       chi2_sum = chi2_sum + chi2
 
       IF (MODULO(i, 2) == 0) THEN
-         Lambda_tmp(i/2) = Lambda_tmp(i/2) - 2.0_dp*h*re_unit
+         Lambda_tmp(i/2) = Lambda_tmp(i/2) - 2.0_dp*h*z_one
       ELSE
-         Lambda_tmp((i + 1)/2) = Lambda_tmp((i + 1)/2) - 2.0_dp*h*im_unit
+         Lambda_tmp((i + 1)/2) = Lambda_tmp((i + 1)/2) - 2.0_dp*h*gaussi
       END IF
       CALL calc_chi2(chi2, Lambda_tmp, Sigma_c, vec_omega_fit_gw, num_poles, &
                      num_fit_points, n_level_gw)
       chi2_sum = chi2_sum - chi2
 
       IF (MODULO(j, 2) == 0) THEN
-         Lambda_tmp(j/2) = Lambda_tmp(j/2) - 2.0_dp*h*re_unit
+         Lambda_tmp(j/2) = Lambda_tmp(j/2) - 2.0_dp*h*z_one
       ELSE
-         Lambda_tmp((j + 1)/2) = Lambda_tmp((j + 1)/2) - 2.0_dp*h*im_unit
+         Lambda_tmp((j + 1)/2) = Lambda_tmp((j + 1)/2) - 2.0_dp*h*gaussi
       END IF
       CALL calc_chi2(chi2, Lambda_tmp, Sigma_c, vec_omega_fit_gw, num_poles, &
                      num_fit_points, n_level_gw)
       chi2_sum = chi2_sum + chi2
 
       IF (MODULO(i, 2) == 0) THEN
-         Lambda_tmp(i/2) = Lambda_tmp(i/2) + 2.0_dp*h*re_unit
+         Lambda_tmp(i/2) = Lambda_tmp(i/2) + 2.0_dp*h*z_one
       ELSE
-         Lambda_tmp((i + 1)/2) = Lambda_tmp((i + 1)/2) + 2.0_dp*h*im_unit
+         Lambda_tmp((i + 1)/2) = Lambda_tmp((i + 1)/2) + 2.0_dp*h*gaussi
       END IF
       CALL calc_chi2(chi2, Lambda_tmp, Sigma_c, vec_omega_fit_gw, num_poles, &
                      num_fit_points, n_level_gw)
@@ -4391,189 +4129,31 @@ CONTAINS
 !> \param num_fit_points ...
 !> \param n_level_gw ...
 ! **************************************************************************************************
-   SUBROUTINE calc_chi2(chi2, Lambda, Sigma_c, vec_omega_fit_gw, num_poles, &
-                        num_fit_points, n_level_gw)
-      REAL(KIND=dp), INTENT(INOUT)                       :: chi2
-      COMPLEX(KIND=dp), ALLOCATABLE, DIMENSION(:), &
-         INTENT(IN)                                      :: Lambda
+   PURE SUBROUTINE calc_chi2(chi2, Lambda, Sigma_c, vec_omega_fit_gw, num_poles, &
+                             num_fit_points, n_level_gw)
+      REAL(KIND=dp), INTENT(OUT)                         :: chi2
+      COMPLEX(KIND=dp), DIMENSION(:), INTENT(IN)         :: Lambda
       COMPLEX(KIND=dp), DIMENSION(:, :), INTENT(IN)      :: Sigma_c
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
-         INTENT(IN)                                      :: vec_omega_fit_gw
+      REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: vec_omega_fit_gw
       INTEGER, INTENT(IN)                                :: num_poles, num_fit_points, n_level_gw
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'calc_chi2'
 
-      COMPLEX(KIND=dp)                                   :: func_val, im_unit
-      INTEGER                                            :: handle, iii, jjj, kkk
+      COMPLEX(KIND=dp)                                   :: func_val
+      INTEGER                                            :: iii, jjj, kkk
 
-      CALL timeset(routineN, handle)
-
-      im_unit = (0.0_dp, 1.0_dp)
       chi2 = 0.0_dp
       DO kkk = 1, num_fit_points
          func_val = Lambda(1)
          DO iii = 1, num_poles
             jjj = iii*2
             ! calculate value of the fit function
-            func_val = func_val + Lambda(jjj)/(im_unit*vec_omega_fit_gw(kkk) - Lambda(jjj + 1))
+            func_val = func_val + Lambda(jjj)/(gaussi*vec_omega_fit_gw(kkk) - Lambda(jjj + 1))
          END DO
          chi2 = chi2 + (ABS(Sigma_c(n_level_gw, kkk) - func_val))**2
       END DO
 
-      CALL timestop(handle)
-
    END SUBROUTINE calc_chi2
-
-! **************************************************************************************************
-!> \brief ...
-!> \param Eigenval ...
-!> \param Eigenval_scf ...
-!> \param ic_corr_list ...
-!> \param gw_corr_lev_occ ...
-!> \param gw_corr_lev_virt ...
-!> \param gw_corr_lev_tot ...
-!> \param homo ...
-!> \param nmo ...
-!> \param unit_nr ...
-!> \param do_alpha ...
-!> \param do_beta ...
-! **************************************************************************************************
-   SUBROUTINE apply_ic_corr(Eigenval, Eigenval_scf, ic_corr_list, &
-                            gw_corr_lev_occ, gw_corr_lev_virt, gw_corr_lev_tot, &
-                            homo, nmo, unit_nr, do_alpha, do_beta)
-
-      REAL(KIND=dp), DIMENSION(:), INTENT(INOUT)         :: Eigenval, Eigenval_scf
-      REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: ic_corr_list
-      INTEGER, INTENT(IN)                                :: gw_corr_lev_occ, gw_corr_lev_virt, &
-                                                            gw_corr_lev_tot, homo, nmo, unit_nr
-      LOGICAL, INTENT(IN), OPTIONAL                      :: do_alpha, do_beta
-
-      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'apply_ic_corr'
-
-      CHARACTER(4)                                       :: occ_virt
-      INTEGER                                            :: handle, n_level_gw, n_level_gw_ref
-      LOGICAL                                            :: do_closed_shell, my_do_alpha, my_do_beta
-      REAL(KIND=dp)                                      :: eigen_diff
-
-      CALL timeset(routineN, handle)
-
-      IF (PRESENT(do_alpha)) THEN
-         my_do_alpha = do_alpha
-      ELSE
-         my_do_alpha = .FALSE.
-      END IF
-
-      IF (PRESENT(do_beta)) THEN
-         my_do_beta = do_beta
-      ELSE
-         my_do_beta = .FALSE.
-      END IF
-
-      do_closed_shell = .NOT. (my_do_alpha .OR. my_do_beta)
-
-      ! check the number of input image charge corrected levels
-      CPASSERT(SIZE(ic_corr_list) == gw_corr_lev_tot)
-
-      IF (unit_nr > 0) THEN
-
-         WRITE (unit_nr, *) ' '
-
-         IF (do_closed_shell) THEN
-            WRITE (unit_nr, '(T3,A)') 'GW quasiparticle energies with image charge (ic) correction'
-            WRITE (unit_nr, '(T3,A)') '-----------------------------------------------------------'
-         ELSE IF (my_do_alpha) THEN
-            WRITE (unit_nr, '(T3,A)') 'GW quasiparticle energies of alpha spins with image charge (ic) correction'
-            WRITE (unit_nr, '(T3,A)') '--------------------------------------------------------------------------'
-         ELSE IF (my_do_beta) THEN
-            WRITE (unit_nr, '(T3,A)') 'GW quasiparticle energies of beta spins with image charge (ic) correction'
-            WRITE (unit_nr, '(T3,A)') '-------------------------------------------------------------------------'
-         END IF
-
-         WRITE (unit_nr, *) ' '
-
-         DO n_level_gw = 1, gw_corr_lev_tot
-            n_level_gw_ref = n_level_gw + homo - gw_corr_lev_occ
-            IF (n_level_gw <= gw_corr_lev_occ) THEN
-               occ_virt = 'occ'
-            ELSE
-               occ_virt = 'vir'
-            END IF
-
-            WRITE (unit_nr, '(T4,I4,3A,3F21.3)') &
-               n_level_gw_ref, ' ( ', occ_virt, ')  ', &
-               Eigenval(n_level_gw_ref)*evolt, &
-               ic_corr_list(n_level_gw)*evolt, &
-               (Eigenval(n_level_gw_ref) + ic_corr_list(n_level_gw))*evolt
-
-         END DO
-
-         WRITE (unit_nr, *) ' '
-
-      END IF
-
-      Eigenval(homo - gw_corr_lev_occ + 1:homo + gw_corr_lev_virt) = Eigenval(homo - gw_corr_lev_occ + 1: &
-                                                                              homo + gw_corr_lev_virt) &
-                                                                     + ic_corr_list(1:gw_corr_lev_tot)
-
-      Eigenval_scf(homo - gw_corr_lev_occ + 1:homo + gw_corr_lev_virt) = Eigenval_scf(homo - gw_corr_lev_occ + 1: &
-                                                                                      homo + gw_corr_lev_virt) &
-                                                                         + ic_corr_list(1:gw_corr_lev_tot)
-
-      IF (unit_nr > 0) THEN
-
-         IF (do_closed_shell) THEN
-            WRITE (unit_nr, '(T3,A,F52.2)') 'G0W0 IC HOMO-LUMO gap (eV)', Eigenval(homo + 1) - Eigenval(homo)
-         ELSE IF (my_do_alpha) THEN
-            WRITE (unit_nr, '(T3,A,F46.2)') 'G0W0 Alpha IC HOMO-LUMO gap (eV)', Eigenval(homo + 1) - Eigenval(homo)
-         ELSE IF (my_do_beta) THEN
-            WRITE (unit_nr, '(T3,A,F47.2)') 'G0W0 Beta IC HOMO-LUMO gap (eV)', Eigenval(homo + 1) - Eigenval(homo)
-         END IF
-
-         WRITE (unit_nr, *) ' '
-
-      END IF
-
-      ! for eigenvalue self-consistent GW, all eigenvalues have to be corrected
-      ! 1) the occupied; check if there are occupied MOs not being corrected by the IC model
-      IF (gw_corr_lev_occ < homo .AND. gw_corr_lev_occ > 0) THEN
-
-         ! calculate average IC contribution for occupied orbitals
-         eigen_diff = 0.0_dp
-
-         DO n_level_gw = 1, gw_corr_lev_occ
-            eigen_diff = eigen_diff + ic_corr_list(n_level_gw)
-         END DO
-         eigen_diff = eigen_diff/gw_corr_lev_occ
-
-         ! correct the eigenvalues of the occupied orbitals which have not been corrected by the IC model
-         DO n_level_gw = 1, homo - gw_corr_lev_occ
-            Eigenval(n_level_gw) = Eigenval(n_level_gw) + eigen_diff
-            Eigenval_scf(n_level_gw) = Eigenval_scf(n_level_gw) + eigen_diff
-         END DO
-
-      END IF
-
-      ! 2) the virtual: check if there are virtual orbitals not being corrected by the IC model
-      IF (gw_corr_lev_virt < nmo - homo .AND. gw_corr_lev_virt > 0) THEN
-
-         ! calculate average IC correction for virtual orbitals
-         eigen_diff = 0.0_dp
-         DO n_level_gw = gw_corr_lev_occ + 1, gw_corr_lev_tot
-            eigen_diff = eigen_diff + ic_corr_list(n_level_gw)
-         END DO
-         eigen_diff = eigen_diff/gw_corr_lev_virt
-
-         ! correct the eigenvalues of the virtual orbitals which have not been corrected by the IC model
-         DO n_level_gw = homo + gw_corr_lev_virt + 1, nmo
-            Eigenval(n_level_gw) = Eigenval(n_level_gw) + eigen_diff
-            Eigenval_scf(n_level_gw) = Eigenval_scf(n_level_gw) + eigen_diff
-         END DO
-
-      END IF
-
-      CALL timestop(handle)
-
-   END SUBROUTINE apply_ic_corr
 
 ! **************************************************************************************************
 !> \brief ...
@@ -4625,7 +4205,7 @@ CONTAINS
 !> \param do_ri_Sigma_x ...
 !> \param vec_Sigma_x_gw ...
 !> \param unit_nr ...
-!> \param do_beta ...
+!> \param ispin ...
 ! **************************************************************************************************
    SUBROUTINE compute_self_energy_cubic_gw(num_integ_points, nmo, tau_tj, tj, &
                                            matrix_s, fm_mo_coeff_occ, fm_mo_coeff_virt, fm_mo_coeff_occ_scaled, &
@@ -4641,39 +4221,37 @@ CONTAINS
                                            do_periodic, num_points_corr, delta_corr, qs_env, para_env, para_env_RPA, &
                                            mp2_env, matrix_berry_re_mo_mo, matrix_berry_im_mo_mo, &
                                            first_cycle_periodic_correction, kpoints, num_fit_points, fm_mo_coeff, &
-                                           do_ri_Sigma_x, vec_Sigma_x_gw, unit_nr, do_beta)
+                                           do_ri_Sigma_x, vec_Sigma_x_gw, unit_nr, ispin)
       INTEGER, INTENT(IN)                                :: num_integ_points, nmo
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
          INTENT(IN)                                      :: tau_tj, tj
-      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s
+      TYPE(dbcsr_p_type), DIMENSION(:), INTENT(IN)       :: matrix_s
       TYPE(cp_fm_type), POINTER :: fm_mo_coeff_occ, fm_mo_coeff_virt, fm_mo_coeff_occ_scaled, &
          fm_mo_coeff_virt_scaled, fm_scaled_dm_occ_tau, fm_scaled_dm_virt_tau
       REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: Eigenval
       REAL(KIND=dp), INTENT(IN)                          :: eps_filter
       REAL(KIND=dp), INTENT(INOUT)                       :: e_fermi
-      TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: fm_mat_W
+      TYPE(cp_fm_p_type), DIMENSION(:), INTENT(IN)       :: fm_mat_W
       INTEGER, INTENT(IN)                                :: gw_corr_lev_tot, gw_corr_lev_occ, &
                                                             gw_corr_lev_virt, homo, &
                                                             count_ev_sc_GW, count_sc_GW0
       TYPE(dbcsr_t_type)                                 :: t_3c_overl_int_ao_mo
       TYPE(hfx_compression_type)                         :: t_3c_O_mo_compressed
-      INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: t_3c_O_mo_ind
+      INTEGER, DIMENSION(:, :)                           :: t_3c_O_mo_ind
       TYPE(dbcsr_t_type)                                 :: t_3c_overl_int_gw_RI, &
                                                             t_3c_overl_int_gw_AO
-      TYPE(dbcsr_type), POINTER                          :: mat_W
+      TYPE(dbcsr_type), INTENT(INOUT), TARGET            :: mat_W
       TYPE(dbcsr_p_type)                                 :: mat_SinvVSinv, mat_dm
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
-         INTENT(IN)                                      :: weights_cos_tf_t_to_w, &
+      REAL(KIND=dp), DIMENSION(:, :), INTENT(IN)         :: weights_cos_tf_t_to_w, &
                                                             weights_sin_tf_t_to_w
-      COMPLEX(KIND=dp), ALLOCATABLE, &
-         DIMENSION(:, :, :), INTENT(INOUT)               :: vec_Sigma_c_gw
+      COMPLEX(KIND=dp), DIMENSION(:, :, :), INTENT(OUT)  :: vec_Sigma_c_gw
       LOGICAL, INTENT(IN)                                :: do_periodic
       INTEGER, INTENT(IN)                                :: num_points_corr
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), &
          INTENT(INOUT)                                   :: delta_corr
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(cp_para_env_type), POINTER                    :: para_env, para_env_RPA
-      TYPE(mp2_type), POINTER                            :: mp2_env
+      TYPE(mp2_type), INTENT(INOUT)                      :: mp2_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_berry_re_mo_mo, &
                                                             matrix_berry_im_mo_mo
       LOGICAL, INTENT(INOUT) :: first_cycle_periodic_correction
@@ -4681,21 +4259,18 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: num_fit_points
       TYPE(cp_fm_type), POINTER                          :: fm_mo_coeff
       LOGICAL, INTENT(IN)                                :: do_ri_Sigma_x
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
-         INTENT(INOUT)                                   :: vec_Sigma_x_gw
-      INTEGER, INTENT(IN)                                :: unit_nr
-      LOGICAL, INTENT(IN), OPTIONAL                      :: do_beta
+      REAL(KIND=dp), DIMENSION(:, :), INTENT(INOUT)      :: vec_Sigma_x_gw
+      INTEGER, INTENT(IN)                                :: unit_nr, ispin
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'compute_self_energy_cubic_gw'
 
-      COMPLEX(KIND=dp)                                   :: im_unit
       COMPLEX(KIND=dp), ALLOCATABLE, DIMENSION(:, :)     :: delta_corr_omega
       INTEGER :: gw_lev_end, gw_lev_start, handle, handle3, i, iblk_mo, iquad, jquad, mo_end, &
          mo_start, n_level_gw, n_level_gw_ref, nblk_mo, unit_nr_prv
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: batch_range_mo, dist1, dist2, mo_bsizes, &
                                                             mo_offsets, sizes_AO, sizes_RI
       INTEGER, DIMENSION(2)                              :: mo_bounds, pdims_2d
-      LOGICAL                                            :: memory_info, my_do_beta
+      LOGICAL                                            :: memory_info
       REAL(KIND=dp)                                      :: ext_scaling, omega, omega_i, omega_sign, &
                                                             sign_occ_virt, t_i_Clenshaw, tau, &
                                                             weight_cos, weight_i, weight_sin
@@ -4707,7 +4282,7 @@ CONTAINS
                                                             t_dm, t_greens_fct_occ, &
                                                             t_greens_fct_virt, t_RI_tmp, &
                                                             t_SinvVSinv, t_W
-      TYPE(dbcsr_type), POINTER                          :: mat_greens_fct_occ, mat_greens_fct_virt
+      TYPE(dbcsr_type), TARGET                           :: mat_greens_fct_occ, mat_greens_fct_virt
 
       CALL timeset(routineN, handle)
 
@@ -4724,16 +4299,11 @@ CONTAINS
          unit_nr_prv = 0
       ENDIF
 
-      my_do_beta = .FALSE.
-      IF (PRESENT(do_beta)) my_do_beta = do_beta
-
-      im_unit = (0.0_dp, 1.0_dp)
-
       mo_start = homo - gw_corr_lev_occ + 1
       mo_end = homo + gw_corr_lev_virt
       CPASSERT(mo_end - mo_start + 1 == gw_corr_lev_tot)
 
-      vec_Sigma_c_gw = (0.0_dp, 0.0_dp)
+      vec_Sigma_c_gw = z_zero
       ALLOCATE (vec_Sigma_c_gw_pos_tau(gw_corr_lev_tot, num_integ_points))
       vec_Sigma_c_gw_pos_tau = 0.0_dp
       ALLOCATE (vec_Sigma_c_gw_neg_tau(gw_corr_lev_tot, num_integ_points))
@@ -4749,16 +4319,12 @@ CONTAINS
       vec_Sigma_c_gw_sin_omega = 0.0_dp
 
       ALLOCATE (delta_corr_omega(1 + homo - gw_corr_lev_occ:homo + gw_corr_lev_virt, num_integ_points))
-      delta_corr_omega(:, :) = (0.0_dp, 0.0_dp)
+      delta_corr_omega(:, :) = z_zero
 
-      NULLIFY (mat_greens_fct_occ)
-      CALL dbcsr_init_p(mat_greens_fct_occ)
       CALL dbcsr_create(matrix=mat_greens_fct_occ, &
                         template=matrix_s(1)%matrix, &
                         matrix_type=dbcsr_type_no_symmetry)
 
-      NULLIFY (mat_greens_fct_virt)
-      CALL dbcsr_init_p(mat_greens_fct_virt)
       CALL dbcsr_create(matrix=mat_greens_fct_virt, &
                         template=matrix_s(1)%matrix, &
                         matrix_type=dbcsr_type_no_symmetry)
@@ -4886,10 +4452,10 @@ CONTAINS
       vec_Sigma_c_gw_sin_omega(1:gw_corr_lev_occ, :) = -vec_Sigma_c_gw_sin_omega(1:gw_corr_lev_occ, :)
 
       vec_Sigma_c_gw(:, 1:num_fit_points, 1) = vec_Sigma_c_gw_cos_omega(:, 1:num_fit_points) + &
-                                               im_unit*vec_Sigma_c_gw_sin_omega(:, 1:num_fit_points)
+                                               gaussi*vec_Sigma_c_gw_sin_omega(:, 1:num_fit_points)
 
-      CALL dbcsr_release_P(mat_greens_fct_occ)
-      CALL dbcsr_release_P(mat_greens_fct_virt)
+      CALL dbcsr_release(mat_greens_fct_occ)
+      CALL dbcsr_release(mat_greens_fct_virt)
 
       IF (do_ri_Sigma_x .AND. count_ev_sc_GW == 1 .AND. count_sc_GW0 == 1) THEN
 
@@ -4949,19 +4515,9 @@ CONTAINS
          CALL dbcsr_t_destroy(t_dm)
          CALL dbcsr_t_destroy(t_SinvVSinv)
 
-         IF (my_do_beta) THEN
-
-            mp2_env%ri_g0w0%vec_Sigma_x_minus_vxc_gw(:, 2, 1) = &
-               mp2_env%ri_g0w0%vec_Sigma_x_minus_vxc_gw(:, 2, 1) + &
-               vec_Sigma_x_gw(:, 1)
-
-         ELSE
-
-            mp2_env%ri_g0w0%vec_Sigma_x_minus_vxc_gw(:, 1, 1) = &
-               mp2_env%ri_g0w0%vec_Sigma_x_minus_vxc_gw(:, 1, 1) + &
-               vec_Sigma_x_gw(:, 1)
-
-         END IF
+         mp2_env%ri_g0w0%vec_Sigma_x_minus_vxc_gw(:, ispin, 1) = &
+            mp2_env%ri_g0w0%vec_Sigma_x_minus_vxc_gw(:, ispin, 1) + &
+            vec_Sigma_x_gw(:, 1)
 
       END IF
 
@@ -5017,8 +4573,8 @@ CONTAINS
                   delta_corr_omega(n_level_gw_ref, jquad) = &
                      delta_corr_omega(n_level_gw_ref, jquad) - &
                      0.5_dp/pi*weight_i/2.0_dp*delta_corr(n_level_gw_ref)* &
-                     (1.0_dp/(im_unit*(omega_i + omega_sign) + e_fermi - Eigenval(n_level_gw_ref)) + &
-                      1.0_dp/(im_unit*(-omega_i + omega_sign) + e_fermi - Eigenval(n_level_gw_ref)))
+                     (1.0_dp/(gaussi*(omega_i + omega_sign) + e_fermi - Eigenval(n_level_gw_ref)) + &
+                      1.0_dp/(gaussi*(-omega_i + omega_sign) + e_fermi - Eigenval(n_level_gw_ref)))
 
                END DO
 
@@ -5215,13 +4771,13 @@ CONTAINS
                                            fm_scaled_dm_occ_tau, fm_scaled_dm_virt_tau, Eigenval, nmo, &
                                            eps_filter, e_fermi, tau, para_env)
 
-      TYPE(dbcsr_type), POINTER                          :: mat_greens_fct_occ, mat_greens_fct_virt
+      TYPE(dbcsr_type), INTENT(INOUT)                    :: mat_greens_fct_occ, mat_greens_fct_virt
       TYPE(cp_fm_type), POINTER :: fm_mo_coeff_occ, fm_mo_coeff_virt, fm_mo_coeff_occ_scaled, &
          fm_mo_coeff_virt_scaled, fm_scaled_dm_occ_tau, fm_scaled_dm_virt_tau
       REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: Eigenval
       INTEGER, INTENT(IN)                                :: nmo
       REAL(KIND=dp), INTENT(IN)                          :: eps_filter, e_fermi, tau
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(cp_para_env_type), INTENT(IN)                 :: para_env
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'compute_Greens_function_time'
 

@@ -24,8 +24,8 @@ MODULE mp2_gpw_method
                                               cp_fm_get_info,&
                                               cp_fm_release,&
                                               cp_fm_type
-   USE cp_para_env,                     ONLY: cp_para_env_create,&
-                                              cp_para_env_release
+   USE cp_para_env,                     ONLY: cp_para_env_release,&
+                                              cp_para_env_split
    USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: &
         dbcsr_create, dbcsr_get_info, dbcsr_iterator_blocks_left, dbcsr_iterator_next_block, &
@@ -38,8 +38,7 @@ MODULE mp2_gpw_method
    USE kinds,                           ONLY: dp,&
                                               int_8
    USE machine,                         ONLY: m_memory
-   USE message_passing,                 ONLY: mp_comm_split_direct,&
-                                              mp_max,&
+   USE message_passing,                 ONLY: mp_max,&
                                               mp_min,&
                                               mp_sendrecv,&
                                               mp_sum
@@ -48,6 +47,7 @@ MODULE mp2_gpw_method
                                               prepare_gpw
    USE particle_types,                  ONLY: particle_type
    USE pw_env_types,                    ONLY: pw_env_type
+   USE pw_methods,                      ONLY: pw_transfer
    USE pw_poisson_types,                ONLY: pw_poisson_type
    USE pw_pool_types,                   ONLY: pw_pool_create_pw,&
                                               pw_pool_type
@@ -139,15 +139,15 @@ CONTAINS
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'mp2_gpw_compute'
 
       INTEGER :: a, a_group_counter, b, b_global, b_group_counter, blk, col, col_offset, col_size, &
-         color_counter, comm_exchange, EX_end, EX_end_send, EX_start, EX_start_send, &
-         group_counter, handle, handle2, handle3, i, i_counter, i_group_counter, index_proc_shift, &
-         j, max_b_size, max_batch_size_A, max_batch_size_I, max_row_col_local, mepos_in_EX_group, &
+         color_counter, EX_end, EX_end_send, EX_start, EX_start_send, group_counter, handle, &
+         handle2, handle3, i, i_counter, i_group_counter, index_proc_shift, j, max_b_size, &
+         max_batch_size_A, max_batch_size_I, max_row_col_local, mepos_in_EX_group, &
          my_A_batch_size, my_A_virtual_end, my_A_virtual_start, my_B_size, my_B_virtual_end, &
          my_B_virtual_start, my_I_batch_size, my_I_occupied_end, my_I_occupied_start, &
-         my_q_position, ncol_local, nfullcols_total, nfullrows_total, ngroup, nrow_local, p
-      INTEGER :: p_best, potential_type, proc_receive, proc_send, q, q_best, row, row_offset, &
-         row_size, size_EX, size_EX_send, size_of_exchange_group, sub_sub_color, virtual, &
-         virtual_beta, wfn_calc, wfn_calc_best
+         my_q_position, ncol_local, nfullcols_total, nfullrows_total, ngroup, nrow_local, p, p_best
+      INTEGER :: proc_receive, proc_send, q, q_best, row, row_offset, row_size, size_EX, &
+         size_EX_send, size_of_exchange_group, sub_sub_color, virtual, virtual_beta, wfn_calc, &
+         wfn_calc_best
       INTEGER(KIND=int_8)                                :: mem
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: proc_map, sub_proc_map, vector_B_sizes, &
                                                             vector_batch_A_size_group, &
@@ -156,7 +156,7 @@ CONTAINS
       INTEGER, DIMENSION(:), POINTER                     :: col_indices, row_indices
       LOGICAL                                            :: do_alpha_beta
       REAL(KIND=dp)                                      :: cutoff_old, mem_min, mem_real, mem_try, &
-                                                            omega, relative_cutoff_old, wfn_size
+                                                            relative_cutoff_old, wfn_size
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: e_cutoff_old
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: my_Cocc, my_Cvirt
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: BIb_C, BIb_Ex, BIb_send
@@ -385,9 +385,7 @@ CONTAINS
       ! now create a group that contains all the proc that have the same 2 virtual starting points
       ! in this way it is possible to sum the common integrals needed for the full MP2 energy
       ! in mp_comm_split_direct the color is given by my_a_virtual_start and my_b_virtual_start
-      CALL mp_comm_split_direct(para_env%group, comm_exchange, sub_sub_color)
-      NULLIFY (para_env_exchange)
-      CALL cp_para_env_create(para_env_exchange, comm_exchange)
+      CALL cp_para_env_split(para_env_exchange, para_env, sub_sub_color)
 
       ! crate the proc maps
       ALLOCATE (proc_map(-para_env_exchange%num_pe:2*para_env_exchange%num_pe - 1))
@@ -421,9 +419,6 @@ CONTAINS
                                      pw_env_sub, external_vector=my_Cocc(:, i - my_I_occupied_start + 1))
       END DO
 
-      potential_type = qs_env%mp2_env%potential_parameter%potential_type
-      omega = qs_env%mp2_env%potential_parameter%omega
-
       Emp2 = 0.0_dp
       Emp2_Cou = 0.0_dp
       Emp2_EX = 0.0_dp
@@ -447,7 +442,8 @@ CONTAINS
 
             ! potential
             rho_r%pw%cr3d = psi_i(i)%pw%cr3d*psi_a%pw%cr3d
-            CALL calc_potential_gpw(rho_r, rho_g, poisson_env, pot_g, potential_type, omega)
+            CALL pw_transfer(rho_r%pw, rho_g%pw)
+            CALL calc_potential_gpw(rho_r, rho_g, poisson_env, pot_g, qs_env%mp2_env%potential_parameter)
 
             ! and finally (ia|munu)
             CALL timeset(routineN//"_int", handle3)

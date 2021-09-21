@@ -60,6 +60,7 @@ CONTAINS
       INTEGER, DIMENSION(:), POINTER                     :: tmplist
       LOGICAL                                            :: do_mp2, do_opt_ri_basis, do_ri_mp2, &
                                                             do_ri_sos_mp2, do_rpa
+      REAL(KIND=dp), DIMENSION(:), POINTER               :: r_vals
       TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(section_vals_type), POINTER                   :: eri_mme_section, gw_section, &
                                                             low_scaling_section, mp2_section
@@ -130,10 +131,16 @@ CONTAINS
                                 i_val=mp2_env%ri_g0w0%print_exx)
       CALL section_vals_val_get(mp2_section, "RI_RPA%GW%RI_SIGMA_X", &
                                 l_val=mp2_env%ri_g0w0%do_ri_Sigma_x)
+      NULLIFY (r_vals)
       CALL section_vals_val_get(mp2_section, "RI_RPA%GW%IC_CORR_LIST", &
-                                r_vals=mp2_env%ri_g0w0%ic_corr_list)
+                                r_vals=r_vals)
+      ALLOCATE (mp2_env%ri_g0w0%ic_corr_list(1)%array(SIZE(r_vals)))
+      mp2_env%ri_g0w0%ic_corr_list(1)%array(:) = r_vals(:)
+      NULLIFY (r_vals)
       CALL section_vals_val_get(mp2_section, "RI_RPA%GW%IC_CORR_LIST_BETA", &
-                                r_vals=mp2_env%ri_g0w0%ic_corr_list_beta)
+                                r_vals=r_vals)
+      ALLOCATE (mp2_env%ri_g0w0%ic_corr_list(2)%array(SIZE(r_vals)))
+      mp2_env%ri_g0w0%ic_corr_list(2)%array(:) = r_vals(:)
       CALL section_vals_val_get(mp2_section, "RI_RPA%GW%GAMMA_ONLY_SIGMA", &
                                 l_val=mp2_env%ri_g0w0%do_gamma_only_sigma)
       CALL section_vals_val_get(mp2_section, "RI_RPA%GW%UPDATE_XC_ENERGY", &
@@ -233,7 +240,6 @@ CONTAINS
       CALL section_vals_val_get(mp2_section, "RI%COL_BLOCK", i_val=mp2_env%block_size_col)
       CALL section_vals_val_get(mp2_section, "RI%CALC_COND_NUM", l_val=mp2_env%calc_PQ_cond_num)
       CALL section_vals_val_get(mp2_section, "RI%DO_SVD", l_val=mp2_env%do_svd)
-      CALL section_vals_val_get(mp2_section, "RI%EPS_SVD", r_val=mp2_env%eps_svd)
       CALL section_vals_val_get(mp2_section, "RI%ERI_BLKSIZE", i_vals=mp2_env%eri_blksize)
       CALL section_vals_val_get(mp2_section, "RI%RI_METRIC%POTENTIAL_TYPE", i_val=mp2_env%ri_metric%potential_type)
       CALL section_vals_val_get(mp2_section, "RI%RI_METRIC%OMEGA", r_val=mp2_env%ri_metric%omega)
@@ -282,7 +288,7 @@ CONTAINS
                                 i_val=mp2_env%potential_parameter%potential_type)
       CALL section_vals_val_get(mp2_section, "INTEGRALS%INTERACTION_POTENTIAL%TRUNCATION_RADIUS", &
                                 r_val=mp2_env%potential_parameter%cutoff_radius)
-      CALL section_vals_val_get(mp2_section, "INTEGRALS%INTERACTION_POTENTIAL%TShPSC_DATA", &
+      CALL section_vals_val_get(mp2_section, "INTEGRALS%INTERACTION_POTENTIAL%POTENTIAL_DATA", &
                                 c_val=mp2_env%potential_parameter%filename)
       CALL section_vals_val_get(mp2_section, "INTEGRALS%INTERACTION_POTENTIAL%OMEGA", &
                                 r_val=mp2_env%potential_parameter%omega)
