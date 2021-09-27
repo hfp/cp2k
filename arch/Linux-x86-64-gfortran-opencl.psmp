@@ -63,7 +63,7 @@ FCFLAGS    += -I$(LIBINT_INC)
 FCFLAGS    += -I$(LIBXC_INC)
 FCFLAGS    += -I$(LIBXSMM_INC)
 
-LDFLAGS     = $(FCFLAGS) -static-libgfortran
+LDFLAGS     = $(CFLAGS) -static-libgfortran
 
 LIBS        = $(PLUMED_DEPENDENCIES) -lz
 LIBS       += $(ELPA_LIB)/libelpa.a
