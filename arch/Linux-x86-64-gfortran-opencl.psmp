@@ -75,3 +75,17 @@ LIBS       += $(LIBXSMM_LIB)/libxsmm.a
 LIBS       += $(BLAS_LIB)
 LIBS       += -ldl
 LIBS       += -lstdc++
+
+# collect header and/or library from non-default location
+ifeq (,$(CUDATOOLKIT_HOME))
+  CUDATOOLKIT_HOME := $(NVSDKCOMPUTE_ROOT)
+endif
+ifeq (,$(CUDATOOLKIT_HOME))
+  NVCC := $(call which,nvcc)
+  CUDATOOLKIT_HOME := $(if $(NVCC),$(abspath $(dir $(NVCC))/..))
+endif
+ifneq (,$(CUDATOOLKIT_HOME))
+  LDFLAGS += -L$(CUDATOOLKIT_HOME)/lib64
+  LDFLAGS += -Wl,-rpath=$(CUDATOOLKIT_HOME)/lib64
+endif
+LIBS += -lOpenCL
