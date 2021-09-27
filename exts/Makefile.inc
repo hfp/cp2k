@@ -8,7 +8,7 @@ EXTSDEPS_MOD = $(OBJEXTSDIR)/dbcsr/dbcsr_api.mod $(OBJEXTSDIR)/dbcsr/dbcsr_tenso
 $(EXTSDEPS_MOD) : ; # override builtin .mod rule to prevent circular dependency
 
 # Set Acceleration flags if glue code is supposed to be accelerated
-ifneq (,$(findstring __DBCSR_ACC,$(OFFLOAD_FLAGS) $(DFLAGS) $(FCFLAGS)))
+ifneq (,$(findstring __DBCSR_ACC,$(OFFLOAD_FLAGS) $(FCFLAGS)))
 # By default, we use CUDA if OFFLOAD_TARGET is not specified
 ifeq (,$(OFFLOAD_TARGET))
 DBCSR_USE_ACCEL=cuda
@@ -23,7 +23,7 @@ DBCSR_ACC := $(CXX)
 DBCSR_ACCFLAGS := $(CXXFLAGS)
 else ifeq (opencl,$(DBCSR_USE_ACCEL))
 DBCSR_ACC := $(if $(OFFLOAD_CC),$(OFFLOAD_CC),$(CC))
-DBCSR_ACCFLAGS := $(if $(OFFLOAD_FLAGS),$(OFFLOAD_FLAGS),$(DFLAGS) $(CFLAGS))
+DBCSR_ACCFLAGS := $(if $(OFFLOAD_FLAGS),$(OFFLOAD_FLAGS),$(CFLAGS) $(DFLAGS))
 else
 $(error "Invalid OFFLOAD_TARGET=$(OFFLOAD_TARGET)")
 endif
