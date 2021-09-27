@@ -293,7 +293,7 @@ opencl_libsmm.o: opencl_libsmm.c $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/opencl_kern
 ifeq (Darwin,$(shell uname))
   LDFLAGS += -framework OpenCL
 else
-  # collect header and/or library from non-default location
+  # attempt to setup OpenCL include directory
   ifeq (,$(CUDATOOLKIT_HOME))
     CUDATOOLKIT_HOME := $(NVSDKCOMPUTE_ROOT)
   endif
@@ -303,10 +303,7 @@ else
   endif
   ifneq (,$(CUDATOOLKIT_HOME))
     CFLAGS += -I$(CUDATOOLKIT_HOME)/include
-    LDFLAGS += -L$(CUDATOOLKIT_HOME)/lib64
-    LDFLAGS += -Wl,-rpath=$(CUDATOOLKIT_HOME)/lib64
   endif
-  LIBS += -lOpenCL
 endif
 endif
 
