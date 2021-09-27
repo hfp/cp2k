@@ -65,7 +65,7 @@ FCFLAGS    += -I$(LIBXSMM_INC)
 
 LDFLAGS     = $(FCFLAGS) -static-libgfortran
 
-LIBS        = $(PLUMED_DEPENDENCIES)
+LIBS        = $(PLUMED_DEPENDENCIES) -lz
 LIBS       += $(ELPA_LIB)/libelpa.a
 LIBS       += $(LIBXC_LIB)/libxcf03.a
 LIBS       += $(LIBXC_LIB)/libxc.a
@@ -73,8 +73,7 @@ LIBS       += $(LIBINT_LIB)/libint2.a
 LIBS       += $(LIBXSMM_LIB)/libxsmmf.a
 LIBS       += $(LIBXSMM_LIB)/libxsmm.a
 LIBS       += $(BLAS_LIB)
-LIBS       += -ldl
-LIBS       += -lstdc++
+LIBS       += -ldl -lstdc++
 
 # collect header and/or library from non-default location
 ifeq (,$(CUDATOOLKIT_HOME))
