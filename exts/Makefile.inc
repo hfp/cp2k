@@ -8,9 +8,6 @@ EXTSDEPS_MOD = $(OBJEXTSDIR)/dbcsr/dbcsr_api.mod $(OBJEXTSDIR)/dbcsr/dbcsr_tenso
 $(EXTSDEPS_MOD) : ; # override builtin .mod rule to prevent circular dependency
 
 # Set Acceleration flags
-DBCSR_USE_ACCEL := ""
-DBCSR_ACC       := ""
-DBCSR_ACCFLAGS  := ""
 ifneq (,$(findstring __DBCSR_ACC,$(OFFLOAD_FLAGS)))
 # By default, we use CUDA if OFFLOAD_TARGET is not specified
 ifeq (,$(OFFLOAD_TARGET))
