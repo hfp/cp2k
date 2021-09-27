@@ -66,7 +66,7 @@ FCFLAGS    += -I$(LIBXSMM_INC)
 LDFLAGS     = $(FCFLAGS) -static-libgfortran
 
 LIBS        = $(PLUMED_DEPENDENCIES)
-LIBS       += $(ELPA_LIB)/libelpa_openmp.a
+LIBS       += $(ELPA_LIB)/libelpa.a
 LIBS       += $(LIBXC_LIB)/libxcf03.a
 LIBS       += $(LIBXC_LIB)/libxc.a
 LIBS       += $(LIBINT_LIB)/libint2.a
