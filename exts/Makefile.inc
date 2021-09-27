@@ -7,8 +7,8 @@ EXTSDEPS_LIB  = $(LIBEXTSDIR)/dbcsr/libdbcsr$(ARCHIVE_EXT)
 EXTSDEPS_MOD = $(OBJEXTSDIR)/dbcsr/dbcsr_api.mod $(OBJEXTSDIR)/dbcsr/dbcsr_tensor_api.mod
 $(EXTSDEPS_MOD) : ; # override builtin .mod rule to prevent circular dependency
 
-# Set Acceleration flags
-ifneq (,$(findstring __DBCSR_ACC,$(OFFLOAD_FLAGS)))
+# Set Acceleration flags if glue code is supposed to be accelerated
+ifneq (,$(findstring __DBCSR_ACC,$(OFFLOAD_FLAGS) $(DFLAGS) $(FCFLAGS)))
 # By default, we use CUDA if OFFLOAD_TARGET is not specified
 ifeq (,$(OFFLOAD_TARGET))
 DBCSR_USE_ACCEL=cuda
