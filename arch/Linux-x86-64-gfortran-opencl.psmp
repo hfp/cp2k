@@ -15,7 +15,7 @@ MPI_PATH   ?= $(GNU_PATH)
 
 include       $(MPI_PATH)/plumed2/gnu/lib/plumed/src/lib/Plumed.inc.static
 
-BLAS_INC    = $(MKLROOT)/include $(MKLROOT)/include/fftw
+BLAS_INC    = $(MKLROOT)/include
 BLAS_LIB    = -Wl,--start-group \
                 $(MKLROOT)/lib/intel64/libmkl_scalapack_lp64.a \
                 $(MKLROOT)/lib/intel64/libmkl_gf_lp64.a \
@@ -57,7 +57,7 @@ FCFLAGS    += -ffree-form
 FCFLAGS    += -ffree-line-length-none
 FCFLAGS    += -fno-omit-frame-pointer
 FCFLAGS    += -std=f2008
-FCFLAGS    += -I$(BLAS_INC)
+FCFLAGS    += -I$(BLAS_INC) -I$(BLAS_INC)/fftw
 FCFLAGS    += -I$(ELPA_INC)/elpa -I$(ELPA_INC)/modules
 FCFLAGS    += -I$(LIBINT_INC)
 FCFLAGS    += -I$(LIBXC_INC)
