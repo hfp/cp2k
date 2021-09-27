@@ -117,6 +117,7 @@ if [ "${ENABLE_CUDA}" = __TRUE__ ] && [ "${GPUVER}" != no ]; then
   LIBS="${LIBS} IF_CUDA(${CUDA_LIBS}|)"
   DFLAGS="IF_CUDA(${CUDA_DFLAGS}|) ${DFLAGS}"
   NVFLAGS="-g -arch sm_${ARCH_NUM} -O3 -Xcompiler='-fopenmp' --std=c++11 \$(DFLAGS)"
+  CXXFLAGS+=" --std=c++11"
   check_command nvcc "cuda"
   check_lib -lcudart "cuda"
   check_lib -lnvrtc "cuda"
@@ -165,7 +166,8 @@ if [ "${ENABLE_HIP}" = __TRUE__ ] && [ "${GPUVER}" != no ]; then
       HIP_FLAGS+="-fPIE -D__HIP_PLATFORM_AMD__ -g --offload-arch=gfx906 -O3 --std=c++11 \$(DFLAGS)"
       LIBS+=" IF_HIP(-lhipblas -lamdhip64 IF_DEBUG(-lroctx64 -lroctracer64|)|)"
       PLATFORM_FLAGS='-D__HIP_PLATFORM_AMD__'
-      DFLAGS+=' IF_HIP(-D__GRID_HIP -D__HIP_PLATFORM_AMD__ IF_DEBUG(-D__OFFLOAD_PROFILING|)|)'
+      DFLAGS+=' IF_HIP(-D__GRID_HIP -D__HIP_PLATFORM_AMD__ IF_DEBUG(-D__OFFLOAD_PROFILING|)|) -D__DBCSR_ACC'
+      CXXFLAGS+=" \$(DFLAGS) -fopenmp -std=c++11"
       ;;
     Mi100)
       check_lib -lamdhip64 "hip"
@@ -177,7 +179,8 @@ if [ "${ENABLE_HIP}" = __TRUE__ ] && [ "${GPUVER}" != no ]; then
       HIP_FLAGS+="-fPIE -D__HIP_PLATFORM_AMD__ -g --offload-arch=gfx908 -O3 --std=c++11 \$(DFLAGS)"
       LIBS+=" IF_HIP(-lhipblas -lamdhip64 IF_DEBUG(-lroctx64 -lroctracer64|)|)"
       PLATFORM_FLAGS='-D__HIP_PLATFORM_AMD__ '
-      DFLAGS+=' IF_HIP(-D__GRID_HIP -D__HIP_PLATFORM_AMD__ IF_DEBUG(-D__OFFLOAD_PROFILING|)|)'
+      DFLAGS+=' IF_HIP(-D__GRID_HIP -D__HIP_PLATFORM_AMD__ IF_DEBUG(-D__OFFLOAD_PROFILING|)|) -D__DBCSR_ACC'
+      CXXFLAGS+=" \$(DFLAGS) -fopenmp -std=c++11"
       ;;
     *)
       check_command nvcc "cuda"
@@ -239,6 +242,7 @@ gen_arch_file() {
 GPUVER        = \${GPUVER}
 OFFLOAD_CC    = \${NVCC}
 OFFLOAD_FLAGS = \${NVFLAGS}
+OFFLOAD_TARGET = cuda
 EOF
   fi
 
@@ -248,6 +252,7 @@ EOF
 GPUVER        = \${GPUVER}
 OFFLOAD_CC    = \${ROCM_PATH}/hip/bin/hipcc
 OFFLOAD_FLAGS = \${HIP_FLAGS} \${HIP_INCLUDES}
+OFFLOAD_TARGET = hip
 EOF
   fi
 
