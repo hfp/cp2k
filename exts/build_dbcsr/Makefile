@@ -113,15 +113,13 @@ else ifeq (hip,$(USE_ACCEL))
   FCFLAGS += -D__HIP
 # OpenCL backend
 else ifeq (opencl,$(USE_ACCEL))
-  CFLAGS += -D__OPENCL
-  # LIBXSMM is included privately/quietly (header-only)
-  ifeq (,$(findstring __LIBXSMM,$(CFLAGS)))
-    LIBXSMMROOT := $(if $(LIBXSMMROOT),$(LIBXSMMROOT),$(wildcard $(LIBXSMM_INC)/..))
-    LIBXSMMROOT := $(if $(LIBXSMMROOT),$(LIBXSMMROOT),$(wildcard ../../../libxsmm))
-    LIBXSMMROOT := $(if $(LIBXSMMROOT),$(LIBXSMMROOT),$(wildcard $(HOME)/libxsmm))
-    ifneq (,$(LIBXSMMROOT))
-      CFLAGS += -I$(LIBXSMMROOT)/include
-    endif
+  CFLAGS = $(ACCFLAGS) -D__OPENCL
+  # LIBXSMM is eventually included privately/quietly (header-only)
+  LIBXSMMROOT := $(if $(LIBXSMMROOT),$(LIBXSMMROOT),$(wildcard $(LIBXSMM_INC)/..))
+  LIBXSMMROOT := $(if $(LIBXSMMROOT),$(LIBXSMMROOT),$(wildcard ../../../libxsmm))
+  LIBXSMMROOT := $(if $(LIBXSMMROOT),$(LIBXSMMROOT),$(wildcard $(HOME)/libxsmm))
+  ifneq (,$(LIBXSMMROOT))
+    CFLAGS += -I$(LIBXSMMROOT)/include
   endif
 endif
 
