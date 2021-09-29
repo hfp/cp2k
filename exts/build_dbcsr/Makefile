@@ -14,21 +14,22 @@
 # FC  => Fortran compiler, e.g. gfortran or mpifort
 # LD  => Linker, e.g. gfortran or mpifort
 # AR  => Archive command, e.g. ar -r
-# CXXFLAGS => C++ compilation flags
-# CFLAGS   => C compilation flags
-# FCFLAGS  => Fortran compilation flags
-# LDFLAGS  => Linker flags
-# LIBS     => Libraries
-# ACC      => ACC can be nvcc (CUDA), mpicxx/mpicc or gcc/g++ (HIP), or mpicc/gcc (OpenCL)
-# ACCFLAGS => ACC flags
+# CXXFLAGS  => C++ compilation flags
+# CFLAGS    => C compilation flags
+# FCFLAGS   => Fortran compilation flags
+# LDFLAGS   => Linker flags
+# LIBS      => Libraries
+# ACC       => ACC can be nvcc (CUDA), mpicxx/mpicc or gcc/g++ (HIP), or mpicc/gcc (OpenCL)
+# ACCFLAGS  => ACC flags
 # USE_ACCEL => hip, cuda, or opencl
-# GPUVER   =>
+# GPUVER    =>
 #          - for CUDA, possible values correspond to NVIDIA GPUs:
 #            possible values are K20X, K40, K80, P100, V100
 #          - for HIP, possible values correspond to NVIDIA and AMD GPUs:
 #            possible values are K20X, K40, K80, P100, V100, Mi50, Mi100
-#          - for OpenCL, GPUVER is currently not used
-#            (TODO: represent set of tuned parameters)
+#          - for OpenCL, GPUVER maps to a file with tuned parameters:
+#            src/acc/opencl/smm/params/tune_multiply_GPUVER.csv, or
+#            src/acc/opencl/smm/tune_multiply.csv (default)
 #
 # Libraries for accelerator:
 #    - e.g. for CUDA:   LIBS += -lstdc++ -lcudart -lnvrtc -lcuda -lcublas
@@ -285,8 +286,11 @@ acc_hip.o: acc_hip.cpp acc_hip.h
 else ifeq (opencl,$(USE_ACCEL))
 OPENCL_KERNELS := $(wildcard $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/kernels/*.cl)
 OPENCL_KRNLGEN := $(LIBSMM_ACC_ABS_DIR)/../opencl/acc_opencl.sh
-$(LIBSMM_ACC_ABS_DIR)/../opencl/smm/opencl_kernels.h: $(OPENCL_KRNLGEN) $(OPENCL_KERNELS)
-	$(OPENCL_KRNLGEN) $(OPENCL_KERNELS) $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/tune_multiply.csv $@
+OPENCL_DEFAULT := $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/tune_multiply.csv
+OPENCL_WITHGPU := $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/params/tune_multiply_$(GPUVER).csv
+OPENCL_PARAMS := $(if $(wildcard $(OPENCL_WITHGPU)),$(OPENCL_WITHGPU),$(wildcard $(OPENCL_DEFAULT)))
+$(LIBSMM_ACC_ABS_DIR)/../opencl/smm/opencl_kernels.h: $(OPENCL_KRNLGEN) $(OPENCL_KERNELS) $(OPENCL_PARAMS)
+	$(OPENCL_KRNLGEN) $(OPENCL_KERNELS) $(OPENCL_PARAMS) $@
 opencl_libsmm.o: opencl_libsmm.c $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/opencl_kernels.h
 ifeq (Darwin,$(shell uname))
   LDFLAGS += -framework OpenCL
