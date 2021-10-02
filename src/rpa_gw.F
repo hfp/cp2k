@@ -3492,8 +3492,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: num_fit_points, nparam
       COMPLEX(KIND=dp), DIMENSION(:), INTENT(INOUT)      :: xpoints, coeff
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'get_pade_parameters'
-
       COMPLEX(KIND=dp), ALLOCATABLE, DIMENSION(:)        :: ypoints
       COMPLEX(KIND=dp), ALLOCATABLE, DIMENSION(:, :)     :: g_mat
       INTEGER                                            :: idat, iparam, nstep
@@ -3548,8 +3546,6 @@ CONTAINS
       COMPLEX(KIND=dp), INTENT(OUT)                      :: func_val
       LOGICAL, INTENT(IN), OPTIONAL                      :: do_imag_freq
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'evaluate_pade_function'
-
       INTEGER                                            :: iparam
       LOGICAL                                            :: my_do_imag_freq
 
@@ -3561,7 +3557,7 @@ CONTAINS
          IF (my_do_imag_freq) THEN
             func_val = z_one + coeff(iparam)*(gaussi*x_val - xpoints(iparam - 1))/func_val
          ELSE
-            func_val = z_one + coeff(iparam)*(z_one*x_val - xpoints(iparam - 1))/func_val
+            func_val = z_one + coeff(iparam)*(x_val*z_one - xpoints(iparam - 1))/func_val
          END IF
       ENDDO
 
@@ -3593,12 +3589,12 @@ CONTAINS
       func_val = z_one
       dev_val = z_zero
       DO iparam = nparam, 2, -1
-         numerator = coeff(iparam)*(z_one*x_val - xpoints(iparam - 1))
+         numerator = coeff(iparam)*(x_val*z_one - xpoints(iparam - 1))
          dev_numerator = coeff(iparam)*z_one
          denominator = func_val
          dev_denominator = dev_val
          dev_val = dev_numerator/denominator - (numerator*dev_denominator)/(denominator**2)
-         func_val = z_one + coeff(iparam)*(z_one*x_val - xpoints(iparam - 1))/func_val
+         func_val = z_one + coeff(iparam)*(x_val*z_one - xpoints(iparam - 1))/func_val
       ENDDO
 
       dev_val = -1.0_dp*coeff(1)/(func_val**2)*dev_val
@@ -3977,8 +3973,6 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: gw_corr_lev_occ, gw_corr_lev_virt, homo, &
                                                             nmo
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'shift_unshifted_levels'
-
       INTEGER                                            :: n_level_gw, n_level_gw_ref
       REAL(KIND=dp)                                      :: eigen_diff
 
@@ -4136,8 +4130,6 @@ CONTAINS
       COMPLEX(KIND=dp), DIMENSION(:, :), INTENT(IN)      :: Sigma_c
       REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: vec_omega_fit_gw
       INTEGER, INTENT(IN)                                :: num_poles, num_fit_points, n_level_gw
-
-      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'calc_chi2'
 
       COMPLEX(KIND=dp)                                   :: func_val
       INTEGER                                            :: iii, jjj, kkk
