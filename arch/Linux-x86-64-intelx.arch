@@ -521,7 +521,7 @@ else # GNU GCC
     else ifneq (0,$(SSE))
       TARGET := -mSSE3
     else
-      TARGET := -march=native
+      TARGET := -march=native -mtune=native
       ifneq (,$(shell grep -om1 '\bavx512vl\b' /proc/cpuinfo))
         ifneq (0,$(VMAX))
           TARGET += -mprefer-vector-width=512
