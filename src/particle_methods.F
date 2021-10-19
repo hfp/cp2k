@@ -170,6 +170,7 @@ CONTAINS
 !> \param charge_occup ...
 !> \param charge_beta ...
 !> \param charge_extended ...
+!> \param print_kind ...
 !> \date    14.01.2002
 !> \author  MK
 !> \version 1.0
@@ -177,7 +178,7 @@ CONTAINS
    SUBROUTINE write_particle_coordinates(particle_set, iunit, output_format, &
                                          content, title, cell, array, unit_conv, &
                                          charge_occup, charge_beta, &
-                                         charge_extended)
+                                         charge_extended, print_kind)
 
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       INTEGER                                            :: iunit, output_format
@@ -186,7 +187,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), INTENT(IN), OPTIONAL  :: array
       REAL(KIND=dp), INTENT(IN), OPTIONAL                :: unit_conv
       LOGICAL, INTENT(IN), OPTIONAL                      :: charge_occup, charge_beta, &
-                                                            charge_extended
+                                                            charge_extended, print_kind
 
       CHARACTER(len=*), PARAMETER :: routineN = 'write_particle_coordinates'
 
@@ -196,7 +197,8 @@ CONTAINS
       CHARACTER(LEN=default_string_length)               :: atm_name, my_format
       INTEGER                                            :: handle, iatom, natom
       LOGICAL                                            :: dummy, my_charge_beta, &
-                                                            my_charge_extended, my_charge_occup
+                                                            my_charge_extended, my_charge_occup, &
+                                                            my_print_kind
       REAL(KIND=dp)                                      :: angle_alpha, angle_beta, angle_gamma, &
                                                             factor, qeff
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: arr
@@ -222,20 +224,22 @@ CONTAINS
       END IF
       SELECT CASE (output_format)
       CASE (dump_xmol)
+         my_print_kind = .FALSE.
+         IF (PRESENT(print_kind)) my_print_kind = print_kind
          WRITE (iunit, "(I8)") natom
          WRITE (iunit, "(A)") TRIM(title)
          DO iatom = 1, natom
             CALL get_atomic_kind(atomic_kind=particle_set(iatom)%atomic_kind, &
                                  element_symbol=element_symbol)
-            IF (LEN_TRIM(element_symbol) == 0) THEN
+            IF (LEN_TRIM(element_symbol) == 0 .OR. my_print_kind) THEN
                CALL get_atomic_kind(atomic_kind=particle_set(iatom)%atomic_kind, &
                                     name=atm_name)
                dummy = qmmm_ff_precond_only_qm(id1=atm_name)
-               my_format = "(A4,"
-               name = TRIM(atm_name)
+               my_format = "(A,"
+               atm_name = TRIM(atm_name)
             ELSE
                my_format = "(T2,A2,"
-               name = TRIM(element_symbol)
+               atm_name = TRIM(element_symbol)
             END IF
             SELECT CASE (TRIM(content))
             CASE ("POS")
@@ -244,28 +248,28 @@ CONTAINS
                ELSE
                   r(:) = particle_set(iatom)%r(:)
                END IF
-               WRITE (iunit, TRIM(my_format)//"1X,3F20.10)") TRIM(name), r(1:3)*factor
+               WRITE (iunit, TRIM(my_format)//"1X,3F20.10)") TRIM(atm_name), r(1:3)*factor
             CASE ("VEL")
                IF (PRESENT(array)) THEN
                   v(1:3) = get_particle_pos_or_vel(iatom, particle_set, array)
                ELSE
                   v(:) = particle_set(iatom)%v(:)
                END IF
-               WRITE (iunit, TRIM(my_format)//"1X,3F20.10)") TRIM(name), v(1:3)*factor
+               WRITE (iunit, TRIM(my_format)//"1X,3F20.10)") TRIM(atm_name), v(1:3)*factor
             CASE ("FORCE")
                IF (PRESENT(array)) THEN
                   f(:) = array((iatom - 1)*3 + 1:(iatom - 1)*3 + 3)
                ELSE
                   f(:) = particle_set(iatom)%f(:)
                END IF
-               WRITE (iunit, TRIM(my_format)//"1X,3F20.10)") TRIM(name), f(1:3)*factor
+               WRITE (iunit, TRIM(my_format)//"1X,3F20.10)") TRIM(atm_name), f(1:3)*factor
             CASE ("FORCE_MIXING_LABELS")
                IF (PRESENT(array)) THEN
                   f(:) = array((iatom - 1)*3 + 1:(iatom - 1)*3 + 3)
                ELSE
                   f(:) = particle_set(iatom)%f(:)
                END IF
-               WRITE (iunit, TRIM(my_format)//"1X,3F20.10)") TRIM(name), f(1:3)*factor
+               WRITE (iunit, TRIM(my_format)//"1X,3F20.10)") TRIM(atm_name), f(1:3)*factor
             END SELECT
          END DO
       CASE (dump_atomic)

@@ -319,6 +319,14 @@ CONTAINS
 
       END IF
 
+      CALL keyword_create(keyword, __LOCATION__, name="PRINT_ATOM_KIND", &
+                          description="Write the atom kind given in the subsys section instead of the element symbol. "// &
+                          "Only valid for the XMOL format.", &
+                          usage="PRINT_ELEMENT_NAME logical", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
    END SUBROUTINE add_format_keyword
 
 END MODULE input_cp2k_motion_print
