@@ -3,10 +3,10 @@
 # author: Ole Schuett
 
 from asyncio import Semaphore
-from asyncio.subprocess import PIPE, STDOUT, Process
+from asyncio.subprocess import DEVNULL, PIPE, STDOUT, Process
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Coroutine, Dict, List, Optional, TextIO, Tuple, Union
 import argparse
 import asyncio
 import math
@@ -16,15 +16,16 @@ import shutil
 import subprocess
 import sys
 import time
-from typing import Coroutine, TextIO
 
 try:
-    from typing import Literal
-except:
-    from typing_extensions import Literal  # type: ignore
+    from typing import Literal  # not available before Python 3.8
 
-# Some tests do not work with the cp2k shell (which is generally considered a bug).
-ALLWAYS_SKIP_DIRS = [
+    TestStatus = Literal["OK", "WRONG RESULT", "RUNTIME FAIL", "TIMED OUT"]
+except:
+    TestStatus = str  # type: ignore
+
+# Some tests do not work with --keepalive (which is generally considered a bug).
+KEEPALIVE_SKIP_DIRS = [
     "TMC/regtest",
     "TMC/regtest_ana_on_the_fly",
     "TMC/regtest_ana_post_proc",
@@ -36,11 +37,12 @@ ALLWAYS_SKIP_DIRS = [
 async def main() -> None:
     parser = argparse.ArgumentParser(description="Runs CP2K regression test suite.")
     parser.add_argument("--mpiranks", type=int, default=2)
-    parser.add_argument("--ompthreads", type=int, default=2)
+    parser.add_argument("--ompthreads", type=int)
     parser.add_argument("--maxtasks", type=int, default=os.cpu_count())
     parser.add_argument("--timeout", type=int, default=400)
     parser.add_argument("--maxerrors", type=int, default=50)
-    parser.add_argument("--no-keep-alive", dest="keep_alive", action="store_false")
+    parser.add_argument("--mpiexec", default="mpiexec")
+    parser.add_argument("--keepalive", dest="keepalive", action="store_true")
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--restrictdir", action="append")
     parser.add_argument("arch")
@@ -51,10 +53,11 @@ async def main() -> None:
     start_time = time.perf_counter()
 
     # Query CP2K binary for feature flags.
-    version_output, _ = await (await cfg.launch_exe("cp2k", "--version")).communicate()
-    flags_line = re.search(r" cp2kflags:(.*)\n", version_output.decode("utf8"))
+    version_bytes, _ = await (await cfg.launch_exe("cp2k", "--version")).communicate()
+    version_output = version_bytes.decode("utf8", errors="replace")
+    flags_line = re.search(r" cp2kflags:(.*)\n", version_output)
     if not flags_line:
-        print(version_output.decode("utf8") + "\nCould not parse feature flags.")
+        print(version_output + "\nCould not parse feature flags.")
         sys.exit(1)
     else:
         flags = flags_line.group(1).split()
@@ -66,7 +69,8 @@ async def main() -> None:
     print(f"Workers:        {cfg.num_workers}")
     print(f"Timeout [s]:    {cfg.timeout}")
     print(f"Work base dir:  {cfg.work_base_dir}")
-    print(f"Keep alive:     {cfg.keep_alive}")
+    print(f"MPI exec:       {cfg.mpiexec}")
+    print(f"Keepalive:      {cfg.keepalive}")
     print(f"Debug:          {cfg.debug}")
     print(f"ARCH:           {cfg.arch}")
     print(f"VERSION:        {cfg.version}")
@@ -117,10 +121,10 @@ async def main() -> None:
             print(f"Skipping {batch.name} because its requirements are not satisfied.")
         elif not any(re.match(p, batch.name) for p in cfg.restrictdirs):
             num_restrictdirs += 1
-        elif batch.name in ALLWAYS_SKIP_DIRS:
-            print(f"Skipping {batch.name} because it doesn't work with the cp2k shell.")
+        elif cfg.keepalive and batch.name in KEEPALIVE_SKIP_DIRS:
+            print(f"Skipping {batch.name} because it doesn't work with --keepalive.")
         else:
-            tasks.append(asyncio.create_task(run_batch(batch, cfg)))  # launch
+            tasks.append(asyncio.get_event_loop().create_task(run_batch(batch, cfg)))
 
     if num_restrictdirs:
         print(f"Skipping {num_restrictdirs} test directories because of --restrictdir.")
@@ -160,7 +164,7 @@ async def main() -> None:
     print("\n-------------------------------- Summary -------------------------------")
     total_duration = time.perf_counter() - start_time
     num_tests = len(all_results)
-    num_failed = sum(r.status in ("TIMEOUT", "RUNTIME FAIL") for r in all_results)
+    num_failed = sum(r.status in ("TIMED OUT", "RUNTIME FAIL") for r in all_results)
     num_wrong = sum(r.status == "WRONG RESULT" for r in all_results)
     num_ok = sum(r.status == "OK" for r in all_results)
     print(f"Number of FAILED  tests {num_failed}")
@@ -183,7 +187,8 @@ class Config:
     def __init__(self, args: argparse.Namespace):
         self.timeout = args.timeout
         self.use_mpi = args.version.startswith("p")
-        self.ompthreads = args.ompthreads
+        default_ompthreads = 2 if "smp" in args.version else 1
+        self.ompthreads = args.ompthreads if args.ompthreads else default_ompthreads
         self.mpiranks = args.mpiranks if self.use_mpi else 1
         self.num_workers = int(args.maxtasks / self.ompthreads / self.mpiranks)
         self.workers = Semaphore(self.num_workers)
@@ -192,16 +197,23 @@ class Config:
         leaf_dir = f"TEST-{args.arch}-{args.version}-{datestamp}"
         self.work_base_dir = self.cp2k_root / "regtesting" / leaf_dir
         self.error_summary = self.work_base_dir / "error_summary"
-        self.keep_alive = args.keep_alive
+        self.mpiexec = args.mpiexec.split()
+        self.keepalive = args.keepalive
         self.arch = args.arch
         self.version = args.version
         self.debug = args.debug
         self.max_errors = args.maxerrors
         self.restrictdirs = args.restrictdir if args.restrictdir else [".*"]
+
+        def run_with_capture_stdout(cmd: str) -> bytes:
+            # capture_output argument not available before Python 3.7
+            return subprocess.run(cmd, shell=True, stdout=PIPE, stderr=DEVNULL).stdout
+
+        # Detect number of GPU devices.
         nv_cmd = "nvidia-smi --query-gpu=gpu_name --format=csv,noheader | wc -l"
-        nv_gpus = int(subprocess.run(nv_cmd, shell=True, capture_output=True).stdout)
+        nv_gpus = int(run_with_capture_stdout(nv_cmd))
         amd_cmd = "rocm-smi --showid --csv | grep card | wc -l"
-        amd_gpus = int(subprocess.run(amd_cmd, shell=True, capture_output=True).stdout)
+        amd_gpus = int(run_with_capture_stdout(amd_cmd))
         self.num_gpus = nv_gpus + amd_gpus
         self.next_gpu = 0  # Used to assign devices round robin to processes.
 
@@ -217,8 +229,8 @@ class Config:
             env["CUDA_VISIBLE_DEVICES"] = ",".join(visible_gpu_devices)
             env["HIP_VISIBLE_DEVICES"] = ",".join(visible_gpu_devices)
         env["OMP_NUM_THREADS"] = str(self.ompthreads)
-        exe = self.cp2k_root / "exe" / self.arch / f"{exe_stem}.{self.version}"
-        cmd = ["mpiexec", f"-np={self.mpiranks}", exe] if self.use_mpi else [exe]
+        exe = str(self.cp2k_root / "exe" / self.arch / f"{exe_stem}.{self.version}")
+        cmd = self.mpiexec + ["-np", str(self.mpiranks), exe] if self.use_mpi else [exe]
         if self.debug:
             print(f"Creating subprocess: {cmd} {args}")
         return asyncio.create_subprocess_exec(
@@ -300,9 +312,6 @@ class Batch:
 
 
 # ======================================================================================
-TestStatus = Literal["OK", "WRONG RESULT", "RUNTIME FAIL", "TIMEOUT"]
-
-# ======================================================================================
 class TestResult:
     def __init__(
         self,
@@ -342,7 +351,8 @@ class Cp2kShell:
         except ProcessLookupError:
             pass
         # Read output to prevent a zombie process, but do it in the background.
-        asyncio.create_task(self._child.communicate())
+        # asyncio.create_task not available before Python 3.7
+        asyncio.get_event_loop().create_task(self._child.communicate())
         self._child = None
 
     async def start(self) -> None:
@@ -390,6 +400,26 @@ class Cp2kShell:
 
 
 # ======================================================================================
+async def wait_for_child_process(
+    child: Process, timeout: int
+) -> Tuple[bytes, int, bool]:
+    try:
+        output, _ = await asyncio.wait_for(child.communicate(), timeout=timeout)
+        timed_out = False
+        returncode = child.returncode if child.returncode else 0
+    except asyncio.TimeoutError:
+        timed_out = True
+        returncode = -9
+        try:
+            child.terminate()  # Give mpiexec a chance to shutdown
+        except ProcessLookupError:
+            pass
+        output, _ = await child.communicate()
+
+    return output, returncode, timed_out
+
+
+# ======================================================================================
 async def run_batch(batch: Batch, cfg: Config) -> BatchResult:
     async with cfg.workers:
         results = (await run_unittests(batch, cfg)) + (await run_regtests(batch, cfg))
@@ -402,27 +432,17 @@ async def run_unittests(batch: Batch, cfg: Config) -> List[TestResult]:
     for test in batch.unittests:
         start_time = time.perf_counter()
         child = await cfg.launch_exe(test.name, str(cfg.cp2k_root), cwd=batch.workdir)
-        try:
-            output, _ = await asyncio.wait_for(child.communicate(), timeout=cfg.timeout)
-            timeout = False
-        except asyncio.TimeoutError:
-            timeout = True
-            try:
-                child.terminate()  # Give mpiexec a chance to shutdown
-            except ProcessLookupError:
-                pass
-            output, _ = await child.communicate()
-
+        output, returncode, timed_out = await wait_for_child_process(child, cfg.timeout)
         duration = time.perf_counter() - start_time
         test.out_path.write_bytes(output)
         output_lines = output.decode("utf8", errors="replace").split("\n")
         output_tail = "\n".join(output_lines[-100:])
         error = "x" * 100 + f"\n{test.out_path}\n{output_tail}\n\n"
-        if timeout:
-            error += f"Timeout after {duration} seconds."
-            results.append(TestResult(test, duration, "TIMEOUT", error))
-        elif child.returncode != 0:
-            error += f"Runtime failure with code {child.returncode}."
+        if timed_out:
+            error += f"Timed out after {duration} seconds."
+            results.append(TestResult(test, duration, "TIMED OUT", error))
+        elif returncode != 0:
+            error += f"Runtime failure with code {returncode}."
             results.append(TestResult(test, duration, "RUNTIME FAIL", error))
         else:
             results.append(TestResult(test, duration, "OK"))
@@ -432,6 +452,14 @@ async def run_unittests(batch: Batch, cfg: Config) -> List[TestResult]:
 
 # ======================================================================================
 async def run_regtests(batch: Batch, cfg: Config) -> List[TestResult]:
+    if cfg.keepalive:
+        return await run_regtests_keepalive(batch, cfg)
+    else:
+        return await run_regtests_classic(batch, cfg)
+
+
+# ======================================================================================
+async def run_regtests_keepalive(batch: Batch, cfg: Config) -> List[TestResult]:
     shell = Cp2kShell(cfg, batch.workdir)
     await shell.start()
 
@@ -442,17 +470,17 @@ async def run_regtests(batch: Batch, cfg: Config) -> List[TestResult]:
         with open(test.out_path, "wt", encoding="utf8", errors="replace") as fh:
             try:
                 await asyncio.wait_for(shell.ready(fh), timeout=cfg.timeout)
-                timeout = False
+                timed_out = False
                 returncode = shell.returncode()
             except asyncio.TimeoutError:
-                timeout = True
+                timed_out = True
                 returncode = -9
 
-        if returncode != 0 or not cfg.keep_alive:
+        if returncode != 0:
             await shell.stop()
             await shell.start()
         duration = time.perf_counter() - start_time
-        res = eval_regtest(batch, test, duration, returncode, timeout)
+        res = eval_regtest(batch, test, duration, returncode, timed_out)
         results.append(res)
 
     await shell.stop()
@@ -460,16 +488,32 @@ async def run_regtests(batch: Batch, cfg: Config) -> List[TestResult]:
 
 
 # ======================================================================================
+async def run_regtests_classic(batch: Batch, cfg: Config) -> List[TestResult]:
+    results: List[TestResult] = []
+    for test in batch.regtests:
+        start_time = time.perf_counter()
+        child = await cfg.launch_exe("cp2k", test.inp_fn, cwd=batch.workdir)
+        output, returncode, timed_out = await wait_for_child_process(child, cfg.timeout)
+        duration = time.perf_counter() - start_time
+        test.out_path.write_bytes(output)
+        res = eval_regtest(batch, test, duration, returncode, timed_out)
+        results.append(res)
+
+    return results
+
+
+# ======================================================================================
 def eval_regtest(
-    batch: Batch, test: Regtest, duration: float, returncode: int, timeout: bool
+    batch: Batch, test: Regtest, duration: float, returncode: int, timed_out: bool
 ) -> TestResult:
 
-    output = test.out_path.read_text(encoding="utf8") if test.out_path.exists() else ""
+    output_bytes = test.out_path.read_bytes() if test.out_path.exists() else b""
+    output = output_bytes.decode("utf8", errors="replace")
     output_tail = "\n".join(output.split("\n")[-100:])
     error = "x" * 100 + f"\n{test.out_path}\n"
-    if timeout:
-        error += f"{output_tail}\n\nTimeout after {duration} seconds."
-        return TestResult(test, duration, "TIMEOUT", error)
+    if timed_out:
+        error += f"{output_tail}\n\nTimed out after {duration} seconds."
+        return TestResult(test, duration, "TIMED OUT", error)
     elif returncode != 0:
         error += f"{output_tail}\n\nRuntime failure with code {returncode}."
         return TestResult(test, duration, "RUNTIME FAIL", error)
@@ -506,6 +550,7 @@ def percentile(values: List[float], percent: float) -> float:
 
 # ======================================================================================
 if __name__ == "__main__":
-    asyncio.run(main())
+    # asyncio.run(main()) not available before Python 3.7
+    asyncio.get_event_loop().run_until_complete(main())
 
 # EOF

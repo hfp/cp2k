@@ -425,6 +425,7 @@ CONTAINS
       IF (ASSOCIATED(qs_env%x_data)) THEN
          free_hfx_buffer = .TRUE.
          IF (calc_forces .AND. (.NOT. mp2_env%ri_mp2%free_hfx_buffer)) free_hfx_buffer = .FALSE.
+         IF (qs_env%x_data(1, 1)%do_hfx_ri) free_hfx_buffer = .FALSE.
       END IF
 
       IF (.NOT. do_kpoints_cubic_RPA) THEN
