@@ -45,11 +45,12 @@ async def main() -> None:
     parser.add_argument("--keepalive", dest="keepalive", action="store_true")
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--restrictdir", action="append")
+    parser.add_argument("--workbasedir", type=Path)
     parser.add_argument("arch")
     parser.add_argument("version")
     cfg = Config(parser.parse_args())
 
-    print("************************** testing started *****************************")
+    print("*************************** Testing started ****************************")
     start_time = time.perf_counter()
 
     # Query CP2K binary for feature flags.
@@ -62,7 +63,7 @@ async def main() -> None:
     else:
         flags = flags_line.group(1).split()
 
-    print("\n-------------------------- Settings ------------------------------------")
+    print("\n----------------------------- Settings ---------------------------------")
     print(f"MPI ranks:      {cfg.mpiranks}")
     print(f"OpenMP threads: {cfg.ompthreads}")
     print(f"GPU devices:    {cfg.num_gpus}")
@@ -77,10 +78,10 @@ async def main() -> None:
     print(f"Flags:          " + ",".join(flags))
 
     # Have to copy everything upfront because the test dirs are not self-contained.
-    print("\n------------------------------------------------------------------------")
-    print("Copying test files...", end="")
+    print("------------------------------------------------------------------------")
+    print("Copying test files ...", end="")
     shutil.copytree(cfg.cp2k_root / "tests", cfg.work_base_dir)
-    print("done")
+    print(" done")
 
     # Discover unit tests.
     unittest_batch = Batch("UNIT", cfg)
@@ -121,8 +122,6 @@ async def main() -> None:
             print(f"Skipping {batch.name} because its requirements are not satisfied.")
         elif not any(re.match(p, batch.name) for p in cfg.restrictdirs):
             num_restrictdirs += 1
-        elif cfg.keepalive and batch.name in KEEPALIVE_SKIP_DIRS:
-            print(f"Skipping {batch.name} because it doesn't work with --keepalive.")
         else:
             tasks.append(asyncio.get_event_loop().create_task(run_batch(batch, cfg)))
 
@@ -150,10 +149,10 @@ async def main() -> None:
                 print(f"\nGot more than {cfg.max_errors} errors, aborting...")
                 break
 
-    print("\n--------------------------------- Errors -------------------------------")
+    print("------------------------------- Errors ---------------------------------")
     print("\n".join(r.error for r in all_results if r.error))
 
-    print("\n-------------------------------- Timings -------------------------------")
+    print("\n------------------------------- Timings --------------------------------")
     timings = sorted(r.duration for r in all_results)
     print('Plot: name="timings", title="Timing Distribution", ylabel="time [s]"')
     for p in (100, 99, 98, 95, 90, 80):
@@ -161,7 +160,7 @@ async def main() -> None:
         print(f'PlotPoint: name="{p}th_percentile", plot="timings", ', end="")
         print(f'label="{p}th %ile", y={v:.2f}, yerr=0.0')
 
-    print("\n-------------------------------- Summary -------------------------------")
+    print("\n------------------------------- Summary --------------------------------")
     total_duration = time.perf_counter() - start_time
     num_tests = len(all_results)
     num_failed = sum(r.status in ("TIMED OUT", "RUNTIME FAIL") for r in all_results)
@@ -178,7 +177,7 @@ async def main() -> None:
     print(summary)
     print("Status: " + ("OK" if num_ok == num_tests else "FAILED") + "\n")
 
-    print("*************************** testing ended ******************************")
+    print("*************************** Testing ended ******************************")
     sys.exit(num_tests - num_ok)
 
 
@@ -193,10 +192,6 @@ class Config:
         self.num_workers = int(args.maxtasks / self.ompthreads / self.mpiranks)
         self.workers = Semaphore(self.num_workers)
         self.cp2k_root = Path(__file__).resolve().parent.parent.parent
-        datestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        leaf_dir = f"TEST-{args.arch}-{args.version}-{datestamp}"
-        self.work_base_dir = self.cp2k_root / "regtesting" / leaf_dir
-        self.error_summary = self.work_base_dir / "error_summary"
         self.mpiexec = args.mpiexec.split()
         self.keepalive = args.keepalive
         self.arch = args.arch
@@ -204,6 +199,14 @@ class Config:
         self.debug = args.debug
         self.max_errors = args.maxerrors
         self.restrictdirs = args.restrictdir if args.restrictdir else [".*"]
+        datestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        leaf_dir = f"TEST-{args.arch}-{args.version}-{datestamp}"
+        self.work_base_dir = (
+            args.workbasedir / leaf_dir
+            if args.workbasedir
+            else self.cp2k_root / "regtesting" / leaf_dir
+        )
+        self.error_summary = self.work_base_dir / "error_summary"
 
         def run_with_capture_stdout(cmd: str) -> bytes:
             # capture_output argument not available before Python 3.7
@@ -230,7 +233,7 @@ class Config:
             env["HIP_VISIBLE_DEVICES"] = ",".join(visible_gpu_devices)
         env["OMP_NUM_THREADS"] = str(self.ompthreads)
         exe = str(self.cp2k_root / "exe" / self.arch / f"{exe_stem}.{self.version}")
-        cmd = self.mpiexec + ["-np", str(self.mpiranks), exe] if self.use_mpi else [exe]
+        cmd = self.mpiexec + ["-n", str(self.mpiranks), exe] if self.use_mpi else [exe]
         if self.debug:
             print(f"Creating subprocess: {cmd} {args}")
         return asyncio.create_subprocess_exec(
@@ -452,7 +455,7 @@ async def run_unittests(batch: Batch, cfg: Config) -> List[TestResult]:
 
 # ======================================================================================
 async def run_regtests(batch: Batch, cfg: Config) -> List[TestResult]:
-    if cfg.keepalive:
+    if cfg.keepalive and not batch.name in KEEPALIVE_SKIP_DIRS:
         return await run_regtests_keepalive(batch, cfg)
     else:
         return await run_regtests_classic(batch, cfg)
