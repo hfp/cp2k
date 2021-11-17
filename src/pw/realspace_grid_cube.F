@@ -145,8 +145,8 @@ CONTAINS
          num_pe = pw%pw_grid%para%group_size
          tag = 1
 
-         rank (1) = unit_nr
-         rank (2) = my_rank
+         rank(1) = unit_nr
+         rank(2) = my_rank
          checksum = 0
          IF (unit_nr > 0) checksum = 1
 
@@ -889,8 +889,8 @@ CONTAINS
       num_pe = pw%pw_grid%para%group_size
       tag = 1
 
-      rank (1) = unit_nr
-      rank (2) = my_rank
+      rank(1) = unit_nr
+      rank(2) = my_rank
       checksum = 0
       IF (unit_nr > 0) checksum = 1
 

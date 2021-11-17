@@ -407,7 +407,7 @@ CONTAINS
          DO ig = grid%first_gne0, grid%ngpts_cut_local
             g2 = grid%gsq(ig)
             g3d = fourpi/g2
-            gf%cc(ig) = g3d + green%screen_fn%cc(ig)
+            gf%cc(ig) = g3d+green%screen_fn%cc(ig)
          END DO
          IF (grid%have_g0) &
             gf%cc(1) = green%screen_fn%cc(1)

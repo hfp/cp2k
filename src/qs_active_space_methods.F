@@ -1527,9 +1527,9 @@ CONTAINS
          !
          nspins = active_space_env%nspins
          IF (nspins == 1) THEN
-            ASSOCIATE (norb => active_space_env%eri%norb, &
-                       ms2 => 0, & ! active_space_env%multiplicity ?
-                       nelec => active_space_env%nelec_active)
+            ASSOCIATE (norb=>active_space_env%eri%norb, &
+                       ms2=>0, & ! active_space_env%multiplicity ?
+                       nelec=>active_space_env%nelec_active)
 
                IF (iw > 0) THEN
                   WRITE (iw, "(A,A,I4,A,I4,A,I2,A)") "&FCI", " NORB=", norb, ",NELEC=", nelec, ",MS2=", ms2, ","
@@ -1567,9 +1567,9 @@ CONTAINS
             END ASSOCIATE
          ELSE
 
-            ASSOCIATE (norb => active_space_env%eri%norb, &
-                       ms2 => 0, & ! active_space_env%multiplicity ?
-                       nelec => active_space_env%nelec_active)
+            ASSOCIATE (norb=>active_space_env%eri%norb, &
+                       ms2=>0, & ! active_space_env%multiplicity ?
+                       nelec=>active_space_env%nelec_active)
 
                IF (iw > 0) THEN
                   WRITE (iw, "(A,A,I4,A,I4,A,I2,A)") "&FCI", " NORB=", norb, ",NELEC=", nelec, ",MS2=", ms2, ","

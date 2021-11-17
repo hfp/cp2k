@@ -280,29 +280,29 @@ CONTAINS
                      #!some fypp magic to deal with combinations of optional arguments
                      #:for doforce_1 in [0, 1]
                         #:for doforce_2 in [0, 1]
-                           IF (${conditional(doforce_1)}$PRESENT(force_a) .AND. &
-                               ${conditional(doforce_2)}$PRESENT(force_b)) THEN
+                     IF (${conditional(doforce_1)}$PRESENT(force_a) .AND. &
+                         ${conditional(doforce_2)}$PRESENT(force_b)) THEN
 
-                              CALL integrate_set_2c( &
-                                 param%par, potential_parameter, &
-                                 la_min(iset), la_max(iset), &
-                                 lb_min(jset), lb_max(jset), &
-                                 npgfa(iset), npgfb(jset), &
-                                 zeta(:, iset), zetb(:, jset), &
-                                 ra, rb, &
-                                 hab, nsgfa(iset), last_set - first_set + 1, &
-                                 offset_a_start, offset_b_start, &
-                                 0, first_set - 1, &
-                                 sphi_a, sphi_b, &
-                                 sgfa, sgfb, nsgfa(iset), nsgfb(jset), &
-                                 my_eri_method, &
-                                 pab, &
+                        CALL integrate_set_2c( &
+                           param%par, potential_parameter, &
+                           la_min(iset), la_max(iset), &
+                           lb_min(jset), lb_max(jset), &
+                           npgfa(iset), npgfb(jset), &
+                           zeta(:, iset), zetb(:, jset), &
+                           ra, rb, &
+                           hab, nsgfa(iset), last_set - first_set + 1, &
+                           offset_a_start, offset_b_start, &
+                           0, first_set - 1, &
+                           sphi_a, sphi_b, &
+                           sgfa, sgfb, nsgfa(iset), nsgfb(jset), &
+                           my_eri_method, &
+                           pab, &
                            $:                         'force_a=force_a(ikind)%forces(:, atom_a), &'*doforce_1
                            $:                         'force_b=force_b(jkind)%forces(:, atom_b), &'*doforce_2
-                                 hdab=hdab, hadb=hadb, &
-                                 G_count=G_count, R_count=R_count, &
-                                 do_reflection_a=do_reflection_a, do_reflection_b=do_reflection_b)
-                           END IF
+                           hdab=hdab, hadb=hadb, &
+                           G_count=G_count, R_count=R_count, &
+                           do_reflection_a=do_reflection_a, do_reflection_b=do_reflection_b)
+                     END IF
                         #:endfor
                      #:endfor
                   END IF
@@ -888,40 +888,40 @@ CONTAINS
                                  #:for dabc in [0, 1]
                                     #:for adbc in [0, 1]
                                        #:for abdc in [0, 1]
-                                          IF (${conditional(doforce_1)}$PRESENT(force_a) .AND. &
-                                              ${conditional(doforce_2)}$PRESENT(force_b) .AND. &
-                                              ${conditional(doforce_3)}$PRESENT(force_c) .AND. &
-                                              ${conditional(pabc_present)}$PRESENT(pabc) .AND. &
-                                              ${conditional(dabc)}$PRESENT(mat_dabc) .AND. &
-                                              ${conditional(adbc)}$PRESENT(mat_adbc) .AND. &
-                                              ${conditional(abdc)}$PRESENT(mat_abdc)) THEN
-                                             CALL integrate_set_3c( &
-                                                param%par, potential_parameter, &
-                                                la_min(iset), la_max(iset), &
-                                                lb_min(jset), lb_max(jset), &
-                                                lc_min(kset), lc_max(kset), &
-                                                npgfa(iset), npgfb(jset), npgfc(kset), &
-                                                zeta(:, iset), zetb(:, jset), zetc(:, kset), &
-                                                ra, rb, rc, &
-                                                habc, &
-                                                nsgfa(iset), nsgfb(jset), last_set - first_set + 1, &
-                                                offset_a_start, offset_b_start, offset_c_start, &
-                                                0, 0, first_set - 1, &
-                                                sphi_a, sphi_b, sphi_c, &
-                                                sgfa, sgfb, sgfc, &
-                                                nsgfa(iset), nsgfb(jset), nsgfc(kset), &
-                                                my_eri_method, &
+                     IF (${conditional(doforce_1)}$PRESENT(force_a) .AND. &
+                         ${conditional(doforce_2)}$PRESENT(force_b) .AND. &
+                         ${conditional(doforce_3)}$PRESENT(force_c) .AND. &
+                         ${conditional(pabc_present)}$PRESENT(pabc) .AND. &
+                         ${conditional(dabc)}$PRESENT(mat_dabc) .AND. &
+                         ${conditional(adbc)}$PRESENT(mat_adbc) .AND. &
+                         ${conditional(abdc)}$PRESENT(mat_abdc)) THEN
+                        CALL integrate_set_3c( &
+                           param%par, potential_parameter, &
+                           la_min(iset), la_max(iset), &
+                           lb_min(jset), lb_max(jset), &
+                           lc_min(kset), lc_max(kset), &
+                           npgfa(iset), npgfb(jset), npgfc(kset), &
+                           zeta(:, iset), zetb(:, jset), zetc(:, kset), &
+                           ra, rb, rc, &
+                           habc, &
+                           nsgfa(iset), nsgfb(jset), last_set - first_set + 1, &
+                           offset_a_start, offset_b_start, offset_c_start, &
+                           0, 0, first_set - 1, &
+                           sphi_a, sphi_b, sphi_c, &
+                           sgfa, sgfb, sgfc, &
+                           nsgfa(iset), nsgfb(jset), nsgfc(kset), &
+                           my_eri_method, &
                            $:                         'pabc=pabc_block, &'*pabc_present
                            $:                         'force_a=force_a(ikind)%forces(:, atom_a), &'*doforce_1
                            $:                         'force_b=force_b(jkind)%forces(:, atom_b), &'*doforce_2
                            $:                         'force_c=force_c(kkind)%forces(:, atom_c), &'*doforce_3
-                                                do_symmetric=do_symmetric, &
-                                                on_diagonal=iatom .EQ. jatom, &
+                           do_symmetric=do_symmetric, &
+                           on_diagonal=iatom .EQ. jatom, &
                            $:                         'hdabc=hdabc, &'*dabc
                            $:                         'hadbc=hadbc, &'*adbc
                            $:                         'habdc=habdc, &'*abdc
-                                                GG_count=GG_count, GR_count=GR_count, RR_count=RR_count)
-                                          END IF
+                           GG_count=GG_count, GR_count=GR_count, RR_count=RR_count)
+                     END IF
                                        #:endfor
                                     #:endfor
                                  #:endfor

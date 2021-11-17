@@ -376,7 +376,7 @@ CONTAINS
                   DO jjB = 1, my_block_size
                      CALL timeset(routineN//"_expansion", handle3)
 
-                     ASSOCIATE (my_local_i_aL => local_i_aL(:, :, iiB), my_local_j_aL => local_j_aL(:, :, jjB))
+                     ASSOCIATE (my_local_i_aL=>local_i_aL(:, :, iiB), my_local_j_aL=>local_j_aL(:, :, jjB))
 
                         ! calculate the integrals (ia|jb) strating from my local data ...
                         local_ab = 0.0_dp

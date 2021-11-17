@@ -52,47 +52,47 @@ CONTAINS
 !> \param ub${i}$_new new upper bound for dimension ${i}$
       #:endfor
 ! **************************************************************************************************
-      SUBROUTINE reallocate_${suffix}$${rank}$ (p, ${bounds_vars}$)
-         ${type}$, &
-            DIMENSION(${arr_exp}$), &
-            POINTER, INTENT(INOUT) :: p
+   SUBROUTINE reallocate_${suffix}$${rank}$ (p, ${bounds_vars}$)
+      ${type}$, &
+         DIMENSION(${arr_exp}$), &
+         POINTER, INTENT(INOUT) :: p
 
-         INTEGER, INTENT(IN) :: &
-            ${bounds_vars}$
+      INTEGER, INTENT(IN) :: &
+         ${bounds_vars}$
 
          #:for i in range(1, rank+1)
-            INTEGER :: lb${i}$, lb${i}$_old, ub${i}$, ub${i}$_old
+      INTEGER :: lb${i}$, lb${i}$_old, ub${i}$, ub${i}$_old
          #:endfor
 
          #:if worktype
-         ${worktype}$, &
+      ${worktype}$, &
          #:else
-            ${type}$, &
+         ${type}$, &
          #:endif
-            DIMENSION(${arr_exp}$), &
-            POINTER :: work
+         DIMENSION(${arr_exp}$), &
+         POINTER :: work
 
-         NULLIFY (work)
+      NULLIFY (work)
 
-         IF (ASSOCIATED(p)) THEN
+      IF (ASSOCIATED(p)) THEN
             #:for i in range(1, rank+1)
-               lb${i}$_old = LBOUND(p, ${i}$)
-               ub${i}$_old = UBOUND(p, ${i}$)
-               lb${i}$ = MAX(lb${i}$_new, lb${i}$_old)
-               ub${i}$ = MIN(ub${i}$_new, ub${i}$_old)
+         lb${i}$_old = LBOUND(p, ${i}$)
+         ub${i}$_old = UBOUND(p, ${i}$)
+         lb${i}$ = MAX(lb${i}$_new, lb${i}$_old)
+         ub${i}$ = MIN(ub${i}$_new, ub${i}$_old)
             #:endfor
-            work => p
-         END IF
+         work => p
+      END IF
 
-         ALLOCATE (p(${new_bounds}$))
-         p = ${zero}$
+      ALLOCATE (p(${new_bounds}$))
+      p = ${zero}$
 
-         IF (ASSOCIATED(work)) THEN
-            p(${old_bounds}$) = work(${old_bounds}$)
-            DEALLOCATE (work)
-         END IF
+      IF (ASSOCIATED(work)) THEN
+         p(${old_bounds}$) = work(${old_bounds}$)
+         DEALLOCATE (work)
+      END IF
 
-      END SUBROUTINE reallocate_${suffix}$${rank}$
+   END SUBROUTINE reallocate_${suffix}$${rank}$
    #:enddef
 
    $: reallocate(suffix="c",  rank=1, type="COMPLEX(KIND=dp)", zero="(0.0_dp, 0.0_dp)")

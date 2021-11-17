@@ -40,78 +40,78 @@ MODULE list
              list_get, list_size, list_destroy
 
    #:for vtype in valuetype
-      PUBLIC :: list_${vtype}$_type
+   PUBLIC :: list_${vtype}$_type
    #:endfor
 
    INTERFACE list_init
       #:for vtype in valuetype
-         MODULE PROCEDURE list_${vtype}$_init
+      MODULE PROCEDURE list_${vtype}$_init
       #:endfor
    END INTERFACE
 
    INTERFACE list_isready
       #:for vtype in valuetype
-         MODULE PROCEDURE list_${vtype}$_isready
+      MODULE PROCEDURE list_${vtype}$_isready
       #:endfor
    END INTERFACE
 
    INTERFACE list_push
       #:for vtype in valuetype
-         MODULE PROCEDURE list_${vtype}$_push
+      MODULE PROCEDURE list_${vtype}$_push
       #:endfor
    END INTERFACE
 
    INTERFACE list_pop
       #:for vtype in valuetype
-         MODULE PROCEDURE list_${vtype}$_pop
+      MODULE PROCEDURE list_${vtype}$_pop
       #:endfor
    END INTERFACE
 
    INTERFACE list_peek
       #:for vtype in valuetype
-         MODULE PROCEDURE list_${vtype}$_peek
+      MODULE PROCEDURE list_${vtype}$_peek
       #:endfor
    END INTERFACE
 
    INTERFACE list_insert
       #:for vtype in valuetype
-         MODULE PROCEDURE list_${vtype}$_insert
+      MODULE PROCEDURE list_${vtype}$_insert
       #:endfor
    END INTERFACE
 
    INTERFACE list_set
       #:for vtype in valuetype
-         MODULE PROCEDURE list_${vtype}$_set
+      MODULE PROCEDURE list_${vtype}$_set
       #:endfor
    END INTERFACE
 
    INTERFACE list_get
       #:for vtype in valuetype
-         MODULE PROCEDURE list_${vtype}$_get
+      MODULE PROCEDURE list_${vtype}$_get
       #:endfor
    END INTERFACE
 
    INTERFACE list_del
       #:for vtype in valuetype
-         MODULE PROCEDURE list_${vtype}$_del
+      MODULE PROCEDURE list_${vtype}$_del
       #:endfor
    END INTERFACE
 
    INTERFACE list_clear
       #:for vtype in valuetype
-         MODULE PROCEDURE list_${vtype}$_clear
+      MODULE PROCEDURE list_${vtype}$_clear
       #:endfor
    END INTERFACE
 
    INTERFACE list_size
       #:for vtype in valuetype
-         MODULE PROCEDURE list_${vtype}$_size
+      MODULE PROCEDURE list_${vtype}$_size
       #:endfor
    END INTERFACE
 
    INTERFACE list_destroy
       #:for vtype in valuetype
-         MODULE PROCEDURE list_${vtype}$_destroy
+      MODULE PROCEDURE list_${vtype}$_destroy
       #:endfor
    END INTERFACE
 

@@ -618,7 +618,7 @@ CONTAINS
                                    nmolecule=nmolecule, molecule_list=molecule_list, name=molname)
             is_qm = qmmm_ff_precond_only_qm(id1=molname)
             WHERE (molname .EQ. cons_info%fixed_molnames)
-               missed_molname = .FALSE.
+            missed_molname = .FALSE.
             END WHERE
             ! Try to figure out how many atoms of the list belong to this molecule_kind
             nfixed_atoms = 0

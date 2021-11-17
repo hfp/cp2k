@@ -640,7 +640,7 @@ CONTAINS
                                    rho_g=rho_g, tau=tau, vxc_tau=vxc_tau, exc=exc, xc_section=xc_section, &
                                    pw_pool=xc_pw_pool, compute_virial=compute_virial, virial_xc=virial_xc_tmp)
             ! add to the existing work_v_rspace
-            work_v_rspace%pw%cr3d = work_v_rspace%pw%cr3d - &
+            work_v_rspace%pw%cr3d = work_v_rspace%pw%cr3d- &
                                     dft_control%sic_scaling_b*vxc(1)%pw%pw_grid%dvol*vxc(1)%pw%cr3d
          END IF
          energy%exc = energy%exc - dft_control%sic_scaling_b*exc
@@ -1303,20 +1303,20 @@ CONTAINS
                ! Add v_hartree + v_xc = v_rspace_new
                v_rspace_new(ispin)%pw%cr3d = &
                   v_rspace_new(ispin)%pw%pw_grid%dvol* &
-                  v_rspace_new(ispin)%pw%cr3d + v_rspace%pw%cr3d
+                  v_rspace_new(ispin)%pw%cr3d+v_rspace%pw%cr3d
             END IF ! gapw_xc
             IF (dft_control%qs_control%ddapc_explicit_potential) THEN
                IF (dft_control%qs_control%ddapc_restraint_is_spin) THEN
                   IF (ispin == 1) THEN
                      v_rspace_new(ispin)%pw%cr3d = v_rspace_new(ispin)%pw%cr3d &
-                                                   + v_spin_ddapc_rest_r%pw%cr3d
+                                                   +v_spin_ddapc_rest_r%pw%cr3d
                   ELSE
                      v_rspace_new(ispin)%pw%cr3d = v_rspace_new(ispin)%pw%cr3d &
-                                                   - v_spin_ddapc_rest_r%pw%cr3d
+                                                   -v_spin_ddapc_rest_r%pw%cr3d
                   END IF
                ELSE
                   v_rspace_new(ispin)%pw%cr3d = v_rspace_new(ispin)%pw%cr3d &
-                                                + v_spin_ddapc_rest_r%pw%cr3d
+                                                +v_spin_ddapc_rest_r%pw%cr3d
                END IF
             END IF
             ! CDFT constraint contribution
@@ -1341,13 +1341,13 @@ CONTAINS
                      CPABORT("Unknown constraint type.")
                   END SELECT
                   v_rspace_new(ispin)%pw%cr3d = v_rspace_new(ispin)%pw%cr3d &
-                                                + sign*cdft_control%group(igroup)%weight%pw%cr3d* &
+                                                +sign*cdft_control%group(igroup)%weight%pw%cr3d* &
                                                 cdft_control%strength(igroup)
                END DO
             END IF
             ! The efield contribution
             IF (dft_control%apply_efield_field) THEN
-               v_rspace_new(ispin)%pw%cr3d = v_rspace_new(ispin)%pw%cr3d + &
+               v_rspace_new(ispin)%pw%cr3d = v_rspace_new(ispin)%pw%cr3d+ &
                                              v_efield_rspace%pw%cr3d
             END IF
             ! functional derivative of the Hartree energy wrt the density in the presence of dielectric
@@ -1355,12 +1355,12 @@ CONTAINS
             ! of the charge density
             IF (poisson_env%parameters%solver .EQ. pw_poisson_implicit) THEN
                dvol = poisson_env%implicit_env%v_eps%pw_grid%dvol
-               v_rspace_new(ispin)%pw%cr3d = v_rspace_new(ispin)%pw%cr3d + &
+               v_rspace_new(ispin)%pw%cr3d = v_rspace_new(ispin)%pw%cr3d+ &
                                              poisson_env%implicit_env%v_eps%cr3d*dvol
             END IF
             ! Add SCCS contribution
             IF (dft_control%do_sccs) THEN
-               v_rspace_new(ispin)%pw%cr3d = v_rspace_new(ispin)%pw%cr3d + &
+               v_rspace_new(ispin)%pw%cr3d = v_rspace_new(ispin)%pw%cr3d+ &
                                              v_sccs_rspace%pw%cr3d
             END IF
             ! External electrostatic potential
@@ -1370,7 +1370,7 @@ CONTAINS
             END IF
             IF (do_ppl) THEN
                CPASSERT(.NOT. gapw)
-               v_rspace_new(ispin)%pw%cr3d = v_rspace_new(ispin)%pw%cr3d + &
+               v_rspace_new(ispin)%pw%cr3d = v_rspace_new(ispin)%pw%cr3d+ &
                                              vppl_rspace%pw%cr3d*vppl_rspace%pw%pw_grid%dvol
             END IF
             ! the electrostatic sic contribution
@@ -1379,20 +1379,20 @@ CONTAINS
                !
             CASE (sic_mauri_us, sic_mauri_spz)
                IF (ispin == 1) THEN
-                  v_rspace_new(ispin)%pw%cr3d = v_rspace_new(ispin)%pw%cr3d - &
+                  v_rspace_new(ispin)%pw%cr3d = v_rspace_new(ispin)%pw%cr3d- &
                                                 v_sic_rspace%pw%cr3d
                ELSE
-                  v_rspace_new(ispin)%pw%cr3d = v_rspace_new(ispin)%pw%cr3d + &
+                  v_rspace_new(ispin)%pw%cr3d = v_rspace_new(ispin)%pw%cr3d+ &
                                                 v_sic_rspace%pw%cr3d
                END IF
             CASE (sic_ad)
-               v_rspace_new(ispin)%pw%cr3d = v_rspace_new(ispin)%pw%cr3d - v_sic_rspace%pw%cr3d
+               v_rspace_new(ispin)%pw%cr3d = v_rspace_new(ispin)%pw%cr3d-v_sic_rspace%pw%cr3d
             CASE (sic_eo)
                ! NOTHING TO BE DONE
             END SELECT
             ! DFT embedding
             IF (dft_control%apply_embed_pot) THEN
-               v_rspace_new(ispin)%pw%cr3d = v_rspace_new(ispin)%pw%cr3d + &
+               v_rspace_new(ispin)%pw%cr3d = v_rspace_new(ispin)%pw%cr3d+ &
                                              v_rspace_embed(ispin)%pw%pw_grid%dvol* &
                                              v_rspace_embed(ispin)%pw%cr3d
                CALL pw_pool_give_back_pw(auxbas_pw_pool, v_rspace_embed(ispin)%pw)
@@ -1455,20 +1455,20 @@ CONTAINS
          DO ispin = 1, nspins
             ! the efield contribution
             IF (dft_control%apply_efield_field) THEN
-               v_rspace%pw%cr3d = v_rspace%pw%cr3d + v_efield_rspace%pw%cr3d
+               v_rspace%pw%cr3d = v_rspace%pw%cr3d+v_efield_rspace%pw%cr3d
             END IF
             ! extra contribution attributed to the dependency of the dielectric constant to the charge density
             IF (poisson_env%parameters%solver .EQ. pw_poisson_implicit) THEN
                dvol = poisson_env%implicit_env%v_eps%pw_grid%dvol
-               v_rspace%pw%cr3d = v_rspace%pw%cr3d + poisson_env%implicit_env%v_eps%cr3d*dvol
+               v_rspace%pw%cr3d = v_rspace%pw%cr3d+poisson_env%implicit_env%v_eps%cr3d*dvol
             END IF
             ! Add SCCS contribution
             IF (dft_control%do_sccs) THEN
-               v_rspace%pw%cr3d = v_rspace%pw%cr3d + v_sccs_rspace%pw%cr3d
+               v_rspace%pw%cr3d = v_rspace%pw%cr3d+v_sccs_rspace%pw%cr3d
             END IF
             ! DFT embedding
             IF (dft_control%apply_embed_pot) THEN
-               v_rspace%pw%cr3d = v_rspace%pw%cr3d + &
+               v_rspace%pw%cr3d = v_rspace%pw%cr3d+ &
                                   v_rspace_embed(ispin)%pw%pw_grid%dvol* &
                                   v_rspace_embed(ispin)%pw%cr3d
                CALL pw_pool_give_back_pw(auxbas_pw_pool, v_rspace_embed(ispin)%pw)

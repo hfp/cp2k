@@ -744,7 +744,7 @@ CONTAINS
       nmolecule_kind = SIZE(molecule_kind_set)
 
       DO imolecule_kind = 1, nmolecule_kind
-         ASSOCIATE (molecule_kind => molecule_kind_set(imolecule_kind))
+         ASSOCIATE (molecule_kind=>molecule_kind_set(imolecule_kind))
 
             CALL get_molecule_kind(molecule_kind=molecule_kind, &
                                    natom=na, &

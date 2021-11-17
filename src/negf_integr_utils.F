@@ -30,7 +30,7 @@ MODULE negf_integr_utils
 
    INTERFACE equidistant_nodes_a_b
       #:for nametype1, type1 in inst_params
-         MODULE PROCEDURE equidistant_${nametype1}$nodes_a_b
+      MODULE PROCEDURE equidistant_${nametype1}$nodes_a_b
       #:endfor
    END INTERFACE
 
@@ -46,21 +46,21 @@ CONTAINS
 !> \par History
 !>    * 05.2017 created [Sergey Chulkov]
 ! **************************************************************************************************
-      SUBROUTINE equidistant_${nametype1}$nodes_a_b(a, b, nnodes, xnodes)
-         ${type1}$, INTENT(in)                              :: a, b
-         INTEGER, INTENT(in)                                :: nnodes
-         ${type1}$, DIMENSION(nnodes), INTENT(out)          :: xnodes
+   SUBROUTINE equidistant_${nametype1}$nodes_a_b(a, b, nnodes, xnodes)
+      ${type1}$, INTENT(in)                              :: a, b
+      INTEGER, INTENT(in)                                :: nnodes
+      ${type1}$, DIMENSION(nnodes), INTENT(out)          :: xnodes
 
-         INTEGER                                            :: i
-         ${type1}$                                          :: rscale
+      INTEGER                                            :: i
+      ${type1}$                                          :: rscale
 
-         CPASSERT(nnodes >= 1)
+      CPASSERT(nnodes >= 1)
 
-         rscale = (b - a)/REAL(nnodes - 1, kind=dp)
-         DO i = 1, nnodes
-            xnodes(i) = a + rscale*REAL(i - 1, kind=dp)
-         END DO
-      END SUBROUTINE equidistant_${nametype1}$nodes_a_b
+      rscale = (b - a)/REAL(nnodes - 1, kind=dp)
+      DO i = 1, nnodes
+         xnodes(i) = a + rscale*REAL(i - 1, kind=dp)
+      END DO
+   END SUBROUTINE equidistant_${nametype1}$nodes_a_b
    #:endfor
 
    SUBROUTINE rescale_normalised_nodes(nnodes, tnodes, a, b, shape_id, xnodes, weights)
