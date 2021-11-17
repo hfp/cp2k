@@ -1950,7 +1950,6 @@ CONTAINS
       ENDDO
       ENDDO
       ENDDO
-!$OMP END PARALLEL DO SIMD
       CALL timestop(handle)
 
    END SUBROUTINE rs_grid_zero
