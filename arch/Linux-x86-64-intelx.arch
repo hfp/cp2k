@@ -43,6 +43,7 @@ endif
 # Automatically pickup the environment (make -e is not required),
 # or pickup the Intel Compiler (if available).
 GNU ?= 0
+ICX ?= 0
 ifeq (0,$(GNU))
   ifeq (,$(shell echo "$${CXX}"))
     ifneq (,$(filter icpc icpc1,$(notdir $(call which,icpc))$(INTEL)))
@@ -64,7 +65,6 @@ ifeq (0,$(GNU))
     ICX := 2
   endif
 endif
-ICX ?= 0
 
 # check if the Intel Development Tools are available
 INTEL ?= $(if $(filter 2,$(words $(filter icpc% icpx% icc% icx%, \
@@ -158,6 +158,8 @@ TBBMALLOC ?= 0
 # TBB runtime compatible with oldest supported GCC
 TBBGCC_OLD ?= 1
 
+OCL ?= 0
+CUDA ?= 0
 ifeq (opencl,$(USE_ACCEL))
   OCL := 1
 else ifeq (cuda,$(USE_ACCEL))
@@ -169,8 +171,6 @@ else ifneq (,$(USE_ACCEL))
   $(error USE_ACCEL)
 endif
 
-OCL ?= 0
-CUDA ?= 0
 ifneq (,$(filter-out 0,$(OCL) $(CUDA)))
   ifneq (0,$(OCL))
     DFLAGS += -D__ACC -D__DBCSR_ACC -D__OPENCL
