@@ -116,7 +116,7 @@ else ifeq (hip,$(USE_ACCEL))
 else ifeq (opencl,$(USE_ACCEL))
   CFLAGS = $(ACCFLAGS) -D__OPENCL
   # LIBXSMM is eventually included privately/quietly (header-only)
-  LIBXSMMROOT := $(if $(LIBXSMMROOT),$(LIBXSMMROOT),$(wildcard $(LIBXSMM_INC)/..))
+  LIBXSMMROOT := $(if $(LIBXSMMROOT),$(LIBXSMMROOT),$(if $(LIBXSMM_INC),$(wildcard $(LIBXSMM_INC)/..)))
   LIBXSMMROOT := $(if $(LIBXSMMROOT),$(LIBXSMMROOT),$(wildcard ../../../libxsmm))
   LIBXSMMROOT := $(if $(LIBXSMMROOT),$(LIBXSMMROOT),$(wildcard $(HOME)/libxsmm))
   ifneq (,$(LIBXSMMROOT))
