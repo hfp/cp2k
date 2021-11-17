@@ -189,7 +189,7 @@ ifneq (,$(filter-out 0,$(OCL) $(CUDA)))
     USE_ACCEL := opencl
     ACCFLAGS += $(CFLAGS)
     ACC := $(CC)
-  else
+  else #ifneq (0,$(CUDA))
     CUDA_PATH ?= $(if $(call which,nvcc),$(abspath $(dir $(call which,nvcc))/..))
     ifneq (,$(CUDA_PATH))
       ifneq (undefined,$(origin GPUVER))
@@ -228,8 +228,9 @@ else # ACC off
   endif
 endif
 # apply ACC settings for CP2K/GRID code
-OFFLOAD_CC := $(ACC)
+OFFLOAD_TARGET := $(USE_ACCEL)
 OFFLOAD_FLAGS := $(ACCFLAGS)
+OFFLOAD_CC := $(ACC)
 
 # MKL_MPIRTL: intelmpi, openmpi
 MKL_MPIRTL ?= intelmpi
