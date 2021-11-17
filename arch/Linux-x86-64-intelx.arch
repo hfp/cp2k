@@ -1,22 +1,22 @@
 # Arch file targeting Linux 64-bit using the Intel tool chain
 #
-PERL          := perl
+PERL          = perl
 # use compiler to preprocess Fortran code
-CPP           := $(NULL)
-ACC           := $(NULL)
-OFFLOAD_CC    := $(NULL)
-OFFLOAD_FLAGS := $(NULL)
-DFLAGS        := -D__NO_IPI_DRIVER
-CFLAGS        := -std=c99
-IFLAGS        := $(NULL)
-CXXFLAGS      := $(NULL)
-FCFLAGS       := $(NULL)
-LDFLAGS       := $(NULL)
-ACCFLAGS      := $(NULL)
-LIBS          := $(NULL)
-LIBDIRNAME    := lib
-OBJDIRNAME    := obj
-EXTSDIR       := exts
+CPP           = $(NULL)
+ACC           = $(NULL)
+OFFLOAD_CC    = $(NULL)
+OFFLOAD_FLAGS = $(NULL)
+DFLAGS        = -D__NO_IPI_DRIVER
+CFLAGS        = -std=c99
+IFLAGS        = $(NULL)
+CXXFLAGS      = $(NULL)
+FCFLAGS       = $(NULL)
+LDFLAGS       = $(NULL)
+ACCFLAGS      = $(NULL)
+LIBS          = $(NULL)
+LIBDIRNAME    = lib
+OBJDIRNAME    = obj
+EXTSDIR       = exts
 
 # LIBXSMM (https://github.com/hfp/libxsmm)
 #LIBXSMMROOT := /path/to/libxsmm
@@ -186,8 +186,8 @@ ifneq (,$(filter-out 0,$(OCL) $(CUDA)))
       endif
       LDFLAGS += -lOpenCL
     endif
+    ACCFLAGS += $(CFLAGS) $(DFLAGS)
     USE_ACCEL := opencl
-    ACCFLAGS += $(CFLAGS)
     ACC := $(CC)
   else #ifneq (0,$(CUDA))
     CUDA_PATH ?= $(if $(call which,nvcc),$(abspath $(dir $(call which,nvcc))/..))
@@ -227,10 +227,6 @@ else # ACC off
   endif
   endif
 endif
-# apply ACC settings for CP2K/GRID code
-OFFLOAD_TARGET := $(USE_ACCEL)
-OFFLOAD_FLAGS := $(ACCFLAGS)
-OFFLOAD_CC := $(ACC)
 
 # MKL_MPIRTL: intelmpi, openmpi
 MKL_MPIRTL ?= intelmpi
@@ -1066,6 +1062,11 @@ FCFLAGS := $(call cleanup,$(FCFLAGS))
 CFLAGS := $(call cleanup,$(CFLAGS))
 DFLAGS := $(call cleanup,$(DFLAGS))
 IFLAGS := $(call cleanup,$(IFLAGS))
+
+# apply ACC settings for CP2K/GRID code
+OFFLOAD_TARGET := $(USE_ACCEL)
+OFFLOAD_FLAGS := $(ACCFLAGS)
+OFFLOAD_CC := $(ACC)
 
 # filter-out override_limits flag since IFORT can run out of memory (SIGKILL)
 ifeq (1,$(INTEL))
