@@ -740,6 +740,7 @@ CONTAINS
          CPABORT("NYE")
       END IF
 
+      NULLIFY (dcdr_env%matrix_s)
       CALL build_overlap_matrix(ks_env, matrix_s=dcdr_env%matrix_s, &
                                 matrix_name="OVERLAP MATRIX", &
                                 nderivative=1, &
@@ -747,6 +748,7 @@ CONTAINS
                                 basis_type_b="ORB", &
                                 sab_nl=sab_orb)
 
+      NULLIFY (dcdr_env%matrix_t)
       CALL build_kinetic_matrix(ks_env, matrix_t=dcdr_env%matrix_t, &
                                 matrix_name="KINETIC ENERGY MATRIX", &
                                 basis_type="ORB", &
@@ -890,6 +892,7 @@ CONTAINS
       CALL dbcsr_allocate_matrix_set(dcdr_env%matrix_hc, 3)
       CALL dbcsr_allocate_matrix_set(dcdr_env%matrix_ppnl_1, 3)
 
+      NULLIFY (dcdr_env%perturbed_dm_correction)
       CALL dbcsr_init_p(dcdr_env%perturbed_dm_correction)
       CALL dbcsr_copy(dcdr_env%perturbed_dm_correction, matrix_ks(1)%matrix)
 
