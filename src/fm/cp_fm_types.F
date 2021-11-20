@@ -290,19 +290,14 @@ CONTAINS
       INTEGER :: handle, icol_global, icol_local, irow_local, my_ncol, my_start_col, ncol_global, &
          ncol_local, nrow_global, nrow_local
       INTEGER, DIMENSION(:), POINTER                     :: col_indices, row_indices
-      LOGICAL, SAVE                                      :: FIRST = .TRUE.
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: buff
-      REAL(KIND=dp), DIMENSION(3, 2), SAVE               :: seed
+      REAL(KIND=dp), DIMENSION(3, 2), SAVE :: &
+         seed = RESHAPE((/1.0_dp, 2.0_dp, 3.0_dp, 4.0_dp, 5.0_dp, 6.0_dp/), (/3, 2/))
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: local_data
       TYPE(rng_stream_type)                              :: rng
 
       CALL timeset(routineN, handle)
 
-      ! first setup a parallel rng
-      IF (FIRST) THEN
-         seed(:, :) = RESHAPE((/1.0_dp, 2.0_dp, 3.0_dp, 4.0_dp, 5.0_dp, 6.0_dp/), (/3, 2/))
-         FIRST = .FALSE.
-      END IF
       ! guarantee same seed over all tasks
       CALL mp_bcast(seed, 0, matrix%matrix_struct%para_env%group)
 
@@ -346,6 +341,12 @@ CONTAINS
       DEALLOCATE (buff)
 
       ! store seed before deletion (unclear if this is the proper seed)
+
+      ! Note that, the initial state (rng%ig) instead of the current state (rng%cg) is stored in the
+      ! seed variable. As a consequence, each invocation of cp_fm_init_random uses exactly the same
+      ! stream of random numbers. While this seems odd and contrary to the original design,
+      ! it was probably introduced to improve reproducibility.
+      ! See also https://github.com/cp2k/cp2k/pull/506
       CALL rng%get(ig=seed)
 
       CALL timestop(handle)
