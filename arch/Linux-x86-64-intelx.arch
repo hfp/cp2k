@@ -186,7 +186,7 @@ ifneq (,$(filter-out 0,$(OCL) $(CUDA)))
       endif
       LDFLAGS += -lOpenCL
     endif
-    ACCFLAGS += $(CFLAGS) $(DFLAGS)
+    ACCFLAGS += $(CFLAGS)
     USE_ACCEL := opencl
     ACC := $(CC)
   else #ifneq (0,$(CUDA))
