@@ -171,63 +171,6 @@ else ifneq (,$(USE_ACCEL))
   $(error USE_ACCEL)
 endif
 
-ifneq (,$(filter-out 0,$(OCL) $(CUDA)))
-  ifneq (0,$(OCL))
-    DFLAGS += -D__ACC -D__DBCSR_ACC -D__OPENCL
-    ifeq (Darwin,$(UNAME))
-      LDFLAGS += -framework OpenCL
-    else
-      ifneq (,$(CUDATOOLKIT_HOME))
-        IFLAGS += -I$(CUDATOOLKIT_HOME)/include
-        LDFLAGS += -L$(CUDATOOLKIT_HOME)/lib64
-      else ifneq (,$(NVSDKCOMPUTE_ROOT))
-        IFLAGS += -I$(NVSDKCOMPUTE_ROOT)/include
-        LDFLAGS += -L$(NVSDKCOMPUTE_ROOT)/lib64
-      endif
-      LDFLAGS += -lOpenCL
-    endif
-    ACCFLAGS += $(CFLAGS)
-    USE_ACCEL := opencl
-    ACC := $(CC)
-  else #ifneq (0,$(CUDA))
-    CUDA_PATH ?= $(if $(call which,nvcc),$(abspath $(dir $(call which,nvcc))/..))
-    ifneq (,$(CUDA_PATH))
-      ifneq (undefined,$(origin GPUVER))
-        NVCC := nvcc
-        DFLAGS += -D__ACC -D__DBCSR_ACC -D__CUDA -D__GRID_CUDA
-        LIBS += -L$(CUDA_PATH)/lib64 -lcudart -lcublas -lnvrtc -lcuda
-        IFLAGS += -I$(CUDA_PATH)/include
-        ifneq (,$(filter-out 0 1,$(CUDA)))
-          DFLAGS += -D__PW_CUDA
-          LIBS += -lcufft
-        endif
-        NVCFLAGS := $(addprefix -Xcompiler $(NULL),$(filter-out -Wl%,$(OPTFLAGS)))
-        ACCFLAGS += $(NVCFLAGS) $(DFLAGS)
-        NVFLAGS += $(NVCFLAGS) $(DFLAGS)
-        USE_ACCEL := cuda
-        ACC := $(NVCC)
-        IPO := 0
-      else
-        $(info ===================)
-        $(info GPUVER not defined!)
-        $(info ===================)
-        $(error GPUVER)
-      endif
-    else
-      $(info ===============)
-      $(info NVCC not found!)
-      $(info ===============)
-      $(error NVCC)
-    endif
-  endif
-else # ACC off
-  ifeq (0,$(GNU))
-  ifneq (0,$(LEGACY))
-    OPTFLAGS += -qno-offload
-  endif
-  endif
-endif
-
 # MKL_MPIRTL: intelmpi, openmpi
 MKL_MPIRTL ?= intelmpi
 ifneq (0,$(BLAS))
@@ -1050,6 +993,63 @@ ifeq (0,$(GNU))
     LDFLAGS_C += -nofor_main
   else
     LDFLAGS_C += -nofor-main
+  endif
+endif
+
+ifneq (,$(filter-out 0,$(OCL) $(CUDA)))
+  ifneq (0,$(OCL))
+    DFLAGS += -D__ACC -D__DBCSR_ACC -D__OPENCL
+    ifeq (Darwin,$(UNAME))
+      LDFLAGS += -framework OpenCL
+    else
+      ifneq (,$(CUDATOOLKIT_HOME))
+        IFLAGS += -I$(CUDATOOLKIT_HOME)/include
+        LDFLAGS += -L$(CUDATOOLKIT_HOME)/lib64
+      else ifneq (,$(NVSDKCOMPUTE_ROOT))
+        IFLAGS += -I$(NVSDKCOMPUTE_ROOT)/include
+        LDFLAGS += -L$(NVSDKCOMPUTE_ROOT)/lib64
+      endif
+      LDFLAGS += -lOpenCL
+    endif
+    ACCFLAGS += $(CFLAGS)
+    USE_ACCEL := opencl
+    ACC := $(CC)
+  else #ifneq (0,$(CUDA))
+    CUDA_PATH ?= $(if $(call which,nvcc),$(abspath $(dir $(call which,nvcc))/..))
+    ifneq (,$(CUDA_PATH))
+      ifneq (undefined,$(origin GPUVER))
+        NVCC := nvcc
+        DFLAGS += -D__ACC -D__DBCSR_ACC -D__CUDA -D__GRID_CUDA
+        LIBS += -L$(CUDA_PATH)/lib64 -lcudart -lcublas -lnvrtc -lcuda
+        IFLAGS += -I$(CUDA_PATH)/include
+        ifneq (,$(filter-out 0 1,$(CUDA)))
+          DFLAGS += -D__PW_CUDA
+          LIBS += -lcufft
+        endif
+        NVCFLAGS := $(addprefix -Xcompiler $(NULL),$(filter-out -Wl%,$(OPTFLAGS)))
+        ACCFLAGS += $(NVCFLAGS) $(DFLAGS)
+        NVFLAGS += $(NVCFLAGS) $(DFLAGS)
+        USE_ACCEL := cuda
+        ACC := $(NVCC)
+        IPO := 0
+      else
+        $(info ===================)
+        $(info GPUVER not defined!)
+        $(info ===================)
+        $(error GPUVER)
+      endif
+    else
+      $(info ===============)
+      $(info NVCC not found!)
+      $(info ===============)
+      $(error NVCC)
+    endif
+  endif
+else # ACC off
+  ifeq (0,$(GNU))
+  ifneq (0,$(LEGACY))
+    OPTFLAGS += -qno-offload
+  endif
   endif
 endif
 
