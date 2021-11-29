@@ -404,9 +404,9 @@ ifeq (0,$(GNU)) # Intel
     endif
   else
     ifeq (1,$(INTEL))
-      CXXFLAGS := -debug $(CXXFLAGS)
-      FCFLAGS  := -debug $(FCFLAGS)
-      CFLAGS   := -debug $(CFLAGS)
+      CXXFLAGS += -debug
+      FCFLAGS  += -debug
+      CFLAGS   += -debug
       ifneq (0,$(FPE))
         FCFLAGS += -fpe0 # debugging NaNs
       endif
@@ -692,17 +692,17 @@ ifneq (0,$(SYM))
   endif
   endif
   ifneq (1,$(SYM))
-    CXXFLAGS := -ggdb3 $(CXXFLAGS)
-    CFLAGS := -ggdb3 $(CFLAGS)
+    CXXFLAGS += -ggdb3
+    CFLAGS += -ggdb3
     ifneq (0,$(GNU))
-      FCFLAGS := -ggdb3 $(FCFLAGS)
+      FCFLAGS += -ggdb3
     else # IFORT
-      FCFLAGS := -g $(FCFLAGS)
+      FCFLAGS += -g
     endif
   else
-    CXXFLAGS := -g $(CXXFLAGS)
-    CFLAGS := -g $(CFLAGS)
-    FCFLAGS := -g $(FCFLAGS)
+    CXXFLAGS += -g
+    CFLAGS += -g
+    FCFLAGS += -g
   endif
 endif
 
