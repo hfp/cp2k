@@ -83,17 +83,18 @@ CONTAINS
 
       ! BIAS subsection
       CALL section_create(subsection, __LOCATION__, name="BIAS", &
-                          description="Section to bias the standard deviation of the committee disagreement (sigma) by "// &
+                          description="Section to bias the committee disagreement (sigma) by "// &
                           "E = 0.5 * K_B * (sigma - SIGMA_0)**2, if sigma > SIGMA_0.", &
-                          n_keywords=2, n_subsections=0, repeats=.FALSE.)
+                          n_keywords=2, n_subsections=0, repeats=.FALSE., &
+                          citations=(/Schran2020b/))
       CALL keyword_create(keyword, __LOCATION__, name="K_B", &
                           description="Harmonic spring constant of the bias potential [1/hartree].", &
                           repeats=.FALSE., &
                           n_var=1, &
                           type_of_var=real_t, &
-                          default_r_val=0.1_dp, &
-                          usage="K_B 0.1", &
-                          citations=(/Schran2020b/))
+                          default_r_val=cp_unit_to_cp2k(value=0.1_dp, unit_str="hartree^-1"), &
+                          unit_str="hartree^-1", &
+                          usage="K_B [hartree^-1] 0.1")
       CALL section_add_keyword(subsection, keyword)
       CALL keyword_release(keyword)
       CALL keyword_create(keyword, __LOCATION__, name="SIGMA_0", &

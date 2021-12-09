@@ -394,9 +394,9 @@ CONTAINS
       TYPE(cp_libint_t)                                  :: lib
       INTEGER                                            :: a_mysize(1)
       REAL(dp), DIMENSION(:, :), POINTER                    :: p_work
-      REAL(dp), DIMENSION(:), POINTER                    :: p_work_tmp
 
 #if(__LIBINT)
+      REAL(dp), DIMENSION(:), POINTER                    :: p_work_tmp
       PROCEDURE(libint2_build), POINTER                  :: pbuild
       INTEGER :: i
 
@@ -418,6 +418,7 @@ CONTAINS
       MARK_USED(lib)
       MARK_USED(p_work)
       MARK_USED(a_mysize)
+      MARK_USED(p_work_tmp)
       CPABORT("This CP2K executable has not been linked against the required library libint.")
 #endif
 
@@ -437,9 +438,9 @@ CONTAINS
       TYPE(cp_libint_t)                                  :: lib
       INTEGER                                            :: a_mysize(1)
       REAL(dp), DIMENSION(:, :), POINTER                 :: p_work
-      REAL(dp), DIMENSION(:), POINTER                    :: p_work_tmp
 
 #if(__LIBINT)
+      REAL(dp), DIMENSION(:), POINTER                    :: p_work_tmp
       PROCEDURE(libint2_build), POINTER                  :: pbuild
       INTEGER :: i
 
@@ -460,6 +461,7 @@ CONTAINS
       MARK_USED(lib)
       MARK_USED(p_work)
       MARK_USED(a_mysize)
+      MARK_USED(p_work_tmp)
       CPABORT("This CP2K executable has not been linked against the required library libint.")
 #endif
 
