@@ -298,17 +298,18 @@ ifneq (0,$(NDEBUG))
     DFLAGS += -DNDEBUG
   else # only DBCSR
     ifeq (,$(wildcard $(CP2KHOME)/.inject.sh))
-      INJECT := $(shell echo \
-        "if [ \"\$$4\" ]; then \
-           if [ \"\$$(echo \"\$${@:4}\" | sed -n \"/\$$1/p\" 2>/dev/null)\" ]; then \
-             exec \$$3 \$$2 \"\$${@:4}\"; \
-           elif [ \"\$$1\" ]; then \
-             exec \$$3 \"\$${@:4}\"; \
-           else \
-             exec \$$3 \$$2 \"\$${@:4}\"; \
-           fi; \
-         else exec \$$3; \
-       fi" > $(CP2KHOME)/.inject.sh)
+      INJECT := $(shell printf "#!/usr/bin/env bash\n \
+      if [ \"\$$4\" ]; then\n \
+      \tif [ \"\$$(echo \"\$${@:4}\" | sed -n \"/\$$1/p\" 2>/dev/null)\" ]; then\n \
+      \t\texec \$$3 \$$2 \"\$${@:4}\"\n \
+      \telif [ \"\$$1\" ]; then\n \
+      \t\texec \$$3 \"\$${@:4}\"\n \
+      \telse\n \
+      \t\texec \$$3 \$$2 \"\$${@:4}\"\n \
+      \tfi\n \
+      else\n \
+      \texec \$$3\n \
+      fi\n" > $(CP2KHOME)/.inject.sh)
     endif
     ifneq (,$(wildcard $(CP2KHOME)/.inject.sh))
       INJECT := $(shell chmod +x $(CP2KHOME)/.inject.sh)
