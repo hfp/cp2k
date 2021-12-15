@@ -43,7 +43,7 @@ MODULE cp_control_utils
         real_time_propagation, sccs_andreussi, sccs_derivative_cd3, sccs_derivative_cd5, &
         sccs_derivative_cd7, sccs_derivative_fft, sccs_fattebert_gygi, sic_ad, sic_eo, &
         sic_list_all, sic_list_unpaired, sic_mauri_spz, sic_mauri_us, sic_none, slater, &
-        tddfpt_excitations, use_mom_ref_user, xas_dip_len
+        tddfpt_excitations, tddfpt_kernel_stda, use_mom_ref_user, xas_dip_len
    USE input_cp2k_check,                ONLY: xc_functionals_expand
    USE input_cp2k_dft,                  ONLY: create_dft_section
    USE input_enumeration_types,         ONLY: enum_i2c,&
@@ -208,6 +208,8 @@ CONTAINS
                dft_control%auto_basis_aux_fit = isize
             CASE ("LRI_AUX")
                dft_control%auto_basis_lri_aux = isize
+            CASE ("P_LRI_AUX")
+               dft_control%auto_basis_p_lri_aux = isize
             CASE ("RI_HXC")
                dft_control%auto_basis_ri_hxc = isize
             CASE ("RI_XAS")
@@ -1241,9 +1243,13 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'read_tddfpt2_control'
 
-      INTEGER                                            :: handle
+      CHARACTER(LEN=default_string_length), &
+         DIMENSION(:), POINTER                           :: tmpstringlist
+      INTEGER                                            :: handle, irep, isize, nrep
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: inds
-      LOGICAL                                            :: explicit, multigrid_set
+      LOGICAL                                            :: do_ewald, do_exchange, expl, explicit, &
+                                                            multigrid_set
+      REAL(KIND=dp)                                      :: filter, hfx
       TYPE(section_vals_type), POINTER                   :: dipole_section, mgrid_section, &
                                                             stda_section, xc_func, xc_section
 
@@ -1267,7 +1273,45 @@ CONTAINS
 
       CALL section_vals_val_get(t_section, "RESTART", l_val=t_control%is_restart)
       CALL section_vals_val_get(t_section, "RKS_TRIPLETS", l_val=t_control%rks_triplets)
+      CALL section_vals_val_get(t_section, "DO_LRIGPW", l_val=t_control%do_lrigpw)
       CALL section_vals_val_get(t_section, "ADMM_KERNEL_CORRECTION_SYMMETRIC", l_val=t_control%admm_symm)
+
+      t_control%do_response_now = .FALSE. ! logical to control that update of response density is distinguished
+      ! from update of GS density, necessary for flex kernel
+
+      ! read automatically generated auxiliary basis for LRI
+      CALL section_vals_val_get(t_section, "AUTO_BASIS", n_rep_val=nrep)
+      DO irep = 1, nrep
+         CALL section_vals_val_get(t_section, "AUTO_BASIS", i_rep_val=irep, c_vals=tmpstringlist)
+         IF (SIZE(tmpstringlist) == 2) THEN
+            CALL uppercase(tmpstringlist(2))
+            SELECT CASE (tmpstringlist(2))
+            CASE ("X")
+               isize = -1
+            CASE ("SMALL")
+               isize = 0
+            CASE ("MEDIUM")
+               isize = 1
+            CASE ("LARGE")
+               isize = 2
+            CASE ("HUGE")
+               isize = 3
+            CASE DEFAULT
+               CPABORT("Unknown basis size in AUTO_BASIS keyword:"//TRIM(tmpstringlist(1)))
+            END SELECT
+            !
+            SELECT CASE (tmpstringlist(1))
+            CASE ("X")
+            CASE ("P_LRI_AUX")
+               t_control%auto_basis_p_lri_aux = isize
+            CASE DEFAULT
+               CPABORT("Unknown basis type in AUTO_BASIS keyword:"//TRIM(tmpstringlist(1)))
+            END SELECT
+         ELSE
+            CALL cp_abort(__LOCATION__, &
+                          "AUTO_BASIS keyword in &PROPERTIES &TDDFT section has a wrong number of arguments.")
+         END IF
+      END DO
 
       IF (t_control%conv < 0) &
          t_control%conv = ABS(t_control%conv)
@@ -1357,15 +1401,22 @@ CONTAINS
 
       ! sTDA subsection
       stda_section => section_vals_get_subs_vals(t_section, "STDA")
-      CALL section_vals_get(stda_section, explicit=explicit)
-      IF (explicit) THEN
-         CALL section_vals_val_get(stda_section, "HFX_FRACTION", r_val=t_control%stda_control%hfx_fraction)
-         CALL section_vals_val_get(stda_section, "EPS_TD_FILTER", r_val=t_control%stda_control%eps_td_filter)
-         CALL section_vals_val_get(stda_section, "DO_EWALD", l_val=t_control%stda_control%do_ewald)
-      ELSE
+      IF (t_control%kernel == tddfpt_kernel_stda) THEN
          t_control%stda_control%hfx_fraction = 0.0_dp
+         t_control%stda_control%do_exchange = .TRUE.
          t_control%stda_control%eps_td_filter = 1.e-10_dp
          t_control%stda_control%do_ewald = .FALSE.
+      END IF
+      CALL section_vals_get(stda_section, explicit=explicit)
+      IF (explicit) THEN
+         CALL section_vals_val_get(stda_section, "HFX_FRACTION", r_val=hfx, explicit=expl)
+         IF (expl) t_control%stda_control%hfx_fraction = hfx
+         CALL section_vals_val_get(stda_section, "EPS_TD_FILTER", r_val=filter, explicit=expl)
+         IF (expl) t_control%stda_control%eps_td_filter = filter
+         CALL section_vals_val_get(stda_section, "DO_EWALD", l_val=do_ewald, explicit=expl)
+         IF (expl) t_control%stda_control%do_ewald = do_ewald
+         CALL section_vals_val_get(stda_section, "DO_EXCHANGE", l_val=do_exchange, explicit=expl)
+         IF (expl) t_control%stda_control%do_exchange = do_exchange
       END IF
 
       CALL timestop(handle)
