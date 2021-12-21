@@ -957,7 +957,14 @@ ifneq (0,$(MKL))
         -Wl,--end-group
     endif
   endif
-  LIBS += -Wl,--as-needed -lpthread -lm -ldl -Wl,--no-as-needed
+  LIBS += -Wl,--as-needed
+  LIBS += -lpthread -ldl
+  ifneq (0,$(INTEL))
+    LIBS += -limf
+  else
+    LIBS += -lm
+  endif
+  LIBS += -Wl,--no-as-needed
 endif
 
 ifneq (0,$(LEGACY))
