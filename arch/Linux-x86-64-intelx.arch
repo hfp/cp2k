@@ -6,7 +6,7 @@ CPP           = $(NULL)
 ACC           = $(NULL)
 OFFLOAD_CC    = $(NULL)
 OFFLOAD_FLAGS = $(NULL)
-DFLAGS        = -D__NO_IPI_DRIVER
+DFLAGS        = -D__NO_IPI_DRIVER -D__DBCSR_DISABLE_WORKSHARE
 CFLAGS        = -std=c99
 IFLAGS        = $(NULL)
 CXXFLAGS      = $(NULL)
