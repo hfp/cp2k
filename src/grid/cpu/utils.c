@@ -41,7 +41,7 @@ void dgemm_simplified(dgemm_params *const m) {
   if (m == NULL)
     abort();
 
-#if defined(__LIBXSMM)
+#if defined(__LIBXSMM) && 0
   if (m->use_libxsmm && m->op2 == 'N') {
     /* we are in row major but xsmm is in column major */
     m->prefetch = LIBXSMM_PREFETCH_AUTO;
@@ -106,7 +106,7 @@ void batched_dgemm_simplified(dgemm_params *const m, const int batch_size) {
   assert(m != NULL);
   assert(batch_size > 0);
 
-#if defined(__LIBXSMM)
+#if defined(__LIBXSMM) && 0
   if (m->use_libxsmm && m->op2 == 'N') {
     /* we are in row major but xsmm is in column major */
     m->prefetch = LIBXSMM_PREFETCH_AUTO;
