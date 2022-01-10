@@ -73,10 +73,15 @@ case "$with_elpa" in
         patch -p1 < "${patch}"
       done
 
+      enable_openmp="yes"
+
       # specific settings needed on CRAY Linux Environment
       if [ "$ENABLE_CRAY" = "__TRUE__" ]; then
-        # extra LDFLAGS needed
-        cray_ldflags="-dynamic"
+        if [ ${CRAY_PRGENVCRAY} ]; then
+          # extra LDFLAGS needed
+          cray_ldflags="-dynamic"
+        fi
+        enable_openmp="no"
       fi
 
       # ELPA-2017xxxx enables AVX2 by default, switch off if machine doesn't support it.
@@ -109,12 +114,12 @@ case "$with_elpa" in
         cd "build_${TARGET}"
         ../configure --prefix="${pkg_install_dir}/${TARGET}/" \
           --libdir="${pkg_install_dir}/${TARGET}/lib" \
-          --enable-openmp=yes \
+          --enable-openmp=${enable_openmp} \
           --enable-shared=no \
           --enable-static=yes \
           ${config_flags} \
           --enable-nvidia-gpu=$([ "$TARGET" == "nvidia" ] && echo "yes" || echo "no") \
-          --with-cuda-path=${CUDA_PATH} \
+          --with-cuda-path=${CUDA_PATH:-${CUDA_HOME:-/CUDA_HOME-notset}} \
           --with-NVIDIA-GPU-compute-capability=$([ "$TARGET" == "nvidia" ] && echo "sm_$ARCH_NUM" || echo "sm_35") \
           CUDA_CFLAGS="-std=c++14 -allow-unsupported-compiler" \
           OMPI_MCA_plm_rsh_agent=/bin/false \

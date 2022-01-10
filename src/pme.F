@@ -1,6 +1,6 @@
 !--------------------------------------------------------------------------------------------------!
 !   CP2K: A general program to perform molecular dynamics simulations                              !
-!   Copyright 2000-2021 CP2K developers group <https://cp2k.org>                                   !
+!   Copyright 2000-2022 CP2K developers group <https://cp2k.org>                                   !
 !                                                                                                  !
 !   SPDX-License-Identifier: GPL-2.0-or-later                                                      !
 !--------------------------------------------------------------------------------------------------!
@@ -171,11 +171,11 @@ CONTAINS
       CALL rs_grid_zero(rden)
 
       IF (rden%desc%parallel .AND. rden%desc%distributed) THEN
-         CALL get_center(particle_set, box, exp_igr%centre, grid_b%npts, 1)
+         CALL get_center(particle_set, box, exp_igr%centre, exp_igr%delta, grid_b%npts, 1)
       END IF
       IF (PRESENT(shell_particle_set) .AND. rden%desc%parallel .AND. rden%desc%distributed) THEN
-         CALL get_center(shell_particle_set, box, exp_igr%shell_centre, grid_b%npts, 1)
-         CALL get_center(core_particle_set, box, exp_igr%core_centre, grid_b%npts, 1)
+         CALL get_center(shell_particle_set, box, exp_igr%shell_centre, exp_igr%shell_delta, grid_b%npts, 1)
+         CALL get_center(core_particle_set, box, exp_igr%core_centre, exp_igr%core_delta, grid_b%npts, 1)
       END IF
 
       !-------------- DENSITY CALCULATION ----------------
