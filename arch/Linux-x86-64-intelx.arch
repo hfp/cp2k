@@ -1035,6 +1035,10 @@ ifneq (,$(filter-out 0,$(OCL) $(CUDA)))
           LIBS += -lcufft
         endif
         NVCFLAGS := $(addprefix -Xcompiler $(NULL),$(filter-out -Wl%,$(OPTFLAGS)))
+        ifneq (0,$(SYM))
+          ACCFLAGS += -g
+          NVFLAGS += -g
+        endif
         ACCFLAGS += $(NVCFLAGS) $(DFLAGS)
         NVFLAGS += $(NVCFLAGS) $(DFLAGS)
         USE_ACCEL := cuda
