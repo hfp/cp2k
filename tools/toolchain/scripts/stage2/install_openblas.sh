@@ -63,10 +63,11 @@ case "$with_openblas" in
           NUM_THREADS=64 \
           USE_THREAD=1 \
           USE_OPENMP=1 \
+          NO_AFFINITY=1 \
           CC="${CC}" \
           FC="${FC}" \
           PREFIX="${pkg_install_dir}" \
-          > make.generic.log 2>&1
+          > make.generic.log 2>&1 || tail -n ${LOG_LINES} make.generic.log
       else
         (
           make -j $(get_nprocs) \
@@ -74,10 +75,11 @@ case "$with_openblas" in
             NUM_THREADS=64 \
             USE_THREAD=1 \
             USE_OPENMP=1 \
+            NO_AFFINITY=1 \
             CC="${CC}" \
             FC="${FC}" \
             PREFIX="${pkg_install_dir}" \
-            > make.log 2>&1
+            > make.log 2>&1 || tail -n ${LOG_LINES} make.log
         ) || (
           make -j $(get_nprocs) \
             MAKE_NB_JOBS=0 \
@@ -85,10 +87,11 @@ case "$with_openblas" in
             NUM_THREADS=64 \
             USE_THREAD=1 \
             USE_OPENMP=1 \
+            NO_AFFINITY=1 \
             CC="${CC}" \
             FC="${FC}" \
             PREFIX="${pkg_install_dir}" \
-            > make.nehalem.log 2>&1
+            > make.nehalem.log 2>&1 || tail -n ${LOG_LINES} make.nehalem.log
         )
       fi
       make -j $(get_nprocs) \
@@ -96,10 +99,11 @@ case "$with_openblas" in
         NUM_THREADS=64 \
         USE_THREAD=1 \
         USE_OPENMP=1 \
+        NO_AFFINITY=1 \
         CC="${CC}" \
         FC="${FC}" \
         PREFIX="${pkg_install_dir}" \
-        install > install.log 2>&1
+        install > install.log 2>&1 || tail -n ${LOG_LINES} install.log
       cd ..
       write_checksums "${install_lock_file}" "${SCRIPT_DIR}/stage2/$(basename ${SCRIPT_NAME})"
     fi
