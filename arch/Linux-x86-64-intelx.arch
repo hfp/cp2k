@@ -7,7 +7,8 @@ ACC           = $(NULL)
 OFFLOAD_CC    = $(NULL)
 OFFLOAD_FLAGS = $(NULL)
 DFLAGS        = -D__NO_IPI_DRIVER -D__DBCSR_DISABLE_WORKSHARE
-CFLAGS        = -std=c99
+CSTD          = -std=c99
+CFLAGS        = $(CSTD)
 IFLAGS        = $(NULL)
 CXXFLAGS      = $(NULL)
 FCFLAGS       = $(NULL)
@@ -1079,6 +1080,9 @@ IFLAGS := $(call cleanup,$(IFLAGS))
 OFFLOAD_TARGET := $(USE_ACCEL)
 OFFLOAD_FLAGS := $(ACCFLAGS)
 OFFLOAD_CC := $(ACC)
+
+dbm_miniapp.o: dbm_miniapp.c $(ALL_HEADERS)
+	$(CC) -c $(filter-out $(CSTD),$(CFLAGS)) $<
 
 # filter-out override_limits flag since IFORT can run out of memory (SIGKILL)
 ifeq (1,$(INTEL))
