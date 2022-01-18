@@ -428,7 +428,7 @@ CONTAINS
                IF (.NOT. lr_triplet) THEN
                   v_hartree_rspace%pw%cr3d = v_hartree_rspace%pw%cr3d* &
                                              v_hartree_rspace%pw%pw_grid%dvol
-                  v_rspace_new(1)%pw%cr3d = v_rspace_new(1)%pw%cr3d+ &
+                  v_rspace_new(1)%pw%cr3d = v_rspace_new(1)%pw%cr3d + &
                                             2.0_dp*v_hartree_rspace%pw%cr3d
                END IF
             ELSE
@@ -436,7 +436,7 @@ CONTAINS
                   v_hartree_rspace%pw%cr3d = v_hartree_rspace%pw%cr3d* &
                                              v_hartree_rspace%pw%pw_grid%dvol
                END IF
-               v_rspace_new(ispin)%pw%cr3d = v_rspace_new(ispin)%pw%cr3d+ &
+               v_rspace_new(ispin)%pw%cr3d = v_rspace_new(ispin)%pw%cr3d + &
                                              v_hartree_rspace%pw%cr3d
             END IF
 

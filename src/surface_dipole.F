@@ -272,7 +272,7 @@ CONTAINS
       END IF
 
 !    Add the dipole potential to the hartree potential on the realspace grid
-      v_hartree_rspace%cr3d = v_hartree_rspace%cr3d+vdip_r%pw%cr3d
+      v_hartree_rspace%cr3d = v_hartree_rspace%cr3d + vdip_r%pw%cr3d
 
       CALL pw_pool_give_back_pw(auxbas_pw_pool, wf_r%pw)
       CALL pw_pool_give_back_pw(auxbas_pw_pool, vdip_r%pw)

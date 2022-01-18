@@ -31,10 +31,10 @@ MODULE xas_tdp_integrals
    USE dbcsr_api, ONLY: dbcsr_distribution_get, &
                         dbcsr_distribution_release, &
                         dbcsr_distribution_type
-   USE dbt_api,                         ONLY: &
-        dbt_create, dbt_distribution_destroy, dbt_distribution_new, dbt_distribution_type, &
-        dbt_finalize, dbt_pgrid_create, dbt_pgrid_destroy, dbt_pgrid_type, dbt_put_block, &
-        dbt_reserve_blocks, dbt_type
+   USE dbt_api, ONLY: &
+      dbt_create, dbt_distribution_destroy, dbt_distribution_new, dbt_distribution_type, &
+      dbt_finalize, dbt_pgrid_create, dbt_pgrid_destroy, dbt_pgrid_type, dbt_put_block, &
+      dbt_reserve_blocks, dbt_type
    USE distribution_1d_types, ONLY: distribution_1d_type
    USE distribution_2d_types, ONLY: distribution_2d_create, &
                                     distribution_2d_type
@@ -173,11 +173,11 @@ CONTAINS
 
       nblk_3 = SIZE(blk_size_3)
       CALL dbt_distribution_new(t_dist, t_pgrid, nd_dist_1=row_dist, nd_dist_2=col_dist, &
-                                    nd_dist_3=[(0, i=1, nblk_3)])
+                                nd_dist_3=[(0, i=1, nblk_3)])
 
       !create the tensor itself.
       CALL dbt_create(pq_X, name="(pq|X)", dist=t_dist, map1_2d=[1, 2], map2_2d=[3], &
-                          blk_size_1=blk_size_1, blk_size_2=blk_size_2, blk_size_3=blk_size_3)
+                      blk_size_1=blk_size_1, blk_size_2=blk_size_2, blk_size_3=blk_size_3)
 
       !count the blocks to reserve !note: dbcsr takes care of only keeping unique indices
       CALL neighbor_list_iterator_create(ab_iter, ab_nl)

@@ -29,14 +29,14 @@ MODULE cp_linked_list_xc_deriv
 !> \param el2 ...
 !> \return ...
 ! **************************************************************************************************
-   function cp_sll_deriv_less_q(el1, el2) result(res)
-      type(xc_derivative_type), INTENT(IN) :: el1, el2
-      logical :: res
+         function cp_sll_deriv_less_q(el1, el2) result(res)
+            type(xc_derivative_type), INTENT(IN) :: el1, el2
+            logical :: res
 
-      CPASSERT(associated(el1%split_desc))
-      CPASSERT(associated(el2%split_desc))
+            CPASSERT(associated(el1%split_desc))
+            CPASSERT(associated(el2%split_desc))
      res = size(el1%split_desc) < size(el2%split_desc) .or. (size(el1%split_desc) == size(el2%split_desc) .and. el1%desc < el2%desc)
-   end function
+         end function
       #:enddef
 
       #:set private_routines = get_private_routines()

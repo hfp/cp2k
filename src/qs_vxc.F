@@ -432,9 +432,9 @@ CONTAINS
 
             ! and take care of the potential only vxc_rho is taken into account
             IF (.NOT. my_just_energy) THEN
-               vxc_rho(1)%pw%cr3d = vxc_rho(1)%pw%cr3d-dft_control%sic_scaling_b* &
+               vxc_rho(1)%pw%cr3d = vxc_rho(1)%pw%cr3d - dft_control%sic_scaling_b* &
                                     my_vxc_rho(1)%pw%cr3d
-               vxc_rho(2)%pw%cr3d = vxc_rho(2)%pw%cr3d+dft_control%sic_scaling_b* &
+               vxc_rho(2)%pw%cr3d = vxc_rho(2)%pw%cr3d + dft_control%sic_scaling_b* &
                                     my_vxc_rho(1)%pw%cr3d ! 1=m
                CALL pw_release(my_vxc_rho(1)%pw)
                CALL pw_release(my_vxc_rho(2)%pw)
@@ -504,7 +504,7 @@ CONTAINS
 
                ! and take care of the potential only vxc_rho is taken into account
                IF (.NOT. my_just_energy) THEN
-                  vxc_rho(ispin)%pw%cr3d = vxc_rho(ispin)%pw%cr3d-dft_control%sic_scaling_b* &
+                  vxc_rho(ispin)%pw%cr3d = vxc_rho(ispin)%pw%cr3d - dft_control%sic_scaling_b* &
                                            my_vxc_rho(1)%pw%cr3d
                   CALL pw_release(my_vxc_rho(1)%pw)
                   CALL pw_release(my_vxc_rho(2)%pw)
@@ -550,7 +550,7 @@ CONTAINS
             ! and take care of the potential
             IF (.NOT. my_just_energy) THEN
                ! both go to minority spin
-               vxc_rho(2)%pw%cr3d = vxc_rho(2)%pw%cr3d+ &
+               vxc_rho(2)%pw%cr3d = vxc_rho(2)%pw%cr3d + &
                                     2.0_dp*dft_control%sic_scaling_b*my_vxc_rho(1)%pw%cr3d
                CALL pw_release(my_vxc_rho(1)%pw)
                CALL pw_release(my_vxc_rho(2)%pw)

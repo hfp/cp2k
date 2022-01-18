@@ -1017,7 +1017,7 @@ CONTAINS
 
       NULLIFY (hf_sub_section)
 
-      ASSOCIATE (hfx_pot=>ri_data%hfx_pot)
+      ASSOCIATE (hfx_pot => ri_data%hfx_pot)
          hfx_pot%potential_type = x_data%potential_parameter%potential_type
          hfx_pot%omega = x_data%potential_parameter%omega
          hfx_pot%cutoff_radius = x_data%potential_parameter%cutoff_radius
@@ -1108,7 +1108,7 @@ CONTAINS
       ri_data%filter_eps_storage = ri_data%filter_eps*eps_storage_scaling
       CALL section_vals_val_get(ri_section, "EPS_FILTER_MO", r_val=ri_data%filter_eps_mo)
 
-      ASSOCIATE (ri_metric=>ri_data%ri_metric, hfx_pot=>ri_data%hfx_pot)
+      ASSOCIATE (ri_metric => ri_data%ri_metric, hfx_pot => ri_data%hfx_pot)
          CALL section_vals_val_get(ri_section, "RI_METRIC", i_val=ri_metric%potential_type, explicit=explicit)
          IF (.NOT. explicit .OR. ri_metric%potential_type == 0) THEN
             ri_metric%potential_type = hfx_pot%potential_type
@@ -1206,7 +1206,7 @@ CONTAINS
       nkind = SIZE(qs_kind_set, 1)
       CALL mp_environ(nproc, iproc, para_env%group)
 
-      ASSOCIATE (ri_metric=>ri_data%ri_metric, hfx_pot=>ri_data%hfx_pot)
+      ASSOCIATE (ri_metric => ri_data%ri_metric, hfx_pot => ri_data%hfx_pot)
          IF (ri_metric%potential_type == do_potential_short) THEN
             CALL erfc_cutoff(ri_data%eps_schwarz, ri_metric%omega, ri_metric%cutoff_radius)
          END IF
@@ -1405,8 +1405,8 @@ CONTAINS
 
       REAL(dp)                                           :: my_flop_rate
 
-      ASSOCIATE (unit_nr=>ri_data%unit_nr, dbcsr_nflop=>ri_data%dbcsr_nflop, &
-                 dbcsr_time=>ri_data%dbcsr_time, num_pe=>ri_data%num_pe)
+      ASSOCIATE (unit_nr => ri_data%unit_nr, dbcsr_nflop => ri_data%dbcsr_nflop, &
+                 dbcsr_time => ri_data%dbcsr_time, num_pe => ri_data%num_pe)
          my_flop_rate = REAL(dbcsr_nflop, dp)/(1.0E09_dp*ri_data%dbcsr_time)
          IF (unit_nr > 0) WRITE (UNIT=unit_nr, FMT="(/T2,A,T73,ES8.2)") &
             "RI-HFX PERFORMANCE| DBCSR total number of flops:", REAL(dbcsr_nflop*num_pe, dp)
@@ -2567,7 +2567,7 @@ CONTAINS
 
       IF (iw > 0) THEN
 
-         ASSOCIATE (ri_metric=>ri_data%ri_metric, hfx_pot=>ri_data%hfx_pot)
+         ASSOCIATE (ri_metric => ri_data%ri_metric, hfx_pot => ri_data%hfx_pot)
             SELECT CASE (ri_metric%potential_type)
             CASE (do_potential_coulomb)
                WRITE (UNIT=iw, FMT="(/T3,A,T74,A)") &

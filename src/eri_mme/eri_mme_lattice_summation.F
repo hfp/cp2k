@@ -760,21 +760,21 @@ CONTAINS
       ELSE
          #:for l_max in range(0,lmax_unroll+1)
          IF (l_max == ${l_max}$) THEN
-               #:for m_max in range(0,lmax_unroll+1)
-            IF (m_max == ${m_max}$) THEN
-                     #:for n_max in range(0, lmax_unroll+1)
-               IF (n_max == ${n_max}$) THEN
-                           #:for prop_exp in range(0,2)
-                  IF (prop_exp == ${prop_exp}$) THEN
-                     CALL pgf_sum_3c_rspace_1d_${l_max}$_${m_max}$_${n_max}$_exp_${prop_exp}$ (S_G, RA, RB, RC, &
+            #:for m_max in range(0,lmax_unroll+1)
+               IF (m_max == ${m_max}$) THEN
+                  #:for n_max in range(0, lmax_unroll+1)
+                     IF (n_max == ${n_max}$) THEN
+                        #:for prop_exp in range(0,2)
+                           IF (prop_exp == ${prop_exp}$) THEN
+                              CALL pgf_sum_3c_rspace_1d_${l_max}$_${m_max}$_${n_max}$_exp_${prop_exp}$ (S_G, RA, RB, RC, &
                                                                                            zeta, zetb, zetc, a_mm, lgth, R_bounds_3)
-                     RETURN
-                  END IF
-                           #:endfor
+                              RETURN
+                           END IF
+                        #:endfor
+                     END IF
+                  #:endfor
                END IF
-                     #:endfor
-            END IF
-               #:endfor
+            #:endfor
          END IF
          #:endfor
       END IF
@@ -976,127 +976,127 @@ CONTAINS
          #:for m_max in range(0, lmax_unroll+1)
             #:for n_max in range(0, lmax_unroll+1)
                #:set l_tot_max = l_max + m_max + n_max
-   PURE SUBROUTINE pgf_sum_3c_rspace_1d_${l_max}$_${m_max}$_${n_max}$_exp_${prop_exp}$ ( &
-      S_R, RA, RB, RC, zeta, zetb, zetc, a_mm, lgth, R_c)
-      REAL(KIND=dp), DIMENSION(0:, 0:, 0:), INTENT(OUT)  :: S_R
-      REAL(KIND=dp), INTENT(IN)                          :: RA, RB, RC, zeta, zetb, zetc, a_mm, lgth
-      REAL(KIND=dp), DIMENSION(2), INTENT(IN)            :: R_c
-      INTEGER                                            :: rr1, rr2, rr2_l, rr2_r, rr1_l, rr1_r
-      REAL(KIND=dp)                                      :: alpha, alpha_E, dR, exp2_Rsq, R, R1, R_offset, &
-                                                            R_pow_t, R_tmp, rr1_delta, rr2_delta
+               PURE SUBROUTINE pgf_sum_3c_rspace_1d_${l_max}$_${m_max}$_${n_max}$_exp_${prop_exp}$ ( &
+                  S_R, RA, RB, RC, zeta, zetb, zetc, a_mm, lgth, R_c)
+                  REAL(KIND=dp), DIMENSION(0:, 0:, 0:), INTENT(OUT)  :: S_R
+                  REAL(KIND=dp), INTENT(IN)                          :: RA, RB, RC, zeta, zetb, zetc, a_mm, lgth
+                  REAL(KIND=dp), DIMENSION(2), INTENT(IN)            :: R_c
+                  INTEGER                                            :: rr1, rr2, rr2_l, rr2_r, rr1_l, rr1_r
+                  REAL(KIND=dp)                                      :: alpha, alpha_E, dR, exp2_Rsq, R, R1, R_offset, &
+                                                                        R_pow_t, R_tmp, rr1_delta, rr2_delta
 
                   #:if l_tot_max > 0
-      REAL(KIND=dp)                                      :: c1, c2, c3
+                     REAL(KIND=dp)                                      :: c1, c2, c3
                   #:endif
-      REAL(KIND=dp) :: ${", ".join(["S_R_t_{}".format(t) for t in range(0,l_tot_max+1)])}$
-      REAL(KIND=dp) :: ${", ".join(["S_R_t2_{}".format(t) for t in range(0,l_tot_max+1)])}$
+                  REAL(KIND=dp) :: ${", ".join(["S_R_t_{}".format(t) for t in range(0,l_tot_max+1)])}$
+                  REAL(KIND=dp) :: ${", ".join(["S_R_t2_{}".format(t) for t in range(0,l_tot_max+1)])}$
   REAL(KIND=dp) :: ${", ".join([", ".join(["h_to_c_{}_{}".format(l1,l2) for l1 in range(0,l2+1)]) for l2 in range(0,l_tot_max+1)])}$
       REAL(KIND=dp) :: ${", ".join([", ".join([", ".join(["E_{}_{}_{}".format(t,l,m) for t in range(0,l+m+1)]) for l in range(0,l_max+1)]) for m in range(0,m_max+1)])}$
 
                   #:if prop_exp
-      REAL(KIND=dp) :: exp2_2RdR, exp_dRsq, exp_2dRsq !exp_E_dRsq, exp_E_2dRsq, exp_E_2RdR, exp_E_Rsq
+                     REAL(KIND=dp) :: exp2_2RdR, exp_dRsq, exp_2dRsq !exp_E_dRsq, exp_E_2dRsq, exp_E_2RdR, exp_E_Rsq
                   #:endif
 
-      dR = lgth
-      alpha = 1.0_dp/((zeta + zetb + zetc)/((zeta + zetb)*zetc) + 4.0_dp*a_mm)
+                  dR = lgth
+                  alpha = 1.0_dp/((zeta + zetb + zetc)/((zeta + zetb)*zetc) + 4.0_dp*a_mm)
 
-      S_R(:, :, :) = 0.0_dp
+                  S_R(:, :, :) = 0.0_dp
 
-      R_offset = RC - (zeta*RA + zetb*RB)/(zeta + zetb)
+                  R_offset = RC - (zeta*RA + zetb*RB)/(zeta + zetb)
 
-      h_to_c_0_0 = SQRT(alpha/pi)
+                  h_to_c_0_0 = SQRT(alpha/pi)
 
                   #:for l in range(0, l_tot_max)
                      #:for k in range(0, l+2)
                         #:if k<l or k>0
-      h_to_c_${k}$_${l+1}$ = #{if k<l}#-${k+1}$*h_to_c_${k+1}$_${l}$#{endif}# #{if k > 0}#+2*alpha*h_to_c_${k-1}$_${l}$#{endif}#
+                           h_to_c_${k}$_${l+1}$ = #{if k<l}#-${k+1}$*h_to_c_${k+1}$_${l}$#{endif}# #{if k > 0}#+2*alpha*h_to_c_${k-1}$_${l}$#{endif}#
                         #:else
-      h_to_c_${k}$_${l+1}$ = 0.0_dp
+                           h_to_c_${k}$_${l+1}$ = 0.0_dp
                         #:endif
                      #:endfor
                   #:endfor
 
                   #:if prop_exp
-      exp_dRsq = exp(-alpha*dR*dR)
-      exp_2dRsq = exp_dRsq*exp_dRsq
+                     exp_dRsq = exp(-alpha*dR*dR)
+                     exp_2dRsq = exp_dRsq*exp_dRsq
                   #:endif
 
-      rr1_delta = (RA - RB)/dR
+                  rr1_delta = (RA - RB)/dR
 
-      rr1_l = CEILING(-R_c(1) + rr1_delta)
-      rr1_r = FLOOR(R_c(1) + rr1_delta)
+                  rr1_l = CEILING(-R_c(1) + rr1_delta)
+                  rr1_r = FLOOR(R_c(1) + rr1_delta)
 
-      R1 = rr1_l*dR
+                  R1 = rr1_l*dR
 
-      alpha_E = zeta*zetb/(zeta + zetb)
+                  alpha_E = zeta*zetb/(zeta + zetb)
 
-      DO rr1 = rr1_l, rr1_r
+                  DO rr1 = rr1_l, rr1_r
                      #:for t in range(0, l_tot_max + 1)
-         S_R_t_${t}$ = 0.0_dp
-         S_R_t2_${t}$ = 0.0_dp
+                        S_R_t_${t}$ = 0.0_dp
+                        S_R_t2_${t}$ = 0.0_dp
                      #:endfor
-         R_tmp = R_offset + R1*zeta/(zeta + zetb)
-         rr2_delta = -R_tmp/dR
+                     R_tmp = R_offset + R1*zeta/(zeta + zetb)
+                     rr2_delta = -R_tmp/dR
 
-         rr2_l = CEILING(-R_c(2) + rr2_delta)
-         rr2_r = FLOOR(R_c(2) + rr2_delta)
+                     rr2_l = CEILING(-R_c(2) + rr2_delta)
+                     rr2_r = FLOOR(R_c(2) + rr2_delta)
 
-         R = R_tmp + (rr2_l)*dR
+                     R = R_tmp + (rr2_l)*dR
 
                      #:if prop_exp
-         exp2_2RdR = exp(-2*alpha*R*dR)
-         exp2_Rsq = exp(-alpha*R*R)
+                        exp2_2RdR = exp(-2*alpha*R*dR)
+                        exp2_Rsq = exp(-alpha*R*R)
                      #:endif
 
-         DO rr2 = rr2_l, rr2_r
-            R_pow_t = 1.0_dp
+                     DO rr2 = rr2_l, rr2_r
+                        R_pow_t = 1.0_dp
                         #:if not prop_exp
-            exp2_Rsq = exp(-alpha*R*R)
+                           exp2_Rsq = exp(-alpha*R*R)
                         #:endif
                         #:for t in range(0, l_tot_max + 1)
-            S_R_t_${t}$ = S_R_t_${t}$+R_pow_t*exp2_Rsq
+                           S_R_t_${t}$ = S_R_t_${t}$+R_pow_t*exp2_Rsq
                            #:if t<l_tot_max
-            R_pow_t = R_pow_t*R
+                              R_pow_t = R_pow_t*R
                            #:endif
                         #:endfor
 
                         #:if prop_exp
-            exp2_Rsq = exp2_Rsq*exp_dRsq*exp2_2RdR
-            exp2_2RdR = exp2_2RdR*exp_2dRsq
+                           exp2_Rsq = exp2_Rsq*exp_dRsq*exp2_2RdR
+                           exp2_2RdR = exp2_2RdR*exp_2dRsq
                         #:endif
-            R = R + dR
-         END DO
+                        R = R + dR
+                     END DO
 
-         ! C --> H
+                     ! C --> H
                      #:for l in range(0, l_tot_max+1)
                         #:for k in range(0, l+1)
-         S_R_t2_${l}$ = S_R_t2_${l}$+h_to_c_${k}$_${l}$*S_R_t_${k}$
+                           S_R_t2_${l}$ = S_R_t2_${l}$+h_to_c_${k}$_${l}$*S_R_t_${k}$
                         #:endfor
                      #:endfor
 
-         ! H --> HH
-         E_0_0_0 = exp(-alpha_E*(RA - RB - R1)*(RA - RB - R1))
+                     ! H --> HH
+                     E_0_0_0 = exp(-alpha_E*(RA - RB - R1)*(RA - RB - R1))
 
                      #:if l_tot_max > 0
-         c1 = 1.0_dp/(zeta + zetb)
-         c2 = 2.0_dp*(zetb/(zeta + zetb))*(RB - (RA - R1))
-         c3 = 2.0_dp*(zeta/(zeta + zetb))*(RA - R1 - RB)
+                        c1 = 1.0_dp/(zeta + zetb)
+                        c2 = 2.0_dp*(zetb/(zeta + zetb))*(RB - (RA - R1))
+                        c3 = 2.0_dp*(zeta/(zeta + zetb))*(RA - R1 - RB)
                      #:endif
 
                      #:for m in range(0,m_max+1)
                         #:for l in range(0,l_max+1)
                            #:for t in range(0,l+m+2)
                               #:if l < l_max
-         E_${t}$_${l+1}$_${m}$ = zeta*(#{if t>0}# c1*E_${t-1}$_${l}$_${m}$#{endif}# &
-         #{if t<=l+m}# +c2*E_${t}$_${l}$_${m}$&#{endif}#
-         #{if t<l+m}# +${2*(t+1)}$*E_${t+1}$_${l}$_${m}$ &#{endif}#
-         #{if l>0 and t<=l-1+m}#-${2*l}$*E_${t}$_${l-1}$_${m}$#{endif}#)
+                                 E_${t}$_${l+1}$_${m}$ = zeta*(#{if t>0}# c1*E_${t-1}$_${l}$_${m}$#{endif}# &
+                                 #{if t<=l+m}# +c2*E_${t}$_${l}$_${m}$&#{endif}#
+                                 #{if t<l+m}# +${2*(t+1)}$*E_${t+1}$_${l}$_${m}$ &#{endif}#
+                                 #{if l>0 and t<=l-1+m}#-${2*l}$*E_${t}$_${l-1}$_${m}$#{endif}#)
                               #:endif
                               #:if m < m_max
-         E_${t}$_${l}$_${m+1}$ = zetb*(#{if t>0}# c1*E_${t-1}$_${l}$_${m}$#{endif}# &
-         #{if t<=l+m}#+c3*E_${t}$_${l}$_${m}$&#{endif}#
-         #{if t<l+m}# +${2*(t+1)}$*E_${t+1}$_${l}$_${m}$ &#{endif}#
-         #{if m>0 and t<=m-1+l}#-${2*m}$*E_${t}$_${l}$_${m-1}$#{endif}#)
+                                 E_${t}$_${l}$_${m+1}$ = zetb*(#{if t>0}# c1*E_${t-1}$_${l}$_${m}$#{endif}# &
+                                 #{if t<=l+m}#+c3*E_${t}$_${l}$_${m}$&#{endif}#
+                                 #{if t<l+m}# +${2*(t+1)}$*E_${t+1}$_${l}$_${m}$ &#{endif}#
+                                 #{if m>0 and t<=m-1+l}#-${2*m}$*E_${t}$_${l}$_${m-1}$#{endif}#)
                               #:endif
                            #:endfor
                         #:endfor
@@ -1106,16 +1106,16 @@ CONTAINS
                         #:for m in range(0, m_max+1)
                            #:for l in range(0, l_max+1)
                               #:for t in range(0, l+m+1)
-         S_R(${l}$, ${m}$, ${n}$) = S_R(${l}$, ${m}$, ${n}$) + E_${t}$_${l}$_${m}$*(${(-1)**n}$)*S_R_t2_${t+n}$ ! cost: 5 flops
+              S_R(${l}$, ${m}$, ${n}$) = S_R(${l}$, ${m}$, ${n}$) + E_${t}$_${l}$_${m}$*(${(-1)**n}$)*S_R_t2_${t+n}$ ! cost: 5 flops
                               #:endfor
                            #:endfor
                         #:endfor
                      #:endfor
-         R1 = R1 + dR
-      END DO
+                     R1 = R1 + dR
+                  END DO
 
-      S_R = S_R*pi**(-0.5_dp)*((zeta + zetb)/(zeta*zetb))**(-0.5_dp)
-   END SUBROUTINE
+                  S_R = S_R*pi**(-0.5_dp)*((zeta + zetb)/(zeta*zetb))**(-0.5_dp)
+               END SUBROUTINE
             #:endfor
          #:endfor
       #:endfor

@@ -250,7 +250,7 @@ CONTAINS
             iparticle = local_particles%list(iparticle_kind)%array(iparticle_local)
             IF (do_langevin(iparticle)) THEN
                sigma = var_w(iparticle)*mass
-               ASSOCIATE (rng_stream=>local_particles%local_particle_set(iparticle_kind)% &
+               ASSOCIATE (rng_stream => local_particles%local_particle_set(iparticle_kind)% &
                           rng(iparticle_local))
                   w(1, iparticle) = rng_stream%stream%next(variance=sigma)
                   w(2, iparticle) = rng_stream%stream%next(variance=sigma)

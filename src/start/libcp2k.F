@@ -588,7 +588,7 @@ CONTAINS
          IF (.NOT. ASSOCIATED(active_space_env)) &
             EXIT try
 
-         ASSOCIATE (nze=>active_space_env%eri%eri(1)%csr_mat%nze_total)
+         ASSOCIATE (nze => active_space_env%eri%eri(1)%csr_mat%nze_total)
             IF (buf_coords_len < 4*nze .OR. buf_values_len < nze) &
                EXIT try
 

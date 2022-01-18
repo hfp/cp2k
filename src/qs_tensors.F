@@ -979,9 +979,9 @@ CONTAINS
          ! of the blocks (since neighborlist is symmetric). After filling the blocks,
          ! tensor will be added to its transposed
 
-         ASSOCIATE (ai=>alloc_i(jcell, kcell))
-            ASSOCIATE (aj=>alloc_j(jcell, kcell))
-               ASSOCIATE (ak=>alloc_k(jcell, kcell))
+         ASSOCIATE (ai => alloc_i(jcell, kcell))
+            ASSOCIATE (aj => alloc_j(jcell, kcell))
+               ASSOCIATE (ak => alloc_k(jcell, kcell))
 
                   new_block = .TRUE.
                   IF (ALLOCATED(aj%array)) THEN

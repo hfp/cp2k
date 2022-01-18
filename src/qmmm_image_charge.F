@@ -970,7 +970,7 @@ CONTAINS
       logger => cp_get_default_logger()
 
       !add image charge potential
-      v_hartree%pw%cr3d = v_hartree%pw%cr3d+v_metal%pw%cr3d
+      v_hartree%pw%cr3d = v_hartree%pw%cr3d + v_metal%pw%cr3d
 
       ! print info
       CALL get_qs_env(qs_env=qs_env, &
