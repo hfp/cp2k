@@ -60,8 +60,9 @@ case "$with_gsl" in
     add_include_from_paths GSL_CFLAGS "gsl.h" $INCLUDE_PATHS
     add_lib_from_paths GSL_LDFLAGS "libgsl.*" $LIB_PATHS
     ;;
-  __DONTUSE__) ;;
-
+  __DONTUSE__)
+    # Nothing to do
+    ;;
   *)
     echo "==================== Linking gsl to user paths ===================="
     pkg_install_dir="$with_gsl"
@@ -92,7 +93,7 @@ export CP_DFLAGS="\${CP_DFLAGS} IF_MPI(-D__GSL|)"
 export CP_CFLAGS="\${CP_CFLAGS} ${GSL_CFLAGS}"
 export CP_LDFLAGS="\${CP_LDFLAGS} ${GSL_LDFLAGS}"
 export GSL_LIBRARY="-lgsl"
-export GSLROOT="$pkg_install_dir"
+export GSL_ROOT="$pkg_install_dir"
 export GSL_CBLAS_LIBRARY="-lgslcblas"
 export GSL_INCLUDE_DIR="$pkg_install_dir/include"
 export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$pkg_install_dir/lib64/pkgconfig:$pkg_install_dir/lib/pkgconfig"
