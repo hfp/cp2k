@@ -396,8 +396,8 @@ while [ $# -ge 1 ]; do
           eval with_${ii}="__INSTALL__"
         fi
       done
-      # default mpi-mode to MPICH
-      export MPI_MODE=mpich
+      # Use MPICH as default
+      export MPI_MODE="mpich"
       ;;
     --mpi-mode=*)
       user_input="${1#*=}"
@@ -685,12 +685,35 @@ else
   # if gcc is installed, then mpi needs to be installed too
   if [ "${with_gcc}" = "__INSTALL__" ]; then
     echo "You have chosen to install the GCC compiler, therefore MPI libraries have to be installed too"
-    with_openmpi="__INSTALL__"
-    with_mpich="__INSTALL__"
+    case ${MPI_MODE} in
+      mpich)
+        with_mpich="__INSTALL__"
+        with_openmpi="__DONTUSE__"
+        ;;
+      openmpi)
+        with_mpich="__DONTUSE__"
+        with_openmpi="__INSTALL__"
+        ;;
+    esac
     echo "and the use of the Intel compiler and Intel MPI will be disabled."
     with_intel="__DONTUSE__"
     with_intelmpi="__DONTUSE__"
   fi
+  # Enable only one MPI implementation
+  case ${MPI_MODE} in
+    mpich)
+      with_openmpi="__DONTUSE__"
+      with_intelmpi="__DONTUSE__"
+      ;;
+    openmpi)
+      with_mpich="__DONTUSE__"
+      with_intelmpi="__DONTUSE__"
+      ;;
+    intelmpi)
+      with_mpich="__DONTUSE__"
+      with_openmpi="__DONTUSE__"
+      ;;
+  esac
 fi
 
 # If CUDA or HIP are enabled, make sure the GPU version has been defined.
@@ -923,6 +946,7 @@ done
 if [ "${dry_run}" = "__TRUE__" ]; then
   echo "Wrote only configuration files (--dry-run)."
 else
+  echo "# Leak suppressions" > ${INSTALLDIR}/lsan.supp
   ./scripts/stage0/install_stage0.sh
   ./scripts/stage1/install_stage1.sh
   ./scripts/stage2/install_stage2.sh
