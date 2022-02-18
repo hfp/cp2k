@@ -302,7 +302,7 @@ ifneq (0,$(MPI))
       COSMAROOT := $(abspath $(dir $(COSMAROOT))/..)
     endif
     ifneq (,$(COSMAROOT))
-      LIBS += -L$(COSMAROOT)/lib64 -L$(COSMAROOT)/lib -lcosma -lcosma_pxgemm_cpp -lcosta_scalapack -lcosta
+      LIBS += -L$(COSMAROOT)/lib64 -L$(COSMAROOT)/lib -lcosma -lcosma_pxgemm_cpp -lcosma_prefixed_pxgemm -lcosta_scalapack -lcosta
       DFLAGS += -D__COSMA
       ifneq (,$(NVCC))
         LIBS += -lTiled-MM
