@@ -1,6 +1,6 @@
 #
 # This file was created by generate_dockerfiles.py.
-# Usage: docker build -f ./Dockerfile.test_performance_cuda_A100 ../../
+# Usage: docker build -f ./Dockerfile.prod_cuda_V100 ../../
 #
 
 FROM nvidia/cuda:11.3.1-devel-ubuntu20.04
@@ -34,7 +34,7 @@ COPY ./tools/toolchain/install_cp2k_toolchain.sh .
 RUN ./install_cp2k_toolchain.sh \
     --mpi-mode=mpich \
     --enable-cuda=yes \
-    --gpu-ver=A100 \
+    --gpu-ver=V100 \
     --dry-run
 
 # Dry-run leaves behind config files for the followup install scripts.
@@ -73,28 +73,33 @@ RUN ./scripts/generate_arch_files.sh && rm -rf ./build
 
 # Install CP2K using local_cuda.psmp.
 WORKDIR /workspace/cp2k
+ARG GIT_COMMIT_SHA
 COPY ./Makefile .
 COPY ./src ./src
 COPY ./exts ./exts
 COPY ./tools/build_utils ./tools/build_utils
 RUN /bin/bash -c " \
+    if [ -n "${GIT_COMMIT_SHA}" ] ; then echo "git:\${GIT_COMMIT_SHA::7}" > REVISION; fi && \
     mkdir -p arch && \
     ln -vs /opt/cp2k-toolchain/install/arch/local_cuda.psmp ./arch/ && \
     echo 'Compiling cp2k...' && \
     source /opt/cp2k-toolchain/install/setup && \
-    ( make -j ARCH=local_cuda VERSION=psmp &> /dev/null || true )"
+    make -j ARCH=local_cuda VERSION=psmp && \
+    rm -rf lib obj exe/local_cuda/*_unittest.psmp"
 COPY ./data ./data
 COPY ./tests ./tests
 COPY ./tools/regtesting ./tools/regtesting
 
-# Run performance test for local_cuda.
-COPY ./benchmarks ./benchmarks
-COPY ./tools/docker/scripts/test_performance.sh  \
-     ./tools/docker/scripts/plot_performance.py  \
-     ./
-RUN ./test_performance.sh "local_cuda" 2>&1 | tee report.log
+# Run regression tests.
+ARG TESTOPTS
+RUN /bin/bash -c " \
+    source /opt/cp2k-toolchain/install/setup && \
+    ./tools/regtesting/do_regtest.py 'local_cuda' 'psmp' "${TESTOPTS}" |& tee regtests.log && \
+    rm -rf regtesting"
 
-# Output the report if the image is old and was therefore pulled from the build cache.
-CMD cat $(find ./report.log -mmin +3) | sed '/^Summary:/ s/$/ (cached)/'
+# Setup entry point for production.
+COPY ./tools/docker/scripts/prod_entrypoint.sh ./
+ENTRYPOINT ["./prod_entrypoint.sh", "local_cuda", "psmp"]
+CMD ["cp2k", "--help"]
 
 #EOF
