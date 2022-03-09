@@ -150,6 +150,9 @@ ALL_PKG_FILES := $(shell find $(SRCDIR) -name "PACKAGE")
 OBJ_SRC_FILES  = $(shell cd $(SRCDIR); find . ! -name "dbcsr_api_c.F" ! -name "dbcsr_tensor_api_c.F" -name "*.F")
 OBJ_SRC_FILES += $(shell cd $(SRCDIR); find . -type f -name "*.c")
 
+# Script used to create dependency/file which depends on GPUVER
+ACC_MAKEDEP := $(wildcard $(LIBSMM_ACC_ABS_DIR)/../acc_makedep.sh)
+
 # if compiling with GPU acceleration
 ifneq ($(ACC),)
   ifeq (cuda,$(USE_ACCEL))
@@ -202,9 +205,12 @@ clean:
 # Libsmm_acc stuff ==========================================================
 ifneq ($(ACC),)
 ifneq (opencl,$(USE_ACCEL))
-$(LIBSMM_ACC_ABS_DIR)/parameters.h: $(LIBSMM_ACC_ABS_DIR)/generate_parameters.py $(wildcard $(LIBSMM_ACC_ABS_DIR)/parameters_*.txt)
+ACC_KERNEL := $(wildcard $(LIBSMM_ACC_ABS_DIR)/kernels/*.h)
+ACC_PARAMS := $(wildcard $(LIBSMM_ACC_ABS_DIR)/parameters_*.txt)
+ACC_PARDEP := $(if $(ACC_MAKEDEP),$(shell $(ACC_MAKEDEP) $(LIBSMM_ACC_ABS_DIR)/.with_gpu $(GPUVER)))
+$(LIBSMM_ACC_ABS_DIR)/parameters.h: $(LIBSMM_ACC_ABS_DIR)/generate_parameters.py $(ACC_PARAMS) $(ACC_PARDEP)
 	cd $(LIBSMM_ACC_ABS_DIR); $(PYTHON) generate_parameters.py --gpu_version=$(GPUVER)
-$(LIBSMM_ACC_ABS_DIR)/smm_acc_kernels.h: $(LIBSMM_ACC_ABS_DIR)/generate_kernels.py $(wildcard $(LIBSMM_ACC_ABS_DIR)/kernels/*.h)
+$(LIBSMM_ACC_ABS_DIR)/smm_acc_kernels.h: $(LIBSMM_ACC_ABS_DIR)/generate_kernels.py $(ACC_KERNEL)
 	cd $(LIBSMM_ACC_ABS_DIR); $(PYTHON) generate_kernels.py
 endif
 endif
@@ -291,12 +297,11 @@ acc_hip.o: acc_hip.cpp acc_hip.h
 # if compiling OpenCL backend
 else ifeq (opencl,$(USE_ACCEL))
 OPENCL_KRNLGEN := $(LIBSMM_ACC_ABS_DIR)/../opencl/acc_opencl.sh
-OPENCL_DEPSGEN := $(wildcard $(LIBSMM_ACC_ABS_DIR)/../acc_makedep.sh)
 OPENCL_KERNELS := $(wildcard $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/kernels/*.cl)
 OPENCL_DEFAULT := $(wildcard $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/tune_multiply.csv)
 OPENCL_WITHGPU := $(wildcard $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/params/tune_multiply_$(GPUVER).csv)
 OPENCL_PARAMS := $(if $(OPENCL_WITHGPU),$(OPENCL_WITHGPU),$(OPENCL_DEFAULT))
-OPENCL_PARDEP := $(if $(OPENCL_DEPSGEN),$(shell $(OPENCL_DEPSGEN) $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/.with_gpu $(GPUVER)))
+OPENCL_PARDEP := $(if $(ACC_MAKEDEP),$(shell $(ACC_MAKEDEP) $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/.with_gpu $(GPUVER)))
 $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/opencl_kernels.h: $(OPENCL_KRNLGEN) $(OPENCL_KERNELS) $(OPENCL_PARAMS) $(OPENCL_PARDEP)
 	$(OPENCL_KRNLGEN) $(OPENCL_KERNELS) $(OPENCL_PARAMS) $@
 opencl_libsmm.o: opencl_libsmm.c $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/opencl_kernels.h
