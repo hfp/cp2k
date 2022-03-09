@@ -290,12 +290,14 @@ acc_hip.o: acc_hip.cpp acc_hip.h
 	$(ACC) -c $(ACCFLAGS) -I'$(SRCDIR)' $<
 # if compiling OpenCL backend
 else ifeq (opencl,$(USE_ACCEL))
-OPENCL_KERNELS := $(wildcard $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/kernels/*.cl)
 OPENCL_KRNLGEN := $(LIBSMM_ACC_ABS_DIR)/../opencl/acc_opencl.sh
-OPENCL_DEFAULT := $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/tune_multiply.csv
-OPENCL_WITHGPU := $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/params/tune_multiply_$(GPUVER).csv
-OPENCL_PARAMS := $(if $(wildcard $(OPENCL_WITHGPU)),$(OPENCL_WITHGPU),$(wildcard $(OPENCL_DEFAULT)))
-$(LIBSMM_ACC_ABS_DIR)/../opencl/smm/opencl_kernels.h: $(OPENCL_KRNLGEN) $(OPENCL_KERNELS) $(OPENCL_PARAMS)
+OPENCL_DEPSGEN := $(wildcard $(LIBSMM_ACC_ABS_DIR)/../acc_makedep.sh)
+OPENCL_KERNELS := $(wildcard $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/kernels/*.cl)
+OPENCL_DEFAULT := $(wildcard $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/tune_multiply.csv)
+OPENCL_WITHGPU := $(wildcard $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/params/tune_multiply_$(GPUVER).csv)
+OPENCL_PARAMS := $(if $(OPENCL_WITHGPU),$(OPENCL_WITHGPU),$(OPENCL_DEFAULT))
+OPENCL_PARDEP := $(if $(OPENCL_DEPSGEN),$(shell $(OPENCL_DEPSGEN) $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/.with_gpu $(GPUVER)))
+$(LIBSMM_ACC_ABS_DIR)/../opencl/smm/opencl_kernels.h: $(OPENCL_KRNLGEN) $(OPENCL_KERNELS) $(OPENCL_PARAMS) $(OPENCL_PARDEP)
 	$(OPENCL_KRNLGEN) $(OPENCL_KERNELS) $(OPENCL_PARAMS) $@
 opencl_libsmm.o: opencl_libsmm.c $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/opencl_kernels.h
 ifeq (Darwin,$(shell uname))
