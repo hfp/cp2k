@@ -28,10 +28,10 @@ __global__ void pw_real_to_complex(const double *din, double *zout,
 
 /*******************************************************************************
  * \brief Launcher for pw_real_to_complex kernel.
- * \author Ole Schütt
+ * \author Ole Schuett
  ******************************************************************************/
 void pw_gpu_launch_real_to_complex(const double *din, double *zout,
-                                   const int ngpts, cudaStream_t stream) {
+                                   const int ngpts, offloadStream_t stream) {
   const int threadsPerBlock = 1024;
   const int numBlocks = (ngpts + threadsPerBlock - 1) / threadsPerBlock;
   pw_real_to_complex<<<numBlocks, threadsPerBlock, 0, stream>>>(din, zout,
@@ -58,10 +58,10 @@ __global__ void pw_complex_to_real(const double *zin, double *dout,
 
 /*******************************************************************************
  * \brief Launcher for pw_complex_to_real kernel.
- * \author Ole Schütt
+ * \author Ole Schuett
  ******************************************************************************/
 void pw_gpu_launch_complex_to_real(const double *zin, double *dout,
-                                   const int ngpts, cudaStream_t stream) {
+                                   const int ngpts, offloadStream_t stream) {
   const int threadsPerBlock = 1024;
   const int numBlocks = (ngpts + threadsPerBlock - 1) / threadsPerBlock;
   pw_complex_to_real<<<numBlocks, threadsPerBlock, 0, stream>>>(zin, dout,
@@ -83,11 +83,11 @@ __global__ void pw_gather_z(double *pwcc, const double *c, const double scale,
 
 /*******************************************************************************
  * \brief Launcher for pw_gather_z kernel.
- * \author Ole Schütt
+ * \author Ole Schuett
  ******************************************************************************/
 void pw_gpu_launch_gather_z(double *pwcc, const double *c, const double scale,
                             const int ngpts, const int *ghatmap,
-                            cudaStream_t stream) {
+                            offloadStream_t stream) {
   const int threadsPerBlock = 32;
   const int numBlocks = (ngpts + threadsPerBlock - 1) / threadsPerBlock;
   pw_gather_z<<<numBlocks, threadsPerBlock, 0, stream>>>(pwcc, c, scale, ngpts,
@@ -114,11 +114,11 @@ __global__ void pw_scatter_z(double *c, const double *pwcc, const double scale,
 
 /*******************************************************************************
  * \brief Launcher for pw_scatter_z kernel.
- * \author Ole Schütt
+ * \author Ole Schuett
  ******************************************************************************/
 void pw_gpu_launch_scatter_z(double *c, const double *pwcc, const double scale,
                              const int ngpts, const int nmaps,
-                             const int *ghatmap, cudaStream_t stream) {
+                             const int *ghatmap, offloadStream_t stream) {
   const int threadsPerBlock = 32;
   const int numBlocks = (ngpts + threadsPerBlock - 1) / threadsPerBlock;
   pw_scatter_z<<<numBlocks, threadsPerBlock, 0, stream>>>(c, pwcc, scale, ngpts,

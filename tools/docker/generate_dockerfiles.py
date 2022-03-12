@@ -38,7 +38,10 @@ def main() -> None:
             f.write(toolchain_ubuntu_nompi(gcc_version=gcc_version) + regtest("ssmp"))
 
     with OutputFile("Dockerfile.test_i386", args.check) as f:
-        f.write(toolchain_ubuntu_nompi(base_image="i386/debian:11") + regtest("ssmp"))
+        f.write(
+            toolchain_ubuntu_nompi(base_image="i386/debian:11", libvori=False)
+            + regtest("ssmp")
+        )
 
     with OutputFile(f"Dockerfile.test_performance", args.check) as f:
         f.write(toolchain_full() + performance())
@@ -58,13 +61,21 @@ def main() -> None:
 
     for gpu_ver in "Mi50", "Mi100":
         with OutputFile(f"Dockerfile.test_hip_rocm_{gpu_ver}", args.check) as f:
-            f.write(toolchain_hip_rocm(gpu_ver=gpu_ver) + regtest("psmp", "local_hip"))
+            # ROCm containers require --device, which is not available for docker build.
+            # https://rocmdocs.amd.com/en/latest/ROCm_Virtualization_Containers/ROCm-Virtualization-&-Containers.html#docker-hub
+            f.write(
+                toolchain_hip_rocm(gpu_ver=gpu_ver)
+                + regtest_postponed("psmp", "local_hip")
+            )
 
     with OutputFile(f"Dockerfile.test_conventions", args.check) as f:
         f.write(toolchain_full() + conventions())
 
     with OutputFile(f"Dockerfile.test_manual", args.check) as f:
         f.write(toolchain_full() + manual())
+
+    with OutputFile(f"Dockerfile.test_precommit", args.check) as f:
+        f.write(precommit())
 
     for name in "aiida", "ase", "gromacs", "i-pi":
         with OutputFile(f"Dockerfile.test_{name}", args.check) as f:
@@ -89,6 +100,22 @@ RUN /bin/bash -c " \
     rm -rf regtesting"
 """
         + print_cached_report()
+    )
+
+
+# ======================================================================================
+def regtest_postponed(version: str, arch: str = "local") -> str:
+    return (
+        install_cp2k(version=version, arch=arch)
+        + fr"""
+# Postpone running the regression tests until the container is executed.
+ARG TESTOPTS
+COPY ./tools/docker/scripts/test_regtest.sh ./
+ENV TESTOPTS="${{TESTOPTS}}"
+CMD ["./test_regtest.sh", "{arch}", "{version}"]
+
+#EOF
+"""
     )
 
 
@@ -154,6 +181,28 @@ RUN ./test_manual.sh 2>&1 | tee report.log
 
 
 # ======================================================================================
+def precommit() -> str:
+    return (
+        fr"""
+FROM ubuntu:20.04
+
+# Install dependencies.
+WORKDIR /opt/cp2k-precommit
+COPY ./tools/precommit/ /opt/cp2k-precommit/
+RUN ./install_requirements.sh
+
+# Install sources.
+WORKDIR /opt/cp2k
+COPY ./ ./
+
+# Run precommit test.
+RUN ./tools/docker/scripts/test_precommit.sh 2>&1 | tee report.log
+"""
+        + print_cached_report()
+    )
+
+
+# ======================================================================================
 def test_3rd_party(name: str) -> str:
     return (
         install_cp2k(version="sdbg", arch="local")
@@ -173,7 +222,7 @@ def test_without_build(name: str) -> str:
 FROM ubuntu:20.04
 
 # Install dependencies.
-WORKDIR /workspace/cp2k
+WORKDIR /opt/cp2k
 COPY ./tools/docker/scripts/install_{name}.sh .
 RUN ./install_{name}.sh
 
@@ -219,7 +268,7 @@ RUN /bin/bash -c " \
 # Setup entry point for production.
 COPY ./tools/docker/scripts/prod_entrypoint.sh ./
 WORKDIR /mnt
-ENTRYPOINT ["/workspace/cp2k/prod_entrypoint.sh", "{arch}", "{version}"]
+ENTRYPOINT ["/opt/cp2k/prod_entrypoint.sh", "{arch}", "{version}"]
 CMD ["cp2k", "--help"]
 
 #EOF
@@ -251,7 +300,7 @@ def install_cp2k(
         run_lines.append("mkdir -p arch")
         run_lines.append(f"ln -vs {arch_file} ./arch/")
     else:
-        input_lines.append(f"COPY ./arch/{arch}.{version} /workspace/cp2k/arch/")
+        input_lines.append(f"COPY ./arch/{arch}.{version} /opt/cp2k/arch/")
 
     run_lines.append("echo 'Compiling cp2k...'")
     run_lines.append("source /opt/cp2k-toolchain/install/setup")
@@ -269,7 +318,7 @@ def install_cp2k(
 
     return fr"""
 # Install CP2K using {arch}.{version}.
-WORKDIR /workspace/cp2k
+WORKDIR /opt/cp2k
 {input_block}
 RUN /bin/bash -c " \
     {run_block}"
@@ -288,7 +337,7 @@ def toolchain_full(base_image: str = "ubuntu:20.04", mpi_mode: str = "mpich") ->
 
 # ======================================================================================
 def toolchain_ubuntu_nompi(
-    base_image: str = "ubuntu:20.04", gcc_version: int = 10
+    base_image: str = "ubuntu:20.04", gcc_version: int = 10, libvori: bool = True,
 ) -> str:
     return fr"""
 FROM {base_image}
@@ -323,6 +372,7 @@ RUN ln -sf gcc-{gcc_version}      /usr/bin/gcc  && \
         with_libxc="install",
         with_libxsmm="install",
         with_libint="install",
+        with_libvori=("install" if libvori else "no"),
     )
 
 
