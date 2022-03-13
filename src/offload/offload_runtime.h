@@ -5,15 +5,19 @@
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
 
-#ifndef OFFLOAD_OPERATIONS_H
-#define OFFLOAD_OPERATIONS_H
+#ifndef OFFLOAD_RUNTIME_H
+#define OFFLOAD_RUNTIME_H
+
+#if defined(__GRID_CUDA) || defined(__DBM_CUDA) || defined(__PW_CUDA)
+#define __OFFLOAD_CUDA
+#elif defined(__GRID_HIP) || defined(__DBM_HIP) || defined(__PW_HIP)
+#define __OFFLOAD_HIP
+#endif
+
+#if (defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP))
 
 #include <stdio.h>
 #include <stdlib.h>
-
-#include "offload_library.h"
-
-#if (defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP))
 
 #if defined(__OFFLOAD_CUDA)
 #include <cuda_runtime.h>
@@ -60,6 +64,17 @@ static inline const char *offloadGetErrorName(offloadError_t error) {
   return cudaGetErrorName(error);
 #elif defined(__OFFLOAD_HIP)
   return hipGetErrorName(error);
+#endif
+}
+
+/*******************************************************************************
+ * \brief Wrapper around cudaGetLastError.
+ ******************************************************************************/
+static inline offloadError_t offloadGetLastError(void) {
+#if defined(__OFFLOAD_CUDA)
+  return cudaGetLastError();
+#elif defined(__OFFLOAD_HIP)
+  return hipGetLastError();
 #endif
 }
 
@@ -114,6 +129,21 @@ static inline void offloadMemcpyAsyncDtoH(void *const ptr1, const void *ptr2,
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(
       hipMemcpyAsync(ptr1, ptr2, size, hipMemcpyDeviceToHost, stream));
+#endif
+}
+
+/*******************************************************************************
+ * \brief Wrapper around cudaMemcpyAsync(...,cudaMemcpyDeviceToDevice).
+ ******************************************************************************/
+static inline void offloadMemcpyAsyncDtoD(void *ptr1, const void *ptr2,
+                                          const size_t size,
+                                          const offloadStream_t stream) {
+#if defined(__OFFLOAD_CUDA)
+  OFFLOAD_CHECK(
+      cudaMemcpyAsync(ptr1, ptr2, size, cudaMemcpyDeviceToDevice, stream));
+#elif defined(__OFFLOAD_HIP)
+  OFFLOAD_CHECK(
+      hipMemcpyAsync(ptr1, ptr2, size, hipMemcpyDeviceToDevice, stream));
 #endif
 }
 

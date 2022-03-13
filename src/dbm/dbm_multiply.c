@@ -15,7 +15,7 @@
 #include "dbm_multiply.h"
 #include "dbm_multiply_comm.h"
 #include "dbm_multiply_cpu.h"
-#include "dbm_multiply_cuda.h"
+#include "dbm_multiply_gpu.h"
 #include "dbm_multiply_internal.h"
 
 /*******************************************************************************
@@ -57,8 +57,8 @@ static float *compute_rows_max_eps(const bool trans, const dbm_matrix_t *matrix,
  * \author Ole Schuett
  ******************************************************************************/
 typedef struct {
-#if defined(__DBM_CUDA)
-  dbm_multiply_cuda_context_t cuda;
+#if defined(__DBM_CUDA) || defined(__DBM_HIP)
+  dbm_multiply_gpu_context_t gpu;
 #endif
 } backend_context_t;
 
@@ -69,9 +69,9 @@ typedef struct {
 static backend_context_t *backend_start(const dbm_matrix_t *matrix_c) {
   backend_context_t *ctx = calloc(1, sizeof(backend_context_t));
 
-#if defined(__DBM_CUDA)
-  dbm_multiply_cuda_start(MAX_BATCH_SIZE, matrix_c->nshards, matrix_c->shards,
-                          &ctx->cuda);
+#if defined(__DBM_CUDA) || defined(__DBM_HIP)
+  dbm_multiply_gpu_start(MAX_BATCH_SIZE, matrix_c->nshards, matrix_c->shards,
+                         &ctx->gpu);
 #else
   (void)matrix_c; // mark as used
 #endif
@@ -87,8 +87,8 @@ static void backend_upload_packs(const dbm_pack_t *pack_a,
                                  const dbm_pack_t *pack_b,
                                  backend_context_t *ctx) {
 
-#if defined(__DBM_CUDA)
-  dbm_multiply_cuda_upload_packs(pack_a, pack_b, &ctx->cuda);
+#if defined(__DBM_CUDA) || defined(__DBM_HIP)
+  dbm_multiply_gpu_upload_packs(pack_a, pack_b, &ctx->gpu);
 #else
   (void)pack_a;   // mark as used
   (void)pack_b;
@@ -106,12 +106,12 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
                                   const dbm_pack_t *pack_b, const int kshard,
                                   dbm_shard_t *shard_c,
                                   backend_context_t *ctx) {
-#if defined(__DBM_CUDA)
+#if defined(__DBM_CUDA) || defined(__DBM_HIP)
   (void)pack_a; // mark as used
   (void)pack_b;
   (void)shard_c;
-  dbm_multiply_cuda_process_batch(ntasks, batch, transa, transb, alpha, kshard,
-                                  &ctx->cuda);
+  dbm_multiply_gpu_process_batch(ntasks, batch, transa, transb, alpha, kshard,
+                                 &ctx->gpu);
 #else
   (void)kshard; // mark as used
   (void)ctx;
@@ -125,8 +125,8 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
  * \author Ole Schuett
  ******************************************************************************/
 static void backend_download_results(backend_context_t *ctx) {
-#if defined(__DBM_CUDA)
-  dbm_multiply_cuda_download_results(&ctx->cuda);
+#if defined(__DBM_CUDA) || defined(__DBM_HIP)
+  dbm_multiply_gpu_download_results(&ctx->gpu);
 #else
   (void)ctx; // mark as used
 #endif
@@ -137,8 +137,8 @@ static void backend_download_results(backend_context_t *ctx) {
  * \author Ole Schuett
  ******************************************************************************/
 static void backend_stop(backend_context_t *ctx) {
-#if defined(__DBM_CUDA)
-  dbm_multiply_cuda_stop(&ctx->cuda);
+#if defined(__DBM_CUDA) || defined(__DBM_HIP)
+  dbm_multiply_gpu_stop(&ctx->gpu);
 #endif
   free(ctx);
 }
