@@ -32,7 +32,8 @@ MODULE integrator_utils
                                               npt_info_type
    USE input_constants,                 ONLY: &
         isokin_ensemble, npe_f_ensemble, npe_i_ensemble, nph_uniaxial_damped_ensemble, &
-        nph_uniaxial_ensemble, npt_f_ensemble, npt_i_ensemble, nve_ensemble, nvt_ensemble
+        nph_uniaxial_ensemble, npt_f_ensemble, npt_i_ensemble, npt_ia_ensemble, nve_ensemble, &
+        nvt_ensemble
    USE kinds,                           ONLY: dp
    USE mathlib,                         ONLY: matvec_3x3,&
                                               transpose_3d
@@ -40,7 +41,8 @@ MODULE integrator_utils
                                               md_environment_type
    USE message_passing,                 ONLY: mp_max,&
                                               mp_sum
-   USE molecule_kind_types,             ONLY: molecule_kind_type
+   USE molecule_kind_types,             ONLY: local_fixd_constraint_type,&
+                                              molecule_kind_type
    USE molecule_types,                  ONLY: get_molecule,&
                                               global_constraint_type,&
                                               molecule_type
@@ -99,8 +101,8 @@ MODULE integrator_utils
 
    PUBLIC :: old_variables_type, tmp_variables_type, allocate_old, deallocate_old, &
              allocate_tmp, update_dealloc_tmp, damp_v, set, update_pv, get_s_ds, &
-             rattle_roll_setup, damp_veps, update_veps, vv_first, vv_second, &
-             variable_timestep
+             rattle_roll_setup, damp_veps, update_veps, vv_first, &
+             vv_second, variable_timestep
 
 CONTAINS
 
@@ -750,7 +752,7 @@ CONTAINS
 
       ! assigning local variable
       SELECT CASE (simpar%ensemble)
-      CASE (npt_i_ensemble)
+      CASE (npt_i_ensemble, npt_ia_ensemble)
          npt_loc(:, :)%v = 0.0_dp
          npt_loc(:, :)%mass = 0.0_dp
          npt_loc(1, 1)%v = npt(1, 1)%v
@@ -953,6 +955,7 @@ CONTAINS
       unit(3, 3) = 1.0_dp
 
       IF (simpar%ensemble == npt_i_ensemble .OR. &
+          simpar%ensemble == npt_ia_ensemble .OR. &
           simpar%ensemble == npe_i_ensemble) THEN
          ! get force on barostat
          fdotr = 0.0_dp
@@ -1111,13 +1114,14 @@ CONTAINS
 !> \param shell_adiabatic ...
 !> \param dt ...
 !> \param u ...
+!> \param lfixd_list ...
 !> \par History
 !>      none
 !> \author MI (February 2008)
 ! **************************************************************************************************
    SUBROUTINE vv_first(tmp, atomic_kind_set, local_particles, particle_set, &
                        core_particle_set, shell_particle_set, nparticle_kind, &
-                       shell_adiabatic, dt, u)
+                       shell_adiabatic, dt, u, lfixd_list)
 
       TYPE(tmp_variables_type), POINTER                  :: tmp
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
@@ -1128,6 +1132,8 @@ CONTAINS
       LOGICAL, INTENT(IN)                                :: shell_adiabatic
       REAL(KIND=dp)                                      :: dt
       REAL(KIND=dp), DIMENSION(3, 3), OPTIONAL           :: u
+      TYPE(local_fixd_constraint_type), DIMENSION(:), &
+         OPTIONAL                                        :: lfixd_list
 
       INTEGER                                            :: iparticle, iparticle_kind, &
                                                             iparticle_local, nparticle_local, &
@@ -1284,6 +1290,15 @@ CONTAINS
                      tmp%pos(3, iparticle) = &
                         particle_set(iparticle)%r(3)*tmp%scale_r(3)*tmp%scale_r(3) + &
                         tmp%scale_r(3)*tmp%poly_r(3)*dt*tmp%vel(3, iparticle)
+
+                     ! overwrite positions of frozen particles
+                     IF (PRESENT(lfixd_list)) THEN
+                        IF (ANY(lfixd_list(:)%ifixd_index == iparticle)) THEN
+                           tmp%pos(1, iparticle) = particle_set(iparticle)%r(1)
+                           tmp%pos(2, iparticle) = particle_set(iparticle)%r(2)
+                           tmp%pos(3, iparticle) = particle_set(iparticle)%r(3)
+                        END IF
+                     END IF
 
                      tmp%max_vel = MAX(tmp%max_vel, &
                                        ABS(tmp%vel(1, iparticle)), ABS(tmp%vel(2, iparticle)), ABS(tmp%vel(3, iparticle)))
@@ -1683,7 +1698,7 @@ CONTAINS
                        core_particle_set, shell_particle_set, nparticle_kind, &
                        shell_adiabatic, dt)
 
-      CASE (npt_i_ensemble, npe_i_ensemble)
+      CASE (npt_i_ensemble, npt_ia_ensemble, npe_i_ensemble)
          arg_r = arg_r*simpar%dt_fact*simpar%dt_fact
          tmp%poly_r(1:3) = 1.0_dp + e2*arg_r(1) + e4*arg_r(1)*arg_r(1) + e6*arg_r(1)**3 + e8*arg_r(1)**4
          arg_v = arg_v*simpar%dt_fact*simpar%dt_fact
