@@ -96,12 +96,8 @@ else ifeq ($(GPUVER),Mi50)
   ARCH_NUMBER = gfx906
 else ifeq ($(GPUVER),Mi100)
   ARCH_NUMBER = gfx908
-else ifneq ($(GPUVER),)
-ifneq (opencl,$(USE_ACCEL))
-ifeq ($(ARCH_NUMBER),)
-  $(error GPUVER not recognized)
-endif
-endif
+else ifeq (,$(ARCH_NUMBER))
+  $(error Unknown ARCH_NUMBER since GPUVER="$(GPUVER)" is not recognized)
 endif
 
 # If compiling with nvcc
@@ -212,7 +208,7 @@ clean:
 ifneq ($(ACC),)
 ifneq (opencl,$(USE_ACCEL))
 ACC_KERNEL := $(wildcard $(LIBSMM_ACC_ABS_DIR)/kernels/*.h)
-ACC_PARAMS := $(wildcard $(LIBSMM_ACC_ABS_DIR)/parameters_*.txt)
+ACC_PARAMS := $(wildcard $(LIBSMM_ACC_ABS_DIR)/parameters/parameters_$(GPUVER).json)
 ACC_PARDEP := $(if $(ACC_MAKEDEP),$(shell $(ACC_MAKEDEP) $(LIBSMM_ACC_ABS_DIR)/.with_gpu $(GPUVER)))
 $(LIBSMM_ACC_ABS_DIR)/parameters.h: $(LIBSMM_ACC_ABS_DIR)/generate_parameters.py $(ACC_PARAMS) $(ACC_PARDEP)
 	cd $(LIBSMM_ACC_ABS_DIR); $(PYTHON) generate_parameters.py --gpu_version=$(GPUVER)
