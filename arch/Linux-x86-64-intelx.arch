@@ -159,6 +159,102 @@ TBBMALLOC ?= 0
 # TBB runtime compatible with oldest supported GCC
 TBBGCC_OLD ?= 1
 
+SCALAPACK ?= $(MPI)
+ifneq (0,$(MPI))
+  ifeq (0,$(GNU))
+    ifeq (1,$(INTEL))
+      CXX := mpiicpc
+      CC  := mpiicc
+      FC  := mpiifort
+      LD  := mpiifort
+    else
+      CXX := mpiicpc  -cxx=icpx
+      CC  := mpiicc   -cc=icx
+      FC  := mpiifort -fc=ifx
+      LD  := mpiifort -fc=ifx
+    endif
+  else # GNU
+    CXX := mpicxx
+    CC  := mpicc
+    FC  := mpif90
+    LD  := mpif90
+    ifneq (0,$(LEGACY))
+      DFLAGS += -D__HAS_NO_MPI_MOD
+    endif
+  endif
+  DFLAGS += -D__parallel
+  # COSMA section must appear before SCALAPACK section
+  ifneq (0,$(COSMA)) # incl. undefined
+    ifneq (,$(NVCC))
+      COSMATGT := gpu
+    else
+      COSMATGT := cpu
+    endif
+    COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(CP2KHOME)/../cosma*$(COSMATGT)/lib*/libcosma_pxgemm_cpp.*)))
+    COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(HOME)/cosma*$(COSMATGT)/lib*/libcosma_pxgemm_cpp.*)))
+    COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(CP2KHOME)/../cosma*/$(COSMATGT)/lib*/libcosma_pxgemm_cpp.*)))
+    COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(HOME)/cosma*/$(COSMATGT)/lib*/libcosma_pxgemm_cpp.*)))
+    COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(CP2KHOME)/../cosma*/lib*/libcosma_pxgemm_cpp.*)))
+    COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(HOME)/cosma*/lib*/libcosma_pxgemm_cpp.*)))
+    ifneq (,$(COSMAROOT))
+      COSMAROOT := $(abspath $(dir $(COSMAROOT))/..)
+    endif
+    ifneq (,$(COSMAROOT))
+      LIBS += -L$(COSMAROOT)/lib64 -L$(COSMAROOT)/lib -lcosma -lcosma_pxgemm_cpp -lcosma_prefixed_pxgemm -lcosta_scalapack -lcosta
+      DFLAGS += -D__COSMA
+      ifneq (,$(NVCC))
+        LIBS += -lTiled-MM
+      endif
+    endif
+  endif
+  ifneq (0,$(SCALAPACK))
+    DFLAGS += -D__SCALAPACK
+    ifneq (0,$(LEGACY))
+      DFLAGS += -D__BLACS
+    endif
+    ifeq (0,$(shell echo $(SCALAPACK) | grep -q "^-*[0-9]\+$$"; echo $$?)) # number
+      ifneq (-1,$(SCALAPACK))
+        ifneq (1,$(SCALAPACK))
+          DFLAGS += -D__SCALAPACK$(SCALAPACK)
+        endif
+      else
+        SCALAPACKDIR := $(HOME)/scalapack-2.0.2
+      endif
+      ifeq (,$(SCALAPACKDIR))
+        SCALAPACKDIR := $(MKLROOT)/lib/intel64
+        SCALAPACKLIB := mkl_scalapack_lp64
+      else
+        ifeq (,$(SCALAPACKLIB))
+          SCALAPACKLIB := scalapack
+        endif
+        LIBS += -L$(SCALAPACKDIR)
+      endif
+    else # NaN
+      SCALAPACKDIR := $(SCALAPACK)
+      SCALAPACKLIB := scalapack
+      LIBS += -L$(SCALAPACKDIR)
+    endif
+  endif
+  ifneq (1,$(MPI))
+    DFLAGS += -D__MPI_VERSION=$(MPI)
+  else # default MPI std. version
+    DFLAGS += -D__MPI_VERSION=3
+  endif
+else ifeq (0,$(GNU))
+  CXX := icpc
+  CC  := icc
+  FC  := ifort
+  LD  := ifort
+else # GNU
+  CXX := g++
+  CC  := gcc
+  FC  := gfortran
+  LD  := gfortran
+endif
+XCXX := $(CXX)
+XCC := $(CC)
+XFC := $(FC)
+
 OCL ?= 0
 CUDA ?= 0
 ifeq (opencl,$(USE_ACCEL))
@@ -261,29 +357,7 @@ ifeq (/,$(MKLROOT))
   MKLROOT := $(NULL)
 endif
 
-SCALAPACK ?= $(MPI)
 ifneq (0,$(MPI))
-  ifeq (0,$(GNU))
-    ifeq (1,$(INTEL))
-      CXX := mpiicpc
-      CC  := mpiicc
-      FC  := mpiifort
-      LD  := mpiifort
-    else
-      CXX := mpiicpc  -cxx=icpx
-      CC  := mpiicc   -cc=icx
-      FC  := mpiifort -fc=ifx
-      LD  := mpiifort -fc=ifx
-    endif
-  else # GNU
-    CXX := mpicxx
-    CC  := mpicc
-    FC  := mpif90
-    LD  := mpif90
-    ifneq (0,$(LEGACY))
-      DFLAGS += -D__HAS_NO_MPI_MOD
-    endif
-  endif
   DFLAGS += -D__parallel
   # COSMA section must appear before SCALAPACK section
   ifneq (0,$(COSMA)) # incl. undefined
@@ -342,21 +416,7 @@ ifneq (0,$(MPI))
   else # default MPI std. version
     DFLAGS += -D__MPI_VERSION=3
   endif
-else ifeq (0,$(GNU))
-  CXX := icpc
-  CC  := icc
-  FC  := ifort
-  LD  := ifort
-else # GNU
-  CXX := g++
-  CC  := gcc
-  FC  := gfortran
-  LD  := gfortran
 endif
-
-XCXX := $(CXX)
-XCC := $(CC)
-XFC := $(FC)
 
 ifneq (0,$(NDEBUG))
   DFLAGS += -DNDEBUG
