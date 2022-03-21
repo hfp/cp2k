@@ -7,10 +7,10 @@
 #ifndef GRID_GPU_COLLOCATE_H
 #define GRID_GPU_COLLOCATE_H
 
-#ifdef __GRID_CUDA
+#if defined(__GRID_CUDA) || defined(__GRID_HIP)
 
+#include "../../offload/offload_runtime.h"
 #include "grid_gpu_task_list.h"
-#include <cuda_runtime.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,13 +23,13 @@ extern "C" {
 void grid_gpu_collocate_one_grid_level(
     const grid_gpu_task_list *task_list, const int first_task,
     const int last_task, const enum grid_func func,
-    const grid_gpu_layout *layout, const cudaStream_t stream,
+    const grid_gpu_layout *layout, const offloadStream_t stream,
     const double *pab_blocks_dev, double *grid_dev, int *lp_diff);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // __GRID_CUDA
+#endif // defined(__GRID_CUDA) || defined(__GRID_HIP)
 #endif
 // EOF

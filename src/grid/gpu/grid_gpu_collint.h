@@ -5,17 +5,17 @@
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
 
-#ifdef __GRID_CUDA
+#if defined(__GRID_CUDA) || defined(__GRID_HIP)
 
 #include <algorithm>
 #include <assert.h>
-#include <cuda.h>
 #include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "../../offload/offload_runtime.h"
 #include "../common/grid_basis_set.h"
 #include "../common/grid_common.h"
 #include "grid_gpu_task_list.h"
@@ -166,10 +166,7 @@ static void init_constant_memory() {
       }
     }
   }
-  cudaError_t error =
-      cudaMemcpyToSymbol(coset_inv, &coset_inv_host, sizeof(coset_inv_host), 0,
-                         cudaMemcpyHostToDevice);
-  assert(error == cudaSuccess);
+  offloadMemcpyToSymbol(coset_inv, &coset_inv_host, sizeof(coset_inv_host));
 
   // Binomial coefficient
   double binomial_coef_host[19][19];
@@ -179,10 +176,8 @@ static void init_constant_memory() {
       binomial_coef_host[n][k] = fac(n) / fac(k) / fac(n - k);
     }
   }
-  error =
-      cudaMemcpyToSymbol(binomial_coef, &binomial_coef_host,
-                         sizeof(binomial_coef_host), 0, cudaMemcpyHostToDevice);
-  assert(error == cudaSuccess);
+  offloadMemcpyToSymbol(binomial_coef, &binomial_coef_host,
+                        sizeof(binomial_coef_host));
 
   initialized = true;
 }
@@ -500,5 +495,5 @@ __device__ static void load_task(const kernel_params *params, smem_task *task) {
   __syncthreads(); // because of concurrent writes to task
 }
 
-#endif // __GRID_CUDA
+#endif // defined(__GRID_CUDA) || defined(__GRID_HIP)
 // EOF

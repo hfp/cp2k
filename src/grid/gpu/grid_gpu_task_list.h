@@ -7,16 +7,16 @@
 #ifndef GRID_GPU_TASK_LIST_H
 #define GRID_GPU_TASK_LIST_H
 
-#ifdef __GRID_CUDA
+#if defined(__GRID_CUDA) || defined(__GRID_HIP)
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include "../../offload/offload_buffer.h"
+#include "../../offload/offload_runtime.h"
 #include "../common/grid_basis_set.h"
 #include "../common/grid_constants.h"
-#include <cuda_runtime.h>
 #include <stdbool.h>
 
 /*******************************************************************************
@@ -111,8 +111,8 @@ typedef struct {
   int nblocks;
   grid_gpu_layout *layouts;
   int *tasks_per_level;
-  cudaStream_t *level_streams;
-  cudaStream_t main_stream;
+  offloadStream_t *level_streams;
+  offloadStream_t main_stream;
   int lmax;
   int stats[2][20]; // [has_border_mask][lp]
   // device pointers
@@ -172,7 +172,7 @@ void grid_gpu_integrate_task_list(const grid_gpu_task_list *task_list,
 }
 #endif
 
-#endif // __GRID_CUDA
+#endif // defined(__GRID_CUDA) || defined(__GRID_HIP)
 #endif
 
 // EOF
