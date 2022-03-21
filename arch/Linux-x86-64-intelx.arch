@@ -183,58 +183,6 @@ ifneq (0,$(MPI))
     endif
   endif
   DFLAGS += -D__parallel
-  # COSMA section must appear before SCALAPACK section
-  ifneq (0,$(COSMA)) # incl. undefined
-    ifneq (,$(NVCC))
-      COSMATGT := gpu
-    else
-      COSMATGT := cpu
-    endif
-    COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(CP2KHOME)/../cosma*$(COSMATGT)/lib*/libcosma_pxgemm_cpp.*)))
-    COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(HOME)/cosma*$(COSMATGT)/lib*/libcosma_pxgemm_cpp.*)))
-    COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(CP2KHOME)/../cosma*/$(COSMATGT)/lib*/libcosma_pxgemm_cpp.*)))
-    COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(HOME)/cosma*/$(COSMATGT)/lib*/libcosma_pxgemm_cpp.*)))
-    COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(CP2KHOME)/../cosma*/lib*/libcosma_pxgemm_cpp.*)))
-    COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(HOME)/cosma*/lib*/libcosma_pxgemm_cpp.*)))
-    ifneq (,$(COSMAROOT))
-      COSMAROOT := $(abspath $(dir $(COSMAROOT))/..)
-    endif
-    ifneq (,$(COSMAROOT))
-      LIBS += -L$(COSMAROOT)/lib64 -L$(COSMAROOT)/lib -lcosma -lcosma_pxgemm_cpp -lcosma_prefixed_pxgemm -lcosta_scalapack -lcosta
-      DFLAGS += -D__COSMA
-      ifneq (,$(NVCC))
-        LIBS += -lTiled-MM
-      endif
-    endif
-  endif
-  ifneq (0,$(SCALAPACK))
-    DFLAGS += -D__SCALAPACK
-    ifneq (0,$(LEGACY))
-      DFLAGS += -D__BLACS
-    endif
-    ifeq (0,$(shell echo $(SCALAPACK) | grep -q "^-*[0-9]\+$$"; echo $$?)) # number
-      ifneq (-1,$(SCALAPACK))
-        ifneq (1,$(SCALAPACK))
-          DFLAGS += -D__SCALAPACK$(SCALAPACK)
-        endif
-      else
-        SCALAPACKDIR := $(HOME)/scalapack-2.0.2
-      endif
-      ifeq (,$(SCALAPACKDIR))
-        SCALAPACKDIR := $(MKLROOT)/lib/intel64
-        SCALAPACKLIB := mkl_scalapack_lp64
-      else
-        ifeq (,$(SCALAPACKLIB))
-          SCALAPACKLIB := scalapack
-        endif
-        LIBS += -L$(SCALAPACKDIR)
-      endif
-    else # NaN
-      SCALAPACKDIR := $(SCALAPACK)
-      SCALAPACKLIB := scalapack
-      LIBS += -L$(SCALAPACKDIR)
-    endif
-  endif
   ifneq (1,$(MPI))
     DFLAGS += -D__MPI_VERSION=$(MPI)
   else # default MPI std. version
@@ -357,65 +305,62 @@ ifeq (/,$(MKLROOT))
   MKLROOT := $(NULL)
 endif
 
+# COSMA section must appear before SCALAPACK section
+ifneq (0,$(COSMA)) # incl. undefined
 ifneq (0,$(MPI))
-  DFLAGS += -D__parallel
-  # COSMA section must appear before SCALAPACK section
-  ifneq (0,$(COSMA)) # incl. undefined
+  ifneq (,$(NVCC))
+    COSMATGT := gpu
+  else
+    COSMATGT := cpu
+  endif
+  COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(CP2KHOME)/../cosma*$(COSMATGT)/lib*/libcosma_pxgemm_cpp.*)))
+  COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(HOME)/cosma*$(COSMATGT)/lib*/libcosma_pxgemm_cpp.*)))
+  COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(CP2KHOME)/../cosma*/$(COSMATGT)/lib*/libcosma_pxgemm_cpp.*)))
+  COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(HOME)/cosma*/$(COSMATGT)/lib*/libcosma_pxgemm_cpp.*)))
+  COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(CP2KHOME)/../cosma*/lib*/libcosma_pxgemm_cpp.*)))
+  COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(HOME)/cosma*/lib*/libcosma_pxgemm_cpp.*)))
+  ifneq (,$(COSMAROOT))
+    COSMAROOT := $(abspath $(dir $(COSMAROOT))/..)
+  endif
+  ifneq (,$(COSMAROOT))
+    LIBS += -L$(COSMAROOT)/lib64 -L$(COSMAROOT)/lib -lcosma -lcosma_pxgemm_cpp -lcosma_prefixed_pxgemm -lcosta_scalapack -lcosta
+    DFLAGS += -D__COSMA
     ifneq (,$(NVCC))
-      COSMATGT := gpu
-    else
-      COSMATGT := cpu
-    endif
-    COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(CP2KHOME)/../cosma*$(COSMATGT)/lib*/libcosma_pxgemm_cpp.*)))
-    COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(HOME)/cosma*$(COSMATGT)/lib*/libcosma_pxgemm_cpp.*)))
-    COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(CP2KHOME)/../cosma*/$(COSMATGT)/lib*/libcosma_pxgemm_cpp.*)))
-    COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(HOME)/cosma*/$(COSMATGT)/lib*/libcosma_pxgemm_cpp.*)))
-    COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(CP2KHOME)/../cosma*/lib*/libcosma_pxgemm_cpp.*)))
-    COSMAROOT := $(if $(COSMAROOT),$(COSMAROOT),$(firstword $(wildcard $(HOME)/cosma*/lib*/libcosma_pxgemm_cpp.*)))
-    ifneq (,$(COSMAROOT))
-      COSMAROOT := $(abspath $(dir $(COSMAROOT))/..)
-    endif
-    ifneq (,$(COSMAROOT))
-      LIBS += -L$(COSMAROOT)/lib64 -L$(COSMAROOT)/lib -lcosma -lcosma_pxgemm_cpp -lcosma_prefixed_pxgemm -lcosta_scalapack -lcosta
-      DFLAGS += -D__COSMA
-      ifneq (,$(NVCC))
-        LIBS += -lTiled-MM
-      endif
+      LIBS += -lTiled-MM
     endif
   endif
-  ifneq (0,$(SCALAPACK))
-    DFLAGS += -D__SCALAPACK
-    ifneq (0,$(LEGACY))
-      DFLAGS += -D__BLACS
+endif
+endif
+
+ifneq (0,$(SCALAPACK))
+ifneq (0,$(MPI))
+  DFLAGS += -D__SCALAPACK
+  ifneq (0,$(LEGACY))
+    DFLAGS += -D__BLACS
+  endif
+  ifeq (0,$(shell echo $(SCALAPACK) | grep -q "^-*[0-9]\+$$"; echo $$?)) # number
+    ifneq (-1,$(SCALAPACK))
+      ifneq (1,$(SCALAPACK))
+        DFLAGS += -D__SCALAPACK$(SCALAPACK)
+      endif
+    else
+      SCALAPACKDIR := $(HOME)/scalapack-2.0.2
     endif
-    ifeq (0,$(shell echo $(SCALAPACK) | grep -q "^-*[0-9]\+$$"; echo $$?)) # number
-      ifneq (-1,$(SCALAPACK))
-        ifneq (1,$(SCALAPACK))
-          DFLAGS += -D__SCALAPACK$(SCALAPACK)
-        endif
-      else
-        SCALAPACKDIR := $(HOME)/scalapack-2.0.2
+    ifeq (,$(SCALAPACKDIR))
+      SCALAPACKDIR := $(MKLROOT)/lib/intel64
+      SCALAPACKLIB := mkl_scalapack_lp64
+    else
+      ifeq (,$(SCALAPACKLIB))
+        SCALAPACKLIB := scalapack
       endif
-      ifeq (,$(SCALAPACKDIR))
-        SCALAPACKDIR := $(MKLROOT)/lib/intel64
-        SCALAPACKLIB := mkl_scalapack_lp64
-      else
-        ifeq (,$(SCALAPACKLIB))
-          SCALAPACKLIB := scalapack
-        endif
-        LIBS += -L$(SCALAPACKDIR)
-      endif
-    else # NaN
-      SCALAPACKDIR := $(SCALAPACK)
-      SCALAPACKLIB := scalapack
       LIBS += -L$(SCALAPACKDIR)
     endif
+  else # NaN
+    SCALAPACKDIR := $(SCALAPACK)
+    SCALAPACKLIB := scalapack
+    LIBS += -L$(SCALAPACKDIR)
   endif
-  ifneq (1,$(MPI))
-    DFLAGS += -D__MPI_VERSION=$(MPI)
-  else # default MPI std. version
-    DFLAGS += -D__MPI_VERSION=3
-  endif
+endif
 endif
 
 ifneq (0,$(NDEBUG))
