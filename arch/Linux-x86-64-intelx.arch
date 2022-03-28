@@ -469,7 +469,7 @@ ifeq (0,$(GNU)) # Intel
       OPTFLAGS += -qopt-matmul
     endif
     ifneq (0,$(IPO))
-      IPOFLAGS += -ipo-separate
+      IPOFLAGS += -ipo
     else ifeq (0,$(IPO))
       LDFLAGS += -no-ipo
     endif
