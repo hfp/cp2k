@@ -269,6 +269,13 @@ OFFLOAD_TARGET = hip
 EOF
   fi
 
+  if [ "$__OPENCL" = "on" ]; then
+    cat << EOF >> $__filename
+#
+DBCSR_USE_ACCEL = opencl
+EOF
+  fi
+
   if [ "$__WARNALL" = "on" ]; then
     cat << EOF >> $__filename
 #
@@ -332,6 +339,18 @@ if [ "$ENABLE_HIP" = __TRUE__ ]; then
     gen_arch_file "local_hip.pdbg" HIP MPI DEBUG
     gen_arch_file "local_hip_warn.psmp" HIP MPI WARNALL
     gen_arch_file "local_coverage_hip.pdbg" HIP MPI COVERAGE
+  fi
+fi
+
+# opencl enabled arch files
+if [ "$ENABLE_OPENCL" = __TRUE__ ]; then
+  gen_arch_file "local_opencl.ssmp" OPENCL
+  gen_arch_file "local_opencl.sdbg" OPENCL DEBUG
+  if [ "$MPI_MODE" != no ]; then
+    gen_arch_file "local_opencl.psmp" OPENCL MPI
+    gen_arch_file "local_opencl.pdbg" OPENCL MPI DEBUG
+    gen_arch_file "local_opencl_warn.psmp" OPENCL MPI WARNALL
+    gen_arch_file "local_coverage_opencl.pdbg" OPENCL MPI COVERAGE
   fi
 fi
 

@@ -3,7 +3,7 @@ $(error "No DBCSR submodule available, please run 'git submodule update --init -
 endif
 
 LIBS     := -L$(LIBEXTSDIR)/dbcsr -ldbcsr $(LIBS)
-EXTSDEPS_LIB  = $(LIBEXTSDIR)/dbcsr/libdbcsr$(ARCHIVE_EXT)
+EXTSDEPS_LIB = $(LIBEXTSDIR)/dbcsr/libdbcsr$(ARCHIVE_EXT)
 EXTSDEPS_MOD = $(OBJEXTSDIR)/dbcsr/dbcsr_api.mod $(OBJEXTSDIR)/dbcsr/dbcsr_tensor_api.mod
 $(EXTSDEPS_MOD) : ; # override builtin .mod rule to prevent circular dependency
 
@@ -11,7 +11,7 @@ $(EXTSDEPS_MOD) : ; # override builtin .mod rule to prevent circular dependency
 ifneq (,$(findstring __DBCSR_ACC,$(OFFLOAD_FLAGS) $(FCFLAGS)))
 # By default, we use CUDA if OFFLOAD_TARGET is not specified
 ifeq (,$(OFFLOAD_TARGET))
-DBCSR_USE_ACCEL=cuda
+DBCSR_USE_ACCEL = cuda
 else
 DBCSR_USE_ACCEL = $(OFFLOAD_TARGET)
 endif
