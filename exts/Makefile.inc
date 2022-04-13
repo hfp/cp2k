@@ -41,14 +41,14 @@ dbcsr:
 	   OBJDIR=$(OBJEXTSDIR)/$@ \
 	   USE_ACCEL="$(DBCSR_USE_ACCEL)" \
 	   ACC="$(DBCSR_ACC)" \
-	   ACCFLAGS="$(DBCSR_ACCFLAGS)"
+	   ACCFLAGS="$(strip $(DBCSR_ACCFLAGS))"
 
 dbcsrversion:
 	@$(MAKE) -C $(EXTSHOME)/dbcsr -f $(EXTSHOME)/build_dbcsr/Makefile \
 	   ARCHFILE=$(ARCHDIR)/$(ARCH).$(ONEVERSION) \
 	   USE_ACCEL="$(DBCSR_USE_ACCEL)" \
 	   ACC="$(DBCSR_ACC)" \
-	   ACCFLAGS="$(DBCSR_ACCFLAGS)" \
+	   ACCFLAGS="$(strip $(DBCSR_ACCFLAGS))" \
 	   version
 
 dbcsrclean:
@@ -59,5 +59,5 @@ dbcsrclean:
 	   OBJDIR=$(OBJEXTSDIR)/$@ \
 	   USE_ACCEL="$(DBCSR_USE_ACCEL)" \
 	   ACC="$(DBCSR_ACC)" \
-	   ACCFLAGS="$(DBCSR_ACCFLAGS)" \
+	   ACCFLAGS="$(strip $(DBCSR_ACCFLAGS))" \
 	   clean
