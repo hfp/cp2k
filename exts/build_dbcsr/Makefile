@@ -103,8 +103,6 @@ endif
 
 # Set ACCFLAGS ==============================================================
 
-# Set ACCFLAGS ==============================================================
-
 # If compiling with nvcc
 ifeq (cuda,$(USE_ACCEL))
   override ACCFLAGS += -D__CUDA
