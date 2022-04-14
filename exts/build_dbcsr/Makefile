@@ -121,7 +121,7 @@ else ifeq (hip,$(USE_ACCEL))
   FCFLAGS += -D__HIP
 # OpenCL backend
 else ifeq (opencl,$(USE_ACCEL))
-  CFLAGS = $(ACCFLAGS) -D__OPENCL
+  CFLAGS := $(if $(ACCFLAGS),$(ACCFLAGS),$(CFLAGS)) -D__OPENCL
 endif
 
 # Set the configuration =====================================================
