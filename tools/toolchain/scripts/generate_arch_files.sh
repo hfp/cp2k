@@ -134,7 +134,8 @@ if [ "${ENABLE_CUDA}" = __TRUE__ ] && [ "${GPUVER}" != no ]; then
   CUDA_FLAGS=""
   add_include_from_paths CUDA_FLAGS "cuda.h" $INCLUDE_PATHS
   NVFLAGS+=" ${CUDA_FLAGS}"
-  CUDA_PATH="${CUDA_PATH:-${CUDA_HOME:-${$(dirname $(command -v nvcc))/..:-/CUDA_HOME-notset}}}"
+  NVCC_PATH="$(dirname $(command -v nvcc))"
+  CUDA_PATH="${CUDA_PATH:-${CUDA_HOME:-${NVCC_PATH/..:-/CUDA_HOME-notset}}}"
   CFLAGS+=" -I${CUDA_PATH}/include"
   CXXFLAGS+=" -I${CUDA_PATH}/include"
 
