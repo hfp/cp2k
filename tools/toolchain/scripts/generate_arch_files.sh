@@ -158,7 +158,6 @@ if [ "${ENABLE_HIP}" = __TRUE__ ] && [ "${GPUVER}" != no ]; then
   check_lib -lhipfft "hip"
   add_lib_from_paths HIP_LDFLAGS "libhipfft.*" $LIB_PATHS
 
-  PLATFORM_FLAGS=""
   HIP_INCLUDES="-I${ROCM_PATH}/include"
   case "${GPUVER}" in
     Mi50)
@@ -174,7 +173,6 @@ if [ "${ENABLE_HIP}" = __TRUE__ ] && [ "${GPUVER}" != no ]; then
       add_lib_from_paths HIP_LDFLAGS "libroctracer64.*" $LIB_PATHS
       HIP_FLAGS+="-fPIE -D__HIP_PLATFORM_AMD__ -g --offload-arch=gfx906 -O3 --std=c++11 \$(DFLAGS)"
       LIBS+=" IF_HIP(-lamdhip64 -lhipfft -lhipblas -lrocblas IF_DEBUG(-lroctx64 -lroctracer64|)|)"
-      PLATFORM_FLAGS='-D__HIP_PLATFORM_AMD__'
       DFLAGS+=' IF_HIP(-D__HIP_PLATFORM_AMD__ -D__OFFLOAD_HIP IF_DEBUG(-D__OFFLOAD_PROFILING|)|)  -D__DBCSR_ACC'
       CXXFLAGS+=" -fopenmp -std=c++11"
       ;;
@@ -191,7 +189,6 @@ if [ "${ENABLE_HIP}" = __TRUE__ ] && [ "${GPUVER}" != no ]; then
       add_lib_from_paths HIP_LDFLAGS "libroctracer64.*" $LIB_PATHS
       HIP_FLAGS+="-fPIE -D__HIP_PLATFORM_AMD__ -g --offload-arch=gfx908 -O3 --std=c++11 \$(DFLAGS)"
       LIBS+=" IF_HIP(-lamdhip64 -lhipfft -lhipblas -lrocblas IF_DEBUG(-lroctx64 -lroctracer64|)|)"
-      PLATFORM_FLAGS='-D__HIP_PLATFORM_AMD__ '
       DFLAGS+=' IF_HIP(-D__HIP_PLATFORM_AMD__ -D__OFFLOAD_HIP IF_DEBUG(-D__OFFLOAD_PROFILING|)|) -D__DBCSR_ACC'
       CXXFLAGS+=" -fopenmp -std=c++11"
       ;;
