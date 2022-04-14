@@ -218,7 +218,7 @@ endif
 
 ifneq (,$(filter-out 0,$(OCL) $(CUDA)))
   ifneq (0,$(OCL))
-    DFLAGS += -D__ACC -D__DBCSR_ACC -D__OPENCL
+    DFLAGS += -D__ACC -D__DBCSR_ACC
     ifeq (Darwin,$(UNAME))
       LIBS += -framework OpenCL
     else
