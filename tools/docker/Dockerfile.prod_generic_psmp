@@ -3,12 +3,12 @@
 # Usage: docker build -f ./Dockerfile.prod_generic_psmp ../../
 #
 
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 # Install requirements for the toolchain.
 WORKDIR /opt/cp2k-toolchain
 COPY ./tools/toolchain/install_requirements*.sh ./
-RUN ./install_requirements.sh ubuntu:20.04
+RUN ./install_requirements.sh ubuntu:22.04
 
 # Install the toolchain.
 RUN mkdir scripts
@@ -77,7 +77,8 @@ RUN /bin/bash -c " \
     make -j ARCH=local VERSION=psmp && \
     ln -sf ./cp2k.psmp ./exe/local/cp2k && \
     ln -sf ./cp2k_shell.psmp ./exe/local/cp2k_shell && \
-    rm -rf lib obj exe/local/libcp2k_unittest.psmp"
+    rm -rf lib obj exe/local/libcp2k_unittest.psmp && \
+    ( [ ! -f ./exe/local/cp2k.psmp ] || ldd ./exe/local/cp2k.psmp | grep libmpi.so )"
 COPY ./data ./data
 COPY ./tests ./tests
 COPY ./tools/regtesting ./tools/regtesting

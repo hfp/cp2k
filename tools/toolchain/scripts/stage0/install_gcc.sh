@@ -1,16 +1,13 @@
 #!/bin/bash -e
 
 # TODO: Review and if possible fix shellcheck errors.
-# shellcheck disable=SC1003,SC1035,SC1083,SC1090
-# shellcheck disable=SC2001,SC2002,SC2005,SC2016,SC2091,SC2034,SC2046,SC2086,SC2089,SC2090
-# shellcheck disable=SC2124,SC2129,SC2144,SC2153,SC2154,SC2155,SC2163,SC2164,SC2166
-# shellcheck disable=SC2235,SC2237
+# shellcheck disable=all
 
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")/.." && pwd -P)"
 
-gcc_ver="11.2.0"
-gcc_sha256="f0837f1bf8244a5cc23bd96ff6366712a791cfae01df8e25b137698aca26efc1"
+gcc_ver="12.1.0"
+gcc_sha256="e88a004a14697bbbaba311f38a938c716d9a652fd151aaaa4cf1b5b99b90e2de"
 
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh

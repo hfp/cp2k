@@ -1,16 +1,13 @@
 #!/bin/bash -e
 
 # TODO: Review and if possible fix shellcheck errors.
-# shellcheck disable=SC1003,SC1035,SC1083,SC1090
-# shellcheck disable=SC2001,SC2002,SC2005,SC2016,SC2091,SC2034,SC2046,SC2086,SC2089,SC2090
-# shellcheck disable=SC2124,SC2129,SC2144,SC2153,SC2154,SC2155,SC2163,SC2164,SC2166
-# shellcheck disable=SC2235,SC2237
+# shellcheck disable=all
 
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")/.." && pwd -P)"
 
-spfft_ver="1.0.5"
-spfft_sha256="43173ff813d616b36b47c4ed767e54eec74bc72c407fb89e18e4a44ffb151d89"
+spfft_ver="1.0.6"
+spfft_sha256="d179ccdce65890587d0cbf72dc2e5ec0b200ffc56e723ed01a2f5063de6a8630"
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh
 source "${SCRIPT_DIR}"/signal_trap.sh
@@ -22,7 +19,7 @@ source "${INSTALLDIR}"/toolchain.env
 ! [ -d "${BUILDDIR}" ] && mkdir -p "${BUILDDIR}"
 cd "${BUILDDIR}"
 
-case "$with_spfft" in
+case "${with_spfft}" in
   __INSTALL__)
     echo "==================== Installing spfft ===================="
     pkg_install_dir="${INSTALLDIR}/SpFFT-${spfft_ver}"
@@ -144,7 +141,6 @@ case "$with_spfft" in
       fi
       write_checksums "${install_lock_file}" "${SCRIPT_DIR}/stage8/$(basename ${SCRIPT_NAME})"
     fi
-
     SPFFT_ROOT="${pkg_install_dir}"
     SPFFT_CFLAGS="-I'${pkg_install_dir}/include'"
     SPFFT_LDFLAGS="-L'${pkg_install_dir}/lib' -Wl,-rpath='${pkg_install_dir}/lib'"
@@ -156,8 +152,9 @@ case "$with_spfft" in
     add_include_from_paths SPFFT_CFLAGS "spfft.h" $INCLUDE_PATHS
     add_lib_from_paths SPFFT_LDFLAGS "libspfft.*" $LIB_PATHS
     ;;
-  __DONTUSE__) ;;
-
+  __DONTUSE__)
+    # Nothing to do
+    ;;
   *)
     echo "==================== Linking spfft to user paths ===================="
     pkg_install_dir="$with_spfft"
