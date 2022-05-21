@@ -1,12 +1,12 @@
 #!/bin/bash
 #
-# CP2K (GNU) arch file for a serial static x86_64 binary
+# CP2K Darwin arch file for a serial aarch64 (arm64) binary
 #
-# Tested with: GNU 11.2.0, FFTW 3.3.10, LIBINT 2.6.0, LIBBVORI 210412,
+# Tested with: GNU 11.3.0, FFTW 3.3.10, LIBINT 2.6.0, LIBBVORI 210412,
 #              LIBXC 5.2.3, OpenBLAS 0.3.20, SPGLIB 1.16.2
+#          on: Apple M1 (macOS Monterey 12.4)
 #
 # Usage: Source this arch file and then run make as instructed.
-#        Add "generic" as argument to compile for a generic x86_64 target.
 #
 # Author: Matthias Krack (20.05.2022)
 #
@@ -18,32 +18,34 @@
    fi; \
    this_file=${BASH_SOURCE##*/}; \
    cd tools/toolchain; \
-   if [[ "${1}" == "generic" ]]; then \
-      ./install_cp2k_toolchain.sh --generic --mpi-mode=no --no-arch-files --with-gcc=install; \
+   if $(command -v brew >&- 2>&-); then \
+      brew install cmake; \
+      brew install gcc; \
+      brew install fftw; \
+      brew install openblas; \
    else \
-      ./install_cp2k_toolchain.sh --mpi-mode=no --no-arch-files --with-gcc=install; \
+      echo "ERROR: Homebrew installation not found"; \
+      cd ../..; \
+      return 1; \
    fi; \
+   ./install_cp2k_toolchain.sh -j8 --mpi-mode=no --no-arch-files --with-cmake=system --with-gcc=system --with-fftw=system --with-openblas=system; \
    source ./install/setup; \
    cd ../..; \
    echo; \
    echo "Check the output above for error messages and consistency!"; \
    echo "If everything is OK, you can build a CP2K production binary with"; \
-   if [[ "${1}" == "generic" ]]; then \
-      echo "   make -j ARCH=${this_file%%.*} VERSION=${this_file##*.} GENERIC=yes"; \
-   else \
-      echo "   make -j ARCH=${this_file%%.*} VERSION=${this_file##*.}"; \
-   fi; \
-   echo "Further checks are performed, if DO_CHECKS=yes is added."; \
+   echo "   make -j8 ARCH=${this_file%%.*} VERSION=${this_file##*.}"; \
+   echo "Alternatively, you can add further checks, e.g. for regression testing, with"; \
+   echo "   make -j8 ARCH=${this_file%%.*} VERSION=${this_file##*.} DO_CHECKS=yes"; \
    return
 
 # Set options
 DO_CHECKS      := no
-GENERIC        := no
+USE_ACCELERATE := no
 USE_FFTW       := 3.3.10
 USE_LIBINT     := 2.6.0
 USE_LIBVORI    := 210412
 USE_LIBXC      := 5.2.3
-USE_OPENBLAS   := 0.3.20
 USE_SPGLIB     := 1.16.2
 
 LMAX           := 5
@@ -53,15 +55,12 @@ CC             := gcc
 CXX            := g++
 FC             := gfortran
 LD             := gfortran
-AR             := ar -r
+AR             := ar -r -s
 
-ifeq ($(GENERIC), yes)
-   CFLAGS         := -O2 -fopenmp -fopenmp-simd -ftree-vectorize -funroll-loops -g -mtune=generic
-else
-   CFLAGS         := -O2 -fopenmp -fopenmp-simd -ftree-vectorize -funroll-loops -g -mtune=native
-endif
+CFLAGS         := -O2 -fopenmp -fopenmp-simd -ftree-vectorize -funroll-loops -g -mtune=native
 
 DFLAGS         += -D__MAX_CONTR=$(strip $(MAX_CONTR))
+DFLAGS         += -D__NO_STATM_ACCESS
 
 INSTALL_PATH   := $(PWD)/tools/toolchain/install
 
@@ -132,18 +131,22 @@ endif
 
 ifneq ($(USE_FFTW),)
    USE_FFTW       := $(strip $(USE_FFTW))
-   FFTW_INC       := $(INSTALL_PATH)/fftw-$(USE_FFTW)/include
-   FFTW_LIB       := $(INSTALL_PATH)/fftw-$(USE_FFTW)/lib
+   FFTW_ROOT      := /opt/homebrew
+   FFTW_INC       := $(FFTW_ROOT)/include
+   FFTW_LIB       := $(FFTW_ROOT)/lib
    CFLAGS         += -I$(FFTW_INC)
    DFLAGS         += -D__FFTW3
    LIBS           += $(FFTW_LIB)/libfftw3_omp.a
    LIBS           += $(FFTW_LIB)/libfftw3.a
 endif
 
-ifneq ($(USE_OPENBLAS),)
-   USE_OPENBLAS   := $(strip $(USE_OPENBLAS))
-   OPENBLAS_INC   := $(INSTALL_PATH)/openblas-$(USE_OPENBLAS)/include
-   OPENBLAS_LIB   := $(INSTALL_PATH)/openblas-$(USE_OPENBLAS)/lib
+ifeq ($(USE_ACCELERATE), yes)
+   DFLAGS         += -D__ACCELERATE
+   LIBS           += -framework Accelerate
+else
+   OPENBLAS_ROOT  := /opt/homebrew
+   OPENBLAS_INC   := $(OPENBLAS_ROOT)/include
+   OPENBLAS_LIB   := $(OPENBLAS_ROOT)/lib
    CFLAGS         += -I$(OPENBLAS_INC)
    LIBS           += $(OPENBLAS_LIB)/libopenblas.a
 endif
@@ -158,7 +161,7 @@ FCFLAGS        += -ffree-line-length-none
 FCFLAGS        += -fno-omit-frame-pointer
 FCFLAGS        += -std=f2008
 
-LDFLAGS        += $(FCFLAGS) -static
+LDFLAGS        += $(FCFLAGS)
 
 LIBS           += -ldl -lstdc++
 
