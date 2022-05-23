@@ -5,30 +5,17 @@
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
 
-// needed for struct timespec
-#define _POSIX_C_SOURCE 200809L
-
 #include <assert.h>
 #include <omp.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 #include "../offload/offload_library.h"
 #include "dbm_library.h"
 #include "dbm_matrix.h"
 #include "dbm_mpi.h"
-
-/*******************************************************************************
- * \brief Private routine for subtracting two timespecs.
- * \author Ole Schuett
- ******************************************************************************/
-static double time_diff(const struct timespec start,
-                        const struct timespec end) {
-  return (end.tv_sec - start.tv_sec) + 1e-9 * (end.tv_nsec - start.tv_nsec);
-}
 
 /*******************************************************************************
  * \brief Private routine for creating a distribution and an empty matrix.
@@ -79,21 +66,25 @@ static void reserve_all_blocks(dbm_matrix_t *matrix) {
   dbm_get_row_sizes(matrix, &nrows, &row_sizes);
   dbm_get_col_sizes(matrix, &ncols, &col_sizes);
 
-  const int nblocks = nrows * ncols;
-  int reserve_row[nblocks];
-  int reserve_col[nblocks];
-
-  int nblocks_reserve = 0;
-  for (int i = 0; i < nblocks; i++) {
-    const int row = i % nrows;
-    const int col = i % ncols;
-    if (dbm_get_stored_coordinates(matrix, row, col) == matrix->dist->my_rank) {
-      reserve_row[nblocks_reserve] = row;
-      reserve_col[nblocks_reserve] = col;
-      nblocks_reserve++;
+#pragma omp parallel
+  {
+    const int nblocks = nrows * ncols;
+    int reserve_row[nblocks / omp_get_num_threads() + 1];
+    int reserve_col[nblocks / omp_get_num_threads() + 1];
+    int nblocks_reserve = 0;
+#pragma omp for
+    for (int i = 0; i < nblocks; i++) {
+      const int row = i % nrows;
+      const int col = i % ncols;
+      if (dbm_get_stored_coordinates(matrix, row, col) ==
+          matrix->dist->my_rank) {
+        reserve_row[nblocks_reserve] = row;
+        reserve_col[nblocks_reserve] = col;
+        nblocks_reserve++;
+      }
     }
+    dbm_reserve_blocks(matrix, nblocks_reserve, reserve_row, reserve_col);
   }
-  dbm_reserve_blocks(matrix, nblocks_reserve, reserve_row, reserve_col);
 }
 
 /*******************************************************************************
@@ -101,18 +92,21 @@ static void reserve_all_blocks(dbm_matrix_t *matrix) {
  * \author Ole Schuett
  ******************************************************************************/
 static void set_all_blocks(dbm_matrix_t *matrix) {
-  dbm_iterator_t *iter = NULL;
-  dbm_iterator_start(&iter, matrix);
-  while (dbm_iterator_blocks_left(iter)) {
-    int row, col, row_size, col_size;
-    double *block;
-    dbm_iterator_next_block(iter, &row, &col, &block, &row_size, &col_size);
-    const int block_size = row_size * col_size;
-    for (int i = 0; i < block_size; i++) {
-      block[i] = 1.0;
+#pragma omp parallel
+  {
+    dbm_iterator_t *iter = NULL;
+    dbm_iterator_start(&iter, matrix);
+    while (dbm_iterator_blocks_left(iter)) {
+      int row, col, row_size, col_size;
+      double *block;
+      dbm_iterator_next_block(iter, &row, &col, &block, &row_size, &col_size);
+      const int block_size = row_size * col_size;
+      for (int i = 0; i < block_size; i++) {
+        block[i] = 1.0;
+      }
     }
+    dbm_iterator_stop(iter);
   }
-  dbm_iterator_stop(iter);
 }
 
 /*******************************************************************************
@@ -144,16 +138,16 @@ int main(int argc, char *argv[]) {
   dbm_library_init();
 
   // Benchmark reserve blocks.
-  struct timespec time_start, time_end;
-  clock_gettime(CLOCK_REALTIME, &time_start);
+  const double time_start_reserve = omp_get_wtime();
   for (int icycle = 0; icycle < 50; icycle++) {
     dbm_matrix_t *matrix = create_some_matrix(comm);
     reserve_all_blocks(matrix);
     dbm_release(matrix);
   }
-  clock_gettime(CLOCK_REALTIME, &time_end);
+  const double time_end_reserve = omp_get_wtime();
   if (my_rank == 0) {
-    printf("reserve blocks: %.3f seconds\n", time_diff(time_start, time_end));
+    const double t = time_end_reserve - time_start_reserve;
+    printf("reserve blocks: %.3f seconds\n", t);
   }
 
   // Benchmark matrix multiply.
@@ -165,16 +159,16 @@ int main(int argc, char *argv[]) {
   set_all_blocks(matrix_a);
   set_all_blocks(matrix_b);
   int64_t flop;
-  clock_gettime(CLOCK_REALTIME, &time_start);
+  const double time_start_multiply = omp_get_wtime();
   dbm_multiply(false, false, 1.0, matrix_a, matrix_b, 1.0, matrix_c, false,
                1e-8, &flop);
-  clock_gettime(CLOCK_REALTIME, &time_end);
+  const double time_end_multiply = omp_get_wtime();
   dbm_release(matrix_a);
   dbm_release(matrix_b);
   dbm_release(matrix_c);
 
-  const double t = time_diff(time_start, time_end);
   if (my_rank == 0) {
+    const double t = time_end_multiply - time_start_multiply;
     printf("matrix multiply: %.3f s, %.1f MFLOP/s \n", t, 1e-6 * flop / t);
     printf("done :-)\n");
   }
