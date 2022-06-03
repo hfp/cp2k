@@ -1,11 +1,7 @@
 &GLOBAL
-  PROJECT     GRAD_H2O_gpw
+  PROJECT     GRAD_H2O_sd
   PRINT_LEVEL LOW
   RUN_TYPE    GEO_OPT
-  &DBCSR
-    use_mpi_rma T
-    num_layers_3D 2
-  &END
 &END GLOBAL
 &MOTION
   &GEO_OPT
@@ -48,10 +44,10 @@
       &END HF
       &WF_CORRELATION
         &RI_MP2
-          BLOCK_SIZE  1
           EPS_CANONICAL 0.0001
           FREE_HFX_BUFFER .TRUE.
           &CPHF
+            SOLVER_METHOD SD
             EPS_CONV  1.0E-4
             MAX_ITER  10
           &END
