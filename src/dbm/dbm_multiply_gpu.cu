@@ -10,6 +10,7 @@
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
 
 #include "../offload/offload_library.h"
+#include "dbm_hyperparams.h"
 #include "dbm_mempool.h"
 #include "dbm_multiply_gpu.h"
 
@@ -67,7 +68,8 @@ void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,
   for (int i = 0; i < nshards; i++) {
     offloadStreamCreate(&ctx->shards_c_dev[i].stream);
     ctx->shards_c_dev[i].data_size = ctx->shards_c_host[i].data_size;
-    const size_t size = ctx->shards_c_dev[i].data_size * sizeof(double);
+    ctx->shards_c_dev[i].data_allocated = ctx->shards_c_dev[i].data_size;
+    const size_t size = ctx->shards_c_dev[i].data_allocated * sizeof(double);
     ctx->shards_c_dev[i].data = (double *)dbm_mempool_device_malloc(size);
     offloadMemcpyAsyncHtoD(ctx->shards_c_dev[i].data,
                            ctx->shards_c_host[i].data, size,
@@ -123,15 +125,13 @@ void dbm_multiply_gpu_upload_packs(const dbm_pack_t *pack_a,
  * \brief A very naive - but generic - matrix multiplication kernel.
  * \author Ole Schuett
  ******************************************************************************/
-__global__ static void
-process_batch_kernel(const bool transa, const bool transb, const double alpha,
-                     const dbm_task_t *batch, const double *pack_a_data,
-                     const double *pack_b_data, double *shard_c_data) {
+__global__ static void process_batch_kernel(const double alpha,
+                                            const dbm_task_t *batch,
+                                            const double *pack_a_data,
+                                            const double *pack_b_data,
+                                            double *shard_c_data) {
 
   const dbm_task_t task = batch[blockIdx.x];
-  const int lda = (transa) ? task.k : task.m;
-  const int ldb = (transb) ? task.n : task.k;
-  const int ldc = task.m;
   const double *data_a = &pack_a_data[task.offset_a];
   const double *data_b = &pack_b_data[task.offset_b];
   double *data_c = &shard_c_data[task.offset_c];
@@ -139,9 +139,9 @@ process_batch_kernel(const bool transa, const bool transb, const double alpha,
   for (int i = threadIdx.z; i < task.m; i += blockDim.z) {
     for (int j = threadIdx.y; j < task.n; j += blockDim.y) {
       for (int l = threadIdx.x; l < task.k; l += blockDim.x) {
-        const int idx_a = (transa) ? i * lda + l : l * lda + i;
-        const int idx_b = (transb) ? l * ldb + j : j * ldb + l;
-        const int idx_c = j * ldc + i;
+        const int idx_a = l * task.m + i; // transa = "N"
+        const int idx_b = l * task.n + j; // transb = "T"
+        const int idx_c = j * task.m + i;
         const double val = alpha * data_a[idx_a] * data_b[idx_b];
         atomicAddDouble(&data_c[idx_c], val);
       }
@@ -154,9 +154,9 @@ process_batch_kernel(const bool transa, const bool transb, const double alpha,
  * \author Ole Schuett
  ******************************************************************************/
 void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
-                                    const bool transa, const bool transb,
                                     const double alpha, const int kshard,
                                     dbm_multiply_gpu_context_t *ctx) {
+
   if (ntasks == 0) {
     return; // Nothing to do.
   }
@@ -175,21 +175,27 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
   offloadEventCreate(&batch_uploaded);
   offloadEventRecord(batch_uploaded, shard_c_dev->stream);
 
-  // Grow shard_c_dev->data if nessecary.
-  if (shard_c_dev->data_size < shard_c_host->data_promised) {
-    // TODO experiment with over-allocation.
+  // Reallocate shard_c_dev->data if nessecary.
+  if (shard_c_host->data_promised > shard_c_dev->data_allocated) {
     double *old_data_dev = shard_c_dev->data;
-    const size_t old_size = shard_c_dev->data_size * sizeof(double);
-    shard_c_dev->data_size = shard_c_host->data_promised;
-    const size_t new_size = shard_c_dev->data_size * sizeof(double);
-    shard_c_dev->data = (double *)dbm_mempool_device_malloc(new_size);
-    offloadMemsetAsync(shard_c_dev->data, 0, new_size,
-                       shard_c_dev->stream); // TODO: zero only tail
-    offloadMemcpyAsyncDtoD(shard_c_dev->data, old_data_dev, old_size,
+    shard_c_dev->data_allocated =
+        ALLOCATION_FACTOR * shard_c_host->data_promised;
+    shard_c_dev->data = (double *)dbm_mempool_device_malloc(
+        shard_c_dev->data_allocated * sizeof(double));
+    offloadMemcpyAsyncDtoD(shard_c_dev->data, old_data_dev,
+                           shard_c_dev->data_size * sizeof(double),
                            shard_c_dev->stream);
     // Wait for copy to complete before freeing old buffer.
     offloadStreamSynchronize(shard_c_dev->stream);
     dbm_mempool_free(old_data_dev);
+  }
+
+  // Zero new blocks if nessecary.
+  if (shard_c_host->data_promised > shard_c_dev->data_size) {
+    const int tail = shard_c_host->data_promised - shard_c_dev->data_size;
+    offloadMemsetAsync(&shard_c_dev->data[shard_c_dev->data_size], 0,
+                       tail * sizeof(double), shard_c_dev->stream);
+    shard_c_dev->data_size = shard_c_host->data_promised;
   }
 
   // Launch kernel.
@@ -198,8 +204,8 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
   const size_t smem_per_block = 0;
   process_batch_kernel<<<nblocks, threads_per_block, smem_per_block,
                          shard_c_dev->stream>>>(
-      transa, transb, alpha, batch_dev, ctx->pack_a_dev.data,
-      ctx->pack_b_dev.data, shard_c_dev->data);
+      alpha, batch_dev, ctx->pack_a_dev.data, ctx->pack_b_dev.data,
+      shard_c_dev->data);
   OFFLOAD_CHECK(offloadGetLastError());
 
   // Wait for batch to be uploaded before refilling it.

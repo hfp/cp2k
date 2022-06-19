@@ -102,7 +102,6 @@ static void backend_upload_packs(const dbm_pack_t *pack_a,
  * \author Ole Schuett
  ******************************************************************************/
 static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
-                                  const bool transa, const bool transb,
                                   const double alpha, const dbm_pack_t *pack_a,
                                   const dbm_pack_t *pack_b, const int kshard,
                                   dbm_shard_t *shard_c,
@@ -111,13 +110,11 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
   (void)pack_a; // mark as used
   (void)pack_b;
   (void)shard_c;
-  dbm_multiply_gpu_process_batch(ntasks, batch, transa, transb, alpha, kshard,
-                                 &ctx->gpu);
+  dbm_multiply_gpu_process_batch(ntasks, batch, alpha, kshard, &ctx->gpu);
 #else
   (void)kshard; // mark as used
   (void)ctx;
-  dbm_multiply_cpu_process_batch(ntasks, batch, transa, transb, alpha, pack_a,
-                                 pack_b, shard_c);
+  dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b, shard_c);
 #endif
 }
 
@@ -160,6 +157,7 @@ static void multiply_packs(const bool transa, const bool transb,
   const float alpha2 = alpha * alpha;
 
   int64_t flop_sum = 0;
+
 #pragma omp parallel for schedule(dynamic) reduction(+ : flop_sum)
   for (int kshard = 0; kshard < matrix_c->nshards; kshard++) {
     dbm_shard_t *shard_c = &matrix_c->shards[kshard];
@@ -222,6 +220,7 @@ static void multiply_packs(const bool transa, const bool transb,
         // Count flops.
         assert(m * n * k > 0);
         flop_sum += 2 * m * n * k;
+        dbm_library_counter_increment(m, n, k);
 
         // Invalidate norm of C block because its data is going to change.
         blk_c->norm = -1.0;
@@ -236,14 +235,14 @@ static void multiply_packs(const bool transa, const bool transb,
         ntasks++;
 
         if (ntasks == MAX_BATCH_SIZE) {
-          backend_process_batch(ntasks, batch, transa, transb, alpha, pack_a,
-                                pack_b, kshard, shard_c, ctx);
+          backend_process_batch(ntasks, batch, alpha, pack_a, pack_b, kshard,
+                                shard_c, ctx);
           ntasks = 0;
         }
       }
     }
-    backend_process_batch(ntasks, batch, transa, transb, alpha, pack_a, pack_b,
-                          kshard, shard_c, ctx);
+    backend_process_batch(ntasks, batch, alpha, pack_a, pack_b, kshard, shard_c,
+                          ctx);
   }
   *flop += flop_sum;
 }

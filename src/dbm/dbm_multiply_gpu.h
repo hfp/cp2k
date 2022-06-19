@@ -26,6 +26,7 @@ extern "C" {
 typedef struct {
   double *data; // on the device
   int data_size;
+  int data_allocated;
   offloadStream_t stream;
 } dbm_shard_gpu_t;
 
@@ -68,7 +69,6 @@ void dbm_multiply_gpu_upload_packs(const dbm_pack_t *pack_a,
  * \author Ole Schuett
  ******************************************************************************/
 void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
-                                    const bool transa, const bool transb,
                                     const double alpha, const int kshard,
                                     dbm_multiply_gpu_context_t *ctx);
 
