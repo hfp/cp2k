@@ -1283,9 +1283,6 @@ CONTAINS
       CALL section_vals_val_get(t_section, "DO_LRIGPW", l_val=t_control%do_lrigpw)
       CALL section_vals_val_get(t_section, "ADMM_KERNEL_CORRECTION_SYMMETRIC", l_val=t_control%admm_symm)
 
-      t_control%do_response_now = .FALSE. ! logical to control that update of response density is distinguished
-      ! from update of GS density
-
       ! read automatically generated auxiliary basis for LRI
       CALL section_vals_val_get(t_section, "AUTO_BASIS", n_rep_val=nrep)
       DO irep = 1, nrep
@@ -1577,7 +1574,36 @@ CONTAINS
             CALL section_release(section)
          END IF
 
+         WRITE (UNIT=output_unit, FMT="(A)") ""
          CALL xc_write(output_unit, xc_section, dft_control%lsd)
+
+         IF (dft_control%apply_period_efield) THEN
+            WRITE (UNIT=output_unit, FMT="(A)") ""
+            IF (dft_control%period_efield%displacement_field) THEN
+               WRITE (UNIT=output_unit, FMT="(T2,A)") &
+                  "PERIODIC_EFIELD| Use displacement field formulation"
+               WRITE (UNIT=output_unit, FMT="(T2,A,T66,1X,ES14.6)") &
+                  "PERIODIC_EFIELD| Displacement field filter: x", &
+                  dft_control%period_efield%d_filter(1), &
+                  "PERIODIC_EFIELD|                            y", &
+                  dft_control%period_efield%d_filter(2), &
+                  "PERIODIC_EFIELD|                            z", &
+                  dft_control%period_efield%d_filter(3)
+            END IF
+            WRITE (UNIT=output_unit, FMT="(T2,A,T66,1X,ES14.6)") &
+               "PERIODIC_EFIELD| Polarisation vector:       x", &
+               dft_control%period_efield%polarisation(1), &
+               "PERIODIC_EFIELD|                            y", &
+               dft_control%period_efield%polarisation(2), &
+               "PERIODIC_EFIELD|                            z", &
+               dft_control%period_efield%polarisation(3), &
+               "PERIODIC_EFIELD| Intensity [a.u.]:", &
+               dft_control%period_efield%strength
+            IF (SQRT(DOT_PRODUCT(dft_control%period_efield%polarisation, &
+                                 dft_control%period_efield%polarisation)) < EPSILON(0.0_dp)) THEN
+               CPABORT("Invalid (too small) polarisation vector specified for PERIODIC_EFIELD")
+            END IF
+         END IF
 
          IF (dft_control%do_sccs) THEN
             IF (dft_control%qs_control%gapw) THEN
@@ -1651,6 +1677,8 @@ CONTAINS
                "SCCS| Numerical increment for the cavity surface calculation", &
                dft_control%sccs_control%delta_rho
          END IF
+
+         WRITE (UNIT=output_unit, FMT="(A)") ""
 
       END IF
 
