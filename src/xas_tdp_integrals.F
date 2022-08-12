@@ -11,9 +11,9 @@
 ! **************************************************************************************************
 
 MODULE xas_tdp_integrals
-   USE OMP_LIB,                         ONLY: omp_get_max_threads,&
-                                              omp_get_num_threads,&
-                                              omp_get_thread_num
+   USE OMP_LIB, ONLY: omp_get_max_threads, &
+                      omp_get_num_threads, &
+                      omp_get_thread_num
    USE ai_contraction_sphi, ONLY: ab_contract, &
                                   libxsmm_abc_contract
    USE atomic_kind_types, ONLY: atomic_kind_type
