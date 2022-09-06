@@ -35,13 +35,8 @@ static inline void dbm_dgemm(const char transa, const char transb, const int m,
                              const int ldb, const double beta, double *c,
                              const int ldc) {
 
-#if defined(__LIBXSMM)
-  libxsmm_dgemm(&transa, &transb, &m, &n, &k, &alpha, a, &lda, b, &ldb, &beta,
-                c, &ldc);
-#else
   dgemm_(&transa, &transb, &m, &n, &k, &alpha, a, &lda, b, &ldb, &beta, c,
          &ldc);
-#endif
 }
 
 /*******************************************************************************
@@ -78,45 +73,70 @@ void dbm_multiply_cpu_process_batch(const int ntasks, dbm_task_t batch[ntasks],
   memset(buckets, 0, BATCH_NUM_BUCKETS * sizeof(int));
   for (int itask = 0; itask < ntasks; itask++) {
     const int i = hash(batch[itask]) % BATCH_NUM_BUCKETS;
-    buckets[i]++;
+    ++buckets[i];
   }
-  for (int i = 1; i < BATCH_NUM_BUCKETS; i++) {
+  for (int i = 1; i < BATCH_NUM_BUCKETS; ++i) {
     buckets[i] += buckets[i - 1];
   }
   assert(buckets[BATCH_NUM_BUCKETS - 1] == ntasks);
   int batch_order[ntasks];
-  for (int itask = 0; itask < ntasks; itask++) {
+  for (int itask = 0; itask < ntasks; ++itask) {
     const int i = hash(batch[itask]) % BATCH_NUM_BUCKETS;
-    buckets[i]--;
+    --buckets[i];
     batch_order[buckets[i]] = itask;
   }
 
-  // Prepare arguments for libxsmm_dmmdispatch().
+  // Prepare arguments for libxsmm's kernel-dispatch.
+  const int flags = LIBXSMM_GEMM_FLAG_TRANS_B; // transa = "N", transb = "T"
+  int kernel_m = 0, kernel_n = 0, kernel_k = 0;
+
+# if LIBXSMM_VERSION2(1, 17) < LIBXSMM_VERSION_NUMBER
+  const int prefetch = LIBXSMM_PREFETCH_NONE;
+  libxsmm_gemmfunction kernel_func = NULL;
+# else
+  const int prefetch = LIBXSMM_PREFETCH_NONE;
+  libxsmm_dmmfunction kernel_func = NULL;
   const double beta = 1.0;
-  int flags = LIBXSMM_GEMM_FLAG_TRANS_B;      // transa = "N", transb = "T"
-  const int prefetch = LIBXSMM_PREFETCH_NONE; // somehow prefetching is slower
+# endif
 
   // Loop over tasks.
-  libxsmm_dmmfunction kernel_func = NULL;
-  int kernel_m = 0, kernel_n = 0, kernel_k = 0;
-  for (int itask = 0; itask < ntasks; itask++) {
+  for (int itask = 0; itask < ntasks; ++itask) {
     const dbm_task_t task = batch[batch_order[itask]];
 
     if (task.m != kernel_m || task.n != kernel_n || task.k != kernel_k) {
+# if LIBXSMM_VERSION2(1, 17) < LIBXSMM_VERSION_NUMBER
+      const libxsmm_gemm_shape shape = libxsmm_create_gemm_shape(
+        task.m, task.n, task.k, task.m/*lda*/, task.n/*ldb/transb*/, task.m/*ldc*/,
+        LIBXSMM_DATATYPE_F64/*aprec*/, LIBXSMM_DATATYPE_F64/*bprec*/,
+        LIBXSMM_DATATYPE_F64/*cprec*/, LIBXSMM_DATATYPE_F64/*calcp*/);
+      kernel_func = libxsmm_dispatch_gemm_v2(shape, flags, prefetch);
+# else
       kernel_func = libxsmm_dmmdispatch(task.m, task.n, task.k, NULL /*lda*/,
                                         NULL /*ldb*/, NULL /*ldc*/, &alpha,
                                         &beta, &flags, &prefetch);
+# endif
       kernel_m = task.m;
       kernel_n = task.n;
       kernel_k = task.k;
     }
 
-    const double *data_a = &pack_a->data[task.offset_a];
-    const double *data_b = &pack_b->data[task.offset_b];
+    double *data_a = &pack_a->data[task.offset_a];
+    double *data_b = &pack_b->data[task.offset_b];
     double *data_c = &shard_c->data[task.offset_c];
 
     if (kernel_func != NULL) {
+# if LIBXSMM_VERSION2(1, 17) < LIBXSMM_VERSION_NUMBER
+      libxsmm_gemm_param gemm_param;
+      gemm_param.a.primary    = data_a;
+      gemm_param.a.quaternary = NULL;
+      gemm_param.b.primary    = data_b;
+      gemm_param.b.quaternary = NULL;
+      gemm_param.c.primary    = data_c;
+      gemm_param.c.quaternary = NULL;
+      kernel_func(&gemm_param);
+# else
       kernel_func(data_a, data_b, data_c);
+# endif
     } else {
       dbm_dgemm('N', 'T', task.m, task.n, task.k, alpha, data_a, task.m, data_b,
                 task.n, 1.0, data_c, task.m);
