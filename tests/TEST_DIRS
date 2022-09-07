@@ -3,6 +3,7 @@
 # Directories have been reordered according the execution time needed for a gfortran pdbg run using 2 MPI tasks
 # in case a new directory is added just add it at the top of the list..
 # the order will be regularly checked and modified...
+QS/regtest-ri-rpa-grad                                      libint
 QS/regtest-sos-mp2-grad                                     libint
 QS/regtest-ri-rpa                                           libint
 QS/regtest-mp2-grad-2                                       libint
@@ -240,7 +241,6 @@ SE/regtest-3-3
 ATOM/regtest-2
 NEB/regtest-4
 QS/regtest-kp-3
-xTB/regtest-4
 QS/regtest-dft-vdw-corr-1
 QS/regtest-epr-2
 QS/regtest-gw-ic-model                                      libint
