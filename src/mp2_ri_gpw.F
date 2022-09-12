@@ -30,6 +30,11 @@ MODULE mp2_ri_gpw
    USE kinds,                           ONLY: dp,&
                                               int_8
    USE libint_2c_3c,                    ONLY: compare_potential_types
+   USE local_gemm_api,                  ONLY: LOCAL_GEMM_PU_GPU,&
+                                              local_gemm,&
+                                              local_gemm_create,&
+                                              local_gemm_destroy,&
+                                              local_gemm_set_op_threshold_gpu
    USE machine,                         ONLY: m_flush,&
                                               m_memory,&
                                               m_walltime
@@ -42,11 +47,6 @@ MODULE mp2_ri_gpw
    USE mp2_ri_grad_util,                ONLY: complete_gamma
    USE mp2_types,                       ONLY: mp2_type,&
                                               three_dim_real_array
-   USE offload_gemm,                    ONLY: OFFLOAD_GEMM_PU_GPU,&
-                                              offload_dgemm,&
-                                              offload_gemm_create,&
-                                              offload_gemm_destroy,&
-                                              offload_gemm_set_op_threshold_gpu
 
 !$ USE OMP_LIB, ONLY: omp_get_max_threads, omp_get_thread_num
 #include "./base/base_uses.f90"
@@ -110,8 +110,7 @@ CONTAINS
          rec_B_virtual_start, rec_L_size, send_B_size, send_B_virtual_end, send_B_virtual_start, &
          send_i, send_ij_index, send_j, start_point, sub_P_color, tag, total_ij_pairs
       INTEGER, ALLOCATABLE, DIMENSION(:) :: integ_group_pos2color_sub, my_B_size, &
-         my_B_virtual_end, my_B_virtual_start, num_ij_pairs, proc_map, proc_map_rep, &
-         sizes_array_orig, sub_proc_map, virtual
+         my_B_virtual_end, my_B_virtual_start, num_ij_pairs, sizes_array_orig, virtual
       INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: ij_map
       INTEGER, ALLOCATABLE, DIMENSION(:, :, :)           :: ranges_info_array
       LOGICAL                                            :: my_alpha_beta_case, my_beta_beta_case, &
@@ -150,11 +149,11 @@ CONTAINS
 
       CALL dgemm_counter_init(dgemm_counter, unit_nr, mp2_env%ri_mp2%print_dgemm_info)
 
-      ! offload_gemm_ctx has a very footprint the first time this routine is
+      ! local_gemm_ctx has a very footprint the first time this routine is
       ! called.
-      IF (.NOT. c_associated(mp2_env%offload_gemm_ctx)) THEN
-         CALL offload_gemm_create(mp2_env%offload_gemm_ctx, OFFLOAD_GEMM_PU_GPU)
-         CALL offload_gemm_set_op_threshold_gpu(mp2_env%offload_gemm_ctx, 128*128*128*2)
+      IF (.NOT. c_associated(mp2_env%local_gemm_ctx)) THEN
+         CALL local_gemm_create(mp2_env%local_gemm_ctx, LOCAL_GEMM_PU_GPU)
+         CALL local_gemm_set_op_threshold_gpu(mp2_env%local_gemm_ctx, 128*128*128*2)
       END IF
 
       CALL mp2_ri_get_integ_group_size( &
@@ -170,8 +169,8 @@ CONTAINS
          gd_array%sizes, calc_forces, &
          integ_group_size, my_group_L_end, &
          my_group_L_size, my_group_L_size_orig, my_group_L_start, my_new_group_L_size, &
-         integ_group_pos2color_sub, proc_map, proc_map_rep, sizes_array_orig, &
-         sub_proc_map, ranges_info_array, para_env_exchange, para_env_rep, num_integ_group)
+         integ_group_pos2color_sub, sizes_array_orig, &
+         ranges_info_array, para_env_exchange, para_env_rep, num_integ_group)
 
       ! We cannot fix the tag because of the recv routine
       tag = 42
@@ -179,7 +178,7 @@ CONTAINS
       DO jspin = 1, nspins
 
          CALL replicate_iaK_2intgroup(BIb_C(jspin)%array, para_env_exchange, para_env_rep, &
-                                      homo(jspin), proc_map_rep, gd_array%sizes, my_B_size(jspin), &
+                                      homo(jspin), gd_array%sizes, my_B_size(jspin), &
                                       my_group_L_size, ranges_info_array)
 
          DO ispin = 1, jspin
@@ -283,8 +282,8 @@ CONTAINS
                   ! collect data from other proc
                   CALL timeset(routineN//"_comm", handle3)
                   DO proc_shift = 1, para_env_exchange%num_pe - 1
-                     proc_send = proc_map(para_env_exchange%mepos + proc_shift)
-                     proc_receive = proc_map(para_env_exchange%mepos - proc_shift)
+                     proc_send = MODULO(para_env_exchange%mepos + proc_shift, para_env_exchange%num_pe)
+                     proc_receive = MODULO(para_env_exchange%mepos - proc_shift, para_env_exchange%num_pe)
 
                      send_ij_index = num_ij_pairs(proc_send)
 
@@ -357,10 +356,10 @@ CONTAINS
                               local_ba = 0.0_dp
                            END IF
                            CALL dgemm_counter_start(dgemm_counter)
-                           CALL offload_dgemm('T', 'N', my_B_size(ispin), my_B_size(jspin), dimen_RI, 1.0_dp, &
-                                              my_local_i_aL, dimen_RI, my_local_j_aL, dimen_RI, &
-                                              0.0_dp, local_ab(my_B_virtual_start(ispin):my_B_virtual_end(ispin), :), &
-                                              my_B_size(ispin), mp2_env%offload_gemm_ctx)
+                           CALL local_gemm('T', 'N', my_B_size(ispin), my_B_size(jspin), dimen_RI, 1.0_dp, &
+                                           my_local_i_aL, dimen_RI, my_local_j_aL, dimen_RI, &
+                                           0.0_dp, local_ab(my_B_virtual_start(ispin):my_B_virtual_end(ispin), :), &
+                                           my_B_size(ispin), mp2_env%local_gemm_ctx)
                            ! Additional integrals only for alpha_beta case and forces
                            IF (my_alpha_beta_case .AND. calc_forces) THEN
                               local_ba(my_B_virtual_start(jspin):my_B_virtual_end(jspin), :) = &
@@ -368,8 +367,8 @@ CONTAINS
                            END IF
                            ! ... and from the other of my subgroup
                            DO proc_shift = 1, para_env_sub%num_pe - 1
-                              proc_send = sub_proc_map(para_env_sub%mepos + proc_shift)
-                              proc_receive = sub_proc_map(para_env_sub%mepos - proc_shift)
+                              proc_send = MODULO(para_env_sub%mepos + proc_shift, para_env_sub%num_pe)
+                              proc_receive = MODULO(para_env_sub%mepos - proc_shift, para_env_sub%num_pe)
 
                               CALL get_group_dist(gd_B_virtual(ispin), proc_receive, rec_B_virtual_start, &
                                                   rec_B_virtual_end, rec_B_size)
@@ -381,10 +380,10 @@ CONTAINS
                                                external_i_aL, proc_receive, &
                                                para_env_sub%group, tag)
 
-                              CALL offload_dgemm('T', 'N', rec_B_size, my_B_size(jspin), dimen_RI, 1.0_dp, &
-                                                 external_i_aL, dimen_RI, my_local_j_aL, dimen_RI, &
+                              CALL local_gemm('T', 'N', rec_B_size, my_B_size(jspin), dimen_RI, 1.0_dp, &
+                                              external_i_aL, dimen_RI, my_local_j_aL, dimen_RI, &
                                           0.0_dp, local_ab(rec_B_virtual_start:rec_B_virtual_end, 1:my_B_size(jspin)), rec_B_size, &
-                                                 mp2_env%offload_gemm_ctx)
+                                              mp2_env%local_gemm_ctx)
 
                               ! Additional integrals only for alpha_beta case and forces
                               IF (my_alpha_beta_case .AND. calc_forces) THEN
@@ -399,10 +398,10 @@ CONTAINS
                                                   external_i_aL, proc_receive, &
                                                   para_env_sub%group, tag)
 
-                                 CALL offload_dgemm('T', 'N', rec_B_size, my_B_size(ispin), dimen_RI, 1.0_dp, &
-                                                    external_i_aL, dimen_RI, my_local_i_aL, dimen_RI, &
+                                 CALL local_gemm('T', 'N', rec_B_size, my_B_size(ispin), dimen_RI, 1.0_dp, &
+                                                 external_i_aL, dimen_RI, my_local_i_aL, dimen_RI, &
                                           0.0_dp, local_ba(rec_B_virtual_start:rec_B_virtual_end, 1:my_B_size(ispin)), rec_B_size, &
-                                                    mp2_env%offload_gemm_ctx)
+                                                 mp2_env%local_gemm_ctx)
                               END IF
                            END DO
                            IF (my_alpha_beta_case .AND. calc_forces) THEN
@@ -451,8 +450,8 @@ CONTAINS
                               END DO
                               ! ... and then with external data
                               DO proc_shift = 1, para_env_sub%num_pe - 1
-                                 proc_send = sub_proc_map(para_env_sub%mepos + proc_shift)
-                                 proc_receive = sub_proc_map(para_env_sub%mepos - proc_shift)
+                                 proc_send = MODULO(para_env_sub%mepos + proc_shift, para_env_sub%num_pe)
+                                 proc_receive = MODULO(para_env_sub%mepos - proc_shift, para_env_sub%num_pe)
 
                                  CALL get_group_dist(gd_B_virtual(ispin), proc_receive, &
                                                      rec_B_virtual_start, rec_B_virtual_end, rec_B_size)
@@ -490,7 +489,7 @@ CONTAINS
                               CALL mp2_update_P_gamma(mp2_env, para_env_sub, gd_B_virtual, &
                                                       Eigenval, homo, dimen_RI, iiB, jjB, my_B_size, &
                                                       my_B_virtual_end, my_B_virtual_start, my_i, my_j, virtual, &
-                                                      sub_proc_map, local_ab, t_ab, my_local_i_aL, my_local_j_aL, &
+                                                      local_ab, t_ab, my_local_i_aL, my_local_j_aL, &
                                                       my_open_shell_ss, Y_i_aP(:, :, iiB), Y_j_aP(:, :, jjB), local_ba, &
                                                       ispin, jspin, dgemm_counter, buffer_1D)
 
@@ -509,8 +508,8 @@ CONTAINS
                   ! No work to do and we know that we have to receive nothing, but send something
                   ! send data to other proc
                   DO proc_shift = 1, para_env_exchange%num_pe - 1
-                     proc_send = proc_map(para_env_exchange%mepos + proc_shift)
-                     proc_receive = proc_map(para_env_exchange%mepos - proc_shift)
+                     proc_send = MODULO(para_env_exchange%mepos + proc_shift, para_env_exchange%num_pe)
+                     proc_receive = MODULO(para_env_exchange%mepos - proc_shift, para_env_exchange%num_pe)
 
                      send_ij_index = num_ij_pairs(proc_send)
 
@@ -536,12 +535,12 @@ CONTAINS
                IF (calc_forces) THEN
                   CALL mp2_redistribute_gamma(mp2_env%ri_grad%Gamma_P_ia(ispin)%array, ij_index, my_B_size(ispin), &
                                               my_block_size, my_group_L_size, my_i, my_ij_pairs, ngroup, &
-                                              num_integ_group, integ_group_pos2color_sub, num_ij_pairs, proc_map, &
+                                              num_integ_group, integ_group_pos2color_sub, num_ij_pairs, &
                                               ij_map, ranges_info_array, Y_i_aP(:, :, 1:my_block_size), para_env_exchange, &
                                               gd_array%sizes, 1, buffer_1D)
                   CALL mp2_redistribute_gamma(mp2_env%ri_grad%Gamma_P_ia(jspin)%array, ij_index, my_B_size(jspin), &
                                               my_block_size, my_group_L_size, my_j, my_ij_pairs, ngroup, &
-                                              num_integ_group, integ_group_pos2color_sub, num_ij_pairs, proc_map, &
+                                              num_integ_group, integ_group_pos2color_sub, num_ij_pairs, &
                                               ij_map, ranges_info_array, Y_j_aP(:, :, 1:my_block_size), para_env_exchange, &
                                               gd_array%sizes, 2, buffer_1D)
                END IF
@@ -574,9 +573,9 @@ CONTAINS
                   mp2_env, Eigenval(:, ispin:jspin), homo(ispin:jspin), virtual(ispin:jspin), my_open_shell_ss, &
                   my_beta_beta_case, Bib_C(ispin:jspin), unit_nr, dimen_RI, &
                   my_B_size(ispin:jspin), ngroup, my_group_L_size, &
-                  color_sub, ranges_info_array, para_env_exchange, para_env_sub, para_env, proc_map, &
+                  color_sub, ranges_info_array, para_env_exchange, para_env_sub, para_env, &
                   my_B_virtual_start(ispin:jspin), my_B_virtual_end(ispin:jspin), gd_array%sizes, gd_B_virtual(ispin:jspin), &
-                  sub_proc_map, integ_group_pos2color_sub, dgemm_counter, buffer_1D)
+                  integ_group_pos2color_sub, dgemm_counter, buffer_1D)
 
             END IF
 
@@ -601,8 +600,8 @@ CONTAINS
                ALLOCATE (BIb_C(ispin)%array(my_B_size(ispin), homo(ispin), my_group_L_size_orig))
                DO proc_shift = 1, para_env_rep%num_pe - 1
                   ! invert order
-                  proc_send = proc_map_rep(para_env_rep%mepos - proc_shift)
-                  proc_receive = proc_map_rep(para_env_rep%mepos + proc_shift)
+                  proc_send = MODULO(para_env_rep%mepos - proc_shift, para_env_rep%num_pe)
+                  proc_receive = MODULO(para_env_rep%mepos + proc_shift, para_env_rep%num_pe)
 
                   start_point = ranges_info_array(3, proc_shift, para_env_exchange%mepos)
                   end_point = ranges_info_array(4, proc_shift, para_env_exchange%mepos)
@@ -647,8 +646,6 @@ CONTAINS
       END DO
 
       DEALLOCATE (integ_group_pos2color_sub)
-      DEALLOCATE (proc_map)
-      DEALLOCATE (proc_map_rep)
       DEALLOCATE (ranges_info_array)
 
       CALL cp_para_env_release(para_env_exchange)
@@ -672,7 +669,7 @@ CONTAINS
                                 my_group_L_size, my_group_L_start, my_group_L_end, &
                                 my_B_size(ispin), my_B_virtual_start(ispin), &
                                 gd_array, gd_B_virtual(ispin), &
-                                sub_proc_map, ispin)
+                                ispin)
          END DO
          DEALLOCATE (B_ia_Q)
 
@@ -686,7 +683,6 @@ CONTAINS
          ! release para_env_P
          CALL cp_para_env_release(para_env_P)
       END IF
-      DEALLOCATE (sub_proc_map)
 
       CALL release_group_dist(gd_array)
       DO ispin = 1, nspins
@@ -701,9 +697,9 @@ CONTAINS
 
       CALL dgemm_counter_write(dgemm_counter, para_env)
 
-      ! release memory allocated by offload_dgemm when run on GPU. offload_gemm_ctx is null on cpu only runs
-      CALL offload_gemm_destroy(mp2_env%offload_gemm_ctx)
-      mp2_env%offload_gemm_ctx = C_NULL_PTR
+      ! release memory allocated by local_gemm when run on GPU. local_gemm_ctx is null on cpu only runs
+      CALL local_gemm_destroy(mp2_env%local_gemm_ctx)
+      mp2_env%local_gemm_ctx = C_NULL_PTR
       CALL timestop(handle)
 
    END SUBROUTINE mp2_ri_gpw_compute_en
@@ -782,20 +778,17 @@ CONTAINS
 !> \param para_env_exchange ...
 !> \param para_env_rep ...
 !> \param homo ...
-!> \param proc_map_rep ...
 !> \param sizes_array ...
 !> \param my_B_size ...
 !> \param my_group_L_size ...
 !> \param ranges_info_array ...
 ! **************************************************************************************************
-   SUBROUTINE replicate_iaK_2intgroup(BIb_C, para_env_exchange, para_env_rep, homo, proc_map_rep, sizes_array, my_B_size, &
+   SUBROUTINE replicate_iaK_2intgroup(BIb_C, para_env_exchange, para_env_rep, homo, sizes_array, my_B_size, &
                                       my_group_L_size, ranges_info_array)
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :), &
          INTENT(INOUT)                                   :: BIb_C
       TYPE(cp_para_env_type), INTENT(IN), POINTER        :: para_env_exchange, para_env_rep
       INTEGER, INTENT(IN)                                :: homo
-      INTEGER, DIMENSION(-para_env_rep%num_pe:), &
-         INTENT(IN)                                      :: proc_map_rep
       INTEGER, DIMENSION(:), INTENT(IN)                  :: sizes_array
       INTEGER, INTENT(IN)                                :: my_B_size, my_group_L_size
       INTEGER, DIMENSION(:, 0:, 0:), INTENT(IN)          :: ranges_info_array
@@ -804,8 +797,8 @@ CONTAINS
 
       INTEGER                                            :: end_point, handle, max_L_size, &
                                                             proc_receive, proc_shift, start_point
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :, :)  :: BIb_C_gather
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: BIb_C_copy
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :, :)  :: BIb_C_gather
 
       CALL timeset(routineN, handle)
 
@@ -831,7 +824,7 @@ CONTAINS
 
       ! reorder data
       DO proc_shift = 0, para_env_rep%num_pe - 1
-         proc_receive = proc_map_rep(para_env_rep%mepos - proc_shift)
+         proc_receive = MODULO(para_env_rep%mepos - proc_shift, para_env_rep%num_pe)
 
          start_point = ranges_info_array(3, proc_shift, para_env_exchange%mepos)
          end_point = ranges_info_array(4, proc_shift, para_env_exchange%mepos)
@@ -1193,10 +1186,7 @@ CONTAINS
 !> \param my_group_L_start ...
 !> \param my_new_group_L_size ...
 !> \param integ_group_pos2color_sub ...
-!> \param proc_map ...
-!> \param proc_map_rep ...
 !> \param sizes_array_orig ...
-!> \param sub_proc_map ...
 !> \param ranges_info_array ...
 !> \param para_env_exchange ...
 !> \param para_env_rep ...
@@ -1207,8 +1197,7 @@ CONTAINS
                                   integ_group_size, my_group_L_end, &
                                   my_group_L_size, my_group_L_size_orig, my_group_L_start, my_new_group_L_size, &
                                   integ_group_pos2color_sub, &
-                                  proc_map, proc_map_rep, sizes_array_orig, &
-                                  sub_proc_map, ranges_info_array, para_env_exchange, para_env_rep, num_integ_group)
+                                  sizes_array_orig, ranges_info_array, para_env_exchange, para_env_rep, num_integ_group)
       TYPE(cp_para_env_type), INTENT(IN)                 :: para_env, para_env_sub
       INTEGER, INTENT(IN)                                :: color_sub
       INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(INOUT)  :: sizes_array
@@ -1218,9 +1207,8 @@ CONTAINS
       INTEGER, INTENT(OUT)                               :: my_group_L_size_orig
       INTEGER, INTENT(IN)                                :: my_group_L_start
       INTEGER, INTENT(INOUT)                             :: my_new_group_L_size
-      INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(OUT)    :: integ_group_pos2color_sub, proc_map, &
-                                                            proc_map_rep, sizes_array_orig, &
-                                                            sub_proc_map
+      INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(OUT)    :: integ_group_pos2color_sub, &
+                                                            sizes_array_orig
       INTEGER, ALLOCATABLE, DIMENSION(:, :, :), &
          INTENT(OUT)                                     :: ranges_info_array
       TYPE(cp_para_env_type), POINTER                    :: para_env_exchange, para_env_rep
@@ -1228,8 +1216,8 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'mp2_ri_create_group'
 
-      INTEGER                                            :: handle, i, iiB, proc_receive, &
-                                                            proc_shift, sub_sub_color
+      INTEGER                                            :: handle, iiB, proc_receive, proc_shift, &
+                                                            sub_sub_color
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: new_sizes_array, rep_ends_array, &
                                                             rep_sizes_array, rep_starts_array
       INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: my_info
@@ -1239,32 +1227,9 @@ CONTAINS
       sub_sub_color = para_env_sub%mepos*num_integ_group + color_sub/integ_group_size
       CALL cp_para_env_split(para_env_exchange, para_env, sub_sub_color)
 
-      ! create the proc maps
-      ALLOCATE (proc_map(-para_env_exchange%num_pe:2*para_env_exchange%num_pe - 1))
-      DO i = 0, para_env_exchange%num_pe - 1
-         proc_map(i) = i
-         proc_map(-i - 1) = para_env_exchange%num_pe - i - 1
-         proc_map(para_env_exchange%num_pe + i) = i
-      END DO
-
-      ALLOCATE (sub_proc_map(-para_env_sub%num_pe:2*para_env_sub%num_pe - 1))
-      DO i = 0, para_env_sub%num_pe - 1
-         sub_proc_map(i) = i
-         sub_proc_map(-i - 1) = para_env_sub%num_pe - i - 1
-         sub_proc_map(para_env_sub%num_pe + i) = i
-      END DO
-
       ! create the replication group
       sub_sub_color = para_env_sub%mepos*para_env_exchange%num_pe + para_env_exchange%mepos
       CALL cp_para_env_split(para_env_rep, para_env, sub_sub_color)
-
-      ! crate the proc maps
-      ALLOCATE (proc_map_rep(-para_env_rep%num_pe:2*para_env_rep%num_pe - 1))
-      DO i = 0, para_env_rep%num_pe - 1
-         proc_map_rep(i) = i
-         proc_map_rep(-i - 1) = para_env_rep%num_pe - i - 1
-         proc_map_rep(para_env_rep%num_pe + i) = i
-      END DO
 
       ! create the new limits for K according to the size
       ! of the integral group
@@ -1289,7 +1254,7 @@ CONTAINS
       my_info(4, 0) = my_group_L_size
 
       DO proc_shift = 1, para_env_rep%num_pe - 1
-         proc_receive = proc_map_rep(para_env_rep%mepos - proc_shift)
+         proc_receive = MODULO(para_env_rep%mepos - proc_shift, para_env_rep%num_pe)
 
          my_new_group_L_size = my_new_group_L_size + rep_sizes_array(proc_receive)
 
@@ -1626,7 +1591,6 @@ CONTAINS
 !> \param my_i ...
 !> \param my_j ...
 !> \param virtual ...
-!> \param sub_proc_map ...
 !> \param local_ab ...
 !> \param t_ab ...
 !> \param my_local_i_aL ...
@@ -1642,7 +1606,7 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE mp2_update_P_gamma(mp2_env, para_env_sub, gd_B_virtual, &
                                  Eigenval, homo, dimen_RI, iiB, jjB, my_B_size, &
-                                 my_B_virtual_end, my_B_virtual_start, my_i, my_j, virtual, sub_proc_map, local_ab, &
+                                 my_B_virtual_end, my_B_virtual_start, my_i, my_j, virtual, local_ab, &
                                  t_ab, my_local_i_aL, my_local_j_aL, open_ss, Y_i_aP, Y_j_aP, &
                                  local_ba, ispin, jspin, dgemm_counter, buffer_1D)
       TYPE(mp2_type)                                     :: mp2_env
@@ -1655,8 +1619,6 @@ CONTAINS
                                                             my_B_virtual_start
       INTEGER, INTENT(IN)                                :: my_i, my_j
       INTEGER, DIMENSION(:), INTENT(IN)                  :: virtual
-      INTEGER, DIMENSION(-para_env_sub%num_pe:), &
-         INTENT(IN)                                      :: sub_proc_map
       REAL(KIND=dp), CONTIGUOUS, DIMENSION(:, :), &
          INTENT(INOUT), TARGET                           :: local_ab
       REAL(KIND=dp), CONTIGUOUS, DIMENSION(:, :), &
@@ -1674,10 +1636,10 @@ CONTAINS
          rec_B_virtual_end, rec_B_virtual_start, send_B_size, send_B_virtual_end, &
          send_B_virtual_start
       INTEGER(KIND=int_8)                                :: offset
+      LOGICAL                                            :: alpha_beta
+      REAL(KIND=dp)                                      :: factor, P_ij_diag
       REAL(KIND=dp), CONTIGUOUS, DIMENSION(:, :), &
          POINTER                                         :: external_ab, send_ab
-      REAL(KIND=dp)                                      :: factor, P_ij_diag
-      LOGICAL                                            :: alpha_beta
 
       CALL timeset(routineN//"_Pia", handle)
 
@@ -1716,25 +1678,25 @@ CONTAINS
 
       CALL dgemm_counter_start(dgemm_counter)
       IF (.NOT. (alpha_beta)) THEN
-         CALL offload_dgemm('T', 'N', my_B_size(ispin), my_B_size(ispin), virtual(ispin), 1.0_dp, &
-                            t_ab, virtual(ispin), local_ab, virtual(ispin), &
-                            1.0_dp, mp2_env%ri_grad%P_ab(ispin)%array(:, &
-                                     my_B_virtual_start(ispin):my_B_virtual_end(ispin)), my_B_size(ispin), mp2_env%offload_gemm_ctx)
+         CALL local_gemm('T', 'N', my_B_size(ispin), my_B_size(ispin), virtual(ispin), 1.0_dp, &
+                         t_ab, virtual(ispin), local_ab, virtual(ispin), &
+                         1.0_dp, mp2_env%ri_grad%P_ab(ispin)%array(:, &
+                                       my_B_virtual_start(ispin):my_B_virtual_end(ispin)), my_B_size(ispin), mp2_env%local_gemm_ctx)
          mp2_env%ri_grad%P_ij(ispin)%array(my_i + iiB - 1, my_i + iiB - 1) = &
             mp2_env%ri_grad%P_ij(ispin)%array(my_i + iiB - 1, my_i + iiB - 1) + P_ij_diag
       ELSE
-         CALL offload_dgemm('T', 'N', my_B_size(ispin), my_B_size(ispin), virtual(jspin), mp2_env%scale_S, &
-                            local_ba, virtual(jspin), local_ba, virtual(jspin), 1.0_dp, &
+         CALL local_gemm('T', 'N', my_B_size(ispin), my_B_size(ispin), virtual(jspin), mp2_env%scale_S, &
+                         local_ba, virtual(jspin), local_ba, virtual(jspin), 1.0_dp, &
                         mp2_env%ri_grad%P_ab(ispin)%array(:, my_B_virtual_start(ispin):my_B_virtual_end(ispin)), my_B_size(ispin), &
-                            mp2_env%offload_gemm_ctx)
+                         mp2_env%local_gemm_ctx)
 
          mp2_env%ri_grad%P_ij(ispin)%array(my_i + iiB - 1, my_i + iiB - 1) = &
             mp2_env%ri_grad%P_ij(ispin)%array(my_i + iiB - 1, my_i + iiB - 1) + P_ij_diag
 
-         CALL offload_dgemm('T', 'N', my_B_size(jspin), my_B_size(jspin), virtual(ispin), mp2_env%scale_S, &
-                            local_ab, virtual(ispin), local_ab, virtual(ispin), 1.0_dp, &
+         CALL local_gemm('T', 'N', my_B_size(jspin), my_B_size(jspin), virtual(ispin), mp2_env%scale_S, &
+                         local_ab, virtual(ispin), local_ab, virtual(ispin), 1.0_dp, &
                         mp2_env%ri_grad%P_ab(jspin)%array(:, my_B_virtual_start(jspin):my_B_virtual_end(jspin)), my_B_size(jspin), &
-                            mp2_env%offload_gemm_ctx)
+                         mp2_env%local_gemm_ctx)
 
          mp2_env%ri_grad%P_ij(jspin)%array(my_j + jjB - 1, my_j + jjB - 1) = &
             mp2_env%ri_grad%P_ij(jspin)%array(my_j + jjB - 1, my_j + jjB - 1) + P_ij_diag
@@ -1744,18 +1706,18 @@ CONTAINS
       ! due to spin in alpha-beta case.
       IF ((my_i /= my_j) .AND. (.NOT. alpha_beta)) THEN
 
-         CALL offload_dgemm('N', 'T', my_B_size(ispin), virtual(ispin), my_B_size(ispin), 1.0_dp, &
-                            t_ab(my_B_virtual_start(ispin):my_B_virtual_end(ispin), :), my_B_size(ispin), &
-                            local_ab, virtual(ispin), &
-                            1.0_dp, mp2_env%ri_grad%P_ab(ispin)%array, my_B_size(ispin), &
-                            mp2_env%offload_gemm_ctx)
+         CALL local_gemm('N', 'T', my_B_size(ispin), virtual(ispin), my_B_size(ispin), 1.0_dp, &
+                         t_ab(my_B_virtual_start(ispin):my_B_virtual_end(ispin), :), my_B_size(ispin), &
+                         local_ab, virtual(ispin), &
+                         1.0_dp, mp2_env%ri_grad%P_ab(ispin)%array, my_B_size(ispin), &
+                         mp2_env%local_gemm_ctx)
 
          mp2_env%ri_grad%P_ij(ispin)%array(my_j + jjB - 1, my_j + jjB - 1) = &
             mp2_env%ri_grad%P_ij(ispin)%array(my_j + jjB - 1, my_j + jjB - 1) + P_ij_diag
       END IF
       DO proc_shift = 1, para_env_sub%num_pe - 1
-         proc_send = sub_proc_map(para_env_sub%mepos + proc_shift)
-         proc_receive = sub_proc_map(para_env_sub%mepos - proc_shift)
+         proc_send = MODULO(para_env_sub%mepos + proc_shift, para_env_sub%num_pe)
+         proc_receive = MODULO(para_env_sub%mepos - proc_shift, para_env_sub%num_pe)
 
          CALL get_group_dist(gd_B_virtual(jspin), proc_receive, rec_B_virtual_start, rec_B_virtual_end, rec_B_size)
          CALL get_group_dist(gd_B_virtual(jspin), proc_send, send_B_virtual_start, send_B_virtual_end, send_B_size)
@@ -1768,15 +1730,15 @@ CONTAINS
                           para_env_sub%group)
 
          IF (.NOT. (alpha_beta)) THEN
-            CALL offload_dgemm('T', 'N', my_B_size(ispin), rec_B_size, virtual(ispin), 1.0_dp, &
-                               t_ab, virtual(ispin), external_ab, virtual(ispin), &
+            CALL local_gemm('T', 'N', my_B_size(ispin), rec_B_size, virtual(ispin), 1.0_dp, &
+                            t_ab, virtual(ispin), external_ab, virtual(ispin), &
                             1.0_dp, mp2_env%ri_grad%P_ab(ispin)%array(:, rec_B_virtual_start:rec_B_virtual_end), my_B_size(ispin), &
-                               mp2_env%offload_gemm_ctx)
+                            mp2_env%local_gemm_ctx)
          ELSE
-            CALL offload_dgemm('T', 'N', my_B_size(jspin), rec_B_size, virtual(ispin), mp2_env%scale_S, &
-                               local_ab, virtual(ispin), external_ab, virtual(ispin), &
-                               1.0_dp, mp2_env%ri_grad%P_ab(jspin)%array(:, rec_B_virtual_start:rec_B_virtual_end), &
-                               my_B_size(jspin), mp2_env%offload_gemm_ctx)
+            CALL local_gemm('T', 'N', my_B_size(jspin), rec_B_size, virtual(ispin), mp2_env%scale_S, &
+                            local_ab, virtual(ispin), external_ab, virtual(ispin), &
+                            1.0_dp, mp2_env%ri_grad%P_ab(jspin)%array(:, rec_B_virtual_start:rec_B_virtual_end), &
+                            my_B_size(jspin), mp2_env%local_gemm_ctx)
 
             ! For alpha-beta part of alpha-density we need a new parallel code
             ! And new external_ab (of a different size)
@@ -1787,10 +1749,10 @@ CONTAINS
             CALL mp_sendrecv(local_ba, proc_send, &
                              external_ab, proc_receive, &
                              para_env_sub%group)
-            CALL offload_dgemm('T', 'N', my_B_size(ispin), rec_B_size, virtual(jspin), mp2_env%scale_S, &
-                               local_ba, virtual(jspin), external_ab, virtual(jspin), &
+            CALL local_gemm('T', 'N', my_B_size(ispin), rec_B_size, virtual(jspin), mp2_env%scale_S, &
+                            local_ba, virtual(jspin), external_ab, virtual(jspin), &
                             1.0_dp, mp2_env%ri_grad%P_ab(ispin)%array(:, rec_B_virtual_start:rec_B_virtual_end), my_B_size(ispin), &
-                               mp2_env%offload_gemm_ctx)
+                            mp2_env%local_gemm_ctx)
          END IF
 
          IF ((my_i /= my_j) .AND. (.NOT. alpha_beta)) THEN
@@ -1803,11 +1765,11 @@ CONTAINS
             send_ab(1:send_B_size, 1:virtual(ispin)) => buffer_1D(offset + 1:offset + INT(send_B_size, int_8)*virtual(ispin))
             send_ab = 0.0_dp
 
-            CALL offload_dgemm('N', 'T', send_B_size, virtual(ispin), my_B_size(ispin), 1.0_dp, &
-                               t_ab(send_B_virtual_start:send_B_virtual_end, :), send_B_size, &
-                               local_ab, virtual(ispin), &
-                               0.0_dp, send_ab, send_B_size, &
-                               mp2_env%offload_gemm_ctx)
+            CALL local_gemm('N', 'T', send_B_size, virtual(ispin), my_B_size(ispin), 1.0_dp, &
+                            t_ab(send_B_virtual_start:send_B_virtual_end, :), send_B_size, &
+                            local_ab, virtual(ispin), &
+                            0.0_dp, send_ab, send_B_size, &
+                            mp2_env%local_gemm_ctx)
             CALL mp_sendrecv(send_ab, proc_send, &
                              external_ab, proc_receive, &
                              para_env_sub%group)
@@ -1833,17 +1795,17 @@ CONTAINS
       CALL dgemm_counter_start(dgemm_counter)
       IF (.NOT. alpha_beta) THEN
          ! Alpha-alpha, beta-beta and closed shell
-         CALL offload_dgemm('N', 'T', my_B_size(ispin), dimen_RI, my_B_size(ispin), 1.0_dp, &
-                            t_ab(my_B_virtual_start(ispin):my_B_virtual_end(ispin), :), my_B_size(ispin), &
-                            my_local_j_aL, dimen_RI, 1.0_dp, Y_i_aP, my_B_size(ispin), &
-                            mp2_env%offload_gemm_ctx)
+         CALL local_gemm('N', 'T', my_B_size(ispin), dimen_RI, my_B_size(ispin), 1.0_dp, &
+                         t_ab(my_B_virtual_start(ispin):my_B_virtual_end(ispin), :), my_B_size(ispin), &
+                         my_local_j_aL, dimen_RI, 1.0_dp, Y_i_aP, my_B_size(ispin), &
+                         mp2_env%local_gemm_ctx)
       ELSE ! Alpha-beta
-         CALL offload_dgemm('N', 'T', my_B_size(ispin), dimen_RI, my_B_size(jspin), mp2_env%scale_S, &
-                            local_ab(my_B_virtual_start(ispin):my_B_virtual_end(ispin), :), my_B_size(ispin), &
-                            my_local_j_aL, dimen_RI, 1.0_dp, Y_i_aP, my_B_size(ispin), mp2_env%offload_gemm_ctx)
-         CALL offload_dgemm('T', 'T', my_B_size(jspin), dimen_RI, my_B_size(ispin), mp2_env%scale_S, &
-                            local_ab(my_B_virtual_start(ispin):my_B_virtual_end(ispin), :), my_B_size(ispin), &
-                            my_local_i_aL, dimen_RI, 1.0_dp, Y_j_aP, my_B_size(jspin), mp2_env%offload_gemm_ctx)
+         CALL local_gemm('N', 'T', my_B_size(ispin), dimen_RI, my_B_size(jspin), mp2_env%scale_S, &
+                         local_ab(my_B_virtual_start(ispin):my_B_virtual_end(ispin), :), my_B_size(ispin), &
+                         my_local_j_aL, dimen_RI, 1.0_dp, Y_i_aP, my_B_size(ispin), mp2_env%local_gemm_ctx)
+         CALL local_gemm('T', 'T', my_B_size(jspin), dimen_RI, my_B_size(ispin), mp2_env%scale_S, &
+                         local_ab(my_B_virtual_start(ispin):my_B_virtual_end(ispin), :), my_B_size(ispin), &
+                         my_local_i_aL, dimen_RI, 1.0_dp, Y_j_aP, my_B_size(jspin), mp2_env%local_gemm_ctx)
       END IF
 
       IF (para_env_sub%num_pe > 1) THEN
@@ -1854,8 +1816,8 @@ CONTAINS
       END IF
       !
       DO proc_shift = 1, para_env_sub%num_pe - 1
-         proc_send = sub_proc_map(para_env_sub%mepos + proc_shift)
-         proc_receive = sub_proc_map(para_env_sub%mepos - proc_shift)
+         proc_send = MODULO(para_env_sub%mepos + proc_shift, para_env_sub%num_pe)
+         proc_receive = MODULO(para_env_sub%mepos - proc_shift, para_env_sub%num_pe)
 
          CALL get_group_dist(gd_B_virtual(ispin), proc_receive, rec_B_virtual_start, rec_B_virtual_end, rec_B_size)
          CALL get_group_dist(gd_B_virtual(ispin), proc_send, send_B_virtual_start, send_B_virtual_end, send_B_size)
@@ -1863,20 +1825,20 @@ CONTAINS
          send_ab(1:send_B_size, 1:dimen_RI) => buffer_1D(offset + 1:offset + INT(dimen_RI, int_8)*send_B_size)
          send_ab = 0.0_dp
          IF (.NOT. alpha_beta) THEN
-            CALL offload_dgemm('N', 'T', send_B_size, dimen_RI, my_B_size(ispin), 1.0_dp, &
-                               t_ab(send_B_virtual_start:send_B_virtual_end, :), send_B_size, &
-                               my_local_j_aL, dimen_RI, 0.0_dp, send_ab, send_B_size, &
-                               mp2_env%offload_gemm_ctx)
+            CALL local_gemm('N', 'T', send_B_size, dimen_RI, my_B_size(ispin), 1.0_dp, &
+                            t_ab(send_B_virtual_start:send_B_virtual_end, :), send_B_size, &
+                            my_local_j_aL, dimen_RI, 0.0_dp, send_ab, send_B_size, &
+                            mp2_env%local_gemm_ctx)
             CALL mp_sendrecv(send_ab, proc_send, external_ab, proc_receive, para_env_sub%group)
 
             Y_i_aP(:, :) = Y_i_aP + external_ab
 
          ELSE ! Alpha-beta case
             ! Alpha-alpha part
-            CALL offload_dgemm('N', 'T', send_B_size, dimen_RI, my_B_size(jspin), mp2_env%scale_S, &
-                               local_ab(send_B_virtual_start:send_B_virtual_end, :), send_B_size, &
-                               my_local_j_aL, dimen_RI, 0.0_dp, send_ab, send_B_size, &
-                               mp2_env%offload_gemm_ctx)
+            CALL local_gemm('N', 'T', send_B_size, dimen_RI, my_B_size(jspin), mp2_env%scale_S, &
+                            local_ab(send_B_virtual_start:send_B_virtual_end, :), send_B_size, &
+                            my_local_j_aL, dimen_RI, 0.0_dp, send_ab, send_B_size, &
+                            mp2_env%local_gemm_ctx)
             CALL mp_sendrecv(send_ab, proc_send, external_ab, proc_receive, para_env_sub%group)
             Y_i_aP(:, :) = Y_i_aP + external_ab
          END IF
@@ -1891,16 +1853,16 @@ CONTAINS
             offset = INT(my_B_size(jspin), int_8)*dimen_RI
          END IF
          DO proc_shift = 1, para_env_sub%num_pe - 1
-            proc_send = sub_proc_map(para_env_sub%mepos + proc_shift)
-            proc_receive = sub_proc_map(para_env_sub%mepos - proc_shift)
+            proc_send = MODULO(para_env_sub%mepos + proc_shift, para_env_sub%num_pe)
+            proc_receive = MODULO(para_env_sub%mepos - proc_shift, para_env_sub%num_pe)
 
             CALL get_group_dist(gd_B_virtual(jspin), proc_send, send_B_virtual_start, send_B_virtual_end, send_B_size)
             send_ab(1:send_B_size, 1:dimen_RI) => buffer_1D(offset + 1:offset + INT(dimen_RI, int_8)*send_B_size)
             send_ab = 0.0_dp
-            CALL offload_dgemm('N', 'T', send_B_size, dimen_RI, my_B_size(ispin), mp2_env%scale_S, &
-                               local_ba(send_B_virtual_start:send_B_virtual_end, :), send_B_size, &
-                               my_local_i_aL, dimen_RI, 0.0_dp, send_ab, send_B_size, &
-                               mp2_env%offload_gemm_ctx)
+            CALL local_gemm('N', 'T', send_B_size, dimen_RI, my_B_size(ispin), mp2_env%scale_S, &
+                            local_ba(send_B_virtual_start:send_B_virtual_end, :), send_B_size, &
+                            my_local_i_aL, dimen_RI, 0.0_dp, send_ab, send_B_size, &
+                            mp2_env%local_gemm_ctx)
             CALL mp_sendrecv(send_ab, proc_send, external_ab, proc_receive, para_env_sub%group)
             Y_j_aP(:, :) = Y_j_aP + external_ab
 
@@ -1915,13 +1877,13 @@ CONTAINS
       IF ((my_i /= my_j) .AND. (.NOT. alpha_beta)) THEN
          ! Alpha-alpha, beta-beta and closed shell
          CALL dgemm_counter_start(dgemm_counter)
-         CALL offload_dgemm('T', 'T', my_B_size(ispin), dimen_RI, my_B_size(ispin), 1.0_dp, &
-                            t_ab(my_B_virtual_start(ispin):my_B_virtual_end(ispin), :), my_B_size(ispin), &
-                            my_local_i_aL, dimen_RI, 1.0_dp, Y_j_aP, my_B_size(ispin), &
-                            mp2_env%offload_gemm_ctx)
+         CALL local_gemm('T', 'T', my_B_size(ispin), dimen_RI, my_B_size(ispin), 1.0_dp, &
+                         t_ab(my_B_virtual_start(ispin):my_B_virtual_end(ispin), :), my_B_size(ispin), &
+                         my_local_i_aL, dimen_RI, 1.0_dp, Y_j_aP, my_B_size(ispin), &
+                         mp2_env%local_gemm_ctx)
          DO proc_shift = 1, para_env_sub%num_pe - 1
-            proc_send = sub_proc_map(para_env_sub%mepos + proc_shift)
-            proc_receive = sub_proc_map(para_env_sub%mepos - proc_shift)
+            proc_send = MODULO(para_env_sub%mepos + proc_shift, para_env_sub%num_pe)
+            proc_receive = MODULO(para_env_sub%mepos - proc_shift, para_env_sub%num_pe)
 
             CALL get_group_dist(gd_B_virtual(ispin), proc_receive, rec_B_virtual_start, rec_B_virtual_end, rec_B_size)
 
@@ -1932,9 +1894,9 @@ CONTAINS
                              external_ab, proc_receive, para_env_sub%group)
 
             ! Alpha-alpha, beta-beta and closed shell
-            CALL offload_dgemm('T', 'T', my_B_size(ispin), dimen_RI, rec_B_size, 1.0_dp, &
-                               t_ab(rec_B_virtual_start:rec_B_virtual_end, :), rec_B_size, &
-                               external_ab, dimen_RI, 1.0_dp, Y_j_aP, my_B_size(ispin), mp2_env%offload_gemm_ctx)
+            CALL local_gemm('T', 'T', my_B_size(ispin), dimen_RI, rec_B_size, 1.0_dp, &
+                            t_ab(rec_B_virtual_start:rec_B_virtual_end, :), rec_B_size, &
+                            external_ab, dimen_RI, 1.0_dp, Y_j_aP, my_B_size(ispin), mp2_env%local_gemm_ctx)
          END DO
 
          CALL dgemm_counter_stop(dgemm_counter, my_B_size(ispin), dimen_RI, virtual(ispin))
@@ -1956,7 +1918,6 @@ CONTAINS
 !> \param num_integ_group ...
 !> \param integ_group_pos2color_sub ...
 !> \param num_ij_pairs ...
-!> \param proc_map ...
 !> \param ij_map ...
 !> \param ranges_info_array ...
 !> \param Y_i_aP ...
@@ -1967,7 +1928,7 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE mp2_redistribute_gamma(Gamma_P_ia, ij_index, my_B_size, &
                                      my_block_size, my_group_L_size, my_i, my_ij_pairs, ngroup, &
-                                     num_integ_group, integ_group_pos2color_sub, num_ij_pairs, proc_map, &
+                                     num_integ_group, integ_group_pos2color_sub, num_ij_pairs, &
                                      ij_map, ranges_info_array, Y_i_aP, para_env_exchange, &
                                      sizes_array, spin, buffer_1D)
 
@@ -1975,8 +1936,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: ij_index, my_B_size, my_block_size, &
                                                             my_group_L_size, my_i, my_ij_pairs, &
                                                             ngroup, num_integ_group
-      INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(IN)     :: integ_group_pos2color_sub, num_ij_pairs, &
-                                                            proc_map
+      INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(IN)     :: integ_group_pos2color_sub, num_ij_pairs
       INTEGER, ALLOCATABLE, DIMENSION(:, :), INTENT(IN)  :: ij_map
       INTEGER, ALLOCATABLE, DIMENSION(:, :, :), &
          INTENT(IN)                                      :: ranges_info_array
@@ -2026,8 +1986,8 @@ CONTAINS
          ! Y_i_aP(my_B_size,dimen_RI,block_size)
 
          DO proc_shift = 1, para_env_exchange%num_pe - 1
-            proc_send = proc_map(para_env_exchange%mepos + proc_shift)
-            proc_receive = proc_map(para_env_exchange%mepos - proc_shift)
+            proc_send = MODULO(para_env_exchange%mepos + proc_shift, para_env_exchange%num_pe)
+            proc_receive = MODULO(para_env_exchange%mepos - proc_shift, para_env_exchange%num_pe)
 
             send_L_size = sizes_array(proc_send)
             BI_C_send(1:my_B_size, 1:my_block_size, 1:send_L_size) => &
@@ -2095,8 +2055,8 @@ CONTAINS
       ELSE
          ! noting to send check if we have to receive
          DO proc_shift = 1, para_env_exchange%num_pe - 1
-            proc_send = proc_map(para_env_exchange%mepos + proc_shift)
-            proc_receive = proc_map(para_env_exchange%mepos - proc_shift)
+            proc_send = MODULO(para_env_exchange%mepos + proc_shift, para_env_exchange%num_pe)
+            proc_receive = MODULO(para_env_exchange%mepos - proc_shift, para_env_exchange%num_pe)
             rec_ij_index = num_ij_pairs(proc_receive)
 
             IF (ij_index <= rec_ij_index) THEN
@@ -2153,12 +2113,10 @@ CONTAINS
 !> \param para_env_exchange ...
 !> \param para_env_sub ...
 !> \param para_env ...
-!> \param proc_map ...
 !> \param my_B_virtual_start ...
 !> \param my_B_virtual_end ...
 !> \param sizes_array ...
 !> \param gd_B_virtual ...
-!> \param sub_proc_map ...
 !> \param integ_group_pos2color_sub ...
 !> \param dgemm_counter ...
 !> \param buffer_1D ...
@@ -2166,9 +2124,9 @@ CONTAINS
    SUBROUTINE quasi_degenerate_P_ij(mp2_env, Eigenval, homo, virtual, open_shell, &
                                     beta_beta, Bib_C, unit_nr, dimen_RI, &
                                     my_B_size, ngroup, my_group_L_size, &
-                                    color_sub, ranges_info_array, para_env_exchange, para_env_sub, para_env, proc_map, &
+                                    color_sub, ranges_info_array, para_env_exchange, para_env_sub, para_env, &
                                     my_B_virtual_start, my_B_virtual_end, sizes_array, gd_B_virtual, &
-                                    sub_proc_map, integ_group_pos2color_sub, dgemm_counter, buffer_1D)
+                                    integ_group_pos2color_sub, dgemm_counter, buffer_1D)
       TYPE(mp2_type)                                     :: mp2_env
       REAL(KIND=dp), DIMENSION(:, :), INTENT(IN)         :: Eigenval
       INTEGER, DIMENSION(:), INTENT(IN)                  :: homo, virtual
@@ -2181,11 +2139,10 @@ CONTAINS
       INTEGER, ALLOCATABLE, DIMENSION(:, :, :), &
          INTENT(IN)                                      :: ranges_info_array
       TYPE(cp_para_env_type), INTENT(IN)                 :: para_env_exchange, para_env_sub, para_env
-      INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(IN)     :: proc_map
       INTEGER, DIMENSION(:), INTENT(IN)                  :: my_B_virtual_start, my_B_virtual_end
       INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(IN)     :: sizes_array
       TYPE(group_dist_d1_type), DIMENSION(:), INTENT(IN) :: gd_B_virtual
-      INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(IN)     :: sub_proc_map, integ_group_pos2color_sub
+      INTEGER, ALLOCATABLE, DIMENSION(:), INTENT(IN)     :: integ_group_pos2color_sub
       TYPE(dgemm_counter_type), INTENT(INOUT)            :: dgemm_counter
       REAL(KIND=dp), CONTIGUOUS, DIMENSION(:), TARGET    :: buffer_1D
 
@@ -2303,8 +2260,8 @@ CONTAINS
 
                CALL timeset(routineN//"_comm", handle2)
                DO proc_shift = 1, para_env_exchange%num_pe - 1
-                  proc_send = proc_map(para_env_exchange%mepos + proc_shift)
-                  proc_receive = proc_map(para_env_exchange%mepos - proc_shift)
+                  proc_send = MODULO(para_env_exchange%mepos + proc_shift, para_env_exchange%num_pe)
+                  proc_receive = MODULO(para_env_exchange%mepos - proc_shift, para_env_exchange%num_pe)
 
                   send_ijk_index = num_ijk(proc_send)
 
@@ -2414,13 +2371,13 @@ CONTAINS
                   CALL dgemm_counter_start(dgemm_counter)
                   ALLOCATE (local_ab(my_virtual, size_B_k))
                   local_ab = 0.0_dp
-                  CALL offload_dgemm('T', 'N', size_B_i, size_B_k, dimen_RI, 1.0_dp, &
-                                     local_aL_i, dimen_RI, local_aL_k(:, :, kkB), dimen_RI, &
-                                     0.0_dp, local_ab(my_B_virtual_start(ispin):my_B_virtual_end(ispin), 1:size_B_k), size_B_i, &
-                                     mp2_env%offload_gemm_ctx)
+                  CALL local_gemm('T', 'N', size_B_i, size_B_k, dimen_RI, 1.0_dp, &
+                                  local_aL_i, dimen_RI, local_aL_k(:, :, kkB), dimen_RI, &
+                                  0.0_dp, local_ab(my_B_virtual_start(ispin):my_B_virtual_end(ispin), 1:size_B_k), size_B_i, &
+                                  mp2_env%local_gemm_ctx)
                   DO proc_shift = 1, para_env_sub%num_pe - 1
-                     proc_send = sub_proc_map(para_env_sub%mepos + proc_shift)
-                     proc_receive = sub_proc_map(para_env_sub%mepos - proc_shift)
+                     proc_send = MODULO(para_env_sub%mepos + proc_shift, para_env_sub%num_pe)
+                     proc_receive = MODULO(para_env_sub%mepos - proc_shift, para_env_sub%num_pe)
 
                      CALL get_group_dist(gd_B_virtual(ispin), proc_receive, rec_B_virtual_start, rec_B_virtual_end, rec_B_size)
 
@@ -2430,10 +2387,10 @@ CONTAINS
                                       external_aL, proc_receive, &
                                       para_env_sub%group, tag)
 
-                     CALL offload_dgemm('T', 'N', rec_B_size, size_B_k, dimen_RI, 1.0_dp, &
-                                        external_aL, dimen_RI, local_aL_k(:, :, kkB), dimen_RI, &
-                                        0.0_dp, local_ab(rec_B_virtual_start:rec_B_virtual_end, 1:size_B_k), rec_B_size, &
-                                        mp2_env%offload_gemm_ctx)
+                     CALL local_gemm('T', 'N', rec_B_size, size_B_k, dimen_RI, 1.0_dp, &
+                                     external_aL, dimen_RI, local_aL_k(:, :, kkB), dimen_RI, &
+                                     0.0_dp, local_ab(rec_B_virtual_start:rec_B_virtual_end, 1:size_B_k), rec_B_size, &
+                                     mp2_env%local_gemm_ctx)
                   END DO
                   CALL dgemm_counter_stop(dgemm_counter, my_virtual, size_B_k, dimen_RI)
                   CALL timestop(handle2)
@@ -2466,8 +2423,8 @@ CONTAINS
 
                   IF (.NOT. alpha_beta) THEN
                      DO proc_shift = 1, para_env_sub%num_pe - 1
-                        proc_send = sub_proc_map(para_env_sub%mepos + proc_shift)
-                        proc_receive = sub_proc_map(para_env_sub%mepos - proc_shift)
+                        proc_send = MODULO(para_env_sub%mepos + proc_shift, para_env_sub%num_pe)
+                        proc_receive = MODULO(para_env_sub%mepos - proc_shift, para_env_sub%num_pe)
                         CALL get_group_dist(gd_B_virtual(1), proc_receive, rec_B_virtual_start, rec_B_virtual_end, rec_B_size)
                         CALL get_group_dist(gd_B_virtual(1), proc_send, send_B_virtual_start, send_B_virtual_end, send_B_size)
 
@@ -2492,13 +2449,13 @@ CONTAINS
                   CALL timeset(routineN//"_exp_jk", handle2)
                   local_ab = 0.0_dp
                   CALL dgemm_counter_start(dgemm_counter)
-                  CALL offload_dgemm('T', 'N', size_B_i, size_B_k, dimen_RI, 1.0_dp, &
-                                     local_aL_j, dimen_RI, local_aL_k(:, :, kkB), dimen_RI, &
-                                     0.0_dp, local_ab(my_B_virtual_start(ispin):my_B_virtual_end(ispin), 1:size_B_k), size_B_i, &
-                                     mp2_env%offload_gemm_ctx)
+                  CALL local_gemm('T', 'N', size_B_i, size_B_k, dimen_RI, 1.0_dp, &
+                                  local_aL_j, dimen_RI, local_aL_k(:, :, kkB), dimen_RI, &
+                                  0.0_dp, local_ab(my_B_virtual_start(ispin):my_B_virtual_end(ispin), 1:size_B_k), size_B_i, &
+                                  mp2_env%local_gemm_ctx)
                   DO proc_shift = 1, para_env_sub%num_pe - 1
-                     proc_send = sub_proc_map(para_env_sub%mepos + proc_shift)
-                     proc_receive = sub_proc_map(para_env_sub%mepos - proc_shift)
+                     proc_send = MODULO(para_env_sub%mepos + proc_shift, para_env_sub%num_pe)
+                     proc_receive = MODULO(para_env_sub%mepos - proc_shift, para_env_sub%num_pe)
 
                      CALL get_group_dist(gd_B_virtual(ispin), proc_receive, rec_B_virtual_start, rec_B_virtual_end, rec_B_size)
 
@@ -2507,10 +2464,10 @@ CONTAINS
                      CALL mp_sendrecv(local_aL_j, proc_send, &
                                       external_aL, proc_receive, &
                                       para_env_sub%group, tag)
-                     CALL offload_dgemm('T', 'N', rec_B_size, size_B_k, dimen_RI, 1.0_dp, &
-                                        external_aL, dimen_RI, local_aL_k(:, :, kkB), dimen_RI, &
-                                        0.0_dp, local_ab(rec_B_virtual_start:rec_B_virtual_end, 1:size_B_k), rec_B_size, &
-                                        mp2_env%offload_gemm_ctx)
+                     CALL local_gemm('T', 'N', rec_B_size, size_B_k, dimen_RI, 1.0_dp, &
+                                     external_aL, dimen_RI, local_aL_k(:, :, kkB), dimen_RI, &
+                                     0.0_dp, local_ab(rec_B_virtual_start:rec_B_virtual_end, 1:size_B_k), rec_B_size, &
+                                     mp2_env%local_gemm_ctx)
                   END DO
                   CALL dgemm_counter_stop(dgemm_counter, my_virtual, size_B_k, dimen_RI)
                   CALL timestop(handle2)
@@ -2544,8 +2501,8 @@ CONTAINS
                CALL timeset(routineN//"_comm", handle2)
                ! no work to be done, possible messeges to be exchanged
                DO proc_shift = 1, para_env_exchange%num_pe - 1
-                  proc_send = proc_map(para_env_exchange%mepos + proc_shift)
-                  proc_receive = proc_map(para_env_exchange%mepos - proc_shift)
+                  proc_send = MODULO(para_env_exchange%mepos + proc_shift, para_env_exchange%num_pe)
+                  proc_receive = MODULO(para_env_exchange%mepos - proc_shift, para_env_exchange%num_pe)
 
                   send_ijk_index = num_ijk(proc_send)
 
