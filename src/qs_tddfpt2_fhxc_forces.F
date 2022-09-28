@@ -105,7 +105,6 @@ MODULE qs_tddfpt2_fhxc_forces
    USE qs_overlap,                      ONLY: build_overlap_matrix
    USE qs_rho_types,                    ONLY: qs_rho_create,&
                                               qs_rho_get,&
-                                              qs_rho_release,&
                                               qs_rho_set,&
                                               qs_rho_type
    USE qs_tddfpt2_stda_types,           ONLY: stda_env_type
@@ -161,7 +160,8 @@ CONTAINS
       TYPE(admm_type), POINTER                           :: admm_env
       TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: cpmos, evect
       TYPE(cp_fm_struct_type), POINTER                   :: fm_struct, fm_struct_mat
-      TYPE(cp_fm_type), POINTER                          :: cvcmat, mos, vcvec
+      TYPE(cp_fm_type)                                   :: cvcmat, vcvec
+      TYPE(cp_fm_type), POINTER                          :: mos
       TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER :: matrix_fx, matrix_gx, matrix_hfx, &
@@ -356,8 +356,13 @@ CONTAINS
             CALL qs_fgxc_create(ks_env, rho, rhox, xc_section, 6, is_rks_triplets, &
                                 fxc_rho, fxc_tau, gxc_rho, gxc_tau)
          END IF
-         CALL qs_rho_set(rho_struct=rhox, rho_ao=NULL(), rho_r=NULL(), rho_g=NULL())
-         CALL qs_rho_release(rhox)
+
+         ! Well, this is a hack :-(
+         ! When qs_rho_set() was called on rhox it assumed ownership of the passed arrays.
+         ! However, these arrays actually belong to ex_env. Hence, we can not call qs_rho_release()
+         ! because this would release the arrays. Instead we're simply going to deallocate rhox.
+         DEALLOCATE (rhox)
+
          IF (nspins == 2) THEN
             DO ispin = 1, nspins
                CALL pw_scale(gxc_rho(ispin)%pw, 0.5_dp)
@@ -462,8 +467,13 @@ CONTAINS
                   CALL qs_fgxc_create(ks_env, rho_aux_fit, rhox_aux, xc_section, &
                                       6, is_rks_triplets, fxc_rho, fxc_tau, gxc_rho, gxc_tau)
                END IF
-               CALL qs_rho_set(rho_struct=rhox_aux, rho_ao=NULL(), rho_r=NULL(), rho_g=NULL())
-               CALL qs_rho_release(rhox_aux)
+
+               ! Well, this is a hack :-(
+               ! When qs_rho_set() was called on rhox_aux it assumed ownership of the passed arrays.
+               ! However, these arrays actually belong to ex_env. Hence, we can not call qs_rho_release()
+               ! because this would release the arrays. Instead we're simply going to deallocate rhox_aux.
+               DEALLOCATE (rhox_aux)
+
                DO ispin = 1, nspins
                   CALL pw_pool_give_back_pw(auxbas_pw_pool, rhox_r_aux(ispin)%pw)
                   CALL pw_pool_give_back_pw(auxbas_pw_pool, rhox_g_aux(ispin)%pw)
@@ -966,9 +976,9 @@ CONTAINS
       TYPE(cell_type), POINTER                           :: cell
       TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: cpmos, X, xtransformed
       TYPE(cp_fm_struct_type), POINTER                   :: fmstruct, fmstruct_mat, fmstructjspin
-      TYPE(cp_fm_type), POINTER                          :: ct, ctjspin, cvcmat, cvec, cvecjspin, &
-                                                            t0matrix, t1matrix, ucmatrix, &
-                                                            uxmatrix, vcvec, xt, xvec
+      TYPE(cp_fm_type)                                   :: cvcmat, cvec, cvecjspin, t0matrix, &
+                                                            t1matrix, vcvec, xvec
+      TYPE(cp_fm_type), POINTER                          :: ct, ctjspin, ucmatrix, uxmatrix, xt
       TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_iterator_type)                          :: iter
@@ -1042,6 +1052,7 @@ CONTAINS
          NULLIFY (fmstruct)
          ct => work%ctransformed(ispin)%matrix
          CALL cp_fm_get_info(ct, matrix_struct=fmstruct)
+         ALLOCATE (xtransformed(ispin)%matrix)
          CALL cp_fm_create(matrix=xtransformed(ispin)%matrix, matrix_struct=fmstruct, name="XTRANSFORMED")
       END DO
       CALL get_lowdin_x(work%shalf, X, xtransformed)
@@ -1415,6 +1426,7 @@ CONTAINS
 
       DO ispin = 1, nspins
          CALL cp_fm_release(matrix=xtransformed(ispin)%matrix)
+         DEALLOCATE (xtransformed(ispin)%matrix)
       END DO
       DEALLOCATE (xtransformed)
       DEALLOCATE (tcharge, gtcharge)
