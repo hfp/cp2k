@@ -7,7 +7,7 @@
 #
 # Usage: Source this arch file and then run make as instructed.
 #
-# Author: Matthias Krack (26.09.2022)
+# Author: Matthias Krack (30.09.2022)
 #
 # \
    if [[ "${0}" == "${BASH_SOURCE}" ]]; then \
@@ -16,7 +16,9 @@
       exit 1; \
    fi; \
    this_file=${BASH_SOURCE##*/}; \
-   ./install_cp2k_toolchain.sh --mpi-mode=no --no-arch-files --with-gcc=system --with-cmake=system; \
+   cd tools/toolchain; \
+   [[ -z "${target_cpu}" ]] && target_cpu="native"; \
+   ./install_cp2k_toolchain.sh --mpi-mode=no --no-arch-files --target-cpu=${target_cpu} --with-gcc=system --with-cmake=system; \
    source ./install/setup; \
    cd ../..; \
    echo; \
@@ -28,6 +30,7 @@
 
 # Set options
 DO_CHECKS      := no
+TARGET_CPU     := native
 USE_FFTW       := 3.3.10
 USE_LIBINT     := 2.6.0
 USE_LIBVORI    := 220621
@@ -44,7 +47,7 @@ FC             := gfortran
 LD             := gfortran
 AR             := ar -r
 
-CFLAGS         := -O2 -fopenmp -fopenmp-simd -ftree-vectorize -funroll-loops -g -mtune=native
+CFLAGS         := -O2 -fopenmp -fopenmp-simd -ftree-vectorize -funroll-loops -g -mtune=$(TARGET_CPU)
 
 DFLAGS         += -D__MAX_CONTR=$(strip $(MAX_CONTR))
 
@@ -53,6 +56,7 @@ INSTALL_PATH   := $(PWD)/tools/toolchain/install
 # Settings for regression testing
 ifeq ($(DO_CHECKS), yes)
    DFLAGS         += -D__CHECK_DIAG
+   CFLAGS_DEBUG   := -fsanitize=address
    FCFLAGS_DEBUG  := -fcheck=bounds,do,recursion,pointer
    FCFLAGS_DEBUG  += -fcheck=all,no-array-temps
    FCFLAGS_DEBUG  += -ffpe-trap=invalid,overflow,zero
@@ -61,7 +65,6 @@ ifeq ($(DO_CHECKS), yes)
    FCFLAGS_DEBUG  += -finit-real=snan
    FCFLAGS_DEBUG  += -finit-integer=-42
    FCFLAGS_DEBUG  += -finline-matmul-limit=0
-   LDFLAGS        += -fsanitize=leak
    WFLAGS         := -Werror=aliasing
    WFLAGS         += -Werror=ampersand
    WFLAGS         += -Werror=c-binding-type
@@ -133,7 +136,7 @@ ifneq ($(USE_OPENBLAS),)
    LIBS           += $(OPENBLAS_LIB)/libopenblas.a
 endif
 
-CFLAGS         += $(DFLAGS)
+CFLAGS         += $(DFLAGS) $(CFLAGS_DEBUG)
 
 FCFLAGS        := $(CFLAGS) $(FCFLAGS_DEBUG) $(WFLAGS)
 FCFLAGS        += -fallow-argument-mismatch

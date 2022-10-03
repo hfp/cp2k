@@ -34,11 +34,15 @@ LD_arch="IF_MPI(${MPIFC}|${FC})"
 
 # we always want good line information and backtraces
 if [ "${with_intel}" != "__DONTUSE__" ]; then
-  BASEFLAGS="-nofor-main -O2 -fopenmp -fp-model precise -funroll-loops -g -qopenmp-simd -traceback -xHost -wd279"
-elif [ "${generic}" = "__TRUE__" ]; then
-  BASEFLAGS="-fno-omit-frame-pointer -fopenmp -g -mtune=generic"
+  if [ "${TARGET_CPU}" = "native" ]; then
+    BASEFLAGS="-fopenmp -fp-model precise -g -nofor-main -qopenmp-simd -traceback -wd279 -xHost"
+  elif [ "${TARGET_CPU}" = "generic" ]; then
+    BASEFLAGS="-fopenmp -fp-model precise -g -mtune=${TARGET_CPU} -nofor-main -qopenmp-simd -traceback -wd279"
+  else
+    BASEFLAGS="-fopenmp -fp-model precise -g -march=${TARGET_CPU} -mtune=${TARGET_CPU} -nofor-main -qopenmp-simd -traceback -wd279"
+  fi
 else
-  BASEFLAGS="-fno-omit-frame-pointer -fopenmp -g -march=native -mtune=native IF_ASAN(-fsanitize=address|)"
+  BASEFLAGS="-fno-omit-frame-pointer -fopenmp -g -mtune=${TARGET_CPU} IF_ASAN(-fsanitize=address|)"
 fi
 
 OPT_FLAGS="-O3 -funroll-loops"

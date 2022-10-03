@@ -10,10 +10,10 @@
 #
 # Usage: Source this arch file and then run make as instructed.
 #        A full toolchain installation is performed as default.
-#        Optionally, GNU compiler and MPICH version can be specified as arguments.
+#        Optionally, GNU compiler and MPI implementation can be specified as arguments.
 #        Replace or adapt the "module add" commands below if needed.
 #
-# Author: Matthias Krack (29.09.2022)
+# Author: Matthias Krack (30.09.2022)
 #
 # \
    if [[ "${0}" == "${BASH_SOURCE}" ]]; then \
@@ -24,18 +24,19 @@
    this_file=${BASH_SOURCE##*/}; \
    cd tools/toolchain; \
    [[ -z "${mpi_implementation}" ]] && mpi_implementation="mpich"; \
+   [[ -z "${target_cpu}" ]] && target_cpu="native"; \
    if [[ -n "${1}" ]]; then \
       module add ${1}; \
       if [[ -n "${2}" ]]; then \
          module add ${2}; \
          module list; \
-         ./install_cp2k_toolchain.sh --install-all --no-arch-files --with-gcc=system --with-${mpi_implementation}=system; \
+         ./install_cp2k_toolchain.sh --install-all --no-arch-files --target-cpu=${target_cpu} --with-gcc=system --with-${mpi_implementation}=system; \
       else \
          module list; \
-         ./install_cp2k_toolchain.sh --install-all --no-arch-files --with-gcc=system --with-${mpi_implementation}; \
+         ./install_cp2k_toolchain.sh --install-all --no-arch-files --target-cpu=${target_cpu} --with-gcc=system --with-${mpi_implementation}; \
       fi; \
    else \
-      ./install_cp2k_toolchain.sh --install-all --no-arch-files --with-gcc --with-${mpi_implementation}; \
+      ./install_cp2k_toolchain.sh --install-all --no-arch-files --target-cpu=${target_cpu} --with-gcc --with-${mpi_implementation}; \
    fi; \
    source ./install/setup; \
    cd ../..; \
@@ -54,6 +55,7 @@
 # Set options
 DO_CHECKS      := no
 SHARED         := no
+TARGET_CPU     := native
 USE_COSMA      := 2.6.2
 USE_ELPA       := 2021.11.002
 USE_FFTW       := 3.3.10
@@ -85,7 +87,7 @@ FC             := mpif90
 LD             := mpif90
 AR             := ar -r
 
-CFLAGS         := -O2 -fopenmp -fopenmp-simd -ftree-vectorize -funroll-loops -g -mtune=native
+CFLAGS         := -O2 -fopenmp -fopenmp-simd -ftree-vectorize -funroll-loops -g -mtune=$(TARGET_CPU)
 
 DFLAGS         := -D__parallel
 DFLAGS         += -D__SCALAPACK
@@ -107,6 +109,7 @@ endif
 # Settings for regression testing
 ifeq ($(DO_CHECKS), yes)
    DFLAGS         += -D__CHECK_DIAG
+   CFLAGS_DEBUG   := -fsanitize=address
    FCFLAGS_DEBUG  := -fcheck=bounds,do,recursion,pointer
    FCFLAGS_DEBUG  += -fcheck=all,no-array-temps
    FCFLAGS_DEBUG  += -ffpe-trap=invalid,overflow,zero
@@ -115,7 +118,6 @@ ifeq ($(DO_CHECKS), yes)
    FCFLAGS_DEBUG  += -finit-real=snan
    FCFLAGS_DEBUG  += -finit-integer=-42
    FCFLAGS_DEBUG  += -finline-matmul-limit=0
-   FCFLAGS_DEBUG  += -fsanitize=address
    WFLAGS         := -Werror=aliasing
    WFLAGS         += -Werror=ampersand
    WFLAGS         += -Werror=c-binding-type
@@ -363,7 +365,7 @@ ifneq ($(USE_OPENBLAS),)
    endif
 endif
 
-CFLAGS         += $(DFLAGS)
+CFLAGS         += $(DFLAGS) $(CFLAGS_DEBUG)
 
 FCFLAGS        := $(CFLAGS) $(FCFLAGS_DEBUG) $(WFLAGS)
 ifeq ($(shell [ $(shell gcc -dumpversion | cut -d. -f1) -gt 9 ] && echo yes), yes)
