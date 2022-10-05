@@ -119,14 +119,6 @@ The --enable-FEATURE options follow the rules:
   --enable-FEATURE        The option keyword alone is equivalent to
                           --enable-FEATURE=yes
 
-  --enable-gcc-master     If you are installing GCC using this script
-                          this option forces the master development version
-                          to be installed.
-                          Default = no
-  --enable-libxsmm-master If you are installing libxsmm using this script
-                          this option forces the master development version
-                          to be installed.
-                          Default = no
   --enable-cuda           Turn on GPU (CUDA) support (can be combined
                           with --enable-opencl).
                           Default = no
@@ -160,11 +152,13 @@ The --with-PKG options follow the rules:
                           Default = system
   --with-cmake            Cmake utilities
                           Default = install
-  --with-openmpi          OpenMPI, important if you want parallel version of CP2K.
+  --with-openmpi          OpenMPI, important if you want a parallel version of CP2K.
                           Default = system
   --with-mpich            MPICH, MPI library like OpenMPI. one should
                           use only one of OpenMPI, MPICH or Intel MPI.
                           Default = system
+  --with-mpich-device     Select the MPICH device, implies the use of MPICH as MPI library
+                          Default = ch3
   --with-intelmpi         Intel MPI, MPI library like OpenMPI. one should
                           use only one of OpenMPI, MPICH or Intel MPI.
                           Default = system
@@ -338,12 +332,11 @@ fi
 dry_run="__FALSE__"
 no_arch_files="__FALSE__"
 enable_tsan="__FALSE__"
-enable_gcc_master="__FALSE__"
-enable_libxsmm_master="__FALSE__"
 enable_opencl="__FALSE__"
 enable_cuda="__FALSE__"
 enable_hip="__FALSE__"
 export GPUVER="no"
+export MPICH_DEVICE="ch3"
 export TARGET_CPU="native"
 
 # default for libint
@@ -477,20 +470,6 @@ while [ $# -ge 1 ]; do
         exit 1
       fi
       ;;
-    --enable-gcc-master*)
-      enable_gcc_master=$(read_enable $1)
-      if [ "${enable_gcc_master}" = "__INVALID__" ]; then
-        report_error "invalid value for --enable-gcc-master, please use yes or no"
-        exit 1
-      fi
-      ;;
-    --enable-libxsmm-master*)
-      enable_libxsmm_master=$(read_enable $1)
-      if [ "${enable_libxsmm_master}" = "__INVALID__" ]; then
-        report_error "invalid value for --enable-libxsmm-master, please use yes or no"
-        exit 1
-      fi
-      ;;
     --enable-cuda*)
       enable_cuda=$(read_enable $1)
       if [ $enable_cuda = "__INVALID__" ]; then
@@ -524,6 +503,11 @@ while [ $# -ge 1 ]; do
       ;;
     --with-cmake*)
       with_cmake=$(read_with "${1}")
+      ;;
+    --with-mpich-device=*)
+      user_input="${1#*=}"
+      export MPICH_DEVICE="${user_input}"
+      export MPI_MODE=mpich
       ;;
     --with-mpich*)
       with_mpich=$(read_with "${1}")
@@ -646,8 +630,6 @@ export ENABLE_CUDA="${enable_cuda}"
 export ENABLE_HIP="${enable_hip}"
 export ENABLE_OPENCL="${enable_opencl}"
 export ENABLE_CRAY="${enable_cray}"
-[ "${enable_gcc_master}" = "__TRUE__" ] && export gcc_ver="master"
-[ "${enable_libxsmm_master}" = "__TRUE__" ] && export libxsmm_ver="master"
 
 # ------------------------------------------------------------------------
 # Check and solve known conflicts before installations proceed

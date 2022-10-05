@@ -30,9 +30,7 @@ case "${with_spfft}" in
       if [ -f SpFFT-${spfft_ver}.tar.gz ]; then
         echo "SpFFT-${spfft_ver}.tar.gz is found"
       else
-        download_pkg ${DOWNLOADER_FLAGS} ${spfft_sha256} \
-          "https://github.com/eth-cscs/SpFFT/archive/v${spfft_ver}.tar.gz" \
-          -o SpFFT-${spfft_ver}.tar.gz
+        download_pkg_from_cp2k_org "${spfft_sha256}" "SpFFT-${spfft_ver}.tar.gz"
 
       fi
       if [ "${MATH_MODE}" = "mkl" ]; then

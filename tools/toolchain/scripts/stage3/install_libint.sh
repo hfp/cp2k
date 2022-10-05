@@ -53,8 +53,7 @@ case "$with_libint" in
       if [ -f ${libint_pkg} ]; then
         echo "${libint_pkg} is found"
       else
-        download_pkg ${DOWNLOADER_FLAGS} ${libint_sha256} \
-          https://github.com/cp2k/libint-cp2k/releases/download/v${libint_ver}/${libint_pkg}
+        download_pkg_from_cp2k_org "${libint_sha256}" "${libint_pkg}"
       fi
 
       [ -d libint-v${libint_ver}-cp2k-lmax-${LIBINT_LMAX} ] && rm -rf libint-v${libint_ver}-cp2k-lmax-${LIBINT_LMAX}
