@@ -150,9 +150,9 @@ CONTAINS
       LOGICAL, INTENT(INOUT)                             :: diis_step
 
       INTEGER                                            :: ispin, nspin
-      LOGICAL                                            :: do_level_shift, use_jacobi
+      LOGICAL                                            :: do_level_shift, owns_ortho, use_jacobi
       REAL(KIND=dp)                                      :: diis_error, eps_diis
-      TYPE(cp_fm_type), POINTER                          :: matrix_u_fm, ortho
+      TYPE(cp_fm_type), POINTER                          :: ortho
       TYPE(dbcsr_type), POINTER                          :: ortho_dbcsr
 
       nspin = SIZE(matrix_ks)
@@ -223,38 +223,52 @@ CONTAINS
          END DO
 
       ELSE IF (scf_env%cholesky_method > cholesky_off) THEN
+         IF (scf_env%cholesky_method == cholesky_inverse) THEN
+            ortho => scf_env%ortho_m1
+         ELSE
+            ortho => scf_env%ortho
+         END IF
+
+         owns_ortho = .FALSE.
+         IF (.NOT. ASSOCIATED(ortho)) THEN
+            ALLOCATE (ortho)
+            owns_ortho = .TRUE.
+         END IF
+
          DO ispin = 1, nspin
-            IF (scf_env%cholesky_method == cholesky_inverse) THEN
-               ortho => scf_env%ortho_m1
-            ELSE
-               ortho => scf_env%ortho
-            END IF
-
             IF (do_level_shift) THEN
-               matrix_u_fm => scf_env%ortho
+               CALL eigensolver(matrix_ks_fm=scf_env%scf_work1(ispin)%matrix, &
+                                mo_set=mos(ispin)%mo_set, &
+                                ortho=ortho, &
+                                work=scf_env%scf_work2, &
+                                cholesky_method=scf_env%cholesky_method, &
+                                do_level_shift=do_level_shift, &
+                                level_shift=scf_control%level_shift, &
+                                matrix_u_fm=scf_env%ortho, &
+                                use_jacobi=use_jacobi)
             ELSE
-               NULLIFY (matrix_u_fm)
+               CALL eigensolver(matrix_ks_fm=scf_env%scf_work1(ispin)%matrix, &
+                                mo_set=mos(ispin)%mo_set, &
+                                ortho=ortho, &
+                                work=scf_env%scf_work2, &
+                                cholesky_method=scf_env%cholesky_method, &
+                                do_level_shift=do_level_shift, &
+                                level_shift=scf_control%level_shift, &
+                                use_jacobi=use_jacobi)
             END IF
-
-            CALL eigensolver(matrix_ks_fm=scf_env%scf_work1(ispin)%matrix, &
-                             mo_set=mos(ispin)%mo_set, &
-                             ortho=ortho, &
-                             work=scf_env%scf_work2, &
-                             cholesky_method=scf_env%cholesky_method, &
-                             do_level_shift=do_level_shift, &
-                             level_shift=scf_control%level_shift, &
-                             matrix_u_fm=matrix_u_fm, &
-                             use_jacobi=use_jacobi)
          END DO
+
+         IF (owns_ortho) DEALLOCATE (ortho)
       ELSE
          ortho => scf_env%ortho
 
-         IF (do_level_shift) THEN
-            matrix_u_fm => scf_env%ortho_m1
-         ELSE
-            NULLIFY (matrix_u_fm)
+         owns_ortho = .FALSE.
+         IF (.NOT. ASSOCIATED(ortho)) THEN
+            ALLOCATE (ortho)
+            owns_ortho = .TRUE.
          END IF
 
+         IF (do_level_shift) THEN
          DO ispin = 1, nspin
             CALL eigensolver_symm(matrix_ks_fm=scf_env%scf_work1(ispin)%matrix, &
                                   mo_set=mos(ispin)%mo_set, &
@@ -262,10 +276,24 @@ CONTAINS
                                   work=scf_env%scf_work2, &
                                   do_level_shift=do_level_shift, &
                                   level_shift=scf_control%level_shift, &
-                                  matrix_u_fm=matrix_u_fm, &
+                                  matrix_u_fm=scf_env%ortho_m1, &
                                   use_jacobi=use_jacobi, &
                                   jacobi_threshold=scf_control%diagonalization%jacobi_threshold)
          END DO
+         ELSE
+         DO ispin = 1, nspin
+            CALL eigensolver_symm(matrix_ks_fm=scf_env%scf_work1(ispin)%matrix, &
+                                  mo_set=mos(ispin)%mo_set, &
+                                  ortho=ortho, &
+                                  work=scf_env%scf_work2, &
+                                  do_level_shift=do_level_shift, &
+                                  level_shift=scf_control%level_shift, &
+                                  use_jacobi=use_jacobi, &
+                                  jacobi_threshold=scf_control%diagonalization%jacobi_threshold)
+         END DO
+         END IF
+
+         IF (owns_ortho) DEALLOCATE (ortho)
       END IF
 
    END SUBROUTINE general_eigenproblem
