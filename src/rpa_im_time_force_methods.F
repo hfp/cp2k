@@ -2003,58 +2003,58 @@ CONTAINS
 
             END DO !k_mem
          END DO !j_mem
+         CALL dbt_copy(t_3c_8, t_3c_help_1, move_data=.TRUE.)
+
+         pref = 1.0_dp*fac
+         IF (use_virial) THEN
+            DO k_mem = 1, cut_memory
+               DO i_xyz = 1, 3
+                  CALL dbt_clear(force_data%t_3c_der_RI(i_xyz))
+                  CALL decompress_tensor(force_data%t_3c_der_RI(i_xyz), force_data%t_3c_der_RI_ind(k_mem, i_xyz)%ind, &
+                                         force_data%t_3c_der_RI_comp(k_mem, i_xyz), mp2_env%ri_rpa_im_time%eps_compress)
+               END DO
+               CALL get_force_from_3c_trace(force, t_3c_help_1, force_data%t_3c_der_RI, atom_of_kind, kind_of, &
+                                            force_data%idx_to_at_RI, pref, work_virial, cell, particle_set, &
+                                            do_mp2=.TRUE., deriv_dim=1)
+            END DO
+
+            CALL dbt_copy(t_3c_help_1, t_3c_help_2)
+            CALL dbt_copy(t_3c_help_1, t_3c_help_2, order=[1, 3, 2], move_data=.TRUE., summation=.TRUE.)
+            DO k_mem = 1, cut_memory
+               DO i_xyz = 1, 3
+                  CALL dbt_clear(force_data%t_3c_der_AO(i_xyz))
+                  CALL decompress_tensor(force_data%t_3c_der_AO(i_xyz), force_data%t_3c_der_AO_ind(k_mem, i_xyz)%ind, &
+                                         force_data%t_3c_der_AO_comp(k_mem, i_xyz), mp2_env%ri_rpa_im_time%eps_compress)
+               END DO
+               CALL get_force_from_3c_trace(force, t_3c_help_2, force_data%t_3c_der_AO, atom_of_kind, kind_of, &
+                                            force_data%idx_to_at_AO, pref, work_virial, cell, particle_set, &
+                                            do_mp2=.TRUE., deriv_dim=3)
+            END DO
+         ELSE
+            DO k_mem = 1, cut_memory
+               DO i_xyz = 1, 3
+                  CALL dbt_clear(force_data%t_3c_der_RI(i_xyz))
+                  CALL decompress_tensor(force_data%t_3c_der_RI(i_xyz), force_data%t_3c_der_RI_ind(k_mem, i_xyz)%ind, &
+                                         force_data%t_3c_der_RI_comp(k_mem, i_xyz), mp2_env%ri_rpa_im_time%eps_compress)
+               END DO
+               CALL get_force_from_3c_trace(force, t_3c_help_1, force_data%t_3c_der_RI, atom_of_kind, kind_of, &
+                                            force_data%idx_to_at_RI, pref, do_mp2=.TRUE., deriv_dim=1)
+            END DO
+
+            CALL dbt_copy(t_3c_help_1, t_3c_help_2)
+            CALL dbt_copy(t_3c_help_1, t_3c_help_2, order=[1, 3, 2], move_data=.TRUE., summation=.TRUE.)
+            DO k_mem = 1, cut_memory
+               DO i_xyz = 1, 3
+                  CALL dbt_clear(force_data%t_3c_der_AO(i_xyz))
+                  CALL decompress_tensor(force_data%t_3c_der_AO(i_xyz), force_data%t_3c_der_AO_ind(k_mem, i_xyz)%ind, &
+                                         force_data%t_3c_der_AO_comp(k_mem, i_xyz), mp2_env%ri_rpa_im_time%eps_compress)
+               END DO
+               CALL get_force_from_3c_trace(force, t_3c_help_2, force_data%t_3c_der_AO, atom_of_kind, kind_of, &
+                                            force_data%idx_to_at_AO, pref, do_mp2=.TRUE., deriv_dim=3)
+            END DO
+         END IF
+         CALL dbt_clear(t_3c_help_2)
       END DO !i_mem
-      CALL dbt_copy(t_3c_8, t_3c_help_1, move_data=.TRUE.)
-
-      pref = 1.0_dp*fac
-      IF (use_virial) THEN
-         DO i_mem = 1, cut_memory
-            DO i_xyz = 1, 3
-               CALL dbt_clear(force_data%t_3c_der_RI(i_xyz))
-               CALL decompress_tensor(force_data%t_3c_der_RI(i_xyz), force_data%t_3c_der_RI_ind(i_mem, i_xyz)%ind, &
-                                      force_data%t_3c_der_RI_comp(i_mem, i_xyz), mp2_env%ri_rpa_im_time%eps_compress)
-            END DO
-            CALL get_force_from_3c_trace(force, t_3c_help_1, force_data%t_3c_der_RI, atom_of_kind, kind_of, &
-                                         force_data%idx_to_at_RI, pref, work_virial, cell, particle_set, &
-                                         do_mp2=.TRUE., deriv_dim=1)
-         END DO
-
-         CALL dbt_copy(t_3c_help_1, t_3c_help_2)
-         CALL dbt_copy(t_3c_help_1, t_3c_help_2, order=[1, 3, 2], move_data=.TRUE., summation=.TRUE.)
-         DO i_mem = 1, cut_memory
-            DO i_xyz = 1, 3
-               CALL dbt_clear(force_data%t_3c_der_AO(i_xyz))
-               CALL decompress_tensor(force_data%t_3c_der_AO(i_xyz), force_data%t_3c_der_AO_ind(i_mem, i_xyz)%ind, &
-                                      force_data%t_3c_der_AO_comp(i_mem, i_xyz), mp2_env%ri_rpa_im_time%eps_compress)
-            END DO
-            CALL get_force_from_3c_trace(force, t_3c_help_2, force_data%t_3c_der_AO, atom_of_kind, kind_of, &
-                                         force_data%idx_to_at_AO, pref, work_virial, cell, particle_set, &
-                                         do_mp2=.TRUE., deriv_dim=3)
-         END DO
-      ELSE
-         DO i_mem = 1, cut_memory
-            DO i_xyz = 1, 3
-               CALL dbt_clear(force_data%t_3c_der_RI(i_xyz))
-               CALL decompress_tensor(force_data%t_3c_der_RI(i_xyz), force_data%t_3c_der_RI_ind(i_mem, i_xyz)%ind, &
-                                      force_data%t_3c_der_RI_comp(i_mem, i_xyz), mp2_env%ri_rpa_im_time%eps_compress)
-            END DO
-            CALL get_force_from_3c_trace(force, t_3c_help_1, force_data%t_3c_der_RI, atom_of_kind, kind_of, &
-                                         force_data%idx_to_at_RI, pref, do_mp2=.TRUE., deriv_dim=1)
-         END DO
-
-         CALL dbt_copy(t_3c_help_1, t_3c_help_2)
-         CALL dbt_copy(t_3c_help_1, t_3c_help_2, order=[1, 3, 2], move_data=.TRUE., summation=.TRUE.)
-         DO i_mem = 1, cut_memory
-            DO i_xyz = 1, 3
-               CALL dbt_clear(force_data%t_3c_der_AO(i_xyz))
-               CALL decompress_tensor(force_data%t_3c_der_AO(i_xyz), force_data%t_3c_der_AO_ind(i_mem, i_xyz)%ind, &
-                                      force_data%t_3c_der_AO_comp(i_mem, i_xyz), mp2_env%ri_rpa_im_time%eps_compress)
-            END DO
-            CALL get_force_from_3c_trace(force, t_3c_help_2, force_data%t_3c_der_AO, atom_of_kind, kind_of, &
-                                         force_data%idx_to_at_AO, pref, do_mp2=.TRUE., deriv_dim=3)
-         END DO
-      END IF
-      CALL dbt_clear(t_3c_help_2)
 
       DO k_mem = 1, n_mem_RI
          DO i_mem = 1, cut_memory
@@ -2582,10 +2582,10 @@ CONTAINS
          POINTER                                         :: sab_orb
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(pw_env_type), POINTER                         :: pw_env_ext
-      TYPE(pw_p_type)                                    :: dvg(3), pot_g, psi_L, rho_g, rho_g_copy, &
-                                                            rho_r
+      TYPE(pw_p_type)                                    :: dvg(3)
       TYPE(pw_poisson_type), POINTER                     :: poisson_env
       TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
+      TYPE(pw_type)                                      :: pot_g, psi_L, rho_g, rho_g_copy, rho_r
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(realspace_grid_p_type), DIMENSION(:), POINTER :: rs_v
       TYPE(task_list_type), POINTER                      :: task_list_ext
@@ -2666,8 +2666,7 @@ CONTAINS
                        auxbas_pw_pool, poisson_env, task_list_ext, rho_r, rho_g, pot_g, psi_L, sab_orb)
 
       IF (use_virial) THEN
-         ALLOCATE (rho_g_copy%pw)
-         CALL pw_pool_create_pw(auxbas_pw_pool, rho_g_copy%pw, &
+         CALL pw_pool_create_pw(auxbas_pw_pool, rho_g_copy, &
                                 use_data=COMPLEXDATA1D, &
                                 in_space=RECIPROCALSPACE)
          DO i_xyz = 1, 3
@@ -2706,7 +2705,7 @@ CONTAINS
             wf_vector = 0.0_dp
             wf_vector(j_RI) = 1.0_dp
 
-            CALL calculate_wavefunction(mos(1)%mo_set%mo_coeff, 1, psi_L%pw, rho_g%pw, atomic_kind_set, &
+            CALL calculate_wavefunction(mos(1)%mo_set%mo_coeff, 1, psi_L, rho_g, atomic_kind_set, &
                                         qs_kind_set, cell, dft_control, particle_set, pw_env_ext, &
                                         basis_type="RI_AUX", external_vector=wf_vector)
 
@@ -2727,8 +2726,8 @@ CONTAINS
                   wf_vector(i_RI + 1:i_RI + sizes_RI(iatom)) = pblock(:, j_RI - lb_RI)
                END DO
 
-               CALL pw_copy(rho_g%pw, rho_g_copy%pw)
-               CALL calculate_wavefunction(mos(1)%mo_set%mo_coeff, 1, psi_L%pw, rho_g%pw, atomic_kind_set, &
+               CALL pw_copy(rho_g, rho_g_copy)
+               CALL calculate_wavefunction(mos(1)%mo_set%mo_coeff, 1, psi_L, rho_g, atomic_kind_set, &
                                            qs_kind_set, cell, dft_control, particle_set, pw_env_ext, &
                                            basis_type="RI_AUX", external_vector=wf_vector)
 
@@ -2745,7 +2744,7 @@ CONTAINS
             DO i = 1, SIZE(rs_v)
                CALL rs_grid_retain(rs_v(i)%rs_grid)
             END DO
-            CALL potential_pw2rs(rs_v, rho_r%pw, pw_env_ext)
+            CALL potential_pw2rs(rs_v, rho_r, pw_env_ext)
 
             DO iatom = 1, natom
 
@@ -2840,8 +2839,7 @@ CONTAINS
       END DO !jatom
 
       IF (use_virial) THEN
-         CALL pw_pool_give_back_pw(auxbas_pw_pool, rho_g_copy%pw)
-         DEALLOCATE (rho_g_copy%pw)
+         CALL pw_pool_give_back_pw(auxbas_pw_pool, rho_g_copy)
          DO i_xyz = 1, 3
             CALL pw_pool_give_back_pw(auxbas_pw_pool, dvg(i_xyz)%pw)
             DEALLOCATE (dvg(i_xyz)%pw)
@@ -3805,31 +3803,35 @@ CONTAINS
 !> \param weights_cos_tf_t_to_w ...
 !> \param weights_cos_tf_w_to_t ...
 !> \param do_laplace ...
+!> \param do_im_time ...
 !> \param num_integ_points ...
 !> \param unit_nr ...
 !> \param qs_env ...
 ! **************************************************************************************************
    SUBROUTINE keep_initial_quad(tj, wj, tau_tj, tau_wj, weights_cos_tf_t_to_w, weights_cos_tf_w_to_t, &
-                                do_laplace, num_integ_points, unit_nr, qs_env)
+                                do_laplace, do_im_time, num_integ_points, unit_nr, qs_env)
 
-      REAL(dp), DIMENSION(:), INTENT(INOUT)              :: tj, wj, tau_tj, tau_wj
-      REAL(dp), DIMENSION(:, :), INTENT(INOUT)           :: weights_cos_tf_t_to_w, &
+      REAL(dp), ALLOCATABLE, DIMENSION(:), INTENT(INOUT) :: tj, wj, tau_tj, tau_wj
+      REAL(dp), ALLOCATABLE, DIMENSION(:, :), &
+         INTENT(INOUT)                                   :: weights_cos_tf_t_to_w, &
                                                             weights_cos_tf_w_to_t
-      LOGICAL, INTENT(IN)                                :: do_laplace
+      LOGICAL, INTENT(IN)                                :: do_laplace, do_im_time
       INTEGER, INTENT(IN)                                :: num_integ_points, unit_nr
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
       INTEGER                                            :: jquad
 
-      IF (.NOT. ASSOCIATED(qs_env%mp2_env%ri_rpa_im_time%tau_tj)) THEN
-         ALLOCATE (qs_env%mp2_env%ri_rpa_im_time%tau_tj(0:num_integ_points))
-         ALLOCATE (qs_env%mp2_env%ri_rpa_im_time%tau_wj(num_integ_points))
-         qs_env%mp2_env%ri_rpa_im_time%tau_tj(:) = tau_tj(:)
-         qs_env%mp2_env%ri_rpa_im_time%tau_wj(:) = tau_wj(:)
-      ELSE
-         !If weights already stored, we overwrite the new ones
-         tau_tj(:) = qs_env%mp2_env%ri_rpa_im_time%tau_tj(:)
-         tau_wj(:) = qs_env%mp2_env%ri_rpa_im_time%tau_wj(:)
+      IF (do_laplace .OR. do_im_time) THEN
+         IF (.NOT. ASSOCIATED(qs_env%mp2_env%ri_rpa_im_time%tau_tj)) THEN
+            ALLOCATE (qs_env%mp2_env%ri_rpa_im_time%tau_tj(0:num_integ_points))
+            ALLOCATE (qs_env%mp2_env%ri_rpa_im_time%tau_wj(num_integ_points))
+            qs_env%mp2_env%ri_rpa_im_time%tau_tj(:) = tau_tj(:)
+            qs_env%mp2_env%ri_rpa_im_time%tau_wj(:) = tau_wj(:)
+         ELSE
+            !If weights already stored, we overwrite the new ones
+            tau_tj(:) = qs_env%mp2_env%ri_rpa_im_time%tau_tj(:)
+            tau_wj(:) = qs_env%mp2_env%ri_rpa_im_time%tau_wj(:)
+         END IF
       END IF
       IF (.NOT. do_laplace) THEN
          IF (.NOT. ASSOCIATED(qs_env%mp2_env%ri_rpa_im_time%tj)) THEN
@@ -3837,15 +3839,19 @@ CONTAINS
             ALLOCATE (qs_env%mp2_env%ri_rpa_im_time%wj(num_integ_points))
             qs_env%mp2_env%ri_rpa_im_time%tj(:) = tj(:)
             qs_env%mp2_env%ri_rpa_im_time%wj(:) = wj(:)
-            ALLOCATE (qs_env%mp2_env%ri_rpa_im_time%weights_cos_tf_t_to_w(num_integ_points, num_integ_points))
-            ALLOCATE (qs_env%mp2_env%ri_rpa_im_time%weights_cos_tf_w_to_t(num_integ_points, num_integ_points))
-            qs_env%mp2_env%ri_rpa_im_time%weights_cos_tf_t_to_w(:, :) = weights_cos_tf_t_to_w(:, :)
-            qs_env%mp2_env%ri_rpa_im_time%weights_cos_tf_w_to_t(:, :) = weights_cos_tf_w_to_t(:, :)
+            IF (do_im_time) THEN
+               ALLOCATE (qs_env%mp2_env%ri_rpa_im_time%weights_cos_tf_t_to_w(num_integ_points, num_integ_points))
+               ALLOCATE (qs_env%mp2_env%ri_rpa_im_time%weights_cos_tf_w_to_t(num_integ_points, num_integ_points))
+               qs_env%mp2_env%ri_rpa_im_time%weights_cos_tf_t_to_w(:, :) = weights_cos_tf_t_to_w(:, :)
+               qs_env%mp2_env%ri_rpa_im_time%weights_cos_tf_w_to_t(:, :) = weights_cos_tf_w_to_t(:, :)
+            END IF
          ELSE
             tj(:) = qs_env%mp2_env%ri_rpa_im_time%tj(:)
             wj(:) = qs_env%mp2_env%ri_rpa_im_time%wj(:)
-            weights_cos_tf_t_to_w(:, :) = qs_env%mp2_env%ri_rpa_im_time%weights_cos_tf_t_to_w(:, :)
-            weights_cos_tf_w_to_t(:, :) = qs_env%mp2_env%ri_rpa_im_time%weights_cos_tf_w_to_t(:, :)
+            IF (do_im_time) THEN
+               weights_cos_tf_t_to_w(:, :) = qs_env%mp2_env%ri_rpa_im_time%weights_cos_tf_t_to_w(:, :)
+               weights_cos_tf_w_to_t(:, :) = qs_env%mp2_env%ri_rpa_im_time%weights_cos_tf_w_to_t(:, :)
+            END IF
          END IF
       END IF
       IF (unit_nr > 0) THEN
@@ -3854,7 +3860,7 @@ CONTAINS
             WRITE (UNIT=unit_nr, FMT="(T3,A,T75,i6)") &
                "MINIMAX_INFO| Number of integration points:", num_integ_points
             WRITE (UNIT=unit_nr, FMT="(T3,A,T54,A,T72,A)") &
-               "MINIMAX_INFO| Minimax params (freq gird, scaled):", "Weights", "Abscissas"
+               "MINIMAX_INFO| Minimax params (freq grid, scaled):", "Weights", "Abscissas"
             DO jquad = 1, num_integ_points
                WRITE (UNIT=unit_nr, FMT="(T41,F20.10,F20.10)") wj(jquad), tj(jquad)
             END DO
