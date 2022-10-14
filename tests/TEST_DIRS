@@ -68,6 +68,7 @@ QS/regtest-debug-2                                          libint
 QS/regtest-debug-3                                          libint
 QS/regtest-debug-4                                          libint
 QS/regtest-debug-5                                          libint
+QS/regtest-debug-6                                          libint
 QS/regtest-stda-force                                       libint
 QS/regtest-stda-force-2                                     libint
 QS/regtest-stda-force-3                                     libint
@@ -283,6 +284,7 @@ QS/regtest-nmr-3
 QS/regtest-hybrid-1                                         libint
 QS/regtest-rtp-1
 QS/regtest-as                                               libint
+QS/regtest-as-dft                                           libint
 QS/regtest-sym-3
 FARMING/regtest-1
 QS/regtest-cdft-2

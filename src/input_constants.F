@@ -850,7 +850,8 @@ MODULE input_constants
                                                do_admm_aux_exch_func_default_libxc = 5, &
                                                do_admm_aux_exch_func_pbex_libxc = 6, &
                                                do_admm_aux_exch_func_opt_libxc = 7, &
-                                               do_admm_aux_exch_func_bee_libxc = 8
+                                               do_admm_aux_exch_func_bee_libxc = 8, &
+                                               do_admm_aux_exch_func_sx_libxc = 9
 
    ! Define scaling of the exchange correction
    INTEGER, PARAMETER, PUBLIC               :: do_admm_exch_scaling_none = 0, &
@@ -1171,7 +1172,8 @@ MODULE input_constants
    ! Active Space Section: orbital selection methods
    INTEGER, PARAMETER, PUBLIC               :: casci_canonical = 100, &
                                                wannier_projection = 101, &
-                                               mao_projection = 102
+                                               mao_projection = 102, &
+                                               manual_selection = 103
    INTEGER, PARAMETER, PUBLIC               :: eri_method_full_gpw = 1, &
                                                eri_method_gpw_ht = 2
    INTEGER, PARAMETER, PUBLIC               :: eri_operator_coulomb = 1, &
