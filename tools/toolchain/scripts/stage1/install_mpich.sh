@@ -75,13 +75,13 @@ case "${with_mpich}" in
     MPIF90="${MPIFC}"
     MPIF77="${MPIFC}"
     MPICH_CFLAGS="-I'${pkg_install_dir}/include'"
-    MPICH_LDFLAGS="-L'${pkg_install_dir}/lib' -Wl,-rpath='${pkg_install_dir}/lib'"
+    MPICH_LDFLAGS="-L'${pkg_install_dir}/lib' -Wl,-rpath,'${pkg_install_dir}/lib'"
     ;;
   __SYSTEM__)
     echo "==================== Finding MPICH from system paths ===================="
     check_command mpirun "mpich" && MPIRUN="$(command -v mpirun)" || exit 1
     check_command mpicc "mpich" && MPICC="$(command -v mpicc)" || exit 1
-    if [ $(command -v mpic++ >&- 2>&-) ]; then
+    if [ $(command -v mpic++ > /dev/null 2>&1) ]; then
       check_command mpic++ "mpich" && MPICXX="$(command -v mpic++)" || exit 1
     else
       check_command mpicxx "mpich" && MPICXX="$(command -v mpicxx)" || exit 1
@@ -111,7 +111,7 @@ case "${with_mpich}" in
     MPIF90="${MPIFC}"
     MPIF77="${MPIFC}"
     MPICH_CFLAGS="-I'${pkg_install_dir}/include'"
-    MPICH_LDFLAGS="-L'${pkg_install_dir}/lib' -Wl,-rpath='${pkg_install_dir}/lib'"
+    MPICH_LDFLAGS="-L'${pkg_install_dir}/lib' -Wl,-rpath,'${pkg_install_dir}/lib'"
     ;;
 esac
 if [ "${with_mpich}" != "__DONTUSE__" ]; then

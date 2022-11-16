@@ -142,8 +142,10 @@ reverse() (
 get_nprocs() {
   if [ -n "${NPROCS_OVERWRITE}" ]; then
     echo ${NPROCS_OVERWRITE} | sed 's/^0*//'
-  elif $(command -v nproc >&- 2>&-); then
+  elif $(command -v nproc > /dev/null 2>&1); then
     echo $(nproc --all)
+  elif $(command -v sysctl > /dev/null 2>&1); then
+    echo $(sysctl -n hw.ncpu)
   else
     echo 1
   fi
@@ -298,7 +300,7 @@ add_lib_from_paths() {
     fi
     echo "Found lib directory $__found_target"
     eval __ldflags=\$"${__ldflags_name}"
-    __ldflags="${__ldflags} -L'${__found_target}' -Wl,-rpath='${__found_target}'"
+    __ldflags="${__ldflags} -L'${__found_target}' -Wl,-rpath,'${__found_target}'"
     # remove possible duplicates
     __ldflags="$(unique $__ldflags)"
     # must escape all quotes again before the last eval, as
@@ -337,7 +339,7 @@ check_command() {
   elif [ $# -gt 1 ]; then
     local __package=${2}
   fi
-  if $(command -v ${__command} >&- 2>&-); then
+  if $(command -v ${__command} > /dev/null 2>&1); then
     echo "path to ${__command} is $(command -v ${__command})"
   else
     report_error "Cannot find ${__command}, please check if the package ${__package} is installed or in system search path"
@@ -364,7 +366,7 @@ check_install() {
   elif [ $# -gt 1 ]; then
     local __package=${2}
   fi
-  if $(command -v ${__command} >&- 2>&-); then
+  if $(command -v ${__command} > /dev/null 2>&1); then
     echo "$(basename ${__command}) is installed as $(command -v ${__command})"
   else
     report_error "cannot find ${__command}, please check if the package ${__package} has been installed correctly"
@@ -607,7 +609,7 @@ checksum() {
   local __shasum_command='sha256sum'
   # check if we have sha256sum command, Mac OS X does not have
   # sha256sum, but has an equivalent with shasum -a 256
-  command -v "$__shasum_command" >&- 2>&- ||
+  command -v "$__shasum_command" > /dev/null 2>&1 ||
     __shasum_command="shasum -a 256"
   if echo "$__sha256  $__filename" | ${__shasum_command} --check; then
     echo "Checksum of $__filename Ok"
@@ -640,7 +642,7 @@ verify_checksums() {
 
   # check if we have sha256sum command, Mac OS X does not have
   # sha256sum, but has an equivalent with shasum -a 256
-  command -v "$__shasum_command" >&- 2>&- ||
+  command -v "$__shasum_command" > /dev/null 2>&1 ||
     __shasum_command="shasum -a 256"
 
   ${__shasum_command} --check "${__checksum_file}" > /dev/null 2>&1
@@ -654,7 +656,7 @@ write_checksums() {
 
   # check if we have sha256sum command, Mac OS X does not have
   # sha256sum, but has an equivalent with shasum -a 256
-  command -v "$__shasum_command" >&- 2>&- ||
+  command -v "$__shasum_command" > /dev/null 2>&1 ||
     __shasum_command="shasum -a 256"
 
   ${__shasum_command} "${VERSION_FILE}" "$@" > "${__checksum_file}"
