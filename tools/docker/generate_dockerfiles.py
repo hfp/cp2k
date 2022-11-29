@@ -34,6 +34,9 @@ def main() -> None:
     with OutputFile(f"Dockerfile.test_intel-psmp", args.check) as f:
         f.write(toolchain_intel() + regtest("psmp"))
 
+    with OutputFile(f"Dockerfile.test_nvhpc", args.check) as f:
+        f.write(toolchain_nvhpc())
+
     with OutputFile(f"Dockerfile.test_minimal", args.check) as f:
         f.write(toolchain_full() + regtest("sdbg", "minimal"))
 
@@ -373,28 +376,34 @@ def install_cp2k_cmake() -> str:
     # TODO: This is a draft and does not yet actually work.
 
     return rf"""
+
+COPY ./tools/build_utils/fypp /bin/fypp
+# temporary solution we build dbcsr without using the cloned repo. It will eventually be moved inside the toolchain
+COPY ./tools/docker/scripts/install_dbcsr.sh ./scripts/
+RUN  ./scripts/install_dbcsr.sh && rm -rf ./build
+
 # Install CP2K using CMake.
+
 WORKDIR /opt/cp2k
 COPY ./src ./src
 COPY ./exts ./exts
 COPY ./tools/build_utils ./tools/build_utils
 COPY ./cmake ./cmake
 COPY ./CMakeLists.txt .
+COPY ./cp2k.pc.in .
 WORKDIR ./build
 RUN /bin/bash -c " \
-    echo 'Compiling dbcsr...' && \
-    source /opt/cp2k-toolchain/install/setup && \
-    cmake ../exts/dbcsr && \
-    make -j"
-RUN /bin/bash -c " \
     echo 'Compiling cp2k...' && \
+    ls /opt/cp2k-toolchain/install/scalapack-2.2.1 && \
+    ls /opt/cp2k-toolchain/install/fftw-3.3.10/lib && \
     source /opt/cp2k-toolchain/install/setup && \
-    export PKG_CONFIG_PATH=/opt/cp2k-toolchain/install/openblas-0.3.21/lib/pkgconfig && \
-    cmake -DCP2K_USE_LIBXSMM=NO -DSCALAPACK_ROOT=/opt/cp2k-toolchain/install/scalapack-2.1.0 .. && \
+    export PKG_CONFIG_PATH=/opt/cp2k-toolchain/install/libxsmm-1.17/lib:/opt/cp2k-toolchain/install/openblas-0.3.21/lib/pkgconfig:/opt/cp2k-toolchain/install/libxc-6.0.0/lib/pkgconfig:/opt/cp2k-toolchain/install/fftw-3.3.10/lib/pkgconfig:/opt/cp2k-toolchain/install/libint-v2.6.0-cp2k-lmax-5/lib/pkgconfig:/opt/cp2k-toolchain/install/plumed-2.8.0/lib/pkgconfig:/opt/cp2k-toolchain/install/superlu_dist-6.1.0/lib/pkgconfig && \
+    cmake -DCP2K_USE_COSMA=OFF -DCP2K_USE_LIBXSMM=NO -DSCALAPACK_ROOT=/opt/cp2k-toolchain/install/scalapack-2.2.1 -DCP2K_BLAS_VENDOR=OpenBLAS -DLibXC_ROOT=/opt/cp2k-toolchain/install/libxc-6.0.0 -DLibint2_ROOT=/opt/cp2k-toolchain/install/libint-v2.6.0-cp2k-lmax-5 -DDBCSR_ROOT=/opt/cp2k-toolchain/install/DBCSR-2.4.1 -DCP2K_USE_SPGLIB=ON -DCP2K_USE_LIBINT2=NO -DCP2K_USE_LIBXC=ON -DLibSPG_ROOT=/opt/cp2k-toolchain/install/spglib-1.16.2 .. && \
     make -j"
 COPY ./data ./data
 COPY ./tests ./tests
 COPY ./tools/regtesting ./tools/regtesting
+
 RUN echo "\nSummary: Compilation works fine.\nStatus: OK\n"
 
 #EOF
@@ -475,6 +484,54 @@ ENV I_MPI_FABRICS='shm'
 
 
 # ======================================================================================
+def toolchain_nvhpc() -> str:
+    return rf"""
+FROM ubuntu:22.04
+
+# Install Ubuntu packages.
+RUN apt-get update -qq && apt-get install -qq --no-install-recommends \
+    apt-transport-https \
+    ca-certificates \
+    dirmngr \
+    gnupg2 \
+    libopenblas-dev \
+    make \
+    nano \
+    python3 \
+    wget \
+   && rm -rf /var/lib/apt/lists/*
+
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/hpc-sdk/ubuntu/DEB-GPG-KEY-NVIDIA-HPC-SDK
+RUN echo 'deb https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64 /' > /etc/apt/sources.list.d/nvhpc.list
+
+# Install NVIDIA's HPC SDK but only keep the compilers to reduce Docker image size.
+RUN apt-get update -qq && \
+    apt-get install -qq --no-install-recommends nvhpc-22-11 && \
+    rm -rf /var/lib/apt/lists/* && \
+    rm -rf /opt/nvidia/hpc_sdk/Linux_x86_64/22.11/math_libs && \
+    rm -rf /opt/nvidia/hpc_sdk/Linux_x86_64/22.11/comm_libs && \
+    rm -rf /opt/nvidia/hpc_sdk/Linux_x86_64/22.11/profilers && \
+    rm -rf /opt/nvidia/hpc_sdk/Linux_x86_64/22.11/cuda
+
+ENV PATH ${{PATH}}:/opt/nvidia/hpc_sdk/Linux_x86_64/22.11/compilers/bin
+
+# Install CP2K using Linux-x86-64-nvhpc.ssmp.
+WORKDIR /opt/cp2k
+COPY ./Makefile .
+COPY ./src ./src
+COPY ./exts ./exts
+COPY ./data ./data
+COPY ./tests ./tests
+COPY ./tools/build_utils ./tools/build_utils
+COPY ./tools/regtesting ./tools/regtesting
+COPY ./arch/Linux-x86-64-nvhpc.ssmp /opt/cp2k/arch/
+
+# This takes over an hour!
+RUN make -j ARCH=Linux-x86-64-nvhpc VERSION=ssmp cp2k
+"""
+
+
+# ======================================================================================
 def toolchain_cuda(gpu_ver: str) -> str:
     return rf"""
 FROM nvidia/cuda:11.8.0-devel-ubuntu22.04
@@ -502,7 +559,7 @@ RUN apt-get update -qq && apt-get install -qq --no-install-recommends \
 # ======================================================================================
 def toolchain_hip_cuda(gpu_ver: str) -> str:
     return rf"""
-FROM nvidia/cuda:11.3.1-devel-ubuntu20.04
+FROM nvidia/cuda:11.8.0-devel-ubuntu22.04
 
 # Setup CUDA environment.
 ENV CUDA_PATH /usr/local/cuda
@@ -511,6 +568,10 @@ ENV HIP_PLATFORM nvidia
 ENV ROCM_VER 4.5.2
 ENV HIP_DIR /opt/HIP-rocm-4.5.2
 ENV HIPAMD_DIR /opt/hipamd-rocm-4.5.2
+
+# Disable JIT cache as there seems to be an issue with file locking on overlayfs.
+# See also https://github.com/cp2k/cp2k/pull/2337
+ENV CUDA_CACHE_DISABLE 1
 
 RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true \
     && apt-get update -qq && apt-get install -qq --no-install-recommends \
@@ -605,7 +666,7 @@ RUN hipconfig
 # ======================================================================================
 def toolchain_hip_rocm(gpu_ver: str) -> str:
     return rf"""
-FROM rocm/dev-ubuntu-20.04:4.5.2-complete
+FROM rocm/dev-ubuntu-22.04:5.3.2-complete
 
 # Install some Ubuntu packages.
 RUN apt-get update -qq && apt-get install -qq --no-install-recommends \
@@ -712,7 +773,7 @@ class OutputFile:
         output_path = Path(__file__).parent / self.filename
         if self.check:
             assert output_path.read_text(encoding="utf8") == self.content.getvalue()
-            print(f"File {output_path} is consisted with generator script.")
+            print(f"File {output_path} is consistent with generator script.")
         else:
             output_path.write_text(self.content.getvalue(), encoding="utf8")
             print(f"Wrote {output_path}")
