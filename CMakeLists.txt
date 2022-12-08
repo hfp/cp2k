@@ -22,40 +22,14 @@ endif()
 
 # =================================================================================================
 # PROJECT AND VERSION
-include(GetGitRevisionDescription)
 include(CMakeDependentOption)
 cmake_policy(SET CMP0048 NEW)
 
-git_describe(GIT_DESC)
-
-if(GIT_DESC)
-  string(REGEX REPLACE "^v([0-9]+)\\..*" "\\1" VERSION_MAJOR "${GIT_DESC}")
-  string(REGEX REPLACE "^v[0-9]+\\.([0-9]+).*" "\\1" VERSION_MINOR
-                       "${GIT_DESC}")
-  string(REGEX REPLACE "^v[0-9]+\\.[0-9]+\\.([0-9]+).*" "\\1" VERSION_PATCH
-                       "${GIT_DESC}")
-  string(REGEX REPLACE "^v[0-9]+\\.[0-9]+\\.[0-9]+(.*)" "\\1" VERSION_GIT
-                       "${GIT_DESC}")
-
-  git_local_changes(GIT_STATE)
-  if("${GIT_STATE}" STREQUAL "DIRTY")
-    set(VERSION_GIT "${VERSION_GIT}-dirty")
-  endif()
-
-  execute_process(
-    COMMAND git log -1 --format=%ai
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    OUTPUT_VARIABLE GIT_COMMIT_DATE
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
-
-  # take only the date from the git timestamp:
-  string(REGEX REPLACE "^([0-9\\-]+) .*" "\\1" VERSION_DATE
-                       "${GIT_COMMIT_DATE}")
-else()
-  set(VERSION_MAJOR 22)
-  set(VERSION_MINOR 11)
-  set(VERSION_PATCH 00)
-endif()
+set(VERSION_MAJOR 22)
+# anything above 12 is to indicate that it is devel-branch. The git hash commit
+# is the only important information to give. It is retrieved few lines below.
+set(VERSION_MINOR 99)
+set(VERSION_PATCH 00)
 
 project(
   cp2k
@@ -116,6 +90,7 @@ option(CP2K_USE_PEXSI "Enable pexsi support" OFF)
 option(CP2K_USE_QUIP "Enable quip support" OFF)
 option(CP2K_USE_SPGLIB "Enable spglib support" ON)
 option(CP2K_USE_LIBXC "Enable libxc support" ON)
+option(CP2K_USE_LIBTORCH "Enable libtorch support" OFF)
 option(CP2K_USE_STATIC_BLAS "Link against static version of BLAS/LAPACK" OFF)
 option(CP2K_USE_SPLA
        "Use SPLA offloading gemm feature to the GPU if it is beneficial. " OFF)
@@ -501,6 +476,10 @@ if(CP2K_USE_PLUMED)
   find_package(Plumed REQUIRED)
 endif()
 
+if(CP2K_USE_LIBTORCH)
+  find_package(Torch REQUIRED)
+endif()
+
 # OPTION HANDLING
 
 # make sure that the default build type is RELEASE
@@ -601,6 +580,12 @@ if(CP2K_USE_LIBXC)
   )
   message(STATUS "   - include directories : " ${CP2K_LIBXC_INCLUDE_DIRS})
   message(STATUS "   - libraries :           " ${CP2K_LIBXC_LINK_LIBRARIES})
+endif()
+
+if(CP2K_USE_LIBTORCH)
+  message(STATUS " ")
+  message(STATUS "- LIBTORCH")
+  message(STATUS "   - libraries :           " ${CP2K_LIBTORCH_LIBRARIES})
 endif()
 
 if(CP2K_USE_FFTW3)
@@ -768,6 +753,10 @@ endif()
 
 if(NOT CP2K_USE_SUPERLU)
   message(STATUS "   - SUPERLU")
+endif()
+
+if(NOT CP2K_USE_LIBTORCH)
+  message(STATUS "   - libtorch")
 endif()
 
 message(
