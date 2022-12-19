@@ -471,7 +471,18 @@ CONTAINS
          "are calculated in batches of the size given by this keyword. Larger block sizes "// &
          "improve the performance but reduce the numerical accuracy. Recommended block sizes are multiples of the number of "// &
          "doubles per cache line (usually 8). Ignored with MP2 gradients. Set it to -1 to prevent blocking.", &
-         default_i_val=32)
+         default_i_val=-1)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create( &
+         keyword, __LOCATION__, &
+         name="MAX_PARALLEL_COMM", &
+         description="Sets the maximum number of parallel communication steps of the non-blocking communication scheme. "// &
+         "The number of channels is determined from the available memory. If set to a value smaller than one, "// &
+         "CP2K will use all memory for communication. A value of one enforces the blocking communication scheme "// &
+         "increasing the communication costs.", &
+         default_i_val=2)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 

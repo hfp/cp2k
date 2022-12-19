@@ -373,8 +373,20 @@ fi
 while [ $# -ge 1 ]; do
   case ${1} in
     -j)
-      shift
-      export NPROCS_OVERWRITE="${1}"
+      case "${2}" in
+        -*)
+          export NPROCS_OVERWRITE="$(get_nprocs)"
+          ;;
+        [0-9]*)
+          shift
+          export NPROCS_OVERWRITE="${1}"
+          ;;
+        *)
+          report_error ${LINENO} \
+            "The -j flag can only be followed by an integer number, found ${2}."
+          exit 1
+          ;;
+      esac
       ;;
     -j[0-9]*)
       export NPROCS_OVERWRITE="${1#-j}"
@@ -847,7 +859,7 @@ if [ "${ENABLE_CRAY}" = "__TRUE__" ]; then
         export MPI_CFLAGS
         export MPI_LDFLAGS
         export MPI_LIBS=" "
-        export CP_DFLAGS="${CP_DFLAGS} IF_MPI(-D__parallel -D__MPI_VERSION=3|)"
+        export CP_DFLAGS="${CP_DFLAGS} IF_MPI(-D__parallel|)"
       fi
       ;;
     openmpi)
@@ -857,7 +869,7 @@ if [ "${ENABLE_CRAY}" = "__TRUE__" ]; then
         export MPI_CFLAGS
         export MPI_LDFLAGS
         export MPI_LIBS="-lmpi -lmpi_cxx"
-        export CP_DFLAGS="${CP_DFLAGS} IF_MPI(-D__parallel -D__MPI_VERSION=3|)"
+        export CP_DFLAGS="${CP_DFLAGS} IF_MPI(-D__parallel|)"
       fi
       ;;
     intelmpi)
@@ -869,7 +881,7 @@ if [ "${ENABLE_CRAY}" = "__TRUE__" ]; then
         export MPI_CFLAGS
         export MPI_LDFLAGS
         export MPI_LIBS="-lmpi -lmpi_cxx"
-        export CP_DFLAGS="${CP_DFLAGS} IF_MPI(-D__parallel -D__MPI_VERSION=3|)"
+        export CP_DFLAGS="${CP_DFLAGS} IF_MPI(-D__parallel|)"
       fi
       ;;
   esac

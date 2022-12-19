@@ -1433,7 +1433,6 @@ target_link_libraries(cp2k PUBLIC cp2k_link_libs)
 target_compile_definitions(
   cp2k
   PUBLIC __parallel
-         __MPI_VERSION=${MPI_Fortran_VERSION_MAJOR}
          __SCALAPACK
          __COMPILE_DATE=\"${CP2K_TIMESTAMP}\"
          __COMPILE_HOST=\"${CP2K_HOST_NAME}\"
@@ -1450,7 +1449,7 @@ target_compile_definitions(
          $<$<BOOL:${CP2K_USE_SIRIUS}>:__SIRIUS>
          $<$<BOOL:${CP2K_USE_SPLA}>:__SPLA>
          $<$<BOOL:${CP2K_USE_SpFFT}>:__SPFFT>
-         $<$<BOOL:${CP2K_USE_GEMM_OFFLOADING}>:__OFFLOAD_GEMM>
+         $<$<BOOL:${CP2K_USE_SPLA_GEMM_OFFLOADING}>:__OFFLOAD_GEMM>
          $<$<BOOL:${CP2K_USE_ELPA}>:__ELPA>
          $<$<BOOL:${CP2K_USE_LIBXC}>:__LIBXC>
          $<$<BOOL:${CP2K_USE_FFTW3}>:__FFTW3>

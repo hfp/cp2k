@@ -26,8 +26,9 @@ MODULE realspace_grid_types
    USE machine,                         ONLY: m_memory
    USE mathlib,                         ONLY: det_3x3
    USE message_passing,                 ONLY: &
-        mp_comm_dup, mp_comm_free, mp_environ, mp_irecv, mp_isend, mp_isendrecv, mp_max, mp_min, &
-        mp_request_null, mp_sum, mp_sync, mp_waitall, mp_waitany
+        mp_comm_dup, mp_comm_free, mp_comm_null, mp_comm_type, mp_environ, mp_irecv, mp_isend, &
+        mp_isendrecv, mp_max, mp_min, mp_request_null, mp_request_type, mp_sendrecv, mp_sum, &
+        mp_sync, mp_waitall, mp_waitany
    USE offload_api,                     ONLY: offload_buffer_type,&
                                               offload_create_buffer,&
                                               offload_free_buffer
@@ -109,7 +110,7 @@ MODULE realspace_grid_types
       LOGICAL :: distributed ! whether the rs grid is distributed
       ! these MPI related quantities are only meaningful depending on how the grid has been laid out
       ! they are most useful for fully distributed grids, where they reflect the topology of the grid
-      INTEGER :: group
+      TYPE(mp_comm_type) :: group
       INTEGER :: my_pos
       LOGICAL :: group_head
       INTEGER :: group_size
@@ -253,7 +254,7 @@ CONTAINS
          END IF
          desc%parallel = .FALSE.
          desc%distributed = .FALSE.
-         desc%group = -1
+         desc%group = mp_comm_null
          desc%group_size = 1
          desc%group_head = .TRUE.
          desc%group_dim = 1
@@ -820,15 +821,16 @@ CONTAINS
       TYPE(pw_type), INTENT(IN)                          :: pw
       INTEGER, INTENT(IN)                                :: dir
 
-      INTEGER                                            :: dest, group, i, ii, im, ip, ix, iy, iz, &
-                                                            j, jm, k, km, mepos, nma, nn, np, &
-                                                            req(2), s(3), source
+      INTEGER                                            :: dest, i, ii, im, ip, ix, iy, iz, j, jm, &
+                                                            k, km, mepos, nma, nn, np, s(3), source
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: rcount
       INTEGER, DIMENSION(3)                              :: lb, ub
       INTEGER, DIMENSION(:, :), POINTER                  :: pbo
       INTEGER, DIMENSION(:, :, :), POINTER               :: bo
       REAL(KIND=dp), DIMENSION(:), POINTER               :: recvbuf, sendbuf, swapptr
       REAL(KIND=dp), DIMENSION(:, :, :), POINTER         :: grid
+      TYPE(mp_comm_type)                                 :: group
+      TYPE(mp_request_type), DIMENSION(2)                :: req
 
       np = pw%pw_grid%para%group_size
       bo => pw%pw_grid%para%bo(1:2, 1:3, 0:np - 1, 1)
@@ -872,9 +874,8 @@ CONTAINS
                END DO
             END DO
             IF (ip .EQ. np) EXIT
-            CALL mp_isendrecv(sendbuf, dest, recvbuf, source, &
-                              group, req(1), req(2), 13)
-            CALL mp_waitall(req)
+            CALL mp_sendrecv(sendbuf, dest, recvbuf, source, &
+                             group, 13)
             swapptr => sendbuf
             sendbuf => recvbuf
             recvbuf => swapptr
@@ -1004,19 +1005,19 @@ CONTAINS
       CHARACTER(LEN=200)                                 :: error_string
       INTEGER :: completed, dest_down, dest_up, i, idir, j, k, lb, my_id, my_pw_rank, my_rs_rank, &
          n_shifts, nn, num_threads, position, source_down, source_up, ub, x, y, z
-      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: dshifts, recv_disps, recv_reqs, &
-                                                            recv_sizes, send_disps, send_reqs, &
-                                                            send_sizes, ushifts
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: dshifts, recv_disps, recv_sizes, &
+                                                            send_disps, send_sizes, ushifts
       INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: bounds, recv_tasks, send_tasks
       INTEGER, DIMENSION(2)                              :: neighbours, pos
       INTEGER, DIMENSION(3) :: coords, lb_recv, lb_recv_down, lb_recv_up, lb_send, lb_send_down, &
          lb_send_up, ub_recv, ub_recv_down, ub_recv_up, ub_send, ub_send_down, ub_send_up
-      INTEGER, DIMENSION(4)                              :: req
       LOGICAL, DIMENSION(3)                              :: halo_swapped
       REAL(KIND=dp)                                      :: pw_sum, rs_sum
       REAL(KIND=dp), DIMENSION(:, :, :), POINTER         :: recv_buf_3d_down, recv_buf_3d_up, &
                                                             send_buf_3d_down, send_buf_3d_up
       TYPE(cp_1d_r_p_type), ALLOCATABLE, DIMENSION(:)    :: recv_bufs, send_bufs
+      TYPE(mp_request_type), ALLOCATABLE, DIMENSION(:)   :: recv_reqs, send_reqs
+      TYPE(mp_request_type), DIMENSION(4)                :: req
 
       num_threads = 1
       my_id = 0

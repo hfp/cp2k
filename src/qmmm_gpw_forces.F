@@ -34,8 +34,10 @@ MODULE qmmm_gpw_forces
                                               section_vals_type,&
                                               section_vals_val_get
    USE kinds,                           ONLY: dp
-   USE message_passing,                 ONLY: mp_irecv,&
+   USE message_passing,                 ONLY: mp_comm_type,&
+                                              mp_irecv,&
                                               mp_isend,&
+                                              mp_request_type,&
                                               mp_sum,&
                                               mp_wait
    USE mm_collocate_potential,          ONLY: collocate_gf_rspace_NoPBC,&
@@ -423,12 +425,14 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'qmmm_forces_with_gaussian'
 
-      INTEGER                                            :: group, handle, i, igrid, j, k, &
-                                                            kind_interp, me, ngrids, request, stat
+      INTEGER                                            :: handle, i, igrid, j, k, kind_interp, me, &
+                                                            ngrids, stat
       INTEGER, DIMENSION(3)                              :: glb, gub, lb, ub
       INTEGER, DIMENSION(:), POINTER                     :: pos_of_x
       LOGICAL                                            :: shells
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: tmp
+      TYPE(mp_comm_type)                                 :: group
+      TYPE(mp_request_type)                              :: request
       TYPE(pw_type), ALLOCATABLE, DIMENSION(:)           :: grids
 
 ! Statements

@@ -32,7 +32,7 @@ MODULE dbt_reshape_ops
                               mp_environ, &
                               mp_irecv, &
                               mp_isend, &
-                              mp_waitall
+                              mp_waitall, mp_comm_type, mp_request_type
 
 #include "../base/base_uses.f90"
 
@@ -63,7 +63,7 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'dbt_reshape'
 
-      INTEGER                                            :: iproc, mp_comm, mynode, numnodes, &
+      INTEGER                                            :: iproc, mynode, numnodes, &
                                                             handle, iblk, jblk, offset, ndata, &
                                                             nblks_recv_mythread
       INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: blks_to_allocate
@@ -76,6 +76,7 @@ CONTAINS
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: nblks_send_total, ndata_send_total, &
                                                             nblks_recv_total, ndata_recv_total, &
                                                             nblks_send_mythread, ndata_send_mythread
+      TYPE(mp_comm_type) :: mp_comm
 
       CALL timeset(routineN, handle)
 
@@ -226,14 +227,14 @@ CONTAINS
 !> \author Patrick Seewald
 ! **************************************************************************************************
    SUBROUTINE dbt_communicate_buffer(mp_comm, buffer_recv, buffer_send)
-      INTEGER, INTENT(IN)                    :: mp_comm
+      TYPE(mp_comm_type), INTENT(IN)                    :: mp_comm
       TYPE(block_buffer_type), DIMENSION(0:), INTENT(INOUT) :: buffer_recv, buffer_send
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'dbt_communicate_buffer'
 
       INTEGER                                               :: iproc, mynode, numnodes, &
                                                                rec_counter, send_counter, i
-      INTEGER, ALLOCATABLE, DIMENSION(:, :)                 :: req_array
+      TYPE(mp_request_type), ALLOCATABLE, DIMENSION(:, :)                 :: req_array
       INTEGER                                               :: handle
 
       CALL timeset(routineN, handle)

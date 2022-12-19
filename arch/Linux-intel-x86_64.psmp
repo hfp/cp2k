@@ -3,7 +3,7 @@
 # CP2K (Intel/MKL x86_64) arch file for Linux clusters
 #
 # Tested with: Intel 20.4/21.4/22.2 , Intel MPI, Intel MKL,
-#              LIBINT 2.6.0, LIBXC 6.0.0, ELPA 2022.05.001,
+#              LIBINT 2.6.0, LIBXC 6.0.0, ELPA 2022.11.001.rc2,
 #              PLUMED 2.8.0, SPGLIB 1.16.2, LIBVORI 220621,
 #              GSL 2.7, COSMA 2.6.2, SIRIUS 7.3.2
 # on the Merlin cluster (PSI)
@@ -13,7 +13,7 @@
 #        Optionally, the Intel compiler version can be specified as argument.
 #        Replace or adapt the "module add" commands below if needed.
 #
-# Author: Matthias Krack (26.10.2022)
+# Author: Matthias Krack (15.12.2022)
 #
 # \
    if [[ "${0}" == "${BASH_SOURCE}" ]]; then \
@@ -28,7 +28,7 @@
       module add ${1}; \
       module list; \
    fi; \
-   ./install_cp2k_toolchain.sh --install-all --no-arch-files --target-cpu=${target_cpu} --with-intelmpi --with-mkl; \
+   ./install_cp2k_toolchain.sh --install-all -j${maxtasks} --no-arch-files --target-cpu=${target_cpu} --with-intelmpi --with-mkl; \
    source ./install/setup; \
    cd ../..; \
    echo; \
@@ -48,7 +48,7 @@ DO_CHECKS      := no
 SHARED         := no
 TARGET_CPU     := native
 USE_COSMA      := 2.6.2
-USE_ELPA       := 2022.05.001
+USE_ELPA       := 2022.11.001.rc2
 USE_LIBINT     := 2.6.0
 USE_LIBPEXSI   := 1.2.0
 USE_LIBVORI    := 220621
@@ -84,7 +84,6 @@ DFLAGS         := -D__parallel
 DFLAGS         += -D__SCALAPACK
 DFLAGS         += -D__MKL
 DFLAGS         += -D__FFTW3
-DFLAGS         += -D__MPI_VERSION=3
 DFLAGS         += -D__MAX_CONTR=$(strip $(MAX_CONTR))
 
 INSTALL_PATH   := $(PWD)/tools/toolchain/install
