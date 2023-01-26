@@ -20,7 +20,6 @@ MODULE hfx_ri
                                               gto_basis_set_type
    USE cell_types,                      ONLY: cell_type,&
                                               real_to_scaled
-   USE cp_array_utils,                  ONLY: cp_1d_r_p_type
    USE cp_blacs_env,                    ONLY: cp_blacs_env_type
    USE cp_control_types,                ONLY: dft_control_type
    USE cp_dbcsr_cholesky,               ONLY: cp_dbcsr_cholesky_decompose,&
@@ -34,7 +33,6 @@ MODULE hfx_ri
                                               cp_fm_struct_release,&
                                               cp_fm_struct_type
    USE cp_fm_types,                     ONLY: cp_fm_create,&
-                                              cp_fm_p_type,&
                                               cp_fm_release,&
                                               cp_fm_to_fm,&
                                               cp_fm_type,&
@@ -781,11 +779,11 @@ CONTAINS
       DO i_mem = 1, ri_data%n_mem_RI
          bounds_i(:, 1) = [ri_data%starts_array_RI_mem(i_mem), ri_data%ends_array_RI_mem(i_mem)]
 
+         CALL dbt_batched_contract_init(ri_data%t_2c_int(1, 1))
          DO j_mem = 1, ri_data%n_mem
             bounds_j(:, 1) = [ri_data%starts_array_mem(j_mem), ri_data%ends_array_mem(j_mem)]
             bounds_j(:, 2) = [1, dims_3c(3)]
             CALL timeset(routineN//"_RIx3C", handle2)
-            CALL dbt_batched_contract_init(ri_data%t_2c_int(1, 1))
             CALL dbt_contract(1.0_dp, ri_data%t_2c_int(1, 1), ri_data%t_3c_int_ctr_3(1, 1), &
                               0.0_dp, t_3c_2, &
                               contract_1=[2], notcontract_1=[1], &
@@ -795,7 +793,6 @@ CONTAINS
                               bounds_3=bounds_j, &
                               unit_nr=unit_nr_dbcsr, &
                               flop=nflop)
-            CALL dbt_batched_contract_finalize(ri_data%t_2c_int(1, 1))
 
             ri_data%dbcsr_nflop = ri_data%dbcsr_nflop + nflop
             CALL timestop(handle2)
@@ -811,6 +808,7 @@ CONTAINS
 
             CALL timestop(handle2)
          END DO
+         CALL dbt_batched_contract_finalize(ri_data%t_2c_int(1, 1))
       END DO
       CALL dbt_batched_contract_finalize(t_3c_2)
       CALL dbt_batched_contract_finalize(ri_data%t_3c_int_ctr_3(1, 1))
@@ -939,9 +937,8 @@ CONTAINS
       LOGICAL                                            :: is_antisymmetric
       REAL(dp)                                           :: etmp, fac
       REAL(KIND=dp), DIMENSION(:), POINTER               :: mo_eigenvalues
-      TYPE(cp_1d_r_p_type), DIMENSION(:), POINTER        :: occupied_evals
-      TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: homo_localized, moloc_coeff, &
-                                                            occupied_orbs
+      TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:)        :: homo_localized
+      TYPE(cp_fm_type), DIMENSION(:), POINTER            :: moloc_coeff
       TYPE(cp_fm_type), POINTER                          :: mo_coeff
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: my_ks_matrix, my_rho_ao
@@ -995,8 +992,6 @@ CONTAINS
          CALL timeset(routineN//"_MO", handle2)
 
          IF (ri_data%do_loc) THEN
-            ALLOCATE (occupied_orbs(nspins))
-            ALLOCATE (occupied_evals(nspins))
             ALLOCATE (homo_localized(nspins))
          END IF
          DO ispin = 1, nspins
@@ -1013,11 +1008,8 @@ CONTAINS
             END IF
 
             IF (ri_data%do_loc) THEN
-               occupied_orbs(ispin)%matrix => mo_coeff
-               occupied_evals(ispin)%array => mo_eigenvalues
-               ALLOCATE (homo_localized(ispin)%matrix)
-               CALL cp_fm_create(homo_localized(ispin)%matrix, occupied_orbs(ispin)%matrix%matrix_struct)
-               CALL cp_fm_to_fm(occupied_orbs(ispin)%matrix, homo_localized(ispin)%matrix)
+               CALL cp_fm_create(homo_localized(ispin), mo_coeff%matrix_struct)
+               CALL cp_fm_to_fm(mo_coeff, homo_localized(ispin))
             END IF
          END DO
 
@@ -1028,21 +1020,20 @@ CONTAINS
             CALL qs_loc_init(qs_env, ri_data%qs_loc_env, ri_data%loc_subsection, homo_localized)
             DO ispin = 1, nspins
                CALL qs_loc_driver(qs_env, ri_data%qs_loc_env, ri_data%print_loc_subsection, ispin, &
-                                  ext_mo_coeff=homo_localized(ispin)%matrix)
+                                  ext_mo_coeff=homo_localized(ispin))
             END DO
             CALL get_qs_loc_env(qs_loc_env=ri_data%qs_loc_env, moloc_coeff=moloc_coeff)
 
             DO ispin = 1, nspins
-               CALL cp_fm_release(homo_localized(ispin)%matrix)
-               DEALLOCATE (homo_localized(ispin)%matrix)
+               CALL cp_fm_release(homo_localized(ispin))
             END DO
 
-            DEALLOCATE (occupied_orbs, occupied_evals, homo_localized)
+            DEALLOCATE (homo_localized)
          END IF
 
          DO ispin = 1, nspins
             IF (ri_data%do_loc) THEN
-               CALL copy_fm_to_dbcsr(moloc_coeff(ispin)%matrix, mo_coeff_b(ispin))
+               CALL copy_fm_to_dbcsr(moloc_coeff(ispin), mo_coeff_b(ispin))
             END IF
             CALL dbcsr_scale(mo_coeff_b(ispin), SQRT(mos(ispin)%maxocc))
             homo(ispin) = mos(ispin)%homo
@@ -2648,6 +2639,8 @@ CONTAINS
 
          CALL timeset(routineN//"_3c", handle)
          !Start looping of the batches
+         CALL dbt_batched_contract_init(t_SVS)
+         CALL dbt_batched_contract_init(t_R)
          DO i_mem = 1, n_mem
             ibounds(:, 1) = [batch_start(i_mem), batch_end(i_mem)]
 
@@ -2689,14 +2682,12 @@ CONTAINS
                   CALL dbt_copy(t_3c_sparse, t_3c_4, bounds=bounds_cpy)
 
                   !Contract with the 2-center product S^-1 * V * S^-1 while keeping sparsity of derivatives
-                  CALL dbt_batched_contract_init(t_SVS)
                   CALL dbt_contract(1.0_dp, t_SVS, t_3c_3, 0.0_dp, t_3c_4, &
                                     contract_1=[2], notcontract_1=[1], &
                                     contract_2=[1], notcontract_2=[2, 3], &
                                     map_1=[1], map_2=[2, 3], filter_eps=ri_data%filter_eps, &
                                     retain_sparsity=.TRUE., unit_nr=unit_nr_dbcsr, flop=nflop)
                   ri_data%dbcsr_nflop = ri_data%dbcsr_nflop + nflop
-                  CALL dbt_batched_contract_finalize(t_SVS)
 
                   CALL dbt_copy(t_3c_4, t_3c_5, summation=.TRUE., move_data=.TRUE.)
 
@@ -2704,7 +2695,6 @@ CONTAINS
                   ijbounds(:, 2) = jbounds(:, 1)
 
                   !Contract R_PS = (acP) M_acS
-                  CALL dbt_batched_contract_init(t_R)
                   CALL dbt_contract(1.0_dp, t_3c_int_2, t_3c_3, 1.0_dp, t_R, &
                                     contract_1=[2, 3], notcontract_1=[1], &
                                     contract_2=[2, 3], notcontract_2=[1], &
@@ -2712,7 +2702,7 @@ CONTAINS
                                     bounds_1=ijbounds, bounds_3=kbounds, &
                                     unit_nr=unit_nr_dbcsr, flop=nflop)
                   ri_data%dbcsr_nflop = ri_data%dbcsr_nflop + nflop
-                  CALL dbt_batched_contract_finalize(t_R)
+
                END DO !k_mem
             END DO !j_mem
 
@@ -2770,6 +2760,8 @@ CONTAINS
             CALL dbt_clear(t_3c_help_1)
             CALL dbt_clear(t_3c_help_2)
          END DO !i_mem
+         CALL dbt_batched_contract_finalize(t_SVS)
+         CALL dbt_batched_contract_finalize(t_R)
          CALL timestop(handle)
 
          CALL timeset(routineN//"_2c", handle)
@@ -2928,9 +2920,8 @@ CONTAINS
       INTEGER                                            :: handle, ispin
       INTEGER, DIMENSION(2)                              :: homo
       REAL(KIND=dp), DIMENSION(:), POINTER               :: mo_eigenvalues
-      TYPE(cp_1d_r_p_type), DIMENSION(:), POINTER        :: occupied_evals
-      TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: homo_localized, moloc_coeff, &
-                                                            occupied_orbs
+      TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:)        :: homo_localized
+      TYPE(cp_fm_type), DIMENSION(:), POINTER            :: moloc_coeff
       TYPE(cp_fm_type), POINTER                          :: mo_coeff
       TYPE(dbcsr_type), DIMENSION(2)                     :: mo_coeff_b
       TYPE(dbcsr_type), POINTER                          :: mo_coeff_b_tmp
@@ -2941,8 +2932,6 @@ CONTAINS
       CASE (ri_mo)
 
          IF (ri_data%do_loc) THEN
-            ALLOCATE (occupied_orbs(nspins))
-            ALLOCATE (occupied_evals(nspins))
             ALLOCATE (homo_localized(nspins))
          END IF
          DO ispin = 1, nspins
@@ -2959,11 +2948,8 @@ CONTAINS
             END IF
 
             IF (ri_data%do_loc) THEN
-               occupied_orbs(ispin)%matrix => mo_coeff
-               occupied_evals(ispin)%array => mo_eigenvalues
-               ALLOCATE (homo_localized(ispin)%matrix)
-               CALL cp_fm_create(homo_localized(ispin)%matrix, occupied_orbs(ispin)%matrix%matrix_struct)
-               CALL cp_fm_to_fm(occupied_orbs(ispin)%matrix, homo_localized(ispin)%matrix)
+               CALL cp_fm_create(homo_localized(ispin), mo_coeff%matrix_struct)
+               CALL cp_fm_to_fm(mo_coeff, homo_localized(ispin))
             END IF
          END DO
 
@@ -2974,22 +2960,21 @@ CONTAINS
             CALL qs_loc_init(qs_env, ri_data%qs_loc_env, ri_data%loc_subsection, homo_localized)
             DO ispin = 1, nspins
                CALL qs_loc_driver(qs_env, ri_data%qs_loc_env, ri_data%print_loc_subsection, ispin, &
-                                  ext_mo_coeff=homo_localized(ispin)%matrix)
+                                  ext_mo_coeff=homo_localized(ispin))
             END DO
             CALL get_qs_loc_env(qs_loc_env=ri_data%qs_loc_env, moloc_coeff=moloc_coeff)
 
             DO ispin = 1, nspins
-               CALL cp_fm_release(homo_localized(ispin)%matrix)
-               DEALLOCATE (homo_localized(ispin)%matrix)
+               CALL cp_fm_release(homo_localized(ispin))
             END DO
 
-            DEALLOCATE (occupied_orbs, occupied_evals, homo_localized)
+            DEALLOCATE (homo_localized)
 
          END IF
 
          DO ispin = 1, nspins
             IF (ri_data%do_loc) THEN
-               CALL copy_fm_to_dbcsr(moloc_coeff(ispin)%matrix, mo_coeff_b(ispin))
+               CALL copy_fm_to_dbcsr(moloc_coeff(ispin), mo_coeff_b(ispin))
             END IF
             CALL dbcsr_scale(mo_coeff_b(ispin), SQRT(mos(ispin)%maxocc))
             homo(ispin) = mos(ispin)%homo

@@ -37,7 +37,6 @@ MODULE qs_ks_utils
                                               cp_fm_struct_type
    USE cp_fm_types,                     ONLY: cp_fm_create,&
                                               cp_fm_get_info,&
-                                              cp_fm_p_type,&
                                               cp_fm_release,&
                                               cp_fm_set_all,&
                                               cp_fm_to_fm,&
@@ -56,8 +55,9 @@ MODULE qs_ks_utils
         dbcsr_set, dbcsr_type
    USE input_constants,                 ONLY: &
         cdft_alpha_constraint, cdft_beta_constraint, cdft_charge_constraint, &
-        cdft_magnetization_constraint, do_admm_aux_exch_func_none, do_ppl_grid, sic_ad, sic_eo, &
-        sic_list_all, sic_list_unpaired, sic_mauri_spz, sic_mauri_us, sic_none
+        cdft_magnetization_constraint, do_admm_aux_exch_func_none, do_admm_exch_scaling_merlot, &
+        do_ppl_grid, sic_ad, sic_eo, sic_list_all, sic_list_unpaired, sic_mauri_spz, sic_mauri_us, &
+        sic_none
    USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                               section_vals_type,&
                                               section_vals_val_get
@@ -410,9 +410,9 @@ CONTAINS
       REAL(KIND=dp)                                      :: ener, exc
       REAL(KIND=dp), DIMENSION(3, 3)                     :: virial_xc_tmp
       TYPE(cell_type), POINTER                           :: cell
-      TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: mo_derivs_local
       TYPE(cp_fm_struct_type), POINTER                   :: fm_struct_tmp
       TYPE(cp_fm_type)                                   :: matrix_hv, matrix_v
+      TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:)        :: mo_derivs_local
       TYPE(cp_fm_type), POINTER                          :: mo_coeff
       TYPE(dbcsr_p_type)                                 :: orb_density_matrix_p, orb_h_p
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: mo_derivs, rho_ao, tmp_dbcsr
@@ -582,8 +582,7 @@ CONTAINS
       ALLOCATE (mo_derivs_local(SIZE(mo_array, 1)))
       DO I = 1, SIZE(mo_array, 1)
          CALL get_mo_set(mo_set=mo_array(i), mo_coeff=mo_coeff)
-         ALLOCATE (mo_derivs_local(I)%matrix)
-         CALL cp_fm_create(mo_derivs_local(I)%matrix, mo_coeff%matrix_struct)
+         CALL cp_fm_create(mo_derivs_local(I), mo_coeff%matrix_struct)
       END DO
 
       ALLOCATE (rho_r(2))
@@ -646,9 +645,9 @@ CONTAINS
             ! add this to the mo_derivs
             CALL cp_dbcsr_sm_fm_multiply(orb_h, matrix_v, matrix_hv, 1)
             ! silly trick, copy to an array of the right size and add to mo_derivs
-            CALL cp_fm_set_all(mo_derivs_local(sic_orbital_list(3, iorb))%matrix, 0.0_dp)
-            CALL cp_fm_to_fm(matrix_hv, mo_derivs_local(sic_orbital_list(3, iorb))%matrix, 1, 1, sic_orbital_list(2, iorb))
-            CALL copy_fm_to_dbcsr(mo_derivs_local(sic_orbital_list(3, iorb))%matrix, &
+            CALL cp_fm_set_all(mo_derivs_local(sic_orbital_list(3, iorb)), 0.0_dp)
+            CALL cp_fm_to_fm(matrix_hv, mo_derivs_local(sic_orbital_list(3, iorb)), 1, 1, sic_orbital_list(2, iorb))
+            CALL copy_fm_to_dbcsr(mo_derivs_local(sic_orbital_list(3, iorb)), &
                                   tmp_dbcsr(sic_orbital_list(3, iorb))%matrix)
             CALL dbcsr_add(mo_derivs(sic_orbital_list(3, iorb))%matrix, &
                            tmp_dbcsr(sic_orbital_list(3, iorb))%matrix, 1.0_dp, 1.0_dp)
@@ -674,8 +673,7 @@ CONTAINS
       CALL cp_fm_release(matrix_v)
       CALL cp_fm_release(matrix_hv)
       DO I = 1, SIZE(mo_derivs_local, 1)
-         CALL cp_fm_release(mo_derivs_local(I)%matrix)
-         DEALLOCATE (mo_derivs_local(I)%matrix)
+         CALL cp_fm_release(mo_derivs_local(I))
       END DO
       DEALLOCATE (mo_derivs_local)
       DEALLOCATE (rho_r)
@@ -1216,7 +1214,7 @@ CONTAINS
                                                             nspins
       INTEGER, DIMENSION(:, :, :), POINTER               :: cell_to_index
       LOGICAL                                            :: do_ppl, gapw, gapw_xc, lrigpw, rigpw
-      REAL(dp)                                           :: dvol, sign
+      REAL(KIND=dp)                                      :: csign, dvol, fadm
       TYPE(admm_type), POINTER                           :: admm_env
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(cp_para_env_type), POINTER                    :: para_env
@@ -1314,24 +1312,24 @@ CONTAINS
                DO igroup = 1, SIZE(cdft_control%group)
                   SELECT CASE (cdft_control%group(igroup)%constraint_type)
                   CASE (cdft_charge_constraint)
-                     sign = 1.0_dp
+                     csign = 1.0_dp
                   CASE (cdft_magnetization_constraint)
                      IF (ispin == 1) THEN
-                        sign = 1.0_dp
+                        csign = 1.0_dp
                      ELSE
-                        sign = -1.0_dp
+                        csign = -1.0_dp
                      END IF
                   CASE (cdft_alpha_constraint)
-                     sign = 1.0_dp
+                     csign = 1.0_dp
                      IF (ispin == 2) CYCLE
                   CASE (cdft_beta_constraint)
-                     sign = 1.0_dp
+                     csign = 1.0_dp
                      IF (ispin == 1) CYCLE
                   CASE DEFAULT
                      CPABORT("Unknown constraint type.")
                   END SELECT
                   v_rspace_new(ispin)%cr3d = v_rspace_new(ispin)%cr3d &
-                                             + sign*cdft_control%group(igroup)%weight%cr3d* &
+                                             + csign*cdft_control%group(igroup)%weight%cr3d* &
                                              cdft_control%strength(igroup)
                END DO
             END IF
@@ -1583,14 +1581,22 @@ CONTAINS
                      task_list => admm_env%admm_gapw_env%task_list
                      basis_type = "AUX_FIT_SOFT"
                   END IF
+                  fadm = 1.0_dp
+                  ! Calculate bare scaling of force according to Merlot, 1. IF: ADMMP, 2. IF: ADMMS,
+                  IF ((.NOT. admm_env%charge_constrain) .AND. &
+                      (admm_env%scaling_model == do_admm_exch_scaling_merlot)) THEN
+                     fadm = admm_env%gsi(ispin)**2
+                  ELSE IF (admm_env%charge_constrain .AND. &
+                           (admm_env%scaling_model == do_admm_exch_scaling_merlot)) THEN
+                     fadm = (admm_env%gsi(ispin))**(2.0_dp/3.0_dp)
+                  END IF
 
                   CALL integrate_v_rspace(v_rspace=v_rspace_new_aux_fit(ispin), &
                                           pmat=rho_ao_aux(ispin), &
                                           hmat=matrix_ks_aux_fit(ispin), &
                                           qs_env=qs_env, &
                                           calculate_forces=calculate_forces, &
-                                          force_adm=.TRUE., &
-                                          ispin=ispin, &
+                                          force_adm=fadm, &
                                           gapw=.FALSE., & !even if actual GAPW calculation, want to use AUX_FIT_SOFT
                                           basis_type=basis_type, &
                                           task_list_external=task_list)

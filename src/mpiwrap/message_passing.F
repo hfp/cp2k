@@ -30,8 +30,36 @@ MODULE message_passing
 
 #include "../base/base_uses.f90"
 
+! To simplify the transition between the old MPI module and the F08-style module, we introduce these constants to switch between the required handle types
+! Unfortunately, Fortran does not offer something like typedef in C++
+#if defined(__parallel) && defined(__MPI_F08)
+#define MPI_DATA_TYPE TYPE(MPI_Datatype)
+#define MPI_COMM_TYPE TYPE(MPI_Comm)
+#define MPI_REQUEST_TYPE TYPE(MPI_Request)
+#define MPI_WIN_TYPE TYPE(MPI_Win)
+#define MPI_FILE_TYPE TYPE(MPI_File)
+#define MPI_INFO_TYPE TYPE(MPI_Info)
+#define MPI_STATUS_TYPE TYPE(MPI_Status)
+#define MPI_GROUP_TYPE TYPE(MPI_Group)
+#define MPI_STATUS_EXTRACT(X) %X
+#else
+#define MPI_DATA_TYPE INTEGER
+#define MPI_COMM_TYPE INTEGER
+#define MPI_REQUEST_TYPE INTEGER
+#define MPI_WIN_TYPE INTEGER
+#define MPI_FILE_TYPE INTEGER
+#define MPI_INFO_TYPE INTEGER
+#define MPI_STATUS_TYPE INTEGER, DIMENSION(MPI_STATUS_SIZE)
+#define MPI_GROUP_TYPE INTEGER
+#define MPI_STATUS_EXTRACT(X) (X)
+#endif
+
 #if defined(__parallel)
+#if defined(__MPI_F08)
+   USE mpi_f08
+#else
    USE mpi
+#endif
 ! subroutines: unfortunately, mpi implementations do not provide interfaces for all subroutines (problems with types and ranks explosion),
 !              we do not quite know what is in the module, so we can not include any....
 !              to nevertheless get checking for what is included, we use the mpi module without use clause, getting all there is
@@ -59,20 +87,16 @@ MODULE message_passing
 
    ! parameters that might be needed
 #if defined(__parallel)
-   INTEGER, PARAMETER     :: MP_STD_REAL = MPI_DOUBLE_PRECISION
-   INTEGER, PARAMETER     :: MP_STD_COMPLEX = MPI_DOUBLE_COMPLEX
-   INTEGER, PARAMETER     :: MP_STD_HALF_REAL = MPI_REAL
-   INTEGER, PARAMETER     :: MP_STD_HALF_COMPLEX = MPI_COMPLEX
-
    LOGICAL, PARAMETER :: cp2k_is_parallel = .TRUE.
    INTEGER, PARAMETER, PUBLIC :: mp_any_tag = MPI_ANY_TAG
    INTEGER, PARAMETER, PUBLIC :: mp_any_source = MPI_ANY_SOURCE
-   INTEGER, PARAMETER :: mp_comm_null_handle = MPI_COMM_NULL
-   INTEGER, PARAMETER :: mp_comm_self_handle = MPI_COMM_SELF
-   INTEGER, PARAMETER :: mp_comm_world_handle = MPI_COMM_WORLD
-   INTEGER, PARAMETER :: mp_request_null_handle = MPI_REQUEST_NULL
-   INTEGER, PARAMETER :: mp_win_null_handle = MPI_WIN_NULL
-   INTEGER, PARAMETER :: mp_file_null_handle = MPI_FILE_NULL
+   MPI_COMM_TYPE, PARAMETER :: mp_comm_null_handle = MPI_COMM_NULL
+   MPI_COMM_TYPE, PARAMETER :: mp_comm_self_handle = MPI_COMM_SELF
+   MPI_COMM_TYPE, PARAMETER :: mp_comm_world_handle = MPI_COMM_WORLD
+   MPI_REQUEST_TYPE, PARAMETER :: mp_request_null_handle = MPI_REQUEST_NULL
+   MPI_WIN_TYPE, PARAMETER :: mp_win_null_handle = MPI_WIN_NULL
+   MPI_FILE_TYPE, PARAMETER :: mp_file_null_handle = MPI_FILE_NULL
+   MPI_INFO_TYPE, PARAMETER :: mp_info_null_handle = MPI_INFO_NULL
    INTEGER, PARAMETER, PUBLIC :: mp_status_size = MPI_STATUS_SIZE
    INTEGER, PARAMETER, PUBLIC :: mp_proc_null = MPI_PROC_NULL
    ! Set max allocatable memory by MPI to 2 GiByte
@@ -92,14 +116,15 @@ MODULE message_passing
    LOGICAL, PARAMETER :: cp2k_is_parallel = .FALSE.
    INTEGER, PARAMETER, PUBLIC :: mp_any_tag = -1
    INTEGER, PARAMETER, PUBLIC :: mp_any_source = -2
-   INTEGER, PARAMETER :: mp_comm_null_handle = -3
-   INTEGER, PARAMETER :: mp_comm_self_handle = -11
-   INTEGER, PARAMETER :: mp_comm_world_handle = -12
-   INTEGER, PARAMETER :: mp_request_null_handle = -4
-   INTEGER, PARAMETER :: mp_win_null_handle = -5
-   INTEGER, PARAMETER :: mp_file_null_handle = -6
-   INTEGER, PARAMETER, PUBLIC :: mp_status_size = -7
-   INTEGER, PARAMETER, PUBLIC :: mp_proc_null = -8
+   MPI_COMM_TYPE, PARAMETER :: mp_comm_null_handle = -3
+   MPI_COMM_TYPE, PARAMETER :: mp_comm_self_handle = -11
+   MPI_COMM_TYPE, PARAMETER :: mp_comm_world_handle = -12
+   MPI_REQUEST_TYPE, PARAMETER :: mp_request_null_handle = -4
+   MPI_WIN_TYPE, PARAMETER :: mp_win_null_handle = -5
+   MPI_FILE_TYPE, PARAMETER :: mp_file_null_handle = -6
+   MPI_INFO_TYPE, PARAMETER :: mp_info_null_handle = -7
+   INTEGER, PARAMETER, PUBLIC :: mp_status_size = -8
+   INTEGER, PARAMETER, PUBLIC :: mp_proc_null = -9
    INTEGER, PARAMETER, PUBLIC :: mp_max_library_version_string = 1
 
    INTEGER, PARAMETER, PUBLIC :: file_offset = int_8
@@ -128,10 +153,11 @@ MODULE message_passing
    PUBLIC :: mp_request_type
    PUBLIC :: mp_win_type
    PUBLIC :: mp_file_type
+   PUBLIC :: mp_info_type
 
    TYPE mp_comm_type
       PRIVATE
-      INTEGER :: handle = mp_comm_null_handle
+      MPI_COMM_TYPE :: handle = mp_comm_null_handle
    CONTAINS
       PROCEDURE :: set_handle => mp_comm_type_set_handle
       PROCEDURE :: get_handle => mp_comm_type_get_handle
@@ -143,7 +169,7 @@ MODULE message_passing
 
    TYPE mp_request_type
       PRIVATE
-      INTEGER :: handle = mp_request_null_handle
+      MPI_REQUEST_TYPE :: handle = mp_request_null_handle
    CONTAINS
       PROCEDURE :: set_handle => mp_request_type_set_handle
       PROCEDURE :: get_handle => mp_request_type_get_handle
@@ -155,7 +181,7 @@ MODULE message_passing
 
    TYPE mp_win_type
       PRIVATE
-      INTEGER :: handle = mp_win_null_handle
+      MPI_WIN_TYPE :: handle = mp_win_null_handle
    CONTAINS
       PROCEDURE :: set_handle => mp_win_type_set_handle
       PROCEDURE :: get_handle => mp_win_type_get_handle
@@ -167,7 +193,7 @@ MODULE message_passing
 
    TYPE mp_file_type
       PRIVATE
-      INTEGER :: handle = mp_file_null_handle
+      MPI_FILE_TYPE :: handle = mp_file_null_handle
    CONTAINS
       PROCEDURE :: set_handle => mp_file_type_set_handle
       PROCEDURE :: get_handle => mp_file_type_get_handle
@@ -177,6 +203,18 @@ MODULE message_passing
       GENERIC, PUBLIC :: OPERATOR(.NE.) => mp_file_op_neq
    END TYPE
 
+   TYPE mp_info_type
+      PRIVATE
+      MPI_INFO_TYPE :: handle = mp_info_null_handle
+   CONTAINS
+      PROCEDURE :: set_handle => mp_info_type_set_handle
+      PROCEDURE :: get_handle => mp_info_type_get_handle
+      PROCEDURE, PRIVATE :: mp_info_op_eq
+      PROCEDURE, PRIVATE :: mp_info_op_neq
+      GENERIC, PUBLIC :: OPERATOR(.EQ.) => mp_info_op_eq
+      GENERIC, PUBLIC :: OPERATOR(.NE.) => mp_info_op_neq
+   END TYPE
+
    ! Create the constants from the corresponding handles
    TYPE(mp_comm_type), PARAMETER, PUBLIC :: mp_comm_null = mp_comm_type(mp_comm_null_handle)
    TYPE(mp_comm_type), PARAMETER, PUBLIC :: mp_comm_self = mp_comm_type(mp_comm_self_handle)
@@ -184,6 +222,7 @@ MODULE message_passing
    TYPE(mp_request_type), PARAMETER, PUBLIC :: mp_request_null = mp_request_type(mp_request_null_handle)
    TYPE(mp_win_type), PARAMETER, PUBLIC :: mp_win_null = mp_win_type(mp_win_null_handle)
    TYPE(mp_file_type), PARAMETER, PUBLIC :: mp_file_null = mp_file_type(mp_file_null_handle)
+   TYPE(mp_info_type), PARAMETER, PUBLIC :: mp_info_null = mp_info_type(mp_info_null_handle)
 
    ! init and error
    PUBLIC :: mp_world_init, mp_world_finalize
@@ -688,7 +727,7 @@ MODULE message_passing
    END TYPE mp_indexing_meta_type
 
    TYPE mp_type_descriptor_type
-      INTEGER :: type_handle
+      MPI_DATA_TYPE :: type_handle
       INTEGER :: length
 #if defined(__parallel)
       INTEGER(kind=mpi_address_kind) :: base
@@ -712,7 +751,7 @@ MODULE message_passing
    END TYPE mp_file_indexing_meta_type
 
    TYPE mp_file_descriptor_type
-      INTEGER                          :: type_handle
+      MPI_DATA_TYPE :: type_handle
       INTEGER                          :: length
       LOGICAL                          :: has_indexing = .FALSE.
       TYPE(mp_file_indexing_meta_type) :: index_descriptor
@@ -769,15 +808,15 @@ MODULE message_passing
 CONTAINS
 
    #:mute
-      #:set types = ["comm", "request", "win", "file"]
+      #:set types = ["comm", "request", "win", "file", "info"]
    #:endmute
    #:for type in types
-      ELEMENTAL LOGICAL FUNCTION mp_${type}$_op_eq(${type}$1, ${type}$2)
+      LOGICAL FUNCTION mp_${type}$_op_eq(${type}$1, ${type}$2)
          CLASS(mp_${type}$_type), INTENT(IN) :: ${type}$1, ${type}$2
          mp_${type}$_op_eq = (${type}$1%handle .EQ. ${type}$2%handle)
       END FUNCTION mp_${type}$_op_eq
 
-      ELEMENTAL LOGICAL FUNCTION mp_${type}$_op_neq(${type}$1, ${type}$2)
+      LOGICAL FUNCTION mp_${type}$_op_neq(${type}$1, ${type}$2)
          CLASS(mp_${type}$_type), INTENT(IN) :: ${type}$1, ${type}$2
          mp_${type}$_op_neq = (${type}$1%handle .NE. ${type}$2%handle)
       END FUNCTION mp_${type}$_op_neq
@@ -786,14 +825,22 @@ CONTAINS
          CLASS(mp_${type}$_type), INTENT(INOUT) :: this
          INTEGER, INTENT(IN) :: handle
 
+#if defined(__parallel) && defined(__MPI_F08)
+         this%handle%mpi_val = handle
+#else
          this%handle = handle
+#endif
       END SUBROUTINE mp_${type}$_type_set_handle
 
       ELEMENTAL FUNCTION mp_${type}$_type_get_handle(this) RESULT(handle)
          CLASS(mp_${type}$_type), INTENT(IN) :: this
          INTEGER :: handle
 
+#if defined(__parallel) && defined(__MPI_F08)
+         handle = this%handle%mpi_val
+#else
          handle = this%handle
+#endif
       END FUNCTION mp_${type}$_type_get_handle
    #:endfor
 
@@ -862,14 +909,14 @@ CONTAINS
    SUBROUTINE mp_reordering(mp_comm, mp_new_comm, ranks_order)
       TYPE(mp_comm_type), INTENT(IN)                      :: mp_comm
       TYPE(mp_comm_type), INTENT(out)                     :: mp_new_comm
-      INTEGER, DIMENSION(:)                    :: ranks_order
+      INTEGER, DIMENSION(:), CONTIGUOUS, INTENT(IN)                    :: ranks_order
 
       CHARACTER(len=*), PARAMETER :: routineN = 'mp_reordering'
 
       INTEGER                                  :: handle, ierr
 #if defined(__parallel)
       TYPE(mp_comm_type) :: newcomm
-      INTEGER                                  :: newgroup, oldgroup
+      MPI_GROUP_TYPE                                  :: newgroup, oldgroup
 #endif
 
       CALL mp_timeset(routineN, handle)
@@ -1165,7 +1212,7 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE mp_stop(ierr, prg_code)
       INTEGER, INTENT(IN)                      :: ierr
-      CHARACTER(LEN=*)                         :: prg_code
+      CHARACTER(LEN=*), INTENT(IN)                         :: prg_code
 
 #if defined(__parallel)
       INTEGER                                  :: istat, len
@@ -1284,8 +1331,7 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE mp_environ_c(numtask, dims, task_coor, group)
 
-      INTEGER, INTENT(OUT)                     :: numtask, dims(2), &
-                                                  task_coor(2)
+      INTEGER, INTENT(OUT)                     :: numtask, dims(2), task_coor(2)
       TYPE(mp_comm_type), INTENT(IN)                      :: group
 
       CHARACTER(len=*), PARAMETER :: routineN = 'mp_environ_c'
@@ -1361,8 +1407,8 @@ CONTAINS
 
       TYPE(mp_comm_type), INTENT(IN) :: comm_old
       INTEGER, INTENT(IN)                      :: ndims
-      INTEGER, INTENT(INOUT)                   :: dims(:)
-      INTEGER, INTENT(OUT)                     :: pos(:)
+      INTEGER, INTENT(INOUT), CONTIGUOUS                   :: dims(:)
+      INTEGER, INTENT(OUT), CONTIGUOUS                     :: pos(:)
       TYPE(mp_comm_type), INTENT(OUT) :: comm_cart
 
       CHARACTER(len=*), PARAMETER :: routineN = 'mp_cart_create'
@@ -1498,7 +1544,7 @@ CONTAINS
    SUBROUTINE mp_cart_sub(comm, rdim, sub_comm)
 
       TYPE(mp_comm_type), INTENT(IN)                                :: comm
-      LOGICAL, DIMENSION(:), INTENT(IN)                  :: rdim
+      LOGICAL, DIMENSION(:), CONTIGUOUS, INTENT(IN)                  :: rdim
       TYPE(mp_comm_type), INTENT(OUT)                               :: sub_comm
 
       CHARACTER(len=*), PARAMETER :: routineN = 'mp_cart_sub'
@@ -1587,14 +1633,15 @@ CONTAINS
    SUBROUTINE mp_rank_compare(comm1, comm2, rank)
 
       TYPE(mp_comm_type), INTENT(IN)                      :: comm1, comm2
-      INTEGER, DIMENSION(:), INTENT(OUT)       :: rank
+      INTEGER, DIMENSION(:), CONTIGUOUS, INTENT(OUT)       :: rank
 
       CHARACTER(len=*), PARAMETER :: routineN = 'mp_rank_compare'
 
       INTEGER                                  :: handle, ierr
 #if defined(__parallel)
-      INTEGER                                  :: g1, g2, i, n, n1, n2
+      INTEGER                                  :: i, n, n1, n2
       INTEGER, ALLOCATABLE, DIMENSION(:)       :: rin
+      MPI_GROUP_TYPE :: g1, g2
 #endif
 
       ierr = 0
@@ -1744,7 +1791,11 @@ CONTAINS
       INTEGER                                  :: handle, ierr
 #if defined(__parallel)
       INTEGER                                  :: count
-      INTEGER, ALLOCATABLE, DIMENSION(:, :)    :: status
+#if !defined(__MPI_F08)
+      INTEGER, ALLOCATABLE, DIMENSION(:, :) :: status
+#else
+      TYPE(MPI_Status), ALLOCATABLE, DIMENSION(:)    :: status
+#endif
 #endif
 
       ierr = 0
@@ -1752,7 +1803,11 @@ CONTAINS
 
 #if defined(__parallel)
       count = SIZE(requests)
+#if !defined(__MPI_F08)
       ALLOCATE (status(MPI_STATUS_SIZE, count))
+#else
+      ALLOCATE (status(count))
+#endif
       CALL mpi_waitall_internal(count, requests, status, ierr) ! MPI_STATUSES_IGNORE openmpi workaround
       IF (ierr /= 0) CALL mp_stop(ierr, "mpi_waitall @ mp_waitall_1")
       DEALLOCATE (status)
@@ -1778,7 +1833,11 @@ CONTAINS
       INTEGER                                  :: handle, ierr
 #if defined(__parallel)
       INTEGER                                  :: count
-      INTEGER, ALLOCATABLE, DIMENSION(:, :)    :: status
+#if !defined(__MPI_F08)
+      INTEGER, ALLOCATABLE, DIMENSION(:, :) :: status
+#else
+      TYPE(MPI_Status), ALLOCATABLE, DIMENSION(:)    :: status
+#endif
 #endif
 
       ierr = 0
@@ -1786,7 +1845,11 @@ CONTAINS
 
 #if defined(__parallel)
       count = SIZE(requests)
+#if !defined(__MPI_F08)
       ALLOCATE (status(MPI_STATUS_SIZE, count))
+#else
+      ALLOCATE (status(count))
+#endif
 
       CALL mpi_waitall_internal(count, requests, status, ierr) ! MPI_STATUSES_IGNORE openmpi workaround
       IF (ierr /= 0) CALL mp_stop(ierr, "mpi_waitall @ mp_waitall_2")
@@ -1812,12 +1875,17 @@ CONTAINS
    SUBROUTINE mpi_waitall_internal(count, array_of_requests, array_of_statuses, ierr)
       INTEGER, INTENT(in)                                :: count
       TYPE(mp_request_type), DIMENSION(count), INTENT(inout)           :: array_of_requests
-      INTEGER, DIMENSION(MPI_STATUS_SIZE, *), &
+#if !defined(__MPI_F08)
+      INTEGER, DIMENSION(MPI_STATUS_SIZE, count), &
          INTENT(out)                                     :: array_of_statuses
+#else
+      TYPE(MPI_Status), DIMENSION(count), &
+         INTENT(out)                                     :: array_of_statuses
+#endif
       INTEGER, INTENT(out)                               :: ierr
 
       INTEGER :: i
-      INTEGER, ALLOCATABLE, DIMENSION(:) :: request_handles
+      MPI_REQUEST_TYPE, ALLOCATABLE, DIMENSION(:) :: request_handles
 
       ALLOCATE (request_handles(count))
       DO i = 1, count
@@ -1850,7 +1918,7 @@ CONTAINS
       INTEGER                                  :: handle, ierr
 #if defined(__parallel)
       INTEGER                                  :: count, i
-      INTEGER, ALLOCATABLE, DIMENSION(:) :: request_handles
+      MPI_REQUEST_TYPE, ALLOCATABLE, DIMENSION(:) :: request_handles
 #endif
 
       ierr = 0
@@ -2030,11 +2098,11 @@ CONTAINS
       TYPE(mp_request_type), DIMENSION(count), INTENT(inout)           :: array_of_requests
       INTEGER, INTENT(out)                               :: index
       LOGICAL, INTENT(out)                               :: flag
-      INTEGER, DIMENSION(MPI_STATUS_SIZE), INTENT(out)   :: status
+      MPI_STATUS_TYPE, INTENT(out)   :: status
       INTEGER, INTENT(out)                               :: ierr
 
       INTEGER :: i
-      INTEGER, ALLOCATABLE, DIMENSION(:) :: request_handles
+      MPI_REQUEST_TYPE, ALLOCATABLE, DIMENSION(:) :: request_handles
 
       ALLOCATE (request_handles(count))
       DO i = 1, count
@@ -2115,10 +2183,10 @@ CONTAINS
       TYPE(mp_comm_type), INTENT(in)                      :: comm
       TYPE(mp_comm_type), INTENT(out) :: sub_comm
       INTEGER, INTENT(out)                     :: ngroups
-      INTEGER, DIMENSION(0:)                    :: group_distribution
+      INTEGER, DIMENSION(0:), INTENT(INOUT)                    :: group_distribution
       INTEGER, INTENT(in), OPTIONAL            :: subgroup_min_size, n_subgroups
-      INTEGER, DIMENSION(0:), OPTIONAL          :: group_partition
-      INTEGER, OPTIONAL                        :: stride
+      INTEGER, DIMENSION(0:), INTENT(IN), OPTIONAL          :: group_partition
+      INTEGER, OPTIONAL, INTENT(IN)                        :: stride
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'mp_comm_split', &
                                      routineP = moduleN//':'//routineN
@@ -2264,7 +2332,7 @@ CONTAINS
 !> \author Mandes
 ! **************************************************************************************************
    SUBROUTINE mp_probe(source, comm, tag)
-      INTEGER                                  :: source
+      INTEGER, INTENT(INOUT)                      :: source
       TYPE(mp_comm_type), INTENT(IN)           :: comm
       INTEGER, INTENT(OUT)                     :: tag
 
@@ -2272,7 +2340,7 @@ CONTAINS
 
       INTEGER                                  :: handle, ierr
 #if defined(__parallel)
-      INTEGER, DIMENSION(mp_status_size)       :: status_single
+      MPI_STATUS_TYPE     :: status_single
       LOGICAL                                  :: flag
 #endif
 
@@ -2285,8 +2353,8 @@ CONTAINS
       IF (source .EQ. mp_any_source) THEN
          CALL mpi_probe(mp_any_source, mp_any_tag, comm%handle, status_single, ierr)
          IF (ierr /= 0) CALL mp_stop(ierr, "mpi_probe @ mp_probe")
-         source = status_single(MPI_SOURCE)
-         tag = status_single(MPI_TAG)
+         source = status_single MPI_STATUS_EXTRACT(MPI_SOURCE)
+         tag = status_single MPI_STATUS_EXTRACT(MPI_TAG)
       ELSE
          flag = .FALSE.
          CALL mpi_iprobe(source, mp_any_tag, comm%handle, flag, status_single, ierr)
@@ -2295,7 +2363,7 @@ CONTAINS
             source = mp_any_source
             tag = -1 !status_single(MPI_TAG) ! in case of flag==false status is undefined
          ELSE
-            tag = status_single(MPI_TAG)
+            tag = status_single MPI_STATUS_EXTRACT(MPI_TAG)
          END IF
       END IF
 #else
@@ -2317,8 +2385,8 @@ CONTAINS
 !> \param gid ...
 ! **************************************************************************************************
    SUBROUTINE mp_bcast_b(msg, source, gid)
-      LOGICAL                                            :: msg
-      INTEGER                                            :: source
+      LOGICAL, INTENT(INOUT)                                            :: msg
+      INTEGER, INTENT(IN)                                            :: source
       TYPE(mp_comm_type), INTENT(IN) :: gid
 
       CHARACTER(len=*), PARAMETER :: routineN = 'mp_bcast_b'
@@ -2348,8 +2416,8 @@ CONTAINS
 !> \param gid ...
 ! **************************************************************************************************
    SUBROUTINE mp_bcast_bv(msg, source, gid)
-      LOGICAL                                            :: msg(:)
-      INTEGER                                            :: source
+      LOGICAL, CONTIGUOUS, INTENT(INOUT)                 :: msg(:)
+      INTEGER, INTENT(IN)                                            :: source
       TYPE(mp_comm_type), INTENT(IN) :: gid
 
       CHARACTER(len=*), PARAMETER :: routineN = 'mp_bcast_bv'
@@ -2386,7 +2454,7 @@ CONTAINS
 !>      arrays can be pointers or assumed shape, but they must be contiguous!
 ! **************************************************************************************************
    SUBROUTINE mp_isend_bv(msgin, dest, comm, request, tag)
-      LOGICAL, DIMENSION(:)                    :: msgin
+      LOGICAL, DIMENSION(:), INTENT(IN)        :: msgin
       INTEGER, INTENT(IN)                      :: dest
       TYPE(mp_comm_type), INTENT(IN) :: comm
       TYPE(mp_request_type), INTENT(out)                     :: request
@@ -2404,6 +2472,10 @@ CONTAINS
       CALL mp_timeset(routineN, handle)
 
 #if defined(__parallel)
+#if !defined(__GNUC__) || __GNUC__ >= 9
+      CPASSERT(IS_CONTIGUOUS(msgin))
+#endif
+
       my_tag = 0
       IF (PRESENT(tag)) my_tag = tag
 
@@ -2444,7 +2516,7 @@ CONTAINS
 !>      arrays can be pointers or assumed shape, but they must be contiguous!
 ! **************************************************************************************************
    SUBROUTINE mp_irecv_bv(msgout, source, comm, request, tag)
-      LOGICAL, DIMENSION(:)                    :: msgout
+      LOGICAL, DIMENSION(:), INTENT(INOUT)                    :: msgout
       INTEGER, INTENT(IN)                      :: source
       TYPE(mp_comm_type), INTENT(IN) :: comm
       TYPE(mp_request_type), INTENT(out)                     :: request
@@ -2462,6 +2534,10 @@ CONTAINS
       CALL mp_timeset(routineN, handle)
 
 #if defined(__parallel)
+#if !defined(__GNUC__) || __GNUC__ >= 9
+      CPASSERT(IS_CONTIGUOUS(msgout))
+#endif
+
       my_tag = 0
       IF (PRESENT(tag)) my_tag = tag
 
@@ -2502,7 +2578,7 @@ CONTAINS
 !>      arrays can be pointers or assumed shape, but they must be contiguous!
 ! **************************************************************************************************
    SUBROUTINE mp_isend_bm3(msgin, dest, comm, request, tag)
-      LOGICAL, DIMENSION(:, :, :)              :: msgin
+      LOGICAL, DIMENSION(:, :, :), INTENT(INOUT)              :: msgin
       INTEGER, INTENT(IN)                      :: dest
       TYPE(mp_comm_type), INTENT(IN) :: comm
       TYPE(mp_request_type), INTENT(out)                     :: request
@@ -2520,6 +2596,10 @@ CONTAINS
       CALL mp_timeset(routineN, handle)
 
 #if defined(__parallel)
+#if !defined(__GNUC__) || __GNUC__ >= 9
+      CPASSERT(IS_CONTIGUOUS(msgin))
+#endif
+
       my_tag = 0
       IF (PRESENT(tag)) my_tag = tag
 
@@ -2560,7 +2640,7 @@ CONTAINS
 !>      arrays can be pointers or assumed shape, but they must be contiguous!
 ! **************************************************************************************************
    SUBROUTINE mp_irecv_bm3(msgout, source, comm, request, tag)
-      LOGICAL, DIMENSION(:, :, :)              :: msgout
+      LOGICAL, DIMENSION(:, :, :), INTENT(INOUT)  :: msgout
       INTEGER, INTENT(IN)                      :: source
       TYPE(mp_comm_type), INTENT(IN) :: comm
       TYPE(mp_request_type), INTENT(out)                     :: request
@@ -2578,6 +2658,10 @@ CONTAINS
       CALL mp_timeset(routineN, handle)
 
 #if defined(__parallel)
+#if !defined(__GNUC__) || __GNUC__ >= 9
+      CPASSERT(IS_CONTIGUOUS(msgout))
+#endif
+
       my_tag = 0
       IF (PRESENT(tag)) my_tag = tag
 
@@ -2611,8 +2695,8 @@ CONTAINS
 !> \param gid ...
 ! **************************************************************************************************
    SUBROUTINE mp_bcast_av(msg, source, gid)
-      CHARACTER(LEN=*)                         :: msg
-      INTEGER                                  :: source
+      CHARACTER(LEN=*), INTENT(INOUT)          :: msg
+      INTEGER, INTENT(IN)                                  :: source
       TYPE(mp_comm_type), INTENT(IN) :: gid
 
       CHARACTER(len=*), PARAMETER :: routineN = 'mp_bcast_av'
@@ -2664,8 +2748,8 @@ CONTAINS
 !> \param gid ...
 ! **************************************************************************************************
    SUBROUTINE mp_bcast_am(msg, source, gid)
-      CHARACTER(LEN=*)                         :: msg(:)
-      INTEGER                                  :: source
+      CHARACTER(LEN=*), CONTIGUOUS, INTENT(INOUT)      :: msg(:)
+      INTEGER, INTENT(IN)                             :: source
       TYPE(mp_comm_type), INTENT(IN) :: gid
 
       CHARACTER(len=*), PARAMETER :: routineN = 'mp_bcast_am'
@@ -2735,7 +2819,7 @@ CONTAINS
 !>      This routine is invalid for (int_8) data!
 ! **************************************************************************************************
    SUBROUTINE mp_minloc_dv(msg, gid)
-      REAL(kind=real_8), INTENT(INOUT)         :: msg(:)
+      REAL(kind=real_8), CONTIGUOUS, INTENT(INOUT)         :: msg(:)
       TYPE(mp_comm_type), INTENT(IN)                      :: gid
 
       CHARACTER(len=*), PARAMETER :: routineN = 'mp_minloc_dv'
@@ -2780,7 +2864,7 @@ CONTAINS
 !>      This routine is invalid for (int_8) data!
 ! **************************************************************************************************
    SUBROUTINE mp_minloc_iv(msg, gid)
-      INTEGER(KIND=int_4), INTENT(INOUT)       :: msg(:)
+      INTEGER(KIND=int_4), CONTIGUOUS, INTENT(INOUT)       :: msg(:)
       TYPE(mp_comm_type), INTENT(IN)                      :: gid
 
       CHARACTER(len=*), PARAMETER :: routineN = 'mp_minloc_iv'
@@ -2823,7 +2907,7 @@ CONTAINS
 !>      This routine is invalid for (int_8) data!
 ! **************************************************************************************************
    SUBROUTINE mp_minloc_lv(msg, gid)
-      INTEGER(KIND=int_8), INTENT(INOUT)       :: msg(:)
+      INTEGER(KIND=int_8), CONTIGUOUS, INTENT(INOUT)       :: msg(:)
       TYPE(mp_comm_type), INTENT(IN)                      :: gid
 
       CHARACTER(len=*), PARAMETER :: routineN = 'mp_minloc_lv'
@@ -2866,7 +2950,7 @@ CONTAINS
 !>      This routine is invalid for (int_8) data!
 ! **************************************************************************************************
    SUBROUTINE mp_minloc_rv(msg, gid)
-      REAL(kind=real_4), INTENT(INOUT)         :: msg(:)
+      REAL(kind=real_4), CONTIGUOUS, INTENT(INOUT)         :: msg(:)
       TYPE(mp_comm_type), INTENT(IN)                      :: gid
 
       CHARACTER(len=*), PARAMETER :: routineN = 'mp_minloc_rv'
@@ -2909,7 +2993,7 @@ CONTAINS
 !>      This routine is invalid for (int_8) data!
 ! **************************************************************************************************
    SUBROUTINE mp_maxloc_dv(msg, gid)
-      REAL(kind=real_8), INTENT(INOUT)         :: msg(:)
+      REAL(kind=real_8), CONTIGUOUS, INTENT(INOUT)         :: msg(:)
       TYPE(mp_comm_type), INTENT(IN)                      :: gid
 
       CHARACTER(len=*), PARAMETER :: routineN = 'mp_maxloc_dv'
@@ -2952,7 +3036,7 @@ CONTAINS
 !>      This routine is invalid for (int_8) data!
 ! **************************************************************************************************
    SUBROUTINE mp_maxloc_iv(msg, gid)
-      INTEGER(KIND=int_4), INTENT(INOUT)       :: msg(:)
+      INTEGER(KIND=int_4), CONTIGUOUS, INTENT(INOUT)       :: msg(:)
       TYPE(mp_comm_type), INTENT(IN)                      :: gid
 
       CHARACTER(len=*), PARAMETER :: routineN = 'mp_maxloc_iv'
@@ -2995,7 +3079,7 @@ CONTAINS
 !>      This routine is invalid for (int_8) data!
 ! **************************************************************************************************
    SUBROUTINE mp_maxloc_lv(msg, gid)
-      INTEGER(KIND=int_8), INTENT(INOUT)       :: msg(:)
+      INTEGER(KIND=int_8), CONTIGUOUS, INTENT(INOUT)       :: msg(:)
       TYPE(mp_comm_type), INTENT(IN)                      :: gid
 
       CHARACTER(len=*), PARAMETER :: routineN = 'mp_maxloc_lv'
@@ -3038,7 +3122,7 @@ CONTAINS
 !>      This routine is invalid for (int_8) data!
 ! **************************************************************************************************
    SUBROUTINE mp_maxloc_rv(msg, gid)
-      REAL(kind=real_4), INTENT(INOUT)         :: msg(:)
+      REAL(kind=real_4), CONTIGUOUS, INTENT(INOUT)         :: msg(:)
       TYPE(mp_comm_type), INTENT(IN)                      :: gid
 
       CHARACTER(len=*), PARAMETER :: routineN = 'mp_maxloc_rv'
@@ -3108,7 +3192,7 @@ CONTAINS
 !>      mpi_allreduce
 ! **************************************************************************************************
    SUBROUTINE mp_sum_bv(msg, gid)
-      LOGICAL, DIMENSION(:), INTENT(INOUT)               :: msg
+      LOGICAL, DIMENSION(:), CONTIGUOUS, INTENT(INOUT)               :: msg
       TYPE(mp_comm_type), INTENT(IN)                                :: gid
 
       CHARACTER(len=*), PARAMETER :: routineN = 'mp_sum_bv'
@@ -3152,6 +3236,10 @@ CONTAINS
       ierr = 0
       msglen = SIZE(msg)
 #if defined(__parallel)
+#if !defined(__GNUC__) || __GNUC__ >= 9
+      CPASSERT(IS_CONTIGUOUS(msg))
+#endif
+
       IF (msglen .GT. 0) THEN
          CALL mpi_iallreduce(MPI_IN_PLACE, msg, msglen, MPI_LOGICAL, MPI_LOR, gid%handle, request%handle, ierr)
          IF (ierr /= 0) CALL mp_stop(ierr, "mpi_allreduce @ "//routineN)
@@ -3213,11 +3301,11 @@ CONTAINS
       TYPE(mp_file_type), INTENT(OUT)                     :: fh
       CHARACTER(len=*), INTENT(IN)             :: filepath
       INTEGER, INTENT(IN)                      :: amode_status
-      INTEGER, INTENT(IN), OPTIONAL            :: info
+      TYPE(mp_info_type), INTENT(IN), OPTIONAL            :: info
 
       INTEGER                                  :: ierr, istat
 #if defined(__parallel)
-      INTEGER                                  :: my_info
+      MPI_INFO_TYPE                           :: my_info
 #else
       CHARACTER(LEN=10)                        :: fstatus, fposition
       INTEGER                                  :: amode, handle
@@ -3228,7 +3316,7 @@ CONTAINS
       istat = 0
 #if defined(__parallel)
       my_info = mpi_info_null
-      IF (PRESENT(info)) my_info = info
+      IF (PRESENT(info)) my_info = info%handle
       CALL mpi_file_open(groupid%handle, filepath, amode_status, my_info, fh%handle, ierr)
       CALL mpi_file_set_errhandler(fh%handle, MPI_ERRORS_RETURN, ierr)
       IF (ierr .NE. 0) CALL mp_stop(ierr, "mpi_file_set_errhandler @ mp_file_open")
@@ -3269,18 +3357,18 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE mp_file_delete(filepath, info)
       CHARACTER(len=*), INTENT(IN)             :: filepath
-      INTEGER, INTENT(IN), OPTIONAL            :: info
+      TYPE(mp_info_type), INTENT(IN), OPTIONAL            :: info
 
 #if defined(__parallel)
       INTEGER                                  :: ierr
-      INTEGER                                  :: my_info
+      MPI_INFO_TYPE                           :: my_info
       LOGICAL                                  :: exists
 #endif
 
 #if defined(__parallel)
       ierr = 0
       my_info = mpi_info_null
-      IF (PRESENT(info)) my_info = info
+      IF (PRESENT(info)) my_info = info%handle
       INQUIRE (FILE=filepath, EXIST=exists)
       IF (exists) CALL mpi_file_delete(filepath, my_info, ierr)
       IF (ierr .NE. 0) CALL mp_stop(ierr, "mpi_file_set_errhandler @ mp_file_delete")
@@ -3380,7 +3468,7 @@ CONTAINS
 !> \param[in](optional) msglen number of the elements of data
 ! **************************************************************************************************
    SUBROUTINE mp_file_write_at_chv(fh, offset, msg, msglen)
-      CHARACTER, INTENT(IN)                      :: msg(:)
+      CHARACTER, CONTIGUOUS, INTENT(IN)                      :: msg(:)
       TYPE(mp_file_type), INTENT(IN)                        :: fh
       INTEGER, INTENT(IN), OPTIONAL              :: msglen
       INTEGER(kind=file_offset), INTENT(IN)      :: offset
@@ -3436,7 +3524,7 @@ CONTAINS
 !> \par STREAM-I/O mapping   WRITE
 ! **************************************************************************************************
    SUBROUTINE mp_file_write_at_all_chv(fh, offset, msg, msglen)
-      CHARACTER, INTENT(IN)                      :: msg(:)
+      CHARACTER, CONTIGUOUS, INTENT(IN)                      :: msg(:)
       TYPE(mp_file_type), INTENT(IN)                        :: fh
       INTEGER, INTENT(IN), OPTIONAL              :: msglen
       INTEGER(kind=file_offset), INTENT(IN)      :: offset
@@ -3493,7 +3581,7 @@ CONTAINS
 !> \param[in](optional) msglen  number of elements of data
 ! **************************************************************************************************
    SUBROUTINE mp_file_read_at_chv(fh, offset, msg, msglen)
-      CHARACTER, INTENT(OUT)                     :: msg(:)
+      CHARACTER, CONTIGUOUS, INTENT(OUT)                     :: msg(:)
       TYPE(mp_file_type), INTENT(IN)                        :: fh
       INTEGER, INTENT(IN), OPTIONAL              :: msglen
       INTEGER(kind=file_offset), INTENT(IN)      :: offset
@@ -3650,11 +3738,12 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'mp_type_make_struct'
 
       INTEGER                                  :: i, ierr, n
+      INTEGER, ALLOCATABLE, DIMENSION(:)       :: lengths
 #if defined(__parallel)
       INTEGER(kind=mpi_address_kind), &
          ALLOCATABLE, DIMENSION(:)              :: displacements
 #endif
-      INTEGER, ALLOCATABLE, DIMENSION(:)       :: lengths, old_types
+      MPI_DATA_TYPE, ALLOCATABLE, DIMENSION(:) :: old_types
 
       ierr = 0
       n = SIZE(subtypes)
@@ -3764,7 +3853,6 @@ CONTAINS
 
       ierr = 0
       CALL mp_timeset(routineN, handle)
-      type_descriptor%type_handle = 0
 
 #if defined(__parallel)
       CALL MPI_Type_create_hindexed(count, lengths, INT(displs, KIND=address_kind), MPI_CHARACTER, &
@@ -3837,7 +3925,7 @@ CONTAINS
       TYPE(mp_file_type), INTENT(IN)                       :: fh
       INTEGER, INTENT(IN)                       :: msglen
       INTEGER, INTENT(IN)                       :: ndims
-      CHARACTER(LEN=msglen), DIMENSION(ndims)   :: buffer
+      CHARACTER(LEN=msglen), DIMENSION(ndims), INTENT(INOUT)   :: buffer
       TYPE(mp_file_descriptor_type), &
          INTENT(IN), OPTIONAL                   :: type_descriptor
 
@@ -3888,7 +3976,7 @@ CONTAINS
       TYPE(mp_file_type), INTENT(IN)                       :: fh
       INTEGER, INTENT(IN)                       :: msglen
       INTEGER, INTENT(IN)                       :: ndims
-      CHARACTER(LEN=msglen), DIMENSION(ndims)   :: buffer
+      CHARACTER(LEN=msglen), DIMENSION(ndims), INTENT(IN)   :: buffer
       TYPE(mp_file_descriptor_type), &
          INTENT(IN), OPTIONAL                   :: type_descriptor
 
@@ -3945,8 +4033,12 @@ CONTAINS
       IF (ierr /= 0) &
          CPABORT("MPI_Type_free @ "//routineN)
 #endif
-      type_descriptor%length = -1
+#if defined(__parallel) && defined(__MPI_F08)
+      type_descriptor%type_handle%mpi_val = -1
+#else
       type_descriptor%type_handle = -1
+#endif
+      type_descriptor%length = -1
       IF (type_descriptor%has_indexing) THEN
          NULLIFY (type_descriptor%index_descriptor%index)
          NULLIFY (type_descriptor%index_descriptor%chunks)

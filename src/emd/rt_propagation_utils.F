@@ -408,30 +408,52 @@ CONTAINS
       CALL qs_rho_get(rho_struct=rho, rho_ao=rho_ao)
       DO i = 1, SIZE(mos_new)/2
          re = 2*i - 1; im = 2*i
-         alpha = 3*one - REAL(SIZE(mos_new)/2, dp)
          CALL dbcsr_set(rho_ao(i)%matrix, zero)
          CALL cp_fm_get_info(mos_new(re), ncol_global=ncol)
          CALL cp_fm_create(mos_occ, &
                            matrix_struct=mos(i)%mo_coeff%matrix_struct, &
                            name="mos_occ")
          CALL cp_fm_to_fm(mos_new(re), mos_occ)
-         CALL cp_fm_column_scale(mos_occ, mos(i)%occupation_numbers/alpha)
-         CALL cp_dbcsr_plus_fm_fm_t(sparse_matrix=rho_ao(i)%matrix, &
-                                    matrix_v=mos_occ, &
-                                    ncol=ncol, &
-                                    alpha=alpha)
+         IF (mos(i)%uniform_occupation) THEN
+            alpha = 3*one - REAL(SIZE(mos_new)/2, dp)
+            CALL cp_fm_column_scale(mos_occ, mos(i)%occupation_numbers/alpha)
+            CALL cp_dbcsr_plus_fm_fm_t(sparse_matrix=rho_ao(i)%matrix, &
+                                       matrix_v=mos_occ, &
+                                       ncol=ncol, &
+                                       alpha=alpha)
+         ELSE
+            alpha = 1.0_dp
+            CALL cp_fm_column_scale(mos_occ, mos(i)%occupation_numbers/alpha)
+            CALL cp_dbcsr_plus_fm_fm_t(sparse_matrix=rho_ao(i)%matrix, &
+                                       matrix_v=mos_new(re), &
+                                       matrix_g=mos_occ, &
+                                       ncol=ncol, &
+                                       alpha=alpha)
+         END IF
+
          ! It is actually complex conjugate but i*i=-1 therefore it must be added
          CALL cp_fm_to_fm(mos_new(im), mos_occ)
-         CALL cp_fm_column_scale(mos_occ, mos(i)%occupation_numbers/alpha)
-         CALL cp_dbcsr_plus_fm_fm_t(sparse_matrix=rho_ao(i)%matrix, &
-                                    matrix_v=mos_occ, &
-                                    ncol=ncol, &
-                                    alpha=alpha)
+         IF (mos(i)%uniform_occupation) THEN
+            alpha = 3*one - REAL(SIZE(mos_new)/2, dp)
+            CALL cp_fm_column_scale(mos_occ, mos(i)%occupation_numbers/alpha)
+            CALL cp_dbcsr_plus_fm_fm_t(sparse_matrix=rho_ao(i)%matrix, &
+                                       matrix_v=mos_occ, &
+                                       ncol=ncol, &
+                                       alpha=alpha)
+         ELSE
+            alpha = 1.0_dp
+            CALL cp_fm_column_scale(mos_occ, mos(i)%occupation_numbers/alpha)
+            CALL cp_dbcsr_plus_fm_fm_t(sparse_matrix=rho_ao(i)%matrix, &
+                                       matrix_v=mos_new(im), &
+                                       matrix_g=mos_occ, &
+                                       ncol=ncol, &
+                                       alpha=alpha)
+         END IF
          CALL cp_fm_release(mos_occ)
       END DO
       CALL qs_rho_update_rho(rho, qs_env)
 
-      IF (rtp%do_hfx .OR. rtp%track_imag_density) THEN
+      IF (rtp%track_imag_density) THEN
          CALL qs_rho_get(rho_struct=rho, rho_ao_im=rho_ao_im)
          CALL calculate_P_imaginary(qs_env, rtp, rho_ao_im, keep_sparsity=.TRUE.)
          CALL qs_rho_set(rho, rho_ao_im=rho_ao_im)
@@ -474,11 +496,11 @@ CONTAINS
       rtp_control => dft_control%rtp_control
       CALL get_rtp(rtp=rtp, rho_new=rho_new)
       CALL qs_rho_get(rho_struct=rho, rho_ao=rho_ao)
-      IF (rtp%do_hfx .OR. rtp%track_imag_density) CALL qs_rho_get(rho_struct=rho, rho_ao_im=rho_ao_im)
+      IF (rtp%track_imag_density) CALL qs_rho_get(rho_struct=rho, rho_ao_im=rho_ao_im)
       DO ispin = 1, SIZE(rho_ao)
          CALL dbcsr_set(rho_ao(ispin)%matrix, zero)
          CALL dbcsr_copy_into_existing(rho_ao(ispin)%matrix, rho_new(ispin*2 - 1)%matrix)
-         IF (rtp%do_hfx .OR. rtp%track_imag_density) THEN
+         IF (rtp%track_imag_density) THEN
             CALL dbcsr_copy_into_existing(rho_ao_im(ispin)%matrix, rho_new(ispin*2)%matrix)
          END IF
       END DO
@@ -623,6 +645,8 @@ CONTAINS
          ELSE
             spin = ""
          END IF
+
+         mo_set_rtp%occupation_numbers = mos(ispin)%occupation_numbers
 
          !loop for real (odd) and imaginary (even) parts
          DO i = 1, 0, -1

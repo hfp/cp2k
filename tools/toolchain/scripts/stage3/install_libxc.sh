@@ -6,8 +6,8 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")/.." && pwd -P)"
 
-libxc_ver="6.0.0"
-libxc_sha256="c2ca205a762200dfba2e6c9e8ca2061aaddc6b7cf42048859fe717a7aa07de7c"
+libxc_ver="6.1.0"
+libxc_sha256="a3aa16915942543031a5d9c4a92c439ce54249bdcda8c91c4e69e65329dc9a54"
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh
 source "${SCRIPT_DIR}"/signal_trap.sh
@@ -39,9 +39,6 @@ case "$with_libxc" in
       [ -d libxc-${libxc_ver} ] && rm -rf libxc-${libxc_ver}
       tar -xzf libxc-${libxc_ver}.tar.gz
       cd libxc-${libxc_ver}
-
-      # Fix missing comma at end of line in src/mgga_xc_b97mv.c
-      patch -p1 < "${SCRIPT_DIR}/stage3/libxc-${libxc_ver}_mgga_xc_b97mv.patch"
 
       # CP2K does not make use of fourth derivatives, so skip their compilation with --disable-lxc
       ./configure --prefix="${pkg_install_dir}" --libdir="${pkg_install_dir}/lib" --disable-lxc \
@@ -80,6 +77,8 @@ prepend_path LD_LIBRARY_PATH "$pkg_install_dir/lib"
 prepend_path LD_RUN_PATH "$pkg_install_dir/lib"
 prepend_path LIBRARY_PATH "$pkg_install_dir/lib"
 prepend_path CPATH "$pkg_install_dir/include"
+prepend_path PKG_CONFIG_PATH "$pkg_install_dir/lib/pkgconfig"
+prepend_path CMAKE_PREFIX_PATH "$pkg_install_dir"
 EOF
     cat "${BUILDDIR}/setup_libxc" >> $SETUPFILE
   fi

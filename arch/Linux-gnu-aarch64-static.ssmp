@@ -3,11 +3,11 @@
 # CP2K (GNU aarch64) arch file for a serial static ARM64 binary
 #
 # Tested with: GNU 12.2.0, FFTW 3.3.10, LIBINT 2.6.0, LIBVORI 220621,
-#              LIBXC 6.0.0, OpenBLAS 0.3.21, SPGLIB 1.16.2
+#              LIBXC 6.1.0, OpenBLAS 0.3.21, SPGLIB 1.16.2
 #
 # Usage: Source this arch file and then run make as instructed.
 #
-# Author: Matthias Krack (15.12.2022)
+# Author: Matthias Krack (12.01.2023)
 #
 # \
    if [[ "${0}" == "${BASH_SOURCE}" ]]; then \
@@ -18,7 +18,7 @@
    this_file=${BASH_SOURCE##*/}; \
    cd tools/toolchain; \
    [[ -z "${target_cpu}" ]] && target_cpu="native"; \
-   ./install_cp2k_toolchain.sh -j${maxtasks} --mpi-mode=no --no-arch-files --target-cpu=${target_cpu} --with-gcc=system --with-cmake=system; \
+   ./install_cp2k_toolchain.sh -j${maxtasks} --mpi-mode=no --no-arch-files --target-cpu=${target_cpu} --with-cmake=system --with-gcc=system --with-libxsmm=no; \
    source ./install/setup; \
    cd ../..; \
    echo; \
@@ -34,7 +34,7 @@ TARGET_CPU     := native
 USE_FFTW       := 3.3.10
 USE_LIBINT     := 2.6.0
 USE_LIBVORI    := 220621
-USE_LIBXC      := 6.0.0
+USE_LIBXC      := 6.1.0
 USE_OPENBLAS   := 0.3.21
 USE_SPGLIB     := 1.16.2
 
@@ -140,7 +140,9 @@ endif
 CFLAGS         += $(DFLAGS) $(CFLAGS_DEBUG)
 
 FCFLAGS        := $(CFLAGS) $(FCFLAGS_DEBUG) $(WFLAGS)
-FCFLAGS        += -fallow-argument-mismatch
+ifeq ($(shell [ $(shell gcc -dumpversion | cut -d. -f1) -gt 9 ] && echo yes), yes)
+   FCFLAGS        += -fallow-argument-mismatch
+endif
 FCFLAGS        += -fbacktrace
 FCFLAGS        += -ffree-form
 FCFLAGS        += -ffree-line-length-none
@@ -154,6 +156,6 @@ else
    LDFLAGS        += $(FCFLAGS) -static
 endif
 
-LIBS           += -ldl -lstdc++
+LIBS           += -Wl,--whole-archive -lpthread -Wl,--no-whole-archive -ldl -lstdc++
 
 # End
