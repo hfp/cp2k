@@ -439,7 +439,12 @@ MODULE message_passing
          mp_gatherv_rv, &
          mp_gatherv_dv, &
          mp_gatherv_cv, &
-         mp_gatherv_zv
+         mp_gatherv_zv, &
+         mp_gatherv_lm2, &
+         mp_gatherv_rm2, &
+         mp_gatherv_dm2, &
+         mp_gatherv_cm2, &
+         mp_gatherv_zm2
    END INTERFACE
 
    INTERFACE mp_igatherv
@@ -477,7 +482,13 @@ MODULE message_passing
          mp_allgatherv_rv, &
          mp_allgatherv_dv, &
          mp_allgatherv_cv, &
-         mp_allgatherv_zv
+         mp_allgatherv_zv, &
+         mp_allgatherv_im2, &
+         mp_allgatherv_lm2, &
+         mp_allgatherv_rm2, &
+         mp_allgatherv_dm2, &
+         mp_allgatherv_cm2, &
+         mp_allgatherv_zm2
    END INTERFACE
 
    INTERFACE mp_iallgather
@@ -3265,8 +3276,6 @@ CONTAINS
       CHARACTER(len=*), INTENT(OUT)                      :: version
       INTEGER, INTENT(OUT)                               :: resultlen
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mp_get_library_version'
-
       INTEGER                                            :: ierr
 
       ierr = 0
@@ -3275,7 +3284,7 @@ CONTAINS
 
 #if defined(__parallel)
       CALL mpi_get_library_version(version, resultlen, ierr)
-      IF (ierr /= 0) CALL mp_stop(ierr, "mpi_get_library_version @ "//routineN)
+      IF (ierr /= 0) CALL mp_stop(ierr, "mpi_get_library_version @ mp_get_library_version")
 #else
       MARK_USED(version)
       resultlen = 0
@@ -3473,8 +3482,6 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL              :: msglen
       INTEGER(kind=file_offset), INTENT(IN)      :: offset
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mp_file_write_at_chv'
-
 #if defined(__parallel)
       INTEGER                                    :: ierr, msg_len
 
@@ -3482,7 +3489,7 @@ CONTAINS
       IF (PRESENT(msglen)) msg_len = msglen
       CALL MPI_FILE_WRITE_AT(fh%handle, offset, msg, msg_len, MPI_CHARACTER, MPI_STATUS_IGNORE, ierr)
       IF (ierr .NE. 0) &
-         CPABORT("mpi_file_write_at_chv @ "//routineN)
+         CPABORT("mpi_file_write_at_chv @ mp_file_write_at_chv")
 #else
       MARK_USED(msglen)
       WRITE (UNIT=fh%handle, POS=offset + 1) msg
@@ -3500,14 +3507,12 @@ CONTAINS
       TYPE(mp_file_type), INTENT(IN)                        :: fh
       INTEGER(kind=file_offset), INTENT(IN)      :: offset
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mp_file_write_at_ch'
-
 #if defined(__parallel)
       INTEGER                                    :: ierr
 
       CALL MPI_FILE_WRITE_AT(fh%handle, offset, msg, LEN(msg), MPI_CHARACTER, MPI_STATUS_IGNORE, ierr)
       IF (ierr .NE. 0) &
-         CPABORT("mpi_file_write_at_ch @ "//routineN)
+         CPABORT("mpi_file_write_at_ch @ mp_file_write_at_ch")
 #else
       WRITE (UNIT=fh%handle, POS=offset + 1) msg
 #endif
@@ -3529,8 +3534,6 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL              :: msglen
       INTEGER(kind=file_offset), INTENT(IN)      :: offset
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mp_file_write_at_all_chv'
-
 #if defined(__parallel)
       INTEGER                                    :: ierr, msg_len
 
@@ -3538,7 +3541,7 @@ CONTAINS
       IF (PRESENT(msglen)) msg_len = msglen
       CALL MPI_FILE_WRITE_AT_ALL(fh%handle, offset, msg, msg_len, MPI_CHARACTER, MPI_STATUS_IGNORE, ierr)
       IF (ierr .NE. 0) &
-         CPABORT("mpi_file_write_at_all_chv @ "//routineN)
+         CPABORT("mpi_file_write_at_all_chv @ mp_file_write_at_all_chv")
 #else
       MARK_USED(msglen)
       WRITE (UNIT=fh%handle, POS=offset + 1) msg
@@ -3556,14 +3559,12 @@ CONTAINS
       TYPE(mp_file_type), INTENT(IN)                        :: fh
       INTEGER(kind=file_offset), INTENT(IN)      :: offset
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mp_file_write_at_all_ch'
-
 #if defined(__parallel)
       INTEGER                                    :: ierr
 
       CALL MPI_FILE_WRITE_AT_ALL(fh%handle, offset, msg, LEN(msg), MPI_CHARACTER, MPI_STATUS_IGNORE, ierr)
       IF (ierr .NE. 0) &
-         CPABORT("mpi_file_write_at_all_ch @ "//routineN)
+         CPABORT("mpi_file_write_at_all_ch @ mp_file_write_at_all_ch")
 #else
       WRITE (UNIT=fh%handle, POS=offset + 1) msg
 #endif
@@ -3586,8 +3587,6 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL              :: msglen
       INTEGER(kind=file_offset), INTENT(IN)      :: offset
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mp_file_read_at_chv'
-
 #if defined(__parallel)
       INTEGER                                    :: ierr, msg_len
 
@@ -3595,7 +3594,7 @@ CONTAINS
       IF (PRESENT(msglen)) msg_len = msglen
       CALL MPI_FILE_READ_AT(fh%handle, offset, msg, msg_len, MPI_CHARACTER, MPI_STATUS_IGNORE, ierr)
       IF (ierr .NE. 0) &
-         CPABORT("mpi_file_read_at_chv @ "//routineN)
+         CPABORT("mpi_file_read_at_chv @ mp_file_read_at_chv")
 #else
       MARK_USED(msglen)
       READ (UNIT=fh%handle, POS=offset + 1) msg
@@ -3613,14 +3612,12 @@ CONTAINS
       TYPE(mp_file_type), INTENT(IN)                        :: fh
       INTEGER(kind=file_offset), INTENT(IN)      :: offset
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mp_file_read_at_ch'
-
 #if defined(__parallel)
       INTEGER                                    :: ierr
 
       CALL MPI_FILE_READ_AT(fh%handle, offset, msg, LEN(msg), MPI_CHARACTER, MPI_STATUS_IGNORE, ierr)
       IF (ierr .NE. 0) &
-         CPABORT("mpi_file_read_at_ch @ "//routineN)
+         CPABORT("mpi_file_read_at_ch @ mp_file_read_at_ch")
 #else
       READ (UNIT=fh%handle, POS=offset + 1) msg
 #endif
@@ -3642,8 +3639,6 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL              :: msglen
       INTEGER(kind=file_offset), INTENT(IN)      :: offset
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mp_file_read_at_all_chv'
-
 #if defined(__parallel)
       INTEGER                                    :: ierr, msg_len
 
@@ -3651,7 +3646,7 @@ CONTAINS
       IF (PRESENT(msglen)) msg_len = msglen
       CALL MPI_FILE_READ_AT_ALL(fh%handle, offset, msg, msg_len, MPI_CHARACTER, MPI_STATUS_IGNORE, ierr)
       IF (ierr .NE. 0) &
-         CPABORT("mpi_file_read_at_all_chv @ "//routineN)
+         CPABORT("mpi_file_read_at_all_chv @ mp_file_read_at_all_chv")
 #else
       MARK_USED(msglen)
       READ (UNIT=fh%handle, POS=offset + 1) msg
@@ -3669,14 +3664,12 @@ CONTAINS
       TYPE(mp_file_type), INTENT(IN)                        :: fh
       INTEGER(kind=file_offset), INTENT(IN)      :: offset
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mp_file_read_at_all_ch'
-
 #if defined(__parallel)
       INTEGER                                    :: ierr
 
       CALL MPI_FILE_READ_AT_ALL(fh%handle, offset, msg, LEN(msg), MPI_CHARACTER, MPI_STATUS_IGNORE, ierr)
       IF (ierr .NE. 0) &
-         CPABORT("mpi_file_read_at_all_ch @ "//routineN)
+         CPABORT("mpi_file_read_at_all_ch @ mp_file_read_at_all_ch")
 #else
       READ (UNIT=fh%handle, POS=offset + 1) msg
 #endif
@@ -3694,15 +3687,13 @@ CONTAINS
       TYPE(mp_type_descriptor_type), INTENT(IN)          :: type_descriptor
       INTEGER, INTENT(OUT)                               :: type_size
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mp_type_size'
-
       INTEGER                                            :: ierr
 
       ierr = 0
 #if defined(__parallel)
       CALL MPI_TYPE_SIZE(type_descriptor%type_handle, type_size, ierr)
       IF (ierr .NE. 0) &
-         CPABORT("mpi_type_size @ "//routineN)
+         CPABORT("mpi_type_size failed @ mp_type_size")
 #else
       SELECT CASE (type_descriptor%type_handle)
       CASE (1)
@@ -4200,8 +4191,6 @@ CONTAINS
       TYPE(mp_request_type), INTENT(out)                               :: request
       INTEGER, INTENT(in), OPTIONAL                      :: tag
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mp_isend_custom'
-
       INTEGER                                            :: ierr, my_tag
 
       ierr = 0
@@ -4212,7 +4201,7 @@ CONTAINS
 
       CALL mpi_isend(MPI_BOTTOM, 1, msgin%type_handle, dest, my_tag, &
                      comm%handle, request%handle, ierr)
-      IF (ierr /= 0) CALL mp_stop(ierr, "mpi_isend @ "//routineN)
+      IF (ierr /= 0) CALL mp_stop(ierr, "mpi_isend @ mp_isend_custom")
 #else
       MARK_USED(msgin)
       MARK_USED(dest)
@@ -4239,8 +4228,6 @@ CONTAINS
       TYPE(mp_request_type), INTENT(out)                               :: request
       INTEGER, INTENT(in), OPTIONAL                      :: tag
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'mp_irecv_custom'
-
       INTEGER                                            :: ierr, my_tag
 
       ierr = 0
@@ -4251,7 +4238,7 @@ CONTAINS
 
       CALL mpi_irecv(MPI_BOTTOM, 1, msgout%type_handle, source, my_tag, &
                      comm%handle, request%handle, ierr)
-      IF (ierr /= 0) CALL mp_stop(ierr, "mpi_irecv @ "//routineN)
+      IF (ierr /= 0) CALL mp_stop(ierr, "mpi_irecv @ mp_irecv_custom")
 #else
       MARK_USED(msgout)
       MARK_USED(source)

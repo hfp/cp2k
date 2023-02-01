@@ -243,6 +243,7 @@ CONTAINS
                CALL section_add_keyword(section, keyword)
                CALL keyword_release(keyword)
             CASE (SIRIUS_LOGICAL_TYPE)
+               dummy_l = .FALSE.
                CALL sirius_option_get(section_name, name, ctype, C_LOC(dummy_l))
                IF (dummy_l) THEN
                   CALL keyword_create(keyword, __LOCATION__, &
@@ -439,9 +440,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE create_pwdft_section(section)
       TYPE(section_type), POINTER                        :: section
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'create_pwdft_section', &
-         routineP = moduleN//':'//routineN
 
       CPASSERT(.NOT. ASSOCIATED(section))
 
