@@ -45,11 +45,7 @@ MODULE voronoi_interface
    USE cp_control_types, ONLY: dft_control_type
    USE pw_grid_types, ONLY: PW_MODE_LOCAL
    USE physcon, ONLY: angstrom, femtoseconds
-   USE message_passing, ONLY: &
-      file_amode_rdonly, file_offset, mp_bcast, mp_file_close, mp_file_descriptor_type, &
-      mp_file_get_position, mp_file_open, mp_file_read_all_chv, mp_file_type_free, &
-      mp_file_type_hindexed_make_chv, mp_file_type_set_view_chv, mp_file_write_all_chv, &
-      mp_file_write_at, mp_maxloc, mp_recv, mp_send, mp_sum, mp_sync, mpi_character_size, mp_comm_type
+   USE message_passing, ONLY: mp_comm_type
    USE input_constants, ONLY: &
       voro_radii_unity, voro_radii_vdw, voro_radii_cov, voro_radii_user, &
       bqb_opt_off, bqb_opt_quick, bqb_opt_normal, bqb_opt_patient, bqb_opt_exhaustive, do_method_gapw
@@ -325,15 +321,14 @@ CONTAINS
 #if defined(__LIBVORI)
 
       CHARACTER(len=*), PARAMETER                        :: routineN = 'entry_voronoi_or_bqb'
-      INTEGER                                            :: handle, iounit, L1, L2, L3, U1, U2, &
-                                                            U3, ret, i, my_rank, num_pe, tag, &
+      INTEGER                                            :: handle, iounit, &
+                                                            ret, i, tag, &
                                                             nkind, natom, ikind, iat, ord, source, dest, &
                                                             ip, i1, i2, reffac, radius_type, bqb_optimize, &
                                                             bqb_history, nspins, jitter_seed
-      TYPE(mp_comm_type) :: gid
       LOGICAL                                            :: outemp, bqb_skip_first, voro_skip_first, &
                                                             bqb_store_step, bqb_check, voro_sanity, &
-                                                            bqb_overwrite, vori_overwrite, ionode, molprop, &
+                                                            bqb_overwrite, vori_overwrite, molprop, &
                                                             gapw, jitter
       REAL(KIND=dp)                                      :: zeff, qa, fn0, fn1, jitter_amplitude
       TYPE(qs_rho_type), POINTER                         :: rho
@@ -348,8 +343,7 @@ CONTAINS
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(particle_list_type), POINTER                  :: particles
-      INTEGER                                            :: sim_step
-      REAL(KIND=dp)                                      :: r, sim_time
+      REAL(KIND=dp)                                      :: r
       TYPE(qs_subsys_type), POINTER                      :: subsys
       INTEGER, DIMENSION(:), POINTER                     :: atom_list
       TYPE(dft_control_type), POINTER                    :: dft_control
@@ -380,14 +374,7 @@ CONTAINS
                       nkind=nkind, natom=natom, subsys=subsys, dft_control=dft_control, &
                       cell=cell)
 
-      ionode = para_env%ionode
-      my_rank = para_env%mepos
-      num_pe = para_env%num_pe
-      gid = para_env%group
       tag = 1
-
-      sim_step = qs_env%sim_step
-      sim_time = qs_env%sim_time
 
       IF (do_voro /= 0) THEN
          CALL section_vals_val_get(input_voro, "REFINEMENT_FACTOR", i_val=reffac)
@@ -436,20 +423,18 @@ CONTAINS
 
       CALL qs_subsys_get(subsys, particles=particles)
 
-      ! The boundaries for the grid index
-      L1 = rspace_pw%pw_grid%bounds(1, 1)
-      L2 = rspace_pw%pw_grid%bounds(1, 2)
-      L3 = rspace_pw%pw_grid%bounds(1, 3)
-      U1 = rspace_pw%pw_grid%bounds(2, 1)
-      U2 = rspace_pw%pw_grid%bounds(2, 2)
-      U3 = rspace_pw%pw_grid%bounds(2, 3)
-
       ! Temporarily disable floating point traps because libvori raise IEEE754 exceptions.
 #if defined(__HAS_IEEE_EXCEPTIONS)
       CALL ieee_get_halting_mode(IEEE_ALL, halt)
       CALL ieee_set_halting_mode(IEEE_ALL, .FALSE.)
 #endif
 
+      ASSOCIATE (ionode => para_env%ionode, my_rank => para_env%mepos, &
+                 num_pe => para_env%num_pe, gid => para_env%group, &
+                 sim_step => qs_env%sim_step, sim_time => qs_env%sim_time, &
+                 L1 => rspace_pw%pw_grid%bounds(1, 1), L2 => rspace_pw%pw_grid%bounds(1, 2), &
+                 L3 => rspace_pw%pw_grid%bounds(1, 3), U1 => rspace_pw%pw_grid%bounds(2, 1), &
+                 U2 => rspace_pw%pw_grid%bounds(2, 2), U3 => rspace_pw%pw_grid%bounds(2, 3))
       IF (ionode) THEN
 
          IF (iounit > 0) THEN
@@ -583,10 +568,10 @@ CONTAINS
             ELSE
                IF (my_rank == source) THEN
                   buf(:) = rspace_pw%cr3d(I1, I2, :)
-                  CALL mp_send(buf, dest, tag, gid)
+                  CALL gid%send(buf, dest, tag)
                END IF
                IF (my_rank == dest) THEN
-                  CALL mp_recv(buf, source, tag, gid)
+                  CALL gid%recv(buf, source, tag)
                END IF
             END IF
 
@@ -603,7 +588,7 @@ CONTAINS
             ! that flies around at any given time.
             ! if ever this routine becomes a bottleneck, we should go for a
             ! more complicated rewrite
-            CALL mp_sync(gid)
+            CALL gid%sync()
 
          END DO
       END DO
@@ -795,6 +780,7 @@ CONTAINS
          DEALLOCATE (particles_r)
          DEALLOCATE (particles_radius)
       END IF
+      END ASSOCIATE
 
 #if defined(__HAS_IEEE_EXCEPTIONS)
       CALL ieee_set_halting_mode(IEEE_ALL, halt)

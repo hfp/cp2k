@@ -81,8 +81,6 @@ MODULE colvar_methods
                                               twopi
    USE mathlib,                         ONLY: vector_product
    USE memory_utilities,                ONLY: reallocate
-   USE message_passing,                 ONLY: mp_sum,&
-                                              mp_sync
    USE mixed_energy_types,              ONLY: mixed_force_type
    USE mixed_environment_utils,         ONLY: get_subsys_map_index
    USE molecule_kind_types,             ONLY: fixd_constraint_type
@@ -252,6 +250,7 @@ CONTAINS
          colvar%dist_param%i_at = iatms(1)
          colvar%dist_param%j_at = iatms(2)
          CALL section_vals_val_get(distance_section, "AXIS", i_val=colvar%dist_param%axis_id)
+         CALL section_vals_val_get(distance_section, "SIGN", l_val=colvar%dist_param%sign_d)
       ELSE IF (my_subsection(2)) THEN
          ! Angle
          wrk_section => angle_section
@@ -2212,8 +2211,8 @@ CONTAINS
             END DO
 
             ! Handling Parallel execution
-            CALL mp_sync(force_env%para_env%group)
-            CALL mp_sum(glob_natoms, force_env%para_env%group)
+            CALL force_env%para_env%group%sync()
+            CALL force_env%para_env%group%sum(glob_natoms)
 
             ! Transfer forces
             DO iforce_eval = 1, nforce_eval
@@ -2228,7 +2227,7 @@ CONTAINS
                      END DO
                   END IF
                END IF
-               CALL mp_sum(global_forces(iforce_eval)%forces, force_env%para_env%group)
+               CALL force_env%para_env%group%sum(global_forces(iforce_eval)%forces)
             END DO
 
             wrk_section => colvar%u_param%mixed_energy_section
@@ -2904,7 +2903,22 @@ CONTAINS
       END SELECT
       r12 = SQRT(xij(1)**2 + xij(2)**2 + xij(3)**2)
 
-      colvar%ss = r12
+      IF (colvar%dist_param%sign_d) THEN
+         SELECT CASE (colvar%dist_param%axis_id)
+         CASE (do_clv_x)
+            colvar%ss = xij(1)
+         CASE (do_clv_y)
+            colvar%ss = xij(2)
+         CASE (do_clv_z)
+            colvar%ss = xij(3)
+         CASE DEFAULT
+            !do_clv_xyz
+         END SELECT
+
+      ELSE
+         colvar%ss = r12
+      END IF
+
       fi(:) = xij/r12
       fj(:) = -xij/r12
 

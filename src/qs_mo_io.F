@@ -59,8 +59,7 @@ MODULE qs_mo_io
    USE kinds,                           ONLY: default_path_length,&
                                               default_string_length,&
                                               dp
-   USE message_passing,                 ONLY: mp_bcast,&
-                                              mp_comm_type
+   USE message_passing,                 ONLY: mp_comm_type
    USE orbital_pointers,                ONLY: indco,&
                                               nco,&
                                               nso
@@ -391,7 +390,6 @@ CONTAINS
 
       ! use the scalapack block size as a default for buffering columns
       CALL cp_fm_get_info(mo_array(1)%mo_coeff, ncol_block=max_block)
-
       DO ispin = 1, nspin
          nmo = mo_array(ispin)%nmo
          IF ((ires > 0) .AND. (nmo > 0)) THEN
@@ -400,6 +398,7 @@ CONTAINS
                mo_array(ispin)%lfomo, &
                mo_array(ispin)%nelectron
             WRITE (ires) mo_array(ispin)%eigenvalues(1:nmo), &
+               mo_array(ispin)%uniform_occupation, &
                mo_array(ispin)%occupation_numbers(1:nmo)
          END IF
          IF (PRESENT(rt_mos)) THEN
@@ -546,7 +545,7 @@ CONTAINS
 
       IF (PRESENT(natom_mismatch)) THEN
          ! read_mos_restart_low only the io_node returns natom_mismatch, must broadcast it
-         CALL mp_bcast(natom_mismatch, source, group)
+         CALL group%bcast(natom_mismatch, source)
          IF (natom_mismatch) THEN
             IF (para_env%ionode) CALL close_file(unit_number=restart_unit)
             CALL timestop(handle)
@@ -678,7 +677,8 @@ CONTAINS
       INTEGER, DIMENSION(:), POINTER                     :: nset_info, nshell
       INTEGER, DIMENSION(:, :), POINTER                  :: l, nshell_info
       INTEGER, DIMENSION(:, :, :), POINTER               :: nso_info, offset_info
-      LOGICAL                                            :: minbas, natom_match, use_this
+      LOGICAL                                            :: minbas, natom_match, uniform_occ_read, &
+                                                            use_this
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: eig_read, occ_read
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: vecbuffer, vecbuffer_read
       TYPE(cp_logger_type), POINTER                      :: logger
@@ -750,7 +750,7 @@ CONTAINS
       END IF ! ionode
 
       ! make natom_match and natom_mismatch uniform across all nodes
-      CALL mp_bcast(natom_match, source, group)
+      CALL group%bcast(natom_match, source)
       IF (PRESENT(natom_mismatch)) natom_mismatch = .NOT. natom_match
       ! handle natom_match false
       IF (.NOT. natom_match) THEN
@@ -763,7 +763,7 @@ CONTAINS
          END IF
       END IF
 
-      CALL mp_bcast(nspin_read, source, group)
+      CALL group%bcast(nspin_read, source)
 
       ALLOCATE (vecbuffer(1, nao))
 
@@ -791,8 +791,9 @@ CONTAINS
                             "The number of MOs on the restart unit is greater than the number of "// &
                             "the allocated MOs. The read MO set will be truncated!")
 
-            READ (rst_unit) eig_read(1:nmo_read), occ_read(1:nmo_read)
+            READ (rst_unit) eig_read(1:nmo_read), uniform_occ_read, occ_read(1:nmo_read)
             mos(ispin)%eigenvalues(1:nmo) = eig_read(1:nmo)
+            mos(ispin)%uniform_occupation = uniform_occ_read
             mos(ispin)%occupation_numbers(1:nmo) = occ_read(1:nmo)
             DEALLOCATE (eig_read, occ_read)
 
@@ -812,12 +813,13 @@ CONTAINS
             END IF
          END IF
 
-         CALL mp_bcast(nmo, source, group)
-         CALL mp_bcast(mos(ispin)%homo, source, group)
-         CALL mp_bcast(mos(ispin)%lfomo, source, group)
-         CALL mp_bcast(mos(ispin)%nelectron, source, group)
-         CALL mp_bcast(mos(ispin)%eigenvalues, source, group)
-         CALL mp_bcast(mos(ispin)%occupation_numbers, source, group)
+         CALL group%bcast(nmo, source)
+         CALL group%bcast(mos(ispin)%homo, source)
+         CALL group%bcast(mos(ispin)%lfomo, source)
+         CALL group%bcast(mos(ispin)%nelectron, source)
+         CALL group%bcast(mos(ispin)%eigenvalues, source)
+         CALL group%bcast(mos(ispin)%uniform_occupation, source)
+         CALL group%bcast(mos(ispin)%occupation_numbers, source)
          IF (PRESENT(rt_mos)) THEN
             DO imat = 2*ispin - 1, 2*ispin
                DO i = 1, nmo
@@ -826,7 +828,7 @@ CONTAINS
                   ELSE
                      vecbuffer(1, :) = 0.0_dp
                   END IF
-                  CALL mp_bcast(vecbuffer, source, group)
+                  CALL group%bcast(vecbuffer, source)
                   CALL cp_fm_set_submatrix(rt_mos(imat), &
                                            vecbuffer, 1, i, nao, 1, transpose=.TRUE.)
                END DO
@@ -910,7 +912,7 @@ CONTAINS
 
                END IF
 
-               CALL mp_bcast(vecbuffer, source, group)
+               CALL group%bcast(vecbuffer, source)
                CALL cp_fm_set_submatrix(mos(ispin)%mo_coeff, &
                                         vecbuffer, 1, i, nao, 1, transpose=.TRUE.)
             END DO

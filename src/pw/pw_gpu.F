@@ -33,10 +33,8 @@ MODULE pw_gpu
         cube_transpose_1, cube_transpose_2, fft_scratch_sizes, fft_scratch_type, get_fft_scratch, &
         release_fft_scratch, x_to_yz, xz_to_yz, yz_to_x, yz_to_xz
    USE kinds,                           ONLY: dp
-   USE message_passing,                 ONLY: mp_comm_compare,&
-                                              mp_comm_type,&
-                                              mp_environ,&
-                                              mp_rank_compare
+   USE message_passing,                 ONLY: mp_cart_type,&
+                                              mp_comm_type
    USE pw_grid_types,                   ONLY: FULLSPACE
    USE pw_types,                        ONLY: REALSPACE,&
                                               RECIPROCALSPACE,&
@@ -232,9 +230,9 @@ CONTAINS
 
       COMPLEX(KIND=dp), DIMENSION(:, :), POINTER         :: grays, pbuf, qbuf, rbuf, sbuf
       COMPLEX(KIND=dp), DIMENSION(:, :, :), POINTER      :: tbuf
-      INTEGER                                            :: g_pos, handle, iout, lg, lmax, mg, mmax, &
-                                                            mx2, mz2, n1, n2, ngpts, nmax, &
-                                                            numtask, numtask_g, numtask_r, rp
+      INTEGER                                            :: g_pos, handle, lg, lmax, mg, mmax, mx2, &
+                                                            mz2, n1, n2, ngpts, nmax, numtask, &
+                                                            numtask_g, numtask_r, rp
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: p2p
       INTEGER, DIMENSION(2)                              :: r_dim, r_pos
       INTEGER, DIMENSION(:), POINTER                     :: n, nloc, nyzray
@@ -242,7 +240,8 @@ CONTAINS
       INTEGER, DIMENSION(:, :, :, :), POINTER            :: bo
       TYPE(fft_scratch_sizes)                            :: fft_scratch_size
       TYPE(fft_scratch_type), POINTER                    :: fft_scratch
-      TYPE(mp_comm_type)                                 :: gs_group, rs_group
+      TYPE(mp_cart_type)                                 :: rs_group
+      TYPE(mp_comm_type)                                 :: gs_group
 
 !nyzray(0:)
 !yzp(:,:,0:)
@@ -264,16 +263,12 @@ CONTAINS
          nyzray => pw1%pw_grid%para%nyzray
          bo => pw1%pw_grid%para%bo
 
-         CALL mp_environ(numtask_g, g_pos, gs_group)
-         CALL mp_environ(numtask_r, r_dim, r_pos, rs_group)
+         CALL gs_group%environ(numtask_g, g_pos)
+         CALL rs_group%environ_cart(numtask_r, r_dim, r_pos)
          IF (numtask_g /= numtask_r) THEN
             CPABORT("Real space and G space groups are different.")
          END IF
          numtask = numtask_r
-         CALL mp_comm_compare(rs_group, gs_group, iout)
-         IF (iout > 3) THEN
-            CPABORT("Real space and G space groups are different.")
-         END IF
 
          lg = SIZE(grays, 1)
          mg = SIZE(grays, 2)
@@ -282,7 +277,7 @@ CONTAINS
 
          ALLOCATE (p2p(0:numtask - 1))
 
-         CALL mp_rank_compare(gs_group, rs_group, p2p)
+         CALL gs_group%rank_compare(rs_group, p2p)
 
          rp = p2p(g_pos)
          mx2 = bo(2, 1, rp, 2) - bo(1, 1, rp, 2) + 1
@@ -412,9 +407,9 @@ CONTAINS
 
       COMPLEX(KIND=dp), DIMENSION(:, :), POINTER         :: grays, pbuf, qbuf, rbuf, sbuf
       COMPLEX(KIND=dp), DIMENSION(:, :, :), POINTER      :: tbuf
-      INTEGER                                            :: g_pos, handle, iout, lg, lmax, mg, mmax, &
-                                                            mx2, mz2, n1, n2, ngpts, nmax, &
-                                                            numtask, numtask_g, numtask_r, rp
+      INTEGER                                            :: g_pos, handle, lg, lmax, mg, mmax, mx2, &
+                                                            mz2, n1, n2, ngpts, nmax, numtask, &
+                                                            numtask_g, numtask_r, rp
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: p2p
       INTEGER, DIMENSION(2)                              :: r_dim, r_pos
       INTEGER, DIMENSION(:), POINTER                     :: n, nloc, nyzray
@@ -422,7 +417,8 @@ CONTAINS
       INTEGER, DIMENSION(:, :, :, :), POINTER            :: bo
       TYPE(fft_scratch_sizes)                            :: fft_scratch_size
       TYPE(fft_scratch_type), POINTER                    :: fft_scratch
-      TYPE(mp_comm_type)                                 :: gs_group, rs_group
+      TYPE(mp_cart_type)                                 :: rs_group
+      TYPE(mp_comm_type)                                 :: gs_group
 
 !nyzray(0:)
 !yzp(:,:,0:)
@@ -444,16 +440,12 @@ CONTAINS
          nyzray => pw1%pw_grid%para%nyzray
          bo => pw1%pw_grid%para%bo
 
-         CALL mp_environ(numtask_g, g_pos, gs_group)
-         CALL mp_environ(numtask_r, r_dim, r_pos, rs_group)
+         CALL gs_group%environ(numtask_g, g_pos)
+         CALL rs_group%environ_cart(numtask_r, r_dim, r_pos)
          IF (numtask_g /= numtask_r) THEN
             CPABORT("Real space and G space groups are different.")
          END IF
          numtask = numtask_r
-         CALL mp_comm_compare(rs_group, gs_group, iout)
-         IF (iout > 3) THEN
-            CPABORT("Real space and G space groups are different.")
-         END IF
 
          lg = SIZE(grays, 1)
          mg = SIZE(grays, 2)
@@ -462,7 +454,7 @@ CONTAINS
 
          ALLOCATE (p2p(0:numtask - 1))
 
-         CALL mp_rank_compare(gs_group, rs_group, p2p)
+         CALL gs_group%rank_compare(rs_group, p2p)
 
          rp = p2p(g_pos)
          mx2 = bo(2, 1, rp, 2) - bo(1, 1, rp, 2) + 1

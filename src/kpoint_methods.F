@@ -60,11 +60,7 @@ MODULE kpoint_methods
                                               kpoint_type
    USE mathconstants,                   ONLY: twopi
    USE memory_utilities,                ONLY: reallocate
-   USE message_passing,                 ONLY: mp_cart_create,&
-                                              mp_cart_sub,&
-                                              mp_comm_type,&
-                                              mp_max,&
-                                              mp_sum
+   USE message_passing,                 ONLY: mp_cart_type
    USE parallel_gemm_api,               ONLY: parallel_gemm
    USE particle_types,                  ONLY: particle_type
    USE qs_matrix_pools,                 ONLY: mpools_create,&
@@ -281,7 +277,7 @@ CONTAINS
                                                             para_env_inter_kp, para_env_kp
       TYPE(kpoint_env_p_type), DIMENSION(:), POINTER     :: kp_env
       TYPE(kpoint_env_type), POINTER                     :: kp
-      TYPE(mp_comm_type)                                 :: comm_cart, comm_inter_kp, comm_kp
+      TYPE(mp_cart_type)                                 :: comm_cart, comm_inter_kp, comm_kp
 
       CALL timeset(routineN, handle)
 
@@ -351,24 +347,23 @@ CONTAINS
          END IF
 
          NULLIFY (cart, para_env_full, para_env_kp, para_env_inter_kp)
-         CALL mp_cart_create(comm_old=para_env%group, ndims=2, dims=dims, pos=pos, &
-                             comm_cart=comm_cart)
+         CALL comm_cart%create(comm_old=para_env%group, ndims=2, dims=dims, pos=pos)
 
-         CALL cp_cart_create(cart, comm_cart, ndims=2, owns_group=.TRUE.)
-         CALL cp_para_env_create(para_env_full, comm_cart, owns_group=.FALSE.)
+         CALL cp_cart_create(cart, comm_cart, ndims=2)
+         ALLOCATE (para_env_full)
+         para_env_full = comm_cart
          rdim(2) = .FALSE.
          rdim(1) = .TRUE.
-         CALL mp_cart_sub(comm=comm_cart, rdim=rdim, sub_comm=comm_kp)
-         CALL cp_para_env_create(para_env_kp, comm_kp, owns_group=.TRUE.)
+         CALL comm_kp%from_sub(comm=comm_cart, rdim=rdim)
+         CALL cp_para_env_create(para_env_kp, comm_kp)
          rdim(2) = .TRUE.
          rdim(1) = .FALSE.
-         CALL mp_cart_sub(comm=comm_cart, rdim=rdim, sub_comm=comm_inter_kp)
-         CALL cp_para_env_create(para_env_inter_kp, comm_inter_kp, &
-                                 owns_group=.TRUE.)
+         CALL comm_inter_kp%from_sub(comm=comm_cart, rdim=rdim)
+         CALL cp_para_env_create(para_env_inter_kp, comm_inter_kp)
 
          niogrp = 0
          IF (para_env%ionode) niogrp = 1
-         CALL mp_sum(niogrp, para_env_kp%group)
+         CALL para_env_kp%group%sum(niogrp)
          kpoint%iogrp = (niogrp == 1)
 
          ! parallel groups
@@ -647,7 +642,7 @@ CONTAINS
       itm(1) = MAXVAL(ABS(list(1, 1:icount)))
       itm(2) = MAXVAL(ABS(list(2, 1:icount)))
       itm(3) = MAXVAL(ABS(list(3, 1:icount)))
-      CALL mp_max(itm, para_env%group)
+      CALL para_env%group%max(itm)
       it = MAXVAL(itm(1:3))
       IF (ASSOCIATED(kpoint%cell_to_index)) THEN
          DEALLOCATE (kpoint%cell_to_index)
@@ -661,7 +656,7 @@ CONTAINS
          i3 = list(3, ic)
          cti(i1, i2, i3) = ic
       END DO
-      CALL mp_sum(cti, para_env%group)
+      CALL para_env%group%sum(cti)
       ncount = 0
       DO i1 = -itm(1), itm(1)
          DO i2 = -itm(2), itm(2)
@@ -864,7 +859,7 @@ CONTAINS
          END DO
       END DO
       CALL get_kpoint_info(kpoint, para_env_inter_kp=para_env_inter_kp)
-      CALL mp_sum(weig, para_env_inter_kp%group)
+      CALL para_env_inter_kp%group%sum(weig)
 
       CALL get_kpoint_info(kpoint, wkp=wkp)
       IF (smear%do_smear) THEN

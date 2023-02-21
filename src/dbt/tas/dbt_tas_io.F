@@ -31,10 +31,7 @@ MODULE dbt_tas_io
    USE kinds,                           ONLY: default_string_length,&
                                               dp,&
                                               int_8
-   USE message_passing,                 ONLY: mp_comm_type,&
-                                              mp_environ,&
-                                              mp_max,&
-                                              mp_sum
+   USE message_passing,                 ONLY: mp_cart_type
 #include "../../base/base_uses.f90"
 
    IMPLICIT NONE
@@ -139,14 +136,14 @@ CONTAINS
       INTEGER, DIMENSION(:), POINTER                     :: coldist, rowdist
       REAL(KIND=dp)                                      :: occupation
       TYPE(dbm_distribution_obj)                         :: dist
-      TYPE(mp_comm_type)                                 :: mp_comm, mp_comm_group
+      TYPE(mp_cart_type)                                 :: mp_comm, mp_comm_group
 
       unit_nr_prv = prep_output_unit(unit_nr)
       IF (unit_nr_prv == 0) RETURN
 
       CALL dbt_tas_get_split_info(matrix%dist%info, mp_comm, ngroup, igroup, mp_comm_group, split_rowcol)
       CALL dbt_tas_get_info(matrix, name=name)
-      CALL mp_environ(nproc, iproc, mp_comm)
+      CALL mp_comm%environ(nproc, iproc)
 
       nblock = dbt_tas_get_num_blocks(matrix)
       nelement = dbt_tas_get_nze(matrix)
@@ -155,17 +152,17 @@ CONTAINS
       nelement_p_sum = dbt_tas_get_nze_total(matrix)
 
       tmp = (/nblock, nelement/)
-      CALL mp_max(tmp, mp_comm)
+      CALL mp_comm%max(tmp)
       ndbt_p_max = tmp(1); nelement_p_max = tmp(2)
 
       ndbt_s = nblock
       nelement_s = nelement
 
-      CALL mp_sum(ndbt_s, mp_comm_group)
-      CALL mp_sum(nelement_s, mp_comm_group)
+      CALL mp_comm_group%sum(ndbt_s)
+      CALL mp_comm_group%sum(nelement_s)
 
       tmp_i8 = (/ndbt_s, nelement_s/)
-      CALL mp_max(tmp_i8, mp_comm)
+      CALL mp_comm%max(tmp_i8)
       ndbt_s_max = tmp_i8(1); nelement_s_max = tmp_i8(2)
 
       ndbt_tot = dbt_tas_nblkrows_total(matrix)*dbt_tas_nblkcols_total(matrix)
@@ -224,7 +221,7 @@ CONTAINS
                                                             numnodes, split_rowcol, unit_nr_prv
       INTEGER, DIMENSION(2)                              :: coord, dims, groupcoord, groupdims, &
                                                             pgrid_offset
-      TYPE(mp_comm_type)                                 :: mp_comm, mp_comm_group
+      TYPE(mp_cart_type)                                 :: mp_comm, mp_comm_group
 
       unit_nr_prv = prep_output_unit(unit_nr)
       IF (unit_nr_prv == 0) RETURN
@@ -237,9 +234,9 @@ CONTAINS
 
       CALL dbt_tas_get_split_info(info, mp_comm, nsplit, igroup, mp_comm_group, split_rowcol, pgrid_offset)
 
-      CALL mp_environ(numnodes, mynode, mp_comm)
-      CALL mp_environ(numnodes, dims, coord, mp_comm)
-      CALL mp_environ(groupsize, groupdims, groupcoord, mp_comm_group)
+      CALL mp_comm%environ(numnodes, mynode)
+      CALL mp_comm%environ_cart(numnodes, dims, coord)
+      CALL mp_comm_group%environ_cart(groupsize, groupdims, groupcoord)
 
       IF (unit_nr_prv > 0) THEN
          SELECT CASE (split_rowcol)

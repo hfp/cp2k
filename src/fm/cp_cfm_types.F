@@ -23,9 +23,13 @@ MODULE cp_cfm_types
    USE kinds,                           ONLY: dp
    USE mathconstants,                   ONLY: z_one,&
                                               z_zero
-   USE message_passing,                 ONLY: &
-        cp2k_is_parallel, mp_allgather, mp_any_source, mp_bcast, mp_comm_type, mp_irecv, mp_isend, &
-        mp_proc_null, mp_request_null, mp_request_type, mp_sum, mp_waitall
+   USE message_passing,                 ONLY: cp2k_is_parallel,&
+                                              mp_any_source,&
+                                              mp_comm_type,&
+                                              mp_proc_null,&
+                                              mp_request_null,&
+                                              mp_request_type,&
+                                              mp_waitall
 #include "../base/base_uses.f90"
 
    IMPLICIT NONE
@@ -65,9 +69,9 @@ MODULE cp_cfm_types
 !>                      ScaLAPACK format, in sequential run it will simply contain the matrix)
 ! **************************************************************************************************
    TYPE cp_cfm_type
-      CHARACTER(len=60) :: name
-      TYPE(cp_fm_struct_type), POINTER :: matrix_struct
-      COMPLEX(kind=dp), DIMENSION(:, :), POINTER, CONTIGUOUS :: local_data
+      CHARACTER(len=60) :: name = ""
+      TYPE(cp_fm_struct_type), POINTER :: matrix_struct => NULL()
+      COMPLEX(kind=dp), DIMENSION(:, :), POINTER, CONTIGUOUS :: local_data => NULL()
    END TYPE cp_cfm_type
 
 ! **************************************************************************************************
@@ -75,7 +79,7 @@ MODULE cp_cfm_types
 !> \param matrix the pointer to the matrix
 ! **************************************************************************************************
    TYPE cp_cfm_p_type
-      TYPE(cp_cfm_type), POINTER :: matrix
+      TYPE(cp_cfm_type), POINTER :: matrix => NULL()
    END TYPE cp_cfm_p_type
 
 ! **************************************************************************************************
@@ -87,19 +91,19 @@ MODULE cp_cfm_types
 ! **************************************************************************************************
    TYPE copy_cfm_info_type
       !> number of MPI processes that send data
-      INTEGER                                     :: send_size
+      INTEGER                                     :: send_size = -1
       !> number of locally stored rows (1) and columns (2) of the destination matrix
-      INTEGER, DIMENSION(2)                       :: nlocal_recv
+      INTEGER, DIMENSION(2)                       :: nlocal_recv = -1
       !> number of rows (1) and columns (2) of the ScaLAPACK block of the source matrix
-      INTEGER, DIMENSION(2)                       :: nblock_src
+      INTEGER, DIMENSION(2)                       :: nblock_src = -1
       !> BLACS process grid shape of the source matrix: (1) nproc_row, (2) nproc_col
-      INTEGER, DIMENSION(2)                       :: src_num_pe
+      INTEGER, DIMENSION(2)                       :: src_num_pe = -1
       !> displacements into recv_buf
       INTEGER, ALLOCATABLE, DIMENSION(:)          :: recv_disp
       !> MPI requests for non-blocking receive and send operations
       TYPE(mp_request_type), ALLOCATABLE, DIMENSION(:)          :: recv_request, send_request
       !> global column and row indices of locally stored elements of the destination matrix
-      INTEGER, DIMENSION(:), POINTER              :: recv_col_indices, recv_row_indices
+      INTEGER, DIMENSION(:), POINTER              :: recv_col_indices => NULL(), recv_row_indices => NULL()
       !> rank of MPI process with BLACS coordinates (prow, pcol)
       INTEGER, ALLOCATABLE, DIMENSION(:, :)       :: src_blacs2mpi
       !> receiving and sending buffers for non-blocking MPI communication
@@ -118,7 +122,7 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE cp_cfm_create(matrix, matrix_struct, name)
       TYPE(cp_cfm_type), INTENT(OUT)                     :: matrix
-      TYPE(cp_fm_struct_type), POINTER, INTENT(IN)       :: matrix_struct
+      TYPE(cp_fm_struct_type), TARGET, INTENT(IN)       :: matrix_struct
       CHARACTER(len=*), INTENT(in), OPTIONAL             :: name
 
       INTEGER                                            :: ncol_local, npcol, nprow, nrow_local
@@ -128,7 +132,6 @@ CONTAINS
       CPABORT("full matrices need ScaLAPACK for parallel run")
 #endif
 
-      CPASSERT(ASSOCIATED(matrix_struct))
       context => matrix_struct%context
       matrix%matrix_struct => matrix_struct
       CALL cp_fm_struct_retain(matrix%matrix_struct)
@@ -435,7 +438,7 @@ CONTAINS
             END DO
          END IF
 
-         CALL mp_sum(target_m, para_env%group)
+         CALL para_env%group%sum(target_m)
       END IF
 
       CALL timestop(handle)
@@ -876,7 +879,7 @@ CONTAINS
 !>       allocatable arrays instead of pointers wherever possible.
 ! **************************************************************************************************
    SUBROUTINE cp_cfm_start_copy_general(source, destination, para_env, info)
-      TYPE(cp_cfm_type), INTENT(IN), POINTER             :: source, destination
+      TYPE(cp_cfm_type), INTENT(IN)                      :: source, destination
       TYPE(cp_para_env_type), INTENT(IN), POINTER        :: para_env
       TYPE(copy_cfm_info_type), INTENT(out)              :: info
 
@@ -925,14 +928,14 @@ CONTAINS
          ! on a subset of the processes involved in the communication
          ! Check if the source and/or destination arguments are .not. ASSOCIATED():
          ! if so, skip the send / recv parts (since these processes do not participate in the sending/receiving distribution)
-         IF (ASSOCIATED(destination)) THEN
+         IF (ASSOCIATED(destination%matrix_struct)) THEN
             recv_dist => destination%matrix_struct
             recv_rank = recv_dist%para_env%mepos
          ELSE
             recv_rank = mp_proc_null
          END IF
 
-         IF (ASSOCIATED(source)) THEN
+         IF (ASSOCIATED(source%matrix_struct)) THEN
             send_dist => source%matrix_struct
             send_rank = send_dist%para_env%mepos
          ELSE
@@ -942,8 +945,8 @@ CONTAINS
          ! Map the rank in the source/dest communicator to the global rank
          ALLOCATE (all_ranks(0:global_size - 1))
 
-         CALL mp_allgather(send_rank, all_ranks, global_comm)
-         IF (ASSOCIATED(destination)) THEN
+         CALL global_comm%allgather(send_rank, all_ranks)
+         IF (ASSOCIATED(destination%matrix_struct)) THEN
             ALLOCATE (source2global(0:COUNT(all_ranks .NE. mp_proc_null) - 1))
             DO i = 0, global_size - 1
                IF (all_ranks(i) .NE. mp_proc_null) THEN
@@ -952,8 +955,8 @@ CONTAINS
             END DO
          END IF
 
-         CALL mp_allgather(recv_rank, all_ranks, global_comm)
-         IF (ASSOCIATED(source)) THEN
+         CALL global_comm%allgather(recv_rank, all_ranks)
+         IF (ASSOCIATED(source%matrix_struct)) THEN
             ALLOCATE (dest2global(0:COUNT(all_ranks .NE. mp_proc_null) - 1))
             DO i = 0, global_size - 1
                IF (all_ranks(i) .NE. mp_proc_null) THEN
@@ -970,26 +973,26 @@ CONTAINS
          send_req(:) = mp_request_null
          IF (global_rank == 0) THEN
             recv_req(:) = mp_request_null
-            CALL mp_irecv(src_block, mp_any_source, global_comm, recv_req(1), tag=src_tag)
-            CALL mp_irecv(dest_block, mp_any_source, global_comm, recv_req(2), tag=dest_tag)
-            CALL mp_irecv(src_num_pe, mp_any_source, global_comm, recv_req(3), tag=src_tag)
-            CALL mp_irecv(dest_num_pe, mp_any_source, global_comm, recv_req(4), tag=dest_tag)
+            CALL global_comm%irecv(src_block, mp_any_source, recv_req(1), tag=src_tag)
+            CALL global_comm%irecv(dest_block, mp_any_source, recv_req(2), tag=dest_tag)
+            CALL global_comm%irecv(src_num_pe, mp_any_source, recv_req(3), tag=src_tag)
+            CALL global_comm%irecv(dest_num_pe, mp_any_source, recv_req(4), tag=dest_tag)
          END IF
 
-         IF (ASSOCIATED(source)) THEN
+         IF (ASSOCIATED(source%matrix_struct)) THEN
             IF ((send_rank == 0)) THEN
                ! need to use separate buffers here in case this is actually global rank 0
                src_block_tmp = (/send_dist%nrow_block, send_dist%ncol_block/)
-               CALL mp_isend(src_block_tmp, 0, global_comm, send_req(1), tag=src_tag)
-               CALL mp_isend(send_dist%context%num_pe, 0, global_comm, send_req(2), tag=src_tag)
+               CALL global_comm%isend(src_block_tmp, 0, send_req(1), tag=src_tag)
+               CALL global_comm%isend(send_dist%context%num_pe, 0, send_req(2), tag=src_tag)
             END IF
          END IF
 
-         IF (ASSOCIATED(destination)) THEN
+         IF (ASSOCIATED(destination%matrix_struct)) THEN
             IF ((recv_rank == 0)) THEN
                dest_block_tmp = (/recv_dist%nrow_block, recv_dist%ncol_block/)
-               CALL mp_isend(dest_block_tmp, 0, global_comm, send_req(3), tag=dest_tag)
-               CALL mp_isend(recv_dist%context%num_pe, 0, global_comm, send_req(4), tag=dest_tag)
+               CALL global_comm%isend(dest_block_tmp, 0, send_req(3), tag=dest_tag)
+               CALL global_comm%isend(recv_dist%context%num_pe, 0, send_req(4), tag=dest_tag)
             END IF
          END IF
 
@@ -998,19 +1001,19 @@ CONTAINS
             ! Now we know the process decomposition, we can allocate the arrays to hold the blacs2mpi mapping
             ALLOCATE (info%src_blacs2mpi(0:src_num_pe(1) - 1, 0:src_num_pe(2) - 1), &
                       dest_blacs2mpi(0:dest_num_pe(1) - 1, 0:dest_num_pe(2) - 1))
-            CALL mp_irecv(info%src_blacs2mpi, mp_any_source, global_comm, recv_req(5), tag=src_tag)
-            CALL mp_irecv(dest_blacs2mpi, mp_any_source, global_comm, recv_req(6), tag=dest_tag)
+            CALL global_comm%irecv(info%src_blacs2mpi, mp_any_source, recv_req(5), tag=src_tag)
+            CALL global_comm%irecv(dest_blacs2mpi, mp_any_source, recv_req(6), tag=dest_tag)
          END IF
 
-         IF (ASSOCIATED(source)) THEN
+         IF (ASSOCIATED(source%matrix_struct)) THEN
             IF ((send_rank == 0)) THEN
-               CALL mp_isend(send_dist%context%blacs2mpi(:, :), 0, global_comm, send_req(5), tag=src_tag)
+               CALL global_comm%isend(send_dist%context%blacs2mpi(:, :), 0, send_req(5), tag=src_tag)
             END IF
          END IF
 
-         IF (ASSOCIATED(destination)) THEN
+         IF (ASSOCIATED(destination%matrix_struct)) THEN
             IF ((recv_rank == 0)) THEN
-               CALL mp_isend(recv_dist%context%blacs2mpi(:, :), 0, global_comm, send_req(6), tag=dest_tag)
+               CALL global_comm%isend(recv_dist%context%blacs2mpi(:, :), 0, send_req(6), tag=dest_tag)
             END IF
          END IF
 
@@ -1019,18 +1022,18 @@ CONTAINS
          END IF
 
          ! Finally, broadcast the data to all processes in the global communicator
-         CALL mp_bcast(src_block, 0, global_comm)
-         CALL mp_bcast(dest_block, 0, global_comm)
-         CALL mp_bcast(src_num_pe, 0, global_comm)
-         CALL mp_bcast(dest_num_pe, 0, global_comm)
+         CALL global_comm%bcast(src_block, 0)
+         CALL global_comm%bcast(dest_block, 0)
+         CALL global_comm%bcast(src_num_pe, 0)
+         CALL global_comm%bcast(dest_num_pe, 0)
          info%src_num_pe(1:2) = src_num_pe(1:2)
          info%nblock_src(1:2) = src_block(1:2)
          IF (global_rank /= 0) THEN
             ALLOCATE (info%src_blacs2mpi(0:src_num_pe(1) - 1, 0:src_num_pe(2) - 1), &
                       dest_blacs2mpi(0:dest_num_pe(1) - 1, 0:dest_num_pe(2) - 1))
          END IF
-         CALL mp_bcast(info%src_blacs2mpi, 0, global_comm)
-         CALL mp_bcast(dest_blacs2mpi, 0, global_comm)
+         CALL global_comm%bcast(info%src_blacs2mpi, 0)
+         CALL global_comm%bcast(dest_blacs2mpi, 0)
 
          recv_size = dest_num_pe(1)*dest_num_pe(2)
          send_size = src_num_pe(1)*src_num_pe(2)
@@ -1041,18 +1044,18 @@ CONTAINS
          ! The order implemented here is:
          !  DEST_1
          !      compute recv sizes
-         !      call mp_irecv
+         !      call irecv
          !  SRC_1
          !      compute send sizes
          !      pack send buffers
-         !      call mp_isend
+         !      call isend
          !  DEST_2
          !      wait for the recvs and unpack buffers (this part eventually will go into another routine to allow comms to run concurrently)
          !  SRC_2
          !      wait for the sends
 
          ! DEST_1
-         IF (ASSOCIATED(destination)) THEN
+         IF (ASSOCIATED(destination%matrix_struct)) THEN
             CALL cp_fm_struct_get(recv_dist, row_indices=recv_row_indices, &
                                   col_indices=recv_col_indices)
             info%recv_col_indices => recv_col_indices
@@ -1100,8 +1103,8 @@ CONTAINS
             ! Issue receive calls on ranks which expect data
             DO k = 0, send_size - 1
                IF (recv_count(k) .GT. 0) THEN
-                  CALL mp_irecv(info%recv_buf(info%recv_disp(k) + 1:info%recv_disp(k) + recv_count(k)), &
-                                source2global(k), global_comm, info%recv_request(k))
+                  CALL global_comm%irecv(info%recv_buf(info%recv_disp(k) + 1:info%recv_disp(k) + recv_count(k)), &
+                                         source2global(k), info%recv_request(k))
                ELSE
                   info%recv_request(k) = mp_request_null
                END IF
@@ -1110,7 +1113,7 @@ CONTAINS
          END IF ! ASSOCIATED(destination)
 
          ! SRC_1
-         IF (ASSOCIATED(source)) THEN
+         IF (ASSOCIATED(source%matrix_struct)) THEN
             CALL cp_fm_struct_get(send_dist, row_indices=send_row_indices, &
                                   col_indices=send_col_indices)
             nrow_block_dest = dest_block(1)
@@ -1166,8 +1169,8 @@ CONTAINS
             ! For each non-zero send_count, call mpi_isend
             DO k = 0, recv_size - 1
                IF (send_count(k) .GT. 0) THEN
-                  CALL mp_isend(info%send_buf(send_disp(k) + 1:send_disp(k) + send_count(k)), &
-                                dest2global(k), global_comm, info%send_request(k))
+                  CALL global_comm%isend(info%send_buf(send_disp(k) + 1:send_disp(k) + send_count(k)), &
+                                         dest2global(k), info%send_request(k))
                ELSE
                   info%send_request(k) = mp_request_null
                END IF

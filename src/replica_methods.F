@@ -48,11 +48,8 @@ MODULE replica_methods
                                               section_vals_write
    USE kinds,                           ONLY: default_path_length,&
                                               dp
-   USE message_passing,                 ONLY: mp_cart_create,&
-                                              mp_cart_sub,&
-                                              mp_comm_null,&
-                                              mp_comm_type,&
-                                              mp_sum
+   USE message_passing,                 ONLY: mp_cart_type,&
+                                              mp_comm_null
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type,&
                                               set_qs_env
@@ -112,7 +109,7 @@ CONTAINS
       TYPE(cp_para_cart_type), POINTER                   :: cart
       TYPE(cp_para_env_type), POINTER                    :: para_env_f, para_env_full, &
                                                             para_env_inter_rep
-      TYPE(mp_comm_type)                                 :: comm_cart, comm_f, comm_inter_rep
+      TYPE(mp_cart_type)                                 :: comm_cart, comm_f, comm_inter_rep
 
       CPASSERT(.NOT. ASSOCIATED(rep_env))
       CPASSERT(ASSOCIATED(input_declaration))
@@ -132,26 +129,25 @@ CONTAINS
          WRITE (unit_nr, FMT="(T2,A)") "REPLICA| WARNING: number of processors is not divisible by the number of replicas"
          WRITE (unit_nr, FMT="(T2,A,I0,A)") "REPLICA| ", para_env%num_pe - dims(1)*dims(2), " MPI process(es) will be idle"
       END IF
-      CALL mp_cart_create(comm_old=para_env%group, ndims=2, dims=dims, pos=pos, comm_cart=comm_cart)
+      CALL comm_cart%create(comm_old=para_env%group, ndims=2, dims=dims, pos=pos)
       IF (comm_cart /= mp_comm_null) THEN
-         CALL cp_cart_create(cart, comm_cart, ndims=2, owns_group=.TRUE.)
-         NULLIFY (para_env_full)
-         CALL cp_para_env_create(para_env_full, comm_cart, owns_group=.FALSE.)
+         CALL cp_cart_create(cart, comm_cart, ndims=2)
+         ALLOCATE (para_env_full)
+         para_env_full = comm_cart
          rdim(3 - forcedim) = .FALSE.
          rdim(forcedim) = .TRUE.
-         CALL mp_cart_sub(comm=comm_cart, rdim=rdim, sub_comm=comm_f)
-         CALL cp_para_env_create(para_env_f, comm_f, owns_group=.TRUE.)
+         CALL comm_f%from_sub(comm=comm_cart, rdim=rdim)
+         CALL cp_para_env_create(para_env_f, comm_f)
          rdim(3 - forcedim) = .TRUE.
          rdim(forcedim) = .FALSE.
-         CALL mp_cart_sub(comm=comm_cart, rdim=rdim, sub_comm=comm_inter_rep)
-         CALL cp_para_env_create(para_env_inter_rep, comm_inter_rep, &
-                                 owns_group=.TRUE.)
+         CALL comm_inter_rep%from_sub(comm=comm_cart, rdim=rdim)
+         CALL cp_para_env_create(para_env_inter_rep, comm_inter_rep)
          ALLOCATE (rep_env)
       END IF
       ALLOCATE (gridinfo(2, 0:para_env%num_pe - 1))
       gridinfo = 0
       gridinfo(:, para_env%mepos) = pos
-      CALL mp_sum(gridinfo, para_env%group)
+      CALL para_env%group%sum(gridinfo)
       IF (unit_nr > 0) THEN
          WRITE (unit_nr, FMT="(T2,A,T71,I10)") "REPLICA| layout of the replica grid, number of groups ", para_env_inter_rep%num_pe
          WRITE (unit_nr, FMT="(T2,A,T71,I10)") "REPLICA| layout of the replica grid, size of each group", para_env_f%num_pe
@@ -183,10 +179,10 @@ CONTAINS
                    rep_env%force_rank(0:para_env_f%num_pe - 1))
          rep_env%inter_rep_rank = 0
          rep_env%inter_rep_rank(rep_env%my_rep_group) = para_env_inter_rep%mepos
-         CALL mp_sum(rep_env%inter_rep_rank, para_env_inter_rep%group)
+         CALL para_env_inter_rep%group%sum(rep_env%inter_rep_rank)
          rep_env%force_rank = 0
          rep_env%force_rank(cart%mepos(forcedim)) = para_env_f%mepos
-         CALL mp_sum(rep_env%force_rank, para_env_f%group)
+         CALL para_env_f%group%sum(rep_env%force_rank)
 
          CALL section_vals_val_get(input, "GLOBAL%PROJECT_NAME", &
                                    c_val=input_file_path)

@@ -64,7 +64,6 @@ MODULE hfx_derivatives
    USE libint_wrapper, ONLY: cp_libint_t
    USE machine, ONLY: m_walltime
    USE mathconstants, ONLY: fac
-   USE message_passing, ONLY: mp_sum
    USE orbital_pointers, ONLY: nco, &
                                ncoset, &
                                nso
@@ -290,7 +289,8 @@ CONTAINS
          my_adiabatic_rescale_factor = adiabatic_rescale_factor
       END IF
 
-!$OMP PARALLEL DEFAULT(NONE) SHARED(qs_env,&
+      !$OMP PARALLEL DEFAULT(OMP_DEFAULT_NONE_WITH_OOP) &
+!$OMP SHARED(qs_env,&
 !$OMP                                  rho_ao,&
 !$OMP                                  rho_ao_resp,&
 !$OMP                                  with_resp_density,&
@@ -1585,7 +1585,7 @@ CONTAINS
       IF (actual_x_data%memory_parameter%recalc_forces) THEN
          tmp_i8(1:6) = (/shm_storage_counter_integrals, shm_neris_onthefly, shm_neris_incore, &
                          shm_neris_total, shm_nprim_ints, shm_stor_count_max_val/)
-         CALL mp_sum(tmp_i8, para_env%group)
+         CALL para_env%group%sum(tmp_i8)
          shm_storage_counter_integrals = tmp_i8(1)
          shm_neris_onthefly = tmp_i8(2)
          shm_neris_incore = tmp_i8(3)

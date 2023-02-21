@@ -66,9 +66,7 @@ MODULE hfx_types
    USE machine,                         ONLY: m_chdir,&
                                               m_getcwd
    USE mathlib,                         ONLY: erfc_cutoff
-   USE message_passing,                 ONLY: mp_cart_create,&
-                                              mp_comm_type,&
-                                              mp_environ
+   USE message_passing,                 ONLY: mp_cart_type
    USE orbital_pointers,                ONLY: nco,&
                                               ncoset,&
                                               nso
@@ -1198,7 +1196,7 @@ CONTAINS
       TYPE(distribution_3d_type)                         :: dist_3d
       TYPE(gto_basis_set_p_type), ALLOCATABLE, &
          DIMENSION(:)                                    :: basis_set_AO, basis_set_RI
-      TYPE(mp_comm_type)                                 :: mp_comm_3d
+      TYPE(mp_cart_type)                                 :: mp_comm_3d
 
       CALL timeset(routineN, handle)
 
@@ -1207,7 +1205,7 @@ CONTAINS
 
       natom = SIZE(particle_set)
       nkind = SIZE(qs_kind_set, 1)
-      CALL mp_environ(nproc, iproc, para_env%group)
+      CALL para_env%group%environ(nproc, iproc)
 
       ASSOCIATE (ri_metric => ri_data%ri_metric, hfx_pot => ri_data%hfx_pot)
          IF (ri_metric%potential_type == do_potential_short) THEN
@@ -1234,7 +1232,7 @@ CONTAINS
       ri_data%same_op = same_op
 
       pdims = 0
-      CALL mp_cart_create(para_env%group, 3, pdims, pcoord, mp_comm_3d)
+      CALL mp_comm_3d%create(para_env%group, 3, pdims, pcoord)
 
       ALLOCATE (ri_data%bsizes_RI(natom))
       ALLOCATE (ri_data%bsizes_AO(natom))

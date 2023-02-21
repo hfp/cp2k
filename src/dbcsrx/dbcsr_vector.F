@@ -43,8 +43,7 @@ MODULE dbcsr_vector
    USE kinds, ONLY: dp, &
                     real_4, &
                     real_8
-   USE message_passing, ONLY: mp_bcast, &
-                              mp_sum, mp_comm_type
+   USE message_passing, ONLY: mp_comm_type
 
 #include "../base/base_uses.f90"
 
@@ -591,11 +590,11 @@ CONTAINS
          CHARACTER(LEN=*), PARAMETER :: routineN = 'dbcsr_matrix_vector_mult'
 
          INTEGER                                  :: col, mypcol, &
-                                                     myprow, prow_handle, pcol_handle, &
+                                                     myprow, prow_handle, &
                                                      ncols, nrows, &
                                                      row, &
                                                      handle, handle1, ithread
-         TYPE(mp_comm_type) :: prow_group, pcol_group
+         TYPE(mp_comm_type) :: prow_group
          ${type}$, DIMENSION(:), POINTER          :: data_vec
          ${type}$, DIMENSION(:, :), POINTER       :: data_d, vec_res
          TYPE(dbcsr_distribution_type)            :: dist
@@ -608,10 +607,9 @@ CONTAINS
 
 ! Collect some data about the parallel environment. We will use them later to move the vector around
          CALL dbcsr_get_info(matrix, distribution=dist)
-         CALL dbcsr_distribution_get(dist, prow_group=prow_handle, pcol_group=pcol_handle, myprow=myprow, mypcol=mypcol)
+         CALL dbcsr_distribution_get(dist, prow_group=prow_handle, myprow=myprow, mypcol=mypcol)
 
          CALL prow_group%set_handle(prow_handle)
-         CALL pcol_group%set_handle(pcol_handle)
 
          CALL create_fast_row_vec_access(work_row, fast_vec_row)
          CALL create_fast_col_vec_access(work_col, fast_vec_col)
@@ -663,7 +661,7 @@ CONTAINS
 ! sum all the data onto the first processor col where the original vector is stored
          data_vec => dbcsr_get_data_p(work_col, select_data_type=${zero}$)
          CALL dbcsr_get_info(matrix=work_col, nfullrows_local=nrows, nfullcols_local=ncols)
-         CALL mp_sum(data_vec(1:nrows*ncols), prow_group)
+         CALL prow_group%sum(data_vec(1:nrows*ncols))
 
 ! Local copy on the first mpi col (as this is the localtion of the vec_res blocks) of the result vector
 ! from the replicated to the original vector. Let's play it safe and use the iterator
@@ -745,7 +743,7 @@ CONTAINS
          CALL dbcsr_iterator_stop(iter)
 ! Replicate the data on all processore in the row
          data_vec => dbcsr_get_data_p(work_col, select_data_type=${zero}$)
-         CALL mp_bcast(data_vec, 0, prow_group)
+         CALL prow_group%bcast(data_vec, 0)
 
 ! Perform the local multiply. Here it is obvious why the vectors are replicated on the mpi rows and cols
          CALL timeset(routineN//"local_mm", handle1)
@@ -781,7 +779,7 @@ CONTAINS
          data_vec => dbcsr_get_data_p(work_row, select_data_type=${zero}$)
 ! we use the replicated vector but the final answer is only summed to proc_col 0 for efficiency
          CALL dbcsr_get_info(matrix=work_row, nfullrows_local=nrows, nfullcols_local=ncols)
-         CALL mp_sum(data_vec(1:nrows*ncols), pcol_group)
+         CALL pcol_group%sum(data_vec(1:nrows*ncols))
 
 ! Convert the result to a column wise distribution
          CALL dbcsr_rep_row_to_rep_col_vec_${nametype}$ (work_col, work_row, fast_vec_row)
@@ -850,7 +848,7 @@ CONTAINS
          data_vec => dbcsr_get_data_p(vec_in, select_data_type=${zero}$)
          IF (mypcol == 0) data_vec_rep(1:nrows*ncols) = data_vec(1:nrows*ncols)
 ! Replicate the data along the row
-         CALL mp_bcast(data_vec_rep(1:nrows*ncols), 0, prow_group)
+         CALL prow_group%bcast(data_vec_rep(1:nrows*ncols), 0)
 
 ! Here it gets a bit tricky as we are dealing with two different parallel layouts:
 ! The rep_col_vec contains all blocks local to the row distribution of the vector.
@@ -871,7 +869,7 @@ CONTAINS
          CALL dbcsr_iterator_stop(iter)
          CALL dbcsr_get_info(matrix=rep_row_vec, nfullrows_local=nrows, nfullcols_local=ncols)
          data_vec_rep => dbcsr_get_data_p(rep_row_vec, select_data_type=${zero}$)
-         CALL mp_sum(data_vec_rep(1:ncols*nrows), pcol_group)
+         CALL pcol_group%sum(data_vec_rep(1:ncols*nrows))
 
          CALL timestop(handle)
 
@@ -892,10 +890,10 @@ CONTAINS
          CHARACTER(LEN=*), PARAMETER :: routineN = 'dbcsr_rep_row_to_rep_col_vec'
 
          INTEGER                                  :: col, mypcol, myprow, ncols, &
-                                                     nrows, prow_handle, pcol_handle, &
+                                                     nrows, prow_handle, &
                                                      row, handle
          INTEGER, DIMENSION(:), POINTER           :: col_dist
-         TYPE(mp_comm_type) :: pcol_group, prow_group
+         TYPE(mp_comm_type) :: prow_group
          ${type}$, DIMENSION(:), POINTER          :: data_vec_rep
          ${type}$, DIMENSION(:, :), POINTER       :: vec_col
          TYPE(dbcsr_distribution_type)            :: dist_rep_row, dist_rep_col
@@ -907,12 +905,10 @@ CONTAINS
          CALL dbcsr_get_info(matrix=rep_col_vec, distribution=dist_rep_col)
          CALL dbcsr_distribution_get(dist_rep_col, &
                                      prow_group=prow_handle, &
-                                     pcol_group=pcol_handle, &
                                      myprow=myprow, &
                                      mypcol=mypcol)
 
          CALL prow_group%set_handle(prow_handle)
-         CALL pcol_group%set_handle(pcol_handle)
 
 ! Get the vector which tells us which blocks are local to which processor col in the row vec
          CALL dbcsr_get_info(matrix=rep_row_vec, distribution=dist_rep_row)
@@ -927,14 +923,14 @@ CONTAINS
                vec_col = TRANSPOSE(fast_vec_row%blk_map_${nametype}$ (hash_table_get(fast_vec_row%hash_table, row))%ptr)
             END IF
             ! this one is special and allows to add the elements of a not yet summed replicated
-            ! column vector as it appears in M*V(row_rep) as result. Save an mp_sum in the symmetric case
+            ! column vector as it appears in M*V(row_rep) as result. Save an parallel summation in the symmetric case
             IF (PRESENT(fast_vec_col_add)) vec_col = vec_col + &
                                   fast_vec_col_add%blk_map_${nametype}$ (hash_table_get(fast_vec_col_add%hash_table, row))%ptr(:, :)
          END DO
          CALL dbcsr_iterator_stop(iter)
          CALL dbcsr_get_info(matrix=rep_col_vec, nfullrows_local=nrows, nfullcols_local=ncols)
          data_vec_rep => dbcsr_get_data_p(rep_col_vec, select_data_type=${zero}$)
-         CALL mp_sum(data_vec_rep(1:nrows*ncols), prow_group)
+         CALL prow_group%sum(data_vec_rep(1:nrows*ncols))
 
          CALL timestop(handle)
 
@@ -1063,14 +1059,14 @@ CONTAINS
          INTEGER                                  :: col, mypcol, &
                                                      myprow, &
                                                      nrows, ncols, &
-                                                     row, prow_handle, pcol_handle, &
+                                                     row, pcol_handle, &
                                                      handle, handle1, ithread, vec_dim
          ${type}$, DIMENSION(:), POINTER          :: data_vec
          ${type}$, DIMENSION(:, :), POINTER       :: data_d, vec_res
          TYPE(dbcsr_distribution_type)            :: dist
          TYPE(dbcsr_iterator_type)                :: iter
          TYPE(dbcsr_type)                         :: result_row, result_col
-         TYPE(mp_comm_type) :: prow_group, pcol_group
+         TYPE(mp_comm_type) :: pcol_group
 
          TYPE(fast_vec_access_type)               :: fast_vec_row, fast_vec_col, res_fast_vec_row, res_fast_vec_col
          INTEGER                                  :: prow, pcol, rprow, rpcol
@@ -1087,9 +1083,8 @@ CONTAINS
 
 ! Collect some data about the parallel environment. We will use them later to move the vector around
          CALL dbcsr_get_info(matrix=matrix, distribution=dist)
-         CALL dbcsr_distribution_get(dist, prow_group=prow_handle, pcol_group=pcol_handle, myprow=myprow, mypcol=mypcol)
+         CALL dbcsr_distribution_get(dist, pcol_group=pcol_handle, myprow=myprow, mypcol=mypcol)
 
-         CALL prow_group%set_handle(prow_handle)
          CALL pcol_group%set_handle(pcol_handle)
 
          CALL create_fast_row_vec_access(work_row, fast_vec_row)
@@ -1152,12 +1147,12 @@ CONTAINS
          data_vec => dbcsr_get_data_p(result_row, select_data_type=${zero}$)
          CALL dbcsr_get_info(matrix=result_row, nfullrows_local=nrows, nfullcols_local=ncols)
 
-         CALL mp_sum(data_vec(1:nrows*ncols), pcol_group)
+         CALL pcol_group%sum(data_vec(1:nrows*ncols))
 !
 !! Convert the results to a column wise distribution, this is a bit involved as the result_row is fully replicated
-!! While the result_col still has the partial results in parallel. The routine below takes care of that and saves an
-!! mp_sum. Of the res_row vectors are created only taking the appropriate element (0 otherwise) while the res_col
-!! parallel bits are locally added. The mp_sum magically creates the correct vector
+!! While the result_col still has the partial results in parallel. The routine below takes care of that and saves a
+!! parallel summation. Of the res_row vectors are created only taking the appropriate element (0 otherwise) while the res_col
+!! parallel bits are locally added. The sum magically creates the correct vector
          CALL dbcsr_rep_row_to_rep_col_vec_${nametype}$ (work_col, result_row, res_fast_vec_row, res_fast_vec_col)
 
 !    ! Create_the final vector by summing it to the result vector which lives on proc_col 0 lower

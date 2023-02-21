@@ -16,9 +16,6 @@ MODULE ps_wavelet_methods
                                               Genovese2007,&
                                               cite_reference
    USE kinds,                           ONLY: dp
-   USE message_passing,                 ONLY: mp_alltoall,&
-                                              mp_cart_rank,&
-                                              mp_max
    USE ps_wavelet_kernel,               ONLY: createKernel
    USE ps_wavelet_types,                ONLY: WAVELET0D,&
                                               ps_wavelet_release,&
@@ -236,16 +233,14 @@ CONTAINS
          END IF
       END IF
 
-      CALL mp_max(should_warn, pw_grid%para%group)
+      CALL pw_grid%para%group%max(should_warn)
       IF (should_warn > 0 .AND. iproc == 0) &
          CPWARN("Density non-zero on the edges of the unit cell: wrong results in WAVELET solver")
 
       DO i = 0, pw_grid%para%rs_dims(1) - 1
          DO j = 0, pw_grid%para%rs_dims(2) - 1
             cart_pos = (/i, j/)
-            CALL mp_cart_rank(pw_grid%para%rs_group, &
-                              cart_pos, &
-                              dest)
+            CALL pw_grid%para%rs_group%rank_cart(cart_pos, dest)
             IF ((ub(1) .GE. lb(1)) .AND. (ub(2) .GE. lb(2))) THEN
                IF (dest*local_z_dim .LE. m2) THEN
                   IF ((dest + 1)*local_z_dim .LE. m2) THEN
@@ -283,7 +278,7 @@ CONTAINS
          sdispl(i) = sdispl(i - 1) + scount(i - 1)
          rdispl(i) = rdispl(i - 1) + rcount(i - 1)
       END DO
-      CALL mp_alltoall(sbuf, scount, sdispl, rbuf, rcount, rdispl, pw_grid%para%rs_group)
+      CALL pw_grid%para%rs_group%alltoall(sbuf, scount, sdispl, rbuf, rcount, rdispl)
       !!!! and now, how to put the right cubes to the right position!!!!!!
 
       wavelet%rho_z_sliced = 0.0_dp
@@ -291,9 +286,7 @@ CONTAINS
       DO i = 0, pw_grid%para%rs_dims(1) - 1
          DO j = 0, pw_grid%para%rs_dims(2) - 1
             cart_pos = (/i, j/)
-            CALL mp_cart_rank(pw_grid%para%rs_group, &
-                              cart_pos, &
-                              dest)
+            CALL pw_grid%para%rs_group%rank_cart(cart_pos, dest)
 
             lox = get_limit(pw_grid%npts(1), pw_grid%para%rs_dims(1), i)
             loy = get_limit(pw_grid%npts(2), pw_grid%para%rs_dims(2), j)
@@ -375,9 +368,7 @@ CONTAINS
       DO i = 0, pw_grid%para%rs_dims(1) - 1
          DO j = 0, pw_grid%para%rs_dims(2) - 1
             cart_pos = (/i, j/)
-            CALL mp_cart_rank(pw_grid%para%rs_group, &
-                              cart_pos, &
-                              dest)
+            CALL pw_grid%para%rs_group%rank_cart(cart_pos, dest)
             IF ((ub(1) .GE. lb(1)) .AND. (ub(2) .GE. lb(2))) THEN
                IF (dest*local_z_dim .LE. m2) THEN
                   IF ((dest + 1)*local_z_dim .LE. m2) THEN
@@ -414,16 +405,14 @@ CONTAINS
          sdispl(i) = sdispl(i - 1) + scount(i - 1)
          rdispl(i) = rdispl(i - 1) + rcount(i - 1)
       END DO
-      CALL mp_alltoall(sbuf, scount, sdispl, rbuf, rcount, rdispl, pw_grid%para%rs_group)
+      CALL pw_grid%para%rs_group%alltoall(sbuf, scount, sdispl, rbuf, rcount, rdispl)
 
       !!!! and now, how to put the right cubes to the right position!!!!!!
 
       DO i = 0, pw_grid%para%rs_dims(1) - 1
          DO j = 0, pw_grid%para%rs_dims(2) - 1
             cart_pos = (/i, j/)
-            CALL mp_cart_rank(pw_grid%para%rs_group, &
-                              cart_pos, &
-                              dest)
+            CALL pw_grid%para%rs_group%rank_cart(cart_pos, dest)
             IF (dest*local_z_dim .LE. m2) THEN
                IF ((dest + 1)*local_z_dim .LE. m2) THEN
                   loz = local_z_dim

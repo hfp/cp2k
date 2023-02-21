@@ -13,10 +13,10 @@ MODULE qs_tddfpt2_properties
    USE cp_blacs_env,                    ONLY: cp_blacs_env_type
    USE cp_cfm_basic_linalg,             ONLY: cp_cfm_solve
    USE cp_cfm_types,                    ONLY: cp_cfm_create,&
-                                              cp_cfm_p_type,&
                                               cp_cfm_release,&
                                               cp_cfm_set_all,&
                                               cp_cfm_to_fm,&
+                                              cp_cfm_type,&
                                               cp_fm_to_cfm
    USE cp_control_types,                ONLY: dft_control_type,&
                                               tddfpt2_control_type
@@ -67,11 +67,7 @@ MODULE qs_tddfpt2_properties
                                               z_one,&
                                               z_zero
    USE message_passing,                 ONLY: mp_comm_type,&
-                                              mp_irecv,&
-                                              mp_isend,&
-                                              mp_request_type,&
-                                              mp_sum,&
-                                              mp_wait
+                                              mp_request_type
    USE molden_utils,                    ONLY: write_mos_molden
    USE moments_utils,                   ONLY: get_reference_point
    USE parallel_gemm_api,               ONLY: parallel_gemm
@@ -173,7 +169,7 @@ CONTAINS
       REAL(kind=dp), DIMENSION(3)                        :: kvec, reference_point
       TYPE(cell_type), POINTER                           :: cell
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
-      TYPE(cp_cfm_p_type), ALLOCATABLE, DIMENSION(:)     :: gamma_00, gamma_inv_00
+      TYPE(cp_cfm_type), ALLOCATABLE, DIMENSION(:)       :: gamma_00, gamma_inv_00
       TYPE(cp_fm_struct_type), POINTER                   :: fm_struct
       TYPE(cp_fm_type)                                   :: ediff_inv, rRc_mos_occ, wfm_ao_ao, &
                                                             wfm_mo_virt_mo_occ
@@ -265,9 +261,8 @@ CONTAINS
             CALL cp_fm_struct_create(fm_struct, nrow_global=nmo_occ(ispin), &
                                      ncol_global=nmo_occ(ispin), context=blacs_env)
 
-            ALLOCATE (gamma_00(ispin)%matrix, gamma_inv_00(ispin)%matrix)
-            CALL cp_cfm_create(gamma_00(ispin)%matrix, fm_struct)
-            CALL cp_cfm_create(gamma_inv_00(ispin)%matrix, fm_struct)
+            CALL cp_cfm_create(gamma_00(ispin), fm_struct)
+            CALL cp_cfm_create(gamma_inv_00(ispin), fm_struct)
 
             DO i_cos_sin = 1, 2
                CALL cp_fm_create(gamma_real_imag(i_cos_sin, ispin), fm_struct)
@@ -315,13 +310,13 @@ CONTAINS
 
                CALL cp_fm_to_cfm(msourcer=gamma_real_imag(1, ispin), &
                                  msourcei=gamma_real_imag(2, ispin), &
-                                 mtarget=gamma_00(ispin)%matrix)
+                                 mtarget=gamma_00(ispin))
 
                ! gamma_inv_00 = Q = [C_0^T (gamma_real - i gamma_imag) C_0] ^ {-1}
-               CALL cp_cfm_set_all(gamma_inv_00(ispin)%matrix, z_zero, z_one)
-               CALL cp_cfm_solve(gamma_00(ispin)%matrix, gamma_inv_00(ispin)%matrix)
+               CALL cp_cfm_set_all(gamma_inv_00(ispin), z_zero, z_one)
+               CALL cp_cfm_solve(gamma_00(ispin), gamma_inv_00(ispin))
 
-               CALL cp_cfm_to_fm(msource=gamma_inv_00(ispin)%matrix, &
+               CALL cp_cfm_to_fm(msource=gamma_inv_00(ispin), &
                                  mtargetr=gamma_real_imag(1, ispin), &
                                  mtargeti=gamma_real_imag(2, ispin))
 
@@ -350,9 +345,8 @@ CONTAINS
                CALL cp_fm_release(gamma_real_imag(i_cos_sin, ispin))
             END DO
 
-            CALL cp_cfm_release(gamma_inv_00(ispin)%matrix)
-            CALL cp_cfm_release(gamma_00(ispin)%matrix)
-            DEALLOCATE (gamma_inv_00(ispin)%matrix, gamma_00(ispin)%matrix)
+            CALL cp_cfm_release(gamma_inv_00(ispin))
+            CALL cp_cfm_release(gamma_00(ispin))
          END DO
          DEALLOCATE (gamma_00, gamma_inv_00, gamma_real_imag, opvec)
          CALL dbcsr_deallocate_matrix_set(berry_cossin_xyz)
@@ -793,7 +787,7 @@ CONTAINS
                ! collect number of non-negligible excitations from other nodes
                DO iproc = 1, para_env%num_pe
                   IF (iproc - 1 /= para_env%mepos) THEN
-                     CALL mp_irecv(nexcs_recv(iproc:iproc), iproc - 1, para_env%group, recv_handlers(iproc), 0)
+                     CALL para_env%group%irecv(nexcs_recv(iproc:iproc), iproc - 1, recv_handlers(iproc), 0)
                   ELSE
                      nexcs_recv(iproc) = nexcs_local
                   END IF
@@ -801,7 +795,7 @@ CONTAINS
 
                DO iproc = 1, para_env%num_pe
                   IF (iproc - 1 /= para_env%mepos) &
-                     CALL mp_wait(recv_handlers(iproc))
+                     CALL recv_handlers(iproc)%wait()
                END DO
 
                ! compute total number of non-negligible excitations
@@ -819,11 +813,11 @@ CONTAINS
                   IF (nexcs_recv(iproc) > 0) THEN
                      IF (iproc - 1 /= para_env%mepos) THEN
                         ! excitation amplitudes
-                        CALL mp_irecv(weights_recv(nmo_virt_occ + 1:nmo_virt_occ + nexcs_recv(iproc)), &
-                                      iproc - 1, para_env%group, recv_handlers(iproc), 1)
+                        CALL para_env%group%irecv(weights_recv(nmo_virt_occ + 1:nmo_virt_occ + nexcs_recv(iproc)), &
+                                                  iproc - 1, recv_handlers(iproc), 1)
                         ! compressed indices
-                        CALL mp_irecv(inds_recv(nmo_virt_occ + 1:nmo_virt_occ + nexcs_recv(iproc)), &
-                                      iproc - 1, para_env%group, recv_handlers2(iproc), 2)
+                        CALL para_env%group%irecv(inds_recv(nmo_virt_occ + 1:nmo_virt_occ + nexcs_recv(iproc)), &
+                                                  iproc - 1, recv_handlers2(iproc), 2)
                      ELSE
                         ! data on master node
                         weights_recv(nmo_virt_occ + 1:nmo_virt_occ + nexcs_recv(iproc)) = weights_local(1:nexcs_recv(iproc))
@@ -836,8 +830,8 @@ CONTAINS
 
                DO iproc = 1, para_env%num_pe
                   IF (iproc - 1 /= para_env%mepos .AND. nexcs_recv(iproc) > 0) THEN
-                     CALL mp_wait(recv_handlers(iproc))
-                     CALL mp_wait(recv_handlers2(iproc))
+                     CALL recv_handlers(iproc)%wait()
+                     CALL recv_handlers2(iproc)%wait()
                   END IF
                END DO
 
@@ -845,17 +839,17 @@ CONTAINS
             ELSE
                ! working node: send the number of selected excited states to the master node
                nexcs_send(1) = nexcs_local
-               CALL mp_isend(nexcs_send, para_env%source, para_env%group, send_handler, 0)
-               CALL mp_wait(send_handler)
+               CALL para_env%group%isend(nexcs_send, para_env%source, send_handler, 0)
+               CALL send_handler%wait()
 
                IF (nexcs_local > 0) THEN
                   ! send excitation amplitudes
-                  CALL mp_isend(weights_local(1:nexcs_local), para_env%source, para_env%group, send_handler, 1)
+                  CALL para_env%group%isend(weights_local(1:nexcs_local), para_env%source, send_handler, 1)
                   ! send compressed indices
-                  CALL mp_isend(inds_local(1:nexcs_local), para_env%source, para_env%group, send_handler2, 2)
+                  CALL para_env%group%isend(inds_local(1:nexcs_local), para_env%source, send_handler2, 2)
 
-                  CALL mp_wait(send_handler)
-                  CALL mp_wait(send_handler2)
+                  CALL send_handler%wait()
+                  CALL send_handler2%wait()
                END IF
             END IF
 
@@ -1233,7 +1227,7 @@ CONTAINS
          CPASSERT(found)
       END DO
       CALL dbcsr_iterator_stop(iter)
-      CALL mp_sum(res, group)
+      CALL group%sum(res)
 
       CALL timestop(handle)
 

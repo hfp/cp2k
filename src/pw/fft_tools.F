@@ -40,10 +40,11 @@ MODULE fft_tools
    USE kinds,                           ONLY: dp,&
                                               dp_size,&
                                               sp
-   USE message_passing,                 ONLY: &
-        mp_alltoall, mp_cart_coords, mp_cart_rank, mp_cart_sub, mp_comm_compare, mp_comm_free, &
-        mp_comm_null, mp_comm_type, mp_environ, mp_irecv, mp_isend, mp_rank_compare, &
-        mp_request_type, mp_sum, mp_sync, mp_waitall
+   USE message_passing,                 ONLY: mp_cart_type,&
+                                              mp_comm_null,&
+                                              mp_comm_type,&
+                                              mp_request_type,&
+                                              mp_waitall
    USE offload_api,                     ONLY: offload_free_pinned_mem,&
                                               offload_malloc_pinned_mem
 
@@ -68,7 +69,8 @@ MODULE fft_tools
       INTEGER                              :: lg = 0, mg = 0
       INTEGER                              :: nbx = 0, nbz = 0
       INTEGER                              :: nmray = 0, nyzray = 0
-      TYPE(mp_comm_type)                   :: gs_group, rs_group
+      TYPE(mp_comm_type)                   :: gs_group
+      TYPE(mp_cart_type)                   :: rs_group
       INTEGER, DIMENSION(2)                :: g_pos = 0, r_pos = 0, r_dim = 0
       INTEGER                              :: numtask = 0
    END TYPE fft_scratch_sizes
@@ -80,7 +82,7 @@ MODULE fft_tools
       TYPE(mp_comm_type)                   :: group
       INTEGER, DIMENSION(3)                :: nfft
       ! to be used in cube_transpose_* routines
-      TYPE(mp_comm_type), DIMENSION(2)     :: cart_sub_comm
+      TYPE(mp_cart_type), DIMENSION(2)     :: cart_sub_comm
       INTEGER, DIMENSION(2)                :: dim, pos
       ! to be used in fft3d_s
       COMPLEX(KIND=dp), DIMENSION(:, :, :), POINTER &
@@ -496,7 +498,8 @@ CONTAINS
       COMPLEX(KIND=dp), DIMENSION(:, :, :), &
          INTENT(INOUT)                                   :: cin
       COMPLEX(KIND=dp), DIMENSION(:, :), INTENT(INOUT)   :: gin
-      TYPE(mp_comm_type), INTENT(IN)                     :: gs_group, rs_group
+      TYPE(mp_comm_type), INTENT(IN)                     :: gs_group
+      TYPE(mp_cart_type), INTENT(IN)                     :: rs_group
       INTEGER, DIMENSION(:, :, 0:), INTENT(IN)           :: yzp
       INTEGER, DIMENSION(0:), INTENT(IN)                 :: nyzray
       INTEGER, DIMENSION(:, :, 0:, :), INTENT(IN)        :: bo
@@ -508,9 +511,9 @@ CONTAINS
 
       COMPLEX(KIND=dp), DIMENSION(:, :), POINTER         :: pbuf, qbuf, rbuf, sbuf
       COMPLEX(KIND=dp), DIMENSION(:, :, :), POINTER      :: tbuf
-      INTEGER :: g_pos, handle, iout, lg, lmax, mcx2, mcz1, mcz2, mg, mmax, mx1, mx2, my1, mz2, &
-         n1, n2, nmax, numtask, numtask_g, numtask_r, nx, ny, nz, output_unit, r_dim(2), r_pos(2), &
-         rp, sign, stat
+      INTEGER :: g_pos, handle, lg, lmax, mcx2, mcz1, mcz2, mg, mmax, mx1, mx2, my1, mz2, n1, n2, &
+         nmax, numtask, numtask_g, numtask_r, nx, ny, nz, output_unit, r_dim(2), r_pos(2), rp, &
+         sign, stat
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: p2p
       LOGICAL                                            :: test
       REAL(KIND=dp)                                      :: norm, sum_data
@@ -526,16 +529,12 @@ CONTAINS
          test = .FALSE.
       END IF
 
-      CALL mp_environ(numtask_g, g_pos, gs_group)
-      CALL mp_environ(numtask_r, r_dim, r_pos, rs_group)
+      CALL gs_group%environ(numtask_g, g_pos)
+      CALL rs_group%environ_cart(numtask_r, r_dim, r_pos)
       IF (numtask_g /= numtask_r) THEN
          CPABORT("Real space and G space groups are different.")
       END IF
       numtask = numtask_r
-      CALL mp_comm_compare(rs_group, gs_group, iout)
-      IF (iout > 3) THEN
-         CPABORT("Real space and G space groups are different.")
-      END IF
 
       IF (PRESENT(scale)) THEN
          norm = scale
@@ -561,7 +560,7 @@ CONTAINS
 
       ALLOCATE (p2p(0:numtask - 1))
 
-      CALL mp_rank_compare(gs_group, rs_group, p2p)
+      CALL gs_group%rank_compare(rs_group, p2p)
 
       rp = p2p(g_pos)
       mx1 = bo(2, 1, rp, 1) - bo(1, 1, rp, 1) + 1
@@ -631,7 +630,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(cin))
-               CALL mp_sum(sum_data, gs_group)
+               CALL gs_group%sum(sum_data)
                IF (g_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A)') "  Two step communication algorithm "
                   WRITE (output_unit, '(A,T60,3I7)') "     Transform Z ", n(3), mx1*my1
@@ -651,7 +650,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(qbuf))
-               CALL mp_sum(sum_data, gs_group)
+               CALL gs_group%sum(sum_data)
                IF (g_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(2) T", sum_data
                END IF
@@ -662,7 +661,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(rbuf))
-               CALL mp_sum(sum_data, gs_group)
+               CALL gs_group%sum(sum_data)
                IF (g_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(3) T", sum_data
                END IF
@@ -677,7 +676,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(pbuf))
-               CALL mp_sum(sum_data, gs_group)
+               CALL gs_group%sum(sum_data)
                IF (g_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(4) TS", sum_data
                END IF
@@ -689,7 +688,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(qbuf))
-               CALL mp_sum(sum_data, gs_group)
+               CALL gs_group%sum(sum_data)
                IF (g_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(5) TS", sum_data
                END IF
@@ -700,7 +699,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(gin))
-               CALL mp_sum(sum_data, gs_group)
+               CALL gs_group%sum(sum_data)
                IF (g_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(6) ", sum_data
                END IF
@@ -711,7 +710,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(gin))
-               CALL mp_sum(sum_data, gs_group)
+               CALL gs_group%sum(sum_data)
                IF (g_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A)') "  Two step communication algorithm "
                   WRITE (output_unit, '(A,T67,2I7)') "     Transform X ", n(1), nyzray(g_pos)
@@ -730,7 +729,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(pbuf))
-               CALL mp_sum(sum_data, gs_group)
+               CALL gs_group%sum(sum_data)
                IF (g_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(2) TS", sum_data
                END IF
@@ -742,7 +741,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(qbuf))
-               CALL mp_sum(sum_data, gs_group)
+               CALL gs_group%sum(sum_data)
                IF (g_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(3) TS", sum_data
                END IF
@@ -757,7 +756,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(rbuf))
-               CALL mp_sum(sum_data, gs_group)
+               CALL gs_group%sum(sum_data)
                IF (g_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(4) T", sum_data
                END IF
@@ -768,7 +767,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(pbuf))
-               CALL mp_sum(sum_data, gs_group)
+               CALL gs_group%sum(sum_data)
                IF (g_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(5) T", sum_data
                END IF
@@ -781,7 +780,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(cin))
-               CALL mp_sum(sum_data, gs_group)
+               CALL gs_group%sum(sum_data)
                IF (g_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(6) ", sum_data
                END IF
@@ -816,7 +815,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(cin))
-               CALL mp_sum(sum_data, gs_group)
+               CALL gs_group%sum(sum_data)
                IF (g_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A)') "     One step communication algorithm "
                   WRITE (output_unit, '(A,T60,3I7)') "     Transform YZ ", n(2), n(3), nx
@@ -831,7 +830,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(tbuf))
-               CALL mp_sum(sum_data, gs_group)
+               CALL gs_group%sum(sum_data)
                IF (g_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(2) TS", sum_data
                END IF
@@ -843,7 +842,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(sbuf))
-               CALL mp_sum(sum_data, gs_group)
+               CALL gs_group%sum(sum_data)
                IF (g_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(3) TS", sum_data
                END IF
@@ -853,7 +852,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(gin))
-               CALL mp_sum(sum_data, gs_group)
+               CALL gs_group%sum(sum_data)
                IF (g_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(4) ", sum_data
                END IF
@@ -864,7 +863,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(gin))
-               CALL mp_sum(sum_data, gs_group)
+               CALL gs_group%sum(sum_data)
                IF (g_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A)') "  One step communication algorithm "
                   WRITE (output_unit, '(A,T67,2I7)') "     Transform X ", n(1), nyzray(g_pos)
@@ -878,7 +877,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(sbuf))
-               CALL mp_sum(sum_data, gs_group)
+               CALL gs_group%sum(sum_data)
                IF (g_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(2) TS", sum_data
                END IF
@@ -890,7 +889,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(tbuf))
-               CALL mp_sum(sum_data, gs_group)
+               CALL gs_group%sum(sum_data)
                IF (g_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(3) TS", sum_data
                END IF
@@ -902,7 +901,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(cin))
-               CALL mp_sum(sum_data, gs_group)
+               CALL gs_group%sum(sum_data)
                IF (g_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(4) ", sum_data
                END IF
@@ -943,7 +942,7 @@ CONTAINS
       COMPLEX(KIND=dp), DIMENSION(:, :, :), &
          INTENT(INOUT)                                   :: zin
       COMPLEX(KIND=dp), DIMENSION(:, :), INTENT(INOUT)   :: gin
-      TYPE(mp_comm_type), INTENT(IN)                     :: group
+      TYPE(mp_cart_type), INTENT(IN)                     :: group
       INTEGER, DIMENSION(:, :, 0:, :), INTENT(IN)        :: bo
       REAL(KIND=dp), INTENT(IN), OPTIONAL                :: scale
       INTEGER, INTENT(OUT), OPTIONAL                     :: status
@@ -985,8 +984,8 @@ CONTAINS
       CALL timeset(routineN, handle)
       output_unit = cp_logger_get_default_io_unit()
 
-      CALL mp_environ(np, dim, pos, group)
-      CALL mp_cart_rank(group, pos, my_pos)
+      CALL group%environ_cart(np, dim, pos)
+      CALL group%rank_cart(pos, my_pos)
 
       IF (PRESENT(debug)) THEN
          test = debug
@@ -1062,7 +1061,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(zin))
-               CALL mp_sum(sum_data, group)
+               CALL group%sum(sum_data)
                IF (my_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A)') "  Two step communication algorithm "
                   WRITE (output_unit, '(A,T67,2I7)') "     Transform Z ", n(3), mx1*my1
@@ -1077,7 +1076,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(bbuf))
-               CALL mp_sum(sum_data, group)
+               CALL group%sum(sum_data)
                IF (my_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(2) T", sum_data
                END IF
@@ -1089,7 +1088,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(abuf))
-               CALL mp_sum(sum_data, group)
+               CALL group%sum(sum_data)
                IF (my_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T67,2I7)') "     Transform Y ", n(2), mx2*mz2
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(3) ", sum_data
@@ -1103,7 +1102,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(bbuf))
-               CALL mp_sum(sum_data, group)
+               CALL group%sum(sum_data)
                IF (my_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(4) T", sum_data
                END IF
@@ -1113,7 +1112,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(abuf))
-               CALL mp_sum(sum_data, group)
+               CALL group%sum(sum_data)
                IF (my_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T67,2I7)') "     Transform X ", n(1), my3*mz3
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(5) ", sum_data
@@ -1125,7 +1124,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(gin))
-               CALL mp_sum(sum_data, group)
+               CALL group%sum(sum_data)
                IF (my_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(6) ", sum_data
                END IF
@@ -1138,7 +1137,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(gin))
-               CALL mp_sum(sum_data, group)
+               CALL group%sum(sum_data)
                IF (my_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A)') "  Two step communication algorithm "
                   WRITE (output_unit, '(A,T67,2I7)') "     Transform X ", n(1), my3*mz3
@@ -1153,7 +1152,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(bbuf))
-               CALL mp_sum(sum_data, group)
+               CALL group%sum(sum_data)
                IF (my_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(2) T", sum_data
                END IF
@@ -1165,7 +1164,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(abuf))
-               CALL mp_sum(sum_data, group)
+               CALL group%sum(sum_data)
                IF (my_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T67,2I7)') "     Transform Y ", n(2), mx2*mz2
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(3) ", sum_data
@@ -1179,7 +1178,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(bbuf))
-               CALL mp_sum(sum_data, group)
+               CALL group%sum(sum_data)
                IF (my_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(4) T", sum_data
                END IF
@@ -1189,7 +1188,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(abuf))
-               CALL mp_sum(sum_data, group)
+               CALL group%sum(sum_data)
                IF (my_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T67,2I7)') "     Transform Z ", n(3), mx1*my1
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(5) ", sum_data
@@ -1201,7 +1200,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(zin))
-               CALL mp_sum(sum_data, group)
+               CALL group%sum(sum_data)
                IF (my_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(6) ", sum_data
                END IF
@@ -1226,7 +1225,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(zin))
-               CALL mp_sum(sum_data, group)
+               CALL group%sum(sum_data)
                IF (my_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A)') "  one step communication algorithm "
                   WRITE (output_unit, '(A,T67,2I7)') "     Transform Z ", n(3), mx1*my1
@@ -1245,7 +1244,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(bbuf))
-               CALL mp_sum(sum_data, group)
+               CALL group%sum(sum_data)
                IF (my_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(2) T", sum_data
                END IF
@@ -1255,7 +1254,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(abuf))
-               CALL mp_sum(sum_data, group)
+               CALL group%sum(sum_data)
                IF (my_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T67,2I7)') "     Transform X ", n(1), my3*mz3
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(3) ", sum_data
@@ -1267,7 +1266,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(gin))
-               CALL mp_sum(sum_data, group)
+               CALL group%sum(sum_data)
                IF (my_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(4) ", sum_data
                END IF
@@ -1278,7 +1277,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(gin))
-               CALL mp_sum(sum_data, group)
+               CALL group%sum(sum_data)
                IF (my_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A)') "  one step communication algorithm "
                   WRITE (output_unit, '(A,T67,2I7)') "     Transform X ", n(1), my3*mz3
@@ -1295,7 +1294,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(bbuf))
-               CALL mp_sum(sum_data, group)
+               CALL group%sum(sum_data)
                IF (my_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(2) T", sum_data
                END IF
@@ -1307,7 +1306,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(abuf))
-               CALL mp_sum(sum_data, group)
+               CALL group%sum(sum_data)
                IF (my_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T67,2I7)') "     Transform Y ", n(2), mx1*mz1
                   WRITE (output_unit, '(A,T67,2I7)') "     Transform Z ", n(3), mx1*my1
@@ -1323,7 +1322,7 @@ CONTAINS
 
             IF (test) THEN
                sum_data = ABS(SUM(zin))
-               CALL mp_sum(sum_data, group)
+               CALL group%sum(sum_data)
                IF (my_pos == 0 .AND. output_unit > 0) THEN
                   WRITE (output_unit, '(A,T61,E20.14)') "     Sum of data(4) ", sum_data
                END IF
@@ -1426,9 +1425,9 @@ CONTAINS
       END DO
 !$OMP END PARALLEL DO
       IF (alltoall_sgl) THEN
-         CALL mp_alltoall(ss, scount, sdispl, tt, rcount, rdispl, group)
+         CALL group%alltoall(ss, scount, sdispl, tt, rcount, rdispl)
       ELSE
-         CALL mp_alltoall(sb, scount, sdispl, rr, rcount, rdispl, group)
+         CALL group%alltoall(sb, scount, sdispl, rr, rcount, rdispl)
       END IF
 
       nx = bo(2, 1, mpr) - bo(1, 1, mpr) + 1
@@ -1559,10 +1558,10 @@ CONTAINS
 !$OMP END PARALLEL DO
 
       IF (alltoall_sgl) THEN
-         CALL mp_alltoall(tt, scount, sdispl, ss, rcount, rdispl, group)
+         CALL group%alltoall(tt, scount, sdispl, ss, rcount, rdispl)
          sb = ss
       ELSE
-         CALL mp_alltoall(rr, scount, sdispl, sb, rcount, rdispl, group)
+         CALL group%alltoall(rr, scount, sdispl, sb, rcount, rdispl)
       END IF
 
       CALL timestop(handle)
@@ -1588,7 +1587,8 @@ CONTAINS
    SUBROUTINE yz_to_xz(sb, group, dims, my_pos, p2p, yzp, nray, bo, tb, fft_scratch)
 
       COMPLEX(KIND=dp), DIMENSION(:, :), INTENT(IN)      :: sb
-      TYPE(mp_comm_type), INTENT(IN)                     :: group
+
+      CLASS(mp_comm_type), INTENT(IN)                     :: group
       INTEGER, DIMENSION(2), INTENT(IN)                  :: dims
       INTEGER, INTENT(IN)                                :: my_pos
       INTEGER, DIMENSION(0:), INTENT(IN)                 :: p2p
@@ -1667,7 +1667,7 @@ CONTAINS
             END IF
          END DO
 
-         CALL mp_alltoall(scount, rcount, 1, group)
+         CALL group%alltoall(scount, rcount, 1)
          fft_scratch%yzcount = scount
          fft_scratch%xzcount = rcount
 
@@ -1687,7 +1687,7 @@ CONTAINS
             IF (scount(ip) /= 0) icrs = icrs + 1
             IF (rcount(ip) /= 0) icrs = icrs + 1
          END DO
-         CALL mp_sum(icrs, group)
+         CALL group%sum(icrs)
          fft_scratch%rsratio = REAL(icrs, KIND=dp)/(REAL(2*np, KIND=dp)*REAL(np, KIND=dp))
 
          fft_scratch%in = 1
@@ -1729,12 +1729,12 @@ CONTAINS
 !$OMP END PARALLEL DO
 
       IF (alltoall_sgl) THEN
-         CALL mp_alltoall(yzbuf_sgl, scount, sdispl, xzbuf_sgl, rcount, rdispl, group)
+         CALL group%alltoall(yzbuf_sgl, scount, sdispl, xzbuf_sgl, rcount, rdispl)
       ELSE
          IF (fft_scratch%rsratio < ratio_sparse_alltoall) THEN
             CALL sparse_alltoall(yzbuf, scount, sdispl, xzbuf, rcount, rdispl, group)
          ELSE
-            CALL mp_alltoall(yzbuf, scount, sdispl, xzbuf, rcount, rdispl, group)
+            CALL group%alltoall(yzbuf, scount, sdispl, xzbuf, rcount, rdispl)
          END IF
       END IF
 
@@ -1796,7 +1796,8 @@ CONTAINS
    SUBROUTINE xz_to_yz(sb, group, dims, my_pos, p2p, yzp, nray, bo, tb, fft_scratch)
 
       COMPLEX(KIND=dp), DIMENSION(:, :), INTENT(IN)      :: sb
-      TYPE(mp_comm_type), INTENT(IN)                     :: group
+
+      CLASS(mp_comm_type), INTENT(IN)                     :: group
       INTEGER, DIMENSION(2), INTENT(IN)                  :: dims
       INTEGER, INTENT(IN)                                :: my_pos
       INTEGER, DIMENSION(0:), INTENT(IN)                 :: p2p
@@ -1863,7 +1864,7 @@ CONTAINS
             END DO
          END DO
 
-         CALL mp_alltoall(rcount, scount, 1, group)
+         CALL group%alltoall(rcount, scount, 1)
          fft_scratch%xzcount = scount
          fft_scratch%yzcount = rcount
 
@@ -1883,7 +1884,7 @@ CONTAINS
             IF (scount(ip) /= 0) icrs = icrs + 1
             IF (rcount(ip) /= 0) icrs = icrs + 1
          END DO
-         CALL mp_sum(icrs, group)
+         CALL group%sum(icrs)
          fft_scratch%rsratio = REAL(icrs, KIND=dp)/(REAL(2*np, KIND=dp)*REAL(np, KIND=dp))
 
          fft_scratch%in = 1
@@ -1932,12 +1933,12 @@ CONTAINS
 !$OMP END PARALLEL DO
 
       IF (alltoall_sgl) THEN
-         CALL mp_alltoall(xzbuf_sgl, scount, sdispl, yzbuf_sgl, rcount, rdispl, group)
+         CALL group%alltoall(xzbuf_sgl, scount, sdispl, yzbuf_sgl, rcount, rdispl)
       ELSE
          IF (fft_scratch%rsratio < ratio_sparse_alltoall) THEN
             CALL sparse_alltoall(xzbuf, scount, sdispl, yzbuf, rcount, rdispl, group)
          ELSE
-            CALL mp_alltoall(xzbuf, scount, sdispl, yzbuf, rcount, rdispl, group)
+            CALL group%alltoall(xzbuf, scount, sdispl, yzbuf, rcount, rdispl)
          END IF
       END IF
 
@@ -2041,7 +2042,7 @@ CONTAINS
 
       rbuf => fft_scratch%rbuf1
 
-      CALL mp_alltoall(cin, scount, sdispl, rbuf, rcount, rdispl, fft_scratch%cart_sub_comm(2))
+      CALL fft_scratch%cart_sub_comm(2)%alltoall(cin, scount, sdispl, rbuf, rcount, rdispl)
 
 !$OMP PARALLEL DO DEFAULT(NONE) COLLAPSE(2) &
 !$OMP             PRIVATE(ip,ipl,nz,iz,is,ir) &
@@ -2143,7 +2144,7 @@ CONTAINS
       END DO
 !$OMP END PARALLEL DO
 
-      CALL mp_alltoall(rbuf, scount, sdispl, sout, rcount, rdispl, sub_group)
+      CALL sub_group%alltoall(rbuf, scount, sdispl, sout, rcount, rdispl)
 
       CALL timestop(handle)
 
@@ -2213,11 +2214,10 @@ CONTAINS
       END DO
 !$OMP END PARALLEL DO
 
-      rbuf => fft_scratch%rbuf3
       num_threads = 1
       my_id = 0
 !$OMP PARALLEL DEFAULT(NONE), &
-!$OMP          PRIVATE(NUM_THREADS, my_id, lb, ub), &
+!$OMP          PRIVATE(NUM_THREADS, my_id, lb, ub) &
 !$OMP          SHARED(rbuf)
 !$    num_threads = MIN(omp_get_max_threads(), SIZE(rbuf, 2))
 !$    my_id = omp_get_thread_num()
@@ -2228,7 +2228,7 @@ CONTAINS
       END IF
 !$OMP END PARALLEL
 
-      CALL mp_alltoall(cin, scount, sdispl, rbuf, rcount, rdispl, sub_group)
+      CALL sub_group%alltoall(cin, scount, sdispl, rbuf, rcount, rdispl)
 
 !$OMP PARALLEL DO DEFAULT(NONE) COLLAPSE(2) &
 !$OMP             PRIVATE(ip,ipl,ny,iy,is,ir) &
@@ -2341,7 +2341,7 @@ CONTAINS
       END DO
 !$OMP END PARALLEL DO
 
-      CALL mp_alltoall(rbuf, scount, sdispl, sout, rcount, rdispl, sub_group)
+      CALL sub_group%alltoall(rbuf, scount, sdispl, sout, rcount, rdispl)
 
       CALL timestop(handle)
 
@@ -2359,7 +2359,8 @@ CONTAINS
    SUBROUTINE cube_transpose_5(cin, group, boin, boout, sout, fft_scratch)
 
       COMPLEX(KIND=dp), DIMENSION(:, :), INTENT(IN)      :: cin
-      TYPE(mp_comm_type), INTENT(IN)                     :: group
+
+      CLASS(mp_comm_type), INTENT(IN)                     :: group
       INTEGER, DIMENSION(:, :, 0:), INTENT(IN)           :: boin, boout
       COMPLEX(KIND=dp), DIMENSION(:, :), INTENT(OUT)     :: sout
       TYPE(fft_scratch_type), POINTER                    :: fft_scratch
@@ -2419,7 +2420,7 @@ CONTAINS
       END IF
 !$OMP END PARALLEL
 
-      CALL mp_alltoall(cin, scount, sdispl, rbuf, rcount, rdispl, group)
+      CALL group%alltoall(cin, scount, sdispl, rbuf, rcount, rdispl)
 
 !$OMP PARALLEL DO DEFAULT(NONE) COLLAPSE(2) &
 !$OMP             PRIVATE(ip,ny,iy,is,ir) &
@@ -2452,7 +2453,8 @@ CONTAINS
    SUBROUTINE cube_transpose_6(cin, group, boin, boout, sout, fft_scratch)
 
       COMPLEX(KIND=dp), DIMENSION(:, :), INTENT(IN)      :: cin
-      TYPE(mp_comm_type), INTENT(IN)                     :: group
+
+      CLASS(mp_comm_type), INTENT(IN)                     :: group
       INTEGER, DIMENSION(:, :, 0:), INTENT(IN)           :: boin, boout
       COMPLEX(KIND=dp), DIMENSION(:, :), INTENT(OUT)     :: sout
       TYPE(fft_scratch_type), POINTER                    :: fft_scratch
@@ -2522,7 +2524,7 @@ CONTAINS
       END DO
 !$OMP END PARALLEL DO
 
-      CALL mp_alltoall(rbuf, scount, sdispl, sout, rcount, rdispl, group)
+      CALL group%alltoall(rbuf, scount, sdispl, sout, rcount, rdispl)
 
       CALL timestop(handle)
 
@@ -2753,12 +2755,11 @@ CONTAINS
       END IF
 
       IF (fft_scratch%cart_sub_comm(1) /= mp_comm_null) THEN
-         CALL mp_comm_free(fft_scratch%cart_sub_comm(1))
+         CALL fft_scratch%cart_sub_comm(1)%free()
       END IF
       IF (fft_scratch%cart_sub_comm(2) /= mp_comm_null) THEN
-         CALL mp_comm_free(fft_scratch%cart_sub_comm(2))
+         CALL fft_scratch%cart_sub_comm(2)%free()
       END IF
-      fft_scratch%cart_sub_comm = mp_comm_null
 
       CALL fft_destroy_plan(fft_scratch%fft_plan(1))
       CALL fft_destroy_plan(fft_scratch%fft_plan(2))
@@ -3005,8 +3006,8 @@ CONTAINS
                ALLOCATE (fft_scratch_new%fft_scratch%a6buf(n(1), my3*mz3))
                fft_scratch_new%fft_scratch%group = fft_sizes%gs_group
 
-               CALL mp_environ(nn, dim, pos, fft_sizes%rs_group)
-               CALL mp_cart_rank(fft_sizes%rs_group, pos, fft_scratch_new%fft_scratch%mip)
+               CALL fft_sizes%rs_group%environ_cart(nn, dim, pos)
+               CALL fft_sizes%rs_group%rank_cart(pos, fft_scratch_new%fft_scratch%mip)
                fft_scratch_new%fft_scratch%dim = dim
                fft_scratch_new%fft_scratch%pos = pos
                mcz1 = fft_sizes%mcz1
@@ -3019,18 +3020,18 @@ CONTAINS
                ALLOCATE (fft_scratch_new%fft_scratch%rbuf4(mx2*mz2*mcy3, 0:DIM(1) - 1))
 
                dims = (/.TRUE., .FALSE./)
-               CALL mp_cart_sub(fft_sizes%rs_group, dims, fft_scratch_new%fft_scratch%cart_sub_comm(1))
+               CALL fft_scratch_new%fft_scratch%cart_sub_comm(1)%from_sub(fft_sizes%rs_group, dims)
                dims = (/.FALSE., .TRUE./)
-               CALL mp_cart_sub(fft_sizes%rs_group, dims, fft_scratch_new%fft_scratch%cart_sub_comm(2))
+               CALL fft_scratch_new%fft_scratch%cart_sub_comm(2)%from_sub(fft_sizes%rs_group, dims)
 
                !initialise pgcube
                DO i = 0, DIM(1) - 1
                   coord = (/i, pos(2)/)
-                  CALL mp_cart_rank(fft_sizes%rs_group, coord, fft_scratch_new%fft_scratch%pgcube(i, 1))
+                  CALL fft_sizes%rs_group%rank_cart(coord, fft_scratch_new%fft_scratch%pgcube(i, 1))
                END DO
                DO i = 0, DIM(2) - 1
                   coord = (/pos(1), i/)
-                  CALL mp_cart_rank(fft_sizes%rs_group, coord, fft_scratch_new%fft_scratch%pgcube(i, 2))
+                  CALL fft_sizes%rs_group%rank_cart(coord, fft_scratch_new%fft_scratch%pgcube(i, 2))
                END DO
 
                !set up fft plans
@@ -3061,8 +3062,8 @@ CONTAINS
                ALLOCATE (fft_scratch_new%fft_scratch%a5buf(my3*mz3, n(1)))
                ALLOCATE (fft_scratch_new%fft_scratch%a6buf(n(1), my3*mz3))
 
-               CALL mp_environ(nn, dim, pos, fft_sizes%rs_group)
-               CALL mp_cart_rank(fft_sizes%rs_group, pos, fft_scratch_new%fft_scratch%mip)
+               CALL fft_sizes%rs_group%environ_cart(nn, dim, pos)
+               CALL fft_sizes%rs_group%rank_cart(pos, fft_scratch_new%fft_scratch%mip)
                fft_scratch_new%fft_scratch%dim = dim
                fft_scratch_new%fft_scratch%pos = pos
                mcy3 = fft_sizes%mcy3
@@ -3196,8 +3197,8 @@ CONTAINS
                fft_scratch_new%fft_scratch%rsratio = 1._dp
                fft_scratch_new%fft_scratch%group = fft_sizes%gs_group
 
-               CALL mp_environ(nn, dim, pos, fft_sizes%rs_group)
-               CALL mp_cart_rank(fft_sizes%rs_group, pos, fft_scratch_new%fft_scratch%mip)
+               CALL fft_sizes%rs_group%environ_cart(nn, dim, pos)
+               CALL fft_sizes%rs_group%rank_cart(pos, fft_scratch_new%fft_scratch%mip)
                fft_scratch_new%fft_scratch%dim = dim
                fft_scratch_new%fft_scratch%pos = pos
                mcz1 = fft_sizes%mcz1
@@ -3206,25 +3207,25 @@ CONTAINS
                ALLOCATE (fft_scratch_new%fft_scratch%rbuf2(mx1*my1*mcz2, 0:DIM(2) - 1))
 
                dims = (/.FALSE., .TRUE./)
-               CALL mp_cart_sub(fft_sizes%rs_group, dims, fft_scratch_new%fft_scratch%cart_sub_comm(2))
+               CALL fft_scratch_new%fft_scratch%cart_sub_comm(2)%from_sub(fft_sizes%rs_group, dims)
 
                !initialise pgcube
                DO i = 0, DIM(2) - 1
                   coord = (/pos(1), i/)
-                  CALL mp_cart_rank(fft_sizes%rs_group, coord, fft_scratch_new%fft_scratch%pgcube(i, 2))
+                  CALL fft_sizes%rs_group%rank_cart(coord, fft_scratch_new%fft_scratch%pgcube(i, 2))
                END DO
 
                !initialise pgrid
                DO ix = 0, m1 - 1
                   DO iz = 0, m2 - 1
                      coord = (/ix, iz/)
-                     CALL mp_cart_rank(fft_sizes%rs_group, coord, fft_scratch_new%fft_scratch%pgrid(ix, iz))
+                     CALL fft_sizes%rs_group%rank_cart(coord, fft_scratch_new%fft_scratch%pgrid(ix, iz))
                   END DO
                END DO
 
                !initialise pzcoord
                DO i = 0, np - 1
-                  CALL mp_cart_coords(fft_sizes%rs_group, i, pcoord)
+                  CALL fft_sizes%rs_group%coords(i, pcoord)
                   fft_scratch_new%fft_scratch%pzcoord(i) = pcoord(2)
                END DO
 
@@ -3325,14 +3326,15 @@ CONTAINS
       INTEGER, DIMENSION(:), POINTER                     :: scount, sdispl
       COMPLEX(KIND=dp), DIMENSION(:), POINTER            :: rq
       INTEGER, DIMENSION(:), POINTER                     :: rcount, rdispl
-      TYPE(mp_comm_type), INTENT(IN)                     :: group
+
+      CLASS(mp_comm_type), INTENT(IN)                     :: group
 
       COMPLEX(KIND=dp), DIMENSION(:), POINTER            :: msgin, msgout
       INTEGER                                            :: ip, n, nr, ns, pos
       TYPE(mp_request_type), ALLOCATABLE, DIMENSION(:)   :: rreq, sreq
 
-      CALL mp_sync(group)
-      CALL mp_environ(n, pos, group)
+      CALL group%sync()
+      CALL group%environ(n, pos)
       ALLOCATE (sreq(0:n - 1))
       ALLOCATE (rreq(0:n - 1))
       nr = 0
@@ -3340,7 +3342,7 @@ CONTAINS
          IF (rcount(ip) == 0) CYCLE
          IF (ip == pos) CYCLE
          msgout => rq(rdispl(ip) + 1:rdispl(ip) + rcount(ip))
-         CALL mp_irecv(msgout, ip, group, rreq(nr))
+         CALL group%irecv(msgout, ip, rreq(nr))
          nr = nr + 1
       END DO
       ns = 0
@@ -3348,7 +3350,7 @@ CONTAINS
          IF (scount(ip) == 0) CYCLE
          IF (ip == pos) CYCLE
          msgin => rs(sdispl(ip) + 1:sdispl(ip) + scount(ip))
-         CALL mp_isend(msgin, ip, group, sreq(ns))
+         CALL group%isend(msgin, ip, sreq(ns))
          ns = ns + 1
       END DO
       IF (rcount(pos) /= 0) THEN
@@ -3359,7 +3361,7 @@ CONTAINS
       CALL mp_waitall(rreq(0:nr - 1))
       DEALLOCATE (sreq)
       DEALLOCATE (rreq)
-      CALL mp_sync(group)
+      CALL group%sync()
 
    END SUBROUTINE sparse_alltoall
 

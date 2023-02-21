@@ -28,7 +28,6 @@ MODULE rpa_gw_kpoints_util
                                               cp_cfm_heevd
    USE cp_cfm_types,                    ONLY: cp_cfm_create,&
                                               cp_cfm_get_info,&
-                                              cp_cfm_p_type,&
                                               cp_cfm_release,&
                                               cp_cfm_set_all,&
                                               cp_cfm_to_cfm,&
@@ -70,8 +69,6 @@ MODULE rpa_gw_kpoints_util
                                               z_one,&
                                               z_zero
    USE mathlib,                         ONLY: invmat
-   USE message_passing,                 ONLY: mp_sum,&
-                                              mp_sync
    USE parallel_gemm_api,               ONLY: parallel_gemm
    USE particle_types,                  ONLY: particle_type
    USE qs_band_structure,               ONLY: calculate_kpoints_for_bs
@@ -114,8 +111,6 @@ CONTAINS
 !> \param do_gw_im_time ...
 !> \param do_ri_Sigma_x ...
 !> \param do_kpoints_from_Gamma ...
-!> \param do_kpoints_cubic_RPA ...
-!> \param cfm_mat_W_kp_tau ...
 !> \param cfm_mat_Q ...
 !> \param ikp_local ...
 !> \param mat_P_omega ...
@@ -134,8 +129,8 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE invert_eps_compute_W_and_Erpa_kp(dimen_RI, num_integ_points, jquad, nkp, count_ev_sc_GW, para_env, &
                                                Erpa, tau_tj, tj, wj, weights_cos_tf_w_to_t, wkp_W, do_gw_im_time, &
-                                               do_ri_Sigma_x, do_kpoints_from_Gamma, do_kpoints_cubic_RPA, &
-                                               cfm_mat_W_kp_tau, cfm_mat_Q, ikp_local, mat_P_omega, mat_P_omega_kp, &
+                                               do_ri_Sigma_x, do_kpoints_from_Gamma, &
+                                               cfm_mat_Q, ikp_local, mat_P_omega, mat_P_omega_kp, &
                                                qs_env, eps_filter_im_time, unit_nr, kpoints, fm_mat_Minv_L_kpoints, &
                                                fm_matrix_L_kpoints, fm_mat_W, &
                                                fm_mat_RI_global_work, mat_MinvVMinv, fm_matrix_Minv, &
@@ -152,10 +147,7 @@ CONTAINS
          INTENT(IN)                                      :: weights_cos_tf_w_to_t
       REAL(KIND=dp), DIMENSION(:), INTENT(IN)            :: wkp_W
       LOGICAL, INTENT(IN)                                :: do_gw_im_time, do_ri_Sigma_x, &
-                                                            do_kpoints_from_Gamma, &
-                                                            do_kpoints_cubic_RPA
-      TYPE(cp_cfm_p_type), ALLOCATABLE, &
-         DIMENSION(:, :), INTENT(INOUT)                  :: cfm_mat_W_kp_tau
+                                                            do_kpoints_from_Gamma
       TYPE(cp_cfm_type), INTENT(IN)                      :: cfm_mat_Q
       INTEGER, INTENT(IN)                                :: ikp_local
       TYPE(dbcsr_p_type), DIMENSION(:, :), INTENT(INOUT) :: mat_P_omega, mat_P_omega_kp
@@ -181,11 +173,6 @@ CONTAINS
       CALL timeset(routineN, handle)
 
       t1 = m_walltime()
-
-      IF (do_kpoints_cubic_RPA .AND. do_gw_im_time) THEN
-         CALL allocate_Wc_kp_tau_GW(cfm_mat_W_kp_tau, cfm_mat_Q, num_integ_points, jquad, &
-                                    nkp, ikp_local)
-      END IF
 
       IF (do_kpoints_from_Gamma) THEN
          CALL get_mat_cell_T_from_mat_gamma(mat_P_omega(jquad, :), qs_env, kpoints, jquad, unit_nr)
@@ -472,7 +459,7 @@ CONTAINS
             CALL cp_fm_set_all(fm_mat_RI_global_work, 0.0_dp)
             CALL copy_dbcsr_to_fm(mat_P_omega_re, fm_mat_RI_global_work)
 
-            CALL mp_sync(para_env%group)
+            CALL para_env%group%sync()
 
             IF (ikp_local == jkp) THEN
                CALL cp_fm_copy_general(fm_mat_RI_global_work, fm_mat_work, para_env)
@@ -480,7 +467,7 @@ CONTAINS
                CALL cp_fm_copy_general(fm_mat_RI_global_work, fm_dummy, para_env)
             END IF
 
-            CALL mp_sync(para_env%group)
+            CALL para_env%group%sync()
 
          END DO
 
@@ -495,7 +482,7 @@ CONTAINS
             CALL cp_fm_set_all(fm_mat_RI_global_work, 0.0_dp)
             CALL copy_dbcsr_to_fm(mat_P_omega_im, fm_mat_RI_global_work)
 
-            CALL mp_sync(para_env%group)
+            CALL para_env%group%sync()
 
             IF (ikp_local == jkp) THEN
                CALL cp_fm_copy_general(fm_mat_RI_global_work, fm_mat_work, para_env)
@@ -503,7 +490,7 @@ CONTAINS
                CALL cp_fm_copy_general(fm_mat_RI_global_work, fm_dummy, para_env)
             END IF
 
-            CALL mp_sync(para_env%group)
+            CALL para_env%group%sync()
 
          END DO
 
@@ -513,9 +500,7 @@ CONTAINS
 
       END IF
 
-      CALL mp_sync(para_env%group)
-
-      CALL mp_sync(para_env%group)
+      CALL para_env%group%sync()
 
       CALL timestop(handle)
 
@@ -571,7 +556,7 @@ CONTAINS
             END IF
          END DO
       END DO
-      CALL mp_sum(trace_Qomega, para_env%group)
+      CALL para_env%group%sum(trace_Qomega)
 
       CALL cp_cfm_to_cfm(cfm_mat_Q, cfm_mat_Q_tmp)
 
@@ -636,7 +621,7 @@ CONTAINS
             END IF
          END DO
       END DO
-      CALL mp_sum(Q_log, para_env%group)
+      CALL para_env%group%sum(Q_log)
 
       FComega = 0.0_dp
       DO iiB = 1, dimen_RI
@@ -706,53 +691,6 @@ CONTAINS
       DEALLOCATE (weights_cos_tf_w_to_t_dummy)
       DEALLOCATE (tj_dummy)
       DEALLOCATE (tau_tj_dummy)
-
-      CALL timestop(handle)
-
-   END SUBROUTINE
-
-! **************************************************************************************************
-!> \brief ...
-!> \param cfm_mat_W_kp_tau ...
-!> \param cfm_mat_Q ...
-!> \param num_integ_points ...
-!> \param jquad ...
-!> \param nkp ...
-!> \param ikp_local ...
-! **************************************************************************************************
-   SUBROUTINE allocate_Wc_kp_tau_GW(cfm_mat_W_kp_tau, cfm_mat_Q, num_integ_points, jquad, &
-                                    nkp, ikp_local)
-
-      TYPE(cp_cfm_p_type), ALLOCATABLE, &
-         DIMENSION(:, :), INTENT(OUT)                    :: cfm_mat_W_kp_tau
-      TYPE(cp_cfm_type), INTENT(IN)                      :: cfm_mat_Q
-      INTEGER, INTENT(IN)                                :: num_integ_points, jquad, nkp, ikp_local
-
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'allocate_Wc_kp_tau_GW'
-
-      INTEGER                                            :: handle, iquad, jkp
-      LOGICAL                                            :: do_this_ikp
-
-      CALL timeset(routineN, handle)
-
-      ! Fourier transform from w to t; allocate only one (at first time point and also at
-      ! first kpoint in case we do not do
-      IF (jquad == 1) THEN
-         ALLOCATE (cfm_mat_W_kp_tau(nkp, num_integ_points))
-         DO iquad = 1, num_integ_points
-            DO jkp = 1, nkp
-
-               NULLIFY (cfm_mat_W_kp_tau(jkp, iquad)%matrix)
-
-               do_this_ikp = (ikp_local == -1) .OR. (ikp_local == jkp)
-               IF (.NOT. do_this_ikp) CYCLE
-
-               ALLOCATE (cfm_mat_W_kp_tau(jkp, iquad)%matrix)
-               CALL cp_cfm_create(cfm_mat_W_kp_tau(jkp, iquad)%matrix, cfm_mat_Q%matrix_struct)
-               CALL cp_cfm_set_all(matrix=cfm_mat_W_kp_tau(jkp, iquad)%matrix, alpha=z_zero)
-            END DO
-         END DO
-      END IF
 
       CALL timestop(handle)
 
@@ -1224,7 +1162,7 @@ CONTAINS
 
          DO jkp = 1, nkp
 
-            CALL mp_sync(para_env%group)
+            CALL para_env%group%sync()
 
             IF (ikp_local == jkp) THEN
                CALL cp_fm_copy_general(fm_mat_work_local, fm_mat_work_global, para_env)
@@ -1232,7 +1170,7 @@ CONTAINS
                CALL cp_fm_copy_general(fm_dummy, fm_mat_work_global, para_env)
             END IF
 
-            CALL mp_sync(para_env%group)
+            CALL para_env%group%sync()
 
             DO iquad = 1, num_integ_points
 

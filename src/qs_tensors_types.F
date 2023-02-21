@@ -18,8 +18,7 @@ MODULE qs_tensors_types
    USE cp_blacs_env,                    ONLY: cp_blacs_env_create,&
                                               cp_blacs_env_release,&
                                               cp_blacs_env_type
-   USE cp_para_env,                     ONLY: cp_para_env_create,&
-                                              cp_para_env_release
+   USE cp_para_env,                     ONLY: cp_para_env_release
    USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbt_api,                         ONLY: dbt_create,&
                                               dbt_default_distvec,&
@@ -32,10 +31,8 @@ MODULE qs_tensors_types
    USE distribution_2d_types,           ONLY: distribution_2d_create_prv => distribution_2d_create,&
                                               distribution_2d_release,&
                                               distribution_2d_type
-   USE message_passing,                 ONLY: mp_cart_sub,&
-                                              mp_comm_free,&
-                                              mp_comm_type,&
-                                              mp_environ
+   USE message_passing,                 ONLY: mp_cart_type,&
+                                              mp_comm_type
    USE particle_types,                  ONLY: particle_type
    USE qs_neighbor_list_types,          ONLY: neighbor_list_iterator_p_type,&
                                               neighbor_list_set_p_type
@@ -95,7 +92,7 @@ CONTAINS
       INTEGER, DIMENSION(:), INTENT(IN)                  :: dist1, dist2, dist3
       INTEGER, INTENT(IN)                                :: nkind
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
-      TYPE(mp_comm_type), INTENT(IN)                     :: mp_comm_3d
+      TYPE(mp_cart_type), INTENT(IN)                     :: mp_comm_3d
       LOGICAL, INTENT(IN), OPTIONAL                      :: own_comm
 
       CHARACTER(len=*), PARAMETER :: routineN = 'distribution_3d_create'
@@ -103,7 +100,7 @@ CONTAINS
       INTEGER                                            :: handle, nproc_1, nproc_2
       INTEGER, DIMENSION(2)                              :: mp_coor_1, mp_coor_2, mp_dims_1, &
                                                             mp_dims_2
-      TYPE(mp_comm_type)                                 :: comm_2d_1, comm_2d_2
+      TYPE(mp_cart_type)                                 :: comm_2d_1, comm_2d_2
 
       CALL timeset(routineN, handle)
 
@@ -114,11 +111,11 @@ CONTAINS
          dist_3d%owns_comm = .FALSE.
       END IF
 
-      CALL mp_cart_sub(mp_comm_3d, [.TRUE., .TRUE., .FALSE.], comm_2d_1)
-      CALL mp_cart_sub(mp_comm_3d, [.FALSE., .TRUE., .TRUE.], comm_2d_2)
+      CALL comm_2d_1%from_sub(mp_comm_3d, [.TRUE., .TRUE., .FALSE.])
+      CALL comm_2d_2%from_sub(mp_comm_3d, [.FALSE., .TRUE., .TRUE.])
 
-      CALL mp_environ(nproc_1, mp_dims_1, mp_coor_1, comm_2d_1)
-      CALL mp_environ(nproc_2, mp_dims_2, mp_coor_2, comm_2d_2)
+      CALL comm_2d_1%environ_cart(nproc_1, mp_dims_1, mp_coor_1)
+      CALL comm_2d_2%environ_cart(nproc_2, mp_dims_2, mp_coor_2)
 
       CPASSERT(mp_coor_1(2) == mp_coor_2(1))
 
@@ -145,9 +142,9 @@ CONTAINS
       CALL timeset(routineN, handle)
       CALL distribution_2d_release(dist%dist_2d_1)
       CALL distribution_2d_release(dist%dist_2d_2)
-      CALL mp_comm_free(dist%comm_2d_1)
-      CALL mp_comm_free(dist%comm_2d_2)
-      IF (dist%owns_comm) CALL mp_comm_free(dist%comm_3d)
+      CALL dist%comm_2d_1%free()
+      CALL dist%comm_2d_2%free()
+      IF (dist%owns_comm) CALL dist%comm_3d%free()
 
       NULLIFY (dist%dist_2d_1, dist%dist_2d_2)
 
@@ -169,7 +166,7 @@ CONTAINS
       INTEGER, DIMENSION(:), INTENT(IN)                  :: dist1, dist2
       INTEGER, INTENT(IN)                                :: nkind
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
-      TYPE(mp_comm_type), INTENT(IN)                     :: mp_comm_2d
+      TYPE(mp_cart_type), INTENT(IN)                     :: mp_comm_2d
 
       CHARACTER(len=*), PARAMETER :: routineN = 'distribution_2d_create'
 
@@ -185,8 +182,9 @@ CONTAINS
 
       CALL timeset(routineN, handle)
 
-      CALL mp_environ(nproc, mp_dims, mp_coor, mp_comm_2d)
-      CALL cp_para_env_create(para_env, mp_comm_2d, owns_group=.FALSE.)
+      CALL mp_comm_2d%environ_cart(nproc, mp_dims, mp_coor)
+      ALLOCATE (para_env)
+      para_env = mp_comm_2d
       CALL cp_blacs_env_create(blacs_env, para_env, &
                                grid_2d=mp_dims)
 

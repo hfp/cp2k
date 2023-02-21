@@ -30,9 +30,8 @@ PROGRAM dbt_tas_unittest
    USE kinds,                           ONLY: dp,&
                                               int_8
    USE machine,                         ONLY: default_output_unit
-   USE message_passing,                 ONLY: mp_comm_free,&
+   USE message_passing,                 ONLY: mp_cart_type,&
                                               mp_comm_type,&
-                                              mp_environ,&
                                               mp_world_finalize,&
                                               mp_world_init
    USE offload_api,                     ONLY: offload_get_device_count,&
@@ -48,12 +47,13 @@ PROGRAM dbt_tas_unittest
    INTEGER, DIMENSION(k)          :: bsize_k
    REAL(KIND=dp), PARAMETER   :: sparsity = 0.1
    INTEGER                        :: numnodes, mynode, io_unit
-   TYPE(mp_comm_type)             :: mp_comm, mp_comm_A, mp_comm_At, mp_comm_B, mp_comm_Bt, mp_comm_C, mp_comm_Ct
+   TYPE(mp_comm_type)             :: mp_comm
+   TYPE(mp_cart_type) :: mp_comm_A, mp_comm_At, mp_comm_B, mp_comm_Bt, mp_comm_C, mp_comm_Ct
    REAL(KIND=dp), PARAMETER   :: filter_eps = 1.0E-08
 
    CALL mp_world_init(mp_comm)
 
-   CALL mp_environ(numnodes, mynode, mp_comm)
+   CALL mp_comm%environ(numnodes, mynode)
 
    ! Select active offload device when available.
    IF (offload_get_device_count() > 0) THEN
@@ -72,7 +72,7 @@ PROGRAM dbt_tas_unittest
    CALL dbt_tas_random_bsizes([3, 78, 33, 12, 3, 15], 1, bsize_n)
    CALL dbt_tas_random_bsizes([9, 64, 23, 2], 3, bsize_k)
 
-   CALL mp_environ(numnodes, mynode, mp_comm)
+   CALL mp_comm%environ(numnodes, mynode)
 
    CALL dbt_tas_setup_test_matrix(A, mp_comm_A, mp_comm, m, k, bsize_m, bsize_k, [5, 1], "A", sparsity)
    CALL dbt_tas_setup_test_matrix(At, mp_comm_At, mp_comm, k, m, bsize_k, bsize_m, [3, 8], "A^t", sparsity)
@@ -156,12 +156,12 @@ PROGRAM dbt_tas_unittest
    CALL dbt_tas_destroy(C_out)
    CALL dbt_tas_destroy(Ct_out)
 
-   CALL mp_comm_free(mp_comm_A)
-   CALL mp_comm_free(mp_comm_At)
-   CALL mp_comm_free(mp_comm_B)
-   CALL mp_comm_free(mp_comm_Bt)
-   CALL mp_comm_free(mp_comm_C)
-   CALL mp_comm_free(mp_comm_Ct)
+   CALL mp_comm_A%free()
+   CALL mp_comm_At%free()
+   CALL mp_comm_B%free()
+   CALL mp_comm_Bt%free()
+   CALL mp_comm_C%free()
+   CALL mp_comm_Ct%free()
 
    CALL dbm_library_print_stats(mp_comm, io_unit)
    CALL dbm_library_finalize()
