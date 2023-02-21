@@ -106,7 +106,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), POINTER               :: ref_point
       TYPE(cell_type), POINTER                           :: cell
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_ks, moments_throw, my_matrix_hr_1d
+      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_ks, my_matrix_hr_1d
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
          POINTER                                         :: sab_all, sab_orb, sap_ppnl
@@ -265,14 +265,16 @@ CONTAINS
             CALL dbcsr_init_p(vcd_env%moments_der_right(i, idir)%matrix)
             CALL dbcsr_init_p(vcd_env%moments_der_left(i, idir)%matrix)
 
-            CALL dbcsr_copy(vcd_env%moments_der(i, idir)%matrix, vcd_env%dcdr_env%matrix_nosym_temp(1)%matrix)
+            CALL dbcsr_create(vcd_env%moments_der(i, idir)%matrix, template=matrix_ks(1)%matrix, &
+                              matrix_type=dbcsr_type_antisymmetric)
+            CALL cp_dbcsr_alloc_block_from_nbl(vcd_env%moments_der(i, idir)%matrix, sab_orb)
             CALL dbcsr_set(vcd_env%moments_der(i, idir)%matrix, 0.0_dp)
 
             ! And the ones which will be multiplied by delta_(mu/nu)
             CALL dbcsr_copy(vcd_env%moments_der_right(i, idir)%matrix, &
-                            vcd_env%moments_der(i, idir)%matrix)
+                            vcd_env%dcdr_env%matrix_nosym_temp(1)%matrix)
             CALL dbcsr_copy(vcd_env%moments_der_left(i, idir)%matrix, &
-                            vcd_env%moments_der(i, idir)%matrix)
+                            vcd_env%dcdr_env%matrix_nosym_temp(1)%matrix)
          END DO
       END DO
 
@@ -402,19 +404,9 @@ CONTAINS
       CALL build_lin_mom_matrix(qs_env, vcd_env%dipvel_ao)
 
       ! AAT
-      NULLIFY (moments_throw)
-      CALL dbcsr_allocate_matrix_set(moments_throw, 9)  ! don't use those
-      DO i = 1, 9 ! x, y, z, xx, xy, xz, yy, yz, zz
-         CALL dbcsr_init_p(moments_throw(i)%matrix)
-         CALL dbcsr_copy(moments_throw(i)%matrix, vcd_env%dcdr_env%matrix_nosym_temp(1)%matrix)
-         CALL dbcsr_set(moments_throw(i)%matrix, 0.0_dp)
-      END DO
-
       ! The moments are set to zero and then recomputed in the routine.
-      CALL build_local_moments_der_matrix(qs_env, moments=moments_throw, moments_der=vcd_env%moments_der, &
-                                          nmoments=2, nders=1, ref_point=[0._dp, 0._dp, 0._dp])
-
-      CALL dbcsr_deallocate_matrix_set(moments_throw)
+      CALL build_local_moments_der_matrix(qs_env, moments_der=vcd_env%moments_der, &
+                                          nmoments_der=2, nmoments=0, ref_point=[0._dp, 0._dp, 0._dp])
 
       ! PP terms
       CALL build_com_mom_nl(qs_kind_set, sab_orb, sap_ppnl, dft_control%qs_control%eps_ppnl, &
@@ -434,10 +426,6 @@ CONTAINS
       CALL cp_print_key_finished_output(output_unit, logger, lr_section, &
                                         "PRINT%PROGRAM_RUN_INFO")
 
-      ! IF (vcd_env%output_unit > 0) THEN
-      !    WRITE (vcd_env%output_unit, *) 'size(vcd_env%list_of_atoms)', SIZE(vcd_env%dcdr_env%list_of_atoms)
-      !    WRITE (vcd_env%output_unit, *) 'vcd_env%list_of_atoms', vcd_env%dcdr_env%list_of_atoms
-      ! END IF
       CALL timestop(handle)
 
    END SUBROUTINE vcd_env_init
@@ -628,7 +616,6 @@ CONTAINS
          ! check that the number nao, nmo and nspins are
          ! the same as in the current mos
          IF (nspins_tmp .NE. nspins) THEN
-            PRINT *, 'nspins_tmp, nspins', nspins_tmp, nspins
             CPABORT("nspins not consistent")
          END IF
          IF (nao_tmp .NE. nao) CPABORT("nao not consistent")

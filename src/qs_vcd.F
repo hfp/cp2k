@@ -10,8 +10,7 @@ MODULE qs_vcd
    USE commutator_rpnl,                 ONLY: build_com_mom_nl
    USE cp_control_types,                ONLY: dft_control_type
    USE cp_dbcsr_operations,             ONLY: cp_dbcsr_sm_fm_multiply
-   USE cp_fm_basic_linalg,              ONLY: cp_fm_gemm,&
-                                              cp_fm_scale,&
+   USE cp_fm_basic_linalg,              ONLY: cp_fm_scale,&
                                               cp_fm_scale_and_add,&
                                               cp_fm_trace
    USE cp_fm_types,                     ONLY: cp_fm_create,&
@@ -638,13 +637,13 @@ CONTAINS
          ! Ref independent
          CALL cp_dbcsr_sm_fm_multiply(vcd_env%matrix_dSdV(vcd_env%dcdr_env%beta)%matrix, mo_coeff, &
                                       buf, ncol=nmo)
-         CALL cp_fm_gemm("T", "N", nmo, nmo, nao, &
-                         1.0_dp, mo_coeff, buf, &
-                         0.0_dp, matrix_dSdV_mo)
+         CALL parallel_gemm("T", "N", nmo, nmo, nao, &
+                            1.0_dp, mo_coeff, buf, &
+                            0.0_dp, matrix_dSdV_mo)
 
-         CALL cp_fm_gemm("N", "N", nao, nmo, nmo, &
-                         -0.5_dp, mo_coeff, matrix_dSdV_mo, &
-                         1.0_dp, vcd_env%dCV_prime(ispin))
+         CALL parallel_gemm("N", "N", nao, nmo, nmo, &
+                            -0.5_dp, mo_coeff, matrix_dSdV_mo, &
+                            1.0_dp, vcd_env%dCV_prime(ispin))
 
          ! + i∂ - i[Vnl, r]
          DO alpha = 1, 3
@@ -906,8 +905,8 @@ CONTAINS
 
       DO i = 1, 9
          DO j = 1, 3 ! derivatives
-            CALL dbcsr_copy(vcd_env%moments_der_right(i, j)%matrix, vcd_env%moments_der(i, j)%matrix) ! A2
-            CALL dbcsr_copy(vcd_env%moments_der_left(i, j)%matrix, vcd_env%moments_der(i, j)%matrix)  ! A1
+            CALL dbcsr_desymmetrize(vcd_env%moments_der(i, j)%matrix, vcd_env%moments_der_right(i, j)%matrix) ! A2
+            CALL dbcsr_desymmetrize(vcd_env%moments_der(i, j)%matrix, vcd_env%moments_der_left(i, j)%matrix)  ! A1
 
             !  - < mu | r_beta r_gamma ∂_delta | nu > * (mu/nu == lambda)
             CALL hr_mult_by_delta_1d(vcd_env%moments_der_right(i, j)%matrix, qs_kind_set, "ORB", &
