@@ -310,10 +310,10 @@ CONTAINS
       TYPE(tddfpt_work_matrices)                         :: work_matrices
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'tddfpt_forces'
-      LOGICAL, PARAMETER                                 :: debug_forces = .FALSE.
 
-      INTEGER                                            :: handle, nkind
+      INTEGER                                            :: handle
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: natom_of_kind
+      LOGICAL                                            :: debug_forces
       REAL(KIND=dp)                                      :: ehartree, exc
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(dft_control_type), POINTER                    :: dft_control
@@ -321,11 +321,11 @@ CONTAINS
 
       CALL timeset(routineN, handle)
 
+      ! for extended debug output
+      debug_forces = ex_env%debug_forces
       ! prepare force array
       CALL get_qs_env(qs_env, dft_control=dft_control, force=ks_force, &
                       atomic_kind_set=atomic_kind_set)
-      nkind = SIZE(atomic_kind_set)
-      ALLOCATE (natom_of_kind(nkind))
       CALL get_atomic_kind_set(atomic_kind_set=atomic_kind_set, natom_of_kind=natom_of_kind)
       NULLIFY (td_force)
       CALL allocate_qs_force(td_force, natom_of_kind)

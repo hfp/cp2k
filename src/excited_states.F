@@ -62,9 +62,8 @@ CONTAINS
       LOGICAL, INTENT(IN), OPTIONAL                      :: calculate_forces
 
       CHARACTER(len=*), PARAMETER :: routineN = 'excited_state_energy'
-      LOGICAL, PARAMETER                                 :: debug_forces = .FALSE.
 
-      INTEGER                                            :: handle, nkind, unit_nr
+      INTEGER                                            :: handle, unit_nr
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: natom_of_kind
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(cp_logger_type), POINTER                      :: logger
@@ -96,8 +95,6 @@ CONTAINS
             END IF
             ! prepare force array
             CALL get_qs_env(qs_env, force=ks_force, atomic_kind_set=atomic_kind_set)
-            nkind = SIZE(atomic_kind_set)
-            ALLOCATE (natom_of_kind(nkind))
             CALL get_atomic_kind_set(atomic_kind_set=atomic_kind_set, natom_of_kind=natom_of_kind)
             NULLIFY (lr_force)
             CALL allocate_qs_force(lr_force, natom_of_kind)
@@ -113,7 +110,7 @@ CONTAINS
             ELSEIF (dft_control%qs_control%dftb) THEN
                CPABORT("Not available")
             ELSEIF (dft_control%qs_control%xtb) THEN
-               CALL response_force_xtb(qs_env, p_env, ex_env%matrix_hz, ex_env, debug=debug_forces)
+               CALL response_force_xtb(qs_env, p_env, ex_env%matrix_hz, ex_env, debug=ex_env%debug_forces)
             ELSE
                ! KS-DFT
                CALL response_force(qs_env=qs_env, vh_rspace=ex_env%vh_rspace, &
@@ -122,7 +119,7 @@ CONTAINS
                                    matrix_pz=ex_env%matrix_px1, matrix_pz_admm=p_env%p1_admm, &
                                    matrix_wz=p_env%w1, &
                                    p_env=p_env, ex_env=ex_env, &
-                                   debug=debug_forces)
+                                   debug=ex_env%debug_forces)
             END IF
             ! add TD and KS forces
             CALL get_qs_env(qs_env, force=lr_force)
