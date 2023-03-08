@@ -216,75 +216,6 @@ else ifneq (,$(USE_ACCEL))
   $(error USE_ACCEL)
 endif
 
-ifneq (,$(filter-out 0,$(OCL) $(CUDA)))
-  ifneq (0,$(OCL))
-    DFLAGS += -D__ACC -D__DBCSR_ACC
-    ifeq (Darwin,$(UNAME))
-      LIBS += -framework OpenCL
-    else
-      ifneq (,$(CUDATOOLKIT_HOME))
-        IFLAGS += -I$(CUDATOOLKIT_HOME)/include
-        LIBS += -L$(CUDATOOLKIT_HOME)/lib64
-      else ifneq (,$(NVSDKCOMPUTE_ROOT))
-        IFLAGS += -I$(NVSDKCOMPUTE_ROOT)/include
-        LIBS += -L$(NVSDKCOMPUTE_ROOT)/lib64
-      endif
-      LIBS += -lOpenCL
-    endif
-    ACCFLAGS += $(CFLAGS)
-    USE_ACCEL := opencl
-    ACC := $(CC)
-  else #ifneq (0,$(CUDA))
-    CUDA_PATH ?= $(if $(call which,nvcc),$(abspath $(dir $(call which,nvcc))/..))
-    ifneq (,$(CUDA_PATH))
-      ifneq (undefined,$(origin GPUVER))
-        NVCC := nvcc
-        DFLAGS += -D__ACC -D__DBCSR_ACC -D__CUDA -D__GRID_CUDA -D__DBM_CUDA -D__OFFLOAD_CUDA
-        LIBS += -L$(CUDA_PATH)/lib64 -lcudart -lcublas -lnvrtc -lcuda
-        # compiler-specific headers/modules (nvc/nvcc/pgi) can disturb other compilers (NVHPCSDK)
-        #IFLAGS += -I$(CUDA_PATH)/include
-        INCDENY += -I$(CUDA_PATH)/include
-        CUDA_INCFILE := $(strip $(lastword $(sort $(wildcard $(CUDA_PATH)/../cuda/*/targets/x86_64-linux/include/cuda_runtime.h))))
-        ifneq (,$(CUDA_INCFILE))
-          IFLAGS += -I$(abspath $(dir $(CUDA_INCFILE)))
-        endif
-        ifneq (,$(filter-out 0 1,$(CUDA)))
-          DFLAGS += -D__PW_GPU -D__PW_CUDA
-          LIBS += -lcufft
-        else
-          DFLAGS += -D__NO_OFFLOAD_PW
-        endif
-        NVCFLAGS := $(addprefix -Xcompiler $(NULL),$(filter-out -Wl%,$(OPTFLAGS)))
-        ifneq (0,$(SYM))
-          ACCFLAGS += -g
-          NVFLAGS += -g
-        endif
-        ACCFLAGS += $(NVCFLAGS) $(DFLAGS)
-        NVFLAGS += $(NVCFLAGS) $(DFLAGS)
-        USE_ACCEL := cuda
-        ACC := $(NVCC)
-        IPO := 0
-      else
-        $(info ===================)
-        $(info GPUVER not defined!)
-        $(info ===================)
-        $(error GPUVER)
-      endif
-    else
-      $(info ===============)
-      $(info NVCC not found!)
-      $(info ===============)
-      $(error NVCC)
-    endif
-  endif
-else # ACC off
-  ifeq (0,$(GNU))
-  ifneq (0,$(LEGACY))
-    OPTFLAGS += -qno-offload
-  endif
-  endif
-endif
-
 # MKL_MPIRTL: intelmpi, openmpi
 MKL_MPIRTL ?= intelmpi
 ifneq (0,$(BLAS))
@@ -756,19 +687,7 @@ ifneq (0,$(SYM))
     OPTFLAGS += -traceback
   endif
   endif
-  ifneq (1,$(SYM))
-    CXXFLAGS += -ggdb3
-    CFLAGS += -ggdb3
-    ifneq (0,$(GNU))
-      FCFLAGS += -ggdb3
-    else # IFORT
-      FCFLAGS += -g
-    endif
-  else
-    CXXFLAGS += -g
-    CFLAGS += -g
-    FCFLAGS += -g
-  endif
+  OPTFLAGS += -g
 endif
 
 FYPP := $(wildcard $(TOOLSRC)/build_utils/fypp)
@@ -910,15 +829,11 @@ ifneq (,$(LIBXSMMROOT))
     DFLAGS += -D__LIBXSMM=$(LIBXSMM)
     ifeq (0,$(GNU))
       DFLAGS += -D_OPENMP_SIMD
-      CXXFLAGS += -qopenmp-simd
-      CFLAGS += -qopenmp-simd
-      FCFLAGS += -qopenmp-simd
+      OPTFLAGS += -qopenmp-simd
     else ifeq (,$(filter _0_ __,_$(SIMD)_)) # force-enable with SIMD=1
     # GNU: https://github.com/cp2k/dbcsr/issues/217
       DFLAGS += -D_OPENMP_SIMD
-      CXXFLAGS += -fopenmp-simd
-      CFLAGS += -fopenmp-simd
-      FCFLAGS += -fopenmp-simd
+      OPTFLAGS += -fopenmp-simd
     endif
     # investigate __HAS_smm_vec
     #DFLAGS += -D__HAS_smm_vec
@@ -1051,18 +966,82 @@ ifneq (,$(strip $(CPP)))
   CPPFLAGS += -C $(IFLAGS) $(DFLAGS) -D__INTEL_COMPILER -P -traditional
 endif
 
-OPTFLAGS += -O$(OPT) $(IPOFLAGS) $(TARGET)
-ifneq (,$(IPOFLAGS))
-ifneq (0,$(GNU))
-  COPTFLAGS = $(filter-out $(IPOFLAGS),$(OPTFLAGS))
-endif
-endif
-COPTFLAGS ?= $(OPTFLAGS)
+# finalize flags common to CXX, CC, and FC
+OPTFLAGS := $(TARGET) $(OPTFLAGS) -O$(OPT)
 
-CXXFLAGS  += $(COPTFLAGS) $(DFLAGS) $(IFLAGS) #-std=c++0x
-CFLAGS    += $(COPTFLAGS) $(DFLAGS) $(IFLAGS)
-FCFLAGS   += $(OPTFLAGS)  $(DFLAGS) $(IFLAGS)
-LDFLAGS   += $(OPTFLAGS)  #-static-intel -static-libgcc -static-libstdc++
+ifneq (,$(filter-out 0,$(OCL) $(CUDA)))
+  ifneq (0,$(OCL))
+    DFLAGS += -D__ACC -D__DBCSR_ACC
+    ifeq (Darwin,$(UNAME))
+      LIBS += -framework OpenCL
+    else
+      ifneq (,$(CUDATOOLKIT_HOME))
+        IFLAGS += -I$(CUDATOOLKIT_HOME)/include
+        LIBS += -L$(CUDATOOLKIT_HOME)/lib64
+      else ifneq (,$(NVSDKCOMPUTE_ROOT))
+        IFLAGS += -I$(NVSDKCOMPUTE_ROOT)/include
+        LIBS += -L$(NVSDKCOMPUTE_ROOT)/lib64
+      endif
+      LIBS += -lOpenCL
+    endif
+    ACCFLAGS += $(CFLAGS)
+    USE_ACCEL := opencl
+    ACC := $(CC)
+  else #ifneq (0,$(CUDA))
+    CUDA_PATH ?= $(if $(call which,nvcc),$(abspath $(dir $(call which,nvcc))/..))
+    ifneq (,$(CUDA_PATH))
+      ifneq (undefined,$(origin GPUVER))
+        NVCC := nvcc
+        DFLAGS += -D__ACC -D__DBCSR_ACC -D__CUDA -D__GRID_CUDA -D__DBM_CUDA -D__OFFLOAD_CUDA
+        LIBS += -L$(CUDA_PATH)/lib64 -lcudart -lcublas -lnvrtc -lcuda
+        # compiler-specific headers/modules (nvc/nvcc/pgi) can disturb other compilers (NVHPCSDK)
+        #IFLAGS += -I$(CUDA_PATH)/include
+        INCDENY += -I$(CUDA_PATH)/include
+        CUDA_INCFILE := $(strip $(lastword $(sort $(wildcard $(CUDA_PATH)/../cuda/*/targets/x86_64-linux/include/cuda_runtime.h))))
+        ifneq (,$(CUDA_INCFILE))
+          IFLAGS += -I$(abspath $(dir $(CUDA_INCFILE)))
+        endif
+        ifneq (,$(filter-out 0 1,$(CUDA)))
+          DFLAGS += -D__PW_GPU -D__PW_CUDA
+          LIBS += -lcufft
+        else
+          DFLAGS += -D__NO_OFFLOAD_PW
+        endif
+        NVCFLAGS := $(addprefix -Xcompiler $(NULL),$(filter-out -Wl%,$(OPTFLAGS)))
+        ifneq (0,$(SYM))
+          ACCFLAGS += -g
+          NVFLAGS += -g
+        endif
+        ACCFLAGS += $(NVCFLAGS) $(DFLAGS)
+        NVFLAGS += $(NVCFLAGS) $(DFLAGS)
+        USE_ACCEL := cuda
+        ACC := $(NVCC)
+        IPO := 0
+      else
+        $(info ===================)
+        $(info GPUVER not defined!)
+        $(info ===================)
+        $(error GPUVER)
+      endif
+    else
+      $(info ===============)
+      $(info NVCC not found!)
+      $(info ===============)
+      $(error NVCC)
+    endif
+  endif
+else # ACC off
+  ifeq (0,$(GNU))
+  ifneq (0,$(LEGACY))
+    OPTFLAGS += -qno-offload
+  endif
+  endif
+endif
+
+CXXFLAGS  += $(OPTFLAGS) $(IPOFLAGS)$(DFLAGS) $(IFLAGS) #-std=c++0x
+CFLAGS    += $(OPTFLAGS) $(DFLAGS) $(IFLAGS)
+FCFLAGS   += $(OPTFLAGS) $(IPOFLAGS) $(DFLAGS) $(IFLAGS)
+LDFLAGS   += $(OPTFLAGS) $(IPOFLAGS) #-static-intel -static-libgcc -static-libstdc++
 
 ifeq (0,$(GNU))
   CXXFLAGS  += -diag-disable $(DIAG_DISABLE)
