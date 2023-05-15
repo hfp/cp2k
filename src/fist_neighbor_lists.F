@@ -33,7 +33,6 @@ MODULE fist_neighbor_lists
                                               cp_print_key_finished_output,&
                                               cp_print_key_should_output,&
                                               cp_print_key_unit_nr
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE cp_units,                        ONLY: cp_unit_from_cp2k
    USE distribution_1d_types,           ONLY: distribution_1d_type
    USE exclusion_types,                 ONLY: exclusion_type
@@ -47,6 +46,7 @@ MODULE fist_neighbor_lists
    USE kinds,                           ONLY: default_string_length,&
                                               dp
    USE memory_utilities,                ONLY: reallocate
+   USE message_passing,                 ONLY: mp_para_env_type
    USE particle_types,                  ONLY: particle_type
    USE qmmm_ff_fist,                    ONLY: qmmm_ff_precond_only_qm
    USE string_utilities,                ONLY: compress
@@ -108,7 +108,7 @@ CONTAINS
       REAL(dp), DIMENSION(:, :), INTENT(IN)              :: r_max, r_minsq
       REAL(KIND=DP), INTENT(IN)                          :: ei_scale14, vdw_scale14
       TYPE(fist_neighbor_type), POINTER                  :: nonbonded
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       LOGICAL, INTENT(IN)                                :: build_from_scratch, geo_check
       TYPE(section_vals_type), POINTER                   :: mm_section
       LOGICAL, DIMENSION(:, :), OPTIONAL, POINTER        :: full_nl
@@ -645,23 +645,21 @@ CONTAINS
       TYPE(fist_neighbor_type), POINTER                  :: nonbonded
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(cell_type), POINTER                           :: cell
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       INTEGER, INTENT(IN)                                :: output_unit
       CHARACTER(LEN=*), INTENT(IN)                       :: name, unit_str
 
       CHARACTER(LEN=default_string_length)               :: string
-      INTEGER                                            :: atom_a, atom_b, iab, ilist, mype, &
-                                                            nneighbor
+      INTEGER                                            :: atom_a, atom_b, iab, ilist, nneighbor
       LOGICAL                                            :: print_headline
       REAL(dp)                                           :: conv, dab
       REAL(dp), DIMENSION(3)                             :: cell_v, ra, rab, rb
       TYPE(neighbor_kind_pairs_type), POINTER            :: neighbor_kind_pair
 
-      mype = para_env%mepos
       ! Print headline
       string = ""
       WRITE (UNIT=string, FMT="(A,I5,A)") &
-         TRIM(name)//" IN "//TRIM(unit_str)//" (PROCESS", mype, ")"
+         TRIM(name)//" IN "//TRIM(unit_str)//" (PROCESS", para_env%mepos, ")"
       CALL compress(string)
       IF (output_unit > 0) WRITE (UNIT=output_unit, FMT="(/,/,T2,A)") TRIM(string)
 
@@ -710,7 +708,7 @@ CONTAINS
 
       string = ""
       WRITE (UNIT=string, FMT="(A,I12,A,I12)") &
-         "Total number of neighbor interactions for process", mype, ":", &
+         "Total number of neighbor interactions for process", para_env%mepos, ":", &
          nneighbor
       CALL compress(string)
       IF (output_unit > 0) WRITE (UNIT=output_unit, FMT="(/,T2,A)") TRIM(string)

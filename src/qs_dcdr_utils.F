@@ -40,7 +40,6 @@ MODULE qs_dcdr_utils
                                               cp_print_key_generate_filename,&
                                               cp_print_key_should_output,&
                                               cp_print_key_unit_nr
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE cp_result_methods,               ONLY: get_results
    USE cp_result_types,                 ONLY: cp_result_type
    USE dbcsr_api,                       ONLY: dbcsr_copy,&
@@ -60,6 +59,7 @@ MODULE qs_dcdr_utils
                                               default_string_length,&
                                               dp
    USE memory_utilities,                ONLY: reallocate
+   USE message_passing,                 ONLY: mp_para_env_type
    USE molecule_types,                  ONLY: molecule_type
    USE moments_utils,                   ONLY: get_reference_point
    USE parallel_gemm_api,               ONLY: parallel_gemm
@@ -156,13 +156,13 @@ CONTAINS
       CHARACTER(LEN=default_path_length)                 :: filename
       CHARACTER(LEN=default_string_length)               :: my_middle
       INTEGER :: beta_tmp, handle, i, i_block, ia, ie, iostat, iounit, ispin, j, lambda_tmp, &
-         max_block, n_rep_val, nao, nao_tmp, nmo, nmo_tmp, nspins, nspins_tmp, rst_unit, source
+         max_block, n_rep_val, nao, nao_tmp, nmo, nmo_tmp, nspins, nspins_tmp, rst_unit
       LOGICAL                                            :: file_exists
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: vecbuffer
       TYPE(cp_fm_type), POINTER                          :: mo_coeff
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mos
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(section_vals_type), POINTER                   :: print_key
 
       file_exists = .FALSE.
@@ -180,7 +180,6 @@ CONTAINS
                       mos=mos)
 
       nspins = SIZE(mos)
-      source = para_env%source !ionode???
 
       rst_unit = -1
       IF (para_env%is_source()) THEN
@@ -220,7 +219,7 @@ CONTAINS
          END IF
       END IF
 
-      CALL para_env%bcast(file_exists, source)
+      CALL para_env%bcast(file_exists)
 
       IF (file_exists) THEN
 
@@ -231,11 +230,11 @@ CONTAINS
          !
          ! read headers
          IF (rst_unit > 0) READ (rst_unit, IOSTAT=iostat) lambda_tmp, beta_tmp, nspins_tmp, nao_tmp
-         CALL para_env%bcast(iostat, source)
-         CALL para_env%bcast(beta_tmp, source)
-         CALL para_env%bcast(lambda_tmp, source)
-         CALL para_env%bcast(nspins_tmp, source)
-         CALL para_env%bcast(nao_tmp, source)
+         CALL para_env%bcast(iostat)
+         CALL para_env%bcast(beta_tmp)
+         CALL para_env%bcast(lambda_tmp)
+         CALL para_env%bcast(nspins_tmp)
+         CALL para_env%bcast(nao_tmp)
 
          ! check that the number nao, nmo and nspins are
          ! the same as in the current mos
@@ -253,7 +252,7 @@ CONTAINS
             CALL cp_fm_get_info(mo_coeff, ncol_global=nmo)
             !
             IF (rst_unit > 0) READ (rst_unit) nmo_tmp
-            CALL para_env%bcast(nmo_tmp, source)
+            CALL para_env%bcast(nmo_tmp)
             IF (nmo_tmp .NE. nmo) CPABORT("nmo not consistent")
             !
             ! read the response
@@ -262,7 +261,7 @@ CONTAINS
                DO j = 1, i_block
                   IF (rst_unit > 0) READ (rst_unit) vecbuffer(1:nao, j)
                END DO
-               CALL para_env%bcast(vecbuffer, source)
+               CALL para_env%bcast(vecbuffer)
                CALL cp_fm_set_submatrix(vec(ispin), vecbuffer, 1, i, nao, i_block)
             END DO
          END DO
@@ -312,8 +311,8 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: vecbuffer
       TYPE(cp_fm_type), POINTER                          :: mo_coeff
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mos
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(section_vals_type), POINTER                   :: print_key
 
       NULLIFY (logger, mo_coeff, mos, para_env, print_key, vecbuffer)
@@ -665,11 +664,11 @@ CONTAINS
       TYPE(cp_fm_type)                                   :: buf
       TYPE(cp_fm_type), POINTER                          :: mo_coeff
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_ks, matrix_s
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mos
       TYPE(molecule_type), DIMENSION(:), POINTER         :: molecule_set
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
          POINTER                                         :: sab_all, sab_orb
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
@@ -1033,19 +1032,11 @@ CONTAINS
       END IF
 
       ! Full matrices
-      DO ispin = 1, dcdr_env%nspins
-         CALL cp_fm_release(dcdr_env%dCR(ispin))
-         CALL cp_fm_release(dcdr_env%dCR_prime(ispin))
-         CALL cp_fm_release(dcdr_env%mo_coeff(ispin))
-         CALL cp_fm_release(dcdr_env%chc(ispin))
-         CALL cp_fm_release(dcdr_env%op_dR(ispin))
-      END DO
-
-      DEALLOCATE (dcdr_env%op_dR)
-      DEALLOCATE (dcdr_env%dCR)
-      DEALLOCATE (dcdr_env%dCR_prime)
-      DEALLOCATE (dcdr_env%mo_coeff)
-      DEALLOCATE (dcdr_env%chc)
+      CALL cp_fm_release(dcdr_env%dCR)
+      CALL cp_fm_release(dcdr_env%dCR_prime)
+      CALL cp_fm_release(dcdr_env%mo_coeff)
+      CALL cp_fm_release(dcdr_env%chc)
+      CALL cp_fm_release(dcdr_env%op_dR)
 
       ! DBCSR matrices
       CALL dbcsr_deallocate_matrix_set(dcdr_env%perturbed_dm_correction)

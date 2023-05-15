@@ -44,7 +44,6 @@ MODULE environment
                                               low_print_level,&
                                               medium_print_level,&
                                               silent_print_level
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE fft_tools,                       ONLY: fft3d,&
                                               finalize_fft,&
                                               init_fft
@@ -53,6 +52,7 @@ MODULE environment
    USE global_types,                    ONLY: global_environment_type
    USE grid_api,                        ONLY: GRID_BACKEND_AUTO,&
                                               GRID_BACKEND_CPU,&
+                                              GRID_BACKEND_DGEMM,&
                                               GRID_BACKEND_GPU,&
                                               GRID_BACKEND_HIP,&
                                               GRID_BACKEND_REF
@@ -80,9 +80,10 @@ MODULE environment
    USE machine,                         ONLY: &
         flush_should_flush, m_cpuid, m_cpuid_name, m_cpuid_static, m_cpuinfo, m_energy, &
         m_get_omp_stacksize, m_memory_details, m_procrun
-   USE message_passing,                 ONLY: add_mp_perf_env,&
+   USE message_passing,                 ONLY: mp_collect_timings,&
+                                              mp_para_env_type
+   USE mp_perf_env,                     ONLY: add_mp_perf_env,&
                                               describe_mp_perf_env,&
-                                              mp_collect_timings,&
                                               rm_mp_perf_env
    USE orbital_pointers,                ONLY: deallocate_orbital_pointers,&
                                               init_orbital_pointers
@@ -140,7 +141,7 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE cp2k_init(para_env, output_unit, globenv, input_file_name, wdir)
 
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       INTEGER                                            :: output_unit
       TYPE(global_environment_type), POINTER             :: globenv
       CHARACTER(LEN=*)                                   :: input_file_name
@@ -233,7 +234,7 @@ CONTAINS
 !> \param output_unit ...
 ! **************************************************************************************************
    SUBROUTINE echo_all_hosts(para_env, output_unit)
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       INTEGER                                            :: output_unit
 
       CHARACTER(LEN=default_string_length)               :: string
@@ -274,7 +275,7 @@ CONTAINS
 !> \param output_unit ...
 ! **************************************************************************************************
    SUBROUTINE echo_all_process_host(para_env, output_unit)
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       INTEGER                                            :: output_unit
 
       CHARACTER(LEN=default_string_length)               :: string, string_sec
@@ -336,7 +337,7 @@ CONTAINS
    SUBROUTINE cp2k_read(root_section, para_env, globenv)
 
       TYPE(section_vals_type), POINTER                   :: root_section
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(global_environment_type), POINTER             :: globenv
 
       CHARACTER(len=default_string_length)               :: c_val
@@ -391,7 +392,7 @@ CONTAINS
    SUBROUTINE cp2k_setup(root_section, para_env, globenv)
 
       TYPE(section_vals_type), POINTER                   :: root_section
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(global_environment_type), POINTER             :: globenv
 
       INTEGER                                            :: iw, maxl
@@ -476,7 +477,7 @@ CONTAINS
    SUBROUTINE read_global_section(root_section, para_env, globenv)
 
       TYPE(section_vals_type), POINTER                   :: root_section
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(global_environment_type), POINTER             :: globenv
 
       CHARACTER(LEN=6), PARAMETER                        :: start_section_label = "GLOBAL"
@@ -834,6 +835,9 @@ CONTAINS
          CASE (GRID_BACKEND_CPU)
             WRITE (UNIT=output_unit, FMT="(T2,A,T75,A6)") &
                start_section_label//"| Grid backend", "CPU"
+         CASE (GRID_BACKEND_DGEMM)
+            WRITE (UNIT=output_unit, FMT="(T2,A,T75,A6)") &
+               start_section_label//"| Grid backend", "DGEMM"
          CASE (GRID_BACKEND_GPU)
             WRITE (UNIT=output_unit, FMT="(T2,A,T75,A6)") &
                start_section_label//"| Grid backend", "GPU"
@@ -920,7 +924,7 @@ CONTAINS
    SUBROUTINE read_cp2k_section(root_section, para_env, globenv)
 
       TYPE(section_vals_type), POINTER                   :: root_section
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(global_environment_type), POINTER             :: globenv
 
       INTEGER                                            :: output_unit
@@ -1168,7 +1172,7 @@ CONTAINS
    SUBROUTINE cp2k_finalize(root_section, para_env, globenv, wdir, q_finalize)
 
       TYPE(section_vals_type), POINTER                   :: root_section
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(global_environment_type), POINTER             :: globenv
       CHARACTER(LEN=*), OPTIONAL                         :: wdir
       LOGICAL, INTENT(IN), OPTIONAL                      :: q_finalize

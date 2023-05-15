@@ -35,7 +35,6 @@ MODULE mp2_integrals
                                               cp_fm_release,&
                                               cp_fm_type
    USE cp_log_handling,                 ONLY: cp_to_string
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE cp_units,                        ONLY: cp_unit_from_cp2k
    USE dbcsr_api,                       ONLY: &
         dbcsr_copy, dbcsr_create, dbcsr_get_info, dbcsr_multiply, dbcsr_p_type, dbcsr_release, &
@@ -67,7 +66,8 @@ MODULE mp2_integrals
                                               libint_potential_type
    USE machine,                         ONLY: m_flush
    USE message_passing,                 ONLY: mp_cart_type,&
-                                              mp_comm_type
+                                              mp_comm_type,&
+                                              mp_para_env_type
    USE mp2_eri,                         ONLY: mp2_eri_3c_integrate
    USE mp2_eri_gpw,                     ONLY: cleanup_gpw,&
                                               mp2_eri_3c_integrate_gpw,&
@@ -204,7 +204,7 @@ CONTAINS
          DIMENSION(:), INTENT(OUT)                       :: gd_B_virtual
       INTEGER, INTENT(OUT)                               :: dimen_RI, dimen_RI_red
       TYPE(qs_environment_type), POINTER                 :: qs_env
-      TYPE(cp_para_env_type), POINTER                    :: para_env, para_env_sub
+      TYPE(mp_para_env_type), POINTER                    :: para_env, para_env_sub
       INTEGER, INTENT(IN)                                :: color_sub
       TYPE(cell_type), POINTER                           :: cell
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
@@ -905,14 +905,13 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: ngroup, igroup
 
       CLASS(mp_comm_type), INTENT(IN)                    :: mp_comm
-      TYPE(cp_para_env_type), INTENT(IN)                 :: para_env_sub
+      TYPE(mp_para_env_type), INTENT(IN)                 :: para_env_sub
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'contract_B_L'
       LOGICAL, PARAMETER                                 :: debug = .FALSE.
 
       INTEGER                                            :: check_proc, handle, i, iend, ii, ioff, &
-                                                            iproc, iproc_glob, istart, loc_a, &
-                                                            loc_P, nblk_per_thread, nproc
+                                                            istart, loc_a, loc_P, nblk_per_thread
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: block_ind_L_P, block_ind_L_R
       INTEGER, DIMENSION(1)                              :: dist_B_i, map_B_1, map_L_1, map_L_2, &
                                                             sizes_i
@@ -930,109 +929,106 @@ CONTAINS
 
       sizes_i(1) = SIZE(BIb_C, 3)
 
-      nproc = para_env_sub%num_pe ! number of processes per subgroup (Nw)
-      iproc = para_env_sub%mepos ! subgroup-local process ID
+      ASSOCIATE (nproc => para_env_sub%num_pe, iproc => para_env_sub%mepos, iproc_glob => mp_comm%mepos)
 
-      ! Total number of processes and global process ID
-      iproc_glob = mp_comm%mepos
+         ! local block index for R/P and a
+         loc_P = igroup + 1; loc_a = iproc + 1
 
-      ! local block index for R/P and a
-      loc_P = igroup + 1; loc_a = iproc + 1
+         CPASSERT(SIZE(sizes_L) .EQ. ngroup)
+         CPASSERT(SIZE(sizes_B) .EQ. nproc)
+         CPASSERT(sizes_L(loc_P) .EQ. SIZE(BIb_C, 1))
+         CPASSERT(sizes_L(loc_P) .EQ. SIZE(my_Lrows, 2))
+         CPASSERT(sizes_B(loc_a) .EQ. SIZE(BIb_C, 2))
 
-      CPASSERT(SIZE(sizes_L) .EQ. ngroup)
-      CPASSERT(SIZE(sizes_B) .EQ. nproc)
-      CPASSERT(sizes_L(loc_P) .EQ. SIZE(BIb_C, 1))
-      CPASSERT(sizes_L(loc_P) .EQ. SIZE(my_Lrows, 2))
-      CPASSERT(sizes_B(loc_a) .EQ. SIZE(BIb_C, 2))
+         ! Tensor distributions as follows:
+         ! Process grid NG x Nw
+         ! Each process has coordinates (np, nw)
+         ! tB_in: (R|ai): R distributed (np), a distributed (nw)
+         ! tB_out: (P|ai): P distributed (np), a distributed (nw)
+         ! tL: (R|P): R distributed (nw), P distributed (np)
 
-      ! Tensor distributions as follows:
-      ! Process grid NG x Nw
-      ! Each process has coordinates (np, nw)
-      ! tB_in: (R|ai): R distributed (np), a distributed (nw)
-      ! tB_out: (P|ai): P distributed (np), a distributed (nw)
-      ! tL: (R|P): R distributed (nw), P distributed (np)
+         ! define mappings between tensor index and matrix index:
+         ! (R|ai) and (P|ai):
+         map_B_1 = [1] ! index 1 (R or P) maps to 1st matrix index (np distributed)
+         map_B_2 = [2, 3] ! indices 2, 3 (a, i) map to 2nd matrix index (nw distributed)
+         ! (R|P):
+         map_L_1 = [2] ! index 2 (P) maps to 1st matrix index (np distributed)
+         map_L_2 = [1] ! index 1 (R) maps to 2nd matrix index (nw distributed)
 
-      ! define mappings between tensor index and matrix index:
-      ! (R|ai) and (P|ai):
-      map_B_1 = [1] ! index 1 (R or P) maps to 1st matrix index (np distributed)
-      map_B_2 = [2, 3] ! indices 2, 3 (a, i) map to 2nd matrix index (nw distributed)
-      ! (R|P):
-      map_L_1 = [2] ! index 2 (P) maps to 1st matrix index (np distributed)
-      map_L_2 = [1] ! index 1 (R) maps to 2nd matrix index (nw distributed)
+         ! derive nd process grid that is compatible with distributions and 2d process grid
+         ! (R|ai) / (P|ai) on process grid NG x Nw x 1
+         ! (R|P) on process grid NG x Nw
+         pdims_B = [ngroup, nproc, 1]
+         pdims_L = [nproc, ngroup]
 
-      ! derive nd process grid that is compatible with distributions and 2d process grid
-      ! (R|ai) / (P|ai) on process grid NG x Nw x 1
-      ! (R|P) on process grid NG x Nw
-      pdims_B = [ngroup, nproc, 1]
-      pdims_L = [nproc, ngroup]
+         CALL dbt_pgrid_create(mp_comm, pdims_B, mp_comm_B)
+         CALL dbt_pgrid_create(mp_comm, pdims_L, mp_comm_L)
 
-      CALL dbt_pgrid_create(mp_comm, pdims_B, mp_comm_B)
-      CALL dbt_pgrid_create(mp_comm, pdims_L, mp_comm_L)
+         ! setup distribution vectors such that distribution matches parallel data layout of BIb_C and my_Lrows
+         dist_B_i = [0]
+         dist_B_a = (/(i, i=0, nproc - 1)/)
+         dist_L_R = (/(MODULO(i, nproc), i=0, ngroup - 1)/) ! R index is replicated in my_Lrows, we impose a cyclic distribution
+         dist_L_P = (/(i, i=0, ngroup - 1)/)
 
-      ! setup distribution vectors such that distribution matches parallel data layout of BIb_C and my_Lrows
-      dist_B_i = [0]
-      dist_B_a = (/(i, i=0, nproc - 1)/)
-      dist_L_R = (/(MODULO(i, nproc), i=0, ngroup - 1)/) ! R index is replicated in my_Lrows, we impose a cyclic distribution
-      dist_L_P = (/(i, i=0, ngroup - 1)/)
+         ! create distributions and tensors
+         CALL dbt_distribution_new(dist_B, mp_comm_B, dist_L_P, dist_B_a, dist_B_i)
+         CALL dbt_distribution_new(dist_L, mp_comm_L, dist_L_R, dist_L_P)
 
-      ! create distributions and tensors
-      CALL dbt_distribution_new(dist_B, mp_comm_B, dist_L_P, dist_B_a, dist_B_i)
-      CALL dbt_distribution_new(dist_L, mp_comm_L, dist_L_R, dist_L_P)
+         CALL dbt_create(tB_in, "(R|ai)", dist_B, map_B_1, map_B_2, sizes_L, sizes_B, sizes_i)
+         CALL dbt_create(tB_out, "(P|ai)", dist_B, map_B_1, map_B_2, sizes_L, sizes_B, sizes_i)
+         CALL dbt_create(tL, "(R|P)", dist_L, map_L_1, map_L_2, sizes_L, sizes_L)
 
-      CALL dbt_create(tB_in, "(R|ai)", dist_B, map_B_1, map_B_2, sizes_L, sizes_B, sizes_i)
-      CALL dbt_create(tB_out, "(P|ai)", dist_B, map_B_1, map_B_2, sizes_L, sizes_B, sizes_i)
-      CALL dbt_create(tL, "(R|P)", dist_L, map_L_1, map_L_2, sizes_L, sizes_L)
+         IF (debug) THEN
+            ! check that tensor distribution is correct
+            CALL dbt_get_stored_coordinates(tB_in, [loc_P, loc_a, 1], check_proc)
+            CPASSERT(check_proc .EQ. iproc_glob)
+         END IF
 
-      IF (debug) THEN
-         ! check that tensor distribution is correct
-         CALL dbt_get_stored_coordinates(tB_in, [loc_P, loc_a, 1], check_proc)
-         CPASSERT(check_proc .EQ. iproc_glob)
-      END IF
-
-      ! reserve (R|ai) block
+         ! reserve (R|ai) block
 !$OMP PARALLEL DEFAULT(NONE) SHARED(tB_in,loc_P,loc_a)
-      CALL dbt_reserve_blocks(tB_in, [loc_P], [loc_a], [1])
+         CALL dbt_reserve_blocks(tB_in, [loc_P], [loc_a], [1])
 !$OMP END PARALLEL
 
-      ! reserve (R|P) blocks
-      ! in my_Lrows, R index is replicated. For (R|P), we distribute quadratic blocks cyclically over
-      ! the processes in a subgroup.
-      ! There are NG blocks, so each process holds at most NG/Nw+1 blocks.
-      ALLOCATE (block_ind_L_R(ngroup/nproc + 1))
-      ALLOCATE (block_ind_L_P(ngroup/nproc + 1))
-      block_ind_L_R(:) = 0; block_ind_L_P(:) = 0
-      ii = 0
-      DO i = 1, ngroup
-         CALL dbt_get_stored_coordinates(tL, [i, loc_P], check_proc)
-         IF (check_proc == iproc_glob) THEN
-            ii = ii + 1
-            block_ind_L_R(ii) = i
-            block_ind_L_P(ii) = loc_P
-         END IF
-      END DO
+         ! reserve (R|P) blocks
+         ! in my_Lrows, R index is replicated. For (R|P), we distribute quadratic blocks cyclically over
+         ! the processes in a subgroup.
+         ! There are NG blocks, so each process holds at most NG/Nw+1 blocks.
+         ALLOCATE (block_ind_L_R(ngroup/nproc + 1))
+         ALLOCATE (block_ind_L_P(ngroup/nproc + 1))
+         block_ind_L_R(:) = 0; block_ind_L_P(:) = 0
+         ii = 0
+         DO i = 1, ngroup
+            CALL dbt_get_stored_coordinates(tL, [i, loc_P], check_proc)
+            IF (check_proc == iproc_glob) THEN
+               ii = ii + 1
+               block_ind_L_R(ii) = i
+               block_ind_L_P(ii) = loc_P
+            END IF
+         END DO
 
 !TODO: Parallelize creation of block list.
 !$OMP PARALLEL DEFAULT(NONE) SHARED(tL,block_ind_L_R,block_ind_L_P,ii) &
 !$OMP PRIVATE(nblk_per_thread,istart,iend)
-      nblk_per_thread = ii/omp_get_num_threads() + 1
-      istart = omp_get_thread_num()*nblk_per_thread + 1
-      iend = MIN(istart + nblk_per_thread, ii)
-      CALL dbt_reserve_blocks(tL, block_ind_L_R(istart:iend), block_ind_L_P(istart:iend))
+         nblk_per_thread = ii/omp_get_num_threads() + 1
+         istart = omp_get_thread_num()*nblk_per_thread + 1
+         iend = MIN(istart + nblk_per_thread, ii)
+         CALL dbt_reserve_blocks(tL, block_ind_L_R(istart:iend), block_ind_L_P(istart:iend))
 !$OMP END PARALLEL
 
-      ! insert (R|ai) block
-      CALL dbt_put_block(tB_in, [loc_P, loc_a, 1], SHAPE(BIb_C), BIb_C)
+         ! insert (R|ai) block
+         CALL dbt_put_block(tB_in, [loc_P, loc_a, 1], SHAPE(BIb_C), BIb_C)
 
-      ! insert (R|P) blocks
-      ioff = 0
-      DO i = 1, ngroup
-         istart = ioff + 1; iend = ioff + sizes_L(i)
-         ioff = ioff + sizes_L(i)
-         CALL dbt_get_stored_coordinates(tL, [i, loc_P], check_proc)
-         IF (check_proc == iproc_glob) THEN
-            CALL dbt_put_block(tL, [i, loc_P], [sizes_L(i), sizes_L(loc_P)], my_Lrows(istart:iend, :))
-         END IF
-      END DO
+         ! insert (R|P) blocks
+         ioff = 0
+         DO i = 1, ngroup
+            istart = ioff + 1; iend = ioff + sizes_L(i)
+            ioff = ioff + sizes_L(i)
+            CALL dbt_get_stored_coordinates(tL, [i, loc_P], check_proc)
+            IF (check_proc == iproc_glob) THEN
+               CALL dbt_put_block(tL, [i, loc_P], [sizes_L(i), sizes_L(loc_P)], my_Lrows(istart:iend, :))
+            END IF
+         END DO
+      END ASSOCIATE
 
       CALL dbt_split_blocks(tB_in, tB_in_split, [blk_size(2), blk_size(1), blk_size(1)])
       CALL dbt_split_blocks(tL, tL_split, [blk_size(2), blk_size(2)])
@@ -1090,7 +1086,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: size_1, size_2
       CHARACTER(LEN=*), INTENT(IN)                       :: matrix_name_2
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env_sub
-      TYPE(cp_para_env_type), POINTER                    :: para_env_sub
+      TYPE(mp_para_env_type), POINTER                    :: para_env_sub
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'create_intermediate_matrices'
 
@@ -1161,7 +1157,7 @@ CONTAINS
    SUBROUTINE ao_to_mo_and_store_B(para_env, mat_munu, intermed_mat, BIb_jb, &
                                    mo_coeff_o, mo_coeff_v, eps_filter, &
                                    my_B_end, my_B_start)
-      TYPE(cp_para_env_type), INTENT(IN)                 :: para_env
+      TYPE(mp_para_env_type), INTENT(IN)                 :: para_env
       TYPE(dbcsr_p_type), INTENT(IN)                     :: mat_munu
       TYPE(intermediate_matrix_type), INTENT(INOUT)      :: intermed_mat
       REAL(KIND=dp), DIMENSION(:, :), INTENT(OUT)        :: BIb_jb
@@ -1229,8 +1225,8 @@ CONTAINS
       INTEGER, DIMENSION(3)                              :: nkp_grid, nkp_grid_extra, periodic
       LOGICAL                                            :: do_extrapolate_kpoints
       TYPE(cell_type), POINTER                           :: cell
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
          POINTER                                         :: sab_orb
 
@@ -1383,7 +1379,7 @@ CONTAINS
    SUBROUTINE grep_my_integrals(para_env_sub, fm_BIb_jb, BIb_jb, max_row_col_local, &
                                 local_col_row_info, &
                                 my_B_virtual_end, my_B_virtual_start)
-      TYPE(cp_para_env_type), INTENT(IN)                 :: para_env_sub
+      TYPE(mp_para_env_type), INTENT(IN)                 :: para_env_sub
       TYPE(cp_fm_type), INTENT(IN)                       :: fm_BIb_jb
       REAL(KIND=dp), DIMENSION(:, :), INTENT(OUT)        :: BIb_jb
       INTEGER, INTENT(IN)                                :: max_row_col_local

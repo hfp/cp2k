@@ -19,7 +19,6 @@ MODULE xas_tdp_types
    USE cp_files,                        ONLY: file_exists
    USE cp_fm_types,                     ONLY: cp_fm_release,&
                                               cp_fm_type
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: dbcsr_distribution_release,&
                                               dbcsr_distribution_type,&
                                               dbcsr_p_type,&
@@ -43,6 +42,7 @@ MODULE xas_tdp_types
    USE libint_wrapper,                  ONLY: cp_libint_static_cleanup
    USE mathlib,                         ONLY: erfc_cutoff
    USE memory_utilities,                ONLY: reallocate
+   USE message_passing,                 ONLY: mp_para_env_type
    USE physcon,                         ONLY: bohr,&
                                               evolt
    USE qs_grid_atom,                    ONLY: deallocate_grid_atom,&
@@ -311,7 +311,7 @@ MODULE xas_tdp_types
    END TYPE harmonics_atom_p_type
 
    TYPE batch_info_type
-      TYPE(cp_para_env_type)             :: para_env
+      TYPE(mp_para_env_type)             :: para_env
       INTEGER                                     :: batch_size
       INTEGER                                     :: nbatch
       INTEGER                                     :: ibatch
@@ -842,12 +842,9 @@ CONTAINS
             END DO
             DEALLOCATE (xas_tdp_env%orb_soc)
          END IF
-         IF (ASSOCIATED(xas_tdp_env%lumo_evecs)) THEN
-            DO i = 1, SIZE(xas_tdp_env%lumo_evecs)
-               CALL cp_fm_release(xas_tdp_env%lumo_evecs(i))
-            END DO
-            DEALLOCATE (xas_tdp_env%lumo_evecs)
-         END IF
+
+         CALL cp_fm_release(xas_tdp_env%lumo_evecs)
+
          IF (ASSOCIATED(xas_tdp_env%lumo_evals)) THEN
             DO i = 1, SIZE(xas_tdp_env%lumo_evals)
                DEALLOCATE (xas_tdp_env%lumo_evals(i)%array)

@@ -2,18 +2,17 @@
 #
 # CP2K (Intel/MKL x86_64) arch file for Linux clusters
 #
-# Tested with: Intel 20.4/21.4/22.2 , Intel MPI, Intel MKL,
+# Tested with: Intel 22.2 , Intel MPI, Intel MKL,
 #              LIBINT 2.6.0, LIBXC 6.1.0, ELPA 2022.11.001,
 #              PLUMED 2.8.1, SPGLIB 1.16.2, LIBVORI 220621,
-#              GSL 2.7, COSMA 2.6.2, SIRIUS 7.4.3
-# on the Merlin cluster (PSI)
+#              GSL 2.7, COSMA 2.6.6
 #
 # Usage: Source this arch file and then run make as instructed.
 #        A full toolchain installation is performed as default.
 #        Optionally, the Intel compiler version can be specified as argument.
 #        Replace or adapt the "module add" commands below if needed.
 #
-# Author: Matthias Krack (03.02.2023)
+# Author: Matthias Krack (19.04.2023)
 #
 # \
    if [[ "${0}" == "${BASH_SOURCE}" ]]; then \
@@ -28,34 +27,41 @@
       module add ${1}; \
       module list; \
    fi; \
-   ./install_cp2k_toolchain.sh --install-all -j${maxtasks} --no-arch-files --target-cpu=${target_cpu} --with-intelmpi --with-mkl; \
+   ./install_cp2k_toolchain.sh --install-all -j${maxtasks} --no-arch-files --target-cpu=${target_cpu} --with-intelmpi --with-mkl --with-sirius=no --with-libtorch=no; \
    source ./install/setup; \
    cd ../..; \
    echo; \
    echo "Check the output above for error messages and consistency!"; \
+   echo; \
    echo "If everything is OK, you can build a CP2K production binary with"; \
    echo "   make -j ARCH=${this_file%.*} VERSION=${this_file##*.}"; \
+   echo; \
    echo "Alternatively, you can add further checks, e.g. for regression testing, with"; \
    echo "   make -j ARCH=${this_file%.*} VERSION=${this_file##*.} DO_CHECKS=yes"; \
    echo "or build CP2K only with shared libraries using"; \
    echo "   make -j ARCH=${this_file%.*} VERSION=${this_file##*.} SHARED=yes"; \
    echo "or build CP2K as a library with"; \
    echo "   make -j ARCH=${this_file%.*} VERSION=${this_file##*.} libcp2k"; \
+   echo; \
+   echo "Run always the following command before using the CP2K binary"; \
+   echo "   source ${PWD}/tools/toolchain/install/setup"; \
+   echo; \
    return
 
 # Set options
 DO_CHECKS      := no
 SHARED         := no
 TARGET_CPU     := native
-USE_COSMA      := 2.6.2
+USE_COSMA      := 2.6.6
 USE_ELPA       := 2022.11.001
 USE_LIBINT     := 2.6.0
 USE_LIBPEXSI   := 1.2.0
+#USE_LIBTORCH   := 1.12.1
 USE_LIBVORI    := 220621
 USE_LIBXC      := 6.1.0
 USE_LIBXSMM    := 1.17
 USE_PLUMED     := 2.8.1
-USE_SIRIUS     := 7.4.3
+#USE_SIRIUS     := 7.4.3
 USE_SPGLIB     := 1.16.2
 # Only needed for SIRIUS
 LIBVDWXC_VER   := 0.4.0
@@ -75,9 +81,9 @@ LD             := mpiifort
 AR             := ar -r
 
 ifeq ($(strip $(TARGET_CPU)), native)
-   CFLAGS         := -O2 -fopenmp -fp-model precise -funroll-loops -g -qopenmp-simd -traceback -xHost
+   CFLAGS         := -O2 -fPIC -fp-model precise -funroll-loops -g -qopenmp -qopenmp-simd -traceback -xHost
 else
-   CFLAGS         := -O2 -fopenmp -fp-model precise -funroll-loops -g -mtune=$(TARGET_CPU) -qopenmp-simd
+   CFLAGS         := -O2 -fPIC -fp-model precise -funroll-loops -g -mtune=$(TARGET_CPU) -qopenmp -qopenmp-simd -traceback
 endif
 
 DFLAGS         := -D__parallel
@@ -265,11 +271,10 @@ ifneq ($(USE_COSMA),)
    CFLAGS         += -I$(COSMA_INC)
    DFLAGS         += -D__COSMA
    ifeq ($(SHARED), yes)
-      LIBS           += -Wl,-rpath=$(COSMA_LIB) -L$(COSMA_LIB) -lcosma_prefixed_pxgemm -lcosma -lcosta_prefixed_scalapack -lcosta
+      LIBS           += -Wl,-rpath=$(COSMA_LIB) -L$(COSMA_LIB) -lcosma_prefixed_pxgemm -lcosma -lcosta
    else
       LIBS           += $(COSMA_LIB)/libcosma_prefixed_pxgemm.a
       LIBS           += $(COSMA_LIB)/libcosma.a
-      LIBS           += $(COSMA_LIB)/libcosta_prefixed_scalapack.a
       LIBS           += $(COSMA_LIB)/libcosta.a
    endif
 endif
@@ -305,15 +310,30 @@ else
    LIBS           += -Wl,--end-group
 endif
 
+ifeq ($(shell [ $(shell ldd --version | head -n 1 | tr -s '.' '\n' | tail -n 1) -ge 27 ] && echo yes), yes)
+   ifneq ($(USE_LIBTORCH),)
+      USE_LIBTORCH   := $(strip $(USE_LIBTORCH))
+      LIBTORCH_INC   := $(INSTALL_PATH)/libtorch-$(USE_LIBTORCH)/include
+      LIBTORCH_LIB   := $(INSTALL_PATH)/libtorch-$(USE_LIBTORCH)/lib
+      CFLAGS         += -I$(LIBTORCH_INC)
+      DFLAGS         += -D__LIBTORCH
+      LIBS           += -Wl,-rpath=$(LIBTORCH_LIB) -L$(LIBTORCH_LIB) -lc10 -ltorch_cpu -ltorch
+   endif
+endif
+
 CFLAGS         += $(DFLAGS)
 CFLAGS         += -I$(MKLROOT)/include
 CFLAGS         += -I$(MKLROOT)/include/fftw
+
+CXXFLAGS       := $(CFLAGS) -std=c++14
 
 FCFLAGS        := $(CFLAGS)
 FCFLAGS        += -diag-disable=8291
 FCFLAGS        += -diag-disable=8293
 FCFLAGS        += -fpp
+FCFLAGS        += -fpscomp logicals
 FCFLAGS        += -free
+FCFLAGS        += -std08
 
 LDFLAGS        += $(FCFLAGS)
 LDFLAGS_C      := -nofor-main
@@ -326,5 +346,8 @@ mp2_optimize_ri_basis.o: mp2_optimize_ri_basis.F
 # Required due to SEGFAULTS occurring for higher optimisation levels
 paw_basis_types.o: paw_basis_types.F
 	$(FC) -c $(subst O2,O1,$(FCFLAGS)) $<
+# Reduce compilation time
+hfx_contraction_methods.o: hfx_contraction_methods.F
+	$(FC) -c $(subst -O2,-O1,$(FCFLAGS)) $<
 
 # End

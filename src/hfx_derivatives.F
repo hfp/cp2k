@@ -26,7 +26,7 @@ MODULE hfx_derivatives
                                  cp_print_key_finished_output, &
                                  cp_print_key_should_output, &
                                  cp_print_key_unit_nr
-   USE cp_para_types, ONLY: cp_para_env_type
+   USE message_passing, ONLY: mp_para_env_type
    USE dbcsr_api, ONLY: dbcsr_get_matrix_type, &
                         dbcsr_p_type, &
                         dbcsr_type_antisymmetric
@@ -119,7 +119,7 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: rho_ao
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: rho_ao_resp
       TYPE(section_vals_type), POINTER                   :: hfx_section
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       INTEGER, INTENT(IN)                                :: irep
       LOGICAL, INTENT(IN)                                :: use_virial
       REAL(dp), INTENT(IN), OPTIONAL                     :: adiabatic_rescale_factor
@@ -534,13 +534,8 @@ CONTAINS
       !! matrix is initialized to 1.0
       IF (screen_pmat_forces) THEN
          NULLIFY (shm_initial_p)
-         shm_initial_p => actual_x_data%initial_p
-         shm_pmax_atom => actual_x_data%pmax_atom
-
-         IF (memory_parameter%treat_forces_in_core) THEN
-            shm_initial_p => actual_x_data%initial_p_forces
-            shm_pmax_atom => actual_x_data%pmax_atom_forces
-         END IF
+         shm_initial_p => actual_x_data%initial_p_forces
+         shm_pmax_atom => actual_x_data%pmax_atom_forces
          IF (memory_parameter%recalc_forces) THEN
             CALL update_pmax_mat(shm_initial_p, &
                                  actual_x_data%map_atom_to_kind_atom, &

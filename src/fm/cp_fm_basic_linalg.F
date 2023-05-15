@@ -60,6 +60,8 @@ MODULE cp_fm_basic_linalg
              cp_fm_solve, & ! solves the equation  A*B=C A and C are input
              cp_fm_pdgeqpf, & ! compute a QR factorization with column pivoting of a M-by-N distributed matrix
              cp_fm_pdorgqr, & ! generates an M-by-N as first N columns of a product of K elementary reflectors
+             cp_fm_rot_rows, & ! rotates two rows
+             cp_fm_rot_cols, & ! rotates two columns
              cp_fm_Gram_Schmidt_orthonorm ! Gram-Schmidt orthonormalization of columns of a full matrix
 
    REAL(KIND=dp), EXTERNAL :: dlange, pdlange, pdlatra
@@ -101,7 +103,7 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_scale_and_add'
 
-      INTEGER                                            :: handle, size_a
+      INTEGER                                            :: handle, size_a, size_b
       REAL(KIND=dp)                                      :: my_beta
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: a, b
       REAL(KIND=sp), DIMENSION(:, :), POINTER            :: a_sp, b_sp
@@ -151,6 +153,13 @@ CONTAINS
 
             b => matrix_b%local_data
             b_sp => matrix_b%local_data_sp
+            IF (matrix_b%use_sp) THEN
+               size_b = SIZE(b_sp, 1)*SIZE(b_sp, 2)
+            ELSE
+               size_b = SIZE(b, 1)*SIZE(b, 2)
+            END IF
+            IF (size_a /= size_b) &
+               CPABORT("Matrixes must have same locale sizes")
 
             IF (matrix_a%use_sp .AND. matrix_b%use_sp) THEN
                CALL saxpy(size_a, REAL(my_beta, sp), b_sp, 1, a_sp, 1)
@@ -2298,6 +2307,90 @@ CONTAINS
       CALL timestop(handle)
 
    END SUBROUTINE cp_fm_pdorgqr
+
+! **************************************************************************************************
+!> \brief Applies a planar rotation defined by cs and sn to the i'th and j'th rows.
+!> \param cs cosine of the rotation angle
+!> \param sn sinus of the rotation angle
+!> \param irow ...
+!> \param jrow ...
+!> \author Ole Schuett
+! **************************************************************************************************
+   SUBROUTINE cp_fm_rot_rows(matrix, irow, jrow, cs, sn)
+      TYPE(cp_fm_type), INTENT(IN)             :: matrix
+      INTEGER, INTENT(IN)                      :: irow, jrow
+      REAL(dp), INTENT(IN)                     :: cs, sn
+
+      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_rot_rows'
+      INTEGER                                  :: handle, nrow, ncol
+
+#if defined(__SCALAPACK)
+      INTEGER                                  :: info, lwork
+      INTEGER, DIMENSION(9)                    :: desc
+      REAL(dp), DIMENSION(:), ALLOCATABLE      :: work
+#endif
+
+      CALL timeset(routineN, handle)
+      CALL cp_fm_get_info(matrix, nrow_global=nrow, ncol_global=ncol)
+
+#if defined(__SCALAPACK)
+      lwork = 2*ncol + 1
+      ALLOCATE (work(lwork))
+      desc(:) = matrix%matrix_struct%descriptor(:)
+      CALL pdrot(ncol, &
+                 matrix%local_data(1, 1), irow, 1, desc, ncol, &
+                 matrix%local_data(1, 1), jrow, 1, desc, ncol, &
+                 cs, sn, work, lwork, info)
+      CPASSERT(info == 0)
+      DEALLOCATE (work)
+#else
+      CALL drot(ncol, matrix%local_data(irow, 1), ncol, matrix%local_data(jrow, 1), ncol, cs, sn)
+#endif
+
+      CALL timestop(handle)
+   END SUBROUTINE cp_fm_rot_rows
+
+! **************************************************************************************************
+!> \brief Applies a planar rotation defined by cs and sn to the i'th and j'th columnns.
+!> \param cs cosine of the rotation angle
+!> \param sn sinus of the rotation angle
+!> \param icol ...
+!> \param jcol ...
+!> \author Ole Schuett
+! **************************************************************************************************
+   SUBROUTINE cp_fm_rot_cols(matrix, icol, jcol, cs, sn)
+      TYPE(cp_fm_type), INTENT(IN)             :: matrix
+      INTEGER, INTENT(IN)                      :: icol, jcol
+      REAL(dp), INTENT(IN)                     :: cs, sn
+
+      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_rot_cols'
+      INTEGER                                  :: handle, nrow, ncol
+
+#if defined(__SCALAPACK)
+      INTEGER                                  :: info, lwork
+      INTEGER, DIMENSION(9)                    :: desc
+      REAL(dp), DIMENSION(:), ALLOCATABLE      :: work
+#endif
+
+      CALL timeset(routineN, handle)
+      CALL cp_fm_get_info(matrix, nrow_global=nrow, ncol_global=ncol)
+
+#if defined(__SCALAPACK)
+      lwork = 2*nrow + 1
+      ALLOCATE (work(lwork))
+      desc(:) = matrix%matrix_struct%descriptor(:)
+      CALL pdrot(nrow, &
+                 matrix%local_data(1, 1), 1, icol, desc, 1, &
+                 matrix%local_data(1, 1), 1, jcol, desc, 1, &
+                 cs, sn, work, lwork, info)
+      CPASSERT(info == 0)
+      DEALLOCATE (work)
+#else
+      CALL drot(nrow, matrix%local_data(1, icol), 1, matrix%local_data(1, jcol), 1, cs, sn)
+#endif
+
+      CALL timestop(handle)
+   END SUBROUTINE cp_fm_rot_cols
 
 ! **************************************************************************************************
 !> \brief Orthonormalizes selected rows and columns of a full matrix, matrix_a

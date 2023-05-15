@@ -24,8 +24,8 @@
 MODULE distribution_1d_types
 
    USE cp_array_utils,                  ONLY: cp_1d_i_p_type
-   USE cp_para_env,                     ONLY: cp_para_env_release
-   USE cp_para_types,                   ONLY: cp_para_env_type
+   USE message_passing,                 ONLY: mp_para_env_release,&
+                                              mp_para_env_type
    USE parallel_rng_types,              ONLY: rng_stream_p_type
 #include "../base/base_uses.f90"
 
@@ -41,7 +41,7 @@ MODULE distribution_1d_types
 
 ! **************************************************************************************************
    TYPE local_particle_type
-      TYPE(rng_stream_p_type), DIMENSION(:), POINTER :: rng
+      TYPE(rng_stream_p_type), DIMENSION(:), POINTER :: rng => NULL()
    END TYPE local_particle_type
 !***
 
@@ -60,12 +60,12 @@ MODULE distribution_1d_types
 !> \author Fawzi Mohamed
 ! **************************************************************************************************
    TYPE distribution_1d_type
-      INTEGER :: ref_count
-      LOGICAL :: listbased_distribution
-      INTEGER, DIMENSION(:), POINTER :: n_el
-      TYPE(cp_1d_i_p_type), DIMENSION(:), POINTER :: list
-      TYPE(cp_para_env_type), POINTER :: para_env
-      TYPE(local_particle_type), DIMENSION(:), POINTER :: local_particle_set
+      INTEGER :: ref_count = -1
+      LOGICAL :: listbased_distribution = .FALSE.
+      INTEGER, DIMENSION(:), POINTER :: n_el => NULL()
+      TYPE(cp_1d_i_p_type), DIMENSION(:), POINTER :: list => NULL()
+      TYPE(mp_para_env_type), POINTER :: para_env => NULL()
+      TYPE(local_particle_type), DIMENSION(:), POINTER :: local_particle_set => NULL()
    END TYPE distribution_1d_type
 
 CONTAINS
@@ -85,12 +85,12 @@ CONTAINS
    SUBROUTINE distribution_1d_create(distribution_1d, para_env, listbased_distribution, &
                                      n_el, n_lists)
       TYPE(distribution_1d_type), POINTER                :: distribution_1d
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       LOGICAL, INTENT(in), OPTIONAL                      :: listbased_distribution
       INTEGER, DIMENSION(:), INTENT(in), OPTIONAL        :: n_el
       INTEGER, INTENT(in), OPTIONAL                      :: n_lists
 
-      INTEGER                                            :: ilist, my_n_lists, stat
+      INTEGER                                            :: ilist, my_n_lists
 
       my_n_lists = 1
       IF (PRESENT(n_el)) my_n_lists = SIZE(n_el)
@@ -103,15 +103,11 @@ CONTAINS
       distribution_1d%para_env => para_env
       CALL para_env%retain()
 
-      NULLIFY (distribution_1d%list, distribution_1d%n_el)
-
       distribution_1d%listbased_distribution = .FALSE.
       IF (PRESENT(listbased_distribution)) &
          distribution_1d%listbased_distribution = listbased_distribution
 
-      ALLOCATE (distribution_1d%n_el(my_n_lists), distribution_1d%list(my_n_lists), &
-                stat=stat)
-      CPASSERT(stat == 0)
+      ALLOCATE (distribution_1d%n_el(my_n_lists), distribution_1d%list(my_n_lists))
 
       IF (PRESENT(n_el)) THEN
          distribution_1d%n_el(1:my_n_lists) = n_el(1:my_n_lists)
@@ -126,8 +122,6 @@ CONTAINS
          END DO
       END IF
 
-      NULLIFY (distribution_1d%local_particle_set)
-
    END SUBROUTINE distribution_1d_create
 
 ! **************************************************************************************************
@@ -138,9 +132,8 @@ CONTAINS
 !> \author Fawzi Mohamed
 ! **************************************************************************************************
    SUBROUTINE distribution_1d_retain(distribution_1d)
-      TYPE(distribution_1d_type), POINTER                :: distribution_1d
+      TYPE(distribution_1d_type), INTENT(INOUT)          :: distribution_1d
 
-      CPASSERT(ASSOCIATED(distribution_1d))
       CPASSERT(distribution_1d%ref_count > 0)
       distribution_1d%ref_count = distribution_1d%ref_count + 1
    END SUBROUTINE distribution_1d_retain
@@ -192,7 +185,7 @@ CONTAINS
                DEALLOCATE (local_particle_set)
             END IF
 
-            CALL cp_para_env_release(distribution_1d%para_env)
+            CALL mp_para_env_release(distribution_1d%para_env)
 
             DEALLOCATE (distribution_1d)
          END IF

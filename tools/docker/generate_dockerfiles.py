@@ -7,6 +7,7 @@ from typing import Any
 import argparse
 import io
 
+
 # ======================================================================================
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -32,7 +33,12 @@ def main() -> None:
         f.write(regtest("psmp"))
 
     with OutputFile(f"Dockerfile.test_intel-psmp", args.check) as f:
-        f.write(toolchain_intel() + regtest("psmp"))
+        f.write(toolchain_intel() + regtest("psmp", intel=True))
+
+    with OutputFile(f"Dockerfile.prod_intel_psmp", args.check) as f:
+        f.write(
+            toolchain_intel() + production("psmp", "Linux-intel-x86_64", intel=True)
+        )
 
     with OutputFile(f"Dockerfile.test_nvhpc", args.check) as f:
         f.write(toolchain_nvhpc())
@@ -110,15 +116,17 @@ def main() -> None:
         with OutputFile(f"Dockerfile.test_{name}", args.check) as f:
             f.write(toolchain_full() + test_3rd_party(name))
 
-    for name in "python", "doxygen":
+    for name in "misc", "doxygen":
         with OutputFile(f"Dockerfile.test_{name}", args.check) as f:
             f.write(test_without_build(name))
 
 
 # ======================================================================================
-def regtest(version: str, arch: str = "local", testopts: str = "") -> str:
+def regtest(
+    version: str, arch: str = "local", testopts: str = "", intel: bool = False
+) -> str:
     return (
-        install_cp2k(version=version, arch=arch)
+        install_cp2k(version=version, arch=arch, intel=intel)
         + rf"""
 # Run regression tests.
 ARG TESTOPTS="{testopts}"
@@ -281,6 +289,7 @@ COPY ./exts ./exts
 COPY ./data ./data
 COPY ./tools ./tools
 COPY ./cmake ./cmake
+COPY ./CMakeLists.txt .
 COPY ./Makefile .
 RUN bash -c "if [ -n "${{GIT_COMMIT_SHA}}" ] ; then echo "git:\${{GIT_COMMIT_SHA::7}}" > REVISION; fi"
 
@@ -304,9 +313,9 @@ ENTRYPOINT []
 
 
 # ======================================================================================
-def production(version: str, arch: str = "local") -> str:
+def production(version: str, arch: str = "local", intel: bool = False) -> str:
     return (
-        install_cp2k(version=version, arch=arch, revision=True, prod=True)
+        install_cp2k(version=version, arch=arch, revision=True, prod=True, intel=intel)
         + rf"""
 # Run regression tests.
 ARG TESTOPTS
@@ -328,7 +337,11 @@ CMD ["cp2k", "--help"]
 
 # ======================================================================================
 def install_cp2k(
-    version: str, arch: str, revision: bool = False, prod: bool = False
+    version: str,
+    arch: str,
+    revision: bool = False,
+    prod: bool = False,
+    intel: bool = False,
 ) -> str:
     input_lines = []
     run_lines = []
@@ -351,6 +364,7 @@ def install_cp2k(
         run_lines.append(f"ln -vs {arch_file} ./arch/")
     else:
         input_lines.append(f"COPY ./arch/{arch}.{version} /opt/cp2k/arch/")
+        run_lines.append(f"ln -s /opt/cp2k-toolchain /opt/cp2k/tools/toolchain")
 
     run_lines.append("echo 'Compiling cp2k...'")
     run_lines.append("source /opt/cp2k-toolchain/install/setup")
@@ -360,13 +374,16 @@ def install_cp2k(
         run_lines.append(build_command)
         run_lines.append(f"ln -sf ./cp2k.{version} ./exe/{arch}/cp2k")
         run_lines.append(f"ln -sf ./cp2k_shell.{version} ./exe/{arch}/cp2k_shell")
+        run_lines.append(f"ln -sf ./graph.{version} ./exe/{arch}/graph")
+        run_lines.append(f"ln -sf ./dumpdcd.{version} ./exe/{arch}/dumpdcd")
+        run_lines.append(f"ln -sf ./xyz2dcd.{version} ./exe/{arch}/xyz2dcd")
         run_lines.append(f"rm -rf lib obj exe/{arch}/libcp2k_unittest.{version}")
     else:
         run_lines.append(f"( {build_command} &> /dev/null || true )")
         run_lines.append(f"rm -rf lib obj")
 
     # Ensure MPI is dynamically linked, which is needed e.g. for Shifter.
-    if version.startswith("p"):
+    if version.startswith("p") and not intel:
         binary = f"./exe/{arch}/cp2k.{version}"
         run_lines.append(f"( [ ! -f {binary} ] || ldd {binary} | grep -q libmpi )")
 
@@ -387,39 +404,22 @@ COPY ./tools/regtesting ./tools/regtesting
 
 # ======================================================================================
 def install_cp2k_cmake() -> str:
-    # TODO: This is a draft and does not yet actually work.
-
-    return rf"""
-
-COPY ./tools/build_utils/fypp /bin/fypp
-# temporary solution we build dbcsr without using the cloned repo. It will eventually be moved inside the toolchain
-COPY ./tools/docker/scripts/install_dbcsr.sh ./scripts/
-RUN  ./scripts/install_dbcsr.sh && rm -rf ./build
+    return (
+        rf"""
 
 # Install CP2K using CMake.
-
 WORKDIR /opt/cp2k
 COPY ./src ./src
 COPY ./exts ./exts
 COPY ./tools/build_utils ./tools/build_utils
 COPY ./cmake ./cmake
 COPY ./CMakeLists.txt .
-COPY ./cp2k.pc.in .
-WORKDIR ./build
-RUN /bin/bash -c " \
-    echo 'Compiling cp2k...' && \
-    source /opt/cp2k-toolchain/install/setup && \
-    cmake -Werror=dev -DCP2K_USE_VORI=ON -DCP2K_USE_COSMA=NO -DCP2K_USE_LIBXSMM=ON -DCP2K_BLAS_VENDOR=OpenBLAS -DCP2K_USE_SPGLIB=ON -DCP2K_USE_LIBINT2=ON -DCP2K_USE_LIBXC=ON -DCP2K_USE_LIBTORCH=OFF .. |& tee ./cmake.log && \
-    ! grep -A5 'CMake Warning' ./cmake.log && \
-    make -j"
-COPY ./data ./data
-COPY ./tests ./tests
-COPY ./tools/regtesting ./tools/regtesting
 
-RUN echo "\nSummary: Compilation works fine.\nStatus: OK\n"
-
-#EOF
+COPY ./tools/docker/scripts/test_cmake.sh .
+RUN ./test_cmake.sh 2>&1 | tee report.log
 """
+        + print_cached_report()
+    )
 
 
 # ======================================================================================
@@ -477,21 +477,15 @@ RUN ln -sf /usr/bin/gcc-{gcc_version}      /usr/local/bin/gcc  && \
 # ======================================================================================
 def toolchain_intel() -> str:
     return rf"""
-FROM intel/oneapi-hpckit:2022.2-devel-ubuntu20.04
-
-# Without this cp2k segfaults right after startup.
-# See https://github.com/cp2k/cp2k/issues/1936
-ENV I_MPI_FABRICS='shm'
+FROM intel/oneapi-hpckit:2023.0.0-devel-ubuntu22.04
 
 """ + install_toolchain(
         base_image="ubuntu",
-        with_intel="",
+        install_all="",
         with_intelmpi="",
-        with_libint="no",  # https://github.com/cp2k/cp2k/issues/1999
-        with_elpa="no",  # MPI does not provide a sufficient threading level for OpenMP.
-        with_quip="no",  # Intel compiler is currently not supported.
-        with_spfft="no",  # Spawns infinite chain of mpiicpc sub-processes.
-        with_sirius="no",  # Requires spfft.
+        with_mkl="",
+        with_libtorch="no",
+        with_sirius="no",
     )
 
 

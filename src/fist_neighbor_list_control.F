@@ -27,7 +27,6 @@ MODULE fist_neighbor_list_control
                                               cp_logger_type
    USE cp_output_handling,              ONLY: cp_print_key_finished_output,&
                                               cp_print_key_unit_nr
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE distribution_1d_types,           ONLY: distribution_1d_type
    USE exclusion_types,                 ONLY: exclusion_type
    USE fist_neighbor_list_types,        ONLY: fist_neighbor_type
@@ -39,7 +38,9 @@ MODULE fist_neighbor_list_control
    USE input_section_types,             ONLY: section_vals_type,&
                                               section_vals_val_get
    USE kinds,                           ONLY: dp
-   USE pair_potential_types,            ONLY: gal21_type,&
+   USE message_passing,                 ONLY: mp_para_env_type
+   USE pair_potential_types,            ONLY: allegro_type,&
+                                              gal21_type,&
                                               gal_type,&
                                               nequip_type,&
                                               pair_potential_pp_type,&
@@ -88,7 +89,7 @@ CONTAINS
       TYPE(distribution_1d_type), POINTER                :: local_particles
       TYPE(cell_type), POINTER                           :: cell
       TYPE(fist_nonbond_env_type), POINTER               :: fist_nonbond_env
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(section_vals_type), POINTER                   :: mm_section
       TYPE(particle_type), OPTIONAL, POINTER             :: shell_particle_set(:), &
                                                             core_particle_set(:)
@@ -229,6 +230,9 @@ CONTAINS
                      full_nl(ikind, jkind) = .TRUE.
                   END IF
                   IF (ANY(potparm%pot(ikind, jkind)%pot%type == nequip_type)) THEN
+                     full_nl(ikind, jkind) = .TRUE.
+                  END IF
+                  IF (ANY(potparm%pot(ikind, jkind)%pot%type == allegro_type)) THEN
                      full_nl(ikind, jkind) = .TRUE.
                   END IF
                   full_nl(jkind, ikind) = full_nl(ikind, jkind)

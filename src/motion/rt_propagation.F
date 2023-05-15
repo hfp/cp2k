@@ -13,13 +13,9 @@
 MODULE rt_propagation
    USE bibliography,                    ONLY: Andermatt2016,&
                                               cite_reference
-   USE cp_blacs_env,                    ONLY: cp_blacs_env_type
    USE cp_control_types,                ONLY: dft_control_type,&
                                               rtp_control_type
    USE cp_external_control,             ONLY: external_control
-   USE cp_fm_struct,                    ONLY: cp_fm_struct_create,&
-                                              cp_fm_struct_release,&
-                                              cp_fm_struct_type
    USE cp_fm_types,                     ONLY: cp_fm_set_all,&
                                               cp_fm_to_fm,&
                                               cp_fm_type
@@ -30,7 +26,6 @@ MODULE rt_propagation
                                               cp_iterate,&
                                               cp_print_key_unit_nr,&
                                               cp_rm_iter_level
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: dbcsr_copy,&
                                               dbcsr_p_type
    USE efield_utils,                    ONLY: calculate_ecore_efield
@@ -38,6 +33,7 @@ MODULE rt_propagation
    USE force_env_types,                 ONLY: force_env_get,&
                                               force_env_type
    USE global_types,                    ONLY: global_environment_type
+   USE hfx_admm_utils,                  ONLY: hfx_admm_init
    USE input_constants,                 ONLY: real_time_propagation,&
                                               use_restart_wfn,&
                                               use_rt_restart,&
@@ -59,8 +55,6 @@ MODULE rt_propagation
                                               qs_environment_type
    USE qs_external_potential,           ONLY: external_c_potential,&
                                               external_e_potential
-   USE qs_kind_types,                   ONLY: get_qs_kind_set,&
-                                              qs_kind_type
    USE qs_ks_methods,                   ONLY: qs_ks_allocate_basics,&
                                               qs_ks_update_qs_env
    USE qs_ks_types,                     ONLY: qs_ks_did_change,&
@@ -74,6 +68,7 @@ MODULE rt_propagation
                                               qs_rho_type
    USE rt_delta_pulse,                  ONLY: apply_delta_pulse
    USE rt_hfx_utils,                    ONLY: rtp_hfx_rebuild
+   USE rt_projection_mo_utils,          ONLY: init_mo_projection
    USE rt_propagation_methods,          ONLY: propagation_step
    USE rt_propagation_output,           ONLY: rt_prop_output
    USE rt_propagation_types,            ONLY: get_rtp,&
@@ -170,6 +165,9 @@ CONTAINS
       ! Hmm, not really like to initialize with the structure of S but I reckon it is
       ! done everywhere like this
       IF (rtp%do_hfx) CALL rtp_hfx_rebuild(qs_env)
+
+      ! Setup the MO projection environment if required
+      IF (rtp_control%is_proj_mo) CALL init_mo_projection(qs_env, rtp_control)
 
       CALL init_propagation_run(qs_env)
       IF (.NOT. rtp_control%fixed_ions) THEN
@@ -375,7 +373,7 @@ CONTAINS
             used_time = time_iter_stop - time_iter_start
             time_iter_start = time_iter_stop
             CALL rt_prop_output(qs_env, real_time_propagation, delta_iter=rtp%delta_iter, used_time=used_time)
-            CALL rt_write_input_restart(force_env=force_env)
+            CALL rt_write_input_restart(force_env=force_env, qs_env=qs_env)
             IF (should_stop) EXIT
          ELSE
             EXIT
@@ -395,16 +393,22 @@ CONTAINS
 !> \brief overwrites some values in the input file such that the .restart
 !>        file will contain the appropriate information
 !> \param md_env ...
+!> \param qs_env ...
 !> \param force_env ...
 !> \author Florian Schiffmann (02.09)
 ! **************************************************************************************************
 
-   SUBROUTINE rt_write_input_restart(md_env, force_env)
+   SUBROUTINE rt_write_input_restart(md_env, qs_env, force_env)
       TYPE(md_environment_type), OPTIONAL, POINTER       :: md_env
+      TYPE(qs_environment_type), OPTIONAL, POINTER       :: qs_env
       TYPE(force_env_type), POINTER                      :: force_env
 
-      TYPE(section_vals_type), POINTER                   :: motion_section, root_section, rt_section
+      REAL(KIND=dp), DIMENSION(:), POINTER               :: tmp_vals
+      TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(section_vals_type), POINTER                   :: efield_section, motion_section, &
+                                                            root_section, rt_section
 
+      CALL get_qs_env(qs_env=qs_env, dft_control=dft_control)
       root_section => force_env%root_section
       motion_section => section_vals_get_subs_vals(root_section, "MOTION")
       rt_section => section_vals_get_subs_vals(root_section, "FORCE_EVAL%DFT%REAL_TIME_PROPAGATION")
@@ -412,6 +416,16 @@ CONTAINS
       ! coming from RTP
       IF (.NOT. PRESENT(md_env)) THEN
          CALL section_vals_val_set(motion_section, "MD%STEP_START_VAL", i_val=force_env%qs_env%sim_step)
+      END IF
+
+      IF (dft_control%apply_vector_potential) THEN
+         efield_section => section_vals_get_subs_vals(root_section, "FORCE_EVAL%DFT%EFIELD")
+         NULLIFY (tmp_vals)
+         ALLOCATE (tmp_vals(3))
+         tmp_vals = dft_control%efield_fields(1)%efield%vec_pot_initial
+         CALL section_vals_val_set(efield_section, "VEC_POT_INITIAL", &
+                                   r_vals_ptr=tmp_vals, &
+                                   i_rep_section=1)
       END IF
 
       CALL write_restart(md_env=md_env, root_section=root_section)
@@ -432,17 +446,13 @@ CONTAINS
       TYPE(force_env_type), POINTER                      :: force_env
       TYPE(rtp_control_type), POINTER                    :: rtp_control
 
-      INTEGER                                            :: homo, ispin, nao_aux_fit, nmo
+      INTEGER                                            :: homo, ispin
       LOGICAL                                            :: energy_consistency
-      TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
-      TYPE(cp_fm_struct_type), POINTER                   :: aux_fit_fm_struct
-      TYPE(cp_fm_type), POINTER                          :: mo_coeff, mo_coeff_aux_fit
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(cp_fm_type), POINTER                          :: mo_coeff
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s
       TYPE(dft_control_type), POINTER                    :: dft_control
-      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
 
-      NULLIFY (matrix_s, dft_control, blacs_env, para_env, qs_kind_set, aux_fit_fm_struct)
+      NULLIFY (matrix_s, dft_control)
       CALL get_qs_env(qs_env, dft_control=dft_control)
 
       SELECT CASE (rtp_control%initial_wfn)
@@ -458,7 +468,7 @@ CONTAINS
          ALLOCATE (qs_env%rtp)
          CALL get_qs_env(qs_env, matrix_s=matrix_s)
          IF (dft_control%do_admm) THEN
-            CPASSERT(ASSOCIATED(qs_env%admm_env))
+            CALL hfx_admm_init(qs_env)
             CALL rt_prop_create(qs_env%rtp, qs_env%mos, qs_env%mpools, dft_control, matrix_s(1)%matrix, &
                                 rtp_control%linear_scaling, qs_env%admm_env%mos_aux_fit)
          ELSE
@@ -477,23 +487,7 @@ CONTAINS
                                    name="qs_env%mo"//TRIM(ADJUSTL(cp_to_string(ispin))))
                END IF
             END DO
-            IF (dft_control%do_admm) THEN
-               CPASSERT(ASSOCIATED(qs_env%admm_env%mos_aux_fit))
-               CALL get_qs_env(qs_env, blacs_env=blacs_env, para_env=para_env, qs_kind_set=qs_kind_set)
-               CALL get_qs_kind_set(qs_kind_set, nsgf=nao_aux_fit, basis_type="AUX_FIT")
-               DO ispin = 1, SIZE(qs_env%admm_env%mos_aux_fit)
-                  CALL get_mo_set(mo_set=qs_env%mos(ispin), nmo=nmo)
-                  CALL cp_fm_struct_create(aux_fit_fm_struct, context=blacs_env, para_env=para_env, &
-                                           nrow_global=nao_aux_fit, ncol_global=nmo)
-                  CALL get_mo_set(qs_env%admm_env%mos_aux_fit(ispin), mo_coeff=mo_coeff_aux_fit, homo=homo)
-                  IF (.NOT. ASSOCIATED(mo_coeff_aux_fit)) THEN
-                     CALL init_mo_set(qs_env%admm_env%mos_aux_fit(ispin), &
-                                      fm_struct=aux_fit_fm_struct, &
-                                      name="qs_env%mo_aux_fit"//TRIM(ADJUSTL(cp_to_string(ispin))))
-                  END IF
-                  CALL cp_fm_struct_release(aux_fit_fm_struct)
-               END DO
-            END IF
+            IF (dft_control%do_admm) CALL hfx_admm_init(qs_env)
          END IF
          ALLOCATE (qs_env%rtp)
          CALL get_qs_env(qs_env, matrix_s=matrix_s)

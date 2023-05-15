@@ -32,7 +32,6 @@ MODULE qs_tddfpt2_methods
                                               cp_print_key_finished_output,&
                                               cp_print_key_unit_nr,&
                                               cp_rm_iter_level
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: dbcsr_copy,&
                                               dbcsr_create,&
                                               dbcsr_p_type,&
@@ -53,6 +52,7 @@ MODULE qs_tddfpt2_methods
    USE lri_environment_types,           ONLY: lri_density_release,&
                                               lri_env_release
    USE machine,                         ONLY: m_flush
+   USE message_passing,                 ONLY: mp_para_env_type
    USE mulliken,                        ONLY: compute_charges
    USE physcon,                         ONLY: evolt
    USE qs_2nd_kernel_ao,                ONLY: build_dm_response
@@ -463,7 +463,7 @@ CONTAINS
                                 dipole_op_mos_occ, tddfpt_control%dipole_form)
       CALL tddfpt_print_excitation_analysis(log_unit, evects, evals, gs_mos, matrix_s(1)%matrix, &
                                             min_amplitude=tddfpt_control%min_excitation_amplitude)
-      CALL tddfpt_print_nto_analysis(qs_env, evects, evals, gs_mos, matrix_s(1)%matrix, &
+      CALL tddfpt_print_nto_analysis(qs_env, evects, evals, ostrength, gs_mos, matrix_s(1)%matrix, &
                                      tddfpt_print_section)
 
       IF (tddfpt_control%do_lrigpw) THEN
@@ -510,12 +510,7 @@ CONTAINS
          ! energy
          ex_env%evalue = evals(my_state)
          ! excitation vector
-         IF (ASSOCIATED(ex_env%evect)) THEN
-            DO ispin = 1, SIZE(ex_env%evect)
-               CALL cp_fm_release(ex_env%evect(ispin))
-            END DO
-            DEALLOCATE (ex_env%evect)
-         END IF
+         CALL cp_fm_release(ex_env%evect)
          ALLOCATE (ex_env%evect(nspins))
          DO ispin = 1, nspins
             CALL cp_fm_get_info(matrix=evects(ispin, 1), matrix_struct=matrix_struct)
@@ -538,13 +533,9 @@ CONTAINS
       END IF
 
       ! clean up
-      DO istate = 1, SIZE(evects, 2)
-         DO ispin = 1, nspins
-            CALL cp_fm_release(evects(ispin, istate))
-            CALL cp_fm_release(S_evects(ispin, istate))
-         END DO
-      END DO
-      DEALLOCATE (evects, S_evects, evals, ostrength)
+      CALL cp_fm_release(evects)
+      CALL cp_fm_release(S_evects)
+      DEALLOCATE (evals, ostrength)
 
       IF (tddfpt_control%kernel == tddfpt_kernel_full) THEN
          IF (do_admm) CALL release_kernel_env(kernel_env%admm_kernel)
@@ -565,14 +556,7 @@ CONTAINS
       CALL tddfpt_release_work_matrices(work_matrices, sub_env)
       CALL tddfpt_sub_env_release(sub_env)
 
-      IF (ALLOCATED(dipole_op_mos_occ)) THEN
-         DO ispin = nspins, 1, -1
-            DO istate = SIZE(dipole_op_mos_occ, 1), 1, -1
-               CALL cp_fm_release(dipole_op_mos_occ(istate, ispin))
-            END DO
-         END DO
-         DEALLOCATE (dipole_op_mos_occ)
-      END IF
+      CALL cp_fm_release(dipole_op_mos_occ)
 
       DO ispin = nspins, 1, -1
          CALL tddfpt_release_ground_state_mos(gs_mos(ispin))
@@ -875,8 +859,8 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :, :), POINTER         :: charges
       TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:)        :: psi0
       TYPE(cp_fm_type), POINTER                          :: mo_coeff
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_p1
+      TYPE(mp_para_env_type), POINTER                    :: para_env
 
       CALL timeset(routineN, handle)
 

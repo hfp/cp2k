@@ -7,13 +7,13 @@
 
 MODULE qs_fb_atomic_matrix_methods
 
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: dbcsr_get_block_p,&
                                               dbcsr_get_info,&
                                               dbcsr_get_stored_coordinates,&
                                               dbcsr_type
    USE kinds,                           ONLY: dp,&
                                               int_8
+   USE message_passing,                 ONLY: mp_para_env_type
    USE qs_fb_atomic_halo_types,         ONLY: fb_atomic_halo_atom_global2halo,&
                                               fb_atomic_halo_get,&
                                               fb_atomic_halo_has_data,&
@@ -130,7 +130,7 @@ CONTAINS
                                     blk_col_start)
       TYPE(dbcsr_type), POINTER                          :: dbcsr_mat
       TYPE(fb_atomic_halo_obj), INTENT(IN)               :: atomic_halo
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       REAL(KIND=dp), DIMENSION(:, :), INTENT(OUT)        :: atomic_matrix
       INTEGER, DIMENSION(:), INTENT(IN)                  :: blk_row_start, blk_col_start
 
@@ -431,13 +431,13 @@ CONTAINS
                                              atom_pairs_recv)
       TYPE(dbcsr_type), POINTER                          :: dbcsr_mat
       TYPE(fb_atomic_halo_obj), INTENT(IN)               :: atomic_halo
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(fb_com_atom_pairs_obj), INTENT(INOUT)         :: atom_pairs_send, atom_pairs_recv
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'fb_atmatrix_generate_com_pairs'
 
-      INTEGER :: counter, dest, handle, iatom, iatom_global, itask, jatom, jatom_global, &
-         natoms_in_halo, nblkrows_total, nencode, ntasks_recv, ntasks_send, src
+      INTEGER :: counter, handle, iatom, iatom_global, itask, jatom, jatom_global, natoms_in_halo, &
+         nblkrows_total, nencode, ntasks_recv, ntasks_send, src
       INTEGER(KIND=int_8)                                :: pair
       INTEGER(KIND=int_8), DIMENSION(:, :), POINTER      :: tasks_recv, tasks_send
       INTEGER, DIMENSION(:), POINTER                     :: halo_atoms
@@ -473,9 +473,6 @@ CONTAINS
       CALL dbcsr_get_info(matrix=dbcsr_mat, &
                           nblkrows_total=nblkrows_total)
 
-      ! destination proc is always the local processor
-      dest = para_env%mepos ! my MPI rank
-
       ! generate recv task list (tasks_recv)
 
       ! a recv task corresponds to the copying or transferring of a
@@ -487,40 +484,43 @@ CONTAINS
 
       ALLOCATE (tasks_recv(TASK_N_RECORDS, ntasks_recv))
 
-      ! now that tasks_recv has been allocated, generate the tasks
-      itask = 1
-      DO iatom = 1, natoms_in_halo
-         iatom_global = halo_atoms(iatom)
-         DO jatom = 1, natoms_in_halo
-            jatom_global = halo_atoms(jatom)
-            ! atomic matrix is symmetric, and only upper triangular part
-            ! is stored in DBCSR matrix
-            IF (jatom_global .GE. iatom_global) THEN
-               ! find the source proc that supposed to own the block
-               ! (iatom_global, jatom_global)
-               CALL dbcsr_get_stored_coordinates(dbcsr_mat, &
-                                                 iatom_global, &
-                                                 jatom_global, &
-                                                 processor=src)
-               ! we must encode the global atom indices rather the halo
-               ! atomic indices in each task, because halo atomic
-               ! indices are local to each halo, and each processor is
-               ! working on a different halo local to them. So one
-               ! processor would not have the information about the halo
-               ! on another processor, rendering the halo atomic indices
-               ! rather useless outside the local processor.
-               tasks_recv(TASK_DEST, itask) = dest
-               tasks_recv(TASK_SRC, itask) = src
+      ! destination proc is always the local processor
+      ASSOCIATE (dest => para_env%mepos)
+         ! now that tasks_recv has been allocated, generate the tasks
+         itask = 1
+         DO iatom = 1, natoms_in_halo
+            iatom_global = halo_atoms(iatom)
+            DO jatom = 1, natoms_in_halo
+               jatom_global = halo_atoms(jatom)
+               ! atomic matrix is symmetric, and only upper triangular part
+               ! is stored in DBCSR matrix
+               IF (jatom_global .GE. iatom_global) THEN
+                  ! find the source proc that supposed to own the block
+                  ! (iatom_global, jatom_global)
+                  CALL dbcsr_get_stored_coordinates(dbcsr_mat, &
+                                                    iatom_global, &
+                                                    jatom_global, &
+                                                    processor=src)
+                  ! we must encode the global atom indices rather the halo
+                  ! atomic indices in each task, because halo atomic
+                  ! indices are local to each halo, and each processor is
+                  ! working on a different halo local to them. So one
+                  ! processor would not have the information about the halo
+                  ! on another processor, rendering the halo atomic indices
+                  ! rather useless outside the local processor.
+                  tasks_recv(TASK_DEST, itask) = dest
+                  tasks_recv(TASK_SRC, itask) = src
 
-               CALL fb_com_tasks_encode_pair(tasks_recv(TASK_PAIR, itask), &
-                                             iatom_global, jatom_global, &
-                                             nblkrows_total)
-               ! calculation of cost not implemented at the moment
-               tasks_recv(TASK_COST, itask) = 0
-               itask = itask + 1
-            END IF
-         END DO ! jatom
-      END DO ! iatom
+                  CALL fb_com_tasks_encode_pair(tasks_recv(TASK_PAIR, itask), &
+                                                iatom_global, jatom_global, &
+                                                nblkrows_total)
+                  ! calculation of cost not implemented at the moment
+                  tasks_recv(TASK_COST, itask) = 0
+                  itask = itask + 1
+               END IF
+            END DO ! jatom
+         END DO ! iatom
+      END ASSOCIATE
 
       ! get the actual number of tasks
       ntasks_recv = itask - 1
@@ -625,12 +625,12 @@ CONTAINS
                                                atom_pairs_recv)
       TYPE(dbcsr_type), POINTER                          :: dbcsr_mat
       TYPE(fb_atomic_halo_list_obj), INTENT(IN)          :: atomic_halos
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(fb_com_atom_pairs_obj), INTENT(INOUT)         :: atom_pairs_send, atom_pairs_recv
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'fb_atmatrix_generate_com_pairs_2'
 
-      INTEGER :: counter, dest, handle, iatom, iatom_global, ihalo, itask, jatom, jatom_global, &
+      INTEGER :: counter, handle, iatom, iatom_global, ihalo, itask, jatom, jatom_global, &
          natoms_in_halo, nblkrows_total, nencode, nhalos, ntasks_recv, ntasks_send, src
       INTEGER(KIND=int_8)                                :: pair
       INTEGER(KIND=int_8), DIMENSION(:, :), POINTER      :: tasks_recv, tasks_send
@@ -679,44 +679,45 @@ CONTAINS
       ! now that tasks_recv has been allocated, generate the tasks
 
       ! destination proc is always the local process
-      dest = para_env%mepos
-      itask = 1
-      DO ihalo = 1, nhalos
-         CALL fb_atomic_halo_get(atomic_halo=halos(ihalo), &
-                                 natoms=natoms_in_halo, &
-                                 halo_atoms=halo_atoms)
-         DO iatom = 1, natoms_in_halo
-            iatom_global = halo_atoms(iatom)
-            DO jatom = 1, natoms_in_halo
-               jatom_global = halo_atoms(jatom)
-               ! atomic matrices are always symmetric, treat it as such.
-               ! so only deal with upper triangular parts
-               IF (jatom_global .GE. iatom_global) THEN
-                  ! find the source proc that supposed to own the block
-                  ! (iatom_global, jatom_global)
-                  CALL dbcsr_get_stored_coordinates(dbcsr_mat, &
-                                                    iatom_global, &
-                                                    jatom_global, &
-                                                    processor=src)
-                  ! we must encode the global atom indices rather the halo
-                  ! atomic indices in each task, because halo atomic indices
-                  ! are local to each halo, and each processor is working on a
-                  ! different halo local to them. So one processor would not
-                  ! have the information about the halo on another processor,
-                  ! rendering the halo atomic indices rather useless outside
-                  ! the local processor.
-                  tasks_recv(TASK_DEST, itask) = dest
-                  tasks_recv(TASK_SRC, itask) = src
-                  CALL fb_com_tasks_encode_pair(tasks_recv(TASK_PAIR, itask), &
-                                                iatom_global, jatom_global, &
-                                                nblkrows_total)
-                  ! calculation of cost not implemented at the moment
-                  tasks_recv(TASK_COST, itask) = 0
-                  itask = itask + 1
-               END IF
-            END DO ! jatom
-         END DO ! iatom
-      END DO ! ihalo
+      ASSOCIATE (dest => para_env%mepos)
+         itask = 1
+         DO ihalo = 1, nhalos
+            CALL fb_atomic_halo_get(atomic_halo=halos(ihalo), &
+                                    natoms=natoms_in_halo, &
+                                    halo_atoms=halo_atoms)
+            DO iatom = 1, natoms_in_halo
+               iatom_global = halo_atoms(iatom)
+               DO jatom = 1, natoms_in_halo
+                  jatom_global = halo_atoms(jatom)
+                  ! atomic matrices are always symmetric, treat it as such.
+                  ! so only deal with upper triangular parts
+                  IF (jatom_global .GE. iatom_global) THEN
+                     ! find the source proc that supposed to own the block
+                     ! (iatom_global, jatom_global)
+                     CALL dbcsr_get_stored_coordinates(dbcsr_mat, &
+                                                       iatom_global, &
+                                                       jatom_global, &
+                                                       processor=src)
+                     ! we must encode the global atom indices rather the halo
+                     ! atomic indices in each task, because halo atomic indices
+                     ! are local to each halo, and each processor is working on a
+                     ! different halo local to them. So one processor would not
+                     ! have the information about the halo on another processor,
+                     ! rendering the halo atomic indices rather useless outside
+                     ! the local processor.
+                     tasks_recv(TASK_DEST, itask) = dest
+                     tasks_recv(TASK_SRC, itask) = src
+                     CALL fb_com_tasks_encode_pair(tasks_recv(TASK_PAIR, itask), &
+                                                   iatom_global, jatom_global, &
+                                                   nblkrows_total)
+                     ! calculation of cost not implemented at the moment
+                     tasks_recv(TASK_COST, itask) = 0
+                     itask = itask + 1
+                  END IF
+               END DO ! jatom
+            END DO ! iatom
+         END DO ! ihalo
+      END ASSOCIATE
 
       ! set the actual number of tasks obtained
       ntasks_recv = itask - 1

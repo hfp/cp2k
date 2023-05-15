@@ -25,7 +25,6 @@ MODULE rt_propagation_utils
                                               cp_fm_set_all,&
                                               cp_fm_to_fm,&
                                               cp_fm_type
-   USE cp_fm_vect,                      ONLY: cp_fm_vect_dealloc
    USE cp_log_handling,                 ONLY: cp_get_default_logger,&
                                               cp_logger_get_default_unit_nr,&
                                               cp_logger_type
@@ -33,7 +32,6 @@ MODULE rt_propagation_utils
                                               cp_print_key_finished_output,&
                                               cp_print_key_should_output,&
                                               cp_print_key_unit_nr
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE cp_realspace_grid_cube,          ONLY: cp_pw_to_cube
    USE dbcsr_api,                       ONLY: &
         dbcsr_add, dbcsr_binary_read, dbcsr_checksum, dbcsr_copy, dbcsr_copy_into_existing, &
@@ -54,6 +52,7 @@ MODULE rt_propagation_utils
                                               dp
    USE mathconstants,                   ONLY: zero
    USE memory_utilities,                ONLY: reallocate
+   USE message_passing,                 ONLY: mp_para_env_type
    USE orbital_pointers,                ONLY: ncoset
    USE particle_list_types,             ONLY: particle_list_type
    USE particle_types,                  ONLY: particle_type
@@ -269,11 +268,11 @@ CONTAINS
       TYPE(cp_fm_type)                                   :: mos_occ
       TYPE(cp_fm_type), DIMENSION(:), POINTER            :: mos_new, mos_old
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_distribution_type)                      :: dist
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: p_rmpv, rho_new, rho_old
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mo_array
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(qs_rho_type), POINTER                         :: rho_struct
@@ -307,6 +306,8 @@ CONTAINS
       CASE (use_restart_wfn)
          CALL read_mo_set_from_restart(mo_array, atomic_kind_set, qs_kind_set, particle_set, para_env, &
                                        id_nr=id_nr, multiplicity=dft_control%multiplicity, dft_section=dft_section)
+         CALL set_uniform_occupation_mo_array(mo_array, nspin)
+
          DO ispin = 1, nspin
             CALL calculate_density_matrix(mo_array(ispin), p_rmpv(ispin)%matrix)
          END DO
@@ -378,6 +379,7 @@ CONTAINS
             CALL get_rtp(rtp=rtp, mos_old=mos_old, mos_new=mos_new)
             CALL read_rt_mos_from_restart(mo_array, mos_old, atomic_kind_set, qs_kind_set, particle_set, para_env, &
                                           id_nr, dft_control%multiplicity, dft_section)
+            CALL set_uniform_occupation_mo_array(mo_array, nspin)
             DO ispin = 1, nspin
                CALL calculate_density_matrix(mo_array(ispin), &
                                              p_rmpv(ispin)%matrix)
@@ -386,6 +388,34 @@ CONTAINS
       END SELECT
 
    END SUBROUTINE get_restart_wfn
+
+! **************************************************************************************************
+!> \brief Set mo_array(ispin)%uniform_occupation after a restart
+!> \param mo_array ...
+!> \param nspin ...
+!> \author Guillaume Le Breton (03.23)
+! **************************************************************************************************
+
+   SUBROUTINE set_uniform_occupation_mo_array(mo_array, nspin)
+
+      TYPE(mo_set_type), DIMENSION(:), POINTER           :: mo_array
+      INTEGER                                            :: nspin
+
+      INTEGER                                            :: ispin, mo
+      LOGICAL                                            :: is_uniform
+
+      DO ispin = 1, nspin
+         is_uniform = .TRUE.
+         DO mo = 1, mo_array(ispin)%nmo
+            IF (mo_array(ispin)%occupation_numbers(mo) /= 0.0 .AND. &
+                mo_array(ispin)%occupation_numbers(mo) /= 1.0 .AND. &
+                mo_array(ispin)%occupation_numbers(mo) /= 2.0) &
+               is_uniform = .FALSE.
+         END DO
+         mo_array(ispin)%uniform_occupation = is_uniform
+      END DO
+
+   END SUBROUTINE set_uniform_occupation_mo_array
 
 ! **************************************************************************************************
 !> \brief calculates the density from the complex MOs and passes the density to
@@ -576,7 +606,7 @@ CONTAINS
                                     alpha=2.0_dp*alpha, &
                                     symmetry_mode=-1)
       END DO
-      CALL cp_fm_vect_dealloc(mos_occ)
+      CALL cp_fm_release(mos_occ)
 
    END SUBROUTINE calculate_P_imaginary
 
@@ -702,9 +732,9 @@ CONTAINS
       TYPE(cp_fm_type), DIMENSION(:), POINTER            :: mos_new
       TYPE(cp_fm_type), POINTER                          :: mo_coeff
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mos
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(particle_list_type), POINTER                  :: particles
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(pw_env_type), POINTER                         :: pw_env

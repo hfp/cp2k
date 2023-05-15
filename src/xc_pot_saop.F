@@ -25,7 +25,6 @@ MODULE xc_pot_saop
                                               cp_fm_set_all,&
                                               cp_fm_set_submatrix,&
                                               cp_fm_type
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: dbcsr_copy,&
                                               dbcsr_deallocate_matrix,&
                                               dbcsr_p_type,&
@@ -41,6 +40,7 @@ MODULE xc_pot_saop
         section_vals_val_get, section_vals_val_set
    USE kinds,                           ONLY: dp
    USE mathconstants,                   ONLY: pi
+   USE message_passing,                 ONLY: mp_para_env_type
    USE pw_env_types,                    ONLY: pw_env_get,&
                                               pw_env_type
    USE pw_methods,                      ONLY: pw_zero
@@ -444,10 +444,7 @@ CONTAINS
 
       END DO
 
-      DO ispin = 1, nspins
-         CALL cp_fm_release(single_mo_coeff(ispin))
-      END DO
-      DEALLOCATE (single_mo_coeff)
+      CALL cp_fm_release(single_mo_coeff)
 
       CALL xc_rho_set_release(rho_set, auxbas_pw_pool)
       CALL pw_pool_give_back_pw(auxbas_pw_pool, orbital)
@@ -505,8 +502,8 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       INTEGER, INTENT(IN)                                :: oe_corr
 
-      INTEGER                                            :: ia, iat, iatom, ikind, ir, ispin, mepos, &
-                                                            na, natom, nr, ns, nspins, num_pe, orb
+      INTEGER                                            :: ia, iat, iatom, ikind, ir, ispin, na, &
+                                                            natom, nr, ns, nspins, orb
       INTEGER, DIMENSION(2)                              :: bo, homo, ncol, nrow
       INTEGER, DIMENSION(2, 3)                           :: bounds
       INTEGER, DIMENSION(:), POINTER                     :: atom_list
@@ -523,7 +520,6 @@ CONTAINS
       TYPE(cp_1d_r_p_type), DIMENSION(:), POINTER        :: mo_eigenvalues
       TYPE(cp_fm_p_type), ALLOCATABLE, DIMENSION(:)      :: mo_coeff
       TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:)        :: single_mo_coeff
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_ks, orbital_density_matrix, &
                                                             rho_struct_ao
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: ksmat, psmat
@@ -533,6 +529,7 @@ CONTAINS
       TYPE(harmonics_atom_type), POINTER                 :: harmonics
       TYPE(local_rho_type), POINTER                      :: local_rho_set
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: molecular_orbitals
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
          POINTER                                         :: sab
       TYPE(oce_matrix_type), POINTER                     :: oce
@@ -676,9 +673,7 @@ CONTAINS
          ALLOCATE (drho_h(1:4, 1:na, 1:nr, 1:nspins), drho_s(1:4, 1:na, 1:nr, 1:nspins))
 
          ! Distribute the atoms of this kind
-         num_pe = para_env%num_pe
-         mepos = para_env%mepos
-         bo = get_limit(natom, num_pe, mepos)
+         bo = get_limit(natom, para_env%num_pe, para_env%mepos)
 
          DO iat = 1, natom !bo(1),bo(2)
             iatom = atom_list(iat)
@@ -1058,10 +1053,8 @@ CONTAINS
       CALL section_vals_release(xc_section_orig)
 
       CALL local_rho_set_release(local_rho_set)
-      DO ispin = 1, nspins
-         CALL cp_fm_release(single_mo_coeff(ispin))
-      END DO
-      DEALLOCATE (mo_coeff, single_mo_coeff, mo_eigenvalues)
+      CALL cp_fm_release(single_mo_coeff)
+      DEALLOCATE (mo_coeff, mo_eigenvalues)
       CALL dbcsr_deallocate_matrix_set(orbital_density_matrix)
 
    END SUBROUTINE gapw_add_atomic_saop_pot

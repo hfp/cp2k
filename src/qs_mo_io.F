@@ -45,7 +45,6 @@ MODULE qs_mo_io
                                               cp_print_key_generate_filename,&
                                               cp_print_key_should_output,&
                                               cp_print_key_unit_nr
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: dbcsr_binary_write,&
                                               dbcsr_checksum,&
                                               dbcsr_create,&
@@ -59,6 +58,7 @@ MODULE qs_mo_io
    USE kinds,                           ONLY: default_path_length,&
                                               default_string_length,&
                                               dp
+   USE message_passing,                 ONLY: mp_para_env_type
    USE orbital_pointers,                ONLY: indco,&
                                               nco,&
                                               nso
@@ -90,6 +90,7 @@ MODULE qs_mo_io
              write_mo_set_to_output_unit, &
              write_mo_set_to_restart, &
              read_mo_set_from_restart, &
+             read_mos_restart_low, &
              write_mo_set_low
 
 CONTAINS
@@ -397,7 +398,6 @@ CONTAINS
                mo_array(ispin)%lfomo, &
                mo_array(ispin)%nelectron
             WRITE (ires) mo_array(ispin)%eigenvalues(1:nmo), &
-               mo_array(ispin)%uniform_occupation, &
                mo_array(ispin)%occupation_numbers(1:nmo)
          END IF
          IF (PRESENT(rt_mos)) THEN
@@ -495,7 +495,7 @@ CONTAINS
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       INTEGER, INTENT(IN)                                :: id_nr, multiplicity
       TYPE(section_vals_type), POINTER                   :: dft_section
       LOGICAL, INTENT(OUT), OPTIONAL                     :: natom_mismatch
@@ -504,8 +504,7 @@ CONTAINS
       CHARACTER(LEN=*), PARAMETER :: routineN = 'read_mo_set_from_restart'
 
       CHARACTER(LEN=default_path_length)                 :: file_name
-      INTEGER                                            :: handle, ispin, natom, nspin, &
-                                                            restart_unit, source
+      INTEGER                                            :: handle, ispin, natom, nspin, restart_unit
       LOGICAL                                            :: exist, my_cdft
       TYPE(cp_logger_type), POINTER                      :: logger
 
@@ -516,8 +515,6 @@ CONTAINS
 
       nspin = SIZE(mo_array)
       restart_unit = -1
-
-      source = para_env%source
 
       IF (para_env%is_source()) THEN
 
@@ -542,7 +539,7 @@ CONTAINS
 
       IF (PRESENT(natom_mismatch)) THEN
          ! read_mos_restart_low only the io_node returns natom_mismatch, must broadcast it
-         CALL para_env%bcast(natom_mismatch, source)
+         CALL para_env%bcast(natom_mismatch)
          IF (natom_mismatch) THEN
             IF (para_env%is_source()) CALL close_file(unit_number=restart_unit)
             CALL timestop(handle)
@@ -585,15 +582,14 @@ CONTAINS
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       INTEGER, INTENT(IN)                                :: id_nr, multiplicity
       TYPE(section_vals_type), POINTER                   :: dft_section
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'read_rt_mos_from_restart'
 
       CHARACTER(LEN=default_path_length)                 :: file_name
-      INTEGER                                            :: handle, ispin, natom, nspin, &
-                                                            restart_unit, source
+      INTEGER                                            :: handle, ispin, natom, nspin, restart_unit
       LOGICAL                                            :: exist
       TYPE(cp_logger_type), POINTER                      :: logger
 
@@ -602,8 +598,6 @@ CONTAINS
 
       nspin = SIZE(mo_array)
       restart_unit = -1
-
-      source = para_env%source
 
       IF (para_env%is_source()) THEN
 
@@ -657,7 +651,7 @@ CONTAINS
                                    multiplicity, rt_mos, natom_mismatch)
 
       TYPE(mo_set_type), DIMENSION(:), INTENT(INOUT)     :: mos
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       INTEGER, INTENT(IN)                                :: natom, rst_unit
@@ -668,12 +662,11 @@ CONTAINS
       INTEGER :: homo, homo_read, i, iatom, ikind, imat, irow, iset, iset_read, ishell, &
          ishell_read, iso, ispin, lfomo_read, lmax, lshell, my_mult, nao, nao_read, natom_read, &
          nelectron, nelectron_read, nmo, nmo_read, nnshell, nset, nset_max, nshell_max, nspin, &
-         nspin_read, offset_read, source
+         nspin_read, offset_read
       INTEGER, DIMENSION(:), POINTER                     :: nset_info, nshell
       INTEGER, DIMENSION(:, :), POINTER                  :: l, nshell_info
       INTEGER, DIMENSION(:, :, :), POINTER               :: nso_info, offset_info
-      LOGICAL                                            :: minbas, natom_match, uniform_occ_read, &
-                                                            use_this
+      LOGICAL                                            :: minbas, natom_match, use_this
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: eig_read, occ_read
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: vecbuffer, vecbuffer_read
       TYPE(cp_logger_type), POINTER                      :: logger
@@ -686,7 +679,6 @@ CONTAINS
       nao = mos(1)%nao
       my_mult = 0
       IF (PRESENT(multiplicity)) my_mult = multiplicity
-      source = para_env%source
 
       IF (para_env%is_source()) THEN
          READ (rst_unit) natom_read, nspin_read, nao_read, nset_max, nshell_max
@@ -743,7 +735,7 @@ CONTAINS
       END IF ! ionode
 
       ! make natom_match and natom_mismatch uniform across all nodes
-      CALL para_env%bcast(natom_match, source)
+      CALL para_env%bcast(natom_match)
       IF (PRESENT(natom_mismatch)) natom_mismatch = .NOT. natom_match
       ! handle natom_match false
       IF (.NOT. natom_match) THEN
@@ -756,7 +748,7 @@ CONTAINS
          END IF
       END IF
 
-      CALL para_env%bcast(nspin_read, source)
+      CALL para_env%bcast(nspin_read)
 
       ALLOCATE (vecbuffer(1, nao))
 
@@ -784,9 +776,8 @@ CONTAINS
                             "The number of MOs on the restart unit is greater than the number of "// &
                             "the allocated MOs. The read MO set will be truncated!")
 
-            READ (rst_unit) eig_read(1:nmo_read), uniform_occ_read, occ_read(1:nmo_read)
+            READ (rst_unit) eig_read(1:nmo_read), occ_read(1:nmo_read)
             mos(ispin)%eigenvalues(1:nmo) = eig_read(1:nmo)
-            mos(ispin)%uniform_occupation = uniform_occ_read
             mos(ispin)%occupation_numbers(1:nmo) = occ_read(1:nmo)
             DEALLOCATE (eig_read, occ_read)
 
@@ -806,13 +797,12 @@ CONTAINS
             END IF
          END IF
 
-         CALL para_env%bcast(nmo, source)
-         CALL para_env%bcast(mos(ispin)%homo, source)
-         CALL para_env%bcast(mos(ispin)%lfomo, source)
-         CALL para_env%bcast(mos(ispin)%nelectron, source)
-         CALL para_env%bcast(mos(ispin)%eigenvalues, source)
-         CALL para_env%bcast(mos(ispin)%uniform_occupation, source)
-         CALL para_env%bcast(mos(ispin)%occupation_numbers, source)
+         CALL para_env%bcast(nmo)
+         CALL para_env%bcast(mos(ispin)%homo)
+         CALL para_env%bcast(mos(ispin)%lfomo)
+         CALL para_env%bcast(mos(ispin)%nelectron)
+         CALL para_env%bcast(mos(ispin)%eigenvalues)
+         CALL para_env%bcast(mos(ispin)%occupation_numbers)
 
          IF (PRESENT(rt_mos)) THEN
             DO imat = 2*ispin - 1, 2*ispin
@@ -822,7 +812,7 @@ CONTAINS
                   ELSE
                      vecbuffer(1, :) = 0.0_dp
                   END IF
-                  CALL para_env%bcast(vecbuffer, source)
+                  CALL para_env%bcast(vecbuffer)
                   CALL cp_fm_set_submatrix(rt_mos(imat), &
                                            vecbuffer, 1, i, nao, 1, transpose=.TRUE.)
                END DO
@@ -906,7 +896,7 @@ CONTAINS
 
                END IF
 
-               CALL para_env%bcast(vecbuffer, source)
+               CALL para_env%bcast(vecbuffer)
                CALL cp_fm_set_submatrix(mos(ispin)%mo_coeff, &
                                         vecbuffer, 1, i, nao, 1, transpose=.TRUE.)
             END DO

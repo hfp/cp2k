@@ -33,8 +33,6 @@ MODULE rpa_main
                                               cp_fm_set_all,&
                                               cp_fm_to_fm,&
                                               cp_fm_type
-   USE cp_para_env,                     ONLY: cp_para_env_release
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: dbcsr_add,&
                                               dbcsr_clear,&
                                               dbcsr_get_info,&
@@ -60,6 +58,9 @@ MODULE rpa_main
                                               m_memory
    USE mathconstants,                   ONLY: pi,&
                                               z_zero
+   USE message_passing,                 ONLY: mp_comm_type,&
+                                              mp_para_env_release,&
+                                              mp_para_env_type
    USE minimax_exp,                     ONLY: check_exp_minimax_range
    USE mp2_grids,                       ONLY: get_clenshaw_grid,&
                                               get_minimax_grid
@@ -186,7 +187,7 @@ CONTAINS
          INTENT(INOUT)                                   :: BIb_C, BIb_C_gw
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :), &
          INTENT(INOUT)                                   :: BIb_C_bse_ij, BIb_C_bse_ab
-      TYPE(cp_para_env_type), POINTER                    :: para_env, para_env_sub
+      TYPE(mp_para_env_type), POINTER                    :: para_env, para_env_sub
       INTEGER, INTENT(INOUT)                             :: color_sub
       TYPE(group_dist_d1_type), INTENT(INOUT)            :: gd_array
       TYPE(group_dist_d1_type), DIMENSION(:), &
@@ -243,7 +244,7 @@ CONTAINS
                                                             fm_mat_S_gw
       TYPE(cp_fm_type), DIMENSION(1)                     :: fm_mat_R_gw, fm_mat_S_ab_bse, &
                                                             fm_mat_S_ij_bse
-      TYPE(cp_para_env_type), POINTER                    :: para_env_RPA
+      TYPE(mp_para_env_type), POINTER                    :: para_env_RPA
       TYPE(two_dim_real_array), ALLOCATABLE, &
          DIMENSION(:)                                    :: BIb_C_2D, BIb_C_2D_gw
       TYPE(two_dim_real_array), DIMENSION(1)             :: BIb_C_2D_bse_ab, BIb_C_2D_bse_ij
@@ -629,25 +630,16 @@ CONTAINS
 
       CALL release_group_dist(gd_array)
 
-      IF (num_integ_group > 1) CALL cp_para_env_release(para_env_RPA)
+      IF (num_integ_group > 1) CALL mp_para_env_release(para_env_RPA)
 
       IF (.NOT. do_im_time) THEN
-         DO ispin = 1, SIZE(fm_mat_Q_gemm)
-            CALL cp_fm_release(fm_mat_Q_gemm(ispin))
-            CALL cp_fm_release(fm_mat_S(ispin))
-         END DO
-         DEALLOCATE (fm_mat_Q_gemm, fm_mat_S)
+         CALL cp_fm_release(fm_mat_Q_gemm)
+         CALL cp_fm_release(fm_mat_S)
       END IF
-      DO ispin = 1, SIZE(fm_mat_Q)
-         CALL cp_fm_release(fm_mat_Q(ispin))
-      END DO
-      DEALLOCATE (fm_mat_Q)
+      CALL cp_fm_release(fm_mat_Q)
 
       IF (my_do_gw .AND. .NOT. do_im_time) THEN
-         DO ispin = 1, SIZE(fm_mat_S_gw)
-            CALL cp_fm_release(fm_mat_S_gw(ispin))
-         END DO
-         DEALLOCATE (fm_mat_S_gw)
+         CALL cp_fm_release(fm_mat_S_gw)
          CALL cp_fm_release(fm_mat_R_gw(1))
       END IF
 
@@ -692,7 +684,7 @@ CONTAINS
          INTENT(OUT)                                     :: BIb_C_2D
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :), &
          INTENT(IN)                                      :: BIb_C
-      TYPE(cp_para_env_type), INTENT(IN)                 :: para_env_sub
+      TYPE(mp_para_env_type), INTENT(IN)                 :: para_env_sub
       INTEGER, INTENT(IN)                                :: dimen_ia, homo, virtual
       TYPE(group_dist_d1_type), INTENT(INOUT)            :: gd_B_virtual
       INTEGER                                            :: my_ia_size, my_ia_start, my_ia_end, &
@@ -804,7 +796,7 @@ CONTAINS
 
       TYPE(two_dim_real_array), DIMENSION(:), &
          INTENT(INOUT)                                   :: BIb_C_2D
-      TYPE(cp_para_env_type), INTENT(IN)                 :: para_env, para_env_sub
+      TYPE(mp_para_env_type), INTENT(IN)                 :: para_env, para_env_sub
       INTEGER, INTENT(IN)                                :: color_sub, ngroup, integ_group_size, &
                                                             dimen_RI
       INTEGER, DIMENSION(:), INTENT(IN)                  :: dimen_ia
@@ -813,7 +805,7 @@ CONTAINS
       INTEGER, DIMENSION(:), INTENT(IN)                  :: my_ia_size, my_ia_start, my_ia_end
       INTEGER, INTENT(IN)                                :: my_group_L_size, my_group_L_start, &
                                                             my_group_L_end
-      TYPE(cp_para_env_type), INTENT(IN), POINTER        :: para_env_RPA
+      TYPE(mp_para_env_type), INTENT(IN), POINTER        :: para_env_RPA
       TYPE(cp_fm_type), DIMENSION(:), INTENT(INOUT)      :: fm_mat_S
       INTEGER, INTENT(INOUT)                             :: nrow_block_mat, ncol_block_mat
       TYPE(cp_blacs_env_type), OPTIONAL, POINTER         :: blacs_env_ext, blacs_env_ext_S
@@ -827,13 +819,12 @@ CONTAINS
 
       INTEGER                                            :: col_row_proc_ratio, grid_2D(2), handle, &
                                                             iproc, iproc_col, iproc_row, ispin, &
-                                                            mepos_in_RPA_group, sub_sub_color
+                                                            mepos_in_RPA_group
       INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: group_grid_2_mepos
       LOGICAL                                            :: my_blacs_ext, my_blacs_S_ext, &
                                                             my_do_im_time
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env, blacs_env_Q
       TYPE(cp_fm_struct_type), POINTER                   :: fm_struct
-      TYPE(cp_para_env_type), POINTER                    :: para_env_exchange
       TYPE(group_dist_d1_type)                           :: gd_ia, gd_L
 
       CALL timeset(routineN, handle)
@@ -938,11 +929,12 @@ CONTAINS
 
             ! sum the local data across processes belonging to different RPA group.
             IF (para_env_RPA%num_pe /= para_env%num_pe) THEN
-               sub_sub_color = para_env_RPA%mepos
-               ALLOCATE (para_env_exchange)
-               CALL para_env_exchange%from_split(para_env, sub_sub_color)
-               CALL para_env_exchange%sum(fm_mat_S(ispin)%local_data)
-               CALL cp_para_env_release(para_env_exchange)
+               BLOCK
+                  TYPE(mp_comm_type) :: comm_exchange
+                  comm_exchange = fm_mat_S(ispin)%matrix_struct%context%interconnect(para_env)
+                  CALL comm_exchange%sum(fm_mat_S(ispin)%local_data)
+                  CALL comm_exchange%free()
+               END BLOCK
             END IF
          END DO
       END IF
@@ -1063,7 +1055,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       REAL(KIND=dp), INTENT(OUT)                         :: Erpa
       TYPE(mp2_type)                                     :: mp2_env
-      TYPE(cp_para_env_type), POINTER                    :: para_env, para_env_RPA, para_env_sub
+      TYPE(mp_para_env_type), POINTER                    :: para_env, para_env_RPA, para_env_sub
       INTEGER, INTENT(IN)                                :: unit_nr
       INTEGER, DIMENSION(:), INTENT(IN)                  :: homo, virtual
       INTEGER, INTENT(IN)                                :: dimen_RI, dimen_RI_red

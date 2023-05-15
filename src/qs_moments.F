@@ -48,7 +48,6 @@ MODULE qs_moments
                                               cp_fm_release,&
                                               cp_fm_set_all,&
                                               cp_fm_type
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE cp_result_methods,               ONLY: cp_results_erase,&
                                               put_results
    USE cp_result_types,                 ONLY: cp_result_type
@@ -63,6 +62,7 @@ MODULE qs_moments
                                               kpoint_type
    USE mathconstants,                   ONLY: pi,&
                                               twopi
+   USE message_passing,                 ONLY: mp_para_env_type
    USE moments_utils,                   ONLY: get_reference_point
    USE orbital_pointers,                ONLY: current_maxl,&
                                               indco,&
@@ -1739,13 +1739,13 @@ CONTAINS
       TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:, :)     :: op_fm_set
       TYPE(cp_fm_type), DIMENSION(:), POINTER            :: mos_new
       TYPE(cp_fm_type), POINTER                          :: mo_coeff
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(cp_result_type), POINTER                      :: results
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s, rho_ao
       TYPE(dbcsr_type), POINTER                          :: cosmat, sinmat
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(distribution_1d_type), POINTER                :: local_particles
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mos
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(qs_rho_type), POINTER                         :: rho
@@ -2086,15 +2086,11 @@ CONTAINS
       CALL dbcsr_deallocate_matrix(cosmat)
       CALL dbcsr_deallocate_matrix(sinmat)
 
+      CALL cp_fm_release(opvec)
+      CALL cp_fm_release(op_fm_set)
       DO ispin = 1, dft_control%nspins
-         CALL cp_fm_release(opvec(ispin))
          CALL cp_cfm_release(eigrmat(ispin))
-         DO i = 1, SIZE(op_fm_set, 1)
-            CALL cp_fm_release(op_fm_set(i, ispin))
-         END DO
       END DO
-      DEALLOCATE (op_fm_set)
-      DEALLOCATE (opvec)
       DEALLOCATE (eigrmat)
 
       CALL timestop(handle)
@@ -2256,7 +2252,6 @@ CONTAINS
       REAL(dp), DIMENSION(3)                             :: rcc, ria
       TYPE(atomic_kind_type), POINTER                    :: atomic_kind
       TYPE(cell_type), POINTER                           :: cell
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(cp_result_type), POINTER                      :: results
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: magmom, matrix_s, moments, momentum, &
                                                             rho_ao
@@ -2264,6 +2259,7 @@ CONTAINS
       TYPE(dbcsr_type), POINTER                          :: tmp_ao
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(distribution_1d_type), POINTER                :: local_particles
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
          POINTER                                         :: sab_all, sab_orb
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
@@ -2695,7 +2691,7 @@ CONTAINS
                END IF
                dd = SQRT(SUM(rmom(2:4, 3)**2))*debye
                WRITE (unit_number, "(T3,A)") "Dipole moment [Debye]"
-               WRITE (unit_number, "(T5,3(A,A,E16.8,1X),T64,A,T71,F14.8)") &
+               WRITE (unit_number, "(T5,3(A,A,E15.7,1X),T60,A,T68,F13.7)") &
                   (TRIM(rlab(i)), "=", rmom(i, 3)*debye, i=2, 4), "Total=", dd
             CASE (2)
                WRITE (unit_number, "(T3,A)") "Quadrupole moment [Debye*Angstrom]"

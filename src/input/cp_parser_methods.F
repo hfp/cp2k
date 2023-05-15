@@ -20,7 +20,6 @@
 MODULE cp_parser_methods
 
    USE cp_log_handling,                 ONLY: cp_to_string
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE cp_parser_buffer_types,          ONLY: copy_buffer_type,&
                                               finalize_sub_buffer,&
                                               initialize_sub_buffer
@@ -37,6 +36,7 @@ MODULE cp_parser_methods
                                               dp,&
                                               int_8,&
                                               max_line_length
+   USE message_passing,                 ONLY: mp_para_env_type
    USE string_utilities,                ONLY: is_whitespace,&
                                               uppercase
 #include "../base/base_uses.f90"
@@ -339,18 +339,18 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'broadcast_input_information'
 
       INTEGER                                            :: handle
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
 
       CALL timeset(routineN, handle)
 
       para_env => parser%para_env
       IF (para_env%num_pe > 1) THEN
-         CALL para_env%bcast(parser%buffer%buffer_id, para_env%source)
-         CALL para_env%bcast(parser%buffer%present_line_number, para_env%source)
-         CALL para_env%bcast(parser%buffer%last_line_number, para_env%source)
-         CALL para_env%bcast(parser%buffer%istat, para_env%source)
-         CALL para_env%bcast(parser%buffer%input_line_numbers, para_env%source)
-         CALL para_env%bcast(parser%buffer%input_lines, para_env%source)
+         CALL para_env%bcast(parser%buffer%buffer_id)
+         CALL para_env%bcast(parser%buffer%present_line_number)
+         CALL para_env%bcast(parser%buffer%last_line_number)
+         CALL para_env%bcast(parser%buffer%istat)
+         CALL para_env%bcast(parser%buffer%input_line_numbers)
+         CALL para_env%bcast(parser%buffer%input_lines)
       END IF
 
       CALL timestop(handle)

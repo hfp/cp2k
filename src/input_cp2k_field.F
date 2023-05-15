@@ -110,8 +110,10 @@ CONTAINS
 
       CPASSERT(.NOT. ASSOCIATED(section))
       CALL section_create(section, __LOCATION__, name="EFIELD", &
-                          description="parameters for finite, time dependent, nonperiodic electric fields."// &
-                          " For static fields use EXTERNAL_POTENTIAL.", &
+                          description="Parameters for finite, time  dependent electric fields. "// &
+                          "For time dependent  propagation in periodic systems, set "// &
+                          "DFT%REAL_TIME_PROPAGATION%VELOCITY_GAUGE to true. "// &
+                          "For static fields use EXTERNAL_POTENTIAL.", &
                           n_keywords=6, n_subsections=1, repeats=.TRUE.)
 
       NULLIFY (keyword, subsection)
@@ -159,6 +161,19 @@ CONTAINS
                                         "Linear tune in/out of the field", &
                                         "A custom field read from a file"), &
                           enum_i_vals=(/constant_env, gaussian_env, ramp_env, custom_env/))
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="VEC_POT_INITIAL", &
+                          description="Initial value of the vector "// &
+                          "potential (for velocity gauge). This input is "// &
+                          "made especially for restarting RTP calculation. "// &
+                          "Unit is atomic unit. "// &
+                          "Note that if several field sections are defined, only the first one will be used.", &
+                          usage="vec_pot_initial  1.0E-2 0.0 0.0", &
+                          repeats=.FALSE., &
+                          n_var=3, type_of_var=real_t, &
+                          default_r_vals=(/0.0_dp, 0.0_dp, 0.0_dp/))
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 

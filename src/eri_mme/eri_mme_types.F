@@ -15,7 +15,6 @@
 
 MODULE eri_mme_types
 
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE eri_mme_error_control,           ONLY: calibrate_cutoff,&
                                               cutoff_minimax_error,&
                                               minimax_error
@@ -28,6 +27,7 @@ MODULE eri_mme_types
    USE kinds,                           ONLY: dp
    USE mathlib,                         ONLY: det_3x3,&
                                               inv_3x3
+   USE message_passing,                 ONLY: mp_para_env_type
    USE orbital_pointers,                ONLY: init_orbital_pointers
 #include "../base/base_uses.f90"
 
@@ -53,41 +53,41 @@ MODULE eri_mme_types
              eri_mme_set_potential
 
    TYPE minimax_grid
-      REAL(KIND=dp)                    :: cutoff
-      INTEGER                          :: n_minimax
+      REAL(KIND=dp)                    :: cutoff = 0.0_dp
+      INTEGER                          :: n_minimax = 0
       REAL(KIND=dp), POINTER, &
          DIMENSION(:)                  :: minimax_aw => NULL()
-      REAL(KIND=dp)                    :: error
+      REAL(KIND=dp)                    :: error = 0.0_dp
    END TYPE
 
    TYPE eri_mme_param
-      INTEGER                          :: n_minimax
-      REAL(KIND=dp), DIMENSION(3, 3)   :: hmat, h_inv
-      REAL(KIND=dp)                    :: vol
-      LOGICAL                          :: is_ortho
-      REAL(KIND=dp)                    :: cutoff
-      LOGICAL                          :: do_calib_cutoff
-      LOGICAL                          :: do_error_est
-      LOGICAL                          :: print_calib
-      REAL(KIND=dp)                    :: cutoff_min, cutoff_max, cutoff_delta, &
-                                          cutoff_eps
-      REAL(KIND=dp)                    :: err_mm, err_c
-      REAL(KIND=dp)                    :: mm_delta
-      REAL(KIND=dp)                    :: G_min, R_min
-      LOGICAL                          :: is_valid
-      LOGICAL                          :: debug
-      REAL(KIND=dp)                    :: debug_delta
-      INTEGER                          :: debug_nsum
-      REAL(KIND=dp)                    :: C_mm
-      INTEGER                          :: unit_nr
-      REAL(KIND=dp)                    :: sum_precision
-      INTEGER                          :: n_grids
+      INTEGER                          :: n_minimax = 0
+      REAL(KIND=dp), DIMENSION(3, 3)   :: hmat = 0.0_dp, h_inv = 0.0_dp
+      REAL(KIND=dp)                    :: vol = 0.0_dp
+      LOGICAL                          :: is_ortho = .FALSE.
+      REAL(KIND=dp)                    :: cutoff = 0.0_dp
+      LOGICAL                          :: do_calib_cutoff = .FALSE.
+      LOGICAL                          :: do_error_est = .FALSE.
+      LOGICAL                          :: print_calib = .FALSE.
+      REAL(KIND=dp)                    :: cutoff_min = 0.0_dp, cutoff_max = 0.0_dp, cutoff_delta = 0.0_dp, &
+                                          cutoff_eps = 0.0_dp
+      REAL(KIND=dp)                    :: err_mm = 0.0_dp, err_c = 0.0_dp
+      REAL(KIND=dp)                    :: mm_delta = 0.0_dp
+      REAL(KIND=dp)                    :: G_min = 0.0_dp, R_min = 0.0_dp
+      LOGICAL                          :: is_valid = .FALSE.
+      LOGICAL                          :: debug = .FALSE.
+      REAL(KIND=dp)                    :: debug_delta = 0.0_dp
+      INTEGER                          :: debug_nsum = 0
+      REAL(KIND=dp)                    :: C_mm = 0.0_dp
+      INTEGER                          :: unit_nr = -1
+      REAL(KIND=dp)                    :: sum_precision = 0.0_dp
+      INTEGER                          :: n_grids = 0
       TYPE(minimax_grid), DIMENSION(:), &
          ALLOCATABLE                   :: minimax_grid
-      REAL(KIND=dp)                    :: zet_max, zet_min
-      INTEGER                          :: l_mm, l_max_zet
-      INTEGER                          :: potential
-      REAL(KIND=dp)                    :: pot_par
+      REAL(KIND=dp)                    :: zet_max = 0.0_dp, zet_min = 0.0_dp
+      INTEGER                          :: l_mm = -1, l_max_zet = -1
+      INTEGER                          :: potential = 0
+      REAL(KIND=dp)                    :: pot_par = 0.0_dp
    END TYPE eri_mme_param
 
 CONTAINS
@@ -177,8 +177,7 @@ CONTAINS
       LOGICAL, INTENT(IN)                                :: is_ortho
       REAL(KIND=dp), INTENT(IN)                          :: zet_min, zet_max
       INTEGER, INTENT(IN)                                :: l_max_zet, l_max
-      TYPE(cp_para_env_type), INTENT(IN), OPTIONAL, &
-         POINTER                                         :: para_env
+      TYPE(mp_para_env_type), INTENT(IN), OPTIONAL       :: para_env
       INTEGER, INTENT(IN), OPTIONAL                      :: potential
       REAL(KIND=dp), INTENT(IN), OPTIONAL                :: pot_par
 

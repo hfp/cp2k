@@ -651,6 +651,14 @@ MODULE input_constants
                                                mao_basis_prim = 2001, &
                                                mao_basis_ext = 2002
 
+   ! IAO
+   INTEGER, PARAMETER, PUBLIC               :: do_iaoloc_pm2 = 100, &
+                                               do_iaoloc_pm4 = 200, &
+                                               do_iaoloc_l1 = 300, &
+                                               do_iaoloc_enone = 1000, &
+                                               do_iaoloc_energy = 1001, &
+                                               do_iaoloc_occ = 1002
+
    ! X-Ray spectra Calculation
    INTEGER, PARAMETER, PUBLIC               :: xas_none = 0, &
                                                xas_tp_hh = 1, &
@@ -920,6 +928,9 @@ MODULE input_constants
                                                gaussian_env = 2, &
                                                ramp_env = 3, &
                                                custom_env = 4
+
+   INTEGER, PARAMETER, PUBLIC               :: proj_mo_ref_scf = 1, &
+                                               proj_mo_ref_xas_tdp = 2
 
    ! how to solve polarizable force fields
    INTEGER, PARAMETER, PUBLIC               :: do_fist_pol_none = 1, &

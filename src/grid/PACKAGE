@@ -11,6 +11,7 @@
         "./common",
         "./ref",
         "./cpu",
+        "./dgemm",
         "./gpu",
         "./hip",
     ],

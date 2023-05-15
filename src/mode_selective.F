@@ -25,7 +25,6 @@ MODULE mode_selective
                                               cp_logger_type
    USE cp_output_handling,              ONLY: cp_print_key_finished_output,&
                                               cp_print_key_unit_nr
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE cp_result_methods,               ONLY: get_results
    USE global_types,                    ONLY: global_environment_type
    USE input_constants,                 ONLY: ms_guess_atomic,&
@@ -42,6 +41,7 @@ MODULE mode_selective
                                               dp,&
                                               max_line_length
    USE mathlib,                         ONLY: diamat_all
+   USE message_passing,                 ONLY: mp_para_env_type
    USE molden_utils,                    ONLY: write_vibrations_molden
    USE particle_types,                  ONLY: particle_type
    USE physcon,                         ONLY: bohr,&
@@ -102,7 +102,7 @@ CONTAINS
                          nrep, calc_intens, dx, output_unit, logger)
       TYPE(section_vals_type), POINTER                   :: input
       TYPE(replica_env_type), POINTER                    :: rep_env
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(global_environment_type), POINTER             :: globenv
       TYPE(particle_type), DIMENSION(:), POINTER         :: particles
       INTEGER                                            :: nrep
@@ -256,7 +256,7 @@ CONTAINS
    SUBROUTINE MS_initial_moves(para_env, nrep, input, globenv, ms_vib, particles, &
                                mass, dx, &
                                calc_intens, logger)
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       INTEGER                                            :: nrep
       TYPE(section_vals_type), POINTER                   :: input
       TYPE(global_environment_type), POINTER             :: globenv
@@ -421,8 +421,8 @@ CONTAINS
          CALL molden_guess(ms_vib_section, input, para_env, ms_vib, mass, ncoord, nrep, logger)
          ms_vib%mat_size = 0
       END SELECT
-      CALL para_env%bcast(ms_vib%b_vec, para_env%source)
-      CALL para_env%bcast(ms_vib%delta_vec, para_env%source)
+      CALL para_env%bcast(ms_vib%b_vec)
+      CALL para_env%bcast(ms_vib%delta_vec)
       DO i = 1, nrep
          ms_vib%step_r(i) = dx/SQRT(DOT_PRODUCT(ms_vib%delta_vec(:, i), ms_vib%delta_vec(:, i)))
          ms_vib%step_b(i) = SQRT(DOT_PRODUCT(ms_vib%step_r(i)*ms_vib%b_vec(:, i), ms_vib%step_r(i)*ms_vib%b_vec(:, i)))
@@ -447,7 +447,7 @@ CONTAINS
       TYPE(ms_vib_type)                                  :: ms_vib
       TYPE(particle_type), DIMENSION(:), POINTER         :: particles
       REAL(Kind=dp), DIMENSION(:)                        :: mass
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       INTEGER                                            :: nrep
 
       CHARACTER(LEN=default_path_length)                 :: hes_filename
@@ -527,8 +527,8 @@ CONTAINS
          DEALLOCATE (tmplist)
       END IF
 
-      CALL para_env%bcast(ms_vib%b_vec, para_env%source)
-      CALL para_env%bcast(ms_vib%delta_vec, para_env%source)
+      CALL para_env%bcast(ms_vib%b_vec)
+      CALL para_env%bcast(ms_vib%delta_vec)
 
       DEALLOCATE (ms_vib%hes_bfgs)
       DEALLOCATE (ms_vib%eig_bfgs)
@@ -551,7 +551,7 @@ CONTAINS
    SUBROUTINE rest_guess(ms_vib_section, para_env, ms_vib, mass, ionode, particles, nrep, calc_intens)
 
       TYPE(section_vals_type), POINTER                   :: ms_vib_section
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(ms_vib_type)                                  :: ms_vib
       REAL(Kind=dp), DIMENSION(:)                        :: mass
       LOGICAL                                            :: ionode
@@ -589,7 +589,7 @@ CONTAINS
          CPASSERT(stat == 0)
          ms_vib%mat_size = mat
       END IF
-      CALL para_env%bcast(ms_vib%mat_size, para_env%source)
+      CALL para_env%bcast(ms_vib%mat_size)
       ALLOCATE (ms_vib%b_mat(ncoord, ms_vib%mat_size))
       ALLOCATE (ms_vib%s_mat(ncoord, ms_vib%mat_size))
       IF (calc_intens) THEN
@@ -611,9 +611,9 @@ CONTAINS
             END IF
          END IF
       END IF
-      CALL para_env%bcast(ms_vib%b_mat, para_env%source)
-      CALL para_env%bcast(ms_vib%s_mat, para_env%source)
-      IF (calc_intens) CALL para_env%bcast(ms_vib%dip_deriv, para_env%source)
+      CALL para_env%bcast(ms_vib%b_mat)
+      CALL para_env%bcast(ms_vib%s_mat)
+      IF (calc_intens) CALL para_env%bcast(ms_vib%dip_deriv)
       ALLOCATE (approx_H(ms_vib%mat_size, ms_vib%mat_size))
       ALLOCATE (eigenval(ms_vib%mat_size))
       ALLOCATE (ind(ms_vib%mat_size))
@@ -663,7 +663,7 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE molden_guess(ms_vib_section, input, para_env, ms_vib, mass, ncoord, nrep, logger)
       TYPE(section_vals_type), POINTER                   :: ms_vib_section, input
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(ms_vib_type)                                  :: ms_vib
       REAL(Kind=dp), DIMENSION(:)                        :: mass
       INTEGER                                            :: ncoord, nrep
@@ -797,8 +797,8 @@ CONTAINS
          DEALLOCATE (tmplist)
 
       END IF
-      CALL para_env%bcast(ms_vib%b_vec, para_env%source)
-      CALL para_env%bcast(ms_vib%delta_vec, para_env%source)
+      CALL para_env%bcast(ms_vib%b_vec)
+      CALL para_env%bcast(ms_vib%delta_vec)
 
       IF (ms_filename == "") CALL cp_print_key_finished_output(output_molden, logger, input, &
                                                                "VIBRATIONAL_ANALYSIS%PRINT%MOLDEN_VIB")

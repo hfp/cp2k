@@ -32,13 +32,13 @@ MODULE qs_tddfpt2_restart
                                               cp_print_key_generate_filename,&
                                               cp_print_key_should_output,&
                                               cp_print_key_unit_nr
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: dbcsr_type
    USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                               section_vals_type,&
                                               section_vals_val_get
    USE kinds,                           ONLY: default_path_length,&
                                               dp
+   USE message_passing,                 ONLY: mp_para_env_type
    USE parallel_gemm_api,               ONLY: parallel_gemm
    USE qs_tddfpt2_subgroups,            ONLY: tddfpt_subgroup_env_type
    USE qs_tddfpt2_types,                ONLY: tddfpt_ground_state_mos
@@ -179,7 +179,7 @@ CONTAINS
       INTEGER, DIMENSION(maxspins)                       :: nmo_occ, nmo_occ_read
       LOGICAL                                            :: file_exists
       REAL(kind=dp), ALLOCATABLE, DIMENSION(:)           :: evals_read
-      TYPE(cp_para_env_type), POINTER                    :: para_env_global
+      TYPE(mp_para_env_type), POINTER                    :: para_env_global
       TYPE(section_vals_type), POINTER                   :: print_key
 
       CALL timeset(routineN, handle)
@@ -203,7 +203,7 @@ CONTAINS
 
          IF (.NOT. file_exists) THEN
             nstates_read = 0
-            CALL para_env_global%bcast(nstates_read, para_env_global%source)
+            CALL para_env_global%bcast(nstates_read)
 
             CALL cp_warn(__LOCATION__, &
                          "User requested to restart the TDDFPT wave functions from the file '"//TRIM(filename)// &
@@ -260,7 +260,7 @@ CONTAINS
                          " excited states were requested.")
          END IF
       END IF
-      CALL para_env_global%bcast(nstates_read, para_env_global%source)
+      CALL para_env_global%bcast(nstates_read)
 
       ! exit if restart file does not exist
       IF (nstates_read <= 0) THEN
@@ -278,7 +278,7 @@ CONTAINS
          END IF
          DEALLOCATE (evals_read)
       END IF
-      CALL para_env_global%bcast(evals, para_env_global%source)
+      CALL para_env_global%bcast(evals)
 
       DO istate = 1, nstates_read
          DO ispin = 1, nspins
@@ -433,14 +433,7 @@ CONTAINS
          END DO
 
          IF (print_virtuals) THEN
-            IF (ALLOCATED(evects_mo)) THEN
-               DO istate = 1, nstates
-                  DO ispin = 1, nspins
-                     CALL cp_fm_release(matrix=evects_mo(ispin, istate))
-                  END DO
-               END DO
-            END IF
-            DEALLOCATE (evects_mo)
+            CALL cp_fm_release(evects_mo)
          END IF
 
          DO ispin = 1, nspins

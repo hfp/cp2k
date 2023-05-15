@@ -47,7 +47,6 @@ MODULE qs_tddfpt2_properties
                                               cp_print_key_finished_output,&
                                               cp_print_key_should_output,&
                                               cp_print_key_unit_nr
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE cp_realspace_grid_cube,          ONLY: cp_pw_to_cube
    USE dbcsr_api,                       ONLY: &
         dbcsr_copy, dbcsr_get_block_p, dbcsr_get_info, dbcsr_init_p, dbcsr_iterator_blocks_left, &
@@ -67,6 +66,7 @@ MODULE qs_tddfpt2_properties
                                               z_one,&
                                               z_zero
    USE message_passing,                 ONLY: mp_comm_type,&
+                                              mp_para_env_type,&
                                               mp_request_type
    USE molden_utils,                    ONLY: write_mos_molden
    USE moments_utils,                   ONLY: get_reference_point
@@ -336,19 +336,13 @@ CONTAINS
          END DO
 
          ! --- release berry-phase-related work matrices
+         CALL cp_fm_release(opvec)
+         CALL cp_fm_release(gamma_real_imag)
          DO ispin = nspins, 1, -1
-            DO i_cos_sin = SIZE(opvec, 1), 1, -1
-               CALL cp_fm_release(opvec(i_cos_sin, ispin))
-            END DO
-
-            DO i_cos_sin = SIZE(gamma_real_imag, 1), 1, -1
-               CALL cp_fm_release(gamma_real_imag(i_cos_sin, ispin))
-            END DO
-
             CALL cp_cfm_release(gamma_inv_00(ispin))
             CALL cp_cfm_release(gamma_00(ispin))
          END DO
-         DEALLOCATE (gamma_00, gamma_inv_00, gamma_real_imag, opvec)
+         DEALLOCATE (gamma_00, gamma_inv_00)
          CALL dbcsr_deallocate_matrix_set(berry_cossin_xyz)
 
          NULLIFY (fm_struct)
@@ -378,13 +372,7 @@ CONTAINS
          END DO
 
          CALL cp_fm_release(wfm_ao_ao)
-
-         DO ispin = nspins, 1, -1
-            DO ideriv = SIZE(dBerry_mos_occ, 1), 1, -1
-               CALL cp_fm_release(dBerry_mos_occ(ideriv, ispin))
-            END DO
-         END DO
-         DEALLOCATE (dBerry_mos_occ)
+         CALL cp_fm_release(dBerry_mos_occ)
 
       CASE (tddfpt_dipole_length)
          IF (ndim_periodic /= 0) THEN
@@ -514,10 +502,7 @@ CONTAINS
       END SELECT
 
       ! --- release work matrices
-      DO ispin = nspins, 1, -1
-         CALL cp_fm_release(S_mos_virt(ispin))
-      END DO
-      DEALLOCATE (S_mos_virt)
+      CALL cp_fm_release(S_mos_virt)
 
       CALL timestop(handle)
    END SUBROUTINE tddfpt_dipole_operator
@@ -684,7 +669,7 @@ CONTAINS
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
       TYPE(cp_fm_struct_type), POINTER                   :: fm_struct
       TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:)        :: S_mos_virt, weights_fm
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(mp_request_type)                              :: send_handler, send_handler2
       TYPE(mp_request_type), ALLOCATABLE, DIMENSION(:)   :: recv_handlers, recv_handlers2
 
@@ -706,7 +691,7 @@ CONTAINS
 
       ! *** excitation analysis ***
       IF (do_exc_analysis) THEN
-         CPASSERT(log_unit <= 0 .OR. para_env%mepos == para_env%source)
+         CPASSERT(log_unit <= 0 .OR. para_env%is_source())
          nmo_virt_occ_alpha = INT(nmo_virt(1), int_8)*INT(nmo_occ(1), int_8)
 
          IF (log_unit > 0) THEN
@@ -780,7 +765,7 @@ CONTAINS
                nmo_virt_occ = nmo_virt_occ + nmo_virt8(ispin)*nmo_occ8(ispin)
             END DO
 
-            IF (para_env%mepos == para_env%source) THEN
+            IF (para_env%is_source()) THEN
                ! master node
                ALLOCATE (nexcs_recv(para_env%num_pe), recv_handlers(para_env%num_pe), recv_handlers2(para_env%num_pe))
 
@@ -855,7 +840,7 @@ CONTAINS
 
             ! sort non-negligible excitations on the master node according to their amplitudes,
             ! uncompress indices and print summary information
-            IF (para_env%mepos == para_env%source .AND. log_unit > 0) THEN
+            IF (para_env%is_source() .AND. log_unit > 0) THEN
                weights_neg_abs_recv(:) = -ABS(weights_recv)
                CALL sort(weights_neg_abs_recv, INT(nexcs), inds)
 
@@ -883,7 +868,7 @@ CONTAINS
             END IF
 
             ! deallocate temporary arrays
-            IF (para_env%mepos == para_env%source) &
+            IF (para_env%is_source()) &
                DEALLOCATE (weights_recv, weights_neg_abs_recv, inds_recv, inds)
          END DO
 
@@ -894,11 +879,8 @@ CONTAINS
          END IF
       END IF
 
-      DO ispin = nspins, 1, -1
-         CALL cp_fm_release(weights_fm(ispin))
-         CALL cp_fm_release(S_mos_virt(ispin))
-      END DO
-      DEALLOCATE (S_mos_virt, weights_fm)
+      CALL cp_fm_release(weights_fm)
+      CALL cp_fm_release(S_mos_virt)
 
       CALL timestop(handle)
 
@@ -910,16 +892,17 @@ CONTAINS
 !> \param evects             TDDFPT trial vectors (SIZE(evects,1) -- number of spins;
 !>                           SIZE(evects,2) -- number of excited states to print)
 !> \param evals              TDDFPT eigenvalues
+!> \param ostrength ...
 !> \param gs_mos             molecular orbitals optimised for the ground state
 !> \param matrix_s           overlap matrix
 !> \param print_section      ...
 !> \par History
 !>    * 06.2019 created [JGH]
 ! **************************************************************************************************
-   SUBROUTINE tddfpt_print_nto_analysis(qs_env, evects, evals, gs_mos, matrix_s, print_section)
+   SUBROUTINE tddfpt_print_nto_analysis(qs_env, evects, evals, ostrength, gs_mos, matrix_s, print_section)
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(cp_fm_type), DIMENSION(:, :), INTENT(in)      :: evects
-      REAL(kind=dp), DIMENSION(:), INTENT(in)            :: evals
+      REAL(kind=dp), DIMENSION(:), INTENT(in)            :: evals, ostrength
       TYPE(tddfpt_ground_state_mos), DIMENSION(:), &
          INTENT(in)                                      :: gs_mos
       TYPE(dbcsr_type), POINTER                          :: matrix_s
@@ -930,13 +913,13 @@ CONTAINS
 
       CHARACTER(LEN=20), DIMENSION(2)                    :: nto_name
       INTEGER                                            :: handle, i, ia, icg, iounit, ispin, &
-                                                            istate, j, nao, nmax, nmo, nnto, &
-                                                            nspins, nstates
+                                                            istate, j, nao, nlist, nmax, nmo, &
+                                                            nnto, nspins, nstates
       INTEGER, DIMENSION(2)                              :: iv
       INTEGER, DIMENSION(2, ntomax)                      :: ia_index
-      INTEGER, DIMENSION(:), POINTER                     :: stride
-      LOGICAL                                            :: append_cube, cube_file
-      REAL(KIND=dp)                                      :: sume, threshold
+      INTEGER, DIMENSION(:), POINTER                     :: slist, stride
+      LOGICAL                                            :: append_cube, cube_file, explicit
+      REAL(KIND=dp)                                      :: os_threshold, sume, threshold
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: eigvals
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: eigenvalues
       REAL(KIND=dp), DIMENSION(ntomax)                   :: ia_eval
@@ -960,6 +943,16 @@ CONTAINS
          CALL cite_reference(Martin2003)
 
          CALL section_vals_val_get(print_section, "NTO_ANALYSIS%THRESHOLD", r_val=threshold)
+         CALL section_vals_val_get(print_section, "NTO_ANALYSIS%INTENSITY_THRESHOLD", r_val=os_threshold)
+         CALL section_vals_val_get(print_section, "NTO_ANALYSIS%STATE_LIST", EXPLICIT=explicit)
+
+         IF (explicit) THEN
+            CALL section_vals_val_get(print_section, "NTO_ANALYSIS%STATE_LIST", i_vals=slist)
+            nlist = SIZE(slist)
+         ELSE
+            nlist = 0
+         END IF
+
          IF (iounit > 0) THEN
             WRITE (iounit, "(1X,A)") "", &
                "-------------------------------------------------------------------------------", &
@@ -972,8 +965,22 @@ CONTAINS
          CALL dbcsr_get_info(matrix_s, nfullrows_total=nao)
 
          DO istate = 1, nstates
+            IF (os_threshold > ostrength(istate)) THEN
+               IF (iounit > 0) THEN
+                  WRITE (iounit, "(1X,A,I6)") "  Skipping state ", istate
+               END IF
+               CYCLE
+            END IF
+            IF (nlist > 0) THEN
+               IF (.NOT. ANY(slist == istate)) THEN
+                  IF (iounit > 0) THEN
+                     WRITE (iounit, "(1X,A,I6)") "  Skipping state ", istate
+                  END IF
+                  CYCLE
+               END IF
+            END IF
             IF (iounit > 0) THEN
-               WRITE (iounit, "(1X,A,I3,T30,F10.5,A)") "  STATE NR. ", istate, evals(istate)*evolt, " eV"
+               WRITE (iounit, "(1X,A,I6,T30,F10.5,A)") "  STATE NR. ", istate, evals(istate)*evolt, " eV"
             END IF
             nmax = 0
             DO ispin = 1, nspins
@@ -1123,10 +1130,7 @@ CONTAINS
             CALL write_mos_molden(nto_set, qs_kind_set, particle_set, molden_section)
             !
             DEALLOCATE (eigenvalues)
-            DO ispin = 1, nspins
-               CALL cp_fm_release(teig(ispin))
-            END DO
-            DEALLOCATE (teig)
+            CALL cp_fm_release(teig)
             !
             DO i = 1, 2
                CALL deallocate_mo_set(nto_set(i))

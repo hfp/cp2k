@@ -25,7 +25,6 @@ MODULE rpa_im_time
                                               cp_fm_set_all,&
                                               cp_fm_to_fm,&
                                               cp_fm_type
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: &
         dbcsr_add, dbcsr_clear, dbcsr_copy, dbcsr_create, dbcsr_distribution_get, &
         dbcsr_distribution_type, dbcsr_filter, dbcsr_get_info, dbcsr_init_p, dbcsr_p_type, &
@@ -45,7 +44,8 @@ MODULE rpa_im_time
    USE machine,                         ONLY: m_flush,&
                                               m_walltime
    USE mathconstants,                   ONLY: twopi
-   USE message_passing,                 ONLY: mp_comm_type
+   USE message_passing,                 ONLY: mp_comm_type,&
+                                              mp_para_env_type
    USE mp2_types,                       ONLY: mp2_type
    USE parallel_gemm_api,               ONLY: parallel_gemm
    USE particle_types,                  ONLY: particle_type
@@ -163,7 +163,7 @@ CONTAINS
          INTENT(IN)                                      :: tau_tj
       INTEGER, INTENT(IN)                                :: cut_memory, unit_nr
       TYPE(mp2_type)                                     :: mp2_env
-      TYPE(cp_para_env_type), INTENT(IN)                 :: para_env
+      TYPE(mp_para_env_type), INTENT(IN)                 :: para_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
       LOGICAL, INTENT(IN)                                :: do_kpoints_from_Gamma
       INTEGER, ALLOCATABLE, DIMENSION(:, :), INTENT(IN)  :: index_to_cell_3c
@@ -202,8 +202,7 @@ CONTAINS
                                                             t_3c_M_virt_tmp, t_dm, t_dm_tmp, t_P, &
                                                             t_P_tmp
       TYPE(dbt_type), ALLOCATABLE, DIMENSION(:)          :: t_dm_occ, t_dm_virt
-      TYPE(dbt_type), &
-         DIMENSION(SIZE(t_3c_O, 1), SIZE(t_3c_O, 2))     :: t_3c_O_occ, t_3c_O_virt
+      TYPE(dbt_type), ALLOCATABLE, DIMENSION(:, :)       :: t_3c_O_occ, t_3c_O_virt
       TYPE(mp_comm_type)                                 :: comm_2d
 
       CALL timeset(routineN, handle)
@@ -220,6 +219,7 @@ CONTAINS
       num_3c_repl = MAXVAL(cell_to_index_3c)
 
       first_cycle_im_time = .TRUE.
+      ALLOCATE (t_3c_O_occ(SIZE(t_3c_O, 1), SIZE(t_3c_O, 2)), t_3c_O_virt(SIZE(t_3c_O, 1), SIZE(t_3c_O, 2)))
       DO i = 1, SIZE(t_3c_O, 1)
          DO j = 1, SIZE(t_3c_O, 2)
             CALL dbt_create(t_3c_O(i, j), t_3c_O_occ(i, j))
@@ -684,7 +684,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       INTEGER, INTENT(OUT)                               :: num_cells_dm
       INTEGER, DIMENSION(:, :), POINTER                  :: index_to_cell_dm
-      TYPE(cp_para_env_type), INTENT(IN)                 :: para_env
+      TYPE(mp_para_env_type), INTENT(IN)                 :: para_env
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'compute_mat_dm_global'
       REAL(KIND=dp), PARAMETER                           :: stabilize_exp = 70.0_dp
@@ -718,11 +718,13 @@ CONTAINS
 
          CALL compute_periodic_dm(mat_dm_occ_global, qs_env, &
                                   ispin, num_integ_points, jquad, e_fermi, tau, &
-                                  remove_occ=.FALSE., remove_virt=.TRUE., first_jquad=1)
+                                  remove_occ=.FALSE., remove_virt=.TRUE., &
+                                  alloc_dm=(jquad == 1))
 
          CALL compute_periodic_dm(mat_dm_virt_global, qs_env, &
                                   ispin, num_integ_points, jquad, e_fermi, tau, &
-                                  remove_occ=.TRUE., remove_virt=.FALSE., first_jquad=1)
+                                  remove_occ=.TRUE., remove_virt=.FALSE., &
+                                  alloc_dm=(jquad == 1))
 
          num_cells_dm = 1
 
@@ -1125,16 +1127,15 @@ CONTAINS
 !> \param tau ...
 !> \param remove_occ ...
 !> \param remove_virt ...
-!> \param first_jquad ...
+!> \param alloc_dm ...
 ! **************************************************************************************************
    SUBROUTINE compute_periodic_dm(mat_dm_global, qs_env, ispin, num_integ_points, jquad, e_fermi, tau, &
-                                  remove_occ, remove_virt, first_jquad)
+                                  remove_occ, remove_virt, alloc_dm)
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: mat_dm_global
       TYPE(qs_environment_type), POINTER                 :: qs_env
       INTEGER, INTENT(IN)                                :: ispin, num_integ_points, jquad
       REAL(KIND=dp), INTENT(IN)                          :: e_fermi, tau
-      LOGICAL, INTENT(IN)                                :: remove_occ, remove_virt
-      INTEGER, INTENT(IN)                                :: first_jquad
+      LOGICAL, INTENT(IN)                                :: remove_occ, remove_virt, alloc_dm
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'compute_periodic_dm'
 
@@ -1160,13 +1161,13 @@ CONTAINS
       NULLIFY (mat_dm_global_work)
       CALL dbcsr_allocate_matrix_set(mat_dm_global_work, nspin, num_cells_dm)
 
-      ! jquad = first_jquad to allocate the matrix set
-      IF (jquad == first_jquad) THEN
+      ! if necessaray, allocate mat_dm_global
+      IF (alloc_dm) THEN
 
          NULLIFY (mat_dm_global)
-         ALLOCATE (mat_dm_global(first_jquad:num_integ_points, num_cells_dm))
+         ALLOCATE (mat_dm_global(1:num_integ_points, num_cells_dm))
 
-         DO iquad = first_jquad, num_integ_points
+         DO iquad = 1, num_integ_points
             NULLIFY (mat_dm_global(iquad, 1)%matrix)
             ALLOCATE (mat_dm_global(iquad, 1)%matrix)
             CALL dbcsr_create(matrix=mat_dm_global(iquad, 1)%matrix, &
@@ -1186,7 +1187,7 @@ CONTAINS
 
          CALL dbcsr_reserve_all_blocks(mat_dm_global_work(jspin, 1)%matrix)
 
-         CALL dbcsr_set(mat_dm_global_work(ispin, 1)%matrix, 0.0_dp)
+         CALL dbcsr_set(mat_dm_global_work(jspin, 1)%matrix, 0.0_dp)
 
       END DO
 

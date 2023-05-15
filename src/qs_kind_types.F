@@ -52,7 +52,6 @@ MODULE qs_kind_types
                                               cp_print_key_finished_output,&
                                               cp_print_key_should_output,&
                                               cp_print_key_unit_nr
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE external_potential_types,        ONLY: &
         all_potential_type, allocate_potential, deallocate_potential, get_potential, &
         gth_potential_type, init_potential, local_potential_type, read_potential, &
@@ -71,6 +70,7 @@ MODULE qs_kind_types
                                               default_string_length,&
                                               dp
    USE mathconstants,                   ONLY: pi
+   USE message_passing,                 ONLY: mp_para_env_type
    USE orbital_pointers,                ONLY: init_orbital_pointers,&
                                               nco,&
                                               ncoset
@@ -1478,7 +1478,7 @@ CONTAINS
 
       TYPE(qs_kind_type), INTENT(INOUT)                  :: qs_kind
       TYPE(section_vals_type), POINTER                   :: kind_section
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(section_vals_type), POINTER                   :: force_env_section
       LOGICAL, INTENT(IN)                                :: no_fail
       INTEGER, INTENT(IN)                                :: method_id
@@ -2571,7 +2571,7 @@ CONTAINS
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(section_vals_type), POINTER                   :: kind_section
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(section_vals_type), POINTER                   :: force_env_section
 
       CHARACTER(len=*), PARAMETER :: routineN = 'create_qs_kind_set'
@@ -2868,6 +2868,8 @@ CONTAINS
                   do_print = .FALSE.
                CASE ("AUX")
                   bstring = "Auxiliary Basis Set"
+               CASE ("MIN")
+                  bstring = "Minimal Basis Set"
                CASE ("RI_AUX")
                   bstring = "RI Auxiliary Basis Set"
                CASE ("AUX_FIT")
@@ -2920,10 +2922,10 @@ CONTAINS
                CALL write_orb_basis_set(tmp_basis, output_unit, "GAPW Soft Basis Set")
             END IF
             ! Potentials
-            CALL write_potential(qs_kind%all_potential, output_unit)
-            CALL write_potential(qs_kind%gth_potential, output_unit)
-            CALL write_potential(qs_kind%sgp_potential, output_unit)
-            CALL write_potential(qs_kind%tnadd_potential, output_unit)
+            IF (ASSOCIATED(qs_kind%all_potential)) CALL write_potential(qs_kind%all_potential, output_unit)
+            IF (ASSOCIATED(qs_kind%gth_potential)) CALL write_potential(qs_kind%gth_potential, output_unit)
+            IF (ASSOCIATED(qs_kind%sgp_potential)) CALL write_potential(qs_kind%sgp_potential, output_unit)
+            IF (ASSOCIATED(qs_kind%tnadd_potential)) CALL write_potential(qs_kind%tnadd_potential, output_unit)
             IF (ASSOCIATED(qs_kind%dft_plus_u)) THEN
                WRITE (UNIT=output_unit, FMT="(/,T6,A,/,T8,A,T76,I5,/,T8,A,T73,F8.3)") &
                   "A DFT+U correction is applied to atoms of this atomic kind:", &
@@ -3076,6 +3078,8 @@ CONTAINS
                      bstring = "GAPW Soft Basis Set"
                   CASE ("AUX")
                      bstring = "Auxiliary Basis Set"
+                  CASE ("MIN")
+                     bstring = "Minimal Basis Set"
                   CASE ("RI_AUX")
                      bstring = "RI Auxiliary Basis Set"
                   CASE ("AUX_FIT")
@@ -3088,7 +3092,7 @@ CONTAINS
                      bstring = "RI HFX Basis Set"
                   END SELECT
 
-                  CALL write_gto_basis_set(tmp_basis, output_unit, bstring)
+                  IF (ASSOCIATED(tmp_basis)) CALL write_gto_basis_set(tmp_basis, output_unit, bstring)
 
                END DO
 

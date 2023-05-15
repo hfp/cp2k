@@ -19,13 +19,13 @@ MODULE qs_ks_atom
                                               gto_basis_set_type
    USE cp_array_utils,                  ONLY: cp_2d_r_p_type
    USE cp_control_types,                ONLY: dft_control_type
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: dbcsr_get_block_p,&
                                               dbcsr_p_type
    USE kinds,                           ONLY: dp,&
                                               int_8
    USE kpoint_types,                    ONLY: get_kpoint_info,&
                                               kpoint_type
+   USE message_passing,                 ONLY: mp_para_env_type
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
    USE qs_force_types,                  ONLY: qs_force_type
@@ -120,9 +120,8 @@ CONTAINS
       CHARACTER(len=*), PARAMETER                        :: routineN = 'update_ks_atom'
 
       INTEGER :: bo(2), handle, ia_kind, iac, iat, iatom, ibc, ikind, img, ip, ispin, ja_kind, &
-         jatom, jkind, ka_kind, kac, katom, kbc, kkind, ldCPC, max_gau, max_nsgf, mepos, n_cont_a, &
-         n_cont_b, nat, natom, nimages, nkind, nl_table_num_slots, nsoctot, nspins, num_pe, &
-         slot_num
+         jatom, jkind, ka_kind, kac, katom, kbc, kkind, ldCPC, max_gau, max_nsgf, n_cont_a, &
+         n_cont_b, nat, natom, nimages, nkind, nl_table_num_slots, nsoctot, nspins, slot_num
       INTEGER(KIND=int_8)                                :: nl_table_key
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: atom_of_kind
       INTEGER, DIMENSION(3)                              :: cell_b
@@ -144,11 +143,11 @@ CONTAINS
       TYPE(alist_type), POINTER                          :: alist_ac, alist_bc
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(cp_2d_r_p_type), DIMENSION(:), POINTER        :: mat_h, mat_p
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(gto_basis_set_p_type), DIMENSION(:), POINTER  :: basis_set_list
       TYPE(gto_basis_set_type), POINTER                  :: basis_set_a, basis_set_b
       TYPE(kpoint_type), POINTER                         :: kpoints
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(neighbor_list_iterator_p_type), &
          DIMENSION(:), POINTER                           :: nl_iterator
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
@@ -227,8 +226,7 @@ CONTAINS
 
       nkind = SIZE(my_kind_set, 1)
       ! Collect the local potential contributions from all the processors
-      mepos = para_env%mepos
-      num_pe = para_env%num_pe
+      ASSOCIATE (mepos => para_env%mepos, num_pe => para_env%num_pe)
       DO ikind = 1, nkind
          NULLIFY (atom_list)
          CALL get_atomic_kind(atomic_kind_set(ikind), atom_list=atom_list, natom=nat)
@@ -258,6 +256,7 @@ CONTAINS
             END DO
          END IF
       END DO
+      END ASSOCIATE
 
       ALLOCATE (basis_set_list(nkind))
       DO ikind = 1, nkind

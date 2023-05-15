@@ -47,7 +47,6 @@ MODULE qs_linres_current_utils
                                               cp_print_key_finished_output,&
                                               cp_print_key_should_output,&
                                               cp_print_key_unit_nr
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: dbcsr_convert_offsets_to_sizes,&
                                               dbcsr_copy,&
                                               dbcsr_create,&
@@ -70,6 +69,7 @@ MODULE qs_linres_current_utils
    USE kinds,                           ONLY: default_path_length,&
                                               dp
    USE memory_utilities,                ONLY: reallocate
+   USE message_passing,                 ONLY: mp_para_env_type
    USE particle_methods,                ONLY: get_particle_set
    USE particle_types,                  ONLY: particle_type
    USE pw_env_types,                    ONLY: pw_env_get,&
@@ -157,11 +157,11 @@ CONTAINS
                                                             rxp_psi0
       TYPE(cp_fm_type), POINTER                          :: mo_coeff
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_distribution_type), POINTER             :: dbcsr_dist
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: op_p_ao
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(linres_control_type), POINTER                 :: linres_control
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
          POINTER                                         :: sab_orb
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
@@ -540,22 +540,17 @@ CONTAINS
          IF (.NOT. should_stop) current_env%all_pert_op_done = .TRUE.
          !
          ! clean up
-         DO ispin = 1, nspins
-            CALL cp_fm_release(fm_work_ii(ispin))
-            CALL cp_fm_release(fm_work_iii(ispin))
-         END DO
-         DEALLOCATE (fm_work_ii, fm_work_iii, dkl_vec_ii, dkl_vec_iii, vecbuf_dklxp0)
+         CALL cp_fm_release(fm_work_ii)
+         CALL cp_fm_release(fm_work_iii)
+         DEALLOCATE (dkl_vec_ii, dkl_vec_iii, vecbuf_dklxp0)
 
       END IF
       !
       ! clean up
       IF (current_env%full) THEN
          CALL dbcsr_deallocate_matrix_set(op_p_ao)
-         DO ispin = 1, nspins
-            CALL cp_fm_release(psi1(ispin))
-            CALL cp_fm_release(h1_psi0(ispin))
-         END DO
-         DEALLOCATE (psi1, h1_psi0)
+         CALL cp_fm_release(psi1)
+         CALL cp_fm_release(h1_psi0)
       END IF
       !
       CALL cp_print_key_finished_output(output_unit, logger, lr_section,&
@@ -599,12 +594,12 @@ CONTAINS
       TYPE(cp_fm_struct_type), POINTER                   :: tmp_fm_struct
       TYPE(cp_fm_type), POINTER                          :: mo_coeff
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(jrho_atom_type), DIMENSION(:), POINTER        :: jrho1_atom_set
       TYPE(linres_control_type), POINTER                 :: linres_control
       TYPE(localized_wfn_control_type), POINTER          :: localized_wfn_control
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mos
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(pw_env_type), POINTER                         :: pw_env
       TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
@@ -1330,62 +1325,22 @@ CONTAINS
 
       INTEGER                                            :: i, idir, ispin
 
-      IF (ASSOCIATED(current_env%psi0_order)) THEN
-         DO ispin = 1, SIZE(current_env%psi0_order, 1)
-            CALL cp_fm_release(current_env%psi0_order(ispin))
-         END DO
-         DEALLOCATE (current_env%psi0_order)
-      END IF
+      CALL cp_fm_release(current_env%psi0_order)
       !
       !psi1_p
-      IF (ASSOCIATED(current_env%psi1_p)) THEN
-         DO idir = 1, SIZE(current_env%psi1_p, 2)
-            DO ispin = 1, SIZE(current_env%psi1_p, 1)
-               CALL cp_fm_release(current_env%psi1_p(ispin, idir))
-            END DO
-         END DO
-         DEALLOCATE (current_env%psi1_p)
-      END IF
+      CALL cp_fm_release(current_env%psi1_p)
       !
       !psi1_rxp
-      IF (ASSOCIATED(current_env%psi1_rxp)) THEN
-         DO idir = 1, SIZE(current_env%psi1_rxp, 2)
-            DO ispin = 1, SIZE(current_env%psi1_rxp, 1)
-               CALL cp_fm_release(current_env%psi1_rxp(ispin, idir))
-            END DO
-         END DO
-         DEALLOCATE (current_env%psi1_rxp)
-      END IF
+      CALL cp_fm_release(current_env%psi1_rxp)
       !
       !psi1_D
-      IF (ASSOCIATED(current_env%psi1_D)) THEN
-         DO idir = 1, SIZE(current_env%psi1_D, 2)
-            DO ispin = 1, SIZE(current_env%psi1_D, 1)
-               CALL cp_fm_release(current_env%psi1_D(ispin, idir))
-            END DO
-         END DO
-         DEALLOCATE (current_env%psi1_D)
-      END IF
+      CALL cp_fm_release(current_env%psi1_D)
       !
       !p_psi0
-      IF (ASSOCIATED(current_env%p_psi0)) THEN
-         DO idir = 1, SIZE(current_env%p_psi0, 2)
-            DO ispin = 1, SIZE(current_env%p_psi0, 1)
-               CALL cp_fm_release(current_env%p_psi0(ispin, idir))
-            END DO
-         END DO
-         DEALLOCATE (current_env%p_psi0)
-      END IF
+      CALL cp_fm_release(current_env%p_psi0)
       !
       !rxp_psi0
-      IF (ASSOCIATED(current_env%rxp_psi0)) THEN
-         DO idir = 1, SIZE(current_env%rxp_psi0, 2)
-            DO ispin = 1, SIZE(current_env%rxp_psi0, 1)
-               CALL cp_fm_release(current_env%rxp_psi0(ispin, idir))
-            END DO
-         END DO
-         DEALLOCATE (current_env%rxp_psi0)
-      END IF
+      CALL cp_fm_release(current_env%rxp_psi0)
       !
       IF (ASSOCIATED(current_env%centers_set)) THEN
          DO ispin = 1, SIZE(current_env%centers_set, 1)

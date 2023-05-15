@@ -32,13 +32,13 @@ MODULE qs_tddfpt_eigensolver
                                               cp_fm_type
    USE cp_log_handling,                 ONLY: cp_logger_get_default_io_unit,&
                                               cp_to_string
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: dbcsr_p_type,&
                                               dbcsr_set
    USE input_constants,                 ONLY: tddfpt_davidson,&
                                               tddfpt_lanczos
    USE kinds,                           ONLY: default_string_length,&
                                               dp
+   USE message_passing,                 ONLY: mp_para_env_type
    USE physcon,                         ONLY: evolt
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
@@ -187,14 +187,15 @@ CONTAINS
       REAL(kind=dp), ALLOCATABLE, DIMENSION(:, :)        :: evals
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
       TYPE(cp_fm_pool_p_type), DIMENSION(:), POINTER     :: ao_mo_fm_pools
-      TYPE(cp_fm_struct_p_type), DIMENSION(:), POINTER   :: kv_fm_struct
+      TYPE(cp_fm_struct_p_type), ALLOCATABLE, &
+         DIMENSION(:)                                    :: kv_fm_struct
       TYPE(cp_fm_struct_type), POINTER                   :: tilde_fm_struct
       TYPE(cp_fm_type)                                   :: Atilde, Us
       TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:)        :: R, X
       TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:, :)     :: Ab, b, Sb
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s
       TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(tddfpt_control_type), POINTER                 :: tddfpt_control
 
       res = .FALSE.
@@ -234,7 +235,6 @@ CONTAINS
             WRITE (output_unit, *) "  Setting the maximum number of krylov vectors to ", max_kv, "!!"
          END IF
       END IF
-!    CPPostcondition(max_krylovspace_dim>=max_kv,cp_failure_level,routineP,failure)
 
       !----------------------!
       ! allocate the vectors !
@@ -256,7 +256,6 @@ CONTAINS
       ALLOCATE (kv_fm_struct(nspins))
 
       DO spin = 1, nspins
-         NULLIFY (kv_fm_struct(spin)%struct)
          CALL cp_fm_struct_create(kv_fm_struct(spin)%struct, para_env, blacs_env, &
                                   p_env%n_ao(spin), p_env%n_mo(spin))
       END DO
@@ -490,13 +489,11 @@ CONTAINS
       CALL fm_pools_give_back_fm_vect(ao_mo_fm_pools, R)
       DO spin = 1, nspins
          CALL cp_fm_struct_release(kv_fm_struct(spin)%struct)
-         DO i = 1, max_kv
-            CALL cp_fm_release(b(i, spin))
-            CALL cp_fm_release(Ab(i, spin))
-            CALL cp_fm_release(Sb(i, spin))
-         END DO
       END DO
-      DEALLOCATE (b, Ab, Sb, evals, evals_tmp, evals_difference, must_improve, kv_fm_struct)
+      CALL cp_fm_release(b)
+      CALL cp_fm_release(Ab)
+      CALL cp_fm_release(Sb)
+      DEALLOCATE (evals, evals_tmp, evals_difference, must_improve, kv_fm_struct)
 
       CALL timestop(handle)
 
@@ -586,7 +583,8 @@ CONTAINS
       TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:, :)     :: vectors
       CHARACTER(LEN=*), INTENT(IN)                       :: vectors_name
       INTEGER, INTENT(IN)                                :: startv, n_v, nspins
-      TYPE(cp_fm_struct_p_type), DIMENSION(:), POINTER   :: fm_struct
+      TYPE(cp_fm_struct_p_type), DIMENSION(:), &
+         INTENT(IN)                                      :: fm_struct
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'allocate_krylov_vectors', &
          routineP = moduleN//':'//routineN

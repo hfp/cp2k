@@ -30,7 +30,6 @@ MODULE kpoint_methods
         copy_info_type, cp_fm_cleanup_copy_general, cp_fm_create, cp_fm_finish_copy_general, &
         cp_fm_get_info, cp_fm_release, cp_fm_start_copy_general, cp_fm_to_fm, cp_fm_type
    USE cp_log_handling,                 ONLY: cp_logger_get_default_io_unit
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE cryssym,                         ONLY: apply_rotation_coord,&
                                               crys_sym_gen,&
                                               csym_type,&
@@ -56,7 +55,8 @@ MODULE kpoint_methods
                                               kpoint_type
    USE mathconstants,                   ONLY: twopi
    USE memory_utilities,                ONLY: reallocate
-   USE message_passing,                 ONLY: mp_cart_type
+   USE message_passing,                 ONLY: mp_cart_type,&
+                                              mp_para_env_type
    USE parallel_gemm_api,               ONLY: parallel_gemm
    USE particle_types,                  ONLY: particle_type
    USE qs_matrix_pools,                 ONLY: mpools_create,&
@@ -263,7 +263,7 @@ CONTAINS
    SUBROUTINE kpoint_env_initialize(kpoint, para_env, blacs_env)
 
       TYPE(kpoint_type), INTENT(INOUT)                   :: kpoint
-      TYPE(cp_para_env_type), INTENT(IN), TARGET         :: para_env
+      TYPE(mp_para_env_type), INTENT(IN), TARGET         :: para_env
       TYPE(cp_blacs_env_type), INTENT(IN), TARGET        :: blacs_env
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'kpoint_env_initialize'
@@ -271,10 +271,10 @@ CONTAINS
       INTEGER                                            :: handle, igr, ik, ikk, ngr, niogrp, nkp, &
                                                             nkp_grp, nkp_loc, npe, unit_nr
       INTEGER, DIMENSION(2)                              :: dims, pos
-      TYPE(cp_para_env_type), POINTER                    :: para_env_inter_kp, para_env_kp
       TYPE(kpoint_env_p_type), DIMENSION(:), POINTER     :: kp_env
       TYPE(kpoint_env_type), POINTER                     :: kp
       TYPE(mp_cart_type)                                 :: comm_cart
+      TYPE(mp_para_env_type), POINTER                    :: para_env_inter_kp, para_env_kp
 
       CALL timeset(routineN, handle)
 
@@ -493,14 +493,7 @@ CONTAINS
             DO ik = 1, nkp_loc
                kp => kpoint%kp_env(ik)%kpoint_env
                ! density matrix
-               IF (ASSOCIATED(kp%pmat)) THEN
-                  DO is = 1, SIZE(kp%pmat, 2)
-                     DO ic = 1, SIZE(kp%pmat, 1)
-                        CALL cp_fm_release(kp%pmat(ic, is))
-                     END DO
-                  END DO
-                  DEALLOCATE (kp%pmat)
-               END IF
+               CALL cp_fm_release(kp%pmat)
                ALLOCATE (kp%pmat(nc, nspin))
                DO is = 1, nspin
                   DO ic = 1, nc
@@ -508,14 +501,7 @@ CONTAINS
                   END DO
                END DO
                ! energy weighted density matrix
-               IF (ASSOCIATED(kp%wmat)) THEN
-                  DO is = 1, SIZE(kp%wmat, 2)
-                     DO ic = 1, SIZE(kp%wmat, 1)
-                        CALL cp_fm_release(kp%wmat(ic, is))
-                     END DO
-                  END DO
-                  DEALLOCATE (kp%wmat)
-               END IF
+               CALL cp_fm_release(kp%wmat)
                ALLOCATE (kp%wmat(nc, nspin))
                DO is = 1, nspin
                   DO ic = 1, nc
@@ -583,7 +569,7 @@ CONTAINS
       TYPE(kpoint_type), POINTER                         :: kpoint
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
          POINTER                                         :: sab_nl
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(dft_control_type), POINTER                    :: dft_control
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'kpoint_init_cell_index'
@@ -816,9 +802,9 @@ CONTAINS
       REAL(KIND=dp)                                      :: kTS, mu, mus(2), nel
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: weig, wocc
       REAL(KIND=dp), DIMENSION(:), POINTER               :: eigenvalues, occupation, wkp
-      TYPE(cp_para_env_type), POINTER                    :: para_env_inter_kp
       TYPE(kpoint_env_type), POINTER                     :: kp
       TYPE(mo_set_type), POINTER                         :: mo_set
+      TYPE(mp_para_env_type), POINTER                    :: para_env_inter_kp
 
       CALL timeset(routineN, handle)
 
@@ -1038,10 +1024,10 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: xkp
       TYPE(copy_info_type), ALLOCATABLE, DIMENSION(:)    :: info
       TYPE(cp_fm_type)                                   :: fmdummy
-      TYPE(cp_para_env_type), POINTER                    :: para_env, para_env_inter_kp
       TYPE(dbcsr_type), POINTER                          :: cpmat, rpmat, scpmat, srpmat
       TYPE(kpoint_env_type), POINTER                     :: kp
       TYPE(kpoint_sym_type), POINTER                     :: kpsym
+      TYPE(mp_para_env_type), POINTER                    :: para_env, para_env_inter_kp
 
       CALL timeset(routineN, handle)
 

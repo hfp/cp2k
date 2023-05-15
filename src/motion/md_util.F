@@ -16,7 +16,6 @@ MODULE md_util
    USE cp_log_handling,                 ONLY: cp_get_default_logger,&
                                               cp_logger_type
    USE cp_output_handling,              ONLY: cp_print_key_generate_filename
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE input_cp2k_restarts,             ONLY: write_restart
    USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                               section_vals_type,&
@@ -25,6 +24,7 @@ MODULE md_util
                                               dp
    USE md_energies,                     ONLY: md_write_output
    USE md_environment_types,            ONLY: md_environment_type
+   USE message_passing,                 ONLY: mp_para_env_type
 #include "../base/base_uses.f90"
 
    IMPLICIT NONE
@@ -98,7 +98,7 @@ CONTAINS
                                         eigenvalues, &
                                         eigenvectors)
       TYPE(section_vals_type), POINTER                   :: md_section, vib_section
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       INTEGER, INTENT(OUT)                               :: dof
       REAL(KIND=dp), DIMENSION(:), INTENT(OUT)           :: eigenvalues
       REAL(KIND=dp), DIMENSION(:, :), INTENT(OUT)        :: eigenvectors
@@ -148,9 +148,9 @@ CONTAINS
       END IF
       ! broadcast to all compulational nodes. note that it is assumed
       ! that source is the ionode
-      CALL para_env%bcast(dof, para_env%source)
-      CALL para_env%bcast(eigenvalues, para_env%source)
-      CALL para_env%bcast(eigenvectors, para_env%source)
+      CALL para_env%bcast(dof)
+      CALL para_env%bcast(eigenvalues)
+      CALL para_env%bcast(eigenvectors)
       ! close file
       IF (para_env%is_source()) THEN
          CALL close_file(unit_number=unit_nr)

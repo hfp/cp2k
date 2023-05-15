@@ -36,7 +36,9 @@ MODULE qs_localization_methods
                                               cp_fm_scale,&
                                               cp_fm_scale_and_add,&
                                               cp_fm_trace,&
-                                              cp_fm_transpose
+                                              cp_fm_transpose,&
+                                              cp_fm_triangular_multiply
+   USE cp_fm_cholesky,                  ONLY: cp_fm_cholesky_decompose
    USE cp_fm_diag,                      ONLY: cp_fm_syevd
    USE cp_fm_struct,                    ONLY: cp_fm_struct_create,&
                                               cp_fm_struct_get,&
@@ -48,7 +50,6 @@ MODULE qs_localization_methods
         cp_fm_to_fm, cp_fm_to_fm_submat, cp_fm_type
    USE cp_log_handling,                 ONLY: cp_logger_get_default_io_unit,&
                                               cp_logger_get_default_unit_nr
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: dbcsr_p_type
    USE kahan_sum,                       ONLY: accurate_sum
    USE kinds,                           ONLY: dp
@@ -58,8 +59,8 @@ MODULE qs_localization_methods
                                               twopi
    USE matrix_exp,                      ONLY: exp_pade_real,&
                                               get_nsquare_norder
+   USE message_passing,                 ONLY: mp_para_env_type
    USE parallel_gemm_api,               ONLY: parallel_gemm
-   USE qs_mo_methods,                   ONLY: make_basis_simple
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE
@@ -104,7 +105,7 @@ CONTAINS
       TYPE(cp_blacs_env_type), POINTER                   :: context
       TYPE(cp_fm_struct_type), POINTER                   :: fm_struct_k_k
       TYPE(cp_fm_type)                                   :: CTmp, G, Gp1, Gp2, U
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
 
       CALL timeset(routineN, handle)
 
@@ -292,7 +293,7 @@ CONTAINS
 
       REAL(KIND=dp), INTENT(IN)                          :: weights(:)
       TYPE(cp_fm_type), INTENT(IN)                       :: zij(:, :), vectors
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       INTEGER, INTENT(IN)                                :: max_iter
       REAL(KIND=dp), INTENT(IN)                          :: eps_localization
       INTEGER                                            :: sweeps
@@ -361,7 +362,7 @@ CONTAINS
 
       sweeps = 0
       unit_nr = -1
-      IF (rmat%matrix_struct%para_env%mepos .EQ. rmat%matrix_struct%para_env%source) THEN
+      IF (rmat%matrix_struct%para_env%is_source()) THEN
          unit_nr = cp_logger_get_default_unit_nr()
          WRITE (unit_nr, '(T4,A )') " Localization by iterative Jacobi rotation"
       END IF
@@ -472,7 +473,7 @@ CONTAINS
       sweeps = 0
       IF (PRESENT(out_each)) THEN
          unit_nr = -1
-         IF (c_rmat_local%matrix_struct%para_env%mepos .EQ. c_rmat_local%matrix_struct%para_env%source) THEN
+         IF (c_rmat_local%matrix_struct%para_env%is_source()) THEN
             unit_nr = cp_logger_get_default_unit_nr()
          END IF
          alpha = 0.0_dp
@@ -574,7 +575,7 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE jacobi_cg_edf_ls(para_env, weights, zij, vectors, max_iter, eps_localization, &
                                iter, out_each, nextra, do_cg, nmo, vectors_2, mos_guess)
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       REAL(KIND=dp), INTENT(IN)                          :: weights(:)
       TYPE(cp_fm_type), INTENT(IN)                       :: zij(:, :), vectors
       INTEGER, INTENT(IN)                                :: max_iter
@@ -752,7 +753,7 @@ CONTAINS
             !WRITE (*, *) "RANDOM INITIAL GUESS FOR C"
             CALL cp_fm_create(tmp_fm, c_tilde%matrix_struct)
             CALL cp_fm_init_random(tmp_fm, nextra)
-            CALL make_basis_simple(tmp_fm, nextra)
+            CALL ortho_vectors(tmp_fm)
             c_tilde%local_data = tmp_fm%local_data
             CALL cp_fm_release(tmp_fm)
             ALLOCATE (tmp_cmat(northo, nextra))
@@ -800,7 +801,7 @@ CONTAINS
             CALL cp_fm_struct_release(tmp_fm_struct)
             CALL cp_fm_set_submatrix(tmp_fm, tmp_mat_1)
             DEALLOCATE (tmp_mat_1)
-            CALL make_basis_simple(tmp_fm, nextra)
+            CALL ortho_vectors(tmp_fm)
             CALL cp_fm_to_cfm(msourcer=tmp_fm, mtarget=c_tilde)
             CALL cp_fm_release(tmp_fm)
             ! initialize U
@@ -820,7 +821,7 @@ CONTAINS
                DEALLOCATE (tmp_cmat)
                CALL cp_fm_create(tmp_fm, U%matrix_struct)
                tmp_fm%local_data = REAL(U%local_data, KIND=dp)
-               CALL make_basis_simple(tmp_fm, nstate)
+               CALL ortho_vectors(tmp_fm)
                CALL cp_fm_to_cfm(msourcer=tmp_fm, mtarget=U)
                CALL cp_fm_release(tmp_fm)
                CALL cp_cfm_to_fm(U, matrix_U)
@@ -850,7 +851,7 @@ CONTAINS
       END IF
 
       unit_nr = -1
-      IF (rmat%matrix_struct%para_env%mepos .EQ. rmat%matrix_struct%para_env%source) THEN
+      IF (rmat%matrix_struct%para_env%is_source()) THEN
          unit_nr = cp_logger_get_default_unit_nr()
          WRITE (unit_nr, '(T4,A )') " Localization by combined Jacobi rotations and Non-Linear Conjugate Gradient"
       END IF
@@ -898,7 +899,7 @@ CONTAINS
                ! orthonormalize c_tilde
                CALL cp_fm_create(tmp_fm, c_tilde%matrix_struct)
                tmp_fm%local_data = REAL(c_tilde%local_data, KIND=dp)
-               CALL make_basis_simple(tmp_fm, nextra)
+               CALL ortho_vectors(tmp_fm)
                CALL cp_fm_to_cfm(msourcer=tmp_fm, mtarget=c_tilde)
                CALL cp_fm_release(tmp_fm)
 
@@ -1212,6 +1213,43 @@ CONTAINS
       CALL timestop(handle)
 
    END SUBROUTINE jacobi_cg_edf_ls
+
+! **************************************************************************************************
+!> \brief ...
+!> \param vmatrix ...
+! **************************************************************************************************
+   SUBROUTINE ortho_vectors(vmatrix)
+
+      TYPE(cp_fm_type), INTENT(IN)                       :: vmatrix
+
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'ortho_vectors'
+
+      INTEGER                                            :: handle, n, ncol
+      TYPE(cp_fm_struct_type), POINTER                   :: fm_struct_tmp
+      TYPE(cp_fm_type)                                   :: overlap_vv
+
+      CALL timeset(routineN, handle)
+
+      NULLIFY (fm_struct_tmp)
+
+      CALL cp_fm_get_info(matrix=vmatrix, nrow_global=n, ncol_global=ncol)
+
+      CALL cp_fm_struct_create(fm_struct_tmp, nrow_global=ncol, ncol_global=ncol, &
+                               para_env=vmatrix%matrix_struct%para_env, &
+                               context=vmatrix%matrix_struct%context)
+      CALL cp_fm_create(overlap_vv, fm_struct_tmp, "overlap_vv")
+      CALL cp_fm_struct_release(fm_struct_tmp)
+
+      CALL parallel_gemm('T', 'N', ncol, ncol, n, 1.0_dp, vmatrix, vmatrix, 0.0_dp, overlap_vv)
+      CALL cp_fm_cholesky_decompose(overlap_vv)
+      CALL cp_fm_triangular_multiply(overlap_vv, vmatrix, n_cols=ncol, side='R', invert_tr=.TRUE.)
+
+      CALL cp_fm_release(overlap_vv)
+
+      CALL timestop(handle)
+
+   END SUBROUTINE ortho_vectors
+
 ! **************************************************************************************************
 !> \brief ...
 !> \param istate ...
@@ -1632,7 +1670,7 @@ CONTAINS
       CALL cp_fm_to_fm(mat_t, mat_R)
 
       unit_nr = -1
-      IF (cmat_A%matrix_struct%para_env%mepos .EQ. cmat_A%matrix_struct%para_env%source) THEN
+      IF (cmat_A%matrix_struct%para_env%is_source()) THEN
          unit_nr = cp_logger_get_default_unit_nr()
          WRITE (unit_nr, '(T2,A7,A6,1X,A20,A12,A12,A12)') &
             "CRAZY| ", "Iter", "value    ", "gradient", "Max. eval", "limit"
@@ -1974,8 +2012,7 @@ CONTAINS
                CALL cp_fm_scale_and_add(beta_pr, matrix_G_search, -1.0_dp, matrix_G_old)
                CALL cp_fm_trace(matrix_G_search, matrix_G_old, normg_cross)
                IF (normg_cross .GE. 0) THEN ! back to SD
-                  IF (matrix_A%matrix_struct%para_env%mepos .EQ. &
-                      matrix_A%matrix_struct%para_env%source) THEN
+                  IF (matrix_A%matrix_struct%para_env%is_source()) THEN
                      WRITE (cp_logger_get_default_unit_nr(), *) "!"
                   END IF
                   beta_pr = 0.0_dp
@@ -2165,7 +2202,7 @@ CONTAINS
 
       REAL(KIND=dp), INTENT(IN)                          :: weights(:)
       TYPE(cp_fm_type), INTENT(IN)                       :: zij(:, :), vectors
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       INTEGER, INTENT(IN)                                :: max_iter
       REAL(KIND=dp), INTENT(IN)                          :: eps_localization
       INTEGER                                            :: sweeps
@@ -2311,7 +2348,7 @@ CONTAINS
 
       REAL(KIND=dp), INTENT(IN)                          :: weights(:)
       TYPE(cp_cfm_type), INTENT(IN)                      :: czij(:)
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       INTEGER, INTENT(IN)                                :: max_iter
       TYPE(cp_cfm_type), INTENT(IN)                      :: rmat
       REAL(dp), INTENT(OUT), OPTIONAL                    :: tol_out
@@ -2435,7 +2472,7 @@ CONTAINS
                                    ns_bound, cz_ij_loc, rotmat, output_unit, tol_out, eps_localization, target_time, start_time)
 
       REAL(KIND=dp), INTENT(IN)                          :: weights(:)
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       INTEGER, INTENT(IN)                                :: max_iter
       INTEGER, INTENT(OUT)                               :: sweeps
       INTEGER, INTENT(IN)                                :: out_each, dim2, nstate, nblock_max
@@ -2917,7 +2954,7 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE eberlein(iperm, para_env, list_pair)
       INTEGER, INTENT(IN)                                :: iperm
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       INTEGER, DIMENSION(:, :)                           :: list_pair
 
       INTEGER                                            :: i, ii, jj, npair

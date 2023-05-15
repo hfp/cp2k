@@ -14,7 +14,6 @@ MODULE manybody_nequip
 
    USE atomic_kind_types,               ONLY: atomic_kind_type
    USE cell_types,                      ONLY: cell_type
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE fist_neighbor_list_types,        ONLY: fist_neighbor_type,&
                                               neighbor_kind_pairs_type
    USE fist_nonbond_env_types,          ONLY: fist_nonbond_env_get,&
@@ -25,6 +24,7 @@ MODULE manybody_nequip
    USE kinds,                           ONLY: dp,&
                                               int_8,&
                                               sp
+   USE message_passing,                 ONLY: mp_para_env_type
    USE pair_potential_types,            ONLY: nequip_pot_type,&
                                               nequip_type,&
                                               pair_potential_pp_type,&
@@ -74,10 +74,10 @@ CONTAINS
       INTEGER                                            :: handle, i, iend, igrp, ikind, ilist, &
                                                             ipair, istart, jkind, nkinds, npairs, &
                                                             npairs_tot
-      INTEGER, DIMENSION(:), POINTER                     :: work_list, work_list2
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: work_list, work_list2
       INTEGER, DIMENSION(:, :), POINTER                  :: list
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: rwork_list
       REAL(KIND=dp), DIMENSION(3)                        :: cell_v, cvi
-      REAL(KIND=dp), DIMENSION(:, :), POINTER            :: rwork_list
       TYPE(neighbor_kind_pairs_type), POINTER            :: neighbor_kind_pair
       TYPE(pair_potential_single_type), POINTER          :: pot
 
@@ -213,7 +213,7 @@ CONTAINS
       TYPE(pos_type), DIMENSION(:), POINTER              :: r_last_update_pbc
       REAL(kind=dp)                                      :: pot_nequip
       TYPE(fist_nonbond_env_type), POINTER               :: fist_nonbond_env
-      TYPE(cp_para_env_type), OPTIONAL, POINTER          :: para_env
+      TYPE(mp_para_env_type), OPTIONAL, POINTER          :: para_env
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'nequip_energy_store_force_virial'
 
@@ -223,8 +223,7 @@ CONTAINS
       INTEGER(kind=int_8), ALLOCATABLE                   :: atom_types(:)
       INTEGER(kind=int_8), ALLOCATABLE, DIMENSION(:, :)  :: edge_index, t_edge_index, temp_edge_index
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: displ, displ_cell, edge_count, &
-                                                            edge_count_cell
-      INTEGER, DIMENSION(:), POINTER                     :: work_list
+                                                            edge_count_cell, work_list
       INTEGER, DIMENSION(:, :), POINTER                  :: list, sort_list
       LOGICAL, ALLOCATABLE                               :: use_atom(:)
       REAL(kind=dp)                                      :: drij, lattice(3, 3), rab2_max, rij(3)
@@ -462,19 +461,8 @@ CONTAINS
       CALL fist_nonbond_env_get(fist_nonbond_env, nequip_data=nequip_data)
 
       IF (use_virial) THEN
-         virial(1, 1) = 0.0_dp; virial(1, 2) = 0.0_dp; virial(1, 3) = 0.0_dp
-         virial(2, 1) = 0.0_dp; virial(2, 2) = 0.0_dp; virial(2, 3) = 0.0_dp
-         virial(3, 1) = 0.0_dp; virial(3, 2) = 0.0_dp; virial(3, 3) = 0.0_dp
-
-         pv_nonbond(1, 1) = pv_nonbond(1, 1) + virial(1, 1)
-         pv_nonbond(1, 2) = pv_nonbond(1, 2) + virial(1, 2)
-         pv_nonbond(1, 3) = pv_nonbond(1, 3) + virial(1, 3)
-         pv_nonbond(2, 1) = pv_nonbond(2, 1) + virial(2, 1)
-         pv_nonbond(2, 2) = pv_nonbond(2, 2) + virial(2, 2)
-         pv_nonbond(3, 1) = pv_nonbond(3, 1) + virial(3, 1)
-         pv_nonbond(3, 2) = pv_nonbond(3, 2) + virial(3, 2)
-         pv_nonbond(3, 3) = pv_nonbond(3, 3) + virial(3, 3)
-
+         virial = 0.0_dp
+         pv_nonbond = pv_nonbond + virial
          CPABORT("Stress tensor for NequIP not yet implemented")
       END IF
 

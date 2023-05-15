@@ -40,7 +40,6 @@ MODULE mp2_cphf
                                               cp_logger_type
    USE cp_output_handling,              ONLY: cp_print_key_finished_output,&
                                               cp_print_key_unit_nr
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: dbcsr_add,&
                                               dbcsr_copy,&
                                               dbcsr_p_type,&
@@ -69,6 +68,7 @@ MODULE mp2_cphf
    USE machine,                         ONLY: m_flush,&
                                               m_walltime
    USE mathconstants,                   ONLY: fourpi
+   USE message_passing,                 ONLY: mp_para_env_type
    USE mp2_types,                       ONLY: mp2_type,&
                                               ri_rpa_method_gpw
    USE parallel_gemm_api,               ONLY: parallel_gemm
@@ -112,7 +112,8 @@ MODULE mp2_cphf
    USE qs_ks_types,                     ONLY: qs_ks_env_type,&
                                               set_ks_env
    USE qs_linres_types,                 ONLY: linres_control_type
-   USE qs_mo_types,                     ONLY: mo_set_type
+   USE qs_mo_types,                     ONLY: get_mo_set,&
+                                              mo_set_type
    USE qs_neighbor_list_types,          ONLY: neighbor_list_set_p_type
    USE qs_overlap,                      ONLY: build_overlap_matrix
    USE qs_p_env_methods,                ONLY: p_env_check_i_alloc,&
@@ -163,7 +164,7 @@ CONTAINS
                                 mo_coeff, nmo, homo, Eigenval, unit_nr)
       TYPE(qs_environment_type), INTENT(IN), POINTER     :: qs_env
       TYPE(mp2_type), INTENT(INOUT)                      :: mp2_env
-      TYPE(cp_para_env_type), INTENT(IN), POINTER        :: para_env
+      TYPE(mp_para_env_type), INTENT(IN), POINTER        :: para_env
       TYPE(dft_control_type), INTENT(IN), POINTER        :: dft_control
       TYPE(cp_fm_type), DIMENSION(:), INTENT(IN)         :: mo_coeff
       INTEGER, INTENT(IN)                                :: nmo
@@ -401,12 +402,9 @@ CONTAINS
 
       ! release fm stuff
       CALL cp_fm_release(fm_G_mu_nu)
-      DO ispin = 1, nspins
-         CALL cp_fm_release(L_jb(ispin))
-         CALL cp_fm_release(mo_coeff_o(ispin))
-         CALL cp_fm_release(mo_coeff_v(ispin))
-      END DO
-      DEALLOCATE (L_jb, mo_coeff_o, mo_coeff_v)
+      CALL cp_fm_release(L_jb)
+      CALL cp_fm_release(mo_coeff_o)
+      CALL cp_fm_release(mo_coeff_v)
 
       DO ispin = 1, nspins
          ! update the MP2-MO density matrix with the occ-virt block
@@ -414,13 +412,12 @@ CONTAINS
                                  nrow=homo(ispin), ncol=virtual(ispin), &
                                  s_firstrow=1, s_firstcol=1, &
                                  t_firstrow=1, t_firstcol=homo(ispin) + 1)
-         CALL cp_fm_release(P_ia(ispin))
          ! transpose P_MO matrix (easy way to symmetrize)
          CALL cp_fm_set_all(fm_back, 0.0_dp)
          ! P_mo now is ready
          CALL cp_fm_upper_to_full(matrix=P_mo(ispin), work=fm_back)
       END DO
-      DEALLOCATE (P_ia)
+      CALL cp_fm_release(P_ia)
 
       ! do the final update to the energy weighted matrix W_MO
       DO ispin = 1, nspins
@@ -470,10 +467,9 @@ CONTAINS
       DO ispin = 1, nspins
          CALL parallel_gemm('N', 'N', dimen, dimen, dimen, 1.0_dp, &
                             mo_coeff(ispin), W_mo(ispin), 0.0_dp, fm_back)
-         CALL cp_fm_release(W_mo(ispin))
          CALL cp_dbcsr_plus_fm_fm_t(p_env%w1(1)%matrix, fm_back, mo_coeff(ispin), dimen, 1.0_dp, .TRUE., 1)
       END DO
-      DEALLOCATE (W_mo)
+      CALL cp_fm_release(W_mo)
 
       CALL qs_rho_get(p_env%rho1, rho_ao=rho1_ao)
 
@@ -482,13 +478,12 @@ CONTAINS
 
          CALL parallel_gemm('N', 'N', dimen, dimen, dimen, 1.0_dp, &
                             mo_coeff(ispin), P_mo(ispin), 0.0_dp, fm_back)
-         CALL cp_fm_release(P_mo(ispin))
          CALL cp_dbcsr_plus_fm_fm_t(p_env%p1(ispin)%matrix, fm_back, mo_coeff(ispin), dimen, 1.0_dp, .TRUE.)
 
          CALL dbcsr_copy(rho1_ao(ispin)%matrix, p_env%p1(ispin)%matrix)
       END DO
+      CALL cp_fm_release(P_mo)
       CALL cp_fm_release(fm_back)
-      DEALLOCATE (P_mo)
 
       CALL p_env_update_rho(p_env, qs_env)
 
@@ -747,10 +742,7 @@ CONTAINS
          CPABORT("Unknown solver")
       END SELECT
 
-      DO ispin = 1, nspins
-         CALL cp_fm_release(precond(ispin))
-      END DO
-      DEALLOCATE (precond)
+      CALL cp_fm_release(precond)
 
       CALL timestop(handle)
 
@@ -989,16 +981,10 @@ CONTAINS
          DEALLOCATE (xi_b)
          DEALLOCATE (xi_Axi)
 
-         DO ispin = 1, nspins
-            CALL cp_fm_release(b_i(ispin))
-            CALL cp_fm_release(residual(ispin))
-
-            DO iiter = 1, cycle_counter
-               CALL cp_fm_release(Ax(ispin, iiter))
-               CALL cp_fm_release(xn(ispin, iiter))
-            END DO
-         END DO
-         DEALLOCATE (b_i, residual, Ax, xn, fm_struct_tmp)
+         CALL cp_fm_release(b_i)
+         CALL cp_fm_release(residual)
+         CALL cp_fm_release(Ax)
+         CALL cp_fm_release(xn)
 
       ELSE
          IF (unit_nr > 0) THEN
@@ -1274,13 +1260,11 @@ CONTAINS
          END IF
       END IF
 
-      DO ispin = 1, nspins
-         CALL cp_fm_release(residual(ispin))
-         CALL cp_fm_release(diff_search_vector(ispin))
-         CALL cp_fm_release(search_vector(ispin))
-         CALL cp_fm_release(A_dot_search_vector(ispin))
-      END DO
-      DEALLOCATE (residual, diff_search_vector, search_vector, A_dot_search_vector, fm_struct_tmp)
+      DEALLOCATE (fm_struct_tmp)
+      CALL cp_fm_release(residual)
+      CALL cp_fm_release(diff_search_vector)
+      CALL cp_fm_release(search_vector)
+      CALL cp_fm_release(A_dot_search_vector)
 
       CALL timestop(handle)
 
@@ -1316,7 +1300,7 @@ CONTAINS
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'update_mp2_forces'
 
       INTEGER                                            :: alpha, beta, handle, idir, iounit, &
-                                                            ispin, nspins
+                                                            ispin, nocc, nspins
       INTEGER, DIMENSION(3)                              :: comp
       LOGICAL                                            :: do_exx, do_hfx, use_virial
       REAL(KIND=dp)                                      :: e_dummy, e_hartree, e_xc, ehartree, exc
@@ -1326,7 +1310,6 @@ CONTAINS
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(cell_type), POINTER                           :: cell
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), ALLOCATABLE, DIMENSION(:), &
          TARGET                                          :: matrix_ks_aux
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_ks, matrix_p_mp2, &
@@ -1337,6 +1320,7 @@ CONTAINS
       TYPE(hfx_type), DIMENSION(:, :), POINTER           :: x_data
       TYPE(linres_control_type), POINTER                 :: linres_control
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mos
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
          POINTER                                         :: sab_orb, sac_ppl, sap_ppnl
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
@@ -1948,8 +1932,9 @@ CONTAINS
 
       ! Finish matrix_w_mp2 with occ-occ block
       DO ispin = 1, nspins
+         CALL get_mo_set(mo_set=mos(ispin), homo=nocc, nmo=alpha)
          CALL calculate_whz_matrix(mos(ispin)%mo_coeff, p_env%kpp1(ispin)%matrix, &
-                                   p_env%w1(1)%matrix, 1.0_dp)
+                                   p_env%w1(1)%matrix, 1.0_dp, nocc)
       END DO
 
       IF (debug_forces .AND. use_virial) e_dummy = third_tr(virial%pv_virial)

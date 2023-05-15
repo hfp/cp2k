@@ -5,12 +5,12 @@
 # Tested with: GNU 12.2.0, MPICH 4.0.3,
 #              ScaLAPACK 2.2.1, OpenBLAS 0.3.21, FFTW 3.3.10, LIBINT 2.6.0,
 #              LIBXC 6.1.0, ELPA 2022.11.001, PLUMED 2.8.1, SPGLIB 1.16.2,
-#              LIBVORI 220621, GSL 2.7, COSMA 2.6.2, SIRIUS 7.4.3
+#              LIBVORI 220621, GSL 2.7, COSMA 2.6.6, SIRIUS 7.4.3
 #
 # Usage: Source this arch file and then run make as instructed.
 #        A full toolchain installation is performed as default.
 #
-# Author: Matthias Krack (03.02.2023)
+# Author: Matthias Krack (19.04.2023)
 #
 # \
    if [[ "${0}" == "${BASH_SOURCE}" ]]; then \
@@ -27,21 +27,27 @@
    cd ../..; \
    echo; \
    echo "Check the output above for error messages and consistency!"; \
+   echo; \
    echo "If everything is OK, you can build a CP2K production binary with"; \
    echo "   make -j ARCH=${this_file%.*} VERSION=${this_file##*.}"; \
+   echo; \
    echo "Alternatively, you can add further checks, e.g. for regression testing, with"; \
    echo "   make -j ARCH=${this_file%.*} VERSION=${this_file##*.} DO_CHECKS=yes"; \
    echo "or build CP2K only with shared libraries using"; \
    echo "   make -j ARCH=${this_file%.*} VERSION=${this_file##*.} SHARED=yes"; \
    echo "or build CP2K as a library with"; \
    echo "   make -j ARCH=${this_file%.*} VERSION=${this_file##*.} libcp2k"; \
+   echo; \
+   echo "Run always the following command before using the CP2K binary"; \
+   echo "   source ${PWD}/tools/toolchain/install/setup"; \
+   echo; \
    return
 
 # Set options
 DO_CHECKS      := no
 SHARED         := no
 TARGET_CPU     := native
-USE_COSMA      := 2.6.2
+USE_COSMA      := 2.6.6
 USE_ELPA       := 2022.11.001
 USE_FFTW       := 3.3.10
 USE_LIBINT     := 2.6.0
@@ -292,11 +298,10 @@ ifneq ($(USE_COSMA),)
    CFLAGS         += -I$(COSMA_INC)
    DFLAGS         += -D__COSMA
    ifeq ($(SHARED), yes)
-      LIBS           += -Wl,-rpath=$(COSMA_LIB) -L$(COSMA_LIB) -lcosma_prefixed_pxgemm -lcosma -lcosta_prefixed_scalapack -lcosta
+      LIBS           += -Wl,-rpath=$(COSMA_LIB) -L$(COSMA_LIB) -lcosma_prefixed_pxgemm -lcosma -lcosta
    else
       LIBS           += $(COSMA_LIB)/libcosma_prefixed_pxgemm.a
       LIBS           += $(COSMA_LIB)/libcosma.a
-      LIBS           += $(COSMA_LIB)/libcosta_prefixed_scalapack.a
       LIBS           += $(COSMA_LIB)/libcosta.a
    endif
 endif

@@ -45,13 +45,14 @@ MODULE cp_log_handling
                                               cp_iteration_info_release,&
                                               cp_iteration_info_retain,&
                                               cp_iteration_info_type
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE kinds,                           ONLY: default_path_length,&
                                               default_string_length,&
                                               dp
    USE machine,                         ONLY: default_output_unit,&
                                               m_getpid,&
                                               m_hostnm
+   USE message_passing,                 ONLY: mp_para_env_release,&
+                                              mp_para_env_type
    USE string_utilities,                ONLY: compress
    USE timings,                         ONLY: print_stack
 #include "../base/base_uses.f90"
@@ -137,15 +138,15 @@ MODULE cp_log_handling
 !> \author Fawzi Mohamed
 ! **************************************************************************************************
    TYPE cp_logger_type
-      INTEGER :: ref_count
-      INTEGER :: print_level
-      INTEGER :: default_local_unit_nr
-      INTEGER :: default_global_unit_nr
-      LOGICAL :: close_local_unit_on_dealloc, close_global_unit_on_dealloc
-      CHARACTER(len=default_string_length)  :: suffix
-      CHARACTER(len=default_path_length)    :: local_filename, global_filename
-      TYPE(cp_para_env_type), POINTER       :: para_env
-      TYPE(cp_iteration_info_type), POINTER :: iter_info
+      INTEGER :: ref_count = -1
+      INTEGER :: print_level = -1
+      INTEGER :: default_local_unit_nr = -1
+      INTEGER :: default_global_unit_nr = -1
+      LOGICAL :: close_local_unit_on_dealloc = .FALSE., close_global_unit_on_dealloc = .FALSE.
+      CHARACTER(len=default_string_length)  :: suffix = ""
+      CHARACTER(len=default_path_length)    :: local_filename = "", global_filename = ""
+      TYPE(mp_para_env_type), POINTER       :: para_env => NULL()
+      TYPE(cp_iteration_info_type), POINTER :: iter_info => NULL()
    END TYPE cp_logger_type
 
    TYPE cp_logger_p_type
@@ -184,7 +185,7 @@ CONTAINS
 !>      available within the program
 ! **************************************************************************************************
    SUBROUTINE cp_add_default_logger(logger)
-      TYPE(cp_logger_type), POINTER                      :: logger
+      TYPE(cp_logger_type), INTENT(INOUT), TARGET        :: logger
 
       CHARACTER(len=*), PARAMETER :: routineN = 'cp_add_default_logger', &
          routineP = moduleN//':'//routineN
@@ -282,7 +283,7 @@ CONTAINS
                                local_filename, close_global_unit_on_dealloc, iter_info, &
                                close_local_unit_on_dealloc, suffix, template_logger)
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(cp_para_env_type), OPTIONAL, POINTER          :: para_env
+      TYPE(mp_para_env_type), OPTIONAL, POINTER          :: para_env
       INTEGER, INTENT(in), OPTIONAL                      :: print_level, default_global_unit_nr, &
                                                             default_local_unit_nr
       CHARACTER(len=*), INTENT(in), OPTIONAL             :: global_filename, local_filename
@@ -295,11 +296,7 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'cp_logger_create', &
          routineP = moduleN//':'//routineN
 
-      INTEGER                                            :: stat
-
-      ALLOCATE (logger, stat=stat)
-      IF (stat /= 0) &
-         CPABORT(routineP//" could not ALLOCATE a logger")
+      ALLOCATE (logger)
 
       NULLIFY (logger%para_env)
       NULLIFY (logger%iter_info)
@@ -405,13 +402,11 @@ CONTAINS
 !> \author Fawzi Mohamed
 ! **************************************************************************************************
    SUBROUTINE cp_logger_retain(logger)
-      TYPE(cp_logger_type), POINTER                      :: logger
+      TYPE(cp_logger_type), INTENT(INOUT)                :: logger
 
       CHARACTER(len=*), PARAMETER :: routineN = 'cp_logger_retain', &
          routineP = moduleN//':'//routineN
 
-      IF (.NOT. ASSOCIATED(logger)) &
-         CPABORT(routineP//" logger not associated")
       IF (logger%ref_count < 1) &
          CPABORT(routineP//" logger%ref_count<1")
       logger%ref_count = logger%ref_count + 1
@@ -447,7 +442,7 @@ CONTAINS
                logger%close_local_unit_on_dealloc = .FALSE.
                logger%default_local_unit_nr = -1
             END IF
-            CALL my_cp_para_env_release(logger%para_env)
+            CALL mp_para_env_release(logger%para_env)
             CALL cp_iteration_info_release(logger%iter_info)
             DEALLOCATE (logger)
          END IF
@@ -546,14 +541,12 @@ CONTAINS
 !> \author Fawzi Mohamed
 ! **************************************************************************************************
    SUBROUTINE cp_logger_set_log_level(logger, level)
-      TYPE(cp_logger_type), POINTER                      :: logger
+      TYPE(cp_logger_type), INTENT(INOUT)                :: logger
       INTEGER, INTENT(in)                                :: level
 
       CHARACTER(len=*), PARAMETER :: routineN = 'cp_logger_set_log_level', &
          routineP = moduleN//':'//routineN
 
-      IF (.NOT. ASSOCIATED(logger)) &
-         CPABORT(routineP//" logger not associated")
       IF (logger%ref_count < 1) &
          CPABORT(routineP//" logger%ref_count<1")
       logger%print_level = level
@@ -612,7 +605,7 @@ CONTAINS
                lggr%close_global_unit_on_dealloc = .FALSE.
             END IF
          END IF
-         IF ((lggr%para_env%mepos /= lggr%para_env%source) .AND. (.NOT. skip)) THEN
+         IF (.NOT. (lggr%para_env%is_source() .OR. skip)) THEN
             WRITE (UNIT=lggr%default_global_unit_nr, FMT='(/,T2,A)', IOSTAT=iostat) &
                ' *** WARNING non ionode asked for global logger ***'
             IF (iostat /= 0) THEN
@@ -663,33 +656,6 @@ CONTAINS
          res = lggr%default_local_unit_nr
       END IF
    END FUNCTION cp_logger_get_default_unit_nr
-
-! **************************************************************************************************
-!> \brief releases the para object (to be called when you don't want anymore
-!>      the shared copy of this object)
-!> \param para_env the new group
-!> \par History
-!>      08.2002 created [fawzi]
-!> \author Fawzi Mohamed
-!> \note
-!>      local private version to avoid circular dependencies
-!>      (see cp_para_env:cp_para_env_release)!
-! **************************************************************************************************
-   SUBROUTINE my_cp_para_env_release(para_env)
-      TYPE(cp_para_env_type), POINTER                    :: para_env
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'my_cp_para_env_release', &
-         routineP = moduleN//':'//routineN
-
-      IF (ASSOCIATED(para_env)) THEN
-         IF (.NOT. para_env%is_valid()) THEN
-            CPABORT(routineP//" para_env%ref_count<1")
-         END IF
-         CALL para_env%free()
-         IF (.NOT. para_env%is_valid()) DEALLOCATE (para_env)
-      END IF
-      NULLIFY (para_env)
-   END SUBROUTINE my_cp_para_env_release
 
 ! **************************************************************************************************
 !> \brief generates a unique filename (ie adding eventual suffixes and
@@ -748,13 +714,9 @@ CONTAINS
 !> \author Fawzi Mohamed
 ! **************************************************************************************************
    SUBROUTINE cp_logger_set(logger, local_filename, global_filename)
-      TYPE(cp_logger_type), POINTER                      :: logger
+      TYPE(cp_logger_type), INTENT(INOUT)                :: logger
       CHARACTER(len=*), INTENT(in), OPTIONAL             :: local_filename, global_filename
 
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_logger_set', routineP = moduleN//':'//routineN
-
-      IF (.NOT. ASSOCIATED(logger)) &
-         CPABORT(routineP//" unassociated logger")
       IF (PRESENT(local_filename)) logger%local_filename = local_filename
       IF (PRESENT(global_filename)) logger%global_filename = global_filename
    END SUBROUTINE cp_logger_set
@@ -832,7 +794,7 @@ CONTAINS
 !> \return ...
 !> \author fawzi
 ! **************************************************************************************************
-   FUNCTION cp_logical_to_string(val) RESULT(res)
+   ELEMENTAL FUNCTION cp_logical_to_string(val) RESULT(res)
       LOGICAL, INTENT(in)                                :: val
       CHARACTER(len=1)                                   :: res
 

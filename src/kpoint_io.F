@@ -29,13 +29,13 @@ MODULE kpoint_io
                                               cp_print_key_finished_output,&
                                               cp_print_key_should_output,&
                                               cp_print_key_unit_nr
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: dbcsr_get_info,&
                                               dbcsr_p_type
    USE input_section_types,             ONLY: section_vals_type
    USE kinds,                           ONLY: default_path_length
    USE kpoint_types,                    ONLY: get_kpoint_info,&
                                               kpoint_type
+   USE message_passing,                 ONLY: mp_para_env_type
    USE orbital_pointers,                ONLY: nso
    USE particle_types,                  ONLY: particle_type
    USE qs_dftb_types,                   ONLY: qs_dftb_atom_type
@@ -299,7 +299,7 @@ CONTAINS
       TYPE(kpoint_type), POINTER                         :: kpoints
       TYPE(cp_fm_type), DIMENSION(:), INTENT(INOUT)      :: fmwork
       INTEGER, INTENT(IN)                                :: natom
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       INTEGER, INTENT(IN)                                :: id_nr
       TYPE(section_vals_type), POINTER                   :: dft_section
       LOGICAL, INTENT(OUT)                               :: natom_mismatch
@@ -307,7 +307,7 @@ CONTAINS
       CHARACTER(LEN=*), PARAMETER :: routineN = 'read_kpoints_restart'
 
       CHARACTER(LEN=default_path_length)                 :: file_name
-      INTEGER                                            :: handle, restart_unit, source
+      INTEGER                                            :: handle, restart_unit
       LOGICAL                                            :: exist
       TYPE(cp_logger_type), POINTER                      :: logger
 
@@ -315,8 +315,6 @@ CONTAINS
       logger => cp_get_default_logger()
 
       restart_unit = -1
-
-      source = para_env%source
 
       IF (para_env%is_source()) THEN
 
@@ -338,7 +336,7 @@ CONTAINS
                                     natom, restart_unit, natom_mismatch)
 
       ! only the io_node returns natom_mismatch, must broadcast it
-      CALL para_env%bcast(natom_mismatch, source)
+      CALL para_env%bcast(natom_mismatch)
 
       ! Close restart file
       IF (para_env%is_source()) CALL close_file(unit_number=restart_unit)
@@ -366,19 +364,17 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: denmat
       TYPE(kpoint_type), POINTER                         :: kpoints
       TYPE(cp_fm_type), INTENT(INOUT)                    :: fmat
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       INTEGER, INTENT(IN)                                :: natom, rst_unit
       LOGICAL, INTENT(OUT)                               :: natom_mismatch
 
       INTEGER                                            :: ic, image, ispin, nao, nao_read, &
                                                             natom_read, ni, nimages, nset_max, &
-                                                            nshell_max, nspin, nspin_read, source, &
+                                                            nshell_max, nspin, nspin_read, &
                                                             version_read
       INTEGER, DIMENSION(3)                              :: cell
       INTEGER, DIMENSION(:, :, :), POINTER               :: cell_to_index
       LOGICAL                                            :: natom_match
-
-      source = para_env%source
 
       CPASSERT(ASSOCIATED(denmat))
       CALL dbcsr_get_info(denmat(1, 1)%matrix, nfullrows_total=nao)
@@ -410,7 +406,7 @@ CONTAINS
       END IF
 
       ! make natom_match and natom_mismatch uniform across all nodes
-      CALL para_env%bcast(natom_match, source)
+      CALL para_env%bcast(natom_match)
       natom_mismatch = .NOT. natom_match
       ! handle natom_match false
       IF (natom_mismatch) THEN
@@ -423,9 +419,9 @@ CONTAINS
             IF (para_env%is_source()) THEN
                READ (rst_unit) ispin, nspin_read, ni
             END IF
-            CALL para_env%bcast(ispin, source)
-            CALL para_env%bcast(nspin_read, source)
-            CALL para_env%bcast(ni, source)
+            CALL para_env%bcast(ispin)
+            CALL para_env%bcast(nspin_read)
+            CALL para_env%bcast(ni)
             IF (nspin_read /= nspin) THEN
                CALL cp_abort(__LOCATION__, &
                              " READ RESTART : Different spin polarisation not supported")
@@ -434,8 +430,8 @@ CONTAINS
                IF (para_env%is_source()) THEN
                   READ (rst_unit) image, cell
                END IF
-               CALL para_env%bcast(image, source)
-               CALL para_env%bcast(cell, source)
+               CALL para_env%bcast(image)
+               CALL para_env%bcast(cell)
                !
                CALL cp_fm_read_unformatted(fmat, rst_unit)
                !

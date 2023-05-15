@@ -21,16 +21,20 @@ ALL_OBJECTS := ../offload/offload_buffer.o \
         ref/grid_ref_collocate.o \
         ref/grid_ref_integrate.o \
         ref/grid_ref_prepare_pab.o \
-        cpu/grid_context_cpu.o \
-        cpu/coefficients.o \
-        cpu/grid_collocate_dgemm.o \
-        cpu/grid_integrate_dgemm.o \
-        cpu/non_orthorombic_corrections.o \
-        cpu/utils.o \
-        cpu/collocation_integration.o \
-        cpu/grid_context_cpu.o \
-        cpu/grid_prepare_pab_dgemm.o \
-        cpu/tensor_local.o
+        cpu/grid_cpu_task_list.o \
+        cpu/grid_cpu_collocate.o \
+        cpu/grid_cpu_integrate.o \
+        cpu/grid_cpu_prepare_pab.o \
+        dgemm/grid_dgemm_context.o \
+        dgemm/grid_dgemm_coefficients.o \
+        dgemm/grid_dgemm_collocate.o \
+        dgemm/grid_dgemm_integrate.o \
+        dgemm/grid_dgemm_non_orthorombic_corrections.o \
+        dgemm/grid_dgemm_utils.o \
+        dgemm/grid_dgemm_collocation_integration.o \
+        dgemm/grid_dgemm_context.o \
+        dgemm/grid_dgemm_prepare_pab.o \
+        dgemm/grid_dgemm_tensor_local.o
 
 # Enable Cuda when nvcc compiler is present.
 NVCC := $(shell which nvcc)

@@ -89,7 +89,8 @@ MODULE bibliography
                             Wilhelm2016a, Wilhelm2016b, Wilhelm2017, Wilhelm2018, Lass2018, cp2kqs2020, &
                             Behler2007, Behler2011, Schran2020a, Schran2020b, &
                             Rycroft2009, Thomas2015, Brehm2018, Brehm2020, Shigeta2001, Heinecke2016, &
-                            Brehm2021, Bussy2021a, Bussy2021b, Ditler2021, Ditler2022, Mattiat2019, Mattiat2022
+                            Brehm2021, Bussy2021a, Bussy2021b, Ditler2021, Ditler2022, Mattiat2019, Mattiat2022, &
+                            Belleflamme2023, Knizia2013, Musaelian2023
 
 CONTAINS
 
@@ -223,7 +224,7 @@ CONTAINS
                          "SO Nature Communications", &
                          "PY 2022", &
                          "VL 13", &
-                         "IS 1", &
+                         "AR 2453", &
                          "ER"), &
                          DOI="10.1038/s41467-022-29939-5")
 
@@ -4788,6 +4789,57 @@ CONTAINS
                          "DI 10.1021/acs.jctc.2c00644", &
                          "ER"), &
                          DOI="10.1021/acs.jctc.2c00644")
+
+      CALL add_reference(key=Belleflamme2023, ISI_record=s2a( &
+                         "TY JOUR", &
+                         "PT J", &
+                         "AU Belleflamme, Fabian", &
+                         "   Hehn, Anna", &
+                         "   Iannuzzi, Marcella", &
+                         "   Hutter, Juerg", &
+                         "TI A variational formulation of the Harris functional as a correction", &
+                         "   to approximate Kohn–Sham density functional theory", &
+                         "SO The Journal of Chemical Physics", &
+                         "PY 2023", &
+                         "VL 158", &
+                         "AR 054111", &
+                         "DI 10.1063/5.0122671", &
+                         "ER"), &
+                         DOI="10.1063/5.0122671")
+
+      CALL add_reference(key=Knizia2013, ISI_record=s2a( &
+                         "TY JOUR", &
+                         "PT J", &
+                         "AU Knizia Gerald", &
+                         "TI Intrinsic Atomic Orbitals: An Unbiased Bridge between Quantum", &
+                         "   Theory and Chemical Concepts", &
+                         "SO Journal of Chemical Theory and Computation", &
+                         "PY 2013", &
+                         "VL 9", &
+                         "BP 4834", &
+                         "EP 4843", &
+                         "DI 10.1021/ct400687b", &
+                         "ER"), &
+                         DOI="10.1021/ct400687b")
+
+      CALL add_reference(key=Musaelian2023, ISI_record=s2a( &
+                         "TY JOUR", &
+                         "PT J", &
+                         "   Musaelian, A", &
+                         "   Batzner, S", &
+                         "   Johansson, A", &
+                         "   Sun, L", &
+                         "   Owen, CJ", &
+                         "   Kornbluth, M", &
+                         "   Kozinsky, B", &
+                         "TI Learning local equivariant representations for large-scale", &
+                         "    atomistic dynamice", &
+                         "SO Nature Communications", &
+                         "PY 2023", &
+                         "VL 14", &
+                         "AR 579", &
+                         "ER"), &
+                         DOI="10.1038/s41467-023-36329-y")
 
    END SUBROUTINE add_all_references
 

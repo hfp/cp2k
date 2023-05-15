@@ -30,7 +30,6 @@ MODULE cp2k_debug
                                               cp_logger_type
    USE cp_output_handling,              ONLY: cp_print_key_finished_output,&
                                               cp_print_key_unit_nr
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE cp_result_methods,               ONLY: get_results,&
                                               test_for_result
    USE cp_result_types,                 ONLY: cp_result_type
@@ -50,16 +49,15 @@ MODULE cp2k_debug
                                               section_vals_val_get
    USE kinds,                           ONLY: default_string_length,&
                                               dp
+   USE message_passing,                 ONLY: mp_para_env_type
    USE particle_methods,                ONLY: write_fist_particle_coordinates,&
                                               write_qs_particle_coordinates
    USE particle_types,                  ONLY: particle_type
    USE qs_environment_types,            ONLY: get_qs_env
    USE qs_kind_types,                   ONLY: qs_kind_type
    USE string_utilities,                ONLY: uppercase
-   USE virial_types,                    ONLY: cp_virial,&
-                                              virial_set,&
-                                              virial_type,&
-                                              zero_virial
+   USE virial_types,                    ONLY: virial_set,&
+                                              virial_type
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE
@@ -104,10 +102,10 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: analyt_forces, numer_forces
       TYPE(cell_type), POINTER                           :: cell
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(cp_result_type), POINTER                      :: results
       TYPE(cp_subsys_type), POINTER                      :: subsys
       TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(particle_type), DIMENSION(:), POINTER         :: particles
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(section_vals_type), POINTER                   :: root_section, subsys_section
@@ -204,8 +202,7 @@ CONTAINS
                                                 calc_stress_tensor=.TRUE.)
 
                ! Retrieve the analytical virial
-               CALL zero_virial(virial_analytical)
-               CALL cp_virial(virial, virial_analytical)
+               virial_analytical = virial
 
                ! Debug stress tensor (numerical vs analytical)
                CALL virial_set(virial, pv_numer=.TRUE.)
@@ -213,8 +210,7 @@ CONTAINS
 
                ! Retrieve the numerical virial
                CALL cp_subsys_get(subsys, virial=virial)
-               CALL zero_virial(virial_numerical)
-               CALL cp_virial(virial, virial_numerical)
+               virial_numerical = virial
 
                ! Print results
                IF (iw > 0) THEN
@@ -472,7 +468,7 @@ CONTAINS
                WRITE (UNIT=iw, FMT="((T2,A))") &
                   "DEBUG|========================================================================="
                WRITE (UNIT=iw, FMT="(T2,A,T61,E20.12)") 'DIPOLE : CheckSum  =', SUM(dipole_moment)
-               IF (ANY(ABS(err(1:3)) > 0.1_dp)) THEN
+               IF (ANY(ABS(err(1:3)) > maxerr/10._dp)) THEN
                   message = "A mismatch between analytical and numerical dipoles "// &
                             "has been detected. Check the implementation of the "// &
                             "analytical dipole calculation"

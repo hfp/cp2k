@@ -34,7 +34,7 @@ SUBROUTINE cp_eval_at(gopt_env, x, f, gradient, master, &
                              gopt_new_logger_release
    USE cell_types, ONLY: cell_type
    USE cell_methods, ONLY: write_cell
-   USE cp_para_types, ONLY: cp_para_env_type
+   USE message_passing, ONLY: mp_para_env_type
    USE cp_subsys_types, ONLY: cp_subsys_get, &
                               cp_subsys_type, &
                               pack_subsys_particles, &
@@ -68,8 +68,7 @@ SUBROUTINE cp_eval_at(gopt_env, x, f, gradient, master, &
    USE particle_list_types, ONLY: particle_list_type
    USE particle_methods, ONLY: write_structure_data
    USE virial_methods, ONLY: virial_update
-   USE virial_types, ONLY: cp_virial, &
-                           virial_type, zero_virial
+   USE virial_types, ONLY: virial_type
    USE cp_log_handling, ONLY: cp_add_default_logger, &
                               cp_rm_default_logger
    USE space_groups_types, ONLY: spgr_type
@@ -87,7 +86,7 @@ SUBROUTINE cp_eval_at(gopt_env, x, f, gradient, master, &
       POINTER                                :: gradient
    INTEGER, INTENT(IN)                      :: master
    LOGICAL, INTENT(IN), OPTIONAL            :: final_evaluation
-   TYPE(cp_para_env_type), POINTER          :: para_env
+   TYPE(mp_para_env_type), POINTER          :: para_env
 
    CHARACTER(len=*), PARAMETER :: routineN = 'cp_eval_at'
 
@@ -193,13 +192,12 @@ SUBROUTINE cp_eval_at(gopt_env, x, f, gradient, master, &
          ! Compute the pressure tensor
          BLOCK
             TYPE(virial_type) :: virial_avg
-            CALL zero_virial(virial_avg)
             CALL force_env_calc_energy_force(gopt_env%force_env, &
                                              calc_force=PRESENT(gradient), &
                                              require_consistent_energy_force=gopt_env%require_consistent_energy_force)
             ! Possibly take the potential energy
             CALL force_env_get(gopt_env%force_env, potential_energy=potential_energy)
-            CALL cp_virial(virial, virial_avg)
+            virial_avg = virial
             CALL virial_update(virial_avg, subsys, para_env)
             IF (PRESENT(f)) THEN
                CALL force_env_get(gopt_env%force_env, potential_energy=f)
@@ -244,7 +242,6 @@ SUBROUTINE cp_eval_at(gopt_env, x, f, gradient, master, &
          ! Compute the pressure tensor
          BLOCK
             TYPE(virial_type) :: virial_avg
-            CALL zero_virial(virial_avg)
             IF (my_final_evaluation) THEN
                CALL force_env_calc_energy_force(gopt_env%force_env, &
                                                 calc_force=PRESENT(gradient), &
@@ -266,7 +263,7 @@ SUBROUTINE cp_eval_at(gopt_env, x, f, gradient, master, &
                   CALL cp_add_default_logger(new_logger)
                   CALL cp_geo_opt(gopt_env%force_env, gopt_env%globenv, eval_opt_geo=.FALSE.)
                   CALL force_env_get(gopt_env%force_env, potential_energy=potential_energy)
-                  CALL cp_virial(virial, virial_avg)
+                  virial_avg = virial
                CASE (default_cell_md_id)
                   work => section_vals_get_subs_vals(gopt_env%motion_section, "MD")
                   avgs_section => section_vals_get_subs_vals(work, "AVERAGES")
@@ -288,7 +285,7 @@ SUBROUTINE cp_eval_at(gopt_env, x, f, gradient, master, &
                   CALL qs_mol_dyn(gopt_env%force_env, gopt_env%globenv, averages, rm_restart_info=.FALSE.)
                   ! Retrieve the average of the stress tensor and the average of the potential energy
                   potential_energy = averages%avepot
-                  CALL cp_virial(averages%virial, virial_avg)
+                  virial_avg = averages%virial
                   CALL release_averages(averages)
                CASE DEFAULT
                   CPABORT("")

@@ -15,7 +15,6 @@ MODULE pao_ml
    USE basis_set_types,                 ONLY: gto_basis_set_type
    USE cell_types,                      ONLY: cell_create,&
                                               cell_type
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: dbcsr_iterator_blocks_left,&
                                               dbcsr_iterator_next_block,&
                                               dbcsr_iterator_start,&
@@ -26,6 +25,7 @@ MODULE pao_ml
                                               default_string_length,&
                                               dp
    USE machine,                         ONLY: m_flush
+   USE message_passing,                 ONLY: mp_para_env_type
    USE pao_input,                       ONLY: id2str,&
                                               pao_ml_gp,&
                                               pao_ml_lazy,&
@@ -87,7 +87,7 @@ CONTAINS
 
       INTEGER                                            :: i
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(training_list_type), ALLOCATABLE, &
          DIMENSION(:)                                    :: training_lists
 
@@ -148,7 +148,7 @@ CONTAINS
       REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: hmat, positions
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(cell_type), POINTER                           :: cell
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(pao_ioblock_type), ALLOCATABLE, DIMENSION(:)  :: xblocks
       TYPE(pao_iokind_type), ALLOCATABLE, DIMENSION(:)   :: kinds
       TYPE(particle_type), DIMENSION(:), POINTER         :: my_particle_set
@@ -176,19 +176,19 @@ CONTAINS
       END IF
 
       ! broadcast parsed raw training data
-      CALL para_env%bcast(nkinds, para_env%source)
-      CALL para_env%bcast(natoms, para_env%source)
+      CALL para_env%bcast(nkinds)
+      CALL para_env%bcast(natoms)
       IF (.NOT. para_env%is_source()) THEN
          ALLOCATE (hmat(3, 3))
          ALLOCATE (kindsmap(nkinds))
          ALLOCATE (positions(natoms, 3))
          ALLOCATE (atom2kind(natoms))
       END IF
-      CALL para_env%bcast(hmat, para_env%source)
-      CALL para_env%bcast(kindsmap, para_env%source)
-      CALL para_env%bcast(atom2kind, para_env%source)
-      CALL para_env%bcast(positions, para_env%source)
-      CALL para_env%bcast(ml_range, para_env%source)
+      CALL para_env%bcast(hmat)
+      CALL para_env%bcast(kindsmap)
+      CALL para_env%bcast(atom2kind)
+      CALL para_env%bcast(positions)
+      CALL para_env%bcast(ml_range)
 
       IF (ml_range(1) /= 1 .OR. ml_range(2) /= natoms) &
          CPWARN("Skipping some atoms for PAO-ML training.")
@@ -317,7 +317,7 @@ CONTAINS
          DIMENSION(:), TARGET                            :: training_lists
       TYPE(training_matrix_type), ALLOCATABLE, &
          DIMENSION(:), TARGET                            :: training_matrices
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
 
       INTEGER                                            :: i, ikind, inp_size, ninputs, noutputs, &
                                                             npoints, out_size
@@ -511,8 +511,8 @@ CONTAINS
       REAL(dp), DIMENSION(:, :), POINTER                 :: block_X
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(cell_type), POINTER                           :: cell
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_iterator_type)                          :: iter
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
 
@@ -631,8 +631,8 @@ CONTAINS
       REAL(dp), DIMENSION(:, :), POINTER                 :: block_G
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(cell_type), POINTER                           :: cell
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_iterator_type)                          :: iter
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
 

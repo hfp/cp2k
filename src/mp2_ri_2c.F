@@ -52,8 +52,6 @@ MODULE mp2_ri_2c
                                               cp_fm_set_all,&
                                               cp_fm_to_fm,&
                                               cp_fm_type
-   USE cp_para_env,                     ONLY: cp_para_env_release
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: &
         dbcsr_copy, dbcsr_create, dbcsr_deallocate_matrix, dbcsr_desymmetrize, &
         dbcsr_distribution_release, dbcsr_distribution_type, dbcsr_p_type, dbcsr_release, &
@@ -78,8 +76,12 @@ MODULE mp2_ri_2c
                                               kpoint_type
    USE libint_2c_3c,                    ONLY: compare_potential_types,&
                                               libint_potential_type
-   USE machine,                         ONLY: m_flush
-   USE message_passing,                 ONLY: mp_request_type
+   USE machine,                         ONLY: m_flush,&
+                                              m_walltime
+   USE message_passing,                 ONLY: mp_comm_type,&
+                                              mp_para_env_release,&
+                                              mp_para_env_type,&
+                                              mp_request_type
    USE mp2_eri,                         ONLY: mp2_eri_2c_integrate
    USE mp2_eri_gpw,                     ONLY: mp2_eri_2c_integrate_gpw
    USE mp2_types,                       ONLY: integ_mat_buffer_type
@@ -161,7 +163,7 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       INTEGER, INTENT(IN)                                :: eri_method
       TYPE(cp_eri_mme_param), POINTER                    :: eri_param
-      TYPE(cp_para_env_type), POINTER                    :: para_env, para_env_sub
+      TYPE(mp_para_env_type), POINTER                    :: para_env, para_env_sub
       REAL(KIND=dp), INTENT(IN)                          :: mp2_memory
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
          INTENT(OUT)                                     :: my_Lrows, my_Vrows
@@ -188,13 +190,13 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'get_2c_integrals'
 
-      INTEGER                                            :: handle, i_size, j_size, num_small_eigen
+      INTEGER                                            :: handle, num_small_eigen
       REAL(KIND=dp)                                      :: cond_num, eps_pgf_orb_old
       TYPE(cp_fm_type)                                   :: fm_matrix_L_work, fm_matrix_M_inv_work, &
                                                             fm_matrix_V
-      TYPE(cp_para_env_type), POINTER                    :: para_env_L
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(libint_potential_type)                        :: trunc_coulomb
+      TYPE(mp_para_env_type), POINTER                    :: para_env_L
 
       CALL timeset(routineN, handle)
 
@@ -237,7 +239,7 @@ CONTAINS
             ! GPW overlap matrix
          ELSE
 
-            CALL cp_para_env_release(para_env_L)
+            CALL mp_para_env_release(para_env_L)
             CALL release_group_dist(gd_array)
 
             ALLOCATE (fm_matrix_Minv_L_kpoints(1, 1))
@@ -257,8 +259,8 @@ CONTAINS
             ! k-dependent 1/r Coulomb matrix V_PQ(k)
             CALL compute_V_by_lattice_sum(qs_env, fm_matrix_L_kpoints, fm_matrix_Minv_L_kpoints, kpoints)
 
-            CALL inversion_of_M_and_mult_with_chol_dec_of_V(fm_matrix_Minv_L_kpoints, fm_matrix_L_kpoints, &
-                                                            dimen_RI, kpoints, qs_env%mp2_env%ri_rpa_im_time%eps_eigval_S)
+            CALL inversion_of_M_and_mult_with_chol_dec_of_V(fm_matrix_Minv_L_kpoints, fm_matrix_L_kpoints, dimen_RI, &
+                                                            unit_nr, kpoints, qs_env%mp2_env%ri_rpa_im_time%eps_eigval_S)
 
             CALL setup_trunc_coulomb_potential_for_exchange_self_energy(qs_env, trunc_coulomb)
 
@@ -314,12 +316,7 @@ CONTAINS
          IF (.NOT. do_im_time) THEN
 
             CALL cp_fm_to_fm(fm_matrix_Minv_L_kpoints(1, 1), fm_matrix_L_work)
-            DO j_size = 1, SIZE(fm_matrix_Minv_L_kpoints, 1)
-            DO i_size = 1, SIZE(fm_matrix_Minv_L_kpoints, 2)
-               CALL cp_fm_release(fm_matrix_Minv_L_kpoints(i_size, j_size))
-            END DO
-            END DO
-            DEALLOCATE (fm_matrix_Minv_L_kpoints)
+            CALL cp_fm_release(fm_matrix_Minv_L_kpoints)
 
          END IF
 
@@ -351,7 +348,7 @@ CONTAINS
       CALL cp_fm_release(fm_matrix_L_work)
       IF (calc_forces .AND. .NOT. (do_im_time .OR. compare_potential_types(qs_env%mp2_env%ri_metric, &
                                                                qs_env%mp2_env%potential_parameter))) CALL cp_fm_release(fm_matrix_V)
-      CALL cp_para_env_release(para_env_L)
+      CALL mp_para_env_release(para_env_L)
 
       CALL timestop(handle)
 
@@ -381,7 +378,7 @@ CONTAINS
       TYPE(group_dist_d1_type), INTENT(INOUT)            :: gd_array
       INTEGER, INTENT(IN)                                :: ngroup, dimen_RI
       INTEGER, INTENT(INOUT)                             :: dimen_RI_red
-      TYPE(cp_para_env_type), INTENT(IN)                 :: para_env
+      TYPE(mp_para_env_type), INTENT(IN)                 :: para_env
 
       IF (do_svd) THEN
          CALL matrix_root_with_svd(fm_matrix_L, num_small_eigen, cond_num, do_inversion, para_env)
@@ -572,7 +569,6 @@ CONTAINS
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
       TYPE(cp_fm_struct_type), POINTER                   :: fm_struct
       TYPE(cp_fm_type)                                   :: fm_matrix_S_global
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_distribution_type)                      :: dbcsr_dist
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: matrix_s_RI_aux_transl
       TYPE(dbcsr_type), ALLOCATABLE, DIMENSION(:)        :: mat_2c
@@ -581,6 +577,7 @@ CONTAINS
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(distribution_2d_type), POINTER                :: dist_2d
       TYPE(gto_basis_set_p_type), DIMENSION(:), POINTER  :: basis_set_RI
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
          POINTER                                         :: sab_RI
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
@@ -781,9 +778,9 @@ CONTAINS
       TYPE(qs_environment_type), POINTER                 :: qs_env
       INTEGER, INTENT(IN)                                :: eri_method
       TYPE(cp_eri_mme_param), POINTER                    :: eri_param
-      TYPE(cp_para_env_type), INTENT(IN)                 :: para_env
-      TYPE(cp_para_env_type), INTENT(IN), POINTER        :: para_env_sub
-      TYPE(cp_para_env_type), INTENT(OUT), POINTER       :: para_env_L
+      TYPE(mp_para_env_type), INTENT(IN)                 :: para_env
+      TYPE(mp_para_env_type), INTENT(IN), POINTER        :: para_env_sub
+      TYPE(mp_para_env_type), INTENT(OUT), POINTER       :: para_env_L
       REAL(KIND=dp), INTENT(IN)                          :: mp2_memory
       TYPE(cp_fm_type), INTENT(OUT)                      :: fm_matrix_L
       INTEGER, INTENT(IN)                                :: ngroup, color_sub
@@ -804,7 +801,7 @@ CONTAINS
       INTEGER :: best_group_size, color_L, group_size, handle, handle2, i_global, iatom, iiB, &
          ikind, iproc, j_global, jjB, natom, ncol_local, nkind, nrow_local, nsgf, potential_type, &
          proc_receive, proc_receive_static, proc_send_static, proc_shift, rec_L_end, rec_L_size, &
-         rec_L_start, strat_group_size, sub_sub_color
+         rec_L_start, strat_group_size
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: kind_of
       INTEGER, DIMENSION(:), POINTER                     :: col_indices, row_indices
       LOGICAL                                            :: my_do_im_time
@@ -814,7 +811,6 @@ CONTAINS
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env_L
       TYPE(cp_fm_type)                                   :: fm_matrix_L_diag
-      TYPE(cp_para_env_type), POINTER                    :: para_env_exchange
       TYPE(group_dist_d1_type)                           :: gd_sub_array
       TYPE(gto_basis_set_type), POINTER                  :: basis_set_a
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
@@ -923,12 +919,6 @@ CONTAINS
       NULLIFY (blacs_env_L)
       CALL cp_blacs_env_create(blacs_env=blacs_env_L, para_env=para_env_L)
 
-      ! now create the exchange group (for communication only between members not belonging to the
-      ! same group
-      sub_sub_color = para_env_sub%mepos
-      ALLOCATE (para_env_exchange)
-      CALL para_env_exchange%from_split(para_env_L, sub_sub_color)
-
       ! create the full matrix L defined in the L group
       CALL create_matrix_L(fm_matrix_L, blacs_env_L, dimen_RI, para_env_L, "fm_matrix_L", fm_matrix_L_extern)
 
@@ -939,69 +929,70 @@ CONTAINS
                                                 dimen_RI)
 
       ELSE
+         BLOCK
+            TYPE(mp_comm_type) :: comm_exchange
 
-         CALL create_group_dist(gd_sub_array, my_group_L_start, &
-                                my_group_L_end, my_group_L_size, para_env_exchange)
+            CALL comm_exchange%from_split(para_env_L, para_env_sub%mepos)
 
-         CALL cp_fm_get_info(matrix=fm_matrix_L, &
-                             nrow_local=nrow_local, &
-                             ncol_local=ncol_local, &
-                             row_indices=row_indices, &
-                             col_indices=col_indices)
+            CALL create_group_dist(gd_sub_array, my_group_L_start, &
+                                   my_group_L_end, my_group_L_size, comm_exchange)
 
-         DO jjB = 1, ncol_local
-            j_global = col_indices(jjB)
-            IF (j_global >= my_group_L_start .AND. j_global <= my_group_L_end) THEN
-               DO iiB = 1, nrow_local
-                  i_global = row_indices(iiB)
-                  fm_matrix_L%local_data(iiB, jjB) = L_local_col(i_global, j_global - my_group_L_start + 1)
-               END DO
-            END IF
-         END DO
-
-         proc_send_static = MODULO(para_env_exchange%mepos + 1, para_env_exchange%num_pe)
-         proc_receive_static = MODULO(para_env_exchange%mepos - 1, para_env_exchange%num_pe)
-
-         DO proc_shift = 1, para_env_exchange%num_pe - 1
-            proc_receive = MODULO(para_env_exchange%mepos - proc_shift, para_env_exchange%num_pe)
-
-            CALL get_group_dist(gd_sub_array, proc_receive, rec_L_start, rec_L_end, rec_L_size)
-
-            ALLOCATE (L_external_col(dimen_RI, rec_L_size))
-            L_external_col = 0.0_dp
-
-            CALL para_env_exchange%sendrecv(L_local_col, proc_send_static, L_external_col, proc_receive_static)
+            CALL cp_fm_get_info(matrix=fm_matrix_L, &
+                                nrow_local=nrow_local, &
+                                ncol_local=ncol_local, &
+                                row_indices=row_indices, &
+                                col_indices=col_indices)
 
             DO jjB = 1, ncol_local
                j_global = col_indices(jjB)
-               IF (j_global >= rec_L_start .AND. j_global <= rec_L_end) THEN
+               IF (j_global >= my_group_L_start .AND. j_global <= my_group_L_end) THEN
                   DO iiB = 1, nrow_local
                      i_global = row_indices(iiB)
-                     fm_matrix_L%local_data(iiB, jjB) = L_external_col(i_global, j_global - rec_L_start + 1)
+                     fm_matrix_L%local_data(iiB, jjB) = L_local_col(i_global, j_global - my_group_L_start + 1)
                   END DO
                END IF
             END DO
 
-            CALL MOVE_ALLOC(L_external_col, L_local_col)
-         END DO
+            proc_send_static = MODULO(comm_exchange%mepos + 1, comm_exchange%num_pe)
+            proc_receive_static = MODULO(comm_exchange%mepos - 1, comm_exchange%num_pe)
 
-         CALL release_group_dist(gd_sub_array)
+            DO proc_shift = 1, comm_exchange%num_pe - 1
+               proc_receive = MODULO(comm_exchange%mepos - proc_shift, comm_exchange%num_pe)
 
+               CALL get_group_dist(gd_sub_array, proc_receive, rec_L_start, rec_L_end, rec_L_size)
+
+               ALLOCATE (L_external_col(dimen_RI, rec_L_size))
+               L_external_col = 0.0_dp
+
+               CALL comm_exchange%sendrecv(L_local_col, proc_send_static, L_external_col, proc_receive_static)
+
+               DO jjB = 1, ncol_local
+                  j_global = col_indices(jjB)
+                  IF (j_global >= rec_L_start .AND. j_global <= rec_L_end) THEN
+                     DO iiB = 1, nrow_local
+                        i_global = row_indices(iiB)
+                        fm_matrix_L%local_data(iiB, jjB) = L_external_col(i_global, j_global - rec_L_start + 1)
+                     END DO
+                  END IF
+               END DO
+
+               CALL MOVE_ALLOC(L_external_col, L_local_col)
+            END DO
+
+            CALL release_group_dist(gd_sub_array)
+            CALL comm_exchange%free()
+         END BLOCK
       END IF
 
       DEALLOCATE (L_local_col)
 
-      ! free the old exchange group stuff
-      CALL cp_para_env_release(para_env_exchange)
-
       ! create the new group for the sum of the local data over all processes
-      sub_sub_color = para_env_L%mepos
-      ALLOCATE (para_env_exchange)
-      CALL para_env_exchange%from_split(para_env, sub_sub_color)
-
-      CALL para_env_exchange%sum(fm_matrix_L%local_data)
-
-      CALL cp_para_env_release(para_env_exchange)
+      BLOCK
+         TYPE(mp_comm_type) :: comm_exchange
+         comm_exchange = fm_matrix_L%matrix_struct%context%interconnect(para_env)
+         CALL comm_exchange%sum(fm_matrix_L%local_data)
+         CALL comm_exchange%free()
+      END BLOCK
 
       cond_num = 1.0_dp
       num_small_eigen = 0
@@ -1050,7 +1041,7 @@ CONTAINS
       INTEGER, INTENT(OUT)                               :: num_small_evals
       REAL(KIND=dp), INTENT(OUT)                         :: cond_num
       LOGICAL, INTENT(IN)                                :: do_inversion
-      TYPE(cp_para_env_type), INTENT(IN)                 :: para_env
+      TYPE(mp_para_env_type), INTENT(IN)                 :: para_env
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'matrix_root_with_svd'
 
@@ -1059,7 +1050,7 @@ CONTAINS
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: num_eval
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: evals
       TYPE(cp_fm_type)                                   :: evecs
-      TYPE(cp_para_env_type), POINTER                    :: para_env_exchange
+      TYPE(mp_comm_type)                                 :: comm_exchange
 
       CALL timeset(routineN, handle)
 
@@ -1102,11 +1093,10 @@ CONTAINS
       ! Step 1: Get a communicator connecting processes with same id within subgroups
       ! use that group_size_L is divisible by the total number of processes (see above)
       group_size_L = para_env%num_pe/matrix%matrix_struct%para_env%num_pe
-      ALLOCATE (para_env_exchange)
-      CALL para_env_exchange%from_split(para_env, matrix%matrix_struct%para_env%mepos)
+      comm_exchange = matrix%matrix_struct%context%interconnect(para_env)
 
       ALLOCATE (num_eval(0:group_size_L - 1))
-      CALL para_env_exchange%allgather(num_small_evals, num_eval)
+      CALL comm_exchange%allgather(num_small_evals, num_eval)
 
       num_small_evals = MINVAL(num_eval)
 
@@ -1117,13 +1107,13 @@ CONTAINS
          needed_evals = nrow - num_small_evals
 
          ! Step 3: Broadcast your local data to all other processes
-         CALL para_env_exchange%bcast(evecs%local_data, pos_max(1))
-         CALL para_env_exchange%bcast(cond_num, pos_max(1))
+         CALL comm_exchange%bcast(evecs%local_data, pos_max(1))
+         CALL comm_exchange%bcast(cond_num, pos_max(1))
       END IF
 
       DEALLOCATE (num_eval)
 
-      CALL cp_para_env_release(para_env_exchange)
+      CALL comm_exchange%free()
 
       CALL reset_size_matrix(matrix, needed_evals, matrix%matrix_struct)
 
@@ -1183,7 +1173,7 @@ CONTAINS
       TYPE(cp_fm_type), INTENT(IN)                       :: fm_matrix_L
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
          INTENT(IN)                                      :: L_local_col
-      TYPE(cp_para_env_type), INTENT(IN)                 :: para_env
+      TYPE(mp_para_env_type), INTENT(IN)                 :: para_env
       INTEGER, INTENT(IN)                                :: my_group_L_start, my_group_L_end, &
                                                             dimen_RI
 
@@ -1446,15 +1436,16 @@ CONTAINS
 !> \param fm_matrix_Minv_L_kpoints ...
 !> \param fm_matrix_L_kpoints ...
 !> \param dimen_RI ...
+!> \param unit_nr ...
 !> \param kpoints ...
 !> \param eps_eigval_S ...
 ! **************************************************************************************************
    SUBROUTINE inversion_of_M_and_mult_with_chol_dec_of_V(fm_matrix_Minv_L_kpoints, fm_matrix_L_kpoints, &
-                                                         dimen_RI, kpoints, eps_eigval_S)
+                                                         dimen_RI, unit_nr, kpoints, eps_eigval_S)
 
       TYPE(cp_fm_type), DIMENSION(:, :), INTENT(IN)      :: fm_matrix_Minv_L_kpoints, &
                                                             fm_matrix_L_kpoints
-      INTEGER, INTENT(IN)                                :: dimen_RI
+      INTEGER, INTENT(IN)                                :: dimen_RI, unit_nr
       TYPE(kpoint_type), POINTER                         :: kpoints
       REAL(KIND=dp), INTENT(IN)                          :: eps_eigval_S
 
@@ -1463,6 +1454,7 @@ CONTAINS
          czero = CMPLX(0.0_dp, 0.0_dp, KIND=dp), ione = CMPLX(0.0_dp, 1.0_dp, KIND=dp)
 
       INTEGER                                            :: handle, ikp, nkp
+      REAL(KIND=dp)                                      :: t1, t2
       TYPE(cp_cfm_type)                                  :: cfm_matrix_K_tmp, cfm_matrix_M_tmp, &
                                                             cfm_matrix_V_tmp, cfm_matrix_Vtrunc_tmp
       TYPE(cp_fm_struct_type), POINTER                   :: matrix_struct
@@ -1479,6 +1471,8 @@ CONTAINS
       CALL get_kpoint_info(kpoints, nkp=nkp)
 
       DO ikp = 1, nkp
+
+         t1 = m_walltime()
 
          CALL cp_cfm_scale_and_add_fm(czero, cfm_matrix_M_tmp, cone, fm_matrix_Minv_L_kpoints(ikp, 1))
          CALL cp_cfm_scale_and_add_fm(cone, cfm_matrix_M_tmp, ione, fm_matrix_Minv_L_kpoints(ikp, 2))
@@ -1499,6 +1493,12 @@ CONTAINS
 
          ! move
          CALL cp_cfm_to_fm(cfm_matrix_K_tmp, fm_matrix_Minv_L_kpoints(ikp, 1), fm_matrix_Minv_L_kpoints(ikp, 2))
+
+         t2 = m_walltime()
+
+         IF (unit_nr > 0) WRITE (unit_nr, '(T3,A,I4,A,I3, A, F11.1)') &
+            'INTEGRAL_INFO| Integrals for k-point', ikp, ' / ', nkp, &
+            ', execution time (s):', t2 - t1
 
       END DO
 
@@ -1680,7 +1680,7 @@ CONTAINS
       TYPE(cp_fm_type), INTENT(OUT)                      :: fm_matrix_L
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env_L
       INTEGER, INTENT(IN)                                :: dimen_RI
-      TYPE(cp_para_env_type), POINTER                    :: para_env_L
+      TYPE(mp_para_env_type), POINTER                    :: para_env_L
       CHARACTER(LEN=*), INTENT(IN)                       :: name
       TYPE(cp_fm_type), INTENT(IN), OPTIONAL             :: fm_matrix_L_extern
 
@@ -1737,7 +1737,7 @@ CONTAINS
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: local_L, rec_L
       REAL(KIND=dp), CONTIGUOUS, DIMENSION(:, :), &
          POINTER                                         :: local_L_internal
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
 
       CALL timeset(routineN, handle)
 

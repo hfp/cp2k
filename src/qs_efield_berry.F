@@ -42,7 +42,6 @@ MODULE qs_efield_berry
                                               cp_fm_release,&
                                               cp_fm_set_all,&
                                               cp_fm_type
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: dbcsr_copy,&
                                               dbcsr_get_block_p,&
                                               dbcsr_p_type,&
@@ -54,6 +53,7 @@ MODULE qs_efield_berry
                                               twopi,&
                                               z_one,&
                                               z_zero
+   USE message_passing,                 ONLY: mp_para_env_type
    USE orbital_pointers,                ONLY: ncoset
    USE parallel_gemm_api,               ONLY: parallel_gemm
    USE particle_types,                  ONLY: particle_type
@@ -213,7 +213,6 @@ CONTAINS
       TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:)        :: mo_coeff_tmp, mo_derivs_tmp
       TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:, :)     :: inv_work, op_fm_set, opvec
       TYPE(cp_fm_type), POINTER                          :: mo_coeff
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s, mo_derivs
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: tempmat
       TYPE(dbcsr_type), POINTER                          :: cosmat, mo_coeff_b, sinmat
@@ -222,6 +221,7 @@ CONTAINS
       TYPE(gto_basis_set_p_type), DIMENSION(:), POINTER  :: basis_set_list
       TYPE(gto_basis_set_type), POINTER                  :: basis_set_a, basis_set_b
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mos
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(neighbor_list_iterator_p_type), &
          DIMENSION(:), POINTER                           :: nl_iterator
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
@@ -669,9 +669,9 @@ CONTAINS
       CHARACTER(LEN=*), PARAMETER :: routineN = 'qs_dispfield_derivatives'
 
       COMPLEX(dp)                                        :: zdet, zdeta, zi(3)
-      INTEGER :: handle, i, ia, iatom, icol, idir, ikind, irow, iset, ispin, jatom, jkind, jset, &
-         ldab, ldsa, ldsb, lsab, n1, n2, nao, natom, ncoa, ncob, nkind, nmo, nseta, nsetb, sgfa, &
-         sgfb
+      INTEGER :: handle, i, ia, iatom, icol, idir, ikind, iodeb, irow, iset, ispin, jatom, jkind, &
+         jset, ldab, ldsa, ldsb, lsab, n1, n2, nao, natom, ncoa, ncob, nkind, nmo, nseta, nsetb, &
+         sgfa, sgfb
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: atom_of_kind
       INTEGER, DIMENSION(:), POINTER                     :: la_max, la_min, lb_max, lb_min, npgfa, &
                                                             npgfb, nsgfa, nsgfb
@@ -695,7 +695,6 @@ CONTAINS
       TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:)        :: mo_coeff_tmp
       TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:, :)     :: inv_work, mo_derivs_tmp, op_fm_set, opvec
       TYPE(cp_fm_type), POINTER                          :: mo_coeff
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s, mo_derivs
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: tempmat
       TYPE(dbcsr_type), POINTER                          :: cosmat, mo_coeff_b, sinmat
@@ -704,6 +703,7 @@ CONTAINS
       TYPE(gto_basis_set_p_type), DIMENSION(:), POINTER  :: basis_set_list
       TYPE(gto_basis_set_type), POINTER                  :: basis_set_a, basis_set_b
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mos
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(neighbor_list_iterator_p_type), &
          DIMENSION(:), POINTER                           :: nl_iterator
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
@@ -1092,6 +1092,18 @@ CONTAINS
          ener_field = ener_field + dfilter(i)*(fieldpol(i) - 2._dp*twopi*ci(i))**2
       END DO
       energy%efield = 0.25_dp*omega/twopi*ener_field
+
+      ! debugging output
+      IF (para_env%is_source()) THEN
+         iodeb = -1
+         IF (iodeb > 0) THEN
+            WRITE (iodeb, '(A,T61,F20.10)') "  Polarisation Quantum:  ", 2._dp*twopi*twopi*hmat(3, 3)
+            WRITE (iodeb, '(A,T21,3F20.10)') "  Polarisation: ", 2._dp*twopi*ci(1:3)
+            WRITE (iodeb, '(A,T21,3F20.10)') "  Displacement: ", fieldpol(1:3)
+            WRITE (iodeb, '(A,T21,3F20.10)') "  E-Field:      ", ((fieldpol(i) - 2._dp*twopi*ci(i)), i=1, 3)
+            WRITE (iodeb, '(A,T61,F20.10)') "  Disp Free Energy:", energy%efield
+         END IF
+      END IF
 
       IF (.NOT. just_energy) THEN
          DO i = 1, 3

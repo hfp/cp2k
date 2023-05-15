@@ -39,12 +39,12 @@ MODULE xas_restart
                                               cp_print_key_generate_filename,&
                                               cp_print_key_should_output,&
                                               cp_print_key_unit_nr
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: dbcsr_p_type
    USE input_section_types,             ONLY: section_vals_type
    USE kinds,                           ONLY: default_path_length,&
                                               default_string_length,&
                                               dp
+   USE message_passing,                 ONLY: mp_para_env_type
    USE parallel_gemm_api,               ONLY: parallel_gemm
    USE particle_types,                  ONLY: particle_type
    USE qs_density_matrices,             ONLY: calculate_density_matrix
@@ -114,7 +114,7 @@ CONTAINS
       CHARACTER(LEN=default_path_length)                 :: filename
       INTEGER :: handle, i, ia, ie, ispin, my_spin, nao, nao_read, nelectron, nexc_atoms, &
          nexc_atoms_read, nexc_search, nexc_search_read, nmo, nmo_read, output_unit, rst_unit, &
-         source, xas_estate, xas_estate_read, xas_method_read
+         xas_estate, xas_estate_read, xas_method_read
       LOGICAL                                            :: file_exists
       REAL(dp)                                           :: occ_estate, occ_estate_read, &
                                                             xas_nelectron, xas_nelectron_read
@@ -123,9 +123,9 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: vecbuffer
       TYPE(cp_fm_type), POINTER                          :: mo_coeff
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mos
+      TYPE(mp_para_env_type), POINTER                    :: para_env
 
       CALL timeset(routineN, handle)
 
@@ -140,7 +140,6 @@ CONTAINS
                                          "PRINT%PROGRAM_RUN_INFO", extension=".Log")
 
       CALL get_qs_env(qs_env=qs_env, para_env=para_env)
-      source = para_env%source
 
       IF (para_env%is_source()) THEN
          CALL wfn_restart_file_name(filename, file_exists, xas_section, logger, &
@@ -170,7 +169,7 @@ CONTAINS
                " not available. Initialization done with GS orbitals"
          END IF
       END IF
-      CALL para_env%bcast(file_exists, source)
+      CALL para_env%bcast(file_exists)
 
       CALL get_xas_env(xas_env=xas_env, occ_estate=occ_estate, xas_estate=xas_estate, &
                        xas_nelectron=xas_nelectron, nexc_search=nexc_search, &
@@ -192,7 +191,7 @@ CONTAINS
                              " is not possible. Start instead a new XAS run with the new set of atoms. ")
          END IF
 
-         CALL para_env%bcast(xas_estate_read, source)
+         CALL para_env%bcast(xas_estate_read)
          CALL set_xas_env(xas_env=xas_env, xas_estate=xas_estate_read)
          estate = xas_estate_read
 
@@ -225,8 +224,8 @@ CONTAINS
                END IF
                DEALLOCATE (eig_read, occ_read)
             END IF
-            CALL para_env%bcast(eigenvalues, source)
-            CALL para_env%bcast(occupation_numbers, source)
+            CALL para_env%bcast(eigenvalues)
+            CALL para_env%bcast(occupation_numbers)
 
             DO i = 1, nmo
                IF (para_env%is_source()) THEN
@@ -234,7 +233,7 @@ CONTAINS
                ELSE
                   vecbuffer(1, :) = 0.0_dp
                END IF
-               CALL para_env%bcast(vecbuffer, source)
+               CALL para_env%bcast(vecbuffer)
                CALL cp_fm_set_submatrix(mo_coeff, &
                                         vecbuffer, 1, i, nao, 1, transpose=.TRUE.)
             END DO
@@ -393,10 +392,10 @@ CONTAINS
       CHARACTER(LEN=*), PARAMETER :: routineN = 'xas_initialize_rho'
 
       INTEGER                                            :: handle, ispin, my_spin, nelectron
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: rho_ao
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mos
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(qs_rho_type), POINTER                         :: rho
       TYPE(rho_atom_type), DIMENSION(:), POINTER         :: rho_atom
       TYPE(xas_environment_type), POINTER                :: xas_env

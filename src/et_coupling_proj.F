@@ -44,7 +44,6 @@ MODULE et_coupling_proj
                                               cp_print_key_finished_output,&
                                               cp_print_key_should_output,&
                                               cp_print_key_unit_nr
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE cp_realspace_grid_cube,          ONLY: cp_pw_to_cube
    USE dbcsr_api,                       ONLY: dbcsr_p_type
    USE input_section_types,             ONLY: section_get_ivals,&
@@ -57,6 +56,7 @@ MODULE et_coupling_proj
                                               default_string_length,&
                                               dp
    USE kpoint_types,                    ONLY: kpoint_type
+   USE message_passing,                 ONLY: mp_para_env_type
    USE orbital_pointers,                ONLY: nso
    USE parallel_gemm_api,               ONLY: parallel_gemm
    USE particle_list_types,             ONLY: particle_list_type
@@ -153,7 +153,7 @@ CONTAINS
       ! Routine arguments
       TYPE(et_cpl), POINTER                              :: ec
 
-      INTEGER                                            :: i, j, k
+      INTEGER                                            :: i, j
 
 ! Routine name for debug purposes
 
@@ -183,14 +183,7 @@ CONTAINS
                   END DO
                   DEALLOCATE (ec%block(i)%mo)
                END IF
-               IF (ASSOCIATED(ec%block(i)%hab)) THEN
-                  DO j = 1, SIZE(ec%block(i)%hab, 1)
-                     DO k = 1, SIZE(ec%block(i)%hab, 2)
-                        CALL cp_fm_release(matrix=ec%block(i)%hab(j, k))
-                     END DO
-                  END DO
-                  DEALLOCATE (ec%block(i)%hab)
-               END IF
+               CALL cp_fm_release(ec%block(i)%hab)
             END DO
 
             DEALLOCATE (ec%block)
@@ -682,7 +675,7 @@ CONTAINS
       TYPE(cp_fm_struct_type), POINTER                   :: fm_s
       TYPE(cp_fm_type)                                   :: mat_u
       TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:)        :: dat
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
 
 ! Routine name for debug purposes
 
@@ -988,10 +981,7 @@ CONTAINS
          END DO
 
          ! Clean memory
-         DO j = 1, n_spins
-            CALL cp_fm_release(matrix=mat_w(j))
-         END DO
-         DEALLOCATE (mat_w)
+         CALL cp_fm_release(mat_w)
 
       END IF
 
@@ -1285,8 +1275,8 @@ CONTAINS
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
       TYPE(cp_fm_struct_type), POINTER                   :: fm_s
       TYPE(cp_fm_type)                                   :: mat_sc, mat_t
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: mat_s
+      TYPE(mp_para_env_type), POINTER                    :: para_env
 
 ! Routine name for debug purposes
 
@@ -1359,7 +1349,7 @@ CONTAINS
       INTEGER                                            :: ir, ic, jr, jc, nr, nc
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
       TYPE(cp_fm_type)                          :: mat_w
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
 #if defined(__SCALAPACK)
       INTEGER                                            :: is_p_row, is_p_col, iu_p_row, iu_p_col
       INTEGER                                            :: ns_p_rows, ns_p_cols, nu_p_rows, nu_p_cols
@@ -1463,9 +1453,9 @@ CONTAINS
       REAL(KIND=dp)                                      :: mx_occ
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
       TYPE(cp_fm_struct_type), POINTER                   :: fm_s
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dft_control_type), POINTER                    :: dft_cntrl
       TYPE(mo_set_type), POINTER                         :: mo
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(scf_control_type), POINTER                    :: scf_cntrl
 
@@ -1742,12 +1732,12 @@ CONTAINS
       TYPE(cp_fm_type)                                   :: mat_w
       TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:)        :: mat_h
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: ks, mo_der
       TYPE(dft_control_type), POINTER                    :: dft_cntrl
       TYPE(et_cpl), POINTER                              :: ec
       TYPE(kpoint_type), POINTER                         :: kpoints
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mo
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(scf_control_type), POINTER                    :: scf_control
       TYPE(section_vals_type), POINTER                   :: et_proj_sec

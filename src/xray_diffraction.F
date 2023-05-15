@@ -23,12 +23,12 @@ MODULE xray_diffraction
    USE cell_types,                      ONLY: cell_type,&
                                               pbc
    USE cp_control_types,                ONLY: dft_control_type
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE kinds,                           ONLY: dp,&
                                               int_8
    USE mathconstants,                   ONLY: pi,&
                                               twopi
    USE memory_utilities,                ONLY: reallocate
+   USE message_passing,                 ONLY: mp_para_env_type
    USE orbital_pointers,                ONLY: indco,&
                                               nco,&
                                               ncoset,&
@@ -94,8 +94,7 @@ CONTAINS
       INTEGER, PARAMETER                                 :: nblock = 100
 
       INTEGER                                            :: handle, i, ig, ig_shell, ipe, ishell, &
-                                                            jg, ng, npe, nshell, nshell_gather, &
-                                                            source
+                                                            jg, ng, npe, nshell, nshell_gather
       INTEGER(KIND=int_8)                                :: ngpts
       INTEGER, DIMENSION(3)                              :: npts
       INTEGER, DIMENSION(:), POINTER                     :: aux_index, ng_shell, ng_shell_gather, &
@@ -106,8 +105,8 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), POINTER :: f2sum, f2sum_gather, f4sum, f4sum_gather, fmax, &
          fmax_gather, fmin, fmin_gather, fsum, fsum_gather, gsq, q_shell, q_shell_gather
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(pw_env_type), POINTER                         :: pw_env
       TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
@@ -161,7 +160,6 @@ CONTAINS
                       auxbas_pw_pool=auxbas_pw_pool)
 
       npe = para_env%num_pe
-      source = para_env%source
 
       ! Plane waves grid to assemble the total electronic density
 
@@ -261,7 +259,7 @@ CONTAINS
 
       ! Root (source) process gathers the number of shell of each process
 
-      CALL para_env%gather(nshell, nshell_pe, source)
+      CALL para_env%gather(nshell, nshell_pe)
 
       ! Only the root process which has to print the full spectrum has to
       ! allocate here the receive buffers with their real sizes
@@ -284,13 +282,13 @@ CONTAINS
       CALL reallocate(f2sum_gather, 1, nshell_gather)
       CALL reallocate(f4sum_gather, 1, nshell_gather)
 
-      CALL para_env%gatherv(q_shell, q_shell_gather, nshell_pe, offset_pe, source)
-      CALL para_env%gatherv(ng_shell, ng_shell_gather, nshell_pe, offset_pe, source)
-      CALL para_env%gatherv(fmax, fmax_gather, nshell_pe, offset_pe, source)
-      CALL para_env%gatherv(fmin, fmin_gather, nshell_pe, offset_pe, source)
-      CALL para_env%gatherv(fsum, fsum_gather, nshell_pe, offset_pe, source)
-      CALL para_env%gatherv(f2sum, f2sum_gather, nshell_pe, offset_pe, source)
-      CALL para_env%gatherv(f4sum, f4sum_gather, nshell_pe, offset_pe, source)
+      CALL para_env%gatherv(q_shell, q_shell_gather, nshell_pe, offset_pe)
+      CALL para_env%gatherv(ng_shell, ng_shell_gather, nshell_pe, offset_pe)
+      CALL para_env%gatherv(fmax, fmax_gather, nshell_pe, offset_pe)
+      CALL para_env%gatherv(fmin, fmin_gather, nshell_pe, offset_pe)
+      CALL para_env%gatherv(fsum, fsum_gather, nshell_pe, offset_pe)
+      CALL para_env%gatherv(f2sum, f2sum_gather, nshell_pe, offset_pe)
+      CALL para_env%gatherv(f4sum, f4sum_gather, nshell_pe, offset_pe)
 
       IF (ASSOCIATED(offset_pe)) THEN
          DEALLOCATE (offset_pe)

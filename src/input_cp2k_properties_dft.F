@@ -1666,9 +1666,9 @@ CONTAINS
                                        each_iter_names=s2a("TDDFT_SCF"), each_iter_values=(/10/), &
                                        add_last=add_last_numeric, filename="RESTART")
       CALL keyword_create(keyword, __LOCATION__, name="BACKUP_COPIES", &
-                          description="Specifies the maximum index of backup copies.", &
+                          description="Specifies the maximum number of backup copies.", &
                           usage="BACKUP_COPIES {int}", &
-                          default_i_val=3)
+                          default_i_val=1)
       CALL section_add_keyword(print_key, keyword)
       CALL keyword_release(keyword)
       CALL section_add_subsection(subsection, print_key)
@@ -1683,6 +1683,20 @@ CONTAINS
                           n_var=1, &
                           type_of_var=real_t, &
                           default_r_val=0.975_dp)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="INTENSITY_THRESHOLD", &
+                          description="Threshold for oscillator strength to screen states.", &
+                          usage="Intensity_threshold 0.01", &
+                          n_var=1, &
+                          type_of_var=real_t, &
+                          default_r_val=0.0_dp)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="STATE_LIST", &
+                          description="Specifies a list of states for the NTO calculations.", &
+                          usage="STATE_LIST {integer} {integer} .. {integer}", &
+                          n_var=-1, type_of_var=integer_t)
       CALL section_add_keyword(print_key, keyword)
       CALL keyword_release(keyword)
       CALL keyword_create(keyword, __LOCATION__, name="CUBE_FILES", &

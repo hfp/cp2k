@@ -19,6 +19,8 @@ MODULE energy_corrections
                                               get_atomic_kind
    USE basis_set_types,                 ONLY: get_gto_basis_set,&
                                               gto_basis_set_type
+   USE bibliography,                    ONLY: Belleflamme2023,&
+                                              cite_reference
    USE cell_types,                      ONLY: cell_type,&
                                               pbc
    USE core_ppl,                        ONLY: build_core_ppl
@@ -51,7 +53,6 @@ MODULE energy_corrections
                                               cp_print_key_finished_output,&
                                               cp_print_key_should_output,&
                                               cp_print_key_unit_nr
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE cp_result_methods,               ONLY: cp_results_erase,&
                                               put_results
    USE cp_result_types,                 ONLY: cp_result_type
@@ -97,6 +98,7 @@ MODULE energy_corrections
                                               dp
    USE mao_basis,                       ONLY: mao_generate_basis
    USE mathlib,                         ONLY: det_3x3
+   USE message_passing,                 ONLY: mp_para_env_type
    USE molecule_types,                  ONLY: molecule_type
    USE moments_utils,                   ONLY: get_reference_point
    USE particle_types,                  ONLY: particle_type
@@ -179,10 +181,8 @@ MODULE energy_corrections
    USE virial_methods,                  ONLY: one_third_sum_diag,&
                                               write_stress_tensor,&
                                               write_stress_tensor_components
-   USE virial_types,                    ONLY: cp_virial,&
-                                              symmetrize_virial,&
-                                              virial_type,&
-                                              zero_virial
+   USE virial_types,                    ONLY: symmetrize_virial,&
+                                              virial_type
    USE voronoi_interface,               ONLY: entry_voronoi_or_bqb
 #include "./base/base_uses.f90"
 
@@ -231,6 +231,8 @@ CONTAINS
       ELSE
          unit_nr = -1
       END IF
+
+      CALL cite_reference(Belleflamme2023)
 
       NULLIFY (ec_env)
       CALL get_qs_env(qs_env, ec_env=ec_env)
@@ -611,10 +613,10 @@ CONTAINS
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(cell_type), POINTER                           :: cell
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type)                                 :: scrm
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: dbcsr_work, matrix_ks, matrix_p, matrix_s
       TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
          POINTER                                         :: sab_orb
       TYPE(pw_env_type), POINTER                         :: pw_env
@@ -1059,8 +1061,7 @@ CONTAINS
          ! apply volume terms immediately
          BLOCK
             TYPE(virial_type) :: virdeb
-            CALL zero_virial(virdeb)
-            CALL cp_virial(virial, virdeb)
+            virdeb = virial
 
             CALL para_env%sum(virdeb%pv_overlap)
             CALL para_env%sum(virdeb%pv_ekinetic)
@@ -1393,9 +1394,9 @@ CONTAINS
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(cell_type), POINTER                           :: cell
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: scrm
       TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
          POINTER                                         :: sab_orb, sac_ppl, sap_ppnl
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
@@ -1607,10 +1608,10 @@ CONTAINS
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(cell_type), POINTER                           :: cell
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type)                                 :: scrm
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: matrix_p, matrix_s
       TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
          POINTER                                         :: sab_orb
       TYPE(pw_env_type), POINTER                         :: pw_env
@@ -2164,8 +2165,7 @@ CONTAINS
          ! apply volume terms immediately
          BLOCK
             TYPE(virial_type) :: virdeb
-            CALL zero_virial(virdeb)
-            CALL cp_virial(virial, virdeb)
+            virdeb = virial
 
             CALL para_env%sum(virdeb%pv_overlap)
             CALL para_env%sum(virdeb%pv_ekinetic)
@@ -2435,10 +2435,10 @@ CONTAINS
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
       TYPE(cp_fm_struct_type), POINTER                   :: fm_struct
       TYPE(cp_fm_type)                                   :: fm_ks, fm_mo, fm_ortho
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_type), POINTER                          :: buf1_dbcsr, buf2_dbcsr, buf3_dbcsr, &
                                                             ortho_dbcsr, ref_matrix
       TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(mp_para_env_type), POINTER                    :: para_env
 
       CALL timeset(routineN, handle)
 
@@ -2587,8 +2587,8 @@ CONTAINS
          ! Core hamiltonian energy
          CALL calculate_ptrace(ec_env%matrix_h, ec_env%matrix_p, ec_env%ecore, SIZE(ec_env%matrix_p, 1))
 
-         ec_env%etotal = ec_env%ecore + ec_env%ehartree + ec_env%exc + ec_env%edispersion &
-                         + ec_env%efield_elec + ec_env%efield_nuclear
+         ec_env%ecore = ec_env%ecore + ec_env%efield_nuclear
+         ec_env%etotal = ec_env%ecore + ec_env%ehartree + ec_env%exc + ec_env%edispersion
          IF (unit_nr > 0) THEN
             WRITE (unit_nr, '(T3,A,T56,F25.15)') "Ecore    ", ec_env%ecore
             WRITE (unit_nr, '(T3,A,T56,F25.15)') "Ehartree ", ec_env%ehartree
@@ -2800,11 +2800,11 @@ CONTAINS
       TYPE(atomic_kind_type), POINTER                    :: atomic_kind
       TYPE(cell_type), POINTER                           :: cell
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(cp_result_type), POINTER                      :: results
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s, moments
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(distribution_1d_type), POINTER                :: local_particles
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(pw_env_type), POINTER                         :: pw_env
       TYPE(pw_pool_p_type), DIMENSION(:), POINTER        :: pw_pools
@@ -3107,12 +3107,12 @@ CONTAINS
       INTEGER                                            :: handle, ispin, nelectron_spin_real, &
                                                             nspins
       INTEGER, DIMENSION(2)                              :: nmo
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: wmat
       TYPE(dbcsr_type), ALLOCATABLE, DIMENSION(:)        :: matrix_ks_deviation
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(energy_correction_type), POINTER              :: ec_env
       TYPE(ls_scf_env_type), POINTER                     :: ls_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
 
       CALL timeset(routineN, handle)
 
@@ -3286,12 +3286,12 @@ CONTAINS
       TYPE(cp_fm_type)                                   :: sv
       TYPE(cp_fm_type), POINTER                          :: mo_coeff
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: p_rmpv
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: rho_ao
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(gto_basis_set_type), POINTER                  :: basis_set, harris_basis
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mos
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(preconditioner_type), POINTER                 :: local_preconditioner
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set

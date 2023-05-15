@@ -15,8 +15,6 @@ MODULE optimize_basis
    USE cp_log_handling,                 ONLY: cp_get_default_logger,&
                                               cp_logger_get_default_unit_nr,&
                                               cp_logger_type
-   USE cp_para_env,                     ONLY: cp_para_env_release
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: dbcsr_p_type
    USE f77_interface,                   ONLY: create_force_env,&
                                               destroy_force_env,&
@@ -36,7 +34,9 @@ MODULE optimize_basis
    USE machine,                         ONLY: m_chdir,&
                                               m_getcwd,&
                                               m_walltime
-   USE message_passing,                 ONLY: mp_comm_type
+   USE message_passing,                 ONLY: mp_comm_type,&
+                                              mp_para_env_release,&
+                                              mp_para_env_type
    USE optbas_fenv_manipulation,        ONLY: allocate_mo_sets,&
                                               calculate_ks_matrix,&
                                               calculate_overlap_inverse,&
@@ -90,7 +90,7 @@ CONTAINS
    SUBROUTINE run_optimize_basis(input_declaration, root_section, para_env)
       TYPE(section_type), POINTER                        :: input_declaration
       TYPE(section_vals_type), POINTER                   :: root_section
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
 
       CHARACTER(len=*), PARAMETER :: routineN = 'run_optimize_basis'
 
@@ -119,14 +119,14 @@ CONTAINS
    SUBROUTINE driver_para_opt_basis(opt_bas, input_declaration, para_env)
       TYPE(basis_optimization_type)                      :: opt_bas
       TYPE(section_type), POINTER                        :: input_declaration
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
 
       CHARACTER(len=*), PARAMETER :: routineN = 'driver_para_opt_basis'
 
       INTEGER                                            :: handle, n_groups_created
+      TYPE(mp_comm_type)                                 :: opt_group
       INTEGER, DIMENSION(:), POINTER                     :: group_distribution_p
       INTEGER, DIMENSION(0:para_env%num_pe-1), TARGET    :: group_distribution
-      TYPE(mp_comm_type)                                 :: opt_group
 
       CALL timeset(routineN, handle)
       group_distribution_p => group_distribution
@@ -156,7 +156,7 @@ CONTAINS
    SUBROUTINE driver_optimization_para_low(opt_bas, input_declaration, para_env_top, mpi_comm_opt)
       TYPE(basis_optimization_type)                      :: opt_bas
       TYPE(section_type), POINTER                        :: input_declaration
-      TYPE(cp_para_env_type), POINTER                    :: para_env_top
+      TYPE(mp_para_env_type), POINTER                    :: para_env_top
       TYPE(mp_comm_type), INTENT(IN)                     :: mpi_comm_opt
 
       CHARACTER(len=*), PARAMETER :: routineN = 'driver_optimization_para_low'
@@ -166,8 +166,8 @@ CONTAINS
       LOGICAL                                            :: write_basis
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: tot_time
       TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:)        :: matrix_S_inv
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(f_env_type), POINTER                          :: f_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
 
       NULLIFY (f_env)
 
@@ -198,8 +198,8 @@ CONTAINS
                                        para_env_top, para_env, iopt)
          IF (para_env_top%is_source()) &
             CALL powell_optimize(opt_bas%powell_param%nvar, opt_bas%x_opt, opt_bas%powell_param)
-         CALL para_env_top%bcast(opt_bas%powell_param%state, para_env_top%source)
-         CALL para_env_top%bcast(opt_bas%x_opt, para_env_top%source)
+         CALL para_env_top%bcast(opt_bas%powell_param%state)
+         CALL para_env_top%bcast(opt_bas%x_opt)
          CALL update_free_vars(opt_bas)
          write_basis = MOD(iopt, opt_bas%write_frequency) == 0
          CALL update_derived_basis_sets(opt_bas, write_basis, opt_bas%output_basis_file, &
@@ -213,7 +213,7 @@ CONTAINS
          CALL powell_optimize(opt_bas%powell_param%nvar, opt_bas%x_opt, opt_bas%powell_param)
       END IF
 
-      CALL para_env_top%bcast(opt_bas%x_opt, para_env_top%source)
+      CALL para_env_top%bcast(opt_bas%x_opt)
       CALL update_free_vars(opt_bas)
       CALL update_derived_basis_sets(opt_bas, .TRUE., opt_bas%output_basis_file, &
                                      para_env_top)
@@ -223,10 +223,10 @@ CONTAINS
       DO icalc = SIZE(opt_bas%comp_group(mp_id)%member_list), 1, -1
          CALL f_env_get_from_id(f_env_id(icalc), f_env)
          CALL destroy_force_env(f_env_id(icalc), stat)
-         CALL cp_fm_release(matrix_s_inv(icalc))
       END DO
-      DEALLOCATE (f_env_id); DEALLOCATE (tot_time); DEALLOCATE (matrix_S_inv)
-      CALL cp_para_env_release(para_env)
+      DEALLOCATE (f_env_id); DEALLOCATE (tot_time)
+      CALL cp_fm_release(matrix_s_inv)
+      CALL mp_para_env_release(para_env)
       CALL timestop(handle)
 
    END SUBROUTINE driver_optimization_para_low
@@ -250,7 +250,7 @@ CONTAINS
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: f_env_id
       TYPE(cp_fm_type), DIMENSION(:), INTENT(IN)         :: matrix_S_inv
       REAL(KIND=dp), DIMENSION(:)                        :: tot_time
-      TYPE(cp_para_env_type), POINTER                    :: para_env_top, para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env_top, para_env
       INTEGER                                            :: iopt
 
       CHARACTER(len=*), PARAMETER :: routineN = 'compute_residuum_vectors'
@@ -369,7 +369,7 @@ CONTAINS
       ELSE
          f_vec = 0.0_dp; cond_vec = 0.0_dp; my_time = 0.0_dp; energy = 0.0_dp
       END IF
-      CALL para_env_top%bcast(opt_bas%powell_param%f, para_env_top%source)
+      CALL para_env_top%bcast(opt_bas%powell_param%f)
 
       ! output info if required
       CALL output_opt_info(f_vec, cond_vec, my_time, tot_time, opt_bas, iopt, para_env_top)
@@ -397,7 +397,7 @@ CONTAINS
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: f_env_id
       TYPE(section_type), POINTER                        :: input_declaration
       TYPE(cp_fm_type), DIMENSION(:), INTENT(OUT)        :: matrix_S_inv
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(mp_comm_type)                                 :: mpi_comm_opt
 
       CHARACTER(len=*), PARAMETER :: routineN = 'init_training_force_envs'
@@ -654,7 +654,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:)                        :: f_vec, cond_vec, my_time, tot_time
       TYPE(basis_optimization_type)                      :: opt_bas
       INTEGER                                            :: iopt
-      TYPE(cp_para_env_type), POINTER                    :: para_env_top
+      TYPE(mp_para_env_type), POINTER                    :: para_env_top
 
       CHARACTER(len=*), PARAMETER                        :: routineN = 'output_opt_info'
 

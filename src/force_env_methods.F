@@ -23,6 +23,7 @@ MODULE force_env_methods
    USE cell_types,                      ONLY: cell_clone,&
                                               cell_create,&
                                               cell_release,&
+                                              cell_sym_triclinic,&
                                               cell_type,&
                                               init_cell,&
                                               real_to_scaled,&
@@ -41,7 +42,6 @@ MODULE force_env_methods
    USE cp_output_handling,              ONLY: cp_print_key_finished_output,&
                                               cp_print_key_unit_nr,&
                                               low_print_level
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE cp_result_methods,               ONLY: cp_results_erase,&
                                               cp_results_mp_bcast,&
                                               get_results,&
@@ -94,6 +94,7 @@ MODULE force_env_methods
                                               dp
    USE machine,                         ONLY: m_memory
    USE mathlib,                         ONLY: abnormal_value
+   USE message_passing,                 ONLY: mp_para_env_type
    USE metadynamics_types,              ONLY: meta_env_type
    USE mixed_cdft_methods,              ONLY: mixed_cdft_build_weight,&
                                               mixed_cdft_calculate_coupling,&
@@ -154,8 +155,7 @@ MODULE force_env_methods
    USE string_utilities,                ONLY: compress
    USE virial_methods,                  ONLY: write_stress_tensor,&
                                               write_stress_tensor_components
-   USE virial_types,                    ONLY: cp_virial,&
-                                              symmetrize_virial,&
+   USE virial_types,                    ONLY: symmetrize_virial,&
                                               virial_p_type,&
                                               virial_type,&
                                               zero_virial
@@ -545,7 +545,7 @@ CONTAINS
       REAL(kind=dp), PARAMETER                           :: default_dx = 0.001_dp
 
       INTEGER                                            :: i, ip, iq, j, k, natom, ncore, nshell, &
-                                                            output_unit
+                                                            output_unit, symmetry_id
       REAL(KIND=dp)                                      :: dx_w
       REAL(KIND=dp), DIMENSION(2)                        :: numer_energy
       REAL(KIND=dp), DIMENSION(3)                        :: s
@@ -609,6 +609,10 @@ CONTAINS
          END DO
       END IF
       CALL force_env_get(force_env, cell=cell)
+      ! Save cell symmetry (distorted cell has no symmetry)
+      symmetry_id = cell%symmetry_id
+      cell%symmetry_id = cell_sym_triclinic
+      !
       CALL cell_create(cell_local)
       CALL cell_clone(cell, cell_local)
       ! First change box
@@ -663,6 +667,8 @@ CONTAINS
       END DO
 
       ! Reset positions and rebuild original environment
+      cell%symmetry_id = symmetry_id
+      CALL init_cell(cell)
       DO i = 1, natom
          particles%els(i)%r = ref_pos_atom(i, :)
       END DO
@@ -743,7 +749,7 @@ CONTAINS
 
       TYPE(force_env_type), POINTER                      :: force_env
       TYPE(section_vals_type), POINTER                   :: root_section
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(global_environment_type), POINTER             :: globenv
       TYPE(fist_environment_type), OPTIONAL, POINTER     :: fist_env
       TYPE(qs_environment_type), OPTIONAL, POINTER       :: qs_env
@@ -939,7 +945,6 @@ CONTAINS
             NULLIFY (subsystems(iforce_eval)%subsys, particles(iforce_eval)%list)
             NULLIFY (results(iforce_eval)%results, virials(iforce_eval)%virial)
             ALLOCATE (virials(iforce_eval)%virial)
-            CALL zero_virial(virials(iforce_eval)%virial)
             CALL cp_result_create(results(iforce_eval)%results)
             IF (.NOT. ASSOCIATED(force_env%sub_force_env(iforce_eval)%force_env)) CYCLE
             ! From this point on the error is the sub_error
@@ -985,7 +990,7 @@ CONTAINS
                                   virial=loc_virial, results=loc_results)
                energies(iforce_eval) = energy
                glob_natoms(iforce_eval) = natom
-               CALL cp_virial(loc_virial, virials(iforce_eval)%virial)
+               virials(iforce_eval)%virial = loc_virial
                CALL cp_result_copy(loc_results, results(iforce_eval)%results)
             END IF
             ! Deallocate map_index array
@@ -1246,7 +1251,6 @@ CONTAINS
          NULLIFY (subsystems(iforce_eval)%subsys, particles(iforce_eval)%list)
          NULLIFY (results(iforce_eval)%results, virials(iforce_eval)%virial)
          ALLOCATE (virials(iforce_eval)%virial)
-         CALL zero_virial(virials(iforce_eval)%virial)
          CALL cp_result_create(results(iforce_eval)%results)
          IF (.NOT. ASSOCIATED(force_env%sub_force_env(iforce_eval)%force_env)) CYCLE
          ! Get all available subsys
@@ -1307,7 +1311,7 @@ CONTAINS
                                virial=loc_virial, results=loc_results)
             energies(iforce_eval) = energy
             glob_natoms(iforce_eval) = natom
-            CALL cp_virial(loc_virial, virials(iforce_eval)%virial)
+            virials(iforce_eval)%virial = loc_virial
             CALL cp_result_copy(loc_results, results(iforce_eval)%results)
          END IF
          ! Deallocate map_index array
@@ -1988,8 +1992,8 @@ CONTAINS
       LOGICAL                                            :: subsys_open_shell
       REAL(KIND=dp)                                      :: cluster_energy
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(opt_dmfet_pot_type)                           :: opt_dmfet
       TYPE(qs_energy_type), POINTER                      :: energy
       TYPE(section_vals_type), POINTER                   :: dft_section, input, opt_dmfet_section

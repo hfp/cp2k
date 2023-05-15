@@ -13,10 +13,10 @@
 ! **************************************************************************************************
 MODULE cell_opt_utils
    USE cell_types,                      ONLY: &
-        cell_sym_cubic, cell_sym_hexagonal, cell_sym_monoclinic, cell_sym_monoclinic_gamma_ab, &
-        cell_sym_orthorhombic, cell_sym_rhombohedral, cell_sym_tetragonal_ab, &
-        cell_sym_tetragonal_ac, cell_sym_tetragonal_bc, cell_sym_triclinic, cell_type, &
-        get_cell_param, set_cell_param
+        cell_sym_cubic, cell_sym_hexagonal_gamma_120, cell_sym_hexagonal_gamma_60, &
+        cell_sym_monoclinic, cell_sym_monoclinic_gamma_ab, cell_sym_orthorhombic, &
+        cell_sym_rhombohedral, cell_sym_tetragonal_ab, cell_sym_tetragonal_ac, &
+        cell_sym_tetragonal_bc, cell_sym_triclinic, cell_type
    USE cp_files,                        ONLY: close_file,&
                                               open_file
    USE cp_log_handling,                 ONLY: cp_get_default_logger,&
@@ -26,8 +26,6 @@ MODULE cell_opt_utils
                                               cp_logger_set,&
                                               cp_logger_type,&
                                               cp_to_string
-   USE cp_para_types,                   ONLY: cp_para_env_type
-   USE cp_units,                        ONLY: cp_units_rad
    USE input_constants,                 ONLY: fix_none,&
                                               fix_x,&
                                               fix_xy,&
@@ -51,6 +49,7 @@ MODULE cell_opt_utils
                                               dp
    USE mathconstants,                   ONLY: sqrt3
    USE mathlib,                         ONLY: angle
+   USE message_passing,                 ONLY: mp_para_env_type
 #include "../base/base_uses.f90"
 
    IMPLICIT NONE
@@ -59,31 +58,11 @@ MODULE cell_opt_utils
    LOGICAL, PRIVATE, PARAMETER :: debug_this_module = .TRUE.
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'cell_opt_utils'
 
-   PUBLIC :: get_ut_cell_matrix, get_dg_dh, gopt_new_logger_create, &
+   PUBLIC :: get_dg_dh, gopt_new_logger_create, &
              gopt_new_logger_release, read_external_press_tensor, &
              apply_cell_constraints
 
 CONTAINS
-! **************************************************************************************************
-!> \brief Transform a general cell matrix into an upper triangular one
-!> \param cell ...
-!> \author Teodoro Laino [tlaino] - University of Zurich - 03.2008
-! **************************************************************************************************
-   SUBROUTINE get_ut_cell_matrix(cell)
-      TYPE(cell_type), POINTER                           :: cell
-
-      INTEGER, DIMENSION(3)                              :: periodic
-      REAL(KIND=dp), DIMENSION(3)                        :: cell_angle, cell_length
-
-! orthorhombic cells are diagonal, and should stay exactly like this
-
-      IF (.NOT. cell%orthorhombic) THEN
-         CALL get_cell_param(cell, cell_length, cell_angle, cp_units_rad, periodic=periodic)
-         CALL set_cell_param(cell, cell_length, cell_angle, periodic=periodic, &
-                             do_init_cell=.TRUE.)
-      END IF
-
-   END SUBROUTINE get_ut_cell_matrix
 
 ! **************************************************************************************************
 !> \brief creates a new logger used for cell optimization algorithm
@@ -98,7 +77,7 @@ CONTAINS
                                      id_run)
       TYPE(cp_logger_type), POINTER                      :: new_logger
       TYPE(section_vals_type), POINTER                   :: root_section
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       CHARACTER(len=default_string_length), INTENT(OUT)  :: project_name
       INTEGER, INTENT(IN)                                :: id_run
 
@@ -161,7 +140,7 @@ CONTAINS
    SUBROUTINE gopt_new_logger_release(new_logger, root_section, para_env, project_name, id_run)
       TYPE(cp_logger_type), POINTER                      :: new_logger
       TYPE(section_vals_type), POINTER                   :: root_section
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       CHARACTER(len=default_string_length), INTENT(IN)   :: project_name
       INTEGER, INTENT(IN)                                :: id_run
 
@@ -342,9 +321,8 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: constraint_id
 
       REAL(KIND=dp)                                      :: a, a_length, ab_length, b_length, cosa, &
-                                                            cosah, cosgamma, deriv_gamma, g, &
-                                                            gamma, norm, norm_b, norm_c, sina, &
-                                                            sinah, singamma
+                                                            cosah, cosg, deriv_gamma, g, gamma, &
+                                                            norm, norm_b, norm_c, sina, sinah, sing
 
       IF (keep_angles) THEN
          ! If we want to keep the angles constant we have to project out the
@@ -400,11 +378,18 @@ CONTAINS
             gradient(2) = 0.0_dp
             gradient(4) = 0.0_dp
             gradient(5) = 0.0_dp
-         CASE (cell_sym_hexagonal)
+         CASE (cell_sym_hexagonal_gamma_60)
             g = 0.5_dp*(gradient(1) + 0.5_dp*(gradient(2) + sqrt3*gradient(3)))
             gradient(1) = g
             gradient(2) = 0.5_dp*g
             gradient(3) = sqrt3*gradient(2)
+            gradient(4) = 0.0_dp
+            gradient(5) = 0.0_dp
+         CASE (cell_sym_hexagonal_gamma_120)
+            g = 0.5_dp*(gradient(1) - 0.5_dp*(gradient(2) - sqrt3*gradient(3)))
+            gradient(1) = g
+            gradient(2) = -0.5_dp*g
+            gradient(3) = -sqrt3*gradient(2)
             gradient(4) = 0.0_dp
             gradient(5) = 0.0_dp
          CASE (cell_sym_rhombohedral)
@@ -429,7 +414,7 @@ CONTAINS
             gradient(2) = 0.0_dp
             gradient(5) = 0.0_dp
          CASE (cell_sym_monoclinic_gamma_ab)
-            ! Cell symmetry with a=b, alpha=beta=90deg and gammma unequal 90deg
+            ! Cell symmetry with a = b, alpha = beta = 90 degree and gammma not equal 90 degree
             a_length = SQRT(cell%hmat(1, 1)*cell%hmat(1, 1) + &
                             cell%hmat(2, 1)*cell%hmat(2, 1) + &
                             cell%hmat(3, 1)*cell%hmat(3, 1))
@@ -438,14 +423,14 @@ CONTAINS
                             cell%hmat(3, 2)*cell%hmat(3, 2))
             ab_length = 0.5_dp*(a_length + b_length)
             gamma = angle(cell%hmat(:, 1), cell%hmat(:, 2))
-            cosgamma = COS(gamma)
-            singamma = SIN(gamma)
+            cosg = COS(gamma)
+            sing = SIN(gamma)
             ! Here, g is the average derivative of the cell vector length ab_length, and deriv_gamma is the derivative of the angle gamma
-            g = 0.5_dp*(gradient(1) + cosgamma*gradient(2) + singamma*gradient(3))
-            deriv_gamma = (gradient(3)*cosgamma - gradient(2)*singamma)/b_length
+            g = 0.5_dp*(gradient(1) + cosg*gradient(2) + sing*gradient(3))
+            deriv_gamma = (gradient(3)*cosg - gradient(2)*sing)/b_length
             gradient(1) = g
-            gradient(2) = g*cosgamma - ab_length*singamma*deriv_gamma
-            gradient(3) = g*singamma + ab_length*cosgamma*deriv_gamma
+            gradient(2) = g*cosg - ab_length*sing*deriv_gamma
+            gradient(3) = g*sing + ab_length*cosg*deriv_gamma
             gradient(4) = 0.0_dp
             gradient(5) = 0.0_dp
          CASE (cell_sym_triclinic)

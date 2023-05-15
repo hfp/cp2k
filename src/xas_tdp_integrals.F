@@ -11,6 +11,7 @@
 ! **************************************************************************************************
 
 MODULE xas_tdp_integrals
+<<<<<<< HEAD
    USE OMP_LIB, ONLY: omp_get_max_threads, &
                       omp_get_num_threads, &
                       omp_get_thread_num
@@ -103,6 +104,92 @@ MODULE xas_tdp_integrals
 #endif
 
 !$ USE OMP_LIB, ONLY: omp_get_max_threads, omp_get_thread_num
+=======
+   USE OMP_LIB,                         ONLY: omp_get_max_threads,&
+                                              omp_get_num_threads,&
+                                              omp_get_thread_num
+   USE ai_contraction_sphi,             ONLY: ab_contract,&
+                                              libxsmm_abc_contract
+   USE atomic_kind_types,               ONLY: atomic_kind_type
+   USE basis_set_types,                 ONLY: get_gto_basis_set,&
+                                              gto_basis_set_p_type,&
+                                              gto_basis_set_type
+   USE cell_types,                      ONLY: cell_type
+   USE constants_operator,              ONLY: operator_coulomb
+   USE cp_array_utils,                  ONLY: cp_1d_i_p_type,&
+                                              cp_2d_r_p_type
+   USE cp_blacs_env,                    ONLY: cp_blacs_env_type
+   USE cp_dbcsr_operations,             ONLY: cp_dbcsr_dist2d_to_dist
+   USE cp_eri_mme_interface,            ONLY: cp_eri_mme_param,&
+                                              cp_eri_mme_set_params
+   USE cp_files,                        ONLY: close_file,&
+                                              open_file
+   USE dbcsr_api,                       ONLY: dbcsr_distribution_get,&
+                                              dbcsr_distribution_release,&
+                                              dbcsr_distribution_type
+   USE dbt_api,                         ONLY: &
+        dbt_create, dbt_distribution_destroy, dbt_distribution_new, dbt_distribution_type, &
+        dbt_finalize, dbt_pgrid_create, dbt_pgrid_destroy, dbt_pgrid_type, dbt_put_block, &
+        dbt_reserve_blocks, dbt_type
+   USE distribution_1d_types,           ONLY: distribution_1d_type
+   USE distribution_2d_types,           ONLY: distribution_2d_create,&
+                                              distribution_2d_type
+   USE eri_mme_integrate,               ONLY: eri_mme_2c_integrate
+   USE eri_mme_types,                   ONLY: eri_mme_init,&
+                                              eri_mme_release
+   USE gamma,                           ONLY: init_md_ftable
+   USE generic_os_integrals,            ONLY: int_operators_r12_ab_os
+   USE input_constants,                 ONLY: do_potential_coulomb,&
+                                              do_potential_id,&
+                                              do_potential_short,&
+                                              do_potential_truncated
+   USE input_section_types,             ONLY: section_vals_val_get
+   USE kinds,                           ONLY: dp
+   USE libint_2c_3c,                    ONLY: cutoff_screen_factor,&
+                                              eri_2center,&
+                                              eri_3center,&
+                                              libint_potential_type
+   USE libint_wrapper,                  ONLY: cp_libint_cleanup_2eri,&
+                                              cp_libint_cleanup_3eri,&
+                                              cp_libint_init_2eri,&
+                                              cp_libint_init_3eri,&
+                                              cp_libint_set_contrdepth,&
+                                              cp_libint_t
+   USE mathlib,                         ONLY: invmat_symm
+   USE message_passing,                 ONLY: mp_comm_type,&
+                                              mp_para_env_type
+   USE molecule_types,                  ONLY: molecule_type
+   USE orbital_pointers,                ONLY: ncoset
+   USE particle_methods,                ONLY: get_particle_set
+   USE particle_types,                  ONLY: particle_type
+   USE qs_environment_types,            ONLY: get_qs_env,&
+                                              qs_environment_type
+   USE qs_integral_utils,               ONLY: basis_set_list_setup
+   USE qs_kind_types,                   ONLY: get_qs_kind,&
+                                              qs_kind_type
+   USE qs_neighbor_list_types,          ONLY: &
+        get_iterator_info, get_neighbor_list_set_p, neighbor_list_iterate, &
+        neighbor_list_iterator_create, neighbor_list_iterator_p_type, &
+        neighbor_list_iterator_release, neighbor_list_set_p_type, nl_set_sub_iterator, &
+        nl_sub_iterate, release_neighbor_list_sets
+   USE qs_neighbor_lists,               ONLY: atom2d_build,&
+                                              atom2d_cleanup,&
+                                              build_neighbor_lists,&
+                                              local_atoms_type,&
+                                              pair_radius_setup
+   USE qs_o3c_types,                    ONLY: get_o3c_iterator_info,&
+                                              init_o3c_container,&
+                                              o3c_container_type,&
+                                              o3c_iterate,&
+                                              o3c_iterator_create,&
+                                              o3c_iterator_release,&
+                                              o3c_iterator_type,&
+                                              release_o3c_container
+   USE t_c_g0,                          ONLY: get_lmax_init,&
+                                              init
+   USE xas_tdp_types,                   ONLY: xas_tdp_control_type,&
+                                              xas_tdp_env_type
+>>>>>>> b823aae33341eba69fe2814b5fbf91723b366ea0
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE
@@ -315,10 +402,10 @@ CONTAINS
       REAL(dp), DIMENSION(:, :), POINTER                 :: rpgf_a, rpgf_b, rpgf_c, zeta, zetb, zetc
       TYPE(cp_2d_r_p_type), DIMENSION(:, :), POINTER     :: spb, spc, tspa
       TYPE(cp_libint_t)                                  :: lib
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(gto_basis_set_p_type), DIMENSION(:), POINTER  :: basis_set_list
       TYPE(gto_basis_set_type), POINTER                  :: basis_set, basis_set_a, basis_set_b, &
                                                             basis_set_c
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(o3c_container_type), POINTER                  :: o3c
       TYPE(o3c_iterator_type)                            :: o3c_iterator
 
@@ -944,7 +1031,7 @@ CONTAINS
                                                             row_proc_cost
       TYPE(cp_1d_i_p_type), DIMENSION(:), POINTER        :: local_particle_col, local_particle_row
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(neighbor_list_iterator_p_type), &
          DIMENSION(:), POINTER                           :: ab_iter, ac_iter
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
@@ -1096,9 +1183,9 @@ CONTAINS
 
       INTEGER                                            :: handle, natom, nkind
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: blk_size_orb, blk_size_ri
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_distribution_type)                      :: opt_dbcsr_dist
       TYPE(gto_basis_set_p_type), DIMENSION(:), POINTER  :: basis_set_orb, basis_set_ri
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
          POINTER                                         :: ab_list, ac_list
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
@@ -1181,10 +1268,10 @@ CONTAINS
 
       INTEGER                                            :: handle, natom, nkind
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: blk_size_orb, blk_size_ri
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_distribution_type)                      :: opt_dbcsr_dist
       TYPE(gto_basis_set_p_type), DIMENSION(:), POINTER  :: basis_set_orb, basis_set_ri
       TYPE(libint_potential_type)                        :: pot
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
          POINTER                                         :: ab_list, ac_list
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
@@ -1282,8 +1369,8 @@ CONTAINS
       REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: metric, pq, work
       REAL(dp), DIMENSION(:, :), POINTER                 :: rpgf, sphi, zet
       TYPE(cp_libint_t)                                  :: lib
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(gto_basis_set_type), POINTER                  :: ri_basis
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
 
       NULLIFY (ri_basis, qs_kind_set, para_env, lmin, lmax, npgf_set, zet, rpgf, first_sgf)
@@ -1486,7 +1573,7 @@ CONTAINS
       REAL(dp), DIMENSION(:, :), POINTER                 :: sphi, zet
       TYPE(cell_type), POINTER                           :: cell
       TYPE(cp_eri_mme_param)                             :: mme_param
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
 
       NULLIFY (cell, qs_kind_set, lmin, lmax, nsgf, npgf, zet, sphi, first_sgf)

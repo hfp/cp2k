@@ -29,7 +29,6 @@ MODULE qs_vcd_utils
                                               cp_print_key_generate_filename,&
                                               cp_print_key_should_output,&
                                               cp_print_key_unit_nr
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE cp_result_methods,               ONLY: get_results
    USE cp_result_types,                 ONLY: cp_result_type
    USE dbcsr_api,                       ONLY: dbcsr_copy,&
@@ -46,6 +45,7 @@ MODULE qs_vcd_utils
    USE kinds,                           ONLY: default_path_length,&
                                               default_string_length,&
                                               dp
+   USE message_passing,                 ONLY: mp_para_env_type
    USE molecule_types,                  ONLY: molecule_type
    USE moments_utils,                   ONLY: get_reference_point
    USE orbital_pointers,                ONLY: init_orbital_pointers
@@ -442,7 +442,7 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'vcd_env_cleanup'
 
-      INTEGER                                            :: handle, ispin
+      INTEGER                                            :: handle
 
       CALL timeset(routineN, handle)
 
@@ -455,25 +455,13 @@ CONTAINS
       DEALLOCATE (vcd_env%aat_atom_nvpt)
       DEALLOCATE (vcd_env%aat_atom_mfp)
 
-      DO ispin = 1, SIZE(vcd_env%dCV)
-         CALL cp_fm_release(vcd_env%dCV(ispin))
-         CALL cp_fm_release(vcd_env%dCV_prime(ispin))
-         CALL cp_fm_release(vcd_env%op_dV(ispin))
-         CALL cp_fm_release(vcd_env%op_dB(ispin))
-      END DO
+      CALL cp_fm_release(vcd_env%dCV)
+      CALL cp_fm_release(vcd_env%dCV_prime)
+      CALL cp_fm_release(vcd_env%op_dV)
+      CALL cp_fm_release(vcd_env%op_dB)
 
-      DO ispin = 1, 3
-         CALL cp_fm_release(vcd_env%dCB(ispin))
-         CALL cp_fm_release(vcd_env%dCB_prime(ispin))
-      END DO
-
-      DEALLOCATE (vcd_env%dCV)
-      DEALLOCATE (vcd_env%dCV_prime)
-      DEALLOCATE (vcd_env%op_dV)
-
-      DEALLOCATE (vcd_env%dCB)
-      DEALLOCATE (vcd_env%dCB_prime)
-      DEALLOCATE (vcd_env%op_dB)
+      CALL cp_fm_release(vcd_env%dCB)
+      CALL cp_fm_release(vcd_env%dCB_prime)
 
       ! DBCSR matrices
       ! Probably, the memory requirements could be reduced by quite a bit
@@ -528,13 +516,13 @@ CONTAINS
       CHARACTER(LEN=default_path_length)                 :: filename
       CHARACTER(LEN=default_string_length)               :: my_middle
       INTEGER :: beta_tmp, handle, i, i_block, ia, ie, iostat, iounit, ispin, j, lambda_tmp, &
-         max_block, n_rep_val, nao, nao_tmp, nmo, nmo_tmp, nspins, nspins_tmp, rst_unit, source
+         max_block, n_rep_val, nao, nao_tmp, nmo, nmo_tmp, nspins, nspins_tmp, rst_unit
       LOGICAL                                            :: file_exists
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: vecbuffer
       TYPE(cp_fm_type), POINTER                          :: mo_coeff
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mos
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(section_vals_type), POINTER                   :: print_key
 
       file_exists = .FALSE.
@@ -552,7 +540,6 @@ CONTAINS
                       mos=mos)
 
       nspins = SIZE(mos)
-      source = para_env%source !ionode???
 
       rst_unit = -1
       IF (para_env%is_source()) THEN
@@ -592,7 +579,7 @@ CONTAINS
          END IF
       END IF
 
-      CALL para_env%bcast(file_exists, source)
+      CALL para_env%bcast(file_exists)
 
       IF (file_exists) THEN
 
@@ -603,12 +590,12 @@ CONTAINS
          !
          ! read headers
          IF (rst_unit > 0) READ (rst_unit, IOSTAT=iostat) lambda_tmp, beta_tmp, nspins_tmp, nao_tmp
-         CALL para_env%bcast(iostat, source)
+         CALL para_env%bcast(iostat)
 
-         CALL para_env%bcast(beta_tmp, source)
-         CALL para_env%bcast(lambda_tmp, source)
-         CALL para_env%bcast(nspins_tmp, source)
-         CALL para_env%bcast(nao_tmp, source)
+         CALL para_env%bcast(beta_tmp)
+         CALL para_env%bcast(lambda_tmp)
+         CALL para_env%bcast(nspins_tmp)
+         CALL para_env%bcast(nao_tmp)
 
          ! check that the number nao, nmo and nspins are
          ! the same as in the current mos
@@ -626,7 +613,7 @@ CONTAINS
             CALL cp_fm_get_info(mo_coeff, ncol_global=nmo)
             !
             IF (rst_unit > 0) READ (rst_unit) nmo_tmp
-            CALL para_env%bcast(nmo_tmp, source)
+            CALL para_env%bcast(nmo_tmp)
             IF (nmo_tmp .NE. nmo) CPABORT("nmo not consistent")
             !
             ! read the response
@@ -635,7 +622,7 @@ CONTAINS
                DO j = 1, i_block
                   IF (rst_unit > 0) READ (rst_unit) vecbuffer(1:nao, j)
                END DO
-               CALL para_env%bcast(vecbuffer, source)
+               CALL para_env%bcast(vecbuffer)
                CALL cp_fm_set_submatrix(vec(ispin), vecbuffer, 1, i, nao, i_block)
             END DO
          END DO
@@ -684,8 +671,8 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: vecbuffer
       TYPE(cp_fm_type), POINTER                          :: mo_coeff
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mos
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(section_vals_type), POINTER                   :: print_key
 
       NULLIFY (logger, mo_coeff, mos, para_env, print_key, vecbuffer)

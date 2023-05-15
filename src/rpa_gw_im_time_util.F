@@ -23,7 +23,6 @@ MODULE rpa_gw_im_time_util
                                               cp_fm_set_element,&
                                               cp_fm_to_fm,&
                                               cp_fm_type
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: &
         dbcsr_add_on_diag, dbcsr_create, dbcsr_distribution_get, dbcsr_distribution_new, &
         dbcsr_distribution_release, dbcsr_distribution_type, dbcsr_filter, dbcsr_get_diag, &
@@ -41,6 +40,7 @@ MODULE rpa_gw_im_time_util
                                               int_8
    USE mathconstants,                   ONLY: twopi
    USE message_passing,                 ONLY: mp_dims_create,&
+                                              mp_para_env_type,&
                                               mp_request_type
    USE mp2_types,                       ONLY: integ_mat_buffer_type
    USE particle_methods,                ONLY: get_particle_set
@@ -93,7 +93,7 @@ CONTAINS
 !> \param t_3c_overl_nnP_ic_reflected ...
 !> \param qs_env ...
 !> \param unit_nr ...
-!> \param do_beta ...
+!> \param do_alpha ...
 ! **************************************************************************************************
    SUBROUTINE get_tensor_3c_overl_int_gw(t_3c_overl_int, t_3c_O_compressed, t_3c_O_ind, &
                                          t_3c_overl_int_ao_mo, t_3c_O_mo_compressed, t_3c_O_mo_ind, &
@@ -104,7 +104,7 @@ CONTAINS
                                          para_env, &
                                          do_ic_model, &
                                          t_3c_overl_nnP_ic, t_3c_overl_nnP_ic_reflected, &
-                                         qs_env, unit_nr, do_beta)
+                                         qs_env, unit_nr, do_alpha)
 
       TYPE(dbt_type), DIMENSION(:, :)                    :: t_3c_overl_int
       TYPE(hfx_compression_type), DIMENSION(:, :, :)     :: t_3c_O_compressed
@@ -119,13 +119,13 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s
       INTEGER, INTENT(IN)                                :: gw_corr_lev_occ, gw_corr_lev_virt, homo, &
                                                             nmo
-      TYPE(cp_para_env_type), INTENT(IN)                 :: para_env
+      TYPE(mp_para_env_type), INTENT(IN)                 :: para_env
       LOGICAL, INTENT(IN)                                :: do_ic_model
       TYPE(dbt_type)                                     :: t_3c_overl_nnP_ic, &
                                                             t_3c_overl_nnP_ic_reflected
       TYPE(qs_environment_type), POINTER                 :: qs_env
       INTEGER, INTENT(IN)                                :: unit_nr
-      LOGICAL, INTENT(IN), OPTIONAL                      :: do_beta
+      LOGICAL, INTENT(IN), OPTIONAL                      :: do_alpha
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'get_tensor_3c_overl_int_gw'
 
@@ -141,7 +141,7 @@ CONTAINS
       INTEGER, DIMENSION(3)                              :: bounds_3c, pdims
       INTEGER, DIMENSION(:), POINTER                     :: distp_1, distp_2, sizes_MO_blocked, &
                                                             sizes_MO_p1, sizes_MO_p2
-      LOGICAL                                            :: memory_info, my_do_beta
+      LOGICAL                                            :: memory_info, my_do_alpha
       REAL(dp)                                           :: compression_factor, memory_3c, occ
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: norm
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
@@ -167,8 +167,8 @@ CONTAINS
          unit_nr_prv = 0
       END IF
 
-      my_do_beta = .FALSE.
-      IF (PRESENT(do_beta)) my_do_beta = do_beta
+      my_do_alpha = .FALSE.
+      IF (PRESENT(do_alpha)) my_do_alpha = do_alpha
 
       CALL timeset(routineN, handle)
 
@@ -331,7 +331,7 @@ CONTAINS
          CALL cp_dbcsr_m_by_n_from_row_template(mat_mo_coeff_gw_reflected, template=matrix_s(1)%matrix, n=nmo, &
                                                 sym=dbcsr_type_no_symmetry)
 
-         CALL reflect_mat_row(mat_mo_coeff_gw_reflected, mat_mo_coeff_gw, para_env, qs_env, unit_nr, do_beta=my_do_beta)
+         CALL reflect_mat_row(mat_mo_coeff_gw_reflected, mat_mo_coeff_gw, para_env, qs_env, unit_nr, do_alpha=my_do_alpha)
 
          ! normalize reflected MOs (they are not properly normalized since high angular momentum basis functions
          ! of the image molecule are not exactly reflected at the image plane (sign problem in p_z function)
@@ -442,15 +442,15 @@ CONTAINS
 !> \param para_env ...
 !> \param qs_env ...
 !> \param unit_nr ...
-!> \param do_beta ...
+!> \param do_alpha ...
 ! **************************************************************************************************
-   SUBROUTINE reflect_mat_row(mat_reflected, mat_orig, para_env, qs_env, unit_nr, do_beta)
+   SUBROUTINE reflect_mat_row(mat_reflected, mat_orig, para_env, qs_env, unit_nr, do_alpha)
       TYPE(dbcsr_type), INTENT(INOUT)                    :: mat_reflected
       TYPE(dbcsr_type), INTENT(IN)                       :: mat_orig
-      TYPE(cp_para_env_type), INTENT(IN)                 :: para_env
+      TYPE(mp_para_env_type), INTENT(IN)                 :: para_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
       INTEGER, INTENT(IN)                                :: unit_nr
-      LOGICAL, INTENT(IN)                                :: do_beta
+      LOGICAL, INTENT(IN)                                :: do_alpha
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'reflect_mat_row'
 
@@ -528,7 +528,7 @@ CONTAINS
 
       END DO
 
-      IF (unit_nr > 0 .AND. .NOT. do_beta) THEN
+      IF (unit_nr > 0 .AND. do_alpha) THEN
          WRITE (unit_nr, '(T3,A,T70,F9.2,A2)') 'IC_MODEL| Average distance of the molecule to the image plane:', &
             avg_z_dist*0.529_dp, ' A'
          WRITE (unit_nr, '(T3,A,T70,F9.2,A2)') 'IC_MODEL| Minimum distance of the molecule to the image plane:', &

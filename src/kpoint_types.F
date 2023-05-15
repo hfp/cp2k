@@ -21,8 +21,6 @@ MODULE kpoint_types
                                               cp_logger_type
    USE cp_output_handling,              ONLY: cp_print_key_finished_output,&
                                               cp_print_key_unit_nr
-   USE cp_para_env,                     ONLY: cp_para_env_release
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE input_cp2k_kpoints,              ONLY: use_complex_wfn,&
                                               use_real_wfn
    USE input_section_types,             ONLY: section_vals_get,&
@@ -31,7 +29,11 @@ MODULE kpoint_types
    USE kinds,                           ONLY: default_string_length,&
                                               dp
    USE mathconstants,                   ONLY: twopi
+   USE message_passing,                 ONLY: mp_para_env_release,&
+                                              mp_para_env_type
    USE physcon,                         ONLY: angstrom
+   USE qs_diis_types,                   ONLY: qs_diis_b_release_kp,&
+                                              qs_diis_buffer_type_kp
    USE qs_matrix_pools,                 ONLY: mpools_release,&
                                               qs_matrix_pools_type
    USE qs_mo_types,                     ONLY: deallocate_mo_set,&
@@ -143,9 +145,9 @@ MODULE kpoint_types
       REAL(KIND=dp), DIMENSION(:, :), POINTER :: xkp => Null()
       REAL(KIND=dp), DIMENSION(:), POINTER    :: wkp => Null()
       ! parallel environment
-      TYPE(cp_para_env_type), POINTER         :: para_env => Null()
+      TYPE(mp_para_env_type), POINTER         :: para_env => Null()
       TYPE(cp_blacs_env_type), POINTER        :: blacs_env_all => Null()
-      TYPE(cp_para_env_type), POINTER         :: para_env_kp => Null(), &
+      TYPE(mp_para_env_type), POINTER         :: para_env_kp => Null(), &
                                                  para_env_inter_kp => Null()
       LOGICAL                                 :: iogrp
       INTEGER                                 :: nkp_groups
@@ -162,6 +164,7 @@ MODULE kpoint_types
       TYPE(kpoint_sym_p_type), DIMENSION(:), &
          POINTER                              :: kp_sym => Null()
       TYPE(qs_matrix_pools_type), POINTER     :: mpools => Null()
+      TYPE(qs_diis_buffer_type_kp), POINTER   :: scf_diis_buffer => Null()
    END TYPE kpoint_type
 
 ! **************************************************************************************************
@@ -240,9 +243,9 @@ CONTAINS
          CALL cp_blacs_env_release(kpoint%blacs_env)
          CALL cp_blacs_env_release(kpoint%blacs_env_all)
 
-         CALL cp_para_env_release(kpoint%para_env)
-         CALL cp_para_env_release(kpoint%para_env_kp)
-         CALL cp_para_env_release(kpoint%para_env_inter_kp)
+         CALL mp_para_env_release(kpoint%para_env)
+         CALL mp_para_env_release(kpoint%para_env_kp)
+         CALL mp_para_env_release(kpoint%para_env_inter_kp)
 
          IF (ASSOCIATED(kpoint%cell_to_index)) DEALLOCATE (kpoint%cell_to_index)
          IF (ASSOCIATED(kpoint%index_to_cell)) DEALLOCATE (kpoint%index_to_cell)
@@ -259,6 +262,11 @@ CONTAINS
                CALL kpoint_sym_release(kpoint%kp_sym(ik)%kpoint_sym)
             END DO
             DEALLOCATE (kpoint%kp_sym)
+         END IF
+
+         IF (ASSOCIATED(kpoint%scf_diis_buffer)) THEN
+            CALL qs_diis_b_release_kp(kpoint%scf_diis_buffer)
+            DEALLOCATE (kpoint%scf_diis_buffer)
          END IF
 
          DEALLOCATE (kpoint)
@@ -313,9 +321,9 @@ CONTAINS
       INTEGER, OPTIONAL                                  :: nkp
       REAL(KIND=dp), DIMENSION(:, :), OPTIONAL, POINTER  :: xkp
       REAL(KIND=dp), DIMENSION(:), OPTIONAL, POINTER     :: wkp
-      TYPE(cp_para_env_type), OPTIONAL, POINTER          :: para_env
+      TYPE(mp_para_env_type), OPTIONAL, POINTER          :: para_env
       TYPE(cp_blacs_env_type), OPTIONAL, POINTER         :: blacs_env_all
-      TYPE(cp_para_env_type), OPTIONAL, POINTER          :: para_env_kp, para_env_inter_kp
+      TYPE(mp_para_env_type), OPTIONAL, POINTER          :: para_env_kp, para_env_inter_kp
       TYPE(cp_blacs_env_type), OPTIONAL, POINTER         :: blacs_env
       TYPE(kpoint_env_p_type), DIMENSION(:), OPTIONAL, &
          POINTER                                         :: kp_env
@@ -406,9 +414,9 @@ CONTAINS
       INTEGER, OPTIONAL                                  :: nkp
       REAL(KIND=dp), DIMENSION(:, :), OPTIONAL, POINTER  :: xkp
       REAL(KIND=dp), DIMENSION(:), OPTIONAL, POINTER     :: wkp
-      TYPE(cp_para_env_type), OPTIONAL, POINTER          :: para_env
+      TYPE(mp_para_env_type), OPTIONAL, POINTER          :: para_env
       TYPE(cp_blacs_env_type), OPTIONAL, POINTER         :: blacs_env_all
-      TYPE(cp_para_env_type), OPTIONAL, POINTER          :: para_env_kp, para_env_inter_kp
+      TYPE(mp_para_env_type), OPTIONAL, POINTER          :: para_env_kp, para_env_inter_kp
       TYPE(cp_blacs_env_type), OPTIONAL, POINTER         :: blacs_env
       TYPE(kpoint_env_p_type), DIMENSION(:), OPTIONAL, &
          POINTER                                         :: kp_env
@@ -675,23 +683,8 @@ CONTAINS
             DEALLOCATE (kp_env%mos)
          END IF
 
-         IF (ASSOCIATED(kp_env%pmat)) THEN
-            DO is = 1, SIZE(kp_env%pmat, 2)
-               DO ic = 1, SIZE(kp_env%pmat, 1)
-                  CALL cp_fm_release(kp_env%pmat(ic, is))
-               END DO
-            END DO
-            DEALLOCATE (kp_env%pmat)
-         END IF
-
-         IF (ASSOCIATED(kp_env%wmat)) THEN
-            DO is = 1, SIZE(kp_env%wmat, 2)
-               DO ic = 1, SIZE(kp_env%wmat, 1)
-                  CALL cp_fm_release(kp_env%wmat(ic, is))
-               END DO
-            END DO
-            DEALLOCATE (kp_env%wmat)
-         END IF
+         CALL cp_fm_release(kp_env%pmat)
+         CALL cp_fm_release(kp_env%wmat)
 
          DEALLOCATE (kp_env)
 

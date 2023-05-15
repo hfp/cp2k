@@ -18,8 +18,8 @@ MODULE qs_tddfpt_types
    USE cp_fm_types,                     ONLY: cp_fm_create,&
                                               cp_fm_release,&
                                               cp_fm_type
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE kinds,                           ONLY: dp
+   USE message_passing,                 ONLY: mp_para_env_type
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
    USE qs_matrix_pools,                 ONLY: mpools_get
@@ -67,8 +67,8 @@ CONTAINS
       INTEGER                                            :: i, n_ev, n_spins, spin
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
       TYPE(cp_fm_struct_type), POINTER                   :: fm_struct
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(mp_para_env_type), POINTER                    :: para_env
 
       NULLIFY (dft_control, para_env, blacs_env)
 
@@ -120,13 +120,9 @@ CONTAINS
                                       t_env%evecs(i, spin))
          END DO
       END DO
+      DEALLOCATE (t_env%evecs, t_env%evals)
 
-      DO spin = 1, SIZE(t_env%invS)
-         CALL cp_fm_release(t_env%invS(spin))
-      END DO
-      DEALLOCATE (t_env%invS, t_env%evecs, t_env%evals)
-
-      NULLIFY (t_env%invS)
+      CALL cp_fm_release(t_env%invS)
 
    END SUBROUTINE tddfpt_env_deallocate
 

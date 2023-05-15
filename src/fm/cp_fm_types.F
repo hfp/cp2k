@@ -21,11 +21,11 @@ MODULE cp_fm_types
                                               cp_fm_struct_retain,&
                                               cp_fm_struct_type,&
                                               cp_fm_struct_write_info
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE kinds,                           ONLY: dp,&
                                               sp
    USE message_passing,                 ONLY: cp2k_is_parallel,&
                                               mp_any_source,&
+                                              mp_para_env_type,&
                                               mp_proc_null,&
                                               mp_request_null,&
                                               mp_request_type,&
@@ -84,6 +84,20 @@ MODULE cp_fm_types
    INTERFACE cp_fm_to_fm
       MODULE PROCEDURE cp_fm_to_fm_matrix, & ! a full matrix
          cp_fm_to_fm_columns ! just a number of columns
+   END INTERFACE
+
+   INTERFACE cp_fm_release
+      MODULE PROCEDURE cp_fm_release_aa0, &
+         cp_fm_release_aa1, &
+         cp_fm_release_aa2, &
+         cp_fm_release_aa3, &
+         cp_fm_release_ap1, &
+         cp_fm_release_ap2, &
+         cp_fm_release_pa1, &
+         cp_fm_release_pa2, &
+         cp_fm_release_pa3, &
+         cp_fm_release_pp1, &
+         cp_fm_release_pp2
    END INTERFACE
 
 ! **************************************************************************************************
@@ -213,14 +227,8 @@ CONTAINS
 !>      08.2002 created [fawzi]
 !> \author Fawzi Mohamed
 ! **************************************************************************************************
-   SUBROUTINE cp_fm_release(matrix)
+   SUBROUTINE cp_fm_release_aa0(matrix)
       TYPE(cp_fm_type), INTENT(INOUT)                    :: matrix
-
-      CHARACTER(len=*), PARAMETER                        :: routineN = 'cp_fm_release'
-
-      INTEGER                                            :: handle
-
-      CALL timeset(routineN, handle)
 
       IF (ASSOCIATED(matrix%local_data)) THEN
          DEALLOCATE (matrix%local_data)
@@ -233,9 +241,202 @@ CONTAINS
       matrix%name = ""
       CALL cp_fm_struct_release(matrix%matrix_struct)
 
-      CALL timestop(handle)
+   END SUBROUTINE cp_fm_release_aa0
 
-   END SUBROUTINE cp_fm_release
+! **************************************************************************************************
+!> \brief ...
+!> \param matrices ...
+! **************************************************************************************************
+   SUBROUTINE cp_fm_release_aa1(matrices)
+      TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:)        :: matrices
+
+      INTEGER                                            :: i
+
+      IF (ALLOCATED(matrices)) THEN
+         DO i = 1, SIZE(matrices)
+            CALL cp_fm_release(matrices(i))
+         END DO
+         DEALLOCATE (matrices)
+      END IF
+   END SUBROUTINE cp_fm_release_aa1
+
+! **************************************************************************************************
+!> \brief ...
+!> \param matrices ...
+! **************************************************************************************************
+   SUBROUTINE cp_fm_release_aa2(matrices)
+      TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:, :)     :: matrices
+
+      INTEGER                                            :: i, j
+
+      IF (ALLOCATED(matrices)) THEN
+         DO i = 1, SIZE(matrices, 1)
+            DO j = 1, SIZE(matrices, 2)
+               CALL cp_fm_release(matrices(i, j))
+            END DO
+         END DO
+         DEALLOCATE (matrices)
+      END IF
+   END SUBROUTINE cp_fm_release_aa2
+
+! **************************************************************************************************
+!> \brief ...
+!> \param matrices ...
+! **************************************************************************************************
+   SUBROUTINE cp_fm_release_aa3(matrices)
+      TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:, :, :)  :: matrices
+
+      INTEGER                                            :: i, j, k
+
+      IF (ALLOCATED(matrices)) THEN
+         DO i = 1, SIZE(matrices, 1)
+            DO j = 1, SIZE(matrices, 2)
+               DO k = 1, SIZE(matrices, 3)
+                  CALL cp_fm_release(matrices(i, j, k))
+               END DO
+            END DO
+         END DO
+         DEALLOCATE (matrices)
+      END IF
+   END SUBROUTINE cp_fm_release_aa3
+
+! **************************************************************************************************
+!> \brief ...
+!> \param matrices ...
+! **************************************************************************************************
+   SUBROUTINE cp_fm_release_pa1(matrices)
+      TYPE(cp_fm_type), DIMENSION(:), POINTER            :: matrices
+
+      INTEGER                                            :: i
+
+      IF (ASSOCIATED(matrices)) THEN
+         DO i = 1, SIZE(matrices)
+            CALL cp_fm_release(matrices(i))
+         END DO
+         DEALLOCATE (matrices)
+         NULLIFY (matrices)
+      END IF
+   END SUBROUTINE cp_fm_release_pa1
+
+! **************************************************************************************************
+!> \brief ...
+!> \param matrices ...
+! **************************************************************************************************
+   SUBROUTINE cp_fm_release_pa2(matrices)
+      TYPE(cp_fm_type), DIMENSION(:, :), POINTER         :: matrices
+
+      INTEGER                                            :: i, j
+
+      IF (ASSOCIATED(matrices)) THEN
+         DO i = 1, SIZE(matrices, 1)
+            DO j = 1, SIZE(matrices, 2)
+               CALL cp_fm_release(matrices(i, j))
+            END DO
+         END DO
+         DEALLOCATE (matrices)
+         NULLIFY (matrices)
+      END IF
+   END SUBROUTINE cp_fm_release_pa2
+
+! **************************************************************************************************
+!> \brief ...
+!> \param matrices ...
+! **************************************************************************************************
+   SUBROUTINE cp_fm_release_pa3(matrices)
+      TYPE(cp_fm_type), DIMENSION(:, :, :), POINTER      :: matrices
+
+      INTEGER                                            :: i, j, k
+
+      IF (ASSOCIATED(matrices)) THEN
+         DO i = 1, SIZE(matrices, 1)
+            DO j = 1, SIZE(matrices, 2)
+               DO k = 1, SIZE(matrices, 3)
+                  CALL cp_fm_release(matrices(i, j, k))
+               END DO
+            END DO
+         END DO
+         DEALLOCATE (matrices)
+         NULLIFY (matrices)
+      END IF
+   END SUBROUTINE cp_fm_release_pa3
+
+! **************************************************************************************************
+!> \brief ...
+!> \param matrices ...
+! **************************************************************************************************
+   SUBROUTINE cp_fm_release_ap1(matrices)
+      TYPE(cp_fm_p_type), ALLOCATABLE, DIMENSION(:)      :: matrices
+
+      INTEGER                                            :: i
+
+      IF (ALLOCATED(matrices)) THEN
+         DO i = 1, SIZE(matrices)
+            CALL cp_fm_release(matrices(i)%matrix)
+            DEALLOCATE (matrices(i)%matrix)
+         END DO
+         DEALLOCATE (matrices)
+      END IF
+   END SUBROUTINE cp_fm_release_ap1
+
+! **************************************************************************************************
+!> \brief ...
+!> \param matrices ...
+! **************************************************************************************************
+   SUBROUTINE cp_fm_release_ap2(matrices)
+      TYPE(cp_fm_p_type), ALLOCATABLE, DIMENSION(:, :)   :: matrices
+
+      INTEGER                                            :: i, j
+
+      IF (ALLOCATED(matrices)) THEN
+         DO i = 1, SIZE(matrices, 1)
+            DO j = 1, SIZE(matrices, 2)
+               CALL cp_fm_release(matrices(i, j)%matrix)
+               DEALLOCATE (matrices(i, j)%matrix)
+            END DO
+         END DO
+         DEALLOCATE (matrices)
+      END IF
+   END SUBROUTINE cp_fm_release_ap2
+
+! **************************************************************************************************
+!> \brief ...
+!> \param matrices ...
+! **************************************************************************************************
+   SUBROUTINE cp_fm_release_pp1(matrices)
+      TYPE(cp_fm_p_type), DIMENSION(:), POINTER          :: matrices
+
+      INTEGER                                            :: i
+
+      IF (ASSOCIATED(matrices)) THEN
+         DO i = 1, SIZE(matrices)
+            CALL cp_fm_release(matrices(i)%matrix)
+            DEALLOCATE (matrices(i)%matrix)
+         END DO
+         DEALLOCATE (matrices)
+         NULLIFY (matrices)
+      END IF
+   END SUBROUTINE cp_fm_release_pp1
+
+! **************************************************************************************************
+!> \brief ...
+!> \param matrices ...
+! **************************************************************************************************
+   SUBROUTINE cp_fm_release_pp2(matrices)
+      TYPE(cp_fm_p_type), DIMENSION(:, :), POINTER       :: matrices
+
+      INTEGER                                            :: i, j
+
+      IF (ASSOCIATED(matrices)) THEN
+         DO i = 1, SIZE(matrices, 1)
+            DO j = 1, SIZE(matrices, 2)
+               CALL cp_fm_release(matrices(i, j)%matrix)
+               DEALLOCATE (matrices(i, j)%matrix)
+            END DO
+         END DO
+         DEALLOCATE (matrices)
+         NULLIFY (matrices)
+      END IF
+   END SUBROUTINE cp_fm_release_pp2
 
 ! **************************************************************************************************
 !> \brief fills a matrix with random numbers
@@ -709,7 +910,7 @@ CONTAINS
       INTEGER, DIMENSION(:), POINTER                     :: col_indices, row_indices
       LOGICAL                                            :: tr_a
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: full_block
-      TYPE(cp_para_env_type), POINTER                    :: para_env
+      TYPE(mp_para_env_type), POINTER                    :: para_env
 
       CALL timeset(routineN, handle)
 
@@ -822,7 +1023,7 @@ CONTAINS
       TYPE(cp_blacs_env_type), OPTIONAL, POINTER         :: context
       INTEGER, DIMENSION(:), OPTIONAL, POINTER           :: nrow_locals, ncol_locals
       TYPE(cp_fm_struct_type), OPTIONAL, POINTER         :: matrix_struct
-      TYPE(cp_para_env_type), OPTIONAL, POINTER          :: para_env
+      TYPE(mp_para_env_type), OPTIONAL, POINTER          :: para_env
 
       IF (PRESENT(name)) name = matrix%name
       IF (PRESENT(matrix_struct)) matrix_struct => matrix%matrix_struct
@@ -1334,7 +1535,7 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE cp_fm_copy_general(source, destination, para_env)
       TYPE(cp_fm_type), INTENT(IN)                       :: source, destination
-      TYPE(cp_para_env_type), INTENT(IN)                 :: para_env
+      TYPE(mp_para_env_type), INTENT(IN)                 :: para_env
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_copy_general'
 
@@ -1364,7 +1565,7 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE cp_fm_start_copy_general(source, destination, para_env, info)
       TYPE(cp_fm_type), INTENT(IN)                       :: source, destination
-      TYPE(cp_para_env_type), INTENT(IN)                 :: para_env
+      TYPE(mp_para_env_type), INTENT(IN)                 :: para_env
       TYPE(copy_info_type), INTENT(OUT)                  :: info
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'cp_fm_start_copy_general'
@@ -1949,7 +2150,7 @@ CONTAINS
 
       INTEGER                                  :: handle, j, max_block, &
                                                   ncol_global, nrow_global
-      TYPE(cp_para_env_type), POINTER          :: para_env
+      TYPE(mp_para_env_type), POINTER          :: para_env
 #if defined(__SCALAPACK)
       INTEGER                                  :: i, i_block, icol_local, &
                                                   in, info, ipcol, &
@@ -2056,7 +2257,7 @@ CONTAINS
       INTEGER                                  :: handle, i, j, max_block, &
                                                   ncol_global, nrow_global, &
                                                   nrow_block
-      TYPE(cp_para_env_type), POINTER          :: para_env
+      TYPE(mp_para_env_type), POINTER          :: para_env
 #if defined(__SCALAPACK)
       INTEGER                                  :: i_block, icol_local, &
                                                   in, info, ipcol, &
@@ -2174,14 +2375,14 @@ CONTAINS
 !> \param unit ...
 ! **************************************************************************************************
    SUBROUTINE cp_fm_read_unformatted(fm, unit)
-      TYPE(cp_fm_type), INTENT(IN)          :: fm
+      TYPE(cp_fm_type), INTENT(INOUT)          :: fm
       INTEGER, INTENT(IN)                      :: unit
 
       CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_read_unformatted'
 
       INTEGER                                  :: handle, j, max_block, &
                                                   ncol_global, nrow_global
-      TYPE(cp_para_env_type), POINTER          :: para_env
+      TYPE(mp_para_env_type), POINTER          :: para_env
 #if defined(__SCALAPACK)
       INTEGER                                  :: k, n_cols
       REAL(KIND=dp), DIMENSION(:, :), POINTER  :: vecbuf

@@ -53,7 +53,7 @@ void grid_create_task_list(
 #elif defined(__OFFLOAD) && !defined(__NO_OFFLOAD_GRID)
       task_list->backend = GRID_BACKEND_GPU;
 #else
-      task_list->backend = GRID_BACKEND_REF;
+      task_list->backend = GRID_BACKEND_CPU;
 #endif
     } else {
       task_list->backend = config.backend;
@@ -70,7 +70,7 @@ void grid_create_task_list(
   task_list->npts_local = malloc(size);
   memcpy(task_list->npts_local, npts_local, size);
 
-  // Create reference backend - needed as fallback and possibly for validation.
+  // Always create reference backend because it might be needed for validation.
   grid_ref_create_task_list(
       orthorhombic, ntasks, nlevels, natoms, nkinds, nblocks, block_offsets,
       atom_positions, atom_kinds, basis_sets, level_list, iatom_list,
@@ -89,6 +89,14 @@ void grid_create_task_list(
         jatom_list, iset_list, jset_list, ipgf_list, jpgf_list,
         border_mask_list, block_num_list, radius_list, rab_list, npts_global,
         npts_local, shift_local, border_width, dh, dh_inv, &task_list->cpu);
+    break;
+  case GRID_BACKEND_DGEMM:
+    grid_dgemm_create_task_list(
+        orthorhombic, ntasks, nlevels, natoms, nkinds, nblocks, block_offsets,
+        atom_positions, atom_kinds, basis_sets, level_list, iatom_list,
+        jatom_list, iset_list, jset_list, ipgf_list, jpgf_list,
+        border_mask_list, block_num_list, radius_list, rab_list, npts_global,
+        npts_local, shift_local, border_width, dh, dh_inv, &task_list->dgemm);
     break;
 
   case GRID_BACKEND_GPU:
@@ -146,6 +154,10 @@ void grid_free_task_list(grid_task_list *task_list) {
     grid_cpu_free_task_list(task_list->cpu);
     task_list->cpu = NULL;
   }
+  if (task_list->dgemm != NULL) {
+    grid_dgemm_free_task_list(task_list->dgemm);
+    task_list->dgemm = NULL;
+  }
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_GRID)
   if (task_list->gpu != NULL) {
     grid_gpu_free_task_list(task_list->gpu);
@@ -190,6 +202,10 @@ void grid_collocate_task_list(const grid_task_list *task_list,
   case GRID_BACKEND_CPU:
     grid_cpu_collocate_task_list(task_list->cpu, func, nlevels, pab_blocks,
                                  grids);
+    break;
+  case GRID_BACKEND_DGEMM:
+    grid_dgemm_collocate_task_list(task_list->dgemm, func, nlevels, pab_blocks,
+                                   grids);
     break;
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_GRID)
   case GRID_BACKEND_GPU:
@@ -292,6 +308,11 @@ void grid_integrate_task_list(
                                  &virial[0][0]);
     break;
 #endif
+  case GRID_BACKEND_DGEMM:
+    grid_dgemm_integrate_task_list(task_list->dgemm, compute_tau, natoms,
+                                   nlevels, pab_blocks, grids, hab_blocks,
+                                   forces, virial);
+    break;
   case GRID_BACKEND_CPU:
     grid_cpu_integrate_task_list(task_list->cpu, compute_tau, natoms, nlevels,
                                  pab_blocks, grids, hab_blocks, forces, virial);

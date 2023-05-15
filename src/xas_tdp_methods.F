@@ -52,7 +52,6 @@ MODULE xas_tdp_methods
                                               cp_print_key_should_output,&
                                               cp_print_key_unit_nr,&
                                               debug_print_level
-   USE cp_para_types,                   ONLY: cp_para_env_type
    USE dbcsr_api,                       ONLY: &
         dbcsr_add_on_diag, dbcsr_copy, dbcsr_create, dbcsr_filter, dbcsr_finalize, dbcsr_get_info, &
         dbcsr_get_occupation, dbcsr_multiply, dbcsr_p_type, dbcsr_set, dbcsr_type_no_symmetry
@@ -77,7 +76,8 @@ MODULE xas_tdp_methods
    USE machine,                         ONLY: m_flush
    USE mathlib,                         ONLY: get_diag
    USE memory_utilities,                ONLY: reallocate
-   USE message_passing,                 ONLY: mp_comm_type
+   USE message_passing,                 ONLY: mp_comm_type,&
+                                              mp_para_env_type
    USE parallel_gemm_api,               ONLY: parallel_gemm
    USE parallel_rng_types,              ONLY: UNIFORM,&
                                               rng_stream_type
@@ -92,8 +92,8 @@ MODULE xas_tdp_methods
    USE qs_interactions,                 ONLY: init_interaction_radii_orb_basis
    USE qs_kind_types,                   ONLY: get_qs_kind,&
                                               qs_kind_type
+   USE qs_loc_main,                     ONLY: qs_loc_driver
    USE qs_loc_methods,                  ONLY: centers_spreads_berry,&
-                                              qs_loc_driver,&
                                               qs_print_cubes
    USE qs_loc_types,                    ONLY: get_qs_loc_env,&
                                               localized_wfn_control_create,&
@@ -277,7 +277,10 @@ CONTAINS
          END IF
 !        closed shell or ROKS => myspin=1
          IF (xas_tdp_control%do_uks) THEN
-            CALL qs_loc_driver(qs_env, xas_tdp_env%qs_loc_env, xas_tdp_control%print_loc_subsection)
+            DO ispin = 1, dft_control%nspins
+               CALL qs_loc_driver(qs_env, xas_tdp_env%qs_loc_env, &
+                                  xas_tdp_control%print_loc_subsection, myspin=ispin)
+            END DO
          ELSE
             CALL qs_loc_driver(qs_env, xas_tdp_env%qs_loc_env, &
                                xas_tdp_control%print_loc_subsection, myspin=1)
@@ -1356,9 +1359,9 @@ CONTAINS
       TYPE(cp_fm_struct_type), POINTER                   :: ks_struct, lmo_struct
       TYPE(cp_fm_type)                                   :: evecs, ks_fm, lmo_fm, work
       TYPE(cp_fm_type), POINTER                          :: mo_coeff
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_ks
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mos
+      TYPE(mp_para_env_type), POINTER                    :: para_env
 
       NULLIFY (mos, mo_coeff, matrix_ks, para_env, blacs_env, lmo_struct, ks_struct)
 
@@ -1469,10 +1472,10 @@ CONTAINS
       TYPE(cp_fm_struct_type), POINTER                   :: eval_mat_struct, gs_struct
       TYPE(cp_fm_type)                                   :: eval_mat, work_mat
       TYPE(cp_fm_type), POINTER                          :: gs_coeffs, mo_coeff
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_ks
       TYPE(gto_basis_set_type), POINTER                  :: kind_basis_set, sto_to_gto_basis_set
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mos
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(sto_basis_set_type), POINTER                  :: sto_basis_set
@@ -1797,8 +1800,8 @@ CONTAINS
       TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:, :)     :: zij_fm_set
       TYPE(cp_fm_type), DIMENSION(:), POINTER            :: moloc_coeff
       TYPE(cp_fm_type), POINTER                          :: vectors
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: op_sm_set
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(qs_loc_env_type), POINTER                     :: qs_loc_env
       TYPE(section_vals_type), POINTER                   :: print_loc_section, prog_run_info
 
@@ -1867,12 +1870,7 @@ CONTAINS
 !  Clean-up
       CALL cp_fm_release(opvec)
       CALL cp_fm_struct_release(tmp_fm_struct)
-      DO i = 1, dim_op
-         DO j = 1, 2
-            CALL cp_fm_release(zij_fm_set(j, i))
-         END DO
-      END DO
-      DEALLOCATE (zij_fm_set)
+      CALL cp_fm_release(zij_fm_set)
 
 !  Make sure we leave with the correct do_loc value
       qs_loc_env%do_localize = xas_tdp_control%do_loc
@@ -2042,8 +2040,8 @@ CONTAINS
       TYPE(cp_fm_struct_type), POINTER                   :: col_struct, mat_struct
       TYPE(cp_fm_type)                                   :: col_work, mat_work
       TYPE(cp_fm_type), POINTER                          :: lr_coeffs
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: dipmat
+      TYPE(mp_para_env_type), POINTER                    :: para_env
 
       NULLIFY (dipmat, col_struct, mat_struct, para_env, blacs_env, lr_coeffs)
       NULLIFY (lr_evals, osc_str)
@@ -2157,8 +2155,8 @@ CONTAINS
       TYPE(cp_fm_struct_type), POINTER                   :: col_struct, mat_struct
       TYPE(cp_fm_type)                                   :: col_work, mat_work
       TYPE(cp_fm_type), POINTER                          :: lr_coeffs
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: quadmat
+      TYPE(mp_para_env_type), POINTER                    :: para_env
 
       NULLIFY (lr_evals, osc_str, lr_coeffs, col_struct, mat_struct, para_env)
       NULLIFY (blacs_env)
@@ -2360,8 +2358,8 @@ CONTAINS
       TYPE(cp_fm_struct_type), POINTER                   :: col_vect_struct
       TYPE(cp_fm_type)                                   :: work_vect
       TYPE(cp_fm_type), POINTER                          :: gs_coeffs
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
 
@@ -2463,10 +2461,10 @@ CONTAINS
       TYPE(cp_fm_type)                                   :: mo_coeff, work_fm
       TYPE(cp_fm_type), POINTER                          :: lr_coeffs
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mos
       TYPE(mo_set_type), POINTER                         :: mo_set
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(section_vals_type), POINTER                   :: print_key
@@ -2741,8 +2739,8 @@ CONTAINS
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
       TYPE(cp_fm_struct_type), POINTER                   :: fm_struct, lumo_struct
       TYPE(cp_fm_type)                                   :: amatrix, bmatrix, evecs, work_fm
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_ks, matrix_s
+      TYPE(mp_para_env_type), POINTER                    :: para_env
 
       NULLIFY (matrix_ks, matrix_s, para_env, blacs_env)
       NULLIFY (lumo_struct, fm_struct)
@@ -2841,8 +2839,8 @@ CONTAINS
       REAL(dp), ALLOCATABLE, DIMENSION(:)                :: scaling
       TYPE(cp_fm_struct_type), POINTER                   :: fm_struct
       TYPE(cp_fm_type)                                   :: fm_prec, work_fm
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s
+      TYPE(mp_para_env_type), POINTER                    :: para_env
 
       NULLIFY (fm_struct, para_env, matrix_s)
 
@@ -3335,17 +3333,16 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'read_donor_state_restart'
 
       INTEGER                                            :: handle, ispin, nao, nex, nspins, &
-                                                            output_unit, read_params(7), rst_unit, &
-                                                            source
+                                                            output_unit, read_params(7), rst_unit
       INTEGER, DIMENSION(:, :), POINTER                  :: mo_indices
       LOGICAL                                            :: file_exists
       REAL(dp), DIMENSION(:), POINTER                    :: lr_evals
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
       TYPE(cp_fm_struct_type), POINTER                   :: fm_struct
       TYPE(cp_fm_type), POINTER                          :: lr_coeffs
-      TYPE(cp_para_env_type), POINTER                    :: para_env
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mos
       TYPE(mp_comm_type)                                 :: group
+      TYPE(mp_para_env_type), POINTER                    :: para_env
 
       NULLIFY (lr_evals, lr_coeffs, para_env, fm_struct, blacs_env, mos)
 
@@ -3355,7 +3352,6 @@ CONTAINS
       CPASSERT(ASSOCIATED(donor_state))
       CALL get_qs_env(qs_env, para_env=para_env, blacs_env=blacs_env)
       group = para_env
-      source = para_env%source
 
       file_exists = .FALSE.
       rst_unit = -1
@@ -3380,7 +3376,7 @@ CONTAINS
          READ (rst_unit) read_params(1:4)
          READ (rst_unit) read_params(5:7)
       END IF
-      CALL group%bcast(read_params, source)
+      CALL group%bcast(read_params)
       donor_state%at_index = read_params(1)
       donor_state%state_type = read_params(2)
       donor_state%ndo_mo = read_params(3)
@@ -3393,13 +3389,13 @@ CONTAINS
       IF (rst_unit > 0) THEN
          READ (rst_unit) mo_indices(1:donor_state%ndo_mo, 1:nspins)
       END IF
-      CALL group%bcast(mo_indices, source)
+      CALL group%bcast(mo_indices)
       donor_state%mo_indices => mo_indices
 
       !read evals
       ALLOCATE (lr_evals(nex))
       IF (rst_unit > 0) READ (rst_unit) lr_evals(1:nex)
-      CALL group%bcast(lr_evals, source)
+      CALL group%bcast(lr_evals)
 
       !read evecs
       CALL cp_fm_struct_create(fm_struct, context=blacs_env, para_env=para_env, &
