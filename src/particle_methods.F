@@ -15,14 +15,14 @@ MODULE particle_methods
    USE atomic_kind_types,               ONLY: get_atomic_kind
    USE basis_set_types,                 ONLY: get_gto_basis_set,&
                                               gto_basis_set_p_type
+   USE cell_methods,                    ONLY: cell_create,&
+                                              set_cell_param
    USE cell_types,                      ONLY: cell_clone,&
-                                              cell_create,&
                                               cell_release,&
                                               cell_type,&
                                               get_cell,&
                                               pbc,&
-                                              real_to_scaled,&
-                                              set_cell_param
+                                              real_to_scaled
    USE cp_log_handling,                 ONLY: cp_get_default_logger,&
                                               cp_logger_type,&
                                               cp_to_string
@@ -319,7 +319,7 @@ CONTAINS
             ! in the xy plane.
             NULLIFY (cell_dcd)
             CALL cell_create(cell_dcd)
-            CALL cell_clone(cell, cell_dcd)
+            CALL cell_clone(cell, cell_dcd, tag="CELL_DCD")
             angles(1) = angle_alpha/degree
             angles(2) = angle_beta/degree
             angles(3) = angle_gamma/degree

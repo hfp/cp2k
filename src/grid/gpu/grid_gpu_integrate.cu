@@ -18,9 +18,11 @@
 
 #define GRID_DO_COLLOCATE 0
 #include "../common/grid_common.h"
-#include "../common/grid_process_vab.h"
 #include "grid_gpu_collint.h"
 #include "grid_gpu_integrate.h"
+
+// This has to be included after grid_gpu_collint.h
+#include "../common/grid_process_vab.h"
 
 #if defined(_OMP_H)
 #error "OpenMP should not be used in .cu files to accommodate HIP."
@@ -253,7 +255,9 @@ __device__ static void grid_to_cxyz(const kernel_params *params,
     // Add register values to coefficients stored in shared memory.
 #pragma unroll // avoid dynamic indexing of registers
     for (int i = 0; i < GRID_N_CXYZ_REGISTERS; i++) {
-      atomicAddDouble(&cxyz[i + offset], cxyz_regs[i]);
+      if (i + offset < ncoset(task->lp)) {
+        atomicAddDouble(&cxyz[i + offset], cxyz_regs[i]);
+      }
     }
   }
   __syncthreads(); // because of concurrent writes to cxyz
@@ -264,7 +268,7 @@ __device__ static void grid_to_cxyz(const kernel_params *params,
  * \author Ole Schuett
  ******************************************************************************/
 template <bool COMPUTE_TAU>
-__device__ static void store_hab(const smem_task *task, const double *cab) {
+__device__ static void store_hab(const smem_task *task, const cab_store *cab) {
 
   // The spherical index runs over angular momentum and then over contractions.
   // The carthesian index runs over exponents and then over angular momentum.
@@ -273,15 +277,18 @@ __device__ static void store_hab(const smem_task *task, const double *cab) {
   // two products are fused to conserve shared memory.
   for (int i = threadIdx.x; i < task->nsgf_setb; i += blockDim.x) {
     for (int j = threadIdx.y; j < task->nsgf_seta; j += blockDim.y) {
-      const int jco_start = task->first_cosetb + threadIdx.z;
       double block_val = 0.0;
-      for (int jco = jco_start; jco < task->ncosetb; jco += blockDim.z) {
+      const int jco_start = ncoset(task->lb_min_basis - 1) + threadIdx.z;
+      const int jco_end = ncoset(task->lb_max_basis);
+      for (int jco = jco_start; jco < jco_end; jco += blockDim.z) {
         const orbital b = coset_inv[jco];
         const double sphib = task->sphib[i * task->maxcob + jco];
-        for (int ico = task->first_coseta; ico < task->ncoseta; ico++) {
+        const int ico_start = ncoset(task->la_min_basis - 1);
+        const int ico_end = ncoset(task->la_max_basis);
+        for (int ico = ico_start; ico < ico_end; ico++) {
           const orbital a = coset_inv[ico];
           const double hab =
-              get_hab(a, b, task->zeta, task->zetb, task->n1, cab, COMPUTE_TAU);
+              get_hab(a, b, task->zeta, task->zetb, cab, COMPUTE_TAU);
           const double sphia = task->sphia[j * task->maxcoa + ico];
           block_val += hab * sphia * sphib;
         }
@@ -303,7 +310,8 @@ __device__ static void store_hab(const smem_task *task, const double *cab) {
 template <bool COMPUTE_TAU>
 __device__ static void store_forces_and_virial(const kernel_params *params,
                                                const smem_task *task,
-                                               const double *cab) {
+                                               const cab_store *cab) {
+
   for (int i = threadIdx.x; i < task->nsgf_setb; i += blockDim.x) {
     for (int j = threadIdx.y; j < task->nsgf_seta; j += blockDim.y) {
       double block_val;
@@ -312,32 +320,33 @@ __device__ static void store_forces_and_virial(const kernel_params *params,
       } else {
         block_val = task->pab_block[i * task->nsgfa + j] * task->off_diag_twice;
       }
-      const int jco_start = task->first_cosetb + threadIdx.z;
-      for (int jco = jco_start; jco < task->ncosetb; jco += blockDim.z) {
+      const int jco_start = ncoset(task->lb_min_basis - 1) + threadIdx.z;
+      const int jco_end = ncoset(task->lb_max_basis);
+      for (int jco = jco_start; jco < jco_end; jco += blockDim.z) {
         const double sphib = task->sphib[i * task->maxcob + jco];
-        for (int ico = task->first_coseta; ico < task->ncoseta; ico++) {
+        const int ico_start = ncoset(task->la_min_basis - 1);
+        const int ico_end = ncoset(task->la_max_basis);
+        for (int ico = ico_start; ico < ico_end; ico++) {
           const double sphia = task->sphia[j * task->maxcoa + ico];
           const double pabval = block_val * sphia * sphib;
           const orbital b = coset_inv[jco];
           const orbital a = coset_inv[ico];
           for (int k = 0; k < 3; k++) {
-            const double force_a = get_force_a(a, b, k, task->zeta, task->zetb,
-                                               task->n1, cab, COMPUTE_TAU);
+            const double force_a =
+                get_force_a(a, b, k, task->zeta, task->zetb, cab, COMPUTE_TAU);
             atomicAddDouble(&task->forces_a[k], force_a * pabval);
-            const double force_b =
-                get_force_b(a, b, k, task->zeta, task->zetb, task->rab,
-                            task->n1, cab, COMPUTE_TAU);
+            const double force_b = get_force_b(a, b, k, task->zeta, task->zetb,
+                                               task->rab, cab, COMPUTE_TAU);
             atomicAddDouble(&task->forces_b[k], force_b * pabval);
           }
           if (params->virial != NULL) {
             for (int k = 0; k < 3; k++) {
               for (int l = 0; l < 3; l++) {
-                const double virial_a =
-                    get_virial_a(a, b, k, l, task->zeta, task->zetb, task->n1,
-                                 cab, COMPUTE_TAU);
+                const double virial_a = get_virial_a(
+                    a, b, k, l, task->zeta, task->zetb, cab, COMPUTE_TAU);
                 const double virial_b =
                     get_virial_b(a, b, k, l, task->zeta, task->zetb, task->rab,
-                                 task->n1, cab, COMPUTE_TAU);
+                                 cab, COMPUTE_TAU);
                 const double virial = pabval * (virial_a + virial_b);
                 atomicAddDouble(&params->virial[k * 3 + l], virial);
               }
@@ -385,17 +394,28 @@ __device__ static void integrate_kernel(const kernel_params *params) {
   double *smem_alpha = &shared_memory[params->smem_alpha_offset];
   double *smem_cxyz = &shared_memory[params->smem_cxyz_offset];
 
+  // Allocate Cab from global memory if it does not fit into shared memory.
+  cab_store cab = {.data = NULL, .n1 = task.n1};
+  if (params->smem_cab_length < task.n1 * task.n2) {
+    cab.data = malloc_cab(&task);
+  } else {
+    cab.data = smem_cab;
+  }
+
+  zero_cab(&cab, task.n1 * task.n2);
+  compute_alpha(&task, smem_alpha);
+
   zero_cxyz(&task, smem_cxyz);
   grid_to_cxyz(params, &task, params->grid, smem_cxyz);
+  cab_to_cxyz(&task, smem_alpha, &cab, smem_cxyz);
 
-  zero_cab(&task, smem_cab);
-  compute_alpha(&task, smem_alpha);
-  cab_to_cxyz(&task, smem_alpha, smem_cab, smem_cxyz);
-
-  store_hab<COMPUTE_TAU>(&task, smem_cab);
-
+  store_hab<COMPUTE_TAU>(&task, &cab);
   if (CALCULATE_FORCES) {
-    store_forces_and_virial<COMPUTE_TAU>(params, &task, smem_cab);
+    store_forces_and_virial<COMPUTE_TAU>(params, &task, &cab);
+  }
+
+  if (params->smem_cab_length < task.n1 * task.n2) {
+    free_cab(cab.data);
   }
 }
 
@@ -461,28 +481,21 @@ void grid_gpu_integrate_one_grid_level(
 
   init_constant_memory();
 
+  // Small Cab blocks are stored in shared mem, larger ones in global memory.
+  const int CAB_SMEM_LIMIT = ncoset(5) * ncoset(5); // = 56 * 56 = 3136
+
   // Compute required shared memory.
-  // TODO: Currently, cab's indicies run over 0...ncoset[lmax],
-  //       however only ncoset(lmin)...ncoset(lmax) are actually needed.
-  const int cab_len = ncoset(lb_max) * ncoset(la_max);
   const int alpha_len = 3 * (lb_max + 1) * (la_max + 1) * (lp_max + 1);
   const int cxyz_len = ncoset(lp_max);
+  const int cab_len = imin(CAB_SMEM_LIMIT, ncoset(lb_max) * ncoset(la_max));
   const size_t smem_per_block =
-      (cab_len + alpha_len + cxyz_len) * sizeof(double);
-
-  if (smem_per_block > 48 * 1024) {
-    fprintf(stderr, "ERROR: Not enough shared memory in grid_gpu_integrate.\n");
-    fprintf(stderr, "cab_len: %i, ", cab_len);
-    fprintf(stderr, "alpha_len: %i, ", alpha_len);
-    fprintf(stderr, "cxyz_len: %i, ", cxyz_len);
-    fprintf(stderr, "total smem_per_block: %f kb\n\n", smem_per_block / 1024.0);
-    abort();
-  }
+      (alpha_len + cxyz_len + cab_len) * sizeof(double);
 
   // kernel parameters
   kernel_params params;
+  params.smem_cab_length = cab_len;
   params.smem_cab_offset = 0;
-  params.smem_alpha_offset = cab_len;
+  params.smem_alpha_offset = params.smem_cab_offset + cab_len;
   params.smem_cxyz_offset = params.smem_alpha_offset + alpha_len;
   params.first_task = first_task;
   params.grid = grid_dev;
@@ -518,6 +531,7 @@ void grid_gpu_integrate_one_grid_level(
     grid_integrate_tau_forces<<<nblocks, threads_per_block, smem_per_block,
                                 stream>>>(params);
   }
+  OFFLOAD_CHECK(offloadGetLastError());
 }
 
 #endif // defined(__OFFLOAD) && !defined(__NO_OFFLOAD_GRID)

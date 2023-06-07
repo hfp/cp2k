@@ -11,13 +11,13 @@
 !> \date   05.2009
 ! **************************************************************************************************
 MODULE topology_xtl
-   USE cell_methods,                    ONLY: write_cell
-   USE cell_types,                      ONLY: cell_create,&
-                                              cell_release,&
+   USE cell_methods,                    ONLY: cell_create,&
+                                              set_cell_param,&
+                                              write_cell
+   USE cell_types,                      ONLY: cell_release,&
                                               cell_type,&
                                               pbc,&
-                                              scaled_to_real,&
-                                              set_cell_param
+                                              scaled_to_real
    USE cp_log_handling,                 ONLY: cp_get_default_logger,&
                                               cp_logger_type,&
                                               cp_to_string
@@ -169,10 +169,10 @@ CONTAINS
 
       ! Create cell
       NULLIFY (cell)
-      CALL cell_create(cell)
+      CALL cell_create(cell, tag="CELL_XTL")
       CALL set_cell_param(cell, cell_lengths, cell_angles, periodic=periodic, &
                           do_init_cell=.TRUE.)
-      CALL write_cell(cell, subsys_section, label="CELL_XTL|")
+      CALL write_cell(cell, subsys_section)
 
       ! Parse atoms info and fractional coordinates
       ! Check for   _atom_site_label

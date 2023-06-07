@@ -11,10 +11,10 @@
 !> \date   12.2008
 ! **************************************************************************************************
 MODULE topology_cif
-   USE cell_methods,                    ONLY: read_cell_cif,&
+   USE cell_methods,                    ONLY: cell_create,&
+                                              read_cell_cif,&
                                               write_cell
-   USE cell_types,                      ONLY: cell_create,&
-                                              cell_release,&
+   USE cell_types,                      ONLY: cell_release,&
                                               cell_type,&
                                               pbc,&
                                               real_to_scaled,&
@@ -133,9 +133,9 @@ CONTAINS
 
       ! Create cell
       NULLIFY (cell)
-      CALL cell_create(cell)
+      CALL cell_create(cell, tag="CELL_CIF")
       CALL read_cell_cif(topology%coord_file_name, cell, para_env)
-      CALL write_cell(cell, subsys_section, label="CELL_CIF|")
+      CALL write_cell(cell, subsys_section)
 
       CALL parser_create(parser, topology%coord_file_name, &
                          para_env=para_env, apply_preprocessing=.FALSE.)

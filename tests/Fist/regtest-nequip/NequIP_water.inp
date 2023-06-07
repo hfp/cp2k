@@ -33,6 +33,7 @@
       ABC 9.85 9.85 9.85
 #      MULTIPLE_UNIT_CELL 4 4 4
     &END CELL
+#     coordinates must be ordered by atomic number
     &COORD
 H     42.886169670000001   -0.055681660000000001      38.329161120000002
 H     34.202588720000001              -0.6185484      37.365568080000003

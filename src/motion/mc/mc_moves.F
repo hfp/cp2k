@@ -15,8 +15,8 @@
 ! **************************************************************************************************
 MODULE mc_moves
    USE atomic_kind_types,               ONLY: get_atomic_kind
+   USE cell_methods,                    ONLY: cell_create
    USE cell_types,                      ONLY: cell_clone,&
-                                              cell_create,&
                                               cell_release,&
                                               cell_type,&
                                               get_cell
@@ -1032,7 +1032,7 @@ CONTAINS
       CALL force_env_get(force_env, subsys=oldsys, cell=cell)
       CALL get_cell(cell, abc=abc)
       CALL cell_create(cell_old)
-      CALL cell_clone(cell, cell_old)
+      CALL cell_clone(cell, cell_old, tag="CELL_OLD")
       CALL cp_subsys_get(oldsys, particles=particles_old)
 
 ! find the old cell length

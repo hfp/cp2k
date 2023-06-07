@@ -44,12 +44,15 @@ typedef hipError_t offloadError_t;
  * \brief Check given Cuda status and upon failure abort with a nice message.
  * \author Ole Schuett
  ******************************************************************************/
-#define OFFLOAD_CHECK(status)                                                  \
-  if (status != offloadSuccess) {                                              \
-    fprintf(stderr, "ERROR: %s %s %d\n", offloadGetErrorName(status),          \
-            __FILE__, __LINE__);                                               \
-    abort();                                                                   \
-  }
+#define OFFLOAD_CHECK(cmd)                                                     \
+  do {                                                                         \
+    offloadError_t error = cmd;                                                \
+    if (error != offloadSuccess) {                                             \
+      fprintf(stderr, "ERROR: %s %s %d\n", offloadGetErrorName(error),         \
+              __FILE__, __LINE__);                                             \
+      abort();                                                                 \
+    }                                                                          \
+  } while (0)
 
 /*******************************************************************************
  * \brief Wrapper around cudaGetErrorName.
@@ -322,6 +325,24 @@ static inline void offloadDeviceSynchronize(void) {
   OFFLOAD_CHECK(cudaDeviceSynchronize());
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipDeviceSynchronize());
+#endif
+}
+
+/*******************************************************************************
+ * \brief Wrapper around cudaDeviceSetLimit(cudaLimitMallocHeapSize,...).
+ ******************************************************************************/
+static inline void offloadEnsureMallocHeapSize(const size_t required_size) {
+  size_t current_size;
+#if defined(__OFFLOAD_CUDA)
+  OFFLOAD_CHECK(cudaDeviceGetLimit(&current_size, cudaLimitMallocHeapSize));
+  if (current_size < required_size) {
+    OFFLOAD_CHECK(cudaDeviceSetLimit(cudaLimitMallocHeapSize, required_size));
+  }
+#elif defined(__OFFLOAD_HIP)
+  OFFLOAD_CHECK(hipDeviceGetLimit(&current_size, hipLimitMallocHeapSize));
+  if (current_size < required_size) {
+    OFFLOAD_CHECK(hipDeviceSetLimit(hipLimitMallocHeapSize, required_size));
+  }
 #endif
 }
 

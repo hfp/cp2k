@@ -14,8 +14,11 @@
 ! **************************************************************************************************
 MODULE cell_methods
    USE cell_types,                      ONLY: &
-        cell_clone, cell_create, cell_release, cell_sym_none, cell_type, get_cell, init_cell, &
-        set_cell_param, use_perd_none, use_perd_x, use_perd_xy, use_perd_xyz, use_perd_xz, &
+        cell_clone, cell_release, cell_sym_cubic, cell_sym_hexagonal_gamma_120, &
+        cell_sym_hexagonal_gamma_60, cell_sym_monoclinic, cell_sym_monoclinic_gamma_ab, &
+        cell_sym_none, cell_sym_orthorhombic, cell_sym_rhombohedral, cell_sym_tetragonal_ab, &
+        cell_sym_tetragonal_ac, cell_sym_tetragonal_bc, cell_sym_triclinic, cell_type, get_cell, &
+        plane_distance, use_perd_none, use_perd_x, use_perd_xy, use_perd_xyz, use_perd_xz, &
         use_perd_y, use_perd_yz, use_perd_z
    USE cp_log_handling,                 ONLY: cp_get_default_logger,&
                                               cp_logger_type
@@ -44,8 +47,12 @@ MODULE cell_methods
    USE kinds,                           ONLY: default_path_length,&
                                               default_string_length,&
                                               dp
-   USE mathconstants,                   ONLY: degree
-   USE mathlib,                         ONLY: angle
+   USE machine,                         ONLY: default_output_unit
+   USE mathconstants,                   ONLY: degree,&
+                                              sqrt3
+   USE mathlib,                         ONLY: angle,&
+                                              det_3x3,&
+                                              inv_3x3
    USE message_passing,                 ONLY: mp_para_env_type
 #include "./base/base_uses.f90"
 
@@ -55,10 +62,198 @@ MODULE cell_methods
 
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'cell_methods'
 
-   ! Public subroutines
-   PUBLIC :: read_cell, read_cell_cif, write_cell
+   PUBLIC :: cell_create, &
+             init_cell, &
+             read_cell, &
+             read_cell_cif, &
+             set_cell_param, &
+             write_cell
 
 CONTAINS
+
+! **************************************************************************************************
+!> \brief allocates and initializes a cell
+!> \param cell the cell to initialize
+!> \param hmat the h matrix that defines the cell
+!> \param periodic periodicity of the cell
+!> \param tag ...
+!> \par History
+!>      09.2003 created [fawzi]
+!> \author Fawzi Mohamed
+! **************************************************************************************************
+   SUBROUTINE cell_create(cell, hmat, periodic, tag)
+
+      TYPE(cell_type), POINTER                           :: cell
+      REAL(KIND=dp), DIMENSION(3, 3), INTENT(IN), &
+         OPTIONAL                                        :: hmat
+      INTEGER, DIMENSION(3), INTENT(IN), OPTIONAL        :: periodic
+      CHARACTER(LEN=*), INTENT(IN), OPTIONAL             :: tag
+
+      CPASSERT(.NOT. ASSOCIATED(cell))
+      ALLOCATE (cell)
+      cell%ref_count = 1
+      IF (PRESENT(periodic)) THEN
+         cell%perd = periodic
+      ELSE
+         cell%perd = 1
+      END IF
+      cell%orthorhombic = .FALSE.
+      cell%symmetry_id = cell_sym_none
+      IF (PRESENT(hmat)) CALL init_cell(cell, hmat)
+      IF (PRESENT(tag)) cell%tag = tag
+
+   END SUBROUTINE cell_create
+
+! **************************************************************************************************
+!> \brief   Initialise/readjust a simulation cell after hmat has been changed
+!> \param cell ...
+!> \param hmat ...
+!> \param periodic ...
+!> \date    16.01.2002
+!> \author  Matthias Krack
+!> \version 1.0
+! **************************************************************************************************
+   SUBROUTINE init_cell(cell, hmat, periodic)
+
+      TYPE(cell_type), POINTER                           :: cell
+      REAL(KIND=dp), DIMENSION(3, 3), INTENT(IN), &
+         OPTIONAL                                        :: hmat
+      INTEGER, DIMENSION(3), INTENT(IN), OPTIONAL        :: periodic
+
+      REAL(KIND=dp), PARAMETER                           :: eps_hmat = 1.0E-14_dp
+
+      INTEGER                                            :: dim
+      REAL(KIND=dp)                                      :: a, acosa, acosah, acosg, alpha, asina, &
+                                                            asinah, asing, beta, gamma, norm, &
+                                                            norm_c
+      REAL(KIND=dp), DIMENSION(3)                        :: abc
+
+      CPASSERT(ASSOCIATED(cell))
+
+      IF (PRESENT(hmat)) cell%hmat(:, :) = hmat(:, :)
+      IF (PRESENT(periodic)) cell%perd(:) = periodic(:)
+
+      cell%deth = ABS(det_3x3(cell%hmat))
+
+      IF (cell%deth < 1.0E-10_dp) THEN
+         CALL write_cell_low(cell, "angstrom", default_output_unit)
+         CALL cp_abort(__LOCATION__, &
+                       "An invalid set of cell vectors was specified. "// &
+                       "The cell volume is too small")
+      END IF
+
+      SELECT CASE (cell%symmetry_id)
+      CASE (cell_sym_cubic, &
+            cell_sym_tetragonal_ab, &
+            cell_sym_tetragonal_ac, &
+            cell_sym_tetragonal_bc, &
+            cell_sym_orthorhombic)
+         CALL get_cell(cell=cell, abc=abc)
+         abc(2) = plane_distance(0, 1, 0, cell=cell)
+         abc(3) = plane_distance(0, 0, 1, cell=cell)
+         SELECT CASE (cell%symmetry_id)
+         CASE (cell_sym_cubic)
+            abc(1:3) = SUM(abc(1:3))/3.0_dp
+         CASE (cell_sym_tetragonal_ab, &
+               cell_sym_tetragonal_ac, &
+               cell_sym_tetragonal_bc)
+            SELECT CASE (cell%symmetry_id)
+            CASE (cell_sym_tetragonal_ab)
+               a = 0.5_dp*(abc(1) + abc(2))
+               abc(1) = a
+               abc(2) = a
+            CASE (cell_sym_tetragonal_ac)
+               a = 0.5_dp*(abc(1) + abc(3))
+               abc(1) = a
+               abc(3) = a
+            CASE (cell_sym_tetragonal_bc)
+               a = 0.5_dp*(abc(2) + abc(3))
+               abc(2) = a
+               abc(3) = a
+            END SELECT
+         END SELECT
+         cell%hmat(1, 1) = abc(1); cell%hmat(1, 2) = 0.0_dp; cell%hmat(1, 3) = 0.0_dp
+         cell%hmat(2, 1) = 0.0_dp; cell%hmat(2, 2) = abc(2); cell%hmat(2, 3) = 0.0_dp
+         cell%hmat(3, 1) = 0.0_dp; cell%hmat(3, 2) = 0.0_dp; cell%hmat(3, 3) = abc(3)
+      CASE (cell_sym_hexagonal_gamma_60, cell_sym_hexagonal_gamma_120)
+         CALL get_cell(cell=cell, abc=abc)
+         a = 0.5_dp*(abc(1) + abc(2))
+         acosg = 0.5_dp*a
+         asing = sqrt3*acosg
+         IF (cell%symmetry_id == cell_sym_hexagonal_gamma_120) acosg = -acosg
+         cell%hmat(1, 1) = a; cell%hmat(1, 2) = acosg; cell%hmat(1, 3) = 0.0_dp
+         cell%hmat(2, 1) = 0.0_dp; cell%hmat(2, 2) = asing; cell%hmat(2, 3) = 0.0_dp
+         cell%hmat(3, 1) = 0.0_dp; cell%hmat(3, 2) = 0.0_dp; cell%hmat(3, 3) = abc(3)
+      CASE (cell_sym_rhombohedral)
+         CALL get_cell(cell=cell, abc=abc)
+         a = SUM(abc(1:3))/3.0_dp
+         alpha = (angle(cell%hmat(:, 3), cell%hmat(:, 2)) + &
+                  angle(cell%hmat(:, 1), cell%hmat(:, 3)) + &
+                  angle(cell%hmat(:, 1), cell%hmat(:, 2)))/3.0_dp
+         acosa = a*COS(alpha)
+         asina = a*SIN(alpha)
+         acosah = a*COS(0.5_dp*alpha)
+         asinah = a*SIN(0.5_dp*alpha)
+         norm = acosa/acosah
+         norm_c = SQRT(1.0_dp - norm*norm)
+         cell%hmat(1, 1) = a; cell%hmat(1, 2) = acosa; cell%hmat(1, 3) = acosah*norm
+         cell%hmat(2, 1) = 0.0_dp; cell%hmat(2, 2) = asina; cell%hmat(2, 3) = asinah*norm
+         cell%hmat(3, 1) = 0.0_dp; cell%hmat(3, 2) = 0.0_dp; cell%hmat(3, 3) = a*norm_c
+      CASE (cell_sym_monoclinic)
+         CALL get_cell(cell=cell, abc=abc)
+         beta = angle(cell%hmat(:, 1), cell%hmat(:, 3))
+         cell%hmat(1, 1) = abc(1); cell%hmat(1, 2) = 0.0_dp; cell%hmat(1, 3) = abc(3)*COS(beta)
+         cell%hmat(2, 1) = 0.0_dp; cell%hmat(2, 2) = abc(2); cell%hmat(2, 3) = 0.0_dp
+         cell%hmat(3, 1) = 0.0_dp; cell%hmat(3, 2) = 0.0_dp; cell%hmat(3, 3) = abc(3)*SIN(beta)
+      CASE (cell_sym_monoclinic_gamma_ab)
+         ! Cell symmetry with a = b, alpha = beta = 90 degree and gammma not equal 90 degree
+         CALL get_cell(cell=cell, abc=abc)
+         a = 0.5_dp*(abc(1) + abc(2))
+         gamma = angle(cell%hmat(:, 1), cell%hmat(:, 2))
+         acosg = a*COS(gamma)
+         asing = a*SIN(gamma)
+         cell%hmat(1, 1) = a; cell%hmat(1, 2) = acosg; cell%hmat(1, 3) = 0.0_dp
+         cell%hmat(2, 1) = 0.0_dp; cell%hmat(2, 2) = asing; cell%hmat(2, 3) = 0.0_dp
+         cell%hmat(3, 1) = 0.0_dp; cell%hmat(3, 2) = 0.0_dp; cell%hmat(3, 3) = abc(3)
+      CASE (cell_sym_triclinic)
+         ! Nothing to do
+      END SELECT
+
+      ! Do we have an (almost) orthorhombic cell?
+      IF ((ABS(cell%hmat(1, 2)) < eps_hmat) .AND. (ABS(cell%hmat(1, 3)) < eps_hmat) .AND. &
+          (ABS(cell%hmat(2, 1)) < eps_hmat) .AND. (ABS(cell%hmat(2, 3)) < eps_hmat) .AND. &
+          (ABS(cell%hmat(3, 1)) < eps_hmat) .AND. (ABS(cell%hmat(3, 2)) < eps_hmat)) THEN
+         cell%orthorhombic = .TRUE.
+      ELSE
+         cell%orthorhombic = .FALSE.
+      END IF
+
+      ! Retain an exact orthorhombic cell
+      ! (off-diagonal elements must remain zero identically to keep QS fast)
+      IF (cell%orthorhombic) THEN
+         cell%hmat(1, 2) = 0.0_dp
+         cell%hmat(1, 3) = 0.0_dp
+         cell%hmat(2, 1) = 0.0_dp
+         cell%hmat(2, 3) = 0.0_dp
+         cell%hmat(3, 1) = 0.0_dp
+         cell%hmat(3, 2) = 0.0_dp
+      END IF
+
+      dim = COUNT(cell%perd == 1)
+      IF ((dim == 1) .AND. (.NOT. cell%orthorhombic)) THEN
+         CPABORT("Non-orthorhombic and not periodic")
+      END IF
+
+      ! Update deth and hmat_inv with enforced symmetry
+      cell%deth = ABS(det_3x3(cell%hmat))
+      IF (cell%deth < 1.0E-10_dp) THEN
+         CALL cp_abort(__LOCATION__, &
+                       "An invalid set of cell vectors was obtained after applying "// &
+                       "the requested cell symmetry. The cell volume is too small")
+      END IF
+      cell%h_inv = inv_3x3(cell%hmat)
+
+   END SUBROUTINE init_cell
 
 ! **************************************************************************************************
 !> \brief ...
@@ -74,6 +269,7 @@ CONTAINS
 ! **************************************************************************************************
    RECURSIVE SUBROUTINE read_cell(cell, cell_ref, use_ref_cell, cell_section, &
                                   check_for_ref, para_env)
+
       TYPE(cell_type), POINTER                           :: cell, cell_ref
       LOGICAL, INTENT(OUT), OPTIONAL                     :: use_ref_cell
       TYPE(section_vals_type), OPTIONAL, POINTER         :: cell_section
@@ -90,8 +286,8 @@ CONTAINS
 
       my_check = .TRUE.
       NULLIFY (cell_ref_section, cell_par, multiple_unit_cell)
-      IF (.NOT. ASSOCIATED(cell)) CALL cell_create(cell)
-      IF (.NOT. ASSOCIATED(cell_ref)) CALL cell_create(cell_ref)
+      IF (.NOT. ASSOCIATED(cell)) CALL cell_create(cell, tag="CELL")
+      IF (.NOT. ASSOCIATED(cell_ref)) CALL cell_create(cell_ref, tag="CELL_REF")
       IF (PRESENT(check_for_ref)) my_check = check_for_ref
 
       cell%deth = 0.0_dp
@@ -179,14 +375,13 @@ CONTAINS
       CALL init_cell(cell)
 
       IF (.NOT. my_check) RETURN
-      cell_ref_section => section_vals_get_subs_vals(cell_section, &
-                                                     "CELL_REF")
+      cell_ref_section => section_vals_get_subs_vals(cell_section, "CELL_REF")
       IF (parsed_cp2k_input(cell_ref_section, check_this_section=.TRUE.)) THEN
          IF (PRESENT(use_ref_cell)) use_ref_cell = .TRUE.
          CALL read_cell(cell_ref, cell_ref, use_ref_cell, cell_section=cell_ref_section, &
                         check_for_ref=.FALSE., para_env=para_env)
       ELSE
-         CALL cell_clone(cell, cell_ref)
+         CALL cell_clone(cell, cell_ref, tag="CELL_REF")
          IF (PRESENT(use_ref_cell)) use_ref_cell = .FALSE.
       END IF
 
@@ -201,6 +396,7 @@ CONTAINS
 !> \author fawzi
 ! **************************************************************************************************
    FUNCTION parsed_cp2k_input(input_file, check_this_section) RESULT(res)
+
       TYPE(section_vals_type), POINTER                   :: input_file
       LOGICAL, INTENT(IN), OPTIONAL                      :: check_this_section
       LOGICAL                                            :: res
@@ -220,7 +416,63 @@ CONTAINS
             CALL section_vals_get(input_file, explicit=res)
          END IF
       END IF
+
    END FUNCTION parsed_cp2k_input
+
+! **************************************************************************************************
+!> \brief   Sets the cell using the internal parameters (a,b,c) (alpha,beta,gamma)
+!>          using the convention: a parallel to the x axis, b in the x-y plane and
+!>          and c univoquely determined; gamma is the angle between a and b; beta
+!>          is the angle between c and a and alpha is the angle between c and b
+!> \param cell ...
+!> \param cell_length ...
+!> \param cell_angle ...
+!> \param periodic ...
+!> \param do_init_cell ...
+!> \date    03.2008
+!> \author  Teodoro Laino
+! **************************************************************************************************
+   SUBROUTINE set_cell_param(cell, cell_length, cell_angle, periodic, do_init_cell)
+
+      TYPE(cell_type), POINTER                           :: cell
+      REAL(KIND=dp), DIMENSION(3), INTENT(IN)            :: cell_length, cell_angle
+      INTEGER, DIMENSION(3), INTENT(IN), OPTIONAL        :: periodic
+      LOGICAL, INTENT(IN)                                :: do_init_cell
+
+      REAL(KIND=dp), PARAMETER                           :: eps = EPSILON(0.0_dp)
+
+      REAL(KIND=dp)                                      :: cos_alpha, cos_beta, cos_gamma, sin_gamma
+
+      CPASSERT(ASSOCIATED(cell))
+      CPASSERT(ALL(cell_angle /= 0.0_dp))
+
+      cos_gamma = COS(cell_angle(3)); IF (ABS(cos_gamma) < eps) cos_gamma = 0.0_dp
+      IF (ABS(ABS(cos_gamma) - 1.0_dp) < eps) cos_gamma = SIGN(1.0_dp, cos_gamma)
+      sin_gamma = SIN(cell_angle(3)); IF (ABS(sin_gamma) < eps) sin_gamma = 0.0_dp
+      IF (ABS(ABS(sin_gamma) - 1.0_dp) < eps) sin_gamma = SIGN(1.0_dp, sin_gamma)
+      cos_beta = COS(cell_angle(2)); IF (ABS(cos_beta) < eps) cos_beta = 0.0_dp
+      IF (ABS(ABS(cos_beta) - 1.0_dp) < eps) cos_beta = SIGN(1.0_dp, cos_beta)
+      cos_alpha = COS(cell_angle(1)); IF (ABS(cos_alpha) < eps) cos_alpha = 0.0_dp
+      IF (ABS(ABS(cos_alpha) - 1.0_dp) < eps) cos_alpha = SIGN(1.0_dp, cos_alpha)
+
+      cell%hmat(:, 1) = (/1.0_dp, 0.0_dp, 0.0_dp/)
+      cell%hmat(:, 2) = (/cos_gamma, sin_gamma, 0.0_dp/)
+      cell%hmat(:, 3) = (/cos_beta, (cos_alpha - cos_gamma*cos_beta)/sin_gamma, 0.0_dp/)
+      cell%hmat(3, 3) = SQRT(1.0_dp - cell%hmat(1, 3)**2 - cell%hmat(2, 3)**2)
+
+      cell%hmat(:, 1) = cell%hmat(:, 1)*cell_length(1)
+      cell%hmat(:, 2) = cell%hmat(:, 2)*cell_length(2)
+      cell%hmat(:, 3) = cell%hmat(:, 3)*cell_length(3)
+
+      IF (do_init_cell) THEN
+         IF (PRESENT(periodic)) THEN
+            CALL init_cell(cell=cell, periodic=periodic)
+         ELSE
+            CALL init_cell(cell=cell)
+         END IF
+      END IF
+
+   END SUBROUTINE set_cell_param
 
 ! **************************************************************************************************
 !> \brief   Setup of the multiple unit_cell
@@ -235,14 +487,15 @@ CONTAINS
       TYPE(cell_type), POINTER                           :: cell
       INTEGER, DIMENSION(:), POINTER                     :: multiple_unit_cell
 
-! Fail is one of the value is set to zero..
+      CPASSERT(ASSOCIATED(cell))
 
+      ! Abort, if one of the value is set to zero
       IF (ANY(multiple_unit_cell <= 0)) &
          CALL cp_abort(__LOCATION__, &
                        "CELL%MULTIPLE_UNIT_CELL accepts only integer values larger than 0! "// &
                        "A value of 0 or negative is meaningless!")
 
-      ! scale abc accordingly user request
+      ! Scale abc according to user request
       cell%hmat(:, 1) = cell%hmat(:, 1)*multiple_unit_cell(1)
       cell%hmat(:, 2) = cell%hmat(:, 2)*multiple_unit_cell(2)
       cell%hmat(:, 3) = cell%hmat(:, 3)*multiple_unit_cell(3)
@@ -359,6 +612,7 @@ CONTAINS
 !>         moved from topology_cif (1/2019 JHU)
 ! **************************************************************************************************
    SUBROUTINE read_cell_cif(cif_file_name, cell, para_env)
+
       CHARACTER(len=*)                                   :: cif_file_name
       TYPE(cell_type), POINTER                           :: cell
       TYPE(mp_para_env_type), POINTER                    :: para_env
@@ -445,6 +699,7 @@ CONTAINS
 !> \author Teodoro Laino [tlaino]
 ! **************************************************************************************************
    SUBROUTINE cif_get_real(parser, r)
+
       TYPE(cp_parser_type), INTENT(INOUT)                :: parser
       REAL(KIND=dp), INTENT(OUT)                         :: r
 
@@ -455,52 +710,85 @@ CONTAINS
       iln = LEN_TRIM(s_tag)
       IF (INDEX(s_tag, "(") /= 0) iln = INDEX(s_tag, "(") - 1
       READ (s_tag(1:iln), *) r
+
    END SUBROUTINE cif_get_real
 
 ! **************************************************************************************************
 !> \brief   Write the cell parameters to the output unit.
 !> \param cell ...
 !> \param subsys_section ...
-!> \param cell_ref ...
-!> \param label ...
+!> \param tag ...
 !> \date    02.06.2000
 !> \par     History
 !>    - 11.2008 Teodoro Laino [tlaino] - rewrite and enabling user driven units
 !> \author  Matthias Krack
 !> \version 1.0
 ! **************************************************************************************************
-   RECURSIVE SUBROUTINE write_cell(cell, subsys_section, cell_ref, label)
+   SUBROUTINE write_cell(cell, subsys_section, tag)
 
       TYPE(cell_type), POINTER                           :: cell
       TYPE(section_vals_type), POINTER                   :: subsys_section
-      TYPE(cell_type), OPTIONAL, POINTER                 :: cell_ref
+      CHARACTER(LEN=*), INTENT(IN), OPTIONAL             :: tag
+
+      CHARACTER(LEN=default_string_length)               :: label, unit_str
+      INTEGER                                            :: output_unit
+      TYPE(cp_logger_type), POINTER                      :: logger
+
+      NULLIFY (logger)
+      logger => cp_get_default_logger()
+      IF (PRESENT(tag)) THEN
+         label = TRIM(tag)//"|"
+      ELSE
+         label = TRIM(cell%tag)//"|"
+      END IF
+
+      output_unit = cp_print_key_unit_nr(logger, subsys_section, "PRINT%CELL", extension=".Log")
+      CALL section_vals_val_get(subsys_section, "PRINT%CELL%UNIT", c_val=unit_str)
+      CALL write_cell_low(cell, unit_str, output_unit, label)
+      CALL cp_print_key_finished_output(output_unit, logger, subsys_section, "PRINT%CELL")
+
+   END SUBROUTINE write_cell
+
+! **************************************************************************************************
+!> \brief  Write the cell parameters to the output unit
+!> \param cell ...
+!> \param unit_str ...
+!> \param output_unit ...
+!> \param label ...
+!> \date  17.05.2023
+!> \par   History
+!>        - Extracted from write_cell (17.05.2023, MK)
+!> \version 1.0
+! **************************************************************************************************
+   SUBROUTINE write_cell_low(cell, unit_str, output_unit, label)
+
+      TYPE(cell_type), POINTER                           :: cell
+      CHARACTER(LEN=*), INTENT(IN)                       :: unit_str
+      INTEGER, INTENT(IN)                                :: output_unit
       CHARACTER(LEN=*), INTENT(IN), OPTIONAL             :: label
 
+      CHARACTER(LEN=12)                                  :: tag
       CHARACTER(LEN=3)                                   :: string
-      CHARACTER(LEN=default_string_length)               :: my_label, unit_str
-      INTEGER                                            :: output_unit
+      CHARACTER(LEN=default_string_length)               :: my_label
       REAL(KIND=dp)                                      :: alpha, beta, gamma, val
       REAL(KIND=dp), DIMENSION(3)                        :: abc
-      TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(enumeration_type), POINTER                    :: enum
       TYPE(keyword_type), POINTER                        :: keyword
       TYPE(section_type), POINTER                        :: section
 
       NULLIFY (enum)
       NULLIFY (keyword)
-      NULLIFY (logger)
       NULLIFY (section)
-      logger => cp_get_default_logger()
-      my_label = "CELL|"
-      IF (PRESENT(label)) my_label = TRIM(label)
-      output_unit = cp_print_key_unit_nr(logger, subsys_section, "PRINT%CELL", &
-                                         extension=".Log")
-      CALL section_vals_val_get(subsys_section, "PRINT%CELL%UNIT", c_val=unit_str)
+
       IF (output_unit > 0) THEN
-         CALL get_cell(cell=cell, abc=abc, alpha=alpha, beta=beta, gamma=gamma)
-         WRITE (UNIT=output_unit, FMT='( )')
+         CALL get_cell(cell=cell, abc=abc, alpha=alpha, beta=beta, gamma=gamma, tag=tag)
+         IF (PRESENT(label)) THEN
+            my_label = label
+         ELSE
+            my_label = TRIM(tag)//"|"
+         END IF
          val = cp_unit_from_cp2k(cell%deth, TRIM(unit_str)//"^3")
-         WRITE (UNIT=output_unit, FMT="(T2,A,T61,F20.6)") &
+         WRITE (UNIT=output_unit, FMT="(/,T2,A,T61,F20.6)") &
             TRIM(my_label)//" Volume ["//TRIM(unit_str)//"^3]:", val
          val = cp_unit_from_cp2k(1.0_dp, TRIM(unit_str))
          WRITE (UNIT=output_unit, FMT="(T2,A,T30,3F10.3,3X,A6,F12.6)") &
@@ -542,13 +830,7 @@ CONTAINS
                TRIM(my_label)//" Periodicity", ADJUSTR(string)
          END IF
       END IF
-      CALL cp_print_key_finished_output(output_unit, logger, subsys_section, &
-                                        "PRINT%CELL")
 
-      IF (PRESENT(cell_ref)) THEN
-         CALL write_cell(cell_ref, subsys_section, label="CELL_REF|")
-      END IF
-
-   END SUBROUTINE write_cell
+   END SUBROUTINE write_cell_low
 
 END MODULE cell_methods

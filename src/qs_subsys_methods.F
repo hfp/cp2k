@@ -15,10 +15,10 @@ MODULE qs_subsys_methods
                                               get_atomic_kind
    USE basis_set_types,                 ONLY: get_gto_basis_set,&
                                               gto_basis_set_type
-   USE cell_methods,                    ONLY: read_cell,&
+   USE cell_methods,                    ONLY: cell_create,&
+                                              read_cell,&
                                               write_cell
    USE cell_types,                      ONLY: cell_clone,&
-                                              cell_create,&
                                               cell_release,&
                                               cell_type
    USE cp_subsys_methods,               ONLY: cp_subsys_create
@@ -109,7 +109,7 @@ CONTAINS
             use_ref_cell = .TRUE.
          ELSE
             CALL cell_create(my_cell_ref)
-            CALL cell_clone(my_cell, my_cell_ref)
+            CALL cell_clone(my_cell, my_cell_ref, tag="CELL_REF")
             use_ref_cell = .FALSE.
          END IF
       ELSE
@@ -118,7 +118,8 @@ CONTAINS
                         cell_section=cell_section, para_env=para_env)
       END IF
       CALL cp_subsys_set(my_cp_subsys, cell=my_cell)
-      CALL write_cell(my_cell, subsys_section, cell_ref=my_cell_ref)
+      CALL write_cell(my_cell, subsys_section)
+      CALL write_cell(my_cell_ref, subsys_section)
 
       ! setup qs_kinds
       CALL cp_subsys_get(my_cp_subsys, atomic_kind_set=atomic_kind_set)

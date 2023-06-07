@@ -11,10 +11,10 @@
 
 MODULE cp_eri_mme_interface
    USE basis_set_types,                 ONLY: gto_basis_set_type
-   USE cell_types,                      ONLY: cell_create,&
-                                              cell_release,&
+   USE cell_methods,                    ONLY: cell_create,&
+                                              init_cell
+   USE cell_types,                      ONLY: cell_release,&
                                               cell_type,&
-                                              init_cell,&
                                               pbc
    USE cp_log_handling,                 ONLY: cp_get_default_logger,&
                                               cp_logger_type
@@ -343,7 +343,7 @@ CONTAINS
    SUBROUTINE eri_mme_set_params_from_basis(param, cell, qs_kind_set, basis_type_1, basis_type_2, para_env, &
                                             potential, pot_par)
       TYPE(cp_eri_mme_param), INTENT(INOUT)              :: param
-      TYPE(cell_type), INTENT(IN)                        :: cell
+      TYPE(cell_type), POINTER                           :: cell
       TYPE(qs_kind_type), DIMENSION(:), INTENT(IN), &
          POINTER                                         :: qs_kind_set
       CHARACTER(len=*), INTENT(IN)                       :: basis_type_1

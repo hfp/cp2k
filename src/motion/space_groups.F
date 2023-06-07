@@ -15,10 +15,10 @@ MODULE space_groups
    USE atomic_kind_types,               ONLY: get_atomic_kind
    USE bibliography,                    ONLY: Togo2018,&
                                               cite_reference
+   USE cell_methods,                    ONLY: cell_create,&
+                                              init_cell
    USE cell_types,                      ONLY: cell_copy,&
-                                              cell_create,&
                                               cell_type,&
-                                              init_cell,&
                                               real_to_scaled,&
                                               scaled_to_real
    USE cp_subsys_types,                 ONLY: cp_subsys_get,&
@@ -197,7 +197,7 @@ CONTAINS
       !..set cell values
       NULLIFY (spgr%cell_ref)
       CALL cell_create(spgr%cell_ref)
-      CALL cell_copy(cell, spgr%cell_ref)
+      CALL cell_copy(cell, spgr%cell_ref, tag="CELL_OPT_REF")
       SELECT CASE (gopt_env%type_id)
       CASE (default_minimization_method_id, default_ts_method_id)
          CALL init_cell(spgr%cell_ref, hmat=cell%hmat)

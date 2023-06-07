@@ -16,8 +16,8 @@
 !> \author Matthew J. McGrath  (01.25.2004)
 ! **************************************************************************************************
 MODULE mc_ge_moves
+   USE cell_methods,                    ONLY: cell_create
    USE cell_types,                      ONLY: cell_clone,&
-                                              cell_create,&
                                               cell_p_type,&
                                               cell_release,&
                                               cell_type,&
@@ -1219,7 +1219,7 @@ CONTAINS
          CALL get_cell(cell(ibox)%cell, abc=abc(:, ibox))
          NULLIFY (cell_old(ibox)%cell)
          CALL cell_create(cell_old(ibox)%cell)
-         CALL cell_clone(cell(ibox)%cell, cell_old(ibox)%cell)
+         CALL cell_clone(cell(ibox)%cell, cell_old(ibox)%cell, tag="CELL_OLD")
          CALL cp_subsys_get(oldsys(ibox)%subsys, &
                             particles=particles_old(ibox)%list)
 
