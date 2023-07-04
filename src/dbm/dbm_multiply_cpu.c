@@ -15,6 +15,9 @@
 //#define DBM_LIBXSMM_PREFETCH LIBXSMM_GEMM_PREFETCH_AL2_AHEAD
 #define DBM_LIBXSMM_PREFETCH LIBXSMM_GEMM_PREFETCH_NONE
 #endif
+#if 2 > LIBXSMM_VERSION_MAJOR
+#define libxsmm_dispatch_gemm libxsmm_dispatch_gemm_v2
+#endif
 #endif
 
 #include "dbm_hyperparams.h"
@@ -121,11 +124,10 @@ void dbm_multiply_cpu_process_batch(const int ntasks, dbm_task_t batch[ntasks],
           task.m /*ldc*/, LIBXSMM_DATATYPE_F64 /*aprec*/,
           LIBXSMM_DATATYPE_F64 /*bprec*/, LIBXSMM_DATATYPE_F64 /*cprec*/,
           LIBXSMM_DATATYPE_F64 /*calcp*/);
-      kernel_func =
-          (LIBXSMM_FEQ(1.0, alpha)
-               ? libxsmm_dispatch_gemm_v2(shape, (libxsmm_bitfield)flags,
-                                          (libxsmm_bitfield)prefetch)
-               : NULL);
+      kernel_func = (LIBXSMM_FEQ(1.0, alpha)
+                         ? libxsmm_dispatch_gemm(shape, (libxsmm_bitfield)flags,
+                                                 (libxsmm_bitfield)prefetch)
+                         : NULL);
 #else
       kernel_func = libxsmm_dmmdispatch(task.m, task.n, task.k, NULL /*lda*/,
                                         NULL /*ldb*/, NULL /*ldc*/, &alpha,
