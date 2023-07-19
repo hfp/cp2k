@@ -97,6 +97,7 @@ QS/regtest-pao-2
 QS/regtest-tddfpt-2                                         libint
 QS/regtest-tddfpt-3                                         libint
 QS/regtest-tddfpt-4                                         libint
+QS/regtest-tddfpt-soc                                       libint
 QS/regtest-stda                                             libint
 QS/regtest-p-efield
 QS/regtest-mp2-stress                                       libint
@@ -334,6 +335,7 @@ Fist/regtest-field
 Fist/regtest-gauss
 QS/regtest-fftw                                             fftw3
 QS/regtest-elpa                                             elpa mpiranks==1||mpiranks%2==0
+QS/regtest-cusolver                                         cusolvermp
 ATOM/regtest-libxc                                          libxc
 Fist/regtest-spgr                                           spglib
 Fist/regtest-plumed2                                        plumed2
