@@ -32,6 +32,9 @@ def main() -> None:
         f.write(toolchain_full(mpi_mode="openmpi", with_gcc="install"))
         f.write(regtest("psmp"))
 
+    with OutputFile(f"Dockerfile.test_fedora-psmp", args.check) as f:
+        f.write(toolchain_full(base_image="fedora:33") + regtest("psmp"))
+
     with OutputFile(f"Dockerfile.test_intel-psmp", args.check) as f:
         f.write(toolchain_intel() + regtest("psmp", intel=True))
 
@@ -227,9 +230,8 @@ def manual() -> str:
         install_cp2k(version="psmp", arch="local", revision=True)
         + rf"""
 # Generate manual.
-COPY ./tools/manual ./tools/manual
-COPY ./tools/input_editing ./tools/input_editing
 COPY ./docs ./docs
+COPY ./tools/input_editing ./tools/input_editing
 COPY ./tools/docker/scripts/test_manual.sh .
 ARG ADD_EDIT_LINKS=yes
 RUN ./test_manual.sh "${{ADD_EDIT_LINKS}}" 2>&1 | tee report.log
