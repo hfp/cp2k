@@ -3,7 +3,7 @@
 # Usage: docker build -f ./Dockerfile.prod_intel_psmp ../../
 #
 
-FROM intel/oneapi-hpckit:2023.0.0-devel-ubuntu22.04
+FROM intel/oneapi-hpckit:2023.2.1-devel-ubuntu22.04
 
 # Install requirements for the toolchain.
 WORKDIR /opt/cp2k-toolchain
@@ -90,7 +90,7 @@ COPY ./tools/regtesting ./tools/regtesting
 ARG TESTOPTS
 RUN /bin/bash -c " \
     source /opt/cp2k-toolchain/install/setup && \
-    ./tools/regtesting/do_regtest.py 'Linux-intel-x86_64' 'psmp' --skipdir=UNIT/libcp2k_unittest "${TESTOPTS}" |& tee regtests.log && \
+    ./tools/regtesting/do_regtest.py 'Linux-intel-x86_64' 'psmp' --skipdir=UNIT/libcp2k_unittest '${TESTOPTS}' |& tee regtests.log && \
     rm -rf regtesting"
 
 # Setup entry point for production.

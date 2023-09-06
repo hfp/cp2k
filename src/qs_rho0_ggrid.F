@@ -31,6 +31,7 @@ MODULE qs_rho0_ggrid
    USE pw_methods,                      ONLY: pw_axpy,&
                                               pw_copy,&
                                               pw_integrate_function,&
+                                              pw_scale,&
                                               pw_transfer,&
                                               pw_zero
    USE pw_pool_types,                   ONLY: pw_pool_create_pw,&
@@ -300,8 +301,7 @@ CONTAINS
          ALLOCATE (rho0_mpole%rho0_s_gs)
       END IF
       CALL pw_pool_create_pw(auxbas_pw_pool, rho0_mpole%rho0_s_gs, &
-                             use_data=COMPLEXDATA1D)
-      rho0_mpole%rho0_s_gs%in_space = RECIPROCALSPACE
+                             use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
 
       ! Find the grid level suitable for rho0_soft
       rho0_mpole%igrid_zet0_s = gaussian_gridlevel(pw_env%gridlevel_info, 2.0_dp*rho0_mpole%zet0_h)
@@ -319,9 +319,10 @@ CONTAINS
 !> \param local_rho_set ...
 !> \param local_rho_set_2nd ...
 !> \param atener ...
+!> \param kforce ...
 ! **************************************************************************************************
    SUBROUTINE integrate_vhg0_rspace(qs_env, v_rspace, para_env, calculate_forces, local_rho_set, &
-                                    local_rho_set_2nd, atener)
+                                    local_rho_set_2nd, atener, kforce)
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(pw_type), INTENT(IN)                          :: v_rspace
@@ -329,6 +330,7 @@ CONTAINS
       LOGICAL, INTENT(IN)                                :: calculate_forces
       TYPE(local_rho_type), OPTIONAL, POINTER            :: local_rho_set, local_rho_set_2nd
       REAL(KIND=dp), DIMENSION(:), OPTIONAL              :: atener
+      REAL(KIND=dp), INTENT(IN), OPTIONAL                :: kforce
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'integrate_vhg0_rspace'
 
@@ -340,8 +342,8 @@ CONTAINS
       INTEGER, ALLOCATABLE, DIMENSION(:, :, :)           :: cg_list
       INTEGER, DIMENSION(:), POINTER                     :: atom_list, lmax, lmin, npgf
       LOGICAL                                            :: grid_distributed, paw_atom, use_virial
-      REAL(KIND=dp)                                      :: eps_rho_rspace, force_tmp(3), ra(3), &
-                                                            rpgf0, scale, zet0
+      REAL(KIND=dp)                                      :: eps_rho_rspace, force_tmp(3), fscale, &
+                                                            ra(3), rpgf0, zet0
       REAL(KIND=dp), DIMENSION(3, 3)                     :: my_virial_a, my_virial_b
       REAL(KIND=dp), DIMENSION(:), POINTER               :: hab_sph, norm_l, Qlm
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: hab, hdab_sph, intloc, pab
@@ -455,8 +457,8 @@ CONTAINS
          CALL pw_pool_give_back_pw(pw_aux, coeff_gaux)
          CALL pw_pool_create_pw(pw_aux, coeff_raux, use_data=REALDATA3D, &
                                 in_space=REALSPACE)
-         scale = coeff_rspace%pw_grid%dvol/coeff_raux%pw_grid%dvol
-         coeff_rspace%cr3d = scale*coeff_rspace%cr3d
+         fscale = coeff_rspace%pw_grid%dvol/coeff_raux%pw_grid%dvol
+         CALL pw_scale(coeff_rspace, fscale)
          CALL pw_pool_give_back_pw(pw_aux, coeff_raux)
       ELSE
 
@@ -495,6 +497,11 @@ CONTAINS
       ncurr = -1
 
       grid_distributed = rs_v%desc%distributed
+
+      fscale = 1.0_dp
+      IF (PRESENT(kforce)) THEN
+         fscale = kforce
+      END IF
 
       DO ikind = 1, SIZE(atomic_kind_set, 1)
          NULLIFY (basis_1c_set, atom_list, harmonics)
@@ -655,7 +662,7 @@ CONTAINS
                      force_tmp(2) = force_tmp(2) + Qlm(iso)*hdab_sph(2, iso)
                      force_tmp(3) = force_tmp(3) + Qlm(iso)*hdab_sph(3, iso)
                   END DO
-                  force(ikind)%g0s_Vh_elec(1:3, iat) = force(ikind)%g0s_Vh_elec(1:3, iat) + force_tmp(1:3)
+                  force(ikind)%g0s_Vh_elec(1:3, iat) = force(ikind)%g0s_Vh_elec(1:3, iat) + fscale*force_tmp(1:3)
                END IF
                IF (use_virial) THEN
                   my_virial_a = 0.0_dp
@@ -663,8 +670,8 @@ CONTAINS
                      DO ii = 1, 3
                      DO i = 1, 3
                         ! Q from local_rho_set
-                        virial%pv_gapw(i, ii) = virial%pv_gapw(i, ii) + Qlm(iso)*a_hdab_sph(i, ii, iso)
-                        virial%pv_virial(i, ii) = virial%pv_virial(i, ii) + Qlm(iso)*a_hdab_sph(i, ii, iso)
+                        virial%pv_gapw(i, ii) = virial%pv_gapw(i, ii) + fscale*Qlm(iso)*a_hdab_sph(i, ii, iso)
+                        virial%pv_virial(i, ii) = virial%pv_virial(i, ii) + fscale*Qlm(iso)*a_hdab_sph(i, ii, iso)
                      END DO
                      END DO
                   END DO

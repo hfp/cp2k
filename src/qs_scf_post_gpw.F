@@ -126,7 +126,6 @@ MODULE qs_scf_post_gpw
                                               REALSPACE,&
                                               RECIPROCALSPACE,&
                                               pw_type
-   USE qs_active_space_methods,         ONLY: active_space_main
    USE qs_chargemol,                    ONLY: write_wfx
    USE qs_collocate_density,            ONLY: calculate_wavefunction
    USE qs_commutators,                  ONLY: build_com_hr_matrix
@@ -822,9 +821,6 @@ CONTAINS
       ! Use Wannier90 interface
       CALL wannier90_interface(input, logger, qs_env)
 
-      ! Do active space calculation
-      CALL active_space_main(input, logger, qs_env)
-
       IF (my_do_mp2) THEN
          ! Get everything back
          DO ispin = 1, dft_control%nspins
@@ -1021,8 +1017,7 @@ CONTAINS
       TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(cp_fm_type), INTENT(IN)                       :: mo_coeff
-      TYPE(pw_type), INTENT(IN)                          :: wf_g
-      TYPE(pw_type), INTENT(INOUT)                       :: wf_r
+      TYPE(pw_type), INTENT(INOUT)                       :: wf_g, wf_r
       TYPE(particle_list_type), POINTER                  :: particles
       INTEGER, INTENT(IN)                                :: homo, ispin
 
@@ -1120,13 +1115,13 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE qs_scf_post_unocc_cubes(input, dft_section, dft_control, logger, qs_env, &
                                       unoccupied_orbs, wf_g, wf_r, particles, nlumos, homo, ispin, lumo)
+
       TYPE(section_vals_type), POINTER                   :: input, dft_section
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(cp_fm_type), INTENT(IN)                       :: unoccupied_orbs
-      TYPE(pw_type), INTENT(IN)                          :: wf_g
-      TYPE(pw_type), INTENT(INOUT)                       :: wf_r
+      TYPE(pw_type), INTENT(INOUT)                       :: wf_g, wf_r
       TYPE(particle_list_type), POINTER                  :: particles
       INTEGER, INTENT(IN)                                :: nlumos, homo, ispin
       INTEGER, INTENT(IN), OPTIONAL                      :: lumo

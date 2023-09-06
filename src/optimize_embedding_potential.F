@@ -1027,7 +1027,7 @@ CONTAINS
       CALL pw_scale(v_resp_rspace, normalize_factor)
 
       ! Hard copy potential
-      v_rspace%cr3d(:, :, :) = v_resp_rspace%cr3d(:, :, :)
+      CALL pw_copy(v_resp_rspace, v_rspace)
 
       ! Release plane waves
       CALL pw_release(v_resp_gspace)
@@ -1079,7 +1079,7 @@ CONTAINS
                              in_space=REALSPACE)
 
       ! Hard copy the grid
-      embed_pot_subsys%cr3d(:, :, :) = embed_pot%cr3d(:, :, :)
+      CALL pw_copy(embed_pot, embed_pot_subsys)
 
       IF (open_shell_embed) THEN
          NULLIFY (spin_embed_pot_subsys)
@@ -1089,9 +1089,9 @@ CONTAINS
                                 in_space=REALSPACE)
          ! Hard copy the grid
          IF (change_spin_sign) THEN
-            spin_embed_pot_subsys%cr3d(:, :, :) = -spin_embed_pot%cr3d(:, :, :)
+            CALL pw_axpy(spin_embed_pot, spin_embed_pot_subsys, -1.0_dp, 0.0_dp, allow_noncompatible_grids=.TRUE.)
          ELSE
-            spin_embed_pot_subsys%cr3d(:, :, :) = spin_embed_pot%cr3d(:, :, :)
+            CALL pw_copy(spin_embed_pot, spin_embed_pot_subsys)
          END IF
       END IF
 
@@ -1395,7 +1395,8 @@ CONTAINS
 !> \param reg_term ...
 ! **************************************************************************************************
    SUBROUTINE grid_regularize(potential, pw_env, lambda, reg_term)
-      TYPE(pw_type), INTENT(IN)                          :: potential
+
+      TYPE(pw_type), INTENT(INOUT)                       :: potential
       TYPE(pw_env_type), POINTER                         :: pw_env
       REAL(KIND=dp)                                      :: lambda, reg_term
 
@@ -1470,9 +1471,9 @@ CONTAINS
 
       lb(1:3) = square_norm_dpot%pw_grid%bounds_local(1, 1:3)
       ub(1:3) = square_norm_dpot%pw_grid%bounds_local(2, 1:3)
-!$OMP    PARALLEL DO DEFAULT(NONE) &
-!$OMP                PRIVATE(i,j,k) &
-!$OMP                SHARED(dpot,lb,square_norm_dpot,ub)
+!$OMP PARALLEL DO DEFAULT(NONE) &
+!$OMP             PRIVATE(i,j,k) &
+!$OMP             SHARED(dpot, lb, square_norm_dpot, ub)
       DO k = lb(3), ub(3)
          DO j = lb(2), ub(2)
             DO i = lb(1), ub(1)
@@ -1485,7 +1486,7 @@ CONTAINS
             END DO
          END DO
       END DO
-!$OMP    END PARALLEL DO
+!$OMP END PARALLEL DO
 
       reg_term = 2*lambda*pw_integrate_function(fun=square_norm_dpot)
 
@@ -1514,7 +1515,8 @@ CONTAINS
 !> \author Vladimir Rybkin
 ! **************************************************************************************************
    SUBROUTINE opt_embed_step(diff_rho_r, diff_rho_spin, opt_embed, embed_pot, spin_embed_pot, rho_r_ref, qs_env)
-      TYPE(pw_type), INTENT(IN)                          :: diff_rho_r, diff_rho_spin
+
+      TYPE(pw_type), INTENT(INOUT)                       :: diff_rho_r, diff_rho_spin
       TYPE(opt_embed_pot_type)                           :: opt_embed
       TYPE(pw_type), INTENT(INOUT)                       :: embed_pot
       TYPE(pw_type), INTENT(IN), POINTER                 :: spin_embed_pot
@@ -1705,11 +1707,12 @@ CONTAINS
 !> \param spin_embed_pot ...
 ! **************************************************************************************************
    SUBROUTINE grid_based_step(diff_rho_r, diff_rho_spin, pw_env, opt_embed, embed_pot, spin_embed_pot)
-      TYPE(pw_type), INTENT(IN)                          :: diff_rho_r, diff_rho_spin
+
+      TYPE(pw_type), INTENT(INOUT)                       :: diff_rho_r, diff_rho_spin
       TYPE(pw_env_type), POINTER                         :: pw_env
       TYPE(opt_embed_pot_type)                           :: opt_embed
-      TYPE(pw_type), INTENT(IN)                          :: embed_pot
-      TYPE(pw_type), INTENT(IN), POINTER                 :: spin_embed_pot
+      TYPE(pw_type), INTENT(INOUT)                       :: embed_pot
+      TYPE(pw_type), POINTER                             :: spin_embed_pot
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'grid_based_step'
 
@@ -3532,8 +3535,8 @@ CONTAINS
       i_dens_start = SUM(opt_embed%all_nspins(1:subsys_num)) - nspins + 1
 
       DO i_spin = 1, nspins
-         opt_embed%prev_subsys_dens(i_dens_start + i_spin - 1)%cr3d(:, :, :) = &
-            rho_r(i_spin)%cr3d(:, :, :) - opt_embed%prev_subsys_dens(i_dens_start + i_spin - 1)%cr3d(:, :, :)
+         CALL pw_axpy(rho_r(i_spin), opt_embed%prev_subsys_dens(i_dens_start + i_spin - 1), 1.0_dp, -1.0_dp, &
+                      allow_noncompatible_grids=.TRUE.)
          opt_embed%max_subsys_dens_diff(i_dens_start + i_spin - 1) = &
             max_dens_diff(opt_embed%prev_subsys_dens(i_dens_start + i_spin - 1))
       END DO
