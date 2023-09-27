@@ -62,7 +62,9 @@ list(
   atom_utils.F
   atom_xc.F
   auto_basis.F
-  bandstructure_methods.F
+  post_scf_bandstructure_methods.F
+  soc_pseudopotential_methods.F
+  soc_pseudopotential_utils.F
   basis_set_output.F
   beta_gamma_psi.F
   block_p_types.F
@@ -204,6 +206,8 @@ list(
   gw_communication.F
   gw_methods.F
   gw_types.F
+  post_scf_bandstructure_types.F
+  post_scf_bandstructure_utils.F
   gw_utils.F
   hartree_local_methods.F
   hartree_local_types.F
@@ -220,6 +224,7 @@ list(
   hfx_pair_list_methods.F
   hfx_pw_methods.F
   hfx_ri.F
+  hfx_ri_kp.F
   hfx_screening_methods.F
   hfx_types.F
   hirshfeld_methods.F
