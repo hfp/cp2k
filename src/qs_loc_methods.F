@@ -85,9 +85,7 @@ MODULE qs_loc_methods
    USE physcon,                         ONLY: angstrom
    USE pw_env_types,                    ONLY: pw_env_get,&
                                               pw_env_type
-   USE pw_pool_types,                   ONLY: pw_pool_create_pw,&
-                                              pw_pool_give_back_pw,&
-                                              pw_pool_type
+   USE pw_pool_types,                   ONLY: pw_pool_type
    USE pw_types,                        ONLY: COMPLEXDATA1D,&
                                               REALDATA3D,&
                                               REALSPACE,&
@@ -147,6 +145,7 @@ CONTAINS
 !> \param weights ...
 !> \param ispin ...
 !> \param print_loc_section ...
+!> \param restricted ...
 !> \param nextra ...
 !> \param nmo ...
 !> \param vectors_2 ...
@@ -161,7 +160,7 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE optimize_loc_berry(method, qs_loc_env, vectors, op_sm_set, &
                                  zij_fm_set, para_env, cell, weights, ispin, print_loc_section, &
-                                 nextra, nmo, vectors_2, guess_mos)
+                                 restricted, nextra, nmo, vectors_2, guess_mos)
 
       INTEGER, INTENT(IN)                                :: method
       TYPE(qs_loc_env_type), POINTER                     :: qs_loc_env
@@ -173,6 +172,7 @@ CONTAINS
       REAL(dp), DIMENSION(:)                             :: weights
       INTEGER, INTENT(IN)                                :: ispin
       TYPE(section_vals_type), POINTER                   :: print_loc_section
+      INTEGER                                            :: restricted
       INTEGER, INTENT(IN), OPTIONAL                      :: nextra, nmo
       TYPE(cp_fm_type), INTENT(IN), OPTIONAL             :: vectors_2, guess_mos
 
@@ -215,7 +215,8 @@ CONTAINS
       CASE (do_loc_jacobi)
          CALL jacobi_rotations(weights, zij_fm_set, vectors, para_env, max_iter=max_iter, &
                                eps_localization=eps_localization, sweeps=sweeps, &
-                               out_each=out_each, target_time=target_time, start_time=start_time)
+                               out_each=out_each, target_time=target_time, start_time=start_time, &
+                               restricted=restricted)
       CASE (do_loc_gapo)
          IF (my_do_mixed) THEN
             IF (nextra > 0) THEN
@@ -249,7 +250,8 @@ CONTAINS
                                        ispin, print_loc_section, only_initial_out=.TRUE.)
             CALL jacobi_rotations(weights, zij_fm_set, vectors, para_env, max_iter=max_iter, &
                                   eps_localization=eps_localization, sweeps=sweeps, &
-                                  out_each=out_each, target_time=target_time, start_time=start_time)
+                                  out_each=out_each, target_time=target_time, start_time=start_time, &
+                                  restricted=restricted)
          END IF
       CASE (do_loc_crazy)
          CALL crazy_rotations(weights, zij_fm_set, vectors, max_iter=max_iter, max_crazy_angle=max_crazy_angle, &
@@ -263,7 +265,8 @@ CONTAINS
                   " iterations, switching to jacobi rotations"
                CALL jacobi_rotations(weights, zij_fm_set, vectors, para_env, max_iter=max_iter, &
                                      eps_localization=eps_localization, sweeps=sweeps, &
-                                     out_each=out_each, target_time=target_time, start_time=start_time)
+                                     out_each=out_each, target_time=target_time, start_time=start_time, &
+                                     restricted=restricted)
             ELSE
                IF (output_unit > 0) WRITE (output_unit, "(T4,A,I6,/,T4,A)") &
                   " Crazy Wannier localization not converged after ", sweeps, &
@@ -823,12 +826,12 @@ CONTAINS
 
       CALL pw_env_get(pw_env, auxbas_pw_pool=auxbas_pw_pool)
 
-      CALL pw_pool_create_pw(auxbas_pw_pool, wf_r, &
-                             use_data=REALDATA3D, &
-                             in_space=REALSPACE)
-      CALL pw_pool_create_pw(auxbas_pw_pool, wf_g, &
-                             use_data=COMPLEXDATA1D, &
-                             in_space=RECIPROCALSPACE)
+      CALL auxbas_pw_pool%create_pw(wf_r, &
+                                    use_data=REALDATA3D, &
+                                    in_space=REALSPACE)
+      CALL auxbas_pw_pool%create_pw(wf_g, &
+                                    use_data=COMPLEXDATA1D, &
+                                    in_space=RECIPROCALSPACE)
 
       my_state0 = 0
       IF (PRESENT(state0)) my_state0 = state0
@@ -890,8 +893,8 @@ CONTAINS
          CALL cp_print_key_finished_output(unit_out_c, logger, print_key, "", mpi_io=mpi_io)
       END DO
 
-      CALL pw_pool_give_back_pw(auxbas_pw_pool, wf_r)
-      CALL pw_pool_give_back_pw(auxbas_pw_pool, wf_g)
+      CALL auxbas_pw_pool%give_back_pw(wf_r)
+      CALL auxbas_pw_pool%give_back_pw(wf_g)
       CALL timestop(handle)
    END SUBROUTINE qs_print_cubes
 

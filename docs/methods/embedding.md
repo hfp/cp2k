@@ -1,9 +1,10 @@
 # Embedding
 
 ```{toctree}
-:titlesonly:
-:maxdepth: 1
-
-Kim-Gordon <https://www.cp2k.org/howto:kg>
+---
+titlesonly:
+maxdepth: 1
+---
+kim-gordon
 qm_qm
 ```

@@ -290,11 +290,12 @@ CONTAINS
 !> \param out_each ...
 !> \param target_time ...
 !> \param start_time ...
+!> \param restricted ...
 !> \par History
 !> \author Joost VandeVondele (02.2010)
 ! **************************************************************************************************
    SUBROUTINE jacobi_rotations(weights, zij, vectors, para_env, max_iter, &
-                               eps_localization, sweeps, out_each, target_time, start_time)
+                               eps_localization, sweeps, out_each, target_time, start_time, restricted)
 
       REAL(KIND=dp), INTENT(IN)                          :: weights(:)
       TYPE(cp_fm_type), INTENT(IN)                       :: zij(:, :), vectors
@@ -304,12 +305,14 @@ CONTAINS
       INTEGER                                            :: sweeps
       INTEGER, INTENT(IN)                                :: out_each
       REAL(dp)                                           :: target_time, start_time
+      INTEGER                                            :: restricted
 
       IF (para_env%num_pe == 1) THEN
-         CALL jacobi_rotations_serial(weights, zij, vectors, max_iter, eps_localization, sweeps, out_each)
+         CALL jacobi_rotations_serial(weights, zij, vectors, max_iter, eps_localization, &
+                                      sweeps, out_each, restricted=restricted)
       ELSE
          CALL jacobi_rot_para(weights, zij, vectors, para_env, max_iter, eps_localization, &
-                              sweeps, out_each, target_time, start_time)
+                              sweeps, out_each, target_time, start_time, restricted=restricted)
       END IF
 
    END SUBROUTINE jacobi_rotations
@@ -324,15 +327,17 @@ CONTAINS
 !> \param eps_localization ...
 !> \param sweeps ...
 !> \param out_each ...
+!> \param restricted ...
 ! **************************************************************************************************
    SUBROUTINE jacobi_rotations_serial(weights, zij, vectors, max_iter, eps_localization, sweeps, &
-                                      out_each)
+                                      out_each, restricted)
       REAL(KIND=dp), INTENT(IN)                          :: weights(:)
       TYPE(cp_fm_type), INTENT(IN)                       :: zij(:, :), vectors
       INTEGER, INTENT(IN)                                :: max_iter
       REAL(KIND=dp), INTENT(IN)                          :: eps_localization
       INTEGER                                            :: sweeps
       INTEGER, INTENT(IN)                                :: out_each
+      INTEGER                                            :: restricted
 
       CHARACTER(len=*), PARAMETER :: routineN = 'jacobi_rotations_serial'
 
@@ -370,6 +375,12 @@ CONTAINS
       IF (rmat%matrix_struct%para_env%is_source()) THEN
          unit_nr = cp_logger_get_default_unit_nr()
          WRITE (unit_nr, '(T4,A )') " Localization by iterative Jacobi rotation"
+      END IF
+
+      IF (restricted > 0) THEN
+         unit_nr = cp_logger_get_default_unit_nr()
+         WRITE (unit_nr, '(T4,A,I2,A )') "JACOBI: for the ROKS method, the last ", restricted, " orbitals DO NOT ROTATE"
+         nstate = nstate - restricted
       END IF
 
       ! do jacobi sweeps until converged
@@ -2168,12 +2179,13 @@ CONTAINS
 !> \param out_each ...
 !> \param target_time ...
 !> \param start_time ...
+!> \param restricted ...
 !> \par History
 !>      use allgather for improved performance
 !> \author MI (11.2009)
 ! **************************************************************************************************
    SUBROUTINE jacobi_rot_para(weights, zij, vectors, para_env, max_iter, eps_localization, &
-                              sweeps, out_each, target_time, start_time)
+                              sweeps, out_each, target_time, start_time, restricted)
 
       REAL(KIND=dp), INTENT(IN)                          :: weights(:)
       TYPE(cp_fm_type), INTENT(IN)                       :: zij(:, :), vectors
@@ -2183,6 +2195,7 @@ CONTAINS
       INTEGER                                            :: sweeps
       INTEGER, INTENT(IN)                                :: out_each
       REAL(dp)                                           :: target_time, start_time
+      INTEGER                                            :: restricted
 
       CHARACTER(len=*), PARAMETER                        :: routineN = 'jacobi_rot_para'
 
@@ -2207,6 +2220,13 @@ CONTAINS
       CALL cp_fm_set_all(rmat, 0._dp, 1._dp)
 
       CALL cp_fm_get_info(rmat, nrow_global=nstate)
+
+      IF (restricted > 0) THEN
+         IF (output_unit > 0) THEN
+            WRITE (output_unit, '(T4,A,I2,A )') "JACOBI: for the ROKS method, the last ", restricted, " orbitals DO NOT ROTATE"
+         END IF
+         nstate = nstate - restricted
+      END IF
 
       ! Distribution of the states (XXXXX safe against more pe than states ??? XXXXX)
       xstate = REAL(nstate, dp)/REAL(para_env%num_pe, dp)

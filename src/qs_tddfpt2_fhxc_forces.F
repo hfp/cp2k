@@ -86,9 +86,7 @@ MODULE qs_tddfpt2_fhxc_forces
                                               pw_zero
    USE pw_poisson_methods,              ONLY: pw_poisson_solve
    USE pw_poisson_types,                ONLY: pw_poisson_type
-   USE pw_pool_types,                   ONLY: pw_pool_create_pw,&
-                                              pw_pool_give_back_pw,&
-                                              pw_pool_type
+   USE pw_pool_types,                   ONLY: pw_pool_type
    USE pw_types,                        ONLY: COMPLEXDATA1D,&
                                               REALDATA3D,&
                                               REALSPACE,&
@@ -100,6 +98,7 @@ MODULE qs_tddfpt2_fhxc_forces
                                               set_qs_env
    USE qs_force_types,                  ONLY: qs_force_type
    USE qs_fxc,                          ONLY: qs_fgxc_create,&
+                                              qs_fgxc_gdiff,&
                                               qs_fgxc_release
    USE qs_gapw_densities,               ONLY: prepare_gapw_den
    USE qs_integrate_potential,          ONLY: integrate_v_rspace
@@ -132,7 +131,8 @@ MODULE qs_tddfpt2_fhxc_forces
    USE qs_tddfpt2_subgroups,            ONLY: tddfpt_subgroup_env_type
    USE qs_tddfpt2_types,                ONLY: tddfpt_ground_state_mos,&
                                               tddfpt_work_matrices
-   USE qs_vxc_atom,                     ONLY: calculate_gfxc_atom
+   USE qs_vxc_atom,                     ONLY: calculate_gfxc_atom,&
+                                              gfxc_atom_diff
    USE task_list_types,                 ONLY: task_list_type
    USE util,                            ONLY: get_limit
    USE virial_types,                    ONLY: virial_type
@@ -174,11 +174,11 @@ CONTAINS
       CHARACTER(LEN=default_string_length)               :: basis_type
       INTEGER                                            :: handle, iounit, ispin, mspin, myfun, &
                                                             n_rep_hf, nao, nao_aux, natom, nkind, &
-                                                            norb, nspins
+                                                            norb, nspins, order
       LOGICAL :: distribute_fock_matrix, do_admm, do_analytic, do_hfx, do_numeric, gapw, gapw_xc, &
          hfx_treat_lsd_in_core, is_rks_triplets, s_mstruct_changed, use_virial
-      REAL(KIND=dp)                                      :: eh1, eh1c, eps_fit, focc, fscal, fval, &
-                                                            kval, xehartree
+      REAL(KIND=dp)                                      :: eh1, eh1c, eps_delta, eps_fit, focc, &
+                                                            fscal, fval, kval, xehartree
       REAL(KIND=dp), DIMENSION(3)                        :: fodeb
       TYPE(admm_type), POINTER                           :: admm_env
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
@@ -395,13 +395,13 @@ CONTAINS
 
       ALLOCATE (rhox_r(nspins), rhox_g(nspins))
       DO ispin = 1, nspins
-         CALL pw_pool_create_pw(auxbas_pw_pool, rhox_r(ispin), &
-                                use_data=REALDATA3D, in_space=REALSPACE)
-         CALL pw_pool_create_pw(auxbas_pw_pool, rhox_g(ispin), &
-                                use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
+         CALL auxbas_pw_pool%create_pw(rhox_r(ispin), &
+                                       use_data=REALDATA3D, in_space=REALSPACE)
+         CALL auxbas_pw_pool%create_pw(rhox_g(ispin), &
+                                       use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
       END DO
-      CALL pw_pool_create_pw(auxbas_pw_pool, rhox_tot_gspace, &
-                             use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
+      CALL auxbas_pw_pool%create_pw(rhox_tot_gspace, &
+                                    use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
 
       CALL pw_zero(rhox_tot_gspace)
       DO ispin = 1, nspins
@@ -416,10 +416,10 @@ CONTAINS
       IF (gapw_xc) THEN
          ALLOCATE (rhoxx_r(nspins), rhoxx_g(nspins))
          DO ispin = 1, nspins
-            CALL pw_pool_create_pw(auxbas_pw_pool, rhoxx_r(ispin), &
-                                   use_data=REALDATA3D, in_space=REALSPACE)
-            CALL pw_pool_create_pw(auxbas_pw_pool, rhoxx_g(ispin), &
-                                   use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
+            CALL auxbas_pw_pool%create_pw(rhoxx_r(ispin), &
+                                          use_data=REALDATA3D, in_space=REALSPACE)
+            CALL auxbas_pw_pool%create_pw(rhoxx_g(ispin), &
+                                          use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
          END DO
          DO ispin = 1, nspins
             IF (nspins == 2) CALL dbcsr_scale(matrix_px1(ispin)%matrix, 2.0_dp)
@@ -433,10 +433,10 @@ CONTAINS
       CALL get_qs_env(qs_env, matrix_s=matrix_s, force=force)
 
       IF (.NOT. is_rks_triplets) THEN
-         CALL pw_pool_create_pw(auxbas_pw_pool, xv_hartree_rspace, &
-                                use_data=REALDATA3D, in_space=REALSPACE)
-         CALL pw_pool_create_pw(auxbas_pw_pool, xv_hartree_gspace, &
-                                use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
+         CALL auxbas_pw_pool%create_pw(xv_hartree_rspace, &
+                                       use_data=REALDATA3D, in_space=REALSPACE)
+         CALL auxbas_pw_pool%create_pw(xv_hartree_gspace, &
+                                       use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
          ! calculate associated hartree potential
          IF (gapw) THEN
             CALL pw_axpy(local_rho_set%rho0_mpole%rho0_s_gs, rhox_tot_gspace)
@@ -512,6 +512,8 @@ CONTAINS
          CASE DEFAULT
             CPABORT("invalid xc_kernel_method")
          END SELECT
+         order = ex_env%diff_order
+         eps_delta = ex_env%eps_delta_rho
 
          IF (gapw_xc) THEN
             CALL get_qs_env(qs_env=qs_env, ks_env=ks_env, rho_xc=rho)
@@ -531,9 +533,16 @@ CONTAINS
          END IF
          IF (do_analytic .AND. .NOT. do_numeric) THEN
             CPABORT("Analytic 3rd EXC derivatives not available")
+         ELSEIF (do_numeric) THEN
+            IF (do_analytic) THEN
+               CALL qs_fgxc_gdiff(ks_env, rho, rhox, xc_section, order, eps_delta, is_rks_triplets, &
+                                  fxc_rho, fxc_tau, gxc_rho, gxc_tau)
+            ELSE
+               CALL qs_fgxc_create(ks_env, rho, rhox, xc_section, order, is_rks_triplets, &
+                                   fxc_rho, fxc_tau, gxc_rho, gxc_tau)
+            END IF
          ELSE
-            CALL qs_fgxc_create(ks_env, rho, rhox, xc_section, 6, is_rks_triplets, &
-                                fxc_rho, fxc_tau, gxc_rho, gxc_tau)
+            CPABORT("FHXC forces analytic/numeric")
          END IF
 
          ! Well, this is a hack :-(
@@ -549,9 +558,21 @@ CONTAINS
             END DO
          END IF
          IF (gapw .OR. gapw_xc) THEN
-            CALL calculate_gfxc_atom(qs_env, ex_env%local_rho_set%rho_atom_set, &
-                                     local_rho_set_f%rho_atom_set, local_rho_set_g%rho_atom_set, &
-                                     qs_kind_set, xc_section, is_rks_triplets, 6)
+            IF (do_analytic .AND. .NOT. do_numeric) THEN
+               CPABORT("Analytic 3rd EXC derivatives not available")
+            ELSEIF (do_numeric) THEN
+               IF (do_analytic) THEN
+                  CALL gfxc_atom_diff(qs_env, ex_env%local_rho_set%rho_atom_set, &
+                                      local_rho_set_f%rho_atom_set, local_rho_set_g%rho_atom_set, &
+                                      qs_kind_set, xc_section, is_rks_triplets, order, eps_delta)
+               ELSE
+                  CALL calculate_gfxc_atom(qs_env, ex_env%local_rho_set%rho_atom_set, &
+                                           local_rho_set_f%rho_atom_set, local_rho_set_g%rho_atom_set, &
+                                           qs_kind_set, xc_section, is_rks_triplets, order)
+               END IF
+            ELSE
+               CPABORT("FHXC forces analytic/numeric")
+            END IF
          END IF
 
          IF (debug_forces) fodeb(1:3) = force(1)%rho_elec(1:3, 1)
@@ -599,7 +620,7 @@ CONTAINS
             IF (debug_forces) fodeb(1:3) = force(1)%Vhxc_atom(1:3, 1)
             CALL update_ks_atom(qs_env, matrix_fx, matrix_px1, forces=.TRUE., tddft=.TRUE., &
                                 rho_atom_external=local_rho_set_f%rho_atom_set, &
-                                kintegral=1.0_dp, kforce=0.5_dp)
+                                kintegral=1.0_dp, kforce=1.0_dp)
             IF (debug_forces) THEN
                fodeb(1:3) = force(1)%Vhxc_atom(1:3, 1) - fodeb(1:3)
                CALL para_env%sum(fodeb)
@@ -661,10 +682,10 @@ CONTAINS
             ! rhox_aux
             ALLOCATE (rhox_r_aux(nspins), rhox_g_aux(nspins))
             DO ispin = 1, nspins
-               CALL pw_pool_create_pw(auxbas_pw_pool, rhox_r_aux(ispin), &
-                                      use_data=REALDATA3D, in_space=REALSPACE)
-               CALL pw_pool_create_pw(auxbas_pw_pool, rhox_g_aux(ispin), &
-                                      use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
+               CALL auxbas_pw_pool%create_pw(rhox_r_aux(ispin), &
+                                             use_data=REALDATA3D, in_space=REALSPACE)
+               CALL auxbas_pw_pool%create_pw(rhox_g_aux(ispin), &
+                                             use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
             END DO
             DO ispin = 1, nspins
                CALL calculate_rho_elec(ks_env=ks_env, matrix_p=matrix_px1_admm(ispin)%matrix, &
@@ -681,9 +702,16 @@ CONTAINS
                             rho_r_valid=.TRUE., rho_g_valid=.TRUE.)
             IF (do_analytic .AND. .NOT. do_numeric) THEN
                CPABORT("Analytic 3rd derivatives of EXC not available")
+            ELSEIF (do_numeric) THEN
+               IF (do_analytic) THEN
+                  CALL qs_fgxc_gdiff(ks_env, rho_aux_fit, rhox_aux, xc_section, order, eps_delta, &
+                                     is_rks_triplets, fxc_rho, fxc_tau, gxc_rho, gxc_tau)
+               ELSE
+                  CALL qs_fgxc_create(ks_env, rho_aux_fit, rhox_aux, xc_section, &
+                                      order, is_rks_triplets, fxc_rho, fxc_tau, gxc_rho, gxc_tau)
+               END IF
             ELSE
-               CALL qs_fgxc_create(ks_env, rho_aux_fit, rhox_aux, xc_section, &
-                                   6, is_rks_triplets, fxc_rho, fxc_tau, gxc_rho, gxc_tau)
+               CPABORT("FHXC forces analytic/numeric")
             END IF
 
             ! Well, this is a hack :-(
@@ -693,8 +721,8 @@ CONTAINS
             DEALLOCATE (rhox_aux)
 
             DO ispin = 1, nspins
-               CALL pw_pool_give_back_pw(auxbas_pw_pool, rhox_r_aux(ispin))
-               CALL pw_pool_give_back_pw(auxbas_pw_pool, rhox_g_aux(ispin))
+               CALL auxbas_pw_pool%give_back_pw(rhox_r_aux(ispin))
+               CALL auxbas_pw_pool%give_back_pw(rhox_g_aux(ispin))
             END DO
             DEALLOCATE (rhox_r_aux, rhox_g_aux)
             fscal = 1.0_dp
@@ -742,22 +770,38 @@ CONTAINS
                rho_atom_set => admm_env%admm_gapw_env%local_rho_set%rho_atom_set
                rho_atom_set_f => local_rho_set_f_admm%rho_atom_set
                rho_atom_set_g => local_rho_set_g_admm%rho_atom_set
-               CALL calculate_gfxc_atom(qs_env, rho_atom_set, &
-                                        rho_atom_set_f, rho_atom_set_g, &
-                                        admm_env%admm_gapw_env%admm_kind_set, xc_section, is_rks_triplets, 6)
+
+               IF (do_analytic .AND. .NOT. do_numeric) THEN
+                  CPABORT("Analytic 3rd EXC derivatives not available")
+               ELSEIF (do_numeric) THEN
+                  IF (do_analytic) THEN
+                     CALL gfxc_atom_diff(qs_env, rho_atom_set, &
+                                         rho_atom_set_f, rho_atom_set_g, &
+                                         admm_env%admm_gapw_env%admm_kind_set, xc_section, &
+                                         is_rks_triplets, order, eps_delta)
+                  ELSE
+                     CALL calculate_gfxc_atom(qs_env, rho_atom_set, &
+                                              rho_atom_set_f, rho_atom_set_g, &
+                                              admm_env%admm_gapw_env%admm_kind_set, xc_section, &
+                                              is_rks_triplets, order)
+                  END IF
+               ELSE
+                  CPABORT("FHXC forces analytic/numeric")
+               END IF
+
                IF (debug_forces) fodeb(1:3) = force(1)%Vhxc_atom(1:3, 1)
                IF (nspins == 1) THEN
-                  CALL update_ks_atom(qs_env, mfx, matrix_px1_admm, forces=.TRUE., tddft=.TRUE., &
+                  CALL update_ks_atom(qs_env, mfx, matrix_px1_admm, forces=.TRUE., &
                                       rho_atom_external=rho_atom_set_f, &
                                       kind_set_external=admm_env%admm_gapw_env%admm_kind_set, &
                                       oce_external=admm_env%admm_gapw_env%oce, sab_external=sab_aux_fit, &
-                                      kintegral=1.0_dp, kforce=0.25_dp)
+                                      kintegral=2.0_dp, kforce=0.5_dp)
                ELSE
-                  CALL update_ks_atom(qs_env, mfx, matrix_px1_admm, forces=.TRUE., tddft=.TRUE., &
+                  CALL update_ks_atom(qs_env, mfx, matrix_px1_admm, forces=.TRUE., &
                                       rho_atom_external=rho_atom_set_f, &
                                       kind_set_external=admm_env%admm_gapw_env%admm_kind_set, &
                                       oce_external=admm_env%admm_gapw_env%oce, sab_external=sab_aux_fit, &
-                                      kintegral=1.0_dp, kforce=0.5_dp)
+                                      kintegral=2.0_dp, kforce=1.0_dp)
                END IF
                IF (debug_forces) THEN
                   fodeb(1:3) = force(1)%Vhxc_atom(1:3, 1) - fodeb(1:3)
@@ -766,17 +810,17 @@ CONTAINS
                END IF
                IF (debug_forces) fodeb(1:3) = force(1)%Vhxc_atom(1:3, 1)
                IF (nspins == 1) THEN
-                  CALL update_ks_atom(qs_env, mgx, matrix_p_admm, forces=.TRUE., tddft=.TRUE., &
+                  CALL update_ks_atom(qs_env, mgx, matrix_p, forces=.TRUE., &
                                       rho_atom_external=rho_atom_set_g, &
                                       kind_set_external=admm_env%admm_gapw_env%admm_kind_set, &
                                       oce_external=admm_env%admm_gapw_env%oce, sab_external=sab_aux_fit, &
-                                      kintegral=0.5_dp, kforce=0.25_dp)
+                                      kintegral=1.0_dp, kforce=0.5_dp)
                ELSE
-                  CALL update_ks_atom(qs_env, mgx, matrix_p_admm, forces=.TRUE., &
+                  CALL update_ks_atom(qs_env, mgx, matrix_p, forces=.TRUE., &
                                       rho_atom_external=rho_atom_set_g, &
                                       kind_set_external=admm_env%admm_gapw_env%admm_kind_set, &
                                       oce_external=admm_env%admm_gapw_env%oce, sab_external=sab_aux_fit, &
-                                      kintegral=0.5_dp, kforce=0.5_dp)
+                                      kintegral=1.0_dp, kforce=1.0_dp)
                END IF
                IF (debug_forces) THEN
                   fodeb(1:3) = force(1)%Vhxc_atom(1:3, 1) - fodeb(1:3)
@@ -841,21 +885,21 @@ CONTAINS
       END IF
 
       DO ispin = 1, nspins
-         CALL pw_pool_give_back_pw(auxbas_pw_pool, rhox_r(ispin))
-         CALL pw_pool_give_back_pw(auxbas_pw_pool, rhox_g(ispin))
+         CALL auxbas_pw_pool%give_back_pw(rhox_r(ispin))
+         CALL auxbas_pw_pool%give_back_pw(rhox_g(ispin))
       END DO
       DEALLOCATE (rhox_r, rhox_g)
-      CALL pw_pool_give_back_pw(auxbas_pw_pool, rhox_tot_gspace)
+      CALL auxbas_pw_pool%give_back_pw(rhox_tot_gspace)
       IF (gapw_xc) THEN
          DO ispin = 1, nspins
-            CALL pw_pool_give_back_pw(auxbas_pw_pool, rhoxx_r(ispin))
-            CALL pw_pool_give_back_pw(auxbas_pw_pool, rhoxx_g(ispin))
+            CALL auxbas_pw_pool%give_back_pw(rhoxx_r(ispin))
+            CALL auxbas_pw_pool%give_back_pw(rhoxx_g(ispin))
          END DO
          DEALLOCATE (rhoxx_r, rhoxx_g)
       END IF
       IF (.NOT. is_rks_triplets) THEN
-         CALL pw_pool_give_back_pw(auxbas_pw_pool, xv_hartree_rspace)
-         CALL pw_pool_give_back_pw(auxbas_pw_pool, xv_hartree_gspace)
+         CALL auxbas_pw_pool%give_back_pw(xv_hartree_rspace)
+         CALL auxbas_pw_pool%give_back_pw(xv_hartree_gspace)
       END IF
 
       ! HFX

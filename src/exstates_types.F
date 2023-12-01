@@ -20,8 +20,7 @@ MODULE exstates_types
    USE input_section_types,             ONLY: section_vals_type,&
                                               section_vals_val_get
    USE kinds,                           ONLY: dp
-   USE pw_types,                        ONLY: pw_release,&
-                                              pw_type
+   USE pw_types,                        ONLY: pw_type
    USE qs_local_rho_types,              ONLY: local_rho_set_release,&
                                               local_rho_type
 #include "./base/base_uses.f90"
@@ -56,6 +55,8 @@ MODULE exstates_types
       INTEGER                                            :: state
       REAL(KIND=dp)                                      :: evalue
       INTEGER                                            :: xc_kernel_method
+      REAL(KIND=dp)                                      :: eps_delta_rho = 1.E-02_dp
+      INTEGER                                            :: diff_order
       LOGICAL                                            :: debug_forces = .FALSE.
       TYPE(cp_fm_type), POINTER, DIMENSION(:)            :: evect => NULL()
       TYPE(cp_fm_type), POINTER, DIMENSION(:)            :: cpmos => NULL()
@@ -142,25 +143,25 @@ CONTAINS
 
       IF (ASSOCIATED(ex_env)) THEN
          IF (ASSOCIATED(ex_env%vh_rspace%pw_grid)) THEN
-            CALL pw_release(ex_env%vh_rspace)
+            CALL ex_env%vh_rspace%release()
          END IF
          IF (ASSOCIATED(ex_env%vxc_rspace)) THEN
             DO iab = 1, SIZE(ex_env%vxc_rspace)
-               CALL pw_release(ex_env%vxc_rspace(iab))
+               CALL ex_env%vxc_rspace(iab)%release()
             END DO
             DEALLOCATE (ex_env%vxc_rspace)
             NULLIFY (ex_env%vxc_rspace)
          END IF
          IF (ASSOCIATED(ex_env%vtau_rspace)) THEN
             DO iab = 1, SIZE(ex_env%vtau_rspace)
-               CALL pw_release(ex_env%vtau_rspace(iab))
+               CALL ex_env%vtau_rspace(iab)%release()
             END DO
             DEALLOCATE (ex_env%vtau_rspace)
             NULLIFY (ex_env%vtau_rspace)
          END IF
          IF (ASSOCIATED(ex_env%vadmm_rspace)) THEN
             DO iab = 1, SIZE(ex_env%vadmm_rspace)
-               CALL pw_release(ex_env%vadmm_rspace(iab))
+               CALL ex_env%vadmm_rspace(iab)%release()
             END DO
             DEALLOCATE (ex_env%vadmm_rspace)
             NULLIFY (ex_env%vadmm_rspace)
@@ -201,6 +202,10 @@ CONTAINS
                                    i_val=ex_env%xc_kernel_method)
          CALL section_vals_val_get(dft_section, "EXCITED_STATES%DEBUG_FORCES", &
                                    l_val=ex_env%debug_forces)
+         CALL section_vals_val_get(dft_section, "EXCITED_STATES%EPS_DELTA_RHO", &
+                                   r_val=ex_env%eps_delta_rho)
+         CALL section_vals_val_get(dft_section, "EXCITED_STATES%DIFF_ORDER", &
+                                   i_val=ex_env%diff_order)
       ELSE
          ex_env%state = 0
          ex_env%xc_kernel_method = xc_kernel_method_best

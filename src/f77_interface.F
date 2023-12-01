@@ -109,10 +109,10 @@ MODULE f77_interface
                                               mp_perf_env_type,&
                                               rm_mp_perf_env
    USE nnp_environment,                 ONLY: nnp_init
-   USE nnp_environment_types,           ONLY: nnp_env_create,&
-                                              nnp_type
+   USE nnp_environment_types,           ONLY: nnp_type
    USE offload_api,                     ONLY: offload_get_chosen_device,&
                                               offload_get_device_count,&
+                                              offload_init,&
                                               offload_set_chosen_device
    USE periodic_table,                  ONLY: init_periodic_table
    USE pw_gpu,                          ONLY: pw_gpu_finalize,&
@@ -211,7 +211,7 @@ CONTAINS
       LOGICAL, INTENT(in)                                :: init_mpi
       INTEGER, INTENT(out)                               :: ierr
 
-      INTEGER                                            :: unit_nr
+      INTEGER                                            :: offload_device_count, unit_nr
       TYPE(cp_logger_type), POINTER                      :: logger
 
       IF (.NOT. module_initialized) THEN
@@ -226,6 +226,10 @@ CONTAINS
 
          ! get runtime information
          CALL get_runtime_info()
+
+         ! Intialize CUDA/HIP before MPI
+         ! Needed for HIP on ALPS & LUMI
+         CALL offload_init()
 
          ! re-create the para_env and log with correct (reordered) ranks
          ALLOCATE (default_para_env)
@@ -263,15 +267,17 @@ CONTAINS
          !   *** init the bibliography ***
          CALL add_all_references()
 
+         offload_device_count = offload_get_device_count()
+
          ! Select active offload device when available.
-         IF (offload_get_device_count() > 0) THEN
-            CALL offload_set_chosen_device(MOD(default_para_env%mepos, offload_get_device_count()))
+         IF (offload_device_count > 0) THEN
+            CALL offload_set_chosen_device(MOD(default_para_env%mepos, offload_device_count))
          END IF
 
          ! Initialize the DBCSR configuration
          ! Attach the time handler hooks to DBCSR
 #if defined __DBCSR_ACC
-         IF (offload_get_device_count() > 0) THEN
+         IF (offload_device_count > 0) THEN
             CALL dbcsr_init_lib(default_para_env%get_handle(), timeset_hook, timestop_hook, &
                                 cp_abort_hook, cp_warn_hook, io_unit=unit_nr, &
                                 accdrv_active_device_id=offload_get_chosen_device())
@@ -851,7 +857,6 @@ CONTAINS
 
          CASE (do_nnp)
             ALLOCATE (nnp_env)
-            CALL nnp_env_create(nnp_env)
             CALL nnp_init(nnp_env, root_section, my_para_env, force_env_section=force_env_section, &
                           subsys_section=subsys_section, use_motion_section=use_motion_section)
             CALL force_env_create(my_force_env, root_section, nnp_env=nnp_env, para_env=my_para_env, &

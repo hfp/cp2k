@@ -1,14 +1,15 @@
 # Density Functional Theory
 
 ```{toctree}
-:titlesonly:
-:maxdepth: 1
-
+---
+titlesonly:
+maxdepth: 1
+---
 gpw
 gapw
 hfx
-Local Resolution of Identity <https://www.cp2k.org/howto:lrigpw>
-Constrained DFT <https://www.cp2k.org/howto:cdft>
+lrigpw
+cdft
 ls-dft
 basis_sets
 pseudopotentials

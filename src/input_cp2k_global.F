@@ -663,7 +663,7 @@ CONTAINS
                           enum_c_vals=s2a("SCALAPACK", "PDGEMM", "COSMA"), &
                           enum_desc=s2a("Standard ScaLAPACK pdgemm", &
                                         "Alias for ScaLAPACK", &
-                                        "COSMA is employed. See https://github.com/eth-cscs/COSMA."))
+                                        "COSMA is employed. See <https://github.com/eth-cscs/COSMA>."))
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -723,9 +723,9 @@ CONTAINS
 
       CALL keyword_create(keyword, __LOCATION__, name="ELPA_FORCE_REDISTRIBUTE", &
                           description="Controls how to perform redistribution when ELPA is used for diagonalization. "// &
-                          "By default, matrices are redistributed only to prevent crashes in the ELPA library "// &
-                          "which happens when the original matrix is distributed over too many processors. "// &
-                          "By turning on this keyword, redistribution is always performed using the defined rules. ", &
+                          "By default, redistribution is always performed using the defined rules. "// &
+                          "By turning off this keyword, matrices are redistributed only to prevent crashes in the ELPA "// &
+                          "library which happens when the original matrix is distributed over too many processors. ", &
                           usage="ELPA_FORCE_REDISTRIBUTE", type_of_var=logical_t, &
                           default_l_val=.TRUE., lone_keyword_l_val=.TRUE.)
       CALL section_add_keyword(section, keyword)

@@ -104,6 +104,7 @@ MODULE hfx_ri_kp
                                               distribution_3d_type,&
                                               neighbor_list_3c_iterator_type,&
                                               neighbor_list_3c_type
+   USE util,                            ONLY: get_limit
    USE virial_types,                    ONLY: virial_type
 #include "./base/base_uses.f90"
 
@@ -201,22 +202,22 @@ CONTAINS
 
       !We store the density and KS matrix in tensor format
       nspins = dft_control%nspins
-      ALLOCATE (ri_data%kp_rho_ao_t(nspins, nimg), ri_data%kp_ks_t(nspins, nimg))
-      CALL create_2c_tensor(ri_data%kp_rho_ao_t(1, 1), dist1, dist2, ri_data%pgrid_2d, &
+      ALLOCATE (ri_data%rho_ao_t(nspins, nimg), ri_data%ks_t(nspins, nimg))
+      CALL create_2c_tensor(ri_data%rho_ao_t(1, 1), dist1, dist2, ri_data%pgrid_2d, &
                             ri_data%bsizes_AO_split, ri_data%bsizes_AO_split, &
                             name="(AO | AO)")
       DEALLOCATE (dist1, dist2)
 
-      CALL dbt_create(dbcsr_template, ri_data%kp_ks_t(1, 1))
+      CALL dbt_create(dbcsr_template, ri_data%ks_t(1, 1))
 
       IF (nspins == 2) THEN
-         CALL dbt_create(ri_data%kp_rho_ao_t(1, 1), ri_data%kp_rho_ao_t(2, 1))
-         CALL dbt_create(ri_data%kp_ks_t(1, 1), ri_data%kp_ks_t(2, 1))
+         CALL dbt_create(ri_data%rho_ao_t(1, 1), ri_data%rho_ao_t(2, 1))
+         CALL dbt_create(ri_data%ks_t(1, 1), ri_data%ks_t(2, 1))
       END IF
       DO i_img = 2, nimg
          DO i_spin = 1, nspins
-            CALL dbt_create(ri_data%kp_rho_ao_t(1, 1), ri_data%kp_rho_ao_t(i_spin, i_img))
-            CALL dbt_create(ri_data%kp_ks_t(1, 1), ri_data%kp_ks_t(i_spin, i_img))
+            CALL dbt_create(ri_data%rho_ao_t(1, 1), ri_data%rho_ao_t(i_spin, i_img))
+            CALL dbt_create(ri_data%ks_t(1, 1), ri_data%ks_t(i_spin, i_img))
          END DO
       END DO
 
@@ -383,22 +384,22 @@ CONTAINS
          DEALLOCATE (ri_data%t_3c_int_ctr_2)
       END IF
 
-      IF (ALLOCATED(ri_data%kp_rho_ao_t)) THEN
-         DO j = 1, SIZE(ri_data%kp_rho_ao_t, 2)
-            DO i = 1, SIZE(ri_data%kp_rho_ao_t, 1)
-               CALL dbt_destroy(ri_data%kp_rho_ao_t(i, j))
+      IF (ALLOCATED(ri_data%rho_ao_t)) THEN
+         DO j = 1, SIZE(ri_data%rho_ao_t, 2)
+            DO i = 1, SIZE(ri_data%rho_ao_t, 1)
+               CALL dbt_destroy(ri_data%rho_ao_t(i, j))
             END DO
          END DO
-         DEALLOCATE (ri_data%kp_rho_ao_t)
+         DEALLOCATE (ri_data%rho_ao_t)
       END IF
 
-      IF (ALLOCATED(ri_data%kp_ks_t)) THEN
-         DO j = 1, SIZE(ri_data%kp_ks_t, 2)
-            DO i = 1, SIZE(ri_data%kp_ks_t, 1)
-               CALL dbt_destroy(ri_data%kp_ks_t(i, j))
+      IF (ALLOCATED(ri_data%ks_t)) THEN
+         DO j = 1, SIZE(ri_data%ks_t, 2)
+            DO i = 1, SIZE(ri_data%ks_t, 1)
+               CALL dbt_destroy(ri_data%ks_t(i, j))
             END DO
          END DO
-         DEALLOCATE (ri_data%kp_ks_t)
+         DEALLOCATE (ri_data%ks_t)
       END IF
 
    END SUBROUTINE cleanup_kp
@@ -435,7 +436,9 @@ CONTAINS
                                                             idx_to_at_AO
       INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: iapc_pairs
       INTEGER, ALLOCATABLE, DIMENSION(:, :, :)           :: sparsity_pattern
-      REAL(dp)                                           :: etmp, fac, occ, pref, t1, t2, t3, t4
+      LOGICAL                                            :: use_delta_p
+      REAL(dp)                                           :: etmp, fac, occ, pfac, pref, t1, t2, t3, &
+                                                            t4
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env_sub
       TYPE(dbcsr_type)                                   :: ks_desymm, rho_desymm, tmp
       TYPE(dbcsr_type), ALLOCATABLE, DIMENSION(:)        :: mat_2c_pot
@@ -483,13 +486,18 @@ CONTAINS
       !Note that the 3-center integrals are pre-contracted with the RI metric, and that the same tensor can be used
       !(mu^0, sigma^a| P^0) (P^0|R^0)  <===> (S^b|Q^b)^-1 (Q^b| nu^b lambda^a+c) by relabelling the images
 
-      !Build the density tensor based on the difference of this SCF P and that of the prev. SCF
-      CALL get_pmat_images(ri_data%kp_rho_ao_t, rho_ao, -1.0_dp, ri_data, qs_env)
+      hfx_section => section_vals_get_subs_vals(qs_env%input, "DFT%XC%HF%RI")
+      CALL section_vals_val_get(hfx_section, "KP_USE_DELTA_P", l_val=use_delta_p)
+
+      !By default, build the density tensor based on the difference of this SCF P and that of the prev. SCF
+      pfac = -1.0_dp
+      IF (.NOT. use_delta_p) pfac = 0.0_dp
+      CALL get_pmat_images(ri_data%rho_ao_t, rho_ao, pfac, ri_data, qs_env)
 
       ALLOCATE (ks_t(nspins, nimg))
       DO i_img = 1, nimg
          DO i_spin = 1, nspins
-            CALL dbt_create(ri_data%kp_ks_t(1, 1), ks_t(i_spin, i_img))
+            CALL dbt_create(ri_data%ks_t(1, 1), ks_t(i_spin, i_img))
          END DO
       END DO
 
@@ -508,7 +516,7 @@ CONTAINS
             CALL dbt_create(ri_data%t_3c_int_ctr_2(1, 1), t_3c_apc(i_spin, i_img))
          END DO
       END DO
-      CALL contract_pmat_3c(t_3c_apc, ri_data%kp_rho_ao_t, ri_data, qs_env)
+      CALL contract_pmat_3c(t_3c_apc, ri_data%rho_ao_t, ri_data, qs_env)
 
       hfx_section => section_vals_get_subs_vals(qs_env%input, "DFT%XC%HF%RI")
       CALL section_vals_val_get(hfx_section, "KP_NGROUPS", i_val=ngroups)
@@ -520,7 +528,7 @@ CONTAINS
          ngroups = 1
          CALL section_vals_val_set(hfx_section, "KP_NGROUPS", i_val=ngroups)
       END IF
-      IF ((MOD(ngroups, natom) .NE. 0) .AND. (MOD(natom, ngroups) .NE. 0)) THEN
+      IF ((MOD(ngroups, natom) .NE. 0) .AND. (MOD(natom, ngroups) .NE. 0) .AND. geometry_did_change) THEN
          IF (ngroups > 1) &
             CPWARN("Better load balancing is reached if NGROUPS is a multiple/divisor of the number of atoms")
       END IF
@@ -698,15 +706,15 @@ CONTAINS
       !Currently, rho_ao_t holds the density difference (wrt to pref SCF step).
       !ks_t also hold that diff, while only having half the blocks => need to add to prev ks_t and symmetrize
       !We need the full thing for the energy, on the next SCF step
-      CALL get_pmat_images(ri_data%kp_rho_ao_t, rho_ao, 0.0_dp, ri_data, qs_env)
+      CALL get_pmat_images(ri_data%rho_ao_t, rho_ao, 0.0_dp, ri_data, qs_env)
       DO i_spin = 1, nspins
          DO b_img = 1, nimg
-            CALL dbt_copy(ks_t(i_spin, b_img), ri_data%kp_ks_t(i_spin, b_img), summation=.TRUE.)
+            CALL dbt_copy(ks_t(i_spin, b_img), ri_data%ks_t(i_spin, b_img), summation=.TRUE.)
 
             !desymmetrize
             mb_img = get_opp_index(b_img, qs_env)
             IF (mb_img > 0 .AND. mb_img .LE. nimg) THEN
-               CALL dbt_copy(ks_t(i_spin, mb_img), ri_data%kp_ks_t(i_spin, b_img), order=[2, 1], summation=.TRUE.)
+               CALL dbt_copy(ks_t(i_spin, mb_img), ri_data%ks_t(i_spin, b_img), order=[2, 1], summation=.TRUE.)
             END IF
          END DO
       END DO
@@ -717,24 +725,26 @@ CONTAINS
       END DO
 
       !calculate the energy
-      CALL dbt_create(ri_data%kp_ks_t(1, 1), t_2c_ao_tmp(1))
+      CALL dbt_create(ri_data%ks_t(1, 1), t_2c_ao_tmp(1))
       CALL dbcsr_create(tmp, template=ks_matrix(1, 1)%matrix, matrix_type=dbcsr_type_symmetric)
       CALL dbcsr_create(ks_desymm, template=ks_matrix(1, 1)%matrix, matrix_type=dbcsr_type_no_symmetry)
       CALL dbcsr_create(rho_desymm, template=ks_matrix(1, 1)%matrix, matrix_type=dbcsr_type_no_symmetry)
       ehfx = 0.0_dp
       DO i_img = 1, nimg
          DO i_spin = 1, nspins
-            CALL dbt_filter(ri_data%kp_ks_t(i_spin, i_img), ri_data%filter_eps)
-            CALL dbt_copy(ri_data%kp_ks_t(i_spin, i_img), t_2c_ao_tmp(1))
+            CALL dbt_filter(ri_data%ks_t(i_spin, i_img), ri_data%filter_eps)
+            CALL dbt_copy(ri_data%ks_t(i_spin, i_img), t_2c_ao_tmp(1))
             CALL dbt_copy_tensor_to_matrix(t_2c_ao_tmp(1), ks_desymm)
             CALL dbt_copy_tensor_to_matrix(t_2c_ao_tmp(1), tmp)
             CALL dbcsr_add(ks_matrix(i_spin, i_img)%matrix, tmp, 1.0_dp, 1.0_dp)
 
-            CALL dbt_copy(ri_data%kp_rho_ao_t(i_spin, i_img), t_2c_ao_tmp(1))
+            CALL dbt_copy(ri_data%rho_ao_t(i_spin, i_img), t_2c_ao_tmp(1))
             CALL dbt_copy_tensor_to_matrix(t_2c_ao_tmp(1), rho_desymm)
 
             CALL dbcsr_dot(ks_desymm, rho_desymm, etmp)
             ehfx = ehfx + 0.5_dp*etmp
+
+            IF (.NOT. use_delta_p) CALL dbt_clear(ri_data%ks_t(i_spin, i_img))
          END DO
       END DO
       CALL dbcsr_release(rho_desymm)
@@ -886,7 +896,6 @@ CONTAINS
       END DO
 
       !Get the 3-center quantities in the subgroups. The integrals and t_3c_apc already there
-      !TODO: also distribute the t_3c_apc tensors
       ALLOCATE (t_3c_work_2(3), t_3c_work_3(4), t_3c_der_stack(6), t_3c_der_AO_sub(nimg, 3), &
                 t_3c_der_RI_sub(nimg, 3), t_3c_apc_sub(nspins, nimg))
       CALL get_subgroup_3c_derivs(t_3c_work_2, t_3c_work_3, t_3c_der_AO, t_3c_der_AO_sub, &
@@ -964,8 +973,7 @@ CONTAINS
                   bounds_iat(:, 1) = [SUM(ri_data%bsizes_AO(1:iatom - 1)) + 1, SUM(ri_data%bsizes_AO(1:iatom))]
                   bounds_jat(:, 1) = [SUM(ri_data%bsizes_AO(1:jatom - 1)) + 1, SUM(ri_data%bsizes_AO(1:jatom))]
                   CALL dbt_clear(t_2c_R_split)
-                  CALL dbt_batched_contract_init(t_2c_work(5))
-                  CALL dbt_batched_contract_init(t_2c_R_split)
+
                   DO i_spin = 1, nspins
                      CALL dbt_batched_contract_init(rho_ao_t_sub(i_spin, b_img))
                   END DO
@@ -1013,12 +1021,14 @@ CONTAINS
 
                         !Contract with V_PQ so that we can take the trace with (Q^b|nu^b lmabda^a+c)^(x)
                         CALL dbt_copy(t_3c_work_2(2), t_3c_work_3(1), order=[2, 1, 3], move_data=.TRUE.)
+                        CALL dbt_batched_contract_init(t_2c_work(5))
                         CALL dbt_contract(1.0_dp, t_2c_work(5), t_3c_work_3(1), &
                                           0.0_dp, t_3c_work_3(2), map_1=[1], map_2=[2, 3], &
                                           contract_1=[1], notcontract_1=[2], &
                                           contract_2=[1], notcontract_2=[2, 3], &
                                           filter_eps=ri_data%filter_eps, flop=nflop)
                         ri_data%dbcsr_nflop = ri_data%dbcsr_nflop + nflop
+                        CALL dbt_batched_contract_finalize(t_2c_work(5))
 
                         !Contract with the 3c derivatives to get the force/virial
                         CALL dbt_copy(t_3c_work_3(2), t_3c_work_3(4), move_data=.TRUE.)
@@ -1047,17 +1057,17 @@ CONTAINS
                                            img_bounds=[batch_ranges_nze(i_batch), batch_ranges_nze(i_batch + 1)])
                         CALL dbt_copy(t_3c_work_3(4), t_3c_work_3(3), move_data=.TRUE.)
 
+                        CALL dbt_batched_contract_init(t_2c_R_split)
                         CALL dbt_contract(1.0_dp, t_3c_work_3(1), t_3c_work_3(3), &
                                           1.0_dp, t_2c_R_split, map_1=[1], map_2=[2], &
                                           contract_1=[2, 3], notcontract_1=[1], &
                                           contract_2=[2, 3], notcontract_2=[1], &
                                           filter_eps=ri_data%filter_eps, flop=nflop)
                         ri_data%dbcsr_nflop = ri_data%dbcsr_nflop + nflop
+                        CALL dbt_batched_contract_finalize(t_2c_R_split)
                         CALL dbt_copy(t_3c_work_3(4), t_3c_work_3(1))
                      END DO
                   END DO
-                  CALL dbt_batched_contract_finalize(t_2c_work(5))
-                  CALL dbt_batched_contract_finalize(t_2c_R_split)
                   DO i_spin = 1, nspins
                      CALL dbt_batched_contract_finalize(rho_ao_t_sub(i_spin, b_img))
                   END DO
@@ -2599,6 +2609,7 @@ CONTAINS
       CALL para_env%sum(nocc)
       CALL para_env%sum(block_source)
       block_source = block_source + para_env%num_pe - 1
+      IF (nocc == 0) RETURN
 
       !Loop over the sub tensor, get the block destination
       igroup = para_env%mepos/group_size
@@ -2623,8 +2634,8 @@ CONTAINS
          CALL para_env%bcast(current_dest(:, :, igroup), source=igroup*group_size) !bcast from first proc in sub-group
       END DO
 
-      !Typically, the maximum value for a MPI tag is ~32000, so we go by batches to be sure
-      batch_size = 32000
+      !We go by batches, which cannot be larger than the maximum MPI tag value
+      batch_size = MIN(para_env%get_tag_ub(), 128000, nocc*ngroups)
       n_batch = (nocc*ngroups)/batch_size
       IF (MODULO(nocc*ngroups, batch_size) .NE. 0) n_batch = n_batch + 1
 
@@ -2788,6 +2799,7 @@ CONTAINS
       CALL para_env%sum(nocc)
       CALL para_env%sum(block_source)
       block_source = block_source + para_env%num_pe - 1
+      IF (nocc == 0) RETURN
 
       !Loop over the sub tensor, get the block destination
       igroup = para_env%mepos/group_size
@@ -2814,8 +2826,8 @@ CONTAINS
          CALL para_env%bcast(current_dest(:, :, :, igroup), source=igroup*group_size) !bcast from first proc in subgroup
       END DO
 
-      !Typically, the maximum value for a MPI tag is ~32000, so we go by batches to be sure
-      batch_size = 32000
+      !We go by batches, which cannot be larger than the maximum MPI tag value
+      batch_size = MIN(para_env%get_tag_ub(), 128000, nocc*ngroups)
       n_batch = (nocc*ngroups)/batch_size
       IF (MODULO(nocc*ngroups, batch_size) .NE. 0) n_batch = n_batch + 1
 
@@ -3207,13 +3219,14 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'get_subgroup_3c_tensors'
 
-      INTEGER                                            :: batch_size, handle, handle2, i_img, &
-                                                            i_RI, i_spin, ib, natom, nblks_AO, &
-                                                            nblks_RI, nimg, nspins
+      INTEGER                                            :: batch_size, bfac, bo(2), handle, &
+                                                            handle2, i_blk, i_img, i_RI, i_spin, &
+                                                            ib, natom, nblks_AO, nblks_RI, nimg, &
+                                                            nspins
       INTEGER(int_8)                                     :: nze
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: bsizes_RI_ext, bsizes_RI_ext_split, &
-                                                            bsizes_stack, dist1, dist2, dist3, &
-                                                            dist_stack, idx_to_at
+                                                            bsizes_stack, bsizes_tmp, dist1, &
+                                                            dist2, dist3, dist_stack, idx_to_at
       INTEGER, DIMENSION(3)                              :: pdims
       REAL(dp)                                           :: occ
       TYPE(dbt_distribution_type)                        :: t_dist
@@ -3229,10 +3242,18 @@ CONTAINS
       END DO
 
       !Preparing larger block sizes for efficient communication (less, bigger messages)
-      nblks_RI = SIZE(ri_data%bsizes_RI)
+      !we put 2 atoms per RI block
+      bfac = 2
+      natom = SIZE(ri_data%bsizes_RI)
+      nblks_RI = MAX(1, natom/bfac)
+      ALLOCATE (bsizes_tmp(nblks_RI))
+      DO i_blk = 1, nblks_RI
+         bo = get_limit(natom, nblks_RI, i_blk - 1)
+         bsizes_tmp(i_blk) = SUM(ri_data%bsizes_RI(bo(1):bo(2)))
+      END DO
       ALLOCATE (bsizes_RI_ext(ri_data%ncell_RI*nblks_RI))
       DO i_RI = 1, ri_data%ncell_RI
-         bsizes_RI_ext((i_RI - 1)*nblks_RI + 1:i_RI*nblks_RI) = ri_data%bsizes_RI(:)
+         bsizes_RI_ext((i_RI - 1)*nblks_RI + 1:i_RI*nblks_RI) = bsizes_tmp(:)
       END DO
 
       batch_size = ri_data%kp_stack_size
@@ -3246,7 +3267,7 @@ CONTAINS
       natom = SIZE(ri_data%bsizes_RI)
       pdims = 0
       CALL dbt_pgrid_create(para_env_sub, pdims, pgrid, &
-                            tensor_dims=[SIZE(bsizes_RI_ext_split), natom, batch_size*SIZE(ri_data%bsizes_AO_split)])
+                            tensor_dims=[SIZE(bsizes_RI_ext_split), 1, batch_size*SIZE(ri_data%bsizes_AO_split)])
 
       !Create all required 3c tensors in that configuration
       CALL create_3c_tensor(t_3c_int(1), dist1, dist2, dist3, &
