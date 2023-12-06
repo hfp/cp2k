@@ -30,7 +30,7 @@
 static inline void
 ortho_cx_to_grid(const int lp, const int k1, const int k2, const int j1,
                  const int j2, const int cmax,
-                        const double pol[3][lp + 1][2 * cmax + 1],
+                 const double pol[3][lp + 1][2 * cmax + 1],
                  const int map[3][2 * cmax + 1], const double dh[3][3],
                  const double dh_inv[3][3], const double kremain,
                  const int npts_local[3], GRID_CONST_WHEN_COLLOCATE double *cx,
@@ -64,35 +64,35 @@ ortho_cx_to_grid(const int lp, const int k1, const int k2, const int j1,
     GRID_CONST_WHEN_INTEGRATE double *grid_3 = &grid[grid_index_3];
 
 #if (GRID_DO_COLLOCATE)
-  // collocate
-  double reg[4] = {0.0, 0.0, 0.0, 0.0};
+    // collocate
+    double reg[4] = {0.0, 0.0, 0.0, 0.0};
 #pragma omp simd reduction(+ : reg)
-  for (int lxp = 0; lxp <= lp; lxp++) {
-    const double p = pol[0][lxp][i + cmax];
-    reg[0] += cx[lxp * 4 + 0] * p;
-    reg[1] += cx[lxp * 4 + 1] * p;
-    reg[2] += cx[lxp * 4 + 2] * p;
-    reg[3] += cx[lxp * 4 + 3] * p;
-  }
-  *grid_0 += reg[0];
-  *grid_1 += reg[1];
-  *grid_2 += reg[2];
-  *grid_3 += reg[3];
+    for (int lxp = 0; lxp <= lp; lxp++) {
+      const double p = pol[0][lxp][i + cmax];
+      reg[0] += cx[lxp * 4 + 0] * p;
+      reg[1] += cx[lxp * 4 + 1] * p;
+      reg[2] += cx[lxp * 4 + 2] * p;
+      reg[3] += cx[lxp * 4 + 3] * p;
+    }
+    *grid_0 += reg[0];
+    *grid_1 += reg[1];
+    *grid_2 += reg[2];
+    *grid_3 += reg[3];
 
 #else
-  // integrate
-  const double reg[4] = {*grid_0, *grid_1, *grid_2, *grid_3};
+    // integrate
+    const double reg[4] = {*grid_0, *grid_1, *grid_2, *grid_3};
 #pragma omp simd
-  for (int lxp = 0; lxp <= lp; lxp++) {
-    const double p = pol[0][lxp][i + cmax];
-    cx[lxp * 4 + 0] += reg[0] * p;
-    cx[lxp * 4 + 1] += reg[1] * p;
-    cx[lxp * 4 + 2] += reg[2] * p;
-    cx[lxp * 4 + 3] += reg[3] * p;
-  }
+    for (int lxp = 0; lxp <= lp; lxp++) {
+      const double p = pol[0][lxp][i + cmax];
+      cx[lxp * 4 + 0] += reg[0] * p;
+      cx[lxp * 4 + 1] += reg[1] * p;
+      cx[lxp * 4 + 2] += reg[2] * p;
+      cx[lxp * 4 + 3] += reg[3] * p;
+    }
 #endif
-}
   }
+}
 
 /*******************************************************************************
  * \brief Transforms coefficients C_xy into C_x by fixing grid index j.
@@ -100,9 +100,9 @@ ortho_cx_to_grid(const int lp, const int k1, const int k2, const int j1,
  ******************************************************************************/
 static inline void ortho_cxy_to_cx(const int lp, const int j1, const int j2,
                                    const int cmax,
-                const double pol[3][lp + 1][2 * cmax + 1],
-                GRID_CONST_WHEN_COLLOCATE double *cxy,
-                GRID_CONST_WHEN_INTEGRATE double *cx) {
+                                   const double pol[3][lp + 1][2 * cmax + 1],
+                                   GRID_CONST_WHEN_COLLOCATE double *cxy,
+                                   GRID_CONST_WHEN_INTEGRATE double *cx) {
 
   for (int lyp = 0; lyp <= lp; lyp++) {
     for (int lxp = 0; lxp <= lp - lyp; lxp++) {
@@ -165,8 +165,8 @@ static inline void ortho_cxy_to_grid(
                      npts_local, cx, grid);
     ortho_cxy_to_cx(lp, j1, j2, cmax, pol, cxy, cx);
 #endif
-        }
-      }
+  }
+}
 
 /*******************************************************************************
  * \brief Transforms coefficients C_xyz into C_xz by fixing grid index k.
@@ -348,55 +348,55 @@ general_ci_to_grid(const int lp, const int jg, const int kg, const int ismin,
     if (ig < 0) {
       continue; // skip over out-of-bounds indicies
     }
-      const double di = i - gp[0];
+    const double di = i - gp[0];
 
-      const int stride_i = index_max[0] - index_min[0] + 1;
-      const int stride_j = index_max[1] - index_min[1] + 1;
-      const int stride_k = index_max[2] - index_min[2] + 1;
-      const int idx_ij = (j - index_min[1]) * stride_i + i - index_min[0];
-      const int idx_jk = (k - index_min[2]) * stride_j + j - index_min[1];
-      const int idx_ki = (i - index_min[0]) * stride_k + k - index_min[2];
+    const int stride_i = index_max[0] - index_min[0] + 1;
+    const int stride_j = index_max[1] - index_min[1] + 1;
+    const int stride_k = index_max[2] - index_min[2] + 1;
+    const int idx_ij = (j - index_min[1]) * stride_i + i - index_min[0];
+    const int idx_jk = (k - index_min[2]) * stride_j + j - index_min[1];
+    const int idx_ki = (i - index_min[0]) * stride_k + k - index_min[2];
 
-      // Mathieu's trick: Calculate 3D Gaussian from three precomputed 2D tables
-      //
-      // r   =  (i-gp[0])*dh[0,:] + (j-gp[1])*dh[1,:] + (k-gp[2])*dh[2,:]
-      //     =  a                 + b                 + c
-      //
-      // r**2  =  (a + b + c)**2  =  a**2 + b**2 + c**2 + 2ab + 2bc + 2ca
-      //
-      // exp(-r**2)  =  exp(-a(a+2b)) * exp(-b*(b+2c)) * exp(-c*(c+2a))
-      //
-      const double gaussian = exp_ij[idx_ij] * exp_jk[idx_jk] * exp_ki[idx_ki];
+    // Mathieu's trick: Calculate 3D Gaussian from three precomputed 2D tables
+    //
+    // r   =  (i-gp[0])*dh[0,:] + (j-gp[1])*dh[1,:] + (k-gp[2])*dh[2,:]
+    //     =  a                 + b                 + c
+    //
+    // r**2  =  (a + b + c)**2  =  a**2 + b**2 + c**2 + 2ab + 2bc + 2ca
+    //
+    // exp(-r**2)  =  exp(-a(a+2b)) * exp(-b*(b+2c)) * exp(-c*(c+2a))
+    //
+    const double gaussian = exp_ij[idx_ij] * exp_jk[idx_jk] * exp_ki[idx_ki];
 
-      const int grid_index = base + ig; // [kg, jg, ig]
-      double dip = gaussian;
+    const int grid_index = base + ig; // [kg, jg, ig]
+    double dip = gaussian;
 
 #if (GRID_DO_COLLOCATE)
-      // collocate
-      double reg = 0.0;
-      for (int il = 0; il <= lp; il++) {
-        reg += ci[il] * dip;
-        dip *= di;
-      }
-      grid[grid_index] += reg;
-#else
-      // integrate
-      const double reg = grid[grid_index];
-      for (int il = 0; il <= lp; il++) {
-        ci[il] += reg * dip;
-        dip *= di;
-      }
-#endif
+    // collocate
+    double reg = 0.0;
+    for (int il = 0; il <= lp; il++) {
+      reg += ci[il] * dip;
+      dip *= di;
     }
+    grid[grid_index] += reg;
+#else
+    // integrate
+    const double reg = grid[grid_index];
+    for (int il = 0; il <= lp; il++) {
+      ci[il] += reg * dip;
+      dip *= di;
+    }
+#endif
   }
+}
 
 /*******************************************************************************
  * \brief Transforms coefficients C_ij into C_i by fixing grid index j.
  * \author Ole Schuett
  ******************************************************************************/
 static inline void general_cij_to_ci(const int lp, const double dj,
-                  GRID_CONST_WHEN_COLLOCATE double *cij,
-                  GRID_CONST_WHEN_INTEGRATE double *ci) {
+                                     GRID_CONST_WHEN_COLLOCATE double *cij,
+                                     GRID_CONST_WHEN_INTEGRATE double *ci) {
   double djp = 1.0;
   for (int jl = 0; jl <= lp; jl++) {
     for (int il = 0; il <= lp - jl; il++) {
@@ -472,7 +472,7 @@ static inline void general_cij_to_grid(
       general_cij_to_ci(lp, dj, cij, ci);
       general_ci_to_grid(lp, jg, kg, ismin, ismax, npts_local, index_min,
                          index_max, map_i, gp, k, j, exp_ij, exp_jk, exp_ki, ci,
-                                    grid);
+                         grid);
 #else
       // integrate
       general_ci_to_grid(lp, jg, kg, ismin, ismax, npts_local, index_min,
@@ -480,9 +480,9 @@ static inline void general_cij_to_grid(
                          grid);
       general_cij_to_ci(lp, dj, cij, ci);
 #endif
-          }
-        }
-      }
+    }
+  }
+}
 
 /*******************************************************************************
  * \brief Transforms coefficients C_ijk into C_ij by fixing grid index k.
@@ -515,8 +515,8 @@ static inline void general_cijk_to_cij(const int lp, const double dk,
  ******************************************************************************/
 static inline void general_precompute_mapping(const int index_min,
                                               const int index_max,
-                                      const int shift_local,
-                                      const int npts_global,
+                                              const int shift_local,
+                                              const int npts_global,
                                               const int bounds[2], int map[]) {
 
   // Precompute mapping from continous grid indices to pbc wraped.
@@ -528,7 +528,7 @@ static inline void general_precompute_mapping(const int index_min,
       map[k - index_min] = INT_MIN; // out of bounds - not mapped
     }
   }
-    }
+}
 
 /*******************************************************************************
  * \brief Fill one of the 2D tables that speedup 3D Gaussian (Mathieu's trick).
@@ -536,9 +536,9 @@ static inline void general_precompute_mapping(const int index_min,
  ******************************************************************************/
 static inline void
 general_fill_exp_table(const int idir, const int jdir, const int index_min[3],
-                     const int index_max[3], const double zetp,
-                     const double dh[3][3], const double gp[3],
-                     double exp_table[]) {
+                       const int index_max[3], const double zetp,
+                       const double dh[3][3], const double gp[3],
+                       double exp_table[]) {
 
   const int stride_i = index_max[idir] - index_min[idir] + 1;
   const double h_ii = dh[idir][0] * dh[idir][0] + dh[idir][1] * dh[idir][1] +
