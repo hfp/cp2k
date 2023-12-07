@@ -8,7 +8,7 @@ clean:
 realclean: clean
 	rm -fv *.x
 
-CFLAGS := -fopenmp -g -O3 -march=native -Wall -Wextra -Wno-vla-parameter
+CFLAGS := -fopenmp -g -O3 -march=native -Wall -Wextra -Wcast-qual -Wno-vla-parameter
 
 NVCC := $(shell which nvcc)
 NVARCH := sm_70
@@ -17,6 +17,8 @@ NVFLAGS := -g -O3 -lineinfo -arch $(NVARCH) -Wno-deprecated-gpu-targets -Xcompil
 HIPCC := $(shell which hipcc)
 HIPARCH := gfx90a
 HIPFLAGS := -fPIE -g -O3 --offload-arch=$(HIPARCH) -Wall -Wextra -Werror -I${ROCM_PATH}/include -D__OFFLOAD_HIP -D__HIP_PLATFORM_AMD__ -D__HIP_PLATFORM_AMD__
+
+OPENCL_OFFLOAD := $(firstword $(wildcard lib/*/*/exts/dbcsr/libdbcsr.a))
 
 ifneq ($(LIBXSMMROOT),)
 LIBS += \
@@ -70,6 +72,16 @@ ALL_OBJECTS += dbm_multiply_gpu.o
 
 %.o: %.cu $(ALL_HEADERS)
 	cd $(dir $<); $(HIPCC) -c $(HIPFLAGS) $(notdir $<)
+
+
+# Enable OpenCL when DBCSR library was prebuilt.
+else ifneq ($(OPENCL_OFFLOAD),)
+#LIBS += -lcudart -lcuda -lcublas -L${CUDA_PATH}/lib64
+CFLAGS += -D__OFFLOAD_OPENCL
+ALL_OBJECTS += dbm_multiply_gpu.o
+
+#%.o: %.cu $(ALL_HEADERS)
+#	cd $(dir $<); $(NVCC) -c $(NVFLAGS) $(notdir $<)
 endif
 
 
