@@ -48,7 +48,8 @@ void offload_create_buffer(const int length, offload_buffer **buffer) {
  * \author Ole Schuett
  ******************************************************************************/
 void offload_free_buffer(offload_buffer *buffer) {
-  if (NULL == buffer) return;
+  if (NULL == buffer)
+    return;
 #if defined(__OFFLOAD)
   offloadFreeHost(buffer->host_buffer);
   offloadFree(buffer->device_buffer);

@@ -430,6 +430,7 @@ static inline void offloadEnsureMallocHeapSize(const size_t required_size) {
 }
 #endif
 
-#endif // defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP) || defined(__OFFLOAD_OPENCL)
+#endif // defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP) ||
+       // defined(__OFFLOAD_OPENCL)
 
 #endif
