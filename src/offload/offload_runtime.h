@@ -13,6 +13,12 @@
 #if defined(__OFFLOAD_OPENCL) && !defined(__OPENCL)
 #define __OPENCL
 #endif
+/* TODO: implement support or missing features */
+#if defined(__OFFLOAD_OPENCL)
+#if !defined(__NO_OFFLOAD_GRID)
+#define __NO_OFFLOAD_GRID
+#endif
+#endif
 
 #if defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP) ||                       \
     defined(__OFFLOAD_OPENCL)
@@ -217,7 +223,7 @@ static inline void offloadMemcpyToSymbol(const void *symbol, const void *src,
   OFFLOAD_CHECK(
       hipMemcpyToSymbol(symbol, src, count, 0, hipMemcpyHostToDevice));
 #elif defined(__OFFLOAD_OPENCL)
-  offloadMemcpyHtoD(symbol, src, count);
+  assert(NULL == symbol || NULL == src || 0 == count); /* TODO */
 #endif
 }
 
