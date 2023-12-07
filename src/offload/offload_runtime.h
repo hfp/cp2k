@@ -26,7 +26,8 @@
 #elif defined(__OFFLOAD_HIP)
 #include <hip/hip_runtime.h>
 #elif defined(__OFFLOAD_OPENCL)
-#include "../../exts/dbcsr/src/acc/opencl/acc_opencl.h"
+/* No relative path aka double-quote to avoid PACKAGE deps (-Iexts/dbcsr). */
+#include <src/acc/opencl/acc_opencl.h>
 #endif
 
 #ifdef __cplusplus
@@ -44,7 +45,7 @@ typedef hipError_t offloadError_t;
 #elif defined(__OFFLOAD_OPENCL)
 typedef void *offloadStream_t;
 typedef void *offloadEvent_t;
-typedef void *offloadError_t;
+typedef int offloadError_t;
 #endif
 
 #if defined(__OFFLOAD_CUDA)
@@ -78,7 +79,8 @@ static inline const char *offloadGetErrorName(offloadError_t error) {
 #elif defined(__OFFLOAD_HIP)
   return hipGetErrorName(error);
 #elif defined(__OFFLOAD_OPENCL)
-  return "";             /* TODO */
+  (void)error; /* mark used */
+  return ""; /* TODO */
 #endif
 }
 

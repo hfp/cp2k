@@ -79,7 +79,7 @@ ALL_OBJECTS += dbm_multiply_gpu.o
 # Enable OpenCL when DBCSR library was prebuilt (assume __DBCSR_ACC).
 else ifneq ($(OPENCL_OFFLOAD),)
 #LIBS += -lcudart -lcuda -lcublas -L${CUDA_PATH}/lib64
-CFLAGS += -D__OFFLOAD_OPENCL -D__DBCSR_ACC
+CFLAGS += -I$(CP2KHOME)/exts/dbcsr -D__OFFLOAD_OPENCL -D__DBCSR_ACC
 ALL_OBJECTS += dbm_multiply_gpu.o
 
 #%.o: %.cu $(ALL_HEADERS)
