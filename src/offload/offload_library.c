@@ -59,6 +59,8 @@ void offload_init(void) {
   }
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipInit(0));
+#elif defined(__OFFLOAD_OPENCL)
+  OFFLOAD_CHECK(c_dbcsr_acc_init());
 #endif
 }
 
@@ -72,6 +74,8 @@ int offload_get_device_count(void) {
   OFFLOAD_CHECK(cudaGetDeviceCount(&count));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipGetDeviceCount(&count));
+#elif defined(__OFFLOAD_OPENCL)
+  OFFLOAD_CHECK(c_dbcsr_acc_get_ndevices(&count));
 #endif
   return count;
 }
@@ -97,6 +101,8 @@ void offload_activate_chosen_device(void) {
   OFFLOAD_CHECK(cudaSetDevice(chosen_device_id));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipSetDevice(chosen_device_id));
+#elif defined(__OFFLOAD_OPENCL)
+  OFFLOAD_CHECK(c_dbcsr_acc_set_active_device(chosen_device_id));
 #endif
 }
 
@@ -153,30 +159,21 @@ void offload_mem_info(size_t *free, size_t *total) {
   OFFLOAD_CHECK(cudaMemGetInfo(free, total));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipMemGetInfo(free, total));
+#elif defined(__OFFLOAD_OPENCL)
+  OFFLOAD_CHECK(c_dbcsr_acc_dev_mem_info(free, total));
 #else
-  *free = 0;
-  *total = 0;
+  *free = *total = 0;
 #endif
 }
 
 int offload_host_malloc(void **ptr__, const size_t size__) {
-#if defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP)
-  /* API checks are included in the overloading of the function */
-  offloadMallocHost(ptr__, size__);
-#else
-  *ptr__ = malloc(size__);
-  return 0;
-#endif
-  return 0;
+  offloadMallocHost(ptr__, size__); /* checked */
+  return offloadSuccess;
 }
 
 int offload_host_free(void *ptr__) {
-#if defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP)
-  offloadFreeHost(ptr__);
-#else
-  free(ptr__);
-#endif
-  return 0;
+  offloadFreeHost(ptr__); /* checked */
+  return offloadSuccess;
 }
 
 // EOF

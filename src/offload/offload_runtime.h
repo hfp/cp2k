@@ -8,7 +8,12 @@
 #ifndef OFFLOAD_RUNTIME_H
 #define OFFLOAD_RUNTIME_H
 
-#if defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP)
+#if defined(__OFFLOAD_OPENCL) && !defined(__DBCSR_ACC)
+#undef __OFFLOAD_OPENCL
+#endif
+
+#if defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP) ||                       \
+    defined(__OFFLOAD_OPENCL)
 #define __OFFLOAD
 
 #include <stdio.h>
@@ -18,6 +23,8 @@
 #include <cuda_runtime.h>
 #elif defined(__OFFLOAD_HIP)
 #include <hip/hip_runtime.h>
+#elif defined(__OFFLOAD_OPENCL)
+#include "../../exts/dbcsr/src/opencl/acc_opencl.h"
 #endif
 
 #ifdef __cplusplus
@@ -32,12 +39,18 @@ typedef cudaError_t offloadError_t;
 typedef hipStream_t offloadStream_t;
 typedef hipEvent_t offloadEvent_t;
 typedef hipError_t offloadError_t;
+#elif defined(__OFFLOAD_OPENCL)
+typedef void *offloadStream_t;
+typedef void *offloadEvent_t;
+typedef void *offloadError_t;
 #endif
 
 #if defined(__OFFLOAD_CUDA)
 #define offloadSuccess cudaSuccess
 #elif defined(__OFFLOAD_HIP)
 #define offloadSuccess hipSuccess
+#elif defined(__OFFLOAD_OPENCL)
+#define offloadSuccess EXIT_SUCCESS
 #endif
 
 /*******************************************************************************
@@ -62,6 +75,8 @@ static inline const char *offloadGetErrorName(offloadError_t error) {
   return cudaGetErrorName(error);
 #elif defined(__OFFLOAD_HIP)
   return hipGetErrorName(error);
+#elif defined(__OFFLOAD_OPENCL)
+  return "";             /* TODO */
 #endif
 }
 
@@ -73,6 +88,8 @@ static inline offloadError_t offloadGetLastError(void) {
   return cudaGetLastError();
 #elif defined(__OFFLOAD_HIP)
   return hipGetLastError();
+#elif defined(__OFFLOAD_OPENCL)
+  return offloadSuccess; /* TODO */
 #endif
 }
 
@@ -86,6 +103,9 @@ static inline void offloadMemsetAsync(void *const ptr, const int val,
   OFFLOAD_CHECK(cudaMemsetAsync(ptr, val, size, stream));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipMemsetAsync(ptr, val, size, stream));
+#elif defined(__OFFLOAD_OPENCL)
+  assert(0 == val);      /* TODO */
+  OFFLOAD_CHECK(c_dbcsr_acc_memset_zero(ptr, 0 /*offset*/, size, stream));
 #endif
 }
 
@@ -97,6 +117,8 @@ static inline void offloadMemset(void *ptr, const int val, size_t size) {
   OFFLOAD_CHECK(cudaMemset(ptr, val, size));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipMemset(ptr, val, size));
+#elif defined(__OFFLOAD_OPENCL)
+  offloadMemsetAsync(ptr, val, size, NULL /*stream*/);
 #endif
 }
 
@@ -112,6 +134,8 @@ static inline void offloadMemcpyAsyncHtoD(void *const ptr1, const void *ptr2,
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(
       hipMemcpyAsync(ptr1, ptr2, size, hipMemcpyHostToDevice, stream));
+#elif defined(__OFFLOAD_OPENCL)
+  OFFLOAD_CHECK(c_dbcsr_acc_memcpy_h2d(ptr2, ptr1, size, stream));
 #endif
 }
 
@@ -127,6 +151,8 @@ static inline void offloadMemcpyAsyncDtoH(void *const ptr1, const void *ptr2,
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(
       hipMemcpyAsync(ptr1, ptr2, size, hipMemcpyDeviceToHost, stream));
+#elif defined(__OFFLOAD_OPENCL)
+  OFFLOAD_CHECK(c_dbcsr_acc_memcpy_d2h(ptr2, ptr1, size, stream));
 #endif
 }
 
@@ -142,6 +168,8 @@ static inline void offloadMemcpyAsyncDtoD(void *ptr1, const void *ptr2,
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(
       hipMemcpyAsync(ptr1, ptr2, size, hipMemcpyDeviceToDevice, stream));
+#elif defined(__OFFLOAD_OPENCL)
+  OFFLOAD_CHECK(c_dbcsr_acc_memcpy_d2d(ptr2, ptr1, size, stream));
 #endif
 }
 
@@ -154,6 +182,8 @@ static inline void offloadMemcpyHtoD(void *ptr_device, const void *ptr_host,
   OFFLOAD_CHECK(cudaMemcpy(ptr_device, ptr_host, size, cudaMemcpyHostToDevice));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipMemcpy(ptr_device, ptr_host, size, hipMemcpyHostToDevice));
+#elif defined(__OFFLOAD_OPENCL)
+  offloadMemcpyAsyncHtoD(ptr_device, ptr_host, size, NULL /*stream*/);
 #endif
 }
 
@@ -166,6 +196,8 @@ static inline void offloadMemcpyDtoH(void *ptr_device, const void *ptr_host,
   OFFLOAD_CHECK(cudaMemcpy(ptr_device, ptr_host, size, cudaMemcpyDeviceToHost));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipMemcpy(ptr_device, ptr_host, size, hipMemcpyDeviceToHost));
+#elif defined(__OFFLOAD_OPENCL)
+  offloadMemcpyAsyncDtoH(ptr_device, ptr_host, size, NULL /*stream*/);
 #endif
 }
 
@@ -180,6 +212,8 @@ static inline void offloadMemcpyToSymbol(const void *symbol, const void *src,
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(
       hipMemcpyToSymbol(symbol, src, count, 0, hipMemcpyHostToDevice));
+#elif defined(__OFFLOAD_OPENCL)
+  offloadMemcpyHtoD(symbol, src, count);
 #endif
 }
 
@@ -191,6 +225,8 @@ static inline void offloadEventCreate(offloadEvent_t *event) {
   OFFLOAD_CHECK(cudaEventCreate(event));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipEventCreate(event));
+#elif defined(__OFFLOAD_OPENCL)
+  OFFLOAD_CHECK(c_dbcsr_acc_event_create(event));
 #endif
 }
 
@@ -202,6 +238,8 @@ static inline void offloadEventDestroy(offloadEvent_t event) {
   OFFLOAD_CHECK(cudaEventDestroy(event));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipEventDestroy(event));
+#elif defined(__OFFLOAD_OPENCL)
+  OFFLOAD_CHECK(c_dbcsr_acc_event_destroy(event));
 #endif
 }
 
@@ -213,6 +251,10 @@ static inline void offloadStreamCreate(offloadStream_t *stream) {
   OFFLOAD_CHECK(cudaStreamCreate(stream));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipStreamCreate(stream));
+#elif defined(__OFFLOAD_OPENCL)
+  int least = 0;
+  OFFLOAD_CHECK(c_dbcsr_acc_stream_priority_range(&least, NULL /*greatest*/));
+  OFFLOAD_CHECK(c_dbcsr_acc_stream_create(stream, "Offload Stream", least));
 #endif
 }
 
@@ -224,6 +266,8 @@ static inline void offloadStreamDestroy(offloadStream_t stream) {
   OFFLOAD_CHECK(cudaStreamDestroy(stream));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipStreamDestroy(stream));
+#elif defined(__OFFLOAD_OPENCL)
+  OFFLOAD_CHECK(c_dbcsr_acc_stream_destroy(stream));
 #endif
 }
 
@@ -235,6 +279,8 @@ static inline void offloadEventSynchronize(offloadEvent_t event) {
   OFFLOAD_CHECK(cudaEventSynchronize(event));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipEventSynchronize(event));
+#elif defined(__OFFLOAD_OPENCL)
+  OFFLOAD_CHECK(c_dbcsr_acc_event_synchronize(event));
 #endif
 }
 
@@ -246,6 +292,8 @@ static inline void offloadStreamSynchronize(offloadStream_t stream) {
   OFFLOAD_CHECK(cudaStreamSynchronize(stream));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipStreamSynchronize(stream));
+#elif defined(__OFFLOAD_OPENCL)
+  OFFLOAD_CHECK(c_dbcsr_acc_stream_sync(stream));
 #endif
 }
 
@@ -258,6 +306,8 @@ static inline void offloadEventRecord(offloadEvent_t event,
   OFFLOAD_CHECK(cudaEventRecord(event, stream));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipEventRecord(event, stream));
+#elif defined(__OFFLOAD_OPENCL)
+  OFFLOAD_CHECK(c_dbcsr_acc_event_record(event, stream));
 #endif
 }
 
@@ -265,10 +315,15 @@ static inline void offloadEventRecord(offloadEvent_t event,
  * \brief Wrapper around cudaMallocHost.
  ******************************************************************************/
 static inline void offloadMallocHost(void **ptr, size_t size) {
+  assert(NULL != ptr);
 #if defined(__OFFLOAD_CUDA)
   OFFLOAD_CHECK(cudaMallocHost(ptr, size));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipHostMalloc(ptr, size, hipHostMallocDefault)); // inconsistent
+#elif defined(__OFFLOAD_OPENCL)
+  OFFLOAD_CHECK(c_dbcsr_acc_host_mem_allocate(ptr, size, NULL /*stream*/));
+#else
+  *ptr = malloc(size);
 #endif
 }
 
@@ -276,10 +331,15 @@ static inline void offloadMallocHost(void **ptr, size_t size) {
  * \brief Wrapper around cudaMalloc.
  ******************************************************************************/
 static inline void offloadMalloc(void **ptr, size_t size) {
+  assert(NULL != ptr);
 #if defined(__OFFLOAD_CUDA)
   OFFLOAD_CHECK(cudaMalloc(ptr, size));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipMalloc(ptr, size));
+#elif defined(__OFFLOAD_OPENCL)
+  OFFLOAD_CHECK(c_dbcsr_acc_dev_mem_allocate(ptr, size));
+#else
+  *ptr = NULL;
 #endif
 }
 
@@ -291,6 +351,10 @@ static inline void offloadFree(void *ptr) {
   OFFLOAD_CHECK(cudaFree(ptr));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipFree(ptr));
+#elif defined(__OFFLOAD_OPENCL)
+  OFFLOAD_CHECK(c_dbcsr_acc_dev_mem_deallocate(ptr));
+#else
+  assert(NULL == ptr);
 #endif
 }
 
@@ -302,6 +366,10 @@ static inline void offloadFreeHost(void *ptr) {
   OFFLOAD_CHECK(cudaFreeHost(ptr));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipHostFree(ptr)); // inconsistent
+#elif defined(__OFFLOAD_OPENCL)
+  OFFLOAD_CHECK(c_dbcsr_acc_host_mem_deallocate(ptr, NULL /*stream*/));
+#else
+  free(ptr);
 #endif
 }
 
@@ -314,6 +382,9 @@ static inline void offloadStreamWaitEvent(offloadStream_t stream,
   OFFLOAD_CHECK(cudaStreamWaitEvent(stream, event, val));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipStreamWaitEvent(stream, event, val));
+#elif defined(__OFFLOAD_OPENCL)
+  assert(0 == val); /* TODO */
+  OFFLOAD_CHECK(c_dbcsr_acc_stream_wait_event(stream, event));
 #endif
 }
 
@@ -325,6 +396,8 @@ static inline void offloadDeviceSynchronize(void) {
   OFFLOAD_CHECK(cudaDeviceSynchronize());
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipDeviceSynchronize());
+#elif defined(__OFFLOAD_OPENCL)
+  OFFLOAD_CHECK(c_dbcsr_acc_device_synchronize());
 #endif
 }
 
@@ -332,20 +405,22 @@ static inline void offloadDeviceSynchronize(void) {
  * \brief Wrapper around cudaDeviceSetLimit(cudaLimitMallocHeapSize,...).
  ******************************************************************************/
 static inline void offloadEnsureMallocHeapSize(const size_t required_size) {
-  size_t current_size;
 #if defined(__OFFLOAD_CUDA)
+  size_t current_size;
   OFFLOAD_CHECK(cudaDeviceGetLimit(&current_size, cudaLimitMallocHeapSize));
   if (current_size < required_size) {
     OFFLOAD_CHECK(cudaDeviceSetLimit(cudaLimitMallocHeapSize, required_size));
   }
 #elif defined(__OFFLOAD_HIP) && (HIP_VERSION >= 50300000)
+  size_t current_size;
   OFFLOAD_CHECK(hipDeviceGetLimit(&current_size, hipLimitMallocHeapSize));
   if (current_size < required_size) {
     OFFLOAD_CHECK(hipDeviceSetLimit(hipLimitMallocHeapSize, required_size));
   }
+#elif defined(__OFFLOAD_OPENCL)
+  assert(0 == required_size); /* TODO */
 #else
-  (void)required_size; // mark used
-  (void)current_size;
+  (void)required_size; /* mark used */
 #endif
 }
 
