@@ -4,7 +4,6 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
-
 #ifndef OFFLOAD_RUNTIME_H
 #define OFFLOAD_RUNTIME_H
 
@@ -431,6 +430,6 @@ static inline void offloadEnsureMallocHeapSize(const size_t required_size) {
 }
 #endif
 
-#endif // defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP)
+#endif // defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP) || defined(__OFFLOAD_OPENCL)
 
 #endif

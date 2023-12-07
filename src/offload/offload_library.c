@@ -167,13 +167,23 @@ void offload_mem_info(size_t *free, size_t *total) {
 }
 
 int offload_host_malloc(void **ptr__, const size_t size__) {
+#if defined(__OFFLOAD)
   offloadMallocHost(ptr__, size__); /* checked */
   return offloadSuccess;
+#else
+  *ptr__ = malloc(size__);
+  return EXIT_SUCCESS;
+#endif
 }
 
 int offload_host_free(void *ptr__) {
+#if defined(__OFFLOAD)
   offloadFreeHost(ptr__); /* checked */
   return offloadSuccess;
+#else
+  free(ptr__);
+  return EXIT_SUCCESS;
+#endif
 }
 
 // EOF
