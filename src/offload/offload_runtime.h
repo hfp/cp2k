@@ -11,6 +11,9 @@
 #if defined(__OFFLOAD_OPENCL) && !defined(__DBCSR_ACC)
 #undef __OFFLOAD_OPENCL
 #endif
+#if defined(__OFFLOAD_OPENCL) && !defined(__OPENCL)
+#define __OPENCL
+#endif
 
 #if defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP) ||                       \
     defined(__OFFLOAD_OPENCL)
