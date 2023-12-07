@@ -1,3 +1,5 @@
+CP2KHOME := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/../..)
+
 .PHONY : all clean
 
 all: dbm_miniapp.x
@@ -18,7 +20,7 @@ HIPCC := $(shell which hipcc)
 HIPARCH := gfx90a
 HIPFLAGS := -fPIE -g -O3 --offload-arch=$(HIPARCH) -Wall -Wextra -Werror -I${ROCM_PATH}/include -D__OFFLOAD_HIP -D__HIP_PLATFORM_AMD__ -D__HIP_PLATFORM_AMD__
 
-OPENCL_OFFLOAD := $(firstword $(wildcard lib/*/*/exts/dbcsr/libdbcsr.a))
+OPENCL_OFFLOAD := $(firstword $(wildcard $(CP2KHOME)/lib/*/*/exts/dbcsr/libdbcsr.a))
 
 ifneq ($(LIBXSMMROOT),)
 LIBS += \
