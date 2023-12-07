@@ -252,8 +252,8 @@ static void fill_send_buffers(
  * \author Ole Schuett
  ******************************************************************************/
 static int compare_pack_blocks_by_sum_index(const void *a, const void *b) {
-  const dbm_pack_block_t *blk_a = (dbm_pack_block_t *)a;
-  const dbm_pack_block_t *blk_b = (dbm_pack_block_t *)b;
+  const dbm_pack_block_t *blk_a = (const dbm_pack_block_t *)a;
+  const dbm_pack_block_t *blk_b = (const dbm_pack_block_t *)b;
   return blk_a->sum_index - blk_b->sum_index;
 }
 

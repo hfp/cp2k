@@ -107,7 +107,7 @@ void dbm_library_counter_increment(const int m, const int n, const int k) {
  * \author Ole Schuett
  ******************************************************************************/
 static int compare_counters(const void *a, const void *b) {
-  return *(int64_t *)b - *(int64_t *)a;
+  return *(const int64_t *)b - *(const int64_t *)a;
 }
 
 /*******************************************************************************
