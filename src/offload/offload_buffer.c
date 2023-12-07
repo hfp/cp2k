@@ -30,13 +30,17 @@ void offload_create_buffer(const int length, offload_buffer **buffer) {
 
   (*buffer) = malloc(sizeof(offload_buffer));
   (*buffer)->size = requested_size;
-
+#if defined(__OFFLOAD)
   // offloadMallocHost may not nullify the pointer if requested size is zero,
   // and offloadFreeHost may subsequently fail.
   (*buffer)->host_buffer = NULL;
   offload_activate_chosen_device();
   offloadMallocHost((void **)&(*buffer)->host_buffer, requested_size);
   offloadMalloc((void **)&(*buffer)->device_buffer, requested_size);
+#else
+  (*buffer)->host_buffer = malloc(requested_size);
+  (*buffer)->device_buffer = NULL;
+#endif
 }
 
 /*******************************************************************************
@@ -44,10 +48,13 @@ void offload_create_buffer(const int length, offload_buffer **buffer) {
  * \author Ole Schuett
  ******************************************************************************/
 void offload_free_buffer(offload_buffer *buffer) {
-  if (NULL == buffer)
-    return;
+  if (NULL == buffer) return;
+#if defined(__OFFLOAD)
   offloadFreeHost(buffer->host_buffer);
   offloadFree(buffer->device_buffer);
+#else
+  free(buffer->host_buffer);
+#endif
   free(buffer);
 }
 
