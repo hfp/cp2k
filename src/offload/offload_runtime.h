@@ -26,7 +26,7 @@
 #elif defined(__OFFLOAD_HIP)
 #include <hip/hip_runtime.h>
 #elif defined(__OFFLOAD_OPENCL)
-#include "../../exts/dbcsr/src/opencl/acc_opencl.h"
+#include "../../exts/dbcsr/src/acc/opencl/acc_opencl.h"
 #endif
 
 #ifdef __cplusplus
