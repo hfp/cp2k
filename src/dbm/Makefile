@@ -1,4 +1,15 @@
 CP2KHOME := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/../..)
+ALL_HEADERS := $(shell find . -name "*.h") $(shell find ../offload/ -name "*.h")
+ALL_OBJECTS := ../offload/offload_library.o \
+        dbm_distribution.o \
+        dbm_library.o \
+        dbm_matrix.o \
+        dbm_mempool.o \
+        dbm_mpi.o \
+        dbm_multiply.o \
+        dbm_multiply_comm.o \
+        dbm_multiply_cpu.o \
+        dbm_shard.o
 
 .PHONY : all clean
 
@@ -20,15 +31,15 @@ HIPCC := $(shell which hipcc)
 HIPARCH := gfx90a
 HIPFLAGS := -fPIE -g -O3 --offload-arch=$(HIPARCH) -Wall -Wextra -Werror -I${ROCM_PATH}/include -D__OFFLOAD_HIP -D__HIP_PLATFORM_AMD__ -D__HIP_PLATFORM_AMD__
 
+# If DBCSR library exists, prefer OpenCL because, e.g., working NVCC implies functioning OpenCL
 OPENCL_OFFLOAD := $(firstword $(wildcard $(CP2KHOME)/lib/*/*/exts/dbcsr/libdbcsr.a))
 
-ifneq ($(LIBXSMMROOT),)
-LIBS += \
-        $(LIBXSMMROOT)/lib/libxsmm.a $(LIBXSMMROOT)/lib/libxsmmext.a \
-        -lpthread -lrt
-CFLAGS += -D__LIBXSMM -I$(LIBXSMMROOT)/include
-endif
 
+# Make foundational runtimes available
+LIBS += -fopenmp -ldl -lstdc++ -lc -lm
+
+
+# Make BLAS/LAPACK available
 ifneq ($(MKLROOT),)
 LIBS += \
         -L$(MKLROOT)/lib/intel64 \
@@ -41,26 +52,62 @@ else
 LIBS += -lblas
 endif
 
-LIBS += -fopenmp -ldl -lstdc++ -lc -lm
 
-ALL_HEADERS := $(shell find . -name "*.h") $(shell find ../offload/ -name "*.h")
-ALL_OBJECTS := ../offload/offload_library.o \
-        dbm_distribution.o \
-        dbm_library.o \
-        dbm_matrix.o \
-        dbm_mempool.o \
-        dbm_mpi.o \
-        dbm_multiply.o \
-        dbm_multiply_comm.o \
-        dbm_multiply_cpu.o \
-        dbm_shard.o
+# Enable OpenCL when DBCSR library was prebuilt (assume __DBCSR_ACC).
+ifneq ($(OPENCL_OFFLOAD),)
+  ALL_OBJECTS += dbm_multiply_gpu.o
+  CFLAGS += -I$(CP2KHOME)/exts/dbcsr -D__OFFLOAD_OPENCL -D__DBCSR_ACC
+  LIBS += $(OPENCL_OFFLOAD) -lgfortran
+
+  ifneq (Darwin,$(shell uname))
+    OPENCL_LIB := $(shell ldconfig -p 2>/dev/null | grep -m1 OpenCL | rev | cut -d' ' -f1 | rev)
+    ifeq (,$(OPENCL_LIB))
+      OPENCL_LIB := $(wildcard /usr/lib/x86_64-linux-gnu/libOpenCL.so.1)
+    endif
+    ifeq (,$(CUDATOOLKIT_HOME))
+      CUDATOOLKIT_HOME := $(NVSDKCOMPUTE_ROOT)
+    endif
+    ifeq (,$(CUDATOOLKIT_HOME))
+      CUDATOOLKIT_HOME := $(if $(NVCC),$(abspath $(dir $(NVCC))/..))
+    endif
+    ifneq (,$(CUDATOOLKIT_HOME))
+      CUDA_LIBDIR := $(if $(wildcard $(CUDATOOLKIT_HOME)/lib64),lib64,lib)
+      ifeq (,$(wildcard $(OPENCL_INC)))
+        CLINC := $(strip $(lastword $(sort $(wildcard $(CUDATOOLKIT_HOME)/../cuda/*/targets/x86_64-linux/include/CL/cl.h))))
+        ifneq (,$(CLINC))
+          OPENCL_INC := $(abspath $(dir $(CLINC))/..)
+        else
+          CFLAGS += -I$(CUDATOOLKIT_HOME)/include
+        endif
+      endif
+      ifeq (,$(wildcard $(OPENCL_LIB)))
+        LIBS += -L$(CUDATOOLKIT_HOME)/$(CUDA_LIBDIR)
+        LIBS += -Wl,-rpath=$(CUDATOOLKIT_HOME)/$(CUDA_LIBDIR)
+      endif
+    endif
+    # OPENCL_INC: directory containing CL/cl.h.
+    ifneq (,$(wildcard $(OPENCL_INC)))
+      CFLAGS += -I$(OPENCL_INC)
+    endif
+    # OPENCL_LIB: file/library to be linked
+    ifneq (,$(wildcard $(OPENCL_LIB)))
+      LIBS += $(OPENCL_LIB)
+    else
+      LIBS += -l:libOpenCL.so.1
+    endif
+  else # macOS
+    LIBS += -framework OpenCL
+  endif
+
+#%.o: %.cu $(ALL_HEADERS)
+#	cd $(dir $<); $(NVCC) -c $(NVFLAGS) $(notdir $<)
 
 
 # Enable Cuda when nvcc compiler is present.
-ifneq ($(NVCC),)
-LIBS += -lcudart -lcuda -lcublas -L${CUDA_PATH}/lib64
-CFLAGS += -I${CUDA_PATH}/include -D__OFFLOAD_CUDA
+else ifneq ($(NVCC),)
 ALL_OBJECTS += dbm_multiply_gpu.o dbm_multiply_gpu_kernel.o
+CFLAGS += -I${CUDA_PATH}/include -D__OFFLOAD_CUDA
+LIBS += -lcudart -lcuda -lcublas -L${CUDA_PATH}/lib64
 
 %.o: %.cu $(ALL_HEADERS)
 	cd $(dir $<); $(NVCC) -c $(NVFLAGS) $(notdir $<)
@@ -68,22 +115,21 @@ ALL_OBJECTS += dbm_multiply_gpu.o dbm_multiply_gpu_kernel.o
 
 # Enable HIP/ROCm when hipcc compiler is present.
 else ifneq ($(HIPCC),)
-LIBS += -L${ROCM_PATH}/lib -lamdhip64 -lhipfft -lhipblas -lrocblas
-CFLAGS += -I${ROCM_PATH}/include -D__OFFLOAD_HIP -D__HIP_PLATFORM_AMD__
 ALL_OBJECTS += dbm_multiply_gpu.o
+CFLAGS += -I${ROCM_PATH}/include -D__OFFLOAD_HIP -D__HIP_PLATFORM_AMD__
+LIBS += -L${ROCM_PATH}/lib -lamdhip64 -lhipfft -lhipblas -lrocblas
 
 %.o: %.cu $(ALL_HEADERS)
 	cd $(dir $<); $(HIPCC) -c $(HIPFLAGS) $(notdir $<)
+endif
 
 
-# Enable OpenCL when DBCSR library was prebuilt (assume __DBCSR_ACC).
-else ifneq ($(OPENCL_OFFLOAD),)
-#LIBS += -lcudart -lcuda -lcublas -L${CUDA_PATH}/lib64
-CFLAGS += -I$(CP2KHOME)/exts/dbcsr -D__OFFLOAD_OPENCL -D__DBCSR_ACC
-ALL_OBJECTS += dbm_multiply_gpu.o
-
-#%.o: %.cu $(ALL_HEADERS)
-#	cd $(dir $<); $(NVCC) -c $(NVFLAGS) $(notdir $<)
+# Make LIBXSMM available
+ifneq ($(LIBXSMMROOT),)
+CFLAGS += -D__LIBXSMM -I$(LIBXSMMROOT)/include
+LIBS += \
+        $(LIBXSMMROOT)/lib/libxsmm.a $(LIBXSMMROOT)/lib/libxsmmext.a \
+        -lpthread -lrt
 endif
 
 
