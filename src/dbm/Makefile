@@ -105,7 +105,7 @@ ifneq ($(OPENCL_OFFLOAD),)
   endif
 
 $(OPENCL_GENKRNL): $(KERNEL_SCR) $(KERNEL_SRC)
-	$(KERNEL_SCR) $(KERNEL_SRC) /dev/null $@
+	$(KERNEL_SCR) -p "" $(KERNEL_SRC) $@
 
 
 # Enable Cuda when nvcc compiler is present.
