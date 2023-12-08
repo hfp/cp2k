@@ -1,4 +1,5 @@
-CP2KHOME := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/../..)
+PROJHOME := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+CP2KHOME := $(abspath $(PROJHOME)/../..)
 ALL_HEADERS := $(shell find . -name "*.h") $(shell find ../offload/ -name "*.h")
 ALL_OBJECTS := ../offload/offload_library.o \
         dbm_distribution.o \
@@ -55,6 +56,11 @@ endif
 
 # Enable OpenCL when DBCSR library was prebuilt (assume __DBCSR_ACC).
 ifneq ($(OPENCL_OFFLOAD),)
+  KERNEL_SRC := $(PROJHOME)/dbm_multiply_gpu_kernel.cl
+  KERNEL_GEN := $(PROJHOME)/dbm_multiply_gpu_opencl.h
+  KERNEL_SCR := $(CP2KHOME)/exts/dbcsr/src/acc/opencl/acc_opencl.sh
+  ALL_HEADERS += $(KERNEL_GEN)
+
   ALL_OBJECTS += dbm_multiply_gpu.o
   CFLAGS += -I$(CP2KHOME)/exts/dbcsr -D__OFFLOAD_OPENCL -D__DBCSR_ACC
   LIBS += $(OPENCL_OFFLOAD) -lgfortran
@@ -99,8 +105,8 @@ ifneq ($(OPENCL_OFFLOAD),)
     LIBS += -framework OpenCL
   endif
 
-#%.o: %.cu $(ALL_HEADERS)
-#	cd $(dir $<); $(NVCC) -c $(NVFLAGS) $(notdir $<)
+$(KERNEL_GEN): $(KERNEL_SCR) $(KERNEL_SRC)
+	@$(KERNEL_SCR) $(KERNEL_SRC) /dev/null $@
 
 
 # Enable Cuda when nvcc compiler is present.
