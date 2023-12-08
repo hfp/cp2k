@@ -24,7 +24,7 @@ HIPFLAGS := -fPIE -g -O3 --offload-arch=$(HIPARCH) -Wall -Wextra -Werror -I${ROC
 
 # If DBCSR library exists, prefer OpenCL because, e.g., working NVCC implies functioning OpenCL
 OPENCL_OFFLOAD := $(firstword $(wildcard $(CP2KHOME)/lib/*/*/exts/dbcsr/libdbcsr.a))
-OPENCL_GENKRNL := $(PROJHOME)/dbm_multiply_gpu_kernel.h
+OPENCL_GENKRNL := $(PROJHOME)/dbm_multiply_gpu_kernel.cl.h
 
 # Make foundational runtimes available
 LIBS += -fopenmp -ldl -lstdc++ -lc -lm
