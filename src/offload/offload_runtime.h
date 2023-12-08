@@ -70,7 +70,7 @@ typedef int offloadError_t;
   do {                                                                         \
     offloadError_t error = cmd;                                                \
     if (error != offloadSuccess) {                                             \
-      fprintf(stderr, "ERROR: %s %s %d\n", offloadGetErrorName(error),         \
+      fprintf(stderr, "ERROR: \"%s\" at %s:%d\n", offloadGetErrorName(error),  \
               __FILE__, __LINE__);                                             \
       abort();                                                                 \
     }                                                                          \
@@ -85,8 +85,8 @@ static inline const char *offloadGetErrorName(offloadError_t error) {
 #elif defined(__OFFLOAD_HIP)
   return hipGetErrorName(error);
 #elif defined(__OFFLOAD_OPENCL)
-  (void)error; /* mark used */
-  return ""; /* TODO */
+  (void)error;           /* mark used */
+  return "";             /* TODO */
 #endif
 }
 
