@@ -60,7 +60,7 @@ ifneq ($(OPENCL_OFFLOAD),)
   KERNEL_SCR := $(CP2KHOME)/exts/dbcsr/src/acc/opencl/acc_opencl.sh
   ALL_HEADERS += $(OPENCL_GENKRNL)
 
-  ALL_OBJECTS += dbm_multiply_gpu.o
+  ALL_OBJECTS += dbm_multiply_gpu.o dbm_multiply_gpu_kernel.o
   CFLAGS += -I$(CP2KHOME)/exts/dbcsr -D__OFFLOAD_OPENCL -D__DBCSR_ACC
   LIBS += $(OPENCL_OFFLOAD) -lgfortran
 
