@@ -56,53 +56,53 @@ realclean: clean
 
 # Enable OpenCL when DBCSR library was prebuilt (assume __DBCSR_ACC).
 ifneq ($(OPENCL_OFFLOAD),)
-  KERNEL_SRC := $(PROJHOME)/dbm_multiply_gpu_kernel.cl
-  KERNEL_SCR := $(CP2KHOME)/exts/dbcsr/src/acc/opencl/acc_opencl.sh
-  ALL_HEADERS += $(OPENCL_GENKRNL)
+KERNEL_SRC := $(PROJHOME)/dbm_multiply_gpu_kernel.cl
+KERNEL_SCR := $(CP2KHOME)/exts/dbcsr/src/acc/opencl/acc_opencl.sh
+ALL_HEADERS += $(OPENCL_GENKRNL)
 
-  ALL_OBJECTS += dbm_multiply_gpu.o dbm_multiply_gpu_kernel.o
-  CFLAGS += -I$(CP2KHOME)/exts/dbcsr -D__OFFLOAD_OPENCL -D__DBCSR_ACC
-  LIBS += $(OPENCL_OFFLOAD) -lgfortran
+ALL_OBJECTS += dbm_multiply_gpu.o dbm_multiply_gpu_kernel.o
+CFLAGS += -I$(CP2KHOME)/exts/dbcsr -D__OFFLOAD_OPENCL -D__DBCSR_ACC
+LIBS += $(OPENCL_OFFLOAD) -lgfortran
 
-  ifneq (Darwin,$(shell uname))
-    OPENCL_LIB := $(shell ldconfig -p 2>/dev/null | grep -m1 OpenCL | rev | cut -d' ' -f1 | rev)
-    ifeq (,$(OPENCL_LIB))
-      OPENCL_LIB := $(wildcard /usr/lib/x86_64-linux-gnu/libOpenCL.so.1)
-    endif
-    ifeq (,$(CUDATOOLKIT_HOME))
-      CUDATOOLKIT_HOME := $(NVSDKCOMPUTE_ROOT)
-    endif
-    ifeq (,$(CUDATOOLKIT_HOME))
-      CUDATOOLKIT_HOME := $(if $(NVCC),$(abspath $(dir $(NVCC))/..))
-    endif
-    ifneq (,$(CUDATOOLKIT_HOME))
-      CUDA_LIBDIR := $(if $(wildcard $(CUDATOOLKIT_HOME)/lib64),lib64,lib)
-      ifeq (,$(wildcard $(OPENCL_INC)))
-        CLINC := $(strip $(lastword $(sort $(wildcard $(CUDATOOLKIT_HOME)/../cuda/*/targets/x86_64-linux/include/CL/cl.h))))
-        ifneq (,$(CLINC))
-          OPENCL_INC := $(abspath $(dir $(CLINC))/..)
-        else
-          CFLAGS += -I$(CUDATOOLKIT_HOME)/include
-        endif
-      endif
-      ifeq (,$(wildcard $(OPENCL_LIB)))
-        LIBS += -L$(CUDATOOLKIT_HOME)/$(CUDA_LIBDIR)
-        LIBS += -Wl,-rpath=$(CUDATOOLKIT_HOME)/$(CUDA_LIBDIR)
-      endif
-    endif
-    # OPENCL_INC: directory containing CL/cl.h.
-    ifneq (,$(wildcard $(OPENCL_INC)))
-      CFLAGS += -I$(OPENCL_INC)
-    endif
-    # OPENCL_LIB: file/library to be linked
-    ifneq (,$(wildcard $(OPENCL_LIB)))
-      LIBS += $(OPENCL_LIB)
-    else
-      LIBS += -l:libOpenCL.so.1
-    endif
-  else # macOS
-    LIBS += -framework OpenCL
-  endif
+ifneq (Darwin,$(shell uname))
+OPENCL_LIB := $(shell ldconfig -p 2>/dev/null | grep -m1 OpenCL | rev | cut -d' ' -f1 | rev)
+ifeq (,$(OPENCL_LIB))
+OPENCL_LIB := $(wildcard /usr/lib/x86_64-linux-gnu/libOpenCL.so.1)
+endif
+ifeq (,$(CUDATOOLKIT_HOME))
+CUDATOOLKIT_HOME := $(NVSDKCOMPUTE_ROOT)
+endif
+ifeq (,$(CUDATOOLKIT_HOME))
+CUDATOOLKIT_HOME := $(if $(NVCC),$(abspath $(dir $(NVCC))/..))
+endif
+ifneq (,$(CUDATOOLKIT_HOME))
+CUDA_LIBDIR := $(if $(wildcard $(CUDATOOLKIT_HOME)/lib64),lib64,lib)
+ifeq (,$(wildcard $(OPENCL_INC)))
+CLINC := $(strip $(lastword $(sort $(wildcard $(CUDATOOLKIT_HOME)/../cuda/*/targets/x86_64-linux/include/CL/cl.h))))
+ifneq (,$(CLINC))
+OPENCL_INC := $(abspath $(dir $(CLINC))/..)
+else
+CFLAGS += -I$(CUDATOOLKIT_HOME)/include
+endif
+endif
+ifeq (,$(wildcard $(OPENCL_LIB)))
+LIBS += -L$(CUDATOOLKIT_HOME)/$(CUDA_LIBDIR)
+LIBS += -Wl,-rpath=$(CUDATOOLKIT_HOME)/$(CUDA_LIBDIR)
+endif
+endif
+# OPENCL_INC: directory containing CL/cl.h.
+ifneq (,$(wildcard $(OPENCL_INC)))
+CFLAGS += -I$(OPENCL_INC)
+endif
+# OPENCL_LIB: file/library to be linked
+ifneq (,$(wildcard $(OPENCL_LIB)))
+LIBS += $(OPENCL_LIB)
+else
+LIBS += -l:libOpenCL.so.1
+endif
+else # macOS
+LIBS += -framework OpenCL
+endif
 
 $(OPENCL_GENKRNL): $(KERNEL_SCR) $(KERNEL_SRC)
 	$(KERNEL_SCR) -p "" $(KERNEL_SRC) $@

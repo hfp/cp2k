@@ -8,18 +8,15 @@
 #include "../offload/offload_runtime.h"
 #if defined(__OFFLOAD_OPENCL) && !defined(__NO_OFFLOAD_DBM)
 
-#include "dbm_multiply_gpu_kernel.h"
 #include "dbm_multiply_gpu_kernel.cl.h"
-
+#include "dbm_multiply_gpu_kernel.h"
 
 void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                                     const double alpha, const int ntasks,
                                     const dbm_task_t *batch,
                                     const double *pack_a_data,
                                     const double *pack_b_data,
-                                    double *shard_c_data)
-{
-}
+                                    double *shard_c_data) {}
 
 #endif // defined(__OFFLOAD_OPENCL) && !defined(__NO_OFFLOAD_DBM)
 
