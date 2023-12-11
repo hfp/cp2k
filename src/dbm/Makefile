@@ -23,9 +23,9 @@ HIPARCH := gfx90a
 HIPFLAGS := -fPIE -g -O3 --offload-arch=$(HIPARCH) -Wall -Wextra -Werror -I${ROCM_PATH}/include -D__OFFLOAD_HIP -D__HIP_PLATFORM_AMD__ -D__HIP_PLATFORM_AMD__
 
 ifneq ($(OPENCL),0)
-  # If DBCSR library exists, prefer OpenCL because, e.g., working NVCC implies functioning OpenCL
-  OPENCL_OFFLOAD := $(firstword $(wildcard $(CP2KHOME)/lib/*/*/exts/dbcsr/libdbcsr.a))
-  OPENCL_GENKRNL := $(PROJHOME)/dbm_multiply_gpu_kernel.cl.h
+# If DBCSR library exists, prefer OpenCL because, e.g., working NVCC implies functioning OpenCL
+OPENCL_OFFLOAD := $(firstword $(wildcard $(CP2KHOME)/lib/*/*/exts/dbcsr/libdbcsr.a))
+OPENCL_GENKRNL := $(PROJHOME)/dbm_multiply_gpu_kernel.cl.h
 endif
 
 # Make foundational runtimes available
