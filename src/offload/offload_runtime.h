@@ -114,8 +114,7 @@ static inline void offloadMemsetAsync(void *const ptr, const int val,
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipMemsetAsync(ptr, val, size, stream));
 #elif defined(__OFFLOAD_OPENCL)
-  assert(0 == val);      /* TODO */
-  OFFLOAD_CHECK(c_dbcsr_acc_memset_zero(ptr, 0 /*offset*/, size, stream));
+  OFFLOAD_CHECK(c_dbcsr_acc_opencl_memset(ptr, val, 0 /*offset*/, size, stream));
 #endif
 }
 
