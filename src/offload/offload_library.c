@@ -70,7 +70,7 @@ void offload_init(void) {
  ******************************************************************************/
 int offload_get_device_count(void) {
   int count = 0;
-#ifdef __OFFLOAD_CUDA
+#if defined(__OFFLOAD_CUDA)
   OFFLOAD_CHECK(cudaGetDeviceCount(&count));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipGetDeviceCount(&count));
@@ -97,7 +97,7 @@ int offload_get_chosen_device(void) { return chosen_device_id; }
  * \author Ole Schuett
  ******************************************************************************/
 void offload_activate_chosen_device(void) {
-#ifdef __OFFLOAD_CUDA
+#if defined(__OFFLOAD_CUDA)
   OFFLOAD_CHECK(cudaSetDevice(chosen_device_id));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipSetDevice(chosen_device_id));

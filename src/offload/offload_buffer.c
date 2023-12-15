@@ -18,7 +18,7 @@
  * \author Ole Schuett
  ******************************************************************************/
 void offload_create_buffer(const int length, offload_buffer **buffer) {
-  const size_t requested_size = length * sizeof(double);
+  const size_t requested_size = sizeof(double) * length;
 
   if (*buffer != NULL) {
     if ((*buffer)->size >= requested_size) {
@@ -30,10 +30,9 @@ void offload_create_buffer(const int length, offload_buffer **buffer) {
 
   (*buffer) = malloc(sizeof(offload_buffer));
   (*buffer)->size = requested_size;
-#if defined(__OFFLOAD)
-  // offloadMallocHost may not nullify the pointer if requested size is zero,
-  // and offloadFreeHost may subsequently fail.
   (*buffer)->host_buffer = NULL;
+  (*buffer)->device_buffer = NULL;
+#if defined(__OFFLOAD)
   offload_activate_chosen_device();
   offloadMallocHost((void **)&(*buffer)->host_buffer, requested_size);
   offloadMalloc((void **)&(*buffer)->device_buffer, requested_size);
@@ -41,6 +40,9 @@ void offload_create_buffer(const int length, offload_buffer **buffer) {
   (*buffer)->host_buffer = malloc(requested_size);
   (*buffer)->device_buffer = NULL;
 #endif
+  if (NULL == (*buffer)->host_buffer) { /* unified memory */
+    (*buffer)->host_buffer = (*buffer)->device_buffer;
+  }
 }
 
 /*******************************************************************************
