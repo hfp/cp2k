@@ -10,9 +10,6 @@
 #if defined(__OFFLOAD_OPENCL) && !defined(__DBCSR_ACC)
 #undef __OFFLOAD_OPENCL
 #endif
-#if defined(__OFFLOAD_OPENCL) && !defined(__OPENCL)
-#define __OPENCL
-#endif
 /* TODO: implement support or missing features */
 #if defined(__OFFLOAD_OPENCL)
 #if !defined(__NO_OFFLOAD_GRID)
