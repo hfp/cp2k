@@ -107,7 +107,7 @@ LIBS += -framework OpenCL
 endif
 
 $(OPENCL_GENKRNL): $(KERNEL_SCR) $(KERNEL_SRC)
-	$(KERNEL_SCR) -p "" $(KERNEL_SRC) $@
+	$(KERNEL_SCR) -b 7 -p "" $(KERNEL_SRC) $@
 
 
 # Enable Cuda when nvcc compiler is present.
