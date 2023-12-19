@@ -30,14 +30,13 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
 #pragma omp critical(c_dbcsr_acc_set_active_device)
 #endif
   { /* calling clSetKernelArg/kernel must be consistent across host-threads */
-    LIBXSMM_ATOMIC_ACQUIRE(&lock, LIBXSMM_SYNC_NPAUSE, LIBXSMM_ATOMIC_RELAXED);
     OFFLOAD_CHECK(clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha));
     OFFLOAD_CHECK(clSetKernelArg(kernel, 1, sizeof(cl_mem), &batch));
     OFFLOAD_CHECK(clSetKernelArg(kernel, 2, sizeof(cl_mem), &pack_a_data));
     OFFLOAD_CHECK(clSetKernelArg(kernel, 3, sizeof(cl_mem), &pack_b_data));
     OFFLOAD_CHECK(clSetKernelArg(kernel, 4, sizeof(cl_mem), &shard_c_data));
     OFFLOAD_CHECK(clEnqueueNDRangeKernel(
-        queue, kernel, 1 /*work_dim*/, NULL /*offset*/, &work_size, wgsize,
+        queue, NULL /*kernel*/, 1 /*work_dim*/, NULL /*offset*/, &work_size, &wgsize,
         0 /*num_wait*/, NULL /*wait_list*/, perf_event));
   }
 }
