@@ -115,7 +115,8 @@ static inline void offloadMemsetAsync(void *const ptr, const int val,
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipMemsetAsync(ptr, val, size, stream));
 #elif defined(__OFFLOAD_OPENCL)
-  OFFLOAD_CHECK(c_dbcsr_acc_opencl_memset(ptr, val, 0 /*offset*/, size, stream));
+  OFFLOAD_CHECK(
+      c_dbcsr_acc_opencl_memset(ptr, val, 0 /*offset*/, size, stream));
 #endif
 }
 
@@ -143,7 +144,8 @@ static inline void offloadMemcpyAsyncHtoD(void *const ptr1, const void *ptr2,
       cudaMemcpyAsync(ptr1, ptr2, size, cudaMemcpyHostToDevice, stream));
 #elif defined(__OFFLOAD_HIP)
 #if defined(__OFFLOAD_UNIFIED_MEMORY)
-  if (ptr1 == ptr2) return;
+  if (ptr1 == ptr2)
+    return;
 #endif
   OFFLOAD_CHECK(
       hipMemcpyAsync(ptr1, ptr2, size, hipMemcpyHostToDevice, stream));
@@ -163,7 +165,8 @@ static inline void offloadMemcpyAsyncDtoH(void *const ptr1, const void *ptr2,
       cudaMemcpyAsync(ptr1, ptr2, size, cudaMemcpyDeviceToHost, stream));
 #elif defined(__OFFLOAD_HIP)
 #if defined(__OFFLOAD_UNIFIED_MEMORY)
-  if (ptr1 == ptr2) return;
+  if (ptr1 == ptr2)
+    return;
 #endif
   OFFLOAD_CHECK(
       hipMemcpyAsync(ptr1, ptr2, size, hipMemcpyDeviceToHost, stream));
@@ -198,7 +201,8 @@ static inline void offloadMemcpyHtoD(void *ptr_device, const void *ptr_host,
   OFFLOAD_CHECK(cudaMemcpy(ptr_device, ptr_host, size, cudaMemcpyHostToDevice));
 #elif defined(__OFFLOAD_HIP)
 #if defined(__OFFLOAD_UNIFIED_MEMORY)
-  if (ptr_device == ptr_host) return;
+  if (ptr_device == ptr_host)
+    return;
 #endif
   OFFLOAD_CHECK(hipMemcpy(ptr_device, ptr_host, size, hipMemcpyHostToDevice));
 #elif defined(__OFFLOAD_OPENCL)
@@ -215,7 +219,8 @@ static inline void offloadMemcpyDtoH(void *ptr_device, const void *ptr_host,
   OFFLOAD_CHECK(cudaMemcpy(ptr_device, ptr_host, size, cudaMemcpyDeviceToHost));
 #elif defined(__OFFLOAD_HIP)
 #if defined(__OFFLOAD_UNIFIED_MEMORY)
-  if (ptr_device == ptr_host) return;
+  if (ptr_device == ptr_host)
+    return;
 #endif
   OFFLOAD_CHECK(hipMemcpy(ptr_device, ptr_host, size, hipMemcpyDeviceToHost));
 #elif defined(__OFFLOAD_OPENCL)
