@@ -66,10 +66,14 @@ typedef int offloadError_t;
  ******************************************************************************/
 #define OFFLOAD_CHECK(cmd)                                                     \
   do {                                                                         \
-    offloadError_t error = cmd;                                                \
+    const offloadError_t error = cmd;                                          \
     if (error != offloadSuccess) {                                             \
-      fprintf(stderr, "ERROR: \"%s\" at %s:%d\n", offloadGetErrorName(error),  \
-              __FILE__, __LINE__);                                             \
+      const char *const name = offloadGetErrorName(error);                     \
+      if (NULL != name && '\0' != *name) {                                     \
+        fprintf(stderr, "ERROR: \"%s\" at %s:%d\n", name, __FILE__, __LINE__); \
+      } else {                                                                 \
+        fprintf(stderr, "ERROR: %s:%d\n", __FILE__, __LINE__);                 \
+      }                                                                        \
       abort();                                                                 \
     }                                                                          \
   } while (0)
