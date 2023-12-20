@@ -11,8 +11,10 @@
 #include "dbm_multiply_gpu_kernel.cl.h"
 #include "dbm_multiply_gpu_kernel.h"
 
-void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
-                                    int ntasks, const dbm_task_t *batch,
+void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
+                                    const int m_max, const int n_max,
+                                    double alpha, int ntasks,
+                                    const dbm_task_t *batch,
                                     const double *pack_a_data,
                                     const double *pack_b_data,
                                     double *shard_c_data) {
@@ -30,15 +32,17 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
 #pragma omp critical(c_dbcsr_acc_set_active_device)
 #endif
   { /* calling clSetKernelArg/kernel must be consistent across host-threads */
+    OFFLOAD_CHECK(clSetKernelArg(NULL /*kernel*/, 0, sizeof(cl_int), &m_max));
+    OFFLOAD_CHECK(clSetKernelArg(NULL /*kernel*/, 1, sizeof(cl_int), &n_max));
     OFFLOAD_CHECK(
-        clSetKernelArg(NULL /*kernel*/, 0, sizeof(cl_double), &alpha));
+        clSetKernelArg(NULL /*kernel*/, 2, sizeof(cl_double), &alpha));
     OFFLOAD_CHECK(clSetKernelArg(NULL /*kernel*/, 1, sizeof(cl_mem), &batch));
     OFFLOAD_CHECK(
-        clSetKernelArg(NULL /*kernel*/, 2, sizeof(cl_mem), &pack_a_data));
+        clSetKernelArg(NULL /*kernel*/, 3, sizeof(cl_mem), &pack_a_data));
     OFFLOAD_CHECK(
-        clSetKernelArg(NULL /*kernel*/, 3, sizeof(cl_mem), &pack_b_data));
+        clSetKernelArg(NULL /*kernel*/, 4, sizeof(cl_mem), &pack_b_data));
     OFFLOAD_CHECK(
-        clSetKernelArg(NULL /*kernel*/, 4, sizeof(cl_mem), &shard_c_data));
+        clSetKernelArg(NULL /*kernel*/, 5, sizeof(cl_mem), &shard_c_data));
     OFFLOAD_CHECK(clEnqueueNDRangeKernel(
         queue, NULL /*kernel*/, 1 /*work_dim*/, NULL /*offset*/, &work_size,
         &wgsize, 0 /*num_wait*/, NULL /*wait_list*/, perf_event));

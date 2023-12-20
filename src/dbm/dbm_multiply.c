@@ -116,11 +116,16 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
                                   dbm_shard_t *shard_c,
                                   backend_context_t *ctx) {
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
-  (void)pack_a; (void)pack_b; (void)shard_c; // mark as used
+  (void)pack_a;
+  (void)pack_b;
+  (void)shard_c; // mark as used
   dbm_multiply_gpu_process_batch(ntasks, batch, m_max, n_max, alpha, kshard,
                                  &ctx->gpu);
 #else
-  (void)m_max; (void)n_max; (void)kshard; (void)ctx; // mark as used
+  (void)m_max;
+  (void)n_max;
+  (void)kshard;
+  (void)ctx; // mark as used
   dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b, shard_c);
 #endif
 }

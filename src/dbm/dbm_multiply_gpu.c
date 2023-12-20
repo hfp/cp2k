@@ -148,9 +148,9 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
   }
 
   // Launch kernel.
-  dbm_multiply_gpu_launch_kernel(shard_c_dev->stream, alpha, ntasks, batch_dev,
-                                 ctx->pack_a_dev.data, ctx->pack_b_dev.data,
-                                 shard_c_dev->data);
+  dbm_multiply_gpu_launch_kernel(shard_c_dev->stream, m_max, n_max, alpha,
+                                 ntasks, batch_dev, ctx->pack_a_dev.data,
+                                 ctx->pack_b_dev.data, shard_c_dev->data);
   OFFLOAD_CHECK(offloadGetLastError());
 
   // Wait for batch to be uploaded before refilling it.

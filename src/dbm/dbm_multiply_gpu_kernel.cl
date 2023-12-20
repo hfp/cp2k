@@ -5,7 +5,8 @@
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
 
-kernel void process_batch_kernel(double alpha, const dbm_task_t *batch,
+kernel void process_batch_kernel(int m_max, int n_max, double alpha,
+                                 const dbm_task_t *batch,
                                  const double *pack_a_data,
                                  const double *pack_b_data,
                                  double *shard_c_data) {
