@@ -110,18 +110,17 @@ static void backend_upload_packs(const dbm_pack_t *pack_a,
  * \author Ole Schuett
  ******************************************************************************/
 static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
+                                  const int m_max, const int n_max,
                                   const double alpha, const dbm_pack_t *pack_a,
                                   const dbm_pack_t *pack_b, const int kshard,
                                   dbm_shard_t *shard_c,
                                   backend_context_t *ctx) {
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
-  (void)pack_a; // mark as used
-  (void)pack_b;
-  (void)shard_c;
-  dbm_multiply_gpu_process_batch(ntasks, batch, alpha, kshard, &ctx->gpu);
+  (void)pack_a; (void)pack_b; (void)shard_c; // mark as used
+  dbm_multiply_gpu_process_batch(ntasks, batch, m_max, n_max, alpha, kshard,
+                                 &ctx->gpu);
 #else
-  (void)kshard; // mark as used
-  (void)ctx;
+  (void)m_max; (void)n_max; (void)kshard; (void)ctx; // mark as used
   dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b, shard_c);
 #endif
 }
@@ -208,6 +207,7 @@ static void multiply_packs(const bool transa, const bool transb,
         const int ishard = shard_row * nshard_cols + shard_col;
         dbm_shard_t *shard_c = &matrix_c->shards[ishard];
         dbm_task_t batch[MAX_BATCH_SIZE];
+        int m_max = 0, n_max = 0;
         int ntasks = 0;
 
         // Use a merge-join to find pairs of blocks with matching sum indices.
@@ -276,15 +276,19 @@ static void multiply_packs(const bool transa, const bool transb,
             batch[ntasks].offset_c = blk_c->offset;
             ntasks++;
 
+            // track MxN-shape covering an entire batch
+            m_max = (m < m_max ? m_max : m);
+            n_max = (n < n_max ? n_max : n);
+
             if (ntasks == MAX_BATCH_SIZE) {
-              backend_process_batch(ntasks, batch, alpha, pack_a, pack_b,
-                                    ishard, shard_c, ctx);
-              ntasks = 0;
+              backend_process_batch(ntasks, batch, m_max, n_max, alpha, pack_a,
+                                    pack_b, ishard, shard_c, ctx);
+              ntasks = m_max = n_max = 0;
             }
           }
         }
-        backend_process_batch(ntasks, batch, alpha, pack_a, pack_b, ishard,
-                              shard_c, ctx);
+        backend_process_batch(ntasks, batch, m_max, n_max, alpha, pack_a,
+                              pack_b, ishard, shard_c, ctx);
       }
     }
   }
