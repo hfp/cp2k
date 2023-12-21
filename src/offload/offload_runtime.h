@@ -64,6 +64,7 @@ typedef int offloadError_t;
  * \brief Check given Cuda status and upon failure abort with a nice message.
  * \author Ole Schuett
  ******************************************************************************/
+#if !defined(OFFLOAD_CHECK) /* allow to customize */
 #define OFFLOAD_CHECK(cmd)                                                     \
   do {                                                                         \
     const offloadError_t error = cmd;                                          \
@@ -77,6 +78,7 @@ typedef int offloadError_t;
       abort();                                                                 \
     }                                                                          \
   } while (0)
+#endif
 
 /*******************************************************************************
  * \brief Wrapper around cudaGetErrorName.
