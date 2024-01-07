@@ -1,6 +1,6 @@
 #!-------------------------------------------------------------------------------------------------!
 #!   CP2K: A general program to perform molecular dynamics simulations                             !
-#!   Copyright 2000-2023 CP2K developers group <https://cp2k.org>                                  !
+#!   Copyright 2000-2024 CP2K developers group <https://cp2k.org>                                  !
 #!                                                                                                 !
 #!   SPDX-License-Identifier: GPL-2.0-or-later                                                     !
 #!-------------------------------------------------------------------------------------------------!
@@ -113,6 +113,7 @@ list(
   ct_methods.F
   ct_types.F
   debug_os_integrals.F
+  deepmd_wrapper.F
   dft_plus_u.F
   dgemm_counter_types.F
   distribution_2d_types.F
@@ -310,6 +311,7 @@ list(
   lri_optimize_ri_basis_types.F
   ls_matrix_exp.F
   manybody_eam.F
+  manybody_deepmd.F
   manybody_gal21.F
   manybody_gal.F
   manybody_allegro.F
