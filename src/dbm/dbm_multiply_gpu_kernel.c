@@ -35,30 +35,26 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, int m_max,
 #if defined(_OPENMP)
 #pragma omp critical(c_dbcsr_acc_set_active_device)
 #endif
-  { /* creating/calling kernel/clSetKernelArg must be consistent across threads */
+  { /* creating/calling kernel must be consistent across threads */
 #if defined(OPENCL_DBM_SOURCE_MULTIPLY_GPU_KERNEL)
     if (NULL == kernel) { /* first-time check if kernel is present */
-      OFFLOAD_CHECK(c_dbcsr_acc_opencl_kernel(0 /*source_is_file*/,
-        OPENCL_DBM_SOURCE_MULTIPLY_GPU_KERNEL, "dbm_multiply",
-        NULL /*build_params*/, NULL /*build_options*/,
-        NULL /*try*/, NULL /*try_ok*/, NULL /*extnames*/, 0 /*num_exts*/,
-        &kernel));
+      OFFLOAD_CHECK(c_dbcsr_acc_opencl_kernel(
+          0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY_GPU_KERNEL,
+          "dbm_multiply", NULL /*build_params*/, NULL /*build_options*/,
+          NULL /*try*/, NULL /*try_ok*/, NULL /*extnames*/, 0 /*num_exts*/,
+          &kernel));
     }
 #endif
     OFFLOAD_CHECK(clSetKernelArg(kernel, 0, sizeof(cl_int), &m_max));
     OFFLOAD_CHECK(clSetKernelArg(kernel, 1, sizeof(cl_int), &n_max));
-    OFFLOAD_CHECK(
-        clSetKernelArg(kernel, 2, sizeof(cl_double), &alpha));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 2, sizeof(cl_double), &alpha));
     OFFLOAD_CHECK(clSetKernelArg(kernel, 1, sizeof(cl_mem), &batch));
-    OFFLOAD_CHECK(
-        clSetKernelArg(kernel, 3, sizeof(cl_mem), &pack_a_data));
-    OFFLOAD_CHECK(
-        clSetKernelArg(kernel, 4, sizeof(cl_mem), &pack_b_data));
-    OFFLOAD_CHECK(
-        clSetKernelArg(kernel, 5, sizeof(cl_mem), &shard_c_data));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 3, sizeof(cl_mem), &pack_a_data));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 4, sizeof(cl_mem), &pack_b_data));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 5, sizeof(cl_mem), &shard_c_data));
     OFFLOAD_CHECK(clEnqueueNDRangeKernel(
-        queue, kernel, 1 /*work_dim*/, NULL /*offset*/, &work_size,
-        &wgsize, 0 /*num_wait*/, NULL /*wait_list*/, perf_event));
+        queue, kernel, 1 /*work_dim*/, NULL /*offset*/, &work_size, &wgsize,
+        0 /*num_wait*/, NULL /*wait_list*/, perf_event));
   }
 }
 
