@@ -14,9 +14,9 @@ ALL_OBJECTS := ../offload/offload_library.o \
 
 # Optimization level
 ifeq (0,$(DBG))
-  OPT ?= 3
+OPT ?= 3
 else
-  OPT ?= 0
+OPT ?= 0
 endif
 
 # Optimization flag derived from OPT flag
