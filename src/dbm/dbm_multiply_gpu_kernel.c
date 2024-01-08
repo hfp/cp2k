@@ -52,9 +52,10 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, int m_max,
     OFFLOAD_CHECK(clSetKernelArg(kernel, 4, sizeof(cl_mem), &pack_a_data));
     OFFLOAD_CHECK(clSetKernelArg(kernel, 5, sizeof(cl_mem), &pack_b_data));
     OFFLOAD_CHECK(clSetKernelArg(kernel, 6, sizeof(cl_mem), &shard_c_data));
-    OFFLOAD_CHECK(clEnqueueNDRangeKernel(
-        queue, kernel, 1 /*work_dim*/, NULL /*offset*/, &work_size, &wgsize,
-        0 /*num_wait*/, NULL /*wait_list*/, perf_event));
+    OFFLOAD_CHECK(
+        clEnqueueNDRangeKernel(queue, kernel, 1 /*work_dim*/, NULL /*offset*/,
+                               &work_size, 0 != wgsize ? &wgsize : NULL,
+                               0 /*num_wait*/, NULL /*wait_list*/, perf_event));
   }
 }
 
