@@ -12,15 +12,25 @@ ALL_OBJECTS := ../offload/offload_library.o \
         dbm_multiply_cpu.o \
         dbm_shard.o
 
-CFLAGS := -fopenmp -g -O3 -march=native -Wall -Wextra -Wcast-qual -Wno-vla-parameter
+# Optimization level
+ifeq (0,$(DBG))
+  OPT ?= 3
+else
+  OPT ?= 0
+endif
+
+# Optimization flag derived from OPT flag
+OPTFLAG ?= -O$(patsubst O%,%,$(OPT))
+
+CFLAGS := -fopenmp -g $(OPTFLAG) -march=native -Wall -Wextra -Wcast-qual -Wno-vla-parameter
 
 NVCC := $(shell which nvcc)
 NVARCH := sm_70
-NVFLAGS := -g -O3 -lineinfo -arch $(NVARCH) -Wno-deprecated-gpu-targets -Xcompiler "$(CFLAGS)" -D__OFFLOAD_CUDA
+NVFLAGS := -g $(OPTFLAG) -lineinfo -arch $(NVARCH) -Wno-deprecated-gpu-targets -Xcompiler "$(CFLAGS)" -D__OFFLOAD_CUDA
 
 HIPCC := $(shell which hipcc)
 HIPARCH := gfx90a
-HIPFLAGS := -fPIE -g -O3 --offload-arch=$(HIPARCH) -Wall -Wextra -Werror -I${ROCM_PATH}/include -D__OFFLOAD_HIP -D__HIP_PLATFORM_AMD__ -D__HIP_PLATFORM_AMD__
+HIPFLAGS := -fPIE -g $(OPTFLAG) --offload-arch=$(HIPARCH) -Wall -Wextra -Werror -I${ROCM_PATH}/include -D__OFFLOAD_HIP -D__HIP_PLATFORM_AMD__ -D__HIP_PLATFORM_AMD__
 
 ifneq ($(OPENCL),0)
 # If DBCSR library exists, prefer OpenCL because, e.g., working NVCC implies functioning OpenCL
