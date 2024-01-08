@@ -64,7 +64,7 @@ typedef int offloadError_t;
  * \brief Check given Cuda status and upon failure abort with a nice message.
  * \author Ole Schuett
  ******************************************************************************/
-#if !defined(OFFLOAD_CHECK) /* allow to customize */
+#if !defined(OFFLOAD_CHECK)
 #define OFFLOAD_CHECK(cmd)                                                     \
   do {                                                                         \
     const offloadError_t error = cmd;                                          \
@@ -73,7 +73,7 @@ typedef int offloadError_t;
       if (NULL != name && '\0' != *name) {                                     \
         fprintf(stderr, "ERROR: \"%s\" at %s:%d\n", name, __FILE__, __LINE__); \
       } else {                                                                 \
-        fprintf(stderr, "ERROR: %s:%d\n", __FILE__, __LINE__);                 \
+        fprintf(stderr, "ERROR %i: %s:%d\n", (int)error, __FILE__, __LINE__);  \
       }                                                                        \
       abort();                                                                 \
     }                                                                          \
