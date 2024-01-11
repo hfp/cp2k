@@ -33,7 +33,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, int m_max,
   assert(0 < ntasks && 0 < m_max && n_max);
   assert(NULL != batch && NULL != queue);
 #if defined(_OPENMP)
-#pragma omp critical(c_dbcsr_acc_set_active_device)
+#pragma omp critical(dbm_multiply_gpu_launch_kernel)
 #endif
   { /* creating/calling kernel must be consistent across threads */
 #if defined(OPENCL_DBM_SOURCE_MULTIPLY_GPU_KERNEL)
