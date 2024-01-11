@@ -13,7 +13,7 @@ ALL_OBJECTS := ../offload/offload_library.o \
         dbm_shard.o
 
 # Optimization level
-ifeq (0,$(DBG))
+ifeq (,$(filter-out 0,$(DBG)))
 OPT ?= 3
 else
 OPT ?= 0
