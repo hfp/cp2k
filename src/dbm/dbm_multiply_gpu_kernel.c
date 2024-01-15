@@ -36,6 +36,11 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, int m_max,
 #pragma omp critical(dbm_multiply_gpu_launch_kernel)
 #endif
   { /* creating/calling kernel must be consistent across threads */
+    size_t offset = 0;
+    if (NULL != c_dbcsr_acc_opencl_config.clmems) {
+      void *const handle = c_dbcsr_acc_opencl_info_devptr(batch, NULL /*amount*/, &offset);
+      if (NULL != handle && 0 != offset) batch = *(const dbm_task_t**)handle;
+    }
 #if defined(OPENCL_DBM_SOURCE_MULTIPLY_GPU_KERNEL)
     if (NULL == kernel) { /* first-time check if kernel is present */
       const c_dbcsr_acc_opencl_info_stream_t *const qinfo =
@@ -65,10 +70,11 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, int m_max,
     OFFLOAD_CHECK(clSetKernelArg(kernel, 0, sizeof(cl_int), &m_max));
     OFFLOAD_CHECK(clSetKernelArg(kernel, 1, sizeof(cl_int), &n_max));
     OFFLOAD_CHECK(clSetKernelArg(kernel, 2, sizeof(cl_double), &alpha));
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 3, sizeof(cl_mem), &batch));
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 4, sizeof(cl_mem), &pack_a_data));
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 5, sizeof(cl_mem), &pack_b_data));
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 6, sizeof(cl_mem), &shard_c_data));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 3, sizeof(size_t), &offset));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 4, sizeof(cl_mem), &batch));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 5, sizeof(cl_mem), &pack_a_data));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 6, sizeof(cl_mem), &pack_b_data));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 7, sizeof(cl_mem), &shard_c_data));
     OFFLOAD_CHECK(
         clEnqueueNDRangeKernel(queue, kernel, 1 /*work_dim*/, NULL /*offset*/,
                                &work_size, 0 != wgsize ? &wgsize : NULL,
