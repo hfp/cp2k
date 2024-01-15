@@ -49,9 +49,9 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, int m_max,
       OFFLOAD_CHECK(clGetCommandQueueInfo(
           queue, CL_QUEUE_DEVICE, sizeof(cl_device_id), &active_device, NULL));
       nchar = c_dbcsr_acc_opencl_flags_atomics(
-          active_device, c_dbcsr_acc_opencl_atomic_fp_64, devinfo,
-          extensions, sizeof(extensions) / sizeof(*extensions),
-          build_params, sizeof(build_params));
+          active_device, c_dbcsr_acc_opencl_atomic_fp_64, devinfo, extensions,
+          sizeof(extensions) / sizeof(*extensions), build_params,
+          sizeof(build_params));
       if (0 < nchar && (int)sizeof(build_params) > nchar) {
         OFFLOAD_CHECK(c_dbcsr_acc_opencl_kernel(
             0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY_GPU_KERNEL,
