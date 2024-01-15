@@ -38,11 +38,23 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, int m_max,
   { /* creating/calling kernel must be consistent across threads */
 #if defined(OPENCL_DBM_SOURCE_MULTIPLY_GPU_KERNEL)
     if (NULL == kernel) { /* first-time check if kernel is present */
-      OFFLOAD_CHECK(c_dbcsr_acc_opencl_kernel(
-          0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY_GPU_KERNEL,
-          "process_batch_kernel", NULL /*build_params*/, NULL /*build_options*/,
-          NULL /*try*/, NULL /*try_ok*/, NULL /*extnames*/, 0 /*num_exts*/,
-          &kernel));
+      const c_dbcsr_acc_opencl_info_stream_t* const qinfo = c_dbcsr_acc_opencl_info_stream(stream);
+      const c_dbcsr_acc_opencl_device_t* const devinfo = c_dbcsr_acc_opencl_config.device + qinfo->tid;
+      char build_params[ACC_OPENCL_BUFFERSIZE];
+      const char *extensions[] = { NULL, NULL };
+      cl_device_id active_device = NULL;
+      int nchar
+      OFFLOAD_CHECK(clGetCommandQueueInfo(queue, CL_QUEUE_DEVICE, sizeof(cl_device_id), &active_device, NULL));
+      nchar = c_dbcsr_acc_opencl_flags_atomics(active_device, c_dbcsr_acc_opencl_atomic_fp_64, devinfo,
+        0/*test_zero*/, 1/*use_atomics*/, 1/*use_barrier*/, extensions, sizeof(extensions) / sizeof(*extensions),
+        build_params, sizeof(build_params));
+      if (0 < nchar && (int)sizeof(build_params) > nchar) {
+        OFFLOAD_CHECK(c_dbcsr_acc_opencl_kernel(
+            0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY_GPU_KERNEL,
+            "process_batch_kernel", build_params, "-cl-fast-relaxed-math -cl-denorms-are-zero",
+            NULL /*try*/, NULL /*try_ok*/, extensions, sizeof(extensions) / sizeof(*extensions),
+            &kernel));
+      }
     }
 #endif
     OFFLOAD_CHECK(clSetKernelArg(kernel, 0, sizeof(cl_int), &m_max));
