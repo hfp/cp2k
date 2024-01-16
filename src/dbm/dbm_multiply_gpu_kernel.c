@@ -39,11 +39,11 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, int m_max,
     int batch_offset = 0;
     if (NULL != c_dbcsr_acc_opencl_config.clmems) {
       size_t amount = sizeof(dbm_task_t) * ntasks, offset = 0;
-      void *const handle = c_dbcsr_acc_opencl_info_devptr(batch, &amount, &offset);
+      void *const handle =
+          c_dbcsr_acc_opencl_info_devptr(batch, sizeof(dbm_task_t), &amount, &offset);
       if (NULL != handle && 0 != offset) {
-        batch_offset = offset / sizeof(dbm_task_t);
-        assert((sizeof(dbm_task_t) * batch_offset) == offset);
-        batch = *(const dbm_task_t**)handle;
+        batch = *(const dbm_task_t **)handle;
+        batch_offset = (int)offset;
       }
     }
 #if defined(OPENCL_DBM_SOURCE_MULTIPLY_GPU_KERNEL)
