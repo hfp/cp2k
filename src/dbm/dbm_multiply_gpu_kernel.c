@@ -45,7 +45,8 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   assert(0 < n_range[0] && 0 < n_range[1] && n_range[0] <= n_range[1]);
   assert(0 < ntasks && NULL != batch && NULL != queue);
   printf("ntasks=%i m=%i..%i n=%i..%i batchsize=%i -> work_size=%i\n", ntasks,
-         m_range[0], m_range[1], n_range[0], n_range[1], batchsize, work_size);
+         m_range[0], m_range[1], n_range[0], n_range[1], batchsize,
+         (int)work_size);
 #if defined(_OPENMP)
 #pragma omp critical(dbm_multiply_gpu_launch_kernel)
 #endif
