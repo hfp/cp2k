@@ -11,6 +11,13 @@
 #include "dbm_multiply_gpu_kernel.cl.h"
 #include "dbm_multiply_gpu_kernel.h"
 
+size_t dbm_multiply_gpu_worksize(int ntasks, int n_max, int batchsize) {
+  const int worksize =
+      (int)(((size_t)ntasks * n_max + batchsize - 1) / batchsize);
+  batchsize = (int)(((size_t)ntasks * n_max + worksize - 1) / worksize);
+  return ((size_t)ntasks * n_max + batchsize - 1) / batchsize;
+}
+
 void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                                     const int m_range[2], const int n_range[2],
                                     double alpha, int ntasks,
@@ -30,15 +37,13 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                       : c_dbcsr_acc_opencl_stream_default());
   const int batchsize = 10; /* intra-kernel batch-size */
   const size_t work_size =
-                   ((size_t)ntasks * n_range[1] + batchsize - 1) / batchsize,
-               wgsize = 0;
+      dbm_multiply_gpu_worksize(ntasks, n_range[1], batchsize);
+  const size_t wgsize = 0;
   cl_kernel kernel = NULL;
   assert(NULL != pack_a_data && NULL != pack_b_data && NULL != shard_c_data);
   assert(0 < m_range[0] && 0 < m_range[1] && m_range[0] <= m_range[1]);
   assert(0 < n_range[0] && 0 < n_range[1] && n_range[0] <= n_range[1]);
   assert(0 < ntasks && NULL != batch && NULL != queue);
-  printf("ntasks=%i m=%i..%i n=%i..%i batchsize=%i -> work_size=%i\n", ntasks,
-         m_range[0], m_range[1], n_range[0], n_range[1], batchsize, work_size);
 #if defined(_OPENMP)
 #pragma omp critical(dbm_multiply_gpu_launch_kernel)
 #endif
