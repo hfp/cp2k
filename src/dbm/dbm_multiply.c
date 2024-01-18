@@ -19,10 +19,23 @@
 #include "dbm_multiply_internal.h"
 
 /*******************************************************************************
- * \brief Returns the larger of two given integer (missing from the C standard)
+ * \brief Returns the larger of two given integer (missing from the C standard).
  * \author Ole Schuett
  ******************************************************************************/
 static inline int imax(int x, int y) { return (x > y ? x : y); }
+
+/*******************************************************************************
+ * \brief Updates the min/max of a range of values (initially {INT_MAX, 0}).
+ * \author Hans Pabst
+ ******************************************************************************/
+static inline void min_max(int result[2], int value) {
+  if (value < result[0]) {
+    result[0] = value;
+  }
+  if (result[1] < value) {
+    result[1] = value;
+  }
+}
 
 /*******************************************************************************
  * \brief Private routine for computing the max filter threshold for each row.
@@ -283,14 +296,8 @@ static void multiply_packs(const bool transa, const bool transb,
             ntasks++;
 
             // track MxN-shape covering an entire batch
-            if (m < m_range[0])
-              m_range[0] = m;
-            if (m_range[1] < m)
-              m_range[1] = m;
-            if (n < n_range[0])
-              n_range[0] = n;
-            if (n_range[1] < n)
-              n_range[1] = n;
+            min_max(m_range, m);
+            min_max(n_range, n);
 
             if (ntasks == MAX_BATCH_SIZE) {
               backend_process_batch(ntasks, batch, m_range, n_range, alpha,
