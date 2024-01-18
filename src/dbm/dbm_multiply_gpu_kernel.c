@@ -81,7 +81,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
 #endif
     OFFLOAD_CHECK(clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha));
     OFFLOAD_CHECK(clSetKernelArg(kernel, 1, sizeof(cl_int), &ntasks));
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 2, sizeof(cl_int), &n_max[1]));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 2, sizeof(cl_int), &n_range[1]));
     OFFLOAD_CHECK(clSetKernelArg(kernel, 3, sizeof(cl_int), &batch_offset));
     OFFLOAD_CHECK(clSetKernelArg(kernel, 4, sizeof(cl_mem), &batch));
     OFFLOAD_CHECK(clSetKernelArg(kernel, 5, sizeof(cl_mem), &pack_a_data));
