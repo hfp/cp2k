@@ -27,7 +27,8 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, int m_max,
   const cl_command_queue queue =
       (NULL != stream ? *ACC_OPENCL_STREAM(stream)
                       : c_dbcsr_acc_opencl_stream_default());
-  const size_t work_size = (size_t)ntasks * n_max, wgsize = 0;
+  const int batchsize = 10; /* intra-kernel batch-size */
+  const size_t work_size = ((size_t)ntasks * n_max + batchsize - 1) / batchsize, wgsize = 0;
   cl_kernel kernel = NULL;
   assert(NULL != pack_a_data && NULL != pack_b_data && NULL != shard_c_data);
   assert(0 < ntasks && 0 < m_max && n_max);
@@ -72,14 +73,15 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, int m_max,
       }
     }
 #endif
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 0, sizeof(cl_int), &m_max));
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 1, sizeof(cl_int), &n_max));
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 2, sizeof(cl_double), &alpha));
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 3, sizeof(cl_int), &batch_offset));
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 4, sizeof(cl_mem), &batch));
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 5, sizeof(cl_mem), &pack_a_data));
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 6, sizeof(cl_mem), &pack_b_data));
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 7, sizeof(cl_mem), &shard_c_data));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 0, sizeof(cl_int), &ntasks));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 1, sizeof(cl_int), &m_max));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 2, sizeof(cl_int), &n_max));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 3, sizeof(cl_double), &alpha));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 4, sizeof(cl_int), &batch_offset));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 5, sizeof(cl_mem), &batch));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 6, sizeof(cl_mem), &pack_a_data));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 7, sizeof(cl_mem), &pack_b_data));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 8, sizeof(cl_mem), &shard_c_data));
     OFFLOAD_CHECK(
         clEnqueueNDRangeKernel(queue, kernel, 1 /*work_dim*/, NULL /*offset*/,
                                &work_size, 0 != wgsize ? &wgsize : NULL,
