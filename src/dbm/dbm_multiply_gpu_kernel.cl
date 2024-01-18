@@ -7,24 +7,21 @@
 #include "../../exts/dbcsr/src/acc/opencl/common/opencl_atomics.h"
 #include "dbm_multiply_internal.h"
 
-kernel void process_batch_kernel(int ntasks, const int m_range[2],
-                                 const int n_range[2], double alpha,
+kernel void process_batch_kernel(double alpha, int ntasks, int n_max,
                                  int task_offset,
                                  global const dbm_task_t *restrict tasks,
                                  global const double *restrict pack_a_data,
                                  global const double *restrict pack_b_data,
                                  global double *restrict shard_c_data) {
-  const int idx = (int)get_local_id(0), work_size = (int)get_global_size(0);
-  const int task_size = ntasks * n_max;
-  const int batchsize = (task_size + work_size - 1) / work_size;
-  const int i0 = idx * batchsize, i1 = min(i0 + batchsize, task_size);
-  double colvec[4]; /* column */
+  const int work_size = (int)get_global_size(0), idx = (int)get_local_id(0);
+  const int batchsize = (ntasks * n_range[1] + work_size - 1) / work_size;
   int i, j;
 
-  for (i = i0; i < i1; i += n_max) {
-    const dbm_task_t task = tasks[task_offset + i / n_max];
-    const int n = i % n_max;
-    printf("task=%i n=%i MxN=%ix%i\n", i / n_max, task.m, task.n);
+  for (i = idx; i < (idx + batchsize); ++i) {
+    const int tid = i % ntasks, nid = i % n_range[1];
+    const dbm_task_t task = tasks[task_offset + tid];
+    if (nid < task.n) {
+      printf("tid=%i nid=%i\n", tid, nid);
+    }
   }
-  printf("\n");
 }
