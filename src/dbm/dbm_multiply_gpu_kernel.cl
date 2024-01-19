@@ -15,19 +15,20 @@
  * TEST: benchmark_multiply(2, 2, 3, 2, 2, 4, comm)
  */
 kernel void process_batch_kernel(double alpha, int ntasks, int m_max,
-                                 int task_offset,
                                  global const dbm_task_t *restrict tasks,
                                  global const double *restrict a_data,
                                  global const double *restrict b_data,
                                  global double *restrict c_data) {
-  const int work_size = (int)get_global_size(0), idx = (int)get_global_id(0);
+  const int task_offset = (int)get_global_offset(0);
+  const int work_size = (int)get_global_size(0);
   const int batchsize = (ntasks * m_max + work_size - 1) / work_size;
-  const int i0 = idx * batchsize, i1 = i0 + batchsize;
+  const int i0 = (int)get_global_id(0) * batchsize;
+  const int i1 = i0 + batchsize;
   double vec[16];
 
   for (int i = i0; i < i1; ++i) {
     const int tid = i / m_max, m = i - tid * m_max;
-    const dbm_task_t task = tasks[task_offset + tid];
+    const dbm_task_t task = tasks[tid + task_offset];
     if (m < task.m) {
       for (int n = 0; n < task.n; ++n) {
         vec[n] = ZERO;
@@ -45,7 +46,7 @@ kernel void process_batch_kernel(double alpha, int ntasks, int m_max,
         vec[n] = ZERO; /* reset */
       }
 #if 0
-      printf("idx=%i -> i=%i -> tid=%i m=%i\n", idx, i, tid, m);
+      printf("idx=%i -> i=%i -> tid=%i m=%i\n", (int)get_global_id(0), i, tid, m);
 #endif
     }
   }
