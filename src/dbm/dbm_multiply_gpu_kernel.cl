@@ -7,6 +7,14 @@
 #include "../../exts/dbcsr/src/acc/opencl/common/opencl_atomics.h"
 #include "dbm_multiply_internal.h"
 
+#if 1
+#define IDX(I, J, K, M, N) ((I) * (N) + (J) + (K))
+#define IDT(I, J, K, M, N) IDX(J, I, K, N, M)
+#else
+#define IDT(I, J, K, M, N) ((I) * (N) + (J) + (K))
+#define IDX(I, J, K, M, N) IDT(J, I, K, N, M)
+#endif
+
 /**
  * A * B^T -> C
  * TEST: benchmark_multiply(2, 2, 3, 2, 2, 4, comm)
@@ -17,10 +25,10 @@ kernel void process_batch_kernel(double alpha, int ntasks, int n_max,
                                  global const double *restrict a_data,
                                  global const double *restrict b_data,
                                  global double *restrict c_data) {
-  const int work_size = (int)get_global_size(0), idx = (int)get_local_id(0);
+  const int work_size = (int)get_global_size(0), idx = (int)get_global_id(0);
   const int batchsize = (ntasks * n_max + work_size - 1) / work_size;
   const int i0 = idx * batchsize, i1 = i0 + batchsize;
-  double colvec[4]; /* M-column */
+  double colvec[16]; /* M-column */
 
   for (int i = i0; i < i1; ++i) {
     const int tid = i % ntasks, nid = i % n_max;
@@ -30,16 +38,20 @@ kernel void process_batch_kernel(double alpha, int ntasks, int n_max,
         colvec[m] = ZERO;
       }
       for (int k = 0; k < task.k; ++k) {
-        const double b = b_data[task.k * nid + k + task.offset_b];
+        const double b = b_data[IDT(k, nid, task.offset_b, task.k, task.n)];
         for (int m = 0; m < task.m; ++m) {
-          const double a = a_data[task.k * m + k + task.offset_a];
+          const double a = a_data[IDX(m, k, task.offset_a, task.m, task.k)];
           colvec[m] = MAD(a, b, colvec[m]);
         }
       }
       for (int m = 0; m < task.m; ++m) {
-        ACCUMULATE(&c_data[task.m * nid + m + task.offset_c], colvec[m]);
+        ACCUMULATE(&c_data[IDX(m, nid, task.offset_c, task.m, task.n)],
+                   alpha * colvec[m]);
         colvec[m] = ZERO; /* reset */
       }
+#if 0
+      printf("idx=%i tid=%i nid=%i\n", idx, tid, nid);
+#endif
     }
   }
 }
