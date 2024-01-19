@@ -11,11 +11,11 @@
 #include "dbm_multiply_gpu_kernel.cl.h"
 #include "dbm_multiply_gpu_kernel.h"
 
-size_t dbm_multiply_gpu_worksize(int ntasks, int n_max, int *batchsize) {
+size_t dbm_multiply_gpu_worksize(int ntasks, int split, int *batchsize) {
   const int worksize =
-      (int)(((size_t)ntasks * n_max + *batchsize - 1) / *batchsize);
-  *batchsize = (int)(((size_t)ntasks * n_max + worksize - 1) / worksize);
-  return ((size_t)ntasks * n_max + *batchsize - 1) / *batchsize;
+      (int)(((size_t)ntasks * split + *batchsize - 1) / *batchsize);
+  *batchsize = (int)(((size_t)ntasks * split + worksize - 1) / worksize);
+  return ((size_t)ntasks * split + *batchsize - 1) / *batchsize;
 }
 
 void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
@@ -37,7 +37,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                       : c_dbcsr_acc_opencl_stream_default());
   int batchsize = 10; /* intra-kernel batch-size */
   const size_t work_size =
-      dbm_multiply_gpu_worksize(ntasks, n_range[1], &batchsize);
+      dbm_multiply_gpu_worksize(ntasks, m_range[1], &batchsize);
   const size_t wgsize = 0;
   cl_kernel kernel = NULL;
   assert(NULL != pack_a_data && NULL != pack_b_data && NULL != shard_c_data);
@@ -89,7 +89,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
 #endif
     OFFLOAD_CHECK(clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha));
     OFFLOAD_CHECK(clSetKernelArg(kernel, 1, sizeof(cl_int), &ntasks));
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 2, sizeof(cl_int), &n_range[1]));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 2, sizeof(cl_int), &m_range[1]));
     OFFLOAD_CHECK(clSetKernelArg(kernel, 3, sizeof(cl_int), &batch_offset));
     OFFLOAD_CHECK(clSetKernelArg(kernel, 4, sizeof(cl_mem), &batch));
     OFFLOAD_CHECK(clSetKernelArg(kernel, 5, sizeof(cl_mem), &pack_a_data));
