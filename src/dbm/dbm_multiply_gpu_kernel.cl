@@ -7,13 +7,8 @@
 #include "../../exts/dbcsr/src/acc/opencl/common/opencl_atomics.h"
 #include "dbm_multiply_internal.h"
 
-#if 1
 #define IDX(I, J, K, M, N) ((I) * (N) + (J) + (K))
 #define IDT(I, J, K, M, N) IDX(J, I, K, N, M)
-#else
-#define IDT(I, J, K, M, N) ((I) * (N) + (J) + (K))
-#define IDX(I, J, K, M, N) IDT(J, I, K, N, M)
-#endif
 
 /**
  * A * B^T -> C
@@ -31,7 +26,7 @@ kernel void process_batch_kernel(double alpha, int ntasks, int m_max,
   double vec[16];
 
   for (int i = i0; i < i1; ++i) {
-    const int tid = i % ntasks, m = i % m_max;
+    const int tid = i / m_max, m = i - tid * m_max;
     const dbm_task_t task = tasks[task_offset + tid];
     if (m < task.m) {
       for (int n = 0; n < task.n; ++n) {
@@ -50,7 +45,7 @@ kernel void process_batch_kernel(double alpha, int ntasks, int m_max,
         vec[n] = ZERO; /* reset */
       }
 #if 0
-      printf("idx=%i tid=%i i=%i m=%i\n", idx, tid, i, m);
+      printf("idx=%i -> i=%i -> tid=%i m=%i\n", idx, i, tid, m);
 #endif
     }
   }
