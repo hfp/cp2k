@@ -7,7 +7,10 @@
 #include "../../exts/dbcsr/src/acc/opencl/common/opencl_atomics.h"
 #include "dbm_multiply_internal.h"
 
-/* TEST: benchmark_multiply(2, 2, 3, 2, 2, 4, comm) */
+/**
+ * A * B^T -> C
+ * TEST: benchmark_multiply(2, 2, 3, 2, 2, 4, comm)
+ */
 kernel void process_batch_kernel(double alpha, int ntasks, int n_max,
                                  int task_offset,
                                  global const dbm_task_t *restrict tasks,
@@ -17,19 +20,25 @@ kernel void process_batch_kernel(double alpha, int ntasks, int n_max,
   const int work_size = (int)get_global_size(0), idx = (int)get_local_id(0);
   const int batchsize = (ntasks * n_max + work_size - 1) / work_size;
   const int i0 = idx * batchsize, i1 = i0 + batchsize;
-  double colvec[4]; /* column */
+  double colvec[4]; /* M-column */
 
   for (int i = i0; i < i1; ++i) {
     const int tid = i % ntasks, nid = i % n_max;
     const dbm_task_t task = tasks[task_offset + tid];
     if (nid < task.n) {
-      printf("idx=%i tid=%i nid=%i\n", idx, tid, nid);
+      for (int m = 0; m < task.m; ++m) {
+        colvec[m] = ZERO;
+      }
       for (int k = 0; k < task.k; ++k) {
-        const double a = a_data[task.m * k + idx + task.offset_a];
-        const double b = b_data[task.n * k + idx + task.offset_b];
+        const double b = b_data[task.k * nid + k + task.offset_b];
         for (int m = 0; m < task.m; ++m) {
-          colvec[m] = fma(work_group_broadcast(a, m), b, colvec[m]);
+          const double a = a_data[task.k * m + k + task.offset_a];
+          colvec[m] = MAD(a, b, colvec[m]);
         }
+      }
+      for (int m = 0; m < task.m; ++m) {
+        ACCUMULATE(&c_data[task.m * nid + m + task.offset_c], colvec[m]);
+        colvec[m] = ZERO; /* reset */
       }
     }
   }
