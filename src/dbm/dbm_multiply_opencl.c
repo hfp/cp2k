@@ -8,7 +8,7 @@
 #include "../offload/offload_runtime.h"
 #if defined(__OFFLOAD_OPENCL) && !defined(__NO_OFFLOAD_DBM)
 
-#include "dbm_multiply_gpu_kernel.cl.h"
+#include "dbm_multiply_opencl.cl.h"
 #include "dbm_multiply_gpu_kernel.h"
 
 size_t dbm_multiply_gpu_worksize(int ntasks, int split, int *batchsize) {

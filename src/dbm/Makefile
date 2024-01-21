@@ -35,7 +35,7 @@ HIPFLAGS := -fPIE -g $(OPTFLAG) --offload-arch=$(HIPARCH) -Wall -Wextra -Werror 
 ifneq ($(OPENCL),0)
 # If DBCSR library exists, prefer OpenCL because, e.g., working NVCC implies functioning OpenCL
 OPENCL_OFFLOAD := $(firstword $(wildcard $(CP2KHOME)/lib/*/*/exts/dbcsr/libdbcsr.a))
-OPENCL_GENKRNL := $(PROJHOME)/dbm_multiply_gpu_kernel.cl.h
+OPENCL_GENKRNL := $(PROJHOME)/dbm_multiply_opencl.cl.h
 endif
 
 # Make foundational runtimes available
@@ -68,11 +68,11 @@ realclean: clean
 
 # Enable OpenCL when DBCSR library was prebuilt (assume __DBCSR_ACC).
 ifneq ($(OPENCL_OFFLOAD),)
-KERNEL_SRC := $(PROJHOME)/dbm_multiply_gpu_kernel.cl
+KERNEL_SRC := $(PROJHOME)/dbm_multiply_opencl.cl
 KERNEL_SCR := $(CP2KHOME)/exts/dbcsr/src/acc/opencl/acc_opencl.sh
 ALL_HEADERS += $(OPENCL_GENKRNL)
 
-ALL_OBJECTS += dbm_multiply_gpu.o dbm_multiply_gpu_kernel.o
+ALL_OBJECTS += dbm_multiply_gpu.o dbm_multiply_opencl.o
 CFLAGS += -I$(CP2KHOME)/exts/dbcsr -D__OFFLOAD_OPENCL -D__DBCSR_ACC
 LIBS += $(OPENCL_OFFLOAD) -lgfortran
 
@@ -122,7 +122,7 @@ $(OPENCL_GENKRNL): $(KERNEL_SCR) $(KERNEL_SRC)
 
 # Enable Cuda when nvcc compiler is present.
 else ifneq ($(NVCC),)
-ALL_OBJECTS += dbm_multiply_gpu.o dbm_multiply_gpu_kernel.o
+ALL_OBJECTS += dbm_multiply_gpu.o dbm_multiply_opencl.o
 CFLAGS += -I${CUDA_PATH}/include -D__OFFLOAD_CUDA
 LIBS += -lcudart -lcuda -lcublas -L${CUDA_PATH}/lib64
 
