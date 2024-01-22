@@ -62,7 +62,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         batch = *(const dbm_task_t **)handle;
       }
     }
-#if defined(OPENCL_DBM_SOURCE_MULTIPLY_GPU_KERNEL)
+#if defined(OPENCL_DBM_SOURCE_MULTIPLY_OPENCL)
     if (NULL == kernel) { /* first-time check if kernel is present */
       const c_dbcsr_acc_opencl_info_stream_t *const qinfo =
           c_dbcsr_acc_opencl_info_stream(stream);
@@ -80,13 +80,15 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
           sizeof(build_params));
       if (0 < nchar && (int)sizeof(build_params) > nchar) {
         OFFLOAD_CHECK(c_dbcsr_acc_opencl_kernel(
-            0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY_GPU_KERNEL,
+            0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY_OPENCL,
             "process_batch_kernel", build_params,
             "-cl-fast-relaxed-math -cl-denorms-are-zero", NULL /*try*/,
             NULL /*try_ok*/, extensions,
             sizeof(extensions) / sizeof(*extensions), &kernel));
       }
     }
+#else
+#error "OpenCL kernel code not found!"
 #endif
     OFFLOAD_CHECK(clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha));
     OFFLOAD_CHECK(clSetKernelArg(kernel, 1, sizeof(cl_int), &ntasks));
