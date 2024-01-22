@@ -25,6 +25,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                                     const double *pack_a_data,
                                     const double *pack_b_data,
                                     double *shard_c_data) {
+  static cl_kernel kernel = NULL;
   cl_event event, *const perf_event =
                       ((c_dbcsr_acc_opencl_timer_host ==
                             c_dbcsr_acc_opencl_config.timer ||
@@ -39,7 +40,6 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   const size_t work_size =
       dbm_multiply_gpu_worksize(ntasks, m_range[1], &batchsize);
   const size_t wgsize = 0;
-  cl_kernel kernel = NULL;
   assert(NULL != pack_a_data && NULL != pack_b_data && NULL != shard_c_data);
   assert(0 < m_range[0] && 0 < m_range[1] && m_range[0] <= m_range[1]);
   assert(0 < n_range[0] && 0 < n_range[1] && n_range[0] <= n_range[1]);
