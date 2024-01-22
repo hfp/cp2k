@@ -126,9 +126,9 @@ $(OPENCL_GENKRNL): $(KERNEL_SCR) $(KERNEL_SRC)
 
 # Enable Cuda when nvcc compiler is present.
 else ifneq ($(NVCC),)
-NVCC_PATH := $(if $(NVCC),$(abspath $(dir $(NVCC))/..))
-CUDA_PATH := $(if $(wildcard $(NVCC_PATH)/../cuda/include/cuda.h),$(wildcard $(NVCC_PATH)/../cuda))
-CUDA_PATH := $(if $(CUDA_PATH),$(CUDA_PATH),$(NVCC_PATH))
+NVCC_PATH := $(if $(NVCC),$(wildcard $(dir $(NVCC))/..))
+CUDA_FILE := $(wildcard $(NVCC_PATH)/../cuda/include/cuda.h)
+CUDA_PATH := $(if $(CUDA_FILE),$(NVCC_PATH)/../cuda,$(NVCC_PATH))
 CUDA_LIBS := $(if $(wildcard $(CUDA_PATH)/lib64),lib64,lib)
 ALL_OBJECTS += dbm_multiply_gpu.o dbm_multiply_gpu_kernel.o
 CFLAGS += -I${CUDA_PATH}/include -D__OFFLOAD_CUDA
