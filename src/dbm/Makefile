@@ -33,13 +33,12 @@ HIPARCH := gfx90a
 HIPFLAGS := -fPIE -g $(OPTFLAG) --offload-arch=$(HIPARCH) -Wall -Wextra -Werror -I${ROCM_PATH}/include -D__OFFLOAD_HIP -D__HIP_PLATFORM_AMD__ -D__HIP_PLATFORM_AMD__
 
 # prefer NVCC or HIPCC over OpenCL
-ifeq ($(NVCC),)
-ifeq ($(HIPCC),)
+ifneq ($(NVCC)$(HIPCC),)
+OPENCL := 0
+endif
 ifneq ($(OPENCL),0)
 OPENCL_OFFLOAD := $(firstword $(wildcard $(CP2KHOME)/lib/*/*/exts/dbcsr/libdbcsr.a))
 OPENCL_GENKRNL := $(PROJHOME)/dbm_multiply_opencl.cl.h
-endif
-endif
 endif
 
 # Make foundational runtimes available
