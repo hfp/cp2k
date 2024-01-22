@@ -306,15 +306,13 @@ ifeq (Darwin,$(shell uname))
   LDFLAGS += -framework OpenCL
 else
   # OpenCL include directory (cl.h not installed per "opencl-headers" package)
-  ifeq (,$(CUDATOOLKIT_HOME))
-    CUDATOOLKIT_HOME := $(NVSDKCOMPUTE_ROOT)
-  endif
-  ifeq (,$(CUDATOOLKIT_HOME))
-    NVCC := $(call which,nvcc)
-    CUDATOOLKIT_HOME := $(if $(NVCC),$(abspath $(dir $(NVCC))/..))
-  endif
-  ifneq (,$(CUDATOOLKIT_HOME))
-    CFLAGS += -I$(CUDATOOLKIT_HOME)/include
+  NVCC := $(shell which nvcc)
+  NVCC_PATH := $(if $(NVCC),$(wildcard $(dir $(NVCC))/..))
+  CUDA_FILE := $(wildcard $(NVCC_PATH)/../cuda/include/cuda.h)
+  CUDA_PATH := $(if $(CUDA_FILE),$(NVCC_PATH)/../cuda,$(NVCC_PATH))
+  CUDA_LIBS := $(if $(wildcard $(CUDA_PATH)/lib64),lib64,lib)
+  ifneq (,$(CUDA_PATH))
+    CFLAGS += -I$(CUDA_PATH)/include
   endif
 endif
 endif
