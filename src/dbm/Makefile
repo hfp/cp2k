@@ -34,6 +34,10 @@ HIPFLAGS := -fPIE -g $(OPTFLAG) --offload-arch=$(HIPARCH) -Wall -Wextra -Werror 
 
 # prefer NVCC or HIPCC over OpenCL
 ifneq ($(NVCC)$(HIPCC),)
+NVCC_PATH := $(if $(NVCC),$(wildcard $(dir $(NVCC))/..))
+CUDA_FILE := $(wildcard $(NVCC_PATH)/../cuda/include/cuda.h)
+CUDA_PATH := $(if $(CUDA_FILE),$(NVCC_PATH)/../cuda,$(NVCC_PATH))
+CUDA_LIBS := $(if $(wildcard $(CUDA_PATH)/lib64),lib64,lib)
 OPENCL := 0
 endif
 ifneq ($(OPENCL),0)
@@ -84,25 +88,13 @@ OPENCL_LIB := $(shell ldconfig -p 2>/dev/null | grep -m1 OpenCL | rev | cut -d' 
 ifeq (,$(OPENCL_LIB))
 OPENCL_LIB := $(wildcard /usr/lib/x86_64-linux-gnu/libOpenCL.so.1)
 endif
-ifeq (,$(CUDATOOLKIT_HOME))
-CUDATOOLKIT_HOME := $(NVSDKCOMPUTE_ROOT)
-endif
-ifeq (,$(CUDATOOLKIT_HOME))
-CUDATOOLKIT_HOME := $(if $(NVCC),$(abspath $(dir $(NVCC))/..))
-endif
-ifneq (,$(CUDATOOLKIT_HOME))
-CUDA_LIBDIR := $(if $(wildcard $(CUDATOOLKIT_HOME)/lib64),lib64,lib)
+ifneq (,$(CUDA_PATH))
 ifeq (,$(wildcard $(OPENCL_INC)))
-CLINC := $(strip $(lastword $(sort $(wildcard $(CUDATOOLKIT_HOME)/../cuda/*/targets/x86_64-linux/include/CL/cl.h))))
-ifneq (,$(CLINC))
-OPENCL_INC := $(abspath $(dir $(CLINC))/..)
-else
-CFLAGS += -I$(CUDATOOLKIT_HOME)/include
-endif
+CFLAGS += -I$(CUDA_PATH)/include
 endif
 ifeq (,$(wildcard $(OPENCL_LIB)))
-LIBS += -L$(CUDATOOLKIT_HOME)/$(CUDA_LIBDIR)
-LIBS += -Wl,-rpath=$(CUDATOOLKIT_HOME)/$(CUDA_LIBDIR)
+LIBS += -L$(CUDA_PATH)/$(CUDA_LIBS)
+LIBS += -Wl,-rpath=$(CUDA_PATH)/$(CUDA_LIBS)
 endif
 endif
 # OPENCL_INC: directory containing CL/cl.h.
@@ -125,10 +117,6 @@ $(OPENCL_GENKRNL): $(KERNEL_SCR) $(KERNEL_SRC)
 
 # Enable Cuda when nvcc compiler is present.
 else ifneq ($(NVCC),)
-NVCC_PATH := $(if $(NVCC),$(wildcard $(dir $(NVCC))/..))
-CUDA_FILE := $(wildcard $(NVCC_PATH)/../cuda/include/cuda.h)
-CUDA_PATH := $(if $(CUDA_FILE),$(NVCC_PATH)/../cuda,$(NVCC_PATH))
-CUDA_LIBS := $(if $(wildcard $(CUDA_PATH)/lib64),lib64,lib)
 ALL_OBJECTS += dbm_multiply_gpu.o dbm_multiply_gpu_kernel.o
 CFLAGS += -I${CUDA_PATH}/include -D__OFFLOAD_CUDA
 LIBS += -lcudart -lcuda -lcublas -L${CUDA_PATH}/$(CUDA_LIBS)
