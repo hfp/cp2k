@@ -32,10 +32,14 @@ HIPCC := $(shell which hipcc)
 HIPARCH := gfx90a
 HIPFLAGS := -fPIE -g $(OPTFLAG) --offload-arch=$(HIPARCH) -Wall -Wextra -Werror -I${ROCM_PATH}/include -D__OFFLOAD_HIP -D__HIP_PLATFORM_AMD__ -D__HIP_PLATFORM_AMD__
 
+# prefer NVCC or HIPCC over OpenCL
+ifeq ($(NVCC),)
+ifeq ($(HIPCC),)
 ifneq ($(OPENCL),0)
-# If DBCSR library exists, prefer OpenCL because, e.g., working NVCC implies functioning OpenCL
 OPENCL_OFFLOAD := $(firstword $(wildcard $(CP2KHOME)/lib/*/*/exts/dbcsr/libdbcsr.a))
 OPENCL_GENKRNL := $(PROJHOME)/dbm_multiply_opencl.cl.h
+endif
+endif
 endif
 
 # Make foundational runtimes available
@@ -122,9 +126,16 @@ $(OPENCL_GENKRNL): $(KERNEL_SCR) $(KERNEL_SRC)
 
 # Enable Cuda when nvcc compiler is present.
 else ifneq ($(NVCC),)
-ALL_OBJECTS += dbm_multiply_gpu.o dbm_multiply_opencl.o
+NVCC_PATH := $(if $(NVCC),$(abspath $(dir $(NVCC))/..))
+CUDA_PATH := $(if $(wildcard $(NVCC_PATH)/../cuda/include/cuda.h),$(wildcard $(NVCC_PATH)/../cuda))
+CUDA_PATH := $(if $(CUDA_PATH),$(CUDA_PATH),$(NVCC_PATH))
+CUDA_LIBS := $(if $(wildcard $(CUDA_PATH)/lib64),lib64,lib)
+ALL_OBJECTS += dbm_multiply_gpu.o dbm_multiply_gpu_kernel.o
 CFLAGS += -I${CUDA_PATH}/include -D__OFFLOAD_CUDA
-LIBS += -lcudart -lcuda -lcublas -L${CUDA_PATH}/lib64
+LIBS += -lcudart -lcuda -lcublas -L${CUDA_PATH}/$(CUDA_LIBS)
+ifneq ($(wildcard $(NVCC_PATH)/../math_libs/$(CUDA_LIBS)),)
+LIBS += -L$(NVCC_PATH)/../math_libs/$(CUDA_LIBS)
+endif
 
 %.o: %.cu $(ALL_HEADERS)
 	cd $(dir $<); $(NVCC) -c $(NVFLAGS) $(notdir $<)
