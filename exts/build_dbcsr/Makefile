@@ -295,11 +295,13 @@ endif
 else ifeq (opencl,$(USE_ACCEL))
 OPENCL_KRNLGEN := $(LIBSMM_ACC_ABS_DIR)/../opencl/acc_opencl.sh
 OPENCL_KERNELS := $(wildcard $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/kernels/*.cl)
+OPENCL_COMMONS := $(wildcard $(LIBSMM_ACC_ABS_DIR)/../opencl/common/*.h)
 OPENCL_DEFAULT := $(wildcard $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/tune_multiply.csv)
 OPENCL_WITHGPU := $(wildcard $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/params/tune_multiply_$(GPUVER).csv)
 OPENCL_PARAMS := $(if $(OPENCL_WITHGPU),$(OPENCL_WITHGPU),$(OPENCL_DEFAULT))
 OPENCL_PARDEP := $(if $(ACC_MAKEDEP),$(shell $(ACC_MAKEDEP) $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/.with_gpu $(GPUVER)))
-$(LIBSMM_ACC_ABS_DIR)/../opencl/smm/opencl_kernels.h: $(OPENCL_KRNLGEN) $(OPENCL_KERNELS) $(OPENCL_PARAMS) $(OPENCL_PARDEP)
+$(LIBSMM_ACC_ABS_DIR)/../opencl/smm/opencl_kernels.h: $(OPENCL_KRNLGEN) $(OPENCL_KERNELS) $(OPENCL_COMMONS) \
+                                                      $(OPENCL_PARAMS) $(OPENCL_PARDEP)
 	$(OPENCL_KRNLGEN) $(OPENCL_KERNELS) $(OPENCL_PARAMS) $@
 opencl_libsmm.o: opencl_libsmm.c $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/opencl_kernels.h
 ifeq (Darwin,$(shell uname))
