@@ -75,8 +75,9 @@ realclean: clean
 
 # Enable OpenCL when DBCSR library was prebuilt (assume __DBCSR_ACC).
 ifneq ($(OPENCL_OFFLOAD),)
-KERNEL_SRC := $(PROJHOME)/dbm_multiply_opencl.cl
-KERNEL_SCR := $(CP2KHOME)/exts/dbcsr/src/acc/opencl/acc_opencl.sh
+OPENCL_SRC := $(PROJHOME)/dbm_multiply_opencl.cl
+OPENCL_CMN := $(wildcard $(CP2KHOME)/exts/dbcsr/src/acc/opencl/common/*.h)
+OPENCL_GEN := $(CP2KHOME)/exts/dbcsr/src/acc/opencl/acc_opencl.sh
 ALL_HEADERS += $(OPENCL_GENKRNL)
 
 ALL_OBJECTS += dbm_multiply_gpu.o dbm_multiply_opencl.o
@@ -111,8 +112,8 @@ else # macOS
 LIBS += -framework OpenCL
 endif
 
-$(OPENCL_GENKRNL): $(KERNEL_SCR) $(KERNEL_SRC)
-	$(KERNEL_SCR) -b 6 -p "" $(KERNEL_SRC) $@
+$(OPENCL_GENKRNL): $(OPENCL_GEN) $(OPENCL_SRC) $(OPENCL_CMN)
+	$(OPENCL_GEN) -b 6 -p "" $(OPENCL_SRC) $@
 
 
 # Enable Cuda when nvcc compiler is present.
