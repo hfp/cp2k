@@ -185,7 +185,7 @@ void benchmark_multiply(const int M, const int N, const int K, const int m,
     }
   } else {
     printf("ERROR\n");
-    printf("Expected checksum %f but got %f.\n", expected, checksum);
+    fprintf(stderr, "Expected checksum %f but got %f.\n", expected, checksum);
     exit(1);
   }
 }
