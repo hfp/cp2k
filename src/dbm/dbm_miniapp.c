@@ -180,7 +180,7 @@ void benchmark_multiply(const int M, const int N, const int K, const int m,
     dbm_mpi_sum_int64(&flop, 1, comm);
     if (dbm_mpi_comm_rank(comm) == 0) {
       const double duration = time_end_multiply - time_start_multiply;
-      printf(" %6.3f s =>  %6.1f GFLOP/s\n", duration, 1e-9 * flop / duration);
+      printf("%6.3f s =>  %6.1f GFLOP/s\n", duration, 1e-9 * flop / duration);
       fflush(stdout);
     }
   } else {
