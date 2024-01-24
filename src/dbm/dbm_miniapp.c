@@ -168,22 +168,25 @@ void benchmark_multiply(const int M, const int N, const int K, const int m,
   const double expected = (int64_t)M * (int64_t)m * (int64_t)N * (int64_t)n *
                           (int64_t)K * (int64_t)K * (int64_t)k * (int64_t)k;
   const double checksum = dbm_checksum(matrix_c);
-  if (checksum != expected) {
-    printf("ERROR: Expected checksum %f but got %f.\n", expected, checksum);
-    exit(1);
-  }
 
   dbm_release(matrix_a);
   dbm_release(matrix_b);
   dbm_release(matrix_c);
 
-  dbm_mpi_sum_int64(&flop, 1, comm);
   if (dbm_mpi_comm_rank(comm) == 0) {
-    const double duration = time_end_multiply - time_start_multiply;
-    printf("%5i x %5i x %5i  with  %3i x %3i x %3i blocks: %6.3f s =>  %6.1f "
-           "GFLOP/s\n",
-           M, N, K, m, n, k, duration, 1e-9 * flop / duration);
-    fflush(stdout);
+    printf("%5i x %5i x %5i  with  %3i x %3i x %3i blocks: ", M, N, K, m, n, k);
+  }
+  if (checksum == expected) {
+    dbm_mpi_sum_int64(&flop, 1, comm);
+    if (dbm_mpi_comm_rank(comm) == 0) {
+      const double duration = time_end_multiply - time_start_multiply;
+      printf(" %6.3f s =>  %6.1f GFLOP/s\n", duration, 1e-9 * flop / duration);
+      fflush(stdout);
+    }
+  } else {
+    printf("ERROR\n");
+    printf("Expected checksum %f but got %f.\n", expected, checksum);
+    exit(1);
   }
 }
 
