@@ -37,9 +37,8 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       (NULL != stream ? *ACC_OPENCL_STREAM(stream)
                       : c_dbcsr_acc_opencl_stream_default());
   int batchsize = 1; /* intra-kernel batch-size */
-  const size_t work_size =
+  const size_t amount = ntasks, wgsize = 0, work_size =
       dbm_multiply_gpu_worksize(ntasks, m_range[1], &batchsize);
-  const size_t amount = sizeof(dbm_task_t) * ntasks, wgsize = 0;
   size_t offset_batch = 0, offset_adata = 0, offset_bdata = 0, offset_cdata = 0;
   const c_dbcsr_acc_opencl_info_ptr_t *const info_batch =
       c_dbcsr_acc_opencl_info_devptr(batch, sizeof(dbm_task_t), &amount,
