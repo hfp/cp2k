@@ -124,7 +124,7 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
   offloadEventCreate(&batch_uploaded);
   offloadEventRecord(batch_uploaded, shard_c_dev->stream);
 
-  // Reallocate shard_c_dev->data if nessecary.
+  // Reallocate shard_c_dev->data if necessary.
   if (shard_c_host->data_promised > shard_c_dev->data_allocated) {
     double *old_data_dev = shard_c_dev->data;
     shard_c_dev->data_allocated =
@@ -139,7 +139,7 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
     dbm_mempool_free(old_data_dev);
   }
 
-  // Zero new blocks if nessecary.
+  // Zero new blocks if necessary.
   if (shard_c_host->data_promised > shard_c_dev->data_size) {
     const int tail = shard_c_host->data_promised - shard_c_dev->data_size;
     offloadMemsetAsync(&shard_c_dev->data[shard_c_dev->data_size], 0,
@@ -168,7 +168,7 @@ void dbm_multiply_gpu_download_results(dbm_multiply_gpu_context_t *ctx) {
 
 #pragma omp parallel for schedule(dynamic)
   for (int i = 0; i < ctx->nshards; i++) {
-    // Grow host buffer if nessecary.
+    // Grow host buffer if necessary.
     dbm_shard_t *shard_c_host = &ctx->shards_c_host[i];
     dbm_shard_allocate_promised_blocks(shard_c_host);
 
