@@ -59,6 +59,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   assert(0 < ntasks && NULL != batch && NULL != queue);
   assert(NULL != info_batch && NULL != info_adata && NULL != info_bdata &&
          NULL != info_cdata);
+  assert(0 == offset_adata && 0 == offset_bdata && 0 == offset_cdata);
 #if 0
   printf("ntasks=%i m=%i..%i n=%i..%i batchsize=%i -> work_size=%i\n", ntasks,
          m_range[0], m_range[1], n_range[0], n_range[1], batchsize,
