@@ -20,14 +20,13 @@
 #define NK 4
 #endif
 
-kernel void dbm_multiply(double alpha, int m_max, int n_max, int itask,
-                         int ntasks, global const dbm_task_t *tasks,
+kernel void dbm_multiply(double alpha, int m_max, int n_max, int batchsize,
+                         int itask, int ntasks, global const dbm_task_t *tasks,
                          global const double *restrict a_data,
                          global const double *restrict b_data,
                          global const double *restrict c_data) {
-  const int work_size = (int)get_global_size(0);
-  const int i0 = (int)get_global_id(0) * ntasks;
-  const int i1 = MIN(i0 + ntasks, work_size);
+  const int i0 = (int)get_global_id(0) * batchsize;
+  const int i1 = MIN(i0 + batchsize, ntasks);
   double vec[NN] = {0};
 
   UNROLL_OUTER(1)
