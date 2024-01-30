@@ -94,16 +94,17 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
 #endif
     OFFLOAD_CHECK(clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha));
     OFFLOAD_CHECK(clSetKernelArg(kernel, 1, sizeof(cl_int), &m_range[1]));
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 2, sizeof(cl_int), &offset_batch));
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 3, sizeof(cl_int), &batchsize));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 2, sizeof(cl_int), &n_range[1]));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 3, sizeof(cl_int), &offset_batch));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 4, sizeof(cl_int), &batchsize));
     OFFLOAD_CHECK(
-        clSetKernelArg(kernel, 4, sizeof(cl_mem), &info_batch->memory));
+        clSetKernelArg(kernel, 5, sizeof(cl_mem), &info_batch->memory));
     OFFLOAD_CHECK(
-        clSetKernelArg(kernel, 5, sizeof(cl_mem), &info_adata->memory));
+        clSetKernelArg(kernel, 6, sizeof(cl_mem), &info_adata->memory));
     OFFLOAD_CHECK(
-        clSetKernelArg(kernel, 6, sizeof(cl_mem), &info_bdata->memory));
+        clSetKernelArg(kernel, 7, sizeof(cl_mem), &info_bdata->memory));
     OFFLOAD_CHECK(
-        clSetKernelArg(kernel, 7, sizeof(cl_mem), &info_cdata->memory));
+        clSetKernelArg(kernel, 8, sizeof(cl_mem), &info_cdata->memory));
     OFFLOAD_CHECK(
         clEnqueueNDRangeKernel(queue, kernel, 1 /*work_dim*/, NULL /*offset*/,
                                &work_size, 0 != wgsize ? &wgsize : NULL,
