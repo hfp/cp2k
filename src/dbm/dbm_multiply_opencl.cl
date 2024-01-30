@@ -4,11 +4,21 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
+#if !defined(LU) /* impacts opencl/common */
+#define LU 0
+#endif
+
 #include "../../exts/dbcsr/src/acc/opencl/common/opencl_atomics.h"
 #include "dbm_multiply_internal.h"
 
 #define IDX(I, J, K, M, N) ((I) * (N) + (J) + (K))
 #define IDT(I, J, K, M, N) IDX(J, I, K, N, M)
+#if !defined(NN)
+#define NN 16
+#endif
+#if !defined(NK)
+#define NK 4
+#endif
 
 kernel void dbm_multiply(double alpha, int m_max, int itask, int ntasks,
                          global const dbm_task_t *tasks,
@@ -17,27 +27,39 @@ kernel void dbm_multiply(double alpha, int m_max, int itask, int ntasks,
                          global const double *restrict c_data) {
   const int i0 = (int)get_global_id(0) * ntasks;
   const int i1 = i0 + ntasks;
-  double vec[16];
+  double vec[NN] = {0};
+  int offset = -1;
 
+  UNROLL_OUTER(1)
   for (int i = i0; i < i1; ++i) {
     const int tid = i / m_max, m = i - tid * m_max;
     const dbm_task_t task = tasks[tid + itask];
-    if (m < task.m) {
-      for (int n = 0; n < task.n; ++n) {
-        vec[n] = ZERO;
-      }
-      for (int k = 0; k < task.k; ++k) {
-        const double a = a_data[IDX(m, k, task.offset_a, task.m, task.k)];
-        for (int n = 0; n < task.n; ++n) {
-          const double b = b_data[IDT(k, n, task.offset_b, task.k, task.n)];
-          vec[n] = MAD(a, b, vec[n]);
+
+    UNROLL_OUTER(1)
+    for (int j = 0; j < task.n; j += NN) {
+      if (m < task.m) { /* valid task */
+        UNROLL(NK)
+        for (int k = 0; k < task.k; ++k) {
+          const double a = a_data[IDX(m, k, task.offset_a, task.m, task.k)];
+          UNROLL(NK)
+          for (int n = 0; n < task.n; ++n) {
+            const double b =
+                b_data[IDT(k, n + j, task.offset_b, task.k, task.n)];
+            vec[n] = MAD(a, b, vec[n]);
+          }
         }
       }
-      for (int n = 0; n < task.n; ++n) {
-        ACCUMULATE(&c_data[IDX(m, n, task.offset_c, task.m, task.n)],
-                   alpha * vec[n]);
-        vec[n] = ZERO; /* reset */
+      /* flush private accumulator to global memory using atomics */
+      if ((0 <= offset && task.offset_c != offset) || i1 == (i + 1)) {
+        UNROLL(NK)
+        for (int n = 0; n < task.n; ++n) {
+          ACCUMULATE(&c_data[IDX(m, n + j, task.offset_c, task.m, task.n)],
+                     alpha * vec[n]);
+          vec[n] = ZERO; /* reset */
+        }
       }
+      /* track change in C-offset */
+      offset = task.offset_c;
     }
   }
 }
