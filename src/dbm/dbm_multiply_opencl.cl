@@ -40,11 +40,12 @@ kernel void dbm_multiply(double alpha, int m_max, int itask, int ntasks,
       if (m < task.m) { /* valid task */
         UNROLL(NK)
         for (int k = 0; k < task.k; ++k) {
-          const double a = a_data[IDX(m, k, task.offset_a, task.m, task.k)];
+          const int ia = IDX(m, k, task.offset_a, task.m, task.k);
+          const double a = a_data[ia];
           UNROLL(NK)
           for (int n = 0; n < task.n; ++n) {
-            const double b =
-                b_data[IDT(k, n + j, task.offset_b, task.k, task.n)];
+            const int ib = IDT(k, n + j, task.offset_b, task.k, task.n);
+            const double b = b_data[ib];
             vec[n] = MAD(a, b, vec[n]);
           }
         }
@@ -53,8 +54,8 @@ kernel void dbm_multiply(double alpha, int m_max, int itask, int ntasks,
       if ((0 <= offset && task.offset_c != offset) || i1 == (i + 1)) {
         UNROLL(NK)
         for (int n = 0; n < task.n; ++n) {
-          ACCUMULATE(&c_data[IDX(m, n + j, task.offset_c, task.m, task.n)],
-                     alpha * vec[n]);
+          const int ic = IDX(m, n + j, task.offset_c, task.m, task.n);
+          ACCUMULATE(&c_data[ic], alpha * vec[n]);
           vec[n] = ZERO; /* reset */
         }
       }
