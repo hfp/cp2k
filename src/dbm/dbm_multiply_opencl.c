@@ -60,11 +60,6 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   assert(NULL != info_batch && NULL != info_adata && NULL != info_bdata &&
          NULL != info_cdata);
   assert(0 == offset_adata && 0 == offset_bdata && 0 == offset_cdata);
-#if 0
-  printf("ntasks=%i m=%i..%i n=%i..%i batchsize=%i -> work_size=%i\n", ntasks,
-         m_range[0], m_range[1], n_range[0], n_range[1], batchsize,
-         (int)work_size);
-#endif
 #if defined(_OPENMP)
 #pragma omp critical(dbm_multiply_gpu_launch_kernel)
 #endif
@@ -88,7 +83,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       if (0 < nchar && (int)sizeof(build_params) > nchar) {
         OFFLOAD_CHECK(c_dbcsr_acc_opencl_kernel(
             0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY_OPENCL,
-            "process_batch_kernel", build_params,
+            "dbm_multiply", build_params,
             "-cl-fast-relaxed-math -cl-denorms-are-zero", NULL /*try*/,
             NULL /*try_ok*/, extensions,
             sizeof(extensions) / sizeof(*extensions), &kernel));
@@ -98,18 +93,19 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
 #error "OpenCL kernel code not found!"
 #endif
     OFFLOAD_CHECK(clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha));
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 1, sizeof(cl_int), &ntasks));
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 2, sizeof(cl_int), &m_range[1]));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 1, sizeof(cl_int), &m_range[1]));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 2, sizeof(cl_int), &offset_batch));
+    OFFLOAD_CHECK(clSetKernelArg(kernel, 3, sizeof(cl_int), &batchsize));
     OFFLOAD_CHECK(
-        clSetKernelArg(kernel, 3, sizeof(cl_mem), &info_batch->memory));
+        clSetKernelArg(kernel, 4, sizeof(cl_mem), &info_batch->memory));
     OFFLOAD_CHECK(
-        clSetKernelArg(kernel, 4, sizeof(cl_mem), &info_adata->memory));
+        clSetKernelArg(kernel, 5, sizeof(cl_mem), &info_adata->memory));
     OFFLOAD_CHECK(
-        clSetKernelArg(kernel, 5, sizeof(cl_mem), &info_bdata->memory));
+        clSetKernelArg(kernel, 6, sizeof(cl_mem), &info_bdata->memory));
     OFFLOAD_CHECK(
-        clSetKernelArg(kernel, 6, sizeof(cl_mem), &info_cdata->memory));
+        clSetKernelArg(kernel, 7, sizeof(cl_mem), &info_cdata->memory));
     OFFLOAD_CHECK(
-        clEnqueueNDRangeKernel(queue, kernel, 1 /*work_dim*/, &offset_batch,
+        clEnqueueNDRangeKernel(queue, kernel, 1 /*work_dim*/, NULL /*offset*/,
                                &work_size, 0 != wgsize ? &wgsize : NULL,
                                0 /*num_wait*/, NULL /*wait_list*/, perf_event));
   }

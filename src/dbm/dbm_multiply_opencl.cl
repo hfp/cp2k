@@ -10,25 +10,18 @@
 #define IDX(I, J, K, M, N) ((I) * (N) + (J) + (K))
 #define IDT(I, J, K, M, N) IDX(J, I, K, N, M)
 
-/**
- * A * B^T -> C
- * TEST: benchmark_multiply(2, 2, 3, 2, 2, 4, comm)
- */
-kernel void process_batch_kernel(double alpha, int ntasks, int m_max,
-                                 global const dbm_task_t *restrict tasks,
-                                 global const double *restrict a_data,
-                                 global const double *restrict b_data,
-                                 global double *restrict c_data) {
-  const int task_offset = (int)get_global_offset(0);
-  const int work_size = (int)get_global_size(0);
-  const int batchsize = (ntasks * m_max + work_size - 1) / work_size;
-  const int i0 = (int)get_global_id(0) * batchsize;
-  const int i1 = i0 + batchsize;
+kernel void dbm_multiply(double alpha, int m_max, int itask, int ntasks,
+                         global const dbm_task_t *tasks,
+                         global const double *restrict a_data,
+                         global const double *restrict b_data,
+                         global const double *restrict c_data) {
+  const int i0 = (int)get_global_id(0) * ntasks;
+  const int i1 = i0 + ntasks;
   double vec[16];
 
   for (int i = i0; i < i1; ++i) {
     const int tid = i / m_max, m = i - tid * m_max;
-    const dbm_task_t task = tasks[tid + task_offset];
+    const dbm_task_t task = tasks[tid + itask];
     if (m < task.m) {
       for (int n = 0; n < task.n; ++n) {
         vec[n] = ZERO;
@@ -45,9 +38,6 @@ kernel void process_batch_kernel(double alpha, int ntasks, int m_max,
                    alpha * vec[n]);
         vec[n] = ZERO; /* reset */
       }
-#if 0
-      printf("idx=%i -> i=%i -> tid=%i m=%i\n", (int)get_global_id(0), i, tid, m);
-#endif
     }
   }
 }
