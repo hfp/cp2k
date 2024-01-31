@@ -19,19 +19,22 @@
 #if !defined(NK)
 #define NK 4
 #endif
+#if !defined(BS)
+#define BS 1
+#endif
 
-kernel void dbm_multiply(double alpha, int m_max, int n_max, int batchsize,
+kernel void dbm_multiply(double alpha, int m_max, int n_max, int nbatch,
                          int itask, int ntasks, global const dbm_task_t *tasks,
                          global const double *restrict a_data,
                          global const double *restrict b_data,
                          global const double *restrict c_data) {
   double vec[NN] = {0}; /* private accumulator */
-  const int i0 = (int)get_global_id(0) * batchsize, i1 = i0 + batchsize;
+  const int i0 = (int)get_global_id(0) * nbatch, i1 = i0 + nbatch;
 
   UNROLL_OUTER(1)
   for (int j = 0; j < n_max; j += NN) {
-    const int nn = MIN(n_max - j, NN);
-    int offset = -1;
+    const int nn = min(n_max - j, NN);
+    int tc = -1;
 
     UNROLL_OUTER(1)
     for (int i = i0; i < i1; ++i) {
@@ -55,7 +58,7 @@ kernel void dbm_multiply(double alpha, int m_max, int n_max, int batchsize,
       }
 
       /* flush private accumulator to global memory using atomics */
-      /*if ((0 <= offset && task.offset_c != offset) || i1 == (i + 1))*/ {
+      if (BS < nbatch || (0 <= tc && task.offset_c != tc) || i1 == (i + 1)) {
         UNROLL(NN)
         for (int n = 0; n < nn; ++n) {
           const int ic = IDX(m, n + j, task.offset_c, task.m, task.n);
@@ -65,7 +68,7 @@ kernel void dbm_multiply(double alpha, int m_max, int n_max, int batchsize,
       }
 
       /* track change in C-offset */
-      offset = task.offset_c;
+      tc = task.offset_c;
     }
   }
 }
