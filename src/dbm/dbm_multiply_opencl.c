@@ -15,6 +15,9 @@ size_t dbm_multiply_gpu_worksize(int ntasks, int split, int *batchsize) {
   const int worksize =
       (int)(((size_t)ntasks * split + *batchsize - 1) / *batchsize);
   *batchsize = (int)(((size_t)ntasks * split + worksize - 1) / worksize);
+  if (split < *batchsize) {
+    *batchsize = split; /* limit batchsize */
+  }
   return ((size_t)ntasks * split + *batchsize - 1) / *batchsize;
 }
 
@@ -36,7 +39,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   const cl_command_queue queue =
       (NULL != stream ? *ACC_OPENCL_STREAM(stream)
                       : c_dbcsr_acc_opencl_stream_default());
-  int batchsize = 1; /* intra-kernel batch-size */
+  int batchsize = 4; /* intra-kernel batch-size */
   const size_t amount = ntasks, wgsize = 0;
   const size_t work_size =
       dbm_multiply_gpu_worksize(ntasks, m_range[1], &batchsize);

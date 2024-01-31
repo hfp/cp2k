@@ -14,13 +14,13 @@
 #define IDX(I, J, K, M, N) ((I) * (N) + (J) + (K))
 #define IDT(I, J, K, M, N) IDX(J, I, K, N, M)
 #if !defined(NN)
-#define NN 16
+#define NN 8
 #endif
 #if !defined(NK)
 #define NK 4
 #endif
 #if !defined(BS)
-#define BS 1
+#define BS 4
 #endif
 
 kernel void dbm_multiply(double alpha, int m_max, int n_max, int nbatch,
@@ -28,7 +28,7 @@ kernel void dbm_multiply(double alpha, int m_max, int n_max, int nbatch,
                          global const double *restrict a_data,
                          global const double *restrict b_data,
                          global const double *restrict c_data) {
-  double vec[NN] = {0}; /* private accumulator */
+  double vec[BS][NN] = {0}; /* private accumulator */
   const int i0 = (int)get_global_id(0) * nbatch, i1 = i0 + nbatch;
 
   UNROLL_OUTER(1)
@@ -37,33 +37,41 @@ kernel void dbm_multiply(double alpha, int m_max, int n_max, int nbatch,
     int tc = -1;
 
     UNROLL_OUTER(1)
-    for (int i = i0; i < i1; ++i) {
-      const int tid = i / m_max, m = i - tid * m_max;
-      const int t = min(tid, ntasks - 1); /* avoid OOB-access */
-      const dbm_task_t task = tasks[itask + t];
+    for (int i = i0; i < i1; i += m_max) {
+      const int tid = i / m_max, t = min(tid, ntasks - 1);
+      const dbm_task_t task = tasks[itask + t]; /* !OOB */
+      const int mn = min(min(task.m, nbatch), BS);
+      const int m0 = i - tid * m_max; /* i % m_max */
 
-      if (m < task.m && j < task.n && tid < ntasks) { /* valid task */
-        UNROLL(NK)
-        for (int k = 0; k < task.k; ++k) {
-          const int ia = IDX(m, k, task.offset_a, task.m, task.k);
-          const double a = a_data[ia];
+      if (j < task.n && tid < ntasks) { /* valid task */
+        UNROLL(BS)
+        for (int m = 0; m < mn; ++m) {
+          UNROLL(NK)
+          for (int k = 0; k < task.k; ++k) {
+            const int ia = IDX(m + m0, k, task.offset_a, task.m, task.k);
+            const double a = a_data[ia];
 
-          UNROLL(NN)
-          for (int n = 0; n < nn; ++n) {
-            const int ib = IDT(k, n + j, task.offset_b, task.k, task.n);
-            const double b = b_data[ib];
-            vec[n] = MAD(a, b, vec[n]);
+            UNROLL(NN)
+            for (int n = 0; n < nn; ++n) {
+              const int ib = IDT(k, n + j, task.offset_b, task.k, task.n);
+              const double b = b_data[ib];
+              vec[m][n] = MAD(a, b, vec[m][n]);
+            }
           }
         }
       }
 
       /* flush private accumulator to global memory using atomics */
-      if (BS < nbatch || (0 <= tc && task.offset_c != tc) || i1 == (i + 1)) {
-        UNROLL(NN)
-        for (int n = 0; n < nn; ++n) {
-          const int ic = IDX(m, n + j, task.offset_c, task.m, task.n);
-          ACCUMULATE(&c_data[ic], alpha * vec[n]);
-          vec[n] = ZERO; /* reset */
+      if (BS < nbatch || (0 <= tc && task.offset_c != tc) ||
+          i1 <= (i + m_max)) {
+        UNROLL(BS)
+        for (int m = 0; m < mn; ++m) {
+          UNROLL(NN)
+          for (int n = 0; n < nn; ++n) {
+            const int ic = IDX(m + m0, n + j, task.offset_c, task.m, task.n);
+            ACCUMULATE(&c_data[ic], alpha * vec[m][n]);
+            vec[m][n] = ZERO; /* reset */
+          }
         }
       }
 
