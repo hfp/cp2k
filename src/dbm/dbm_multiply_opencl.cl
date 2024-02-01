@@ -12,10 +12,10 @@
 #include "dbm_multiply_internal.h"
 
 #if !defined(NN)
-#define NN 8
+#define NN 4
 #endif
 #if !defined(NK)
-#define NK 16
+#define NK NN
 #endif
 #if !defined(BS)
 #define BS 1
@@ -63,7 +63,7 @@ kernel void dbm_multiply(double alpha, int m_max, int n_max, int nbatch,
         for (int m = 0; m < mn; ++m)
 #endif
         {
-          UNROLL_AUTO
+          UNROLL_AUTO /* UNROLL(NK) */
           for (int k = 0; k < task.k; ++k) {
             const int ia = IDX(m + m0, k, task.offset_a, task.m, task.k);
             const double a = a_data[ia];
