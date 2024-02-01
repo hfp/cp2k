@@ -11,11 +11,14 @@
 #include "../../exts/dbcsr/src/acc/opencl/common/opencl_atomics.h"
 #include "dbm_multiply_internal.h"
 
+#if !defined(TRACK_C)
+#define TRACK_C
+#endif
 #if !defined(NN)
 #define NN 4
 #endif
 #if !defined(NK)
-#define NK NN
+#define NK 16
 #endif
 #if !defined(BS)
 #define BS 1
@@ -45,7 +48,9 @@ kernel void dbm_multiply(double alpha, int m_max, int n_max, int nbatch,
   UNROLL_OUTER(1)
   for (int j = 0; j < n_max; j += NN) {
     const int nn = min(n_max - j, NN);
+#if defined(TRACK_C)
     int tc = -1;
+#endif
 
     UNROLL_OUTER(1)
     for (int i = i0; i < i1; i += m_max) {
@@ -57,14 +62,15 @@ kernel void dbm_multiply(double alpha, int m_max, int n_max, int nbatch,
 #else
       const int m = 0;
 #endif
+
       if (j < task.n && tid < ntasks) { /* valid task */
 #if (1 < BS)
         UNROLL(BS)
         for (int m = 0; m < mn; ++m)
 #endif
         {
-          UNROLL_AUTO /* UNROLL(NK) */
-          for (int k = 0; k < task.k; ++k) {
+          UNROLL_AUTO
+          for (int k = 0; k < task.k; ++k) { /* UNROLL(NK) */
             const int ia = IDX(m + m0, k, task.offset_a, task.m, task.k);
             const double a = a_data[ia];
 
@@ -78,9 +84,10 @@ kernel void dbm_multiply(double alpha, int m_max, int n_max, int nbatch,
         }
       }
 
-      /* flush private accumulator to global memory using atomics */
-      if (BS < nbatch || (0 <= tc && task.offset_c != tc) ||
-          i1 <= (i + m_max)) {
+#if defined(TRACK_C)
+      if (BS < nbatch || (0 <= tc && task.offset_c != tc) || i1 <= (i + m_max))
+#endif
+      { /* flush private accumulator to global memory using atomics */
 #if (1 < BS)
         UNROLL(BS)
         for (int m = 0; m < mn; ++m)
@@ -95,8 +102,9 @@ kernel void dbm_multiply(double alpha, int m_max, int n_max, int nbatch,
         }
       }
 
-      /* track change in C-offset */
-      tc = task.offset_c;
+#if defined(TRACK_C)
+      tc = task.offset_c; /* track change in C-offset */
+#endif
     }
   }
 }
