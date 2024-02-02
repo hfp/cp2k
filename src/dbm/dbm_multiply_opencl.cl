@@ -74,7 +74,7 @@ kernel void dbm_multiply(double alpha, int m_max, int n_max, int nbatch,
             const int ia = IDX(m + m0, k, task.offset_a, task.m, task.k);
             const double a = a_data[ia];
 
-            UNROLL(NN)
+            UNROLL_FORCE(NN)
             for (int n = 0; n < nn; ++n) {
               const int ib = IDT(k, n + j, task.offset_b, task.k, task.n);
               const double b = b_data[ib];
@@ -90,11 +90,11 @@ kernel void dbm_multiply(double alpha, int m_max, int n_max, int nbatch,
       { /* flush private accumulator to global memory using atomics */
 #if (1 < BS)
         UNROLL(BS)
-        for (int m = 0; m < mn; ++m)
+        for (int m = 0; m < BS; ++m)
 #endif
         {
-          UNROLL(NN)
-          for (int n = 0; n < nn; ++n) {
+          UNROLL_FORCE(NN)
+          for (int n = 0; n < NN; ++n) {
             const int ic = IDX(m + m0, n + j, task.offset_c, task.m, task.n);
             ACCUMULATE(&c_data[ic], alpha * TILE(m, n));
             TILE(m, n) = ZERO; /* reset */
