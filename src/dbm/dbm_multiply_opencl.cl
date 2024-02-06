@@ -37,7 +37,7 @@ kernel void dbm_multiply(double alpha, int m_max, int n_max, int nbatch,
                          int itask, int ntasks, global const dbm_task_t *tasks,
                          global const double *restrict a_data,
                          global const double *restrict b_data,
-                         global const double *restrict c_data) {
+                         global double *restrict c_data) {
 #if (1 < BS)
   double tile[BS][NN] = {0}; /* private accumulator */
 #else
