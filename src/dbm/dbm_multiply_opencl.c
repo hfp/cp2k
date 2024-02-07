@@ -69,19 +69,11 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   { /* creating/calling kernel must be consistent across threads */
 #if defined(OPENCL_DBM_SOURCE_MULTIPLY_OPENCL)
     if (NULL == kernel) { /* first-time check if kernel is present */
-      const c_dbcsr_acc_opencl_info_stream_t *const qinfo =
-          c_dbcsr_acc_opencl_info_stream(stream);
-      const c_dbcsr_acc_opencl_device_t *const devinfo =
-          c_dbcsr_acc_opencl_config.device + qinfo->tid;
       char build_params[ACC_OPENCL_BUFFERSIZE];
       const char *extensions[] = {NULL, NULL};
-      cl_device_id active_device = NULL;
-      int nchar;
-      OFFLOAD_CHECK(clGetCommandQueueInfo(
-          queue, CL_QUEUE_DEVICE, sizeof(cl_device_id), &active_device, NULL));
-      nchar = c_dbcsr_acc_opencl_flags_atomics(
-          active_device, c_dbcsr_acc_opencl_atomic_fp_64, devinfo, extensions,
-          sizeof(extensions) / sizeof(*extensions), build_params,
+      const int nchar = c_dbcsr_acc_opencl_flags_atomics(
+          &c_dbcsr_acc_opencl_config.device, c_dbcsr_acc_opencl_atomic_fp_64,
+          extensions, sizeof(extensions) / sizeof(*extensions), build_params,
           sizeof(build_params));
       if (0 < nchar && (int)sizeof(build_params) > nchar) {
         OFFLOAD_CHECK(c_dbcsr_acc_opencl_kernel(
