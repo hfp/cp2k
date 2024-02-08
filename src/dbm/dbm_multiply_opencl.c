@@ -37,23 +37,23 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                            ? NULL
                            : &event);
   const c_dbcsr_acc_opencl_stream_t *const str =
-      (NULL != stream ? *ACC_OPENCL_STREAM(stream)
+      (NULL != stream ? ACC_OPENCL_STREAM(stream)
                       : c_dbcsr_acc_opencl_stream_default());
   int batchsize = 1; /* intra-kernel batch-size */
   const size_t amount = ntasks, wgsize = 0;
   const size_t work_size =
       dbm_multiply_gpu_worksize(ntasks, m_range[1], &batchsize);
   size_t offset_batch = 0, offset_adata = 0, offset_bdata = 0, offset_cdata = 0;
-  const c_dbcsr_acc_opencl_info_ptr_t *const info_batch =
+  const c_dbcsr_acc_opencl_info_memptr_t *const info_batch =
       c_dbcsr_acc_opencl_info_devptr(batch, sizeof(dbm_task_t), &amount,
                                      &offset_batch);
-  const c_dbcsr_acc_opencl_info_ptr_t *const info_adata =
+  const c_dbcsr_acc_opencl_info_memptr_t *const info_adata =
       c_dbcsr_acc_opencl_info_devptr(pack_a_data, 1 /*elsize*/, NULL /*amount*/,
                                      &offset_adata);
-  const c_dbcsr_acc_opencl_info_ptr_t *const info_bdata =
+  const c_dbcsr_acc_opencl_info_memptr_t *const info_bdata =
       c_dbcsr_acc_opencl_info_devptr(pack_b_data, 1 /*elsize*/, NULL /*amount*/,
                                      &offset_bdata);
-  const c_dbcsr_acc_opencl_info_ptr_t *const info_cdata =
+  const c_dbcsr_acc_opencl_info_memptr_t *const info_cdata =
       c_dbcsr_acc_opencl_info_devptr(shard_c_data, 1 /*elsize*/,
                                      NULL /*amount*/, &offset_cdata);
   assert(NULL != pack_a_data && NULL != pack_b_data && NULL != shard_c_data);
