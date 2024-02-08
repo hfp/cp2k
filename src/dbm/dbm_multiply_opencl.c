@@ -36,7 +36,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                          2 >= c_dbcsr_acc_opencl_config.verbosity))
                            ? NULL
                            : &event);
-  const cl_command_queue queue =
+  const c_dbcsr_acc_opencl_stream_t *const str =
       (NULL != stream ? *ACC_OPENCL_STREAM(stream)
                       : c_dbcsr_acc_opencl_stream_default());
   int batchsize = 1; /* intra-kernel batch-size */
@@ -59,7 +59,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   assert(NULL != pack_a_data && NULL != pack_b_data && NULL != shard_c_data);
   assert(0 < m_range[0] && 0 < m_range[1] && m_range[0] <= m_range[1]);
   assert(0 < n_range[0] && 0 < n_range[1] && n_range[0] <= n_range[1]);
-  assert(0 < ntasks && NULL != batch && NULL != queue);
+  assert(0 < ntasks && NULL != batch && NULL != str && NULL != str->queue);
   assert(NULL != info_batch && NULL != info_adata && NULL != info_bdata &&
          NULL != info_cdata);
   assert(0 == offset_adata && 0 == offset_bdata && 0 == offset_cdata);
@@ -101,10 +101,10 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         clSetKernelArg(kernel, 8, sizeof(cl_mem), &info_bdata->memory));
     OFFLOAD_CHECK(
         clSetKernelArg(kernel, 9, sizeof(cl_mem), &info_cdata->memory));
-    OFFLOAD_CHECK(
-        clEnqueueNDRangeKernel(queue, kernel, 1 /*work_dim*/, NULL /*offset*/,
-                               &work_size, 0 != wgsize ? &wgsize : NULL,
-                               0 /*num_wait*/, NULL /*wait_list*/, perf_event));
+    OFFLOAD_CHECK(clEnqueueNDRangeKernel(
+        str->queue, kernel, 1 /*work_dim*/, NULL /*offset*/, &work_size,
+        0 != wgsize ? &wgsize : NULL, 0 /*num_wait*/, NULL /*wait_list*/,
+        perf_event));
   }
 }
 
