@@ -22,7 +22,12 @@ endif
 # Optimization flag derived from OPT flag
 OPTFLAG ?= -O$(patsubst O%,%,$(OPT))
 
-CFLAGS := -fopenmp -g $(OPTFLAG) -march=native -Wall -Wextra -Wcast-qual -Wno-vla-parameter
+CFLAGS := -fopenmp -g $(OPTFLAG) -march=native -Wall -Wextra -Wcast-qual
+
+# Some additional flags when relying on default-CC
+ifeq ($(CC),)
+CFLAGS += -Wno-vla-parameter
+endif
 
 NVCC := $(shell which nvcc)
 NVARCH := sm_70
