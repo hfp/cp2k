@@ -45,7 +45,7 @@ kernel void dbm_multiply(double alpha, int m_max, int n_max, int nbatch,
 #endif
   const int i0 = (int)get_global_id(0) * nbatch, i1 = i0 + nbatch;
 
-  UNROLL_OUTER(1)
+  UNROLL(1)
   for (int j = 0; j < n_max; j += NN) {
     const int nn = min(n_max - j, NN);
 #if defined(TRACK_C)
@@ -70,7 +70,7 @@ kernel void dbm_multiply(double alpha, int m_max, int n_max, int nbatch,
             const int ia = IDX(m + m0, k, task.offset_a, task.m, task.k);
             const double a = a_data[ia];
 
-            UNROLL_FORCE(NN)
+            UNROLL_AUTO
             for (int n = 0; n < nn; ++n) {
               const int ib = IDT(k, n + j, task.offset_b, task.k, task.n);
               const double b = b_data[ib];
