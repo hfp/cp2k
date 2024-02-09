@@ -62,7 +62,7 @@ kernel void dbm_multiply(double alpha, int m_max, int n_max, int nbatch,
         int m = 0;
 #if (1 < BS)
         UNROLL(BS)
-        for (; m < min(min(task.m, nbatch), BS); ++m)
+        for (; m < min(task.m - m0, min(nbatch, BS)); ++m)
 #endif
         {
           UNROLL_AUTO
