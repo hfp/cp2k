@@ -57,16 +57,12 @@ kernel void dbm_multiply(double alpha, int m_max, int n_max, int nbatch,
       const int tid = i / m_max, t = min(tid, ntasks - 1);
       const dbm_task_t task = tasks[itask + t]; /* !OOB */
       const int m0 = i - tid * m_max;           /* i % m_max */
-#if (1 < BS)
-      const int mn = min(min(task.m, nbatch), BS);
-#else
-      const int m = 0;
-#endif
 
       if (j < task.n && tid < ntasks) { /* valid task */
+        int m = 0;
 #if (1 < BS)
         UNROLL(BS)
-        for (int m = 0; m < mn; ++m)
+        for (; m < min(min(task.m, nbatch), BS); ++m)
 #endif
         {
           UNROLL_AUTO
@@ -88,9 +84,10 @@ kernel void dbm_multiply(double alpha, int m_max, int n_max, int nbatch,
       if (BS < nbatch || (0 <= tc && task.offset_c != tc) || i1 <= (i + m_max))
 #endif
       { /* flush private accumulator to global memory using atomics */
+        int m = 0;
 #if (1 < BS)
         UNROLL(BS)
-        for (int m = 0; m < BS; ++m)
+        for (; m < BS; ++m)
 #endif
         {
           UNROLL_FORCE(NN)
