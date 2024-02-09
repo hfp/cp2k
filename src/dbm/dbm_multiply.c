@@ -301,6 +301,9 @@ static void multiply_packs(const bool transa, const bool transb,
             min_max(n_range, n);
 
             if (ntasks == MAX_BATCH_SIZE) {
+#if defined(__OFFLOAD_OPENCL) && !defined(__NO_OFFLOAD_DBM)
+#pragma omp critical(dbm_backend_process_batch) /* workaround */
+#endif
               backend_process_batch(ntasks, batch, m_range, n_range, alpha,
                                     pack_a, pack_b, ishard, shard_c, ctx);
               m_range[0] = n_range[0] = INT_MAX;
@@ -309,6 +312,9 @@ static void multiply_packs(const bool transa, const bool transb,
             }
           }
         }
+#if defined(__OFFLOAD_OPENCL) && !defined(__NO_OFFLOAD_DBM)
+#pragma omp critical(dbm_backend_process_batch) /* workaround */
+#endif
         backend_process_batch(ntasks, batch, m_range, n_range, alpha, pack_a,
                               pack_b, ishard, shard_c, ctx);
       }
