@@ -93,11 +93,8 @@ MODULE qs_scf_post_tb
                                               pw_poisson_parameter_type
    USE pw_pool_types,                   ONLY: pw_pool_p_type,&
                                               pw_pool_type
-   USE pw_types,                        ONLY: COMPLEXDATA1D,&
-                                              REALDATA3D,&
-                                              REALSPACE,&
-                                              RECIPROCALSPACE,&
-                                              pw_type
+   USE pw_types,                        ONLY: pw_c1d_gs_type,&
+                                              pw_r3d_rs_type
    USE qs_collocate_density,            ONLY: calculate_rho_core,&
                                               calculate_rho_elec,&
                                               calculate_wavefunction
@@ -1050,10 +1047,11 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: rho_ao_kp
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(particle_list_type), POINTER                  :: particles
+      TYPE(pw_c1d_gs_type), DIMENSION(:), POINTER        :: rho_g
       TYPE(pw_env_type), POINTER                         :: pw_env
       TYPE(pw_pool_p_type), DIMENSION(:), POINTER        :: pw_pools
       TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
-      TYPE(pw_type), DIMENSION(:), POINTER               :: rho_g, rho_r
+      TYPE(pw_r3d_rs_type), DIMENSION(:), POINTER        :: rho_r
       TYPE(qs_ks_env_type), POINTER                      :: ks_env
       TYPE(qs_rho_type), POINTER                         :: rho
       TYPE(qs_subsys_type), POINTER                      :: subsys
@@ -1093,10 +1091,8 @@ CONTAINS
          CALL get_qs_env(qs_env=qs_env, pw_env=pw_env)
          CALL pw_env_get(pw_env=pw_env, auxbas_pw_pool=auxbas_pw_pool, pw_pools=pw_pools)
          BLOCK
-            TYPE(pw_type) :: rho_elec_rspace
-            CALL auxbas_pw_pool%create_pw(pw=rho_elec_rspace, &
-                                          use_data=REALDATA3D, &
-                                          in_space=REALSPACE)
+            TYPE(pw_r3d_rs_type) :: rho_elec_rspace
+            CALL auxbas_pw_pool%create_pw(pw=rho_elec_rspace)
             CALL pw_copy(rho_r(1), rho_elec_rspace)
             CALL pw_axpy(rho_r(2), rho_elec_rspace)
             filename = "ELECTRON_DENSITY"
@@ -1196,12 +1192,14 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: rho_ao_kp
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(particle_list_type), POINTER                  :: particles
+      TYPE(pw_c1d_gs_type)                               :: rho_core
+      TYPE(pw_c1d_gs_type), DIMENSION(:), POINTER        :: rho_g
       TYPE(pw_env_type), POINTER                         :: pw_env
       TYPE(pw_poisson_parameter_type)                    :: poisson_params
       TYPE(pw_pool_p_type), DIMENSION(:), POINTER        :: pw_pools
       TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
-      TYPE(pw_type)                                      :: rho_core, rho_tot_rspace, vhartree
-      TYPE(pw_type), DIMENSION(:), POINTER               :: rho_g, rho_r
+      TYPE(pw_r3d_rs_type)                               :: rho_tot_rspace
+      TYPE(pw_r3d_rs_type), DIMENSION(:), POINTER        :: rho_r
       TYPE(qs_ks_env_type), POINTER                      :: ks_env
       TYPE(qs_rho_type), POINTER                         :: rho
       TYPE(qs_subsys_type), POINTER                      :: subsys
@@ -1251,9 +1249,7 @@ CONTAINS
 
       CALL get_qs_env(qs_env=qs_env, pw_env=pw_env)
       CALL pw_env_get(pw_env=pw_env, auxbas_pw_pool=auxbas_pw_pool, pw_pools=pw_pools)
-      CALL auxbas_pw_pool%create_pw(pw=rho_core, &
-                                    use_data=COMPLEXDATA1D, &
-                                    in_space=RECIPROCALSPACE)
+      CALL auxbas_pw_pool%create_pw(pw=rho_core)
       CALL calculate_rho_core(rho_core, total_rho_core_rspace, qs_env)
 
       IF (iounit > 0) THEN
@@ -1263,8 +1259,7 @@ CONTAINS
             "Integrated core density:", total_rho_core_rspace
       END IF
 
-      CALL auxbas_pw_pool%create_pw(pw=rho_tot_rspace, &
-                                    use_data=REALDATA3D, in_space=REALSPACE)
+      CALL auxbas_pw_pool%create_pw(pw=rho_tot_rspace)
       CALL pw_transfer(rho_core, rho_tot_rspace)
       DO ispin = 1, dft_control%nspins
          CALL pw_axpy(rho_r(ispin), rho_tot_rspace)
@@ -1292,9 +1287,8 @@ CONTAINS
       END IF
       IF (my_v_hartree .OR. my_efield) THEN
          BLOCK
-            TYPE(pw_type) :: rho_tot_gspace
-            CALL auxbas_pw_pool%create_pw(pw=rho_tot_gspace, &
-                                          use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
+            TYPE(pw_c1d_gs_type) :: rho_tot_gspace
+            CALL auxbas_pw_pool%create_pw(pw=rho_tot_gspace)
             CALL pw_transfer(rho_tot_rspace, rho_tot_gspace)
             poisson_params%solver = pw_poisson_analytic
             poisson_params%periodic = cell%perd
@@ -1304,46 +1298,15 @@ CONTAINS
                TYPE(pw_grid_type), POINTER                        :: pwdummy
                NULLIFY (pwdummy)
                CALL pw_green_create(green_fft, poisson_params, cell%hmat, auxbas_pw_pool, pwdummy, pwdummy)
-               rho_tot_gspace%cc(:) = rho_tot_gspace%cc(:)*green_fft%influence_fn%cc(:)
+               rho_tot_gspace%array(:) = rho_tot_gspace%array(:)*green_fft%influence_fn%array(:)
                CALL pw_green_release(green_fft, auxbas_pw_pool)
             END BLOCK
             IF (my_v_hartree) THEN
-               CALL auxbas_pw_pool%create_pw(pw=vhartree, &
-                                             use_data=REALDATA3D, in_space=REALSPACE)
-               CALL pw_transfer(rho_tot_gspace, vhartree)
-               filename = "V_HARTREE"
-               mpi_io = .TRUE.
-               unit_nr = cp_print_key_unit_nr(logger, cube_section, '', &
-                                              extension=".cube", middle_name=TRIM(filename), file_position=my_pos_cube, &
-                                              log_filename=.FALSE., mpi_io=mpi_io, fout=mpi_filename)
-               IF (iounit > 0) THEN
-                  IF (.NOT. mpi_io) THEN
-                     INQUIRE (UNIT=unit_nr, NAME=filename)
-                  ELSE
-                     filename = mpi_filename
-                  END IF
-                  WRITE (UNIT=iounit, FMT="(T2,A,/,T2,A79)") &
-                     "The Hartree potential is written in cube file format to the file:", ADJUSTR(TRIM(filename))
-               END IF
-               CALL cp_pw_to_cube(vhartree, unit_nr, "Hartree Potential", &
-                                  particles=particles, &
-                                  stride=section_get_ivals(cube_section, "STRIDE"), mpi_io=mpi_io)
-               CALL cp_print_key_finished_output(unit_nr, logger, cube_section, '', mpi_io=mpi_io)
-               CALL auxbas_pw_pool%give_back_pw(vhartree)
-            END IF
-            IF (my_efield) THEN
-               CALL auxbas_pw_pool%create_pw(pw=vhartree, &
-                                             use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
-               udvol = 1.0_dp/rho_tot_rspace%pw_grid%dvol
-               DO id = 1, 3
+               BLOCK
+                  TYPE(pw_r3d_rs_type) :: vhartree
+                  CALL auxbas_pw_pool%create_pw(pw=vhartree)
                   CALL pw_transfer(rho_tot_gspace, vhartree)
-                  nd = 0
-                  nd(id) = 1
-                  CALL pw_derive(vhartree, nd)
-                  CALL pw_transfer(vhartree, rho_tot_rspace)
-                  CALL pw_scale(rho_tot_rspace, udvol)
-
-                  filename = "EFIELD_"//cdir(id)
+                  filename = "V_HARTREE"
                   mpi_io = .TRUE.
                   unit_nr = cp_print_key_unit_nr(logger, cube_section, '', &
                                                  extension=".cube", middle_name=TRIM(filename), file_position=my_pos_cube, &
@@ -1355,14 +1318,49 @@ CONTAINS
                         filename = mpi_filename
                      END IF
                      WRITE (UNIT=iounit, FMT="(T2,A,/,T2,A79)") &
-                        "The Efield is written in cube file format to the file:", ADJUSTR(TRIM(filename))
+                        "The Hartree potential is written in cube file format to the file:", ADJUSTR(TRIM(filename))
                   END IF
-                  CALL cp_pw_to_cube(rho_tot_rspace, unit_nr, "EFIELD "//cdir(id), &
+                  CALL cp_pw_to_cube(vhartree, unit_nr, "Hartree Potential", &
                                      particles=particles, &
                                      stride=section_get_ivals(cube_section, "STRIDE"), mpi_io=mpi_io)
                   CALL cp_print_key_finished_output(unit_nr, logger, cube_section, '', mpi_io=mpi_io)
-               END DO
-               CALL auxbas_pw_pool%give_back_pw(vhartree)
+                  CALL auxbas_pw_pool%give_back_pw(vhartree)
+               END BLOCK
+            END IF
+            IF (my_efield) THEN
+               BLOCK
+                  TYPE(pw_c1d_gs_type) :: vhartree
+                  CALL auxbas_pw_pool%create_pw(pw=vhartree)
+                  udvol = 1.0_dp/rho_tot_rspace%pw_grid%dvol
+                  DO id = 1, 3
+                     CALL pw_transfer(rho_tot_gspace, vhartree)
+                     nd = 0
+                     nd(id) = 1
+                     CALL pw_derive(vhartree, nd)
+                     CALL pw_transfer(vhartree, rho_tot_rspace)
+                     CALL pw_scale(rho_tot_rspace, udvol)
+
+                     filename = "EFIELD_"//cdir(id)
+                     mpi_io = .TRUE.
+                     unit_nr = cp_print_key_unit_nr(logger, cube_section, '', &
+                                                    extension=".cube", middle_name=TRIM(filename), file_position=my_pos_cube, &
+                                                    log_filename=.FALSE., mpi_io=mpi_io, fout=mpi_filename)
+                     IF (iounit > 0) THEN
+                        IF (.NOT. mpi_io) THEN
+                           INQUIRE (UNIT=unit_nr, NAME=filename)
+                        ELSE
+                           filename = mpi_filename
+                        END IF
+                        WRITE (UNIT=iounit, FMT="(T2,A,/,T2,A79)") &
+                           "The Efield is written in cube file format to the file:", ADJUSTR(TRIM(filename))
+                     END IF
+                     CALL cp_pw_to_cube(rho_tot_rspace, unit_nr, "EFIELD "//cdir(id), &
+                                        particles=particles, &
+                                        stride=section_get_ivals(cube_section, "STRIDE"), mpi_io=mpi_io)
+                     CALL cp_print_key_finished_output(unit_nr, logger, cube_section, '', mpi_io=mpi_io)
+                  END DO
+                  CALL auxbas_pw_pool%give_back_pw(vhartree)
+               END BLOCK
             END IF
             CALL auxbas_pw_pool%give_back_pw(rho_tot_gspace)
          END BLOCK
@@ -1394,11 +1392,12 @@ CONTAINS
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: rho_ao_kp
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(particle_list_type), POINTER                  :: particles
+      TYPE(pw_c1d_gs_type), DIMENSION(:), POINTER        :: rho_g
       TYPE(pw_env_type), POINTER                         :: pw_env
       TYPE(pw_pool_p_type), DIMENSION(:), POINTER        :: pw_pools
       TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
-      TYPE(pw_type), ALLOCATABLE, DIMENSION(:)           :: elf_r
-      TYPE(pw_type), DIMENSION(:), POINTER               :: rho_g, rho_r
+      TYPE(pw_r3d_rs_type), ALLOCATABLE, DIMENSION(:)    :: elf_r
+      TYPE(pw_r3d_rs_type), DIMENSION(:), POINTER        :: rho_r
       TYPE(qs_ks_env_type), POINTER                      :: ks_env
       TYPE(qs_rho_type), POINTER                         :: rho
       TYPE(qs_subsys_type), POINTER                      :: subsys
@@ -1428,9 +1427,7 @@ CONTAINS
       CALL get_qs_env(qs_env=qs_env, pw_env=pw_env)
       CALL pw_env_get(pw_env, auxbas_pw_pool=auxbas_pw_pool, pw_pools=pw_pools)
       DO ispin = 1, dft_control%nspins
-         CALL auxbas_pw_pool%create_pw(elf_r(ispin), &
-                                       use_data=REALDATA3D, &
-                                       in_space=REALSPACE)
+         CALL auxbas_pw_pool%create_pw(elf_r(ispin))
          CALL pw_zero(elf_r(ispin))
       END DO
 
@@ -1499,10 +1496,11 @@ CONTAINS
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mos
       TYPE(particle_list_type), POINTER                  :: particles
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
+      TYPE(pw_c1d_gs_type)                               :: wf_g
       TYPE(pw_env_type), POINTER                         :: pw_env
       TYPE(pw_pool_p_type), DIMENSION(:), POINTER        :: pw_pools
       TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
-      TYPE(pw_type)                                      :: wf_g, wf_r
+      TYPE(pw_r3d_rs_type)                               :: wf_r
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(qs_subsys_type), POINTER                      :: subsys
       TYPE(scf_control_type), POINTER                    :: scf_control
@@ -1550,12 +1548,8 @@ CONTAINS
 
       CALL get_qs_env(qs_env=qs_env, pw_env=pw_env)
       CALL pw_env_get(pw_env, auxbas_pw_pool=auxbas_pw_pool, pw_pools=pw_pools)
-      CALL auxbas_pw_pool%create_pw(wf_r, &
-                                    use_data=REALDATA3D, &
-                                    in_space=REALSPACE)
-      CALL auxbas_pw_pool%create_pw(wf_g, &
-                                    use_data=COMPLEXDATA1D, &
-                                    in_space=RECIPROCALSPACE)
+      CALL auxbas_pw_pool%create_pw(wf_r)
+      CALL auxbas_pw_pool%create_pw(wf_g)
 
       CALL get_qs_env(qs_env, subsys=subsys)
       CALL qs_subsys_get(subsys, particles=particles)

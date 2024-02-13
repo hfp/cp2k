@@ -72,11 +72,8 @@ MODULE qs_resp
    USE pw_poisson_methods,              ONLY: pw_poisson_solve
    USE pw_poisson_types,                ONLY: pw_poisson_type
    USE pw_pool_types,                   ONLY: pw_pool_type
-   USE pw_types,                        ONLY: COMPLEXDATA1D,&
-                                              REALDATA3D,&
-                                              REALSPACE,&
-                                              RECIPROCALSPACE,&
-                                              pw_type
+   USE pw_types,                        ONLY: pw_c1d_gs_type,&
+                                              pw_r3d_rs_type
    USE qs_collocate_density,            ONLY: calculate_rho_resp_all,&
                                               calculate_rho_resp_single
    USE qs_environment_types,            ONLY: get_qs_env,&
@@ -772,7 +769,7 @@ CONTAINS
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: dist
       REAL(KIND=dp), DIMENSION(3, 3)                     :: hmat, hmat_inv
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
-      TYPE(pw_type), POINTER                             :: v_hartree_pw
+      TYPE(pw_r3d_rs_type), POINTER                      :: v_hartree_pw
 
       CALL timeset(routineN, handle)
 
@@ -865,9 +862,9 @@ CONTAINS
          ! correct for the fact that v_hartree is scaled by dvol, and has the opposite sign
          IF (qs_env%qmmm) THEN
             ! If it's a QM/MM run let's remove the contribution of the MM potential out of the Hartree pot
-            vj = -v_hartree_pw%cr3d(jx, jy, jz)/dvol + qs_env%ks_qmmm_env%v_qmmm_rspace%cr3d(jx, jy, jz)
+            vj = -v_hartree_pw%array(jx, jy, jz)/dvol + qs_env%ks_qmmm_env%v_qmmm_rspace%array(jx, jy, jz)
          ELSE
-            vj = -v_hartree_pw%cr3d(jx, jy, jz)/dvol
+            vj = -v_hartree_pw%array(jx, jy, jz)/dvol
          END IF
          dist(:) = 1.0_dp/dist(:)
 
@@ -922,10 +919,11 @@ CONTAINS
       REAL(KIND=dp)                                      :: normalize_factor
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: vpot
       TYPE(mp_para_env_type), POINTER                    :: para_env
+      TYPE(pw_c1d_gs_type)                               :: rho_ga, va_gspace
       TYPE(pw_env_type), POINTER                         :: pw_env
       TYPE(pw_poisson_type), POINTER                     :: poisson_env
       TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
-      TYPE(pw_type)                                      :: rho_ga, va_gspace, va_rspace
+      TYPE(pw_r3d_rs_type)                               :: va_rspace
 
       CALL timeset(routineN, handle)
 
@@ -943,15 +941,9 @@ CONTAINS
 
       CALL pw_env_get(pw_env, auxbas_pw_pool=auxbas_pw_pool, &
                       poisson_env=poisson_env)
-      CALL auxbas_pw_pool%create_pw(rho_ga, &
-                                    use_data=COMPLEXDATA1D, &
-                                    in_space=RECIPROCALSPACE)
-      CALL auxbas_pw_pool%create_pw(va_gspace, &
-                                    use_data=COMPLEXDATA1D, &
-                                    in_space=RECIPROCALSPACE)
-      CALL auxbas_pw_pool%create_pw(va_rspace, &
-                                    use_data=REALDATA3D, &
-                                    in_space=REALSPACE)
+      CALL auxbas_pw_pool%create_pw(rho_ga)
+      CALL auxbas_pw_pool%create_pw(va_gspace)
+      CALL auxbas_pw_pool%create_pw(va_rspace)
 
       !get fitting points and store them in resp_env%fitpoints
       CALL get_fitting_points(qs_env, resp_env, rep_sys, particles=particles, &
@@ -973,7 +965,7 @@ CONTAINS
             jx = resp_env%fitpoints(1, ip)
             jy = resp_env%fitpoints(2, ip)
             jz = resp_env%fitpoints(3, ip)
-            vpot(ip, i) = va_rspace%cr3d(jx, jy, jz)
+            vpot(ip, i) = va_rspace%array(jx, jy, jz)
          END DO
       END DO
 
@@ -1041,7 +1033,7 @@ CONTAINS
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
-      TYPE(pw_type), POINTER                             :: v_hartree_pw
+      TYPE(pw_r3d_rs_type), POINTER                      :: v_hartree_pw
 
       CALL timeset(routineN, handle)
 
@@ -1180,7 +1172,7 @@ CONTAINS
       INTEGER                                            :: handle, ip, jx, jy, jz
       REAL(KIND=dp)                                      :: dvol
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: vhartree
-      TYPE(pw_type), POINTER                             :: v_hartree_pw
+      TYPE(pw_r3d_rs_type), POINTER                      :: v_hartree_pw
 
       CALL timeset(routineN, handle)
 
@@ -1196,10 +1188,10 @@ CONTAINS
          jx = resp_env%fitpoints(1, ip)
          jy = resp_env%fitpoints(2, ip)
          jz = resp_env%fitpoints(3, ip)
-         vhartree(ip) = -v_hartree_pw%cr3d(jx, jy, jz)/dvol
+         vhartree(ip) = -v_hartree_pw%array(jx, jy, jz)/dvol
          IF (qs_env%qmmm) THEN
             !taking into account that v_qmmm has also opposite sign
-            vhartree(ip) = vhartree(ip) + qs_env%ks_qmmm_env%v_qmmm_rspace%cr3d(jx, jy, jz)
+            vhartree(ip) = vhartree(ip) + qs_env%ks_qmmm_env%v_qmmm_rspace%array(jx, jy, jz)
          END IF
          rhs = rhs + 2.0_dp*vhartree(ip)*vpot(ip)
       END DO
@@ -1239,7 +1231,7 @@ CONTAINS
       TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(mp_request_type), DIMENSION(6)                :: req
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
-      TYPE(pw_type), POINTER                             :: v_hartree_pw
+      TYPE(pw_r3d_rs_type), POINTER                      :: v_hartree_pw
       TYPE(section_vals_type), POINTER                   :: input, print_key, resp_section
 
       CALL timeset(routineN, handle)
@@ -1689,12 +1681,12 @@ CONTAINS
                                                             sum_diff, sum_hartree, udvol
       TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(mp_para_env_type), POINTER                    :: para_env
+      TYPE(pw_c1d_gs_type)                               :: rho_resp, v_resp_gspace
       TYPE(pw_env_type), POINTER                         :: pw_env
       TYPE(pw_poisson_type), POINTER                     :: poisson_env
       TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
-      TYPE(pw_type)                                      :: aux_r, rho_resp, v_resp_gspace, &
-                                                            v_resp_rspace
-      TYPE(pw_type), POINTER                             :: v_hartree_rspace
+      TYPE(pw_r3d_rs_type)                               :: aux_r, v_resp_rspace
+      TYPE(pw_r3d_rs_type), POINTER                      :: v_hartree_rspace
       TYPE(section_vals_type), POINTER                   :: input, print_key, resp_section
 
       CALL timeset(routineN, handle)
@@ -1716,15 +1708,9 @@ CONTAINS
       CALL pw_env_get(pw_env, auxbas_pw_pool=auxbas_pw_pool, &
                       poisson_env=poisson_env)
 
-      CALL auxbas_pw_pool%create_pw(rho_resp, &
-                                    use_data=COMPLEXDATA1D, &
-                                    in_space=RECIPROCALSPACE)
-      CALL auxbas_pw_pool%create_pw(v_resp_gspace, &
-                                    use_data=COMPLEXDATA1D, &
-                                    in_space=RECIPROCALSPACE)
-      CALL auxbas_pw_pool%create_pw(v_resp_rspace, &
-                                    use_data=REALDATA3D, &
-                                    in_space=REALSPACE)
+      CALL auxbas_pw_pool%create_pw(rho_resp)
+      CALL auxbas_pw_pool%create_pw(v_resp_gspace)
+      CALL auxbas_pw_pool%create_pw(v_resp_rspace)
 
       CALL pw_zero(rho_resp)
       CALL calculate_rho_resp_all(rho_resp, resp_env%rhs, natom, &
@@ -1740,7 +1726,7 @@ CONTAINS
       ! REPEAT: correct for offset, take into account that potentials have reverse sign
       ! and are scaled by dvol
       IF (resp_env%use_repeat_method) THEN
-         v_resp_rspace%cr3d(:, :, :) = v_resp_rspace%cr3d(:, :, :) - resp_env%offset*dvol
+         v_resp_rspace%array(:, :, :) = v_resp_rspace%array(:, :, :) - resp_env%offset*dvol
       END IF
       CALL v_resp_gspace%release()
       CALL rho_resp%release()
@@ -1748,9 +1734,7 @@ CONTAINS
       !***now print the v_resp_rspace%pw to a cube file if requested
       IF (BTEST(cp_print_key_should_output(logger%iter_info, resp_section, &
                                            "PRINT%V_RESP_CUBE"), cp_p_file)) THEN
-         CALL auxbas_pw_pool%create_pw(aux_r, &
-                                       use_data=REALDATA3D, &
-                                       in_space=REALSPACE)
+         CALL auxbas_pw_pool%create_pw(aux_r)
          append_cube = section_get_lval(resp_section, "PRINT%V_RESP_CUBE%APPEND")
          my_pos_cube = "REWIND"
          IF (append_cube) THEN
@@ -1783,9 +1767,9 @@ CONTAINS
          jx = resp_env%fitpoints(1, ip)
          jy = resp_env%fitpoints(2, ip)
          jz = resp_env%fitpoints(3, ip)
-         sum_diff = sum_diff + (v_hartree_rspace%cr3d(jx, jy, jz) - &
-                                v_resp_rspace%cr3d(jx, jy, jz))**2
-         sum_hartree = sum_hartree + v_hartree_rspace%cr3d(jx, jy, jz)**2
+         sum_diff = sum_diff + (v_hartree_rspace%array(jx, jy, jz) - &
+                                v_resp_rspace%array(jx, jy, jz))**2
+         sum_hartree = sum_hartree + v_hartree_rspace%array(jx, jy, jz)**2
       END DO
       CALL para_env%sum(sum_diff)
       CALL para_env%sum(sum_hartree)

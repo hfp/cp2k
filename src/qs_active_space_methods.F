@@ -96,11 +96,9 @@ MODULE qs_active_space_methods
                                pw_poisson_type
    USE pw_pool_types, ONLY: &
       pw_pool_type
-   USE pw_types, ONLY: COMPLEXDATA1D, &
-                       REALDATA3D, &
-                       REALSPACE, &
-                       RECIPROCALSPACE, &
-                       pw_type
+   USE pw_types, ONLY: &
+      pw_c1d_gs_type, &
+      pw_r3d_rs_type
    USE qcschema, ONLY: qcschema_env_create, &
                        qcschema_env_release, &
                        qcschema_to_hdf5, &
@@ -1222,13 +1220,14 @@ CONTAINS
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
          POINTER                                         :: sab_orb_sub
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
+      TYPE(pw_c1d_gs_type)                               :: pot_g, rho_g
       TYPE(pw_env_type), POINTER                         :: pw_env_sub
       TYPE(pw_poisson_type), POINTER                     :: poisson_env
       TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
-      TYPE(pw_type)                                      :: pot_g, rho_g, rho_r, wfn_r
-      TYPE(pw_type), ALLOCATABLE, DIMENSION(:, :), &
-         TARGET                                          :: wfn_a
-      TYPE(pw_type), POINTER                             :: wfn1, wfn2, wfn3, wfn4
+      TYPE(pw_r3d_rs_type)                               :: rho_r, wfn_r
+      TYPE(pw_r3d_rs_type), ALLOCATABLE, &
+         DIMENSION(:, :), TARGET                         :: wfn_a
+      TYPE(pw_r3d_rs_type), POINTER                      :: wfn1, wfn2, wfn3, wfn4
       TYPE(qs_control_type), POINTER                     :: qs_control, qs_control_old
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(qs_ks_env_type), POINTER                      :: ks_env
@@ -1405,8 +1404,8 @@ CONTAINS
          ! Copy the active space of the MOs into DBCSR matrices
       END IF
 
-      CALL auxbas_pw_pool%create_pw(wfn_r, use_data=REALDATA3D, in_space=REALSPACE)
-      CALL auxbas_pw_pool%create_pw(rho_g, use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
+      CALL auxbas_pw_pool%create_pw(wfn_r)
+      CALL auxbas_pw_pool%create_pw(rho_g)
       CALL get_qs_env(qs_env, qs_kind_set=qs_kind_set, cell=cell, &
                       particle_set=particle_set, atomic_kind_set=atomic_kind_set)
 
@@ -1417,7 +1416,7 @@ CONTAINS
          DO ispin = 1, nspins
             CALL get_mo_set(mo_set=mos(ispin), nmo=nx)
             nmo = MAX(nmo, nx)
-            rsize = REAL(SIZE(wfn_r%cr3d), KIND=dp)*nx
+            rsize = REAL(SIZE(wfn_r%array), KIND=dp)*nx
          END DO
          IF (print1 .AND. iw > 0) THEN
             rsize = rsize*8._dp/1000000._dp
@@ -1428,9 +1427,7 @@ CONTAINS
             CALL get_mo_set(mo_set=mos(ispin), mo_coeff=mo_coeff, nmo=nmo)
             DO i1 = 1, SIZE(orbitals, 1)
                iwfn = orbitals(i1, ispin)
-               CALL auxbas_pw_pool%create_pw(wfn_a(iwfn, ispin), &
-                                             use_data=REALDATA3D, &
-                                             in_space=REALSPACE)
+               CALL auxbas_pw_pool%create_pw(wfn_a(iwfn, ispin))
                CALL calculate_wavefunction(mo_coeff, iwfn, wfn_a(iwfn, ispin), rho_g, atomic_kind_set, &
                                            qs_kind_set, cell, dft_control, particle_set, pw_env_sub)
                IF (print2 .AND. iw > 0) THEN
@@ -1441,26 +1438,18 @@ CONTAINS
       ELSE
          ! Even if we do not store all WFNs, we still need containers for the functions to store
          ALLOCATE (wfn1, wfn2)
-         CALL auxbas_pw_pool%create_pw(wfn1, &
-                                       use_data=REALDATA3D, &
-                                       in_space=REALSPACE)
-         CALL auxbas_pw_pool%create_pw(wfn2, &
-                                       use_data=REALDATA3D, &
-                                       in_space=REALSPACE)
+         CALL auxbas_pw_pool%create_pw(wfn1)
+         CALL auxbas_pw_pool%create_pw(wfn2)
          IF (eri_env%method /= eri_method_gpw_ht) THEN
             ALLOCATE (wfn3, wfn4)
-            CALL auxbas_pw_pool%create_pw(wfn3, &
-                                          use_data=REALDATA3D, &
-                                          in_space=REALSPACE)
-            CALL auxbas_pw_pool%create_pw(wfn4, &
-                                          use_data=REALDATA3D, &
-                                          in_space=REALSPACE)
+            CALL auxbas_pw_pool%create_pw(wfn3)
+            CALL auxbas_pw_pool%create_pw(wfn4)
          END IF
       END IF
 
       ! get some of the grids ready
-      CALL auxbas_pw_pool%create_pw(rho_r, use_data=REALDATA3D, in_space=REALSPACE)
-      CALL auxbas_pw_pool%create_pw(pot_g, use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
+      CALL auxbas_pw_pool%create_pw(rho_r)
+      CALL auxbas_pw_pool%create_pw(pot_g)
 
       ! run the FFT once, to set up buffers and to take into account the memory
       CALL pw_zero(rho_r)
@@ -1715,32 +1704,32 @@ CONTAINS
             CASE (eri_operator_coulomb)
                DO ig = grid%first_gne0, grid%ngpts_cut_local
                   g2 = grid%gsq(ig)
-                  gf%cc(ig) = fourpi/g2
+                  gf%array(ig) = fourpi/g2
                END DO
-               IF (grid%have_g0) gf%cc(1) = 0.0_dp
+               IF (grid%have_g0) gf%array(1) = 0.0_dp
             CASE (eri_operator_yukawa)
                a = eri_env%operator_parameter**2
                DO ig = grid%first_gne0, grid%ngpts_cut_local
                   g2 = grid%gsq(ig)
-                  gf%cc(ig) = fourpi/(a + g2)
+                  gf%array(ig) = fourpi/(a + g2)
                END DO
-               IF (grid%have_g0) gf%cc(1) = fourpi/a
+               IF (grid%have_g0) gf%array(1) = fourpi/a
             CASE (eri_operator_erf)
                a = eri_env%operator_parameter**2
                DO ig = grid%first_gne0, grid%ngpts_cut_local
                   g2 = grid%gsq(ig)
                   ga = -0.25_dp*g2/a
-                  gf%cc(ig) = fourpi/g2*EXP(ga)
+                  gf%array(ig) = fourpi/g2*EXP(ga)
                END DO
-               IF (grid%have_g0) gf%cc(1) = 0.0_dp
+               IF (grid%have_g0) gf%array(1) = 0.0_dp
             CASE (eri_operator_erfc)
                a = eri_env%operator_parameter**2
                DO ig = grid%first_gne0, grid%ngpts_cut_local
                   g2 = grid%gsq(ig)
                   ga = -0.25_dp*g2/a
-                  gf%cc(ig) = fourpi/g2*(1._dp - EXP(ga))
+                  gf%array(ig) = fourpi/g2*(1._dp - EXP(ga))
                END DO
-               IF (grid%have_g0) gf%cc(1) = 0.25_dp*fourpi/a
+               IF (grid%have_g0) gf%array(1) = 0.25_dp*fourpi/a
             CASE (eri_operator_gaussian)
                CPABORT("")
             CASE DEFAULT
@@ -1756,9 +1745,9 @@ CONTAINS
                   g2 = grid%gsq(ig)
                   gg = SQRT(g2)
                   g3d = fourpi/g2
-                  gf%cc(ig) = g3d*(1.0_dp - COS(rlength*gg))
+                  gf%array(ig) = g3d*(1.0_dp - COS(rlength*gg))
                END DO
-               IF (grid%have_g0) gf%cc(1) = 0.5_dp*fourpi*rlength*rlength
+               IF (grid%have_g0) gf%array(1) = 0.5_dp*fourpi*rlength*rlength
             CASE (eri_operator_yukawa)
                rlength = green%radius
                a = eri_env%operator_parameter
@@ -1768,9 +1757,9 @@ CONTAINS
                   gg = SQRT(g2)
                   g3d = fourpi/(a*a + g2)
                   rg = rlength*gg
-                  gf%cc(ig) = g3d*(1.0_dp - ea*(COS(rg) + a/gg*SIN(rg)))
+                  gf%array(ig) = g3d*(1.0_dp - ea*(COS(rg) + a/gg*SIN(rg)))
                END DO
-               IF (grid%have_g0) gf%cc(1) = fourpi/(a*a)*(1.0_dp - ea*(1._dp + a*rlength))
+               IF (grid%have_g0) gf%array(1) = fourpi/(a*a)*(1.0_dp - ea*(1._dp + a*rlength))
             CASE (eri_operator_erf)
                rlength = green%radius
                a = eri_env%operator_parameter**2
@@ -1778,9 +1767,9 @@ CONTAINS
                   g2 = grid%gsq(ig)
                   gg = SQRT(g2)
                   ga = -0.25_dp*g2/a
-                  gf%cc(ig) = fourpi/g2*EXP(ga)*(1.0_dp - COS(rlength*gg))
+                  gf%array(ig) = fourpi/g2*EXP(ga)*(1.0_dp - COS(rlength*gg))
                END DO
-               IF (grid%have_g0) gf%cc(1) = 0.5_dp*fourpi*rlength*rlength
+               IF (grid%have_g0) gf%array(1) = 0.5_dp*fourpi*rlength*rlength
             CASE (eri_operator_erfc)
                rlength = green%radius
                a = eri_env%operator_parameter**2
@@ -1788,9 +1777,9 @@ CONTAINS
                   g2 = grid%gsq(ig)
                   gg = SQRT(g2)
                   ga = -0.25_dp*g2/a
-                  gf%cc(ig) = fourpi/g2*(1._dp - EXP(ga))*(1.0_dp - COS(rlength*gg))
+                  gf%array(ig) = fourpi/g2*(1._dp - EXP(ga))*(1.0_dp - COS(rlength*gg))
                END DO
-               IF (grid%have_g0) gf%cc(1) = 0._dp
+               IF (grid%have_g0) gf%array(1) = 0._dp
             CASE (eri_operator_gaussian)
                CPABORT("")
             CASE DEFAULT
@@ -1873,9 +1862,10 @@ CONTAINS
       TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(particle_list_type), POINTER                  :: particles
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
+      TYPE(pw_c1d_gs_type)                               :: wf_g
       TYPE(pw_env_type), POINTER                         :: pw_env
       TYPE(pw_pool_type), POINTER                        :: auxbas_pw_pool
-      TYPE(pw_type)                                      :: wf_g, wf_r
+      TYPE(pw_r3d_rs_type)                               :: wf_r
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(qs_subsys_type), POINTER                      :: subsys
       TYPE(section_vals_type), POINTER                   :: dft_section, scf_input
@@ -1906,8 +1896,8 @@ CONTAINS
       CALL qs_subsys_get(subsys, particles=particles)
       !
       CALL pw_env_get(pw_env, auxbas_pw_pool=auxbas_pw_pool)
-      CALL auxbas_pw_pool%create_pw(wf_r, use_data=REALDATA3D, in_space=REALSPACE)
-      CALL auxbas_pw_pool%create_pw(wf_g, use_data=COMPLEXDATA1D, in_space=RECIPROCALSPACE)
+      CALL auxbas_pw_pool%create_pw(wf_r)
+      CALL auxbas_pw_pool%create_pw(wf_g)
       !
       dft_section => section_vals_get_subs_vals(scf_input, "DFT")
       !
