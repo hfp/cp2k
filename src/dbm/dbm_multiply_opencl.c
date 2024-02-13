@@ -44,27 +44,25 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   const size_t work_size =
       dbm_multiply_gpu_worksize(ntasks, m_range[1], &batchsize);
   size_t offset_batch = 0, offset_adata = 0, offset_bdata = 0, offset_cdata = 0;
-  const c_dbcsr_acc_opencl_info_memptr_t *const info_batch =
-      c_dbcsr_acc_opencl_info_devptr(batch, sizeof(dbm_task_t), &amount,
-                                     &offset_batch);
-  const c_dbcsr_acc_opencl_info_memptr_t *const info_adata =
-      c_dbcsr_acc_opencl_info_devptr(pack_a_data, 1 /*elsize*/, NULL /*amount*/,
-                                     &offset_adata);
-  const c_dbcsr_acc_opencl_info_memptr_t *const info_bdata =
-      c_dbcsr_acc_opencl_info_devptr(pack_b_data, 1 /*elsize*/, NULL /*amount*/,
-                                     &offset_bdata);
-  const c_dbcsr_acc_opencl_info_memptr_t *const info_cdata =
-      c_dbcsr_acc_opencl_info_devptr(shard_c_data, 1 /*elsize*/,
-                                     NULL /*amount*/, &offset_cdata);
+  const c_dbcsr_acc_opencl_info_memptr_t *info_adata = NULL, *info_bdata = NULL;
+  const c_dbcsr_acc_opencl_info_memptr_t *info_cdata = NULL, *info_batch = NULL;
   assert(NULL != pack_a_data && NULL != pack_b_data && NULL != shard_c_data);
   assert(0 < m_range[0] && 0 < m_range[1] && m_range[0] <= m_range[1]);
   assert(0 < n_range[0] && 0 < n_range[1] && n_range[0] <= n_range[1]);
   assert(0 < ntasks && NULL != batch && NULL != str && NULL != str->queue);
-  assert(NULL != info_batch && NULL != info_adata && NULL != info_bdata &&
-         NULL != info_cdata);
-  assert(0 == offset_adata && 0 == offset_bdata && 0 == offset_cdata);
   /* creating/calling kernel must be consistent across threads */
   ACC_OPENCL_ACQUIRE(c_dbcsr_acc_opencl_config.lock_main);
+  info_adata = c_dbcsr_acc_opencl_info_devptr_lock(
+      NULL /*lock*/, pack_a_data, 1 /*esize*/, NULL /*amount*/, &offset_adata);
+  info_bdata = c_dbcsr_acc_opencl_info_devptr_lock(
+      NULL /*lock*/, pack_b_data, 1 /*esize*/, NULL /*amount*/, &offset_bdata);
+  info_cdata = c_dbcsr_acc_opencl_info_devptr_lock(
+      NULL /*lock*/, shard_c_data, 1 /*esize*/, NULL /*amount*/, &offset_cdata);
+  info_batch = c_dbcsr_acc_opencl_info_devptr_lock(
+      NULL /*lock*/, batch, sizeof(dbm_task_t), &amount, &offset_batch);
+  assert(0 == offset_adata && 0 == offset_bdata && 0 == offset_cdata);
+  assert(NULL != info_adata && NULL != info_bdata && NULL != info_cdata &&
+         NULL != info_batch);
 #if defined(OPENCL_DBM_SOURCE_MULTIPLY_OPENCL)
   if (NULL == kernel) { /* first-time check if kernel is present */
     char build_params[ACC_OPENCL_BUFFERSIZE];
