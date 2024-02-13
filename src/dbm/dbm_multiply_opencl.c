@@ -63,49 +63,43 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   assert(NULL != info_batch && NULL != info_adata && NULL != info_bdata &&
          NULL != info_cdata);
   assert(0 == offset_adata && 0 == offset_bdata && 0 == offset_cdata);
-#if defined(_OPENMP)
-#pragma omp critical(dbm_multiply_gpu_launch_kernel)
-#endif
-  { /* creating/calling kernel must be consistent across threads */
+  /* creating/calling kernel must be consistent across threads */
+  ACC_OPENCL_ACQUIRE(c_dbcsr_acc_opencl_config.lock_main);
 #if defined(OPENCL_DBM_SOURCE_MULTIPLY_OPENCL)
-    if (NULL == kernel) { /* first-time check if kernel is present */
-      char build_params[ACC_OPENCL_BUFFERSIZE];
-      const char *extensions[] = {NULL, NULL};
-      const int nchar = c_dbcsr_acc_opencl_flags_atomics(
-          &c_dbcsr_acc_opencl_config.device, c_dbcsr_acc_opencl_atomic_fp_64,
-          extensions, sizeof(extensions) / sizeof(*extensions), build_params,
-          sizeof(build_params));
-      if (0 < nchar && (int)sizeof(build_params) > nchar) {
-        OFFLOAD_CHECK(c_dbcsr_acc_opencl_kernel(
-            0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY_OPENCL,
-            "dbm_multiply", build_params,
-            "-cl-fast-relaxed-math -cl-denorms-are-zero", NULL /*try*/,
-            NULL /*try_ok*/, extensions,
-            sizeof(extensions) / sizeof(*extensions), &kernel));
-      }
+  if (NULL == kernel) { /* first-time check if kernel is present */
+    char build_params[ACC_OPENCL_BUFFERSIZE];
+    const char *extensions[] = {NULL, NULL};
+    const int nchar = c_dbcsr_acc_opencl_flags_atomics(
+        &c_dbcsr_acc_opencl_config.device, c_dbcsr_acc_opencl_atomic_fp_64,
+        extensions, sizeof(extensions) / sizeof(*extensions), build_params,
+        sizeof(build_params));
+    if (0 < nchar && (int)sizeof(build_params) > nchar) {
+      OFFLOAD_CHECK(c_dbcsr_acc_opencl_kernel(
+          0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY_OPENCL,
+          "dbm_multiply", build_params,
+          "-cl-fast-relaxed-math -cl-denorms-are-zero", NULL /*try*/,
+          NULL /*try_ok*/, extensions, sizeof(extensions) / sizeof(*extensions),
+          &kernel));
     }
+  }
 #else
 #error "OpenCL kernel code not found!"
 #endif
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha));
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 1, sizeof(cl_int), &m_range[1]));
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 2, sizeof(cl_int), &n_range[1]));
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 3, sizeof(cl_int), &batchsize));
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 4, sizeof(cl_int), &offset_batch));
-    OFFLOAD_CHECK(clSetKernelArg(kernel, 5, sizeof(cl_int), &ntasks));
-    OFFLOAD_CHECK(
-        clSetKernelArg(kernel, 6, sizeof(cl_mem), &info_batch->memory));
-    OFFLOAD_CHECK(
-        clSetKernelArg(kernel, 7, sizeof(cl_mem), &info_adata->memory));
-    OFFLOAD_CHECK(
-        clSetKernelArg(kernel, 8, sizeof(cl_mem), &info_bdata->memory));
-    OFFLOAD_CHECK(
-        clSetKernelArg(kernel, 9, sizeof(cl_mem), &info_cdata->memory));
-    OFFLOAD_CHECK(clEnqueueNDRangeKernel(
-        str->queue, kernel, 1 /*work_dim*/, NULL /*offset*/, &work_size,
-        0 != wgsize ? &wgsize : NULL, 0 /*num_wait*/, NULL /*wait_list*/,
-        perf_event));
-  }
+  OFFLOAD_CHECK(clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha));
+  OFFLOAD_CHECK(clSetKernelArg(kernel, 1, sizeof(cl_int), &m_range[1]));
+  OFFLOAD_CHECK(clSetKernelArg(kernel, 2, sizeof(cl_int), &n_range[1]));
+  OFFLOAD_CHECK(clSetKernelArg(kernel, 3, sizeof(cl_int), &batchsize));
+  OFFLOAD_CHECK(clSetKernelArg(kernel, 4, sizeof(cl_int), &offset_batch));
+  OFFLOAD_CHECK(clSetKernelArg(kernel, 5, sizeof(cl_int), &ntasks));
+  OFFLOAD_CHECK(clSetKernelArg(kernel, 6, sizeof(cl_mem), &info_batch->memory));
+  OFFLOAD_CHECK(clSetKernelArg(kernel, 7, sizeof(cl_mem), &info_adata->memory));
+  OFFLOAD_CHECK(clSetKernelArg(kernel, 8, sizeof(cl_mem), &info_bdata->memory));
+  OFFLOAD_CHECK(clSetKernelArg(kernel, 9, sizeof(cl_mem), &info_cdata->memory));
+  OFFLOAD_CHECK(clEnqueueNDRangeKernel(
+      str->queue, kernel, 1 /*work_dim*/, NULL /*offset*/, &work_size,
+      0 != wgsize ? &wgsize : NULL, 0 /*num_wait*/, NULL /*wait_list*/,
+      perf_event));
+  ACC_OPENCL_RELEASE(c_dbcsr_acc_opencl_config.lock_main);
 }
 
 #endif // defined(__OFFLOAD_OPENCL) && !defined(__NO_OFFLOAD_DBM)
