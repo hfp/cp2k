@@ -75,9 +75,11 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       OFFLOAD_CHECK(c_dbcsr_acc_opencl_kernel(
           0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY_OPENCL,
           "dbm_multiply", build_params,
-          "-cl-fast-relaxed-math -cl-denorms-are-zero", NULL /*try*/,
-          NULL /*try_ok*/, extensions, sizeof(extensions) / sizeof(*extensions),
-          &kernel));
+          0 == c_dbcsr_acc_opencl_config.debug
+              ? NULL
+              : "-cl-fast-relaxed-math -cl-denorms-are-zero",
+          NULL /*try*/, NULL /*try_ok*/, extensions,
+          sizeof(extensions) / sizeof(*extensions), &kernel));
     }
   }
 #else
