@@ -24,7 +24,7 @@ size_t dbm_multiply_gpu_worksize(int ntasks, int split, int *batchsize) {
 void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                                     const int m_range[2], const int n_range[2],
                                     double alpha, int ntasks,
-                                    const dbm_task_t *batch,
+                                    const dbm_task_t *tasks,
                                     const double *pack_a_data,
                                     const double *pack_b_data,
                                     double *shard_c_data) {
@@ -42,26 +42,27 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   const size_t work_size =
       dbm_multiply_gpu_worksize(ntasks, m_range[1], &batchsize);
   size_t offset_batch = 0, offset_adata = 0, offset_bdata = 0, offset_cdata = 0;
-  const c_dbcsr_acc_opencl_info_memptr_t *info_adata = NULL, *info_bdata = NULL;
-  const c_dbcsr_acc_opencl_info_memptr_t *info_cdata = NULL, *info_batch = NULL;
+  c_dbcsr_acc_opencl_info_memptr_t adata, bdata, cdata, batch;
   assert(NULL != pack_a_data && NULL != pack_b_data && NULL != shard_c_data);
   assert(0 < m_range[0] && 0 < m_range[1] && m_range[0] <= m_range[1]);
   assert(0 < n_range[0] && 0 < n_range[1] && n_range[0] <= n_range[1]);
   assert(NULL != str && NULL != str->queue);
-  assert(0 < ntasks && NULL != batch);
+  assert(0 < ntasks && NULL != tasks);
   /* creating/calling kernel must be consistent across threads */
   ACC_OPENCL_ACQUIRE(c_dbcsr_acc_opencl_config.lock_main);
-  info_adata = c_dbcsr_acc_opencl_info_devptr_lock(
-      NULL /*lock*/, pack_a_data, 1 /*esize*/, NULL /*amount*/, &offset_adata);
-  info_bdata = c_dbcsr_acc_opencl_info_devptr_lock(
-      NULL /*lock*/, pack_b_data, 1 /*esize*/, NULL /*amount*/, &offset_bdata);
-  info_cdata = c_dbcsr_acc_opencl_info_devptr_lock(
-      NULL /*lock*/, shard_c_data, 1 /*esize*/, NULL /*amount*/, &offset_cdata);
-  info_batch = c_dbcsr_acc_opencl_info_devptr_lock(
-      NULL /*lock*/, batch, sizeof(dbm_task_t), &amount, &offset_batch);
+  OFFLOAD_CHECK(c_dbcsr_acc_opencl_info_devptr_lock(
+      &adata, NULL /*lock*/, pack_a_data, 1 /*esize*/, NULL /*amount*/,
+      &offset_adata));
+  OFFLOAD_CHECK(c_dbcsr_acc_opencl_info_devptr_lock(
+      &bdata, NULL /*lock*/, pack_b_data, 1 /*esize*/, NULL /*amount*/,
+      &offset_bdata));
+  OFFLOAD_CHECK(c_dbcsr_acc_opencl_info_devptr_lock(
+      &cdata, NULL /*lock*/, shard_c_data, 1 /*esize*/, NULL /*amount*/,
+      &offset_cdata));
+  OFFLOAD_CHECK(c_dbcsr_acc_opencl_info_devptr_lock(
+      &batch, NULL /*lock*/, tasks /*batch*/, sizeof(dbm_task_t), &amount,
+      &offset_batch));
   assert(0 == offset_adata && 0 == offset_bdata && 0 == offset_cdata);
-  assert(NULL != info_adata && NULL != info_bdata && NULL != info_cdata &&
-         NULL != info_batch);
 #if defined(OPENCL_DBM_SOURCE_MULTIPLY_OPENCL)
   if (NULL == kernel) { /* first-time check if kernel is present */
     char build_params[ACC_OPENCL_BUFFERSIZE];
@@ -88,10 +89,10 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   OFFLOAD_CHECK(clSetKernelArg(kernel, 3, sizeof(cl_int), &batchsize));
   OFFLOAD_CHECK(clSetKernelArg(kernel, 4, sizeof(cl_int), &offset_batch));
   OFFLOAD_CHECK(clSetKernelArg(kernel, 5, sizeof(cl_int), &ntasks));
-  OFFLOAD_CHECK(clSetKernelArg(kernel, 6, sizeof(cl_mem), &info_batch->memory));
-  OFFLOAD_CHECK(clSetKernelArg(kernel, 7, sizeof(cl_mem), &info_adata->memory));
-  OFFLOAD_CHECK(clSetKernelArg(kernel, 8, sizeof(cl_mem), &info_bdata->memory));
-  OFFLOAD_CHECK(clSetKernelArg(kernel, 9, sizeof(cl_mem), &info_cdata->memory));
+  OFFLOAD_CHECK(clSetKernelArg(kernel, 6, sizeof(cl_mem), &batch.memory));
+  OFFLOAD_CHECK(clSetKernelArg(kernel, 7, sizeof(cl_mem), &adata.memory));
+  OFFLOAD_CHECK(clSetKernelArg(kernel, 8, sizeof(cl_mem), &bdata.memory));
+  OFFLOAD_CHECK(clSetKernelArg(kernel, 9, sizeof(cl_mem), &cdata.memory));
   OFFLOAD_CHECK(clEnqueueNDRangeKernel(
       str->queue, kernel, 1 /*work_dim*/, NULL /*offset*/, &work_size,
       0 != wgsize ? &wgsize : NULL, 0 /*num_wait*/, NULL /*wait_list*/,
