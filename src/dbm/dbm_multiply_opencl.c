@@ -91,10 +91,10 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   OFFLOAD_CHECK(clSetKernelArg(kernel, 3, sizeof(cl_int), &batchsize));
   OFFLOAD_CHECK(clSetKernelArg(kernel, 4, sizeof(cl_int), &offset_batch));
   OFFLOAD_CHECK(clSetKernelArg(kernel, 5, sizeof(cl_int), &ntasks));
-  OFFLOAD_CHECK(clSetKernelArg(kernel, 6, sizeof(cl_mem), &batch.memory));
-  OFFLOAD_CHECK(clSetKernelArg(kernel, 7, sizeof(cl_mem), &adata.memory));
-  OFFLOAD_CHECK(clSetKernelArg(kernel, 8, sizeof(cl_mem), &bdata.memory));
-  OFFLOAD_CHECK(clSetKernelArg(kernel, 9, sizeof(cl_mem), &cdata.memory));
+  OFFLOAD_CHECK(c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 6, batch.memory));
+  OFFLOAD_CHECK(c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 7, adata.memory));
+  OFFLOAD_CHECK(c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 8, bdata.memory));
+  OFFLOAD_CHECK(c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 9, cdata.memory));
   OFFLOAD_CHECK(clEnqueueNDRangeKernel(
       str->queue, kernel, 1 /*work_dim*/, NULL /*offset*/, &work_size,
       0 != wgsize ? &wgsize : NULL, 0 /*num_wait*/, NULL /*wait_list*/,
