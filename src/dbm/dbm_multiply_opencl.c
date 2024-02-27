@@ -29,13 +29,9 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                                     const double *pack_b_data,
                                     double *shard_c_data) {
   static cl_kernel kernel = NULL;
+  const int verbosity = c_dbcsr_acc_opencl_config.verbosity;
   cl_event event, *const perf_event =
-                      ((c_dbcsr_acc_opencl_timer_host ==
-                            c_dbcsr_acc_opencl_config.timer ||
-                        (0 <= c_dbcsr_acc_opencl_config.verbosity &&
-                         2 >= c_dbcsr_acc_opencl_config.verbosity))
-                           ? NULL
-                           : &event);
+                      ((0 <= verbosity && 2 >= verbosity) ? NULL : &event);
   const c_dbcsr_acc_opencl_stream_t *const str = ACC_OPENCL_STREAM(stream);
   int result = EXIT_SUCCESS, batchsize = 1;
   const size_t amount = ntasks, wgsize = 0;
@@ -67,12 +63,13 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   if (NULL == kernel) { /* first-time check if kernel is present */
     char build_params[ACC_OPENCL_BUFFERSIZE];
     const char *extensions[] = {NULL, NULL};
+    const libxsmm_timer_tickint start = libxsmm_timer_tick();
     const int nchar = c_dbcsr_acc_opencl_flags_atomics(
         &c_dbcsr_acc_opencl_config.device, c_dbcsr_acc_opencl_atomic_fp_64,
         extensions, sizeof(extensions) / sizeof(*extensions), build_params,
         sizeof(build_params));
     if (0 < nchar && (int)sizeof(build_params) > nchar) {
-      result |= c_dbcsr_acc_opencl_kernel(
+      const int result_kernel = c_dbcsr_acc_opencl_kernel(
           0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY_OPENCL,
           "dbm_multiply", build_params,
           0 == c_dbcsr_acc_opencl_config.debug
@@ -80,6 +77,17 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
               : "-cl-fast-relaxed-math -cl-denorms-are-zero",
           NULL /*try*/, NULL /*try_ok*/, extensions,
           sizeof(extensions) / sizeof(*extensions), &kernel);
+      result |= result_kernel;
+      if (2 <= verbosity || 0 > verbosity) {
+        if (EXIT_SUCCESS == result_kernel) {
+          const double duration =
+              libxsmm_timer_duration(start, libxsmm_timer_tick());
+          fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel bs=%i gen=%.1f ms\n",
+                  batchsize, 1E3 * duration);
+        } else {
+          fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel failed to generate\n");
+        }
+      }
     }
   }
 #else
@@ -99,6 +107,24 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                                    NULL /*offset*/, &work_size,
                                    0 != wgsize ? &wgsize : NULL, 0 /*num_wait*/,
                                    NULL /*wait_list*/, perf_event);
+  if (NULL != perf_event && EXIT_SUCCESS == result) {
+    cl_ulong begin = 0, end = 0;
+    clWaitForEvents(1, perf_event);
+    result |= clGetEventProfilingInfo(*perf_event, CL_PROFILING_COMMAND_START,
+                                      sizeof(cl_ulong), &begin, NULL);
+    result |= clGetEventProfilingInfo(*perf_event, CL_PROFILING_COMMAND_END,
+                                      sizeof(cl_ulong), &end, NULL);
+    if (EXIT_SUCCESS == result) {
+      const double duration =
+          1E-9 * LIBXSMM_DELTA(begin, end); /* Nanoseconds->seconds */
+      const double gflops =
+          1E-9 * (2ULL * m_max * n_max * k_max * ntasks) / duration;
+      fprintf(stderr,
+              "INFO ACC/LIBDBM: DBM-kernel ntasks=%i perf=%.1f GFLOPS/s "
+              "dur=%.2g ms\n",
+              ntasks, gflops, 1E3 * duration);
+    }
+  }
   ACC_OPENCL_RELEASE(c_dbcsr_acc_opencl_config.lock_main);
   OFFLOAD_CHECK(result);
 }
