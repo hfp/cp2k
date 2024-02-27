@@ -15,7 +15,7 @@
 //#define DBM_LIBXSMM_PREFETCH LIBXSMM_GEMM_PREFETCH_AL2_AHEAD
 #define DBM_LIBXSMM_PREFETCH LIBXSMM_GEMM_PREFETCH_NONE
 #endif
-#if 2 > LIBXSMM_VERSION_MAJOR
+#if LIBXSMM_VERSION4(1, 17, 0, 3710) > LIBXSMM_VERSION_NUMBER
 #define libxsmm_dispatch_gemm libxsmm_dispatch_gemm_v2
 #endif
 #endif
