@@ -199,18 +199,14 @@ __global__ static void process_batch_kernel(const double alpha,
  *        All arguments are assumed to be device pointers.
  * \author Ole Schuett
  ******************************************************************************/
-void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
-                                    const int m_range[2], const int n_range[2],
-                                    const double alpha, const int ntasks,
-                                    const dbm_task_t *batch,
-                                    const double *pack_a_data,
-                                    const double *pack_b_data,
-                                    double *shard_c_data) {
+void dbm_multiply_gpu_launch_kernel(
+    const offloadStream_t stream, const int mnk_range[3][2], const double alpha,
+    const int ntasks, const dbm_task_t *batch, const double *pack_a_data,
+    const double *pack_b_data, double *shard_c_data) {
   const int nblocks = ntasks; // TODO tune launch parameters.
   const int threads_per_block = NUM_THREADS;
   const size_t smem_per_block = 0;
-  (void)m_range;
-  (void)n_range; // mark used
+  (void)mnk_range; // mark used
   process_batch_kernel<<<nblocks, threads_per_block, smem_per_block, stream>>>(
       alpha, batch, pack_a_data, pack_b_data, shard_c_data);
 }

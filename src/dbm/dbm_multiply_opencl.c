@@ -22,9 +22,8 @@ size_t dbm_multiply_gpu_worksize(int ntasks, int split, int *batchsize) {
 }
 
 void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
-                                    const int m_range[2], const int n_range[2],
-                                    double alpha, int ntasks,
-                                    const dbm_task_t *tasks,
+                                    const int mnk_range[3][2], double alpha,
+                                    int ntasks, const dbm_task_t *tasks,
                                     const double *pack_a_data,
                                     const double *pack_b_data,
                                     double *shard_c_data) {
@@ -36,12 +35,16 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   int result = EXIT_SUCCESS, batchsize = 1;
   const size_t amount = ntasks, wgsize = 0;
   const size_t work_size = /* consider intra-kernel batchsize */
-      dbm_multiply_gpu_worksize(ntasks, m_range[1], &batchsize);
+      dbm_multiply_gpu_worksize(ntasks, mnk_range[0][1], &batchsize);
   size_t offset_batch = 0, offset_adata = 0, offset_bdata = 0, offset_cdata = 0;
   c_dbcsr_acc_opencl_info_memptr_t adata, bdata, cdata, batch;
   assert(NULL != pack_a_data && NULL != pack_b_data && NULL != shard_c_data);
-  assert(0 < m_range[0] && 0 < m_range[1] && m_range[0] <= m_range[1]);
-  assert(0 < n_range[0] && 0 < n_range[1] && n_range[0] <= n_range[1]);
+  assert(0 < mnk_range[0][0] && 0 < mnk_range[0][1] &&
+         mnk_range[0][0] <= mnk_range[0][1]);
+  assert(0 < mnk_range[1][0] && 0 < mnk_range[1][1] &&
+         mnk_range[1][0] <= mnk_range[1][1]);
+  assert(0 < mnk_range[2][0] && 0 < mnk_range[2][1] &&
+         mnk_range[2][0] <= mnk_range[2][1]);
   assert(NULL != str && NULL != str->queue);
   assert(0 < ntasks && NULL != tasks);
   /* creating/calling kernel must be consistent across threads */
@@ -94,8 +97,8 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
 #error "OpenCL kernel code not found!"
 #endif
   result |= clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha);
-  result |= clSetKernelArg(kernel, 1, sizeof(cl_int), &m_range[1]);
-  result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &n_range[1]);
+  result |= clSetKernelArg(kernel, 1, sizeof(cl_int), &mnk_range[0][1]);
+  result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &mnk_range[1][1]);
   result |= clSetKernelArg(kernel, 3, sizeof(cl_int), &batchsize);
   result |= clSetKernelArg(kernel, 4, sizeof(cl_int), &offset_batch);
   result |= clSetKernelArg(kernel, 5, sizeof(cl_int), &ntasks);
@@ -117,8 +120,9 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     if (EXIT_SUCCESS == result) {
       const double duration =
           1E-9 * LIBXSMM_DELTA(begin, end); /* Nanoseconds->seconds */
-      const double gflops =
-          1E-9 * (2ULL * m_max * n_max * k_max * ntasks) / duration;
+      const double gflops = (2ULL * mnk_range[0][1] * mnk_range[1][1] *
+                             mnk_range[2][1] * ntasks) *
+                            1E-9 / duration;
       fprintf(stderr,
               "INFO ACC/LIBDBM: DBM-kernel ntasks=%i perf=%.1f GFLOPS/s "
               "dur=%.2g ms\n",

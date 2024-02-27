@@ -124,8 +124,8 @@ static void backend_upload_packs(const dbm_pack_t *pack_a,
  * \author Ole Schuett
  ******************************************************************************/
 static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
-                                  const int m_range[2], const int n_range[2],
-                                  const double alpha, const dbm_pack_t *pack_a,
+                                  const int mnk_range[3][2], const double alpha,
+                                  const dbm_pack_t *pack_a,
                                   const dbm_pack_t *pack_b, const int kshard,
                                   dbm_shard_t *shard_c,
                                   backend_context_t *ctx) {
@@ -133,11 +133,10 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
   (void)pack_a;
   (void)pack_b;
   (void)shard_c; // mark as used
-  dbm_multiply_gpu_process_batch(ntasks, batch, m_range, n_range, alpha, kshard,
+  dbm_multiply_gpu_process_batch(ntasks, batch, mnk_range, alpha, kshard,
                                  &ctx->gpu);
 #else
-  (void)m_range;
-  (void)n_range;
+  (void)mnk_range;
   (void)kshard;
   (void)ctx; // mark as used
   dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b, shard_c);
@@ -226,8 +225,7 @@ static void multiply_packs(const bool transa, const bool transb,
         const int ishard = shard_row * nshard_cols + shard_col;
         dbm_shard_t *shard_c = &matrix_c->shards[ishard];
         dbm_task_t batch[MAX_BATCH_SIZE];
-        int m_range[] = {INT_MAX, 0};
-        int n_range[] = {INT_MAX, 0};
+        int mnk_range[] = {{INT_MAX, 0}, {INT_MAX, 0}, {INT_MAX, 0}};
         int ntasks = 0;
 
         // Use a merge-join to find pairs of blocks with matching sum indices.
@@ -297,20 +295,21 @@ static void multiply_packs(const bool transa, const bool transb,
             ntasks++;
 
             // track MxN-shape covering an entire batch
-            min_max(m_range, m);
-            min_max(n_range, n);
+            min_max(mnk_range[0], m);
+            min_max(mnk_range[1], n);
+            min_max(mnk_range[2], k);
 
             if (ntasks == MAX_BATCH_SIZE) {
-              backend_process_batch(ntasks, batch, m_range, n_range, alpha,
-                                    pack_a, pack_b, ishard, shard_c, ctx);
-              m_range[0] = n_range[0] = INT_MAX;
-              m_range[1] = n_range[1] = 0;
+              backend_process_batch(ntasks, batch, mnk_range, alpha, pack_a,
+                                    pack_b, ishard, shard_c, ctx);
+              mnk_range[0][0] = mnk_range[1][0] = mnk_range[2][0] = INT_MAX;
+              mnk_range[0][1] = mnk_range[1][1] = mnk_range[2][1] = 0;
               ntasks = 0;
             }
           }
         }
-        backend_process_batch(ntasks, batch, m_range, n_range, alpha, pack_a,
-                              pack_b, ishard, shard_c, ctx);
+        backend_process_batch(ntasks, batch, mnk_range, alpha, pack_a, pack_b,
+                              ishard, shard_c, ctx);
       }
     }
   }
