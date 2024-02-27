@@ -225,7 +225,7 @@ static void multiply_packs(const bool transa, const bool transb,
         const int ishard = shard_row * nshard_cols + shard_col;
         dbm_shard_t *shard_c = &matrix_c->shards[ishard];
         dbm_task_t batch[MAX_BATCH_SIZE];
-        int mnk_range[] = {{INT_MAX, 0}, {INT_MAX, 0}, {INT_MAX, 0}};
+        int mnk_range[][2] = {{INT_MAX, 0}, {INT_MAX, 0}, {INT_MAX, 0}};
         int ntasks = 0;
 
         // Use a merge-join to find pairs of blocks with matching sum indices.
