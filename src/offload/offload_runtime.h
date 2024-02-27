@@ -15,6 +15,9 @@
 #if !defined(__NO_OFFLOAD_GRID)
 #define __NO_OFFLOAD_GRID
 #endif
+#if !defined(__NO_OFFLOAD_PW)
+#define __NO_OFFLOAD_PW
+#endif
 #endif
 
 #if defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP) ||                       \
