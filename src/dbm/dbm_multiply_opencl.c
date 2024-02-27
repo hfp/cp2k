@@ -124,9 +124,10 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                              mnk_range[2][1] * ntasks) *
                             1E-9 / duration;
       fprintf(stderr,
-              "INFO ACC/LIBDBM: DBM-kernel ntasks=%i perf=%.1f GFLOPS/s "
-              "dur=%.2g ms\n",
-              ntasks, gflops, 1E3 * duration);
+              "INFO ACC/LIBDBM: DBM-kernel mnk=%ix%ix%i "
+              "ntasks=%i perf=%.1f GFLOPS/s dur=%.2g ms\n",
+              mnk_range[0][1], mnk_range[1][1], mnk_range[2][1], ntasks, gflops,
+              1E3 * duration);
     }
   }
   ACC_OPENCL_RELEASE(c_dbcsr_acc_opencl_config.lock_main);
