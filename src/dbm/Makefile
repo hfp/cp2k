@@ -102,6 +102,16 @@ ifeq (,$(wildcard $(OPENCL_LIB)))
 LIBS += -L$(CUDA_PATH)/$(CUDA_LIBS)
 LIBS += -Wl,-rpath=$(CUDA_PATH)/$(CUDA_LIBS)
 endif
+else ifneq (,$(wildcard $(OPENCL_ROOT)/include/CL/cl.h))
+ifeq (,$(wildcard $(OPENCL_INC)))
+CFLAGS += -I$(OPENCL_ROOT)/include
+endif
+LIBS += -L$(OPENCL_ROOT)/lib64
+else ifneq (,$(wildcard $(OCL_ROOT)/include/CL/cl.h))
+ifeq (,$(wildcard $(OPENCL_INC)))
+CFLAGS += -I$(OCL_ROOT)/include
+endif
+LIBS += -L$(OCL_ROOT)/lib64
 endif
 # OPENCL_INC: directory containing CL/cl.h.
 ifneq (,$(wildcard $(OPENCL_INC)))
