@@ -66,7 +66,6 @@ ortho_cx_to_grid(const int lp, const int k1, const int k2, const int j1,
 #if (GRID_DO_COLLOCATE)
     // collocate
     double reg[4] = {0.0, 0.0, 0.0, 0.0};
-#pragma omp simd reduction(+ : reg)
     for (int lxp = 0; lxp <= lp; lxp++) {
       const double p = pol[0][lxp][i + cmax];
       reg[0] += cx[lxp * 4 + 0] * p;
@@ -82,7 +81,6 @@ ortho_cx_to_grid(const int lp, const int k1, const int k2, const int j1,
 #else
     // integrate
     const double reg[4] = {*grid_0, *grid_1, *grid_2, *grid_3};
-#pragma omp simd
     for (int lxp = 0; lxp <= lp; lxp++) {
       const double p = pol[0][lxp][i + cmax];
       cx[lxp * 4 + 0] += reg[0] * p;

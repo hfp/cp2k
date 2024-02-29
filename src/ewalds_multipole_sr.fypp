@@ -1108,14 +1108,14 @@
          energy = energy + eloc
       #:endif
       #:if store_forces
-      IF (do_forces) THEN
-         forces(1, atom_a) = forces(1, atom_a) - fr(1)
-         forces(2, atom_a) = forces(2, atom_a) - fr(2)
-         forces(3, atom_a) = forces(3, atom_a) - fr(3)
-         forces(1, atom_b) = forces(1, atom_b) + fr(1)
-         forces(2, atom_b) = forces(2, atom_b) + fr(2)
-         forces(3, atom_b) = forces(3, atom_b) + fr(3)
-      END IF
+         IF (do_forces) THEN
+            forces(1, atom_a) = forces(1, atom_a) - fr(1)
+            forces(2, atom_a) = forces(2, atom_a) - fr(2)
+            forces(3, atom_a) = forces(3, atom_a) - fr(3)
+            forces(1, atom_b) = forces(1, atom_b) + fr(1)
+            forces(2, atom_b) = forces(2, atom_b) + fr(2)
+            forces(3, atom_b) = forces(3, atom_b) + fr(3)
+         END IF
       #:endif
       ! Electric fields
       IF (do_efield) THEN

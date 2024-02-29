@@ -759,23 +759,23 @@ CONTAINS
          CALL pgf_sum_3c_rspace_1d_generic(S_G, RA, RB, RC, zeta, zetb, zetc, a_mm, lgth, R_bounds_3)
       ELSE
          #:for l_max in range(0,lmax_unroll+1)
-         IF (l_max == ${l_max}$) THEN
-            #:for m_max in range(0,lmax_unroll+1)
-               IF (m_max == ${m_max}$) THEN
-                  #:for n_max in range(0, lmax_unroll+1)
-                     IF (n_max == ${n_max}$) THEN
-                        #:for prop_exp in range(0,2)
-                           IF (prop_exp == ${prop_exp}$) THEN
-                              CALL pgf_sum_3c_rspace_1d_${l_max}$_${m_max}$_${n_max}$_exp_${prop_exp}$ (S_G, RA, RB, RC, &
+            IF (l_max == ${l_max}$) THEN
+               #:for m_max in range(0,lmax_unroll+1)
+                  IF (m_max == ${m_max}$) THEN
+                     #:for n_max in range(0, lmax_unroll+1)
+                        IF (n_max == ${n_max}$) THEN
+                           #:for prop_exp in range(0,2)
+                              IF (prop_exp == ${prop_exp}$) THEN
+                                 CALL pgf_sum_3c_rspace_1d_${l_max}$_${m_max}$_${n_max}$_exp_${prop_exp}$ (S_G, RA, RB, RC, &
                                                                                            zeta, zetb, zetc, a_mm, lgth, R_bounds_3)
-                              RETURN
-                           END IF
-                        #:endfor
-                     END IF
-                  #:endfor
-               END IF
-            #:endfor
-         END IF
+                                 RETURN
+                              END IF
+                           #:endfor
+                        END IF
+                     #:endfor
+                  END IF
+               #:endfor
+            END IF
          #:endfor
       END IF
 
