@@ -29,11 +29,11 @@ ifeq ($(CC),)
 CFLAGS += -Wno-vla-parameter
 endif
 
-NVCC := $(shell which nvcc)
+NVCC := $(shell which nvcc 2>/dev/null)
 NVARCH := sm_70
 NVFLAGS := -g $(OPTFLAG) -lineinfo -arch $(NVARCH) -Wno-deprecated-gpu-targets -Xcompiler "$(CFLAGS)" -D__OFFLOAD_CUDA
 
-HIPCC := $(shell which hipcc)
+HIPCC := $(shell which hipcc 2>/dev/null)
 HIPARCH := gfx90a
 HIPFLAGS := -fPIE -g $(OPTFLAG) --offload-arch=$(HIPARCH) -Wall -Wextra -Werror -I${ROCM_PATH}/include -D__OFFLOAD_HIP -D__HIP_PLATFORM_AMD__ -D__HIP_PLATFORM_AMD__
 
