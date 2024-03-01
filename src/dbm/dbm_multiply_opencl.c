@@ -76,8 +76,8 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
           0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY_OPENCL,
           "dbm_multiply", build_params,
           0 == c_dbcsr_acc_opencl_config.debug
-              ? NULL
-              : "-cl-fast-relaxed-math -cl-denorms-are-zero",
+              ? "-cl-fast-relaxed-math -cl-denorms-are-zero"
+              : NULL,
           NULL /*try*/, NULL /*try_ok*/, extensions,
           sizeof(extensions) / sizeof(*extensions), &kernel);
       result |= result_kernel;
