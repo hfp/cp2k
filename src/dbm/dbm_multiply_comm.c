@@ -451,7 +451,7 @@ static dbm_pack_t *sendrecv_pack(const int itick, const int nticks,
   const int send_ipack = send_itick / nranks;
   assert(send_itick % nranks == my_rank);
 
-  // Compute recevice rank and pack.
+  // Compute receive rank and pack.
   const int recv_rank = itick % nranks;
   const int recv_ipack = itick / nranks;
 
