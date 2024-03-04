@@ -58,19 +58,19 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   assert(0 == offset_adata && 0 == offset_bdata && 0 == offset_cdata);
 #if defined(OPENCL_DBM_SOURCE_MULTIPLY_OPENCL)
   if (NULL == kernel) { /* first-time check if kernel is present */
-    char build_params[ACC_OPENCL_BUFFERSIZE] =
-        "-DBS=" #DBM_MULTIPLY_OPENCL_BATCHSIZE " ";
+    char flags[ACC_OPENCL_BUFFERSIZE] =
+        "-DBS=" LIBXSMM_STRINGIFY(DBM_MULTIPLY_OPENCL_BATCHSIZE) " ";
     const char *extensions[] = {NULL, NULL};
     const size_t nextensions = sizeof(extensions) / sizeof(*extensions);
     const libxsmm_timer_tickint start = libxsmm_timer_tick();
-    const build_params_size = sizeof(build_params) - strlen(build_params);
+    const size_t flags_maxlen = sizeof(flags) - strlen(flags);
     const int nchar = c_dbcsr_acc_opencl_flags_atomics(
         &c_dbcsr_acc_opencl_config.device, c_dbcsr_acc_opencl_atomic_fp_64,
-        extensions, nextensions, build_params, build_params_size);
-    if (0 < nchar && (int)build_params_size > nchar) {
+        extensions, nextensions, flags, flags_maxlen);
+    if (0 < nchar && (int)flags_maxlen > nchar) {
       const int result_kernel = c_dbcsr_acc_opencl_kernel(
           0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY_OPENCL,
-          "dbm_multiply", build_params,
+          "dbm_multiply", flags,
           0 == c_dbcsr_acc_opencl_config.debug
               ? "-cl-fast-relaxed-math -cl-denorms-are-zero"
               : NULL,
