@@ -33,8 +33,8 @@
 #define TILE(M, N) vec[N]
 #endif
 
-kernel void dbm_multiply(double alpha, int m_max, int n_max, int nbatch,
-                         int itask, int ntasks, global const dbm_task_t *tasks,
+kernel void dbm_multiply(double alpha, int m_max, int n_max, int itask,
+                         int ntasks, global const dbm_task_t *tasks,
                          global const double *restrict a_data,
                          global const double *restrict b_data,
                          global double *restrict c_data) {
@@ -43,7 +43,7 @@ kernel void dbm_multiply(double alpha, int m_max, int n_max, int nbatch,
 #else
   double vec[NN] = {0}; /* private accumulator */
 #endif
-  const int i0 = (int)get_global_id(0) * nbatch, i1 = i0 + nbatch;
+  const int i0 = (int)get_global_id(0) * BS, i1 = i0 + BS;
 
   UNROLL(1)
   for (int j = 0; j < n_max; j += NN) {
@@ -62,7 +62,7 @@ kernel void dbm_multiply(double alpha, int m_max, int n_max, int nbatch,
         int m = 0;
 #if (1 < BS)
         UNROLL(BS)
-        for (; m < min(task.m - m0, min(nbatch, BS)); ++m)
+        for (; m < min(task.m - m0, BS); ++m)
 #endif
         {
           UNROLL_AUTO
@@ -81,7 +81,7 @@ kernel void dbm_multiply(double alpha, int m_max, int n_max, int nbatch,
       }
 
 #if defined(TRACK_C)
-      if (BS < nbatch || (0 <= tc && task.offset_c != tc) || i1 <= (i + m_max))
+      if ((0 <= tc && task.offset_c != tc) || i1 <= (i + m_max))
 #endif
       { /* flush private accumulator to global memory using atomics */
         int m = 0;
