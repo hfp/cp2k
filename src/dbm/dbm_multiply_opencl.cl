@@ -20,30 +20,17 @@
 #if !defined(NK)
 #define NK 16
 #endif
-#if !defined(BS)
-#define BS 1
-#endif
 
 #define IDX(I, J, K, M, N) ((I) * (N) + (J) + (K))
 #define IDT(I, J, K, M, N) IDX(J, I, K, N, M)
-
-#if (1 < BS)
-#define TILE(M, N) tile[M][N]
-#else
-#define TILE(M, N) vec[N]
-#endif
 
 kernel void dbm_multiply(double alpha, int m_max, int n_max, int itask,
                          int ntasks, global const dbm_task_t *tasks,
                          global const double *restrict a_data,
                          global const double *restrict b_data,
                          global double *restrict c_data) {
-#if (1 < BS)
-  double tile[BS][NN] = {0}; /* private accumulator */
-#else
   double vec[NN] = {0}; /* private accumulator */
-#endif
-  const int i0 = (int)get_global_id(0) * BS, i1 = i0 + BS;
+  const int i0 = (int)get_global_id(0), i1 = i0 + 1;
 
   UNROLL(1)
   for (int j = 0; j < n_max; j += NN) {
@@ -56,26 +43,19 @@ kernel void dbm_multiply(double alpha, int m_max, int n_max, int itask,
     for (int i = i0; i < i1; i += m_max) {
       const int tid = i / m_max, t = min(tid, ntasks - 1);
       const dbm_task_t task = tasks[itask + t]; /* !OOB */
-      const int m0 = i - tid * m_max;           /* i % m_max */
+      const int m = i - tid * m_max;            /* i % m_max */
 
       if (j < task.n && tid < ntasks) { /* valid task */
-        int m = 0;
-#if (1 < BS)
-        UNROLL(BS)
-        for (; m < min(task.m - m0, BS); ++m)
-#endif
-        {
-          UNROLL_AUTO
-          for (int k = 0; k < task.k; ++k) { /* UNROLL(NK) */
-            const int ia = IDX(m + m0, k, task.offset_a, task.m, task.k);
-            const double a = a_data[ia];
+        UNROLL_AUTO
+        for (int k = 0; k < task.k; ++k) { /* UNROLL(NK) */
+          const int ia = IDX(m, k, task.offset_a, task.m, task.k);
+          const double a = a_data[ia];
 
-            UNROLL_AUTO
-            for (int n = 0; n < nn; ++n) {
-              const int ib = IDT(k, n + j, task.offset_b, task.k, task.n);
-              const double b = b_data[ib];
-              TILE(m, n) = MAD(a, b, TILE(m, n));
-            }
+          UNROLL_AUTO
+          for (int n = 0; n < nn; ++n) {
+            const int ib = IDT(k, n + j, task.offset_b, task.k, task.n);
+            const double b = b_data[ib];
+            vec[n] = MAD(a, b, vec[n]);
           }
         }
       }
@@ -84,18 +64,11 @@ kernel void dbm_multiply(double alpha, int m_max, int n_max, int itask,
       if ((0 <= tc && task.offset_c != tc) || i1 <= (i + m_max))
 #endif
       { /* flush private accumulator to global memory using atomics */
-        int m = 0;
-#if (1 < BS)
-        UNROLL(BS)
-        for (; m < BS; ++m)
-#endif
-        {
-          UNROLL_FORCE(NN)
-          for (int n = 0; n < NN; ++n) {
-            const int ic = IDX(m + m0, n + j, task.offset_c, task.m, task.n);
-            ACCUMULATE(&c_data[ic], alpha * TILE(m, n));
-            TILE(m, n) = ZERO; /* reset */
-          }
+        UNROLL_FORCE(NN)
+        for (int n = 0; n < NN; ++n) {
+          const int ic = IDX(m, n + j, task.offset_c, task.m, task.n);
+          ACCUMULATE(&c_data[ic], alpha * vec[n]);
+          vec[n] = ZERO; /* reset */
         }
       }
 
