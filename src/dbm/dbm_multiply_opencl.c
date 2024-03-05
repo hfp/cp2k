@@ -22,7 +22,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   cl_event event, *const perf_event =
                       ((0 <= verbosity && 2 >= verbosity) ? NULL : &event);
   const c_dbcsr_acc_opencl_stream_t *const str = ACC_OPENCL_STREAM(stream);
-  const size_t max_m = mnk_range[0][1], max_n = mnk_range[1][1];
+  const int max_m = mnk_range[0][1], max_n = mnk_range[1][1];
   const size_t amount = ntasks, work_size = amount * max_m, wgsize = 0;
   size_t offset_batch = 0, offset_adata = 0, offset_bdata = 0, offset_cdata = 0;
   c_dbcsr_acc_opencl_info_memptr_t adata, bdata, cdata, batch;
@@ -98,14 +98,13 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     result |= clGetEventProfilingInfo(*perf_event, CL_PROFILING_COMMAND_END,
                                       sizeof(cl_ulong), &end, NULL);
     if (EXIT_SUCCESS == result) {
-      const double duration =
-          1E-9 * LIBXSMM_DELTA(begin, end); /* Nanoseconds->seconds */
+      const double duration_ms = 1E-6 * LIBXSMM_DELTA(begin, end);
       const double gflops =
-          (2ULL * max_m * max_n * mnk_range[2][1] * ntasks) * 1E-9 / duration;
+          (1E-6 * max_m * max_n * mnk_range[2][1] * ntasks) / duration_ms;
       fprintf(stderr,
               "INFO ACC/LIBDBM: DBM-kernel mnk=%ix%ix%i "
               "ntasks=%i gflops=%.1f ms=%.2g\n",
-              max_m, max_n, mnk_range[2][1], ntasks, gflops, 1E3 * duration);
+              max_m, max_n, mnk_range[2][1], ntasks, gflops, duration_ms);
     }
   }
   ACC_OPENCL_RELEASE(c_dbcsr_acc_opencl_config.lock_main);
