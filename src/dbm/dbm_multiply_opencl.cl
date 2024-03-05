@@ -11,9 +11,6 @@
 #include "../../exts/dbcsr/src/acc/opencl/common/opencl_atomics.h"
 #include "dbm_multiply_internal.h"
 
-#if !defined(TRACK_C) && 0
-#define TRACK_C
-#endif
 #if !defined(NN)
 #define NN 4
 #endif
@@ -42,21 +39,13 @@ void dbm_multiply_dot(double alpha, const dbm_task_t *task,
       }
     }
 
-#if defined(TRACK_C)
-    if (0 <= tc && task->offset_c != tc)
-#endif
-    { /* flush private accumulator to global memory using atomics */
-      UNROLL_FORCE(NN)
-      for (int n = 0; n < NN; ++n) {
-        const int ic = IDX(m, n + j, task->offset_c, task->m, task->n);
-        ACCUMULATE(&c_data[ic], alpha * vec[n]);
-        vec[n] = ZERO; /* reset */
-      }
+    /* flush private accumulator to global memory using atomics */
+    UNROLL_FORCE(NN)
+    for (int n = 0; n < NN; ++n) {
+      const int ic = IDX(m, n + j, task->offset_c, task->m, task->n);
+      ACCUMULATE(&c_data[ic], alpha * vec[n]);
+      vec[n] = ZERO; /* reset */
     }
-
-#if defined(TRACK_C)
-    tc = task->offset_c; /* track change in C-offset */
-#endif
   }
 }
 
@@ -77,9 +66,6 @@ kernel void dbm_multiply(double alpha, int max_n, int itask, int ntasks,
   /* full matrix multiplication */
   else {
     const dbm_task_t task = tasks[itask + i]; /* copy */
-#if defined(TRACK_C)
-    int tc = -1;
-#endif
     for (int m = 0; m < task.m; ++m) {
       dbm_multiply_dot(alpha, &task, a_data, b_data, vec, c_data, m, max_n);
     }
