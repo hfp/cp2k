@@ -63,12 +63,12 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     const char *const flags = "-cl-fast-relaxed-math -cl-denorms-are-zero";
     const char *extensions[] = {NULL, NULL};
     const size_t nextensions = sizeof(extensions) / sizeof(*extensions);
-    const size_t params_maxlen = sizeof(params) - strlen(params);
+    const size_t offset = strlen(params);
     const libxsmm_timer_tickint start = libxsmm_timer_tick();
     const int nchar = c_dbcsr_acc_opencl_flags_atomics(
         &c_dbcsr_acc_opencl_config.device, c_dbcsr_acc_opencl_atomic_fp_64,
-        extensions, nextensions, params + params_maxlen, params_maxlen);
-    if (0 < nchar && (int)params_maxlen > nchar) {
+        extensions, nextensions, params + offset, sizeof(params) - offset);
+    if (0 < nchar && sizeof(params) > (offset + nchar)) {
       const int result_kernel = c_dbcsr_acc_opencl_kernel(
           0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY_OPENCL,
           "dbm_multiply", params,
