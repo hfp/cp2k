@@ -57,16 +57,13 @@ kernel void dbm_multiply(double alpha, int max_n, int itask, int ntasks,
   double vec[NN] = {0}; /* private accumulator */
   const int i = (int)get_global_id(0);
 
-#if defined(SPLIT_TASK)
   const int size = (int)get_global_size(0);
   if (size != ntasks) {
     const int max_m = size / ntasks, tid = i / max_m;
     const dbm_task_t task = tasks[itask + min(tid, ntasks - 1)]; /* copy */
     const int m = i - tid * max_m;
     dbm_multiply_kernel(alpha, &task, a_data, b_data, vec, c_data, m, max_n);
-  } else
-#endif
-  { /* full matrix multiplication */
+  } else { /* full matrix multiplication */
     const dbm_task_t task = tasks[itask + i];
     for (int m = 0; m < task.m; ++m) {
       dbm_multiply_kernel(alpha, &task, a_data, b_data, vec, c_data, m, max_n);

@@ -11,10 +11,6 @@
 #include "dbm_multiply_gpu_kernel.h"
 #include "dbm_multiply_opencl.cl.h"
 
-#if !defined(DBM_MULTIPLY_OPENCL_SPLIT_TASK) && 1
-#define DBM_MULTIPLY_OPENCL_SPLIT_TASK
-#endif
-
 void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                                     const int mnk_range[3][2], double alpha,
                                     int ntasks, const dbm_task_t *tasks,
@@ -22,18 +18,14 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                                     const double *pack_b_data,
                                     double *shard_c_data) {
   static cl_kernel kernel = NULL;
+  static int task_split = 0;
   int result = EXIT_SUCCESS, verbosity = c_dbcsr_acc_opencl_config.verbosity;
   cl_event event, *const perf_event =
                       ((0 <= verbosity && 2 >= verbosity) ? NULL : &event);
   const c_dbcsr_acc_opencl_stream_t *const str = ACC_OPENCL_STREAM(stream);
   const int max_m = mnk_range[0][1], max_n = mnk_range[1][1];
   const size_t work_tasks = ntasks, wgsize = 0;
-#if defined(DBM_MULTIPLY_OPENCL_SPLIT_TASK)
-  const size_t work_size = work_tasks * max_m;
-#else
-  const size_t work_size = work_tasks;
-#endif
-  size_t offset_batch = 0, offset_adata = 0, offset_bdata = 0, offset_cdata = 0;
+  size_t ibatch = 0, iadata = 0, ibdata = 0, icdata = 0, work_size = 0;
   c_dbcsr_acc_opencl_info_memptr_t adata, bdata, cdata, batch;
   assert(NULL != pack_a_data && NULL != pack_b_data && NULL != shard_c_data);
   assert(0 < mnk_range[0][0] && 0 < max_m && mnk_range[0][0] <= max_m);
@@ -44,27 +36,9 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   assert(0 < ntasks && NULL != tasks);
   /* creating/calling kernel must be consistent across threads */
   ACC_OPENCL_ACQUIRE(c_dbcsr_acc_opencl_config.lock_main);
-  result |= c_dbcsr_acc_opencl_info_devptr_lock(&adata, NULL /*lock*/,
-                                                pack_a_data, 1 /*esize*/,
-                                                NULL /*amount*/, &offset_adata);
-  result |= c_dbcsr_acc_opencl_info_devptr_lock(&bdata, NULL /*lock*/,
-                                                pack_b_data, 1 /*esize*/,
-                                                NULL /*amount*/, &offset_bdata);
-  result |= c_dbcsr_acc_opencl_info_devptr_lock(&cdata, NULL /*lock*/,
-                                                shard_c_data, 1 /*esize*/,
-                                                NULL /*amount*/, &offset_cdata);
-  result |= c_dbcsr_acc_opencl_info_devptr_lock(
-      &batch, NULL /*lock*/, tasks /*batch*/, sizeof(dbm_task_t), &work_tasks,
-      &offset_batch);
-  assert(0 == offset_adata && 0 == offset_bdata && 0 == offset_cdata);
 #if defined(OPENCL_DBM_SOURCE_MULTIPLY_OPENCL)
   if (NULL == kernel) { /* first-time check if kernel is present */
-    char params[ACC_OPENCL_BUFFERSIZE] =
-#if defined(DBM_MULTIPLY_OPENCL_SPLIT_TASK)
-        "-DSPLIT_TASK=" LIBXSMM_STRINGIFY(DBM_MULTIPLY_OPENCL_SPLIT_TASK) " ";
-#else
-        "";
-#endif
+    char params[ACC_OPENCL_BUFFERSIZE] = "";
     const char *const flags = "-cl-fast-relaxed-math -cl-denorms-are-zero";
     const char *extensions[] = {NULL, NULL};
     const size_t nextensions = sizeof(extensions) / sizeof(*extensions);
@@ -74,14 +48,15 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         &c_dbcsr_acc_opencl_config.device, c_dbcsr_acc_opencl_atomic_fp_64,
         extensions, nextensions, params + offset, sizeof(params) - offset);
     if (0 < nchar && sizeof(params) > (offset + nchar)) {
-      const int result_kernel = c_dbcsr_acc_opencl_kernel(
+      const char *const task_split_env = getenv("LIBDBM_TASK_SPLIT");
+      task_split = (NULL == task_split_env ? 1 : atoi(task_split_env));
+      result |= c_dbcsr_acc_opencl_kernel(
           0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY_OPENCL,
           "dbm_multiply", params,
           0 == c_dbcsr_acc_opencl_config.debug ? flags : NULL, NULL /*try*/,
           NULL /*try_ok*/, extensions, nextensions, &kernel);
-      result |= result_kernel;
       if (2 <= verbosity || 0 > verbosity) {
-        if (EXIT_SUCCESS == result_kernel) {
+        if (EXIT_SUCCESS == result) {
           fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel ms=%.1f\n",
                   1E3 * libxsmm_timer_duration(start, libxsmm_timer_tick()));
         } else {
@@ -93,9 +68,23 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
 #else
 #error "OpenCL kernel code not found!"
 #endif
+  result |= c_dbcsr_acc_opencl_info_devptr_lock(&adata, NULL /*lock*/,
+                                                pack_a_data, 1 /*esize*/,
+                                                NULL /*amount*/, &iadata);
+  result |= c_dbcsr_acc_opencl_info_devptr_lock(&bdata, NULL /*lock*/,
+                                                pack_b_data, 1 /*esize*/,
+                                                NULL /*amount*/, &ibdata);
+  result |= c_dbcsr_acc_opencl_info_devptr_lock(&cdata, NULL /*lock*/,
+                                                shard_c_data, 1 /*esize*/,
+                                                NULL /*amount*/, &icdata);
+  result |= c_dbcsr_acc_opencl_info_devptr_lock(
+      &batch, NULL /*lock*/, tasks /*batch*/, sizeof(dbm_task_t), &work_tasks,
+      &ibatch);
+  assert(0 == iadata && 0 == ibdata && 0 == icdata);
+  work_size = (0 != task_split ? (work_tasks * max_m) : work_tasks);
   result |= clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha);
   result |= clSetKernelArg(kernel, 1, sizeof(cl_int), &max_n);
-  result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &offset_batch);
+  result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &ibatch);
   result |= clSetKernelArg(kernel, 3, sizeof(cl_int), &ntasks);
   result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 4, batch.memory);
   result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 5, adata.memory);
