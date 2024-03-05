@@ -11,7 +11,7 @@
 #include "dbm_multiply_gpu_kernel.h"
 #include "dbm_multiply_opencl.cl.h"
 
-#if !defined(DBM_MULTIPLY_OPENCL_SPLIT_TASK)
+#if !defined(DBM_MULTIPLY_OPENCL_SPLIT_TASK) && 1
 #define DBM_MULTIPLY_OPENCL_SPLIT_TASK
 #endif
 
@@ -55,7 +55,11 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
 #if defined(OPENCL_DBM_SOURCE_MULTIPLY_OPENCL)
   if (NULL == kernel) { /* first-time check if kernel is present */
     char params[ACC_OPENCL_BUFFERSIZE] =
+#if defined(DBM_MULTIPLY_OPENCL_SPLIT_TASK)
         "-DSPLIT_TASK=" LIBXSMM_STRINGIFY(DBM_MULTIPLY_OPENCL_SPLIT_TASK) " ";
+#else
+        "";
+#endif
     const char *const flags = "-cl-fast-relaxed-math -cl-denorms-are-zero";
     const char *extensions[] = {NULL, NULL};
     const size_t nextensions = sizeof(extensions) / sizeof(*extensions);
@@ -63,7 +67,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     const libxsmm_timer_tickint start = libxsmm_timer_tick();
     const int nchar = c_dbcsr_acc_opencl_flags_atomics(
         &c_dbcsr_acc_opencl_config.device, c_dbcsr_acc_opencl_atomic_fp_64,
-        extensions, nextensions, params, params_maxlen);
+        extensions, nextensions, params + params_maxlen, params_maxlen);
     if (0 < nchar && (int)params_maxlen > nchar) {
       const int result_kernel = c_dbcsr_acc_opencl_kernel(
           0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY_OPENCL,
