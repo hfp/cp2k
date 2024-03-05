@@ -21,7 +21,7 @@
 #define IDX(I, J, K, M, N) ((I) * (N) + (J) + (K))
 #define IDT(I, J, K, M, N) IDX(J, I, K, N, M)
 
-void dbm_multiply_dot(double alpha, global const dbm_task_t *task,
+void dbm_multiply_dot(double alpha, const dbm_task_t *task,
                       global const double *restrict a_data,
                       global const double *restrict b_data, double *vec,
                       global double *restrict c_data, int m, int max_n) {
@@ -70,16 +70,18 @@ kernel void dbm_multiply(double alpha, int max_n, int itask, int ntasks,
 
   if (size != ntasks) {
     const int max_m = size / ntasks, tid = i / max_m;
-    global const dbm_task_t *const task = tasks + itask + min(tid, ntasks - 1);
+    const dbm_task_t task = tasks[itask + min(tid, ntasks - 1)]; /* copy */
     const int m = i - tid * max_m;
-    dbm_multiply_dot(alpha, task, a_data, b_data, vec, c_data, m, max_n);
-  } else { /* full matrix multiplication */
-    global const dbm_task_t *const task = tasks + itask + i;
+    dbm_multiply_dot(alpha, &task, a_data, b_data, vec, c_data, m, max_n);
+  }
+  /* full matrix multiplication */
+  else {
+    const dbm_task_t task = tasks[itask + i]; /* copy */
 #if defined(TRACK_C)
     int tc = -1;
 #endif
-    for (int m = 0; m < task->m; ++m) {
-      dbm_multiply_dot(alpha, task, a_data, b_data, vec, c_data, m, max_n);
+    for (int m = 0; m < task.m; ++m) {
+      dbm_multiply_dot(alpha, &task, a_data, b_data, vec, c_data, m, max_n);
     }
   }
 }
