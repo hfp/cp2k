@@ -22,15 +22,13 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   cl_event event, *const perf_event =
                       ((0 <= verbosity && 2 >= verbosity) ? NULL : &event);
   const c_dbcsr_acc_opencl_stream_t *const str = ACC_OPENCL_STREAM(stream);
-  const size_t amount = ntasks, wgsize = 0;
-  const size_t work_size = ((size_t)ntasks * mnk_range[0][1]);
+  const size_t max_m = mnk_range[0][1], max_n = mnk_range[1][1];
+  const size_t amount = ntasks, work_size = amount * max_m, wgsize = 0;
   size_t offset_batch = 0, offset_adata = 0, offset_bdata = 0, offset_cdata = 0;
   c_dbcsr_acc_opencl_info_memptr_t adata, bdata, cdata, batch;
   assert(NULL != pack_a_data && NULL != pack_b_data && NULL != shard_c_data);
-  assert(0 < mnk_range[0][0] && 0 < mnk_range[0][1] &&
-         mnk_range[0][0] <= mnk_range[0][1]);
-  assert(0 < mnk_range[1][0] && 0 < mnk_range[1][1] &&
-         mnk_range[1][0] <= mnk_range[1][1]);
+  assert(0 < mnk_range[0][0] && 0 < max_m && mnk_range[0][0] <= max_m);
+  assert(0 < mnk_range[1][0] && 0 < max_n && mnk_range[1][0] <= max_n);
   assert(0 < mnk_range[2][0] && 0 < mnk_range[2][1] &&
          mnk_range[2][0] <= mnk_range[2][1]);
   assert(NULL != str && NULL != str->queue);
@@ -81,14 +79,13 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
 #error "OpenCL kernel code not found!"
 #endif
   result |= clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha);
-  result |= clSetKernelArg(kernel, 1, sizeof(cl_int), &mnk_range[0][1]);
-  result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &mnk_range[1][1]);
-  result |= clSetKernelArg(kernel, 3, sizeof(cl_int), &offset_batch);
-  result |= clSetKernelArg(kernel, 4, sizeof(cl_int), &ntasks);
-  result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 5, batch.memory);
-  result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 6, adata.memory);
-  result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 7, bdata.memory);
-  result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 8, cdata.memory);
+  result |= clSetKernelArg(kernel, 1, sizeof(cl_int), &max_n);
+  result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &offset_batch);
+  result |= clSetKernelArg(kernel, 3, sizeof(cl_int), &ntasks);
+  result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 4, batch.memory);
+  result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 5, adata.memory);
+  result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 6, bdata.memory);
+  result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 7, cdata.memory);
   result |= clEnqueueNDRangeKernel(str->queue, kernel, 1 /*work_dim*/,
                                    NULL /*offset*/, &work_size,
                                    0 != wgsize ? &wgsize : NULL, 0 /*num_wait*/,
@@ -103,14 +100,12 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     if (EXIT_SUCCESS == result) {
       const double duration =
           1E-9 * LIBXSMM_DELTA(begin, end); /* Nanoseconds->seconds */
-      const double gflops = (2ULL * mnk_range[0][1] * mnk_range[1][1] *
-                             mnk_range[2][1] * ntasks) *
-                            1E-9 / duration;
+      const double gflops =
+          (2ULL * max_m * max_n * mnk_range[2][1] * ntasks) * 1E-9 / duration;
       fprintf(stderr,
               "INFO ACC/LIBDBM: DBM-kernel mnk=%ix%ix%i "
               "ntasks=%i gflops=%.1f ms=%.2g\n",
-              mnk_range[0][1], mnk_range[1][1], mnk_range[2][1], ntasks, gflops,
-              1E3 * duration);
+              max_m, max_n, mnk_range[2][1], ntasks, gflops, 1E3 * duration);
     }
   }
   ACC_OPENCL_RELEASE(c_dbcsr_acc_opencl_config.lock_main);

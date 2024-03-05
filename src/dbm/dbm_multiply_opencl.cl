@@ -21,20 +21,20 @@
 #define IDX(I, J, K, M, N) ((I) * (N) + (J) + (K))
 #define IDT(I, J, K, M, N) IDX(J, I, K, N, M)
 
-kernel void dbm_multiply(double alpha, int m_max, int n_max, int itask,
-                         int ntasks, global const dbm_task_t *tasks,
+kernel void dbm_multiply(double alpha, int max_n, int itask, int ntasks,
+                         global const dbm_task_t *tasks,
                          global const double *restrict a_data,
                          global const double *restrict b_data,
                          global double *restrict c_data) {
   double vec[NN] = {0}; /* private accumulator */
-  const int i = (int)get_global_id(0);
-  const int tid = i / m_max, t = min(tid, ntasks - 1);
+  const int i = (int)get_global_id(0), max_m = get_global_size(0) / ntasks;
+  const int tid = i / max_m, t = min(tid, ntasks - 1);
   const dbm_task_t task = tasks[itask + t]; /* !OOB */
-  const int m = i - tid * m_max;            /* i % m_max */
+  const int m = i - tid * max_m;            /* i % max_m */
 
   UNROLL(1)
-  for (int j = 0; j < n_max; j += NN) {
-    const int nn = min(n_max - j, NN);
+  for (int j = 0; j < max_n; j += NN) {
+    const int nn = min(max_n - j, NN);
 #if defined(TRACK_C)
     int tc = -1;
 #endif
