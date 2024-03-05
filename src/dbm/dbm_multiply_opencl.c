@@ -27,7 +27,12 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                       ((0 <= verbosity && 2 >= verbosity) ? NULL : &event);
   const c_dbcsr_acc_opencl_stream_t *const str = ACC_OPENCL_STREAM(stream);
   const int max_m = mnk_range[0][1], max_n = mnk_range[1][1];
-  const size_t work_tasks = ntasks, work_size = work_tasks * max_m, wgsize = 0;
+  const size_t work_tasks = ntasks, wgsize = 0;
+#if defined(DBM_MULTIPLY_OPENCL_SPLIT_TASK)
+  const size_t work_size = work_tasks * max_m;
+#else
+  const size_t work_size = work_tasks;
+#endif
   size_t offset_batch = 0, offset_adata = 0, offset_bdata = 0, offset_cdata = 0;
   c_dbcsr_acc_opencl_info_memptr_t adata, bdata, cdata, batch;
   assert(NULL != pack_a_data && NULL != pack_b_data && NULL != shard_c_data);
