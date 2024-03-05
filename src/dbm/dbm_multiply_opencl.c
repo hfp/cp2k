@@ -11,6 +11,10 @@
 #include "dbm_multiply_gpu_kernel.h"
 #include "dbm_multiply_opencl.cl.h"
 
+#if !defined(DBM_MULTIPLY_OPENCL_SPLIT_TASK)
+#define DBM_MULTIPLY_OPENCL_SPLIT_TASK
+#endif
+
 void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                                     const int mnk_range[3][2], double alpha,
                                     int ntasks, const dbm_task_t *tasks,
@@ -23,7 +27,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                       ((0 <= verbosity && 2 >= verbosity) ? NULL : &event);
   const c_dbcsr_acc_opencl_stream_t *const str = ACC_OPENCL_STREAM(stream);
   const int max_m = mnk_range[0][1], max_n = mnk_range[1][1];
-  const size_t amount = ntasks, work_size = amount * max_m, wgsize = 0;
+  const size_t work_tasks = ntasks, work_size = work_tasks * max_m, wgsize = 0;
   size_t offset_batch = 0, offset_adata = 0, offset_bdata = 0, offset_cdata = 0;
   c_dbcsr_acc_opencl_info_memptr_t adata, bdata, cdata, batch;
   assert(NULL != pack_a_data && NULL != pack_b_data && NULL != shard_c_data);
@@ -45,23 +49,25 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                                                 shard_c_data, 1 /*esize*/,
                                                 NULL /*amount*/, &offset_cdata);
   result |= c_dbcsr_acc_opencl_info_devptr_lock(
-      &batch, NULL /*lock*/, tasks /*batch*/, sizeof(dbm_task_t), &amount,
+      &batch, NULL /*lock*/, tasks /*batch*/, sizeof(dbm_task_t), &work_tasks,
       &offset_batch);
   assert(0 == offset_adata && 0 == offset_bdata && 0 == offset_cdata);
 #if defined(OPENCL_DBM_SOURCE_MULTIPLY_OPENCL)
   if (NULL == kernel) { /* first-time check if kernel is present */
-    char build_params[ACC_OPENCL_BUFFERSIZE];
+    char params[ACC_OPENCL_BUFFERSIZE] =
+        "-DSPLIT_TASK=" LIBXSMM_STRINGIFY(DBM_MULTIPLY_OPENCL_SPLIT_TASK) " ";
     const char *const flags = "-cl-fast-relaxed-math -cl-denorms-are-zero";
     const char *extensions[] = {NULL, NULL};
     const size_t nextensions = sizeof(extensions) / sizeof(*extensions);
+    const size_t params_maxlen = sizeof(params) - strlen(params);
     const libxsmm_timer_tickint start = libxsmm_timer_tick();
     const int nchar = c_dbcsr_acc_opencl_flags_atomics(
         &c_dbcsr_acc_opencl_config.device, c_dbcsr_acc_opencl_atomic_fp_64,
-        extensions, nextensions, build_params, sizeof(build_params));
-    if (0 < nchar && (int)sizeof(build_params) > nchar) {
+        extensions, nextensions, params, params_maxlen);
+    if (0 < nchar && (int)params_maxlen > nchar) {
       const int result_kernel = c_dbcsr_acc_opencl_kernel(
           0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY_OPENCL,
-          "dbm_multiply", build_params,
+          "dbm_multiply", params,
           0 == c_dbcsr_acc_opencl_config.debug ? flags : NULL, NULL /*try*/,
           NULL /*try_ok*/, extensions, nextensions, &kernel);
       result |= result_kernel;
