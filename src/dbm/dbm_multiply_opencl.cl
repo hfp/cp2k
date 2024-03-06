@@ -65,6 +65,7 @@ kernel void dbm_multiply(double alpha, int max_n, int itask, int ntasks,
     dbm_multiply_kernel(alpha, &task, a_data, b_data, vec, c_data, m, max_n);
   } else { /* full matrix multiplication */
     const dbm_task_t task = tasks[itask + i];
+    UNROLL_OUTER(1)
     for (int m = 0; m < task.m; ++m) {
       dbm_multiply_kernel(alpha, &task, a_data, b_data, vec, c_data, m, max_n);
     }
