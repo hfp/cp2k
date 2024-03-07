@@ -105,9 +105,9 @@ endif
 
 # If compiling with nvcc
 ifeq (cuda,$(USE_ACCEL))
-  override ACCFLAGS += -D__CUDA -DARCH_NUMBER=$(ARCH_NUMBER)
-  FCFLAGS += -D__CUDA
+  override ACCFLAGS += -DARCH_NUMBER=$(ARCH_NUMBER)
   CXXFLAGS += -D__CUDA
+  FCFLAGS += -D__CUDA
   #if "-arch" has not yet been set in ACCFLAGS
   ifeq (,$(findstring -arch,$(ACCFLAGS)))
     override ACCFLAGS += -arch sm_$(ARCH_NUMBER)
@@ -115,10 +115,17 @@ ifeq (cuda,$(USE_ACCEL))
   ifeq (,$(findstring -Xcompiler,$(ACCFLAGS)))
     override ACCFLAGS += -Xcompiler="$(CXXFLAGS)"
   endif
+  ifeq (,$(findstring -D__CUDA,$(ACCFLAGS)))
+    override ACCFLAGS += -D__CUDA
+  endif
 # If compiling with hipcc
 else ifeq (hip,$(USE_ACCEL))
-  override ACCFLAGS += -D__HIP -DARCH_NUMBER=$(ARCH_NUMBER)
+  override ACCFLAGS += -DARCH_NUMBER=$(ARCH_NUMBER)
+  CXXFLAGS += -D__HIP
   FCFLAGS += -D__HIP
+  ifeq (,$(findstring -D__HIP,$(ACCFLAGS)))
+    override ACCFLAGS += -D__HIP
+  endif
 # OpenCL backend
 else ifeq (opencl,$(USE_ACCEL))
   CFLAGS := $(if $(ACCFLAGS),$(ACCFLAGS),$(CFLAGS)) -D__OPENCL
