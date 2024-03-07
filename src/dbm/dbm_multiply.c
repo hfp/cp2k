@@ -140,8 +140,8 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
   dbm_multiply_gpu_process_batch(ntasks, batch, mnk_range, alpha, kshard,
                                  &ctx->gpu);
 #if defined(DBM_MULTIPLY_VALIDATE) && defined(__LIBXSMM)
-  const dbm_shard_t *const shard_d = &ctx->gpu.shards_c_host[kshard];
   dbm_shard_gpu_t *const shard_g = &ctx->gpu.shards_c_dev[kshard];
+  dbm_shard_t *const shard_d = &ctx->gpu.shards_c_host[kshard];
   dbm_shard_allocate_promised_blocks(shard_d);
   assert(shard_d->data_size == shard_g->data_size);
   offloadMemcpyAsyncDtoH(shard_d->data, shard_g->data,
