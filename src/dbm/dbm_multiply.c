@@ -19,6 +19,10 @@
 #include "dbm_multiply_gpu.h"
 #include "dbm_multiply_internal.h"
 
+#if !defined(DBM_MULTIPLY_VALIDATE) && 0
+#define DBM_MULTIPLY_VALIDATE
+#endif
+
 /*******************************************************************************
  * \brief Returns the larger of two given integer (missing from the C standard).
  * \author Ole Schuett
@@ -135,6 +139,34 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
   (void)shard_c; // mark as used
   dbm_multiply_gpu_process_batch(ntasks, batch, mnk_range, alpha, kshard,
                                  &ctx->gpu);
+#if defined(DBM_MULTIPLY_VALIDATE) && defined(__LIBXSMM)
+  dbm_multiply_gpu_download_results(&ctx->gpu);
+  dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b, shard_c);
+  const dbm_shard_t *const shard_d = &ctx->shards_c_host[kshard];
+  libxsmm_matdiff_info diff;
+  libxsmm_matdiff_clear(&diff);
+  for (int itask = 0; itask < ntasks; ++itask) {
+    const dbm_task_t task = batch[itask];
+    const double *const ref = &shard_c->data[task.offset_c];
+    const double *const tst = &shard_d->data[task.offset_c];
+    libxsmm_matdiff_info d;
+    if (EXIT_SUCCESS == libxsmm_matdiff(&d, LIBXSMM_DATATYPE(double), task.m,
+                                        task.n, ref, tst, NULL /*ldref*/,
+                                        NULL /*ldtst*/)) {
+      libxsmm_matdiff_reduce(&diff, &d);
+    }
+  }
+  const double epsilon = libxsmm_matdiff_epsilon(&diff);
+  if (0 < epsilon) {
+    fprintf(stderr, "diff: %g", epsilon);
+    if (LIBXSMM_NOTNAN(diff.v_tst)) {
+      fprintf(stderr, " (|%g-%g|=%g)\n", diff.v_ref, diff.v_tst,
+              fabs(diff.v_ref - diff.v_tst));
+    } else {
+      fprintf(stderr, " (%g)\n", diff.v_tst);
+    }
+  }
+#endif
 #else
   (void)mnk_range;
   (void)kshard;
