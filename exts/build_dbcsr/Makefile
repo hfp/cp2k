@@ -105,7 +105,7 @@ endif
 
 # If compiling with nvcc
 ifeq (cuda,$(USE_ACCEL))
-  override ACCFLAGS += -D__CUDA
+  override ACCFLAGS += -D__CUDA -DARCH_NUMBER=$(ARCH_NUMBER)
   FCFLAGS += -D__CUDA
   CXXFLAGS += -D__CUDA
   #if "-arch" has not yet been set in ACCFLAGS
@@ -117,7 +117,7 @@ ifeq (cuda,$(USE_ACCEL))
   endif
 # If compiling with hipcc
 else ifeq (hip,$(USE_ACCEL))
-  override ACCFLAGS += -D__HIP
+  override ACCFLAGS += -D__HIP -DARCH_NUMBER=$(ARCH_NUMBER)
   FCFLAGS += -D__HIP
 # OpenCL backend
 else ifeq (opencl,$(USE_ACCEL))
@@ -261,38 +261,17 @@ FYPPFLAGS ?= -n
 %.o: %.c
 	$(CC) -c $(CFLAGS) $<
 
-# Compile the CUDA/HIP files
 ifneq ($(ACC),)
-ifneq (opencl,$(USE_ACCEL))
-%.o: %.cpp
-	$(ACC) -c $(ACCFLAGS) -I'$(SRCDIR)' $<
-libsmm_acc.o: libsmm_acc.cpp parameters.h smm_acc_kernels.h
-	$(ACC) -c $(ACCFLAGS) -DARCH_NUMBER=$(ARCH_NUMBER) $<
-libsmm_acc_benchmark.o: libsmm_acc_benchmark.cpp parameters.h
-	$(ACC) -c $(ACCFLAGS) -I'$(SRCDIR)' $<
-libsmm_acc_init.o: libsmm_acc_init.cpp libsmm_acc_init.h parameters.h
-	$(ACC) -c $(ACCFLAGS) -I'$(SRCDIR)' $<
-endif
-endif
 
-# if compiling CUDA backend
-ifeq (cuda,$(USE_ACCEL))
-ifneq ($(ACC),)
-%.o: %.cpp
+# if compiling CUDA/HIP backend
+ifneq (opencl,$(USE_ACCEL))
+%.o: %.cpp parameters.h smm_acc_kernels.h
+	$(ACC) -c $(ACCFLAGS) -I'$(SRCDIR)' -x cu $<
+%.o: %.cu parameters.h smm_acc_kernels.h
 	$(ACC) -c $(ACCFLAGS) -I'$(SRCDIR)' $<
-acc_cuda.o: acc_cuda.cpp acc_cuda.h
-	$(ACC) -c $(ACCFLAGS) -I'$(SRCDIR)' $<
-%.o: %.cu
-	$(ACC) -c $(ACCFLAGS) -I'$(SRCDIR)' $<
-# if compiling HIP backend
-else ifeq (hip,$(USE_ACCEL))
-%.o: %.cpp
-	$(ACC) -c $(ACCFLAGS) -I'$(SRCDIR)' $<
-acc_hip.o: acc_hip.cpp acc_hip.h
-	$(ACC) -c $(ACCFLAGS) -I'$(SRCDIR)' $<
-endif
+
 # if compiling OpenCL backend
-else ifeq (opencl,$(USE_ACCEL))
+else
 OPENCL_KRNLGEN := $(LIBSMM_ACC_ABS_DIR)/../opencl/acc_opencl.sh
 OPENCL_KERNELS := $(wildcard $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/kernels/*.cl)
 OPENCL_DEFAULT := $(wildcard $(LIBSMM_ACC_ABS_DIR)/../opencl/smm/tune_multiply.csv)
@@ -320,6 +299,7 @@ else
   else ifneq (,$(wildcard $(OCL_ROOT)/include/CL/cl.h))
     CFLAGS += -I$(OCL_ROOT)/include
   endif
+endif
 endif
 endif
 
