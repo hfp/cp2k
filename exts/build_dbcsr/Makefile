@@ -263,7 +263,6 @@ FYPPFLAGS ?= -n
 	$(CC) -c $(CFLAGS) $<
 
 ifneq ($(ACC),)
-
 # if compiling CUDA/HIP backend
 ifneq (opencl,$(USE_ACCEL))
 %.o: %.cpp parameters.h smm_acc_kernels.h
