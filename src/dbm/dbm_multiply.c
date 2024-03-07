@@ -140,9 +140,14 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
   dbm_multiply_gpu_process_batch(ntasks, batch, mnk_range, alpha, kshard,
                                  &ctx->gpu);
 #if defined(DBM_MULTIPLY_VALIDATE) && defined(__LIBXSMM)
-  dbm_multiply_gpu_download_results(&ctx->gpu);
+  const dbm_shard_t *const shard_d = &ctx->gpu.shards_c_host[kshard];
+  dbm_shard_gpu_t *const shard_g = &ctx->gpu.shards_c_dev[kshard];
+  dbm_shard_allocate_promised_blocks(shard_d);
+  assert(shard_d->data_size == shard_g->data_size);
+  offloadMemcpyAsyncDtoH(shard_d->data, shard_g->data,
+                         shard_d->data_size * sizeof(double), shard_g->stream);
   dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b, shard_c);
-  const dbm_shard_t *const shard_d = &ctx->shards_c_host[kshard];
+  offloadStreamSynchronize(shard_g->stream);
   libxsmm_matdiff_info diff;
   libxsmm_matdiff_clear(&diff);
   for (int itask = 0; itask < ntasks; ++itask) {
