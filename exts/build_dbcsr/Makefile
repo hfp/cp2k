@@ -265,8 +265,9 @@ FYPPFLAGS ?= -n
 ifneq ($(ACC),)
 # if compiling CUDA/HIP backend
 ifneq (opencl,$(USE_ACCEL))
+# consider omitting opt-level due to extreme compilation time even when flag targets only the host compiler
 %.o: %.cpp parameters.h smm_acc_kernels.h
-	$(ACC) -c $(ACCFLAGS) -I'$(SRCDIR)' -x cu $<
+	$(ACC) -c $(filter-out -O%,$(ACCFLAGS)) -I'$(SRCDIR)' -x cu $<
 %.o: %.cu parameters.h smm_acc_kernels.h
 	$(ACC) -c $(ACCFLAGS) -I'$(SRCDIR)' $<
 
