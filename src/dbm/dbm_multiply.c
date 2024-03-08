@@ -146,7 +146,8 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
   dbm_shard_copy(&shard_r, shard_c);
   offloadMemcpyAsyncDtoH(shard_c->data, shard_g->data,
                          shard_c->data_size * sizeof(double), shard_g->stream);
-  dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b, &shard_r);
+  dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b,
+                                 &shard_r);
   /* finish transferring GPU result to host */
   offloadStreamSynchronize(shard_g->stream);
   libxsmm_matdiff_info diff;
@@ -159,18 +160,18 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
     if (EXIT_SUCCESS == libxsmm_matdiff(&d, LIBXSMM_DATATYPE(double), task.m,
                                         task.n, ref, tst, NULL /*ldref*/,
                                         NULL /*ldtst*/)) {
+      const double epsilon = libxsmm_matdiff_epsilon(&d);
+      if (0 < epsilon) {
+        fprintf(stderr, "INFO ACC/LIBDBM: mnk=%ix%ix%i diff=%g\n", task.m,
+                task.n, task.k, epsilon);
+      }
+
       libxsmm_matdiff_reduce(&diff, &d);
     }
   }
   const double epsilon = libxsmm_matdiff_epsilon(&diff);
   if (0 < epsilon) {
-    fprintf(stderr, "INFO ACC/LIBDBM: diff=%g", epsilon);
-    if (LIBXSMM_NOTNAN(diff.v_tst)) {
-      fprintf(stderr, " (|%g-%g|=%g)\n", diff.v_ref, diff.v_tst,
-              fabs(diff.v_ref - diff.v_tst));
-    } else {
-      fprintf(stderr, " (%g)\n", diff.v_tst);
-    }
+    fprintf(stderr, "INFO ACC/LIBDBM: ntasks=%i diff=%g", ntasks, epsilon);
   }
   dbm_shard_release(&shard_r);
 #else
