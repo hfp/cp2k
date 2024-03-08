@@ -105,19 +105,19 @@ endif
 
 # If compiling with nvcc
 ifeq (cuda,$(USE_ACCEL))
-  ACCFLAGS := -D__CUDA -DARCH_NUMBER=$(ARCH_NUMBER) $(filter-out -D__CUDA,$(ACCFLAGS))
+  override ACCFLAGS := -D__CUDA -DARCH_NUMBER=$(ARCH_NUMBER) $(filter-out -D__CUDA,$(ACCFLAGS))
   CXXFLAGS := -D__CUDA $(filter-out -D__CUDA,$(CXXFLAGS))
   FCFLAGS := -D__CUDA $(filter-out -D__CUDA,$(FCFLAGS))
   #if "-arch" has not yet been set in ACCFLAGS
   ifeq (,$(filter -arch,$(ACCFLAGS)))
-    ACCFLAGS := -arch sm_$(ARCH_NUMBER) $(ACCFLAGS)
+    override ACCFLAGS := -arch sm_$(ARCH_NUMBER) $(ACCFLAGS)
   endif
   ifeq (,$(filter -Xcompiler,$(ACCFLAGS)))
-    ACCFLAGS := $(ACCFLAGS) -Xcompiler="$(CXXFLAGS)"
+    override ACCFLAGS := $(ACCFLAGS) -Xcompiler="$(CXXFLAGS)"
   endif
 # If compiling with hipcc
 else ifeq (hip,$(USE_ACCEL))
-  ACCFLAGS := -D__HIP -DARCH_NUMBER=$(ARCH_NUMBER) $(filter-out -D__HIP,$(ACCFLAGS))
+  override ACCFLAGS := -D__HIP -DARCH_NUMBER=$(ARCH_NUMBER) $(filter-out -D__HIP,$(ACCFLAGS))
   CXXFLAGS := -D__HIP $(filter-out -D__HIP,$(CXXFLAGS))
   FCFLAGS := -D__HIP $(filter-out -D__HIP,$(FCFLAGS))
 # OpenCL backend
