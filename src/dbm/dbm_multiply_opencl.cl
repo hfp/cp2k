@@ -29,12 +29,12 @@ void dbm_multiply_kernel(double alpha, const dbm_task_t *task,
 
     UNROLL_AUTO
     for (int k = 0; k < task_k; ++k) {
-      const int ia = IDX(m, k, task->offset_a, task->m, task->k);
+      const int ia = IDT(m, k, task->offset_a, task->m, task->k);
       const double a = a_data[ia];
 
       UNROLL_AUTO
       for (int n = 0; n < task_n; ++n) {
-        const int ib = IDT(k, n + j, task->offset_b, task->k, task->n);
+        const int ib = IDX(k, n + j, task->offset_b, task->k, task->n);
         const double b = b_data[ib];
         vec[n] = MAD(a, b, vec[n]);
       }
@@ -42,7 +42,7 @@ void dbm_multiply_kernel(double alpha, const dbm_task_t *task,
 
     /* flush private accumulator to global memory using atomics */
     for (int n = 0; n < task_n; ++n) {
-      const int ic = IDX(m, n + j, task->offset_c, task->m, task->n);
+      const int ic = IDT(m, n + j, task->offset_c, task->m, task->n);
       ACCUMULATE(&c_data[ic], alpha * vec[n]);
       vec[n] = ZERO; /* reset */
     }
