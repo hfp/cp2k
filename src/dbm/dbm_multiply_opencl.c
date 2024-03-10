@@ -49,7 +49,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         extensions, nextensions, params + offset, sizeof(params) - offset);
     if (0 < nchar && sizeof(params) > (offset + nchar)) {
       const char *const task_split_env = getenv("LIBDBM_TASK_SPLIT");
-      task_split = (NULL == task_split_env ? 1 : atoi(task_split_env));
+      task_split = (NULL == task_split_env ? 0 : atoi(task_split_env));
       result |= c_dbcsr_acc_opencl_kernel(
           0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY_OPENCL,
           "dbm_multiply", params,
