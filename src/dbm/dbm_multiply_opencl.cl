@@ -18,17 +18,17 @@
 #define IDX(I, J, K, M, N) ((I) * (N) + (J) + (K))
 #define IDT(I, J, K, M, N) IDX(J, I, K, N, M)
 
-#define DBM_MULTIPLY_KERNEL(ALPHA, TASK, A, B, VEC, C, M, N0)                  \
+#define DBM_MULTIPLY_KERNEL(ALPHA, TASK, A, B, VEC, C, M, N0, UNROLL_K)        \
   do {                                                                         \
     const int task_n = min(BN, (TASK).n - (N0));                               \
-    UNROLL_AUTO                                                                \
+    UNROLL_K                                                                   \
     for (int k = 0; k < (TASK).k; ++k) {                                       \
       const int ia = IDT(M, k, (TASK).offset_a, (TASK).m, (TASK).k);           \
       const double a = (A)[ia];                                                \
       UNROLL_FORCE(BN)                                                         \
       for (int n = 0; n < task_n; ++n) {                                       \
         const int ib = IDX(k, n + (N0), (TASK).offset_b, (TASK).k, (TASK).n);  \
-        vec[n] = MAD(a, (B)[ib], vec[n]);                                      \
+        cv[n] = MAD(a, (B)[ib], cv[n]);                                        \
       }                                                                        \
     }                                                                          \
     /* flush private accumulator to global memory using atomics */             \
@@ -36,19 +36,18 @@
     for (int n = 0; n < (BN); ++n) {                                           \
       const int ic = IDT(M, n + (N0), (TASK).offset_c, (TASK).m, (TASK).n);    \
       ACCUMULATE((C) + ic, (ALPHA) * (VEC)[n]);                                \
-      vec[n] = ZERO; /* reset */                                               \
+      cv[n] = ZERO; /* reset */                                                \
     }                                                                          \
   } while (0)
 
 kernel void dbm_multiply(double alpha, int itask, int ntasks,
                          global const dbm_task_t *tasks,
-                         global const double *restrict a_data,
-                         global const double *restrict b_data,
-                         global double *restrict c_data) {
-  double vec[BN] = {0}; /* private accumulator */
-  const int i = (int)get_global_id(0);
+                         global const double *restrict am,
+                         global const double *restrict bm,
+                         global double *restrict cm) {
+  double cv[BN] = {0}; /* private accumulator */
+  const int size = (int)get_global_size(0), i = (int)get_global_id(0);
 
-  const int size = (int)get_global_size(0);
   if (size != ntasks) {
     const int max_m = size / ntasks, tid = i / max_m;
     const dbm_task_t task = tasks[itask + min(tid, ntasks - 1)]; /* copy */
@@ -57,10 +56,13 @@ kernel void dbm_multiply(double alpha, int itask, int ntasks,
       if ((BN) < task.n) {
         UNROLL_FORCE((BN)*2)
         for (int n0 = 0; n0 < task.n; n0 += (BN)) {
-          DBM_MULTIPLY_KERNEL(alpha, task, a_data, b_data, vec, c_data, m, n0);
+          DBM_MULTIPLY_KERNEL(alpha, task, am, bm, cv, cm, m, n0, UNROLL_AUTO);
         }
+      } else if ((BN) < task.k) {
+        DBM_MULTIPLY_KERNEL(alpha, task, am, bm, cv, cm, m, 0, UNROLL_AUTO);
       } else {
-        DBM_MULTIPLY_KERNEL(alpha, task, a_data, b_data, vec, c_data, m, 0);
+        DBM_MULTIPLY_KERNEL(alpha, task, am, bm, cv, cm, m, 0,
+                            UNROLL_FORCE(BN));
       }
     }
   } else { /* full matrix multiplication */
@@ -69,7 +71,7 @@ kernel void dbm_multiply(double alpha, int itask, int ntasks,
     for (int m = 0; m < task.m; ++m) {
       UNROLL(1)
       for (int n0 = 0; n0 < task.n; n0 += (BN)) {
-        DBM_MULTIPLY_KERNEL(alpha, task, a_data, b_data, vec, c_data, m, n0);
+        DBM_MULTIPLY_KERNEL(alpha, task, am, bm, cv, cm, m, n0, UNROLL_AUTO);
       }
     }
   }
