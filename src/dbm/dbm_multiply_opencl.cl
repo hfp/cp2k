@@ -23,13 +23,13 @@
 
 #define DBM_MULTIPLY_KERNEL(ALPHA, TASK, A, B, VEC, C, M, N0, UNROLL_K)        \
   do {                                                                         \
-    const int task_n = min(BN, (TASK).n - (N0));                               \
+    const int bn = min(BN, (TASK).n - (N0));                                   \
     UNROLL_K                                                                   \
     for (int k = 0; k < (TASK).k; ++k) {                                       \
       const int ia = IDT(M, k, (TASK).offset_a, (TASK).m, (TASK).k);           \
       const double a = (A)[ia];                                                \
       UNROLL_FORCE(BN)                                                         \
-      for (int n = 0; n < task_n; ++n) {                                       \
+      for (int n = 0; n < bn; ++n) {                                           \
         const int ib = IDX(k, n + (N0), (TASK).offset_b, (TASK).k, (TASK).n);  \
         cv[n] = MAD(a, (B)[ib], cv[n]);                                        \
       }                                                                        \
@@ -51,7 +51,7 @@ kernel void dbm_multiply(double alpha, int itask, int ntasks,
   double cv[BN] = {0}; /* private accumulator */
   const int size = (int)get_global_size(0), i = (int)get_global_id(0);
 
-  if (size != ntasks) {
+  if (size != ntasks) { /* LIBDBM_TASK_SPLIT */
     const int max_m = size / ntasks, tid = i / max_m;
     const dbm_task_t task = tasks[itask + min(tid, ntasks - 1)]; /* copy */
     const int m = i - tid * max_m;
@@ -61,10 +61,7 @@ kernel void dbm_multiply(double alpha, int itask, int ntasks,
         for (int n0 = 0; n0 < task.n; n0 += (BN)) {
           DBM_MULTIPLY_KERNEL(alpha, task, am, bm, cv, cm, m, n0, UNROLL_AUTO);
         }
-      } else if ((BN) < task.k) {
-        DBM_MULTIPLY_KERNEL(alpha, task, am, bm, cv, cm, m, 0,
-                            UNROLL_FORCE(BN * (BFORCE)));
-      } else {
+      } else { /* small */
         DBM_MULTIPLY_KERNEL(alpha, task, am, bm, cv, cm, m, 0,
                             UNROLL_FORCE(BN));
       }
