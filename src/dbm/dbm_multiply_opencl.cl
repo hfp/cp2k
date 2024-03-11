@@ -20,10 +20,9 @@
 
 #define DBM_MULTIPLY_KERNEL(ALPHA, TASK, A, B, VEC, C, M, N0)                  \
   do {                                                                         \
-    const int task_k = ((N0) < (TASK).n ? (TASK).k : 0);                       \
-    const int task_n = min((TASK).n - (N0), BN);                               \
+    const int task_n = min(BN, (TASK).n - (N0));                               \
     UNROLL_AUTO                                                                \
-    for (int k = 0; k < task_k; ++k) {                                         \
+    for (int k = 0; k < (TASK).k; ++k) {                                       \
       const int ia = IDT(M, k, (TASK).offset_a, (TASK).m, (TASK).k);           \
       const double a = (A)[ia];                                                \
       UNROLL_AUTO                                                              \
