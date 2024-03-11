@@ -25,11 +25,10 @@
     for (int k = 0; k < (TASK).k; ++k) {                                       \
       const int ia = IDT(M, k, (TASK).offset_a, (TASK).m, (TASK).k);           \
       const double a = (A)[ia];                                                \
-      UNROLL_AUTO                                                              \
+      UNROLL_FORCE(BN)                                                         \
       for (int n = 0; n < task_n; ++n) {                                       \
         const int ib = IDX(k, n + (N0), (TASK).offset_b, (TASK).k, (TASK).n);  \
-        const double b = (B)[ib];                                              \
-        vec[n] = MAD(a, b, vec[n]);                                            \
+        vec[n] = MAD(a, (B)[ib], vec[n]);                                      \
       }                                                                        \
     }                                                                          \
     /* flush private accumulator to global memory using atomics */             \
@@ -56,7 +55,7 @@ kernel void dbm_multiply(double alpha, int itask, int ntasks,
     const int m = i - tid * max_m;
     if (m < task.m) {
       if ((BN) < task.n) {
-        UNROLL_FORCE(8)
+        UNROLL_FORCE((BN)*2)
         for (int n0 = 0; n0 < task.n; n0 += (BN)) {
           DBM_MULTIPLY_KERNEL(alpha, task, a_data, b_data, vec, c_data, m, n0);
         }
