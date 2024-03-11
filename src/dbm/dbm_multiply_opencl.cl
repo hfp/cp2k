@@ -11,6 +11,9 @@
 #include "../../exts/dbcsr/src/acc/opencl/common/opencl_atomics.h"
 #include "dbm_multiply_internal.h"
 
+#if !defined(BFORCE)
+#define BFORCE 2
+#endif
 #if !defined(BN)
 #define BN 4
 #endif
@@ -54,12 +57,13 @@ kernel void dbm_multiply(double alpha, int itask, int ntasks,
     const int m = i - tid * max_m;
     if (m < task.m) {
       if ((BN) < task.n) {
-        UNROLL_FORCE((BN)*2)
+        UNROLL_FORCE((BN) * (BFORCE))
         for (int n0 = 0; n0 < task.n; n0 += (BN)) {
           DBM_MULTIPLY_KERNEL(alpha, task, am, bm, cv, cm, m, n0, UNROLL_AUTO);
         }
       } else if ((BN) < task.k) {
-        DBM_MULTIPLY_KERNEL(alpha, task, am, bm, cv, cm, m, 0, UNROLL_AUTO);
+        DBM_MULTIPLY_KERNEL(alpha, task, am, bm, cv, cm, m, 0,
+                            UNROLL_FORCE(BN * (BFORCE)));
       } else {
         DBM_MULTIPLY_KERNEL(alpha, task, am, bm, cv, cm, m, 0,
                             UNROLL_FORCE(BN));
