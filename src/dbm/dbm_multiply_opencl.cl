@@ -23,13 +23,13 @@
 
 #define DBM_MULTIPLY_KERNEL(ALPHA, TASK, A, B, VEC, C, M, N0, UNROLL_K)        \
   do {                                                                         \
-    const short bn = min(BN, (TASK).n - (N0));                                 \
+    const int bn = min(BN, (TASK).n - (N0));                                   \
     UNROLL_K                                                                   \
-    for (short k = 0; k < (TASK).k; ++k) {                                     \
+    for (int k = 0; k < (TASK).k; ++k) {                                       \
       const int ia = IDT(M, k, (TASK).offset_a, (TASK).m, (TASK).k);           \
       const double a = (A)[ia];                                                \
       UNROLL_FORCE(BN)                                                         \
-      for (short n = 0; n < bn; ++n) {                                         \
+      for (int n = 0; n < bn; ++n) {                                           \
         const int ib = IDX(k, n + (N0), (TASK).offset_b, (TASK).k, (TASK).n);  \
         cv[n] = MAD(a, (B)[ib], cv[n]);                                        \
       }                                                                        \
@@ -39,7 +39,7 @@
 #define DBM_MULTIPLY_ACCUMULATE(ALPHA, TASK, VEC, C, M, N0)                    \
   do { /* flush private accumulator to global memory using atomics */          \
     UNROLL_FORCE(BN)                                                           \
-    for (short n = 0; n < (BN); ++n) {                                         \
+    for (int n = 0; n < (BN); ++n) {                                           \
       const int ic = IDT(M, n + (N0), (TASK).offset_c, (TASK).m, (TASK).n);    \
       ACCUMULATE((C) + ic, (ALPHA) * (VEC)[n]);                                \
       cv[n] = ZERO; /* reset */                                                \
@@ -61,7 +61,7 @@ kernel void dbm_multiply(double alpha, int itask, int ntasks,
     if (m < task.m) {
       if ((BN) < task.n) {
         UNROLL_FORCE((BN) * (BFORCE))
-        for (short n0 = 0; n0 < task.n; n0 += (BN)) {
+        for (int n0 = 0; n0 < task.n; n0 += (BN)) {
           DBM_MULTIPLY_KERNEL(alpha, task, am, bm, cv, cm, m, n0, UNROLL_AUTO);
           DBM_MULTIPLY_ACCUMULATE(alpha, task, cv, cm, m, n0);
         }
@@ -74,9 +74,9 @@ kernel void dbm_multiply(double alpha, int itask, int ntasks,
   } else { /* full matrix multiplication */
     const dbm_task_t task = tasks[itask + i];
     UNROLL_OUTER(1)
-    for (short m = 0; m < task.m; ++m) {
+    for (int m = 0; m < task.m; ++m) {
       UNROLL(1)
-      for (short n0 = 0; n0 < task.n; n0 += (BN)) {
+      for (int n0 = 0; n0 < task.n; n0 += (BN)) {
         DBM_MULTIPLY_KERNEL(alpha, task, am, bm, cv, cm, m, n0, UNROLL_AUTO);
         DBM_MULTIPLY_ACCUMULATE(alpha, task, cv, cm, m, n0);
       }
