@@ -46,6 +46,8 @@ FLAG_EXCEPTIONS = (
     r"__OFFLOAD_HIP",
     r"__PILAENV_BLOCKSIZE",
     r"__PW_CUDA_NO_HOSTALLOC",
+    r"__T_C_G0",
+    r"__YUKAWA",
     r"__cplusplus",
     r"HIP_VERSION",
     r"LIBXSMM_GEMM_PREFETCH_NONE",
