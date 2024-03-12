@@ -68,9 +68,9 @@ typedef int offloadError_t;
  * \author Ole Schuett
  ******************************************************************************/
 #if !defined(OFFLOAD_CHECK)
-#define OFFLOAD_CHECK(cmd)                                                     \
+#define OFFLOAD_CHECK(CMD)                                                     \
   do {                                                                         \
-    const offloadError_t error = cmd;                                          \
+    const offloadError_t error = (CMD);                                        \
     if (error != offloadSuccess) {                                             \
       const char *const name = offloadGetErrorName(error);                     \
       if (NULL != name && '\0' != *name) {                                     \
