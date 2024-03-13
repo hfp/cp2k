@@ -164,18 +164,13 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
     if (EXIT_SUCCESS == libxsmm_matdiff(&d, LIBXSMM_DATATYPE(double), task.m,
                                         task.n, ref, tst, NULL /*ldref*/,
                                         NULL /*ldtst*/)) {
-      const double epsilon = libxsmm_matdiff_epsilon(&d);
-      if (0 < epsilon) {
-        fprintf(stderr, "INFO ACC/LIBDBM: mnk=%ix%ix%i diff=%g\n", task.m,
-                task.n, task.k, epsilon);
-      }
-
       libxsmm_matdiff_reduce(&diff, &d);
     }
   }
   const double epsilon = libxsmm_matdiff_epsilon(&diff);
   if (0 < epsilon) {
-    fprintf(stderr, "INFO ACC/LIBDBM: ntasks=%i diff=%g", ntasks, epsilon);
+    fprintf(stderr, "INFO ACC/LIBDBM: mnk=%ix%ix%i ntasks=%i diff=%g",
+            mnk_range[0][1], mnk_range[1][1], mnk_range[2][1], ntasks, epsilon);
   }
   dbm_shard_release(&shard_r);
 #else
