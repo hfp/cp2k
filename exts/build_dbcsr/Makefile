@@ -113,10 +113,10 @@ ifeq (cuda,$(USE_ACCEL))
   CXXFLAGS := -D__CUDA $(filter-out -D__CUDA,$(CXXFLAGS))
   FCFLAGS := -D__CUDA $(filter-out -D__CUDA,$(FCFLAGS))
   #if "-arch" has not yet been set in ACCFLAGS
-  ifeq (,$(filter -arch,$(ACCFLAGS)))
+  ifeq (,$(findstring -arch,$(ACCFLAGS)))
     override ACCFLAGS := -arch sm_$(ARCH_NUMBER) $(ACCFLAGS)
   endif
-  ifeq (,$(filter -Xcompiler,$(ACCFLAGS)))
+  ifeq (,$(findstring -Xcompiler,$(ACCFLAGS)))
     override ACCFLAGS := $(ACCFLAGS) -Xcompiler="$(CXXFLAGS)"
   endif
 # If compiling with hipcc
