@@ -24,7 +24,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                       ((0 <= verbosity && 2 >= verbosity) ? NULL : &event);
   const c_dbcsr_acc_opencl_stream_t *const str = ACC_OPENCL_STREAM(stream);
   const int max_m = mnk_range[0][1], max_n = mnk_range[1][1];
-  const size_t work_tasks = ntasks, wgsize = 1;
+  const size_t work_tasks = ntasks, wgsize = 0;
   size_t ibatch = 0, iadata = 0, ibdata = 0, icdata = 0, work_size = 0;
   c_dbcsr_acc_opencl_info_memptr_t adata, bdata, cdata, batch;
   assert(NULL != pack_a_data && NULL != pack_b_data && NULL != shard_c_data);
