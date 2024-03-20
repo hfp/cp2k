@@ -39,9 +39,10 @@ kernel void dbm_multiply(double alpha, int itask, int ntasks,
                          global const double *restrict amat,
                          global const double *restrict bmat,
                          global double *restrict cmat) {
-  double cv[BN] = {0}; /* private accumulator */
+  double cv[BN]; /* private accumulator */
   const int size = (int)get_global_size(0), i = (int)get_global_id(0);
 
+  UNROLL_FORCE(BN) for (int n = 0; n < (BN); ++n) cv[n] = 0; /* clear */
   if (size != ntasks) { /* LIBDBM_TASK_SPLIT */
     const int max_m = size / ntasks, tid = i / max_m;
     const dbm_task_t task = tasks[itask + min(tid, ntasks - 1)]; /* copy */
