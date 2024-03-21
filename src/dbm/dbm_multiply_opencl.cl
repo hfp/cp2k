@@ -11,8 +11,8 @@
 #define IDT(I, J, OFFSET, M, N) IDX(J, I, OFFSET, N, M)
 #define X(T, I) (T)->I
 
-#define BCAST_WG(A, B) work_group_broadcast(A, B)
-#define BCAST_NO(A, B) (A)
+#define BCAST_WG(A) work_group_broadcast(A, get_local_id(0))
+#define BCAST_NO(A) (A)
 
 #define DBM_MULTIPLY_KERNEL(TASK, AMAT, BMAT, CVEC, M, N0, N1, BROADCAST,      \
                             UNROLL_N, UNROLL_K)                                \
@@ -24,7 +24,7 @@
         const int tb = X(TASK, offset_b);                                      \
         const int ib = IDX(k, n + (N0), tb, X(TASK, k), X(TASK, n));           \
         const double b = (BMAT)[ib];                                           \
-        (CVEC)[n] = MAD(a, BROADCAST(b, M), (CVEC)[n]);                        \
+        (CVEC)[n] = MAD(a, BROADCAST(b), (CVEC)[n]);                           \
       }                                                                        \
     }                                                                          \
   } while (0)
