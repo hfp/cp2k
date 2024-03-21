@@ -47,11 +47,11 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     const char *const bn_env = getenv("DBM_MULTIPLY_BN");
     const int lu = (NULL == lu_env ? 0 /*default*/ : atoi(lu_env));
     const int bn = (NULL == bn_env ? 8 /*default*/ : atoi(bn_env));
-    int offset = (int)strlen(params);
-    offset += LIBXSMM_SNPRINTF(params + offset, sizeof(params) - offset,
-                               "-DLU=%i -DBN=%i", LIBXSMM_CLMP(lu, -2, 1),
-                               LIBXSMM_CLMP(bn, 1, 64));
-    offset += c_dbcsr_acc_opencl_flags_atomics(
+    size_t offset = strlen(params);
+    offset += (size_t)LIBXSMM_SNPRINTF(
+        params + offset, sizeof(params) - offset, "-DLU=%i -DBN=%i",
+        LIBXSMM_CLMP(lu, -2, 1), LIBXSMM_CLMP(bn, 1, 64));
+    offset += (size_t)c_dbcsr_acc_opencl_flags_atomics(
         &c_dbcsr_acc_opencl_config.device, c_dbcsr_acc_opencl_atomic_fp_64,
         extensions, nextensions, params + offset, sizeof(params) - offset);
     if (sizeof(params) > offset) {
