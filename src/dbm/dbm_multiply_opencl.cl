@@ -22,7 +22,8 @@
       for (int n = 0; n < (N1); ++n) {                                         \
         const int tb = X(TASK, offset_b);                                      \
         const int ib = IDX(k, n + (N0), tb, X(TASK, k), X(TASK, n));           \
-        (CVEC)[n] = MAD(a, (BMAT)[ib], (CVEC)[n]);                             \
+        const double b = (BMAT)[ib];                                           \
+        (CVEC)[n] = MAD(a, b, (CVEC)[n]);                                      \
       }                                                                        \
     }                                                                          \
   } while (0)
@@ -47,7 +48,8 @@ kernel void dbm_multiply(double alpha, int itask, int ntasks,
   const int size = (int)get_global_size(0), i = (int)get_global_id(0);
 
   UNROLL_FORCE(BN) for (int n = 0; n < (BN); ++n) cvec[n] = 0; /* clear */
-  if (size != ntasks) { /* LIBDBM_TASK_SPLIT */
+  if (size != ntasks) { /* DBM_MULTIPLY_SPLIT */
+    const int wgsize = (int)get_local_size(0);
     const int max_m = size / ntasks, tid = i / max_m;
     global const dbm_task_t *const task = &tasks[itask + min(tid, ntasks - 1)];
     const int m = i - tid * max_m;
