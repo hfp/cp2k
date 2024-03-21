@@ -41,6 +41,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   if (NULL == kernel) { /* first-time check if kernel is present */
     const libxsmm_timer_tickint start = libxsmm_timer_tick();
     char params[ACC_OPENCL_BUFFERSIZE];
+    const char *const flags = "-cl-fast-relaxed-math -cl-denorms-are-zero";
     const char *extensions[] = {NULL, NULL};
     const size_t nextensions = sizeof(extensions) / sizeof(*extensions);
     const char *const split_env = getenv("DBM_MULTIPLY_SPLIT");
@@ -59,20 +60,17 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     offset += (size_t)c_dbcsr_acc_opencl_flags_atomics(
         &c_dbcsr_acc_opencl_config.device, c_dbcsr_acc_opencl_atomic_fp_64,
         extensions, nextensions, params + offset, sizeof(params) - offset);
-    if (sizeof(params) > offset) {
-      const char *const flags = "-cl-fast-relaxed-math -cl-denorms-are-zero";
-      result |= c_dbcsr_acc_opencl_kernel(
-          0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY_OPENCL,
-          "dbm_multiply", params,
-          0 == c_dbcsr_acc_opencl_config.debug ? flags : NULL, NULL /*try*/,
-          NULL /*try_ok*/, extensions, nextensions, &kernel);
-      if (2 <= verbosity || 0 > verbosity) {
-        if (EXIT_SUCCESS == result) {
-          fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel ms=%.1f\n",
-                  1E3 * libxsmm_timer_duration(start, libxsmm_timer_tick()));
-        } else {
-          fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel failed to generate\n");
-        }
+    result |= (sizeof(params) > offset ? EXIT_SUCCESS : EXIT_FAILURE);
+    result |= c_dbcsr_acc_opencl_kernel(
+        0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY_OPENCL, "dbm_multiply",
+        params, 0 == c_dbcsr_acc_opencl_config.debug ? flags : NULL,
+        NULL /*try*/, NULL /*try_ok*/, extensions, nextensions, &kernel);
+    if (2 <= verbosity || 0 > verbosity) {
+      if (EXIT_SUCCESS == result) {
+        fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel ms=%.1f\n",
+                1E3 * libxsmm_timer_duration(start, libxsmm_timer_tick()));
+      } else {
+        fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel failed to generate\n");
       }
     }
   }
@@ -92,7 +90,8 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       &batch, NULL /*lock*/, tasks /*batch*/, sizeof(dbm_task_t), &work_tasks,
       &ibatch);
   assert(0 == iadata && 0 == ibdata && 0 == icdata);
-  work_size = (0 != split ? (work_tasks * max_m) : work_tasks);
+  work_size = ((0 != split /*&&(4<max_m || 2<=split)*/) ? (work_tasks * max_m)
+                                                        : (work_tasks));
   result |= clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha);
   result |= clSetKernelArg(kernel, 1, sizeof(cl_int), &ibatch);
   result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &ntasks);
@@ -102,8 +101,8 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 6, cdata.memory);
   result |= clEnqueueNDRangeKernel(
       str->queue, kernel, 1 /*work_dim*/, NULL /*offset*/, &work_size,
-      (0 != split && 0 != bcast && max_m <= 64) ? &max_m : NULL, 0 /*num_wait*/,
-      NULL /*wait_list*/, perf_event);
+      (work_tasks != work_size && 0 != bcast && max_m <= 64) ? &max_m : NULL,
+      0 /*num_wait*/, NULL /*wait_list*/, perf_event);
   if (NULL != perf_event && EXIT_SUCCESS == result) {
     cl_ulong begin = 0, end = 0;
     clWaitForEvents(1, perf_event);
