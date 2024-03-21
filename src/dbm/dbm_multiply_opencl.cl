@@ -60,7 +60,7 @@ dbm_multiply(double alpha, int itask, int ntasks,
     global const dbm_task_t *const task = &tasks[itask + min(tid, ntasks - 1)];
     const int m = i - tid * max_m;
     if (m < X(task, m)) { /* valid task */
-#if defined(BCAST)
+#if defined(BCAST) && defined(GPU) && (200 /*2.0*/ <= ACC_OPENCL_VERSION)
       if (max_m <= wgsize) { /* broadcast B-values */
         if ((BN) < X(task, n)) {
           UNROLL_AUTO for (int n0 = 0; n0 < X(task, n); n0 += (BN)) {
