@@ -48,9 +48,10 @@ kernel void dbm_multiply(double alpha, int itask, int ntasks,
   if (size != ntasks) { /* DBM_MULTIPLY_SPLIT */
     const int wgsize = (int)get_local_size(0);
     const int max_m = size / ntasks, tid = i / max_m;
+    /* task can be taken by value or by pointer (adjust X-macro accordingly) */
     global const dbm_task_t *const task = &tasks[itask + min(tid, ntasks - 1)];
     const int m = i - tid * max_m;
-    if (m < X(task, m)) {
+    if (m < X(task, m)) { /* valid task */
       if ((BN) < X(task, n)) {
         UNROLL_AUTO for (int n0 = 0; n0 < X(task, n); n0 += (BN)) {
           const int n1 = min(BN, X(task, n) - n0);
