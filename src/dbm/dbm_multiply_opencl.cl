@@ -39,11 +39,13 @@
     }                                                                          \
   } while (0)
 
-kernel void dbm_multiply(double alpha, int itask, int ntasks,
-                         global const dbm_task_t *tasks,
-                         global const double *restrict amat,
-                         global const double *restrict bmat,
-                         global double *restrict cmat) {
+#if defined(WG) && (0 < WG)
+__attribute__((reqd_work_group_size(WG, 1, 1)))
+#endif
+kernel void
+dbm_multiply(double alpha, int itask, int ntasks,
+             global const dbm_task_t *tasks, global const double *restrict amat,
+             global const double *restrict bmat, global double *restrict cmat) {
   double cvec[BN];
   const int size = (int)get_global_size(0), i = (int)get_global_id(0);
 

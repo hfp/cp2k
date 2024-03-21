@@ -19,6 +19,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                                     double *shard_c_data) {
   static cl_kernel kernel = NULL;
   static int split = 0, bcast = 0;
+  static size_t wgsize = 0;
   int result = EXIT_SUCCESS, verbosity = c_dbcsr_acc_opencl_config.verbosity;
   cl_event event, *const perf_event =
                       ((0 <= verbosity && 2 >= verbosity) ? NULL : &event);
@@ -46,6 +47,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     const size_t nextensions = sizeof(extensions) / sizeof(*extensions);
     const char *const split_env = getenv("DBM_MULTIPLY_SPLIT");
     const char *const bcast_env = getenv("DBM_MULTIPLY_BCAST");
+    const char *const wg_env = getenv("DBM_MULTIPLY_WG");
     const char *const lu_env = getenv("DBM_MULTIPLY_LU");
     const char *const bn_env = getenv("DBM_MULTIPLY_BN");
     const int lu = (NULL == lu_env ? 0 /*default*/ : atoi(lu_env));
@@ -53,10 +55,12 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     size_t offset = strlen(params);
     split = (NULL == split_env ? 1 /*true*/ : atoi(split_env));
     bcast = (NULL == bcast_env ? 0 /*false*/ : atoi(bcast_env));
+    wgsize = (NULL == wg_env ? (0 == bcast ? 0 : 64) : atoi(wg_env));
     offset += (size_t)LIBXSMM_SNPRINTF(
-        params + offset, sizeof(params) - offset, "%s %s -DLU=%i -DBN=%i",
-        2 <= split ? "-DSPLIT" : "", 0 != bcast ? "-DBCAST" : "",
-        LIBXSMM_CLMP(lu, -2, 1), LIBXSMM_CLMP(bn, 1, 64));
+        params + offset, sizeof(params) - offset,
+        "%s %s -DWG=%i -DLU=%i -DBN=%i", 2 <= split ? "-DSPLIT" : "",
+        0 != bcast ? "-DBCAST" : "", (int)wgsize, LIBXSMM_CLMP(lu, -2, 1),
+        LIBXSMM_CLMP(bn, 1, 64));
     offset += (size_t)c_dbcsr_acc_opencl_flags_atomics(
         &c_dbcsr_acc_opencl_config.device, c_dbcsr_acc_opencl_atomic_fp_64,
         extensions, nextensions, params + offset, sizeof(params) - offset);
@@ -99,10 +103,10 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 4, adata.memory);
   result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 5, bdata.memory);
   result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 6, cdata.memory);
-  result |= clEnqueueNDRangeKernel(
-      str->queue, kernel, 1 /*work_dim*/, NULL /*offset*/, &work_size,
-      (work_tasks != work_size && 0 != bcast && max_m <= 64) ? &max_m : NULL,
-      0 /*num_wait*/, NULL /*wait_list*/, perf_event);
+  result |= clEnqueueNDRangeKernel(str->queue, kernel, 1 /*work_dim*/,
+                                   NULL /*offset*/, &work_size,
+                                   0 < wgsize ? &wgsize : NULL, 0 /*num_wait*/,
+                                   NULL /*wait_list*/, perf_event);
   if (NULL != perf_event && EXIT_SUCCESS == result) {
     cl_ulong begin = 0, end = 0;
     clWaitForEvents(1, perf_event);
