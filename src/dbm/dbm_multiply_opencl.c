@@ -41,7 +41,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
 #if defined(OPENCL_DBM_SOURCE_MULTIPLY_OPENCL)
   if (NULL == kernel) { /* first-time check if kernel is present */
     const libxsmm_timer_tickint start = libxsmm_timer_tick();
-    char params[ACC_OPENCL_BUFFERSIZE];
+    char params[ACC_OPENCL_BUFFERSIZE] = "";
     const char *const flags = "-cl-fast-relaxed-math -cl-denorms-are-zero";
     const char *extensions[] = {NULL, NULL};
     const size_t nextensions = sizeof(extensions) / sizeof(*extensions);
