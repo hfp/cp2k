@@ -49,7 +49,10 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     offset += (size_t)c_dbcsr_acc_opencl_flags_atomics(
         &c_dbcsr_acc_opencl_config.device, c_dbcsr_acc_opencl_atomic_fp_64,
         extensions, &nextensions, params + offset, sizeof(params) - offset);
-    if (0) {
+    if (0 != c_dbcsr_acc_opencl_config.device.intel &&
+        2 <= *c_dbcsr_acc_opencl_config.device.std_level &&
+        NULL != extensions[1] &&
+        NULL != strstr(extensions[1], "cl_ext_float_atomics")) {
       offset +=
           (size_t)LIBXSMM_SNPRINTF(params + offset, sizeof(params) - offset,
                                    " -DDBM_MULTIPLY_OPENCL_IR");
