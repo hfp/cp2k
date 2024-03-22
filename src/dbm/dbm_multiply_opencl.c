@@ -43,10 +43,9 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   if (NULL == kernel) { /* first-time check if kernel is present */
     const libxsmm_timer_tickint start = libxsmm_timer_tick();
     char params[ACC_OPENCL_BUFFERSIZE] = "";
-    const char *const flags = "-cl-fast-relaxed-math -cl-denorms-are-zero";
     const char *const gen_env = getenv("DBM_MULTIPLY_GEN");
     const int gen = (NULL == gen_env ? 0 /*default*/ : atoi(gen_env));
-    const char *extensions[] = {NULL, NULL};
+    const char *extensions[] = {NULL, NULL}, *flags = NULL;
     size_t nextensions = sizeof(extensions) / sizeof(*extensions);
     size_t offset = strlen(params);
     offset += (size_t)c_dbcsr_acc_opencl_flags_atomics(
@@ -59,6 +58,10 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       offset +=
           (size_t)LIBXSMM_SNPRINTF(params + offset, sizeof(params) - offset,
                                    " -DDBM_MULTIPLY_OPENCL_GEN");
+      flags = (0 != c_dbcsr_acc_opencl_config.device.intel
+                   ? "-cl-fast-relaxed-math -cl-denorms-are-zero "
+                     "-cl-intel-256-GRF-per-thread"
+                   : "-cl-fast-relaxed-math -cl-denorms-are-zero");
       wgsize[1] = wgsize[2] = 1;
       wgsize[0] = 16;
       ndims = 3;
@@ -80,6 +83,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
           " %s %s %s -DWG=%i -DLU=%i -DBN=%i", 2 <= split ? "-DSPLIT" : "",
           0 != bcast ? "-DBCAST" : "", 0 != gpu ? "-DGPU" : "", (int)wgsize[0],
           LIBXSMM_CLMP(lu, -2, 1), LIBXSMM_CLMP(bn, 1, 64));
+      flags = "-cl-fast-relaxed-math -cl-denorms-are-zero";
     }
     result |= (sizeof(params) > offset ? EXIT_SUCCESS : EXIT_FAILURE);
     result |= c_dbcsr_acc_opencl_kernel(
@@ -120,7 +124,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     assert(1 == work_size[1]);
     work_size[2] = work_tasks;
     result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 2, batch.memory);
-    result |= clSetKernelArg(kernel, 3, sizeof(cl_uint), &zero /*tasks_shape1*/);
+    result |= clSetKernelArg(kernel, 3, sizeof(cl_uint), &zero /*shape*/);
     result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 4, adata.memory);
     result |= clSetKernelArg(kernel, 5, sizeof(cl_uint), &zero /*A_shape0*/);
     result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 6, bdata.memory);
