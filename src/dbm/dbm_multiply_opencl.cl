@@ -4,6 +4,9 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
+#if defined(DBM_MULTIPLY_OPENCL_IR)
+#include "dbm_multiply_opencl.ir.h"
+#else
 #include "../../exts/dbcsr/src/acc/opencl/common/opencl_atomics.h"
 #include "dbm_multiply_internal.h"
 
@@ -59,7 +62,7 @@ dbm_multiply(double alpha, int itask, int ntasks,
     /* task can be taken by value or by pointer (adjust X-macro accordingly) */
     global const dbm_task_t *const task = &tasks[itask + min(tid, ntasks - 1)];
     const int m = i - tid * max_m;
-    if (m < X(task, m)) { /* valid task */
+    if (m < X(task, m)) {    /* valid task */
 #if defined(BCAST) && defined(GPU) && (200 /*2.0*/ <= ACC_OPENCL_VERSION)
       if (max_m <= wgsize) { /* broadcast B-values */
         if ((BN) < X(task, n)) {
@@ -106,3 +109,4 @@ dbm_multiply(double alpha, int itask, int ntasks,
   }
 #endif
 }
+#endif

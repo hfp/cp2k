@@ -18,7 +18,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                                     const double *pack_b_data,
                                     double *shard_c_data) {
   static cl_kernel kernel = NULL;
-  static int split = 0, bcast = 0;
+  static int gen = 0, split = 0, bcast = 0;
   static size_t wgsize = 0;
   int result = EXIT_SUCCESS, verbosity = c_dbcsr_acc_opencl_config.verbosity;
   cl_event event, *const perf_event =
@@ -45,27 +45,34 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     const char *const flags = "-cl-fast-relaxed-math -cl-denorms-are-zero";
     const char *extensions[] = {NULL, NULL};
     const size_t nextensions = sizeof(extensions) / sizeof(*extensions);
-    const char *const split_env = getenv("DBM_MULTIPLY_SPLIT");
-    const char *const bcast_env = getenv("DBM_MULTIPLY_BCAST");
-    const char *const wg_env = getenv("DBM_MULTIPLY_WG");
-    const char *const lu_env = getenv("DBM_MULTIPLY_LU");
-    const char *const bn_env = getenv("DBM_MULTIPLY_BN");
-    const int lu = (NULL == lu_env ? 0 /*default*/ : atoi(lu_env));
-    const int bn = (NULL == bn_env ? 8 /*default*/ : atoi(bn_env));
-    const int gpu =
-        (CL_DEVICE_TYPE_GPU == c_dbcsr_acc_opencl_config.device.type);
     size_t offset = strlen(params);
-    split = (NULL == split_env ? 1 /*true*/ : atoi(split_env));
-    bcast = (NULL == bcast_env ? 0 /*false*/ : atoi(bcast_env));
-    wgsize = (NULL == wg_env ? (0 == bcast ? 0 : 64) : atoi(wg_env));
-    offset += (size_t)LIBXSMM_SNPRINTF(
-        params + offset, sizeof(params) - offset,
-        "%s %s %s -DWG=%i -DLU=%i -DBN=%i", 2 <= split ? "-DSPLIT" : "",
-        0 != bcast ? "-DBCAST" : "", 0 != gpu ? "-DGPU" : "", (int)wgsize,
-        LIBXSMM_CLMP(lu, -2, 1), LIBXSMM_CLMP(bn, 1, 64));
     offset += (size_t)c_dbcsr_acc_opencl_flags_atomics(
         &c_dbcsr_acc_opencl_config.device, c_dbcsr_acc_opencl_atomic_fp_64,
         extensions, nextensions, params + offset, sizeof(params) - offset);
+    if (0) {
+      offset +=
+          (size_t)LIBXSMM_SNPRINTF(params + offset, sizeof(params) - offset,
+                                   " -DDBM_MULTIPLY_OPENCL_IR");
+      gen = 1;
+    } else {
+      const char *const split_env = getenv("DBM_MULTIPLY_SPLIT");
+      const char *const bcast_env = getenv("DBM_MULTIPLY_BCAST");
+      const char *const wg_env = getenv("DBM_MULTIPLY_WG");
+      const char *const lu_env = getenv("DBM_MULTIPLY_LU");
+      const char *const bn_env = getenv("DBM_MULTIPLY_BN");
+      const int lu = (NULL == lu_env ? 0 /*default*/ : atoi(lu_env));
+      const int bn = (NULL == bn_env ? 8 /*default*/ : atoi(bn_env));
+      const int gpu =
+          (CL_DEVICE_TYPE_GPU == c_dbcsr_acc_opencl_config.device.type);
+      split = (NULL == split_env ? 1 /*true*/ : atoi(split_env));
+      bcast = (NULL == bcast_env ? 0 /*false*/ : atoi(bcast_env));
+      wgsize = (NULL == wg_env ? (0 == bcast ? 0 : 64) : atoi(wg_env));
+      offset += (size_t)LIBXSMM_SNPRINTF(
+          params + offset, sizeof(params) - offset,
+          " %s %s %s -DWG=%i -DLU=%i -DBN=%i", 2 <= split ? "-DSPLIT" : "",
+          0 != bcast ? "-DBCAST" : "", 0 != gpu ? "-DGPU" : "", (int)wgsize,
+          LIBXSMM_CLMP(lu, -2, 1), LIBXSMM_CLMP(bn, 1, 64));
+    }
     result |= (sizeof(params) > offset ? EXIT_SUCCESS : EXIT_FAILURE);
     result |= c_dbcsr_acc_opencl_kernel(
         0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY, "dbm_multiply",
