@@ -111,22 +111,31 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       &batch, NULL /*lock*/, tasks /*batch*/, sizeof(dbm_task_t), &work_tasks,
       &ibatch);
   assert(0 == iadata && 0 == ibdata && 0 == icdata);
+  result |= clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha);
+  result |= clSetKernelArg(kernel, 1, sizeof(cl_int), &ibatch);
   if (1 < ndims) { /* generated kernel */
+    const cl_uint zero = 0;
     assert(0 != wgsize[1] && 0 != wgsize[1] && 0 != wgsize[2]);
     work_size[0] = 16;
     assert(1 == work_size[1]);
     work_size[2] = work_tasks;
+    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 2, batch.memory);
+    result |= clSetKernelArg(kernel, 3, sizeof(cl_uint), &zero /*tasks_shape1*/);
+    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 4, adata.memory);
+    result |= clSetKernelArg(kernel, 5, sizeof(cl_uint), &zero /*A_shape0*/);
+    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 6, bdata.memory);
+    result |= clSetKernelArg(kernel, 7, sizeof(cl_uint), &zero /*B_shape0*/);
+    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 8, cdata.memory);
+    result |= clSetKernelArg(kernel, 9, sizeof(cl_uint), &zero /*C_shape0*/);
   } else {
     /* consider ((0 != split && (4 < max_m || 2 <= split)) */
     work_size[0] = (0 != split ? (work_tasks * max_m) : work_tasks);
+    result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &ntasks);
+    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 3, batch.memory);
+    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 4, adata.memory);
+    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 5, bdata.memory);
+    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 6, cdata.memory);
   }
-  result |= clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha);
-  result |= clSetKernelArg(kernel, 1, sizeof(cl_int), &ibatch);
-  result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &ntasks);
-  result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 3, batch.memory);
-  result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 4, adata.memory);
-  result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 5, bdata.memory);
-  result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 6, cdata.memory);
   result |=
       clEnqueueNDRangeKernel(str->queue, kernel, ndims, NULL /*offset*/,
                              work_size, 0 < wgsize[0] ? wgsize : NULL,
