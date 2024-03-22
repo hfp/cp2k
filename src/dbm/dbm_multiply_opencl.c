@@ -44,11 +44,11 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     char params[ACC_OPENCL_BUFFERSIZE] = "";
     const char *const flags = "-cl-fast-relaxed-math -cl-denorms-are-zero";
     const char *extensions[] = {NULL, NULL};
-    const size_t nextensions = sizeof(extensions) / sizeof(*extensions);
+    size_t nextensions = sizeof(extensions) / sizeof(*extensions);
     size_t offset = strlen(params);
     offset += (size_t)c_dbcsr_acc_opencl_flags_atomics(
         &c_dbcsr_acc_opencl_config.device, c_dbcsr_acc_opencl_atomic_fp_64,
-        extensions, nextensions, params + offset, sizeof(params) - offset);
+        extensions, &nextensions, params + offset, sizeof(params) - offset);
     if (0) {
       offset +=
           (size_t)LIBXSMM_SNPRINTF(params + offset, sizeof(params) - offset,
