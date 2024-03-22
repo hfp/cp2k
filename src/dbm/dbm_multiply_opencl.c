@@ -18,14 +18,15 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                                     const double *pack_b_data,
                                     double *shard_c_data) {
   static cl_kernel kernel = NULL;
-  static int gen = 0, split = 0, bcast = 0;
-  static size_t wgsize = 0;
+  static int ndims = 1, split = 0, bcast = 0;
+  static size_t wgsize[] = {0, 0, 0};
   int result = EXIT_SUCCESS, verbosity = c_dbcsr_acc_opencl_config.verbosity;
   cl_event event, *const perf_event =
                       ((0 <= verbosity && 2 >= verbosity) ? NULL : &event);
   const c_dbcsr_acc_opencl_stream_t *const str = ACC_OPENCL_STREAM(stream);
   const size_t max_m = mnk_range[0][1], work_tasks = ntasks;
-  size_t ibatch = 0, iadata = 0, ibdata = 0, icdata = 0, work_size = 0;
+  size_t work_size[] = {1, 1, 1}, ibatch = 0, iadata = 0, ibdata = 0,
+         icdata = 0;
   c_dbcsr_acc_opencl_info_memptr_t adata, bdata, cdata, batch;
   assert(NULL != pack_a_data && NULL != pack_b_data && NULL != shard_c_data);
   assert(0 < mnk_range[0][0] && 0 < mnk_range[0][1] &&
@@ -43,20 +44,24 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     const libxsmm_timer_tickint start = libxsmm_timer_tick();
     char params[ACC_OPENCL_BUFFERSIZE] = "";
     const char *const flags = "-cl-fast-relaxed-math -cl-denorms-are-zero";
+    const char *const gen_env = getenv("DBM_MULTIPLY_GEN");
+    const int gen = (NULL == gen_env ? 0 /*default*/ : atoi(gen_env));
     const char *extensions[] = {NULL, NULL};
     size_t nextensions = sizeof(extensions) / sizeof(*extensions);
     size_t offset = strlen(params);
     offset += (size_t)c_dbcsr_acc_opencl_flags_atomics(
         &c_dbcsr_acc_opencl_config.device, c_dbcsr_acc_opencl_atomic_fp_64,
         extensions, &nextensions, params + offset, sizeof(params) - offset);
-    if (0 != c_dbcsr_acc_opencl_config.device.intel &&
-        2 <= *c_dbcsr_acc_opencl_config.device.std_level &&
-        NULL != extensions[1] &&
-        NULL != strstr(extensions[1], "cl_ext_float_atomics")) {
+    if (2 <= gen || (0 != gen && 0 != c_dbcsr_acc_opencl_config.device.intel &&
+                     2 <= *c_dbcsr_acc_opencl_config.device.std_level &&
+                     NULL != extensions[1] &&
+                     NULL != strstr(extensions[1], "cl_ext_float_atomics"))) {
       offset +=
           (size_t)LIBXSMM_SNPRINTF(params + offset, sizeof(params) - offset,
                                    " -DDBM_MULTIPLY_OPENCL_IR");
-      gen = 1;
+      wgsize[1] = wgsize[2] = 1;
+      wgsize[0] = 16;
+      ndims = 3;
     } else {
       const char *const split_env = getenv("DBM_MULTIPLY_SPLIT");
       const char *const bcast_env = getenv("DBM_MULTIPLY_BCAST");
@@ -69,11 +74,11 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
           (CL_DEVICE_TYPE_GPU == c_dbcsr_acc_opencl_config.device.type);
       split = (NULL == split_env ? 1 /*true*/ : atoi(split_env));
       bcast = (NULL == bcast_env ? 0 /*false*/ : atoi(bcast_env));
-      wgsize = (NULL == wg_env ? (0 == bcast ? 0 : 64) : atoi(wg_env));
+      wgsize[0] = (NULL == wg_env ? (0 == bcast ? 0 : 64) : atoi(wg_env));
       offset += (size_t)LIBXSMM_SNPRINTF(
           params + offset, sizeof(params) - offset,
           " %s %s %s -DWG=%i -DLU=%i -DBN=%i", 2 <= split ? "-DSPLIT" : "",
-          0 != bcast ? "-DBCAST" : "", 0 != gpu ? "-DGPU" : "", (int)wgsize,
+          0 != bcast ? "-DBCAST" : "", 0 != gpu ? "-DGPU" : "", (int)wgsize[0],
           LIBXSMM_CLMP(lu, -2, 1), LIBXSMM_CLMP(bn, 1, 64));
     }
     result |= (sizeof(params) > offset ? EXIT_SUCCESS : EXIT_FAILURE);
@@ -106,8 +111,15 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       &batch, NULL /*lock*/, tasks /*batch*/, sizeof(dbm_task_t), &work_tasks,
       &ibatch);
   assert(0 == iadata && 0 == ibdata && 0 == icdata);
-  work_size = ((0 != split /*&&(4<max_m || 2<=split)*/) ? (work_tasks * max_m)
-                                                        : (work_tasks));
+  if (1 < ndims) { /* generated kernel */
+    assert(0 != wgsize[1] && 0 != wgsize[1] && 0 != wgsize[2]);
+    work_size[0] = 16;
+    assert(1 == work_size[1]);
+    work_size[2] = work_tasks;
+  } else {
+    /* consider ((0 != split && (4 < max_m || 2 <= split)) */
+    work_size[0] = (0 != split ? (work_tasks * max_m) : work_tasks);
+  }
   result |= clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha);
   result |= clSetKernelArg(kernel, 1, sizeof(cl_int), &ibatch);
   result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &ntasks);
@@ -115,10 +127,10 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 4, adata.memory);
   result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 5, bdata.memory);
   result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 6, cdata.memory);
-  result |= clEnqueueNDRangeKernel(str->queue, kernel, 1 /*work_dim*/,
-                                   NULL /*offset*/, &work_size,
-                                   0 < wgsize ? &wgsize : NULL, 0 /*num_wait*/,
-                                   NULL /*wait_list*/, perf_event);
+  result |=
+      clEnqueueNDRangeKernel(str->queue, kernel, ndims, NULL /*offset*/,
+                             work_size, 0 < wgsize[0] ? wgsize : NULL,
+                             0 /*num_wait*/, NULL /*wait_list*/, perf_event);
   if (NULL != perf_event && EXIT_SUCCESS == result) {
     cl_ulong begin = 0, end = 0;
     clWaitForEvents(1, perf_event);
