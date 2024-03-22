@@ -38,7 +38,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   assert(0 < ntasks && NULL != tasks);
   /* creating/calling kernel must be consistent across threads */
   ACC_OPENCL_ACQUIRE(c_dbcsr_acc_opencl_config.lock_main);
-#if defined(OPENCL_DBM_SOURCE_MULTIPLY_OPENCL)
+#if defined(OPENCL_DBM_SOURCE_MULTIPLY)
   if (NULL == kernel) { /* first-time check if kernel is present */
     const libxsmm_timer_tickint start = libxsmm_timer_tick();
     char params[ACC_OPENCL_BUFFERSIZE] = "";
@@ -68,7 +68,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         extensions, nextensions, params + offset, sizeof(params) - offset);
     result |= (sizeof(params) > offset ? EXIT_SUCCESS : EXIT_FAILURE);
     result |= c_dbcsr_acc_opencl_kernel(
-        0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY_OPENCL, "dbm_multiply",
+        0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY, "dbm_multiply",
         params, 0 == c_dbcsr_acc_opencl_config.debug ? flags : NULL,
         NULL /*try*/, NULL /*try_ok*/, extensions, nextensions, &kernel);
     if (2 <= verbosity || 0 > verbosity) {
