@@ -58,7 +58,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                      NULL != strstr(extensions[1], "cl_ext_float_atomics"))) {
       offset +=
           (size_t)LIBXSMM_SNPRINTF(params + offset, sizeof(params) - offset,
-                                   " -DDBM_MULTIPLY_OPENCL_IR");
+                                   " -DDBM_MULTIPLY_OPENCL_GEN");
       wgsize[1] = wgsize[2] = 1;
       wgsize[0] = 16;
       ndims = 3;
