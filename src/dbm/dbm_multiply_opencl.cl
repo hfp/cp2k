@@ -57,14 +57,13 @@ dbm_multiply(double alpha, int itask, int ntasks,
   if (size != ntasks)
 #endif
   { /* DBM_MULTIPLY_SPLIT */
-    const int wgsize = (int)get_local_size(0);
     const int max_m = size / ntasks, tid = i / max_m;
     /* task can be taken by value or by pointer (adjust X-macro accordingly) */
     global const dbm_task_t *const task = &tasks[itask + min(tid, ntasks - 1)];
     const int m = i - tid * max_m;
-    if (m < X(task, m)) {    /* valid task */
+    if (m < X(task, m)) {                    /* valid task */
 #if defined(BCAST) && defined(GPU) && (200 /*2.0*/ <= ACC_OPENCL_VERSION)
-      if (max_m <= wgsize) { /* broadcast B-values */
+      if (max_m <= (int)get_local_size(0)) { /* broadcast B-values */
         if ((BN) < X(task, n)) {
           UNROLL_AUTO for (int n0 = 0; n0 < X(task, n); n0 += (BN)) {
             const int n1 = min(BN, X(task, n) - n0);
@@ -99,7 +98,7 @@ dbm_multiply(double alpha, int itask, int ntasks,
   else { /* full matrix multiplication */
     global const dbm_task_t *const task = &tasks[itask + i];
     UNROLL_OUTER(1) for (int m = 0; m < X(task, m); ++m) {
-      UNROLL(1) for (int n0 = 0; n0 < X(task, n); n0 += (BN)) {
+      UNROLL_AUTO for (int n0 = 0; n0 < X(task, n); n0 += (BN)) {
         const int n1 = min(BN, X(task, n) - n0);
         DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, n0, n1, BCAST_NO,
                             UNROLL_AUTO, UNROLL_AUTO);
