@@ -25,8 +25,8 @@
 #define IDT(I, J, OFFSET, M, N) IDX(J, I, OFFSET, N, M)
 #define X(T, I) (T)->I
 
-#define DBM_MULTIPLY_KERNEL(TASK, AMAT, BMAT, CVEC, M, N0, N1, BROADCAST,      \
-                            UNROLL_N, UNROLL_K)                                \
+#define DBM_MULTIPLY_KERNEL(TASK, AMAT, BMAT, CVEC, M, N0, N1, UNROLL_N,       \
+                            UNROLL_K)                                          \
   do {                                                                         \
     UNROLL_K for (int k = 0; k < X(TASK, k); ++k) {                            \
       const int ia = IDT(M, k, X(TASK, offset_a), X(TASK, m), X(TASK, k));     \
@@ -76,12 +76,12 @@ dbm_multiply(double alpha, int itask, int ntasks,
       if ((BN) < X(task, n)) {
         UNROLL_AUTO for (int n0 = 0; n0 < X(task, n); n0 += (BN)) {
           const int n1 = min(BN, X(task, n) - n0);
-          DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, n0, n1, BROADCAST,
+          DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, n0, n1,
                               UNROLL_FORCE(BN), UNROLL_AUTO);
           DBM_MULTIPLY_ACCUMULATE(alpha, task, cmat, cvec, m, n0, BN);
         }
       } else { /* task.n <= BN */
-        DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, 0, X(task, n), BROADCAST,
+        DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, 0, X(task, n),
                             UNROLL_FORCE(BN), UNROLL_FORCE(BN));
         DBM_MULTIPLY_ACCUMULATE(alpha, task, cmat, cvec, m, 0, BN);
       }
@@ -93,8 +93,8 @@ dbm_multiply(double alpha, int itask, int ntasks,
     UNROLL_OUTER(1) for (int m = 0; m < X(task, m); ++m) {
       UNROLL_AUTO for (int n0 = 0; n0 < X(task, n); n0 += (BN)) {
         const int n1 = min(BN, X(task, n) - n0);
-        DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, n0, n1, BCAST_NO,
-                            UNROLL_AUTO, UNROLL_AUTO);
+        DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, n0, n1, UNROLL_AUTO,
+                            UNROLL_AUTO);
         DBM_MULTIPLY_ACCUMULATE(alpha, task, cmat, cvec, m, n0, BN);
       }
     }
