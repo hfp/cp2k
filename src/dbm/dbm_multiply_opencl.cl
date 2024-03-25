@@ -13,12 +13,13 @@
 #if defined(BCAST) && defined(GPU) && (200 /*2.0*/ <= ACC_OPENCL_VERSION) &&   \
     defined(WG) && (0 < WG) && (BN <= WG)
 #if defined(SG) && (WG == SG)
-#define BCAST_WG(V, I) sub_group_broadcast(V, I)
+#define BROADCAST(V, I) sub_group_broadcast(V, I)
 #else
-#define BCAST_WG(V, I) work_group_broadcast(V, I)
+#define BROADCAST(V, I) work_group_broadcast(V, I)
 #endif
+#else
+#define BROADCAST(V, I) (V)
 #endif
-#define BCAST_NO(V, I) (V)
 
 #define IDX(I, J, OFFSET, M, N) ((I) * (N) + (J) + (OFFSET))
 #define IDT(I, J, OFFSET, M, N) IDX(J, I, OFFSET, N, M)
@@ -72,33 +73,18 @@ dbm_multiply(double alpha, int itask, int ntasks,
     global const dbm_task_t *const task = &tasks[itask + min(tid, ntasks - 1)];
     const int m = i - tid * max_m;
     if (m < X(task, m)) { /* valid task */
-#if defined(BCAST_WG) /* broadcast B-values */
       if ((BN) < X(task, n)) {
         UNROLL_AUTO for (int n0 = 0; n0 < X(task, n); n0 += (BN)) {
           const int n1 = min(BN, X(task, n) - n0);
-          DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, n0, n1, BCAST_WG,
+          DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, n0, n1, BROADCAST,
                               UNROLL_FORCE(BN), UNROLL_AUTO);
           DBM_MULTIPLY_ACCUMULATE(alpha, task, cmat, cvec, m, n0, BN);
         }
       } else { /* task.n <= BN */
-        DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, 0, X(task, n), BCAST_WG,
+        DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, 0, X(task, n), BROADCAST,
                             UNROLL_FORCE(BN), UNROLL_FORCE(BN));
         DBM_MULTIPLY_ACCUMULATE(alpha, task, cmat, cvec, m, 0, BN);
       }
-#else
-      if ((BN) < X(task, n)) {
-        UNROLL_AUTO for (int n0 = 0; n0 < X(task, n); n0 += (BN)) {
-          const int n1 = min(BN, X(task, n) - n0);
-          DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, n0, n1, BCAST_NO,
-                              UNROLL_FORCE(BN), UNROLL_AUTO);
-          DBM_MULTIPLY_ACCUMULATE(alpha, task, cmat, cvec, m, n0, BN);
-        }
-      } else { /* task.n <= BN */
-        DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, 0, X(task, n), BCAST_NO,
-                            UNROLL_FORCE(BN), UNROLL_FORCE(BN));
-        DBM_MULTIPLY_ACCUMULATE(alpha, task, cmat, cvec, m, 0, BN);
-      }
-#endif
     }
   }
 #if !defined(SPLIT)
