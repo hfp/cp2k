@@ -73,11 +73,14 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       const char *const bn_env = getenv("DBM_MULTIPLY_BN");
       const int lu = (NULL == lu_env ? 0 /*default*/ : atoi(lu_env));
       const int bn = (NULL == bn_env ? 8 /*default*/ : atoi(bn_env));
+      const size_t wgsize0 = c_dbcsr_acc_opencl_config.device.wgsize[0];
+      const size_t wgsize1 = c_dbcsr_acc_opencl_config.device.wgsize[1];
       const int gpu =
           (CL_DEVICE_TYPE_GPU == c_dbcsr_acc_opencl_config.device.type);
       split = (NULL == split_env ? 1 /*true*/ : atoi(split_env));
       bcast = (NULL == bcast_env ? 0 /*false*/ : atoi(bcast_env));
       wgsize[0] = (NULL == wg_env ? (0 == bcast ? 0 : 64) : atoi(wg_env));
+      wgsize[0] = LIBXSMM_CLMP(LIBXSMM_UPDIV(wgsize[0], wgsize1), 1, wgsize0);
       offset += (size_t)LIBXSMM_SNPRINTF(
           params + offset, sizeof(params) - offset,
           " %s %s %s -DWG=%i -DLU=%i -DBN=%i", 2 <= split ? "-DSPLIT" : "",

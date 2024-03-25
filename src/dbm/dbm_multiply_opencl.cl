@@ -10,12 +10,19 @@
 #include "../../exts/dbcsr/src/acc/opencl/common/opencl_atomics.h"
 #include "dbm_multiply_internal.h"
 
+#if defined(BCAST) && defined(GPU) && (200 /*2.0*/ <= ACC_OPENCL_VERSION) &&   \
+    defined(WG) && (0 < WG)
+#if defined(SG) && (WG == SG)
+#define BCAST_WG(V, I) sub_group_broadcast(V, I)
+#else
+#define BCAST_WG(V, I) work_group_broadcast(V, I)
+#endif
+#endif
+#define BCAST_NO(V, I) (V)
+
 #define IDX(I, J, OFFSET, M, N) ((I) * (N) + (J) + (OFFSET))
 #define IDT(I, J, OFFSET, M, N) IDX(J, I, OFFSET, N, M)
 #define X(T, I) (T)->I
-
-#define BCAST_WG(A) work_group_broadcast(A, get_local_id(0))
-#define BCAST_NO(A) (A)
 
 #define DBM_MULTIPLY_KERNEL(TASK, AMAT, BMAT, CVEC, M, N0, N1, BROADCAST,      \
                             UNROLL_N, UNROLL_K)                                \
@@ -27,7 +34,7 @@
         const int tb = X(TASK, offset_b);                                      \
         const int ib = IDX(k, n + (N0), tb, X(TASK, k), X(TASK, n));           \
         const double b = (BMAT)[ib];                                           \
-        (CVEC)[n] = MAD(a, BROADCAST(b), (CVEC)[n]);                           \
+        (CVEC)[n] = MAD(a, BROADCAST(b, n), (CVEC)[n]);                        \
       }                                                                        \
     }                                                                          \
   } while (0)
@@ -44,6 +51,9 @@
 
 #if defined(WG) && (0 < WG)
 __attribute__((reqd_work_group_size(WG, 1, 1)))
+#if defined(SG) && (WG == SG)
+__attribute__((intel_reqd_sub_group_size(SG)))
+#endif
 #endif
 kernel void
 dbm_multiply(double alpha, int itask, int ntasks,
@@ -61,9 +71,9 @@ dbm_multiply(double alpha, int itask, int ntasks,
     /* task can be taken by value or by pointer (adjust X-macro accordingly) */
     global const dbm_task_t *const task = &tasks[itask + min(tid, ntasks - 1)];
     const int m = i - tid * max_m;
-    if (m < X(task, m)) {                    /* valid task */
-#if defined(BCAST) && defined(GPU) && (200 /*2.0*/ <= ACC_OPENCL_VERSION)
-      if (max_m <= (int)get_local_size(0)) { /* broadcast B-values */
+    if (m < X(task, m)) {  /* valid task */
+#if defined(BCAST_WG)
+      if (max_m <= (WG)) { /* broadcast B-values */
         if ((BN) < X(task, n)) {
           UNROLL_AUTO for (int n0 = 0; n0 < X(task, n); n0 += (BN)) {
             const int n1 = min(BN, X(task, n) - n0);
