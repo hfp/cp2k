@@ -19,6 +19,14 @@
 #include "dbm_multiply_gpu.h"
 #include "dbm_multiply_internal.h"
 
+#if defined(__LIBXSMM)
+#include <libxsmm.h>
+#endif
+
+#if !defined(DBM_MULTIPLY_VALIDATE) && 0
+#define DBM_MULTIPLY_VALIDATE
+#endif
+
 /*******************************************************************************
  * \brief Returns the larger of two given integer (missing from the C standard).
  * \author Ole Schuett
@@ -130,15 +138,50 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
                                   dbm_shard_t *shard_c,
                                   backend_context_t *ctx) {
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
-  (void)pack_a; // mark as used
-  (void)pack_b;
-  (void)shard_c;
   dbm_multiply_gpu_process_batch(ntasks, batch, mnk_range, alpha, kshard,
                                  &ctx->gpu);
+#if defined(DBM_MULTIPLY_VALIDATE) && defined(__LIBXSMM)
+  dbm_shard_gpu_t *const shard_g = &ctx->gpu.shards_c_dev[kshard];
+  dbm_shard_t shard_r;
+  dbm_shard_allocate_promised_blocks(shard_c);
+  /* start transferring GPU result to host */
+  assert(shard_c->data_size == shard_g->data_size);
+  dbm_shard_init(&shard_r);
+  dbm_shard_copy(&shard_r, shard_c);
+  offloadMemcpyAsyncDtoH(shard_c->data, shard_g->data,
+                         shard_c->data_size * sizeof(double), shard_g->stream);
+  dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b,
+                                 &shard_r);
+  /* finish transferring GPU result to host */
+  offloadStreamSynchronize(shard_g->stream);
+  libxsmm_matdiff_info diff;
+  libxsmm_matdiff_clear(&diff);
+  for (int itask = 0; itask < ntasks; ++itask) {
+    const dbm_task_t task = batch[itask];
+    const double *const tst = &shard_c->data[task.offset_c];
+    const double *const ref = &shard_r.data[task.offset_c];
+    libxsmm_matdiff_info d;
+    if (EXIT_SUCCESS == libxsmm_matdiff(&d, LIBXSMM_DATATYPE(double), task.m,
+                                        task.n, ref, tst, NULL /*ldref*/,
+                                        NULL /*ldtst*/)) {
+      libxsmm_matdiff_reduce(&diff, &d);
+    }
+  }
+  const double epsilon = libxsmm_matdiff_epsilon(&diff);
+  if (0 < epsilon) {
+    fprintf(stderr, "INFO ACC/LIBDBM: mnk=%ix%ix%i ntasks=%i diff=%g",
+            mnk_range[0][1], mnk_range[1][1], mnk_range[2][1], ntasks, epsilon);
+  }
+  dbm_shard_release(&shard_r);
 #else
-  (void)mnk_range; // mark as used
+  (void)pack_a;
+  (void)pack_b;
+  (void)shard_c; // mark as used
+#endif
+#else
+  (void)mnk_range;
   (void)kshard;
-  (void)ctx;
+  (void)ctx; // mark as used
   dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b, shard_c);
 #endif
 }
