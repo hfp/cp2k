@@ -42,12 +42,15 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
 #if defined(OPENCL_DBM_SOURCE_MULTIPLY)
   if (NULL == kernel) { /* first-time check if kernel is present */
     const libxsmm_timer_tickint start = libxsmm_timer_tick();
-    char params[ACC_OPENCL_BUFFERSIZE] = "";
+    char params[ACC_OPENCL_BUFFERSIZE] =
+        "-cl-fast-relaxed-math -cl-denorms-are-zero";
     const char *const gen_env = getenv("DBM_MULTIPLY_GEN");
+    const char *const gen_xf = getenv("DBM_MULTIPLY_XF");
     const int gen = (NULL == gen_env ? 0 /*default*/ : atoi(gen_env));
+    const int xf = (NULL == gen_xf ? -1 /*default*/ : atoi(gen_xf));
     const char *extensions[] = {NULL, NULL}, *flags = NULL;
     size_t nextensions = sizeof(extensions) / sizeof(*extensions);
-    size_t offset = strlen(params);
+    size_t offset = (0 == c_dbcsr_acc_opencl_config.debug ? strlen(params) : 0);
     offset += (size_t)c_dbcsr_acc_opencl_flags_atomics(
         &c_dbcsr_acc_opencl_config.device, c_dbcsr_acc_opencl_atomic_fp_64,
         extensions, &nextensions, params + offset, sizeof(params) - offset);
@@ -58,10 +61,9 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       offset +=
           (size_t)LIBXSMM_SNPRINTF(params + offset, sizeof(params) - offset,
                                    " -DDBM_MULTIPLY_OPENCL_GEN");
-      flags = (0 != c_dbcsr_acc_opencl_config.device.intel
-                   ? "-cl-fast-relaxed-math -cl-denorms-are-zero "
-                     "-cl-intel-256-GRF-per-thread"
-                   : "-cl-fast-relaxed-math -cl-denorms-are-zero");
+      if (0 != c_dbcsr_acc_opencl_config.device.intel && 0 != xf) {
+        flags = "-cl-intel-256-GRF-per-thread";
+      }
       wgsize[1] = wgsize[2] = 1;
       wgsize[0] = 16;
       ndims = 3;
@@ -98,7 +100,9 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
           2 <= split ? "-DSPLIT" : "", 0 != bcast ? "-DBCAST" : "",
           0 != gpu ? "-DGPU" : "", (int)wgsize[0], (int)wgsize2,
           LIBXSMM_CLMP(lu, -2, 1), LIBXSMM_CLMP(bn, 1, 64));
-      flags = "-cl-fast-relaxed-math -cl-denorms-are-zero";
+      if (0 != c_dbcsr_acc_opencl_config.device.intel && 0 < xf) {
+        flags = "-cl-intel-256-GRF-per-thread";
+      }
     }
     result |= (sizeof(params) > offset ? EXIT_SUCCESS : EXIT_FAILURE);
     result |= c_dbcsr_acc_opencl_kernel(
@@ -107,12 +111,14 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         NULL /*try*/, NULL /*try_ok*/, extensions, nextensions, &kernel);
     if (2 <= verbosity || 0 > verbosity) {
       if (EXIT_SUCCESS == result) {
-        const libxsmm_timer_tickint end = libxsmm_timer_tick();
-        const double d = libxsmm_timer_duration(start, end);
-        fprintf(stderr,
-                "INFO ACC/LIBDBM: DBM-kernel "
-                "split=%i bcast=%i wg=%i ms=%.1f\n",
-                split, bcast, (int)wgsize[0], 1E3 * d);
+        const double d = libxsmm_timer_duration(start, libxsmm_timer_tick());
+        fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel");
+        if (0 == gen) {
+          fprintf(stderr, " split=%i bcast=%i", split, bcast);
+        } else { /* generated kernel */
+          fprintf(stderr, " gen=%i", gen);
+        }
+        fprintf(stderr, " wg=%i ms=%.1f\n", (int)wgsize[0], 1E3 * d);
       } else {
         fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel failed to generate\n");
       }
