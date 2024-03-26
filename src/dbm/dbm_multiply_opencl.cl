@@ -72,7 +72,7 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
     const int m = i - tid * max_m;
     if (i < size && m < X(task, m)) { /* valid task */
 #if defined(BCAST_WG)
-      if (max_m <= (WG)) {            /* broadcast B-values */
+      if (m < (WG)) {                 /* broadcast B-values */
         if ((BN) < X(task, n)) {
           UNROLL_AUTO for (int n0 = 0; n0 < X(task, n); n0 += (BN)) {
             const int n1 = min(BN, X(task, n) - n0);
