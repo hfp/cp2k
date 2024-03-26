@@ -107,8 +107,12 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         NULL /*try*/, NULL /*try_ok*/, extensions, nextensions, &kernel);
     if (2 <= verbosity || 0 > verbosity) {
       if (EXIT_SUCCESS == result) {
-        fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel ms=%.1f\n",
-                1E3 * libxsmm_timer_duration(start, libxsmm_timer_tick()));
+        const libxsmm_timer_tickint end = libxsmm_timer_tick();
+        const double d = libxsmm_timer_duration(start, end);
+        fprintf(stderr,
+                "INFO ACC/LIBDBM: DBM-kernel "
+                "split=%i bcast=%i wg=%i ms=%.1f\n",
+                split, bcast, (int)wgsize[0], 1E3 * d);
       } else {
         fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel failed to generate\n");
       }
