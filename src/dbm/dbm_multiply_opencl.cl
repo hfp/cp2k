@@ -70,9 +70,9 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
     /* task can be taken by value or by pointer (adjust X-macro accordingly) */
     global const dbm_task_t *const task = &tasks[itask + min(tid, ntasks - 1)];
     const int m = i - tid * max_m;
-    if (m < X(task, m)) {  /* valid task */
+    if (i < size && m < X(task, m)) { /* valid task */
 #if defined(BCAST_WG)
-      if (max_m <= (WG)) { /* broadcast B-values */
+      if (max_m <= (WG)) {            /* broadcast B-values */
         if ((BN) < X(task, n)) {
           UNROLL_AUTO for (int n0 = 0; n0 < X(task, n); n0 += (BN)) {
             const int n1 = min(BN, X(task, n) - n0);
