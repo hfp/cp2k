@@ -50,11 +50,14 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     const int xf = (NULL == gen_xf ? -1 /*default*/ : atoi(gen_xf));
     const char *extensions[] = {NULL, NULL}, *flags = NULL;
     size_t nextensions = sizeof(extensions) / sizeof(*extensions);
+    const size_t wgsize0 = c_dbcsr_acc_opencl_config.device.wgsize[0];
+    const size_t wgsize1 = c_dbcsr_acc_opencl_config.device.wgsize[1];
+    size_t wgsize2 = c_dbcsr_acc_opencl_config.device.wgsize[2];
     size_t offset = (0 == c_dbcsr_acc_opencl_config.debug ? strlen(params) : 0);
     offset += (size_t)c_dbcsr_acc_opencl_flags_atomics(
         &c_dbcsr_acc_opencl_config.device, c_dbcsr_acc_opencl_atomic_fp_64,
         extensions, &nextensions, params + offset, sizeof(params) - offset);
-    if (2 <= gen || (0 != gen && 0 != c_dbcsr_acc_opencl_config.device.intel &&
+    if (2 <= gen || (0 != gen && 0 != wgsize2 /*subgroups*/ &&
                      2 <= *c_dbcsr_acc_opencl_config.device.std_level &&
                      NULL != extensions[1] &&
                      NULL != strstr(extensions[1], "cl_ext_float_atomics"))) {
@@ -75,16 +78,12 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       const char *const bn_env = getenv("DBM_MULTIPLY_BN");
       const int lu = (NULL == lu_env ? 0 /*default*/ : atoi(lu_env));
       const int bn = (NULL == bn_env ? 8 /*default*/ : atoi(bn_env));
-      const size_t wgsize0 = c_dbcsr_acc_opencl_config.device.wgsize[0];
-      const size_t wgsize1 = c_dbcsr_acc_opencl_config.device.wgsize[1];
-      size_t wgsize2 = c_dbcsr_acc_opencl_config.device.wgsize[2];
       const int gpu =
           (CL_DEVICE_TYPE_GPU == c_dbcsr_acc_opencl_config.device.type);
       split = (NULL == split_env ? 1 /*true*/ : atoi(split_env));
       bcast = (NULL == bcast_env ? 0 /*false*/ : atoi(bcast_env));
       wgsize[0] = (NULL == wg_env ? (0 == bcast ? 0 : wgsize1)
                                   : strtoul(wg_env, NULL, 10));
-      wgsize[0] = LIBXSMM_CLMP(LIBXSMM_UP(wgsize[0], wgsize1), 0, wgsize0);
       if (0 != wgsize2 && (0 > bcast || 1 < bcast)) { /* use subgroups */
         if (LIBXSMM_DELTA(wgsize[0], wgsize1) <=
             LIBXSMM_DELTA(wgsize[0], wgsize2)) { /* select SG-size */
@@ -92,8 +91,10 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         }
         wgsize[0] = wgsize2;
       } else {
+        wgsize[0] = LIBXSMM_UP(wgsize[0], wgsize1);
         wgsize2 = 0;
       }
+      wgsize[0] = LIBXSMM_CLMP(wgsize[0], 0, wgsize0);
       offset += (size_t)LIBXSMM_SNPRINTF(
           params + offset, sizeof(params) - offset,
           " %s %s %s -DWG=%i -DSG=%i -DLU=%i -DBN=%i",
