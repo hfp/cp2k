@@ -11,7 +11,7 @@
 #include "dbm_multiply_internal.h"
 
 #if defined(BCAST) && defined(GPU) && (200 /*2.0*/ <= ACC_OPENCL_VERSION) &&   \
-    defined(WG) && (0 < WG)
+    defined(WG) && (0 < WG) && (BN <= WG)
 #if defined(SG) && (WG == SG)
 #define BCAST_WG(V, I) sub_group_broadcast(V, I)
 #else
