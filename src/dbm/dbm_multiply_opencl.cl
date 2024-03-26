@@ -33,8 +33,7 @@
       UNROLL_N for (int n = 0; n < (N1); ++n) {                                \
         const int tb = X(TASK, offset_b);                                      \
         const int ib = IDX(k, n + (N0), tb, X(TASK, k), X(TASK, n));           \
-        const double b = (BMAT)[ib];                                           \
-        (CVEC)[n] = MAD(a, BROADCAST(b, n), (CVEC)[n]);                        \
+        (CVEC)[n] = MAD(a, BROADCAST((BMAT)[ib], n), (CVEC)[n]);               \
       }                                                                        \
     }                                                                          \
   } while (0)
