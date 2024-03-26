@@ -108,8 +108,8 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     result |= (sizeof(params) > offset ? EXIT_SUCCESS : EXIT_FAILURE);
     result |= c_dbcsr_acc_opencl_kernel(
         0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY, "dbm_multiply",
-        params, 0 == c_dbcsr_acc_opencl_config.debug ? flags : NULL,
-        NULL /*try*/, NULL /*try_ok*/, extensions, nextensions, &kernel);
+        params, flags, NULL /*try*/, NULL /*try_ok*/, extensions, nextensions,
+        &kernel);
     if (2 <= verbosity || 0 > verbosity) {
       if (EXIT_SUCCESS == result) {
         const double d = libxsmm_timer_duration(start, libxsmm_timer_tick());
@@ -161,10 +161,14 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     /* consider ((0 != split && (4 < max_m || 2 <= split)) */
     work_size[0] = (0 != split ? (work_tasks * max_m) : work_tasks);
     result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &ntasks);
-    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 3, batch.memory);
-    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 4, adata.memory);
-    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 5, bdata.memory);
-    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 6, cdata.memory);
+    result |= clSetKernelArg(kernel, 3, sizeof(cl_int), work_size);
+    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 4, batch.memory);
+    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 5, adata.memory);
+    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 6, bdata.memory);
+    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 7, cdata.memory);
+    if (0 < wgsize[0]) { /* fixup to be a multiple of the WG-size */
+      work_size[0] = LIBXSMM_UP(work_size[0], wgsize[0]);
+    }
   }
   result |=
       clEnqueueNDRangeKernel(str->queue, kernel, ndims, NULL /*offset*/,

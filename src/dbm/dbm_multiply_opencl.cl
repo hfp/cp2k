@@ -55,11 +55,11 @@ __attribute__((intel_reqd_sub_group_size(SG)))
 #endif
 #endif
 kernel void
-dbm_multiply(double alpha, int itask, int ntasks,
+dbm_multiply(double alpha, int itask, int ntasks, int size,
              global const dbm_task_t *tasks, global const double *restrict amat,
              global const double *restrict bmat, global double *restrict cmat) {
   double cvec[BN];
-  const int size = (int)get_global_size(0), i = (int)get_global_id(0);
+  const int i = (int)get_global_id(0);
 
   UNROLL_FORCE(BN) for (int n = 0; n < (BN); ++n) cvec[n] = 0; /* clear */
 #if !defined(SPLIT)
