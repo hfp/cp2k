@@ -75,6 +75,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       const int bn = (NULL == bn_env ? 8 /*default*/ : atoi(bn_env));
       const size_t wgsize0 = c_dbcsr_acc_opencl_config.device.wgsize[0];
       const size_t wgsize1 = c_dbcsr_acc_opencl_config.device.wgsize[1];
+      size_t wgsize2 = c_dbcsr_acc_opencl_config.device.wgsize[2];
       const int gpu =
           (CL_DEVICE_TYPE_GPU == c_dbcsr_acc_opencl_config.device.type);
       split = (NULL == split_env ? 1 /*true*/ : atoi(split_env));
@@ -82,10 +83,20 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       wgsize[0] = (NULL == wg_env ? (0 == bcast ? 0 : wgsize1)
                                   : strtoul(wg_env, NULL, 10));
       wgsize[0] = LIBXSMM_CLMP(LIBXSMM_UP(wgsize[0], wgsize1), 0, wgsize0);
+      if (0 != wgsize2 && (0 > bcast || 1 < bcast)) { /* use subgroups */
+        if (LIBXSMM_DELTA(wgsize[0], wgsize1) <=
+            LIBXSMM_DELTA(wgsize[0], wgsize2)) { /* select SG-size */
+          wgsize2 = wgsize1;
+        }
+        wgsize[0] = wgsize2;
+      } else {
+        wgsize2 = 0;
+      }
       offset += (size_t)LIBXSMM_SNPRINTF(
           params + offset, sizeof(params) - offset,
-          " %s %s %s -DWG=%i -DLU=%i -DBN=%i", 2 <= split ? "-DSPLIT" : "",
-          0 != bcast ? "-DBCAST" : "", 0 != gpu ? "-DGPU" : "", (int)wgsize[0],
+          " %s %s %s -DWG=%i -DSG=%i -DLU=%i -DBN=%i",
+          2 <= split ? "-DSPLIT" : "", 0 != bcast ? "-DBCAST" : "",
+          0 != gpu ? "-DGPU" : "", (int)wgsize[0], (int)wgsize2,
           LIBXSMM_CLMP(lu, -2, 1), LIBXSMM_CLMP(bn, 1, 64));
       flags = "-cl-fast-relaxed-math -cl-denorms-are-zero";
     }
