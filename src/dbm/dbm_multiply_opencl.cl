@@ -20,20 +20,18 @@
 #endif
 #define BCAST_NO(V, I) (V)
 
-#define IDX(I, J, OFFSET, M, N) ((I) * (N) + (J) + (OFFSET))
-#define IDT(I, J, OFFSET, M, N) IDX(J, I, OFFSET, N, M)
+#define IDX(I, J, M, N) ((I) * (N) + (J))
+#define IDT(I, J, M, N) IDX(J, I, N, M)
 #define X(T, I) (T)->I
 
 #define DBM_MULTIPLY_KERNEL(TASK, AMAT, BMAT, CVEC, M, N0, N1, BROADCAST,      \
                             UNROLL_N, UNROLL_K)                                \
   do {                                                                         \
     UNROLL_K for (int k = 0; k < X(TASK, k); ++k) {                            \
-      const int ia = IDT(M, k, X(TASK, offset_a), X(TASK, m), X(TASK, k));     \
-      const double a = (AMAT)[ia];                                             \
+      const double a = (AMAT)[IDT(M, k, X(TASK, m), X(TASK, k))];              \
       UNROLL_N for (int n = 0; n < (N1); ++n) {                                \
-        const int tb = X(TASK, offset_b);                                      \
-        const int ib = IDX(k, n + (N0), tb, X(TASK, k), X(TASK, n));           \
-        (CVEC)[n] = MAD(a, BROADCAST((BMAT)[ib], n), (CVEC)[n]);               \
+        const double b = (BMAT)[IDX(k, n + (N0), X(TASK, k), X(TASK, n))];     \
+        (CVEC)[n] = MAD(a, BROADCAST(b, n), (CVEC)[n]);                        \
       }                                                                        \
     }                                                                          \
   } while (0)
@@ -41,8 +39,7 @@
 #define DBM_MULTIPLY_ACCUMULATE(ALPHA, TASK, CMAT, CVEC, M, N0, BN)            \
   do { /* flush private accumulator to global memory using atomics */          \
     UNROLL_FORCE(BN) for (int n = 0; n < (BN); ++n) {                          \
-      const int tc = X(TASK, offset_c);                                        \
-      const int ic = IDT(M, n + (N0), tc, X(TASK, m), X(TASK, n));             \
+      const int ic = IDT(M, n + (N0), X(TASK, m), X(TASK, n));                 \
       ACCUMULATE((CMAT) + ic, (ALPHA) * (CVEC)[n]);                            \
       (CVEC)[n] = ZERO; /* reset */                                            \
     }                                                                          \
@@ -56,8 +53,8 @@ __attribute__((intel_reqd_sub_group_size(SG)))
 #endif
 kernel void
 dbm_multiply(double alpha, int itask, int ntasks, int size,
-             global const dbm_task_t *tasks, global const double *restrict amat,
-             global const double *restrict bmat, global double *restrict cmat) {
+             global const dbm_task_t *tasks, global const double *restrict ainp,
+             global const double *restrict binp, global double *restrict cout) {
   double cvec[BN];
   const int i = (int)get_global_id(0);
 
@@ -71,8 +68,11 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
     global const dbm_task_t *const task = &tasks[itask + min(tid, ntasks - 1)];
     const int m = i - tid * max_m;
     if (i < size && m < X(task, m)) { /* valid task */
+      global const double *const amat = ainp + X(task, offset_a);
+      global const double *const bmat = binp + X(task, offset_b);
+      global double *const cmat = cout + X(task, offset_c);
 #if defined(BCAST_WG)
-      if (m < (WG)) {                 /* broadcast B-values */
+      if (m < (WG)) { /* broadcast B-values */
         if ((BN) < X(task, n)) {
           UNROLL_AUTO for (int n0 = 0; n0 < X(task, n); n0 += (BN)) {
             const int n1 = min(BN, X(task, n) - n0);
@@ -106,6 +106,9 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
 #if !defined(SPLIT)
   else { /* full matrix multiplication */
     global const dbm_task_t *const task = &tasks[itask + i];
+    global const double *const amat = ainp + X(task, offset_a);
+    global const double *const bmat = binp + X(task, offset_b);
+    global double *const cmat = cout + X(task, offset_c);
     UNROLL_OUTER(1) for (int m = 0; m < X(task, m); ++m) {
       UNROLL_AUTO for (int n0 = 0; n0 < X(task, n); n0 += (BN)) {
         const int n1 = min(BN, X(task, n) - n0);
