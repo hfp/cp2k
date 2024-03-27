@@ -13,25 +13,25 @@
 #if defined(BCAST) && defined(GPU) && (200 /*2.0*/ <= ACC_OPENCL_VERSION) &&   \
     defined(WG) && (0 < WG) && (BN <= WG)
 #if defined(SG) && (WG == SG)
-#define BCAST_WG(V, I) sub_group_broadcast(V, I)
+#define BCST_WG(V, I) sub_group_broadcast(V, I)
 #else
-#define BCAST_WG(V, I) work_group_broadcast(V, I)
+#define BCST_WG(V, I) work_group_broadcast(V, I)
 #endif
 #endif
-#define BCAST_NO(V, I) (V)
+#define BCST_NO(V, I) (V)
 
 #define IDX(I, J, M, N) ((I) * (N) + (J))
 #define IDT(I, J, M, N) IDX(J, I, N, M)
 #define X(T, I) (T)->I
 
-#define DBM_MULTIPLY_KERNEL(TASK, AMAT, BMAT, CVEC, M, N0, N1, BROADCAST,      \
-                            UNROLL_N, UNROLL_K)                                \
+#define DBM_MULTIPLY_KERNEL(TASK, AMAT, BMAT, CVEC, M, N0, N1, BCST, UNROLL_N, \
+                            UNROLL_K)                                          \
   do {                                                                         \
     UNROLL_K for (int k = 0; k < X(TASK, k); ++k) {                            \
       const double a = (AMAT)[IDT(M, k, X(TASK, m), X(TASK, k))];              \
       UNROLL_N for (int n = 0; n < (N1); ++n) {                                \
         const double b = (BMAT)[IDX(k, n + (N0), X(TASK, k), X(TASK, n))];     \
-        (CVEC)[n] = MAD(a, BROADCAST(b, n), (CVEC)[n]);                        \
+        (CVEC)[n] = MAD(a, BCST(b, n), (CVEC)[n]);                             \
       }                                                                        \
     }                                                                          \
   } while (0)
@@ -71,18 +71,18 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
       global const double *const amat = ainp + X(task, offset_a);
       global const double *const bmat = binp + X(task, offset_b);
       global double *const cmat = cout + X(task, offset_c);
-#if defined(BCAST_WG)
+#if defined(BCST_WG)
       if (m < (WG)) { /* broadcast B-values */
         if ((BN) < X(task, n)) {
           UNROLL_AUTO for (int n0 = 0; n0 < X(task, n); n0 += (BN)) {
             const int n1 = min(BN, X(task, n) - n0);
-            DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, n0, n1, BCAST_WG,
+            DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, n0, n1, BCST_WG,
                                 UNROLL_FORCE(BN), UNROLL_AUTO);
             DBM_MULTIPLY_ACCUMULATE(alpha, task, cmat, cvec, m, n0, BN);
           }
         } else { /* task.n <= BN */
-          DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, 0, X(task, n),
-                              BCAST_WG, UNROLL_FORCE(BN), UNROLL_FORCE(BN));
+          DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, 0, X(task, n), BCST_WG,
+                              UNROLL_FORCE(BN), UNROLL_FORCE(BN));
           DBM_MULTIPLY_ACCUMULATE(alpha, task, cmat, cvec, m, 0, BN);
         }
       } else
@@ -91,13 +91,13 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
         if ((BN) < X(task, n)) {
           UNROLL_AUTO for (int n0 = 0; n0 < X(task, n); n0 += (BN)) {
             const int n1 = min(BN, X(task, n) - n0);
-            DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, n0, n1, BCAST_NO,
+            DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, n0, n1, BCST_NO,
                                 UNROLL_FORCE(BN), UNROLL_AUTO);
             DBM_MULTIPLY_ACCUMULATE(alpha, task, cmat, cvec, m, n0, BN);
           }
         } else { /* task.n <= BN */
-          DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, 0, X(task, n),
-                              BCAST_NO, UNROLL_FORCE(BN), UNROLL_FORCE(BN));
+          DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, 0, X(task, n), BCST_NO,
+                              UNROLL_FORCE(BN), UNROLL_FORCE(BN));
           DBM_MULTIPLY_ACCUMULATE(alpha, task, cmat, cvec, m, 0, BN);
         }
       }
@@ -112,7 +112,7 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
     UNROLL_OUTER(1) for (int m = 0; m < X(task, m); ++m) {
       UNROLL_AUTO for (int n0 = 0; n0 < X(task, n); n0 += (BN)) {
         const int n1 = min(BN, X(task, n) - n0);
-        DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, n0, n1, BCAST_NO,
+        DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, n0, n1, BCST_NO,
                             UNROLL_AUTO, UNROLL_AUTO);
         DBM_MULTIPLY_ACCUMULATE(alpha, task, cmat, cvec, m, n0, BN);
       }
