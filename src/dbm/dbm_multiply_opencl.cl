@@ -23,15 +23,18 @@
 #define IDX(I, J, M, N) ((I) * (N) + (J))
 #define IDT(I, J, M, N) IDX(J, I, N, M)
 #define X(T, I) (T)->I
+#define XM(T) X(T, m)
+#define XN(T) X(T, n)
+#define XK(T) X(T, k)
 
 #define DBM_MULTIPLY_KERNEL(TASK, AMAT, BMAT, CVEC, M, N0, N1, BCST, UNROLL_N, \
                             UNROLL_K)                                          \
   do {                                                                         \
-    UNROLL_K for (int k = 0; k < X(TASK, k); ++k) {                            \
-      const int ia = IDT(M, k, X(TASK, m), X(TASK, k));                        \
+    UNROLL_K for (int k = 0; k < XK(TASK); ++k) {                              \
+      const int ia = IDT(M, k, XM(TASK), XK(TASK));                            \
       const double a = (AMAT)[ia + X(TASK, offset_a)];                         \
       UNROLL_N for (int n = 0; n < (N1); ++n) {                                \
-        const int ib = IDX(k, n + (N0), X(TASK, k), X(TASK, n));               \
+        const int ib = IDX(k, n + (N0), XK(TASK), XN(TASK));                   \
         const double b = (BMAT)[ib + X(TASK, offset_b)];                       \
         (CVEC)[n] = MAD(a, BCST(b, n), (CVEC)[n]);                             \
       }                                                                        \
@@ -41,7 +44,7 @@
 #define DBM_MULTIPLY_ACCUMULATE(ALPHA, TASK, CMAT, CVEC, M, N0, BN)            \
   do { /* flush private accumulator to global memory using atomics */          \
     UNROLL_FORCE(BN) for (int n = 0; n < (BN); ++n) {                          \
-      const int ic = IDT(M, n + (N0), X(TASK, m), X(TASK, n));                 \
+      const int ic = IDT(M, n + (N0), XM(TASK), XN(TASK));                     \
       ACCUMULATE((CMAT) + ic + X(TASK, offset_c), (ALPHA) * (CVEC)[n]);        \
       (CVEC)[n] = ZERO; /* reset */                                            \
     }                                                                          \
@@ -69,33 +72,33 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
     /* task can be taken by value or by pointer (adjust X-macro accordingly) */
     global const dbm_task_t *const task = &tasks[itask + min(tid, ntasks - 1)];
     const int m = i - tid * max_m;
-    if (i < size && m < X(task, m)) { /* valid task */
+    if (i < size && m < XM(task)) { /* valid task */
 #if defined(BCST_WG)
-      if (m < (WG)) {                 /* broadcast B-values */
-        if ((BN) < X(task, n)) {
-          UNROLL_AUTO for (int n0 = 0; n0 < X(task, n); n0 += (BN)) {
-            const int n1 = min(BN, X(task, n) - n0);
+      if (m < (WG)) {               /* broadcast B-values */
+        if ((BN) < XN(task)) {
+          UNROLL_AUTO for (int n0 = 0; n0 < XN(task); n0 += (BN)) {
+            const int n1 = min(BN, XN(task) - n0);
             DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, n0, n1, BCST_WG,
                                 UNROLL_FORCE(BN), UNROLL_AUTO);
             DBM_MULTIPLY_ACCUMULATE(alpha, task, cmat, cvec, m, n0, BN);
           }
         } else { /* task.n <= BN */
-          DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, 0, X(task, n), BCST_WG,
+          DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, 0, XN(task), BCST_WG,
                               UNROLL_FORCE(BN), UNROLL_FORCE(BN));
           DBM_MULTIPLY_ACCUMULATE(alpha, task, cmat, cvec, m, 0, BN);
         }
       } else
 #endif
       {
-        if ((BN) < X(task, n)) {
-          UNROLL_AUTO for (int n0 = 0; n0 < X(task, n); n0 += (BN)) {
-            const int n1 = min(BN, X(task, n) - n0);
+        if ((BN) < XN(task)) {
+          UNROLL_AUTO for (int n0 = 0; n0 < XN(task); n0 += (BN)) {
+            const int n1 = min(BN, XN(task) - n0);
             DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, n0, n1, BCST_NO,
                                 UNROLL_FORCE(BN), UNROLL_AUTO);
             DBM_MULTIPLY_ACCUMULATE(alpha, task, cmat, cvec, m, n0, BN);
           }
         } else { /* task.n <= BN */
-          DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, 0, X(task, n), BCST_NO,
+          DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, 0, XN(task), BCST_NO,
                               UNROLL_FORCE(BN), UNROLL_FORCE(BN));
           DBM_MULTIPLY_ACCUMULATE(alpha, task, cmat, cvec, m, 0, BN);
         }
@@ -105,9 +108,9 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
 #if !defined(SPLIT)
   else { /* full matrix multiplication */
     global const dbm_task_t *const task = &tasks[itask + i];
-    UNROLL_OUTER(1) for (int m = 0; m < X(task, m); ++m) {
-      UNROLL_AUTO for (int n0 = 0; n0 < X(task, n); n0 += (BN)) {
-        const int n1 = min(BN, X(task, n) - n0);
+    UNROLL_OUTER(1) for (int m = 0; m < XM(task); ++m) {
+      UNROLL_AUTO for (int n0 = 0; n0 < XN(task); n0 += (BN)) {
+        const int n1 = min(BN, XN(task) - n0);
         DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, n0, n1, BCST_NO,
                             UNROLL_AUTO, UNROLL_AUTO);
         DBM_MULTIPLY_ACCUMULATE(alpha, task, cmat, cvec, m, n0, BN);
