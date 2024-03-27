@@ -28,9 +28,11 @@
                             UNROLL_K)                                          \
   do {                                                                         \
     UNROLL_K for (int k = 0; k < X(TASK, k); ++k) {                            \
-      const double a = (AMAT)[IDT(M, k, X(TASK, m), X(TASK, k))];              \
+      const int ia = IDT(M, k, X(TASK, m), X(TASK, k));                        \
+      const double a = (AMAT)[ia + X(TASK, offset_a)];                         \
       UNROLL_N for (int n = 0; n < (N1); ++n) {                                \
-        const double b = (BMAT)[IDX(k, n + (N0), X(TASK, k), X(TASK, n))];     \
+        const int ib = IDX(k, n + (N0), X(TASK, k), X(TASK, n));               \
+        const double b = (BMAT)[ib + X(TASK, offset_b)];                       \
         (CVEC)[n] = MAD(a, BCST(b, n), (CVEC)[n]);                             \
       }                                                                        \
     }                                                                          \
@@ -40,7 +42,7 @@
   do { /* flush private accumulator to global memory using atomics */          \
     UNROLL_FORCE(BN) for (int n = 0; n < (BN); ++n) {                          \
       const int ic = IDT(M, n + (N0), X(TASK, m), X(TASK, n));                 \
-      ACCUMULATE((CMAT) + ic, (ALPHA) * (CVEC)[n]);                            \
+      ACCUMULATE((CMAT) + ic + X(TASK, offset_c), (ALPHA) * (CVEC)[n]);        \
       (CVEC)[n] = ZERO; /* reset */                                            \
     }                                                                          \
   } while (0)
@@ -53,8 +55,8 @@ __attribute__((intel_reqd_sub_group_size(SG)))
 #endif
 kernel void
 dbm_multiply(double alpha, int itask, int ntasks, int size,
-             global const dbm_task_t *tasks, global const double *restrict ainp,
-             global const double *restrict binp, global double *restrict cout) {
+             global const dbm_task_t *tasks, global const double *restrict amat,
+             global const double *restrict bmat, global double *restrict cmat) {
   double cvec[BN];
   const int i = (int)get_global_id(0);
 
@@ -68,11 +70,8 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
     global const dbm_task_t *const task = &tasks[itask + min(tid, ntasks - 1)];
     const int m = i - tid * max_m;
     if (i < size && m < X(task, m)) { /* valid task */
-      global const double *const amat = ainp + X(task, offset_a);
-      global const double *const bmat = binp + X(task, offset_b);
-      global double *const cmat = cout + X(task, offset_c);
 #if defined(BCST_WG)
-      if (m < (WG)) { /* broadcast B-values */
+      if (m < (WG)) {                 /* broadcast B-values */
         if ((BN) < X(task, n)) {
           UNROLL_AUTO for (int n0 = 0; n0 < X(task, n); n0 += (BN)) {
             const int n1 = min(BN, X(task, n) - n0);
@@ -106,9 +105,6 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
 #if !defined(SPLIT)
   else { /* full matrix multiplication */
     global const dbm_task_t *const task = &tasks[itask + i];
-    global const double *const amat = ainp + X(task, offset_a);
-    global const double *const bmat = binp + X(task, offset_b);
-    global double *const cmat = cout + X(task, offset_c);
     UNROLL_OUTER(1) for (int m = 0; m < X(task, m); ++m) {
       UNROLL_AUTO for (int n0 = 0; n0 < X(task, n); n0 += (BN)) {
         const int n1 = min(BN, X(task, n) - n0);
