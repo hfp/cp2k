@@ -72,9 +72,13 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
     /* task can be taken by value or by pointer (adjust X-macro accordingly) */
     global const dbm_task_t *const task = &tasks[itask + min(tid, ntasks - 1)];
     const int m = i - tid * max_m;
-    if (i < size && m < XM(task)) { /* valid task */
+    if (m < XM(task)
 #if defined(BCST_WG)
-      if (m < (WG)) {               /* broadcast B-values */
+        && i < size
+#endif
+    ) { /* valid task */
+#if defined(BCST_WG) /* broadcast B-values */
+      if (m < (WG)) {
         if ((BN) < XN(task)) {
           UNROLL_AUTO for (int n0 = 0; n0 < XN(task); n0 += (BN)) {
             const int n1 = min(BN, XN(task) - n0);
@@ -106,7 +110,7 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
     }
   }
 #if !defined(SPLIT)
-  else { /* full matrix multiplication */
+  else /*if (i < size)*/ { /* full matrix multiplication */
     global const dbm_task_t *const task = &tasks[itask + i];
     UNROLL_OUTER(1) for (int m = 0; m < XM(task); ++m) {
       UNROLL_AUTO for (int n0 = 0; n0 < XN(task); n0 += (BN)) {
