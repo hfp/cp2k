@@ -64,9 +64,7 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
   const int i = (int)get_global_id(0);
 
   UNROLL_FORCE(BN) for (int n = 0; n < (BN); ++n) cvec[n] = 0; /* clear */
-#if !defined(SPLIT)
-  if (size != ntasks)
-#endif
+#if defined(SPLIT)
   { /* DBM_MULTIPLY_SPLIT */
     const int max_m = size / ntasks, tid = i / max_m;
     /* task can be taken by value or by pointer (adjust X-macro accordingly) */
@@ -109,10 +107,9 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
       }
     }
   }
-#if !defined(SPLIT)
-  else
+#else
 #if defined(BCST_WG)
-      if (i < size)
+  if (i < size)
 #endif
   { /* full matrix multiplication */
     global const dbm_task_t *const task = &tasks[itask + i];

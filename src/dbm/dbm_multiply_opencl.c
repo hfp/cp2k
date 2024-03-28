@@ -72,6 +72,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       ndims = 3;
     } else {
       const char *const split_env = getenv("DBM_MULTIPLY_SPLIT");
+      /* BCAST: 0/off, 1/on/WG-intrinsics, 2/on/subgroup-intrinsics */
       const char *const bcast_env = getenv("DBM_MULTIPLY_BCAST");
       const char *const wg_env = getenv("DBM_MULTIPLY_WG");
       const char *const lu_env = getenv("DBM_MULTIPLY_LU");
@@ -80,9 +81,8 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       const int bn = (NULL == bn_env ? 8 /*default*/ : atoi(bn_env));
       const int gpu =
           (CL_DEVICE_TYPE_GPU == c_dbcsr_acc_opencl_config.device.type);
-      split = (NULL == split_env ? 1 /*true*/ : atoi(split_env));
-      bcast = (0 != split ? (NULL == bcast_env ? 0 /*false*/ : atoi(bcast_env))
-                          : 0);
+      split = (NULL == split_env ? 1 /*default*/ : atoi(split_env));
+      bcast = (0 != split ? (NULL == bcast_env ? 0 : atoi(bcast_env)) : 0);
       wgsize[0] = (NULL == wg_env ? (0 == bcast ? 0 : wgsize1)
                                   : strtoul(wg_env, NULL, 10));
       if (0 != wgsize2 && (0 > bcast || 1 < bcast)) { /* use subgroups */
@@ -99,7 +99,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       offset += (size_t)LIBXSMM_SNPRINTF(
           params + offset, sizeof(params) - offset,
           " %s %s %s -DWG=%i -DSG=%i -DLU=%i -DBN=%i",
-          2 <= split ? "-DSPLIT" : "", 0 != bcast ? "-DBCAST" : "",
+          0 != split ? "-DSPLIT" : "", 0 != bcast ? "-DBCAST" : "",
           0 != gpu ? "-DGPU" : "", (int)wgsize[0], (int)wgsize2,
           LIBXSMM_CLMP(lu, -2, 1), LIBXSMM_CLMP(bn, 1, 64));
       if (0 != c_dbcsr_acc_opencl_config.device.intel && 0 < xf) {
