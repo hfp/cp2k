@@ -110,7 +110,7 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
     }
   }
 #if !defined(SPLIT)
-  else /*if (i < size)*/ { /* full matrix multiplication */
+  else if (i < size) { /* full matrix multiplication */
     global const dbm_task_t *const task = &tasks[itask + i];
     UNROLL_OUTER(1) for (int m = 0; m < XM(task); ++m) {
       UNROLL_AUTO for (int n0 = 0; n0 < XN(task); n0 += (BN)) {
