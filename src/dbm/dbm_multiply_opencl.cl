@@ -13,12 +13,12 @@
 #if defined(BCAST) && defined(GPU) && (200 /*2.0*/ <= ACC_OPENCL_VERSION) &&   \
     defined(WG) && (0 < WG) && (BN <= WG)
 #if defined(SG) && (WG == SG)
-#define BCST_WG(V) sub_group_broadcast_first(V)
+#define BCST_WG(V, I) sub_group_broadcast(V, I)
 #else
-#define BCST_WG(V) work_group_broadcast(V, get_local_id(0))
+#define BCST_WG(V, I) work_group_broadcast(V, I)
 #endif
 #endif
-#define BCST_NO(V) (V)
+#define BCST_NO(V, I) (V)
 
 #define IDX(I, J, M, N) ((I) * (N) + (J))
 #define IDT(I, J, M, N) IDX(J, I, N, M)
@@ -36,7 +36,7 @@
       UNROLL_N for (int n = 0; n < (N1); ++n) {                                \
         const int ib = IDX(k, n + (N0), XK(TASK), XN(TASK));                   \
         const double b = (BMAT)[ib + X(TASK, offset_b)];                       \
-        (CVEC)[n] = MAD(a, BCST(b), (CVEC)[n]);                                \
+        (CVEC)[n] = MAD(a, BCST(b, n), (CVEC)[n]);                             \
       }                                                                        \
     }                                                                          \
   } while (0)
@@ -76,7 +76,8 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
 #endif
     ) { /* valid task */
 #if defined(BCST_WG) /* broadcast B-values */
-      if (m < (WG)) {
+      const int q = XM(task) / (WG), r = XM(task) - (WG)*q;
+      if (0 == q || 0 == r) {
         if ((BN) < XN(task)) {
           UNROLL_AUTO for (int n0 = 0; n0 < XN(task); n0 += (BN)) {
             const int n1 = min(BN, XN(task) - n0);
