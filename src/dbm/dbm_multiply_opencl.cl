@@ -13,12 +13,12 @@
 #if defined(BCAST) && defined(GPU) && (200 /*2.0*/ <= ACC_OPENCL_VERSION) &&   \
     defined(WG) && (0 < WG) && (BN <= WG)
 #if defined(SG) && (WG == SG)
-#define BCST_WG(V, I) sub_group_broadcast(V, I)
+#define BCST_WG(V) sub_group_broadcast_first(V)
 #else
-#define BCST_WG(V, I) work_group_broadcast(V, I)
+#define BCST_WG(V) work_group_broadcast(V, get_local_id(0))
 #endif
 #endif
-#define BCST_NO(V, I) (V)
+#define BCST_NO(V) (V)
 
 #define IDX(I, J, M, N) ((I) * (N) + (J))
 #define IDT(I, J, M, N) IDX(J, I, N, M)
@@ -36,7 +36,7 @@
       UNROLL_N for (int n = 0; n < (N1); ++n) {                                \
         const int ib = IDX(k, n + (N0), XK(TASK), XN(TASK));                   \
         const double b = (BMAT)[ib + X(TASK, offset_b)];                       \
-        (CVEC)[n] = MAD(a, BCST(b, n), (CVEC)[n]);                             \
+        (CVEC)[n] = MAD(a, BCST(b), (CVEC)[n]);                                \
       }                                                                        \
     }                                                                          \
   } while (0)
