@@ -10,8 +10,8 @@
 #include "../../exts/dbcsr/src/acc/opencl/common/opencl_atomics.h"
 #include "dbm_multiply_internal.h"
 
-#if defined(BCAST) && defined(GPU) && (200 /*2.0*/ <= ACC_OPENCL_VERSION) &&   \
-    defined(WG) && (0 < WG) && (BN <= WG)
+#if defined(GPU) && defined(WG) && (0 < WG) && (BN <= WG) &&                   \
+    (200 /*2.0*/ <= ACC_OPENCL_VERSION)
 #if defined(SG) && (WG == SG)
 #define BCST_WG(V) sub_group_broadcast(V, 0)
 #else
