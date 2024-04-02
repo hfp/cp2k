@@ -13,12 +13,12 @@
 #if defined(BCAST) && defined(GPU) && (200 /*2.0*/ <= ACC_OPENCL_VERSION) &&   \
     defined(WG) && (0 < WG) && (BN <= WG)
 #if defined(SG) && (WG == SG)
-#define BCST_WG(V, I) sub_group_broadcast(V, I)
+#define BCST_WG(V) sub_group_broadcast(V, 0)
 #else
-#define BCST_WG(V, I) work_group_broadcast(V, I)
+#define BCST_WG(V) work_group_broadcast(V, 0)
 #endif
 #endif
-#define BCST_NO(V, I) (V)
+#define BCST_NO(V) (V)
 
 #define IDX(I, J, M, N) ((I) * (N) + (J))
 #define IDT(I, J, M, N) IDX(J, I, N, M)
@@ -29,26 +29,22 @@
 
 #define DBM_MULTIPLY_KERNEL(TASK, AMAT, BMAT, CVEC, M, N0, N1, BCST, UNROLL_N, \
                             UNROLL_K)                                          \
-  do {                                                                         \
-    UNROLL_K for (int k = 0; k < XK(TASK); ++k) {                              \
-      const int ia = IDT(M, k, XM(TASK), XK(TASK));                            \
-      const double a = (AMAT)[ia + X(TASK, offset_a)];                         \
-      UNROLL_N for (int n = 0; n < (N1); ++n) {                                \
-        const int ib = IDX(k, n + (N0), XK(TASK), XN(TASK));                   \
-        const double b = (BMAT)[ib + X(TASK, offset_b)];                       \
-        (CVEC)[n] = MAD(a, BCST(b, n), (CVEC)[n]);                             \
-      }                                                                        \
+  UNROLL_K for (int k = 0; k < XK(TASK); ++k) {                                \
+    const int ia = IDT(M, k, XM(TASK), XK(TASK));                              \
+    const double a = (AMAT)[ia + X(TASK, offset_a)];                           \
+    UNROLL_N for (int n = 0; n < (N1); ++n) {                                  \
+      const int ib = IDX(k, n + (N0), XK(TASK), XN(TASK));                     \
+      const double b = (BMAT)[ib + X(TASK, offset_b)];                         \
+      (CVEC)[n] = MAD(a, BCST(b), (CVEC)[n]);                                  \
     }                                                                          \
-  } while (0)
+  }
 
 #define DBM_MULTIPLY_ACCUMULATE(ALPHA, TASK, CMAT, CVEC, M, N0, BN)            \
-  do { /* flush private accumulator to global memory using atomics */          \
-    UNROLL_FORCE(BN) for (int n = 0; n < (BN); ++n) {                          \
-      const int ic = IDT(M, n + (N0), XM(TASK), XN(TASK));                     \
-      ACCUMULATE((CMAT) + ic + X(TASK, offset_c), (ALPHA) * (CVEC)[n]);        \
-      (CVEC)[n] = ZERO; /* reset */                                            \
-    }                                                                          \
-  } while (0)
+  UNROLL_FORCE(BN) for (int n = 0; n < (BN); ++n) {                            \
+    const int ic = IDT(M, n + (N0), XM(TASK), XN(TASK));                       \
+    ACCUMULATE((CMAT) + ic + X(TASK, offset_c), (ALPHA) * (CVEC)[n]);          \
+    (CVEC)[n] = ZERO; /* reset */                                              \
+  }
 
 #if defined(WG) && (0 < WG)
 __attribute__((reqd_work_group_size(WG, 1, 1)))
@@ -60,24 +56,21 @@ kernel void
 dbm_multiply(double alpha, int itask, int ntasks, int size,
              global const dbm_task_t *tasks, global const double *restrict amat,
              global const double *restrict bmat, global double *restrict cmat) {
-  double cvec[BN];
+  double cvec[BN]; /* flush accumulator to global memory using atomics */
   const int i = (int)get_global_id(0);
 
   UNROLL_FORCE(BN) for (int n = 0; n < (BN); ++n) cvec[n] = 0; /* clear */
+#if defined(BCST_WG)
+  if (i < size)
+#endif
 #if defined(SPLIT)
   { /* DBM_MULTIPLY_SPLIT */
-    const int max_m = size / ntasks, tid = i / max_m;
+    const int max_m = size / ntasks, tid = i / max_m, m = i - tid * max_m;
     /* task can be taken by value or by pointer (adjust X-macro accordingly) */
-    global const dbm_task_t *const task = &tasks[itask + min(tid, ntasks - 1)];
-    const int m = i - tid * max_m;
-    if (m < XM(task)
-#if defined(BCST_WG)
-        && i < size
-#endif
-    ) { /* valid task */
+    global const dbm_task_t *const task = &tasks[itask + tid];
+    if (m < XM(task)) { /* valid task */
 #if defined(BCST_WG) /* broadcast B-values */
-      const int q = XM(task) / (WG), r = XM(task) - (WG)*q;
-      if (0 == q || 0 == r) {
+      if (XM(task) <= XN(task)) {
         if ((BN) < XN(task)) {
           UNROLL_AUTO for (int n0 = 0; n0 < XN(task); n0 += (BN)) {
             const int n1 = min(BN, XN(task) - n0);
@@ -109,9 +102,6 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
     }
   }
 #else
-#if defined(BCST_WG)
-  if (i < size)
-#endif
   { /* full matrix multiplication */
     global const dbm_task_t *const task = &tasks[itask + i];
     UNROLL_OUTER(1) for (int m = 0; m < XM(task); ++m) {
