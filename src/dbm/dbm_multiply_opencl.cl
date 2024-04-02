@@ -48,7 +48,7 @@
 
 #if defined(WG) && (0 < WG)
 __attribute__((reqd_work_group_size(WG, 1, 1)))
-#if defined(SG) && (WG == SG)
+#if defined(SG) && (0 < SG)
 __attribute__((intel_reqd_sub_group_size(SG)))
 #endif
 #endif
@@ -63,7 +63,7 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
 #if defined(BCST_WG)
   if (i < size)
 #endif
-#if defined(SPLIT)
+#if defined(SPLIT) && (1 == SPLIT)
   { /* DBM_MULTIPLY_SPLIT */
     const int max_m = size / ntasks, tid = i / max_m, m = i - tid * max_m;
     /* task can be taken by value or by pointer (adjust X-macro accordingly) */
@@ -71,8 +71,8 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
     if (m < XM(task)) { /* valid task */
 #if defined(BCST_WG) /* broadcast B-values */
       if (XM(task) <= XN(task)) {
-        if ((BN) < XN(task)) {
-          UNROLL_AUTO for (int n0 = 0; n0 < XN(task); n0 += (BN)) {
+        if (BN < XN(task)) {
+          UNROLL_AUTO for (int n0 = 0; n0 < XN(task); n0 += BN) {
             const int n1 = min(BN, XN(task) - n0);
             DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, n0, n1, BCST_WG,
                                 UNROLL_FORCE(BN), UNROLL_AUTO);
@@ -86,8 +86,8 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
       } else
 #endif
       {
-        if ((BN) < XN(task)) {
-          UNROLL_AUTO for (int n0 = 0; n0 < XN(task); n0 += (BN)) {
+        if (BN < XN(task)) {
+          UNROLL_AUTO for (int n0 = 0; n0 < XN(task); n0 += BN) {
             const int n1 = min(BN, XN(task) - n0);
             DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, n0, n1, BCST_NO,
                                 UNROLL_FORCE(BN), UNROLL_AUTO);
@@ -105,7 +105,7 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
   { /* full matrix multiplication */
     global const dbm_task_t *const task = &tasks[itask + i];
     UNROLL_OUTER(1) for (int m = 0; m < XM(task); ++m) {
-      UNROLL_AUTO for (int n0 = 0; n0 < XN(task); n0 += (BN)) {
+      UNROLL_AUTO for (int n0 = 0; n0 < XN(task); n0 += BN) {
         const int n1 = min(BN, XN(task) - n0);
         DBM_MULTIPLY_KERNEL(task, amat, bmat, cvec, m, n0, n1, BCST_NO,
                             UNROLL_AUTO, UNROLL_AUTO);
