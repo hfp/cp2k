@@ -10,8 +10,7 @@
 #include "../../exts/dbcsr/src/acc/opencl/common/opencl_atomics.h"
 #include "dbm_multiply_internal.h"
 
-#if defined(GPU) && defined(WG) && (0 < WG) && (BN <= WG) &&                   \
-    (200 /*2.0*/ <= ACC_OPENCL_VERSION)
+#if defined(GPU) && defined(WG) && (0 < WG) && (200 <= ACC_OPENCL_VERSION)
 #if defined(SG) && (WG == SG)
 #define BCST_WG(V) sub_group_broadcast(V, 0)
 #else
@@ -22,7 +21,7 @@
 
 #define IDX(I, J, M, N) ((I) * (N) + (J))
 #define IDT(I, J, M, N) IDX(J, I, N, M)
-#define X(T, I) (T)->I
+#define X(T, I) (T)->I /* task can be taken by value or by pointer */
 #define XM(T) X(T, m)
 #define XN(T) X(T, n)
 #define XK(T) X(T, k)
@@ -56,19 +55,23 @@ kernel void
 dbm_multiply(double alpha, int itask, int ntasks, int size,
              global const dbm_task_t *tasks, global const double *restrict amat,
              global const double *restrict bmat, global double *restrict cmat) {
-  double cvec[BN]; /* flush accumulator to global memory using atomics */
+#if defined(SPLIT) && (1 < SPLIT) && defined(WG) && (0 < WG)
+  { /* A and B matrix buffered per WG */
+    local double smem[2 * WG];
+    global const dbm_task_t *const task = &tasks[itask + get_group_id(0)];
+    /* TODO */
+  }
+#elif defined(SPLIT) && (1 == SPLIT)
   const int i = (int)get_global_id(0);
-
-  UNROLL_FORCE(BN) for (int n = 0; n < (BN); ++n) cvec[n] = 0; /* clear */
 #if defined(BCST_WG)
   if (i < size)
 #endif
-#if defined(SPLIT) && (1 == SPLIT)
   { /* DBM_MULTIPLY_SPLIT */
+    double cvec[BN];
     const int max_m = size / ntasks, tid = i / max_m, m = i - tid * max_m;
-    /* task can be taken by value or by pointer (adjust X-macro accordingly) */
     global const dbm_task_t *const task = &tasks[itask + tid];
     if (m < XM(task)) { /* valid task */
+      UNROLL_FORCE(BN) for (int n = 0; n < (BN); ++n) cvec[n] = 0; /* clear */
 #if defined(BCST_WG) /* broadcast B-values */
       if (XM(task) <= XN(task)) {
         if (BN < XN(task)) {
@@ -102,8 +105,13 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
     }
   }
 #else
+#if defined(BCST_WG)
+  if (get_global_id(0) < size)
+#endif
   { /* full matrix multiplication */
-    global const dbm_task_t *const task = &tasks[itask + i];
+    double cvec[BN];
+    global const dbm_task_t *const task = &tasks[itask + get_global_id(0)];
+    UNROLL_FORCE(BN) for (int n = 0; n < (BN); ++n) cvec[n] = 0; /* clear */
     UNROLL_OUTER(1) for (int m = 0; m < XM(task); ++m) {
       UNROLL_AUTO for (int n0 = 0; n0 < XN(task); n0 += BN) {
         const int n1 = min(BN, XN(task) - n0);
