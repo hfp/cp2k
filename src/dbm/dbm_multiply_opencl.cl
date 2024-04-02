@@ -53,7 +53,7 @@
             const int idx = l * XN(TASK) + j; /* B^T */                        \
             const int load = (l < XK(TASK) && j < XN(TASK));                   \
             (BSHM)[xT * (BN) + yT] =                                           \
-                (0 != load ? (BSHM)[xT * (BN) + yT] : ZERO);                   \
+                (0 != load ? (BMAT)[X(TASK, offset_b) + idx] : ZERO);          \
           }                                                                    \
           /* multiply tiles from local memory */                               \
           BARRIER(CLK_LOCAL_MEM_FENCE);                                        \
