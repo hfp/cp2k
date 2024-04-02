@@ -26,6 +26,57 @@
 #define XN(T) X(T, n)
 #define XK(T) X(T, k)
 
+#define DBM_MULTIPLY_TASK(ALPHA, TASK, AMAT, BMAT, CMAT, BM, BN, BK)           \
+  do {                                                                         \
+    local double tile_a[(BM) * (BK)], tile_b[(BK) * (BN)];                     \
+    const int tid = (int)get_local_id(0);                                      \
+    const int y = tid / (BM);       /* can exceed BN, reaches BK */            \
+    const int x = tid - y * (BM);   /* fastest index, not exceeding BM */      \
+    const int xT = tid / (BN);      /* can exceed BM, reaches BK */            \
+    const int yT = tid - xT * (BN); /* fastest index, not exceeding BN */      \
+    /* Indices {ijl}_tile mark the beginning of the current tile */            \
+    for (int i_tile = 0; i_tile < XM(TASK); i_tile += (BM)) {                  \
+      for (int j_tile = 0; j_tile < XN(TASK); j_tile += (BN)) {                \
+        double r = ZERO;                                                       \
+        for (int l_tile = 0; l_tile < XK(TASK); l_tile += (BK)) {              \
+          /* Load tile_a from global into shared memory */                     \
+          if (x < (BM) && y < (BK)) {                                          \
+            const int i = i_tile + x, l = l_tile + y;                          \
+            const int idx = l * XM(TASK) + i; /* A^T */                        \
+            const int load = (l < XK(TASK) && i < XM(TASK));                   \
+            tile_a[y * (BM) + x] =                                             \
+                (0 != load ? (AMAT)[idx + X(TASK, offset_a)] : ZERO);          \
+          }                                                                    \
+          /* Load tile_b from global into shared memory                        \
+           * Use transposed thread mapping to achieve coalesced memory reads   \
+           */                                                                  \
+          if (yT < (BN) && xT < (BK)) {                                        \
+            const int j = j_tile + yT, l = l_tile + xT;                        \
+            const int idx = l * XN(TASK) + j; /* B^T */                        \
+            const int load = (l < XK(TASK) && j < XN(TASK));                   \
+            tile_b[xT * (BN) + yT] =                                           \
+                (0 != load ? (BMAT)[idx + X(TASK, offset_b)] : ZERO);          \
+          }                                                                    \
+          /* Multiply tiles from shared memory */                              \
+          BARRIER(CLK_LOCAL_MEM_FENCE);                                        \
+          if (x < (BM) && y < (BN)) {                                          \
+            UNROLL_FORCE(BK) for (int z = 0; z < (BK); ++z) {                  \
+              r = MAD(tile_a[z * (BM) + x], tile_b[z * (BN) + y], r);          \
+            }                                                                  \
+          }                                                                    \
+          BARRIER(CLK_LOCAL_MEM_FENCE);                                        \
+        }                                                                      \
+        /* Add result tile to block_c in global memory */                      \
+        if (x < (BM) && y < (BN)) {                                            \
+          const int i = i_tile + x, j = j_tile + y;                            \
+          if (i < XM(TASK) && j < XN(TASK)) {                                  \
+            ACCUMULATE((CMAT) + j * XM(TASK) + i, (ALPHA)*r);                  \
+          }                                                                    \
+        }                                                                      \
+      }                                                                        \
+    }                                                                          \
+  } while (0)
+
 #define DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, N0, N1,    \
                             BN, BCST, UNROLL_N, UNROLL_K)                      \
   UNROLL_K for (int k = 0; k < XK(TASK); ++k) {                                \
@@ -55,9 +106,9 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
              global const double *restrict bmat, global double *restrict cmat) {
 #if defined(SPLIT) && (1 < SPLIT) && defined(WG) && (0 < WG)
   { /* A and B matrix buffered per WG */
-    local double smem[2 * WG];
     global const dbm_task_t *const task = &tasks[itask + get_group_id(0)];
-    /* TODO */
+    DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, 4 /*BM*/, 4 /*BN*/,
+                      (WG) / MAX(BM, BN));
   }
 #elif defined(SPLIT) && (1 == SPLIT)
   const int i = (int)get_global_id(0);
