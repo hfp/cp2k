@@ -82,7 +82,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       const int gpu =
           (CL_DEVICE_TYPE_GPU == c_dbcsr_acc_opencl_config.device.type);
       split = (NULL == split_env ? 1 /*default*/ : atoi(split_env));
-      bcast = (0 != split ? (NULL == bcast_env ? 0 : atoi(bcast_env)) : 0);
+      bcast = (0 != split ? (NULL == bcast_env ? 2 : atoi(bcast_env)) : 0);
       wgsize[0] = (NULL == wg_env ? (0 == bcast ? 0 : wgsize1)
                                   : strtoul(wg_env, NULL, 10));
       if (0 != wgsize2 && (0 > bcast || 1 < bcast)) { /* use subgroups */
