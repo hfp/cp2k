@@ -34,12 +34,12 @@
     const int x = tid - y * (BM);   /* fastest index, not exceeding BM */      \
     const int xT = tid / (BN);      /* can exceed BM, reaches BK */            \
     const int yT = tid - xT * (BN); /* fastest index, not exceeding BN */      \
-    /* Indices {ijl}_tile mark the beginning of the current tile */            \
+    /* indices {ijl}_tile mark the beginning of the current tile */            \
     for (int i_tile = 0; i_tile < XM(TASK); i_tile += (BM)) {                  \
       for (int j_tile = 0; j_tile < XN(TASK); j_tile += (BN)) {                \
         double r = ZERO;                                                       \
         for (int l_tile = 0; l_tile < XK(TASK); l_tile += (BK)) {              \
-          /* Load tile_a from global into shared memory */                     \
+          /* load A-tile from global into local memory */                      \
           if (x < (BM) && y < (BK)) {                                          \
             const int i = i_tile + x, l = l_tile + y;                          \
             const int idx = l * XM(TASK) + i; /* A^T */                        \
@@ -47,9 +47,7 @@
             (ASHM)[y * (BM) + x] =                                             \
                 (0 != load ? (AMAT)[X(TASK, offset_a) + idx] : ZERO);          \
           }                                                                    \
-          /* Load tile_b from global into shared memory                        \
-           * Use transposed thread mapping to achieve coalesced memory reads   \
-           */                                                                  \
+          /* load B-tile using transposed thread mapping */                    \
           if (yT < (BN) && xT < (BK)) {                                        \
             const int j = j_tile + yT, l = l_tile + xT;                        \
             const int idx = l * XN(TASK) + j; /* B^T */                        \
@@ -57,7 +55,7 @@
             (BSHM)[xT * (BN) + yT] =                                           \
                 (0 != load ? (BSHM)[xT * (BN) + yT] : ZERO);                   \
           }                                                                    \
-          /* Multiply tiles from shared memory */                              \
+          /* multiply tiles from local memory */                               \
           BARRIER(CLK_LOCAL_MEM_FENCE);                                        \
           if (x < (BM) && y < (BN)) {                                          \
             UNROLL_FORCE(BK) for (int z = 0; z < (BK); ++z) {                  \
@@ -66,7 +64,7 @@
           }                                                                    \
           BARRIER(CLK_LOCAL_MEM_FENCE);                                        \
         }                                                                      \
-        /* Add result tile to block_c in global memory */                      \
+        /* add result tile to C in global memory */                            \
         if (x < (BM) && y < (BN)) {                                            \
           const int i = i_tile + x, j = j_tile + y;                            \
           if (i < XM(TASK) && j < XN(TASK)) {                                  \
