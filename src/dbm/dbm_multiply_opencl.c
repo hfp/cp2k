@@ -157,20 +157,22 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 8, cdata.memory);
     result |= clSetKernelArg(kernel, 9, sizeof(cl_uint), &zero /*C_shape0*/);
   } else {
+    result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &ntasks);
     if (0 != split) {
       if (1 == split) {
         work_size[0] = work_tasks * max_m;
+        result |= clSetKernelArg(kernel, 3, sizeof(cl_int), work_size);
         if (0 < wgsize[0]) { /* fixup to be a multiple of the WG-size */
           work_size[0] = LIBXSMM_UP(work_size[0], wgsize[0]);
         }
       } else {
         work_size[0] = work_tasks * wgsize[0];
+        result |= clSetKernelArg(kernel, 3, sizeof(cl_int), work_size);
       }
     } else {
       work_size[0] = work_tasks;
+      result |= clSetKernelArg(kernel, 3, sizeof(cl_int), work_size);
     }
-    result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &ntasks);
-    result |= clSetKernelArg(kernel, 3, sizeof(cl_int), work_size);
     result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 4, batch.memory);
     result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 5, adata.memory);
     result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 6, bdata.memory);
