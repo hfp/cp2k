@@ -160,7 +160,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   } else {
     result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &ntasks);
     if (0 != split) {
-      if (1 == split) {
+      if (1 == split || 0 == wgsize[0]) {
         work_size[0] = work_tasks * max_m;
         result |= clSetKernelArg(kernel, 3, sizeof(cl_int), work_size);
         if (0 < wgsize[0]) { /* fixup to be a multiple of the WG-size */

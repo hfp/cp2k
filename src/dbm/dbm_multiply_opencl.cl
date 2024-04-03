@@ -108,7 +108,7 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
   global const dbm_task_t *const task = &tasks[itask + get_group_id(0)];
   DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 4 /*BM*/,
                     4 /*BN*/, (WG) / MAX(4 /*BM*/, 4 /*BN*/));
-#elif defined(SPLIT) && (1 == SPLIT)
+#elif defined(SPLIT) && (0 != SPLIT)
   const int i = (int)get_global_id(0);
 #if defined(BCST_WG)
   if (i < size)
