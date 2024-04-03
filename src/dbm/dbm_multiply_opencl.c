@@ -92,7 +92,6 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         wgsize[0] = LIBXSMM_UP(wgsize[0], wgsize1);
       }
       wgsize[0] = LIBXSMM_CLMP(wgsize[0], 0, wgsize0);
-      wgsize2 = LIBXSMM_MIN(wgsize1, wgsize[0]);
       offset += (size_t)LIBXSMM_SNPRINTF(
           params + offset, sizeof(params) - offset,
           " %s -DSPLIT=%i -DBN=%i -DWG=%i -DSG=%i -DLU=%i",
