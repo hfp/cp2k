@@ -75,8 +75,10 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       const char *const wg_env = getenv("DBM_MULTIPLY_WG");
       const char *const lu_env = getenv("DBM_MULTIPLY_LU");
       const char *const bn_env = getenv("DBM_MULTIPLY_BN");
-      const int lu = (NULL == lu_env ? 0 /*default*/ : atoi(lu_env));
-      const int bn = (NULL == bn_env ? 8 /*default*/ : atoi(bn_env));
+      const int lu =
+          LIBXSMM_CLMP(NULL == lu_env ? 0 /*default*/ : atoi(lu_env), -2, 1);
+      const int bn =
+          LIBXSMM_CLMP(NULL == bn_env ? 8 /*default*/ : atoi(bn_env), 1, 64);
       const int gpu =
           (CL_DEVICE_TYPE_GPU == c_dbcsr_acc_opencl_config.device.type);
       split = (NULL == split_env ? 1 /*default*/ : atoi(split_env));
@@ -95,9 +97,8 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       wgsize2 = LIBXSMM_MIN(wgsize1, wgsize[0]);
       offset += (size_t)LIBXSMM_SNPRINTF(
           params + offset, sizeof(params) - offset,
-          " -DSPLIT=%i -DWG=%i -DSG=%i -DLU=%i -DBN=%i %s", split,
-          (int)wgsize[0], (int)wgsize2, LIBXSMM_CLMP(lu, -2, 1),
-          LIBXSMM_CLMP(bn, 1, 64), 0 != gpu ? "-DGPU" : "");
+          " %s -DSPLIT=%i -DBN=%i -DWG=%i -DSG=%i -DLU=%i",
+          0 != gpu ? "-DGPU" : "", split, bn, (int)wgsize[0], (int)wgsize2, lu);
       if (0 != c_dbcsr_acc_opencl_config.device.intel && 0 < xf) {
         flags = "-cl-intel-256-GRF-per-thread";
       }
@@ -110,13 +111,17 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     if (2 <= verbosity || 0 > verbosity) {
       if (EXIT_SUCCESS == result) {
         const double d = libxsmm_timer_duration(start, libxsmm_timer_tick());
-        fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel");
+        fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel gpu=%i", gpu);
         if (0 == gen) {
           fprintf(stderr, " split=%i", split);
+          if (1 == split) {
+            fprintf(stderr, " bn=%i", bn);
+          }
         } else { /* generated kernel */
           fprintf(stderr, " gen=%i", gen);
         }
-        fprintf(stderr, " wg=%i ms=%.1f\n", (int)wgsize[0], 1E3 * d);
+        fprintf(stderr, " wg=%i sg=%i lu=%i ms=%.1f\n", (int)wgsize[0],
+                (int)wgsize2, lu, 1E3 * d);
       } else {
         fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel failed to generate\n");
       }
