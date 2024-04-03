@@ -45,9 +45,15 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     char params[ACC_OPENCL_BUFFERSIZE] =
         "-cl-fast-relaxed-math -cl-denorms-are-zero";
     const char *const gen_env = getenv("DBM_MULTIPLY_GEN");
-    const char *const gen_xf = getenv("DBM_MULTIPLY_XF");
+    const char *const xf_env = getenv("DBM_MULTIPLY_XF");
+    const char *const lu_env = getenv("DBM_MULTIPLY_LU");
+    const char *const bn_env = getenv("DBM_MULTIPLY_BN");
+    const int gpu =
+        (CL_DEVICE_TYPE_GPU == c_dbcsr_acc_opencl_config.device.type);
     const int gen = (NULL == gen_env ? 0 /*default*/ : atoi(gen_env));
-    const int xf = (NULL == gen_xf ? -1 /*default*/ : atoi(gen_xf));
+    const int xf = (NULL == xf_env ? -1 /*default*/ : atoi(xf_env));
+    const int lu = LIBXSMM_CLMP(NULL == lu_env ? 0 : atoi(lu_env), -2, 1);
+    const int bn = LIBXSMM_CLMP(NULL == bn_env ? 8 : atoi(bn_env), 1, 64);
     const char *extensions[] = {NULL, NULL}, *flags = NULL;
     size_t nextensions = sizeof(extensions) / sizeof(*extensions);
     const size_t wgsize0 = c_dbcsr_acc_opencl_config.device.wgsize[0];
@@ -73,14 +79,6 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     } else {
       const char *const split_env = getenv("DBM_MULTIPLY_SPLIT");
       const char *const wg_env = getenv("DBM_MULTIPLY_WG");
-      const char *const lu_env = getenv("DBM_MULTIPLY_LU");
-      const char *const bn_env = getenv("DBM_MULTIPLY_BN");
-      const int lu =
-          LIBXSMM_CLMP(NULL == lu_env ? 0 /*default*/ : atoi(lu_env), -2, 1);
-      const int bn =
-          LIBXSMM_CLMP(NULL == bn_env ? 8 /*default*/ : atoi(bn_env), 1, 64);
-      const int gpu =
-          (CL_DEVICE_TYPE_GPU == c_dbcsr_acc_opencl_config.device.type);
       split = (NULL == split_env ? 1 /*default*/ : atoi(split_env));
       wgsize[0] = (NULL == wg_env ? (wgsize1 * LIBXSMM_ABS(split))
                                   : strtoul(wg_env, NULL, 10));
@@ -115,13 +113,13 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         if (0 == gen) {
           fprintf(stderr, " split=%i", split);
           if (1 == split) {
-            fprintf(stderr, " bn=%i", bn);
+            fprintf(stderr, " lu=%i bn=%i", lu, bn);
           }
         } else { /* generated kernel */
           fprintf(stderr, " gen=%i", gen);
         }
-        fprintf(stderr, " wg=%i sg=%i lu=%i ms=%.1f\n", (int)wgsize[0],
-                (int)wgsize2, lu, 1E3 * d);
+        fprintf(stderr, " wg=%i sg=%i ms=%.1f\n", (int)wgsize[0], (int)wgsize2,
+                1E3 * d);
       } else {
         fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel failed to generate\n");
       }
