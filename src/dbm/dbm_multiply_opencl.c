@@ -87,7 +87,6 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
             LIBXSMM_DELTA(wgsize[0], wgsize2)) { /* select SG-size */
           wgsize2 = wgsize1;
         }
-        wgsize[0] = wgsize2;
       } else {
         wgsize[0] = LIBXSMM_UP(wgsize[0], wgsize1);
         wgsize2 = 0;
