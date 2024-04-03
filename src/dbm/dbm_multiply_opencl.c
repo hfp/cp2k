@@ -82,7 +82,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       split = (NULL == split_env ? 1 /*default*/ : atoi(split_env));
       wgsize[0] = (NULL == wg_env ? (wgsize1 * LIBXSMM_ABS(split))
                                   : strtoul(wg_env, NULL, 10));
-      if (1 == split && 0 != wgsize2 && 0 < wgsize[0]) { /* subgroups */
+      if (0 != split && 0 != wgsize2 && 0 < wgsize[0]) { /* subgroups */
         if (LIBXSMM_DELTA(wgsize[0], wgsize1) <=
             LIBXSMM_DELTA(wgsize[0], wgsize2)) { /* select SG-size */
           wgsize2 = wgsize1;
@@ -90,6 +90,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         wgsize[0] = wgsize2;
       } else {
         wgsize[0] = LIBXSMM_UP(wgsize[0], wgsize1);
+        wgsize2 = 0;
       }
       wgsize[0] = LIBXSMM_CLMP(wgsize[0], 0, wgsize0);
       offset += (size_t)LIBXSMM_SNPRINTF(
