@@ -80,8 +80,9 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       const char *const split_env = getenv("DBM_MULTIPLY_SPLIT");
       const char *const wg_env = getenv("DBM_MULTIPLY_WG");
       split = (NULL == split_env ? 1 /*default*/ : atoi(split_env));
-      wgsize[0] = (NULL == wg_env ? 0 /*(wgsize1 * LIBXSMM_ABS(split))*/
-                                  : strtoul(wg_env, NULL, 10));
+      wgsize[0] =
+          (NULL == wg_env ? (1 != split ? (wgsize1 * LIBXSMM_ABS(split)) : 0)
+                          : strtoul(wg_env, NULL, 10));
       if (0 != split && 0 != wgsize2 && 0 < wgsize[0]) { /* subgroups */
         if (LIBXSMM_DELTA(wgsize[0], wgsize1) <=
             LIBXSMM_DELTA(wgsize[0], wgsize2)) { /* select SG-size */
