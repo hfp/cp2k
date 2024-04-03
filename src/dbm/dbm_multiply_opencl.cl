@@ -22,6 +22,9 @@
 #define IDX(I, J, M, N) ((I) * (N) + (J))
 #define IDT(I, J, M, N) IDX(J, I, N, M)
 #define X(T, I) (T)->I /* task can be taken by value or by pointer */
+#define XA(T) X(T, offset_a)
+#define XB(T) X(T, offset_b)
+#define XC(T) X(T, offset_c)
 #define XM(T) X(T, m)
 #define XN(T) X(T, n)
 #define XK(T) X(T, k)
@@ -45,7 +48,7 @@
             const int idx = l * XM(TASK) + i; /* A^T */                        \
             const int load = (l < XK(TASK) && i < XM(TASK));                   \
             (ASHM)[y * (BM) + x] =                                             \
-                (0 != load ? (AMAT)[X(TASK, offset_a) + idx] : ZERO);          \
+                (0 != load ? (AMAT)[XA(TASK) + idx] : ZERO);                   \
           }                                                                    \
           /* load B-tile using transposed thread mapping */                    \
           if (yT < (BN) && xT < (BK)) {                                        \
@@ -53,7 +56,7 @@
             const int idx = l * XN(TASK) + j; /* B^T */                        \
             const int load = (l < XK(TASK) && j < XN(TASK));                   \
             (BSHM)[xT * (BN) + yT] =                                           \
-                (0 != load ? (BMAT)[X(TASK, offset_b) + idx] : ZERO);          \
+                (0 != load ? (BMAT)[XB(TASK) + idx] : ZERO);                   \
           }                                                                    \
           /* multiply tiles from local memory */                               \
           BARRIER(CLK_LOCAL_MEM_FENCE);                                        \
@@ -68,7 +71,7 @@
         if (x < (BM) && y < (BN)) {                                            \
           const int i = i_tile + x, j = j_tile + y;                            \
           if (i < XM(TASK) && j < XN(TASK)) {                                  \
-            ACCUMULATE((CMAT) + j * XM(TASK) + i, (ALPHA)*r);                  \
+            ACCUMULATE((CMAT) + XC(TASK) + j * XM(TASK) + i, (ALPHA)*r);       \
           }                                                                    \
         }                                                                      \
       }                                                                        \
@@ -79,16 +82,16 @@
                             BN, BCST, UNROLL_N, UNROLL_K)                      \
   UNROLL_K for (int k = 0; k < XK(TASK); ++k) {                                \
     const int ia = IDT(M, k, XM(TASK), XK(TASK));                              \
-    const double a = (AMAT)[X(TASK, offset_a) + ia];                           \
+    const double a = (AMAT)[XA(TASK) + ia];                                    \
     UNROLL_N for (int n = 0; n < (N1); ++n) {                                  \
       const int ib = IDX(k, n + (N0), XK(TASK), XN(TASK));                     \
-      const double b = (BMAT)[X(TASK, offset_b) + ib];                         \
+      const double b = (BMAT)[XB(TASK) + ib];                                  \
       (CVEC)[n] = MAD(a, BCST(b), (CVEC)[n]);                                  \
     }                                                                          \
   }                                                                            \
   UNROLL_FORCE(BN) for (int n = 0; n < (BN); ++n) { /* flush to global */      \
     const int ic = IDT(M, n + (N0), XM(TASK), XN(TASK));                       \
-    ACCUMULATE((CMAT) + X(TASK, offset_c) + ic, (ALPHA) * (CVEC)[n]);          \
+    ACCUMULATE((CMAT) + XC(TASK) + ic, (ALPHA) * (CVEC)[n]);                   \
     (CVEC)[n] = ZERO; /* reset */                                              \
   }
 
