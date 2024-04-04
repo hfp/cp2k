@@ -40,33 +40,29 @@
       for (int n0 = 0; n0 < XN(TASK); n0 += (BN)) {                            \
         double r = ZERO;                                                       \
         UNROLL_AUTO for (int k0 = 0; k0 < XK(TASK); k0 += bk) {                \
-          /* load A-tile from global into local memory */                      \
-          if (x < (BM) && y < bk) {                                            \
+          if (x < (BM) && y < bk) { /* load A-tile */                          \
             const int m = m0 + x, k = k0 + y;                                  \
             const int idx = IDT(m, k, XM(TASK), XK(TASK));                     \
             (ASHM)[y * (BM) + x] =                                             \
                 ((k < XK(TASK) && m < XM(TASK)) ? (AMAT)[XA(TASK) + idx]       \
                                                 : ZERO);                       \
           }                                                                    \
-          /* load B-tile using transposed thread mapping */                    \
-          if (yT < (BN) && xT < bk) {                                          \
+          if (yT < (BN) && xT < bk) { /* load B-tile */                        \
             const int n = n0 + yT, k = k0 + xT;                                \
             const int idx = IDX(k, n, XK(TASK), XN(TASK));                     \
             (BSHM)[xT * (BN) + yT] =                                           \
                 ((k < XK(TASK) && n < XN(TASK)) ? (BMAT)[XB(TASK) + idx]       \
                                                 : ZERO);                       \
           }                                                                    \
-          /* multiply tiles from local memory */                               \
           BARRIER(CLK_LOCAL_MEM_FENCE);                                        \
-          if (x < (BM) && y < (BN)) {                                          \
+          if (x < (BM) && y < (BN)) { /* multiply tiles */                     \
             UNROLL_FORCE((WG) / MAX(BM, BN)) for (int z = 0; z < bk; ++z) {    \
               r = MAD((ASHM)[z * (BM) + x], (BSHM)[z * (BN) + y], r);          \
             }                                                                  \
           }                                                                    \
           BARRIER(CLK_LOCAL_MEM_FENCE);                                        \
         }                                                                      \
-        /* add result tile to C in global memory */                            \
-        if (x < (BM) && y < (BN)) {                                            \
+        if (x < (BM) && y < (BN)) { /* flush to global */                      \
           const int m = m0 + x, n = n0 + y;                                    \
           if (m < XM(TASK) && n < XN(TASK)) {                                  \
             const int idx = IDT(m, n, XM(TASK), XN(TASK));                     \
