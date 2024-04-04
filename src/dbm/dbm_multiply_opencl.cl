@@ -36,24 +36,24 @@
     const int x = tid - y * (BM);   /* fastest index, not exceeding BM */      \
     const int xT = tid / (BN);      /* can exceed BM, reaches BK */            \
     const int yT = tid - xT * (BN); /* fastest index, not exceeding BN */      \
-    for (int i0 = 0; i0 < XM(TASK); i0 += (BM)) {                              \
-      for (int j0 = 0; j0 < XN(TASK); j0 += (BN)) {                            \
+    for (int m0 = 0; m0 < XM(TASK); m0 += (BM)) {                              \
+      for (int n0 = 0; n0 < XN(TASK); n0 += (BN)) {                            \
         double r = ZERO;                                                       \
         UNROLL_AUTO for (int k0 = 0; k0 < XK(TASK); k0 += bk) {                \
           /* load A-tile from global into local memory */                      \
           if (x < (BM) && y < bk) {                                            \
-            const int i = i0 + x, k = k0 + y;                                  \
-            const int idx = k * XM(TASK) + i; /* A^T */                        \
+            const int m = m0 + x, k = k0 + y;                                  \
+            const int idx = IDT(m, k, XM(TASK), XK(TASK));                     \
             (ASHM)[y * (BM) + x] =                                             \
-                ((k < XK(TASK) && i < XM(TASK)) ? (AMAT)[XA(TASK) + idx]       \
+                ((k < XK(TASK) && m < XM(TASK)) ? (AMAT)[XA(TASK) + idx]       \
                                                 : ZERO);                       \
           }                                                                    \
           /* load B-tile using transposed thread mapping */                    \
           if (yT < (BN) && xT < bk) {                                          \
-            const int j = j0 + yT, k = k0 + xT;                                \
-            const int idx = k * XN(TASK) + j; /* B^T */                        \
+            const int n = n0 + yT, k = k0 + xT;                                \
+            const int idx = IDX(k, n, XK(TASK), XN(TASK));                     \
             (BSHM)[xT * (BN) + yT] =                                           \
-                ((k < XK(TASK) && j < XN(TASK)) ? (BMAT)[XB(TASK) + idx]       \
+                ((k < XK(TASK) && n < XN(TASK)) ? (BMAT)[XB(TASK) + idx]       \
                                                 : ZERO);                       \
           }                                                                    \
           /* multiply tiles from local memory */                               \
@@ -67,9 +67,10 @@
         }                                                                      \
         /* add result tile to C in global memory */                            \
         if (x < (BM) && y < (BN)) {                                            \
-          const int i = i0 + x, j = j0 + y;                                    \
-          if (i < XM(TASK) && j < XN(TASK)) {                                  \
-            ACCUMULATE((CMAT) + XC(TASK) + j * XM(TASK) + i, (ALPHA)*r);       \
+          const int m = m0 + x, n = n0 + y;                                    \
+          if (m < XM(TASK) && n < XN(TASK)) {                                  \
+            const int idx = IDT(m, n, XM(TASK), XN(TASK));                     \
+            ACCUMULATE((CMAT) + XC(TASK) + idx, (ALPHA)*r);                    \
           }                                                                    \
         }                                                                      \
       }                                                                        \
