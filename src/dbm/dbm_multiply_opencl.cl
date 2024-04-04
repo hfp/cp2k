@@ -107,7 +107,7 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
              global const double *restrict bmat, global double *restrict cmat) {
 #if defined(SPLIT) && (1 < SPLIT) && defined(WG) && (0 < WG)
   /* A and B matrix buffered per WG */
-  local double tile_a[4 /*BM*/ * 4 /*BK*/], tile_b[4 /*BK*/ * 4 /*BN*/];
+  local double tile_a[WG], tile_b[WG];
   global const dbm_task_t *const task = &tasks[itask + get_group_id(0)];
   DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 4 /*BM*/,
                     4 /*BN*/, (WG) / MAX(4 /*BM*/, 4 /*BN*/));
