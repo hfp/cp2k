@@ -53,7 +53,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     const int gen = (NULL == gen_env ? 0 /*default*/ : atoi(gen_env));
     const int xf = (NULL == xf_env ? -1 /*default*/ : atoi(xf_env));
     const int lu = LIBXSMM_CLMP(NULL == lu_env ? 0 : atoi(lu_env), -2, 1);
-    int bn = LIBXSMM_CLMP(NULL == bn_env ? 8 : atoi(bn_env), 1, 32);
+    int bn = (NULL == bn_env ? 8 : atoi(bn_env));
     const char *extensions[] = {NULL, NULL}, *flags = NULL;
     size_t nextensions = sizeof(extensions) / sizeof(*extensions);
     const size_t wgsize0 = c_dbcsr_acc_opencl_config.device.wgsize[0];
@@ -96,10 +96,11 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         wgsize[0] = LIBXSMM_UP(wgsize[0], wgsize1);
         wgsize2 = 0;
       }
+      wgsize[0] = LIBXSMM_CLMP(wgsize[0], 0, wgsize0);
       if (0 != split && 1 != split && (bn * bn) < (int)wgsize[0]) {
         bn = libxsmm_isqrt2_u32(wgsize[0]);
       }
-      wgsize[0] = LIBXSMM_CLMP(wgsize[0], 0, wgsize0);
+      bn = LIBXSMM_CLMP(bn, 4, 32);
       offset += (size_t)LIBXSMM_SNPRINTF(
           params + offset, sizeof(params) - offset,
           " %s -DSPLIT=%i -DBN=%i -DWG=%i -DSG=%i -DLU=%i",
