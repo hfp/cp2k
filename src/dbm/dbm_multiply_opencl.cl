@@ -39,7 +39,7 @@
     for (int i0 = 0; i0 < XM(TASK); i0 += (BM)) {                              \
       for (int j0 = 0; j0 < XN(TASK); j0 += (BN)) {                            \
         double r = ZERO;                                                       \
-        for (int k0 = 0; k0 < XK(TASK); k0 += bk) {                            \
+        UNROLL_AUTO for (int k0 = 0; k0 < XK(TASK); k0 += bk) {                \
           /* load A-tile from global into local memory */                      \
           if (x < (BM) && y < bk) {                                            \
             const int i = i0 + x, k = k0 + y;                                  \
@@ -107,36 +107,12 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
   /* A and B matrix buffered per WG */
   local double tile_a[WG], tile_b[WG];
   global const dbm_task_t *const task = &tasks[itask + get_group_id(0)];
-  if (XM(task) <= 4 && XN(task) <= 4) {
-    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 4, 4);
-  } else if (XM(task) <= 4 && XN(task) <= 8) {
-    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 4, 8);
-  } else if (XM(task) <= 4 && XN(task) <= 16) {
-    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 4, 16);
-  } else if (XM(task) <= 4 && XN(task) <= 32) {
-    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 4, 32);
-  } else if (XM(task) <= 4) {
-    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 4, 64);
-  } else if (XM(task) <= 8 && XN(task) <= 4) {
+  if (2 * XN(task) <= XM(task)) {
     DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 8, 4);
-  } else if (XM(task) <= 16 && XN(task) <= 4) {
-    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 16, 4);
-  } else if (XM(task) <= 32 && XN(task) <= 4) {
-    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 32, 4);
-  } else if (XN(task) <= 4) {
-    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 64, 4);
-  } else if (XM(task) <= 8 && XN(task) <= 8) {
-    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 8, 8);
-  } else if (XM(task) <= 8 && XN(task) <= 16) {
-    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 8, 16);
-  } else if (XM(task) <= 8) {
-    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 8, 32);
-  } else if (XM(task) <= 16 && XN(task) <= 8) {
-    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 16, 8);
-  } else if (XN(task) <= 8) {
-    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 32, 8);
+  } else if (2 * XM(task) <= XN(task)) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 4, 8);
   } else {
-    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 16, 16);
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 8, 8);
   }
 #elif defined(SPLIT) && (0 != SPLIT)
   const int i = (int)get_global_id(0);
