@@ -102,14 +102,16 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
              global const double *restrict bmat, global double *restrict cmat) {
 #if defined(SPLIT) && (1 < SPLIT) && defined(WG) && (0 < WG)
   /* A and B matrix buffered per WG */
-  local double tile_a[WG], tile_b[WG];
+  local double tile_a[MAX(BN * BN, WG)], tile_b[MAX(BN * BN, WG)];
   global const dbm_task_t *const task = &tasks[itask + get_group_id(0)];
   if (2 * XN(task) <= XM(task)) {
-    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 8, 4);
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, BN,
+                      BN / 2);
   } else if (2 * XM(task) <= XN(task)) {
-    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 4, 8);
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, BN / 2,
+                      BN);
   } else {
-    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 8, 8);
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, BN, BN);
   }
 #elif defined(SPLIT) && (0 != SPLIT)
   const int i = (int)get_global_id(0);
