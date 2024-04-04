@@ -29,39 +29,37 @@
 #define XN(T) X(T, n)
 #define XK(T) X(T, k)
 
-#define DBM_MULTIPLY_TASK(ALPHA, TASK, AMAT, ASHM, BMAT, BSHM, CMAT, BM, BN,   \
-                          BK)                                                  \
+#define DBM_MULTIPLY_TASK(ALPHA, TASK, AMAT, ASHM, BMAT, BSHM, CMAT, BM, BN)   \
   do {                                                                         \
-    const int tid = (int)get_local_id(0);                                      \
+    const int tid = (int)get_local_id(0), bk = (WG) / MAX(BM, BN);             \
     const int y = tid / (BM);       /* can exceed BN, reaches BK */            \
     const int x = tid - y * (BM);   /* fastest index, not exceeding BM */      \
     const int xT = tid / (BN);      /* can exceed BM, reaches BK */            \
     const int yT = tid - xT * (BN); /* fastest index, not exceeding BN */      \
-    /* indices {ijl}_tile mark the beginning of the current tile */            \
-    for (int i_tile = 0; i_tile < XM(TASK); i_tile += (BM)) {                  \
-      for (int j_tile = 0; j_tile < XN(TASK); j_tile += (BN)) {                \
+    for (int i0 = 0; i0 < XM(TASK); i0 += (BM)) {                              \
+      for (int j0 = 0; j0 < XN(TASK); j0 += (BN)) {                            \
         double r = ZERO;                                                       \
-        for (int l_tile = 0; l_tile < XK(TASK); l_tile += (BK)) {              \
+        for (int k0 = 0; k0 < XK(TASK); k0 += bk) {                            \
           /* load A-tile from global into local memory */                      \
-          if (x < (BM) && y < (BK)) {                                          \
-            const int i = i_tile + x, l = l_tile + y;                          \
-            const int idx = l * XM(TASK) + i; /* A^T */                        \
-            const int load = (l < XK(TASK) && i < XM(TASK));                   \
+          if (x < (BM) && y < bk) {                                            \
+            const int i = i0 + x, k = k0 + y;                                  \
+            const int idx = k * XM(TASK) + i; /* A^T */                        \
             (ASHM)[y * (BM) + x] =                                             \
-                (0 != load ? (AMAT)[XA(TASK) + idx] : ZERO);                   \
+                ((k < XK(TASK) && i < XM(TASK)) ? (AMAT)[XA(TASK) + idx]       \
+                                                : ZERO);                       \
           }                                                                    \
           /* load B-tile using transposed thread mapping */                    \
-          if (yT < (BN) && xT < (BK)) {                                        \
-            const int j = j_tile + yT, l = l_tile + xT;                        \
-            const int idx = l * XN(TASK) + j; /* B^T */                        \
-            const int load = (l < XK(TASK) && j < XN(TASK));                   \
+          if (yT < (BN) && xT < bk) {                                          \
+            const int j = j0 + yT, k = k0 + xT;                                \
+            const int idx = k * XN(TASK) + j; /* B^T */                        \
             (BSHM)[xT * (BN) + yT] =                                           \
-                (0 != load ? (BMAT)[XB(TASK) + idx] : ZERO);                   \
+                ((k < XK(TASK) && j < XN(TASK)) ? (BMAT)[XB(TASK) + idx]       \
+                                                : ZERO);                       \
           }                                                                    \
           /* multiply tiles from local memory */                               \
           BARRIER(CLK_LOCAL_MEM_FENCE);                                        \
           if (x < (BM) && y < (BN)) {                                          \
-            UNROLL_FORCE(BK) for (int z = 0; z < (BK); ++z) {                  \
+            UNROLL_FORCE((WG) / MAX(BM, BN)) for (int z = 0; z < bk; ++z) {    \
               r = MAD((ASHM)[z * (BM) + x], (BSHM)[z * (BN) + y], r);          \
             }                                                                  \
           }                                                                    \
@@ -69,7 +67,7 @@
         }                                                                      \
         /* add result tile to C in global memory */                            \
         if (x < (BM) && y < (BN)) {                                            \
-          const int i = i_tile + x, j = j_tile + y;                            \
+          const int i = i0 + x, j = j0 + y;                                    \
           if (i < XM(TASK) && j < XN(TASK)) {                                  \
             ACCUMULATE((CMAT) + XC(TASK) + j * XM(TASK) + i, (ALPHA)*r);       \
           }                                                                    \
@@ -109,8 +107,37 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
   /* A and B matrix buffered per WG */
   local double tile_a[WG], tile_b[WG];
   global const dbm_task_t *const task = &tasks[itask + get_group_id(0)];
-  DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 4 /*BM*/,
-                    4 /*BN*/, (WG) / MAX(4 /*BM*/, 4 /*BN*/));
+  if (m <= 4 && n <= 4) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 4, 4);
+  } else if (m <= 4 && n <= 8) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 4, 8);
+  } else if (m <= 4 && n <= 16) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 4, 16);
+  } else if (m <= 4 && n <= 32) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 4, 32);
+  } else if (m <= 4) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 4, 64);
+  } else if (m <= 8 && n <= 4) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 8, 4);
+  } else if (m <= 16 && n <= 4) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 16, 4);
+  } else if (m <= 32 && n <= 4) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 32, 4);
+  } else if (n <= 4) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 64, 4);
+  } else if (m <= 8 && n <= 8) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 8, 8);
+  } else if (m <= 8 && n <= 16) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 8, 16);
+  } else if (m <= 8) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 8, 32);
+  } else if (m <= 16 && n <= 8) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 16, 8);
+  } else if (n <= 8) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 32, 8);
+  } else {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 16, 16);
+  }
 #elif defined(SPLIT) && (0 != SPLIT)
   const int i = (int)get_global_id(0);
 #if defined(BCST_WG)
