@@ -53,7 +53,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     const int gen = (NULL == gen_env ? 0 /*default*/ : atoi(gen_env));
     const int xf = (NULL == xf_env ? -1 /*default*/ : atoi(xf_env));
     const int lu = LIBXSMM_CLMP(NULL == lu_env ? 0 : atoi(lu_env), -2, 1);
-    const int bn = LIBXSMM_CLMP(NULL == bn_env ? 8 : atoi(bn_env), 1, 64);
+    int bn = LIBXSMM_CLMP(NULL == bn_env ? 8 : atoi(bn_env), 1, 32);
     const char *extensions[] = {NULL, NULL}, *flags = NULL;
     size_t nextensions = sizeof(extensions) / sizeof(*extensions);
     const size_t wgsize0 = c_dbcsr_acc_opencl_config.device.wgsize[0];
@@ -83,7 +83,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       wgsize[0] =
           (NULL == wg_env ? (1 != split ? (wgsize1 * LIBXSMM_ABS(split)) : 0)
                           : strtoul(wg_env, NULL, 10));
-      if (0 != split && 1 != split && (int)wgsize[0] < (bn * bn)) {
+      if (0 != split && 1 != split && (bn * bn) > (int)wgsize[0]) {
         wgsize[0] = bn * bn;
       }
       if (0 != split && 0 != wgsize2 && 0 < wgsize[0]) { /* subgroups */
@@ -95,6 +95,9 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       } else {
         wgsize[0] = LIBXSMM_UP(wgsize[0], wgsize1);
         wgsize2 = 0;
+      }
+      if (0 != split && 1 != split && (bn * bn) < (int)wgsize[0]) {
+        bn = libxsmm_isqrt2_u32(wgsize[0]);
       }
       wgsize[0] = LIBXSMM_CLMP(wgsize[0], 0, wgsize0);
       offset += (size_t)LIBXSMM_SNPRINTF(
@@ -115,10 +118,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         const double d = libxsmm_timer_duration(start, libxsmm_timer_tick());
         fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel gpu=%i", gpu);
         if (0 == gen) {
-          fprintf(stderr, " split=%i", split);
-          if (1 == split) {
-            fprintf(stderr, " lu=%i bn=%i", lu, bn);
-          }
+          fprintf(stderr, " split=%i lu=%i bn=%i", split, lu, bn);
         } else { /* generated kernel */
           fprintf(stderr, " gen=%i", gen);
         }
