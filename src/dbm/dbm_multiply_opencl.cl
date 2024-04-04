@@ -107,33 +107,33 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
   /* A and B matrix buffered per WG */
   local double tile_a[WG], tile_b[WG];
   global const dbm_task_t *const task = &tasks[itask + get_group_id(0)];
-  if (m <= 4 && n <= 4) {
+  if (XM(TASK) <= 4 && XN(TASK) <= 4) {
     DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 4, 4);
-  } else if (m <= 4 && n <= 8) {
+  } else if (XM(TASK) <= 4 && XN(TASK) <= 8) {
     DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 4, 8);
-  } else if (m <= 4 && n <= 16) {
+  } else if (XM(TASK) <= 4 && XN(TASK) <= 16) {
     DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 4, 16);
-  } else if (m <= 4 && n <= 32) {
+  } else if (XM(TASK) <= 4 && XN(TASK) <= 32) {
     DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 4, 32);
-  } else if (m <= 4) {
+  } else if (XM(TASK) <= 4) {
     DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 4, 64);
-  } else if (m <= 8 && n <= 4) {
+  } else if (XM(TASK) <= 8 && XN(TASK) <= 4) {
     DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 8, 4);
-  } else if (m <= 16 && n <= 4) {
+  } else if (XM(TASK) <= 16 && XN(TASK) <= 4) {
     DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 16, 4);
-  } else if (m <= 32 && n <= 4) {
+  } else if (XM(TASK) <= 32 && XN(TASK) <= 4) {
     DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 32, 4);
-  } else if (n <= 4) {
+  } else if (XN(TASK) <= 4) {
     DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 64, 4);
-  } else if (m <= 8 && n <= 8) {
+  } else if (XM(TASK) <= 8 && XN(TASK) <= 8) {
     DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 8, 8);
-  } else if (m <= 8 && n <= 16) {
+  } else if (XM(TASK) <= 8 && XN(TASK) <= 16) {
     DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 8, 16);
-  } else if (m <= 8) {
+  } else if (XM(TASK) <= 8) {
     DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 8, 32);
-  } else if (m <= 16 && n <= 8) {
+  } else if (XM(TASK) <= 16 && XN(TASK) <= 8) {
     DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 16, 8);
-  } else if (n <= 8) {
+  } else if (XN(TASK) <= 8) {
     DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 32, 8);
   } else {
     DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, 16, 16);
