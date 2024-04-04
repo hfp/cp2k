@@ -32,27 +32,22 @@
 #define DBM_MULTIPLY_TASK(ALPHA, TASK, AMAT, ASHM, BMAT, BSHM, CMAT, BM, BN)   \
   do {                                                                         \
     const int tid = (int)get_local_id(0), bk = (WG) / MAX(BM, BN);             \
-    const int y = tid / (BM);       /* can exceed BN, reaches BK */            \
-    const int x = tid - y * (BM);   /* fastest index, not exceeding BM */      \
-    const int xT = tid / (BN);      /* can exceed BM, reaches BK */            \
-    const int yT = tid - xT * (BN); /* fastest index, not exceeding BN */      \
+    const int y = tid / (BM);     /* can exceed BN, reaches BK */              \
+    const int x = tid - y * (BM); /* fastest index, not exceeding BM */        \
+    const int s = tid / (BN);     /* can exceed BM, reaches BK */              \
+    const int t = tid - s * (BN); /* fastest index, not exceeding BN */        \
+    const int mk = XM(TASK) * XK(TASK), kn = XK(TASK) * XN(TASK);              \
     for (int m0 = 0; m0 < XM(TASK); m0 += (BM)) {                              \
       for (int n0 = 0; n0 < XN(TASK); n0 += (BN)) {                            \
         double r = ZERO;                                                       \
         UNROLL_AUTO for (int k0 = 0; k0 < XK(TASK); k0 += bk) {                \
           if (x < (BM) && y < bk) { /* load A-tile */                          \
-            const int m = m0 + x, k = k0 + y;                                  \
-            const int idx = IDT(m, k, XM(TASK), XK(TASK));                     \
-            (ASHM)[y * (BM) + x] =                                             \
-                ((k < XK(TASK) && m < XM(TASK)) ? (AMAT)[XA(TASK) + idx]       \
-                                                : ZERO);                       \
+            const int idx = IDT(m0 + x, k0 + y, XM(TASK), XK(TASK));           \
+            (ASHM)[y * (BM) + x] = (idx < mk ? (AMAT)[XA(TASK) + idx] : ZERO); \
           }                                                                    \
-          if (yT < (BN) && xT < bk) { /* load B-tile */                        \
-            const int n = n0 + yT, k = k0 + xT;                                \
-            const int idx = IDX(k, n, XK(TASK), XN(TASK));                     \
-            (BSHM)[xT * (BN) + yT] =                                           \
-                ((k < XK(TASK) && n < XN(TASK)) ? (BMAT)[XB(TASK) + idx]       \
-                                                : ZERO);                       \
+          if (t < (BN) && s < bk) { /* load B-tile */                          \
+            const int idx = IDX(k0 + s, n0 + t, XK(TASK), XN(TASK));           \
+            (BSHM)[s * (BN) + t] = (idx < kn ? (BMAT)[XB(TASK) + idx] : ZERO); \
           }                                                                    \
           BARRIER(CLK_LOCAL_MEM_FENCE);                                        \
           if (x < (BM) && y < (BN)) { /* multiply tiles */                     \
