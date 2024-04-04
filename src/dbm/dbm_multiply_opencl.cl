@@ -101,15 +101,50 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
              global const dbm_task_t *tasks, global const double *restrict amat,
              global const double *restrict bmat, global double *restrict cmat) {
 #if defined(SPLIT) && (1 < SPLIT) && defined(WG) && (0 < WG)
-  /* A and B matrix buffered per WG */
   local double tile_a[MAX(BN * BN, WG)], tile_b[MAX(BN * BN, WG)];
   global const dbm_task_t *const task = &tasks[itask + get_group_id(0)];
-  if (2 * XN(task) <= XM(task)) {
-    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, BN,
+  if (XM(task) <= (BN / 4) && XN(task) <= (BN / 4)) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, BN / 4,
+                      BN / 4);
+  } else if (XM(task) <= (BN / 4) && XN(task) <= (BN / 2)) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, BN / 4,
                       BN / 2);
-  } else if (2 * XM(task) <= XN(task)) {
+  } else if (XM(task) <= (BN / 4) && XN(task) <= (BN)) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, BN / 4,
+                      BN);
+  } else if (XM(task) <= (BN / 4) && XN(task) <= (BN * 2)) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, BN / 4,
+                      BN * 2);
+  } else if (XM(task) <= (BN / 4)) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, BN / 4,
+                      BN * 4);
+  } else if (XM(task) <= (BN / 2) && XN(task) <= (BN / 4)) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, BN / 2,
+                      BN / 4);
+  } else if (XM(task) <= (BN) && XN(task) <= (BN / 4)) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, BN,
+                      BN / 4);
+  } else if (XM(task) <= (BN * 2) && XN(task) <= (BN / 4)) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, BN * 2,
+                      BN / 4);
+  } else if (XN(task) <= (BN / 4)) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, BN * 4,
+                      BN / 4);
+  } else if (XM(task) <= (BN / 2) && XN(task) <= (BN / 2)) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, BN / 2,
+                      BN / 2);
+  } else if (XM(task) <= (BN / 2) && XN(task) <= (BN)) {
     DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, BN / 2,
                       BN);
+  } else if (XM(task) <= (BN / 2)) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, BN / 2,
+                      BN * 2);
+  } else if (XM(task) <= (BN) && XN(task) <= (BN / 2)) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, BN,
+                      BN / 2);
+  } else if (XN(task) <= (BN / 2)) {
+    DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, BN * 2,
+                      BN / 2);
   } else {
     DBM_MULTIPLY_TASK(alpha, task, amat, tile_a, bmat, tile_b, cmat, BN, BN);
   }
