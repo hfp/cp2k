@@ -33,8 +33,10 @@
 #define XN(T) X(T, n)
 #define XK(T) X(T, k)
 
-#define DBM_MULTIPLY_TASK(ALPHA, TASK, AMAT, ASHM, BMAT, BSHM, CMAT, BM, BN)   \
+#define DBM_MULTIPLY_TASK(ALPHA, TASK, AMAT, BMAT, CMAT, BUFFER, BM, BN)       \
   do {                                                                         \
+    local double *restrict const ashm = (BUFFER);                              \
+    local double *restrict const bshm = (BUFFER) + MAX(BN * BN, WG);           \
     const short tid = (short)get_local_id(0), bk = (WG) / MAX(BM, BN);         \
     const short y = tid / (BM);     /* can exceed BN, reaches BK */            \
     const short x = tid - y * (BM); /* fastest index, not exceeding BM */      \
@@ -47,16 +49,16 @@
         UNROLL_AUTO for (short k0 = 0; k0 < XK(TASK); k0 += bk) {              \
           if (x < (BM) && y < bk) { /* load A-tile */                          \
             const short idx = IDT(m0 + x, k0 + y, XM(TASK), XK(TASK));         \
-            (ASHM)[y * (BM) + x] = (idx < mk ? (AMAT)[XA(TASK) + idx] : ZERO); \
+            ashm[y * (BM) + x] = (idx < mk ? (AMAT)[XA(TASK) + idx] : ZERO);   \
           }                                                                    \
           if (s < bk && t < (BN)) { /* load B-tile */                          \
             const short idx = IDX(k0 + s, n0 + t, XK(TASK), XN(TASK));         \
-            (BSHM)[s * (BN) + t] = (idx < kn ? (BMAT)[XB(TASK) + idx] : ZERO); \
+            bshm[s * (BN) + t] = (idx < kn ? (BMAT)[XB(TASK) + idx] : ZERO);   \
           }                                                                    \
           BARRIER(CLK_LOCAL_MEM_FENCE);                                        \
           if (x < (BM) && y < (BN)) { /* multiply tiles */                     \
             UNROLL_FORCE((WG) / MAX(BM, BN)) for (short z = 0; z < bk; ++z) {  \
-              r = MAD((ASHM)[z * (BM) + x], (BSHM)[z * (BN) + y], r);          \
+              r = MAD(ashm[z * (BM) + x], bshm[z * (BN) + y], r);              \
             }                                                                  \
           }                                                                    \
           BARRIER(CLK_LOCAL_MEM_FENCE);                                        \
@@ -100,46 +102,46 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
              global const dbm_task_t *tasks, global const double *restrict amat,
              global const double *restrict bmat, global double *restrict cmat) {
 #if defined(SPLIT) && (1 < SPLIT) && defined(WG) && (0 < WG)
-  local double ta[MAX(BN * BN, WG)], tb[MAX(BN * BN, WG)];
+  local double buffer[2 * MAX(BN * BN, WG)];
   global const dbm_task_t *const task = &tasks[itask + get_group_id(0)];
   if (BLR(XM(task), BN / 4) < BLR(XM(task), BN / 2)) {
     if (BLR(XN(task), BN / 4) < BLR(XN(task), BN / 2)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, ta, bmat, tb, cmat, BN / 4, BN / 4);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN / 4, BN / 4);
     } else if (BLR(XN(task), BN / 2) < BLR(XN(task), BN)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, ta, bmat, tb, cmat, BN / 4, BN / 2);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN / 4, BN / 2);
     } else if (BLR(XN(task), BN) < BLR(XN(task), BN * 2)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, ta, bmat, tb, cmat, BN / 4, BN);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN / 4, BN);
     } else if (BLR(XN(task), BN * 2) < BLR(XN(task), BN * 4)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, ta, bmat, tb, cmat, BN / 4, BN * 4);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN / 4, BN * 4);
     } else {
-      DBM_MULTIPLY_TASK(alpha, task, amat, ta, bmat, tb, cmat, BN / 4, BN * 4);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN / 4, BN * 4);
     }
   } else if (BLR(XM(task), BN / 2) < BLR(XM(task), BN)) {
     if (BLR(XN(task), BN / 4) < BLR(XN(task), BN / 2)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, ta, bmat, tb, cmat, BN / 2, BN / 4);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN / 2, BN / 4);
     } else if (BLR(XN(task), BN / 2) < BLR(XN(task), BN)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, ta, bmat, tb, cmat, BN / 2, BN / 2);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN / 2, BN / 2);
     } else if (BLR(XN(task), BN) < BLR(XN(task), BN * 2)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, ta, bmat, tb, cmat, BN / 2, BN);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN / 2, BN);
     } else {
-      DBM_MULTIPLY_TASK(alpha, task, amat, ta, bmat, tb, cmat, BN / 2, BN * 2);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN / 2, BN * 2);
     }
   } else if (BLR(XN(task), BN / 4) < BLR(XN(task), BN / 2)) {
     if (BLR(XM(task), BN) < BLR(XM(task), BN * 2)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, ta, bmat, tb, cmat, BN, BN / 4);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN, BN / 4);
     } else if (BLR(XM(task), BN * 2) < BLR(XM(task), BN * 4)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, ta, bmat, tb, cmat, BN * 2, BN / 4);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN * 2, BN / 4);
     } else {
-      DBM_MULTIPLY_TASK(alpha, task, amat, ta, bmat, tb, cmat, BN * 4, BN / 4);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN * 4, BN / 4);
     }
   } else if (BLR(XN(task), BN / 2) < BLR(XN(task), BN)) {
     if (BLR(XM(task), BN) < BLR(XM(task), BN * 2)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, ta, bmat, tb, cmat, BN, BN / 2);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN, BN / 2);
     } else {
-      DBM_MULTIPLY_TASK(alpha, task, amat, ta, bmat, tb, cmat, BN * 2, BN / 2);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN * 2, BN / 2);
     }
   } else {
-    DBM_MULTIPLY_TASK(alpha, task, amat, ta, bmat, tb, cmat, BN, BN);
+    DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN, BN);
   }
 #elif defined(SPLIT) && (0 != SPLIT)
   const int i = (int)get_global_id(0);
