@@ -33,16 +33,17 @@
 #define XN(T) X(T, n)
 #define XK(T) X(T, k)
 
-#define DBM_MULTIPLY_TASK(ALPHA, TASK, AMAT, BMAT, CMAT, BUFFER, BM, BN)       \
+#define DBM_MULTIPLY_TASK(ALPHA, TASK, AMAT, BMAT, CMAT, SHM, BS, BM, BN)      \
   do {                                                                         \
-    local double *restrict const ashm = (BUFFER);                              \
-    local double *restrict const bshm = (BUFFER) + MAX(BN * BN, WG);           \
-    const short tid = (short)get_local_id(0), bk = (WG) / MAX(BM, BN);         \
+    local double *restrict const ashm = (SHM);                                 \
+    local double *restrict const bshm = (SHM) + MAX(BS * BS, WG);              \
+    const short tid = (short)get_local_id(0);                                  \
     const short y = tid / (BM);     /* can exceed BN, reaches BK */            \
     const short x = tid - y * (BM); /* fastest index, not exceeding BM */      \
     const short s = tid / (BN);     /* can exceed BM, reaches BK */            \
     const short t = tid - s * (BN); /* fastest index, not exceeding BN */      \
     const short mk = XM(TASK) * XK(TASK), kn = XK(TASK) * XN(TASK);            \
+    const short bk = MAX(BS * BS, WG) / MAX(BM, BN);                           \
     for (short m0 = 0; m0 < XM(TASK); m0 += (BM)) {                            \
       for (short n0 = 0; n0 < XN(TASK); n0 += (BN)) {                          \
         double r = ZERO;                                                       \
@@ -57,7 +58,7 @@
           }                                                                    \
           BARRIER(CLK_LOCAL_MEM_FENCE);                                        \
           if (x < (BM) && y < (BN)) { /* multiply tiles */                     \
-            UNROLL_FORCE((WG) / MAX(BM, BN)) for (short z = 0; z < bk; ++z) {  \
+            UNROLL_AUTO for (short z = 0; z < bk; ++z) {                       \
               r = MAD(ashm[z * (BM) + x], bshm[z * (BN) + y], r);              \
             }                                                                  \
           }                                                                    \
@@ -102,46 +103,46 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
              global const dbm_task_t *tasks, global const double *restrict amat,
              global const double *restrict bmat, global double *restrict cmat) {
 #if defined(SPLIT) && (1 < SPLIT) && defined(WG) && (0 < WG)
-  local double buffer[2 * MAX(BN * BN, WG)];
+  local double shm[2 * MAX(BN * BN, WG)];
   global const dbm_task_t *const task = &tasks[itask + get_group_id(0)];
   if (BLR(XM(task), BN / 4) < BLR(XM(task), BN / 2)) {
     if (BLR(XN(task), BN / 4) < BLR(XN(task), BN / 2)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN / 4, BN / 4);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, BN, BN / 4, BN / 4);
     } else if (BLR(XN(task), BN / 2) < BLR(XN(task), BN)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN / 4, BN / 2);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, BN, BN / 4, BN / 2);
     } else if (BLR(XN(task), BN) < BLR(XN(task), BN * 2)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN / 4, BN);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, BN, BN / 4, BN);
     } else if (BLR(XN(task), BN * 2) < BLR(XN(task), BN * 4)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN / 4, BN * 4);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, BN, BN / 4, BN * 4);
     } else {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN / 4, BN * 4);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, BN, BN / 4, BN * 4);
     }
   } else if (BLR(XM(task), BN / 2) < BLR(XM(task), BN)) {
     if (BLR(XN(task), BN / 4) < BLR(XN(task), BN / 2)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN / 2, BN / 4);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, BN, BN / 2, BN / 4);
     } else if (BLR(XN(task), BN / 2) < BLR(XN(task), BN)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN / 2, BN / 2);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, BN, BN / 2, BN / 2);
     } else if (BLR(XN(task), BN) < BLR(XN(task), BN * 2)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN / 2, BN);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, BN, BN / 2, BN);
     } else {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN / 2, BN * 2);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, BN, BN / 2, BN * 2);
     }
   } else if (BLR(XN(task), BN / 4) < BLR(XN(task), BN / 2)) {
     if (BLR(XM(task), BN) < BLR(XM(task), BN * 2)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN, BN / 4);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, BN, BN, BN / 4);
     } else if (BLR(XM(task), BN * 2) < BLR(XM(task), BN * 4)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN * 2, BN / 4);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, BN, BN * 2, BN / 4);
     } else {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN * 4, BN / 4);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, BN, BN * 4, BN / 4);
     }
   } else if (BLR(XN(task), BN / 2) < BLR(XN(task), BN)) {
     if (BLR(XM(task), BN) < BLR(XM(task), BN * 2)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN, BN / 2);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, BN, BN, BN / 2);
     } else {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN * 2, BN / 2);
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, BN, BN * 2, BN / 2);
     }
   } else {
-    DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, buffer, BN, BN);
+    DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, BN, BN, BN);
   }
 #elif defined(SPLIT) && (0 != SPLIT)
   const int i = (int)get_global_id(0);
