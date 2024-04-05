@@ -35,36 +35,36 @@
 
 #define DBM_MULTIPLY_TASK(ALPHA, TASK, AMAT, ASHM, BMAT, BSHM, CMAT, BM, BN)   \
   do {                                                                         \
-    const int tid = (int)get_local_id(0), bk = (WG) / MAX(BM, BN);             \
-    const int y = tid / (BM);     /* can exceed BN, reaches BK */              \
-    const int x = tid - y * (BM); /* fastest index, not exceeding BM */        \
-    const int s = tid / (BN);     /* can exceed BM, reaches BK */              \
-    const int t = tid - s * (BN); /* fastest index, not exceeding BN */        \
-    const int mk = XM(TASK) * XK(TASK), kn = XK(TASK) * XN(TASK);              \
-    for (int m0 = 0; m0 < XM(TASK); m0 += (BM)) {                              \
-      for (int n0 = 0; n0 < XN(TASK); n0 += (BN)) {                            \
+    const short tid = (short)get_local_id(0), bk = (WG) / MAX(BM, BN);         \
+    const short y = tid / (BM);     /* can exceed BN, reaches BK */            \
+    const short x = tid - y * (BM); /* fastest index, not exceeding BM */      \
+    const short s = tid / (BN);     /* can exceed BM, reaches BK */            \
+    const short t = tid - s * (BN); /* fastest index, not exceeding BN */      \
+    const short mk = XM(TASK) * XK(TASK), kn = XK(TASK) * XN(TASK);            \
+    for (short m0 = 0; m0 < XM(TASK); m0 += (BM)) {                            \
+      for (short n0 = 0; n0 < XN(TASK); n0 += (BN)) {                          \
         double r = ZERO;                                                       \
-        UNROLL_AUTO for (int k0 = 0; k0 < XK(TASK); k0 += bk) {                \
+        UNROLL_AUTO for (short k0 = 0; k0 < XK(TASK); k0 += bk) {              \
           if (x < (BM) && y < bk) { /* load A-tile */                          \
-            const int idx = IDT(m0 + x, k0 + y, XM(TASK), XK(TASK));           \
+            const short idx = IDT(m0 + x, k0 + y, XM(TASK), XK(TASK));         \
             (ASHM)[y * (BM) + x] = (idx < mk ? (AMAT)[XA(TASK) + idx] : ZERO); \
           }                                                                    \
           if (s < bk && t < (BN)) { /* load B-tile */                          \
-            const int idx = IDX(k0 + s, n0 + t, XK(TASK), XN(TASK));           \
+            const short idx = IDX(k0 + s, n0 + t, XK(TASK), XN(TASK));         \
             (BSHM)[s * (BN) + t] = (idx < kn ? (BMAT)[XB(TASK) + idx] : ZERO); \
           }                                                                    \
           BARRIER(CLK_LOCAL_MEM_FENCE);                                        \
           if (x < (BM) && y < (BN)) { /* multiply tiles */                     \
-            UNROLL_FORCE((WG) / MAX(BM, BN)) for (int z = 0; z < bk; ++z) {    \
+            UNROLL_FORCE((WG) / MAX(BM, BN)) for (short z = 0; z < bk; ++z) {  \
               r = MAD((ASHM)[z * (BM) + x], (BSHM)[z * (BN) + y], r);          \
             }                                                                  \
           }                                                                    \
           BARRIER(CLK_LOCAL_MEM_FENCE);                                        \
         }                                                                      \
         if (x < (BM) && y < (BN)) { /* flush to global */                      \
-          const int m = m0 + x, n = n0 + y;                                    \
+          const short m = m0 + x, n = n0 + y;                                  \
           if (m < XM(TASK) && n < XN(TASK)) {                                  \
-            const int idx = IDT(m, n, XM(TASK), XN(TASK));                     \
+            const short idx = IDT(m, n, XM(TASK), XN(TASK));                   \
             ACCUMULATE((CMAT) + XC(TASK) + idx, (ALPHA)*r);                    \
           }                                                                    \
         }                                                                      \
