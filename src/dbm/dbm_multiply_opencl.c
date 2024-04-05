@@ -97,7 +97,8 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         wgsize2 = 0;
       }
       wgsize[0] = LIBXSMM_CLMP(wgsize[0], 0, wgsize0);
-      if (0 != split && 1 != split && (bn * bn) < (int)wgsize[0]) {
+      if (NULL == bn_env && 0 != split && 1 != split &&
+          (bn * bn) < (int)wgsize[0]) {
         bn = libxsmm_isqrt2_u32(wgsize[0]);
       }
       bn = LIBXSMM_CLMP(bn, 4, 32);
