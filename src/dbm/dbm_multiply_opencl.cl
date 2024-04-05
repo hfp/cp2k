@@ -49,7 +49,7 @@
             const int idx = IDT(m0 + x, k0 + y, XM(TASK), XK(TASK));           \
             (ASHM)[y * (BM) + x] = (idx < mk ? (AMAT)[XA(TASK) + idx] : ZERO); \
           }                                                                    \
-          if (t < (BN) && s < bk) { /* load B-tile */                          \
+          if (s < bk && t < (BN)) { /* load B-tile */                          \
             const int idx = IDX(k0 + s, n0 + t, XK(TASK), XN(TASK));           \
             (BSHM)[s * (BN) + t] = (idx < kn ? (BMAT)[XB(TASK) + idx] : ZERO); \
           }                                                                    \
