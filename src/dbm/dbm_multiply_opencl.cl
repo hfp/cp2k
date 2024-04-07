@@ -105,44 +105,38 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
 #if defined(SPLIT) && (1 < SPLIT) && defined(WG) && (0 < WG)
   local double shm[WG * 2];
   global const dbm_task_t *const task = &tasks[itask + get_group_id(0)];
-  if (BLR(XM(task), BN / 4) < BLR(XM(task), BN / 2)) {
-    if (BLR(XN(task), BN / 4) < BLR(XN(task), BN / 2)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN / 4, BN / 4);
-    } else if (BLR(XN(task), BN / 2) < BLR(XN(task), BN)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN / 4, BN / 2);
-    } else if (BLR(XN(task), BN) < BLR(XN(task), BN * 2)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN / 4, BN);
-    } else if (BLR(XN(task), BN * 2) < BLR(XN(task), BN * 4)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN / 4, BN * 4);
-    } else {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN / 4, BN * 4);
-    }
-  } else if (BLR(XM(task), BN / 2) < BLR(XM(task), BN)) {
-    if (BLR(XN(task), BN / 4) < BLR(XN(task), BN / 2)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN / 2, BN / 4);
-    } else if (BLR(XN(task), BN / 2) < BLR(XN(task), BN)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN / 2, BN / 2);
-    } else if (BLR(XN(task), BN) < BLR(XN(task), BN * 2)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN / 2, BN);
-    } else {
+  if (XM(task) <= XN(task)) {
+    const short r1 = BLR(XM(task), BN);
+    const short r2 = BLR(XM(task), BN / 2) * 2;
+    const short r3 = BLR(XM(task), BN / 4) * 4;
+    if (r1 <= r2) {
+      if (r1 <= r3) {
+        DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN, BN);
+      } else {
+        DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN / 4,
+                          BN * 4);
+      }
+    } else if (r2 <= r3) {
       DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN / 2, BN * 2);
+    } else {
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN / 4, BN * 4);
     }
-  } else if (BLR(XN(task), BN / 4) < BLR(XN(task), BN / 2)) {
-    if (BLR(XM(task), BN) < BLR(XM(task), BN * 2)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN, BN / 4);
-    } else if (BLR(XM(task), BN * 2) < BLR(XM(task), BN * 4)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN * 2, BN / 4);
+  } else {
+    const short r1 = BLR(XN(task), BN);
+    const short r2 = BLR(XN(task), BN / 2) * 2;
+    const short r3 = BLR(XN(task), BN / 4) * 4;
+    if (r1 <= r2) {
+      if (r1 <= r3) {
+        DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN, BN);
+      } else {
+        DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN * 4,
+                          BN / 4);
+      }
+    } else if (r2 <= r3) {
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN * 2, BN / 2);
     } else {
       DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN * 4, BN / 4);
     }
-  } else if (BLR(XN(task), BN / 2) < BLR(XN(task), BN)) {
-    if (BLR(XM(task), BN) < BLR(XM(task), BN * 2)) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN, BN / 2);
-    } else {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN * 2, BN / 2);
-    }
-  } else {
-    DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN, BN);
   }
 #elif defined(SPLIT) && (0 != SPLIT)
   const int i = (int)get_global_id(0);
