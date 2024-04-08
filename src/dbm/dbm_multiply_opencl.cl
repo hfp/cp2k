@@ -37,12 +37,11 @@
   do {                                                                         \
     local double *restrict const ashm = (SHM);                                 \
     local double *restrict const bshm = (SHM) + (WG);                          \
+    const short mk = XM(TASK) * XK(TASK), kn = XK(TASK) * XN(TASK);            \
     const short tid = (short)get_local_id(0);                                  \
     /* y/s can exceed BN/BM (up to BK), and x/t is fast index (up to BM/BN) */ \
-    const short y = tid / (BM), x = tid - y * (BM);                            \
+    const short y = tid / (BM), x = tid - y * (BM), bk = (WG) / MAX(BM, BN);   \
     const short s = tid / (BN), t = tid - s * (BN);                            \
-    const short mk = XM(TASK) * XK(TASK), kn = XK(TASK) * XN(TASK);            \
-    const short bk = (WG) / MAX(BM, BN);                                       \
     for (short m0 = 0; m0 < XM(TASK); m0 += (BM)) {                            \
       for (short n0 = 0; n0 < XN(TASK); n0 += (BN)) {                          \
         double r = ZERO;                                                       \
