@@ -105,7 +105,16 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
 #if defined(SPLIT) && (1 < SPLIT) && defined(WG) && (0 < WG)
   local double shm[WG * 2];
   global const dbm_task_t *const task = &tasks[itask + get_group_id(0)];
-  if (XM(task) <= XN(task)) {
+  const short rmin = MIN(XM(task), XN(task)), rmax = MAX(XM(task), XN(task));
+  if ((rmax - rmin) <= BN) {
+    if ((rmin * 4) < BN) {
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN / 4, BN / 4);
+    } else if ((rmin * 2) < BN) {
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN / 2, BN / 2);
+    } else {
+      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN, BN);
+    }
+  } else if (XM(task) <= XN(task)) {
     const short r1 = BLR(XM(task), BN);
     const short r2 = BLR(XM(task), BN / 2) * 2;
     const short r3 = BLR(XM(task), BN / 4) * 4;
