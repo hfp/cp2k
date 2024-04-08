@@ -38,10 +38,9 @@
     local double *restrict const ashm = (SHM);                                 \
     local double *restrict const bshm = (SHM) + (WG);                          \
     const short tid = (short)get_local_id(0);                                  \
-    const short y = tid / (BM);     /* can exceed BN, reaches BK */            \
-    const short x = tid - y * (BM); /* fastest index, not exceeding BM */      \
-    const short s = tid / (BN);     /* can exceed BM, reaches BK */            \
-    const short t = tid - s * (BN); /* fastest index, not exceeding BN */      \
+    /* y/s can exceed BN/BM (up to BK), and x/t is fast index (up to BM/BN) */ \
+    const short y = tid / (BM), x = tid - y * (BM);                            \
+    const short s = tid / (BN), t = tid - s * (BN);                            \
     const short mk = XM(TASK) * XK(TASK), kn = XK(TASK) * XN(TASK);            \
     const short bk = (WG) / MAX(BM, BN);                                       \
     for (short m0 = 0; m0 < XM(TASK); m0 += (BM)) {                            \
