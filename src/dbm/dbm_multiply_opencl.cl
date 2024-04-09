@@ -172,16 +172,96 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
       } else
 #endif
       {
-        if (BN < XN(task)) {
-          UNROLL_AUTO for (int n0 = 0; n0 < XN(task); n0 += BN) {
-            const int n1 = min(BN, XN(task) - n0);
-            DBM_MULTIPLY_KERNEL(alpha, task, amat, bmat, cmat, cvec, m, n0, n1,
+        int n0 = 0;
+        switch (XN(task) / BN) {
+        case 0: /* task.n <= BN */
+          DBM_MULTIPLY_KERNEL(alpha, task, amat, bmat, cmat, cvec, m, 0,
+                              XN(task), BN, BCST_NO, UNROLL_AUTO, UNROLL_AUTO);
+          n0 = BN;
+          break;
+        case 1:
+          DBM_MULTIPLY_KERNEL(alpha, task, amat, bmat, cmat, cvec, m, 0, BN, BN,
+                              BCST_NO, UNROLL_FORCE(BN), UNROLL_AUTO);
+          n0 = BN;
+          break;
+        case 2:
+          DBM_MULTIPLY_KERNEL(alpha, task, amat, bmat, cmat, cvec, m, 0, BN, BN,
+                              BCST_NO, UNROLL_FORCE(BN), UNROLL_AUTO);
+          DBM_MULTIPLY_KERNEL(alpha, task, amat, bmat, cmat, cvec, m, BN, BN,
+                              BN, BCST_NO, UNROLL_FORCE(BN), UNROLL_AUTO);
+          n0 = BN + BN;
+          break;
+        case 3:
+          DBM_MULTIPLY_KERNEL(alpha, task, amat, bmat, cmat, cvec, m, 0, BN, BN,
+                              BCST_NO, UNROLL_FORCE(BN), UNROLL_AUTO);
+          DBM_MULTIPLY_KERNEL(alpha, task, amat, bmat, cmat, cvec, m, BN, BN,
+                              BN, BCST_NO, UNROLL_FORCE(BN), UNROLL_AUTO);
+          DBM_MULTIPLY_KERNEL(alpha, task, amat, bmat, cmat, cvec, m, BN + BN,
+                              BN, BN, BCST_NO, UNROLL_FORCE(BN), UNROLL_AUTO);
+          n0 = BN * 3;
+          break;
+        case 4:
+          UNROLL_AUTO for (; n0 < (BN * 4); n0 += BN) {
+            DBM_MULTIPLY_KERNEL(alpha, task, amat, bmat, cmat, cvec, m, n0, BN,
                                 BN, BCST_NO, UNROLL_FORCE(BN), UNROLL_AUTO);
           }
-        } else { /* task.n <= BN */
-          DBM_MULTIPLY_KERNEL(alpha, task, amat, bmat, cmat, cvec, m, 0,
-                              XN(task), BN, BCST_NO, UNROLL_FORCE(BN),
-                              UNROLL_FORCE(BN));
+          break;
+        case 5:
+          UNROLL_AUTO for (; n0 < (BN * 5); n0 += BN) {
+            DBM_MULTIPLY_KERNEL(alpha, task, amat, bmat, cmat, cvec, m, n0, BN,
+                                BN, BCST_NO, UNROLL_FORCE(BN), UNROLL_AUTO);
+          }
+          break;
+        case 6:
+          UNROLL_AUTO for (; n0 < (BN * 6); n0 += BN) {
+            DBM_MULTIPLY_KERNEL(alpha, task, amat, bmat, cmat, cvec, m, n0, BN,
+                                BN, BCST_NO, UNROLL_FORCE(BN), UNROLL_AUTO);
+          }
+          break;
+        case 7:
+          UNROLL_AUTO for (; n0 < (BN * 7); n0 += BN) {
+            DBM_MULTIPLY_KERNEL(alpha, task, amat, bmat, cmat, cvec, m, n0, BN,
+                                BN, BCST_NO, UNROLL_FORCE(BN), UNROLL_AUTO);
+          }
+          break;
+        case 8:
+        case 9:
+          UNROLL_AUTO for (; n0 < (BN * 8); n0 += BN) {
+            DBM_MULTIPLY_KERNEL(alpha, task, amat, bmat, cmat, cvec, m, n0, BN,
+                                BN, BCST_NO, UNROLL_FORCE(BN), UNROLL_AUTO);
+          }
+          break;
+        case 10:
+        case 11:
+          UNROLL_AUTO for (; n0 < (BN * 10); n0 += BN) {
+            DBM_MULTIPLY_KERNEL(alpha, task, amat, bmat, cmat, cvec, m, n0, BN,
+                                BN, BCST_NO, UNROLL_FORCE(BN), UNROLL_AUTO);
+          }
+          break;
+        case 12:
+        case 13:
+          UNROLL_AUTO for (; n0 < (BN * 12); n0 += BN) {
+            DBM_MULTIPLY_KERNEL(alpha, task, amat, bmat, cmat, cvec, m, n0, BN,
+                                BN, BCST_NO, UNROLL_FORCE(BN), UNROLL_AUTO);
+          }
+          break;
+        case 14:
+        case 15:
+          UNROLL_AUTO for (; n0 < (BN * 14); n0 += BN) {
+            DBM_MULTIPLY_KERNEL(alpha, task, amat, bmat, cmat, cvec, m, n0, BN,
+                                BN, BCST_NO, UNROLL_FORCE(BN), UNROLL_AUTO);
+          }
+          break;
+        default:
+          UNROLL_AUTO for (; n0 < (BN * 16); n0 += BN) {
+            DBM_MULTIPLY_KERNEL(alpha, task, amat, bmat, cmat, cvec, m, n0, BN,
+                                BN, BCST_NO, UNROLL_FORCE(BN), UNROLL_AUTO);
+          }
+        }
+        for (; n0 < XN(task); n0 += BN) {
+          const int n1 = min(BN, XN(task) - n0);
+          DBM_MULTIPLY_KERNEL(alpha, task, amat, bmat, cmat, cvec, m, n0, n1,
+                              BN, BCST_NO, UNROLL_FORCE(BN), UNROLL_AUTO);
         }
       }
     }
