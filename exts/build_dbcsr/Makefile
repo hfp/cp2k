@@ -313,8 +313,8 @@ else
     CFLAGS += -I$(CUDA_PATH)/include
   else ifneq (,$(wildcard $(OPENCL_ROOT)/include/CL/cl.h))
     CFLAGS += -I$(OPENCL_ROOT)/include
-  else ifneq (,$(wildcard $(OCL_ROOT)/include/CL/cl.h))
-    CFLAGS += -I$(OCL_ROOT)/include
+  else ifneq (,$(wildcard $(OPENCL_ROOT)/include/sycl/CL/cl.h))
+    CFLAGS += -I$(OPENCL_ROOT)/include/sycl
   endif
 endif
 endif
