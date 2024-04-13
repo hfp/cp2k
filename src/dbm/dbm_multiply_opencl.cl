@@ -298,8 +298,8 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
     global const dbm_task_t *const task = &tasks[itask + tid];
     if (m < XM(task)) { /* valid task */
       double cvec[BN] = {ZERO};
-      switch (XK(TASK) / BN) {
-      case 0: /* TASK.k < BN */
+      switch (XK(task) / BN) {
+      case 0: /* task.k < BN */
         switch (XK(task)) {
         case 1:
 #if defined(BCST_WG)
