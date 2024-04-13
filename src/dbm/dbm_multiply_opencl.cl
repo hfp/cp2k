@@ -33,7 +33,7 @@
 #define XN(T) X(T, n)
 #define XK(T) X(T, k)
 
-#define DBM_MULTIPLY_TASK(ALPHA, TASK, AMAT, BMAT, CMAT, SHM, WG, BM, BN)      \
+#define DBM_MULTIPLY_SHM(ALPHA, TASK, AMAT, BMAT, CMAT, SHM, WG, BM, BN)       \
   do {                                                                         \
     local double *restrict const ashm = (SHM);                                 \
     local double *restrict const bshm = (SHM) + (WG);                          \
@@ -73,31 +73,73 @@
     }                                                                          \
   } while (0)
 
-#define BK
 #define DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, N0, N1,    \
                             BN, BK, BCST)                                      \
-  UNROLL_AUTO for (int k = 0; k < XK(TASK); ++k) {                             \
-    const int ia = IDT(M, k, XM(TASK), XK(TASK));                              \
-    const double a = (AMAT)[XA(TASK) + ia];                                    \
-    UNROLL_AUTO for (int n = 0; n < (N1); ++n) {                               \
-      const int ib = IDX(k, n + (N0), XK(TASK), XN(TASK));                     \
-      const double b = (BMAT)[XB(TASK) + ib];                                  \
-      (CVEC)[n] = MAD(a, BCST(b), (CVEC)[n]);                                  \
+  do {                                                                         \
+    int k = 0;                                                                 \
+    UNROLL_AUTO for (; k < (BK); ++k) {                                        \
+      const int ia = IDT(M, k, XM(TASK), XK(TASK));                            \
+      const double a = (AMAT)[XA(TASK) + ia];                                  \
+      UNROLL_AUTO for (int n = 0; n < (N1); ++n) {                             \
+        const int ib = IDX(k, n + (N0), XK(TASK), XN(TASK));                   \
+        const double b = (BMAT)[XB(TASK) + ib];                                \
+        (CVEC)[n] = MAD(a, BCST(b), (CVEC)[n]);                                \
+      }                                                                        \
     }                                                                          \
-  }                                                                            \
-  UNROLL_FORCE(BN) for (int n = 0; n < (BN); ++n) { /* flush to global */      \
-    const int ic = IDT(M, n + (N0), XM(TASK), XN(TASK));                       \
-    ACCUMULATE((CMAT) + XC(TASK) + ic, (ALPHA) * (CVEC)[n]);                   \
-    (CVEC)[n] = ZERO; /* reset */                                              \
-  }
+    UNROLL_AUTO for (; k < XK(TASK); ++k) {                                    \
+      const int ia = IDT(M, k, XM(TASK), XK(TASK));                            \
+      const double a = (AMAT)[XA(TASK) + ia];                                  \
+      UNROLL_AUTO for (int n = 0; n < (N1); ++n) {                             \
+        const int ib = IDX(k, n + (N0), XK(TASK), XN(TASK));                   \
+        const double b = (BMAT)[XB(TASK) + ib];                                \
+        (CVEC)[n] = MAD(a, BCST(b), (CVEC)[n]);                                \
+      }                                                                        \
+    }                                                                          \
+    UNROLL_FORCE(BN) for (int n = 0; n < (BN); ++n) { /* flush to global */    \
+      const int ic = IDT(M, n + (N0), XM(TASK), XN(TASK));                     \
+      ACCUMULATE((CMAT) + XC(TASK) + ic, (ALPHA) * (CVEC)[n]);                 \
+      (CVEC)[n] = ZERO; /* reset */                                            \
+    }                                                                          \
+  } while (0)
 
 #define DBM_MULTIPLY(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, BN, BK, BCST)     \
   do {                                                                         \
     int n0 = 0;                                                                \
     switch (XN(TASK) / BN) {                                                   \
     case 0: /* TASK.n < BN */                                                  \
-      DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, 0, XN(TASK), \
-                          BN, BK, BCST);                                       \
+      switch (XN(TASK)) {                                                      \
+      case 1:                                                                  \
+        DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, 0, 1, 1,   \
+                            BK, BCST);                                         \
+        break;                                                                 \
+      case 2:                                                                  \
+        DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, 0, 2, 2,   \
+                            BK, BCST);                                         \
+        break;                                                                 \
+      case 3:                                                                  \
+        DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, 0, 3, 3,   \
+                            BK, BCST);                                         \
+        break;                                                                 \
+      case 4:                                                                  \
+        DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, 0, 4, 4,   \
+                            BK, BCST);                                         \
+        break;                                                                 \
+      case 5:                                                                  \
+        DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, 0, 5, 5,   \
+                            BK, BCST);                                         \
+        break;                                                                 \
+      case 6:                                                                  \
+        DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, 0, 6, 6,   \
+                            BK, BCST);                                         \
+        break;                                                                 \
+      case 7:                                                                  \
+        DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, 0, 7, 7,   \
+                            BK, BCST);                                         \
+        break;                                                                 \
+      default: /* fallback for BN larger than eight */                         \
+        DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, 0,         \
+                            XN(TASK), BN, BK, BCST);                           \
+      }                                                                        \
       n0 = BN;                                                                 \
       break;                                                                   \
     case 1:                                                                    \
@@ -207,11 +249,11 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
   const short rmin = MIN(XM(task), XN(task)), rmax = MAX(XM(task), XN(task));
   if ((rmax - rmin) <= BN) {
     if ((rmin * 4) < BN) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN / 4, BN / 4);
+      DBM_MULTIPLY_SHM(alpha, task, amat, bmat, cmat, shm, WG, BN / 4, BN / 4);
     } else if ((rmin * 2) < BN) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN / 2, BN / 2);
+      DBM_MULTIPLY_SHM(alpha, task, amat, bmat, cmat, shm, WG, BN / 2, BN / 2);
     } else {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN, BN);
+      DBM_MULTIPLY_SHM(alpha, task, amat, bmat, cmat, shm, WG, BN, BN);
     }
   } else if (XM(task) <= XN(task)) {
     const short r1 = BLR(XM(task), BN);
@@ -219,15 +261,15 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
     const short r3 = BLR(XM(task), BN / 4) * 4;
     if (r1 <= r2) {
       if (r1 <= r3) {
-        DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN, BN);
+        DBM_MULTIPLY_SHM(alpha, task, amat, bmat, cmat, shm, WG, BN, BN);
       } else {
-        DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN / 4,
-                          BN * 4);
+        DBM_MULTIPLY_SHM(alpha, task, amat, bmat, cmat, shm, WG, BN / 4,
+                         BN * 4);
       }
     } else if (r2 <= r3) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN / 2, BN * 2);
+      DBM_MULTIPLY_SHM(alpha, task, amat, bmat, cmat, shm, WG, BN / 2, BN * 2);
     } else {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN / 4, BN * 4);
+      DBM_MULTIPLY_SHM(alpha, task, amat, bmat, cmat, shm, WG, BN / 4, BN * 4);
     }
   } else {
     const short r1 = BLR(XN(task), BN);
@@ -235,15 +277,15 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
     const short r3 = BLR(XN(task), BN / 4) * 4;
     if (r1 <= r2) {
       if (r1 <= r3) {
-        DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN, BN);
+        DBM_MULTIPLY_SHM(alpha, task, amat, bmat, cmat, shm, WG, BN, BN);
       } else {
-        DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN * 4,
-                          BN / 4);
+        DBM_MULTIPLY_SHM(alpha, task, amat, bmat, cmat, shm, WG, BN * 4,
+                         BN / 4);
       }
     } else if (r2 <= r3) {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN * 2, BN / 2);
+      DBM_MULTIPLY_SHM(alpha, task, amat, bmat, cmat, shm, WG, BN * 2, BN / 2);
     } else {
-      DBM_MULTIPLY_TASK(alpha, task, amat, bmat, cmat, shm, WG, BN * 4, BN / 4);
+      DBM_MULTIPLY_SHM(alpha, task, amat, bmat, cmat, shm, WG, BN * 4, BN / 4);
     }
   }
 #elif defined(SPLIT) && (0 != SPLIT)
@@ -256,13 +298,126 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
     global const dbm_task_t *const task = &tasks[itask + tid];
     if (m < XM(task)) { /* valid task */
       double cvec[BN] = {ZERO};
+      switch (XK(TASK) / BN) {
+      case 0: /* TASK.k < BN */
+        switch (XK(task)) {
+        case 1:
 #if defined(BCST_WG)
-      if (XM(task) <= XN(task)) {
-        DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, BK, BCST_WG);
-      } else
+          if (XM(task) <= XN(task)) {
+            DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, 1,
+                         BCST_WG);
+          } else
 #endif
-      {
-        DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, BK, BCST_NO);
+          {
+            DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, 1,
+                         BCST_NO);
+          }
+          break;
+        case 2:
+#if defined(BCST_WG)
+          if (XM(task) <= XN(task)) {
+            DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, 2,
+                         BCST_WG);
+          } else
+#endif
+          {
+            DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, 2,
+                         BCST_NO);
+          }
+          break;
+        case 3:
+#if defined(BCST_WG)
+          if (XM(task) <= XN(task)) {
+            DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, 3,
+                         BCST_WG);
+          } else
+#endif
+          {
+            DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, 3,
+                         BCST_NO);
+          }
+          break;
+        default: /* fallback */
+#if defined(BCST_WG)
+          if (XM(task) <= XN(task)) {
+            DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, 4,
+                         BCST_WG);
+          } else
+#endif
+          {
+            DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, 4,
+                         BCST_NO);
+          }
+        }
+        break;
+      case 1:
+#if defined(BCST_WG)
+        if (XM(task) <= XN(task)) {
+          DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, BN, BCST_WG);
+        } else
+#endif
+        {
+          DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, BN, BCST_NO);
+        }
+        break;
+      case 2:
+      case 3:
+#if defined(BCST_WG)
+        if (XM(task) <= XN(task)) {
+          DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, BN + BN,
+                       BCST_WG);
+        } else
+#endif
+        {
+          DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, BN + BN,
+                       BCST_NO);
+        }
+        break;
+      case 4:
+      case 5:
+      case 6:
+      case 7:
+#if defined(BCST_WG)
+        if (XM(task) <= XN(task)) {
+          DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, BN * 4,
+                       BCST_WG);
+        } else
+#endif
+        {
+          DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, BN * 4,
+                       BCST_NO);
+        }
+        break;
+      case 8:
+      case 9:
+      case 10:
+      case 11:
+      case 12:
+      case 13:
+      case 14:
+      case 15:
+#if defined(BCST_WG)
+        if (XM(task) <= XN(task)) {
+          DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, BN * 8,
+                       BCST_WG);
+        } else
+#endif
+        {
+          DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, BN * 8,
+                       BCST_NO);
+        }
+        break;
+      default:
+#if defined(BCST_WG)
+        if (XM(task) <= XN(task)) {
+          DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, BN * 16,
+                       BCST_WG);
+        } else
+#endif
+        {
+          DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, BN * 16,
+                       BCST_NO);
+        }
       }
     }
   }
