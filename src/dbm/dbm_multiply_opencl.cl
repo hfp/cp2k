@@ -302,38 +302,16 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
       case 0: /* task.k < BN */
         switch (XK(task)) {
         case 1:
-#if defined(BCST_WG)
-          if (XM(task) <= XN(task)) {
-            DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, 1,
-                         BCST_WG);
-          } else
-#endif
-          {
-            DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, 1,
-                         BCST_NO);
-          }
-          break;
         case 2:
-#if defined(BCST_WG)
-          if (XM(task) <= XN(task)) {
-            DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, 2,
-                         BCST_WG);
-          } else
-#endif
-          {
-            DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, 2,
-                         BCST_NO);
-          }
-          break;
         case 3:
 #if defined(BCST_WG)
           if (XM(task) <= XN(task)) {
-            DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, 3,
+            DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, 1,
                          BCST_WG);
           } else
 #endif
           {
-            DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, 3,
+            DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, 1,
                          BCST_NO);
           }
           break;
@@ -351,6 +329,8 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
         }
         break;
       case 1:
+      case 2:
+      case 3:
 #if defined(BCST_WG)
         if (XM(task) <= XN(task)) {
           DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, BN, BCST_WG);
@@ -358,19 +338,6 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
 #endif
         {
           DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, BN, BCST_NO);
-        }
-        break;
-      case 2:
-      case 3:
-#if defined(BCST_WG)
-        if (XM(task) <= XN(task)) {
-          DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, BN + BN,
-                       BCST_WG);
-        } else
-#endif
-        {
-          DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, BN + BN,
-                       BCST_NO);
         }
         break;
       case 4:
