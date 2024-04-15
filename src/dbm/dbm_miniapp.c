@@ -195,6 +195,7 @@ void benchmark_multiply(const int M, const int N, const int K, const int m,
  * \author Ole Schuett
  ******************************************************************************/
 int main(int argc, char *argv[]) {
+  int result = EXIT_SUCCESS;
   dbm_mpi_init(&argc, &argv);
   dbm_library_init();
 
@@ -280,6 +281,8 @@ int main(int argc, char *argv[]) {
                            0 < mnk[2] ? mnk[2] : mnk[0], comm);
         mnk[0] = mnk[1] = mnk[2] = 0;
       } else {
+        fprintf(stderr, "ERROR: invalid argument(s)\n");
+        result = EXIT_FAILURE;
         i = argc;
       }
     }
@@ -288,11 +291,13 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  dbm_library_print_stats(dbm_mpi_comm_c2f(comm), &print_func, my_rank);
+  if (EXIT_SUCCESS == result) {
+    dbm_library_print_stats(dbm_mpi_comm_c2f(comm), &print_func, my_rank);
+  }
   dbm_library_finalize();
   dbm_mpi_comm_free(&comm);
   dbm_mpi_finalize();
-  return 0;
+  return result;
 }
 
 // EOF
