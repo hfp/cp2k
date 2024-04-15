@@ -262,14 +262,8 @@ int main(int argc, char *argv[]) {
     while (i < argc &&
            (NULL == file || NULL != fgets(buffer, sizeof(buffer), file))) {
       const char *arg = strtok(NULL != file ? buffer : argv[i], delims);
-      for (; NULL != arg; arg = strtok(NULL, delims)) {
-        if (3 > j) {
-          mnk[j] = atoi(arg);
-          ++j;
-        } else { /* malformed */
-          mnk[0] = 0;
-          break;
-        }
+      for (; NULL != arg && j < 3; arg = strtok(NULL, delims), ++j) {
+        mnk[j] = atoi(arg);
       }
       if (NULL != file) {
         j = 0;
