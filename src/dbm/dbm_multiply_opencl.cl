@@ -115,8 +115,8 @@
                             BN, BCST);                                         \
       }                                                                        \
     }                                                                          \
-    UNROLL_OUTER(1) for (; n0 < XN(TASK); n0 += (BN)) { /* remainder */        \
-      const int n1 = min(BN, XN(TASK) - n0);                                   \
+    if (n0 < XN(TASK)) {                     /* remainder */                   \
+      const int n1 = min(BN, XN(TASK) - n0); /* prefer over XN(TASK) - n0 */   \
       DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, n0, n1, BN,  \
                           BCST);                                               \
     }                                                                          \
