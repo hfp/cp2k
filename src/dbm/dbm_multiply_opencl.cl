@@ -77,49 +77,48 @@
                             BN, BCST)                                          \
   if (4 < XK(TASK)) {                                                          \
     UNROLL_AUTO for (int k = 0; k < XK(TASK); ++k) {                           \
-      const int ia = IDT(M, k, XM(TASK), XK(TASK));                            \
-      const double a = (AMAT)[XA(TASK) + ia];                                  \
+      const double a = (AMAT)[XA(TASK) + IDT(M, k, XM(TASK), XK(TASK))];       \
       UNROLL_AUTO for (int n = 0; n < (N1); ++n) {                             \
         const int ib = IDX(k, n + (N0), XK(TASK), XN(TASK));                   \
         const double b = (BMAT)[XB(TASK) + ib];                                \
         (CVEC)[n] = MAD(a, BCST(b), (CVEC)[n]);                                \
       }                                                                        \
     }                                                                          \
-  } else if (2 < XK(TASK)) {                                                   \
-    if (4 == XK(TASK)) {                                                       \
-      UNROLL_AUTO for (int k = 0; k < 4; ++k) {                                \
-        const double a = (AMAT)[XA(TASK) + IDT(M, k, XM(TASK), 4)];            \
-        UNROLL_AUTO for (int n = 0; n < (N1); ++n) {                           \
-          const int ib = IDX(k, n + (N0), 4, XN(TASK));                        \
-          const double b = (BMAT)[XB(TASK) + ib];                              \
-          (CVEC)[n] = MAD(a, BCST(b), (CVEC)[n]);                              \
-        }                                                                      \
+  } else if (2 >= XK(TASK)) {                                                  \
+    if (1 == XK(TASK)) {                                                       \
+      const double a = (AMAT)[XA(TASK) + IDT(M, 0, XM(TASK), 1)];              \
+      UNROLL_AUTO for (int n = 0; n < (N1); ++n) {                             \
+        const int ib = IDX(0, n + (N0), 1, XN(TASK));                          \
+        const double b = (BMAT)[XB(TASK) + ib];                                \
+        (CVEC)[n] = MAD(a, BCST(b), (CVEC)[n]);                                \
       }                                                                        \
-    } else {                                                                   \
-      UNROLL_AUTO for (int k = 0; k < 3; ++k) {                                \
-        const double a = (AMAT)[XA(TASK) + IDT(M, k, XM(TASK), 3)];            \
+    } else { /* K = 2 */                                                       \
+      UNROLL_AUTO for (int k = 0; k < 2; ++k) {                                \
+        const double a = (AMAT)[XA(TASK) + IDT(M, k, XM(TASK), 2)];            \
         UNROLL_AUTO for (int n = 0; n < (N1); ++n) {                           \
-          const int ib = IDX(k, n + (N0), 3, XN(TASK));                        \
+          const int ib = IDX(k, n + (N0), 2, XN(TASK));                        \
           const double b = (BMAT)[XB(TASK) + ib];                              \
           (CVEC)[n] = MAD(a, BCST(b), (CVEC)[n]);                              \
         }                                                                      \
       }                                                                        \
     }                                                                          \
-  } else if (2 == XK(TASK)) {                                                  \
-    UNROLL_AUTO for (int k = 0; k < 2; ++k) {                                  \
-      const double a = (AMAT)[XA(TASK) + IDT(M, k, XM(TASK), 2)];              \
+  } else if (4 == XK(TASK)) {                                                  \
+    UNROLL_AUTO for (int k = 0; k < 4; ++k) {                                  \
+      const double a = (AMAT)[XA(TASK) + IDT(M, k, XM(TASK), 4)];              \
       UNROLL_AUTO for (int n = 0; n < (N1); ++n) {                             \
-        const int ib = IDX(k, n + (N0), 2, XN(TASK));                          \
+        const int ib = IDX(k, n + (N0), 4, XN(TASK));                          \
         const double b = (BMAT)[XB(TASK) + ib];                                \
         (CVEC)[n] = MAD(a, BCST(b), (CVEC)[n]);                                \
       }                                                                        \
     }                                                                          \
-  } else { /* 1 */                                                             \
-    const double a = (AMAT)[XA(TASK) + IDT(M, 0, XM(TASK), 1)];                \
-    UNROLL_AUTO for (int n = 0; n < (N1); ++n) {                               \
-      const int ib = IDX(0, n + (N0), 1, XN(TASK));                            \
-      const double b = (BMAT)[XB(TASK) + ib];                                  \
-      (CVEC)[n] = MAD(a, BCST(b), (CVEC)[n]);                                  \
+  } else { /* K=3 */                                                           \
+    UNROLL_AUTO for (int k = 0; k < 3; ++k) {                                  \
+      const double a = (AMAT)[XA(TASK) + IDT(M, k, XM(TASK), 3)];              \
+      UNROLL_AUTO for (int n = 0; n < (N1); ++n) {                             \
+        const int ib = IDX(k, n + (N0), 3, XN(TASK));                          \
+        const double b = (BMAT)[XB(TASK) + ib];                                \
+        (CVEC)[n] = MAD(a, BCST(b), (CVEC)[n]);                                \
+      }                                                                        \
     }                                                                          \
   }                                                                            \
   UNROLL_AUTO for (int n = 0; n < (N1); ++n) { /* flush to global */           \
