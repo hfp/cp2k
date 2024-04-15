@@ -271,7 +271,15 @@ int main(int argc, char *argv[]) {
         continue;
       }
       if (0 < mnk[0]) { /* valid MxNxK? */
-        benchmark_multiply(128, 128, 128, mnk[0], 0 < mnk[1] ? mnk[1] : mnk[0],
+        const int extra = (NULL == arg ? 0 : atoi(arg));
+        int nm, nn, nk;
+        if (0 < extra) {
+          nn = nk = 1;
+          nm = extra;
+        } else { /* default */
+          nm = nn = nk = 128;
+        }
+        benchmark_multiply(nm, nn, nk, mnk[0], 0 < mnk[1] ? mnk[1] : mnk[0],
                            0 < mnk[2] ? mnk[2] : mnk[0], comm);
         mnk[0] = mnk[1] = mnk[2] = 0;
       } else {
