@@ -93,27 +93,15 @@
 #define DBM_MULTIPLY(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, BN, BCST)         \
   do {                                                                         \
     int n0 = 0;                                                                \
-    switch (XN(TASK) / (BN)) {                                                 \
-    case 0: /* TASK.n < BN */                                                  \
-      if (1 == XN(TASK)) {                                                     \
-        DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, 0, 1, 1,   \
-                            BCST);                                             \
-      } else { /* fallback */                                                  \
-        DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, 0,         \
-                            XN(TASK), BN, BCST);                               \
-      }                                                                        \
-      n0 = (BN);                                                               \
-      break;                                                                   \
-    case 1:                                                                    \
-      DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, 0, BN, BN,   \
-                          BCST);                                               \
-      n0 = (BN);                                                               \
-      break;                                                                   \
-    default:                                                                   \
+    if ((BN) < XN(TASK)) {                                                     \
       UNROLL_OUTER(1) for (; (n0 + (BN)) <= XN(TASK); n0 += (BN)) {            \
         DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, n0, BN,    \
                             BN, BCST);                                         \
       }                                                                        \
+    } else { /* small */                                                       \
+      DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, 0, 1, 1,     \
+                          BCST);                                               \
+      n0 = (BN);                                                               \
     }                                                                          \
     if (n0 < XN(TASK)) {                     /* remainder */                   \
       const int n1 = min(BN, XN(TASK) - n0); /* prefer over XN(TASK) - n0 */   \
