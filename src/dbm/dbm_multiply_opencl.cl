@@ -91,7 +91,7 @@
   }
 
 #define DBM_MULTIPLY(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, BN, BCST)         \
-  do {                                                                         \
+  do { /* DBM_MULTIPLY_KERNEL unrolled/specialized over N */                   \
     int n0 = 0;                                                                \
     if ((BN) < XN(TASK)) {                                                     \
       UNROLL_OUTER(1) for (; (n0 + (BN)) <= XN(TASK); n0 += (BN)) {            \
