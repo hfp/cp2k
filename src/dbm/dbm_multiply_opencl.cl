@@ -84,7 +84,7 @@
       (CVEC)[n] = MAD(a, BCST(b), (CVEC)[n]);                                  \
     }                                                                          \
   }                                                                            \
-  UNROLL_FORCE(BN) for (int n = 0; n < (BN); ++n) { /* flush to global */      \
+  UNROLL_FORCE(BN) for (int n = 0; n < (N1); ++n) { /* flush to global */      \
     const int ic = IDT(M, n + (N0), XM(TASK), XN(TASK));                       \
     ACCUMULATE((CMAT) + XC(TASK) + ic, (ALPHA) * (CVEC)[n]);                   \
     (CVEC)[n] = ZERO; /* reset */                                              \
@@ -101,7 +101,7 @@
     } else { /* small */                                                       \
       DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, 0, 1, 1,     \
                           XK(TASK), BCST);                                     \
-      n0 = (BN);                                                               \
+      n0 = 1;                                                                  \
     }                                                                          \
     if (n0 < XN(TASK)) {                     /* remainder */                   \
       const int n1 = min(BN, XN(TASK) - n0); /* prefer over XN(TASK) - n0 */   \
