@@ -34,7 +34,7 @@
 #define XK(T) X(T, k)
 
 #define DBM_MULTIPLY_SHM(ALPHA, TASK, AMAT, BMAT, CMAT, SHM, WG, BM, BN)       \
-  do {                                                                         \
+  do { /* matrix multiplication per work-group using shared memory */          \
     local double *restrict const ashm = (SHM);                                 \
     local double *restrict const bshm = (SHM) + (WG);                          \
     const short mk = XM(TASK) * XK(TASK), kn = XK(TASK) * XN(TASK);            \
@@ -198,7 +198,7 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
 #if defined(BCST_WG)
   if (get_global_id(0) < size)
 #endif
-  { /* full matrix multiplication */
+  { /* full matrix multiplication per work-item (thread) */
     double cvec[BN] = {ZERO};
     global const dbm_task_t *const task = &tasks[itask + get_global_id(0)];
     UNROLL_OUTER(1) for (short m = 0; m < XM(task); ++m) {
