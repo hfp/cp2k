@@ -100,7 +100,7 @@
     }                                                                          \
     if (k0 < XK(TASK)) {                     /* remainder */                   \
       const int k1 = min(BN, XK(TASK) - k0); /* prefer over XK(TASK) - k0 */   \
-      UNROLL_AUTO for (int k = 0; k < k1; ++k) {                               \
+      UNROLL_OUTER(1) for (int k = 0; k < k1; ++k) {                           \
         const int ia = IDT(M, k0 + k, XM(TASK), XK(TASK));                     \
         const double a = (AMAT)[XA(TASK) + ia];                                \
         UNROLL_AUTO for (int n = 0; n < (N1); ++n) {                           \
@@ -110,7 +110,7 @@
         }                                                                      \
       }                                                                        \
     }                                                                          \
-    UNROLL_FORCE(BN) for (int n = 0; n < (N1); ++n) { /* flush to global */    \
+    UNROLL_AUTO for (int n = 0; n < (N1); ++n) { /* flush to global */         \
       const int ic = IDT(M, n + (N0), XM(TASK), XN(TASK));                     \
       ACCUMULATE((CMAT) + XC(TASK) + ic, (ALPHA) * (CVEC)[n]);                 \
       (CVEC)[n] = ZERO; /* reset */                                            \
