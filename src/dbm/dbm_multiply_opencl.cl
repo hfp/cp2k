@@ -209,11 +209,7 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
     double cvec[BN] = {ZERO};
     global const dbm_task_t *const task = &tasks[itask + get_global_id(0)];
     UNROLL_OUTER(1) for (SINT m = 0; m < XM(task); ++m) {
-      UNROLL_AUTO for (SINT n0 = 0; n0 < XN(task); n0 += BN) {
-        const SINT n1 = MIN(BN, XN(task) - n0);
-        DBM_MULTIPLY_KERNEL(alpha, task, amat, bmat, cmat, cvec, m, n0, n1,
-                            XK(task), BCST_NO);
-      }
+      DBM_MULTIPLY(alpha, task, amat, bmat, cmat, m, BN, BCST_NO);
     }
   }
 #endif
