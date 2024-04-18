@@ -2409,10 +2409,10 @@ CONTAINS
                                                             found, skip
       REAL(KIND=dp)                                      :: dij, dik, djk, dr_ij, dr_ik, dr_jk, &
                                                             kind_radius_i, kind_radius_j, &
-                                                            kind_radius_k, prefac, sijk_ext
+                                                            kind_radius_k, max_contraction_i, &
+                                                            prefac, sijk_ext
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: ccp_buffer, cpp_buffer, &
-                                                            max_contraction_i, max_contraction_j, &
-                                                            max_contraction_k
+                                                            max_contraction_j, max_contraction_k
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: block_t, dummy_block_t, sijk, &
                                                             sijk_contr, tmp_ijk
       REAL(KIND=dp), DIMENSION(1, 1, 1)                  :: counter
@@ -2762,22 +2762,13 @@ CONTAINS
          IF (kind_radius_j + kind_radius_k + dr_jk < djk) CYCLE
          IF (kind_radius_k + kind_radius_i + dr_ik < dik) CYCLE
 
-         ALLOCATE (max_contraction_i(nseti))
-         max_contraction_i = 0.0_dp
-         DO iset = 1, nseti
-            sgfi = first_sgf_i(1, iset)
-            max_contraction_i(iset) = MAXVAL((/(SUM(ABS(sphi_i(:, i))), i=sgfi, sgfi + nsgfi(iset) - 1)/))
-         END DO
-
          ALLOCATE (max_contraction_j(nsetj))
-         max_contraction_j = 0.0_dp
          DO jset = 1, nsetj
             sgfj = first_sgf_j(1, jset)
             max_contraction_j(jset) = MAXVAL((/(SUM(ABS(sphi_j(:, i))), i=sgfj, sgfj + nsgfj(jset) - 1)/))
          END DO
 
          ALLOCATE (max_contraction_k(nsetk))
-         max_contraction_k = 0.0_dp
          DO kset = 1, nsetk
             sgfk = first_sgf_k(1, kset)
             max_contraction_k(kset) = MAXVAL((/(SUM(ABS(sphi_k(:, i))), i=sgfk, sgfk + nsgfk(kset) - 1)/))
@@ -2790,6 +2781,9 @@ CONTAINS
          block_t = 0.0_dp
          block_not_zero = .FALSE.
          DO iset = 1, nseti
+
+            sgfi = first_sgf_i(1, iset)
+            max_contraction_i = MAXVAL((/(SUM(ABS(sphi_i(:, i))), i=sgfi, sgfi + nsgfi(iset) - 1)/))
 
             DO jset = 1, nsetj
 
@@ -2804,21 +2798,17 @@ CONTAINS
                   ncoj = npgfj(jset)*ncoset(lmax_j(jset))
                   ncok = npgfk(kset)*ncoset(lmax_k(kset))
 
-                  IF (ncoj*ncok*ncoi == 0) CYCLE ! ensure number of triples for below code
-
-                  sgfi = first_sgf_i(1, iset)
-                  sgfj = first_sgf_j(1, jset)
-                  sgfk = first_sgf_k(1, kset)
-
-                  ALLOCATE (sijk(ncoj, ncok, ncoi))
-                  sijk(:, :, :) = 0.0_dp
+                  !ensure non-zero number of triples below
+                  IF (ncoj*ncok*ncoi == 0) CYCLE
 
                   !need positions for libint. Only relative positions are needed => set ri to 0.0
                   ri = 0.0_dp
                   rj = rij ! ri + rij
                   rk = rik ! ri + rik
 
+                  ALLOCATE (sijk(ncoj, ncok, ncoi))
                   IF (op_pos_prv == 1) THEN
+                     sijk(:, :, :) = 0.0_dp
                      CALL eri_3center(sijk, &
                                       lmin_j(jset), lmax_j(jset), npgfj(jset), zetj(:, jset), rpgf_j(:, jset), rj, &
                                       lmin_k(kset), lmax_k(kset), npgfk(kset), zetk(:, kset), rpgf_k(:, kset), rk, &
@@ -2839,7 +2829,7 @@ CONTAINS
                   END IF
 
                   IF (PRESENT(int_eps)) THEN
-                     IF (int_eps > sijk_ext*(max_contraction_i(iset)* &
+                     IF (int_eps > sijk_ext*(max_contraction_i* &
                                              max_contraction_j(jset)* &
                                              max_contraction_k(kset))) THEN
                         DEALLOCATE (sijk)
@@ -2854,6 +2844,9 @@ CONTAINS
                                             ncoj, ncok, ncoi, nsgfj(jset), nsgfk(kset), &
                                             nsgfi(iset), cpp_buffer, ccp_buffer)
                   DEALLOCATE (sijk)
+
+                  sgfj = first_sgf_j(1, jset)
+                  sgfk = first_sgf_k(1, kset)
 
                   block_start_j = sgfj
                   block_end_j = sgfj + nsgfj(jset) - 1
@@ -2896,7 +2889,7 @@ CONTAINS
          END IF
 
          DEALLOCATE (block_t)
-         DEALLOCATE (max_contraction_i, max_contraction_j, max_contraction_k)
+         DEALLOCATE (max_contraction_j, max_contraction_k)
       END DO
 
       CALL cp_libint_cleanup_3eri(lib)
