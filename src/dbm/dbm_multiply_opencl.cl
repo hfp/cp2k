@@ -186,18 +186,14 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
     const int max_m = size / ntasks, tid = i / max_m;
     const SINT m = i - tid * max_m;
     global const dbm_task_t *const task = &tasks[itask + tid];
-    if (m < XM(task)) { /* valid task */
+    if (m < XM(task)) {           /* valid task */
 #if defined(BCST_WG)
       if (XM(task) <= XN(task)) { /* BCST_WG to broadcast B-values */
         DBM_MULTIPLY(alpha, task, amat, bmat, cmat, m, BN, BCST_WG);
       } else
 #endif
       {
-        if ((BN * 3) <= XN(task)) {
-          DBM_MULTIPLY(alpha, task, amat, bmat, cmat, m, BN * 2, BCST_NO);
-        } else {
-          DBM_MULTIPLY(alpha, task, amat, bmat, cmat, m, BN, BCST_NO);
-        }
+        DBM_MULTIPLY(alpha, task, amat, bmat, cmat, m, BN, BCST_NO);
       }
     }
   }
