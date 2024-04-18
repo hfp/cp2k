@@ -2884,7 +2884,9 @@ CONTAINS
                CALL dbt_get_block(t3c(jcell, kcell), blk_idx, dummy_block_t, found=found)
                CPASSERT(found)
             END IF
-            sp = SHAPE(block_t)([2, 3, 1])
+
+            sp = SHAPE(block_t)
+            sp = sp([2, 3, 1])
 
             CALL dbt_put_block(t3c(jcell, kcell), blk_idx, sp, &
                                RESHAPE(block_t, SHAPE=sp, ORDER=[2, 3, 1]), summation=.TRUE.)
