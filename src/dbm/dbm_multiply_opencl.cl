@@ -11,7 +11,7 @@
 #include "dbm_multiply_internal.h"
 
 #if defined(GPU) && defined(WG) && (0 < WG) && (200 <= ACC_OPENCL_VERSION)
-#if defined(SG) && (0 < SG) /* BCST_WG used to broadcast B-values */
+#if defined(SG) && (0 < SG)
 #define BCST_WG(V) sub_group_broadcast(V, 0)
 #else
 #define BCST_WG(V) work_group_broadcast(V, 0)
@@ -188,7 +188,7 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
     global const dbm_task_t *const task = &tasks[itask + tid];
     if (m < XM(task)) { /* valid task */
 #if defined(BCST_WG)
-      if (XM(task) <= XN(task)) {
+      if (XM(task) <= XN(task)) { /* BCST_WG to broadcast B-values */
         DBM_MULTIPLY(alpha, task, amat, bmat, cmat, m, BN, BCST_WG);
       } else
 #endif
