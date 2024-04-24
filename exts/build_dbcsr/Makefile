@@ -88,6 +88,10 @@ else ifeq ($(GPUVER),V100)
   ARCH_NUMBER = 70
 else ifeq ($(GPUVER),A100)
   ARCH_NUMBER = 80
+else ifeq ($(GPUVER),H100)
+  ARCH_NUMBER = 90
+  # TODO: update for H100 tuned parameters
+  override GPUVER := A100
 else ifeq ($(GPUVER),Mi50)
   ARCH_NUMBER = gfx906
 else ifeq ($(GPUVER),Mi100)
