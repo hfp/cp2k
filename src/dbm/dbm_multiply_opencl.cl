@@ -39,7 +39,7 @@
   do { /* matrix multiplication per work-group using shared memory */          \
     local double *restrict const ashm = (SHM);                                 \
     local double *restrict const bshm = (SHM) + (WG);                          \
-    const SINT mk = XM(TASK) * XK(TASK), kn = XK(TASK) * XN(TASK);             \
+    const int mk = XM(TASK) * XK(TASK), kn = XK(TASK) * XN(TASK);              \
     const SINT tid = (SINT)get_local_id(0);                                    \
     /* y/s can exceed BN/BM (up to BK), and x/t is fast index (up to BM/BN) */ \
     const SINT y = tid / (BM), x = tid - y * (BM), bk = (WG) / MAX(BM, BN);    \
