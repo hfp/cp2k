@@ -19,7 +19,7 @@
 #endif
 #define BCST_NO(V) (V)
 
-#define SINT int
+#define SINT short
 
 #define DIVUP(A, B) (((A) + (B)-1) / (B))
 #define NUP(N, UP) (DIVUP(N, UP) * (UP))
@@ -92,8 +92,9 @@
 
 #define DBM_MULTIPLY(ALPHA, TASK, AMAT, BMAT, CMAT, M, BN, BCST)               \
   do { /* DBM_MULTIPLY_KERNEL unrolled/specialized over N and K */             \
-    double cvec[BN] = {ZERO};                                                  \
+    double cvec[BN];                                                           \
     SINT n0 = 0;                                                               \
+    UNROLL_AUTO for (SINT n = 0; n < (BN); ++n) { cvec[n] = ZERO; }            \
     if ((BN) <= XN(TASK)) {                                                    \
       if (1 < XK(TASK)) {                                                      \
         UNROLL_OUTER(1) for (; (n0 + (BN)) <= XN(TASK); n0 += (BN)) {          \
@@ -116,7 +117,7 @@
       n0 = 1;                                                                  \
     }                                                                          \
     if (n0 < XN(TASK)) {                      /* handle remainder */           \
-      const SINT n1 = MIN(BN, XN(TASK) - n0); /* MIN(BN, ... upside */         \
+      const SINT n1 = MIN(XN(TASK) - n0, BN); /* MIN(BN, ... upside */         \
       DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, cvec, M, n0, n1,      \
                           XK(TASK), BCST);                                     \
     }                                                                          \
@@ -202,7 +203,6 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
   if (get_global_id(0) < size)
 #endif
   { /* full matrix multiplication per work-item (thread) */
-    double cvec[BN] = {ZERO};
     global const dbm_task_t *const task = &tasks[itask + get_global_id(0)];
     UNROLL_OUTER(1) for (SINT m = 0; m < XM(task); ++m) {
       DBM_MULTIPLY(alpha, task, amat, bmat, cmat, m, BN, BCST_NO);
