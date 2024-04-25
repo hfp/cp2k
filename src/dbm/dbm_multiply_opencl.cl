@@ -25,7 +25,7 @@
 #define NUP(N, UP) (DIVUP(N, UP) * (UP))
 #define BLR(N, BN) (NUP(N, BN) - (N))
 
-#define IDX(I, J, M, N) ((I) * (N) + (J))
+#define IDX(I, J, M, N) ((int)(I) * (N) + (J))
 #define IDT(I, J, M, N) IDX(J, I, N, M)
 #define X(T, I) (T)->I /* task can be taken by value or by pointer */
 #define XA(T) X(T, offset_a)
@@ -85,7 +85,7 @@
     }                                                                          \
   }                                                                            \
   UNROLL_AUTO for (SINT n = 0; n < (N1); ++n) { /* flush to global */          \
-    const SINT idx = IDT(M, n + (N0), XM(TASK), XN(TASK));                     \
+    const int idx = IDT(M, n + (N0), XM(TASK), XN(TASK));                      \
     ACCUMULATE((CMAT) + XC(TASK) + idx, (ALPHA) * (CVEC)[n]);                  \
     (CVEC)[n] = ZERO; /* reset */                                              \
   }
@@ -116,10 +116,9 @@
                           BCST);                                               \
       n0 = 1;                                                                  \
     }                                                                          \
-    if (n0 < XN(TASK)) {                      /* handle remainder */           \
-      const SINT n1 = MIN(XN(TASK) - n0, BN); /* MIN(BN, ... upside */         \
-      DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, cvec, M, n0, n1,      \
-                          XK(TASK), BCST);                                     \
+    /*if (n0 < XN(TASK))*/ { /* handle remainder */                            \
+      DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, cvec, M, n0,          \
+                          XN(TASK) - n0, XK(TASK), BCST);                      \
     }                                                                          \
   } while (0)
 
