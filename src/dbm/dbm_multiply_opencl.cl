@@ -49,11 +49,11 @@
         double r = ZERO;                                                       \
         UNROLL_AUTO for (SINT k0 = 0; k0 < XK(TASK); k0 += bk) {               \
           if (x < (BM) && y < bk) { /* load A-tile */                          \
-            const SINT idx = IDT(m0 + x, k0 + y, XM(TASK), XK(TASK));          \
+            const int idx = IDT(m0 + x, k0 + y, XM(TASK), XK(TASK));           \
             ashm[y * (BM) + x] = (idx < mk ? (AMAT)[XA(TASK) + idx] : ZERO);   \
           }                                                                    \
           if (s < bk && t < (BN)) { /* load B-tile */                          \
-            const SINT idx = IDX(k0 + s, n0 + t, XK(TASK), XN(TASK));          \
+            const int idx = IDX(k0 + s, n0 + t, XK(TASK), XN(TASK));           \
             bshm[s * (BN) + t] = (idx < kn ? (BMAT)[XB(TASK) + idx] : ZERO);   \
           }                                                                    \
           BARRIER(CLK_LOCAL_MEM_FENCE);                                        \
@@ -67,7 +67,7 @@
         if (x < (BM) && y < (BN)) { /* flush to global */                      \
           const SINT m = m0 + x, n = n0 + y;                                   \
           if (m < XM(TASK) && n < XN(TASK)) {                                  \
-            const SINT idx = IDT(m, n, XM(TASK), XN(TASK));                    \
+            const int idx = IDT(m, n, XM(TASK), XN(TASK));                     \
             ACCUMULATE((CMAT) + XC(TASK) + idx, (ALPHA)*r);                    \
           }                                                                    \
         }                                                                      \
