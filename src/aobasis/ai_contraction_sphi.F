@@ -240,11 +240,12 @@ CONTAINS
 !> \param nsgfc ...
 !> \param cpp_buffer Temporary buffer used for intermediate results.
 !> \param ccp_buffer Temporary buffer used for intermediate results.
-!> \param prefac Prefactor finally multiplied into abcint.
+!> \param alpha Prefactor which is finally multiplied into abcint (GEMM's Alpha).
+!> \param beta Factor determining how initial abcint is preserved (GEMM's Beta).
 !> \note tested from version 1.9.0 of libxsmm
 ! **************************************************************************************************
    SUBROUTINE libxsmm_abc_contract(abcint, sabc, tsphi_a, sphi_b, sphi_c, ncoa, ncob, ncoc, &
-                                   nsgfa, nsgfb, nsgfc, cpp_buffer, ccp_buffer, prefac)
+                                   nsgfa, nsgfb, nsgfc, cpp_buffer, ccp_buffer, alpha, beta)
 
       REAL(KIND=dp), DIMENSION(*)                             :: abcint
       REAL(KIND=dp), DIMENSION(*), INTENT(IN)                 :: sabc
@@ -252,11 +253,11 @@ CONTAINS
       INTEGER, INTENT(IN)                                     :: ncoa, ncob, ncoc, nsgfa, nsgfb, nsgfc
       REAL(KIND=dp), DIMENSION(nsgfa*ncob), INTENT(OUT)       :: cpp_buffer
       REAL(KIND=dp), DIMENSION(nsgfa*nsgfb*ncoc), INTENT(OUT) :: ccp_buffer
-      REAL(KIND=dp), INTENT(IN), OPTIONAL                     :: prefac
+      REAL(KIND=dp), INTENT(IN), OPTIONAL                     :: alpha, beta
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'libxsmm_abc_contract'
 
-      REAL(KIND=dp)                                      :: alpha
+      REAL(KIND=dp)                                      :: prefac, pstfac
       INTEGER                                            :: handle, i
       LOGICAL                                            :: libxsmm_kernels_available
 #if(__LIBXSMM)
@@ -266,17 +267,17 @@ CONTAINS
       CALL timeset(routineN, handle)
       libxsmm_kernels_available = .FALSE.
 
-      IF (PRESENT(prefac)) THEN
-         alpha = prefac
-      ELSE
-         alpha = 1.0_dp
-      END IF
+      prefac = 1.0_dp
+      IF (PRESENT(alpha)) prefac = alpha
+
+      pstfac = 0.0_dp
+      IF (PRESENT(beta)) pstfac = beta
 
 #if(__LIBXSMM)
-      !We make use of libxsmm code dispatching feature and call the same kernel multiple times
-      !We loop over the last index of the matrix and call libxsmm each time
+      ! We make use of libxsmm code dispatching feature and call the same kernel multiple times
+      ! We loop over the last index of the matrix and call libxsmm each time
 
-      !pre-fetch the kernels
+      ! dispatch kernels
       CALL libxsmm_dispatch(xmm1, nsgfa, ncob, ncoa, beta=0.0_dp, prefetch=LIBXSMM_PREFETCH_NONE)
       CALL libxsmm_dispatch(xmm2, nsgfa, nsgfb, ncob, beta=0.0_dp, prefetch=LIBXSMM_PREFETCH_NONE)
 
@@ -305,8 +306,10 @@ CONTAINS
       END IF
 
       ! last contraction, over c, as a larger MM
-      CALL dgemm("N", "N", nsgfa*nsgfb, nsgfc, ncoc, alpha, ccp_buffer, nsgfa*nsgfb, sphi_c, ncoc, &
-                 0.0_dp, abcint, nsgfa*nsgfb)
+      ! [M1*M2 x K] * [K * N] -> [M1*M2 x N]
+      ! 
+      CALL dgemm("N", "N", nsgfa*nsgfb, nsgfc, ncoc, prefac, ccp_buffer, nsgfa*nsgfb, sphi_c, ncoc, &
+                 pstfac, abcint, nsgfa*nsgfb)
 
       CALL timestop(handle)
 
