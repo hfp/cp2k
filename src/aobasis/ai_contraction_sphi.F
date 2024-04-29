@@ -245,7 +245,7 @@ CONTAINS
    SUBROUTINE libxsmm_abc_contract(abcint, sabc, tsphi_a, sphi_b, sphi_c, ncoa, ncob, ncoc, &
                                    nsgfa, nsgfb, nsgfc, cpp_buffer, ccp_buffer, prefac)
 
-      REAL(KIND=dp), DIMENSION(*), INTENT(OUT)                :: abcint
+      REAL(KIND=dp), DIMENSION(*)                             :: abcint
       REAL(KIND=dp), DIMENSION(*), INTENT(IN)                 :: sabc
       REAL(KIND=dp), DIMENSION(:, :), INTENT(IN)              :: tsphi_a, sphi_b, sphi_c
       INTEGER, INTENT(IN)                                     :: ncoa, ncob, ncoc, nsgfa, nsgfb, nsgfc
