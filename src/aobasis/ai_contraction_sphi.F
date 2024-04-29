@@ -243,35 +243,41 @@ CONTAINS
 !> \note tested from version 1.9.0 of libxsmm
 ! **************************************************************************************************
    SUBROUTINE libxsmm_abc_contract(abcint, sabc, tsphi_a, sphi_b, sphi_c, ncoa, ncob, ncoc, &
-                                   nsgfa, nsgfb, nsgfc, cpp_buffer, ccp_buffer)
+                                   nsgfa, nsgfb, nsgfc, cpp_buffer, ccp_buffer, prefac)
 
-      REAL(dp), DIMENSION(*)                             :: abcint, sabc
-      REAL(dp), DIMENSION(:, :)                          :: tsphi_a, sphi_b, sphi_c
-      INTEGER, INTENT(IN)                                :: ncoa, ncob, ncoc, nsgfa, nsgfb, nsgfc
-      REAL(dp), DIMENSION(nsgfa*ncob)                    :: cpp_buffer
-      REAL(dp), DIMENSION(nsgfa*nsgfb*ncoc)              :: ccp_buffer
+      REAL(KIND=dp), DIMENSION(*), INTENT(OUT)                :: abcint
+      REAL(KIND=dp), DIMENSION(*), INTENT(IN)                 :: sabc
+      REAL(KIND=dp), DIMENSION(:, :), INTENT(IN)              :: tsphi_a, sphi_b, sphi_c
+      INTEGER, INTENT(IN)                                     :: ncoa, ncob, ncoc, nsgfa, nsgfb, nsgfc
+      REAL(KIND=dp), DIMENSION(nsgfa*ncob), INTENT(OUT)       :: cpp_buffer
+      REAL(KIND=dp), DIMENSION(nsgfa*nsgfb*ncoc), INTENT(OUT) :: ccp_buffer
+      REAL(KIND=dp), INTENT(IN), OPTIONAL                     :: prefac
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'libxsmm_abc_contract'
 
+      REAL(KIND=dp)                                      :: alpha
       INTEGER                                            :: handle, i
       LOGICAL                                            :: libxsmm_kernels_available
 #if(__LIBXSMM)
-      INTEGER(libxsmm_blasint_kind)                      :: m, n, k
       TYPE(libxsmm_dmmfunction)                          :: xmm1, xmm2
 #endif
 
       CALL timeset(routineN, handle)
       libxsmm_kernels_available = .FALSE.
 
+      IF (PRESENT(prefac)) THEN
+         alpha = prefac
+      ELSE
+         alpha = 1.0_dp
+      END IF
+
 #if(__LIBXSMM)
       !We make use of libxsmm code dispatching feature and call the same kernel multiple times
       !We loop over the last index of the matrix and call libxsmm each time
 
       !pre-fetch the kernels
-      m = nsgfa; n = ncob; k = ncoa
-      CALL libxsmm_dispatch(xmm1, m, n, k, beta=0.0_dp, prefetch=LIBXSMM_PREFETCH_NONE)
-      m = nsgfa; n = nsgfb; k = ncob
-      CALL libxsmm_dispatch(xmm2, m, n, k, beta=0.0_dp, prefetch=LIBXSMM_PREFETCH_NONE)
+      CALL libxsmm_dispatch(xmm1, nsgfa, ncob, ncoa, beta=0.0_dp, prefetch=LIBXSMM_PREFETCH_NONE)
+      CALL libxsmm_dispatch(xmm2, nsgfa, nsgfb, ncob, beta=0.0_dp, prefetch=LIBXSMM_PREFETCH_NONE)
 
       libxsmm_kernels_available = libxsmm_available(xmm1) .AND. libxsmm_available(xmm2)
 
@@ -298,7 +304,7 @@ CONTAINS
       END IF
 
       ! last contraction, over c, as a larger MM
-      CALL dgemm("N", "N", nsgfa*nsgfb, nsgfc, ncoc, 1.0_dp, ccp_buffer, nsgfa*nsgfb, sphi_c, ncoc, &
+      CALL dgemm("N", "N", nsgfa*nsgfb, nsgfc, ncoc, alpha, ccp_buffer, nsgfa*nsgfb, sphi_c, ncoc, &
                  0.0_dp, abcint, nsgfa*nsgfb)
 
       CALL timestop(handle)
