@@ -9,13 +9,13 @@
 !> \brief Contraction of integrals over primitive Cartesian Gaussians based on the contraction
 !>        matrix sphi which is part of the gto_basis_set_type
 !> \par History
-!>      -added libxsmm_abc_contract routine, A. Bussy (04.2020)
+!>      -added abc_contract_xsmm routine, A. Bussy (04.2020)
 !> \author Dorothea Golze (05.2016)
 ! **************************************************************************************************
 MODULE ai_contraction_sphi
 
    USE kinds, ONLY: dp
-#if(__LIBXSMM)
+#if defined(__LIBXSMM)
    USE libxsmm, ONLY: LIBXSMM_PREFETCH_NONE, &
                       libxsmm_blasint_kind, &
                       libxsmm_dgemm, &
@@ -33,7 +33,7 @@ MODULE ai_contraction_sphi
 
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'ai_contraction_sphi'
 
-   PUBLIC :: ab_contract, abc_contract, abcd_contract, libxsmm_abc_contract
+   PUBLIC :: ab_contract, abc_contract, abcd_contract, abc_contract_xsmm
 
 CONTAINS
 
@@ -244,7 +244,7 @@ CONTAINS
 !> \param beta Factor determining how initial abcint is preserved (GEMM's Beta).
 !> \note tested from version 1.9.0 of libxsmm
 ! **************************************************************************************************
-   SUBROUTINE libxsmm_abc_contract(abcint, sabc, tsphi_a, sphi_b, sphi_c, ncoa, ncob, ncoc, &
+   SUBROUTINE abc_contract_xsmm(abcint, sabc, tsphi_a, sphi_b, sphi_c, ncoa, ncob, ncoc, &
                                    nsgfa, nsgfb, nsgfc, cpp_buffer, ccp_buffer, alpha, beta)
 
       REAL(KIND=dp), DIMENSION(*)                             :: abcint
@@ -255,17 +255,21 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(nsgfa*nsgfb*ncoc), INTENT(OUT) :: ccp_buffer
       REAL(KIND=dp), INTENT(IN), OPTIONAL                     :: alpha, beta
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'libxsmm_abc_contract'
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'abc_contract_xsmm'
 
-      REAL(KIND=dp)                                      :: prefac, pstfac
-      INTEGER                                            :: handle, i
-      LOGICAL                                            :: libxsmm_kernels_available
-#if(__LIBXSMM)
-      TYPE(libxsmm_dmmfunction)                          :: xmm1, xmm2
+      REAL(KIND=dp)                                           :: prefac, pstfac
+      INTEGER                                                 :: handle, i
+      LOGICAL                                                 :: uv
+#if defined(__LIBXSMM)
+      TYPE(libxsmm_dmmfunction)                               :: xmm1, xmm2
 #endif
 
-      CALL timeset(routineN, handle)
-      libxsmm_kernels_available = .FALSE.
+      ! M*N*K FLOPS can be used to decide if contracting (UV)W vs U(VW)
+      ! uv = (nsgfa*ncob*(ncoa + nsgfb)) <= (ncoa*nsgfb*(ncob + nsgfa))
+      ! however, current interface dictates size of cpp_buffer
+      uv = (nsgfa*ncob) < (ncoa*nsgfb) .OR. (ncoa + nsgfb) <= (ncob + nsgfa)
+
+      CALL timeset(routineN//MERGE("uv", "vw", uv), handle)
 
       prefac = 1.0_dp
       IF (PRESENT(alpha)) prefac = alpha
@@ -273,46 +277,58 @@ CONTAINS
       pstfac = 0.0_dp
       IF (PRESENT(beta)) pstfac = beta
 
-#if(__LIBXSMM)
-      ! We make use of libxsmm code dispatching feature and call the same kernel multiple times
-      ! We loop over the last index of the matrix and call libxsmm each time
-
-      ! dispatch kernels
-      CALL libxsmm_dispatch(xmm1, nsgfa, ncob, ncoa, beta=0.0_dp, prefetch=LIBXSMM_PREFETCH_NONE)
-      CALL libxsmm_dispatch(xmm2, nsgfa, nsgfb, ncob, beta=0.0_dp, prefetch=LIBXSMM_PREFETCH_NONE)
-
-      libxsmm_kernels_available = libxsmm_available(xmm1) .AND. libxsmm_available(xmm2)
-
-      IF (libxsmm_kernels_available) THEN
-         ! contractions over a and b
-         DO i = 1, ncoc
-            CALL libxsmm_dmmcall(xmm1, tsphi_a, sabc((i - 1)*ncoa*ncob + 1), cpp_buffer)
-            CALL libxsmm_dmmcall(xmm2, cpp_buffer, sphi_b, ccp_buffer((i - 1)*nsgfa*nsgfb + 1))
-         END DO
-      ELSE
-         CPWARN("libxsmm available, but kernels are not, fallback to dgemm")
+      ! loop over the last index of the matrix and call LIBXSMM/BLAS to contract over a and b
+#if defined(__LIBXSMM)
+      IF (uv) THEN ! (UV)W: dispatch kernels
+         CALL libxsmm_dispatch(xmm1, nsgfa, ncob, ncoa, beta=0.0_dp, prefetch=LIBXSMM_PREFETCH_NONE)
+         CALL libxsmm_dispatch(xmm2, nsgfa, nsgfb, ncob, beta=0.0_dp, prefetch=LIBXSMM_PREFETCH_NONE)
+      ELSE ! U(VW): dispatch kernels
+         CALL libxsmm_dispatch(xmm1, ncoa, nsgfb, ncob, beta=0.0_dp, prefetch=LIBXSMM_PREFETCH_NONE)
+         CALL libxsmm_dispatch(xmm2, nsgfa, nsgfb, ncoa, beta=0.0_dp, prefetch=LIBXSMM_PREFETCH_NONE)
       END IF
-#endif
 
-      IF (.NOT. libxsmm_kernels_available) THEN
-         ! we follow the same flow as for libxsmm above, but use BLAS dgemm
-         ! contractions over a and b
-         DO i = 1, ncoc
+      IF (libxsmm_available(xmm1) .AND. libxsmm_available(xmm2)) THEN
+         IF (uv) THEN ! (UV)W
+            DO i = 1, ncoc ! contractions over a and b
+               ! [nsgfa,ncoa] x [ncoa,ncob] -> [nsgfa,ncob]
+               CALL libxsmm_dmmcall(xmm1, tsphi_a, sabc((i - 1)*ncoa*ncob + 1), cpp_buffer)
+               ! [nsgfa,ncob] x [ncob,nsgfb] -> [nsgfa,nsgfb]
+               CALL libxsmm_dmmcall(xmm2, cpp_buffer, sphi_b, ccp_buffer((i - 1)*nsgfa*nsgfb + 1))
+            END DO
+         ELSE ! U(VW)
+            DO i = 1, ncoc ! contractions over a and b
+               ! [ncoa,ncob] x [ncob,nsgfb] -> [ncoa,nsgfb]
+               CALL libxsmm_dmmcall(xmm1, sabc((i - 1)*ncoa*ncob + 1), sphi_b, cpp_buffer)
+               ! [nsgfa,ncoa] x [ncoa,nsgfb] -> [nsgfa,nsgfb]
+               CALL libxsmm_dmmcall(xmm2, tsphi_a, cpp_buffer, ccp_buffer((i - 1)*nsgfa*nsgfb + 1))
+            END DO
+         END IF
+      ELSE
+#endif
+      IF (uv) THEN ! (UV)W
+         DO i = 1, ncoc ! contractions over a and b
             CALL dgemm("N", "N", nsgfa, ncob, ncoa, 1.0_dp, tsphi_a, nsgfa, sabc((i - 1)*ncoa*ncob + 1), &
                        ncoa, 0.0_dp, cpp_buffer, nsgfa)
             CALL dgemm("N", "N", nsgfa, nsgfb, ncob, 1.0_dp, cpp_buffer, nsgfa, sphi_b, ncob, 0.0_dp, &
                        ccp_buffer((i - 1)*nsgfa*nsgfb + 1), nsgfa)
          END DO
+      ELSE ! U(VW)
+         DO i = 1, ncoc ! contractions over a and b
+            CALL dgemm("N", "N", ncoa, nsgfb, ncob, 1.0_dp, sabc((i - 1)*ncoa*ncob + 1), nsgfa, sphi_b, &
+                       ncoa, 0.0_dp, cpp_buffer, nsgfa)
+            CALL dgemm("N", "N", nsgfa, nsgfb, ncoa, 1.0_dp, tsphi_a, nsgfa, cpp_buffer, ncob, 0.0_dp, &
+                       ccp_buffer((i - 1)*nsgfa*nsgfb + 1), nsgfa)
+         END DO
       END IF
-
-      ! last contraction, over c, as a larger MM
-      ! [M1*M2 x K] * [K * N] -> [M1*M2 x N]
-      ! 
+#if defined(__LIBXSMM)
+      END IF
+#endif
+      ! last contraction, over c (larger MM using BLAS)
       CALL dgemm("N", "N", nsgfa*nsgfb, nsgfc, ncoc, prefac, ccp_buffer, nsgfa*nsgfb, sphi_c, ncoc, &
                  pstfac, abcint, nsgfa*nsgfb)
 
       CALL timestop(handle)
 
-   END SUBROUTINE libxsmm_abc_contract
+   END SUBROUTINE abc_contract_xsmm
 
 END MODULE ai_contraction_sphi
