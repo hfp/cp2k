@@ -245,7 +245,7 @@ CONTAINS
 !> \note tested from version 1.9.0 of libxsmm
 ! **************************************************************************************************
    SUBROUTINE abc_contract_xsmm(abcint, sabc, tsphi_a, sphi_b, sphi_c, ncoa, ncob, ncoc, &
-                                   nsgfa, nsgfb, nsgfc, cpp_buffer, ccp_buffer, alpha, beta)
+                                nsgfa, nsgfb, nsgfc, cpp_buffer, ccp_buffer, alpha, beta)
 
       REAL(KIND=dp), DIMENSION(*)                             :: abcint
       REAL(KIND=dp), DIMENSION(*), INTENT(IN)                 :: sabc
@@ -305,21 +305,21 @@ CONTAINS
          END IF
       ELSE
 #endif
-      IF (uv) THEN ! (UV)W
-         DO i = 1, ncoc ! contractions over a and b
-            CALL dgemm("N", "N", nsgfa, ncob, ncoa, 1.0_dp, tsphi_a, nsgfa, sabc((i - 1)*ncoa*ncob + 1), &
-                       ncoa, 0.0_dp, cpp_buffer, nsgfa)
-            CALL dgemm("N", "N", nsgfa, nsgfb, ncob, 1.0_dp, cpp_buffer, nsgfa, sphi_b, ncob, 0.0_dp, &
-                       ccp_buffer((i - 1)*nsgfa*nsgfb + 1), nsgfa)
-         END DO
-      ELSE ! U(VW)
-         DO i = 1, ncoc ! contractions over a and b
-            CALL dgemm("N", "N", ncoa, nsgfb, ncob, 1.0_dp, sabc((i - 1)*ncoa*ncob + 1), nsgfa, sphi_b, &
-                       ncoa, 0.0_dp, cpp_buffer, nsgfa)
-            CALL dgemm("N", "N", nsgfa, nsgfb, ncoa, 1.0_dp, tsphi_a, nsgfa, cpp_buffer, ncob, 0.0_dp, &
-                       ccp_buffer((i - 1)*nsgfa*nsgfb + 1), nsgfa)
-         END DO
-      END IF
+         IF (uv) THEN ! (UV)W
+            DO i = 1, ncoc ! contractions over a and b
+               CALL dgemm("N", "N", nsgfa, ncob, ncoa, 1.0_dp, tsphi_a, nsgfa, sabc((i - 1)*ncoa*ncob + 1), &
+                          ncoa, 0.0_dp, cpp_buffer, nsgfa)
+               CALL dgemm("N", "N", nsgfa, nsgfb, ncob, 1.0_dp, cpp_buffer, nsgfa, sphi_b, ncob, 0.0_dp, &
+                          ccp_buffer((i - 1)*nsgfa*nsgfb + 1), nsgfa)
+            END DO
+         ELSE ! U(VW)
+            DO i = 1, ncoc ! contractions over a and b
+               CALL dgemm("N", "N", ncoa, nsgfb, ncob, 1.0_dp, sabc((i - 1)*ncoa*ncob + 1), nsgfa, sphi_b, &
+                          ncoa, 0.0_dp, cpp_buffer, nsgfa)
+               CALL dgemm("N", "N", nsgfa, nsgfb, ncoa, 1.0_dp, tsphi_a, nsgfa, cpp_buffer, ncob, 0.0_dp, &
+                          ccp_buffer((i - 1)*nsgfa*nsgfb + 1), nsgfa)
+            END DO
+         END IF
 #if defined(__LIBXSMM)
       END IF
 #endif

@@ -1684,9 +1684,9 @@ CONTAINS
 
                         block_j_not_zero(i_xyz) = .TRUE.
                         CALL abc_contract_xsmm(dijk_contr, dijk_j(:, :, :, i_xyz), tspj(jset, jkind)%array, &
-                                                  spk(kset, kkind)%array, spi(iset, ikind)%array, &
-                                                  ncoj, ncok, ncoi, nsgfj(jset), nsgfk(kset), &
-                                                  nsgfi(iset), cpp_buffer, ccp_buffer, prefac)
+                                               spk(kset, kkind)%array, spi(iset, ikind)%array, &
+                                               ncoj, ncok, ncoi, nsgfj(jset), nsgfk(kset), &
+                                               nsgfi(iset), cpp_buffer, ccp_buffer, prefac)
 
                         block_t_j(block_start_j:block_end_j, &
                                   block_start_k:block_end_k, &
@@ -1703,9 +1703,9 @@ CONTAINS
 
                         block_k_not_zero(i_xyz) = .TRUE.
                         CALL abc_contract_xsmm(dijk_contr, dijk_k(:, :, :, i_xyz), tspj(jset, jkind)%array, &
-                                                  spk(kset, kkind)%array, spi(iset, ikind)%array, &
-                                                  ncoj, ncok, ncoi, nsgfj(jset), nsgfk(kset), &
-                                                  nsgfi(iset), cpp_buffer, ccp_buffer, prefac)
+                                               spk(kset, kkind)%array, spi(iset, ikind)%array, &
+                                               ncoj, ncok, ncoi, nsgfj(jset), nsgfk(kset), &
+                                               nsgfi(iset), cpp_buffer, ccp_buffer, prefac)
 
                         block_t_k(block_start_j:block_end_j, &
                                   block_start_k:block_end_k, &
@@ -2242,9 +2242,9 @@ CONTAINS
 
                         block_j_not_zero(i_xyz) = .TRUE.
                         CALL abc_contract_xsmm(dijk_contr, dijk_j(:, :, :, i_xyz), tspj(jset, jkind)%array, &
-                                                  spk(kset, kkind)%array, spi(iset, ikind)%array, &
-                                                  ncoj, ncok, ncoi, nsgfj(jset), nsgfk(kset), &
-                                                  nsgfi(iset), cpp_buffer, ccp_buffer)
+                                               spk(kset, kkind)%array, spi(iset, ikind)%array, &
+                                               ncoj, ncok, ncoi, nsgfj(jset), nsgfk(kset), &
+                                               nsgfi(iset), cpp_buffer, ccp_buffer)
 
                         block_t_j(block_start_j:block_end_j, &
                                   block_start_k:block_end_k, &
@@ -2261,9 +2261,9 @@ CONTAINS
 
                         block_k_not_zero(i_xyz) = .TRUE.
                         CALL abc_contract_xsmm(dijk_contr, dijk_k(:, :, :, i_xyz), tspj(jset, jkind)%array, &
-                                                  spk(kset, kkind)%array, spi(iset, ikind)%array, &
-                                                  ncoj, ncok, ncoi, nsgfj(jset), nsgfk(kset), &
-                                                  nsgfi(iset), cpp_buffer, ccp_buffer)
+                                               spk(kset, kkind)%array, spi(iset, ikind)%array, &
+                                               ncoj, ncok, ncoi, nsgfj(jset), nsgfk(kset), &
+                                               nsgfi(iset), cpp_buffer, ccp_buffer)
 
                         block_t_k(block_start_j:block_end_j, &
                                   block_start_k:block_end_k, &
@@ -2842,9 +2842,9 @@ CONTAINS
                   block_not_zero = .TRUE.
                   ALLOCATE (sijk_contr(nsgfj(jset), nsgfk(kset), nsgfi(iset)))
                   CALL abc_contract_xsmm(sijk_contr, sijk, tspj(jset, jkind)%array, &
-                                            spk(kset, kkind)%array, spi(iset, ikind)%array, &
-                                            ncoj, ncok, ncoi, nsgfj(jset), nsgfk(kset), &
-                                            nsgfi(iset), cpp_buffer, ccp_buffer, prefac)
+                                         spk(kset, kkind)%array, spi(iset, ikind)%array, &
+                                         ncoj, ncok, ncoi, nsgfj(jset), nsgfk(kset), &
+                                         nsgfi(iset), cpp_buffer, ccp_buffer, prefac)
                   DEALLOCATE (sijk)
 
                   sgfj = first_sgf_j(1, jset)

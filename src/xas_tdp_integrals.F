@@ -639,8 +639,8 @@ CONTAINS
                   ALLOCATE (work(nsgfa(iset), nsgfb(jset), nsgfc(kset)))
 
                   CALL abc_contract_xsmm(work, sabc, tspa(iset, ikind)%array, spb(jset, jkind)%array, &
-                                            spc(kset, kkind)%array, ncoa, ncob, ncoc, nsgfa(iset), &
-                                            nsgfb(jset), nsgfc(kset), cpp_buffer, ccp_buffer)
+                                         spc(kset, kkind)%array, ncoa, ncob, ncoc, nsgfa(iset), &
+                                         nsgfb(jset), nsgfc(kset), cpp_buffer, ccp_buffer)
 
                   iabc(sgfa:egfa, sgfb:egfb, sgfc:egfc) = work(:, :, :)
                   DEALLOCATE (sabc, work)
