@@ -229,7 +229,7 @@ CONTAINS
 !>        the LIBXSMM library to be initialized somewhere before this routine is called.
 !> \param abcint contracted integrals
 !> \param sabc uncontracted integrals
-!> \param tsphi_a assumed to have dimensions nsgfa x ncoa
+!> \param sphi_a assumed to have dimensions nsgfa x ncoa
 !> \param sphi_b assumed to have dimensions ncob x nsgfb
 !> \param sphi_c assumed to have dimensions ncoc x nsgfc
 !> \param ncoa ...
@@ -244,12 +244,12 @@ CONTAINS
 !> \param beta Factor determining how initial abcint is preserved (GEMM's Beta).
 !> \note tested from version 1.9.0 of libxsmm
 ! **************************************************************************************************
-   SUBROUTINE abc_contract_xsmm(abcint, sabc, tsphi_a, sphi_b, sphi_c, ncoa, ncob, ncoc, &
+   SUBROUTINE abc_contract_xsmm(abcint, sabc, sphi_a, sphi_b, sphi_c, ncoa, ncob, ncoc, &
                                 nsgfa, nsgfb, nsgfc, cpp_buffer, ccp_buffer, alpha, beta)
 
       REAL(KIND=dp), DIMENSION(*)                             :: abcint
       REAL(KIND=dp), DIMENSION(*), INTENT(IN)                 :: sabc
-      REAL(KIND=dp), DIMENSION(:, :), INTENT(IN)              :: tsphi_a, sphi_b, sphi_c
+      REAL(KIND=dp), DIMENSION(:, :), INTENT(IN)              :: sphi_a, sphi_b, sphi_c
       INTEGER, INTENT(IN)                                     :: ncoa, ncob, ncoc, nsgfa, nsgfb, nsgfc
       REAL(KIND=dp), DIMENSION(nsgfa*ncob), INTENT(OUT)       :: cpp_buffer
       REAL(KIND=dp), DIMENSION(nsgfa*nsgfb*ncoc), INTENT(OUT) :: ccp_buffer
@@ -291,7 +291,7 @@ CONTAINS
          IF (uv) THEN ! (UV)W
             DO i = 1, ncoc ! contractions over a and b
                ! [nsgfa,ncoa] x [ncoa,ncob] -> [nsgfa,ncob]
-               CALL libxsmm_dmmcall(xmm1, tsphi_a, sabc((i - 1)*ncoa*ncob + 1), cpp_buffer)
+               CALL libxsmm_dmmcall(xmm1, sphi_a, sabc((i - 1)*ncoa*ncob + 1), cpp_buffer)
                ! [nsgfa,ncob] x [ncob,nsgfb] -> [nsgfa,nsgfb]
                CALL libxsmm_dmmcall(xmm2, cpp_buffer, sphi_b, ccp_buffer((i - 1)*nsgfa*nsgfb + 1))
             END DO
@@ -300,14 +300,14 @@ CONTAINS
                ! [ncoa,ncob] x [ncob,nsgfb] -> [ncoa,nsgfb]
                CALL libxsmm_dmmcall(xmm1, sabc((i - 1)*ncoa*ncob + 1), sphi_b, cpp_buffer)
                ! [nsgfa,ncoa] x [ncoa,nsgfb] -> [nsgfa,nsgfb]
-               CALL libxsmm_dmmcall(xmm2, tsphi_a, cpp_buffer, ccp_buffer((i - 1)*nsgfa*nsgfb + 1))
+               CALL libxsmm_dmmcall(xmm2, sphi_a, cpp_buffer, ccp_buffer((i - 1)*nsgfa*nsgfb + 1))
             END DO
          END IF
       ELSE
 #endif
          IF (uv) THEN ! (UV)W
             DO i = 1, ncoc ! contractions over a and b
-               CALL dgemm("N", "N", nsgfa, ncob, ncoa, 1.0_dp, tsphi_a, nsgfa, sabc((i - 1)*ncoa*ncob + 1), &
+               CALL dgemm("N", "N", nsgfa, ncob, ncoa, 1.0_dp, sphi_a, nsgfa, sabc((i - 1)*ncoa*ncob + 1), &
                           ncoa, 0.0_dp, cpp_buffer, nsgfa)
                CALL dgemm("N", "N", nsgfa, nsgfb, ncob, 1.0_dp, cpp_buffer, nsgfa, sphi_b, ncob, 0.0_dp, &
                           ccp_buffer((i - 1)*nsgfa*nsgfb + 1), nsgfa)
@@ -316,7 +316,7 @@ CONTAINS
             DO i = 1, ncoc ! contractions over a and b
                CALL dgemm("N", "N", ncoa, nsgfb, ncob, 1.0_dp, sabc((i - 1)*ncoa*ncob + 1), nsgfa, sphi_b, &
                           ncoa, 0.0_dp, cpp_buffer, nsgfa)
-               CALL dgemm("N", "N", nsgfa, nsgfb, ncoa, 1.0_dp, tsphi_a, nsgfa, cpp_buffer, ncob, 0.0_dp, &
+               CALL dgemm("N", "N", nsgfa, nsgfb, ncoa, 1.0_dp, sphi_a, nsgfa, cpp_buffer, ncob, 0.0_dp, &
                           ccp_buffer((i - 1)*nsgfa*nsgfb + 1), nsgfa)
             END DO
          END IF
