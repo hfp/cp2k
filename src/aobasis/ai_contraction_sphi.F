@@ -269,7 +269,7 @@ CONTAINS
       ! however, current interface dictates size of cpp_buffer
       uv = (nsgfa*ncob) < (ncoa*nsgfb) .OR. (ncoa + nsgfb) <= (ncob + nsgfa)
 
-      CALL timeset(routineN//MERGE("uv", "vw", uv), handle)
+      CALL timeset(routineN//MERGE("_uv", "_vw", uv), handle)
 
       prefac = 1.0_dp
       IF (PRESENT(alpha)) prefac = alpha
