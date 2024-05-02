@@ -129,9 +129,9 @@ CONTAINS
       ! ALLOCATE (cpp(nsgfa, m2, m3), cpc(nsgfa, nsgfb, m3))
       ALLOCATE (tmp(nsgfa, MAX(m2, nsgfb), m3 + 1))
 
-      CALL dgemm("T", "N", nsgfa, m2*m3, ncoa, 1._dp, sphi_a, msphia, sabc, m1, 0.0_dp, cpp(:, :, 2), nsgfa)
+      CALL dgemm("T", "N", nsgfa, m2*m3, ncoa, 1._dp, sphi_a, msphia, sabc, m1, 0.0_dp, tmp(:, :, 2), nsgfa)
       DO i = 1, m3
-         CALL dgemm("N", "N", nsgfa, nsgfb, ncob, 1._dp, cpp(:, :, i + 1), nsgfa, sphi_b, msphib, &
+         CALL dgemm("N", "N", nsgfa, nsgfb, ncob, 1._dp, tmp(:, :, i + 1), nsgfa, sphi_b, msphib, &
                     0.0_dp, tmp(:, :, i), nsgfa)
       END DO
       CALL dgemm("N", "N", nsgfa*nsgfb, nsgfc, ncoc, 1._dp, tmp, nsgfa*nsgfb, sphi_c, msphic, 0.0_dp, &
