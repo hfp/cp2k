@@ -318,9 +318,9 @@ CONTAINS
             END DO
          ELSE ! A(BC)
             DO i = 1, ncoc ! contractions over a and b
-               CALL dgemm("N", "N", ncoa, nsgfb, ncob, 1.0_dp, sabc((i - 1)*ncoa*ncob + 1), nsgfa, sphi_b, &
-                          ncoa, 0.0_dp, cpp_buffer, nsgfa)
-               CALL dgemm("N", "N", nsgfa, nsgfb, ncoa, 1.0_dp, sphi_a, nsgfa, cpp_buffer, ncob, 0.0_dp, &
+               CALL dgemm("N", "N", ncoa, nsgfb, ncob, 1.0_dp, sabc((i - 1)*ncoa*ncob + 1), ncoa, sphi_b, &
+                          ncob, 0.0_dp, cpp_buffer, nsgfa)
+               CALL dgemm("N", "N", nsgfa, nsgfb, ncoa, 1.0_dp, sphi_a, nsgfa, cpp_buffer, nsgfa, 0.0_dp, &
                           ccp_buffer((i - 1)*nsgfa*nsgfb + 1), nsgfa)
             END DO
          END IF
