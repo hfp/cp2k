@@ -103,15 +103,15 @@ CONTAINS
    SUBROUTINE abc_contract(abcint, sabc, sphi_a, sphi_b, sphi_c, ncoa, ncob, ncoc, &
                            nsgfa, nsgfb, nsgfc)
 
-      REAL(KIND=dp), DIMENSION(:, :, :)              :: abcint, sabc
-      REAL(KIND=dp), DIMENSION(:, :)                 :: sphi_a, sphi_b, sphi_c
-      INTEGER, INTENT(IN)                            :: ncoa, ncob, ncoc, nsgfa, nsgfb, nsgfc
+      REAL(KIND=dp), DIMENSION(:, :, :)                  :: abcint, sabc
+      REAL(KIND=dp), DIMENSION(:, :)                     :: sphi_a, sphi_b, sphi_c
+      INTEGER, INTENT(IN)                                :: ncoa, ncob, ncoc, nsgfa, nsgfb, nsgfc
 
-      CHARACTER(LEN=*), PARAMETER                    :: routineN = 'abc_contract'
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'abc_contract'
 
-      INTEGER                                        :: handle, i, m1, m2, m3, msphia, msphib, &
-                                                        msphic
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :) :: tmp
+      INTEGER                                            :: handle, i, m1, m2, m3, msphia, msphib, &
+                                                            msphic
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: tmp
 
       CALL timeset(routineN, handle)
 
