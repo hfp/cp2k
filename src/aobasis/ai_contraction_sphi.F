@@ -56,14 +56,14 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'ab_contract'
 
-      INTEGER                                            :: handle, msphia, msphib
+      INTEGER                                            :: handle
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: cpp
 
       CALL timeset(routineN, handle)
 
       CPASSERT(SIZE(sab, 2) == ncob)
 
-      IF ((nsgfa*ncob*(ncoa+nsgfb)) <= (nsgfb*ncoa*(ncob+nsgfa))) THEN ! (sphi_a x sab) x sphi_b
+      IF ((nsgfa*ncob*(ncoa + nsgfb)) <= (nsgfb*ncoa*(ncob + nsgfa))) THEN ! (sphi_a x sab) x sphi_b
          ALLOCATE (cpp(nsgfa, ncob))
          ! [nsgfa,ncoa] x [ncoa,ncob] -> [nsgfa,ncob]
          CALL dgemm("T", "N", nsgfa, ncob, ncoa, 1._dp, sphi_a, SIZE(sphi_a, 1), sab, SIZE(sab, 1), 0.0_dp, cpp, nsgfa)
@@ -111,7 +111,7 @@ CONTAINS
 
       INTEGER                                            :: handle, i, m1, m2, m3, msphia, msphib, &
                                                             msphic
-      REAL(KIND=dp), DIMENSION(:, :, :), ALLOCATABLE     :: buffer
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: buffer
       REAL(KIND=dp), DIMENSION(:, :, :), POINTER         :: cpc, cpp
 
       CALL timeset(routineN, handle)
@@ -128,7 +128,7 @@ CONTAINS
       m3 = SIZE(sabc, 3)
 
       ! ALLOCATE (cpp(nsgfa, m2, m3), cpc(nsgfa, nsgfb, m3))
-      ALLOCATE (buffer(nsgfa, MAX(m2, nsgfb), m3+1))
+      ALLOCATE (buffer(nsgfa, MAX(m2, nsgfb), m3 + 1))
       cpc => buffer ! buffer(:, :, 1)
       cpp => buffer(:, :, 2)
 
