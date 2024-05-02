@@ -248,12 +248,11 @@ CONTAINS
 !> \param nsgfc ...
 !> \param cpp_buffer Temporary buffer used for intermediate results.
 !> \param ccp_buffer Temporary buffer used for intermediate results.
-!> \param alpha Prefactor which is finally multiplied into abcint (GEMM's Alpha).
-!> \param beta Factor determining how initial abcint is preserved (GEMM's Beta).
+!> \param alpha Prefactor which is finally multiplied into abcint.
 !> \note tested from version 1.9.0 of libxsmm
 ! **************************************************************************************************
    SUBROUTINE abc_contract_xsmm(abcint, sabc, sphi_a, sphi_b, sphi_c, ncoa, ncob, ncoc, &
-                                nsgfa, nsgfb, nsgfc, cpp_buffer, ccp_buffer, alpha, beta)
+                                nsgfa, nsgfb, nsgfc, cpp_buffer, ccp_buffer, alpha)
 
       REAL(KIND=dp), DIMENSION(*)                             :: abcint
       REAL(KIND=dp), DIMENSION(*), INTENT(IN)                 :: sabc
@@ -261,11 +260,11 @@ CONTAINS
       INTEGER, INTENT(IN)                                     :: ncoa, ncob, ncoc, nsgfa, nsgfb, nsgfc
       REAL(KIND=dp), DIMENSION(nsgfa*ncob), INTENT(OUT)       :: cpp_buffer
       REAL(KIND=dp), DIMENSION(nsgfa*nsgfb*ncoc), INTENT(OUT) :: ccp_buffer
-      REAL(KIND=dp), INTENT(IN), OPTIONAL                     :: alpha, beta
+      REAL(KIND=dp), INTENT(IN), OPTIONAL                     :: prefac
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'abc_contract_xsmm'
 
-      REAL(KIND=dp)                                           :: prefac, pstfac
+      REAL(KIND=dp)                                           :: alpha
       INTEGER                                                 :: handle, i
       LOGICAL                                                 :: ab
 #if defined(__LIBXSMM)
@@ -277,13 +276,10 @@ CONTAINS
       ! however, current interface dictates size of cpp_buffer
       ab = (nsgfa*ncob) < (ncoa*nsgfb) .OR. (ncoa + nsgfb) <= (ncob + nsgfa)
 
-      CALL timeset(routineN//MERGE("_ab", "_bc", ab), handle)
+      CALL timeset(routineN, handle)
 
-      prefac = 1.0_dp
-      IF (PRESENT(alpha)) prefac = alpha
-
-      pstfac = 0.0_dp
-      IF (PRESENT(beta)) pstfac = beta
+      alpha = 1.0_dp
+      IF (PRESENT(prefac)) alpha = prefac
 
       ! loop over the last index of the matrix and call LIBXSMM/BLAS to contract over a and b
 #if defined(__LIBXSMM)
@@ -332,8 +328,8 @@ CONTAINS
       END IF
 #endif
       ! last contraction, over c (larger MM using BLAS)
-      CALL dgemm("N", "N", nsgfa*nsgfb, nsgfc, ncoc, prefac, ccp_buffer, nsgfa*nsgfb, sphi_c, ncoc, &
-                 pstfac, abcint, nsgfa*nsgfb)
+      CALL dgemm("N", "N", nsgfa*nsgfb, nsgfc, ncoc, alpha, ccp_buffer, nsgfa*nsgfb, sphi_c, ncoc, &
+                 0.0_dp, abcint, nsgfa*nsgfb)
 
       CALL timestop(handle)
 
