@@ -1083,7 +1083,7 @@ CONTAINS
                      ak%array(1) = katom
                   END IF
 
-                  IF (ALLOCATED(tmp)) DEALLOCATE (tmp)
+                  DEALLOCATE (tmp)
                END ASSOCIATE
             END ASSOCIATE
          END ASSOCIATE
@@ -1832,10 +1832,10 @@ CONTAINS
 
       DO iset = 1, max_nset
          DO ibasis = 1, nbasis
-            IF (ASSOCIATED(spi(iset, ibasis)%array)) DEALLOCATE (spi(iset, ibasis)%array)
-            IF (ASSOCIATED(tspj(iset, ibasis)%array)) DEALLOCATE (tspj(iset, ibasis)%array)
-
-            IF (ASSOCIATED(spk(iset, ibasis)%array)) DEALLOCATE (spk(iset, ibasis)%array)
+            ! deallocating nullified pointer is valid
+            DEALLOCATE (spi(iset, ibasis)%array)
+            DEALLOCATE (tspj(iset, ibasis)%array)
+            DEALLOCATE (spk(iset, ibasis)%array)
          END DO
       END DO
 
@@ -2328,10 +2328,10 @@ CONTAINS
 
       DO iset = 1, max_nset
          DO ibasis = 1, nbasis
-            IF (ASSOCIATED(spi(iset, ibasis)%array)) DEALLOCATE (spi(iset, ibasis)%array)
-            IF (ASSOCIATED(tspj(iset, ibasis)%array)) DEALLOCATE (tspj(iset, ibasis)%array)
-
-            IF (ASSOCIATED(spk(iset, ibasis)%array)) DEALLOCATE (spk(iset, ibasis)%array)
+            ! deallocating nullified pointer is valid
+            DEALLOCATE (spi(iset, ibasis)%array)
+            DEALLOCATE (tspj(iset, ibasis)%array)
+            DEALLOCATE (spk(iset, ibasis)%array)
          END DO
       END DO
 
@@ -2953,10 +2953,10 @@ CONTAINS
 
       DO iset = 1, max_nset
          DO ibasis = 1, nbasis
-            IF (ASSOCIATED(spi(iset, ibasis)%array)) DEALLOCATE (spi(iset, ibasis)%array)
-            IF (ASSOCIATED(tspj(iset, ibasis)%array)) DEALLOCATE (tspj(iset, ibasis)%array)
-
-            IF (ASSOCIATED(spk(iset, ibasis)%array)) DEALLOCATE (spk(iset, ibasis)%array)
+            ! deallocating nullified pointer is valid
+            DEALLOCATE (spi(iset, ibasis)%array)
+            DEALLOCATE (tspj(iset, ibasis)%array)
+            DEALLOCATE (spk(iset, ibasis)%array)
          END DO
       END DO
       DEALLOCATE (spi, tspj, spk)
