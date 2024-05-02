@@ -103,16 +103,16 @@ CONTAINS
    SUBROUTINE abc_contract(abcint, sabc, sphi_a, sphi_b, sphi_c, ncoa, ncob, ncoc, &
                            nsgfa, nsgfb, nsgfc)
 
-      REAL(KIND=dp), DIMENSION(:, :, :)                  :: abcint, sabc
-      REAL(KIND=dp), DIMENSION(:, :)                     :: sphi_a, sphi_b, sphi_c
-      INTEGER, INTENT(IN)                                :: ncoa, ncob, ncoc, nsgfa, nsgfb, nsgfc
+      REAL(KIND=dp), DIMENSION(:, :, :)                      :: abcint, sabc
+      REAL(KIND=dp), DIMENSION(:, :)                         :: sphi_a, sphi_b, sphi_c
+      INTEGER, INTENT(IN)                                    :: ncoa, ncob, ncoc, nsgfa, nsgfb, nsgfc
 
-      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'abc_contract'
+      CHARACTER(LEN=*), PARAMETER                            :: routineN = 'abc_contract'
 
-      INTEGER                                            :: handle, i, m1, m2, m3, msphia, msphib, &
-                                                            msphic
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: buffer
-      REAL(KIND=dp), DIMENSION(:, :, :), POINTER         :: cpc, cpp
+      INTEGER                                                :: handle, i, m1, m2, m3, msphia, msphib, &
+                                                                msphic
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :), TARGET :: buffer
+      REAL(KIND=dp), DIMENSION(:, :, :), POINTER             :: cpc, cpp
 
       CALL timeset(routineN, handle)
 
@@ -248,11 +248,11 @@ CONTAINS
 !> \param nsgfc ...
 !> \param cpp_buffer Temporary buffer used for intermediate results.
 !> \param ccp_buffer Temporary buffer used for intermediate results.
-!> \param alpha Prefactor which is finally multiplied into abcint.
+!> \param prefac Prefactor which is finally multiplied into abcint.
 !> \note tested from version 1.9.0 of libxsmm
 ! **************************************************************************************************
    SUBROUTINE abc_contract_xsmm(abcint, sabc, sphi_a, sphi_b, sphi_c, ncoa, ncob, ncoc, &
-                                nsgfa, nsgfb, nsgfc, cpp_buffer, ccp_buffer, alpha)
+                                nsgfa, nsgfb, nsgfc, cpp_buffer, ccp_buffer, prefac)
 
       REAL(KIND=dp), DIMENSION(*)                             :: abcint
       REAL(KIND=dp), DIMENSION(*), INTENT(IN)                 :: sabc
