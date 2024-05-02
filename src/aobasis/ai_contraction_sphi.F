@@ -109,8 +109,8 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'abc_contract'
 
-      INTEGER                                            :: handle, i, m1, m2, m3, msphia, msphib, &
-                                                            msphic
+      INTEGER                                            :: handle, i, m1, m2, m3, mx, msphia, &
+                                                            msphib, msphic
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: tmp
 
       CALL timeset(routineN, handle)
@@ -125,16 +125,17 @@ CONTAINS
       m1 = SIZE(sabc, 1)
       m2 = SIZE(sabc, 2)
       m3 = SIZE(sabc, 3)
+      mx = MAX(m2, nsgfb)
 
       ! ALLOCATE (cpp(nsgfa, m2, m3), cpc(nsgfa, nsgfb, m3))
-      ALLOCATE (tmp(nsgfa, MAX(m2, nsgfb), m3 + 1))
+      ALLOCATE (tmp(nsgfa, mx, m3 + 1))
 
       CALL dgemm("T", "N", nsgfa, m2*m3, ncoa, 1._dp, sphi_a, msphia, sabc, m1, 0.0_dp, tmp(:, :, 2), nsgfa)
       DO i = 1, m3
          CALL dgemm("N", "N", nsgfa, nsgfb, ncob, 1._dp, tmp(:, :, i + 1), nsgfa, sphi_b, msphib, &
                     0.0_dp, tmp(:, :, i), nsgfa)
       END DO
-      CALL dgemm("N", "N", nsgfa*nsgfb, nsgfc, ncoc, 1._dp, tmp, nsgfa*nsgfb, sphi_c, msphic, 0.0_dp, &
+      CALL dgemm("N", "N", nsgfa*nsgfb, nsgfc, ncoc, 1._dp, tmp, nsgfa*mx, sphi_c, msphic, 0.0_dp, &
                  abcint, nsgfa*nsgfb)
 
       DEALLOCATE (tmp)
