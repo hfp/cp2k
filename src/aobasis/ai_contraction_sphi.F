@@ -109,8 +109,8 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'abc_contract'
 
-      INTEGER                                            :: handle, i, m1, m2, m3, mx, msphia, &
-                                                            msphib, msphic
+      INTEGER                                            :: handle, i, m1, m2, m3, msphia, msphib, &
+                                                            msphic, mx
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: tmp
 
       CALL timeset(routineN, handle)
