@@ -107,7 +107,8 @@ CONTAINS
 
       INTEGER                                            :: handle, i, m1, m2, m3, msphia, msphib, &
                                                             msphic
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: cpc, cpp
+      REAL(KIND=dp), DIMENSION(:, :, :), ALLOCATABLE     :: buffer
+      REAL(KIND=dp), DIMENSION(:, :, :), POINTER         :: cpc, cpp
 
       CALL timeset(routineN, handle)
 
@@ -122,7 +123,10 @@ CONTAINS
       m2 = SIZE(sabc, 2)
       m3 = SIZE(sabc, 3)
 
-      ALLOCATE (cpp(nsgfa, m2, m3), cpc(nsgfa, nsgfb, m3))
+      ! ALLOCATE (cpp(nsgfa, m2, m3), cpc(nsgfa, nsgfb, m3))
+      ALLOCATE (buffer(nsgfa, MAX(m2, nsgfb), m3+1))
+      cpc => buffer ! buffer(:, :, 1)
+      cpp => buffer(:, :, 2)
 
       CALL dgemm("T", "N", nsgfa, m2*m3, ncoa, 1._dp, sphi_a, msphia, sabc, m1, 0.0_dp, cpp, nsgfa)
       DO i = 1, m3
@@ -132,7 +136,7 @@ CONTAINS
       CALL dgemm("N", "N", nsgfa*nsgfb, nsgfc, ncoc, 1._dp, cpc, nsgfa*nsgfb, sphi_c, msphic, 0.0_dp, &
                  abcint, nsgfa*nsgfb)
 
-      DEALLOCATE (cpp, cpc)
+      DEALLOCATE (buffer)
 
       CALL timestop(handle)
 
