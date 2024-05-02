@@ -223,8 +223,8 @@ CONTAINS
    END SUBROUTINE abcd_contract
 
 ! **************************************************************************************************
-!> \brief 3-center contraction routine from primitive cartesain Gaussians to spherical Gaussian
-!>        functions. Exploits LIBXSMM for performance, falls back to BLAS if LIBXSMM not available.
+!> \brief 3-center contraction routine from primitive cartesian Gaussians to spherical Gaussian
+!>        functions. Exploits LIBXSMM for performance, falls back to BLAS if LIBXSMM is not available.
 !>        Requires pre-allocation of work buffers and pre-transposition of the sphi_a array. Requires
 !>        the LIBXSMM library to be initialized somewhere before this routine is called.
 !> \param abcint contracted integrals
