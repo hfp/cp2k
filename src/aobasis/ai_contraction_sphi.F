@@ -61,7 +61,7 @@ CONTAINS
 
       CALL timeset(routineN, handle)
 
-      CPASSERT(SIZE(sab, 2) == ncob)
+      CPASSERT(ncob <= SIZE(sab, 2))
 
       IF ((nsgfa*ncob*(ncoa + nsgfb)) <= (nsgfb*ncoa*(ncob + nsgfa))) THEN ! (sphi_a x sab) x sphi_b
          ALLOCATE (cpp(nsgfa, ncob))
