@@ -21,8 +21,7 @@ MODULE dct
                                               mp_request_type,&
                                               mp_waitall
    USE pw_grid_types,                   ONLY: pw_grid_type
-   USE pw_grids,                        ONLY: pw_grid_create,&
-                                              pw_grid_setup
+   USE pw_grids,                        ONLY: pw_grid_create
    USE pw_types,                        ONLY: pw_r3d_rs_type
 #include "../base/base_uses.f90"
 
@@ -214,7 +213,6 @@ CONTAINS
                               dests_shrink, srcs_shrink)
       CALL expansion_bounds(pw_grid, neumann_directions, srcs_expand, flipg_stat, &
                             bounds_shftd, bounds_local_shftd, recv_msgs_bnds, bounds_new, bounds_local_new)
-      CALL pw_grid_create(dct_pw_grid, pw_grid%para%rs_group, local=.FALSE.)
 
       hmat2 = 0.0_dp
       hmat2(1, 1) = scfac(1)*cell_hmat(1, 1)
@@ -230,11 +228,11 @@ CONTAINS
          blocked = 0
       END IF
 
-      CALL pw_grid_setup(hmat2, dct_pw_grid, &
-                         bounds=bounds_new, &
-                         rs_dims=pw_grid%para%rs_dims, &
-                         blocked=blocked, &
-                         bounds_local=bounds_local_new)
+      CALL pw_grid_create(dct_pw_grid, pw_grid%para%group, hmat2, &
+                          bounds=bounds_new, &
+                          rs_dims=pw_grid%para%group%num_pe_cart, &
+                          blocked=blocked, &
+                          bounds_local=bounds_local_new)
 
       DEALLOCATE (flipg_stat, dests_expand, srcs_expand, dests_shrink, recv_msgs_bnds)
 
@@ -322,12 +320,12 @@ CONTAINS
 ! rs_dim1 = 3 -->  src_pos1 = [1  2  3]
 ! rs_dim2 = 4 -->  src_pos2 = [1  2   3  4]
 
-      rs_group = pw_grid%para%rs_group
-      rs_mpo = pw_grid%para%rs_mpo
-      group_size = pw_grid%para%group_size
-      rs_dims = pw_grid%para%rs_dims
+      rs_group = pw_grid%para%group
+      rs_mpo = pw_grid%para%group%mepos
+      group_size = pw_grid%para%group%num_pe
+      rs_dims = pw_grid%para%group%num_pe_cart
 
-      rs_pos = pw_grid%para%rs_pos
+      rs_pos = pw_grid%para%group%mepos_cart
       rs_dim1 = rs_dims(1); rs_dim2 = rs_dims(2)
 
 ! prepare srcs_coord
@@ -436,7 +434,7 @@ CONTAINS
 
       DO k = 1, maxn_sendrecv
 ! convert srcs_coord to pid
-         CALL pw_grid%para%rs_group%rank_cart(ABS(srcs_coord(:, k)) - 1, srcs_expand(k))
+         CALL pw_grid%para%group%rank_cart(ABS(srcs_coord(:, k)) - 1, srcs_expand(k))
 ! find out the flipping status
          IF ((srcs_coord(1, k) .GT. 0) .AND. (srcs_coord(2, k) .GT. 0)) THEN
             flipg_stat(k) = NOT_FLIPPED
@@ -540,9 +538,9 @@ CONTAINS
       CALL timeset(routineN, handle)
 
       pw_grid => pw_in%pw_grid
-      rs_group = pw_grid%para%rs_group
-      rs_mpo = pw_grid%para%my_pos
-      group_size = pw_grid%para%group_size
+      rs_group = pw_grid%para%group
+      rs_mpo = pw_grid%para%group%mepos
+      group_size = pw_grid%para%group%num_pe
 
       bounds_local_new = pw_expanded%pw_grid%bounds_local
 
@@ -721,9 +719,9 @@ CONTAINS
       CALL timeset(routineN, handle)
 
       pw_grid_orig => pw_shrinked%pw_grid
-      rs_group = pw_grid_orig%para%rs_group
-      rs_mpo = pw_grid_orig%para%my_pos
-      group_size = pw_grid_orig%para%group_size
+      rs_group = pw_grid_orig%para%group
+      rs_mpo = pw_grid_orig%para%group%mepos
+      group_size = pw_grid_orig%para%group%num_pe
       bounds_local_xpnd = pw_in%pw_grid%bounds_local
       tag = 1
 
@@ -1056,9 +1054,9 @@ CONTAINS
 
       CALL timeset(routineN, handle)
 
-      rs_group = pw_grid%para%rs_group
-      rs_mpo = pw_grid%para%my_pos
-      group_size = pw_grid%para%group_size
+      rs_group = pw_grid%para%group
+      rs_mpo = pw_grid%para%group%mepos
+      group_size = pw_grid%para%group%num_pe
       bounds = pw_grid%bounds
       bounds_local = pw_grid%bounds_local
 
