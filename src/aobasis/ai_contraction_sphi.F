@@ -350,6 +350,7 @@ CONTAINS
 #if defined(__LIBXSMM)
       END IF
 #endif
+      MARK_USED(dsti)
       DO i = 1, nsgfc ! contractions over c (single gemm is not beneficial due to strided destination)
          CALL dgemv("N", nsgfa*nsgfb, ncoc, alpha, ccp_buffer, nsgfa*nsgfb, sphi_c(:, i), 1, &
                     beta, abcint(:, :, i), nsgfa) ! [nsgfa*nsgfb,ncoc] x [ncoc,1] -> [nsgfa*nsgfb,1]
