@@ -266,7 +266,7 @@ CONTAINS
 
       REAL(KIND=dp)                                           :: alpha, beta
       INTEGER(KIND=int_8)                                     :: cpp_size, ccp_size
-      INTEGER                                                 :: handle, i
+      INTEGER                                                 :: handle, idx(3), i, j
       LOGICAL                                                 :: ab_first
 #if defined(__LIBXSMM)
       TYPE(libxsmm_dmmfunction)                               :: xmm1, xmm2
@@ -279,6 +279,9 @@ CONTAINS
 
       beta = 0.0_dp
       IF (PRESENT(pstfac)) beta = pstfac
+
+      idx = 1
+      IF (PRESENT(dsti)) idx = dsti
 
       ! M*N*K FLOPS are used to decide if contracting (AB)C vs A(BC)
       IF ((nsgfa*ncob*(ncoa + nsgfb)) <= (ncoa*nsgfb*(ncob + nsgfa))) THEN
@@ -350,10 +353,16 @@ CONTAINS
 #if defined(__LIBXSMM)
       END IF
 #endif
-      MARK_USED(dsti)
-      DO i = 1, nsgfc ! contractions over c (gemm is not beneficial due to strided destination)
-         CALL dgemv("N", nsgfa*nsgfb, ncoc, alpha, ccp_buffer, nsgfa*nsgfb, sphi_c(:, i), 1, &
-                    beta, abcint(:, :, i), 1) ! [nsgfa*nsgfb,ncoc] x [ncoc,1] -> [nsgfa*nsgfb,1]
+      ! DGEMM("N", "N", nsgfa*nsgfb, nsgfc, ncoc, alpha, ccp_buffer,
+      !       nsgfa*nsgfb, sphi_c, ncoc, beta, abcint, nsgfa*nsgfb)
+      ! not beneficial due to strided final destination
+      DO j = 0, nsgfc - 1 ! contractions over c
+         ! DGEMV("N", nsgfa*nsgfb, ncoc, alpha, ccp_buffer, nsgfa*nsgfb,
+         !       sphi_c(:, j), 1, beta, abcint(:, :, j), 1)
+         DO i = 0, nsgfb - 1 ! [nsgfa,ncoc] x [ncoc,1] -> [nsgfa,1]
+            CALL dgemv("N", nsgfa, ncoc, alpha, ccp_buffer(i*nsgfa + 1), nsgfa, sphi_c(:, j+1), 1, &
+                       beta, abcint(idx(1), idx(2) + i, idx(3) + j), 1)
+         END DO
       END DO
 
       CALL timestop(handle)
