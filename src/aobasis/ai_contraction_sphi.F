@@ -249,10 +249,9 @@ CONTAINS
 !> \param ccp_buffer Buffer used for intermediate results (automatically allocated).
 !> \param prefac Prefactor which is finally multiplied into abcint (default: 1.0).
 !> \param pstfac Factor used to consider initial abcint (default: 0.0).
-!> \param dsti Initial index to write abcint (one-based).
 ! **************************************************************************************************
    SUBROUTINE abc_contract_xsmm(abcint, sabc, sphi_a, sphi_b, sphi_c, ncoa, ncob, ncoc, &
-                                nsgfa, nsgfb, nsgfc, cpp_buffer, ccp_buffer, prefac, pstfac, dsti)
+                                nsgfa, nsgfb, nsgfc, cpp_buffer, ccp_buffer, prefac, pstfac)
 
       REAL(KIND=dp), DIMENSION(:, :, :)           :: abcint
       REAL(KIND=dp), DIMENSION(*), INTENT(IN)     :: sabc
@@ -260,13 +259,12 @@ CONTAINS
       INTEGER, INTENT(IN)                         :: ncoa, ncob, ncoc, nsgfa, nsgfb, nsgfc
       REAL(KIND=dp), DIMENSION(:), ALLOCATABLE    :: cpp_buffer, ccp_buffer
       REAL(KIND=dp), INTENT(IN), OPTIONAL         :: prefac, pstfac
-      INTEGER, DIMENSION(3), INTENT(IN), OPTIONAL :: dsti
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'abc_contract_xsmm'
 
       REAL(KIND=dp)                                           :: alpha, beta
       INTEGER(KIND=int_8)                                     :: cpp_size, ccp_size
-      INTEGER                                                 :: handle, idx(3), i, j
+      INTEGER                                                 :: handle, i
       LOGICAL                                                 :: ab_first
 #if defined(__LIBXSMM)
       TYPE(libxsmm_dmmfunction)                               :: xmm1, xmm2
@@ -279,9 +277,6 @@ CONTAINS
 
       beta = 0.0_dp
       IF (PRESENT(pstfac)) beta = pstfac
-
-      idx = 1
-      IF (PRESENT(dsti)) idx = dsti
 
       ! M*N*K FLOPS are used to decide if contracting (AB)C vs A(BC)
       IF ((nsgfa*ncob*(ncoa + nsgfb)) <= (ncoa*nsgfb*(ncob + nsgfa))) THEN
@@ -355,7 +350,7 @@ CONTAINS
 #endif
       ! contractions over c: [nsgfa*nsgfb,ncoc] x [ncoc,nsgfc] -> [sgfa*nsgfb,nsgfc]
       CALL dgemm("N", "N", nsgfa*nsgfb, nsgfc, ncoc, alpha, ccp_buffer, nsgfa*nsgfb, &
-                 sphi_c, ncoc, beta, abcint(idx(1):, idx(2):, idx(3):), nsgfa*nsgfb)
+                 sphi_c, ncoc, beta, abcint, nsgfa*nsgfb)
 
       CALL timestop(handle)
 
