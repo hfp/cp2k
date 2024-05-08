@@ -1160,11 +1160,10 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'build_3c_derivatives'
 
-      INTEGER :: egfi, handle, handle2, i, i_img, i_xyz, iatom, ibasis, ikind, ilist, imax, &
-         iset, j_img, jatom, jcell, jkind, jset, katom, kcell, kkind, kset, m_max, max_ncoj, &
-         max_nset, max_nsgfi, maxli, maxlj, maxlk, mepos, natom, nbasis, ncell_RI, ncoi, ncoj, &
-         ncok, nimg, nseti, nsetj, nsetk, nthread, op_ij, op_jk, op_pos_prv, sgfi, sgfj, sgfk, &
-         unit_id
+      INTEGER :: egfi, handle, handle2, i, i_img, i_xyz, iatom, ibasis, ikind, ilist, imax, iset, &
+         j_img, jatom, jcell, jkind, jset, katom, kcell, kkind, kset, m_max, max_ncoj, max_nset, &
+         max_nsgfi, maxli, maxlj, maxlk, mepos, natom, nbasis, ncell_RI, ncoi, ncoj, ncok, nimg, &
+         nseti, nsetj, nsetk, nthread, op_ij, op_jk, op_pos_prv, sgfi, sgfj, sgfk, unit_id
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: img_to_RI_cell_prv
       INTEGER, DIMENSION(2)                              :: bo
       INTEGER, DIMENSION(3)                              :: blk_idx, blk_size, cell_j, cell_k, &
@@ -1658,7 +1657,7 @@ CONTAINS
                         IF (der_j_zero(i_xyz)) CYCLE
 
                         block_j_not_zero(i_xyz) = .TRUE.
-                        CALL abc_contract_xsmm(block_t_j(:,:,:,i_xyz), dijk_j(:, :, :, i_xyz), tspj(jset, jkind)%array, &
+                        CALL abc_contract_xsmm(block_t_j(:, :, :, i_xyz), dijk_j(:, :, :, i_xyz), tspj(jset, jkind)%array, &
                                                spk(kset, kkind)%array, spi(iset, ikind)%array, &
                                                ncoj, ncok, ncoi, nsgfj(jset), nsgfk(kset), &
                                                nsgfi(iset), cpp_buffer, ccp_buffer, prefac, 1.0_dp, &
@@ -1669,7 +1668,7 @@ CONTAINS
                         IF (der_k_zero(i_xyz)) CYCLE
 
                         block_k_not_zero(i_xyz) = .TRUE.
-                        CALL abc_contract_xsmm(block_t_k(:,:,:,i_xyz), dijk_k(:, :, :, i_xyz), tspj(jset, jkind)%array, &
+                        CALL abc_contract_xsmm(block_t_k(:, :, :, i_xyz), dijk_k(:, :, :, i_xyz), tspj(jset, jkind)%array, &
                                                spk(kset, kkind)%array, spi(iset, ikind)%array, &
                                                ncoj, ncok, ncoi, nsgfj(jset), nsgfk(kset), &
                                                nsgfi(iset), cpp_buffer, ccp_buffer, prefac, 1.0_dp, &
@@ -1833,10 +1832,10 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'calc_3c_virial'
 
-      INTEGER :: egfi, handle, i, i_xyz, iatom, ibasis, ikind, ilist, imax, iset, j_xyz, &
-         jatom, jkind, jset, katom, kkind, kset, m_max, max_ncoj, max_nset, max_nsgfi, maxli, &
-         maxlj, maxlk, mepos, natom, nbasis, ncoi, ncoj, ncok, nseti, nsetj, nsetk, nthread, &
-         op_ij, op_jk, op_pos_prv, sgfi, sgfj, sgfk, unit_id
+      INTEGER :: egfi, handle, i, i_xyz, iatom, ibasis, ikind, ilist, imax, iset, j_xyz, jatom, &
+         jkind, jset, katom, kkind, kset, m_max, max_ncoj, max_nset, max_nsgfi, maxli, maxlj, &
+         maxlk, mepos, natom, nbasis, ncoi, ncoj, ncok, nseti, nsetj, nsetk, nthread, op_ij, &
+         op_jk, op_pos_prv, sgfi, sgfj, sgfk, unit_id
       INTEGER, DIMENSION(2)                              :: bo
       INTEGER, DIMENSION(3)                              :: blk_size, sp
       INTEGER, DIMENSION(:), POINTER                     :: lmax_i, lmax_j, lmax_k, lmin_i, lmin_j, &
@@ -2170,7 +2169,7 @@ CONTAINS
                         IF (der_j_zero(i_xyz)) CYCLE
 
                         block_j_not_zero(i_xyz) = .TRUE.
-                        CALL abc_contract_xsmm(block_t_j(:,:,:,i_xyz), dijk_j(:, :, :, i_xyz), tspj(jset, jkind)%array, &
+                        CALL abc_contract_xsmm(block_t_j(:, :, :, i_xyz), dijk_j(:, :, :, i_xyz), tspj(jset, jkind)%array, &
                                                spk(kset, kkind)%array, spi(iset, ikind)%array, &
                                                ncoj, ncok, ncoi, nsgfj(jset), nsgfk(kset), nsgfi(iset), &
                                                cpp_buffer, ccp_buffer, 1.0_dp, 1.0_dp, [sgfj, sgfk, sgfi])
@@ -2180,7 +2179,7 @@ CONTAINS
                         IF (der_k_zero(i_xyz)) CYCLE
 
                         block_k_not_zero(i_xyz) = .TRUE.
-                        CALL abc_contract_xsmm(block_t_k(:,:,:,i_xyz), dijk_k(:, :, :, i_xyz), tspj(jset, jkind)%array, &
+                        CALL abc_contract_xsmm(block_t_k(:, :, :, i_xyz), dijk_k(:, :, :, i_xyz), tspj(jset, jkind)%array, &
                                                spk(kset, kkind)%array, spi(iset, ikind)%array, &
                                                ncoj, ncok, ncoi, nsgfj(jset), nsgfk(kset), nsgfi(iset), &
                                                cpp_buffer, ccp_buffer, 1.0_dp, 1.0_dp, [sgfj, sgfk, sgfi])
@@ -2299,10 +2298,10 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'build_3c_integrals'
 
-      INTEGER :: egfi, handle, handle2, i, iatom, ibasis, ikind, ilist, imax, iset, jatom, &
-         jcell, jkind, jset, katom, kcell, kkind, kset, m_max, max_ncoj, max_nset, max_nsgfi, &
-         maxli, maxlj, maxlk, mepos, natom, nbasis, ncell_RI, ncoi, ncoj, ncok, nimg, nseti, &
-         nsetj, nsetk, nthread, op_ij, op_jk, op_pos_prv, sgfi, sgfj, sgfk, unit_id
+      INTEGER :: egfi, handle, handle2, i, iatom, ibasis, ikind, ilist, imax, iset, jatom, jcell, &
+         jkind, jset, katom, kcell, kkind, kset, m_max, max_ncoj, max_nset, max_nsgfi, maxli, &
+         maxlj, maxlk, mepos, natom, nbasis, ncell_RI, ncoi, ncoj, ncok, nimg, nseti, nsetj, &
+         nsetk, nthread, op_ij, op_jk, op_pos_prv, sgfi, sgfj, sgfk, unit_id
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: img_to_RI_cell_prv
       INTEGER, DIMENSION(2)                              :: bo
       INTEGER, DIMENSION(3)                              :: blk_idx, blk_size, cell_j, cell_k, &
@@ -2321,8 +2320,7 @@ CONTAINS
                                                             prefac, sijk_ext
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: ccp_buffer, cpp_buffer, &
                                                             max_contraction_j, max_contraction_k
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: block_t, dummy_block_t, sijk, &
-                                                            tmp_ijk
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: block_t, dummy_block_t, sijk, tmp_ijk
       REAL(KIND=dp), DIMENSION(1, 1, 1)                  :: counter
       REAL(KIND=dp), DIMENSION(3)                        :: ri, rij, rik, rj, rjk, rk
       REAL(KIND=dp), DIMENSION(:), POINTER               :: set_radius_i, set_radius_j, set_radius_k

@@ -249,7 +249,7 @@ CONTAINS
 !> \param ccp_buffer Buffer used for intermediate results (automatically allocated).
 !> \param prefac Prefactor which is finally multiplied into abcint (default: 1.0).
 !> \param pstfac Factor used to consider initial abcint (default: 0.0).
-!> \param dsti Initial index to write abcint.
+!> \param dsti Initial index to write abcint (one-based).
 ! **************************************************************************************************
    SUBROUTINE abc_contract_xsmm(abcint, sabc, sphi_a, sphi_b, sphi_c, ncoa, ncob, ncoc, &
                                 nsgfa, nsgfb, nsgfc, cpp_buffer, ccp_buffer, prefac, pstfac, dsti)
@@ -353,17 +353,9 @@ CONTAINS
 #if defined(__LIBXSMM)
       END IF
 #endif
-      ! DGEMM("N", "N", nsgfa*nsgfb, nsgfc, ncoc, alpha, ccp_buffer,
-      !       nsgfa*nsgfb, sphi_c, ncoc, beta, abcint, nsgfa*nsgfb)
-      ! not beneficial due to strided final destination
-      DO j = 0, nsgfc - 1 ! contractions over c
-         ! DGEMV("N", nsgfa*nsgfb, ncoc, alpha, ccp_buffer, nsgfa*nsgfb,
-         !       sphi_c(:, j), 1, beta, abcint(:, :, j), 1)
-         DO i = 0, nsgfb - 1 ! [nsgfa,ncoc] x [ncoc,1] -> [nsgfa,1]
-            CALL dgemv("N", nsgfa, ncoc, alpha, ccp_buffer(i*nsgfa + 1), nsgfa, sphi_c(:, j+1), 1, &
-                       beta, abcint(idx(1), idx(2) + i, idx(3) + j), 1)
-         END DO
-      END DO
+      ! contractions over c: [nsgfa*nsgfb,ncoc] x [ncoc,nsgfc] -> [sgfa*nsgfb,nsgfc]
+      CALL dgemm("N", "N", nsgfa*nsgfb, nsgfc, ncoc, alpha, ccp_buffer, nsgfa*nsgfb, &
+                 sphi_c, ncoc, beta, abcint(idx(1):, idx(2):, idx(3):), nsgfa*nsgfb)
 
       CALL timestop(handle)
 
