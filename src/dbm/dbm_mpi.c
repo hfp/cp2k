@@ -237,7 +237,7 @@ bool dbm_mpi_comms_are_similar(const dbm_mpi_comm_t comm1,
  ******************************************************************************/
 void dbm_mpi_max_int(int *values, const int count, const dbm_mpi_comm_t comm) {
 #if defined(__parallel)
-  int *recvbuf = (int *)dbm_mpi_alloc_mem(count * sizeof(int));
+  void *recvbuf = dbm_mpi_alloc_mem(count * sizeof(int));
   CHECK(MPI_Allreduce(values, recvbuf, count, MPI_INT, MPI_MAX, comm));
   memcpy(values, recvbuf, count * sizeof(int));
   dbm_mpi_free_mem(recvbuf);
@@ -255,7 +255,7 @@ void dbm_mpi_max_int(int *values, const int count, const dbm_mpi_comm_t comm) {
 void dbm_mpi_max_double(double *values, const int count,
                         const dbm_mpi_comm_t comm) {
 #if defined(__parallel)
-  double *recvbuf = (double *)dbm_mpi_alloc_mem(count * sizeof(double));
+  void *recvbuf = dbm_mpi_alloc_mem(count * sizeof(double));
   CHECK(MPI_Allreduce(values, recvbuf, count, MPI_DOUBLE, MPI_MAX, comm));
   memcpy(values, recvbuf, count * sizeof(double));
   dbm_mpi_free_mem(recvbuf);
@@ -272,7 +272,7 @@ void dbm_mpi_max_double(double *values, const int count,
  ******************************************************************************/
 void dbm_mpi_sum_int(int *values, const int count, const dbm_mpi_comm_t comm) {
 #if defined(__parallel)
-  int *recvbuf = (int *)dbm_mpi_alloc_mem(count * sizeof(int));
+  void *recvbuf = dbm_mpi_alloc_mem(count * sizeof(int));
   CHECK(MPI_Allreduce(values, recvbuf, count, MPI_INT, MPI_SUM, comm));
   memcpy(values, recvbuf, count * sizeof(int));
   dbm_mpi_free_mem(recvbuf);
@@ -290,7 +290,7 @@ void dbm_mpi_sum_int(int *values, const int count, const dbm_mpi_comm_t comm) {
 void dbm_mpi_sum_int64(int64_t *values, const int count,
                        const dbm_mpi_comm_t comm) {
 #if defined(__parallel)
-  int64_t *recvbuf = (int64_t *)dbm_mpi_alloc_mem(count * sizeof(int64_t));
+  void *recvbuf = dbm_mpi_alloc_mem(count * sizeof(int64_t));
   CHECK(MPI_Allreduce(values, recvbuf, count, MPI_INT64_T, MPI_SUM, comm));
   memcpy(values, recvbuf, count * sizeof(int64_t));
   dbm_mpi_free_mem(recvbuf);
@@ -308,7 +308,7 @@ void dbm_mpi_sum_int64(int64_t *values, const int count,
 void dbm_mpi_sum_double(double *values, const int count,
                         const dbm_mpi_comm_t comm) {
 #if defined(__parallel)
-  double *recvbuf = (double *)dbm_mpi_alloc_mem(count * sizeof(double));
+  void *recvbuf = dbm_mpi_alloc_mem(count * sizeof(double));
   CHECK(MPI_Allreduce(values, recvbuf, count, MPI_DOUBLE, MPI_SUM, comm));
   memcpy(values, recvbuf, count * sizeof(double));
   dbm_mpi_free_mem(recvbuf);
