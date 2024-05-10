@@ -63,12 +63,12 @@ static void hashtable_init(dbm_shard_t *shard) {
 void dbm_shard_init(dbm_shard_t *shard) {
   shard->nblocks = 0;
   shard->nblocks_allocated = INITIAL_NBLOCKS_ALLOCATED;
-  shard->blocks = malloc(shard->nblocks_allocated * sizeof(dbm_block_t));
+  shard->blocks = dbm_mpi_alloc_mem(shard->nblocks_allocated * sizeof(dbm_block_t));
   hashtable_init(shard);
   shard->data_size = 0;
   shard->data_promised = 0;
   shard->data_allocated = INITIAL_DATA_ALLOCATED;
-  shard->data = malloc(shard->data_allocated * sizeof(double));
+  shard->data = dbm_mpi_alloc_mem(shard->data_allocated * sizeof(double));
 
   omp_init_lock(&shard->lock);
 }
@@ -78,24 +78,24 @@ void dbm_shard_init(dbm_shard_t *shard) {
  * \author Ole Schuett
  ******************************************************************************/
 void dbm_shard_copy(dbm_shard_t *shard_a, const dbm_shard_t *shard_b) {
-  free(shard_a->blocks);
+  dbm_mpi_free_mem(shard_a->blocks);
   shard_a->nblocks = shard_b->nblocks;
   shard_a->nblocks_allocated = shard_b->nblocks_allocated;
-  shard_a->blocks = malloc(shard_b->nblocks_allocated * sizeof(dbm_block_t));
+  shard_a->blocks = dbm_mpi_alloc_mem(shard_b->nblocks_allocated * sizeof(dbm_block_t));
   memcpy(shard_a->blocks, shard_b->blocks,
          shard_b->nblocks * sizeof(dbm_block_t));
 
-  free(shard_a->hashtable);
+  dbm_mpi_free_mem(shard_a->hashtable);
   shard_a->hashtable_size = shard_b->hashtable_size;
   shard_a->hashtable_mask = shard_b->hashtable_mask;
   shard_a->hashtable_prime = shard_b->hashtable_prime;
-  shard_a->hashtable = malloc(shard_b->hashtable_size * sizeof(int));
+  shard_a->hashtable = dbm_mpi_alloc_mem(shard_b->hashtable_size * sizeof(int));
   memcpy(shard_a->hashtable, shard_b->hashtable,
          shard_b->hashtable_size * sizeof(int));
 
-  free(shard_a->data);
+  dbm_mpi_free_mem(shard_a->data);
   shard_a->data_allocated = shard_b->data_allocated;
-  shard_a->data = malloc(shard_b->data_allocated * sizeof(double));
+  shard_a->data = dbm_mpi_alloc_mem(shard_b->data_allocated * sizeof(double));
   shard_a->data_size = shard_b->data_size;
   memcpy(shard_a->data, shard_b->data, shard_b->data_size * sizeof(double));
 }
@@ -105,9 +105,9 @@ void dbm_shard_copy(dbm_shard_t *shard_a, const dbm_shard_t *shard_b) {
  * \author Ole Schuett
  ******************************************************************************/
 void dbm_shard_release(dbm_shard_t *shard) {
-  free(shard->blocks);
-  free(shard->hashtable);
-  free(shard->data);
+  dbm_mpi_free_mem(shard->blocks);
+  dbm_mpi_free_mem(shard->hashtable);
+  dbm_mpi_free_mem(shard->data);
   omp_destroy_lock(&shard->lock);
 }
 
@@ -177,7 +177,7 @@ dbm_block_t *dbm_shard_promise_new_block(dbm_shard_t *shard, const int row,
         realloc(shard->blocks, shard->nblocks_allocated * sizeof(dbm_block_t));
 
     // rebuild hashtable
-    free(shard->hashtable);
+    dbm_mpi_free_mem(shard->hashtable);
     hashtable_init(shard);
     for (int i = 0; i < shard->nblocks; i++) {
       hashtable_insert(shard, i);

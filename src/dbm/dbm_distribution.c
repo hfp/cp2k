@@ -28,7 +28,7 @@ static void dbm_dist_1d_new(dbm_dist_1d_t *dist, const int length,
   dist->my_rank = dbm_mpi_comm_rank(comm);
   dist->nranks = dbm_mpi_comm_size(comm);
   dist->length = length;
-  dist->index2coord = malloc(length * sizeof(int));
+  dist->index2coord = dbm_mpi_alloc_mem(length * sizeof(int));
   memcpy(dist->index2coord, coords, length * sizeof(int));
 
   // Check that cart coordinates and ranks are equivalent.
@@ -46,7 +46,7 @@ static void dbm_dist_1d_new(dbm_dist_1d_t *dist, const int length,
   }
 
   // Store local rows/columns.
-  dist->local_indicies = malloc(dist->nlocals * sizeof(int));
+  dist->local_indicies = dbm_mpi_alloc_mem(dist->nlocals * sizeof(int));
   int j = 0;
   for (int i = 0; i < length; i++) {
     if (coords[i] == dist->my_rank) {
@@ -61,8 +61,8 @@ static void dbm_dist_1d_new(dbm_dist_1d_t *dist, const int length,
  * \author Ole Schuett
  ******************************************************************************/
 static void dbm_dist_1d_free(dbm_dist_1d_t *dist) {
-  free(dist->index2coord);
-  free(dist->local_indicies);
+  dbm_mpi_free_mem(dist->index2coord);
+  dbm_mpi_free_mem(dist->local_indicies);
   dbm_mpi_comm_free(&dist->comm);
 }
 
@@ -148,7 +148,7 @@ void dbm_distribution_release(dbm_distribution_t *dist) {
   if (dist->ref_count == 0) {
     dbm_dist_1d_free(&dist->rows);
     dbm_dist_1d_free(&dist->cols);
-    free(dist);
+    dbm_mpi_free_mem(dist);
   }
 }
 
