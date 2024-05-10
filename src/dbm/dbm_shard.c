@@ -174,9 +174,15 @@ dbm_block_t *dbm_shard_promise_new_block(dbm_shard_t *shard, const int row,
                                          const int col, const int block_size) {
   // Grow blocks array if necessary.
   if (shard->nblocks_allocated < shard->nblocks + 1) {
-    shard->nblocks_allocated = ALLOCATION_FACTOR * (shard->nblocks + 1);
-    shard->blocks =
-        realloc(shard->blocks, shard->nblocks_allocated * sizeof(dbm_block_t));
+    // could use realloc here
+    const int nblocks_allocated = ALLOCATION_FACTOR * (shard->nblocks + 1);
+    dbm_block_t *new_block =
+        (dbm_block_t *)dbm_malloc(nblocks_allocated * sizeof(dbm_block_t));
+    memcpy(new_block, shard->blocks,
+           shard->nblocks_allocated * sizeof(dbm_block_t));
+    dbm_free(shard->blocks);
+    shard->blocks = new_block;
+    shard->nblocks_allocated = nblocks_allocated;
 
     // rebuild hashtable
     dbm_free(shard->hashtable);
@@ -206,8 +212,13 @@ void dbm_shard_allocate_promised_blocks(dbm_shard_t *shard) {
 
   // Reallocate data array if necessary.
   if (shard->data_promised > shard->data_allocated) {
-    shard->data_allocated = ALLOCATION_FACTOR * shard->data_promised;
-    shard->data = realloc(shard->data, shard->data_allocated * sizeof(double));
+    // could use realloc here
+    const int data_allocated = ALLOCATION_FACTOR * shard->data_promised;
+    double *new_data = (double *)dbm_malloc(data_allocated * sizeof(double));
+    memcpy(new_data, shard->data, shard->data_allocated * sizeof(double));
+    dbm_free(shard->data);
+    shard->data = new_data;
+    shard->data_allocated = data_allocated;
   }
 
   // Zero new blocks.
