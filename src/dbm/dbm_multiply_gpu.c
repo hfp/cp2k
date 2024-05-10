@@ -9,10 +9,11 @@
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
 
 #include "../offload/offload_library.h"
+#include "dbm_multiply_gpu_kernel.h"
+#include "dbm_multiply_gpu.h"
 #include "dbm_hyperparams.h"
 #include "dbm_mempool.h"
-#include "dbm_multiply_gpu.h"
-#include "dbm_multiply_gpu_kernel.h"
+#include "dbm_library.h"
 
 #include <assert.h>
 #include <stdio.h>

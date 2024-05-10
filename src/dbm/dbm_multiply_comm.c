@@ -13,6 +13,7 @@
 
 #include "dbm_hyperparams.h"
 #include "dbm_mempool.h"
+#include "dbm_library.h"
 
 /*******************************************************************************
  * \brief Returns the larger of two given integer (missing from the C standard)
@@ -112,7 +113,8 @@ static void create_pack_plans(const bool trans_matrix, const bool trans_dist,
 #pragma omp barrier
 #pragma omp for
     for (int ipack = 0; ipack < npacks; ipack++) {
-      plans_per_pack[ipack] = dbm_malloc(nblks_per_pack[ipack] * sizeof(plan_t));
+      plans_per_pack[ipack] =
+          dbm_malloc(nblks_per_pack[ipack] * sizeof(plan_t));
     }
 
     // 2nd pass: Plan where to send each block.

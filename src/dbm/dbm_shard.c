@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include "dbm_hyperparams.h"
+#include "dbm_library.h"
 #include "dbm_shard.h"
 
 /*******************************************************************************
@@ -81,7 +82,8 @@ void dbm_shard_copy(dbm_shard_t *shard_a, const dbm_shard_t *shard_b) {
   dbm_free(shard_a->blocks);
   shard_a->nblocks = shard_b->nblocks;
   shard_a->nblocks_allocated = shard_b->nblocks_allocated;
-  shard_a->blocks = dbm_malloc(shard_b->nblocks_allocated * sizeof(dbm_block_t));
+  shard_a->blocks =
+      dbm_malloc(shard_b->nblocks_allocated * sizeof(dbm_block_t));
   memcpy(shard_a->blocks, shard_b->blocks,
          shard_b->nblocks * sizeof(dbm_block_t));
 

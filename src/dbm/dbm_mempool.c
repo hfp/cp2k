@@ -14,6 +14,7 @@
 #include "../offload/offload_library.h"
 #include "../offload/offload_runtime.h"
 #include "dbm_mempool.h"
+#include "dbm_library.h"
 
 /*******************************************************************************
  * \brief Private routine for actually allocating system memory.

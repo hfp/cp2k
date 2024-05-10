@@ -81,17 +81,13 @@ void dbm_library_finalize(void) {
  * \brief Wrapper around malloc.
  * \author Hans Pabst
  ******************************************************************************/
-void *dbm_malloc(size_t size) {
-  return dbm_mpi_alloc_mem(size);
-}
+void *dbm_malloc(size_t size) { return dbm_mpi_alloc_mem(size); }
 
 /*******************************************************************************
  * \brief Wrapper around free.
  * \author Hans Pabst
  ******************************************************************************/
-void dbm_free(void *mem) {
-  dbm_mpi_free_mem(mem);
-}
+void dbm_free(void *mem) { dbm_mpi_free_mem(mem); }
 
 /*******************************************************************************
  * \brief Computes min(3, floor(log10(x))).
