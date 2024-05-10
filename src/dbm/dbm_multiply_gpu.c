@@ -38,7 +38,7 @@ void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,
 
   // Allocate and upload shards of result matrix C.
   ctx->shards_c_dev =
-      (dbm_shard_gpu_t *)dbm_mpi_alloc_mem(nshards * sizeof(dbm_shard_gpu_t));
+      (dbm_shard_gpu_t *)dbm_malloc(nshards * sizeof(dbm_shard_gpu_t));
   for (int i = 0; i < nshards; i++) {
     const dbm_shard_t *shard_c_host = &ctx->shards_c_host[i];
     dbm_shard_gpu_t *shard_c_dev = &ctx->shards_c_dev[i];
@@ -197,7 +197,7 @@ void dbm_multiply_gpu_stop(dbm_multiply_gpu_context_t *ctx) {
     offloadStreamDestroy(shard_c_dev->stream);
     dbm_mempool_free(shard_c_dev->data);
   }
-  dbm_mpi_free_mem(ctx->shards_c_dev);
+  dbm_free(ctx->shards_c_dev);
 
   dbm_mempool_free(ctx->pack_a_dev.data);
   dbm_mempool_free(ctx->pack_b_dev.data);
