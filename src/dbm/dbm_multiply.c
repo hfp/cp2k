@@ -54,7 +54,7 @@ static float *compute_rows_max_eps(const bool trans, const dbm_matrix_t *matrix,
                                    const double filter_eps) {
   const int nrows = (trans) ? matrix->ncols : matrix->nrows;
   int *nblocks_per_row = calloc(nrows, sizeof(int));
-  float *row_max_eps = dbm_malloc(nrows * sizeof(float));
+  float *row_max_eps = malloc(nrows * sizeof(float));
 
 #pragma omp parallel
   {
@@ -79,7 +79,7 @@ static float *compute_rows_max_eps(const bool trans, const dbm_matrix_t *matrix,
     }
   } // end of omp parallel region
 
-  dbm_free(nblocks_per_row);
+  free(nblocks_per_row);
   return row_max_eps; // Ownership of row_max_eps transfers to caller.
 }
 
@@ -121,7 +121,7 @@ static void backend_upload_packs(const dbm_pack_t *pack_a,
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
   dbm_multiply_gpu_upload_packs(pack_a, pack_b, &ctx->gpu);
 #else
-  (void)pack_a;   // mark as used
+  (void)pack_a; // mark as used
   (void)pack_b;
   (void)ctx;
 #endif
@@ -206,7 +206,7 @@ static void backend_stop(backend_context_t *ctx) {
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
   dbm_multiply_gpu_stop(&ctx->gpu);
 #endif
-  dbm_free(ctx);
+  free(ctx);
 }
 
 /*******************************************************************************
@@ -411,7 +411,7 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
 
   // Wait for all other MPI ranks to complete, then release ressources.
   dbm_comm_iterator_stop(iter);
-  dbm_free(rows_max_eps);
+  free(rows_max_eps);
   backend_stop(ctx);
 
   // Compute average flops per rank.
