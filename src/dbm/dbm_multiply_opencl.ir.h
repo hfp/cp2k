@@ -1,7 +1,8 @@
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
 void gemm_atomic_f64f64f64f64f64_An_Bt_Md_Nd_Kd_Astride1_d_Bstride1_d_Cstride1_d_alphad_beta3ff0000000000000(
-    uint M, uint N, uint K, double alpha, global double *A, uint A_stride,
-    uint A_stride1, global double *B, uint B_stride, uint B_stride1,
-    double beta, global double *C, uint C_stride, uint C_stride1) {
+    long M, long N, long K, double alpha, global double *A, long A_stride,
+    long A_stride1, global double *B, long B_stride, long B_stride1,
+    double beta, global double *C, long C_stride, long C_stride1) {
   uint m = get_sub_group_local_id();
   double c[16];
   uint sg_n = get_sub_group_id();
@@ -14,7 +15,6 @@ void gemm_atomic_f64f64f64f64f64_An_Bt_Md_Nd_Kd_Astride1_d_Bstride1_d_Cstride1_d
   __attribute__((opencl_unroll_hint(1))) for (blck = bs_1 * sg_n;
                                               blck < bs_1 * rem; blck += bs_1) {
     global double *Bb = B + blck;
-    global double *Cb = C + C_stride1 * blck;
     uint sg_m = 0;
     uint blocks1 = M / 16u;
     uint rem1 = M % 16u;
@@ -23,7 +23,6 @@ void gemm_atomic_f64f64f64f64f64_An_Bt_Md_Nd_Kd_Astride1_d_Bstride1_d_Cstride1_d
                                                 blck1 < 16u * blocks1;
                                                 blck1 += 16u) {
       global double *Ab = A + blck1;
-      global double *Cb1 = Cb + blck1;
       global double *Ab1 = Ab;
       global double *Bb1 = Bb;
       __attribute__((opencl_unroll_hint(16))) for (short n = 0; n < 16; ++n) {
@@ -50,37 +49,21 @@ void gemm_atomic_f64f64f64f64f64_An_Bt_Md_Nd_Kd_Astride1_d_Bstride1_d_Cstride1_d
         Ab1 += A_stride1;
         a[7u] = as_double(intel_sub_group_block_read_ul((global ulong *)Ab1));
         Ab1 += A_stride1;
-        if (m < bs_1) {
-          b[0] = Bb1[m];
-        }
+        b[0] = m < bs_1 ? Bb1[m] : 0;
         Bb1 += B_stride1;
-        if (m < bs_1) {
-          b[1] = Bb1[m];
-        }
+        b[1] = m < bs_1 ? Bb1[m] : 0;
         Bb1 += B_stride1;
-        if (m < bs_1) {
-          b[2] = Bb1[m];
-        }
+        b[2] = m < bs_1 ? Bb1[m] : 0;
         Bb1 += B_stride1;
-        if (m < bs_1) {
-          b[3] = Bb1[m];
-        }
+        b[3] = m < bs_1 ? Bb1[m] : 0;
         Bb1 += B_stride1;
-        if (m < bs_1) {
-          b[4] = Bb1[m];
-        }
+        b[4] = m < bs_1 ? Bb1[m] : 0;
         Bb1 += B_stride1;
-        if (m < bs_1) {
-          b[5] = Bb1[m];
-        }
+        b[5] = m < bs_1 ? Bb1[m] : 0;
         Bb1 += B_stride1;
-        if (m < bs_1) {
-          b[6] = Bb1[m];
-        }
+        b[6] = m < bs_1 ? Bb1[m] : 0;
         Bb1 += B_stride1;
-        if (m < bs_1) {
-          b[7] = Bb1[m];
-        }
+        b[7] = m < bs_1 ? Bb1[m] : 0;
         Bb1 += B_stride1;
         c[0] = fma(a[0u], sub_group_broadcast(b[0], 0), c[0]);
         c[1] = fma(a[0u], sub_group_broadcast(b[0], 1), c[1]);
@@ -218,9 +201,7 @@ void gemm_atomic_f64f64f64f64f64_An_Bt_Md_Nd_Kd_Astride1_d_Bstride1_d_Cstride1_d
           double b[1];
           a[0u] = as_double(intel_sub_group_block_read_ul((global ulong *)Ab1));
           Ab1 += A_stride1;
-          if (m < bs_1) {
-            b[0] = Bb1[m];
-          }
+          b[0] = m < bs_1 ? Bb1[m] : 0;
           Bb1 += B_stride1;
           c[0] = fma(a[0u], sub_group_broadcast(b[0], 0), c[0]);
           c[1] = fma(a[0u], sub_group_broadcast(b[0], 1), c[1]);
@@ -240,19 +221,21 @@ void gemm_atomic_f64f64f64f64f64_An_Bt_Md_Nd_Kd_Astride1_d_Bstride1_d_Cstride1_d
           c[15] = fma(a[0u], sub_group_broadcast(b[0], 15), c[15]);
         }
       }
+      global double *Cb = C + (blck1 + C_stride1 * blck);
+      Cb += m;
       __attribute__((opencl_unroll_hint(1))) for (short n = 0;
                                                   n < min(bs_1, (uint)16);
                                                   ++n) {
-        global double *Cdst = Cb1 + m;
-        atomic_fetch_add((global volatile atomic_double *)Cdst, alpha * c[n]);
-        Cb1 += (uint)C_stride1;
+        atomic_fetch_add_explicit((global volatile atomic_double *)Cb,
+                                  alpha * c[n], memory_order_relaxed,
+                                  memory_scope_work_group);
+        Cb += (uint)C_stride1;
       }
     }
     if (rem1 > 0) {
       blck1 = blocks1 * 16u;
       if (sg_m == 0u) {
         global double *Ab = A + blck1;
-        global double *Cb2 = Cb + blck1;
         global double *Ab1 = Ab;
         global double *Bb2 = Bb;
         __attribute__((opencl_unroll_hint(16))) for (short n = 0; n < 16; ++n) {
@@ -263,69 +246,37 @@ void gemm_atomic_f64f64f64f64f64_An_Bt_Md_Nd_Kd_Astride1_d_Bstride1_d_Cstride1_d
                                                     kb < KmultipleKb; kb += 8) {
           double a[8];
           double b[8];
-          if (m < rem1) {
-            a[0u] = Ab1[m];
-          }
+          a[0u] = m < rem1 ? Ab1[m] : 0;
           Ab1 += A_stride1;
-          if (m < rem1) {
-            a[1u] = Ab1[m];
-          }
+          a[1u] = m < rem1 ? Ab1[m] : 0;
           Ab1 += A_stride1;
-          if (m < rem1) {
-            a[2u] = Ab1[m];
-          }
+          a[2u] = m < rem1 ? Ab1[m] : 0;
           Ab1 += A_stride1;
-          if (m < rem1) {
-            a[3u] = Ab1[m];
-          }
+          a[3u] = m < rem1 ? Ab1[m] : 0;
           Ab1 += A_stride1;
-          if (m < rem1) {
-            a[4u] = Ab1[m];
-          }
+          a[4u] = m < rem1 ? Ab1[m] : 0;
           Ab1 += A_stride1;
-          if (m < rem1) {
-            a[5u] = Ab1[m];
-          }
+          a[5u] = m < rem1 ? Ab1[m] : 0;
           Ab1 += A_stride1;
-          if (m < rem1) {
-            a[6u] = Ab1[m];
-          }
+          a[6u] = m < rem1 ? Ab1[m] : 0;
           Ab1 += A_stride1;
-          if (m < rem1) {
-            a[7u] = Ab1[m];
-          }
+          a[7u] = m < rem1 ? Ab1[m] : 0;
           Ab1 += A_stride1;
-          if (m < bs_1) {
-            b[0] = Bb2[m];
-          }
+          b[0] = m < bs_1 ? Bb2[m] : 0;
           Bb2 += B_stride1;
-          if (m < bs_1) {
-            b[1] = Bb2[m];
-          }
+          b[1] = m < bs_1 ? Bb2[m] : 0;
           Bb2 += B_stride1;
-          if (m < bs_1) {
-            b[2] = Bb2[m];
-          }
+          b[2] = m < bs_1 ? Bb2[m] : 0;
           Bb2 += B_stride1;
-          if (m < bs_1) {
-            b[3] = Bb2[m];
-          }
+          b[3] = m < bs_1 ? Bb2[m] : 0;
           Bb2 += B_stride1;
-          if (m < bs_1) {
-            b[4] = Bb2[m];
-          }
+          b[4] = m < bs_1 ? Bb2[m] : 0;
           Bb2 += B_stride1;
-          if (m < bs_1) {
-            b[5] = Bb2[m];
-          }
+          b[5] = m < bs_1 ? Bb2[m] : 0;
           Bb2 += B_stride1;
-          if (m < bs_1) {
-            b[6] = Bb2[m];
-          }
+          b[6] = m < bs_1 ? Bb2[m] : 0;
           Bb2 += B_stride1;
-          if (m < bs_1) {
-            b[7] = Bb2[m];
-          }
+          b[7] = m < bs_1 ? Bb2[m] : 0;
           Bb2 += B_stride1;
           c[0] = fma(a[0u], sub_group_broadcast(b[0], 0), c[0]);
           c[1] = fma(a[0u], sub_group_broadcast(b[0], 1), c[1]);
@@ -461,13 +412,9 @@ void gemm_atomic_f64f64f64f64f64_An_Bt_Md_Nd_Kd_Astride1_d_Bstride1_d_Cstride1_d
                                                       kb < K; kb += 1) {
             double a[1];
             double b[1];
-            if (m < rem1) {
-              a[0u] = Ab1[m];
-            }
+            a[0u] = m < rem1 ? Ab1[m] : 0;
             Ab1 += A_stride1;
-            if (m < bs_1) {
-              b[0] = Bb2[m];
-            }
+            b[0] = m < bs_1 ? Bb2[m] : 0;
             Bb2 += B_stride1;
             c[0] = fma(a[0u], sub_group_broadcast(b[0], 0), c[0]);
             c[1] = fma(a[0u], sub_group_broadcast(b[0], 1), c[1]);
@@ -487,15 +434,17 @@ void gemm_atomic_f64f64f64f64f64_An_Bt_Md_Nd_Kd_Astride1_d_Bstride1_d_Cstride1_d
             c[15] = fma(a[0u], sub_group_broadcast(b[0], 15), c[15]);
           }
         }
+        global double *Cb = C + (blck1 + C_stride1 * blck);
+        Cb += m;
         __attribute__((opencl_unroll_hint(1))) for (short n = 0;
                                                     n < min(bs_1, (uint)16);
                                                     ++n) {
           if (m < rem1) {
-            global double *Cdst = Cb2 + m;
-            atomic_fetch_add((global volatile atomic_double *)Cdst,
-                             alpha * c[n]);
+            atomic_fetch_add_explicit((global volatile atomic_double *)Cb,
+                                      alpha * c[n], memory_order_relaxed,
+                                      memory_scope_work_group);
           }
-          Cb2 += (uint)C_stride1;
+          Cb += (uint)C_stride1;
         }
       }
     }
@@ -503,7 +452,6 @@ void gemm_atomic_f64f64f64f64f64_An_Bt_Md_Nd_Kd_Astride1_d_Bstride1_d_Cstride1_d
   __attribute__((opencl_unroll_hint(1))) for (blck = bs_1 * rem; blck < N;
                                               blck += bs) {
     global double *Bb = B + blck;
-    global double *Cb = C + C_stride1 * blck;
     uint sg_m = 0;
     uint blocks2 = M / 16u;
     uint rem2 = M % 16u;
@@ -512,7 +460,6 @@ void gemm_atomic_f64f64f64f64f64_An_Bt_Md_Nd_Kd_Astride1_d_Bstride1_d_Cstride1_d
                                                 blck2 < 16u * blocks2;
                                                 blck2 += 16u) {
       global double *Ab = A + blck2;
-      global double *Cb1 = Cb + blck2;
       global double *Ab1 = Ab;
       global double *Bb1 = Bb;
       __attribute__((opencl_unroll_hint(16))) for (short n = 0; n < 16; ++n) {
@@ -539,37 +486,21 @@ void gemm_atomic_f64f64f64f64f64_An_Bt_Md_Nd_Kd_Astride1_d_Bstride1_d_Cstride1_d
         Ab1 += A_stride1;
         a[7u] = as_double(intel_sub_group_block_read_ul((global ulong *)Ab1));
         Ab1 += A_stride1;
-        if (m < bs) {
-          b[0] = Bb1[m];
-        }
+        b[0] = m < bs ? Bb1[m] : 0;
         Bb1 += B_stride1;
-        if (m < bs) {
-          b[1] = Bb1[m];
-        }
+        b[1] = m < bs ? Bb1[m] : 0;
         Bb1 += B_stride1;
-        if (m < bs) {
-          b[2] = Bb1[m];
-        }
+        b[2] = m < bs ? Bb1[m] : 0;
         Bb1 += B_stride1;
-        if (m < bs) {
-          b[3] = Bb1[m];
-        }
+        b[3] = m < bs ? Bb1[m] : 0;
         Bb1 += B_stride1;
-        if (m < bs) {
-          b[4] = Bb1[m];
-        }
+        b[4] = m < bs ? Bb1[m] : 0;
         Bb1 += B_stride1;
-        if (m < bs) {
-          b[5] = Bb1[m];
-        }
+        b[5] = m < bs ? Bb1[m] : 0;
         Bb1 += B_stride1;
-        if (m < bs) {
-          b[6] = Bb1[m];
-        }
+        b[6] = m < bs ? Bb1[m] : 0;
         Bb1 += B_stride1;
-        if (m < bs) {
-          b[7] = Bb1[m];
-        }
+        b[7] = m < bs ? Bb1[m] : 0;
         Bb1 += B_stride1;
         c[0] = fma(a[0u], sub_group_broadcast(b[0], 0), c[0]);
         c[1] = fma(a[0u], sub_group_broadcast(b[0], 1), c[1]);
@@ -707,9 +638,7 @@ void gemm_atomic_f64f64f64f64f64_An_Bt_Md_Nd_Kd_Astride1_d_Bstride1_d_Cstride1_d
           double b[1];
           a[0u] = as_double(intel_sub_group_block_read_ul((global ulong *)Ab1));
           Ab1 += A_stride1;
-          if (m < bs) {
-            b[0] = Bb1[m];
-          }
+          b[0] = m < bs ? Bb1[m] : 0;
           Bb1 += B_stride1;
           c[0] = fma(a[0u], sub_group_broadcast(b[0], 0), c[0]);
           c[1] = fma(a[0u], sub_group_broadcast(b[0], 1), c[1]);
@@ -729,18 +658,20 @@ void gemm_atomic_f64f64f64f64f64_An_Bt_Md_Nd_Kd_Astride1_d_Bstride1_d_Cstride1_d
           c[15] = fma(a[0u], sub_group_broadcast(b[0], 15), c[15]);
         }
       }
+      global double *Cb = C + (blck2 + C_stride1 * blck);
+      Cb += m;
       __attribute__((opencl_unroll_hint(1))) for (short n = 0;
                                                   n < min(bs, (uint)16); ++n) {
-        global double *Cdst = Cb1 + m;
-        atomic_fetch_add((global volatile atomic_double *)Cdst, alpha * c[n]);
-        Cb1 += (uint)C_stride1;
+        atomic_fetch_add_explicit((global volatile atomic_double *)Cb,
+                                  alpha * c[n], memory_order_relaxed,
+                                  memory_scope_work_group);
+        Cb += (uint)C_stride1;
       }
     }
     if (rem2 > 0) {
       blck2 = blocks2 * 16u;
       if (sg_m == 0u) {
         global double *Ab = A + blck2;
-        global double *Cb2 = Cb + blck2;
         global double *Ab1 = Ab;
         global double *Bb2 = Bb;
         __attribute__((opencl_unroll_hint(16))) for (short n = 0; n < 16; ++n) {
@@ -751,69 +682,37 @@ void gemm_atomic_f64f64f64f64f64_An_Bt_Md_Nd_Kd_Astride1_d_Bstride1_d_Cstride1_d
                                                     kb < KmultipleKb; kb += 8) {
           double a[8];
           double b[8];
-          if (m < rem2) {
-            a[0u] = Ab1[m];
-          }
+          a[0u] = m < rem2 ? Ab1[m] : 0;
           Ab1 += A_stride1;
-          if (m < rem2) {
-            a[1u] = Ab1[m];
-          }
+          a[1u] = m < rem2 ? Ab1[m] : 0;
           Ab1 += A_stride1;
-          if (m < rem2) {
-            a[2u] = Ab1[m];
-          }
+          a[2u] = m < rem2 ? Ab1[m] : 0;
           Ab1 += A_stride1;
-          if (m < rem2) {
-            a[3u] = Ab1[m];
-          }
+          a[3u] = m < rem2 ? Ab1[m] : 0;
           Ab1 += A_stride1;
-          if (m < rem2) {
-            a[4u] = Ab1[m];
-          }
+          a[4u] = m < rem2 ? Ab1[m] : 0;
           Ab1 += A_stride1;
-          if (m < rem2) {
-            a[5u] = Ab1[m];
-          }
+          a[5u] = m < rem2 ? Ab1[m] : 0;
           Ab1 += A_stride1;
-          if (m < rem2) {
-            a[6u] = Ab1[m];
-          }
+          a[6u] = m < rem2 ? Ab1[m] : 0;
           Ab1 += A_stride1;
-          if (m < rem2) {
-            a[7u] = Ab1[m];
-          }
+          a[7u] = m < rem2 ? Ab1[m] : 0;
           Ab1 += A_stride1;
-          if (m < bs) {
-            b[0] = Bb2[m];
-          }
+          b[0] = m < bs ? Bb2[m] : 0;
           Bb2 += B_stride1;
-          if (m < bs) {
-            b[1] = Bb2[m];
-          }
+          b[1] = m < bs ? Bb2[m] : 0;
           Bb2 += B_stride1;
-          if (m < bs) {
-            b[2] = Bb2[m];
-          }
+          b[2] = m < bs ? Bb2[m] : 0;
           Bb2 += B_stride1;
-          if (m < bs) {
-            b[3] = Bb2[m];
-          }
+          b[3] = m < bs ? Bb2[m] : 0;
           Bb2 += B_stride1;
-          if (m < bs) {
-            b[4] = Bb2[m];
-          }
+          b[4] = m < bs ? Bb2[m] : 0;
           Bb2 += B_stride1;
-          if (m < bs) {
-            b[5] = Bb2[m];
-          }
+          b[5] = m < bs ? Bb2[m] : 0;
           Bb2 += B_stride1;
-          if (m < bs) {
-            b[6] = Bb2[m];
-          }
+          b[6] = m < bs ? Bb2[m] : 0;
           Bb2 += B_stride1;
-          if (m < bs) {
-            b[7] = Bb2[m];
-          }
+          b[7] = m < bs ? Bb2[m] : 0;
           Bb2 += B_stride1;
           c[0] = fma(a[0u], sub_group_broadcast(b[0], 0), c[0]);
           c[1] = fma(a[0u], sub_group_broadcast(b[0], 1), c[1]);
@@ -949,13 +848,9 @@ void gemm_atomic_f64f64f64f64f64_An_Bt_Md_Nd_Kd_Astride1_d_Bstride1_d_Cstride1_d
                                                       kb < K; kb += 1) {
             double a[1];
             double b[1];
-            if (m < rem2) {
-              a[0u] = Ab1[m];
-            }
+            a[0u] = m < rem2 ? Ab1[m] : 0;
             Ab1 += A_stride1;
-            if (m < bs) {
-              b[0] = Bb2[m];
-            }
+            b[0] = m < bs ? Bb2[m] : 0;
             Bb2 += B_stride1;
             c[0] = fma(a[0u], sub_group_broadcast(b[0], 0), c[0]);
             c[1] = fma(a[0u], sub_group_broadcast(b[0], 1), c[1]);
@@ -975,15 +870,17 @@ void gemm_atomic_f64f64f64f64f64_An_Bt_Md_Nd_Kd_Astride1_d_Bstride1_d_Cstride1_d
             c[15] = fma(a[0u], sub_group_broadcast(b[0], 15), c[15]);
           }
         }
+        global double *Cb = C + (blck2 + C_stride1 * blck);
+        Cb += m;
         __attribute__((opencl_unroll_hint(1))) for (short n = 0;
                                                     n < min(bs, (uint)16);
                                                     ++n) {
           if (m < rem2) {
-            global double *Cdst = Cb2 + m;
-            atomic_fetch_add((global volatile atomic_double *)Cdst,
-                             alpha * c[n]);
+            atomic_fetch_add_explicit((global volatile atomic_double *)Cb,
+                                      alpha * c[n], memory_order_relaxed,
+                                      memory_scope_work_group);
           }
-          Cb2 += (uint)C_stride1;
+          Cb += (uint)C_stride1;
         }
       }
     }
@@ -991,45 +888,45 @@ void gemm_atomic_f64f64f64f64f64_An_Bt_Md_Nd_Kd_Astride1_d_Bstride1_d_Cstride1_d
 }
 kernel __attribute__((reqd_work_group_size(16, 1, 1)))
 __attribute__((intel_reqd_sub_group_size(16))) void
-dbm_multiply(double alpha, int itask, global int *tasks, uint tasks_shape1,
-             global double *A, uint A_shape0, global double *B, uint B_shape0,
-             global double *C, uint C_shape0) {
-  uint gid = get_global_id(2);
-  uint itask_idx = (uint)itask;
-  uint tid = itask_idx + gid;
-  int iM = *(tasks + 0 * 1 + tid * 6);
-  int iN = *(tasks + 1 * 1 + tid * 6);
-  int iK = *(tasks + 2 * 1 + tid * 6);
-  int ioffset_a = *(tasks + 3 * 1 + tid * 6);
-  int ioffset_b = *(tasks + 4 * 1 + tid * 6);
-  int ioffset_c = *(tasks + 5 * 1 + tid * 6);
-  uint M = (uint)iM;
-  uint N = (uint)iN;
-  uint K = (uint)iK;
-  uint offset_a = (uint)ioffset_a;
-  uint offset_b = (uint)ioffset_b;
-  uint offset_c = (uint)ioffset_c;
-  uint MK = M * K;
-  uint KN = K * N;
-  uint MN = M * N;
+dbm_multiply(double alpha, int itask, global int *tasks, long tasks_shape1,
+             global double *A, long A_shape0, global double *B, long B_shape0,
+             global double *C, long C_shape0) {
+  long gid = get_global_id(2);
+  long itask_idx = (long)itask;
+  long tid = itask_idx + gid;
+  int iM = *(tasks + 0ll * 1 + tid * 6);
+  int iN = *(tasks + 1ll * 1 + tid * 6);
+  int iK = *(tasks + 2ll * 1 + tid * 6);
+  int ioffset_a = *(tasks + 3ll * 1 + tid * 6);
+  int ioffset_b = *(tasks + 4ll * 1 + tid * 6);
+  int ioffset_c = *(tasks + 5ll * 1 + tid * 6);
+  long M = (long)iM;
+  long N = (long)iN;
+  long K = (long)iK;
+  long offset_a = (long)ioffset_a;
+  long offset_b = (long)ioffset_b;
+  long offset_c = (long)ioffset_c;
+  long MK = M * K;
+  long KN = K * N;
+  long MN = M * N;
   global double *av = A + offset_a * 1;
-  uint av_shape0 = MK;
+  long av_shape0 = MK;
   global double *bv = B + offset_b * 1;
-  uint bv_shape0 = KN;
+  long bv_shape0 = KN;
   global double *cv = C + offset_c * 1;
-  uint cv_shape0 = MN;
+  long cv_shape0 = MN;
   global double *a = av;
-  uint a_shape0 = M;
-  uint a_shape1 = K;
-  uint a_stride1 = 1 * M;
+  long a_shape0 = M;
+  long a_shape1 = K;
+  long a_stride1 = 1 * M;
   global double *b = bv;
-  uint b_shape0 = N;
-  uint b_shape1 = K;
-  uint b_stride1 = 1 * N;
+  long b_shape0 = N;
+  long b_shape1 = K;
+  long b_stride1 = 1 * N;
   global double *c = cv;
-  uint c_shape0 = M;
-  uint c_shape1 = N;
-  uint c_stride1 = 1 * M;
+  long c_shape0 = M;
+  long c_shape1 = N;
+  long c_stride1 = 1 * M;
   gemm_atomic_f64f64f64f64f64_An_Bt_Md_Nd_Kd_Astride1_d_Bstride1_d_Cstride1_d_alphad_beta3ff0000000000000(
       c_shape0, c_shape1, a_shape1, alpha, a, 1, a_stride1, b, 1, b_stride1,
       0x1p+0, c, 1, c_stride1);
