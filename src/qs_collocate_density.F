@@ -50,10 +50,10 @@ MODULE qs_collocate_density
    USE cp_fm_types, ONLY: cp_fm_get_element, &
                           cp_fm_get_info, &
                           cp_fm_type
-   USE dbcsr_api, ONLY: dbcsr_copy, &
-                        dbcsr_get_block_p, &
-                        dbcsr_p_type, &
-                        dbcsr_type
+   USE cp_dbcsr_api, ONLY: dbcsr_copy, &
+                           dbcsr_get_block_p, &
+                           dbcsr_p_type, &
+                           dbcsr_type
    USE external_potential_types, ONLY: get_potential, &
                                        gth_potential_type
    USE gaussian_gridlevels, ONLY: gaussian_gridlevel, &
