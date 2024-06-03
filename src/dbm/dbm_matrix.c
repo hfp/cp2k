@@ -273,6 +273,7 @@ void dbm_clear(dbm_matrix_t *matrix) {
  * \author Ole Schuett
  ******************************************************************************/
 void dbm_filter(dbm_matrix_t *matrix, const double eps) {
+  const double eps2 = eps * eps;
   assert(omp_get_num_threads() == 1);
 
   if (eps == 0.0) {
@@ -298,7 +299,7 @@ void dbm_filter(dbm_matrix_t *matrix, const double eps) {
         norm += old_blk_data[i] * old_blk_data[i];
       }
       // For historic reasons zero-sized blocks are never filtered.
-      if (sqrt((float)norm) < eps && block_size > 0) {
+      if (block_size > 0 && norm < eps2) {
         continue; // filter the block
       }
       // Re-create block.
