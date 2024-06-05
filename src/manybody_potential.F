@@ -218,7 +218,7 @@ CONTAINS
                                    unique_list_a, cell)
          CALL allegro_energy_store_force_virial(nonbonded, particle_set, cell, atomic_kind_set, potparm, &
                                                 allegro, glob_loc_list_a, r_last_update_pbc, pot_allegro, &
-                                                fist_nonbond_env, unique_list_a, use_virial)
+                                                fist_nonbond_env, unique_list_a, para_env, use_virial)
          pot_manybody = pot_manybody + pot_allegro
          CALL destroy_allegro_arrays(glob_loc_list, glob_cell_v, glob_loc_list_a, unique_list_a)
       END IF

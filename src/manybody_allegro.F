@@ -24,6 +24,7 @@ MODULE manybody_allegro
    USE kinds,                           ONLY: dp,&
                                               int_8,&
                                               sp
+   USE message_passing,                 ONLY: mp_para_env_type
    USE pair_potential_types,            ONLY: allegro_pot_type,&
                                               allegro_type,&
                                               pair_potential_pp_type,&
@@ -214,6 +215,7 @@ CONTAINS
 !> \param pot_allegro ...
 !> \param fist_nonbond_env ...
 !> \param unique_list_a ...
+!> \param para_env ...
 !> \param use_virial ...
 !> \par History
 !>      Implementation of the allegro potential - [gtocci] 2023
@@ -222,7 +224,7 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE allegro_energy_store_force_virial(nonbonded, particle_set, cell, atomic_kind_set, &
                                                 potparm, allegro, glob_loc_list_a, r_last_update_pbc, &
-                                                pot_allegro, fist_nonbond_env, unique_list_a, use_virial)
+                                                pot_allegro, fist_nonbond_env, unique_list_a, para_env, use_virial)
 
       TYPE(fist_neighbor_type), POINTER                  :: nonbonded
       TYPE(particle_type), POINTER                       :: particle_set(:)
@@ -235,6 +237,7 @@ CONTAINS
       REAL(kind=dp)                                      :: pot_allegro
       TYPE(fist_nonbond_env_type), POINTER               :: fist_nonbond_env
       INTEGER, DIMENSION(:), POINTER                     :: unique_list_a
+      TYPE(mp_para_env_type), POINTER                    :: para_env
       LOGICAL, INTENT(IN)                                :: use_virial
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'allegro_energy_store_force_virial'
@@ -475,6 +478,7 @@ CONTAINS
 
       DEALLOCATE (t_edge_index, atom_types)
 
+      IF (use_virial) allegro_data%virial(:, :) = allegro_data%virial/REAL(para_env%num_pe, dp)
       CALL timestop(handle)
    END SUBROUTINE allegro_energy_store_force_virial
 
