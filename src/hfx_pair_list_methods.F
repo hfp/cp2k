@@ -466,15 +466,15 @@ CONTAINS
       TYPE(pair_list_type), INTENT(OUT)                  :: list
       TYPE(pair_set_list_type), DIMENSION(:), &
          INTENT(OUT)                                     :: set_list
-      INTEGER, INTENT(IN)                                :: i_start, i_end, j_start, j_end
-      INTEGER, INTENT(IN)                                :: kind_of(*)
-      TYPE(hfx_basis_type), DIMENSION(:), POINTER, &
-         INTENT(IN)                                      :: basis_parameter
-      TYPE(particle_type), DIMENSION(:), POINTER, &
-         INTENT(IN)                                      :: particle_set
+      INTEGER, INTENT(IN)                                :: i_start, i_end, j_start, j_end, &
+                                                            kind_of(*)
+      TYPE(hfx_basis_type), DIMENSION(:), INTENT(IN), &
+         POINTER                                         :: basis_parameter
+      TYPE(particle_type), DIMENSION(:), INTENT(IN), &
+         POINTER                                         :: particle_set
       LOGICAL, INTENT(IN)                                :: do_periodic
       TYPE(hfx_screen_coeff_type), &
-         DIMENSION(:, :, :, :), POINTER, INTENT(IN)      :: coeffs_set
+         DIMENSION(:, :, :, :), INTENT(IN), POINTER      :: coeffs_set
       TYPE(hfx_screen_coeff_type), DIMENSION(:, :), &
          INTENT(IN)                                      :: coeffs_kind
       REAL(KIND=dp), INTENT(IN)                          :: coeffs_kind_max0, log10_eps_schwarz
@@ -559,17 +559,17 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: natom
       LOGICAL, DIMENSION(natom, natom)                   :: atomic_pair_list
       INTEGER, INTENT(IN)                                :: kind_of(*)
-      TYPE(hfx_basis_type), DIMENSION(:), POINTER, &
-         INTENT(IN)                                      :: basis_parameter
-      TYPE(particle_type), DIMENSION(:), POINTER, &
-         INTENT(IN)                                      :: particle_set
+      TYPE(hfx_basis_type), DIMENSION(:), INTENT(IN), &
+         POINTER                                         :: basis_parameter
+      TYPE(particle_type), DIMENSION(:), INTENT(IN), &
+         POINTER                                         :: particle_set
       LOGICAL, INTENT(IN)                                :: do_periodic
       TYPE(hfx_screen_coeff_type), DIMENSION(:, :), &
          INTENT(IN)                                      :: coeffs_kind
       REAL(KIND=dp), INTENT(IN)                          :: coeffs_kind_max0, log10_eps_schwarz
       TYPE(cell_type), POINTER                           :: cell
       TYPE(hfx_block_range_type), DIMENSION(:), &
-         POINTER, INTENT(IN)                             :: blocks
+         INTENT(IN), POINTER                             :: blocks
 
       INTEGER                                            :: iatom, iatom_end, iatom_start, iblock, &
                                                             ikind, jatom, jatom_end, jatom_start, &
@@ -647,22 +647,22 @@ CONTAINS
       TYPE(pair_list_type_mp2)                           :: list
       TYPE(pair_set_list_type), DIMENSION(:), &
          INTENT(OUT)                                     :: set_list
-      INTEGER, INTENT(IN)                                :: i_start, i_end, j_start, j_end
-      INTEGER, INTENT(IN)                                :: kind_of(*)
-      TYPE(hfx_basis_type), DIMENSION(:), POINTER, &
-         INTENT(IN)                                      :: basis_parameter
-      TYPE(particle_type), DIMENSION(:), POINTER, &
-         INTENT(IN)                                      :: particle_set
+      INTEGER, INTENT(IN)                                :: i_start, i_end, j_start, j_end, &
+                                                            kind_of(*)
+      TYPE(hfx_basis_type), DIMENSION(:), INTENT(IN), &
+         POINTER                                         :: basis_parameter
+      TYPE(particle_type), DIMENSION(:), INTENT(IN), &
+         POINTER                                         :: particle_set
       LOGICAL, INTENT(IN)                                :: do_periodic
       TYPE(hfx_screen_coeff_type), &
-         DIMENSION(:, :, :, :), POINTER, INTENT(IN)      :: coeffs_set
+         DIMENSION(:, :, :, :), INTENT(IN), POINTER      :: coeffs_set
       TYPE(hfx_screen_coeff_type), DIMENSION(:, :), &
          INTENT(IN)                                      :: coeffs_kind
       REAL(KIND=dp), INTENT(IN)                          :: coeffs_kind_max0, log10_eps_schwarz
       TYPE(cell_type), POINTER                           :: cell
       REAL(dp), INTENT(IN)                               :: pmax_blocks
       LOGICAL, DIMENSION(natom, natom), INTENT(IN)       :: atomic_pair_list
-      LOGICAL, OPTIONAL, INTENT(IN)                      :: skip_atom_symmetry
+      LOGICAL, INTENT(IN), OPTIONAL                      :: skip_atom_symmetry
 
       INTEGER                                            :: iatom, ikind, iset, jatom, jkind, jset, &
                                                             n_element, nset_ij, nseta, nsetb
