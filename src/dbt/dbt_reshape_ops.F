@@ -106,7 +106,7 @@ CONTAINS
 !$OMP SHARED(nblks_send_total,ndata_send_total,nblks_recv_total,ndata_recv_total) &
 !$OMP PRIVATE(nblks_send_mythread,ndata_send_mythread,nblks_recv_mythread) &
 !$OMP PRIVATE(iter,ind_nd,blk_size,blk_data,found,iproc) &
-!$OMP PRIVATE(blks_to_allocate,offset,ndata,iblk,jblk)
+!$OMP PRIVATE(offset,ndata,iblk,jblk)
       ALLOCATE (nblks_send_mythread(0:numnodes - 1), ndata_send_mythread(0:numnodes - 1), source=0)
 
       CALL dbt_iterator_start(iter, tensor_in)
