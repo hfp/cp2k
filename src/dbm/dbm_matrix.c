@@ -279,6 +279,7 @@ void dbm_filter(dbm_matrix_t *matrix, const double eps) {
   if (eps == 0.0) {
     return;
   }
+  const double eps2 = eps * eps;
 
 #pragma omp parallel for schedule(dynamic)
   for (int ishard = 0; ishard < dbm_get_num_shards(matrix); ishard++) {
@@ -294,7 +295,7 @@ void dbm_filter(dbm_matrix_t *matrix, const double eps) {
       const int row_size = matrix->row_sizes[old_blk.row];
       const int col_size = matrix->col_sizes[old_blk.col];
       const int block_size = row_size * col_size;
-      double norm = 0.0; // Compute norm as double, but compare as float.
+      double norm = 0.0;
       for (int i = 0; i < block_size; i++) {
         norm += old_blk_data[i] * old_blk_data[i];
       }
