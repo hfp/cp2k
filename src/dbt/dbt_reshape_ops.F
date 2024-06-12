@@ -63,7 +63,7 @@ CONTAINS
       INTEGER                                            :: iproc, numnodes, &
                                                             handle, iblk, jblk, offset, ndata, &
                                                             nblks_recv_mythread
-      INTEGER, ALLOCATABLE, DIMENSION(:, :), SAVE        :: blks_to_allocate
+      INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: blks_to_allocate
       TYPE(dbt_iterator_type)                            :: iter
       TYPE(block_nd)                                     :: blk_data
       TYPE(block_buffer_type), ALLOCATABLE, DIMENSION(:) :: buffer_recv, buffer_send
@@ -74,7 +74,6 @@ CONTAINS
                                                             nblks_recv_total, ndata_recv_total, &
                                                             nblks_send_mythread, ndata_send_mythread
       TYPE(mp_comm_type) :: mp_comm
-      !$OMP THREADPRIVATE(blks_to_allocate)
 
       CALL timeset(routineN, handle)
 
@@ -106,7 +105,7 @@ CONTAINS
 !$OMP SHARED(nblks_send_total,ndata_send_total,nblks_recv_total,ndata_recv_total) &
 !$OMP PRIVATE(nblks_send_mythread,ndata_send_mythread,nblks_recv_mythread) &
 !$OMP PRIVATE(iter,ind_nd,blk_size,blk_data,found,iproc) &
-!$OMP PRIVATE(offset,ndata,iblk,jblk)
+!$OMP PRIVATE(blks_to_allocate,offset,ndata,iblk,jblk)
       ALLOCATE (nblks_send_mythread(0:numnodes - 1), ndata_send_mythread(0:numnodes - 1), source=0)
 
       CALL dbt_iterator_start(iter, tensor_in)
@@ -161,7 +160,6 @@ CONTAINS
          CALL destroy_block(blk_data)
       END DO
       CALL dbt_iterator_stop(iter)
-      DEALLOCATE (nblks_send_mythread, ndata_send_mythread)
 !$OMP BARRIER
 
       CALL dbt_communicate_buffer(mp_comm, buffer_recv, buffer_send)
@@ -181,27 +179,20 @@ CONTAINS
          END DO
 !$OMP END DO
       END DO
-
-      IF (.NOT. ALLOCATED(blks_to_allocate)) THEN
-         ALLOCATE (blks_to_allocate(nblks_recv_mythread, ndims_tensor(tensor_in)))
-      ELSE IF (SIZE(blks_to_allocate, 1) < nblks_recv_mythread &
-          .OR. SIZE(blks_to_allocate, 2) < ndims_tensor(tensor_in)) &
-      THEN
-         DEALLOCATE (blks_to_allocate)
-         ALLOCATE (blks_to_allocate(nblks_recv_mythread, ndims_tensor(tensor_in)))
-      END IF
+      ALLOCATE (blks_to_allocate(nblks_recv_mythread, ndims_tensor(tensor_in)))
 
       jblk = 0
       DO iproc = 0, numnodes - 1
 !$OMP DO
          DO iblk = 1, nblks_recv_total(iproc)
             jblk = jblk + 1
-            blks_to_allocate(jblk, 1:ndims_tensor(tensor_in)) = buffer_recv(iproc)%blocks(iblk, 1:ndims_tensor(tensor_in))
+            blks_to_allocate(jblk, :) = buffer_recv(iproc)%blocks(iblk, 1:)
          END DO
 !$OMP END DO
       END DO
       CPASSERT(jblk == nblks_recv_mythread)
       CALL dbt_reserve_blocks(tensor_out, blks_to_allocate)
+      DEALLOCATE (blks_to_allocate)
 
       DO iproc = 0, numnodes - 1
 !$OMP DO
@@ -246,7 +237,7 @@ CONTAINS
 
       INTEGER                                               :: iproc, numnodes, &
                                                                rec_counter, send_counter, i
-      TYPE(mp_request_type), ALLOCATABLE, DIMENSION(:, :)   :: req_array
+      TYPE(mp_request_type), ALLOCATABLE, DIMENSION(:, :)                 :: req_array
       INTEGER                                               :: handle
 
       CALL timeset(routineN, handle)
