@@ -490,7 +490,7 @@ CONTAINS
                      m = mapm(ghat(2, gpt)) + 1
                      n = mapn(ghat(3, gpt)) + 1
                      mn = yzq(m, n)
-                     c(l, mn) = ${type2type("scale*pw%array(gpt)", kind, "c3d")}$
+                     c(l, mn) = ${type2type("pw%array(gpt)*scale", kind, "c3d")}$
                   END DO
 !$OMP END PARALLEL DO
                ELSE
@@ -2078,7 +2078,7 @@ CONTAINS
 !$OMP PARALLEL DO DEFAULT(NONE) PRIVATE(ig,gg) SHARED(cnt, i, o3, pw, pwdr2)
                         DO ig = 1, cnt
                            gg = pw%pw_grid%g(i, ig)**2 - o3*pw%pw_grid%gsq(ig)
-                           pwdr2%array(ig) = gg*pw%array(ig)
+                           pwdr2%array(ig) = pw%array(ig)*gg
                         END DO
 !$OMP END PARALLEL DO
                      ELSE
@@ -2125,7 +2125,7 @@ CONTAINS
 !$OMP PARALLEL DO PRIVATE (ig) DEFAULT(NONE) PRIVATE(gg) SHARED(cnt, i, o3, pw, pwdr2_gg)
                         DO ig = pw%pw_grid%first_gne0, cnt
                            gg = pw%pw_grid%g(i, ig)**2 - o3*pw%pw_grid%gsq(ig)
-                           pwdr2_gg%array(ig) = gg*pw%array(ig)/pw%pw_grid%gsq(ig)
+                           pwdr2_gg%array(ig) = pw%array(ig)*gg/pw%pw_grid%gsq(ig)
                         END DO
 !$OMP END PARALLEL DO
                      ELSE
@@ -2172,7 +2172,7 @@ CONTAINS
                      DO ig = 1, cnt
                         arg = (ecut - pw%pw_grid%gsq(ig))/sigma
                         f = EXP(arg)/(1 + EXP(arg))
-                        pw%array(ig) = f*pw%array(ig)
+                        pw%array(ig) = pw%array(ig)*f
                      END DO
 !$OMP END PARALLEL DO
 
