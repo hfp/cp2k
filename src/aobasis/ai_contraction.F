@@ -314,9 +314,7 @@ CONTAINS
 !> \param trans   Optional transposition of input matrix
 ! **************************************************************************************************
    SUBROUTINE decontraction_ab(sab, qab, ca, na, ma, cb, nb, mb, trans)
-#if defined(__LIBXSMM)
-      USE libxsmm, ONLY: dgemm => libxsmm_dgemm
-#endif
+
       REAL(KIND=dp), DIMENSION(:, :), INTENT(IN)         :: sab
       REAL(KIND=dp), DIMENSION(:, :), INTENT(INOUT)      :: qab
       REAL(KIND=dp), DIMENSION(:, :), INTENT(IN)         :: ca
