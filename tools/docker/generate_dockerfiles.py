@@ -35,7 +35,10 @@ def main() -> None:
         f.write(toolchain_full(base_image="fedora:38") + regtest("psmp"))
 
     with OutputFile(f"Dockerfile.test_intel-psmp", args.check) as f:
-        f.write(toolchain_intel() + regtest("psmp", intel=True))
+        f.write(
+            toolchain_intel()
+            + regtest("psmp", intel=True, testopts="--mpiexec mpiexec")
+        )
 
     with OutputFile(f"Dockerfile.test_nvhpc", args.check) as f:
         f.write(toolchain_nvhpc())
@@ -505,7 +508,7 @@ RUN ln -sf /usr/bin/gcc-{gcc_version}      /usr/local/bin/gcc  && \
 # ======================================================================================
 def toolchain_intel() -> str:
     return rf"""
-FROM intel/hpckit:2024.1.1-devel-ubuntu22.04
+FROM intel/hpckit:2024.2.0-devel-ubuntu22.04
 
 """ + install_toolchain(
         base_image="ubuntu",
