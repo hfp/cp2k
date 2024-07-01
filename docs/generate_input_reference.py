@@ -3,8 +3,7 @@
 # author: Ole Schuett
 
 from typing import Dict, Tuple, List, Set, Optional
-import lxml.etree as ET
-import lxml
+import xml.etree.ElementTree as ET
 from pathlib import Path
 import re
 import sys
@@ -103,7 +102,7 @@ def build_input_reference(cp2k_input_xml_fn: str, output_dir: Path) -> None:
 
 # ======================================================================================
 def process_section(
-    section: lxml.etree._Element,
+    section: ET.Element,
     section_path: SectionPath,
     has_name_collision: bool,
     output_dir: Path,
@@ -172,7 +171,7 @@ def process_section(
 
 # ======================================================================================
 def process_xc_functional_section(
-    section: lxml.etree._Element,
+    section: ET.Element,
     section_path: SectionPath,
     output_dir: Path,
 ) -> int:
@@ -184,7 +183,7 @@ def process_xc_functional_section(
 
     # Render note.
     output += ["```{note}"]
-    output += ["Thanks to [Libxc](https://www.tddft.org/programs/Libxc) there are 600+"]
+    output += ["Thanks to [Libxc](https://libxc.gitlab.io/) there are 600+"]
     output += ["functionals available. For ease of browsing their documentation has"]
     output += ["been inlined into this page. Each of the functionals has a"]
     output += ["corresponding subsection that, if present, enables the functional."]
@@ -198,6 +197,8 @@ def process_xc_functional_section(
     subsections_by_prefix: Dict[str, List[str]] = {prefix: [] for prefix in prefixes}
     for subsection in subsections:
         subsection_name = get_name(subsection)
+        if subsection_name == "LDA_X":
+            continue  # Special case where libxc deviates from its naming convention.
         for prefix in reversed(prefixes):  # reverse order because "" always matches
             if subsection_name.startswith(prefix):
                 subsections_by_prefix[prefix].append(subsection_name)
@@ -207,6 +208,8 @@ def process_xc_functional_section(
     for prefix, section_names in subsections_by_prefix.items():
         category = f"Libxc {prefix[:-1]}" if prefix else "Built-in"
         items = [f"[{s[len(prefix):]}](#{section_xref}.{s})" for s in section_names]
+        if prefix == "LDA_X_":
+            items.insert(0, f"[LDA_X](#{section_xref}.LDA_X)")  # special case
         output += [f"## {category} Functionals", "", ",\n".join(items), ""]
 
     # Render inline subsections
@@ -225,7 +228,7 @@ def process_xc_functional_section(
 
 # ======================================================================================
 def render_section_header(
-    section: lxml.etree._Element,
+    section: ET.Element,
     section_path: SectionPath,
     has_name_collision: bool = False,
 ) -> Tuple[List[str], str, str]:
@@ -256,7 +259,7 @@ def render_section_header(
 
 # ======================================================================================
 def render_keyword(
-    keyword: lxml.etree._Element,
+    keyword: ET.Element,
     section_xref: Optional[str],
     github: bool = True,
 ) -> List[str]:
@@ -373,12 +376,12 @@ def lookup_mentions(xref: Optional[str]) -> List[str]:
 
 
 # ======================================================================================
-def get_name(element: lxml.etree._Element) -> str:
+def get_name(element: ET.Element) -> str:
     return get_text(element.find("NAME"))
 
 
 # ======================================================================================
-def get_text(element: Optional[lxml.etree._Element]) -> str:
+def get_text(element: Optional[ET.Element]) -> str:
     if element is not None:
         if element.text is not None:
             return element.text
