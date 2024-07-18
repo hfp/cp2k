@@ -1,19 +1,19 @@
 #!/bin/bash
 #
-# CP2K (GNU x86_64) arch file for the Alps/Eiger (AMD Zen 2) multi-core (mc) cluster at CSCS
+# CP2K (Intel/MKL x86_64) arch file for the Alps/Eiger (AMD Zen 2) cluster at CSCS
 #
-# Tested with: GNU 12.3.0, Cray-MPICH 8.1.28, Cray-libsci 23.12.5,
+# Tested with: Intel 2021.10.0, Intel MPI, Intel MKL,
 #              LIBINT 2.6.0, LIBXC 6.2.2, ELPA 2024.03.001,
 #              PLUMED 2.9.0, SPGLIB 2.3.1, LIBVORI 220621,
 #              GSL 2.7, COSMA 2.6.6, HDF5 1.14.2, SIRIUS 7.5.2,
 #              LIBGRPP 20231215, SPFFT 1.1.0, SPLA 1.6.1,
-#              DFTD4 3.6.0, QUIP 0.9.10
+#              DFTD4 3.6.0
 # on the Alps/Eiger (CSCS)
 #
 # Usage: Source this arch file and then run make as instructed.
 #        Replace or adapt the "module load" commands below if needed.
 #
-# Last update: 18.07.2024
+# Last update: 16.07.2024
 #
 # \
    if [[ "${0}" == "${BASH_SOURCE}" ]]; then \
@@ -25,20 +25,17 @@
    cd tools/toolchain; \
    rm -rf build; \
    module load cray; \
-   module load cpeGNU; \
+   module load cpeIntel; \
    module load cray-fftw; \
    module list; \
-   export CRAY_LIBSCI_PREFIX_DIR=${CRAY_PE_LIBSCI_PREFIX_DIR}; \
-   export CPATH=${CPATH}:${CRAY_PE_LIBSCI_PREFIX_DIR}/include; \
-   export COSMA_SCALAPACK_LINK_LIBRARIES=${CRAY_PE_LIBSCI_PREFIX_DIR}; \
-   ./install_cp2k_toolchain.sh -j32 --enable-cray --no-arch-files --target-cpu=znver2 --with-dftd4 --with-fftw --with-libtorch=no --with-libvdwxc --with-libxsmm --with-pexsi --with-plumed --with-quip; \
+   ./install_cp2k_toolchain.sh -j32 --enable-cray --no-arch-files --target-cpu=core-avx2 --with-dftd4 --with-elpa --with-fftw --with-libtorch=no --with-intel --with-mkl --with-libtorch=no --with-libvdwxc --with-pexsi --with-plumed --with-quip=no; \
    source ./install/setup; \
    cd ../..; \
    echo; \
    echo "Check the output above for error messages and consistency!"; \
    echo; \
    echo "If everything is OK, you can build a CP2K production binary with"; \
-   echo "   make -j32 ARCH=${this_file%.*} VERSION=${this_file##*.}"; \
+   echo "   make -j ARCH=${this_file%.*} VERSION=${this_file##*.}"; \
    echo; \
    echo "Alternatively, you can add further checks, e.g. for regression testing, with"; \
    echo "   make -j ARCH=${this_file%.*} VERSION=${this_file##*.} DO_CHECKS=yes"; \
@@ -48,7 +45,7 @@
 # Set options
 DO_CHECKS      := no
 SHARED         := no
-TARGET_CPU     := znver2
+TARGET_CPU     := native
 USE_COSMA      := 2.6.6
 USE_DFTD4      := 3.6.0
 USE_ELPA       := 2024.03.001
@@ -59,9 +56,8 @@ USE_LIBPEXSI   := 1.2.0
 #USE_LIBTORCH   := 1.12.1
 USE_LIBVORI    := 220621
 USE_LIBXC      := 6.2.2
-#USE_LIBXSMM    := 1.17
+USE_LIBXSMM    := 1.17
 USE_PLUMED     := 2.9.0
-USE_QUIP       := 0.9.10
 USE_SIRIUS     := 7.5.2
 USE_SPFFT      := 1.1.0
 USE_SPGLIB     := 2.3.1
@@ -72,26 +68,26 @@ LIBVDWXC_VER   := 0.4.0
 SCOTCH_VER     := 6.0.0
 SUPERLU_VER    := 6.1.0
 
+LMAX           := 5
+MAX_CONTR      := 4
+
 CC             := cc
-CXX            := CC
 FC             := ftn
 LD             := ftn
 AR             := ar -r
 
-GNU_VER        := $(shell $(CC) -dumpfullversion)
-
-LMAX           := 5
-MAX_CONTR      := 4
-
-CFLAGS         := -O2 -fopenmp -fopenmp-simd -ftree-vectorize -funroll-loops -g -mtune=$(TARGET_CPU)
+CFLAGS         := -O2 -fPIC -fp-model precise -funroll-loops -g -mtune=core-avx2 -qopenmp -qopenmp-simd -traceback
+CFLAGS         += -diag-disable=10448
 
 DFLAGS         := -D__parallel
 DFLAGS         += -D__SCALAPACK
+DFLAGS         += -D__MKL
 DFLAGS         += -D__FFTW3
-DFLAGS         += -D__HAS_IEEE_EXCEPTIONS
 DFLAGS         += -D__MAX_CONTR=$(strip $(MAX_CONTR))
 
 INSTALL_PATH   := $(PWD)/tools/toolchain/install
+
+MKL_LIB        := $(MKLROOT)/lib/intel64
 
 ifeq ($(SHARED), yes)
    LD_SHARED      := $(FC) -shared
@@ -100,6 +96,8 @@ ifeq ($(SHARED), yes)
    CP2K_LIB       := $(PWD)/lib/$(ARCH)/$(ONEVERSION)
    LDFLAGS        += -Wl,-rpath=$(CP2K_LIB)
    LDFLAGS        += -Wl,-rpath=$(CP2K_LIB)/exts/dbcsr
+else
+   LDFLAGS        := -static-intel
 endif
 
 # Settings for regression testing
@@ -130,20 +128,6 @@ ifneq ($(USE_ELPA),)
    else
       LIBS           += $(ELPA_LIB)/libelpa_openmp.a
    endif
-endif
-
-ifneq ($(USE_QUIP),)
-   USE_QUIP       := $(strip $(USE_QUIP))
-   QUIP_INC       := $(INSTALL_PATH)/quip-$(USE_QUIP)/include
-   QUIP_LIB       := $(INSTALL_PATH)/quip-$(USE_QUIP)/lib
-   CFLAGS         += -I$(QUIP_INC)
-   DFLAGS         += -D__QUIP
-   LIBS           += $(QUIP_LIB)/libquip_core.a
-   LIBS           += $(QUIP_LIB)/libatoms.a
-   LIBS           += $(QUIP_LIB)/libFoX_sax.a
-   LIBS           += $(QUIP_LIB)/libFoX_common.a
-   LIBS           += $(QUIP_LIB)/libFoX_utils.a
-   LIBS           += $(QUIP_LIB)/libFoX_fsys.a
 endif
 
 ifneq ($(USE_LIBPEXSI),)
@@ -196,7 +180,7 @@ ifneq ($(USE_DFTD4),)
    USE_DFTD4      := $(strip $(USE_DFTD4))
    DFTD4_INC      := $(INSTALL_PATH)/dftd4-$(USE_DFTD4)/include
    DFTD4_LIB      := $(INSTALL_PATH)/dftd4-$(USE_DFTD4)/lib64
-   CFLAGS         += -I$(DFTD4_INC)/dftd4/GNU-$(GNU_VER)
+   CFLAGS         += -I$(shell ls -d $(DFTD4_INC)/dftd4/Intel-*)
    DFLAGS         += -D__DFTD4
    ifeq ($(SHARED), yes)
       LIBS           += -Wl,-rpath=$(DFTD4_LIB) -L$(DFTD4_LIB) -ldftd4 -lmstore -lmulticharge -lmctc-lib
@@ -347,6 +331,24 @@ ifneq ($(USE_GSL),)
    endif
 endif
 
+ifeq ($(SHARED), yes)
+   LIBS           += -Wl,-rpath=$(MKL_LIB) -L$(MKL_LIB) -lmkl_scalapack_lp64
+   LIBS           += -Wl,--start-group
+   LIBS           += -lmkl_intel_lp64
+   LIBS           += -lmkl_sequential
+   LIBS           += -lmkl_core
+   LIBS           += -lmkl_blacs_intelmpi_lp64
+   LIBS           += -Wl,--end-group
+else
+   LIBS           += $(MKL_LIB)/libmkl_scalapack_lp64.a
+   LIBS           += -Wl,--start-group
+   LIBS           += $(MKL_LIB)/libmkl_intel_lp64.a
+   LIBS           += $(MKL_LIB)/libmkl_sequential.a
+   LIBS           += $(MKL_LIB)/libmkl_core.a
+   LIBS           += $(MKL_LIB)/libmkl_blacs_intelmpi_lp64.a
+   LIBS           += -Wl,--end-group
+endif
+
 ifeq ($(shell [ $(shell ldd --version | head -n 1 | tr -s '.' '\n' | tail -n 1) -ge 27 ] && echo yes), yes)
    ifneq ($(USE_LIBTORCH),)
       USE_LIBTORCH   := $(strip $(USE_LIBTORCH))
@@ -359,21 +361,32 @@ ifeq ($(shell [ $(shell ldd --version | head -n 1 | tr -s '.' '\n' | tail -n 1) 
 endif
 
 CFLAGS         += $(DFLAGS)
+CFLAGS         += -I$(MKLROOT)/include
+CFLAGS         += -I$(MKLROOT)/include/fftw
 
-CXXFLAGS       := $(CFLAGS) --std=c++14
+CXXFLAGS       := $(CFLAGS) -std=c++14
 
 FCFLAGS        := $(CFLAGS)
-ifeq ($(shell [ $(shell $(CC) -dumpversion | cut -d. -f1) -gt 9 ] && echo yes), yes)
-   FCFLAGS        += -fallow-argument-mismatch
-endif
-FCFLAGS        += -fbacktrace
-FCFLAGS        += -ffree-form
-FCFLAGS        += -ffree-line-length-none
-FCFLAGS        += -fno-omit-frame-pointer
-FCFLAGS        += -std=f2008
+FCFLAGS        += -diag-disable=8291
+FCFLAGS        += -diag-disable=8293
+FCFLAGS        += -fpp
+FCFLAGS        += -fpscomp logicals
+FCFLAGS        += -free
+#FCFLAGS        += -std08
 
 LDFLAGS        += $(FCFLAGS)
+LDFLAGS_C      := -nofor-main
 
-LIBS           += -lz -ldl -lstdc++
+LIBS           += -lz -lstdc++
+
+# Required due to memory leak that occurs if high optimisations are used
+mp2_optimize_ri_basis.o: mp2_optimize_ri_basis.F
+	$(FC) -c $(subst O2,O0,$(FCFLAGS)) $<
+# Required due to SEGFAULTS occurring for higher optimisation levels
+paw_basis_types.o: paw_basis_types.F
+	$(FC) -c $(subst O2,O1,$(FCFLAGS)) $<
+# Reduce compilation time
+hfx_contraction_methods.o: hfx_contraction_methods.F
+	$(FC) -c $(subst -O2,-O1,$(FCFLAGS)) $<
 
 # End
