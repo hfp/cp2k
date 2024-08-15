@@ -86,6 +86,8 @@ def main() -> None:
                 continue
             if root.startswith("./tools/prettify/fprettify"):
                 continue
+            if root.startswith("./tools/precommit/fprettify"):
+                continue
             if root.startswith("./tools/build_utils/fypp"):
                 continue
             if root.startswith("./tools/autotools"):
@@ -113,6 +115,8 @@ def main() -> None:
             if root.startswith("./exe"):
                 continue
             if root.startswith("./regtesting"):
+                continue
+            if root.startswith("./build"):
                 continue
             if root.startswith("./.git"):
                 continue
@@ -194,7 +198,7 @@ def process_file(fn: str, allow_modifications: bool) -> None:
 
     if re.match(r".*\.(F|fypp)$", fn):
         run_local_tool("./tools/doxify/doxify.sh", fn)
-        run_prettify(fn)
+        run_format_fortran(fn)
 
     if re.match(r".*\.(c|cu|cl|h)$", fn):
         run_remote_tool("clangformat", fn)
@@ -248,13 +252,13 @@ def process_file(fn: str, allow_modifications: bool) -> None:
 
 
 # ======================================================================================
-def run_prettify(fn: str) -> None:
+def run_format_fortran(fn: str) -> None:
     if fn in ("./src/base/base_uses.f90", "./src/common/util.F"):
         return  # Skipping because of prettify bugs.
 
     # The prettify tool processes only about 1k lines of code per second.
     # Hence, setting a generous timeout as our largest file has 100k lines.
-    run_local_tool("./tools/prettify/prettify.py", fn, timeout=600)
+    run_local_tool("./tools/precommit/format_fortran.py", fn, timeout=600)
 
 
 # ======================================================================================

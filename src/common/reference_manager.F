@@ -57,8 +57,6 @@ MODULE reference_manager
       CHARACTER(LEN=:), ALLOCATABLE                                   :: volume
       CHARACTER(LEN=:), ALLOCATABLE                                   :: pages
       INTEGER                                                         :: year = 0
-      INTEGER                                                         :: month = 0
-      INTEGER                                                         :: day = 0
       CHARACTER(LEN=:), ALLOCATABLE                                   :: doi
       ! has this reference been cited in the program run
       LOGICAL                                                         :: is_cited = .FALSE.
@@ -122,8 +120,6 @@ CONTAINS
 !> \param volume ...
 !> \param pages ...
 !> \param year ...
-!> \param month ...
-!> \param day ...
 !> \param doi ...
 !> \par History
 !>      08.2007 created [Joost VandeVondele]
@@ -131,13 +127,12 @@ CONTAINS
 !> \note
 !>      - see bibliography.F for it use.
 ! **************************************************************************************************
-   SUBROUTINE add_reference(key, authors, title, source, volume, pages, year, month, day, doi)
+   SUBROUTINE add_reference(key, authors, title, source, volume, pages, year, doi)
       INTEGER, INTENT(OUT)                               :: key
       CHARACTER(LEN=*), DIMENSION(:), INTENT(IN)         :: authors
       CHARACTER(LEN=*), INTENT(IN)                       :: title, source
       CHARACTER(LEN=*), INTENT(IN), OPTIONAL             :: volume, pages
       INTEGER, INTENT(IN)                                :: year
-      INTEGER, INTENT(IN), OPTIONAL                      :: month, day
       CHARACTER(LEN=*), INTENT(IN), OPTIONAL             :: doi
 
       CHARACTER                                          :: tmp
@@ -168,12 +163,6 @@ CONTAINS
       END IF
       IF (PRESENT(pages)) THEN
          thebib(key)%ref%pages = TRIM(pages)
-      END IF
-      IF (PRESENT(month)) THEN
-         thebib(key)%ref%month = month
-      END IF
-      IF (PRESENT(day)) THEN
-         thebib(key)%ref%day = day
       END IF
       IF (PRESENT(doi)) THEN
          thebib(key)%ref%doi = TRIM(doi)
@@ -248,7 +237,7 @@ CONTAINS
       ! the most recent first, publications without a year get last
       DO i = 1, nbib
          irank(i) = i
-         ival(i) = -get_epoch(thebib(i)%ref)
+         ival(i) = -thebib(i)%ref%year
       END DO
       CALL sort(ival, nbib, irank)
 
@@ -272,63 +261,33 @@ CONTAINS
    SUBROUTINE print_reference_journal(key, unit)
       INTEGER, INTENT(IN)                                :: key, unit
 
-      CHARACTER(LEN=4*default_string_length)             :: journal
-      CHARACTER(LEN=default_string_length)               :: author, year_str
-      INTEGER                                            :: iauthor, ipos_line, ititle, jtitle
+      CHARACTER(LEN=:), ALLOCATABLE                      :: text
+      CHARACTER(LEN=default_string_length)               :: year_str
+      INTEGER                                            :: iauthor
 
-      ! write the author list
-      WRITE (unit, '(T2,A)', ADVANCE="NO") ""
-      ipos_line = 2
-      DO iauthor = 1, SIZE(thebib(key)%ref%authors)
-         author = thebib(key)%ref%authors(iauthor)
-         IF (ipos_line + LEN_TRIM(author) > 71) THEN
-            WRITE (unit, '(A)') ";"
-            WRITE (unit, '(T2,A)', ADVANCE="NO") ""
-            ipos_line = 2
-         ELSE
-            IF (iauthor .NE. 1) WRITE (unit, '(A)', ADVANCE="NO") "; "
-            ipos_line = ipos_line + 2
-         END IF
-         WRITE (unit, '(A)', ADVANCE="NO") TRIM(author)
-         ipos_line = ipos_line + LEN_TRIM(author)
+      ! Authors
+      text = thebib(key)%ref%authors(1)
+      DO iauthor = 2, SIZE(thebib(key)%ref%authors)
+         text = TRIM(text)//", "//thebib(key)%ref%authors(iauthor)
       END DO
-      IF (iauthor > 0) THEN
-         WRITE (unit, '(A)', ADVANCE="NO") ". "
-         ipos_line = ipos_line + 2
-      END IF
+      CALL write_long_text(TRIM(text)//".", unit)
 
       ! Journal, volume, pages (year).
-      journal = thebib(key)%ref%source
+      text = thebib(key)%ref%source
       IF (ALLOCATED(thebib(key)%ref%volume)) THEN
-         journal = TRIM(journal)//", "//thebib(key)%ref%volume
+         text = text//" "//thebib(key)%ref%volume
       END IF
       IF (ALLOCATED(thebib(key)%ref%pages)) THEN
-         journal = TRIM(journal)//", "//thebib(key)%ref%pages
+         text = TRIM(text)//", "//thebib(key)%ref%pages
       END IF
       IF (thebib(key)%ref%year > 0) THEN
          CALL integer_to_string(thebib(key)%ref%year, year_str)
-         journal = TRIM(journal)//" ("//TRIM(year_str)//")."
+         text = TRIM(text)//" ("//TRIM(year_str)//")"
       END IF
-      IF (ipos_line + LEN_TRIM(journal) > 71) THEN
-         WRITE (unit, '(A)') ""
-         WRITE (unit, '(T2,A)', ADVANCE="NO") ""
-         ipos_line = 2
-      END IF
-      IF (ipos_line + LEN_TRIM(journal) > 71) THEN
-         WRITE (unit, '(A)') TRIM(journal(1:69))
-         WRITE (unit, '(T2,A)', ADVANCE="NO") TRIM(journal(70:))
-      ELSE
-         WRITE (unit, '(A)', ADVANCE="NO") TRIM(journal)
-      END IF
-      WRITE (unit, '(T2,A)') ""
+      CALL write_long_text(TRIM(text)//".", unit)
 
       ! Title
-      DO ititle = 1, LEN(thebib(key)%ref%title), 70
-         IF (ititle .NE. 1) WRITE (unit, '(A)') ""
-         jtitle = MIN(ititle + 69, LEN(thebib(key)%ref%title))
-         WRITE (unit, '(T2,A)', ADVANCE="NO") thebib(key)%ref%title(ititle:jtitle)
-      END DO
-      IF (ititle > 0) WRITE (unit, '(A)') "."
+      CALL write_long_text(thebib(key)%ref%title//".", unit)
 
       ! DOI
       IF (ALLOCATED(thebib(key)%ref%doi)) THEN
@@ -368,11 +327,6 @@ CONTAINS
             WRITE (unit, '(T3,A)') '<PAGES>'//thebib(i)%ref%pages//'</PAGES>'
          IF (thebib(i)%ref%year > 0) &
             WRITE (unit, '(T3,A,I4.4,A)') '<YEAR>', thebib(i)%ref%year, '</YEAR>'
-         IF (thebib(i)%ref%month > 0) &
-            WRITE (unit, '(T3,A,I2.2,A)') '<MONTH>', thebib(i)%ref%month, '</MONTH>'
-         IF (thebib(i)%ref%day > 0) &
-            WRITE (unit, '(T3,A,I2.2,A)') '<DAY>', thebib(i)%ref%day, '</DAY>'
-
          WRITE (unit, '(T2,A)') '</REFERENCE>'
       END DO
 
@@ -391,17 +345,52 @@ CONTAINS
    END FUNCTION get_citation_key
 
 ! **************************************************************************************************
-!> \brief This returns something epoch like, but can only be used to order the records
-!>        missing years, months, days are implied zero(1900)
-!> \param ref ...
+!> \brief Helper routine for print_reference_journal()
+!> \param text ...
+!> \param unit ...
 !> \return ...
+!> \author Ole Schuett
 ! **************************************************************************************************
-   PURE FUNCTION get_epoch(ref) RESULT(epoch)
-      TYPE(reference_type), INTENT(IN)                   :: ref
-      INTEGER                                            :: epoch
+   SUBROUTINE write_long_text(text, unit)
+      CHARACTER(LEN=*), INTENT(IN)                       :: text
+      INTEGER, INTENT(IN)                                :: unit
 
-      epoch = ref%day + 31*ref%month + 12*31*(ref%year - 1900)
+      INTEGER                                            :: a, b
 
-   END FUNCTION get_epoch
+      a = 1; b = -1
+      DO WHILE (b < LEN(text))
+         b = next_linebreak(text, pos=a, rowlen=78)
+         WRITE (unit, '(T2,A)') text(a:b)
+         a = b + 1
+      END DO
+   END SUBROUTINE write_long_text
+
+! **************************************************************************************************
+!> \brief Helper routine for write_long_text()
+!> \param text ...
+!> \param pos ...
+!> \param rowlen ...
+!> \return ...
+!> \author Ole Schuett
+! **************************************************************************************************
+   FUNCTION next_linebreak(text, pos, rowlen) RESULT(ibreak)
+      CHARACTER(LEN=*), INTENT(IN)                       :: text
+      INTEGER, INTENT(IN)                                :: pos, rowlen
+      INTEGER                                            :: ibreak
+
+      INTEGER                                            :: i, n
+
+      n = LEN_TRIM(text)
+      IF (n - pos <= rowlen) THEN
+         ibreak = n ! remaining text shorter than line
+      ELSE
+         i = INDEX(text(pos + 1:pos + 1 + rowlen), " ", BACK=.TRUE.)
+         IF (i == 0) THEN
+            ibreak = pos + rowlen - 1 ! no space found, break mid-word
+         ELSE
+            ibreak = pos + i ! break at space closest to rowlen
+         END IF
+      END IF
+   END FUNCTION next_linebreak
 
 END MODULE reference_manager

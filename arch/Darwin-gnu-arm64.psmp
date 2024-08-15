@@ -3,22 +3,22 @@
 # CP2K Darwin arch file for a parallel arm64 binary
 # (https://www.cp2k.org/howto:compile_on_macos)
 #
-# Tested with: GNU 14.1.0, OpenMPI 5.0.3,,
+# Tested with: GNU 14.1.0, OpenMPI 5.0.5,,
 #              ScaLAPACK 2.2.1, OpenBLAS 0.3.27,
 #              FFTW 3.3.10, HDF5 1.14.3,
 #              LIBINT 2.6.0, LIBXC 6.2.2,
 #              SPGLIB 2.3.1, PLUMED 2.9.0,
 #              LIBVORI 220621, GSL 2.7.1,
 #              COSMA 2.6.6, SIRIUS 7.5.2,
-#              LIBGRPP 20231215, DFTD4 3.6.0,
+#              LIBGRPP 20231225, DFTD4 3.6.0,
 #              SPFFT 1.1.0, SPLA 1.6.1
-# on an Apple M1 (macOS 14.5.0 Sonoma)
+# on an Apple M1 (macOS 14.6 Sonoma)
 #
 # Usage: Source this arch file and then run make as instructed.
 #        Ensure the links in /opt/homebrew/bin to the gcc version
 #        and "brew unlink openmpi" (or mpich) if installed.
 #
-# Last update: 20.07.2024
+# Last update: 14.08.2024
 #
 # \
    if [[ "${0}" == "${BASH_SOURCE}" ]]; then \
@@ -60,10 +60,10 @@
    echo "Check the output above for error messages and consistency!"; \
    echo; \
    echo "If everything is OK, you can build a CP2K production binary with"; \
-   echo "   make -j ARCH=${this_file%.*} VERSION=${this_file##*.}"; \
+   echo "   make -j ARCH=${this_file%.*} VERSION=${this_file##*.} TARGET_CPU=${target_cpu}"; \
    echo; \
    echo "Alternatively, you can add further checks, e.g. for regression testing, with"; \
-   echo "   make -j ARCH=${this_file%.*} VERSION=${this_file##*.} DO_CHECKS=yes"; \
+   echo "   make -j ARCH=${this_file%.*} VERSION=${this_file##*.} TARGET_CPU=${target_cpu} DO_CHECKS=yes"; \
    echo; \
    echo "Run always the following command before using the CP2K binary"; \
    echo "   source ${PWD}/tools/toolchain/install/setup"; \
@@ -76,7 +76,7 @@ TARGET_CPU     := native
 GNU_VER        := $(shell gcc -dumpfullversion)
 USE_COSMA      := 2.6.6
 USE_DFTD4      := 3.6.0
-USE_LIBGRPP    := 20231215
+USE_LIBGRPP    := 20231225
 USE_LIBINT     := 2.6.0
 USE_LIBVORI    := 220621
 USE_PLUMED     := 2.9.0
@@ -100,6 +100,7 @@ CFLAGS         := -O2 -fopenmp -fopenmp-simd -ftree-vectorize -funroll-loops -g 
 
 DFLAGS         := -D__parallel
 DFLAGS         += -D__ACCELERATE
+DFLAGS         += -D__MPI_F08
 DFLAGS         += -D__HAS_IEEE_EXCEPTIONS
 DFLAGS         += -D__MAX_CONTR=$(strip $(MAX_CONTR))
 DFLAGS         += -D__NO_STATM_ACCESS

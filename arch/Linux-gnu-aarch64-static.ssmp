@@ -3,12 +3,12 @@
 # CP2K (GNU aarch64) arch file for a serial static ARM64 binary
 #
 # Tested with: GNU 14.1.0, FFTW 3.3.10, LIBINT 2.6.0, LIBVORI 220621,
-#              LIBXC 6.2.2, OpenBLAS 0.3.27, SPGLIB 2.3.1, DFTD4 3.6.0,
-#              LIBGRPP 20231215
+#              LIBXC 6.2.2, OpenBLAS 0.3.28, SPGLIB 2.3.1, DFTD4 3.6.0,
+#              LIBGRPP 20231225
 #
 # Usage: Source this arch file and then run make as instructed.
 #
-# Last update: 05.07.2024
+# Last update: 14.08.2024
 #
 # \
    if [[ "${0}" == "${BASH_SOURCE}" ]]; then \
@@ -18,15 +18,16 @@
    fi; \
    this_file=${BASH_SOURCE##*/}; \
    cd tools/toolchain; \
+   rm -rf build; \
    [[ -z "${target_cpu}" ]] && target_cpu="native"; \
-   ./install_cp2k_toolchain.sh -j${maxtasks} --mpi-mode=no --no-arch-files --target-cpu=${target_cpu} --with-gcc --with-libxsmm=no; \
+   ./install_cp2k_toolchain.sh -j${maxtasks} --mpi-mode=no --no-arch-files --target-cpu=${target_cpu} --with-gcc --with-dftd4 --with-libxsmm=no; \
    source ./install/setup; \
    cd ../..; \
    echo; \
    echo "Check the output above for error messages and consistency!"; \
    echo; \
    echo "If everything is OK, you can build a CP2K production binary with"; \
-   echo "   make -j ARCH=${this_file%.*} VERSION=${this_file##*.}"; \
+   echo "   make -j ARCH=${this_file%.*} VERSION=${this_file##*.} TARGET_CPU=${target_cpu}"; \
    echo "Further checks are performed, if DO_CHECKS=yes is added."; \
    echo; \
    return
@@ -37,11 +38,11 @@ TARGET_CPU     := native
 GNU_VER        := $(shell gcc -dumpfullversion)
 USE_DFTD4      := 3.6.0
 USE_FFTW       := 3.3.10
-USE_LIBGRPP    := 20231215
+USE_LIBGRPP    := 20231225
 USE_LIBINT     := 2.6.0
 USE_LIBVORI    := 220621
 USE_LIBXC      := 6.2.2
-USE_OPENBLAS   := 0.3.27
+USE_OPENBLAS   := 0.3.28
 USE_SPGLIB     := 2.3.1
 
 LMAX           := 5
@@ -111,14 +112,10 @@ ifneq ($(USE_DFTD4),)
    DFTD4_LIB      := $(INSTALL_PATH)/dftd4-$(USE_DFTD4)/lib
    CFLAGS         += -I$(DFTD4_INC)/dftd4/GNU-$(GNU_VER)
    DFLAGS         += -D__DFTD4
-   ifeq ($(SHARED), yes)
-      LIBS           += -Wl,-rpath=$(DFTD4_LIB) -L$(DFTD4_LIB) -ldftd4 -lmstore -lmulticharge -lmctc-lib
-   else
-      LIBS           += $(DFTD4_LIB)/libdftd4.a
-      LIBS           += $(DFTD4_LIB)/libmstore.a
-      LIBS           += $(DFTD4_LIB)/libmulticharge.a
-      LIBS           += $(DFTD4_LIB)/libmctc-lib.a
-   endif
+   LIBS           += $(DFTD4_LIB)/libdftd4.a
+   LIBS           += $(DFTD4_LIB)/libmstore.a
+   LIBS           += $(DFTD4_LIB)/libmulticharge.a
+   LIBS           += $(DFTD4_LIB)/libmctc-lib.a
 endif
 
 ifneq ($(USE_LIBGRPP),)
