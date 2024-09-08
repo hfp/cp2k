@@ -87,8 +87,11 @@ case "${with_ptscotch}" in
 esac
 if [ "$with_ptscotch" != "__DONTUSE__" ]; then
   SCOTCH_LIBS="-lptscotchparmetis -lptscotch -lptscotcherr -lscotchmetis -lscotch -lscotcherr"
+  cat << EOF > "${BUILDDIR}/setup_ptscotch"
+export SCOTCH_VER="${scotch_ver}"
+EOF
   if [ "$with_ptscotch" != "__SYSTEM__" ]; then
-    cat << EOF > "${BUILDDIR}/setup_ptscotch"
+    cat << EOF >> "${BUILDDIR}/setup_ptscotch"
 prepend_path PATH "$pkg_install_dir/bin"
 prepend_path LD_LIBRARY_PATH "$pkg_install_dir/lib"
 prepend_path LD_RUN_PATH "$pkg_install_dir/lib"
@@ -106,7 +109,7 @@ export SCOTCH_LIBS="${SCOTCH_LIBS}"
 export CP_CFLAGS="\${CP_CFLAGS} IF_MPI(${SCOTCH_CFLAGS}|)"
 export CP_LDFLAGS="\${CP_LDFLAGS} IF_MPI(${SCOTCH_LDFLAGS}|)"
 export CP_LIBS="IF_MPI(${SCOTCH_LIBS}|) \${CP_LIBS}"
-export PTSCOTCH_ROOT="$pkg_install_dir"
+export PTSCOTCH_ROOT="${pkg_install_dir}"
 EOF
 fi
 

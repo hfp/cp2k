@@ -116,8 +116,11 @@ case "$with_libint" in
 esac
 if [ "$with_libint" != "__DONTUSE__" ]; then
   LIBINT_LIBS="-lint2"
+  cat << EOF > "${BUILDDIR}/setup_libint"
+export LIBINT_VER="${libint_ver}"
+EOF
   if [ "$with_libint" != "__SYSTEM__" ]; then
-    cat << EOF > "${BUILDDIR}/setup_libint"
+    cat << EOF >> "${BUILDDIR}/setup_libint"
 prepend_path LD_LIBRARY_PATH "$pkg_install_dir/lib"
 prepend_path LD_RUN_PATH "$pkg_install_dir/lib"
 prepend_path LIBRARY_PATH "$pkg_install_dir/lib"

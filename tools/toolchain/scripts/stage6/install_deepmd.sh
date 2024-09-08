@@ -70,8 +70,11 @@ esac
 
 if [ "$with_deepmd" != "__DONTUSE__" ]; then
   DEEPMD_LIBS='-ldeepmd_c -lstdc++'
+  cat << EOF > "${BUILDDIR}/setup_deepmd"
+export DEEPMD_VER="${deepmd_ver}"
+EOF
   if [ "$with_deepmd" != "__SYSTEM__" ]; then
-    cat << EOF > "${BUILDDIR}/setup_deepmd"
+    cat << EOF >> "${BUILDDIR}/setup_deepmd"
 prepend_path LD_LIBRARY_PATH "$pkg_install_dir/lib"
 prepend_path LD_RUN_PATH "$pkg_install_dir/lib"
 prepend_path LIBRARY_PATH "$pkg_install_dir/lib"
