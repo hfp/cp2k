@@ -50,6 +50,7 @@ case "${with_spfft}" in
         -DCMAKE_CXX_COMPILER="${MPICXX}" \
         -DCMAKE_VERBOSE_MAKEFILE=ON \
         -DCMAKE_BUILD_TYPE="RelWithDebInfo" \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
         -DSPFFT_OMP=ON \
         -DSPFFT_MPI=ON \
         -DSPFFT_STATIC=ON \
@@ -75,6 +76,7 @@ case "${with_spfft}" in
           -DCMAKE_BUILD_TYPE="RelWithDebInfo" \
           -DSPFFT_OMP=ON \
           -DSPFFT_MPI=ON \
+          -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
           -DSPFFT_STATIC=ON \
           -DSPFFT_FORTRAN=ON \
           -DSPFFT_INSTALL=ON \
