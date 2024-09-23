@@ -1675,9 +1675,9 @@ CONTAINS
                END DO
             END DO
             IF (.NOT. pass_check) THEN
-               CALL cp_warn(__LOCATION__, "Atomic charges outside chemical range were detected."// &
-                            " Switch-off CHECK_ATOMIC_CHARGES keyword in the &xTB section"// &
-                            " if you want to force to continue the calculation.")
+               CPWARN("Atomic charges outside chemical range were detected."// &
+                      " Switch-off CHECK_ATOMIC_CHARGES keyword in the &xTB section"// &
+                      " if you want to force to continue the calculation.")
                CPABORT("xTB Charges")
             END IF
          END IF
@@ -1896,7 +1896,7 @@ CONTAINS
 
             kk = SIZE(pot%type)
             IF (kk /= 1) THEN
-               CALL cp_warn(__LOCATION__, "Generic potential with type > 1 not implemented.")
+               CPWARN("Generic potential with type > 1 not implemented.")
                CPABORT("pot type")
             END IF
             ! rmin and rmax and rcut
@@ -1917,10 +1917,10 @@ CONTAINS
                   WRITE (def_error, "(A,G12.6,A)") "(", lerr, ")"
                   CALL compress(this_error, .TRUE.)
                   CALL compress(def_error, .TRUE.)
-                  CALL cp_warn(__LOCATION__, &
-                               'ASSERTION (cond) failed at line '//cp_to_string(__LINE__)// &
-                               ' Error '//TRIM(this_error)//' in computing numerical derivatives larger then'// &
-                               TRIM(def_error)//' .')
+                  CPWARN( &
+                     'ASSERTION (cond) failed at line '//cp_to_string(__LINE__)// &
+                     ' Error '//TRIM(this_error)//' in computing numerical derivatives larger then'// &
+                     TRIM(def_error)//' .')
                END IF
 
                atom_i = atom_of_kind(iatom)
@@ -2013,9 +2013,8 @@ CONTAINS
                      CALL pair_potential_single_copy(nonbonded%pot(ingp)%pot, pot)
                      ! multiple potential not implemented, simply overwriting
                      IF (found) &
-                        CALL cp_warn(__LOCATION__, &
-                                     "Multiple NONBONDED declaration: "//TRIM(name_atm_a)// &
-                                     " and "//TRIM(name_atm_b)//" OVERWRITING! ")
+                        CPWARN("Multiple NONBONDED declaration: "//TRIM(name_atm_a)// &
+                               " and "//TRIM(name_atm_b)//" OVERWRITING! ")
                      !IF (iw > 0) WRITE (iw, *) "    FOUND ", TRIM(name_atm_a), " ", TRIM(name_atm_b)
                      found = .TRUE.
                   END IF

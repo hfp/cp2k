@@ -744,10 +744,9 @@ CONTAINS
       END IF
       ! Notify a not converged SHAKE
       IF (ishake_int > Max_Shake_Iter) &
-         CALL cp_warn(__LOCATION__, &
-                      "Shake NOT converged in "//cp_to_string(Max_Shake_Iter)//" iterations in the "// &
-                      "intramolecular constraint loop for Molecule nr. "//cp_to_string(i)// &
-                      ". CP2K continues but results could be meaningless. ")
+         CPWARN("Shake NOT converged in "//cp_to_string(Max_Shake_Iter)//" iterations in the "// &
+                "intramolecular constraint loop for Molecule nr. "//cp_to_string(i)// &
+                ". CP2K continues but results could be meaningless. ")
    END SUBROUTINE shake_int_info
 
 ! **************************************************************************************************
@@ -770,9 +769,8 @@ CONTAINS
       END IF
       ! Notify a not converged SHAKE
       IF (ishake_ext > Max_Shake_Iter) &
-         CALL cp_warn(__LOCATION__, &
-                      "Shake NOT converged in "//cp_to_string(Max_Shake_Iter)//" iterations in the "// &
-                      "intermolecular constraint. CP2K continues but results could be meaningless.")
+         CPWARN("Shake NOT converged in "//cp_to_string(Max_Shake_Iter)//" iterations in the "// &
+                "intermolecular constraint. CP2K continues but results could be meaningless.")
    END SUBROUTINE shake_ext_info
 
 ! **************************************************************************************************
@@ -795,10 +793,9 @@ CONTAINS
       END IF
       ! Notify a not converged RATTLE
       IF (irattle_int > Max_shake_Iter) &
-         CALL cp_warn(__LOCATION__, &
-                      "Rattle NOT converged in "//cp_to_string(Max_Shake_Iter)//" iterations in the "// &
-                      "intramolecular constraint loop for Molecule nr. "//cp_to_string(i)// &
-                      ". CP2K continues but results could be meaningless.")
+         CPWARN("Rattle NOT converged in "//cp_to_string(Max_Shake_Iter)//" iterations in the "// &
+                "intramolecular constraint loop for Molecule nr. "//cp_to_string(i)// &
+                ". CP2K continues but results could be meaningless.")
    END SUBROUTINE rattle_int_info
 
 ! **************************************************************************************************
@@ -821,9 +818,8 @@ CONTAINS
       END IF
       ! Notify a not converged RATTLE
       IF (irattle_ext > Max_shake_Iter) &
-         CALL cp_warn(__LOCATION__, &
-                      "Rattle NOT converged in "//cp_to_string(Max_Shake_Iter)//" iterations in the "// &
-                      "intermolecular constraint. CP2K continues but results could be meaningless.")
+         CPWARN("Rattle NOT converged in "//cp_to_string(Max_Shake_Iter)//" iterations in the "// &
+                "intermolecular constraint. CP2K continues but results could be meaningless.")
    END SUBROUTINE rattle_ext_info
 
 ! **************************************************************************************************

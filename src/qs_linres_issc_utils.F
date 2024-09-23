@@ -842,8 +842,8 @@ CONTAINS
       !
       ! check that the psi0 are localized and you have all the centers
       IF (.NOT. linres_control%localized_psi0) &
-         CALL cp_warn(__LOCATION__, 'To get indirect spin-spin coupling parameters within '// &
-                      'PBC you need to localize zero order orbitals')
+         CPWARN("To get indirect spin-spin coupling parameters within "// &
+                "PBC you need to localize zero order orbitals")
       !
       !
       ! read terms need to be calculated

@@ -250,8 +250,8 @@ CONTAINS
                                    begin_line=.FALSE., search_from_begin_of_file=.TRUE.)
       END IF
       IF (.NOT. found) &
-         CALL cp_warn(__LOCATION__, "The fields (_symmetry_equiv_pos_as_xyz) or "// &
-                      "(_space_group_symop_operation_xyz) were not found in CIF file!")
+         CPWARN("The fields (_symmetry_equiv_pos_as_xyz) or "// &
+                "(_space_group_symop_operation_xyz) were not found in CIF file!")
       IF (iw > 0) WRITE (iw, '(A,I0)') " CIF_INFO| Number of atoms before applying symmetry operations :: ", natom
       IF (iw > 0) WRITE (iw, '(A10,1X,3F12.6)') (TRIM(id2str(atom_info%id_atmname(ii))), atom_info%r(1:3, ii), ii=1, natom)
       isym = 0

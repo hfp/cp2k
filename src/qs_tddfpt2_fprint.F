@@ -393,7 +393,7 @@ CONTAINS
             DO is = 1, SIZE(indexes)
                k = indexes(is)
                IF (k <= 0 .OR. k > nstate) THEN
-                  CALL cp_warn(__LOCATION__, "State List contains invalid state.")
+                  CPWARN("State List contains invalid state.")
                   CPABORT("TDDFPT Print Forces: Invalid State")
                END IF
                state_list(k) = 1

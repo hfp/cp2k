@@ -137,9 +137,9 @@ CONTAINS
                CALL uppercase(csymm)
                check = TRIM(ADJUSTL(csymm)) == TRIM(ADJUSTL(esymm))
                IF (.NOT. check) THEN
-                  CALL cp_warn(__LOCATION__, "Symmetry check failed: "// &
-                               "Expected symmetry:"//TRIM(ADJUSTL(esymm))// &
-                               "Calculated symmetry:"//TRIM(ADJUSTL(csymm)))
+                  CPWARN("Symmetry check failed: "// &
+                         "Expected symmetry:"//TRIM(ADJUSTL(esymm))// &
+                         "Calculated symmetry:"//TRIM(ADJUSTL(csymm)))
                END IF
                CPASSERT(check)
             END IF

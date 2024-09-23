@@ -206,7 +206,7 @@ CONTAINS
       gapw_xc = dft_control%qs_control%gapw_xc
       IF (ewald_correction) THEN
          IF (gapw .OR. gapw_xc) THEN
-            CALL cp_warn(__LOCATION__, "Ewald Correction for GAPW and GAPW_XC not available.")
+            CPWARN("Ewald Correction for GAPW and GAPW_XC not available.")
             CPABORT("Ewald Correction")
          END IF
       END IF
@@ -392,7 +392,7 @@ CONTAINS
                                         start_col=iorb, n_rows=natom, n_cols=1)
                checksum = SUM(mcharge(:, 1))
                IF (ABS(focc - checksum) > 1.E-6_dp) THEN
-                  CALL cp_warn(__LOCATION__, "Sum of atomic orbital weights is incorrect")
+                  CPWARN("Sum of atomic orbital weights is incorrect")
                   IF (unit_nr > 0) THEN
                      WRITE (UNIT=unit_nr, FMT="(T2,A,F10.6,T40,A,F10.6)") &
                         "Orbital occupation:", focc, &
@@ -418,7 +418,7 @@ CONTAINS
                checksum = SUM(mcharge(:, 1))
                focc = odiag(iorb)
                IF (ABS(focc - checksum) > 1.E-6_dp) THEN
-                  CALL cp_warn(__LOCATION__, "Sum of atomic orbital weights is incorrect")
+                  CPWARN("Sum of atomic orbital weights is incorrect")
                   IF (unit_nr > 0) THEN
                      WRITE (UNIT=unit_nr, FMT="(T2,A,F10.6,T40,A,F10.6)") &
                         "Orbital occupation:", focc, &

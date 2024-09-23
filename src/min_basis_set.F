@@ -216,7 +216,7 @@ CONTAINS
          CASE DEFAULT
             CPABORT("Default setting of minimal basis failed")
          END SELECT
-         CALL cp_warn(__LOCATION__, "Reference basis has been adjusted according to MAO value.")
+         CPWARN("Reference basis has been adjusted according to MAO value.")
       END IF
 
       ! All shells should have at least 1 function

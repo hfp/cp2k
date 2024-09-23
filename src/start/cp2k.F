@@ -168,10 +168,9 @@ PROGRAM cp2k
          IF (ierr == 0) &
             READ (env_var, *) veclib_max_threads
          IF (ierr == 1 .OR. (ierr == 0 .AND. veclib_max_threads > 1)) THEN
-            CALL cp_warn(__LOCATION__, &
-                         "macOS' Accelerate framework has its own threading enabled which may interfere"// &
-                         " with the OpenMP threading. You can disable the Accelerate threading by setting"// &
-                         " the environment variable VECLIB_MAXIMUM_THREADS=1")
+            CPWARN("macOS' Accelerate framework has its own threading enabled which may interfere"// &
+                   " with the OpenMP threading. You can disable the Accelerate threading by setting"// &
+                   " the environment variable VECLIB_MAXIMUM_THREADS=1")
          END IF
       END BLOCK
    END IF

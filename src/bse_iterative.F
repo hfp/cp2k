@@ -125,8 +125,8 @@ CONTAINS
       IF (num_new_t > num_Z_vectors_init) THEN
          num_new_t = num_Z_vectors_init
          IF (unit_nr > 0) THEN
-            CALL cp_warn(__LOCATION__, "Number of added directions has to be smaller/equals than "// &
-                         "initial dimension. Corrected num_new_t accordingly.")
+            CPWARN("Number of added directions has to be smaller/equals than "// &
+                   "initial dimension. Corrected num_new_t accordingly.")
          END IF
       END IF
       IF (unit_nr > 0) THEN
@@ -146,8 +146,8 @@ CONTAINS
                           "Choose another fac_max_z_space and num_Z_vectors_init or adapt your basis set.")
          ELSE
             IF (unit_nr > 0) THEN
-               CALL cp_warn(__LOCATION__, "Maximal dimension of Z space has to be smaller than homo*virtual. "// &
-                            "Corrected fac_max_z_space accordingly.")
+               CPWARN("Maximal dimension of Z space has to be smaller than homo*virtual. "// &
+                      "Corrected fac_max_z_space accordingly.")
             END IF
          END IF
       END IF

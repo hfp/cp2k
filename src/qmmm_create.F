@@ -228,10 +228,9 @@ CONTAINS
       IF (qmmm_env_qm%periodic .AND. qmmm_env_qm%multipole) CALL cite_reference(Laino2006)
       IF (qmmm_coupl_type == do_qmmm_none) THEN
          IF (qmmm_env_qm%periodic) &
-            CALL cp_warn(__LOCATION__, &
-                         "QMMM periodic calculation with coupling NONE was requested! "// &
-                         "Switching off the periodic keyword since periodic and non-periodic "// &
-                         "calculation with coupling NONE represent the same method! ")
+            CPWARN("QMMM periodic calculation with coupling NONE was requested! "// &
+                   "Switching off the periodic keyword since periodic and non-periodic "// &
+                   "calculation with coupling NONE represent the same method! ")
          qmmm_env_qm%periodic = .FALSE.
       END IF
 

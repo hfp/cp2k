@@ -615,9 +615,8 @@ CONTAINS
       ELSE IF (tmc_env%params%NMC_inp_file .EQ. "") THEN
          ! no keyword
          IF (tmc_env%tmc_comp_set%group_cc_size .GT. 0) &
-            CALL cp_warn(__LOCATION__, &
-                         "The configurational groups are deactivated, "// &
-                         "because no approximated energy input is specified.")
+            CPWARN("The configurational groups are deactivated, "// &
+                   "because no approximated energy input is specified.")
          tmc_env%tmc_comp_set%group_cc_size = 0
       ELSE
          ! check file existence
@@ -655,9 +654,9 @@ CONTAINS
          CASE ("IDEAL_GAS")
             tmc_env%params%task_type = task_type_ideal_gas
          CASE DEFAULT
-            CALL cp_warn(__LOCATION__, &
-                         'unknown TMC task type "'//TRIM(c_tmp)//'" specified. '// &
-                         " Set to default.")
+            CPWARN( &
+               'unknown TMC task type "'//TRIM(c_tmp)//'" specified. '// &
+               " Set to default.")
             tmc_env%params%task_type = task_type_MC
          END SELECT
       END IF
@@ -848,8 +847,7 @@ CONTAINS
                                            REAL(tmc_comp_set%group_cc_size, KIND=dp))
 
             IF (tmc_comp_set%group_cc_nr .LT. 1) &
-               CALL cp_warn(__LOCATION__, &
-                            "There are not enougth cores left for creating groups for configurational change.")
+               CPWARN("There are not enougth cores left for creating groups for configurational change.")
             IF (flag) success = .FALSE.
          END IF
 

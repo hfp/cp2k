@@ -303,11 +303,10 @@ CONTAINS
          CALL para_env%bcast(exist)
          CALL para_env%bcast(file_name)
          IF (.NOT. exist) THEN
-            CALL cp_warn(__LOCATION__, &
-                         "User requested to restart the wavefunction from the file named: "// &
-                         TRIM(file_name)//". This file does not exist. Please check the existence of"// &
-                         " the file or change properly the value of the keyword WFN_RESTART_FILE_NAME."// &
-                         " Calculation continues using ATOMIC GUESS. ")
+            CPWARN("User requested to restart the wavefunction from the file named: "// &
+                   TRIM(file_name)//". This file does not exist. Please check the existence of"// &
+                   " the file or change properly the value of the keyword WFN_RESTART_FILE_NAME."// &
+                   " Calculation continues using ATOMIC GUESS. ")
             density_guess = safe_density_guess
          END IF
       ELSE IF (density_guess == history_guess) THEN
@@ -341,13 +340,12 @@ CONTAINS
             IF (para_env%is_source()) INQUIRE (FILE=filename, exist=exist)
             CALL para_env%bcast(exist)
             IF (.NOT. exist) THEN
-               CALL cp_warn(__LOCATION__, &
-                            "User requested to restart the wavefunction from a series of restart files named: "// &
-                            TRIM(file_name)//" with extensions (.bak-n). These files do not exist."// &
-                            " Even trying to switch to a plain restart wave-function failes because the"// &
-                            " file named: "//TRIM(file_name)//" does not exist. Please check the existence of"// &
-                            " the file or change properly the value of the keyword WFN_RESTART_FILE_NAME."// &
-                            " Calculation continues using ATOMIC GUESS. ")
+               CPWARN("User requested to restart the wavefunction from a series of restart files named: "// &
+                      TRIM(file_name)//" with extensions (.bak-n). These files do not exist."// &
+                      " Even trying to switch to a plain restart wave-function failes because the"// &
+                      " file named: "//TRIM(file_name)//" does not exist. Please check the existence of"// &
+                      " the file or change properly the value of the keyword WFN_RESTART_FILE_NAME."// &
+                      " Calculation continues using ATOMIC GUESS. ")
                density_guess = safe_density_guess
             END IF
          END IF
@@ -360,12 +358,11 @@ CONTAINS
          tot_corr_zeff = qs_env%total_zeff_corr
          !WRITE(*,*) "tot_corr_zeff = ", tot_corr_zeff
          IF ((ABS(tot_corr_zeff) > 0.0_dp) .AND. (density_guess /= restart_guess)) THEN
-            CALL cp_warn(__LOCATION__, &
-                         "Use SCF_GUESS RESTART in conjunction with "// &
-                         "CORE_CORRECTION /= 0.0 and SURFACE_DIPOLE_CORRECTION TRUE. "// &
-                         "It is always advisable to perform SURFACE_DIPOLE_CORRECTION "// &
-                         "after a simulation without the surface dipole correction "// &
-                         "and using the ensuing wavefunction restart file. ")
+            CPWARN("Use SCF_GUESS RESTART in conjunction with "// &
+                   "CORE_CORRECTION /= 0.0 and SURFACE_DIPOLE_CORRECTION TRUE. "// &
+                   "It is always advisable to perform SURFACE_DIPOLE_CORRECTION "// &
+                   "after a simulation without the surface dipole correction "// &
+                   "and using the ensuing wavefunction restart file. ")
          END IF
       END IF
 

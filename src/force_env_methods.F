@@ -302,8 +302,8 @@ CONTAINS
                CALL symmetrize_virial(virial)
             ELSE
                IF (calculate_stress_tensor) THEN
-                  CALL cp_warn(__LOCATION__, "The calculation of the stress tensor "// &
-                               "requires the calculation of the forces")
+                  CPWARN("The calculation of the stress tensor "// &
+                         "requires the calculation of the forces")
                END IF
             END IF
          END IF
@@ -414,8 +414,8 @@ CONTAINS
          output_unit = cp_print_key_unit_nr(logger, force_env%force_env_section, "PRINT%STRESS_TENSOR", &
                                             extension=".stress_tensor")
          IF (output_unit > 0) THEN
-            CALL cp_warn(__LOCATION__, "To print the stress tensor switch on the "// &
-                         "virial evaluation with the keyword: STRESS_TENSOR")
+            CPWARN("To print the stress tensor switch on the "// &
+                   "virial evaluation with the keyword: STRESS_TENSOR")
          END IF
          CALL cp_print_key_finished_output(output_unit, logger, force_env%force_env_section, &
                                            "PRINT%STRESS_TENSOR")
@@ -1148,10 +1148,10 @@ CONTAINS
                WRITE (def_error, "(A,G12.6,A)") "(", lerr, ")"
                CALL compress(this_error, .TRUE.)
                CALL compress(def_error, .TRUE.)
-               CALL cp_warn(__LOCATION__, &
-                            'ASSERTION (cond) failed at line '//cp_to_string(__LINE__)// &
-                            ' Error '//TRIM(this_error)//' in computing numerical derivatives larger then'// &
-                            TRIM(def_error)//' .')
+               CPWARN( &
+                  'ASSERTION (cond) failed at line '//cp_to_string(__LINE__)// &
+                  ' Error '//TRIM(this_error)//' in computing numerical derivatives larger then'// &
+                  TRIM(def_error)//' .')
             END IF
             ! General Mapping of forces...
             CALL mixed_map_forces(particles_mix, virial_mix, results_mix, global_forces, virials, results, &

@@ -642,7 +642,7 @@ CONTAINS
             ! nothing to do
          ELSE
             IF (.NOT. tddfpt_control%admm_symm) THEN
-               CALL cp_warn(__LOCATION__, "Forces need symmetric ADMM kernel corrections")
+               CPWARN("Forces need symmetric ADMM kernel corrections")
                CPABORT("ADMM KERNEL CORRECTION")
             END IF
             xc_section => admm_env%xc_section_aux

@@ -165,9 +165,10 @@ CONTAINS
             END DO
             wisdom_file_name_c(file_name_length + 1) = C_NULL_CHAR
             isuccess = fftw_export_wisdom_to_filename(wisdom_file_name_c)
-            IF (isuccess == 0) &
-               CALL cp_warn(__LOCATION__, "Error exporting wisdom to file "//TRIM(wisdom_file)//". "// &
-                            "Wisdom was not exported.")
+            IF (isuccess == 0) THEN
+               CPWARN("Error exporting wisdom to file "//TRIM(wisdom_file)//". "// &
+                      "Wisdom was not exported.")
+            END IF
          END IF
       END IF
 
@@ -240,10 +241,11 @@ CONTAINS
             END DO
             wisdom_file_name_c(file_name_length + 1) = C_NULL_CHAR
             isuccess = fftw_import_wisdom_from_filename(wisdom_file_name_c)
-            IF (isuccess == 0) &
-               CALL cp_warn(__LOCATION__, "Error importing wisdom from file "//TRIM(wisdom_file)//". "// &
-                            "Maybe the file was created with a different configuration than CP2K is run with. "// &
-                            "CP2K continues without importing wisdom.")
+            IF (isuccess == 0) THEN
+               CPWARN("Error importing wisdom from file "//TRIM(wisdom_file)//". "// &
+                      "Maybe the file was created with a different configuration than CP2K is run with. "// &
+                      "CP2K continues without importing wisdom.")
+            END IF
          END IF
       END IF
 

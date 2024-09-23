@@ -635,12 +635,11 @@ CONTAINS
          CALL cp_fm_to_fm(fm_S, fm_ortho)
          CALL cp_fm_cholesky_decompose(fm_ortho, info_out=info)
          IF (info .NE. 0) THEN
-            CALL cp_warn(__LOCATION__, &
-                         "Unable to perform Cholesky decomposition on the overlap "// &
-                         "matrix. The new filtered basis may not be linearly "// &
-                         "independent set. Revert to using inverse square-root "// &
-                         "of the overlap. To avoid this warning, you can try "// &
-                         "to use a higher filter termperature.")
+            CPWARN("Unable to perform Cholesky decomposition on the overlap "// &
+                   "matrix. The new filtered basis may not be linearly "// &
+                   "independent set. Revert to using inverse square-root "// &
+                   "of the overlap. To avoid this warning, you can try "// &
+                   "to use a higher filter termperature.")
             my_method = cholesky_off
          ELSE
             SELECT CASE (my_method)
@@ -702,8 +701,7 @@ CONTAINS
                           eps_eigval, ndep)
          IF (ndep > 0) THEN
             WRITE (ndep_string, FMT="(I8)") ndep
-            CALL cp_warn(__LOCATION__, &
-                         "Number of linearly dependent filtered orbitals: "//ndep_string)
+            CPWARN("Number of linearly dependent filtered orbitals: "//ndep_string)
          END IF
          ! solve eigen equatoin using S^-1/2
          CALL cp_fm_symm("L", "U", nao, nao, 1.0_dp, fm_KS, fm_ortho, &

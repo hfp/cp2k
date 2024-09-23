@@ -264,7 +264,7 @@ CONTAINS
       IF (nspins > 1) THEN
          mult = ABS(SIZE(gs_mos(1)%evals_occ) - SIZE(gs_mos(2)%evals_occ)) + 1
          IF (mult > 2) &
-            CALL cp_warn(__LOCATION__, "There is a convergence issue for multiplicity >= 3")
+            CPWARN("There is a convergence issue for multiplicity >= 3")
       ELSE
          IF (tddfpt_control%rks_triplets) THEN
             mult = 3
@@ -443,14 +443,12 @@ CONTAINS
             END IF
             ex_env%state = -my_state
          ELSE
-            CALL cp_warn(__LOCATION__, &
-                         "Active excited state not assigned. Use the first state.")
+            CPWARN("Active excited state not assigned. Use the first state.")
             my_state = 1
          END IF
          CPASSERT(my_state > 0)
          IF (my_state > nstates) THEN
-            CALL cp_warn(__LOCATION__, &
-                         "There were not enough excited states calculated.")
+            CPWARN("There were not enough excited states calculated.")
             CPABORT("excited state potential energy surface")
          END IF
          !
@@ -572,8 +570,8 @@ CONTAINS
 
       IF (tddfpt_control%nstates <= 0) THEN
          CALL integer_to_string(tddfpt_control%nstates, nstates_str)
-         CALL cp_warn(__LOCATION__, "TDDFPT calculation was requested for "// &
-                      TRIM(nstates_str)//" excited states: nothing to do.")
+         CPWARN("TDDFPT calculation was requested for "// &
+                TRIM(nstates_str)//" excited states: nothing to do.")
          RETURN
       END IF
 
@@ -592,7 +590,7 @@ CONTAINS
             xc_sub => section_vals_get_subs_vals(xc_root, "ADIABATIC_RESCALING")
             CALL section_vals_get(xc_sub, explicit=exar)
             IF (exar) THEN
-               CALL cp_warn(__LOCATION__, "TDDFPT Kernel with ADIABATIC_RESCALING not possible.")
+               CPWARN("TDDFPT Kernel with ADIABATIC_RESCALING not possible.")
                CPABORT("TDDFPT Input")
             END IF
             ! No GCP_POTENTIAL option possible
@@ -600,7 +598,7 @@ CONTAINS
             xc_sub => section_vals_get_subs_vals(xc_root, "GCP_POTENTIAL")
             CALL section_vals_get(xc_sub, explicit=exgcp)
             IF (exgcp) THEN
-               CALL cp_warn(__LOCATION__, "TDDFPT Kernel with GCP_POTENTIAL not possible.")
+               CPWARN("TDDFPT Kernel with GCP_POTENTIAL not possible.")
                CPABORT("TDDFPT Input")
             END IF
             ! No VDW_POTENTIAL option possible
@@ -608,7 +606,7 @@ CONTAINS
             xc_sub => section_vals_get_subs_vals(xc_root, "VDW_POTENTIAL")
             CALL section_vals_get(xc_sub, explicit=exvdw)
             IF (exvdw) THEN
-               CALL cp_warn(__LOCATION__, "TDDFPT Kernel with VDW_POTENTIAL not possible.")
+               CPWARN("TDDFPT Kernel with VDW_POTENTIAL not possible.")
                CPABORT("TDDFPT Input")
             END IF
             ! No WF_CORRELATION option possible
@@ -616,7 +614,7 @@ CONTAINS
             xc_sub => section_vals_get_subs_vals(xc_root, "WF_CORRELATION")
             CALL section_vals_get(xc_sub, explicit=exwfn)
             IF (exwfn) THEN
-               CALL cp_warn(__LOCATION__, "TDDFPT Kernel with WF_CORRELATION not possible.")
+               CPWARN("TDDFPT Kernel with WF_CORRELATION not possible.")
                CPABORT("TDDFPT Input")
             END IF
             ! No XC_POTENTIAL option possible
@@ -624,7 +622,7 @@ CONTAINS
             xc_sub => section_vals_get_subs_vals(xc_root, "XC_POTENTIAL")
             CALL section_vals_get(xc_sub, explicit=expot)
             IF (expot) THEN
-               CALL cp_warn(__LOCATION__, "TDDFPT Kernel with XC_POTENTIAL not possible.")
+               CPWARN("TDDFPT Kernel with XC_POTENTIAL not possible.")
                CPABORT("TDDFPT Input")
             END IF
             !
@@ -635,7 +633,7 @@ CONTAINS
             xc_sub => section_vals_get_subs_vals(xc_root, "XC_KERNEL")
             CALL section_vals_get(xc_sub, explicit=exk)
             IF ((exf .AND. exk) .OR. .NOT. (exf .OR. exk)) THEN
-               CALL cp_warn(__LOCATION__, "TDDFPT Kernel needs XC_FUNCTIONAL or XC_KERNEL section.")
+               CPWARN("TDDFPT Kernel needs XC_FUNCTIONAL or XC_KERNEL section.")
                CPABORT("TDDFPT Input")
             END IF
             NULLIFY (xc_sub)
@@ -707,7 +705,7 @@ CONTAINS
       ! reset rks_triplets if UKS is in use
       IF (tddfpt_control%rks_triplets .AND. dft_control%nspins > 1) THEN
          tddfpt_control%rks_triplets = .FALSE.
-         CALL cp_warn(__LOCATION__, "Keyword RKS_TRIPLETS has been ignored for spin-polarised calculations")
+         CPWARN("Keyword RKS_TRIPLETS has been ignored for spin-polarised calculations")
       END IF
 
       ! lri input
@@ -1108,16 +1106,14 @@ CONTAINS
          CALL cp_print_key_finished_output(log_unit, logger, &
                                            tddfpt_print_section, "ITERATION_INFO")
       ELSE
-         CALL cp_warn(__LOCATION__, &
-                      "Skipping TDDFPT wavefunction optimization")
+         CPWARN("Skipping TDDFPT wavefunction optimization")
       END IF
 
       IF (ASSOCIATED(matrix_ks_oep)) THEN
          IF (tddfpt_control%dipole_form == tddfpt_dipole_velocity) THEN
-            CALL cp_warn(__LOCATION__, &
-                         "Transition dipole moments and oscillator strengths are likely to be incorrect "// &
-                         "when computed using an orbital energy correction XC-potential together with "// &
-                         "the velocity form of dipole transition integrals")
+            CPWARN("Transition dipole moments and oscillator strengths are likely to be incorrect "// &
+                   "when computed using an orbital energy correction XC-potential together with "// &
+                   "the velocity form of dipole transition integrals")
          END IF
       END IF
 

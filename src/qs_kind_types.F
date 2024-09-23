@@ -2108,15 +2108,13 @@ CONTAINS
 
          check = ((potential_name /= '') .OR. explicit_potential)
          IF (check) &
-            CALL cp_warn(__LOCATION__, &
-                         "Information provided in the input file regarding POTENTIAL for KIND <"// &
-                         TRIM(qs_kind%name)//"> will be ignored!")
+            CPWARN("Information provided in the input file regarding POTENTIAL for KIND <"// &
+                   TRIM(qs_kind%name)//"> will be ignored!")
 
          check = ((k_rep > 0) .OR. explicit_basis)
          IF (check) &
-            CALL cp_warn(__LOCATION__, &
-                         "Information provided in the input file regarding BASIS for KIND <"// &
-                         TRIM(qs_kind%name)//"> will be ignored!")
+            CPWARN("Information provided in the input file regarding BASIS for KIND <"// &
+                   TRIM(qs_kind%name)//"> will be ignored!")
 
       CASE (do_method_dftb)
          ! Allocate all_potential
@@ -2141,15 +2139,13 @@ CONTAINS
 
          check = ((potential_name /= '') .OR. explicit_potential)
          IF (check) &
-            CALL cp_warn(__LOCATION__, &
-                         "Information provided in the input file regarding POTENTIAL for KIND <"// &
-                         TRIM(qs_kind%name)//"> will be ignored!")
+            CPWARN("Information provided in the input file regarding POTENTIAL for KIND <"// &
+                   TRIM(qs_kind%name)//"> will be ignored!")
 
          check = ((k_rep > 0) .OR. explicit_basis)
          IF (check) &
-            CALL cp_warn(__LOCATION__, &
-                         "Information provided in the input file regarding BASIS for KIND <"// &
-                         TRIM(qs_kind%name)//"> will be ignored!")
+            CPWARN("Information provided in the input file regarding BASIS for KIND <"// &
+                   TRIM(qs_kind%name)//"> will be ignored!")
 
       CASE (do_method_xtb)
          ! Allocate all_potential
@@ -2174,15 +2170,13 @@ CONTAINS
 
          check = ((potential_name /= '') .OR. explicit_potential)
          IF (check) &
-            CALL cp_warn(__LOCATION__, &
-                         "Information provided in the input file regarding POTENTIAL for KIND <"// &
-                         TRIM(qs_kind%name)//"> will be ignored!")
+            CPWARN("Information provided in the input file regarding POTENTIAL for KIND <"// &
+                   TRIM(qs_kind%name)//"> will be ignored!")
 
          check = ((k_rep > 0) .OR. explicit_basis)
          IF (check) &
-            CALL cp_warn(__LOCATION__, &
-                         "Information provided in the input file regarding BASIS for KIND <"// &
-                         TRIM(qs_kind%name)//"> will be ignored!")
+            CPWARN("Information provided in the input file regarding BASIS for KIND <"// &
+                   TRIM(qs_kind%name)//"> will be ignored!")
 
       CASE (do_method_pw)
          ! PW DFT

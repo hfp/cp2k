@@ -803,9 +803,8 @@ CONTAINS
       CALL para_env%sum(energy%dft_plus_u)
 
       IF (energy%dft_plus_u < 0.0_dp) &
-         CALL cp_warn(__LOCATION__, &
-                      "DFT+U energy contibution is negative possibly due "// &
-                      "to unphysical Lowdin charges!")
+         CPWARN("DFT+U energy contibution is negative possibly due "// &
+                "to unphysical Lowdin charges!")
 
       ! Release (local) full matrices
 
@@ -1468,9 +1467,8 @@ CONTAINS
 
       IF (energy%dft_plus_u < 0.0_dp) THEN
          IF (.NOT. occupation_enforced) THEN
-            CALL cp_warn(__LOCATION__, &
-                         "DFT+U energy contibution is negative possibly due "// &
-                         "to unphysical Mulliken charges!")
+            CPWARN("DFT+U energy contibution is negative possibly due "// &
+                   "to unphysical Mulliken charges!")
          END IF
       END IF
 
@@ -2018,9 +2016,8 @@ CONTAINS
       CALL para_env%sum(energy%dft_plus_u)
 
       IF (energy%dft_plus_u < 0.0_dp) &
-         CALL cp_warn(__LOCATION__, &
-                      "DFT+U energy contibution is negative possibly due "// &
-                      "to unphysical Mulliken charges!")
+         CPWARN("DFT+U energy contibution is negative possibly due "// &
+                "to unphysical Mulliken charges!")
 
       ! Release local work storage
 

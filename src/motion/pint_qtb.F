@@ -275,8 +275,8 @@ CONTAINS
 
       CALL timeset(routineN, handle)
 
-      IF (fft_type /= 3) CALL cp_warn(__LOCATION__, "The FFT library in use cannot"// &
-                                      " handle transformation of an arbitrary length.")
+      IF (fft_type /= 3) CPWARN("The FFT library in use cannot"// &
+                                " handle transformation of an arbitrary length.")
 
       p = pint_env%p
       ndim = pint_env%ndim

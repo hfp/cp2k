@@ -474,9 +474,8 @@ CONTAINS
       CALL cp_fm_power(mat_i, mat_w, +0.5_dp, scf_cntrl%eps_eigval, n_deps)
       ! Sanity check
       IF (n_deps /= 0) THEN
-         CALL cp_warn(__LOCATION__, &
-                      "Overlap matrix exhibits linear dependencies. At least some "// &
-                      "eigenvalues have been quenched.")
+         CPWARN("Overlap matrix exhibits linear dependencies. At least some "// &
+                "eigenvalues have been quenched.")
       END IF
 
    END SUBROUTINE get_s_half_inv_matrix

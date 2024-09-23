@@ -1262,9 +1262,8 @@ CONTAINS
             CALL cp_abort(__LOCATION__, &
                           "Keyword EPS_OCCUPIED only accepts values between 0.0 and 1.0")
          IF (mixed_cdft%eps_svd == 0.0_dp) &
-            CALL cp_warn(__LOCATION__, &
-                         "The usage of SVD based matrix inversions with fractionally occupied "// &
-                         "orbitals is strongly recommended to screen nearly orthogonal states.")
+            CPWARN("The usage of SVD based matrix inversions with fractionally occupied "// &
+                   "orbitals is strongly recommended to screen nearly orthogonal states.")
          CALL section_vals_val_get(mixed_cdft_section, "SCALE_WITH_OCCUPATION_NUMBERS", l_val=should_scale)
       END IF
       ! Start the actual calculation
@@ -1301,23 +1300,19 @@ CONTAINS
             END DO
             IF (ANY(homo(:, ispin) /= nmo)) THEN
                IF (ispin == 1) THEN
-                  CALL cp_warn(__LOCATION__, &
-                               "The number of occupied alpha MOs is not constant across all CDFT states. "// &
-                               "Calculation proceeds but the results will likely be meaningless.")
+                  CPWARN("The number of occupied alpha MOs is not constant across all CDFT states. "// &
+                         "Calculation proceeds but the results will likely be meaningless.")
                ELSE
-                  CALL cp_warn(__LOCATION__, &
-                               "The number of occupied beta MOs is not constant across all CDFT states. "// &
-                               "Calculation proceeds but the results will likely be meaningless.")
+                  CPWARN("The number of occupied beta MOs is not constant across all CDFT states. "// &
+                         "Calculation proceeds but the results will likely be meaningless.")
                END IF
             ELSE IF (nelectron_mismatch) THEN
                IF (ispin == 1) THEN
-                  CALL cp_warn(__LOCATION__, &
-                               "The number of alpha electrons is not constant across all CDFT states. "// &
-                               "Calculation proceeds but the results will likely be meaningless.")
+                  CPWARN("The number of alpha electrons is not constant across all CDFT states. "// &
+                         "Calculation proceeds but the results will likely be meaningless.")
                ELSE
-                  CALL cp_warn(__LOCATION__, &
-                               "The number of beta electrons is not constant across all CDFT states. "// &
-                               "Calculation proceeds but the results will likely be meaningless.")
+                  CPWARN("The number of beta electrons is not constant across all CDFT states. "// &
+                         "Calculation proceeds but the results will likely be meaningless.")
                END IF
             END IF
          END IF
@@ -1582,9 +1577,8 @@ CONTAINS
          IF (eigenv(istate) .LT. 1.0e-14_dp) THEN
             ! Safeguard against division with 0 and negative numbers
             eigenv(istate) = 1.0e-14_dp
-            CALL cp_warn(__LOCATION__, &
-                         "The overlap matrix is numerically nearly singular. "// &
-                         "Calculation proceeds but the results might be meaningless.")
+            CPWARN("The overlap matrix is numerically nearly singular. "// &
+                   "Calculation proceeds but the results might be meaningless.")
          END IF
          tmp_mat(istate, istate) = 1.0_dp/SQRT(eigenv(istate))
       END DO
@@ -2173,10 +2167,9 @@ CONTAINS
          ! Calculate coupling using eq. 12c
          ! The coupling is singular if A = B (i.e. states I/J are identical or charge in ground state is fully delocalized)
          IF (ABS(overlaps(1, ipermutation, 1) - overlaps(2, ipermutation, 1)) .LE. 1.0e-14_dp) THEN
-            CALL cp_warn(__LOCATION__, &
-                         "Coupling between states is singular and set to zero. "// &
-                         "Potential causes: coupling is computed between identical CDFT states or the spin/charge "// &
-                         "density is fully delocalized in the unconstrained ground state.")
+            CPWARN("Coupling between states is singular and set to zero. "// &
+                   "Potential causes: coupling is computed between identical CDFT states or the spin/charge "// &
+                   "density is fully delocalized in the unconstrained ground state.")
             coupling_wfn(ipermutation) = 0.0_dp
          ELSE
             energy_diff = mixed_cdft%results%energy(jstate) - mixed_cdft%results%energy(istate)
@@ -2987,10 +2980,9 @@ CONTAINS
       IF (debug_this_module) THEN
          CALL force_env%para_env%sum(should_warn)
          IF (ANY(should_warn == 1)) &
-            CALL cp_warn(__LOCATION__, &
-                         "MIXED_CDFT DLB: Attempted to redistribute more array"// &
-                         " slices than actually available. Leaving a fraction of the total"// &
-                         " slices on the overloaded processor. Perhaps you have set LOAD_SCALE too high?")
+            CPWARN("MIXED_CDFT DLB: Attempted to redistribute more array"// &
+                   " slices than actually available. Leaving a fraction of the total"// &
+                   " slices on the overloaded processor. Perhaps you have set LOAD_SCALE too high?")
          DEALLOCATE (should_warn)
       END IF
       ! check that there is one-to-one mapping between over- and underloaded processors

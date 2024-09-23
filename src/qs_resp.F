@@ -623,18 +623,16 @@ CONTAINS
             END IF
          END DO
          IF (n_rmin_missing > 0) THEN
-            CALL cp_warn(__LOCATION__, &
-                         "RMIN for the following elements are missing: "// &
-                         TRIM(missing_rmin)// &
-                         " please set these values manually using "// &
-                         "RMIN_KIND in SPHERE_SAMPLING section")
+            CPWARN("RMIN for the following elements are missing: "// &
+                   TRIM(missing_rmin)// &
+                   " please set these values manually using "// &
+                   "RMIN_KIND in SPHERE_SAMPLING section")
          END IF
          IF (n_rmax_missing > 0) THEN
-            CALL cp_warn(__LOCATION__, &
-                         "RMAX for the following elements are missing: "// &
-                         TRIM(missing_rmax)// &
-                         " please set these values manually using "// &
-                         "RMAX_KIND in SPHERE_SAMPLING section")
+            CPWARN("RMAX for the following elements are missing: "// &
+                   TRIM(missing_rmax)// &
+                   " please set these values manually using "// &
+                   "RMAX_KIND in SPHERE_SAMPLING section")
          END IF
          IF (n_rmin_missing > 0 .OR. &
              n_rmax_missing > 0) THEN

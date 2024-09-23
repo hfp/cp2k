@@ -135,12 +135,12 @@ CONTAINS
 
       IF (rtp%linear_scaling) THEN
          IF (.NOT. ASSOCIATED(mos)) THEN
-            CALL cp_warn(__LOCATION__, "Delta Pulse not implemented for Linear-Scaling based ground "// &
-                         "state calculation. If you want to perform a Linear-Scaling RTP from a "// &
-                         "Linear-Scaling GS calculation you can do the following: (i) LSCF froms "// &
-                         "scratch, (ii) MO-based SCF (for 1 SCF loop for instance) with the LSCF "// &
-                         "result as a restart and (iii) linear scaling RTP + delta kick (for 1 "// &
-                         "SCF loop for instance).")
+            CPWARN("Delta Pulse not implemented for Linear-Scaling based ground "// &
+                   "state calculation. If you want to perform a Linear-Scaling RTP from a "// &
+                   "Linear-Scaling GS calculation you can do the following: (i) LSCF froms "// &
+                   "scratch, (ii) MO-based SCF (for 1 SCF loop for instance) with the LSCF "// &
+                   "result as a restart and (iii) linear scaling RTP + delta kick (for 1 "// &
+                   "SCF loop for instance).")
             my_apply_pulse = .FALSE.
          ELSE
             ! create temporary mos_old and mos_new to use delta kick routine designed for MOs-based RTP

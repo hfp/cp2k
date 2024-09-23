@@ -571,9 +571,8 @@ CONTAINS
                new_elem%conf(new_elem%mv_conf)%elem%stat = status_calculate_MD
             CASE (mv_type_NMC_moves)
                IF (new_elem%conf(new_elem%mv_conf)%elem%stat .NE. status_canceled_nmc) &
-                  CALL cp_warn(__LOCATION__, &
-                               "reactivating tree element with wrong status"// &
-                               cp_to_string(new_elem%conf(new_elem%mv_conf)%elem%stat))
+                  CPWARN("reactivating tree element with wrong status"// &
+                         cp_to_string(new_elem%conf(new_elem%mv_conf)%elem%stat))
                new_elem%conf(new_elem%mv_conf)%elem%stat = status_calculate_NMC_steps
 
                !IF(DEBUG.GE.1) WRITE(tmc_out_file_nr,*)"ATTENTION: reactivation of canceled subtree ", &
@@ -1061,11 +1060,10 @@ CONTAINS
       ! if there is still e reference to a global tree pointer, do not deallocate element
       IF (ASSOCIATED(ptr%gt_nodes_references)) THEN
          IF (ASSOCIATED(ptr%parent)) &
-            CALL cp_warn(__LOCATION__, &
-                         "try to deallocate subtree element"// &
-                         cp_to_string(ptr%sub_tree_nr)//cp_to_string(ptr%nr)// &
-                         " still with global tree element references e.g."// &
-                         cp_to_string(ptr%gt_nodes_references%gt_elem%nr))
+            CPWARN("try to deallocate subtree element"// &
+                   cp_to_string(ptr%sub_tree_nr)//cp_to_string(ptr%nr)// &
+                   " still with global tree element references e.g."// &
+                   cp_to_string(ptr%gt_nodes_references%gt_elem%nr))
          CPASSERT(ASSOCIATED(ptr%gt_nodes_references%gt_elem))
       ELSE
          SELECT CASE (ptr%stat)

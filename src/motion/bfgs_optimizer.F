@@ -191,12 +191,11 @@ CONTAINS
       ndf = SIZE(x0)
       nfree = gopt_env%nfree
       IF (ndf > 3000) &
-         CALL cp_warn(__LOCATION__, &
-                      "The dimension of the Hessian matrix ("// &
-                      TRIM(ADJUSTL(cp_to_string(ndf)))//") is greater than 3000. "// &
-                      "The diagonalisation of the full Hessian  matrix needed for BFGS "// &
-                      "is computationally expensive. You should consider to use the linear "// &
-                      "scaling variant L-BFGS instead.")
+         CPWARN("The dimension of the Hessian matrix ("// &
+                TRIM(ADJUSTL(cp_to_string(ndf)))//") is greater than 3000. "// &
+                "The diagonalisation of the full Hessian  matrix needed for BFGS "// &
+                "is computationally expensive. You should consider to use the linear "// &
+                "scaling variant L-BFGS instead.")
 
       ! Initialize hessian (hes = unitary matrix or model hessian )
       CALL cp_blacs_env_create(blacs_env, para_env, globenv%blacs_grid_layout, &
@@ -214,15 +213,13 @@ CONTAINS
       CALL get_atomic_kind_set(atomic_kind_set=atomic_kinds%els, shell_present=shell_present)
       IF (use_mod_hes) THEN
          IF (shell_present) THEN
-            CALL cp_warn(__LOCATION__, &
-                         "No model Hessian is available for core-shell models. "// &
-                         "A unit matrix is used as the initial Hessian.")
+            CPWARN("No model Hessian is available for core-shell models. "// &
+                   "A unit matrix is used as the initial Hessian.")
             use_mod_hes = .FALSE.
          END IF
          IF (gopt_env%type_id == default_cell_method_id) THEN
-            CALL cp_warn(__LOCATION__, &
-                         "No model Hessian is available for cell optimizations. "// &
-                         "A unit matrix is used as the initial Hessian.")
+            CPWARN("No model Hessian is available for cell optimizations. "// &
+                   "A unit matrix is used as the initial Hessian.")
             use_mod_hes = .FALSE.
          END IF
       END IF

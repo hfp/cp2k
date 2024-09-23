@@ -247,9 +247,8 @@ CONTAINS
                IF (tmc_params%nr_temp .LE. 1) THEN
                   ! no configurational swapping if only one temperature
                   mv_prob = 0.0_dp
-                  CALL cp_warn(__LOCATION__, &
-                               "Configurational swap disabled, because "// &
-                               "Parallel Tempering requires more than one temperature.")
+                  CPWARN("Configurational swap disabled, because "// &
+                         "Parallel Tempering requires more than one temperature.")
                END IF
                ! volume moves
             CASE ("VOL_MOVE")
@@ -259,9 +258,8 @@ CONTAINS
                   delta_x = delta_x/au2a
                   tmc_params%print_cell = .TRUE. ! print the cell sizes by default
                ELSE
-                  CALL cp_warn(__LOCATION__, &
-                               "no valid pressure defined, but volume move defined. "// &
-                               "Consequently, the volume move is disabled.")
+                  CPWARN("no valid pressure defined, but volume move defined. "// &
+                         "Consequently, the volume move is disabled.")
                   mv_prob = 0.0_dp
                END IF
                ! parallel tempering swap move
@@ -671,9 +669,8 @@ CONTAINS
                            move_types%mv_size(typ, temper)
                      END IF
                   CASE DEFAULT
-                     CALL cp_warn(__LOCATION__, &
-                                  "unknown move type "//cp_to_string(typ)//" with weight"// &
-                                  cp_to_string(move_types%mv_weight(typ)))
+                     CPWARN("unknown move type "//cp_to_string(typ)//" with weight"// &
+                            cp_to_string(move_types%mv_weight(typ)))
                   END SELECT
                END IF
             END IF

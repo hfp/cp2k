@@ -272,8 +272,8 @@ CONTAINS
             param%zeff = 0.0_dp
          ELSE
             param%defined = .FALSE.
-            CALL cp_warn(__LOCATION__, "xTB parameters for element "//element_symbol// &
-                         " were not found in the parameter file "//ADJUSTL(TRIM(filename)))
+            CPWARN("xTB parameters for element "//element_symbol// &
+                   " were not found in the parameter file "//ADJUSTL(TRIM(filename)))
          END IF
       END IF
       CALL parser_release(parser)

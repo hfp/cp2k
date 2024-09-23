@@ -408,9 +408,8 @@ CONTAINS
          CALL copy_dbcsr_to_fm(sm_s, fm_s_half)
          CALL cp_fm_power(fm_s_half, fm_work1, 0.5_dp, scf_control%eps_eigval, ndep)
          IF (ndep /= 0) &
-            CALL cp_warn(__LOCATION__, &
-                         "Overlap matrix exhibits linear dependencies. At least some "// &
-                         "eigenvalues have been quenched.")
+            CPWARN("Overlap matrix exhibits linear dependencies. At least some "// &
+                   "eigenvalues have been quenched.")
          CALL copy_fm_to_dbcsr(fm_s_half, sm_h)
          CALL cp_fm_release(fm_s_half)
          CALL cp_fm_release(fm_work1)

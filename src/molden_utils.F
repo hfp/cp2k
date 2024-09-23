@@ -158,8 +158,7 @@ CONTAINS
                                ipgf=1, npgf(iset))
                         ELSE
                            IF (print_warn) THEN
-                              CALL cp_warn(__LOCATION__, &
-                                           "MOLDEN format does not support Gaussian orbitals with l > 4.")
+                              CPWARN("MOLDEN format does not support Gaussian orbitals with l > 4.")
                               print_warn = .FALSE.
                            END IF
                         END IF

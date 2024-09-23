@@ -232,9 +232,8 @@ CONTAINS
       SELECT CASE (tddfpt_control%dipole_form)
       CASE (tddfpt_dipole_berry)
          IF (ndim_periodic /= 3) THEN
-            CALL cp_warn(__LOCATION__, &
-                         "Fully periodic Poisson solver (PERIODIC xyz) is needed "// &
-                         "for oscillator strengths based on the Berry phase formula")
+            CPWARN("Fully periodic Poisson solver (PERIODIC xyz) is needed "// &
+                   "for oscillator strengths based on the Berry phase formula")
          END IF
 
          NULLIFY (berry_cossin_xyz)
@@ -371,9 +370,8 @@ CONTAINS
 
       CASE (tddfpt_dipole_length)
          IF (ndim_periodic /= 0) THEN
-            CALL cp_warn(__LOCATION__, &
-                         "Non-periodic Poisson solver (PERIODIC none) is needed "// &
-                         "for oscillator strengths based on the length operator")
+            CPWARN("Non-periodic Poisson solver (PERIODIC none) is needed "// &
+                   "for oscillator strengths based on the length operator")
          END IF
 
          ! compute components of the dipole operator in the length form
@@ -1088,8 +1086,7 @@ CONTAINS
                         END IF
                      END DO
                      IF (icg == 0) THEN
-                        CALL cp_warn(__LOCATION__, &
-                                     "Could not locate particle state associated with hole state.")
+                        CPWARN("Could not locate particle state associated with hole state.")
                      ELSE
                         CALL cp_fm_to_fm(wmat, nto_set(2)%mo_coeff, 1, icg, i)
                      END IF

@@ -254,7 +254,7 @@ CONTAINS
          kernel_basis = .FALSE.
       END IF
       IF (kernel_basis .AND. e1terms) THEN
-         CALL cp_warn(__LOCATION__, "LRI Kernel basis generation will ignore exact 1C term option.")
+         CPWARN("LRI Kernel basis generation will ignore exact 1C term option.")
       END IF
       !
       CPASSERT(.NOT. ASSOCIATED(lri_aux_basis_set))

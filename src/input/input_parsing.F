@@ -113,10 +113,9 @@ CONTAINS
       irs = SIZE(section_vals%values, 2)
 
       IF (ALLOCATED(section%deprecation_notice)) THEN
-         CALL cp_warn(__LOCATION__, &
-                      "The specified section '"//TRIM(section%name)// &
-                      "' is deprecated and may be removed in a future version: "// &
-                      section%deprecation_notice)
+         CPWARN("The specified section '"//TRIM(section%name)// &
+                "' is deprecated and may be removed in a future version: "// &
+                section%deprecation_notice)
       END IF
 
       IF (ASSOCIATED(section%keywords(-1)%keyword)) THEN ! reads section params
@@ -219,9 +218,8 @@ CONTAINS
                                          lower_to_upper=.TRUE.)
                   keyword => section_get_keyword(section, token)
                   IF (.NOT. ASSOCIATED(keyword)) THEN
-                     CALL cp_warn(__LOCATION__, &
-                                  "unknown keyword to describe "//TRIM(token)// &
-                                  " in section "//TRIM(section%name))
+                     CPWARN("unknown keyword to describe "//TRIM(token)// &
+                            " in section "//TRIM(section%name))
                   ELSE
                      CALL keyword_describe(keyword, output_unit, desc_level)
                   END IF
@@ -270,10 +268,9 @@ CONTAINS
                   END IF
 
                   IF (ALLOCATED(keyword%deprecation_notice)) &
-                     CALL cp_warn(__LOCATION__, &
-                                  "The specified keyword '"//TRIM(token)// &
-                                  "' is deprecated and may be removed in a future version: "// &
-                                  keyword%deprecation_notice//".")
+                     CPWARN("The specified keyword '"//TRIM(token)// &
+                            "' is deprecated and may be removed in a future version: "// &
+                            keyword%deprecation_notice//".")
 
                   NULLIFY (el)
                   IF (ik /= 0 .AND. keyword%type_of_var == lchar_t) &

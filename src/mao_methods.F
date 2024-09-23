@@ -479,8 +479,8 @@ CONTAINS
       CALL cp_fm_geeig(fmksmat, fmsmat, fmvec, eigenvalues, fmwork)
       de = eigenvalues(nmos + 1) - eigenvalues(nmos)
       IF (de < 0.001_dp) THEN
-         CALL cp_warn(__LOCATION__, "MAO: No band gap at "// &
-                      "Gamma point. MAO analysis not reliable.")
+         CPWARN("MAO: No band gap at "// &
+                "Gamma point. MAO analysis not reliable.")
       END IF
       ! density matrix
       CALL cp_dbcsr_plus_fm_fm_t(sparse_matrix=pmat, matrix_v=fmvec, ncol=nmos, alpha=occ)

@@ -2249,10 +2249,10 @@ CONTAINS
                   WRITE (def_error, "(A,G12.6,A)") "(", lerr, ")"
                   CALL compress(this_error, .TRUE.)
                   CALL compress(def_error, .TRUE.)
-                  CALL cp_warn(__LOCATION__, &
-                               'ASSERTION (cond) failed at line '//cp_to_string(__LINE__)// &
-                               ' Error '//TRIM(this_error)//' in computing numerical derivatives larger then'// &
-                               TRIM(def_error)//' .')
+                  CPWARN( &
+                     'ASSERTION (cond) failed at line '//cp_to_string(__LINE__)// &
+                     ' Error '//TRIM(this_error)//' in computing numerical derivatives larger then'// &
+                     TRIM(def_error)//' .')
                END IF
                ! General Mapping of forces...
                ! First: Get Mapping index array
@@ -4527,10 +4527,10 @@ CONTAINS
             WRITE (def_error, "(A,G12.6,A)") "(", colvar%combine_cvs_param%lerr, ")"
             CALL compress(this_error, .TRUE.)
             CALL compress(def_error, .TRUE.)
-            CALL cp_warn(__LOCATION__, &
-                         'ASSERTION (cond) failed at line '//cp_to_string(__LINE__)// &
-                         ' Error '//TRIM(this_error)//' in computing numerical derivatives larger then'// &
-                         TRIM(def_error)//' . ')
+            CPWARN( &
+               'ASSERTION (cond) failed at line '//cp_to_string(__LINE__)// &
+               ' Error '//TRIM(this_error)//' in computing numerical derivatives larger then'// &
+               TRIM(def_error)//' . ')
          END IF
       END DO
       DEALLOCATE (my_val)

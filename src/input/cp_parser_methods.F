@@ -824,12 +824,11 @@ CONTAINS
             parser%icol = ipattern - 1
             IF (PRESENT(line)) THEN
                IF (LEN(line) < LEN_TRIM(parser%input_line)) THEN
-                  CALL cp_warn(__LOCATION__, &
-                               "The returned input line has more than "// &
-                               TRIM(ADJUSTL(cp_to_string(LEN(line))))// &
-                               " characters and is therefore too long to fit in the "// &
-                               "specified variable"// &
-                               TRIM(parser_location(parser)))
+                  CPWARN("The returned input line has more than "// &
+                         TRIM(ADJUSTL(cp_to_string(LEN(line))))// &
+                         " characters and is therefore too long to fit in the "// &
+                         "specified variable"// &
+                         TRIM(parser_location(parser)))
                END IF
             END IF
             EXIT

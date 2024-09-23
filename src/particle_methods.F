@@ -674,13 +674,13 @@ CONTAINS
                END IF
                IF (dab < dab_warn) THEN
                   ! Print warning for interatomic distances smaller than the requested threshold
-                  CALL cp_warn(__LOCATION__, "The distance between the atoms "// &
-                               TRIM(ADJUSTL(cp_to_string(iatom, fmt="(I8)")))//" and "// &
-                               TRIM(ADJUSTL(cp_to_string(jatom, fmt="(I8)")))//" is only "// &
-                               TRIM(ADJUSTL(cp_to_string(dab, fmt="(F6.3)")))//" "// &
-                               TRIM(ADJUSTL(unit_str))//" and thus smaller than the threshold of "// &
-                               TRIM(ADJUSTL(cp_to_string(dab_warn, fmt="(F6.3)")))//" "// &
-                               TRIM(ADJUSTL(unit_str)))
+                  CPWARN("The distance between the atoms "// &
+                         TRIM(ADJUSTL(cp_to_string(iatom, fmt="(I8)")))//" and "// &
+                         TRIM(ADJUSTL(cp_to_string(jatom, fmt="(I8)")))//" is only "// &
+                         TRIM(ADJUSTL(cp_to_string(dab, fmt="(F6.3)")))//" "// &
+                         TRIM(ADJUSTL(unit_str))//" and thus smaller than the threshold of "// &
+                         TRIM(ADJUSTL(cp_to_string(dab_warn, fmt="(F6.3)")))//" "// &
+                         TRIM(ADJUSTL(unit_str)))
                END IF
                IF (iw > 0) THEN
                   distance_matrix(iatom, jatom) = dab

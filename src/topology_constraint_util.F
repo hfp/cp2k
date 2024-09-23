@@ -1372,12 +1372,11 @@ CONTAINS
       CHARACTER(LEN=*), INTENT(IN)                       :: name
 
       IF (.NOT. found) &
-         CALL cp_warn(__LOCATION__, &
-                      " MOLNAME ("//TRIM(name)//") was defined for constraints, but this molecule name "// &
-                      "is not defined. Please check carefully your PDB, PSF (has priority over PDB) or "// &
-                      "input driven CP2K coordinates. In case you may not find the reason for this warning "// &
-                      "it may be a good idea to print all molecule information (including kind name) activating "// &
-                      "the print_key MOLECULES specific of the SUBSYS%PRINT section. ")
+         CPWARN(" MOLNAME ("//TRIM(name)//") was defined for constraints, but this molecule name "// &
+                "is not defined. Please check carefully your PDB, PSF (has priority over PDB) or "// &
+                "input driven CP2K coordinates. In case you may not find the reason for this warning "// &
+                "it may be a good idea to print all molecule information (including kind name) activating "// &
+                "the print_key MOLECULES specific of the SUBSYS%PRINT section. ")
 
    END SUBROUTINE print_warning_molname
 

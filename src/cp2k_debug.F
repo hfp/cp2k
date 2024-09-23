@@ -180,12 +180,12 @@ CONTAINS
             ! OK
          CASE (do_stress_numerical, do_stress_diagonal_numer)
             ! Nothing to check
-            CALL cp_warn(__LOCATION__, "Numerical stress tensor was requested in "// &
-                         "the FORCE_EVAL section. Nothing to debug!")
+            CPWARN("Numerical stress tensor was requested in "// &
+                   "the FORCE_EVAL section. Nothing to debug!")
             skip = .TRUE.
          CASE DEFAULT
-            CALL cp_warn(__LOCATION__, "Stress tensor calculation was not enabled in "// &
-                         "the FORCE_EVAL section. Nothing to debug!")
+            CPWARN("Stress tensor calculation was not enabled in "// &
+                   "the FORCE_EVAL section. Nothing to debug!")
             skip = .TRUE.
          END SELECT
 
@@ -426,7 +426,7 @@ CONTAINS
             IF (test_for_result(results, description=description)) THEN
                CALL get_results(results, description=description, values=dipole_moment)
             ELSE
-               CALL cp_warn(__LOCATION__, "Debug of dipole moments needs DFT/PRINT/MOMENTS section enabled")
+               CPWARN("Debug of dipole moments needs DFT/PRINT/MOMENTS section enabled")
                CPABORT("DEBUG")
             END IF
             amplitude = de
@@ -484,7 +484,7 @@ CONTAINS
             END IF
 
          ELSE
-            CALL cp_warn(__LOCATION__, "Debug of dipole moments only for Quickstep code available")
+            CPWARN("Debug of dipole moments only for Quickstep code available")
          END IF
       END IF
 
@@ -501,12 +501,12 @@ CONTAINS
                CALL get_results(results, description=description, values=pvals)
                polar_analytic(1:3, 1:3) = RESHAPE(pvals(1:9), (/3, 3/))
             ELSE
-               CALL cp_warn(__LOCATION__, "Debug of polarizabilities needs PROPERTIES/LINRES/POLAR section enabled")
+               CPWARN("Debug of polarizabilities needs PROPERTIES/LINRES/POLAR section enabled")
                CPABORT("DEBUG")
             END IF
             description = "[DIPOLE]"
             IF (.NOT. test_for_result(results, description=description)) THEN
-               CALL cp_warn(__LOCATION__, "Debug of polarizabilities need DFT/PRINT/MOMENTS section enabled")
+               CPWARN("Debug of polarizabilities need DFT/PRINT/MOMENTS section enabled")
                CPABORT("DEBUG")
             END IF
             amplitude = de
@@ -543,7 +543,7 @@ CONTAINS
                WRITE (UNIT=iw, FMT="(T2,A,T61,E20.12)") ' POLAR : CheckSum  =', SUM(polar_analytic)
             END IF
          ELSE
-            CALL cp_warn(__LOCATION__, "Debug of polarizabilities only for Quickstep code available")
+            CPWARN("Debug of polarizabilities only for Quickstep code available")
          END IF
       END IF
 

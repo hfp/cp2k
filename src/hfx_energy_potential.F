@@ -584,12 +584,11 @@ CONTAINS
          END DO outer
 
          IF (.NOT. ks_fully_occ) THEN
-            CALL cp_warn(__LOCATION__, &
-                         "The Kohn Sham matrix is not 100% occupied. This "// &
-                         "may result in incorrect Hartree-Fock results. Setting "// &
-                         "MIN_PAIR_LIST_RADIUS to -1 in the QS section ensures a "// &
-                         "fully occupied KS matrix. For more information "// &
-                         "see FAQ: https://www.cp2k.org/faq:hfx_eps_warning")
+            CPWARN("The Kohn Sham matrix is not 100% occupied. This "// &
+                   "may result in incorrect Hartree-Fock results. Setting "// &
+                   "MIN_PAIR_LIST_RADIUS to -1 in the QS section ensures a "// &
+                   "fully occupied KS matrix. For more information "// &
+                   "see FAQ: https://www.cp2k.org/faq:hfx_eps_warning")
          END IF
       END IF
 

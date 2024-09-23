@@ -340,9 +340,8 @@ CONTAINS
 
       IF (.NOT. ASSOCIATED(new_element%parent)) THEN
          IF (new_element%nr .GT. 1) &
-            CALL cp_warn(__LOCATION__, &
-                         "try to create dot, but no parent on node "// &
-                         cp_to_string(new_element%nr)//"exists")
+            CPWARN("try to create dot, but no parent on node "// &
+                   cp_to_string(new_element%nr)//"exists")
       ELSE
          CALL create_dot_branch(parent_nr=new_element%parent%nr, &
                                 child_nr=new_element%nr, &

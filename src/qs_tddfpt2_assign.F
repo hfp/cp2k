@@ -109,9 +109,9 @@ CONTAINS
          IF (wfn_history%xsval < 0.75_dp) THEN
             dv(my_state) = 0.0_dp
             IF (wfn_history%xsval/MAXVAL(dv) < 0.5_dp) THEN
-               CALL cp_warn(__LOCATION__, "Uncertain assignment for State following."// &
-                            " Reduce trust radius in Geometry Optimization or timestep"// &
-                            " in MD runs.")
+               CPWARN("Uncertain assignment for State following."// &
+                      " Reduce trust radius in Geometry Optimization or timestep"// &
+                      " in MD runs.")
             END IF
          END IF
          DO ispin = 1, nspins

@@ -600,7 +600,7 @@ CONTAINS
 
       IF (.NOT. converged) THEN
          IF (scf_control%ignore_convergence_failure .OR. should_stop) THEN
-            CALL cp_warn(__LOCATION__, "SCF run NOT converged")
+            CPWARN("SCF run NOT converged")
          ELSE
             CALL cp_abort(__LOCATION__, &
                           "SCF run NOT converged. To continue the calculation "// &
@@ -1680,13 +1680,11 @@ CONTAINS
             END DO
             scf_control%outer_scf%cdft_opt_control%newton_step = alpha
             IF (.NOT. should_exit) THEN
-               CALL cp_warn(__LOCATION__, &
-                            "Line search did not converge. CDFT SCF proceeds with fixed step size.")
+               CPWARN("Line search did not converge. CDFT SCF proceeds with fixed step size.")
                scf_control%outer_scf%cdft_opt_control%newton_step = scf_control%outer_scf%cdft_opt_control%newton_step_save
             END IF
             IF (reached_maxls) &
-               CALL cp_warn(__LOCATION__, &
-                            "Line search did not converge. CDFT SCF proceeds with lasted iterated step size.")
+               CPWARN("Line search did not converge. CDFT SCF proceeds with lasted iterated step size.")
             CALL cp_rm_default_logger()
             CALL cp_logger_release(tmp_logger)
             ! Release temporary storage

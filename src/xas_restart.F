@@ -217,9 +217,8 @@ CONTAINS
                occupation_numbers(1:nmo) = occ_read(1:nmo)
                IF (nmo_read > nmo) THEN
                   IF (occupation_numbers(nmo) >= EPSILON(0.0_dp)) &
-                     CALL cp_warn(__LOCATION__, &
-                                  "The number of occupied MOs on the restart unit is larger than "// &
-                                  "the allocated MOs.")
+                     CPWARN("The number of occupied MOs on the restart unit is larger than "// &
+                            "the allocated MOs.")
 
                END IF
                DEALLOCATE (eig_read, occ_read)

@@ -100,9 +100,8 @@ CONTAINS
 
          !Note: warning against numerical stability of libgrpp gradients. The day the library becomes
          !      stable, this routine can be used immediatly as is, and the warning removed.
-         CALL cp_warn(__LOCATION__, &
-                      "ECP gradients calculated with the libgrpp library are, to this date, not numerically stable. "// &
-                      "Please use the reference routine 'libgrpp_local_forces_ref' instead.")
+         CPWARN("ECP gradients calculated with the libgrpp library are, to this date, not numerically stable. "// &
+                "Please use the reference routine 'libgrpp_local_forces_ref' instead.")
 
          !there is a weird feature of libgrpp gradients, which is such that the gradient is calculated
          !for a point in space, and not with respect to an atomic center. For example, if atoms A and
@@ -341,9 +340,8 @@ CONTAINS
 
          !Note: warning against numerical stability of libgrpp gradients. The day the library becomes
          !      stable, this routine can be used immediatly as is, and the warning removed.
-         CALL cp_warn(__LOCATION__, &
-                      "ECP gradients calculated with the libgrpp library are, to this date, not numerically stable. "// &
-                      "Please use the reference routine 'libgrpp_semilocal_forces_ref' instead.")
+         CPWARN("ECP gradients calculated with the libgrpp library are, to this date, not numerically stable. "// &
+                "Please use the reference routine 'libgrpp_semilocal_forces_ref' instead.")
 
          !there is a weird feature of libgrpp gradients, which is such that the gradient is calculated
          !for a point in space, and not with respect to an atomic center. For example, if atoms A and

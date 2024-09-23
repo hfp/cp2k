@@ -205,9 +205,8 @@ CONTAINS
             nstates_read = 0
             CALL para_env_global%bcast(nstates_read)
 
-            CALL cp_warn(__LOCATION__, &
-                         "User requested to restart the TDDFPT wave functions from the file '"//TRIM(filename)// &
-                         "' which does not exist. Guess wave functions will be constructed using Kohn-Sham orbitals.")
+            CPWARN("User requested to restart the TDDFPT wave functions from the file '"//TRIM(filename)// &
+                   "' which does not exist. Guess wave functions will be constructed using Kohn-Sham orbitals.")
             CALL timestop(handle)
             RETURN
          END IF
@@ -254,10 +253,9 @@ CONTAINS
          IF (nstates_read /= nstates) THEN
             CALL integer_to_string(nstates, ref_str)
             CALL integer_to_string(nstates_read, read_str)
-            CALL cp_warn(__LOCATION__, &
-                         "TDDFPT restart file contains "//TRIM(read_str)// &
-                         " wave function(s) however "//TRIM(ref_str)// &
-                         " excited states were requested.")
+            CPWARN("TDDFPT restart file contains "//TRIM(read_str)// &
+                   " wave function(s) however "//TRIM(ref_str)// &
+                   " excited states were requested.")
          END IF
       END IF
       CALL para_env_global%bcast(nstates_read)

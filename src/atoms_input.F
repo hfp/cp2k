@@ -120,9 +120,8 @@ CONTAINS
       topology%natoms = natom
       IF (my_overwrite) THEN
          CPASSERT(SIZE(atom_info%r, 2) == natom)
-         CALL cp_warn(__LOCATION__, &
-                      "Overwriting coordinates. Active coordinates read from &COORD section."// &
-                      " Active coordinates READ from &COORD section ")
+         CPWARN("Overwriting coordinates. Active coordinates read from &COORD section."// &
+                " Active coordinates READ from &COORD section ")
          CALL section_vals_list_get(coord_section, "_DEFAULT_KEYWORD_", list=list)
          DO iatom = 1, natom
             is_ok = cp_sll_val_next(list, val)
@@ -318,9 +317,8 @@ CONTAINS
       IF (ASSOCIATED(shell_particle_set)) THEN
          CPASSERT((SIZE(shell_particle_set, 1) == nshell))
          ALLOCATE (r(3, nshell), at_name(nshell), at_index(nshell))
-         CALL cp_warn(__LOCATION__, &
-                      "Overwriting shell coordinates. "// &
-                      "Active coordinates READ from &SHELL_COORD section. ")
+         CPWARN("Overwriting shell coordinates. "// &
+                "Active coordinates READ from &SHELL_COORD section. ")
          CALL section_vals_list_get(shell_coord_section, "_DEFAULT_KEYWORD_", list=list)
          DO ishell = 1, nshell
             ! we use only the first default_string_length characters of each line
@@ -368,9 +366,8 @@ CONTAINS
 
                CPASSERT((SIZE(core_particle_set, 1) == nshell))
                ALLOCATE (rc(3, nshell), at_name_c(nshell), at_index_c(nshell))
-               CALL cp_warn(__LOCATION__, &
-                            "Overwriting cores coordinates. "// &
-                            "Active coordinates READ from &CORE_COORD section. ")
+               CPWARN("Overwriting cores coordinates. "// &
+                      "Active coordinates READ from &CORE_COORD section. ")
                CALL section_vals_list_get(core_coord_section, "_DEFAULT_KEYWORD_", list=list)
                DO ishell = 1, nshell
                   ! we use only the first default_string_length characters of each line

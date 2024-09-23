@@ -187,10 +187,10 @@ CONTAINS
       DEALLOCATE (rho_tot_gspace, rho_tot_rspace)
 
       IF (dft_control%do_admm) THEN
-         CALL cp_warn(__LOCATION__, "ADMM not supported for local energy calculation")
+         CPWARN("ADMM not supported for local energy calculation")
       END IF
       IF (gapw_xc .OR. gapw) THEN
-         CALL cp_warn(__LOCATION__, "GAPW/GAPW_XC not supported for local energy calculation")
+         CPWARN("GAPW/GAPW_XC not supported for local energy calculation")
       END IF
       ! XC energy density correction = E_xc(r) - V_xc(r)*rho(r)
       CALL get_qs_env(qs_env, input=input)
@@ -270,7 +270,7 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: input, xc_section
       TYPE(virial_type), POINTER                         :: virial
 
-      CALL cp_warn(__LOCATION__, "Local Stress Tensor code is not working, skipping")
+      CPWARN("Local Stress Tensor code is not working, skipping")
       RETURN
 
       CALL timeset(routineN, handle)
@@ -295,7 +295,7 @@ CONTAINS
       iounit = cp_logger_get_default_io_unit()
 
       !!!!!!
-      CALL cp_warn(__LOCATION__, "Local Stress Tensor code is not tested")
+      CPWARN("Local Stress Tensor code is not tested")
       !!!!!!
 
       ! Check for GAPW method : additional terms for local densities
@@ -321,10 +321,10 @@ CONTAINS
       END IF
 
       IF (dft_control%do_admm) THEN
-         CALL cp_warn(__LOCATION__, "ADMM not supported for local energy calculation")
+         CPWARN("ADMM not supported for local energy calculation")
       END IF
       IF (gapw_xc .OR. gapw) THEN
-         CALL cp_warn(__LOCATION__, "GAPW/GAPW_XC not supported for local energy calculation")
+         CPWARN("GAPW/GAPW_XC not supported for local energy calculation")
       END IF
       ! XC energy density correction = E_xc(r) - V_xc(r)*rho(r)
       CALL get_qs_env(qs_env, ks_env=ks_env, input=input, rho=rho_struct)
@@ -353,7 +353,7 @@ CONTAINS
       CALL get_qs_env(qs_env=qs_env, virial=virial)
       use_virial = virial%pv_availability .AND. (.NOT. virial%pv_numer)
       IF (.NOT. use_virial) THEN
-         CALL cp_warn(__LOCATION__, "Local stress should be used with standard stress calculation.")
+         CPWARN("Local stress should be used with standard stress calculation.")
       END IF
       IF (iounit > 0 .AND. use_virial) THEN
          WRITE (UNIT=iounit, FMT="(/,T3,A)") REPEAT("=", 78)

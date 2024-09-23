@@ -938,8 +938,7 @@ CONTAINS
       IF (new_1 .OR. new_2 .OR. new_3) tensors_remapped = .TRUE.
 
       IF (tensors_remapped .AND. do_batched) THEN
-         CALL cp_warn(__LOCATION__, &
-                      "Internal process grid optimization disabled because tensors are not in contraction-compatible format")
+         CPWARN("Internal process grid optimization disabled because tensors are not in contraction-compatible format")
       END IF
 
       ! optimize process grid during batched contraction

@@ -103,16 +103,14 @@ CONTAINS
                             (simpar%ensemble == npt_ia_ensemble) .OR. &
                             (simpar%ensemble == npt_i_ensemble)
          IF (apply_thermostat) THEN
-            CALL cp_warn(__LOCATION__, &
-                         "With the chosen ensemble the temperature is "// &
-                         "controlled by thermostats. The definition of different thermal "// &
-                         "regions might result inconsistent with the presence of thermostats.")
+            CPWARN("With the chosen ensemble the temperature is "// &
+                   "controlled by thermostats. The definition of different thermal "// &
+                   "regions might result inconsistent with the presence of thermostats.")
          END IF
          IF (simpar%temp_tol > 0.0_dp) THEN
-            CALL cp_warn(__LOCATION__, &
-                         "Control of the global temperature by rescaling of the velocity "// &
-                         "is not consistent with the presence of different thermal regions. "// &
-                         "The temperature of different regions is rescaled separatedly.")
+            CPWARN("Control of the global temperature by rescaling of the velocity "// &
+                   "is not consistent with the presence of different thermal regions. "// &
+                   "The temperature of different regions is rescaled separatedly.")
          END IF
          CALL section_vals_val_get(thermal_region_section, "FORCE_RESCALING", &
                                    l_val=thermal_regions%force_rescaling)
@@ -173,15 +171,13 @@ CONTAINS
                   IF (simpar%ensemble == langevin_ensemble) THEN
                      IF (.NOT. do_langevin) THEN
                         CALL integer_to_string(ireg, my_region)
-                        CALL cp_warn(__LOCATION__, &
-                                     "You provided NOISY_GAMMA_REGION but atoms in thermal region "//TRIM(my_region)// &
-                                     " will not undergo Langevin MD. "// &
-                                     "NOISY_GAMMA_REGION will be ignored and its value discarded!")
+                        CPWARN("You provided NOISY_GAMMA_REGION but atoms in thermal region "//TRIM(my_region)// &
+                               " will not undergo Langevin MD. "// &
+                               "NOISY_GAMMA_REGION will be ignored and its value discarded!")
                      END IF
                   ELSE
-                     CALL cp_warn(__LOCATION__, &
-                                  "You provided NOISY_GAMMA_REGION but the Langevin Ensamble is not selected "// &
-                                  "NOISY_GAMMA_REGION will be ignored and its value discarded!")
+                     CPWARN("You provided NOISY_GAMMA_REGION but the Langevin Ensamble is not selected "// &
+                            "NOISY_GAMMA_REGION will be ignored and its value discarded!")
                   END IF
                ELSE
                   t_region%noisy_gamma_region = simpar%noisy_gamma

@@ -936,13 +936,11 @@ CONTAINS
                   READ (rst_unit) eig_read(1:nmo_read)
                END IF
                IF (nmo_read < nmo) &
-                  CALL cp_warn(__LOCATION__, &
-                               "The number of MOs on the restart unit is smaller than the number of "// &
-                               "the allocated MOs. ")
+                  CPWARN("The number of MOs on the restart unit is smaller than the number of "// &
+                         "the allocated MOs. ")
                IF (nmo_read > nmo) &
-                  CALL cp_warn(__LOCATION__, &
-                               "The number of MOs on the restart unit is greater than the number of "// &
-                               "the allocated MOs. The read MO set will be truncated!")
+                  CPWARN("The number of MOs on the restart unit is greater than the number of "// &
+                         "the allocated MOs. The read MO set will be truncated!")
 
                nmo = MIN(nmo, nmo_read)
                IF (do_homo .OR. do_mixed) THEN
@@ -1260,11 +1258,10 @@ CONTAINS
                         iup = localized_wfn_control%loc_states(i, ispin)
                         IF (ABS(occupation(ilow) - occupation(iup)) > localized_wfn_control%eps_occ) THEN
                            ! write warning
-                           CALL cp_warn(__LOCATION__, &
-                                        "User requested the calculation of localized wavefunction from a subset of MOs, "// &
-                                        "including MOs with different occupations. Check the selected subset, "// &
-                                        "the electronic density is not invariant with "// &
-                                        "respect to rotations among orbitals with different occupation numbers!")
+                           CPWARN("User requested the calculation of localized wavefunction from a subset of MOs, "// &
+                                  "including MOs with different occupations. Check the selected subset, "// &
+                                  "the electronic density is not invariant with "// &
+                                  "respect to rotations among orbitals with different occupation numbers!")
                         END IF
                      END DO
                   END IF
@@ -1281,9 +1278,8 @@ CONTAINS
          END IF
       ELSE
          ! Let's inform in case the section is not present in the input
-         CALL cp_warn(__LOCATION__, &
-                      "User requested the calculation of the localized wavefunction but the section "// &
-                      "LOCALIZE was not specified. Localization will not be performed!")
+         CPWARN("User requested the calculation of the localized wavefunction but the section "// &
+                "LOCALIZE was not specified. Localization will not be performed!")
       END IF
 
       CALL timestop(handle)

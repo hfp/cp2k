@@ -239,9 +239,8 @@ CONTAINS
          END IF
          ! Print warning for temp_tol
          IF (simpar%temp_tol > 0.0_dp) THEN
-            CALL cp_warn(__LOCATION__, &
-                         "A temperature tolerance (TEMP_TOL) is used during the MD. "// &
-                         "Due to the velocity rescaling algorithm jumps may appear in the conserved quantity.")
+            CPWARN("A temperature tolerance (TEMP_TOL) is used during the MD. "// &
+                   "Due to the velocity rescaling algorithm jumps may appear in the conserved quantity.")
          END IF
          ! Print warning for annealing
          IF (simpar%annealing) THEN
@@ -260,11 +259,9 @@ CONTAINS
             IF ((simpar%ensemble == langevin_ensemble) .OR. &
                 (simpar%ensemble == reftraj_ensemble) .OR. &
                 simpar%do_respa) THEN
-               CALL cp_warn( &
-                  __LOCATION__, &
-                  "The variable timestep  has been required, however "// &
-                  "this option is not available either with the Langevin ensemble or with the multiple timestep schme. "// &
-                  "The run will proceed with constant timestep, as read from input.")
+               CPWARN("The variable timestep  has been required, however "// &
+                      "this option is not available either with the Langevin ensemble or with the multiple timestep schme. "// &
+                      "The run will proceed with constant timestep, as read from input.")
             END IF
          END IF
       END IF
@@ -321,16 +318,14 @@ CONTAINS
       IF (simpar%constraint) THEN
          CALL section_vals_val_get(tmp_section, "SHAKE_TOLERANCE", r_val=simpar%shake_tol)
          IF (simpar%shake_tol <= EPSILON(0.0_dp)*1000.0_dp) &
-            CALL cp_warn(__LOCATION__, &
-                         "Shake tolerance lower than 1000*EPSILON, where EPSILON is the machine precision. "// &
-                         "This may lead to numerical problems. Setting up shake_tol to 1000*EPSILON!")
+            CPWARN("Shake tolerance lower than 1000*EPSILON, where EPSILON is the machine precision. "// &
+                   "This may lead to numerical problems. Setting up shake_tol to 1000*EPSILON!")
          simpar%shake_tol = MAX(EPSILON(0.0_dp)*1000.0_dp, simpar%shake_tol)
 
          CALL section_vals_val_get(tmp_section, "ROLL_TOLERANCE", r_val=simpar%roll_tol)
          IF (simpar%roll_tol <= EPSILON(0.0_dp)*1000.0_dp) &
-            CALL cp_warn(__LOCATION__, &
-                         "Roll tolerance lower than 1000*EPSILON, where EPSILON is the machine precision. "// &
-                         "This may lead to numerical problems. Setting up roll_tol to 1000*EPSILON!")
+            CPWARN("Roll tolerance lower than 1000*EPSILON, where EPSILON is the machine precision. "// &
+                   "This may lead to numerical problems. Setting up roll_tol to 1000*EPSILON!")
          simpar%roll_tol = MAX(EPSILON(0.0_dp)*1000.0_dp, simpar%roll_tol)
       END IF
 

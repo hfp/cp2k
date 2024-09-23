@@ -327,17 +327,15 @@ CONTAINS
          IF (my_do_gw .AND. do_minimax_quad) THEN
             IF (num_integ_points > 34) THEN
                IF (unit_nr > 0) &
-                  CALL cp_warn(__LOCATION__, &
-                               "The required number of quadrature point exceeds the maximum possible in the "// &
-                               "Minimax quadrature scheme. The number of quadrature point has been reset to 30.")
+                  CPWARN("The required number of quadrature point exceeds the maximum possible in the "// &
+                         "Minimax quadrature scheme. The number of quadrature point has been reset to 30.")
                num_integ_points = 30
             END IF
          ELSE
             IF (do_minimax_quad .AND. num_integ_points > 20) THEN
                IF (unit_nr > 0) &
-                  CALL cp_warn(__LOCATION__, &
-                               "The required number of quadrature point exceeds the maximum possible in the "// &
-                               "Minimax quadrature scheme. The number of quadrature point has been reset to 20.")
+                  CPWARN("The required number of quadrature point exceeds the maximum possible in the "// &
+                         "Minimax quadrature scheme. The number of quadrature point has been reset to 20.")
                num_integ_points = 20
             END IF
          END IF
@@ -1728,9 +1726,8 @@ CONTAINS
          ! Use environment variable, since local iter_evGW is overwritten if evGW0 is invoked
          IF (mp2_env%ri_g0w0%iter_evGW > 1) THEN
             IF (unit_nr > 0) THEN
-               CALL cp_warn(__LOCATION__, &
-                            "BSE@evGW applies W0, i.e. screening with DFT energies! "// &
-                            "Use BSE@evGW0 to avoid this warning!")
+               CPWARN("BSE@evGW applies W0, i.e. screening with DFT energies! "// &
+                      "Use BSE@evGW0 to avoid this warning!")
             END IF
          END IF
          ! Create a copy of fm_mat_S for usage in BSE

@@ -151,10 +151,9 @@ CONTAINS
          CALL section_vals_val_get(metadyn_section, "MIN_NT_HILLS", i_val=meta_env%hills_env%min_nt_hills)
          IF (meta_env%hills_env%nt_hills <= 0) THEN
             meta_env%hills_env%min_nt_hills = meta_env%hills_env%nt_hills
-            CALL cp_warn(__LOCATION__, &
-                         "NT_HILLS has a value <= 0; "// &
-                         "Setting MIN_NT_HILLS to the same value! "// &
-                         "Overriding input specification!")
+            CPWARN("NT_HILLS has a value <= 0; "// &
+                   "Setting MIN_NT_HILLS to the same value! "// &
+                   "Overriding input specification!")
          END IF
          check = meta_env%hills_env%nt_hills >= meta_env%hills_env%min_nt_hills
          IF (.NOT. check) &
@@ -792,9 +791,8 @@ CONTAINS
                delta_s_history(1:n_colvar, i) = rvals
             END DO
          ELSE
-            CALL cp_warn(__LOCATION__, &
-                         "Section SPAWNED_HILLS_SCALE is not present! Setting the scales of the "// &
-                         "restarted hills according the parameters specified in the input file.")
+            CPWARN("Section SPAWNED_HILLS_SCALE is not present! Setting the scales of the "// &
+                   "restarted hills according the parameters specified in the input file.")
             DO i = 1, n_hills
                DO j = 1, n_colvar
                   delta_s_history(j, i) = colvars(i)%delta_s
@@ -816,9 +814,8 @@ CONTAINS
                ww_history(i) = rval
             END DO
          ELSE
-            CALL cp_warn(__LOCATION__, &
-                         "Section SPAWNED_HILLS_HEIGHT is not present! Setting the height of the"// &
-                         " restarted hills according the parameters specified in the input file. ")
+            CPWARN("Section SPAWNED_HILLS_HEIGHT is not present! Setting the height of the"// &
+                   " restarted hills according the parameters specified in the input file. ")
             ww_history = ww
          END IF
          !
@@ -837,9 +834,8 @@ CONTAINS
                   invdt_history(i) = rval
                END DO
             ELSE
-               CALL cp_warn(__LOCATION__, &
-                            "Section SPAWNED_HILLS_INVDT is not present! Restarting from standard"// &
-                            " metadynamics run i.e. setting 1/(Delta T) equal to zero. ")
+               CPWARN("Section SPAWNED_HILLS_INVDT is not present! Restarting from standard"// &
+                      " metadynamics run i.e. setting 1/(Delta T) equal to zero. ")
                invdt_history = 0._dp
             END IF
          ELSE

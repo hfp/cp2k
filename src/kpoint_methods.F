@@ -274,9 +274,8 @@ CONTAINS
          END DO ikloop
          IF (.NOT. spez) THEN
             ! Warning: real wfn might be wrong for this system
-            CALL cp_warn(__LOCATION__, &
-                         "A calculation using real wavefunctions is requested. "// &
-                         "We could not determine if the symmetry of the system allows real wavefunctions. ")
+            CPWARN("A calculation using real wavefunctions is requested. "// &
+                   "We could not determine if the symmetry of the system allows real wavefunctions. ")
          END IF
       END IF
 

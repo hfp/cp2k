@@ -741,8 +741,7 @@ CONTAINS
          IF ((poisson_params%solver /= pw_poisson_wavelet) .AND. &
              (poisson_params%solver /= pw_poisson_implicit)) THEN
             IF (ANY(my_cell%perd(1:3) /= poisson_params%periodic(1:3))) THEN
-               CALL cp_warn(__LOCATION__, &
-                            "The selected periodicities in the sections &CELL and &POISSON do not match")
+               CPWARN("The selected periodicities in the sections &CELL and &POISSON do not match")
             END IF
          END IF
       END IF

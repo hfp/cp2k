@@ -149,11 +149,10 @@ CONTAINS
       ! spline generation
       min_eps_spline_allowed = 20.0_dp*MAX(ff_type%max_energy, 10.0_dp)*EPSILON(0.0_dp)
       IF (ff_type%eps_spline < min_eps_spline_allowed) THEN
-         CALL cp_warn(__LOCATION__, &
-                      "Requested spline accuracy ("//TRIM(cp_to_string(ff_type%eps_spline))//" ) "// &
-                      "is smaller than the minimum value allowed ("//TRIM(cp_to_string(min_eps_spline_allowed))// &
-                      " ) with the present machine precision ("//TRIM(cp_to_string(EPSILON(0.0_dp)))//" ). "// &
-                      "New EPS_SPLINE value ("//TRIM(cp_to_string(min_eps_spline_allowed))//" ). ")
+         CPWARN("Requested spline accuracy ("//TRIM(cp_to_string(ff_type%eps_spline))//" ) "// &
+                "is smaller than the minimum value allowed ("//TRIM(cp_to_string(min_eps_spline_allowed))// &
+                " ) with the present machine precision ("//TRIM(cp_to_string(EPSILON(0.0_dp)))//" ). "// &
+                "New EPS_SPLINE value ("//TRIM(cp_to_string(min_eps_spline_allowed))//" ). ")
          ff_type%eps_spline = min_eps_spline_allowed
       END IF
       CALL section_vals_val_get(ff_section, "SHIFT_CUTOFF", l_val=ff_type%shift_cutoff)
@@ -1302,9 +1301,8 @@ CONTAINS
             p_inv(:, :) = 0.0_dp
             CALL invert_matrix(p, p_inv, eval_error)
             IF (eval_error >= 1.0E-8_dp) &
-               CALL cp_warn(__LOCATION__, &
-                            "The polynomial fit for the BUCK4RANGES potential is only accurate to "// &
-                            TRIM(cp_to_string(eval_error)))
+               CPWARN("The polynomial fit for the BUCK4RANGES potential is only accurate to "// &
+                      TRIM(cp_to_string(eval_error)))
             ! Get the 6 coefficients of the 5th-order polynomial -> x(1:6)
             ! and the 4 coefficients of the 3rd-order polynomial -> x(7:10)
             x(:) = MATMUL(p_inv(:, :), v(:))
@@ -2231,8 +2229,8 @@ CONTAINS
          ! Modify parameterisation for OPLS case
          IF (torsion_kind(start + isec) .EQ. do_ff_opls) THEN
             IF (torsion_phi0(start + isec) .NE. 0.0_dp) THEN
-               CALL cp_warn(__LOCATION__, "PHI0 parameter was non-zero "// &
-                            "for an OPLS-type TORSION.  It will be ignored.")
+               CPWARN("PHI0 parameter was non-zero "// &
+                      "for an OPLS-type TORSION.  It will be ignored.")
             END IF
             IF (MODULO(torsion_m(start + isec), 2) .EQ. 0) THEN
                ! For even M, negate the cosine using a Pi phase factor

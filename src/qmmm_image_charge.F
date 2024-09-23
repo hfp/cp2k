@@ -587,10 +587,9 @@ CONTAINS
                                         ipiv=qs_env%ipiv, qs_env=qs_env, qmmm_env=qmmm_env)
             qmmm_env%image_charge_pot%state_image_matrix = calc_once_done
             IF (qmmm_env%center_qm_subsys0) &
-               CALL cp_warn(__LOCATION__, &
-                            "The image atoms are fully "// &
-                            "constrained and the image matrix is only calculated once. "// &
-                            "To be safe, set CENTER to NEVER ")
+               CPWARN("The image atoms are fully "// &
+                      "constrained and the image matrix is only calculated once. "// &
+                      "To be safe, set CENTER to NEVER ")
          CASE (calc_once_done)
             ! do nothing image matrix is stored
          CASE DEFAULT

@@ -1737,8 +1737,7 @@ CONTAINS
       ASSOCIATE (storage => matrix%mm_storage)
          IF (PRESENT(warn)) THEN
             IF (warn .AND. matrix%do_batched == 3) THEN
-               CALL cp_warn(__LOCATION__, &
-                            "Optimizations for batched multiplication are disabled because of conflicting data access")
+               CPWARN("Optimizations for batched multiplication are disabled because of conflicting data access")
             END IF
          END IF
          IF (storage%batched_out .AND. matrix%do_batched == 3) THEN

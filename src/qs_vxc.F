@@ -617,17 +617,17 @@ CONTAINS
       vdW_nl = (vdw == xc_vdw_fun_nonloc)
       IF (PRESENT(xc_ener)) THEN
          IF (tau_r_valid) THEN
-            CALL cp_warn(__LOCATION__, "Tau contribution will not be correctly handled")
+            CPWARN("Tau contribution will not be correctly handled")
          END IF
       END IF
       IF (vdW_nl) THEN
-         CALL cp_warn(__LOCATION__, "vdW functional contribution will be ignored")
+         CPWARN("vdW functional contribution will be ignored")
       END IF
 
       CALL pw_env_get(pw_env, xc_pw_pool=xc_pw_pool, auxbas_pw_pool=auxbas_pw_pool)
       uf_grid = .NOT. pw_grid_compare(auxbas_pw_pool%pw_grid, xc_pw_pool%pw_grid)
       IF (uf_grid) THEN
-         CALL cp_warn(__LOCATION__, "Fine grid option not possible with local energy")
+         CPWARN("Fine grid option not possible with local energy")
          CPABORT("Fine Grid in Local Energy")
       END IF
 

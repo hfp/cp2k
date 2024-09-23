@@ -118,9 +118,8 @@ CONTAINS
 
       is_large = ABS(MINVAL(all_occ)) > smear%eps_fermi_dirac
       IF (is_large) &
-         CALL cp_warn(__LOCATION__, &
-                      "Fermi-Dirac smearing includes the last MO => "// &
-                      "Add more MOs for proper smearing.")
+         CPWARN("Fermi-Dirac smearing includes the last MO => "// &
+                "Add more MOs for proper smearing.")
 
       ! check that the total electron count is accurate
       is_large = (ABS(all_nelec - accurate_sum(all_occ(:))) > smear%eps_fermi_dirac*all_nelec)
@@ -229,12 +228,11 @@ CONTAINS
       IF (smear%do_smear) THEN
          IF (smear%fixed_mag_mom < 0.0_dp) THEN
             IF (PRESENT(tot_zeff_corr)) THEN
-               CALL cp_warn(__LOCATION__, &
-                            "CORE_CORRECTION /= 0.0 might cause the cell to charge up "// &
-                            "that will lead to application of different background "// &
-                            "correction compared to the reference system. "// &
-                            "Use FIXED_MAGNETIC_MOMENT >= 0.0 if using SMEAR keyword "// &
-                            "to correct the electron density")
+               CPWARN("CORE_CORRECTION /= 0.0 might cause the cell to charge up "// &
+                      "that will lead to application of different background "// &
+                      "correction compared to the reference system. "// &
+                      "Use FIXED_MAGNETIC_MOMENT >= 0.0 if using SMEAR keyword "// &
+                      "to correct the electron density")
             END IF
             IF (smear%fixed_mag_mom /= -1.0_dp) THEN
                CPASSERT(.NOT. (PRESENT(eval_deriv)))
@@ -282,12 +280,11 @@ CONTAINS
       multiplicity_old = mo_array(1)%nelectron - mo_array(2)%nelectron + 1
 
       IF (mo_array(1)%nelectron >= mo_array(1)%nmo) &
-         CALL cp_warn(__LOCATION__, &
-                      "All alpha MOs are occupied. Add more alpha MOs to "// &
-                      "allow for a higher multiplicity")
+         CPWARN("All alpha MOs are occupied. Add more alpha MOs to "// &
+                "allow for a higher multiplicity")
       IF ((mo_array(2)%nelectron >= mo_array(2)%nmo) .AND. (mo_array(2)%nelectron /= mo_array(1)%nelectron)) &
-         CALL cp_warn(__LOCATION__, "All beta MOs are occupied. Add more beta MOs to "// &
-                      "allow for a lower multiplicity")
+         CPWARN("All beta MOs are occupied. Add more beta MOs to "// &
+                "allow for a lower multiplicity")
 
       eigval_a => mo_array(1)%eigenvalues
       eigval_b => mo_array(2)%eigenvalues
@@ -307,9 +304,8 @@ CONTAINS
          END IF
          IF (lumo_a > mo_array(1)%nmo) THEN
             IF (i /= nelec) &
-               CALL cp_warn(__LOCATION__, &
-                            "All alpha MOs are occupied. Add more alpha MOs to "// &
-                            "allow for a higher multiplicity")
+               CPWARN("All alpha MOs are occupied. Add more alpha MOs to "// &
+                      "allow for a higher multiplicity")
             IF (i < nelec) THEN
                lumo_a = lumo_a - 1
                lumo_b = lumo_b + 1
@@ -317,9 +313,8 @@ CONTAINS
          END IF
          IF (lumo_b > mo_array(2)%nmo) THEN
             IF (lumo_b < lumo_a) &
-               CALL cp_warn(__LOCATION__, &
-                            "All beta MOs are occupied. Add more beta MOs to "// &
-                            "allow for a lower multiplicity")
+               CPWARN("All beta MOs are occupied. Add more beta MOs to "// &
+                      "allow for a lower multiplicity")
             IF (i < nelec) THEN
                lumo_a = lumo_a + 1
                lumo_b = lumo_b - 1
@@ -331,12 +326,11 @@ CONTAINS
       mo_array(2)%homo = lumo_b - 1
 
       IF (mo_array(2)%homo > mo_array(1)%homo) THEN
-         CALL cp_warn(__LOCATION__, &
-                      "More beta ("// &
-                      TRIM(ADJUSTL(cp_to_string(mo_array(2)%homo)))// &
-                      ") than alpha ("// &
-                      TRIM(ADJUSTL(cp_to_string(mo_array(1)%homo)))// &
-                      ") MOs are occupied. Resorting to low spin state")
+         CPWARN("More beta ("// &
+                TRIM(ADJUSTL(cp_to_string(mo_array(2)%homo)))// &
+                ") than alpha ("// &
+                TRIM(ADJUSTL(cp_to_string(mo_array(1)%homo)))// &
+                ") MOs are occupied. Resorting to low spin state")
          mo_array(1)%homo = nelec/2 + MODULO(nelec, 2)
          mo_array(2)%homo = nelec/2
       END IF
@@ -346,10 +340,9 @@ CONTAINS
       multiplicity_new = mo_array(1)%nelectron - mo_array(2)%nelectron + 1
 
       IF (multiplicity_new /= multiplicity_old) &
-         CALL cp_warn(__LOCATION__, &
-                      "Multiplicity changed from "// &
-                      TRIM(ADJUSTL(cp_to_string(multiplicity_old)))//" to "// &
-                      TRIM(ADJUSTL(cp_to_string(multiplicity_new))))
+         CPWARN("Multiplicity changed from "// &
+                TRIM(ADJUSTL(cp_to_string(multiplicity_old)))//" to "// &
+                TRIM(ADJUSTL(cp_to_string(multiplicity_new))))
 
       IF (PRESENT(eval_deriv)) THEN
          CALL set_mo_occupation_1(mo_array(1), smear=smear, eval_deriv=eval_deriv)
@@ -589,9 +582,8 @@ CONTAINS
             END DO
             is_large = ABS(MINVAL(mo_set%occupation_numbers)) > smear%eps_fermi_dirac
             IF (is_large) &
-               CALL cp_warn(__LOCATION__, &
-                            "Fermi-Dirac smearing includes the last MO => "// &
-                            "Add more MOs for proper smearing.")
+               CPWARN("Fermi-Dirac smearing includes the last MO => "// &
+                      "Add more MOs for proper smearing.")
 
             ! check that the total electron count is accurate
             is_large = (ABS(nelec - accurate_sum(mo_set%occupation_numbers(:))) > smear%eps_fermi_dirac*nelec)
@@ -609,9 +601,8 @@ CONTAINS
 
             e2 = mo_set%eigenvalues(mo_set%homo) + 0.5_dp*smear%window_size
             IF (e2 >= mo_set%eigenvalues(nmo)) &
-               CALL cp_warn(__LOCATION__, &
-                            "Energy window for smearing includes the last MO => "// &
-                            "Add more MOs for proper smearing.")
+               CPWARN("Energy window for smearing includes the last MO => "// &
+                      "Add more MOs for proper smearing.")
 
             ! Find the lowest fractional occupied MO (LFOMO)
             DO imo = i_first, nomo

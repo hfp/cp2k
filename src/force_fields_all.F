@@ -1887,10 +1887,9 @@ CONTAINS
          only_qm = qmmm_ff_precond_only_qm(id1=atmname, is_link=is_link_atom)
          CALL uppercase(atmname)
          IF (charge /= -HUGE(0.0_dp)) &
-            CALL cp_warn(__LOCATION__, &
-                         "The charge for atom index ("//cp_to_string(iatom)//") and atom name ("// &
-                         TRIM(atmname)//") was already defined. The charge associated to this kind"// &
-                         " will be set to an uninitialized value and only the atom specific charge will be used! ")
+            CPWARN("The charge for atom index ("//cp_to_string(iatom)//") and atom name ("// &
+                   TRIM(atmname)//") was already defined. The charge associated to this kind"// &
+                   " will be set to an uninitialized value and only the atom specific charge will be used! ")
          charge = -HUGE(0.0_dp)
 
          ! Check if the potential really requires the charge definition..
@@ -2022,9 +2021,8 @@ CONTAINS
                   charge = 0.0_dp
                   IF (found) THEN
                      IF (found) &
-                        CALL cp_warn(__LOCATION__, &
-                                     "CORE-SHELL model defined for KIND ("//TRIM(atmname)//")"// &
-                                     " ignoring charge definition! ")
+                        CPWARN("CORE-SHELL model defined for KIND ("//TRIM(atmname)//")"// &
+                               " ignoring charge definition! ")
                   ELSE
                      found = .TRUE.
                   END IF
@@ -2293,10 +2291,9 @@ CONTAINS
 
                   END DO
                   IF (.NOT. found) &
-                     CALL cp_warn(__LOCATION__, &
-                                  "Atom "//TRIM(my_atm_name2)// &
-                                  " in damping parameters for atom "//TRIM(my_atm_name1)// &
-                                  " not found! ")
+                     CPWARN("Atom "//TRIM(my_atm_name2)// &
+                            " in damping parameters for atom "//TRIM(my_atm_name1)// &
+                            " not found! ")
                END IF
             END DO
 
@@ -2721,17 +2718,15 @@ CONTAINS
                      IF (ff_type%multiple_potential) THEN
                         CALL pair_potential_single_add(inp_info%nonbonded14%pot(k)%pot, pot)
                         IF (found) &
-                           CALL cp_warn(__LOCATION__, &
-                                        "Multiple ONFO declaration: "//TRIM(name_atm_a)// &
-                                        " and "//TRIM(name_atm_b)//" ADDING! ")
+                           CPWARN("Multiple ONFO declaration: "//TRIM(name_atm_a)// &
+                                  " and "//TRIM(name_atm_b)//" ADDING! ")
                         potparm_nonbond14%pot(i, j)%pot => pot
                         potparm_nonbond14%pot(j, i)%pot => pot
                      ELSE
                         CALL pair_potential_single_copy(inp_info%nonbonded14%pot(k)%pot, pot)
                         IF (found) &
-                           CALL cp_warn(__LOCATION__, &
-                                        "Multiple ONFO declarations: "//TRIM(name_atm_a)// &
-                                        " and "//TRIM(name_atm_b)//" OVERWRITING! ")
+                           CPWARN("Multiple ONFO declarations: "//TRIM(name_atm_a)// &
+                                  " and "//TRIM(name_atm_b)//" OVERWRITING! ")
                      END IF
                      IF (iw > 0) WRITE (iw, *) "    FOUND ", TRIM(name_atm_a), " ", TRIM(name_atm_b)
                      found = .TRUE.
@@ -2757,17 +2752,15 @@ CONTAINS
                            IF (qmmm_env%multiple_potential) THEN
                               CALL pair_potential_single_add(qmmm_env%inp_info%nonbonded14%pot(k)%pot, pot)
                               IF (found) &
-                                 CALL cp_warn(__LOCATION__, &
-                                              "Multiple ONFO declaration: "//TRIM(name_atm_a)// &
-                                              " and "//TRIM(name_atm_b)//" ADDING QM/MM forcefield specifications! ")
+                                 CPWARN("Multiple ONFO declaration: "//TRIM(name_atm_a)// &
+                                        " and "//TRIM(name_atm_b)//" ADDING QM/MM forcefield specifications! ")
                               potparm_nonbond14%pot(i, j)%pot => pot
                               potparm_nonbond14%pot(j, i)%pot => pot
                            ELSE
                               CALL pair_potential_single_copy(qmmm_env%inp_info%nonbonded14%pot(k)%pot, pot)
                               IF (found) &
-                                 CALL cp_warn(__LOCATION__, &
-                                              "Multiple ONFO declaration: "//TRIM(name_atm_a)// &
-                                              " and "//TRIM(name_atm_b)//" OVERWRITING QM/MM forcefield specifications! ")
+                                 CPWARN("Multiple ONFO declaration: "//TRIM(name_atm_a)// &
+                                        " and "//TRIM(name_atm_b)//" OVERWRITING QM/MM forcefield specifications! ")
                            END IF
                            IF (iw > 0) WRITE (iw, *) "    FOUND ", TRIM(name_atm_a), &
                               " ", TRIM(name_atm_b)
@@ -2978,17 +2971,15 @@ CONTAINS
                      IF (ff_type%multiple_potential) THEN
                         CALL pair_potential_single_add(inp_info%nonbonded%pot(k)%pot, pot)
                         IF (found) &
-                           CALL cp_warn(__LOCATION__, &
-                                        "Multiple NONBONDED declaration: "//TRIM(name_atm_a)// &
-                                        " and "//TRIM(name_atm_b)//" ADDING! ")
+                           CPWARN("Multiple NONBONDED declaration: "//TRIM(name_atm_a)// &
+                                  " and "//TRIM(name_atm_b)//" ADDING! ")
                         potparm_nonbond%pot(i, j)%pot => pot
                         potparm_nonbond%pot(j, i)%pot => pot
                      ELSE
                         CALL pair_potential_single_copy(inp_info%nonbonded%pot(k)%pot, pot)
                         IF (found) &
-                           CALL cp_warn(__LOCATION__, &
-                                        "Multiple NONBONDED declaration: "//TRIM(name_atm_a)// &
-                                        " and "//TRIM(name_atm_b)//" OVERWRITING! ")
+                           CPWARN("Multiple NONBONDED declaration: "//TRIM(name_atm_a)// &
+                                  " and "//TRIM(name_atm_b)//" OVERWRITING! ")
                      END IF
                      IF (iw > 0) WRITE (iw, *) "    FOUND ", TRIM(name_atm_a), " ", TRIM(name_atm_b)
                      found = .TRUE.
@@ -3011,17 +3002,15 @@ CONTAINS
                         IF (ff_type%multiple_potential) THEN
                            CALL pair_potential_single_add(inp_info%nonbonded%pot(k)%pot, pot)
                            IF (found) &
-                              CALL cp_warn(__LOCATION__, &
-                                           "Multiple NONBONDED declaration: "//TRIM(name_atm_a)// &
-                                           " and "//TRIM(name_atm_b)//" ADDING! ")
+                              CPWARN("Multiple NONBONDED declaration: "//TRIM(name_atm_a)// &
+                                     " and "//TRIM(name_atm_b)//" ADDING! ")
                            potparm_nonbond%pot(i, j)%pot => pot
                            potparm_nonbond%pot(j, i)%pot => pot
                         ELSE
                            CALL pair_potential_single_copy(inp_info%nonbonded%pot(k)%pot, pot)
                            IF (found) &
-                              CALL cp_warn(__LOCATION__, &
-                                           "Multiple NONBONDED declaration: "//TRIM(name_atm_a)// &
-                                           " and "//TRIM(name_atm_b)//" OVERWRITING! ")
+                              CPWARN("Multiple NONBONDED declaration: "//TRIM(name_atm_a)// &
+                                     " and "//TRIM(name_atm_b)//" OVERWRITING! ")
                         END IF
                         IF (iw > 0) WRITE (iw, *) "    FOUND (one WILDCARD)", TRIM(name_atm_a), " ", TRIM(name_atm_b)
                         found = .TRUE.
@@ -3041,17 +3030,15 @@ CONTAINS
                      IF (ff_type%multiple_potential) THEN
                         CALL pair_potential_single_add(inp_info%nonbonded%pot(k)%pot, pot)
                         IF (found) &
-                           CALL cp_warn(__LOCATION__, &
-                                        "Multiple NONBONDED declaration: "//TRIM(name_atm_a)// &
-                                        " and "//TRIM(name_atm_b)//" ADDING! ")
+                           CPWARN("Multiple NONBONDED declaration: "//TRIM(name_atm_a)// &
+                                  " and "//TRIM(name_atm_b)//" ADDING! ")
                         potparm_nonbond%pot(i, j)%pot => pot
                         potparm_nonbond%pot(j, i)%pot => pot
                      ELSE
                         CALL pair_potential_single_copy(inp_info%nonbonded%pot(k)%pot, pot)
                         IF (found) &
-                           CALL cp_warn(__LOCATION__, &
-                                        "Multiple NONBONDED declaration: "//TRIM(name_atm_a)// &
-                                        " and "//TRIM(name_atm_b)//" OVERWRITING! ")
+                           CPWARN("Multiple NONBONDED declaration: "//TRIM(name_atm_a)// &
+                                  " and "//TRIM(name_atm_b)//" OVERWRITING! ")
                      END IF
                      IF (iw > 0) WRITE (iw, *) "    FOUND (both WILDCARDS)", TRIM(name_atm_a), " ", TRIM(name_atm_b)
                      found = .TRUE.
@@ -3078,17 +3065,15 @@ CONTAINS
                            IF (qmmm_env%multiple_potential) THEN
                               CALL pair_potential_single_add(qmmm_env%inp_info%nonbonded%pot(k)%pot, pot)
                               IF (found) &
-                                 CALL cp_warn(__LOCATION__, &
-                                              "Multiple NONBONDED declaration: "//TRIM(name_atm_a)// &
-                                              " and "//TRIM(name_atm_b)//" ADDING QM/MM forcefield specifications! ")
+                                 CPWARN("Multiple NONBONDED declaration: "//TRIM(name_atm_a)// &
+                                        " and "//TRIM(name_atm_b)//" ADDING QM/MM forcefield specifications! ")
                               potparm_nonbond%pot(i, j)%pot => pot
                               potparm_nonbond%pot(j, i)%pot => pot
                            ELSE
                               CALL pair_potential_single_copy(qmmm_env%inp_info%nonbonded%pot(k)%pot, pot)
                               IF (found) &
-                                 CALL cp_warn(__LOCATION__, &
-                                              "Multiple NONBONDED declaration: "//TRIM(name_atm_a)// &
-                                              " and "//TRIM(name_atm_b)//" OVERWRITING QM/MM forcefield specifications! ")
+                                 CPWARN("Multiple NONBONDED declaration: "//TRIM(name_atm_a)// &
+                                        " and "//TRIM(name_atm_b)//" OVERWRITING QM/MM forcefield specifications! ")
                            END IF
                            IF (iw > 0) WRITE (iw, *) "    FOUND ", TRIM(name_atm_a), " ", TRIM(name_atm_b)
                            found = .TRUE.

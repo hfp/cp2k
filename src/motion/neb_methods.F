@@ -126,12 +126,11 @@ CONTAINS
       row_force = (proc_dist_type == do_rep_blocked)
       nrep = MAX(1, para_env%num_pe/prep)
       IF (nrep*prep /= para_env%num_pe .AND. output_unit > 0) THEN
-         CALL cp_warn(__LOCATION__, &
-                      "Number of totally requested processors ("//TRIM(ADJUSTL(cp_to_string(para_env%num_pe)))//") "// &
-                      "is not compatible with the number of processors requested per replica ("// &
-                      TRIM(ADJUSTL(cp_to_string(prep)))//") and the number of replicas ("// &
-                      TRIM(ADJUSTL(cp_to_string(nrep)))//") . ["// &
-                      TRIM(ADJUSTL(cp_to_string(para_env%num_pe - nrep*prep)))//"] processors will be wasted!")
+         CPWARN("Number of totally requested processors ("//TRIM(ADJUSTL(cp_to_string(para_env%num_pe)))//") "// &
+                "is not compatible with the number of processors requested per replica ("// &
+                TRIM(ADJUSTL(cp_to_string(prep)))//") and the number of replicas ("// &
+                TRIM(ADJUSTL(cp_to_string(nrep)))//") . ["// &
+                TRIM(ADJUSTL(cp_to_string(para_env%num_pe - nrep*prep)))//"] processors will be wasted!")
       END IF
       force_env_section => section_vals_get_subs_vals(input, "FORCE_EVAL")
       ! Create Replica Environments

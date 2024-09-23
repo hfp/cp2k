@@ -2427,7 +2427,7 @@ CONTAINS
 !
 !         ! Check what works
 !         IF (dft_control%do_admm) THEN
-!            CALL cp_warn(__LOCATION__, "Energy correction with hybrid functional does not use ADMM.")
+!            CPWARN("Energy correction with hybrid functional does not use ADMM.")
 !         END IF
 !
 !         adiabatic_rescaling_section => section_vals_get_subs_vals(ec_section, "XC%ADIABATIC_RESCALING")

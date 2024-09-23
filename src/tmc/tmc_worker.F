@@ -398,20 +398,18 @@ CONTAINS
                      flag = .TRUE.
                      i1 = 0
                      i2 = ana_restart_conf(itmp)
-                     CALL cp_warn(__LOCATION__, &
-                                  "analysis old trajectory up to "// &
-                                  "elem "//cp_to_string(ana_restart_conf(itmp))// &
-                                  ". Read trajectory file.")
+                     CPWARN("analysis old trajectory up to "// &
+                            "elem "//cp_to_string(ana_restart_conf(itmp))// &
+                            ". Read trajectory file.")
                   ELSE IF (ASSOCIATED(ana_list(itmp)%temp%last_elem)) THEN
                      IF (.NOT. (ana_list(itmp)%temp%last_elem%nr .EQ. ana_restart_conf(itmp))) THEN
                         flag = .TRUE.
                         i1 = ana_list(itmp)%temp%last_elem%nr
                         i2 = ana_restart_conf(itmp)
-                        CALL cp_warn(__LOCATION__, &
-                                     "analysis restart with the incorrect configuration "// &
-                                     "TMC "//cp_to_string(ana_restart_conf(itmp))// &
-                                     " ana "//cp_to_string(ana_list(itmp)%temp%last_elem%nr)// &
-                                     ". REread trajectory file.")
+                        CPWARN("analysis restart with the incorrect configuration "// &
+                               "TMC "//cp_to_string(ana_restart_conf(itmp))// &
+                               " ana "//cp_to_string(ana_list(itmp)%temp%last_elem%nr)// &
+                               ". REread trajectory file.")
                      END IF
                   END IF
                   IF (flag) THEN

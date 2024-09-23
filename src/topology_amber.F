@@ -232,9 +232,8 @@ CONTAINS
          setup_velocities = .TRUE.
          IF ((my_end) .AND. (j /= natom - MOD(natom, 2) + 1)) THEN
             IF (j /= natom) &
-               CALL cp_warn(__LOCATION__, &
-                            "No VELOCITY information found in CRD file. Ignoring BOX information. "// &
-                            "Please provide the BOX information directly from the main CP2K input! ")
+               CPWARN("No VELOCITY information found in CRD file. Ignoring BOX information. "// &
+                      "Please provide the BOX information directly from the main CP2K input! ")
             setup_velocities = .FALSE.
          ELSE IF (MOD(natom, 2) /= 0) THEN
             ! In case let's handle the last atom
@@ -260,9 +259,8 @@ CONTAINS
             CPWARN("BOX information missing in CRD file. ")
       ELSE
          IF (j /= natom) &
-            CALL cp_warn(__LOCATION__, &
-                         "BOX information found in CRD file. They will be ignored. "// &
-                         "Please provide the BOX information directly from the main CP2K input!")
+            CPWARN("BOX information found in CRD file. They will be ignored. "// &
+                   "Please provide the BOX information directly from the main CP2K input!")
       END IF
       CALL parser_release(parser)
       CALL cp_print_key_finished_output(iw, logger, subsys_section, &

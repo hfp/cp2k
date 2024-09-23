@@ -372,8 +372,8 @@ CONTAINS
          IF (periodic) THEN
             CALL get_cell(cell)
             IF (SUM(cell%perd) == 0) THEN
-               CALL cp_warn(__LOCATION__, "Writing of periodic cell information"// &
-                            " requested in input, but system is not periodic, ignoring request.")
+               CPWARN("Writing of periodic cell information"// &
+                      " requested in input, but system is not periodic, ignoring request.")
             ELSE
                WRITE (iwfx, "(A)") "<Number of Translation Vectors>"
                WRITE (iwfx, "(I3)") SUM(cell%perd)

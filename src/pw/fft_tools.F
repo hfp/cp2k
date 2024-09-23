@@ -346,8 +346,7 @@ CONTAINS
          CALL fft_1dm(fft_plan, zin, zout, scale, stat)
          CALL fft_destroy_plan(fft_plan)
       ELSE
-         CALL cp_warn(__LOCATION__, &
-                      "FFT library in use cannot handle transformation of an arbitrary length.")
+         CPWARN("FFT library in use cannot handle transformation of an arbitrary length.")
          stat = 1
       END IF
 

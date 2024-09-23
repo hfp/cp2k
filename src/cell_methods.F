@@ -324,18 +324,16 @@ CONTAINS
       END IF
       check = ((cell_read_a .EQV. cell_read_b) .AND. (cell_read_b .EQV. cell_read_c))
       IF (.NOT. check) &
-         CALL cp_warn(__LOCATION__, &
-                      "Cell Information provided through vectors A, B and C. Not all three "// &
-                      "vectors were provided! Cell setup may be incomplete!")
+         CPWARN("Cell Information provided through vectors A, B and C. Not all three "// &
+                "vectors were provided! Cell setup may be incomplete!")
 
       ! Very last option.. Trying to read cell info from ABC keyword
       CALL section_vals_val_get(cell_section, "ABC", explicit=cell_read_abc)
       IF (cell_read_abc) THEN
          check = (cell_read_a .OR. cell_read_b .OR. cell_read_c)
          IF (check) &
-            CALL cp_warn(__LOCATION__, &
-                         "Cell Information provided through vectors A, B and C in conjunction with ABC."// &
-                         " The definition of the ABC keyword will override the one provided by A,B and C.")
+            CPWARN("Cell Information provided through vectors A, B and C in conjunction with ABC."// &
+                   " The definition of the ABC keyword will override the one provided by A,B and C.")
          cell%hmat = 0.0_dp
          CALL section_vals_val_get(cell_section, "ABC", r_vals=cell_par)
          CALL section_vals_val_get(cell_section, "ALPHA_BETA_GAMMA", r_vals=cell_angles)
@@ -577,10 +575,9 @@ CONTAINS
       explicit = explicit .OR. (n_rep == 1)
       ! Possibly print a warning
       IF (explicit) &
-         CALL cp_warn(__LOCATION__, &
-                      "Cell specification (A,B,C or ABC) provided together with the external "// &
-                      "cell setup! Ignoring (A,B,C or ABC) and proceeding with info read from the "// &
-                      "external file! ")
+         CPWARN("Cell specification (A,B,C or ABC) provided together with the external "// &
+                "cell setup! Ignoring (A,B,C or ABC) and proceeding with info read from the "// &
+                "external file! ")
       ! Copy cell information in the A, B, C fields..(we may need them later on..)
       ALLOCATE (cell_par(3))
       cell_par = hmat(:, 1)

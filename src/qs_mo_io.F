@@ -786,13 +786,11 @@ CONTAINS
 
             nmo = MIN(nmo, nmo_read)
             IF (nmo_read < nmo) &
-               CALL cp_warn(__LOCATION__, &
-                            "The number of MOs on the restart unit is smaller than the number of "// &
-                            "the allocated MOs. The MO set will be padded with zeros!")
+               CPWARN("The number of MOs on the restart unit is smaller than the number of "// &
+                      "the allocated MOs. The MO set will be padded with zeros!")
             IF (nmo_read > nmo) &
-               CALL cp_warn(__LOCATION__, &
-                            "The number of MOs on the restart unit is greater than the number of "// &
-                            "the allocated MOs. The read MO set will be truncated!")
+               CPWARN("The number of MOs on the restart unit is greater than the number of "// &
+                      "the allocated MOs. The read MO set will be truncated!")
 
             READ (rst_unit) eig_read(1:nmo_read), occ_read(1:nmo_read)
             mos(ispin)%eigenvalues(1:nmo) = eig_read(1:nmo)
@@ -803,9 +801,8 @@ CONTAINS
             mos(ispin)%lfomo = lfomo_read
             IF (homo_read > nmo) THEN
                IF (nelectron_read == mos(ispin)%nelectron) THEN
-                  CALL cp_warn(__LOCATION__, &
-                               "The number of occupied MOs on the restart unit is larger than "// &
-                               "the allocated MOs. The read MO set will be truncated and the occupation numbers recalculated!")
+                  CPWARN("The number of occupied MOs on the restart unit is larger than "// &
+                         "the allocated MOs. The read MO set will be truncated and the occupation numbers recalculated!")
                   CALL set_mo_occupation(mo_set=mos(ispin))
                ELSE
                   ! can not make this a warning i.e. homo must be smaller than nmo

@@ -144,19 +144,16 @@ CONTAINS
          CALL section_vals_val_get(xc_section, "tau_cutoff", r_val=tau_cut)
          ! Perform numerical stability checks and possibly correct the issues
          IF (density_cut <= EPSILON(0.0_dp)*100.0_dp) &
-            CALL cp_warn(__LOCATION__, &
-                         "DENSITY_CUTOFF lower than 100*EPSILON, where EPSILON is the machine precision. "// &
-                         "This may lead to numerical problems. Setting up shake_tol to 100*EPSILON! ")
+            CPWARN("DENSITY_CUTOFF lower than 100*EPSILON, where EPSILON is the machine precision. "// &
+                   "This may lead to numerical problems. Setting up shake_tol to 100*EPSILON! ")
          density_cut = MAX(EPSILON(0.0_dp)*100.0_dp, density_cut)
          IF (gradient_cut <= EPSILON(0.0_dp)*100.0_dp) &
-            CALL cp_warn(__LOCATION__, &
-                         "GRADIENT_CUTOFF lower than 100*EPSILON, where EPSILON is the machine precision. "// &
-                         "This may lead to numerical problems. Setting up shake_tol to 100*EPSILON! ")
+            CPWARN("GRADIENT_CUTOFF lower than 100*EPSILON, where EPSILON is the machine precision. "// &
+                   "This may lead to numerical problems. Setting up shake_tol to 100*EPSILON! ")
          gradient_cut = MAX(EPSILON(0.0_dp)*100.0_dp, gradient_cut)
          IF (tau_cut <= EPSILON(0.0_dp)*100.0_dp) &
-            CALL cp_warn(__LOCATION__, &
-                         "TAU_CUTOFF lower than 100*EPSILON, where EPSILON is the machine precision. "// &
-                         "This may lead to numerical problems. Setting up shake_tol to 100*EPSILON! ")
+            CPWARN("TAU_CUTOFF lower than 100*EPSILON, where EPSILON is the machine precision. "// &
+                   "This may lead to numerical problems. Setting up shake_tol to 100*EPSILON! ")
          tau_cut = MAX(EPSILON(0.0_dp)*100.0_dp, tau_cut)
          CALL section_vals_val_set(xc_section, "density_cutoff", r_val=density_cut)
          CALL section_vals_val_set(xc_section, "gradient_cutoff", r_val=gradient_cut)
@@ -320,17 +317,12 @@ CONTAINS
          ! check for double assignments
          SELECT CASE (admmtype)
          CASE (admm2_type)
-            IF (exopt2) CALL cp_warn(__LOCATION__, &
-                                     "Value of ADMM_PURIFICATION_METHOD keyword will be overwritten with ADMM_TYPE selections.")
-            IF (exopt3) CALL cp_warn(__LOCATION__, &
-                                     "Value of EXCH_SCALING_MODEL keyword will be overwritten with ADMM_TYPE selections.")
+            IF (exopt2) CPWARN("Value of ADMM_PURIFICATION_METHOD keyword will be overwritten with ADMM_TYPE selections.")
+            IF (exopt3) CPWARN("Value of EXCH_SCALING_MODEL keyword will be overwritten with ADMM_TYPE selections.")
          CASE (admm1_type, admms_type, admmp_type, admmq_type)
-            IF (exopt1) CALL cp_warn(__LOCATION__, &
-                                     "Value of METHOD keyword will be overwritten with ADMM_TYPE selections.")
-            IF (exopt2) CALL cp_warn(__LOCATION__, &
-                                     "Value of METHOD keyword will be overwritten with ADMM_TYPE selections.")
-            IF (exopt3) CALL cp_warn(__LOCATION__, &
-                                     "Value of EXCH_SCALING_MODEL keyword will be overwritten with ADMM_TYPE selections.")
+            IF (exopt1) CPWARN("Value of METHOD keyword will be overwritten with ADMM_TYPE selections.")
+            IF (exopt2) CPWARN("Value of METHOD keyword will be overwritten with ADMM_TYPE selections.")
+            IF (exopt3) CPWARN("Value of EXCH_SCALING_MODEL keyword will be overwritten with ADMM_TYPE selections.")
          END SELECT
 
          !    In the case of charge-constrained projection (e.g. according to Merlot),
@@ -1009,9 +1001,8 @@ CONTAINS
                                    i_val=qs_control%se_control%integral_screening)
          IF (qs_control%method_id == do_method_pnnl) THEN
             IF (qs_control%se_control%integral_screening /= do_se_IS_slater) &
-               CALL cp_warn(__LOCATION__, &
-                            "PNNL semi-empirical parameterization supports only the Slater type "// &
-                            "integral scheme. Revert to Slater and continue the calculation.")
+               CPWARN("PNNL semi-empirical parameterization supports only the Slater type "// &
+                      "integral scheme. Revert to Slater and continue the calculation.")
             qs_control%se_control%integral_screening = do_se_IS_slater
          END IF
          ! Global Arrays variable

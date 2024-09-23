@@ -177,14 +177,14 @@ CONTAINS
       minor = spg_get_minor_version()
       micro = spg_get_micro_version()
       IF (major == 0) THEN
-         CALL cp_warn(__LOCATION__, "Symmetry library SPGLIB not available")
+         CPWARN("Symmetry library SPGLIB not available")
          spglib = .FALSE.
       ELSE
          spglib = .TRUE.
          CALL cite_reference(Togo2018)
          ierr = spg_get_international(csym%international_symbol, TRANSPOSE(hmat), scoor, types, nat, delta)
          IF (ierr == 0) THEN
-            CALL cp_warn(__LOCATION__, "Symmetry Library SPGLIB failed")
+            CPWARN("Symmetry Library SPGLIB failed")
             spglib = .FALSE.
          ELSE
             nop = spg_get_multiplicity(TRANSPOSE(hmat), scoor, types, nat, delta)

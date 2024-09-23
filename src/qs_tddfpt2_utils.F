@@ -631,9 +631,8 @@ CONTAINS
                "-------------------------------------------------------------------------------"
          END IF
 
-         CALL cp_warn(__LOCATION__, &
-                      "Orbital energy correction potential is an experimental feature. "// &
-                      "Use it with extreme care")
+         CPWARN("Orbital energy correction potential is an experimental feature. "// &
+                "Use it with extreme care")
 
          hfx_section => section_vals_get_subs_vals(qs_env%input, "DFT%XC%HF")
          CALL section_vals_get(hfx_section, explicit=do_hfx)

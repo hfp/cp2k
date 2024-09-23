@@ -798,9 +798,8 @@ CONTAINS
       MARK_USED(qs_env)
       MARK_USED(rspace_pw)
 
-      CALL cp_warn(__LOCATION__, &
-                   "Voronoi integration and BQB output require CP2k to be compiled"// &
-                   " with the -D__LIBVORI preprocessor option.")
+      CPWARN("Voronoi integration and BQB output require CP2k to be compiled"// &
+             " with the -D__LIBVORI preprocessor option.")
 
 #endif
 

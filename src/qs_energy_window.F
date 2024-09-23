@@ -120,8 +120,7 @@ CONTAINS
                       input=input, nelectron_total=nelectron_total, subsys=subsys, ks_env=ks_env, matrix_s=matrix_s)
       CALL qs_subsys_get(subsys, particles=particles)
       CALL qs_rho_get(rho_struct=rho, rho_ao=rho_ao)
-      IF (SIZE(rho_ao) > 1) CALL cp_warn(__LOCATION__, &
-                                         "The printing of energy windows is currently only implemented for clsoe shell systems")
+      IF (SIZE(rho_ao) > 1) CPWARN("The printing of energy windows is currently only implemented for clsoe shell systems")
       CALL pw_env_get(pw_env, auxbas_pw_pool=auxbas_pw_pool)
 
       !reading the input

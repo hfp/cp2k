@@ -719,9 +719,8 @@ CONTAINS
 
       ! check if loop is minimum size of 6 molecules
       IF (counter .LT. 6) THEN
-         CALL cp_warn(__LOCATION__, &
-                      "short proton loop with"//cp_to_string(counter)// &
-                      "molecules.")
+         CPWARN("short proton loop with"//cp_to_string(counter)// &
+                "molecules.")
          tmp_chr = ""
          WRITE (tmp_chr, *) mol_arr(1:counter)
          CPWARN("selected molecules:"//TRIM(tmp_chr))
@@ -797,9 +796,8 @@ CONTAINS
                               mol=mol_tmp, start_ind=ind_n, end_ind=ind_e)
          ! check if selected molecule is water respectively consists of 3 atoms
          IF (MOD(ind_e - ind_n, 3) .GT. 0) THEN
-            CALL cp_warn(__LOCATION__, &
-                         "selected a molecule with more than 3 atoms, "// &
-                         "the proton reordering does not support, skip molecule")
+            CPWARN("selected a molecule with more than 3 atoms, "// &
+                   "the proton reordering does not support, skip molecule")
             CYCLE list_distances
          END IF
          IF (donor_acceptor .EQ. proton_acceptor) THEN

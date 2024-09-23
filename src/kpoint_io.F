@@ -410,8 +410,7 @@ CONTAINS
       natom_mismatch = .NOT. natom_match
       ! handle natom_match false
       IF (natom_mismatch) THEN
-         CALL cp_warn(__LOCATION__, &
-                      " READ RESTART : WARNING : DIFFERENT natom, returning ")
+         CPWARN(" READ RESTART : WARNING : DIFFERENT natom, returning ")
       ELSE
 
          DO

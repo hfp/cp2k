@@ -379,8 +379,8 @@ CONTAINS
          CALL get_qs_env(qs_env=qs_env, lri_env=lri_env)
          CALL lri_env_basis("LRI", qs_env, lri_env, qs_kind_set)
       ELSE IF (method_id == do_method_rigpw) THEN
-         CALL cp_warn(__LOCATION__, "Experimental code: "// &
-                      "RIGPW should only be used for testing.")
+         CPWARN("Experimental code: "// &
+                "RIGPW should only be used for testing.")
          CALL get_qs_env(qs_env=qs_env, lri_env=lri_env)
          CALL lri_env_basis("RI", qs_env, lri_env, qs_kind_set)
       END IF
@@ -897,8 +897,8 @@ CONTAINS
             CALL get_qs_kind(qs_kind, basis_set=lri_aux_basis, basis_type="LRI_AUX")
             IF (.NOT. (ASSOCIATED(lri_aux_basis))) THEN
                ! LRI_AUX basis set is not yet loaded
-               CALL cp_warn(__LOCATION__, "Automatic Generation of LRI_AUX basis. "// &
-                            "This is experimental code.")
+               CPWARN("Automatic Generation of LRI_AUX basis. "// &
+                      "This is experimental code.")
                ! Generate a default basis
                CALL create_lri_aux_basis_set(lri_aux_basis, qs_kind, dft_control%auto_basis_lri_aux, e1terms)
                CALL add_basis_set_to_container(qs_kind%basis_sets, lri_aux_basis, "LRI_AUX")
@@ -985,8 +985,7 @@ CONTAINS
                                    l_val=do_wfc_im_time)
 
          IF (do_wfc_im_time .AND. sort_basis /= basis_sort_zet) THEN
-            CALL cp_warn(__LOCATION__, &
-                         "Low-scaling RPA requires SORT_BASIS EXP keyword (in DFT input section) for good performance")
+            CPWARN("Low-scaling RPA requires SORT_BASIS EXP keyword (in DFT input section) for good performance")
          END IF
 
          ! Check if RI_AUX basis (for MP2/RPA) is given, auto-generate if not
@@ -1584,20 +1583,18 @@ CONTAINS
       IF (scf_control%added_mos(1) < 0) THEN
          scf_control%added_mos(1) = n_ao - n_mo(1)  ! use all available MOs
       ELSEIF (scf_control%added_mos(1) > n_ao - n_mo(1)) THEN
-         CALL cp_warn(__LOCATION__, &
-                      "More added MOs requested than available. "// &
-                      "The full set of unoccupied MOs will be used. "// &
-                      "Use 'ADDED_MOS -1' to always use all available MOs "// &
-                      "and to get rid of this warning.")
+         CPWARN("More added MOs requested than available. "// &
+                "The full set of unoccupied MOs will be used. "// &
+                "Use 'ADDED_MOS -1' to always use all available MOs "// &
+                "and to get rid of this warning.")
       END IF
       scf_control%added_mos(1) = MIN(scf_control%added_mos(1), n_ao - n_mo(1))
       n_mo(1) = n_mo(1) + scf_control%added_mos(1)
 
       IF (dft_control%nspins == 2) THEN
          IF (n_mo(2) > n_mo(1)) &
-            CALL cp_warn(__LOCATION__, &
-                         "More beta than alpha MOs requested. "// &
-                         "The number of beta MOs will be reduced to the number alpha MOs.")
+            CPWARN("More beta than alpha MOs requested. "// &
+                   "The number of beta MOs will be reduced to the number alpha MOs.")
          n_mo(2) = MIN(n_mo(1), n_mo(2))
          CPASSERT(n_mo(1) >= nelectron_spin(1))
          CPASSERT(n_mo(2) >= nelectron_spin(2))
@@ -1608,9 +1605,8 @@ CONTAINS
       IF (do_kpoints .AND. dft_control%nspins == 2) THEN
          ! we need equal number of calculated states
          IF (n_mo(2) /= n_mo(1)) &
-            CALL cp_warn(__LOCATION__, &
-                         "Kpoints: Different number of MOs requested. "// &
-                         "The number of beta MOs will be set to the number alpha MOs.")
+            CPWARN("Kpoints: Different number of MOs requested. "// &
+                   "The number of beta MOs will be set to the number alpha MOs.")
          n_mo(2) = n_mo(1)
          CPASSERT(n_mo(1) >= nelectron_spin(1))
          CPASSERT(n_mo(2) >= nelectron_spin(2))

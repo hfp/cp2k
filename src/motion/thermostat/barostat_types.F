@@ -123,9 +123,8 @@ CONTAINS
                           "the virial is available only with the NPT_F ensemble!")
       ELSE
          IF (explicit) &
-            CALL cp_warn(__LOCATION__, &
-                         "A barostat has been defined with an MD ensemble which does not support barostat! "// &
-                         "Its definition will be ignored!")
+            CPWARN("A barostat has been defined with an MD ensemble which does not support barostat! "// &
+                   "Its definition will be ignored!")
       END IF
 
    END SUBROUTINE create_barostat_type

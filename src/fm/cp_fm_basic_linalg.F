@@ -1671,9 +1671,8 @@ CONTAINS
          END DO
          DEALLOCATE (diag)
          IF (quenched) &
-            CALL cp_warn(__LOCATION__, &
-                         "Linear dependencies were detected in the SVD inversion of matrix "//TRIM(ADJUSTL(matrix_a%name))// &
-                         ". At least one singular value has been quenched.")
+            CPWARN("Linear dependencies were detected in the SVD inversion of matrix "//TRIM(ADJUSTL(matrix_a%name))// &
+                   ". At least one singular value has been quenched.")
          ! Sigma^-1 * U^T
          CALL cp_fm_create(matrix=inv_sigma_ut, &
                            matrix_struct=matrix_a%matrix_struct, &

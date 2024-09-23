@@ -1652,9 +1652,8 @@ CONTAINS
       nrecursion = 1
       IF (do_recursive) THEN
          IF (MODULO(nblk, 2) /= 0) THEN
-            CALL cp_warn(__LOCATION__, &
-                         "Number of blocks not divisible with 2. Recursive diagonalization not possible. "// &
-                         "Calculation proceeds without.")
+            CPWARN("Number of blocks not divisible with 2. Recursive diagonalization not possible. "// &
+                   "Calculation proceeds without.")
             nrecursion = 1
          ELSE
             nrecursion = nblk/2

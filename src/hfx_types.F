@@ -2076,10 +2076,9 @@ CONTAINS
              x_data%potential_parameter%potential_type /= do_potential_short .AND. &
              x_data%potential_parameter%potential_type /= do_potential_mix_cl_trunc .AND. &
              x_data%potential_parameter%potential_type /= do_potential_id) THEN
-            CALL cp_warn(__LOCATION__, &
-                         "Periodic Hartree Fock calculation requested without use "// &
-                         "of a truncated or shortrange potential. This may lead to unphysical total energies. "// &
-                         "Use a truncated  potential to avoid possible problems.")
+            CPWARN("Periodic Hartree Fock calculation requested without use "// &
+                   "of a truncated or shortrange potential. This may lead to unphysical total energies. "// &
+                   "Use a truncated  potential to avoid possible problems.")
          ELSE IF (x_data%potential_parameter%potential_type /= do_potential_id) THEN
             !If k-points, use the Born-von Karman super cell as reference
             l_min = MIN(REAL(nkp(1), dp)*plane_distance(1, 0, 0, cell), &
@@ -2088,19 +2087,17 @@ CONTAINS
             l_min = 0.5_dp*l_min
             IF (x_data%potential_parameter%cutoff_radius >= l_min) THEN
                IF (.NOT. do_kpoints) THEN
-                  CALL cp_warn(__LOCATION__, &
-                               "Periodic Hartree Fock calculation requested with the use "// &
-                               "of a truncated or shortrange potential. The cutoff radius is larger than half "// &
-                               "the minimal cell dimension. This may lead to unphysical "// &
-                               "total energies. Reduce the cutoff radius in order to avoid "// &
-                               "possible problems.")
+                  CPWARN("Periodic Hartree Fock calculation requested with the use "// &
+                         "of a truncated or shortrange potential. The cutoff radius is larger than half "// &
+                         "the minimal cell dimension. This may lead to unphysical "// &
+                         "total energies. Reduce the cutoff radius in order to avoid "// &
+                         "possible problems.")
                ELSE
-                  CALL cp_warn(__LOCATION__, &
-                               "K-point Hartree-Fock calculation requested with the use of a "// &
-                               "truncated or shortrange potential. The cutoff radius is larger than "// &
-                               "half the minimal Born-von Karman supercell dimension. This may lead "// &
-                               "to unphysical total energies. Reduce the cutoff radius or increase "// &
-                               "the number of K-points in order to avoid possible problems.")
+                  CPWARN("K-point Hartree-Fock calculation requested with the use of a "// &
+                         "truncated or shortrange potential. The cutoff radius is larger than "// &
+                         "half the minimal Born-von Karman supercell dimension. This may lead "// &
+                         "to unphysical total energies. Reduce the cutoff radius or increase "// &
+                         "the number of K-points in order to avoid possible problems.")
                END IF
             END IF
          END IF
