@@ -554,20 +554,19 @@ CONTAINS
 !> \param curdir ...
 ! **************************************************************************************************
    SUBROUTINE m_getcwd(curdir)
-      CHARACTER(len=*), INTENT(OUT)            :: curdir
-      TYPE(C_PTR)                              :: stat
-      INTEGER                                  :: i
+      CHARACTER(len=*), INTENT(OUT)               :: curdir
       CHARACTER(len=default_path_length), TARGET  :: tmp
 #if !defined(__GFORTRAN__) && !defined(__INTEL_COMPILER) && !defined(__INTEL_LLVM_COMPILER)
+      TYPE(C_PTR)                                 :: stat
+      INTEGER                                     :: i
       INTERFACE
          FUNCTION getcwd(buf, buflen) BIND(C, name="getcwd") RESULT(stat)
             IMPORT
-            CHARACTER(KIND=C_CHAR), DIMENSION(*)     :: buf
-            INTEGER(KIND=C_INT), VALUE               :: buflen
-            TYPE(C_PTR)                              :: stat
+            CHARACTER(KIND=C_CHAR), DIMENSION(*)  :: buf
+            INTEGER(KIND=C_INT), VALUE            :: buflen
+            TYPE(C_PTR)                           :: stat
          END FUNCTION
       END INTERFACE
-#endif
       stat = getcwd(tmp, LEN(tmp))
       IF (.NOT. C_ASSOCIATED(stat)) THEN
          WRITE (*, *) "m_getcwd failed"
@@ -575,6 +574,15 @@ CONTAINS
       END IF
       i = INDEX(tmp, c_null_char) - 1
       curdir = tmp(1:i)
+#else
+      INTEGER                                     :: stat
+      CALL getcwd(tmp, stat)
+      IF (stat /= 0) THEN
+         WRITE (*, *) "m_getcwd failed"
+         CALL m_abort()
+      END IF
+      curdir = tmp
+#endif
    END SUBROUTINE m_getcwd
 
 ! **************************************************************************************************
