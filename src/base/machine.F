@@ -352,7 +352,7 @@ CONTAINS
       run_on = 0
 #else
       INTEGER                   ::   istat
-#if !defined(__GFORTRAN__) && !defined(__INTEL_COMPILER) && !defined(__INTEL_LLVM_COMPILER)
+#if !defined(__GFORTRAN__)
       INTERFACE
          FUNCTION kill(pid, sig) BIND(C, name="kill") RESULT(errno)
             IMPORT
@@ -593,7 +593,7 @@ CONTAINS
    SUBROUTINE m_chdir(dir, ierror)
       CHARACTER(len=*), INTENT(IN)             :: dir
       INTEGER, INTENT(OUT)                     :: ierror
-#if !defined(__GFORTRAN__) && !defined(__INTEL_COMPILER) && !defined(__INTEL_LLVM_COMPILER)
+#if !defined(__GFORTRAN__)
       INTERFACE
          FUNCTION chdir(path) BIND(C, name="chdir") RESULT(errno)
             IMPORT
@@ -611,7 +611,7 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE m_getpid(pid)
       INTEGER, INTENT(OUT)                     :: pid
-#if !defined(__GFORTRAN__) && !defined(__INTEL_COMPILER) && !defined(__INTEL_LLVM_COMPILER)
+#if !defined(__GFORTRAN__)
       INTERFACE
          FUNCTION getpid() BIND(C, name="getpid") RESULT(pid)
             IMPORT
@@ -632,7 +632,7 @@ CONTAINS
       CHARACTER(LEN=*), INTENT(IN)             :: path
 
       INTEGER                                  :: istat
-#if !defined(__GFORTRAN__) && !defined(__INTEL_COMPILER) && !defined(__INTEL_LLVM_COMPILER)
+#if !defined(__GFORTRAN__)
       INTERFACE
          FUNCTION unlink(path) BIND(C, name="unlink") RESULT(errno)
             IMPORT
@@ -654,7 +654,7 @@ CONTAINS
       CHARACTER(LEN=*), INTENT(IN)             :: source, TARGET
 
       INTEGER                                  :: istat
-#if !defined(__GFORTRAN__) && !defined(__INTEL_COMPILER) && !defined(__INTEL_LLVM_COMPILER)
+#if !defined(__GFORTRAN__)
       INTERFACE
          FUNCTION rename(src, dest) BIND(C, name="rename") RESULT(errno)
             IMPORT
