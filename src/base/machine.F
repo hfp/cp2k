@@ -556,7 +556,7 @@ CONTAINS
    SUBROUTINE m_getcwd(curdir)
       CHARACTER(len=*), INTENT(OUT)               :: curdir
       CHARACTER(len=default_path_length), TARGET  :: tmp
-#if !defined(__GFORTRAN__) && !defined(__INTEL_COMPILER) && !defined(__INTEL_LLVM_COMPILER)
+#if !defined(__GFORTRAN__)
       TYPE(C_PTR)                                 :: stat
       INTEGER                                     :: i
       INTERFACE
@@ -576,7 +576,7 @@ CONTAINS
       curdir = tmp(1:i)
 #else
       INTEGER                                     :: stat
-      CALL getcwd(tmp, stat)
+      stat = getcwd(tmp)
       IF (stat /= 0) THEN
          WRITE (*, *) "m_getcwd failed"
          CALL m_abort()
