@@ -2,11 +2,12 @@
 
 # author: Ole Schuett
 
-from asyncio import Semaphore
+from asyncio import Semaphore, Task
 from asyncio.subprocess import DEVNULL, PIPE, STDOUT, Process
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Coroutine, Dict, List, Optional, TextIO, Tuple, Union
+from statistics import mean, stdev
 import argparse
 import asyncio
 import math
@@ -145,7 +146,7 @@ async def main() -> None:
         batches.append(batch)
 
     # Create async tasks.
-    tasks = []
+    tasks: List[Task[BatchResult]] = []
     num_restrictdirs = num_skipdirs = 0
     for batch in batches:
         if not batch.requirements_satisfied(flags, cfg.mpiranks):
@@ -193,26 +194,29 @@ async def main() -> None:
     timings = sorted(r.duration for r in all_results)
     print('Plot: name="timings", title="Timing Distribution", ylabel="time [s]"')
     for p in (100, 99, 98, 95, 90, 80):
-        v = percentile(timings, p / 100.0)
+        y = percentile(timings, p / 100.0)
         print(f'PlotPoint: name="{p}th_percentile", plot="timings", ', end="")
-        print(f'label="{p}th %ile", y={v:.2f}, yerr=0.0')
+        print(f'label="{p}th %ile", y={y:.2f}, yerr=0.0')
 
     if cfg.flag_slow:
         print("\n" + "-" * 15 + "--------------- Slow Tests ---------------" + "-" * 15)
-        slow_test_threshold = 2 * percentile(timings, 0.95)
-        maybe_slow = [r for r in all_results if r.duration > slow_test_threshold]
-        suppressions = cfg.slow_suppressions
-        slow_reruns: List[str] = []
-        for batch in {r.batch for r in maybe_slow if r.fullname not in suppressions}:
-            print(f"Re-running {batch.name} to avoid false positives.")
-            res = (await run_batch(batch, cfg)).results
-            slow_reruns += [r.fullname for r in res if r.duration > slow_test_threshold]
-        slow_tests = [r for r in maybe_slow if r.fullname in slow_reruns]
-        num_suppressed = len([r for r in maybe_slow if r.fullname in suppressions])
-        print(f"Duration threshold (2x 95th %ile): {slow_test_threshold:.2f} sec")
+        threshold = 2 * percentile(timings, 0.95)
+        outliers = [r for r in all_results if r.duration > threshold]
+        maybe_slow = [r for r in outliers if r.fullname not in cfg.slow_suppressions]
+        num_suppressed = len(outliers) - len(maybe_slow)
+        rerun_tasks: List[Task[BatchResult]] = []
+        for b in {r.batch for r in maybe_slow}:
+            print(f"Re-running {b.name} to avoid false positives.")
+            rerun_tasks.append(asyncio.get_event_loop().create_task(run_batch(b, cfg)))
+        rerun_times: Dict[str, float] = {}
+        for t in await asyncio.gather(*rerun_tasks):
+            rerun_times.update({r.fullname: r.duration for r in t.results})
+        stats = {r.fullname: [r.duration, rerun_times[r.fullname]] for r in maybe_slow}
+        slow_tests = {k: v for k, v in stats.items() if mean(v) > threshold}
+        print(f"Duration threshold (2x 95th %ile): {threshold:.2f} sec")
         print(f"Found {len(slow_tests)} slow tests ({num_suppressed} suppressed):")
-        for r in slow_tests:
-            print(f"    {r.fullname :<80s} ( {r.duration:6.2f} sec)")
+        for k, v in slow_tests.items():
+            print(f"    {k :<80s} ( {mean(v):6.2f} ±{stdev(v):4.2f} sec)")
 
     print("\n------------------------------- Summary --------------------------------")
     total_duration = time.perf_counter() - start_time
