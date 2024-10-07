@@ -15,7 +15,7 @@ MODULE dbt_tas_util
 
 #include "../../base/base_uses.f90"
 #if defined(__LIBXSMM)
-#  include "libxsmm_version.h"
+#include "libxsmm_version.h"
 #endif
 
 #if CPVERSION_CHECK(1, 11, <=, LIBXSMM_CONFIG_VERSION_MAJOR, LIBXSMM_CONFIG_VERSION_MINOR)
