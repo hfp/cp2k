@@ -144,8 +144,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       kernel = clCloneKernel(kernel_global, &result);
     }
     ACC_OPENCL_RELEASE(c_dbcsr_acc_opencl_config.lock_main);
-  } else {
-    assert(NULL == kernel);
+  } else if (NULL == kernel) {
     kernel = clCloneKernel(kernel_global, &result);
   }
 #else
