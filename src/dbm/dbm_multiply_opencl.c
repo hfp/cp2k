@@ -146,7 +146,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   assert(0 == iadata && 0 == ibdata && 0 == icdata);
   result |= clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha);
   result |= clSetKernelArg(kernel, 1, sizeof(cl_int), &ibatch);
-  if (1 < ndims) { /* generated kernel */
+  if (1 < ndims) { /* DBM_MULTIPLY_GEN */
     const cl_uint zero = 0;
     assert(0 != wgsize[1] && 0 != wgsize[1] && 0 != wgsize[2]);
     work_size[0] = 16;
@@ -185,10 +185,10 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   result |= clEnqueueNDRangeKernel(
       str->queue, kernel, ndims, NULL, work_size, 0 < wgsize[0] ? wgsize : NULL,
       0 /*num_wait*/, NULL /*wait_list*/, perf_event);
+  ACC_OPENCL_RELEASE(c_dbcsr_acc_opencl_config.lock_main);
   if (NULL != perf_event && EXIT_SUCCESS == result &&
       EXIT_SUCCESS == clWaitForEvents(1, perf_event)) {
-    const double dhost =
-        1E3 * libxsmm_timer_duration(start, libxsmm_timer_tick());
+    const double dhost = libxsmm_timer_duration(start, libxsmm_timer_tick());
     cl_ulong begin = 0, end = 0;
     if (EXIT_SUCCESS ==
             clGetEventProfilingInfo(*perf_event, CL_PROFILING_COMMAND_START,
@@ -197,8 +197,8 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                                                 CL_PROFILING_COMMAND_END,
                                                 sizeof(cl_ulong), &end, NULL)) {
       const size_t flops = max_m * mnk_range[1][1] * mnk_range[2][1] * ntasks;
-      const double dkrnl = 1E-6 * LIBXSMM_DELTA(begin, end);
-      const double dtotl = LIBXSMM_MAX(dkrnl, dhost);
+      const double dkrnl = 1E-9 * LIBXSMM_DELTA(begin, end);
+      const double dtotl = 1E+3 * LIBXSMM_MAX(dkrnl, dhost);
       fprintf(stderr,
               "INFO ACC/LIBDBM: DBM-kernel mnk=%ix%ix%i ntasks=%i "
               "kernel_ms=%.2g total_ms=%.2g gflops=%.1f\n",
@@ -206,7 +206,6 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
               dtotl, 1E-6 * flops / dtotl);
     }
   }
-  ACC_OPENCL_RELEASE(c_dbcsr_acc_opencl_config.lock_main);
   OFFLOAD_CHECK(result);
 }
 
