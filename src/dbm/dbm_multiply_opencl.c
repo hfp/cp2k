@@ -23,7 +23,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   const libxsmm_timer_tickint start = libxsmm_timer_tick();
   int result = EXIT_SUCCESS, verbosity = c_dbcsr_acc_opencl_config.verbosity;
   cl_event event, *const perf_event =
-                      ((0 <= verbosity && 2 >= verbosity) ? NULL : &event);
+                      ((0 <= verbosity && 3 >= verbosity) ? NULL : &event);
   const c_dbcsr_acc_opencl_stream_t *const str = ACC_OPENCL_STREAM(stream);
   const size_t max_m = mnk_range[0][1], work_tasks = ntasks;
   size_t work_size[] = {1, 1, 1}, ibatch = 0, iadata = 0, ibdata = 0,
@@ -185,7 +185,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   result |= clEnqueueNDRangeKernel(
       str->queue, kernel, ndims, NULL, work_size, 0 < wgsize[0] ? wgsize : NULL,
       0 /*num_wait*/, NULL /*wait_list*/, perf_event);
-  if ((2 <= verbosity || NULL != perf_event) && EXIT_SUCCESS == result) {
+  if ((3 <= verbosity || NULL != perf_event) && EXIT_SUCCESS == result) {
     const double ds = libxsmm_timer_duration(start, libxsmm_timer_tick());
     const double flops = max_m * mnk_range[1][1] * mnk_range[2][1] * ntasks;
     cl_ulong begin = 0, end = 0;
