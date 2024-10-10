@@ -189,8 +189,8 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     const double ds = libxsmm_timer_duration(start, libxsmm_timer_tick());
     const double flops = max_m * mnk_range[1][1] * mnk_range[2][1] * ntasks;
     cl_ulong begin = 0, end = 0;
-    if (NULL == perf_event ||
-        EXIT_SUCCESS != clWaitForEvents(1, perf_event) EXIT_SUCCESS !=
+    if (NULL == perf_event || EXIT_SUCCESS != clWaitForEvents(1, perf_event) ||
+        EXIT_SUCCESS !=
             clGetEventProfilingInfo(*perf_event, CL_PROFILING_COMMAND_START,
                                     sizeof(cl_ulong), &begin, NULL) ||
         EXIT_SUCCESS != clGetEventProfilingInfo(*perf_event,
