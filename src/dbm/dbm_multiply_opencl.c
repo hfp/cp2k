@@ -87,7 +87,8 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       } else {
         const char *const split_env = getenv("DBM_MULTIPLY_SPLIT");
         const char *const wg_env = getenv("DBM_MULTIPLY_WG");
-        split = (NULL == split_env ? 1 /*default*/ : atoi(split_env));
+        const int split0 = (0 == c_dbcsr_acc_opencl_config.device.nv ? 1 : 8);
+        split = (NULL == split_env ? split0 /*default*/ : atoi(split_env));
         wgsize[0] =
             (NULL == wg_env ? (1 != split ? (wgsize1 * LIBXSMM_ABS(split)) : 0)
                             : strtoul(wg_env, NULL, 10));
