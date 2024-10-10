@@ -20,6 +20,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   static cl_kernel kernel = NULL;
   static int ndims = 1, split = 0;
   static size_t wgsize[] = {0, 0, 0};
+  const libxsmm_timer_tickint start = libxsmm_timer_tick();
   int result = EXIT_SUCCESS, verbosity = c_dbcsr_acc_opencl_config.verbosity;
   cl_event event, *const perf_event =
                       ((0 <= verbosity && 2 >= verbosity) ? NULL : &event);
@@ -40,8 +41,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   /* creating/calling kernel must be consistent across threads */
   ACC_OPENCL_ACQUIRE(c_dbcsr_acc_opencl_config.lock_main);
 #if defined(OPENCL_DBM_SOURCE_MULTIPLY)
-  if (NULL == kernel) { /* first-time check if kernel is present */
-    const libxsmm_timer_tickint start = libxsmm_timer_tick();
+  if (NULL == kernel) { /* initial check if kernel is present */
     char params[ACC_OPENCL_BUFFERSIZE] =
         "-cl-fast-relaxed-math -cl-denorms-are-zero";
     const char *const gen_env = getenv("DBM_MULTIPLY_GEN");
@@ -114,7 +114,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         &kernel);
     if (2 <= verbosity || 0 > verbosity) {
       if (EXIT_SUCCESS == result) {
-        const double d = libxsmm_timer_duration(start, libxsmm_timer_tick());
+        const double ds = libxsmm_timer_duration(start, libxsmm_timer_tick());
         fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel gpu=%i", gpu);
         if (0 == gen) {
           fprintf(stderr, " split=%i lu=%i bn=%i", split, lu, bn);
@@ -122,7 +122,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
           fprintf(stderr, " gen=%i", gen);
         }
         fprintf(stderr, " wg=%i sg=%i ms=%.1f\n", (int)wgsize[0], (int)wgsize2,
-                1E3 * d);
+                1E3 * ds);
       } else {
         fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel failed to generate\n");
       }
@@ -185,22 +185,28 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   result |= clEnqueueNDRangeKernel(
       str->queue, kernel, ndims, NULL, work_size, 0 < wgsize[0] ? wgsize : NULL,
       0 /*num_wait*/, NULL /*wait_list*/, perf_event);
-  if (NULL != perf_event && EXIT_SUCCESS == result) {
+  if ((2 <= verbosity || NULL != perf_event) && EXIT_SUCCESS == result) {
+    const double ds = libxsmm_timer_duration(start, libxsmm_timer_tick());
+    const double flops = max_m * mnk_range[1][1] * mnk_range[2][1] * ntasks;
     cl_ulong begin = 0, end = 0;
-    clWaitForEvents(1, perf_event);
-    result |= clGetEventProfilingInfo(*perf_event, CL_PROFILING_COMMAND_START,
-                                      sizeof(cl_ulong), &begin, NULL);
-    result |= clGetEventProfilingInfo(*perf_event, CL_PROFILING_COMMAND_END,
-                                      sizeof(cl_ulong), &end, NULL);
-    if (EXIT_SUCCESS == result) {
-      const double duration_ns = LIBXSMM_DELTA(begin, end);
-      const double gflops =
-          (max_m * mnk_range[1][1] * mnk_range[2][1] * ntasks) / duration_ns;
+    if (NULL == perf_event ||
+        EXIT_SUCCESS != clWaitForEvents(1, perf_event) EXIT_SUCCESS !=
+            clGetEventProfilingInfo(*perf_event, CL_PROFILING_COMMAND_START,
+                                    sizeof(cl_ulong), &begin, NULL) ||
+        EXIT_SUCCESS != clGetEventProfilingInfo(*perf_event,
+                                                CL_PROFILING_COMMAND_END,
+                                                sizeof(cl_ulong), &end, NULL)) {
       fprintf(stderr,
-              "INFO ACC/LIBDBM: DBM-kernel mnk=%ix%ix%i "
-              "ntasks=%i gflops=%.1f ms=%.2g\n",
-              mnk_range[0][1], mnk_range[1][1], mnk_range[2][1], ntasks, gflops,
-              1E-6 * duration_ns);
+              "INFO ACC/LIBDBM: DBM-kernel mnk=%ix%ix%i ntasks=%i "
+              "total_ms=%.2g gflops=%.1f\n",
+              mnk_range[0][1], mnk_range[1][1], mnk_range[2][1], ntasks,
+              1E-3 * ds, 1E-9 * flops / ds);
+    } else {
+      fprintf(stderr,
+              "INFO ACC/LIBDBM: DBM-kernel mnk=%ix%ix%i ntasks=%i "
+              "exec_ms=%.2g total_ms=%.2g gflops=%.1f\n",
+              mnk_range[0][1], mnk_range[1][1], mnk_range[2][1], ntasks,
+              1E-6 * LIBXSMM_DELTA(begin, end), 1E-3 * ds, 1E-9 * flops / ds);
     }
   }
   ACC_OPENCL_RELEASE(c_dbcsr_acc_opencl_config.lock_main);
