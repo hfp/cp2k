@@ -23,7 +23,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   const libxsmm_timer_tickint start = libxsmm_timer_tick();
   int result = EXIT_SUCCESS, verbosity = c_dbcsr_acc_opencl_config.verbosity;
   cl_event event, *const perf_event =
-                      ((0 <= verbosity && 3 >= verbosity) ? NULL : &event);
+                      ((0 <= verbosity && 2 >= verbosity) ? NULL : &event);
   const c_dbcsr_acc_opencl_stream_t *const str = ACC_OPENCL_STREAM(stream);
   const size_t max_m = mnk_range[0][1], work_tasks = ntasks;
   size_t work_size[] = {1, 1, 1}, ibatch = 0, iadata = 0, ibdata = 0,
@@ -185,28 +185,25 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   result |= clEnqueueNDRangeKernel(
       str->queue, kernel, ndims, NULL, work_size, 0 < wgsize[0] ? wgsize : NULL,
       0 /*num_wait*/, NULL /*wait_list*/, perf_event);
-  if ((3 <= verbosity || NULL != perf_event) && EXIT_SUCCESS == result) {
-    const double ds = libxsmm_timer_duration(start, libxsmm_timer_tick());
-    const double flops = max_m * mnk_range[1][1] * mnk_range[2][1] * ntasks;
+  if (NULL != perf_event && EXIT_SUCCESS == result &&
+      EXIT_SUCCESS == clWaitForEvents(1, perf_event)) {
+    const double dhost =
+        1E3 * libxsmm_timer_duration(start, libxsmm_timer_tick());
     cl_ulong begin = 0, end = 0;
-    if (NULL == perf_event || EXIT_SUCCESS != clWaitForEvents(1, perf_event) ||
-        EXIT_SUCCESS !=
+    if (EXIT_SUCCESS ==
             clGetEventProfilingInfo(*perf_event, CL_PROFILING_COMMAND_START,
-                                    sizeof(cl_ulong), &begin, NULL) ||
-        EXIT_SUCCESS != clGetEventProfilingInfo(*perf_event,
+                                    sizeof(cl_ulong), &begin, NULL) &&
+        EXIT_SUCCESS == clGetEventProfilingInfo(*perf_event,
                                                 CL_PROFILING_COMMAND_END,
                                                 sizeof(cl_ulong), &end, NULL)) {
+      const size_t flops = max_m * mnk_range[1][1] * mnk_range[2][1] * ntasks;
+      const double dkrnl = 1E-6 * LIBXSMM_DELTA(begin, end);
+      const double dtotl = LIBXSMM_MAX(dkrnl, dhost);
       fprintf(stderr,
               "INFO ACC/LIBDBM: DBM-kernel mnk=%ix%ix%i ntasks=%i "
-              "total_ms=%.2g gflops=%.1f\n",
-              mnk_range[0][1], mnk_range[1][1], mnk_range[2][1], ntasks,
-              1E-3 * ds, 1E-9 * flops / ds);
-    } else {
-      fprintf(stderr,
-              "INFO ACC/LIBDBM: DBM-kernel mnk=%ix%ix%i ntasks=%i "
-              "exec_ms=%.2g total_ms=%.2g gflops=%.1f\n",
-              mnk_range[0][1], mnk_range[1][1], mnk_range[2][1], ntasks,
-              1E-6 * LIBXSMM_DELTA(begin, end), 1E-3 * ds, 1E-9 * flops / ds);
+              "kernel_ms=%.2g total_ms=%.2g gflops=%.1f\n",
+              mnk_range[0][1], mnk_range[1][1], mnk_range[2][1], ntasks, dkrnl,
+              dtotl, 1E-6 * flops / dtotl);
     }
   }
   ACC_OPENCL_RELEASE(c_dbcsr_acc_opencl_config.lock_main);
