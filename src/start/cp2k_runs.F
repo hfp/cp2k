@@ -274,18 +274,19 @@ CONTAINS
          CALL run_optimize_input(input_declaration, root_section, para_env)
       CASE (do_swarm)
          CALL run_swarm(input_declaration, root_section, para_env, globenv, input_file_name)
-      CASE (do_farming)
-         ! Hack: DBCSR should be uninitialized when entering farming.
-         ! But, we don't want to change the public f77_interface.
-         ! TODO: refactor cp2k's startup code
-         CALL dbcsr_finalize_lib()
-         IF (method_name_id == do_sirius) CALL cp_sirius_finalize()
-
-         CALL cp_dlaf_finalize()
-
+      CASE (do_farming) ! TODO: refactor cp2k's startup code
+         ! Finalize libraries (Offload)
+         CALL dbm_library_finalize()
+         CALL grid_library_finalize()
          CALL pw_gpu_finalize()
          CALL pw_fpga_finalize()
+         CALL cp_dlaf_finalize()
+         IF (method_name_id == do_sirius) CALL cp_sirius_finalize()
+         ! Finalize the DBCSR library
+         CALL dbcsr_finalize_lib()
+
          CALL farming_run(input_declaration, root_section, para_env, initial_variables)
+
 #if defined(__DBCSR_ACC)
          IF (offload_get_device_count() > 0) THEN
             CALL dbcsr_init_lib(mpi_comm%get_handle(), io_unit=output_unit, &
@@ -296,10 +297,12 @@ CONTAINS
 #else
          CALL dbcsr_init_lib(mpi_comm%get_handle(), io_unit=output_unit)
 #endif
-
-         CALL pw_gpu_init()
-         CALL pw_fpga_init()
          IF (method_name_id == do_sirius) CALL cp_sirius_init()
+         CALL cp_dlaf_initialize()
+         CALL pw_fpga_init()
+         CALL pw_gpu_init()
+         CALL grid_library_init()
+         CALL dbm_library_init()
       CASE (do_opt_basis)
          CALL run_optimize_basis(input_declaration, root_section, para_env)
          globenv%run_type_id = none_run
