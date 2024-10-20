@@ -114,8 +114,7 @@ MODULE f77_interface
                                               rm_mp_perf_env
    USE nnp_environment,                 ONLY: nnp_init
    USE nnp_environment_types,           ONLY: nnp_type
-   USE offload_api,                     ONLY: offload_get_chosen_device,&
-                                              offload_get_device_count,&
+   USE offload_api,                     ONLY: offload_get_device_count,&
                                               offload_init,&
                                               offload_set_chosen_device
    USE periodic_table,                  ONLY: init_periodic_table
@@ -219,9 +218,9 @@ CONTAINS
       LOGICAL, INTENT(in)                                :: init_mpi
       INTEGER, INTENT(out)                               :: ierr
 
-      INTEGER                                            :: unit_nr, offload_device_count
-      INTEGER, TARGET                                    :: offload_chosen_device
+      INTEGER                                            :: offload_device_count, unit_nr
       INTEGER, POINTER                                   :: active_device_id
+      INTEGER, TARGET                                    :: offload_chosen_device
       TYPE(cp_logger_type), POINTER                      :: logger
 
       IF (.NOT. module_initialized) THEN
