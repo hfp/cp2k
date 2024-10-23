@@ -175,7 +175,9 @@ CONTAINS
       INTEGER                                            :: f_env_handle, grid_backend, ierr, &
                                                             iter_level, method_name_id, &
                                                             new_env_id, prog_name_id, run_type_id
+#if defined(__DBCSR_ACC)
       INTEGER, TARGET                                    :: offload_chosen_device
+#endif
       INTEGER, POINTER                                   :: active_device_id
       INTEGER(KIND=int_8)                                :: m_memory_max_mpi
       LOGICAL                                            :: echo_input, grid_apply_cutoff, &
