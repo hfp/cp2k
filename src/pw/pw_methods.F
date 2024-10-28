@@ -952,6 +952,7 @@ CONTAINS
                      IF (.NOT. ASSOCIATED(pw_out%pw_grid, pw1%pw_grid) .OR. .NOT. ASSOCIATED(pw_out%pw_grid, pw2%pw_grid)) &
                         CPABORT("pw_multiply not implemented for non-identical grids!")
 
+#if !defined(__INTEL_LLVM_COMPILER) || (20250000 <= __INTEL_LLVM_COMPILER)
                      IF (my_alpha == 1.0_dp) THEN
 !$OMP PARALLEL WORKSHARE DEFAULT(NONE) SHARED(pw_out, pw1, pw2)
                         pw_out%array = pw_out%array + pw1%array*${type2type("pw2%array", kind2, kind)}$
@@ -961,6 +962,13 @@ CONTAINS
                         pw_out%array = pw_out%array + my_alpha*pw1%array*${type2type("pw2%array", kind2, kind)}$
 !$OMP END PARALLEL WORKSHARE
                      END IF
+#else
+                     IF (my_alpha == 1.0_dp) THEN
+                        pw_out%array = pw_out%array + pw1%array*${type2type("pw2%array", kind2, kind)}$
+                     ELSE
+                        pw_out%array = pw_out%array + my_alpha*pw1%array*${type2type("pw2%array", kind2, kind)}$
+                     END IF
+#endif
 
                      CALL timestop(handle)
 
