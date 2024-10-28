@@ -56,9 +56,9 @@
 ! Usage: CPVERSION_CHECK(9, 5, >, __GNUC__, __GNUC_MINOR__)
 ! On top of CPVERSION macro, test if MAJOR_TEST and MINOR_TEST are defined.
 ! Perform actual comparison according to COMP argument.
-#define CPVERSION_CHECK(MAJOR_BASE, MINOR_BASE, COMP, MAJOR_TEST, MINOR_TEST) ( \
-  (defined(MAJOR_TEST) && defined(MINOR_TEST)) && \
-  (CPVERSION2(MAJOR_BASE, MINOR_BASE) COMP CPVERSION2(MAJOR_TEST, MINOR_TEST)))
+#define CPVERSION_CHECK(MAJOR_BASE, MINOR_BASE, COMP, MAJOR_TEST, MINOR_TEST) (defined(MAJOR_TEST) && ( \
+  (defined(MINOR_TEST) && CPVERSION2(MAJOR_BASE,MINOR_BASE) COMP CPVERSION2(MAJOR_TEST,MINOR_TEST)) || \
+  (CPVERSION2(MAJOR_BASE,MINOR_BASE) COMP MAJOR_TEST)))
 
 ! Avoid to default initialize type-components (default c'tor)
 #if CPVERSION_CHECK(9, 5, >, __GNUC__, __GNUC_MINOR__) || defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
