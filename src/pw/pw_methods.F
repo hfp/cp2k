@@ -246,12 +246,12 @@ CONTAINS
 
             CALL timeset(routineN, handle)
 
-#if CPVERSION_CHECK(2025, 0, >, __INTEL_LLVM_COMPILER, 0)
-            pw%array = ${type2type("0.0_dp", "r3d", kind)}$
-#else
+#if !defined(__INTEL_LLVM_COMPILER) || (20250000 <= __INTEL_LLVM_COMPILER)
 !$OMP PARALLEL WORKSHARE DEFAULT(NONE) SHARED(pw)
             pw%array = ${type2type("0.0_dp", "r3d", kind)}$
 !$OMP END PARALLEL WORKSHARE
+#else
+            pw%array = ${type2type("0.0_dp", "r3d", kind)}$
 #endif
 
             CALL timestop(handle)

@@ -2052,7 +2052,7 @@ CONTAINS
                DO irep = 0, num_integ_group - 1
                   start_point = ranges_info_array(3, irep, comm_exchange%mepos)
                   end_point = ranges_info_array(4, irep, comm_exchange%mepos)
-#if CPVERSION_CHECK(2025, 0, <=, __INTEL_LLVM_COMPILER, 0)
+#if !defined(__INTEL_LLVM_COMPILER) || (20250000 <= __INTEL_LLVM_COMPILER)
 !$OMP PARALLEL WORKSHARE DEFAULT(NONE) &
 !$OMP                    SHARED(start_point,end_point,my_block_size,&
 !$OMP                           Gamma_P_ia,rec_i,my_B_size,BI_C_rec)
@@ -2060,7 +2060,7 @@ CONTAINS
                   Gamma_P_ia(:, rec_i:rec_i + my_block_size - 1, start_point:end_point) = &
                      Gamma_P_ia(:, rec_i:rec_i + my_block_size - 1, start_point:end_point) + &
                      BI_C_rec(1:my_B_size, :, start_point:end_point)
-#if CPVERSION_CHECK(2025, 0, <=, __INTEL_LLVM_COMPILER, 0)
+#if !defined(__INTEL_LLVM_COMPILER) || (20250000 <= __INTEL_LLVM_COMPILER)
 !$OMP END PARALLEL WORKSHARE
 #endif
                END DO
