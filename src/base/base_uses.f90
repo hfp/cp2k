@@ -27,8 +27,19 @@
 #endif
 
 #define __LOCATION__ cp__l(__SHORT_FILE__,__LINE__)
-#define CPWARN(msg) CALL cp__w(__SHORT_FILE__,__LINE__,msg)
 #define CPABORT(msg) CALL cp__b(__SHORT_FILE__,__LINE__,msg)
+
+! Issue a warning once per location (first occurrence).
+! All warnings are summarized globally.
+#define CPWARN(msg) \
+  BLOCK ; \
+    LOGICAL, SAVE :: once = .TRUE. ; \
+    IF (once) THEN ; \
+      CALL cp__w(__SHORT_FILE__,__LINE__,msg) ; \
+      once = .FALSE. ; \
+    END IF ; \
+  END BLOCK
+
 ! In contrast to CPWARN, the warning counter is not increased
 #define CPHINT(msg) CALL cp__h(__SHORT_FILE__,__LINE__,msg)
 
@@ -44,7 +55,7 @@
 ! library wrapper routines that take arguments only used if the library is linked in.
 ! This code should be valid for any Fortran variable, is always standard conforming,
 ! and will be optimized away completely by the compiler
-#define MARK_USED(foo) IF(.FALSE.)THEN; DO ; IF(SIZE(SHAPE(foo))==-1) EXIT ;  END DO ; ENDIF
+#define MARK_USED(foo) IF(.FALSE.)THEN; DO ; IF(SIZE(SHAPE(foo))==-1) EXIT ; END DO ; ENDIF
 
 ! Calculate version number from 2 or 3 components. Can be used for comparison, e.g.,
 ! CPVERSION3(4, 9, 0) <= CPVERSION3(__GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__)
@@ -58,8 +69,8 @@
 ! Perform actual comparison according to COMP argument.
 ! Note: defined(MAJOR_TEST) and defined(MINOR_TEST) is avoided in macro
 !       definition due to issues handling it in certain compilers.
-#define CPVERSION_CHECK(MAJOR_BASE, MINOR_BASE, COMP, MAJOR_TEST, MINOR_TEST) \
-  (CPVERSION2(MAJOR_BASE, MINOR_BASE) COMP CPVERSION2(MAJOR_TEST, MINOR_TEST))
+#define CPVERSION_CHECK(MAJOR_BASE, MINOR_BASE, COMP, MAJOR_TEST, MINOR_TEST) (0 != (MAJOR_TEST) && \
+  (CPVERSION2(MAJOR_BASE, MINOR_BASE) COMP CPVERSION2(MAJOR_TEST, MINOR_TEST)))
 
 ! Avoid to default initialize type-components (default c'tor)
 #if CPVERSION_CHECK(9, 5, >, __GNUC__, __GNUC_MINOR__) || defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)
