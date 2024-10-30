@@ -27,27 +27,23 @@
 #endif
 
 #define __LOCATION__ cp__l(__SHORT_FILE__,__LINE__)
-#define CPABORT(msg) CALL cp__b(__SHORT_FILE__,__LINE__,msg)
+#define CPABORT(MSG) CALL cp__b(__SHORT_FILE__,__LINE__,MSG)
 
-! Issue a warning once per location (first occurrence).
-! All warnings are summarized globally.
-#define CPWARN(msg) \
-  BLOCK ; \
-    LOGICAL, SAVE :: once = .TRUE. ; \
-    IF (once) THEN ; \
-      CALL cp__w(__SHORT_FILE__,__LINE__,msg) ; \
-      once = .FALSE. ; \
-    END IF ; \
-  END BLOCK
+! Issue a warning; warnings are summarized globally.
+! For conditional warnings see CPWARN_IF.
+#define CPWARN(MSG) CALL cp__w(__SHORT_FILE__,__LINE__,MSG)
+
+! Like CPWARN but only if CONDition is true.
+#define CPWARN_IF(COND, MSG) IF(COND)CPWARN(MSG)
 
 ! In contrast to CPWARN, the warning counter is not increased
-#define CPHINT(msg) CALL cp__h(__SHORT_FILE__,__LINE__,msg)
+#define CPHINT(MSG) CALL cp__h(__SHORT_FILE__,__LINE__,MSG)
 
 ! CPASSERT can be elided if NDEBUG is defined.
 #if defined(NDEBUG)
-# define CPASSERT(cond)
+# define CPASSERT(COND)
 #else
-# define CPASSERT(cond) IF(.NOT.(cond))CALL cp__a(__SHORT_FILE__,__LINE__)
+# define CPASSERT(COND) IF(.NOT.(COND))CALL cp__a(__SHORT_FILE__,__LINE__)
 #endif
 
 ! The MARK_USED macro can be used to mark an argument/variable as used. It is intended to make
@@ -55,7 +51,7 @@
 ! library wrapper routines that take arguments only used if the library is linked in.
 ! This code should be valid for any Fortran variable, is always standard conforming,
 ! and will be optimized away completely by the compiler
-#define MARK_USED(foo) IF(.FALSE.)THEN; DO ; IF(SIZE(SHAPE(foo))==-1) EXIT ; END DO ; ENDIF
+#define MARK_USED(FOO) IF(.FALSE.)THEN;DO;IF(SIZE(SHAPE(FOO))==-1) EXIT;ENDDO;ENDIF
 
 ! Calculate version number from 2 or 3 components. Can be used for comparison, e.g.,
 ! CPVERSION3(4, 9, 0) <= CPVERSION3(__GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__)
@@ -69,7 +65,7 @@
 ! Perform actual comparison according to COMP argument.
 ! Note: defined(MAJOR_TEST) and defined(MINOR_TEST) is avoided in macro
 !       definition due to issues handling it in certain compilers.
-#define CPVERSION_CHECK(MAJOR_BASE, MINOR_BASE, COMP, MAJOR_TEST, MINOR_TEST) (0 != (MAJOR_TEST) && \
+#define CPVERSION_CHECK(MAJOR_BASE, MINOR_BASE, COMP, MAJOR_TEST, MINOR_TEST) ((MAJOR_TEST) && \
   (CPVERSION2(MAJOR_BASE, MINOR_BASE) COMP CPVERSION2(MAJOR_TEST, MINOR_TEST)))
 
 ! Avoid to default initialize type-components (default c'tor)
