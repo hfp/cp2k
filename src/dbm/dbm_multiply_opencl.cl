@@ -29,46 +29,6 @@
 #define XN(T) (SINT) X(T, n)
 #define XK(T) (SINT) X(T, k)
 
-#define DBM_MULTIPLY_SHM(ALPHA, TASK, AMAT, BMAT, CMAT, SHM, WG, BM, BN)       \
-  do { /* matrix multiplication per work-group using shared memory */          \
-    local double *restrict const ashm = (SHM);                                 \
-    local double *restrict const bshm = (SHM) + (WG);                          \
-    const int mk = XM(TASK) * XK(TASK), kn = XK(TASK) * XN(TASK);              \
-    const SINT tid = (SINT)get_local_id(0);                                    \
-    /* y/s can exceed BN/BM (up to BK), and x/t is fast index (up to BM/BN) */ \
-    const SINT y = tid / (BM), x = tid - y * (BM), bk = (WG) / MAX(BM, BN);    \
-    const SINT s = tid / (BN), t = tid - s * (BN);                             \
-    for (SINT m0 = 0; m0 < XM(TASK); m0 += (BM)) {                             \
-      for (SINT n0 = 0; n0 < XN(TASK); n0 += (BN)) {                           \
-        double r = ZERO;                                                       \
-        UNROLL_AUTO for (SINT k0 = 0; k0 < XK(TASK); k0 += bk) {               \
-          if (x < (BM) && y < bk) { /* load A-tile */                          \
-            const int idx = IDT(m0 + x, k0 + y, XM(TASK), XK(TASK));           \
-            ashm[y * (BM) + x] = (idx < mk ? (AMAT)[XA(TASK) + idx] : ZERO);   \
-          }                                                                    \
-          if (s < bk && t < (BN)) { /* load B-tile */                          \
-            const int idx = IDX(k0 + s, n0 + t, XK(TASK), XN(TASK));           \
-            bshm[s * (BN) + t] = (idx < kn ? (BMAT)[XB(TASK) + idx] : ZERO);   \
-          }                                                                    \
-          BARRIER(CLK_LOCAL_MEM_FENCE);                                        \
-          if (x < (BM) && y < (BN)) { /* multiply tiles */                     \
-            UNROLL_AUTO for (SINT z = 0; z < bk; ++z) {                        \
-              r = MAD(ashm[z * (BM) + x], bshm[z * (BN) + y], r);              \
-            }                                                                  \
-          }                                                                    \
-          BARRIER(CLK_LOCAL_MEM_FENCE);                                        \
-        }                                                                      \
-        if (x < (BM) && y < (BN)) { /* flush to global */                      \
-          const SINT m = m0 + x, n = n0 + y;                                   \
-          if (m < XM(TASK) && n < XN(TASK)) {                                  \
-            const int idx = IDT(m, n, XM(TASK), XN(TASK));                     \
-            ACCUMULATE((CMAT) + XC(TASK) + idx, (ALPHA) * r);                  \
-          }                                                                    \
-        }                                                                      \
-      }                                                                        \
-    }                                                                          \
-  } while (0)
-
 #define DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, N0, N1, K, \
                             BCST)                                              \
   UNROLL_AUTO for (SINT k = 0; k < (K); ++k) {                                 \
@@ -126,57 +86,11 @@ kernel void
 dbm_multiply(double alpha, int itask, int ntasks, int size,
              global const dbm_task_t *tasks, global const double *restrict amat,
              global const double *restrict bmat, global double *restrict cmat) {
-#if defined(SPLIT) && (1 < SPLIT) && defined(WG) && (0 < WG)
-  local double shm[WG * 2];
-  global const dbm_task_t *const task = &tasks[itask + get_group_id(0)];
-  const SINT rmin = MIN(XM(task), XN(task)), rmax = MAX(XM(task), XN(task));
-  if ((rmax - rmin) <= BN) {
-    if ((rmin * 4) < BN) {
-      DBM_MULTIPLY_SHM(alpha, task, amat, bmat, cmat, shm, WG, BN / 4, BN / 4);
-    } else if ((rmin * 2) < BN) {
-      DBM_MULTIPLY_SHM(alpha, task, amat, bmat, cmat, shm, WG, BN / 2, BN / 2);
-    } else {
-      DBM_MULTIPLY_SHM(alpha, task, amat, bmat, cmat, shm, WG, BN, BN);
-    }
-  } else if (XM(task) <= XN(task)) {
-    const SINT r1 = BLR(XM(task), BN);
-    const SINT r2 = BLR(XM(task), BN / 2) * 2;
-    const SINT r3 = BLR(XM(task), BN / 4) * 4;
-    if (r1 <= r2) {
-      if (r1 <= r3) {
-        DBM_MULTIPLY_SHM(alpha, task, amat, bmat, cmat, shm, WG, BN, BN);
-      } else {
-        DBM_MULTIPLY_SHM(alpha, task, amat, bmat, cmat, shm, WG, BN / 4,
-                         BN * 4);
-      }
-    } else if (r2 <= r3) {
-      DBM_MULTIPLY_SHM(alpha, task, amat, bmat, cmat, shm, WG, BN / 2, BN * 2);
-    } else {
-      DBM_MULTIPLY_SHM(alpha, task, amat, bmat, cmat, shm, WG, BN / 4, BN * 4);
-    }
-  } else {
-    const SINT r1 = BLR(XN(task), BN);
-    const SINT r2 = BLR(XN(task), BN / 2) * 2;
-    const SINT r3 = BLR(XN(task), BN / 4) * 4;
-    if (r1 <= r2) {
-      if (r1 <= r3) {
-        DBM_MULTIPLY_SHM(alpha, task, amat, bmat, cmat, shm, WG, BN, BN);
-      } else {
-        DBM_MULTIPLY_SHM(alpha, task, amat, bmat, cmat, shm, WG, BN * 4,
-                         BN / 4);
-      }
-    } else if (r2 <= r3) {
-      DBM_MULTIPLY_SHM(alpha, task, amat, bmat, cmat, shm, WG, BN * 2, BN / 2);
-    } else {
-      DBM_MULTIPLY_SHM(alpha, task, amat, bmat, cmat, shm, WG, BN * 4, BN / 4);
-    }
-  }
-#elif defined(SPLIT) && (0 != SPLIT)
   const int i = (int)get_global_id(0);
 #if defined(BCST_WG)
   if (i < size)
 #endif
-  { /* DBM_MULTIPLY_SPLIT */
+  {
     const int max_m = size / ntasks, tid = i / max_m;
     const SINT m = i - tid * max_m;
     global const dbm_task_t *const task = &tasks[itask + tid];
@@ -191,16 +105,5 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
       }
     }
   }
-#else
-#if defined(BCST_WG)
-  if (get_global_id(0) < size)
-#endif
-  { /* full matrix multiplication per work-item (thread) */
-    global const dbm_task_t *const task = &tasks[itask + get_global_id(0)];
-    UNROLL_OUTER(1) for (SINT m = 0; m < XM(task); ++m) {
-      DBM_MULTIPLY(alpha, task, amat, bmat, cmat, m, BN, BCST_NO);
-    }
-  }
-#endif
 }
 #endif

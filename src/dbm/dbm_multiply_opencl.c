@@ -28,7 +28,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
 #else
   cl_kernel kernel = NULL;
 #endif
-  static int ndims = 1, split = 0;
+  static int ndims = 1;
   static size_t wgsize[] = {0, 0, 0};
   const libxsmm_timer_tickint start = libxsmm_timer_tick();
   int result = EXIT_SUCCESS, verbosity = c_dbcsr_acc_opencl_config.verbosity;
@@ -85,17 +85,9 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         wgsize[0] = 16;
         ndims = 3;
       } else {
-        const char *const split_env = getenv("DBM_MULTIPLY_SPLIT");
         const char *const wg_env = getenv("DBM_MULTIPLY_WG");
-        const int split0 = (0 == c_dbcsr_acc_opencl_config.device.nv ? 1 : 8);
-        split = (NULL == split_env ? split0 /*default*/ : atoi(split_env));
-        wgsize[0] =
-            (NULL == wg_env ? (1 != split ? (wgsize1 * LIBXSMM_ABS(split)) : 0)
-                            : strtoul(wg_env, NULL, 10));
-        if (0 != split && 1 != split && (bn * bn) > (int)wgsize[0]) {
-          wgsize[0] = bn * bn;
-        }
-        if (0 != split && 0 != wgsize2 && 0 < wgsize[0]) { /* subgroups */
+        wgsize[0] = (NULL == wg_env ? 0 : strtoul(wg_env, NULL, 10));
+        if (0 != wgsize2 && 0 < wgsize[0]) { /* subgroups */
           if (LIBXSMM_DELTA(wgsize[0], wgsize1) <=
               LIBXSMM_DELTA(wgsize[0], wgsize2)) { /* select SG-size */
             wgsize2 = wgsize1;
@@ -106,16 +98,12 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
           wgsize2 = 0;
         }
         wgsize[0] = LIBXSMM_CLMP(wgsize[0], 0, wgsize0);
-        if (NULL == bn_env && 0 != split && 1 != split &&
-            (bn * bn) < (int)wgsize[0]) {
-          bn = libxsmm_isqrt2_u32(wgsize[0]);
-        }
         bn = LIBXSMM_CLMP(bn, 4, 32);
         offset += (size_t)LIBXSMM_SNPRINTF(
             params + offset, sizeof(params) - offset,
-            " %s -DSPLIT=%i -DBN=%i -DWG=%i -DSG=%i -DLU=%i",
-            0 != gpu ? "-DGPU" : "", split, bn, (int)wgsize[0], (int)wgsize2,
-            lu);
+            " %s -DBN=%i -DWG=%i -DSG=%i -DLU=%i",
+            0 != gpu ? "-DGPU" : "", bn,
+            (int)wgsize[0], (int)wgsize2, lu);
       }
       if (0 != c_dbcsr_acc_opencl_config.device.intel && 0 < xf) {
         flags = "-cl-intel-256-GRF-per-thread";
@@ -130,7 +118,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
           const double ds = libxsmm_timer_duration(start, libxsmm_timer_tick());
           fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel gpu=%i", gpu);
           if (0 == gen) {
-            fprintf(stderr, " split=%i lu=%i bn=%i", split, lu, bn);
+            fprintf(stderr, " lu=%i bn=%i", lu, bn);
           } else { /* generated kernel */
             fprintf(stderr, " gen=%i", gen);
           }
@@ -182,20 +170,10 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     result |= clSetKernelArg(kernel, 9, sizeof(cl_uint), &zero /*C_shape0*/);
   } else {
     result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &ntasks);
-    if (0 != split) {
-      if (1 == split || 0 == wgsize[0]) {
-        work_size[0] = work_tasks * max_m;
-        result |= clSetKernelArg(kernel, 3, sizeof(cl_int), work_size);
-        if (0 < wgsize[0]) { /* fixup to be a multiple of the WG-size */
-          work_size[0] = LIBXSMM_UP(work_size[0], wgsize[0]);
-        }
-      } else {
-        work_size[0] = work_tasks * wgsize[0];
-        result |= clSetKernelArg(kernel, 3, sizeof(cl_int), work_size);
-      }
-    } else {
-      work_size[0] = work_tasks;
-      result |= clSetKernelArg(kernel, 3, sizeof(cl_int), work_size);
+    work_size[0] = work_tasks * max_m;
+    result |= clSetKernelArg(kernel, 3, sizeof(cl_int), work_size);
+    if (0 < wgsize[0]) { /* fixup to be a multiple of the WG-size */
+      work_size[0] = LIBXSMM_UP(work_size[0], wgsize[0]);
     }
     result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 4, batch.memory);
     result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 5, adata.memory);
