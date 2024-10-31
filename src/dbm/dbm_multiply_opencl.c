@@ -101,8 +101,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         bn = LIBXSMM_CLMP(bn, 4, 32);
         offset += (size_t)LIBXSMM_SNPRINTF(
             params + offset, sizeof(params) - offset,
-            " %s -DBN=%i -DWG=%i -DSG=%i -DLU=%i",
-            0 != gpu ? "-DGPU" : "", bn,
+            " %s -DBN=%i -DWG=%i -DSG=%i -DLU=%i", 0 != gpu ? "-DGPU" : "", bn,
             (int)wgsize[0], (int)wgsize2, lu);
       }
       if (0 != c_dbcsr_acc_opencl_config.device.intel && 0 < xf) {
