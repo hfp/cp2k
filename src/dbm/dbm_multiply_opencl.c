@@ -63,7 +63,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       const int gen = (NULL == gen_env ? 0 /*default*/ : atoi(gen_env));
       const int xf = (NULL == xf_env ? -1 /*default*/ : atoi(xf_env));
       const int lu = LIBXSMM_CLMP(NULL == lu_env ? 0 : atoi(lu_env), -2, 1);
-      int bn = (NULL == bn_env ? 8 : atoi(bn_env));
+      const int bn = LIBXSMM_CLMP(NULL == bn_env ? 8 : atoi(bn_env), 4, 32);
       const char *extensions[] = {NULL, NULL}, *flags = NULL;
       size_t nextensions = sizeof(extensions) / sizeof(*extensions);
       const size_t wgsize0 = c_dbcsr_acc_opencl_config.device.wgsize[0];
@@ -86,7 +86,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         ndims = 3;
       } else {
         const char *const wg_env = getenv("DBM_MULTIPLY_WG");
-        wgsize[0] = (NULL == wg_env ? 0 : strtoul(wg_env, NULL, 10));
+        wgsize[0] = (NULL == wg_env ? 0 /*default*/ : strtoul(wg_env, NULL, 10));
         if (0 != wgsize2 && 0 < wgsize[0]) { /* subgroups */
           if (LIBXSMM_DELTA(wgsize[0], wgsize1) <=
               LIBXSMM_DELTA(wgsize[0], wgsize2)) { /* select SG-size */
@@ -98,7 +98,6 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
           wgsize2 = 0;
         }
         wgsize[0] = LIBXSMM_CLMP(wgsize[0], 0, wgsize0);
-        bn = LIBXSMM_CLMP(bn, 4, 32);
         offset += (size_t)LIBXSMM_SNPRINTF(
             params + offset, sizeof(params) - offset,
             " %s -DBN=%i -DWG=%i -DSG=%i -DLU=%i", 0 != gpu ? "-DGPU" : "", bn,
