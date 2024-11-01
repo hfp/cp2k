@@ -86,7 +86,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         ndims = 3;
       } else {
         const char *const wg_env = getenv("DBM_MULTIPLY_WG");
-        wgsize[0] = (NULL == wg_env ? 0 /*default*/ : strtoul(wg_env, NULL, 10));
+        wgsize[0] = (NULL == wg_env ? 0 : strtoul(wg_env, NULL, 10));
         if (0 != wgsize2 && 0 < wgsize[0]) { /* subgroups */
           if (LIBXSMM_DELTA(wgsize[0], wgsize1) <=
               LIBXSMM_DELTA(wgsize[0], wgsize2)) { /* select SG-size */
