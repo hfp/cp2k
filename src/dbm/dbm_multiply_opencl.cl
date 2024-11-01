@@ -29,39 +29,38 @@
 #define XN(T) (SINT) X(T, n)
 #define XK(T) (SINT) X(T, k)
 
-#define DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, N0, N1,    \
-                            BCST)                                              \
-  const double *const b = (BMAT) + XB(TASK);                                   \
-  UNROLL_AUTO for (SINT k = 0; k < XK(TASK); ++k) {                            \
-    const double a = (AMAT)[XA(TASK) + IDT(M, k, XM(TASK), XK(TASK))];         \
-    UNROLL_AUTO for (SINT n = 0; n < (N1); ++n) {                              \
-      const int idx = IDX(k, n + (N0), XK(TASK), XN(TASK));                    \
-      (CVEC)[n] = MAD(a, BCST(b[idx]), (CVEC)[n]);                             \
+#define DBM_MULTIPLY_STORE(ALPHA, TASK, CMAT, CVEC, M, N0, N1)                 \
+  do { /* CMAT atomically accumulates CVEC */                                  \
+    UNROLL_AUTO for (SINT n = 0; n < (N1); ++n) { /* flush to global */        \
+      const int idx = IDT(M, n + (N0), XM(TASK), XN(TASK));                    \
+      ACCUMULATE((CMAT) + XC(TASK) + idx, (ALPHA) * (CVEC)[n]);                \
+      (CVEC)[n] = ZERO; /* reset */                                            \
     }                                                                          \
-  }                                                                            \
-  UNROLL_AUTO for (SINT n = 0; n < (N1); ++n) { /* flush to global */          \
-    const int idx = IDT(M, n + (N0), XM(TASK), XN(TASK));                      \
-    ACCUMULATE((CMAT) + XC(TASK) + idx, (ALPHA) * (CVEC)[n]);                  \
-    (CVEC)[n] = ZERO; /* reset */                                              \
-  }
+  } while (0)
 
-#define DBM_MULTIPLY(ALPHA, TASK, AMAT, BMAT, CMAT, M, BN, BCST)               \
-  do { /* DBM_MULTIPLY_KERNEL unrolled/specialized over N and K */             \
-    double cvec[BN];                                                           \
-    UNROLL_AUTO for (SINT n = 0; n < (BN); ++n) { cvec[n] = ZERO; }            \
-    if (1 < XN(TASK)) {                                                        \
-      SINT n0 = 0;                                                             \
-      if ((BN) <= XN(TASK)) {                                                  \
-        UNROLL_OUTER(1) for (; (n0 + (BN)) <= XN(TASK); n0 += (BN)) {          \
-          DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, cvec, M, n0, BN,  \
-                              BCST);                                           \
-        }                                                                      \
+#define DBM_MULTIPLY_KERNEL(TASK, AMAT, BMAT, CVEC, M, N0, N1, BCST)           \
+  do { /* CVEC accumulates result */                                           \
+    UNROLL_AUTO for (SINT k = 0; k < XK(TASK); ++k) {                          \
+      const double a = (AMAT)[XA(TASK) + IDT(M, k, XM(TASK), XK(TASK))];       \
+      UNROLL_AUTO for (SINT n = 0; n < (N1); ++n) {                            \
+        const int idx = IDX(k, n + (N0), XK(TASK), XN(TASK));                  \
+        (CVEC)[n] = MAD(a, BCST((BMAT)[idx]), (CVEC)[n]);                      \
       }                                                                        \
-      DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, cvec, M, n0,          \
-                          XN(TASK) - n0, BCST);                                \
-    } else { /* N = 1 */                                                       \
-      DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, cvec, M, 0, 1, BCST); \
     }                                                                          \
+  } while (0)
+
+#define DBM_MULTIPLY(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, BN, BCST)         \
+  do { /* DBM_MULTIPLY_KERNEL specialized over N */                            \
+    SINT n0 = 0;                                                               \
+    UNROLL_AUTO for (SINT n = 0; n < (BN); ++n) { (CVEC)[n] = ZERO; }          \
+    if ((BN) <= XN(TASK)) {                                                    \
+      UNROLL_OUTER(1) for (; (n0 + (BN)) <= XN(TASK); n0 += (BN)) {            \
+        DBM_MULTIPLY_KERNEL(TASK, AMAT, BMAT, CVEC, M, n0, BN, BCST);          \
+        DBM_MULTIPLY_STORE(ALPHA, TASK, CMAT, CVEC, M, n0, BN);                \
+      }                                                                        \
+    }                                                                          \
+    DBM_MULTIPLY_KERNEL(TASK, AMAT, BMAT, CVEC, M, n0, XN(TASK) - n0, BCST);   \
+    DBM_MULTIPLY_STORE(ALPHA, TASK, CMAT, CVEC, M, n0, XN(TASK) - n0);         \
   } while (0)
 
 #if defined(WG) && (0 < WG)
@@ -83,13 +82,15 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
     const SINT m = i - tid * max_m;
     global const dbm_task_t *const task = &tasks[itask + tid];
     if (m < XM(task)) { /* valid task */
+      double cvec[BN];
+      bmat += XB(task);
 #if defined(BCST_WG)
       if (XM(task) <= XN(task)) { /* BCST_WG to broadcast B-values */
-        DBM_MULTIPLY(alpha, task, amat, bmat, cmat, m, BN, BCST_WG);
+        DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, BCST_WG);
       } else
 #endif
       {
-        DBM_MULTIPLY(alpha, task, amat, bmat, cmat, m, BN, BCST_NO);
+        DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN, BCST_NO);
       }
     }
   }
