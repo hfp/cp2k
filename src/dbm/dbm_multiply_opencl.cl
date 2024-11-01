@@ -31,12 +31,12 @@
 
 #define DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, N0, N1,    \
                             BCST)                                              \
+  const double *const b = (BMAT) + XB(TASK);                                   \
   UNROLL_AUTO for (SINT k = 0; k < XK(TASK); ++k) {                            \
     const double a = (AMAT)[XA(TASK) + IDT(M, k, XM(TASK), XK(TASK))];         \
     UNROLL_AUTO for (SINT n = 0; n < (N1); ++n) {                              \
-      const SINT idx = IDX(k, n + (N0), XK(TASK), XN(TASK));                   \
-      const double b = (BMAT)[XB(TASK) + idx];                                 \
-      (CVEC)[n] = MAD(a, BCST(b), (CVEC)[n]);                                  \
+      const int idx = IDX(k, n + (N0), XK(TASK), XN(TASK));                    \
+      (CVEC)[n] = MAD(a, BCST(b[idx]), (CVEC)[n]);                             \
     }                                                                          \
   }                                                                            \
   UNROLL_AUTO for (SINT n = 0; n < (N1); ++n) { /* flush to global */          \
