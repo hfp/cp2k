@@ -48,18 +48,21 @@
   do { /* DBM_MULTIPLY_KERNEL unrolled/specialized over N and K */             \
     double cvec[BN];                                                           \
     const SINT k1 = (1 < XK(TASK) ? XK(TASK) : 1);                             \
-    SINT n0 = 0;                                                               \
     UNROLL_AUTO for (SINT n = 0; n < (BN); ++n) { cvec[n] = ZERO; }            \
-    if ((BN) <= XN(TASK)) {                                                    \
-      UNROLL_OUTER(1) for (; (n0 + (BN)) <= XN(TASK); n0 += (BN)) {            \
-        DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, cvec, M, n0, BN,    \
-                            k1, BCST);                                         \
+    if (1 < XN(TASK)) {                                                        \
+      SINT n0 = 0;                                                             \
+      if ((BN) <= XN(TASK)) {                                                  \
+        UNROLL_OUTER(1) for (; (n0 + (BN)) <= XN(TASK); n0 += (BN)) {          \
+          DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, cvec, M, n0, BN,  \
+                              k1, BCST);                                       \
         }                                                                      \
-    }                                                                          \
-    /*if (n0 < XN(TASK))*/ { /* handle remainder */                            \
+      }                                                                        \
       DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, cvec, M, n0,          \
                           XN(TASK) - n0, k1, BCST);                            \
-    }                                                                          \
+    } else { /* N = 1 */                                                       \
+      DBM_MULTIPLY_KERNEL(ALPHA, TASK, AMAT, BMAT, CMAT, cvec, M, 0, 1,        \
+                            k1, BCST);                                         \
+    } \
   } while (0)
 
 #if defined(WG) && (0 < WG)
