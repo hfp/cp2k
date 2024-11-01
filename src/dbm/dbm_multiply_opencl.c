@@ -60,7 +60,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       const char *const bn_env = getenv("DBM_MULTIPLY_BN");
       const int gpu =
           (CL_DEVICE_TYPE_GPU == c_dbcsr_acc_opencl_config.device.type);
-      const int gen = (NULL == gen_env ? 0 /*default*/ : atoi(gen_env));
+      const int gen = (NULL == gen_env ? 1 /*default*/ : atoi(gen_env));
       const int xf = (NULL == xf_env ? -1 /*default*/ : atoi(xf_env));
       const int lu = LIBXSMM_CLMP(NULL == lu_env ? 0 : atoi(lu_env), -2, 1);
       const int bn = LIBXSMM_CLMP(NULL == bn_env ? 8 : atoi(bn_env), 4, 32);
