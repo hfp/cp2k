@@ -900,9 +900,11 @@ CONTAINS
             start_section_label//"| OpenMP stack size per thread (OMP_STACKSIZE)", &
             ADJUSTR(omp_stacksize)
 
-         WRITE (UNIT=output_unit, FMT="(T2,A,T68,A13)") &
-            start_section_label//"| OpenMP issue trace (CP2K_OMP_TRACE)", &
-            ADJUSTR(MERGE("disabled", " enabled", m_omp_trace_issues() < 0))
+         IF (0 <= m_omp_trace_issues()) THEN ! only show in header if enabled
+            WRITE (UNIT=output_unit, FMT="(T2,A,T68,A13)") &
+               start_section_label//"| OpenMP issue trace (CP2K_OMP_TRACE)", &
+               "enabled"
+         END IF
 
          CALL m_cpuinfo(model_name)
          WRITE (UNIT=output_unit, FMT="(T2,A,T30,A51)") &

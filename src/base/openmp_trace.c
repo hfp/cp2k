@@ -2,9 +2,19 @@
 /*  CP2K: A general program to perform molecular dynamics simulations         */
 /*  Copyright 2000-2024 CP2K developers group <https://cp2k.org>              */
 /*                                                                            */
-/*  SPDX-License-Identifier: BSD-3-Clause                                     */
+/*  SPDX-License-Identifier: GPL-2.0-or-later                                 */
 /*----------------------------------------------------------------------------*/
-#if defined(_OPENMP) && defined(__clang__)
+#define OPENMP_TRACE_DISABLED ((unsigned int)-1)
+
+/* routine is exposed in Fortran, hence must be present */
+int openmp_trace_issues(void);
+
+/**
+ * Simple compile-time check if OMPT is available (omp/iomp, not gomp).
+ * __clang__: omp and iomp/icx, __INTEL_COMPILER: iomp/icc
+ * __INTEL_LLVM_COMPILER: already covered by __clang__
+ */
+#if defined(_OPENMP) && (defined(__clang__) || defined(__INTEL_COMPILER))
 
 #include <assert.h>
 #include <omp-tools.h>
@@ -22,7 +32,6 @@ static unsigned int openmp_trace_nissues;
 static unsigned int openmp_trace_nparallel;
 static unsigned int openmp_trace_nmaster;
 
-int openmp_trace_issues(void);
 int openmp_trace_issues(void) { return (int)openmp_trace_nissues; }
 
 static void openmp_trace_parallel_begin(
@@ -70,6 +79,7 @@ static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
   }
 }
 
+/* initially, events of interest are registered */
 static int openmp_trace_initialize(ompt_function_lookup_t lookup,
                                    int initial_device_num,
                                    ompt_data_t *tool_data) {
@@ -80,13 +90,15 @@ static int openmp_trace_initialize(ompt_function_lookup_t lookup,
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, parallel_begin);
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, parallel_end);
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, master);
-  return 0 == openmp_trace_nissues;
+  return 0 == openmp_trace_issues();
 }
 
+/* here tool_data might be freed and analysis concludes */
 static void openmp_trace_finalize(ompt_data_t *tool_data) {
   OPENMP_TRACE_UNUSED(tool_data);
 }
 
+/* entry point which is automatically called by the OpenMP runtime */
 ompt_start_tool_result_t *ompt_start_tool(unsigned int omp_version,
                                           const char *runtime_version) {
   static ompt_start_tool_result_t openmp_start_tool = {
@@ -96,14 +108,18 @@ ompt_start_tool_result_t *ompt_start_tool(unsigned int omp_version,
   ompt_start_tool_result_t *result = NULL;
   OPENMP_TRACE_UNUSED(omp_version);
   OPENMP_TRACE_UNUSED(runtime_version);
-  if (0 == enabled) {
-    openmp_trace_nissues = (unsigned int)-1;
+  if (0 == enabled) { /* not enabled */
+    openmp_trace_nissues = OPENMP_TRACE_DISABLED;
     assert(NULL == result);
-  } else {
+  } else { /* trace OpenMP constructs */
     assert(0 == openmp_trace_nissues);
     result = &openmp_start_tool;
   }
   return result;
 }
 
-#endif /*defined(_OPENMP) && defined(__clang__)*/
+#else
+
+int openmp_trace_issues(void) { return OPENMP_TRACE_DISABLED; }
+
+#endif
