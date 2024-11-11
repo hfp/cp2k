@@ -19,10 +19,11 @@ int openmp_trace_issues(void);
 #include <assert.h>
 #include <omp-tools.h>
 #include <stdlib.h>
-#include <stdio.h>
 
-#if !defined(_WIN32) && !defined(__CYGWIN__)
-# include <execinfo.h>
+#if !defined(_WIN32) && !defined(__CYGWIN__) && !defined(OPENMP_TRACE_SYMBOL)
+#define OPENMP_TRACE_SYMBOL
+#include <execinfo.h>
+#include <unistd.h>
 #endif
 
 #define OPENMP_TRACE_UNUSED(VAR) (void)VAR
@@ -30,11 +31,12 @@ int openmp_trace_issues(void);
 #define OPENMP_TRACE_SET_CALLBACK(PREFIX, NAME)                                \
   if (ompt_set_never ==                                                        \
       set_callback(ompt_callback_##NAME, (ompt_callback_t)PREFIX##_##NAME)) {  \
-    ++openmp_trace_issues_count;                                                    \
+    ++openmp_trace_issues_count;                                               \
   }
 
 static unsigned int openmp_trace_issues_count;
-static unsigned int openmp_trace_parallel_count, openmp_trace_parallel_count_max;
+static unsigned int openmp_trace_parallel_count;
+static unsigned int openmp_trace_parallel_count_max;
 static unsigned int openmp_trace_master_count;
 
 static char openmp_trace_master_codeptr[1024];
@@ -42,16 +44,21 @@ static char openmp_trace_master_codeptr[1024];
 int openmp_trace_issues(void) { return (int)openmp_trace_issues_count; }
 
 /* attempt to translate symbol/address to character string */
-static void openmp_trace_symbol(const void* symbol, char* buffer, size_t size) {
-  FILE *const stream = ((NULL != symbol && NULL != buffer && 0 < size) ? open_memstream(&buffer, &size) : NULL);
-  if (NULL != stream) {
-    const int fd = fileno(stream);
-    if (0 < fd) {
-      void *const backtrace[] = { (void*)symbol };
-      backtrace_symbols_fd(backtrace, 1, fd);
-    }
-    fclose(stream);
+static void openmp_trace_symbol(const void *symbol, char *buffer, size_t size) {
+#if !defined(OPENMP_TRACE_SYMBOL)
+  OPENMP_TRACE_UNUSED(symbol);
+  OPENMP_TRACE_UNUSED(buffer);
+  OPENMP_TRACE_UNUSED(size);
+#else
+  int pipefd[2];
+  if (NULL != symbol && NULL != buffer && 0 < size && 0 == pipe(pipefd)) {
+    void *const backtrace[] = {(void *)symbol};
+    backtrace_symbols_fd(backtrace, 1, pipefd[1]);
+    close(pipefd[1]);
+    read(pipefd[0], buffer, size);
+    close(pipefd[0]);
   }
+#endif
 }
 
 /* https://www.openmp.org/spec-html/5.0/openmpsu187.html */
@@ -96,7 +103,8 @@ static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
   OPENMP_TRACE_UNUSED(codeptr_ra);
   switch (endpoint) {
   case ompt_scope_begin: {
-    openmp_trace_symbol(codeptr_ra, openmp_trace_master_codeptr, sizeof(openmp_trace_master_codeptr));
+    openmp_trace_symbol(codeptr_ra, openmp_trace_master_codeptr,
+                        sizeof(openmp_trace_master_codeptr));
     ++openmp_trace_master_count;
   } break;
   case ompt_scope_end: {
