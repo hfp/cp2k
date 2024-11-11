@@ -29,7 +29,7 @@ int openmp_trace_issues(void);
   }
 
 static unsigned int openmp_trace_nissues;
-static unsigned int openmp_trace_nparallel;
+static unsigned int openmp_trace_nparallel, openmp_trace_nparallel_max;
 static unsigned int openmp_trace_nmaster;
 
 int openmp_trace_issues(void) { return (int)openmp_trace_nissues; }
@@ -61,6 +61,9 @@ static void openmp_trace_parallel_end(ompt_data_t *parallel_data,
   OPENMP_TRACE_UNUSED(flags);
   OPENMP_TRACE_UNUSED(codeptr_ra);
   --openmp_trace_nparallel;
+  if (openmp_trace_nparallel_max < openmp_trace_nparallel) {
+    openmp_trace_nparallel_max = openmp_trace_nparallel;
+  }
 }
 
 /* https://www.openmp.org/spec-html/5.0/openmpsu187.html */
