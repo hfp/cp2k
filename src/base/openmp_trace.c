@@ -19,20 +19,40 @@ int openmp_trace_issues(void);
 #include <assert.h>
 #include <omp-tools.h>
 #include <stdlib.h>
+#include <stdio.h>
+
+#if !defined(_WIN32) && !defined(__CYGWIN__)
+# include <execinfo.h>
+#endif
 
 #define OPENMP_TRACE_UNUSED(VAR) (void)VAR
 
 #define OPENMP_TRACE_SET_CALLBACK(PREFIX, NAME)                                \
   if (ompt_set_never ==                                                        \
       set_callback(ompt_callback_##NAME, (ompt_callback_t)PREFIX##_##NAME)) {  \
-    ++openmp_trace_nissues;                                                    \
+    ++openmp_trace_issues_count;                                                    \
   }
 
-static unsigned int openmp_trace_nissues;
-static unsigned int openmp_trace_nparallel, openmp_trace_nparallel_max;
-static unsigned int openmp_trace_nmaster;
+static unsigned int openmp_trace_issues_count;
+static unsigned int openmp_trace_parallel_count, openmp_trace_parallel_count_max;
+static unsigned int openmp_trace_master_count;
 
-int openmp_trace_issues(void) { return (int)openmp_trace_nissues; }
+static char openmp_trace_master_codeptr[1024];
+
+int openmp_trace_issues(void) { return (int)openmp_trace_issues_count; }
+
+/* attempt to translate symbol/address to character string */
+static void openmp_trace_symbol(const void* symbol, char* buffer, size_t size) {
+  FILE *const stream = ((NULL != symbol && NULL != buffer && 0 < size) ? open_memstream(&buffer, &size) : NULL);
+  if (NULL != stream) {
+    const int fd = fileno(stream);
+    if (0 < fd) {
+      void *const backtrace[] = { (void*)symbol };
+      backtrace_symbols_fd(backtrace, 1, fd);
+    }
+    fclose(stream);
+  }
+}
 
 /* https://www.openmp.org/spec-html/5.0/openmpsu187.html */
 static void openmp_trace_parallel_begin(
@@ -45,11 +65,11 @@ static void openmp_trace_parallel_begin(
   OPENMP_TRACE_UNUSED(requested_parallelism);
   OPENMP_TRACE_UNUSED(flags);
   OPENMP_TRACE_UNUSED(codeptr_ra);
-  if (0 != openmp_trace_nmaster) {
-    ++openmp_trace_nissues;
+  if (0 != openmp_trace_master_count) {
+    ++openmp_trace_issues_count;
     assert(0);
   }
-  ++openmp_trace_nparallel;
+  ++openmp_trace_parallel_count;
 }
 
 /* https://www.openmp.org/spec-html/5.0/openmpsu187.html */
@@ -60,9 +80,9 @@ static void openmp_trace_parallel_end(ompt_data_t *parallel_data,
   OPENMP_TRACE_UNUSED(encountering_task_data);
   OPENMP_TRACE_UNUSED(flags);
   OPENMP_TRACE_UNUSED(codeptr_ra);
-  --openmp_trace_nparallel;
-  if (openmp_trace_nparallel_max < openmp_trace_nparallel) {
-    openmp_trace_nparallel_max = openmp_trace_nparallel;
+  --openmp_trace_parallel_count;
+  if (openmp_trace_parallel_count_max < openmp_trace_parallel_count) {
+    openmp_trace_parallel_count_max = openmp_trace_parallel_count;
   }
 }
 
@@ -75,12 +95,13 @@ static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
   OPENMP_TRACE_UNUSED(task_data);
   OPENMP_TRACE_UNUSED(codeptr_ra);
   switch (endpoint) {
-  case ompt_scope_begin:
-    ++openmp_trace_nmaster;
-    break;
-  case ompt_scope_end:
-    --openmp_trace_nmaster;
-    break;
+  case ompt_scope_begin: {
+    openmp_trace_symbol(codeptr_ra, openmp_trace_master_codeptr, sizeof(openmp_trace_master_codeptr));
+    ++openmp_trace_master_count;
+  } break;
+  case ompt_scope_end: {
+    --openmp_trace_master_count;
+  } break;
   default:; /* ompt_scope_beginend */
   }
 }
@@ -115,10 +136,10 @@ ompt_start_tool_result_t *ompt_start_tool(unsigned int omp_version,
   OPENMP_TRACE_UNUSED(omp_version);
   OPENMP_TRACE_UNUSED(runtime_version);
   if (0 == enabled) { /* not enabled */
-    openmp_trace_nissues = OPENMP_TRACE_DISABLED;
+    openmp_trace_issues_count = OPENMP_TRACE_DISABLED;
     assert(NULL == result);
   } else { /* trace OpenMP constructs */
-    assert(0 == openmp_trace_nissues);
+    assert(0 == openmp_trace_issues_count);
     result = &openmp_start_tool;
   }
   return result;
