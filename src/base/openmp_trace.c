@@ -18,8 +18,8 @@ int openmp_trace_issues(void);
 
 #include <assert.h>
 #include <omp-tools.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #if !defined(_WIN32) && !defined(__CYGWIN__) && !defined(OPENMP_TRACE_SYMBOL)
 #define OPENMP_TRACE_SYMBOL
@@ -40,7 +40,7 @@ static unsigned int openmp_trace_issues_count;
 static unsigned int openmp_trace_parallel_count;
 static unsigned int openmp_trace_parallel_count_max;
 
-static const void* openmp_trace_master_codeptr;
+static const void *openmp_trace_master_codeptr;
 
 int openmp_trace_issues(void) { return (int)openmp_trace_issues_count; }
 
@@ -78,16 +78,18 @@ static void openmp_trace_parallel_begin(
     ++openmp_trace_issues_count;
     if (1 == openmp_trace_level || 0 > openmp_trace_level) {
       assert(0);
-    }
-    else {
+    } else {
       char sym_master[1024] = "", sym_parallel[1024] = "";
-      openmp_trace_symbol(openmp_trace_master_codeptr, sym_master, sizeof(sym_master));
+      openmp_trace_symbol(openmp_trace_master_codeptr, sym_master,
+                          sizeof(sym_master));
       openmp_trace_symbol(codeptr_ra, sym_parallel, sizeof(sym_parallel));
       if ('\0' != *sym_master && '\0' != *sym_parallel) {
-        fprintf(stderr, "OMP TRACE ERROR: parallel region\n"
-                        "%s\n"
-                        "opened in master section\n"
-                        "%s\n", sym_parallel, sym_master);
+        fprintf(stderr,
+                "OMP TRACE ERROR: parallel region\n"
+                "%s\n"
+                "opened in master section\n"
+                "%s\n",
+                sym_parallel, sym_master);
       }
     }
   }
