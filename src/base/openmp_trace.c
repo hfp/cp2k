@@ -34,6 +34,7 @@ static unsigned int openmp_trace_nmaster;
 
 int openmp_trace_issues(void) { return (int)openmp_trace_nissues; }
 
+/* https://www.openmp.org/spec-html/5.0/openmpsu187.html */
 static void openmp_trace_parallel_begin(
     ompt_data_t *encountering_task_data,
     const ompt_frame_t *encountering_task_frame, ompt_data_t *parallel_data,
@@ -51,6 +52,7 @@ static void openmp_trace_parallel_begin(
   ++openmp_trace_nparallel;
 }
 
+/* https://www.openmp.org/spec-html/5.0/openmpsu187.html */
 static void openmp_trace_parallel_end(ompt_data_t *parallel_data,
                                       ompt_data_t *encountering_task_data,
                                       int flags, const void *codeptr_ra) {
@@ -61,6 +63,7 @@ static void openmp_trace_parallel_end(ompt_data_t *parallel_data,
   --openmp_trace_nparallel;
 }
 
+/* https://www.openmp.org/spec-html/5.0/openmpsu187.html */
 static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
                                 ompt_data_t *parallel_data,
                                 ompt_data_t *task_data,
