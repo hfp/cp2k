@@ -19,6 +19,7 @@ int openmp_trace_issues(void);
 #include <assert.h>
 #include <omp-tools.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #if !defined(_WIN32) && !defined(__CYGWIN__) && !defined(OPENMP_TRACE_SYMBOL)
 #define OPENMP_TRACE_SYMBOL
@@ -34,12 +35,12 @@ int openmp_trace_issues(void);
     ++openmp_trace_issues_count;                                               \
   }
 
+static unsigned int openmp_trace_level;
 static unsigned int openmp_trace_issues_count;
 static unsigned int openmp_trace_parallel_count;
 static unsigned int openmp_trace_parallel_count_max;
-static unsigned int openmp_trace_master_count;
 
-static char openmp_trace_master_codeptr[1024];
+static const void* openmp_trace_master_codeptr;
 
 int openmp_trace_issues(void) { return (int)openmp_trace_issues_count; }
 
@@ -72,9 +73,23 @@ static void openmp_trace_parallel_begin(
   OPENMP_TRACE_UNUSED(requested_parallelism);
   OPENMP_TRACE_UNUSED(flags);
   OPENMP_TRACE_UNUSED(codeptr_ra);
-  if (0 != openmp_trace_master_count) {
+  assert(0 != openmp_trace_level);
+  if (NULL != openmp_trace_master_codeptr) {
     ++openmp_trace_issues_count;
-    assert(0);
+    if (1 == openmp_trace_level || 0 > openmp_trace_level) {
+      assert(0);
+    }
+    else {
+      char sym_master[1024] = "", sym_parallel[1024] = "";
+      openmp_trace_symbol(openmp_trace_master_codeptr, sym_master, sizeof(sym_master));
+      openmp_trace_symbol(codeptr_ra, sym_parallel, sizeof(sym_parallel));
+      if ('\0' != *sym_master && '\0' != *sym_parallel) {
+        fprintf(stderr, "OMP TRACE ERROR: parallel region\n"
+                        "%s\n"
+                        "opened in master section\n"
+                        "%s\n", sym_parallel, sym_master);
+      }
+    }
   }
   ++openmp_trace_parallel_count;
 }
@@ -103,12 +118,10 @@ static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
   OPENMP_TRACE_UNUSED(codeptr_ra);
   switch (endpoint) {
   case ompt_scope_begin: {
-    openmp_trace_symbol(codeptr_ra, openmp_trace_master_codeptr,
-                        sizeof(openmp_trace_master_codeptr));
-    ++openmp_trace_master_count;
+    openmp_trace_master_codeptr = codeptr_ra;
   } break;
   case ompt_scope_end: {
-    --openmp_trace_master_count;
+    openmp_trace_master_codeptr = NULL;
   } break;
   default:; /* ompt_scope_beginend */
   }
@@ -139,11 +152,11 @@ ompt_start_tool_result_t *ompt_start_tool(unsigned int omp_version,
   static ompt_start_tool_result_t openmp_start_tool = {
       openmp_trace_initialize, openmp_trace_finalize, {0}};
   const char *const enabled_env = getenv("CP2K_OMP_TRACE");
-  const int enabled = (NULL == enabled_env ? 0 : atoi(enabled_env));
   ompt_start_tool_result_t *result = NULL;
+  openmp_trace_level = (NULL == enabled_env ? 0 : atoi(enabled_env));
   OPENMP_TRACE_UNUSED(omp_version);
   OPENMP_TRACE_UNUSED(runtime_version);
-  if (0 == enabled) { /* not enabled */
+  if (0 == openmp_trace_level) { /* not enabled */
     openmp_trace_issues_count = OPENMP_TRACE_DISABLED;
     assert(NULL == result);
   } else { /* trace OpenMP constructs */
