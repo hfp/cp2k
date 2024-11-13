@@ -143,7 +143,7 @@ static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
   OPENMP_TRACE_UNUSED(parallel_data);
   OPENMP_TRACE_UNUSED(task_data);
   switch (endpoint) {
-  case ompt_scope_begin: {
+  case ompt_scope_begin: if (0 < openmp_trace_parallel_count) {
     openmp_trace_master_codeptr = codeptr_ra;
   } break;
   case ompt_scope_end: {
