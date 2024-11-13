@@ -94,16 +94,15 @@ static void openmp_trace_parallel_begin(
   OPENMP_TRACE_UNUSED(parallel_data);
   OPENMP_TRACE_UNUSED(requested_parallelism);
   OPENMP_TRACE_UNUSED(flags);
-  OPENMP_TRACE_UNUSED(codeptr_ra);
   ++openmp_trace_parallel_count;
   if (openmp_trace_parallel_count_max < openmp_trace_parallel_count) {
     openmp_trace_parallel_count_max = openmp_trace_parallel_count;
-    openmp_trace_parallel_nested_codeptr = NULL;
+    openmp_trace_parallel_nested_codeptr = codeptr_ra;
   }
   if (NULL != openmp_trace_master_codeptr) {
     ++openmp_trace_issues_count;
     if (2 <= openmp_trace_level || 0 > openmp_trace_level) {
-      char sym_master[1024] = "", sym_parallel[1024] = "";
+      char sym_master[1024], sym_parallel[1024];
       openmp_trace_symbol(openmp_trace_master_codeptr, sym_master,
                           sizeof(sym_master), 1 /*cleanup*/);
       openmp_trace_symbol(codeptr_ra, sym_parallel, sizeof(sym_parallel),
@@ -131,6 +130,7 @@ static void openmp_trace_parallel_end(ompt_data_t *parallel_data,
   OPENMP_TRACE_UNUSED(encountering_task_data);
   OPENMP_TRACE_UNUSED(flags);
   OPENMP_TRACE_UNUSED(codeptr_ra);
+  assert(0 < openmp_trace_parallel_count);
   --openmp_trace_parallel_count;
 }
 
@@ -171,7 +171,7 @@ static void openmp_trace_finalize(ompt_data_t *tool_data) {
   OPENMP_TRACE_UNUSED(tool_data);
   if (3 <= openmp_trace_level || 0 > openmp_trace_level) {
     if (1 < openmp_trace_parallel_count_max) { /* nested */
-      char sym_parallel[1024] = "";
+      char sym_parallel[1024];
       openmp_trace_symbol(openmp_trace_parallel_nested_codeptr, sym_parallel,
                           sizeof(sym_parallel), 1 /*cleanup*/);
       if ('\0' != *sym_parallel) {
