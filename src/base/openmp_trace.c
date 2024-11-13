@@ -130,8 +130,9 @@ static void openmp_trace_parallel_end(ompt_data_t *parallel_data,
   OPENMP_TRACE_UNUSED(encountering_task_data);
   OPENMP_TRACE_UNUSED(flags);
   OPENMP_TRACE_UNUSED(codeptr_ra);
-  assert(0 < openmp_trace_parallel_count);
-  --openmp_trace_parallel_count;
+  if (0 < openmp_trace_parallel_count) {
+    --openmp_trace_parallel_count;
+  }
 }
 
 /* https://www.openmp.org/spec-html/5.0/openmpsu187.html */
