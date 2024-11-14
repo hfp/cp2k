@@ -99,8 +99,8 @@ static void openmp_trace_symbol(const void *symbol, char *buffer, size_t size,
         char *end =
             (NULL != str ? memchr(str + 1, '+', size - (str - buffer)) : NULL);
         if (NULL != end) {
-          memmove(buffer, str + 1, end - str);
           *end = '\0';
+          memmove(buffer, str + 1, end - str);
         }
       } else {
         char *str = memchr(buffer, '\n', size);
