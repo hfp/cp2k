@@ -4,24 +4,65 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: GPL-2.0-or-later                                 */
 /*----------------------------------------------------------------------------*/
-#define OPENMP_TRACE_DISABLED ((unsigned int)-1)
 
-/* routine is exposed in Fortran, hence must be present */
+static int openmp_trace_level;
+static int openmp_trace_parallel_max;
+static unsigned int openmp_trace_issues_count;
+
+static const void *openmp_trace_parallel_nested_codeptr;
+static const void *openmp_trace_master_codeptr;
+
 int openmp_trace_issues(void);
+int openmp_trace_issues(void) { /* routine is exposed in Fortran interface */
+  return 0 != openmp_trace_level ? ((int)openmp_trace_issues_count)
+                                 : -1 /*disabled*/;
+}
+
+#if defined(_OPENMP)
+#include <assert.h>
+#include <omp.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 /**
  * Simple compile-time check if OMPT is available (omp/iomp, not gomp).
  * __clang__: omp and iomp/icx, __INTEL_COMPILER: iomp/icc
  * __INTEL_LLVM_COMPILER: already covered by __clang__
  */
-#if defined(_OPENMP) && (defined(__clang__) || defined(__INTEL_COMPILER))
-
-#include <assert.h>
+#if (defined(__clang__) || defined(__INTEL_COMPILER))
 #include <omp-tools.h>
-#include <omp.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#else
+typedef struct ompt_frame_t ompt_frame_t;
+typedef void *ompt_initialize_t;
+typedef void *ompt_finalize_t;
+typedef void *ompt_callback_t;
+typedef union ompt_data_t {
+  uint64_t value;
+  void *ptr;
+} ompt_data_t;
+typedef struct ompt_start_tool_result_t {
+  ompt_initialize_t initialize;
+  ompt_finalize_t finalize;
+  ompt_data_t tool_data;
+} ompt_start_tool_result_t;
+typedef enum ompt_scope_endpoint_t {
+  ompt_scope_begin = 1,
+  ompt_scope_end
+} ompt_scope_endpoint_t;
+typedef enum ompt_set_result_t {
+  ompt_set_never = 1,
+} ompt_set_result_t;
+typedef enum ompt_callbacks_t {
+  ompt_callback_parallel_begin = 3,
+  ompt_callback_master = 21
+} ompt_callbacks_t;
+typedef void (*ompt_interface_fn_t)(void);
+typedef ompt_interface_fn_t (*ompt_function_lookup_t)(const char *);
+typedef ompt_set_result_t (*ompt_set_callback_t)(ompt_callbacks_t,
+                                                 ompt_callback_t);
+#endif
 
 #if !defined(_WIN32) && !defined(__CYGWIN__) && !defined(OPENMP_TRACE_SYMBOL)
 #define OPENMP_TRACE_SYMBOL
@@ -36,15 +77,6 @@ int openmp_trace_issues(void);
       set_callback(ompt_callback_##NAME, (ompt_callback_t)PREFIX##_##NAME)) {  \
     ++openmp_trace_issues_count;                                               \
   }
-
-static int openmp_trace_level;
-static int openmp_trace_parallel_max;
-static unsigned int openmp_trace_issues_count;
-
-static const void *openmp_trace_parallel_nested_codeptr;
-static const void *openmp_trace_master_codeptr;
-
-int openmp_trace_issues(void) { return (int)openmp_trace_issues_count; }
 
 /* attempt to translate symbol/address to character string */
 static void openmp_trace_symbol(const void *symbol, char *buffer, size_t size,
@@ -62,22 +94,21 @@ static void openmp_trace_symbol(const void *symbol, char *buffer, size_t size,
     close(pipefd[1]);
     if (0 < read(pipefd[0], buffer, size)) {
       if (0 != cleanup) {
-        char *const str = (char *)memchr(buffer, '(', size);
-        if (NULL != str) {
-          char *const end = (char *)memchr(str + 1, '+', size - (str - buffer));
-          if (NULL != end) {
-            *end = '\0';
-            memmove(buffer, str + 1, end - str);
-          }
+        char *str = memchr(buffer, '(', size), *end;
+        end =
+            (NULL != str ? memchr(str + 1, '+', size - (str - buffer)) : NULL);
+        if (NULL != end) {
+          memmove(buffer, str + 1, end - str);
+          *end = '\0';
         }
       } else {
-        char *const str = (char *)memchr(buffer, '\n', size);
+        char *str = memchr(buffer, '\n', size);
         if (NULL != str) {
           *str = '\0';
         }
       }
     } else {
-      buffer[0] = '\0';
+      *buffer = '\0';
     }
     close(pipefd[0]);
   }
@@ -180,25 +211,19 @@ static void openmp_trace_finalize(ompt_data_t *tool_data) {
 /* entry point which is automatically called by the OpenMP runtime */
 ompt_start_tool_result_t *ompt_start_tool(unsigned int omp_version,
                                           const char *runtime_version) {
-  static ompt_start_tool_result_t openmp_start_tool = {
-      openmp_trace_initialize, openmp_trace_finalize, {0}};
+  static ompt_start_tool_result_t openmp_start_tool;
   const char *const enabled_env = getenv("CP2K_OMP_TRACE");
   ompt_start_tool_result_t *result = NULL;
   openmp_trace_level = (NULL == enabled_env ? 0 : atoi(enabled_env));
   OPENMP_TRACE_UNUSED(omp_version);
   OPENMP_TRACE_UNUSED(runtime_version);
-  if (0 == openmp_trace_level) { /* not enabled */
-    openmp_trace_issues_count = OPENMP_TRACE_DISABLED;
-    assert(NULL == result);
-  } else { /* trace OpenMP constructs */
-    assert(0 == openmp_trace_issues_count);
+  if (0 != openmp_trace_level) { /* trace OpenMP constructs */
+    openmp_start_tool.initialize = openmp_trace_initialize;
+    openmp_start_tool.finalize = openmp_trace_finalize;
+    openmp_start_tool.tool_data.ptr = NULL;
     result = &openmp_start_tool;
   }
   return result;
 }
-
-#else
-
-int openmp_trace_issues(void) { return OPENMP_TRACE_DISABLED; }
 
 #endif
