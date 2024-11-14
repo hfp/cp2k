@@ -18,6 +18,7 @@ int openmp_trace_issues(void);
 
 #include <assert.h>
 #include <omp-tools.h>
+#include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,10 +37,9 @@ int openmp_trace_issues(void);
     ++openmp_trace_issues_count;                                               \
   }
 
-static unsigned int openmp_trace_level;
+static int openmp_trace_level;
+static int openmp_trace_parallel_max;
 static unsigned int openmp_trace_issues_count;
-static unsigned int openmp_trace_parallel_count;
-static unsigned int openmp_trace_parallel_count_max;
 
 static const void *openmp_trace_parallel_nested_codeptr;
 static const void *openmp_trace_master_codeptr;
@@ -89,14 +89,14 @@ static void openmp_trace_parallel_begin(
     ompt_data_t *encountering_task_data,
     const ompt_frame_t *encountering_task_frame, ompt_data_t *parallel_data,
     unsigned int requested_parallelism, int flags, const void *codeptr_ra) {
+  const int active_level = omp_get_active_level();
   OPENMP_TRACE_UNUSED(encountering_task_data);
   OPENMP_TRACE_UNUSED(encountering_task_frame);
   OPENMP_TRACE_UNUSED(parallel_data);
   OPENMP_TRACE_UNUSED(requested_parallelism);
   OPENMP_TRACE_UNUSED(flags);
-  ++openmp_trace_parallel_count;
-  if (openmp_trace_parallel_count_max < openmp_trace_parallel_count) {
-    openmp_trace_parallel_count_max = openmp_trace_parallel_count;
+  if (openmp_trace_parallel_max < active_level) {
+    openmp_trace_parallel_max = active_level;
     openmp_trace_parallel_nested_codeptr = codeptr_ra;
   }
   if (NULL != openmp_trace_master_codeptr) {
@@ -123,19 +123,6 @@ static void openmp_trace_parallel_begin(
 }
 
 /* https://www.openmp.org/spec-html/5.0/openmpsu187.html */
-static void openmp_trace_parallel_end(ompt_data_t *parallel_data,
-                                      ompt_data_t *encountering_task_data,
-                                      int flags, const void *codeptr_ra) {
-  OPENMP_TRACE_UNUSED(parallel_data);
-  OPENMP_TRACE_UNUSED(encountering_task_data);
-  OPENMP_TRACE_UNUSED(flags);
-  OPENMP_TRACE_UNUSED(codeptr_ra);
-  if (0 < openmp_trace_parallel_count) {
-    --openmp_trace_parallel_count;
-  }
-}
-
-/* https://www.openmp.org/spec-html/5.0/openmpsu187.html */
 static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
                                 ompt_data_t *parallel_data,
                                 ompt_data_t *task_data,
@@ -143,12 +130,14 @@ static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
   OPENMP_TRACE_UNUSED(parallel_data);
   OPENMP_TRACE_UNUSED(task_data);
   switch (endpoint) {
-  case ompt_scope_begin: if (0 < openmp_trace_parallel_count) {
-    openmp_trace_master_codeptr = codeptr_ra;
-  } break;
-  case ompt_scope_end: {
+  case ompt_scope_begin:
+    if (0 < omp_get_active_level()) {
+      openmp_trace_master_codeptr = codeptr_ra;
+    }
+    break;
+  case ompt_scope_end:
     openmp_trace_master_codeptr = NULL;
-  } break;
+    break;
   default:; /* ompt_scope_beginend */
   }
 }
@@ -162,7 +151,6 @@ static int openmp_trace_initialize(ompt_function_lookup_t lookup,
   OPENMP_TRACE_UNUSED(initial_device_num);
   OPENMP_TRACE_UNUSED(tool_data);
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, parallel_begin);
-  OPENMP_TRACE_SET_CALLBACK(openmp_trace, parallel_end);
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, master);
   return 0 == openmp_trace_issues();
 }
@@ -171,7 +159,7 @@ static int openmp_trace_initialize(ompt_function_lookup_t lookup,
 static void openmp_trace_finalize(ompt_data_t *tool_data) {
   OPENMP_TRACE_UNUSED(tool_data);
   if (3 <= openmp_trace_level || 0 > openmp_trace_level) {
-    if (1 < openmp_trace_parallel_count_max) { /* nested */
+    if (1 < openmp_trace_parallel_max) { /* nested */
       char sym_parallel[1024];
       openmp_trace_symbol(openmp_trace_parallel_nested_codeptr, sym_parallel,
                           sizeof(sym_parallel), 1 /*cleanup*/);
@@ -179,11 +167,11 @@ static void openmp_trace_finalize(ompt_data_t *tool_data) {
         fprintf(stderr,
                 "OMP TRACE INFO: maximal nested parallelism "
                 "in \"%s\" has depth %u\n",
-                sym_parallel, openmp_trace_parallel_count_max);
+                sym_parallel, openmp_trace_parallel_max);
       } else {
         fprintf(stderr,
                 "OMP TRACE INFO: maximal nested parallelism has depth %u\n",
-                openmp_trace_parallel_count_max);
+                openmp_trace_parallel_max);
       }
     }
   }
