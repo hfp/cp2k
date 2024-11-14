@@ -129,16 +129,16 @@ static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
                                 const void *codeptr_ra) {
   OPENMP_TRACE_UNUSED(parallel_data);
   OPENMP_TRACE_UNUSED(task_data);
-  switch (endpoint) {
-  case ompt_scope_begin:
-    if (0 < omp_get_active_level()) {
+  if (0 < omp_get_active_level()) {
+    switch (endpoint) {
+    case ompt_scope_begin:
       openmp_trace_master_codeptr = codeptr_ra;
+      break;
+    case ompt_scope_end:
+      openmp_trace_master_codeptr = NULL;
+      break;
+    default:; /* ompt_scope_beginend */
     }
-    break;
-  case ompt_scope_end:
-    openmp_trace_master_codeptr = NULL;
-    break;
-  default:; /* ompt_scope_beginend */
   }
 }
 
