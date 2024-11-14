@@ -141,12 +141,12 @@ static void openmp_trace_parallel_begin(
                           1 /*cleanup*/);
       if ('\0' != *sym_master && '\0' != *sym_parallel) {
         fprintf(stderr,
-                "OMP TRACE ERROR: parallel region \"%s\""
+                "OMP/TRACE ERROR: parallel region \"%s\""
                 " opened in master section \"%s\"\n",
                 sym_parallel, sym_master);
       } else {
         fprintf(stderr,
-                "OMP TRACE ERROR: parallel region opened in master section\n");
+                "OMP/TRACE ERROR: parallel region opened in master section\n");
       }
     } else {
       assert(0);
@@ -211,12 +211,12 @@ static void openmp_trace_finalize(ompt_data_t *tool_data) {
                           sizeof(sym_parallel), 1 /*cleanup*/);
       if ('\0' != *sym_parallel) {
         fprintf(stderr,
-                "OMP TRACE INFO: maximal nested parallelism "
-                "in \"%s\" has depth %u\n",
+                "OMP/TRACE INFO: parallelism "
+                "in \"%s\" is nested (%i)\n",
                 sym_parallel, openmp_trace_parallel_nmax);
       } else {
         fprintf(stderr,
-                "OMP TRACE INFO: maximal nested parallelism has depth %u\n",
+                "OMP/TRACE INFO: parallelism is nested (%i)\n",
                 openmp_trace_parallel_nmax);
       }
     }
