@@ -143,8 +143,8 @@ static void openmp_trace_parallel_begin(
     ++openmp_trace_issues_n;
     if (2 <= openmp_trace_level || 0 > openmp_trace_level) {
       char sym_master[1024], sym_parallel[1024];
-      openmp_trace_symbol(master_codeptr, sym_master,
-                          sizeof(sym_master), 1 /*cleanup*/);
+      openmp_trace_symbol(master_codeptr, sym_master, sizeof(sym_master),
+                          1 /*cleanup*/);
       openmp_trace_symbol(codeptr_ra, sym_parallel, sizeof(sym_parallel),
                           1 /*cleanup*/);
       if ('\0' != *sym_master && '\0' != *sym_parallel) {
@@ -233,8 +233,7 @@ static void openmp_trace_finalize(ompt_data_t *tool_data) {
                 "in \"%s\" is nested (%i)\n",
                 sym_parallel, openmp_trace_parallel_nmax);
       } else {
-        fprintf(stderr,
-                "OMP/TRACE INFO: parallelism is nested (%i)\n",
+        fprintf(stderr, "OMP/TRACE INFO: parallelism is nested (%i)\n",
                 openmp_trace_parallel_nmax);
       }
     }
