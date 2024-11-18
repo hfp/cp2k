@@ -89,6 +89,7 @@ typedef ompt_set_result_t (*ompt_set_callback_t)(ompt_callbacks_t,
   }
 
 static int openmp_trace_parallel_n;
+static int openmp_trace_work_kind;
 static int openmp_trace_work_n;
 
 static const void *openmp_trace_parallel_codeptr;
@@ -145,19 +146,27 @@ static void openmp_trace_parallel_begin(
   if (0 != (ompt_parallel_team & flags) && NULL != openmp_trace_work_codeptr) {
     ++openmp_trace_issues_n;
     if (2 <= openmp_trace_level || 0 > openmp_trace_level) {
+      const char *work_kinds[] = {"master",     "loop",    "sections",
+                                  "single",     "single",  "workshare",
+                                  "distribute", "taskloop"};
+      const char *const work_kind =
+          (openmp_trace_work_kind * sizeof(*work_kinds)) < sizeof(work_kinds)
+              ? work_kinds[openmp_trace_work_kind]
+              : "unknown";
       char sym_master[1024], sym_parallel[1024];
       openmp_trace_symbol(openmp_trace_work_codeptr, sym_master,
                           sizeof(sym_master), 1 /*cleanup*/);
       openmp_trace_symbol(codeptr_ra, sym_parallel, sizeof(sym_parallel),
                           1 /*cleanup*/);
+      assert(NULL != work_kind);
       if ('\0' != *sym_master && '\0' != *sym_parallel) {
         fprintf(stderr,
                 "OMP/TRACE ERROR: parallel region \"%s\""
-                " opened in master section \"%s\"\n",
-                sym_parallel, sym_master);
+                " opened in %s \"%s\"\n",
+                sym_parallel, work_kind, sym_master);
       } else {
-        fprintf(stderr,
-                "OMP/TRACE ERROR: parallel region opened in master section\n");
+        fprintf(stderr, "OMP/TRACE ERROR: parallel region opened in %s\n",
+                work_kind);
       }
     } else {
       assert(0);
@@ -192,6 +201,7 @@ static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
   case ompt_scope_begin: {
     if (0 == openmp_trace_work_n++) {
       openmp_trace_work_codeptr = codeptr_ra;
+      openmp_trace_work_kind = 0;
     }
   } break;
   case ompt_scope_end: {
@@ -209,7 +219,6 @@ static void openmp_trace_work(ompt_work_t wstype,
                               ompt_data_t *parallel_data,
                               ompt_data_t *task_data, uint64_t count,
                               const void *codeptr_ra) {
-  OPENMP_TRACE_UNUSED(wstype);
   OPENMP_TRACE_UNUSED(parallel_data);
   OPENMP_TRACE_UNUSED(task_data);
   OPENMP_TRACE_UNUSED(count);
@@ -217,6 +226,7 @@ static void openmp_trace_work(ompt_work_t wstype,
   case ompt_scope_begin: {
     if (0 == openmp_trace_work_n++) {
       openmp_trace_work_codeptr = codeptr_ra;
+      openmp_trace_work_kind = wstype;
     }
   } break;
   case ompt_scope_end: {
