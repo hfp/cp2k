@@ -66,7 +66,12 @@ typedef enum ompt_work_t {
   ompt_work_single_other,
   ompt_work_workshare,
   ompt_work_distribute,
-  ompt_work_taskloop
+  ompt_work_taskloop,
+  ompt_work_scope,
+  ompt_work_loop_static,
+  ompt_work_loop_dynamic,
+  ompt_work_loop_guided,
+  ompt_work_loop_other
 } ompt_work_t;
 
 typedef void (*ompt_interface_fn_t)(void);
@@ -149,9 +154,10 @@ static void openmp_trace_parallel_begin(
   if (0 != (ompt_parallel_team & flags) && NULL != openmp_trace_work_codeptr) {
     ++openmp_trace_issues_n;
     if (2 <= openmp_trace_level || 0 > openmp_trace_level) {
-      const char *work_kinds[] = {"master",     "loop",    "sections",
-                                  "single",     "single",  "workshare",
-                                  "distribute", "taskloop"};
+      const char *work_kinds[] = {
+          "master",    "loop",       "sections", "single", "single",
+          "workshare", "distribute", "taskloop", "scope",  "loop",
+          "loop",      "loop",       "loop"};
       const char *const work_kind =
           (openmp_trace_work_kind * sizeof(*work_kinds)) < sizeof(work_kinds)
               ? work_kinds[openmp_trace_work_kind]
@@ -231,19 +237,21 @@ static void openmp_trace_work(ompt_work_t wstype,
   OPENMP_TRACE_UNUSED(parallel_data);
   OPENMP_TRACE_UNUSED(task_data);
   OPENMP_TRACE_UNUSED(count);
-  switch (endpoint) {
-  case ompt_scope_begin: {
-    if (0 == openmp_trace_work_n++) {
-      openmp_trace_work_codeptr = codeptr_ra;
-      openmp_trace_work_kind = wstype;
+  if (ompt_work_workshare == wstype) {
+    switch (endpoint) {
+    case ompt_scope_begin: {
+      if (0 == openmp_trace_work_n++) {
+        openmp_trace_work_codeptr = codeptr_ra;
+        openmp_trace_work_kind = wstype;
+      }
+    } break;
+    case ompt_scope_end: {
+      if (0 == --openmp_trace_work_n) {
+        openmp_trace_work_codeptr = NULL;
+      }
+    } break;
+    default:; /* ompt_scope_beginend */
     }
-  } break;
-  case ompt_scope_end: {
-    if (0 == --openmp_trace_work_n) {
-      openmp_trace_work_codeptr = NULL;
-    }
-  } break;
-  default:; /* ompt_scope_beginend */
   }
 }
 
