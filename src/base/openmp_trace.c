@@ -16,6 +16,7 @@ int openmp_trace_issues(void) { /* routine is exposed in Fortran interface */
 #if defined(_OPENMP)
 /* #include <omp.h>: avoid functionality being traced */
 #include <assert.h>
+#include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -98,9 +99,9 @@ static const void *openmp_trace_work_codeptr;
 static int (*openmp_trace_get_parallel_info)(int, ompt_data_t **, int *);
 
 /* attempt to translate symbol/address to character string */
-static void openmp_trace_symbol(const void *symbol, char *buffer, size_t size,
+static void openmp_trace_symbol(const void *symbol, char *str, size_t size,
                                 int cleanup) {
-  if (NULL != buffer && 0 < size) {
+  if (NULL != str && 0 < size) {
 #if !defined(OPENMP_TRACE_SYMBOL)
     OPENMP_TRACE_UNUSED(symbol);
 #else
@@ -109,25 +110,30 @@ static void openmp_trace_symbol(const void *symbol, char *buffer, size_t size,
       void *const backtrace[] = {(void *)symbol};
       backtrace_symbols_fd(backtrace, 1, pipefd[1]);
       close(pipefd[1]);
-      if (0 < read(pipefd[0], buffer, size)) {
-        char *str = (0 != cleanup ? memchr(buffer, '(', size) : NULL);
-        char *end =
-            (NULL != str ? memchr(str + 1, '+', size - (str - buffer)) : NULL);
-        if (NULL != end) {
-          *end = '\0';
-          memmove(buffer, str + 1, end - str);
+      if (0 < read(pipefd[0], str, size)) {
+        char *s = (0 != cleanup ? memchr(str, '(', size) : NULL);
+        char *t = (NULL != s ? memchr(s + 1, '+', size - (s - str)) : NULL);
+        if (NULL != t) {
+          *t = '\0';
+          memmove(str, s + 1, t - s);
         }
-        str = memchr(buffer, '\n', size);
-        if (NULL != str) {
-          *str = '\0';
+        s = memchr(str, '\n', size);
+        if (NULL != s) {
+          *s = '\0';
+        }
+        for (s = str; s < (str + size) && '\0' != *s; ++s) {
+          if (0 == isprint(*s)) {
+            *str = '\0';
+            break;
+          }
         }
       } else {
-        *buffer = '\0';
+        *str = '\0';
       }
       close(pipefd[0]);
     } else
 #endif
-    { buffer[0] = '\0'; }
+    { *str = '\0'; }
   }
 }
 
@@ -150,20 +156,26 @@ static void openmp_trace_parallel_begin(
           (openmp_trace_work_kind * sizeof(*work_kinds)) < sizeof(work_kinds)
               ? work_kinds[openmp_trace_work_kind]
               : "unknown";
-      char sym_master[1024], sym_parallel[1024];
-      openmp_trace_symbol(openmp_trace_work_codeptr, sym_master,
-                          sizeof(sym_master), 1 /*cleanup*/);
+      char sym_work[1024], sym_parallel[1024];
+      openmp_trace_symbol(openmp_trace_work_codeptr, sym_work, sizeof(sym_work),
+                          1 /*cleanup*/);
       openmp_trace_symbol(codeptr_ra, sym_parallel, sizeof(sym_parallel),
                           1 /*cleanup*/);
       assert(NULL != work_kind);
-      if ('\0' != *sym_master && '\0' != *sym_parallel) {
+      if ('\0' != *sym_parallel) {
         fprintf(stderr,
                 "OMP/TRACE ERROR: parallel region \"%s\""
-                " opened in %s \"%s\"\n",
-                sym_parallel, work_kind, sym_master);
+                " opened in %s construct",
+                sym_parallel, work_kind);
       } else {
-        fprintf(stderr, "OMP/TRACE ERROR: parallel region opened in %s\n",
+        fprintf(stderr,
+                "OMP/TRACE ERROR: parallel region opened in %s construct",
                 work_kind);
+      }
+      if ('\0' != *sym_work) {
+        fprintf(stderr, " \"%s\"\n", sym_work);
+      } else {
+        fprintf(stderr, "\n");
       }
     } else {
       assert(0);
