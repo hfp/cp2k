@@ -110,19 +110,16 @@ static void openmp_trace_symbol(const void *symbol, char *buffer, size_t size,
       backtrace_symbols_fd(backtrace, 1, pipefd[1]);
       close(pipefd[1]);
       if (0 < read(pipefd[0], buffer, size)) {
-        if (0 != cleanup) {
-          char *str = memchr(buffer, '(', size);
-          char *end = (NULL != str ? memchr(str + 1, '+', size - (str - buffer))
-                                   : NULL);
-          if (NULL != end) {
-            *end = '\0';
-            memmove(buffer, str + 1, end - str);
-          }
-        } else {
-          char *str = memchr(buffer, '\n', size);
-          if (NULL != str) {
-            *str = '\0';
-          }
+        char *str = (0 != cleanup ? memchr(buffer, '(', size) : NULL);
+        char *end =
+            (NULL != str ? memchr(str + 1, '+', size - (str - buffer)) : NULL);
+        if (NULL != end) {
+          *end = '\0';
+          memmove(buffer, str + 1, end - str);
+        }
+        str = memchr(buffer, '\n', size);
+        if (NULL != str) {
+          *str = '\0';
         }
       } else {
         *buffer = '\0';
