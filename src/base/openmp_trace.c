@@ -52,11 +52,21 @@ typedef enum ompt_set_result_t {
 typedef enum ompt_callbacks_t {
   ompt_callback_parallel_begin = 3,
   ompt_callback_parallel_end = 4,
+  ompt_callback_work = 20,
   ompt_callback_master = 21
 } ompt_callbacks_t;
 typedef enum ompt_parallel_flag_t {
   ompt_parallel_team = 0x80000000
 } ompt_parallel_flag_t;
+typedef enum ompt_work_t {
+  ompt_work_loop = 1,
+  ompt_work_sections,
+  ompt_work_single_executor,
+  ompt_work_single_other,
+  ompt_work_workshare,
+  ompt_work_distribute,
+  ompt_work_taskloop
+} ompt_work_t;
 
 typedef void (*ompt_interface_fn_t)(void);
 typedef ompt_interface_fn_t (*ompt_function_lookup_t)(const char *);
@@ -79,10 +89,10 @@ typedef ompt_set_result_t (*ompt_set_callback_t)(ompt_callbacks_t,
   }
 
 static int openmp_trace_parallel_n;
-static int openmp_trace_master_n;
+static int openmp_trace_work_n;
 
 static const void *openmp_trace_parallel_codeptr;
-static const void *openmp_trace_master_codeptr;
+static const void *openmp_trace_work_codeptr;
 
 static int (*openmp_trace_get_parallel_info)(int, ompt_data_t **, int *);
 
@@ -132,12 +142,11 @@ static void openmp_trace_parallel_begin(
   OPENMP_TRACE_UNUSED(encountering_task_frame);
   OPENMP_TRACE_UNUSED(parallel_data);
   OPENMP_TRACE_UNUSED(requested_parallelism);
-  if (0 != (ompt_parallel_team & flags) &&
-      NULL != openmp_trace_master_codeptr) {
+  if (0 != (ompt_parallel_team & flags) && NULL != openmp_trace_work_codeptr) {
     ++openmp_trace_issues_n;
     if (2 <= openmp_trace_level || 0 > openmp_trace_level) {
       char sym_master[1024], sym_parallel[1024];
-      openmp_trace_symbol(openmp_trace_master_codeptr, sym_master,
+      openmp_trace_symbol(openmp_trace_work_codeptr, sym_master,
                           sizeof(sym_master), 1 /*cleanup*/);
       openmp_trace_symbol(codeptr_ra, sym_parallel, sizeof(sym_parallel),
                           1 /*cleanup*/);
@@ -181,13 +190,38 @@ static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
   OPENMP_TRACE_UNUSED(task_data);
   switch (endpoint) {
   case ompt_scope_begin: {
-    if (0 == openmp_trace_master_n++) {
-      openmp_trace_master_codeptr = codeptr_ra;
+    if (0 == openmp_trace_work_n++) {
+      openmp_trace_work_codeptr = codeptr_ra;
     }
   } break;
   case ompt_scope_end: {
-    if (0 == --openmp_trace_master_n) {
-      openmp_trace_master_codeptr = NULL;
+    if (0 == --openmp_trace_work_n) {
+      openmp_trace_work_codeptr = NULL;
+    }
+  } break;
+  default:; /* ompt_scope_beginend */
+  }
+}
+
+/* https://www.openmp.org/spec-html/5.0/openmpsu187.html */
+static void openmp_trace_work(ompt_work_t wstype,
+                              ompt_scope_endpoint_t endpoint,
+                              ompt_data_t *parallel_data,
+                              ompt_data_t *task_data, uint64_t count,
+                              const void *codeptr_ra) {
+  OPENMP_TRACE_UNUSED(wstype);
+  OPENMP_TRACE_UNUSED(parallel_data);
+  OPENMP_TRACE_UNUSED(task_data);
+  OPENMP_TRACE_UNUSED(count);
+  switch (endpoint) {
+  case ompt_scope_begin: {
+    if (0 == openmp_trace_work_n++) {
+      openmp_trace_work_codeptr = codeptr_ra;
+    }
+  } break;
+  case ompt_scope_end: {
+    if (0 == --openmp_trace_work_n) {
+      openmp_trace_work_codeptr = NULL;
     }
   } break;
   default:; /* ompt_scope_beginend */
@@ -206,6 +240,7 @@ static int openmp_trace_initialize(ompt_function_lookup_t lookup,
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, parallel_begin);
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, parallel_end);
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, master);
+  OPENMP_TRACE_SET_CALLBACK(openmp_trace, work);
   assert(NULL != openmp_trace_get_parallel_info);
   return 0 == openmp_trace_issues();
 }
