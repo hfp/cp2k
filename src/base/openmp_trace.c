@@ -75,6 +75,7 @@ typedef enum ompt_work_t {
 } ompt_work_t;
 
 typedef void (*ompt_interface_fn_t)(void);
+typedef int (*ompt_get_parallel_info_t)(int, ompt_data_t **, int *);
 typedef ompt_interface_fn_t (*ompt_function_lookup_t)(const char *);
 typedef ompt_set_result_t (*ompt_set_callback_t)(ompt_callbacks_t,
                                                  ompt_callback_t);
@@ -101,7 +102,7 @@ static int openmp_trace_work_n;
 static const void *openmp_trace_parallel_codeptr;
 static const void *openmp_trace_work_codeptr;
 
-static int (*openmp_trace_get_parallel_info)(int, ompt_data_t **, int *);
+static ompt_get_parallel_info_t openmp_trace_get_parallel_info;
 
 /* attempt to translate symbol/address to character string */
 static void openmp_trace_symbol(const void *symbol, char *str, size_t size,
@@ -116,13 +117,14 @@ static void openmp_trace_symbol(const void *symbol, char *str, size_t size,
       backtrace_symbols_fd(backtrace, 1, pipefd[1]);
       close(pipefd[1]);
       if (0 < read(pipefd[0], str, size)) {
-        char *s = (0 != cleanup ? memchr(str, '(', size) : NULL);
-        char *t = (NULL != s ? memchr(s + 1, '+', size - (s - str)) : NULL);
+        char *s = (char *)(0 != cleanup ? memchr(str, '(', size) : NULL);
+        char *t =
+            (char *)(NULL != s ? memchr(s + 1, '+', size - (s - str)) : NULL);
         if (NULL != t) {
           *t = '\0';
           memmove(str, s + 1, t - s);
         }
-        s = memchr(str, '\n', size);
+        s = (char *)memchr(str, '\n', size);
         if (NULL != s) {
           *s = '\0';
         }
@@ -237,6 +239,7 @@ static void openmp_trace_work(ompt_work_t wstype,
   OPENMP_TRACE_UNUSED(parallel_data);
   OPENMP_TRACE_UNUSED(task_data);
   OPENMP_TRACE_UNUSED(count);
+  assert(0 < wstype);
   if (ompt_work_workshare == wstype) {
     switch (endpoint) {
     case ompt_scope_begin: {
@@ -261,7 +264,8 @@ static int openmp_trace_initialize(ompt_function_lookup_t lookup,
                                    ompt_data_t *tool_data) {
   const ompt_set_callback_t set_callback =
       (ompt_set_callback_t)lookup("ompt_set_callback");
-  openmp_trace_get_parallel_info = (void *)lookup("ompt_get_parallel_info");
+  openmp_trace_get_parallel_info =
+      (ompt_get_parallel_info_t)lookup("ompt_get_parallel_info");
   OPENMP_TRACE_UNUSED(initial_device_num);
   OPENMP_TRACE_UNUSED(tool_data);
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, parallel_begin);
@@ -303,8 +307,8 @@ ompt_start_tool_result_t *ompt_start_tool(unsigned int omp_version,
   OPENMP_TRACE_UNUSED(omp_version);
   OPENMP_TRACE_UNUSED(runtime_version);
   if (0 != openmp_trace_level) { /* trace OpenMP constructs */
-    openmp_start_tool.initialize = openmp_trace_initialize;
-    openmp_start_tool.finalize = openmp_trace_finalize;
+    openmp_start_tool.initialize = (ompt_initialize_t)openmp_trace_initialize;
+    openmp_start_tool.finalize = (ompt_finalize_t)openmp_trace_finalize;
     openmp_start_tool.tool_data.ptr = NULL;
     result = &openmp_start_tool;
   }
