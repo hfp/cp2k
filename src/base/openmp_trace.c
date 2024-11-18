@@ -20,9 +20,8 @@ int openmp_trace_issues(void) { /* routine is exposed in Fortran interface */
 }
 
 #if defined(_OPENMP)
+/* #include <omp.h>: avoid functionality being traced */
 #include <assert.h>
-/* careful: avoid functionality being traced */
-#include <omp.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -61,6 +60,10 @@ typedef enum ompt_callbacks_t {
   ompt_callback_parallel_end = 4,
   ompt_callback_master = 21
 } ompt_callbacks_t;
+typedef enum ompt_parallel_flag_t { 
+  ompt_parallel_team = 0x80000000
+} ompt_parallel_flag_t;
+
 typedef void (*ompt_interface_fn_t)(void);
 typedef ompt_interface_fn_t (*ompt_function_lookup_t)(const char *);
 typedef ompt_set_result_t (*ompt_set_callback_t)(ompt_callbacks_t,
@@ -128,36 +131,37 @@ static void openmp_trace_parallel_begin(
   OPENMP_TRACE_UNUSED(encountering_task_frame);
   OPENMP_TRACE_UNUSED(parallel_data);
   OPENMP_TRACE_UNUSED(requested_parallelism);
-  OPENMP_TRACE_UNUSED(flags);
+  if (ompt_parallel_team & flags) {
 #pragma omp critical(openmp_trace_parallel_begin)
-  {
-    ++openmp_trace_parallel_n;
-    if (openmp_trace_parallel_nmax < openmp_trace_parallel_n) {
-      openmp_trace_parallel_nmax = openmp_trace_parallel_n;
-      openmp_trace_parallel_codeptr = codeptr_ra;
-    }
-    master_codeptr = openmp_trace_master_codeptr;
-  }
-  if (NULL != master_codeptr) {
-#pragma omp atomic
-    ++openmp_trace_issues_n;
-    if (2 <= openmp_trace_level || 0 > openmp_trace_level) {
-      char sym_master[1024], sym_parallel[1024];
-      openmp_trace_symbol(master_codeptr, sym_master, sizeof(sym_master),
-                          1 /*cleanup*/);
-      openmp_trace_symbol(codeptr_ra, sym_parallel, sizeof(sym_parallel),
-                          1 /*cleanup*/);
-      if ('\0' != *sym_master && '\0' != *sym_parallel) {
-        fprintf(stderr,
-                "OMP/TRACE ERROR: parallel region \"%s\""
-                " opened in master section \"%s\"\n",
-                sym_parallel, sym_master);
-      } else {
-        fprintf(stderr,
-                "OMP/TRACE ERROR: parallel region opened in master section\n");
+    {
+      ++openmp_trace_parallel_n;
+      if (openmp_trace_parallel_nmax < openmp_trace_parallel_n) {
+        openmp_trace_parallel_nmax = openmp_trace_parallel_n;
+        openmp_trace_parallel_codeptr = codeptr_ra;
       }
-    } else {
-      assert(0);
+      master_codeptr = openmp_trace_master_codeptr;
+    }
+    if (NULL != master_codeptr) {
+#pragma omp atomic
+      ++openmp_trace_issues_n;
+      if (2 <= openmp_trace_level || 0 > openmp_trace_level) {
+        char sym_master[1024], sym_parallel[1024];
+        openmp_trace_symbol(master_codeptr, sym_master, sizeof(sym_master),
+                            1 /*cleanup*/);
+        openmp_trace_symbol(codeptr_ra, sym_parallel, sizeof(sym_parallel),
+                            1 /*cleanup*/);
+        if ('\0' != *sym_master && '\0' != *sym_parallel) {
+          fprintf(stderr,
+                  "OMP/TRACE ERROR: parallel region \"%s\""
+                  " opened in master section \"%s\"\n",
+                  sym_parallel, sym_master);
+        } else {
+          fprintf(stderr,
+                  "OMP/TRACE ERROR: parallel region opened in master section\n");
+        }
+      } else {
+        assert(0);
+      }
     }
   }
 }
@@ -181,27 +185,25 @@ static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
                                 ompt_data_t *parallel_data,
                                 ompt_data_t *task_data,
                                 const void *codeptr_ra) {
+  int master_n;
   OPENMP_TRACE_UNUSED(parallel_data);
   OPENMP_TRACE_UNUSED(task_data);
-  if (0 < omp_get_active_level()) {
-    int master_n;
-    switch (endpoint) {
-    case ompt_scope_begin: {
+  switch (endpoint) {
+  case ompt_scope_begin: {
 #pragma omp atomic capture
-      master_n = openmp_trace_master_n++;
-      if (0 == master_n) {
-        openmp_trace_master_codeptr = codeptr_ra;
-      }
-    } break;
-    case ompt_scope_end: {
-#pragma omp atomic capture
-      master_n = --openmp_trace_master_n;
-      if (0 == master_n) {
-        openmp_trace_master_codeptr = NULL;
-      }
-    } break;
-    default:; /* ompt_scope_beginend */
+    master_n = openmp_trace_master_n++;
+    if (0 == master_n) {
+      openmp_trace_master_codeptr = codeptr_ra;
     }
+  } break;
+  case ompt_scope_end: {
+#pragma omp atomic capture
+    master_n = --openmp_trace_master_n;
+    if (0 == master_n) {
+      openmp_trace_master_codeptr = NULL;
+    }
+  } break;
+  default:; /* ompt_scope_beginend */
   }
 }
 
