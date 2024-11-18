@@ -54,7 +54,7 @@ typedef enum ompt_callbacks_t {
   ompt_callback_parallel_end = 4,
   ompt_callback_master = 21
 } ompt_callbacks_t;
-typedef enum ompt_parallel_flag_t { 
+typedef enum ompt_parallel_flag_t {
   ompt_parallel_team = 0x80000000
 } ompt_parallel_flag_t;
 
@@ -75,17 +75,16 @@ typedef ompt_set_result_t (*ompt_set_callback_t)(ompt_callbacks_t,
 #define OPENMP_TRACE_SET_CALLBACK(PREFIX, NAME)                                \
   if (ompt_set_never ==                                                        \
       set_callback(ompt_callback_##NAME, (ompt_callback_t)PREFIX##_##NAME)) {  \
-    ++openmp_trace_issues_n; /* sequential (no atomics needed) */              \
+    ++openmp_trace_issues_n;                                                   \
   }
 
-static int openmp_trace_parallel_nmax;
+static int openmp_trace_parallel_n;
 static int openmp_trace_master_n;
 
 static const void *openmp_trace_parallel_codeptr;
 static const void *openmp_trace_master_codeptr;
 
-static int (*openmp_trace_get_parallel_info)(int ancestor_level,
-             ompt_data_t **parallel_data, int *team_size);
+static int (*openmp_trace_get_parallel_info)(int, ompt_data_t **, int *);
 
 /* attempt to translate symbol/address to character string */
 static void openmp_trace_symbol(const void *symbol, char *buffer, size_t size,
@@ -102,8 +101,8 @@ static void openmp_trace_symbol(const void *symbol, char *buffer, size_t size,
       if (0 < read(pipefd[0], buffer, size)) {
         if (0 != cleanup) {
           char *str = memchr(buffer, '(', size);
-          char *end =
-              (NULL != str ? memchr(str + 1, '+', size - (str - buffer)) : NULL);
+          char *end = (NULL != str ? memchr(str + 1, '+', size - (str - buffer))
+                                   : NULL);
           if (NULL != end) {
             *end = '\0';
             memmove(buffer, str + 1, end - str);
@@ -118,12 +117,9 @@ static void openmp_trace_symbol(const void *symbol, char *buffer, size_t size,
         *buffer = '\0';
       }
       close(pipefd[0]);
-    }
-    else
+    } else
 #endif
-    {
-      buffer[0] = '\0';
-    }
+    { buffer[0] = '\0'; }
   }
 }
 
@@ -136,28 +132,26 @@ static void openmp_trace_parallel_begin(
   OPENMP_TRACE_UNUSED(encountering_task_frame);
   OPENMP_TRACE_UNUSED(parallel_data);
   OPENMP_TRACE_UNUSED(requested_parallelism);
-  if (ompt_parallel_team & flags) {
-#pragma omp critical(openmp_trace_parallel)
-    if (NULL != openmp_trace_master_codeptr) {
-      ++openmp_trace_issues_n;
-      if (2 <= openmp_trace_level || 0 > openmp_trace_level) {
-        char sym_master[1024], sym_parallel[1024];
-        openmp_trace_symbol(openmp_trace_master_codeptr, sym_master,
-                            sizeof(sym_master), 1 /*cleanup*/);
-        openmp_trace_symbol(codeptr_ra, sym_parallel, sizeof(sym_parallel),
-                            1 /*cleanup*/);
-        if ('\0' != *sym_master && '\0' != *sym_parallel) {
-          fprintf(stderr,
-                  "OMP/TRACE ERROR: parallel region \"%s\""
-                  " opened in master section \"%s\"\n",
-                  sym_parallel, sym_master);
-        } else {
-          fprintf(stderr,
-                  "OMP/TRACE ERROR: parallel region opened in master section\n");
-        }
+  if (0 != (ompt_parallel_team & flags) &&
+      NULL != openmp_trace_master_codeptr) {
+    ++openmp_trace_issues_n;
+    if (2 <= openmp_trace_level || 0 > openmp_trace_level) {
+      char sym_master[1024], sym_parallel[1024];
+      openmp_trace_symbol(openmp_trace_master_codeptr, sym_master,
+                          sizeof(sym_master), 1 /*cleanup*/);
+      openmp_trace_symbol(codeptr_ra, sym_parallel, sizeof(sym_parallel),
+                          1 /*cleanup*/);
+      if ('\0' != *sym_master && '\0' != *sym_parallel) {
+        fprintf(stderr,
+                "OMP/TRACE ERROR: parallel region \"%s\""
+                " opened in master section \"%s\"\n",
+                sym_parallel, sym_master);
       } else {
-        assert(0);
+        fprintf(stderr,
+                "OMP/TRACE ERROR: parallel region opened in master section\n");
       }
+    } else {
+      assert(0);
     }
   }
 }
@@ -166,16 +160,15 @@ static void openmp_trace_parallel_begin(
 static void openmp_trace_parallel_end(ompt_data_t *parallel_data,
                                       ompt_data_t *encountering_task_data,
                                       int flags, const void *codeptr_ra) {
+  ompt_data_t *ancestor_data;
+  int team_size;
   OPENMP_TRACE_UNUSED(parallel_data);
   OPENMP_TRACE_UNUSED(encountering_task_data);
-  if (ompt_parallel_team & flags) {
-    ompt_data_t* ancestor_data;
-    int team_size;
-    assert(NULL != openmp_trace_get_parallel_info);
-    if (0 != openmp_trace_get_parallel_info(openmp_trace_parallel_nmax + 1, &ancestor_data, &team_size)) {
-      openmp_trace_parallel_codeptr = codeptr_ra;
-      ++openmp_trace_parallel_nmax;
-    }
+  if (0 != (ompt_parallel_team & flags) &&
+      0 != openmp_trace_get_parallel_info(openmp_trace_parallel_n + 1,
+                                          &ancestor_data, &team_size)) {
+    openmp_trace_parallel_codeptr = codeptr_ra;
+    ++openmp_trace_parallel_n;
   }
 }
 
@@ -184,21 +177,16 @@ static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
                                 ompt_data_t *parallel_data,
                                 ompt_data_t *task_data,
                                 const void *codeptr_ra) {
-  int master_n;
   OPENMP_TRACE_UNUSED(parallel_data);
   OPENMP_TRACE_UNUSED(task_data);
   switch (endpoint) {
   case ompt_scope_begin: {
-#pragma omp atomic capture
-    master_n = openmp_trace_master_n++;
-    if (0 == master_n) {
+    if (0 == openmp_trace_master_n++) {
       openmp_trace_master_codeptr = codeptr_ra;
     }
   } break;
   case ompt_scope_end: {
-#pragma omp atomic capture
-    master_n = --openmp_trace_master_n;
-    if (0 == master_n) {
+    if (0 == --openmp_trace_master_n) {
       openmp_trace_master_codeptr = NULL;
     }
   } break;
@@ -212,12 +200,13 @@ static int openmp_trace_initialize(ompt_function_lookup_t lookup,
                                    ompt_data_t *tool_data) {
   const ompt_set_callback_t set_callback =
       (ompt_set_callback_t)lookup("ompt_set_callback");
-  openmp_trace_get_parallel_info = (void*)lookup("ompt_get_parallel_info");
+  openmp_trace_get_parallel_info = (void *)lookup("ompt_get_parallel_info");
   OPENMP_TRACE_UNUSED(initial_device_num);
   OPENMP_TRACE_UNUSED(tool_data);
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, parallel_begin);
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, parallel_end);
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, master);
+  assert(NULL != openmp_trace_get_parallel_info);
   return 0 == openmp_trace_issues();
 }
 
@@ -225,7 +214,7 @@ static int openmp_trace_initialize(ompt_function_lookup_t lookup,
 static void openmp_trace_finalize(ompt_data_t *tool_data) {
   OPENMP_TRACE_UNUSED(tool_data);
   if (3 <= openmp_trace_level || 0 > openmp_trace_level) {
-    if (1 < openmp_trace_parallel_nmax) { /* nested */
+    if (1 < openmp_trace_parallel_n) { /* nested */
       char sym_parallel[1024];
       openmp_trace_symbol(openmp_trace_parallel_codeptr, sym_parallel,
                           sizeof(sym_parallel), 1 /*cleanup*/);
@@ -233,10 +222,10 @@ static void openmp_trace_finalize(ompt_data_t *tool_data) {
         fprintf(stderr,
                 "OMP/TRACE INFO: parallelism "
                 "in \"%s\" is nested (%i)\n",
-                sym_parallel, openmp_trace_parallel_nmax);
+                sym_parallel, openmp_trace_parallel_n);
       } else {
         fprintf(stderr, "OMP/TRACE INFO: parallelism is nested (%i)\n",
-                openmp_trace_parallel_nmax);
+                openmp_trace_parallel_n);
       }
     }
   }
