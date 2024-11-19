@@ -138,20 +138,6 @@ static void openmp_trace_symbol(const void *symbol, char *str, size_t size,
   }
 }
 
-/* ancestor level of given data relative to current parallel region */
-static int openmp_trace_parallel_ancestor(const ompt_data_t *ancestor_data) {
-  if (NULL != ancestor_data) {
-    ompt_data_t *info = NULL;
-    int level = 1;
-    for (; 0 != openmp_trace_get_parallel_info(level, &info, NULL); ++level) {
-      if (info == ancestor_data) {
-        return level;
-      }
-    }
-  }
-  return 0;
-}
-
 /* https://www.openmp.org/spec-html/5.0/openmpsu187.html */
 static void openmp_trace_parallel_begin(
     ompt_data_t *encountering_task_data,
@@ -161,8 +147,7 @@ static void openmp_trace_parallel_begin(
   OPENMP_TRACE_UNUSED(encountering_task_frame);
   OPENMP_TRACE_UNUSED(parallel_data);
   OPENMP_TRACE_UNUSED(requested_parallelism);
-  if (0 != (ompt_parallel_team & flags) &&
-      0 != openmp_trace_parallel_ancestor(openmp_trace_sync)) {
+  if (0 != (ompt_parallel_team & flags) && NULL != openmp_trace_sync) {
     ++openmp_trace_issues_n;
     if (2 <= openmp_trace_level || 0 > openmp_trace_level) {
       static const char *kinds[] = {"master", "barrier", "implicit barrier",
