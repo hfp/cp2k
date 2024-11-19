@@ -159,30 +159,34 @@ static void openmp_trace_parallel_begin(
   OPENMP_TRACE_UNUSED(encountering_task_frame);
   OPENMP_TRACE_UNUSED(parallel_data);
   OPENMP_TRACE_UNUSED(requested_parallelism);
-  if (0 != (ompt_parallel_team & flags) && NULL != openmp_trace_sync) {
-    ++openmp_trace_issues_n;
-    if (1 /*assert*/ < openmp_trace_level || 0 > openmp_trace_level) {
-      const char *const name = openmp_trace_sync_name(openmp_trace_sync_kind);
-      char sym_sync[1024], sym_parallel[1024];
-      openmp_trace_symbol(openmp_trace_sync->ptr, sym_sync, sizeof(sym_sync),
-                          1 /*cleanup*/);
-      openmp_trace_symbol(codeptr_ra, sym_parallel, sizeof(sym_parallel),
-                          1 /*cleanup*/);
-      if ('\0' != *sym_parallel) {
-        fprintf(stderr,
-                "OMP/TRACE ERROR: parallel region \"%s\""
-                " opened in %s",
-                sym_parallel, name);
+  if (ompt_parallel_team & flags) {
+#pragma omp critical(openmp_trace)
+    if (NULL != openmp_trace_sync) {
+      ++openmp_trace_issues_n;
+      if (1 /*assert*/ < openmp_trace_level || 0 > openmp_trace_level) {
+        const char *const name = openmp_trace_sync_name(openmp_trace_sync_kind);
+        char sym_sync[1024], sym_parallel[1024];
+        openmp_trace_symbol(openmp_trace_sync->ptr, sym_sync, sizeof(sym_sync),
+                            1 /*cleanup*/);
+        openmp_trace_symbol(codeptr_ra, sym_parallel, sizeof(sym_parallel),
+                            1 /*cleanup*/);
+        if ('\0' != *sym_parallel) {
+          fprintf(stderr,
+                  "OMP/TRACE ERROR: parallel region \"%s\""
+                  " opened in %s",
+                  sym_parallel, name);
+        } else {
+          fprintf(stderr, "OMP/TRACE ERROR: parallel region opened in %s",
+                  name);
+        }
+        if ('\0' != *sym_sync) {
+          fprintf(stderr, " \"%s\"\n", sym_sync);
+        } else {
+          fprintf(stderr, "\n");
+        }
       } else {
-        fprintf(stderr, "OMP/TRACE ERROR: parallel region opened in %s", name);
+        assert(0);
       }
-      if ('\0' != *sym_sync) {
-        fprintf(stderr, " \"%s\"\n", sym_sync);
-      } else {
-        fprintf(stderr, "\n");
-      }
-    } else {
-      assert(0);
     }
   }
 }
@@ -210,6 +214,7 @@ static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
   if (NULL != parallel_data) {
     switch (endpoint) {
     case ompt_scope_begin: {
+#pragma omp critical(openmp_trace)
       if (0 == openmp_trace_sync_n++) {
         parallel_data->ptr = (void *)codeptr_ra;
         openmp_trace_sync = parallel_data;
@@ -217,6 +222,7 @@ static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
       }
     } break;
     case ompt_scope_end: {
+#pragma omp critical(openmp_trace)
       if (0 == --openmp_trace_sync_n) {
         openmp_trace_sync = NULL;
       }
@@ -236,6 +242,7 @@ void openmp_trace_sync_region(ompt_sync_region_t kind,
   if (NULL != parallel_data && ompt_sync_region_barrier_implementation > kind) {
     switch (endpoint) {
     case ompt_scope_begin: {
+#pragma omp critical(openmp_trace)
       if (0 == openmp_trace_sync_n++) {
         parallel_data->ptr = (void *)codeptr_ra;
         openmp_trace_sync = parallel_data;
@@ -258,6 +265,7 @@ void openmp_trace_sync_region(ompt_sync_region_t kind,
       }
     } break;
     case ompt_scope_end: {
+#pragma omp critical(openmp_trace)
       if (0 == --openmp_trace_sync_n) {
         openmp_trace_sync = NULL;
       }
