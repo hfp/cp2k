@@ -98,7 +98,7 @@ static ompt_data_t *openmp_trace_sync;
 
 static ompt_get_parallel_info_t openmp_trace_get_parallel_info;
 
-/* attempt to translate symbol/address to character string */
+/* translate debug symbol (address) to character string */
 static void openmp_trace_symbol(const void *symbol, char *str, size_t size,
                                 int cleanup) {
   if (NULL != str && 0 < size) {
@@ -138,6 +138,7 @@ static void openmp_trace_symbol(const void *symbol, char *str, size_t size,
   }
 }
 
+/* give a name to a kind of synchronization construct */
 static const char *openmp_trace_sync_name(int kind) {
   static const char *kinds[] = {"master", "barrier", "implicit barrier",
                                 "barrier", "barrier"};
