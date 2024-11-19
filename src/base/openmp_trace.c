@@ -165,14 +165,8 @@ static void openmp_trace_parallel_begin(
       0 != openmp_trace_parallel_ancestor(openmp_trace_sync)) {
     ++openmp_trace_issues_n;
     if (2 <= openmp_trace_level || 0 > openmp_trace_level) {
-
-      ompt_sync_region_barrier = 1, ompt_sync_region_barrier_implicit,
-      ompt_sync_region_barrier_explicit,
-      ompt_sync_region_barrier_implementation
-
-          const char *
-          kinds[] = {"master", "barrier", "implicit barrier", "barrier",
-                     "barrier"};
+      static const char *kinds[] = {"master", "barrier", "implicit barrier",
+                                    "barrier", "barrier"};
       const char *const kind =
           (openmp_trace_sync_kind * sizeof(*kinds)) < sizeof(kinds)
               ? kinds[openmp_trace_sync_kind]
