@@ -87,7 +87,7 @@ typedef ompt_set_result_t (*ompt_set_callback_t)(ompt_callbacks_t,
     ++openmp_trace_issues_n;                                                   \
   }
 
-enum { openmp_trace_level_high = 3, openmp_trace_level_info };
+enum { openmp_trace_level_warn = 3, openmp_trace_level_info };
 
 static int openmp_trace_parallel_n;
 static int openmp_trace_sync_kind;
@@ -138,6 +138,13 @@ static void openmp_trace_symbol(const void *symbol, char *str, size_t size,
   }
 }
 
+static const char *openmp_trace_sync_name(int kind) {
+  static const char *kinds[] = {"master", "barrier", "implicit barrier",
+                                "barrier", "barrier"};
+  return (kind * sizeof(*kinds)) < sizeof(kinds) ? kinds[kind]
+                                                 : "synchronization";
+}
+
 /* https://www.openmp.org/spec-html/5.0/openmpsu187.html */
 static void openmp_trace_parallel_begin(
     ompt_data_t *encountering_task_data,
@@ -149,13 +156,8 @@ static void openmp_trace_parallel_begin(
   OPENMP_TRACE_UNUSED(requested_parallelism);
   if (0 != (ompt_parallel_team & flags) && NULL != openmp_trace_sync) {
     ++openmp_trace_issues_n;
-    if (2 <= openmp_trace_level || 0 > openmp_trace_level) {
-      static const char *kinds[] = {"master", "barrier", "implicit barrier",
-                                    "barrier", "barrier"};
-      const char *const kind =
-          (openmp_trace_sync_kind * sizeof(*kinds)) < sizeof(kinds)
-              ? kinds[openmp_trace_sync_kind]
-              : "synchronization";
+    if (1 /*assert*/ < openmp_trace_level || 0 > openmp_trace_level) {
+      const char *const kind = openmp_trace_sync_name(openmp_trace_sync_kind);
       char sym_sync[1024], sym_parallel[1024];
       openmp_trace_symbol(openmp_trace_sync->ptr, sym_sync, sizeof(sym_sync),
                           1 /*cleanup*/);
@@ -165,12 +167,10 @@ static void openmp_trace_parallel_begin(
       if ('\0' != *sym_parallel) {
         fprintf(stderr,
                 "OMP/TRACE ERROR: parallel region \"%s\""
-                " opened in %s construct",
+                " opened in %s",
                 sym_parallel, kind);
       } else {
-        fprintf(stderr,
-                "OMP/TRACE ERROR: parallel region opened in %s construct",
-                kind);
+        fprintf(stderr, "OMP/TRACE ERROR: parallel region opened in %s", kind);
       }
       if ('\0' != *sym_sync) {
         fprintf(stderr, " \"%s\"\n", sym_sync);
@@ -237,6 +237,22 @@ void openmp_trace_sync_region(ompt_sync_region_t kind,
         parallel_data->ptr = (void *)codeptr_ra;
         openmp_trace_sync = parallel_data;
         openmp_trace_sync_kind = kind;
+      } else if (NULL != openmp_trace_sync &&
+                 parallel_data != openmp_trace_sync) {
+        if (openmp_trace_level_warn <= openmp_trace_level ||
+            0 > openmp_trace_level) {
+          const char *const name = openmp_trace_sync_name(kind);
+          char sym_sync[1024];
+          openmp_trace_symbol(codeptr_ra, sym_sync, sizeof(sym_sync),
+                              1 /*cleanup*/);
+          assert(NULL != name);
+          fprintf(stderr, "OMP/TRACE WARNING: potential deadlock in %s", name);
+          if ('\0' != *sym_sync) {
+            fprintf(stderr, " \"%s\"\n", sym_sync);
+          } else {
+            fprintf(stderr, "\n");
+          }
+        }
       }
     } break;
     case ompt_scope_end: {
@@ -261,10 +277,8 @@ static int openmp_trace_initialize(ompt_function_lookup_t lookup,
   OPENMP_TRACE_UNUSED(tool_data);
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, parallel_begin);
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, parallel_end);
+  OPENMP_TRACE_SET_CALLBACK(openmp_trace, sync_region);
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, master);
-  if (openmp_trace_level_high <= openmp_trace_level || 0 > openmp_trace_level) {
-    OPENMP_TRACE_SET_CALLBACK(openmp_trace, sync_region);
-  }
   assert(NULL != openmp_trace_get_parallel_info);
   return 0 == openmp_trace_issues();
 }
