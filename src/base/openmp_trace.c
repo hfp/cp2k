@@ -168,7 +168,6 @@ static void openmp_trace_parallel_begin(
                           1 /*cleanup*/);
       openmp_trace_symbol(codeptr_ra, sym_parallel, sizeof(sym_parallel),
                           1 /*cleanup*/);
-      assert(NULL != name);
       if ('\0' != *sym_parallel) {
         fprintf(stderr,
                 "OMP/TRACE ERROR: parallel region \"%s\""
@@ -249,7 +248,6 @@ void openmp_trace_sync_region(ompt_sync_region_t kind,
           char sym_sync[1024];
           openmp_trace_symbol(codeptr_ra, sym_sync, sizeof(sym_sync),
                               1 /*cleanup*/);
-          assert(NULL != name);
           fprintf(stderr, "OMP/TRACE WARNING: potential deadlock in %s", name);
           if ('\0' != *sym_sync) {
             fprintf(stderr, " \"%s\"\n", sym_sync);
