@@ -91,8 +91,8 @@ static int openmp_trace_parallel_n;
 static int openmp_trace_sync_kind;
 static int openmp_trace_sync_n;
 
-static const void *openmp_trace_parallel_codeptr;
-static const void *openmp_trace_sync_codeptr;
+static const void *openmp_trace_parallel;
+static ompt_data_t *openmp_trace_sync;
 
 static ompt_get_parallel_info_t openmp_trace_get_parallel_info;
 
@@ -136,6 +136,22 @@ static void openmp_trace_symbol(const void *symbol, char *str, size_t size,
   }
 }
 
+/* ancestor level of given data relative to current parallel region */
+static int openmp_trace_parallel_ancestor(const ompt_data_t *ancestor_data) {
+  if (NULL != ancestor_data) {
+    ompt_data_t *info = NULL;
+    int level = 1;
+    for (; 0 != openmp_trace_get_parallel_info(level, &info, NULL); ++level) {
+      if (info == ancestor_data) {
+        break;
+      }
+    }
+    return parallel_data != ancestor_data ? (0 < openmp_trace_level ? 1 : 0)
+                                          : level;
+  }
+  return 0;
+}
+
 /* https://www.openmp.org/spec-html/5.0/openmpsu187.html */
 static void openmp_trace_parallel_begin(
     ompt_data_t *encountering_task_data,
@@ -145,17 +161,24 @@ static void openmp_trace_parallel_begin(
   OPENMP_TRACE_UNUSED(encountering_task_frame);
   OPENMP_TRACE_UNUSED(parallel_data);
   OPENMP_TRACE_UNUSED(requested_parallelism);
-  if (0 != (ompt_parallel_team & flags) && NULL != openmp_trace_sync_codeptr) {
+  if (0 != (ompt_parallel_team & flags) &&
+      0 != openmp_trace_parallel_ancestor(openmp_trace_sync)) {
     ++openmp_trace_issues_n;
     if (2 <= openmp_trace_level || 0 > openmp_trace_level) {
-      const char *kinds[] = {"master", "barrier", "barrier", "barrier",
-                             "barrier"};
+
+      ompt_sync_region_barrier = 1, ompt_sync_region_barrier_implicit,
+      ompt_sync_region_barrier_explicit,
+      ompt_sync_region_barrier_implementation
+
+          const char *
+          kinds[] = {"master", "barrier", "implicit barrier", "barrier",
+                     "barrier"};
       const char *const kind =
           (openmp_trace_sync_kind * sizeof(*kinds)) < sizeof(kinds)
               ? kinds[openmp_trace_sync_kind]
               : "synchronization";
       char sym_sync[1024], sym_parallel[1024];
-      openmp_trace_symbol(openmp_trace_sync_codeptr, sym_sync, sizeof(sym_sync),
+      openmp_trace_symbol(openmp_trace_sync->ptr, sym_sync, sizeof(sym_sync),
                           1 /*cleanup*/);
       openmp_trace_symbol(codeptr_ra, sym_parallel, sizeof(sym_parallel),
                           1 /*cleanup*/);
@@ -185,14 +208,12 @@ static void openmp_trace_parallel_begin(
 static void openmp_trace_parallel_end(ompt_data_t *parallel_data,
                                       ompt_data_t *encountering_task_data,
                                       int flags, const void *codeptr_ra) {
-  ompt_data_t *ancestor_data;
-  int team_size;
   OPENMP_TRACE_UNUSED(parallel_data);
   OPENMP_TRACE_UNUSED(encountering_task_data);
   if (0 != (ompt_parallel_team & flags) &&
-      0 != openmp_trace_get_parallel_info(openmp_trace_parallel_n + 1,
-                                          &ancestor_data, &team_size)) {
-    openmp_trace_parallel_codeptr = codeptr_ra;
+      0 != openmp_trace_get_parallel_info(openmp_trace_parallel_n + 1, NULL,
+                                          NULL)) {
+    openmp_trace_parallel = codeptr_ra;
     ++openmp_trace_parallel_n;
   }
 }
@@ -202,21 +223,23 @@ static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
                                 ompt_data_t *parallel_data,
                                 ompt_data_t *task_data,
                                 const void *codeptr_ra) {
-  OPENMP_TRACE_UNUSED(parallel_data);
   OPENMP_TRACE_UNUSED(task_data);
-  switch (endpoint) {
-  case ompt_scope_begin: {
-    if (0 == openmp_trace_sync_n++) {
-      openmp_trace_sync_codeptr = codeptr_ra;
-      openmp_trace_sync_kind = 0;
+  if (NULL != parallel_data) {
+    switch (endpoint) {
+    case ompt_scope_begin: {
+      if (0 == openmp_trace_sync_n++) {
+        parallel_data->ptr = (void *)codeptr_ra;
+        openmp_trace_sync = parallel_data;
+        openmp_trace_sync_kind = 0;
+      }
+    } break;
+    case ompt_scope_end: {
+      if (0 == --openmp_trace_sync_n) {
+        openmp_trace_sync = NULL;
+      }
+    } break;
+    default:; /* ompt_scope_beginend */
     }
-  } break;
-  case ompt_scope_end: {
-    if (0 == --openmp_trace_sync_n) {
-      openmp_trace_sync_codeptr = NULL;
-    }
-  } break;
-  default:; /* ompt_scope_beginend */
   }
 }
 
@@ -225,20 +248,21 @@ void openmp_trace_sync_region(ompt_sync_region_t kind,
                               ompt_scope_endpoint_t endpoint,
                               ompt_data_t *parallel_data,
                               ompt_data_t *task_data, const void *codeptr_ra) {
-  OPENMP_TRACE_UNUSED(parallel_data);
   OPENMP_TRACE_UNUSED(task_data);
   assert(0 < kind);
-  if (ompt_sync_region_barrier_implementation >= kind) {
+  if (NULL != parallel_data &&
+      ompt_sync_region_barrier_implementation >= kind) {
     switch (endpoint) {
     case ompt_scope_begin: {
       if (0 == openmp_trace_sync_n++) {
-        openmp_trace_sync_codeptr = codeptr_ra;
+        parallel_data->ptr = (void *)codeptr_ra;
+        openmp_trace_sync = parallel_data;
         openmp_trace_sync_kind = kind;
       }
     } break;
     case ompt_scope_end: {
       if (0 == --openmp_trace_sync_n) {
-        openmp_trace_sync_codeptr = NULL;
+        openmp_trace_sync = NULL;
       }
     } break;
     default:; /* ompt_scope_beginend */
@@ -270,7 +294,7 @@ static void openmp_trace_finalize(ompt_data_t *tool_data) {
   if (3 <= openmp_trace_level || 0 > openmp_trace_level) {
     if (1 < openmp_trace_parallel_n) { /* nested */
       char sym_parallel[1024];
-      openmp_trace_symbol(openmp_trace_parallel_codeptr, sym_parallel,
+      openmp_trace_symbol(openmp_trace_parallel, sym_parallel,
                           sizeof(sym_parallel), 1 /*cleanup*/);
       if ('\0' != *sym_parallel) {
         fprintf(stderr,
