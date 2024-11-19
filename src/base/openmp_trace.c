@@ -87,7 +87,11 @@ typedef ompt_set_result_t (*ompt_set_callback_t)(ompt_callbacks_t,
     ++openmp_trace_issues_n;                                                   \
   }
 
-enum { openmp_trace_level_warn = 3, openmp_trace_level_info };
+enum {
+  openmp_trace_level_high = 3,
+  openmp_trace_level_warn,
+  openmp_trace_level_info
+};
 
 static int openmp_trace_parallel_n;
 static int openmp_trace_sync_kind;
@@ -277,8 +281,10 @@ static int openmp_trace_initialize(ompt_function_lookup_t lookup,
   OPENMP_TRACE_UNUSED(tool_data);
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, parallel_begin);
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, parallel_end);
-  OPENMP_TRACE_SET_CALLBACK(openmp_trace, sync_region);
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, master);
+  if (openmp_trace_level_high <= openmp_trace_level || 0 > openmp_trace_level) {
+    OPENMP_TRACE_SET_CALLBACK(openmp_trace, sync_region);
+  }
   assert(NULL != openmp_trace_get_parallel_info);
   return 0 == openmp_trace_issues();
 }
