@@ -99,6 +99,12 @@ typedef ompt_set_result_t (*ompt_set_callback_t)(ompt_callbacks_t,
       set_callback(ompt_callback_##NAME, (ompt_callback_t)PREFIX##_##NAME)) {  \
     ++openmp_trace_issues_n;                                                   \
   }
+#define OPENMP_TRACE_PRINT(FORMAT, ...)                                        \
+  fprintf(stderr, "OMP/TRACE ERROR: " FORMAT, __VA_ARGS__)
+#define OPENMP_TRACE_WARN(FORMAT, ...)                                         \
+  fprintf(stderr, "OMP/TRACE WARNING: " FORMAT, __VA_ARGS__)
+#define OPENMP_TRACE_INFO(FORMAT, ...)                                         \
+  fprintf(stderr, "OMP/TRACE INFO: " FORMAT, __VA_ARGS__)
 #define OPENMP_TRACE_UNUSED(VAR) (void)VAR
 #if 0
 #define OPENMP_TRACE_ENABLE(FEATURE) (FEATURE)
@@ -192,23 +198,18 @@ static void openmp_trace_parallel_begin(
                             sizeof(symbol2), 1 /*cleanup*/);
         if ('\0' != *symbol) {
           if ('\0' != *symbol2) {
-            fprintf(
-                stderr,
-                "OMP/TRACE ERROR: parallel region \"%s\" opened in %s \"%s\"\n",
-                symbol, name, symbol2);
+            OPENMP_TRACE_PRINT("parallel region \"%s\" opened in %s \"%s\"\n",
+                               symbol, name, symbol2);
           } else {
-            fprintf(stderr,
-                    "OMP/TRACE ERROR: parallel region \"%s\" opened in %s\n",
-                    symbol, name);
+            OPENMP_TRACE_PRINT("parallel region \"%s\" opened in %s\n", symbol,
+                               name);
           }
         } else {
           if ('\0' != *symbol2) {
-            fprintf(stderr,
-                    "OMP/TRACE ERROR: parallel region opened in %s \"%s\"\n",
-                    name, symbol2);
+            OPENMP_TRACE_PRINT("parallel region opened in %s \"%s\"\n", name,
+                               symbol2);
           } else {
-            fprintf(stderr, "OMP/TRACE ERROR: parallel region opened in %s\n",
-                    name);
+            OPENMP_TRACE_PRINT("parallel region opened in %s\n", name);
           }
         }
       } else {
@@ -297,12 +298,10 @@ void openmp_trace_sync_region(ompt_sync_region_t kind,
           openmp_trace_symbol(codeptr_ra, symbol, sizeof(symbol),
                               1 /*cleanup*/);
           if ('\0' != *symbol) {
-            fprintf(stderr,
-                    "OMP/TRACE WARNING: potential deadlock in %s \"%s\"\n",
-                    name, symbol);
+            OPENMP_TRACE_WARN("potential deadlock in %s \"%s\"\n", name,
+                              symbol);
           } else {
-            fprintf(stderr, "OMP/TRACE WARNING: potential deadlock in %s\n",
-                    name);
+            OPENMP_TRACE_WARN("potential deadlock in %s\n", name);
           }
         }
       }
@@ -387,12 +386,11 @@ static void openmp_trace_finalize(ompt_data_t *tool_data) {
       openmp_trace_symbol(openmp_trace_parallel, symbol, sizeof(symbol),
                           1 /*cleanup*/);
       if ('\0' != *symbol) {
-        fprintf(stderr,
-                "OMP/TRACE INFO: parallelism in \"%s\" is nested (%i)\n",
-                symbol, openmp_trace_parallel_n);
+        OPENMP_TRACE_INFO("parallelism in \"%s\" is nested (%i)\n", symbol,
+                          openmp_trace_parallel_n);
       } else {
-        fprintf(stderr, "OMP/TRACE INFO: parallelism is nested (%i)\n",
-                openmp_trace_parallel_n);
+        OPENMP_TRACE_INFO("parallelism is nested (%i)\n",
+                          openmp_trace_parallel_n);
       }
     }
   }
