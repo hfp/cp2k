@@ -203,6 +203,7 @@ static void openmp_trace_parallel_begin(
         } else {
           fprintf(stderr, "\n");
         }
+        fflush(stderr);
       } else {
         assert(0);
       }
@@ -232,7 +233,7 @@ static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
   OPENMP_TRACE_UNUSED(task_data);
   if (NULL != parallel_data) {
     int sync_n;
-    switch (endpoint) {
+    switch ((int)endpoint) {
     case OPENMP_TRACE_ENABLE(ompt_scope_beginend):
     case ompt_scope_begin: {
       if (OPENMP_TRACE_ENABLE(ompt_scope_beginend) != endpoint) {
@@ -254,7 +255,6 @@ static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
         openmp_trace_sync = NULL;
       }
     } break;
-    default:;
     }
   }
 }
@@ -268,7 +268,7 @@ void openmp_trace_sync_region(ompt_sync_region_t kind,
   assert(0 < kind);
   if (NULL != parallel_data && ompt_sync_region_barrier_implementation > kind) {
     int sync_n;
-    switch (endpoint) {
+    switch ((int)endpoint) {
     case OPENMP_TRACE_ENABLE(ompt_scope_beginend):
     case ompt_scope_begin: {
       if (OPENMP_TRACE_ENABLE(ompt_scope_beginend) != endpoint) {
@@ -295,6 +295,7 @@ void openmp_trace_sync_region(ompt_sync_region_t kind,
           } else {
             fprintf(stderr, "\n");
           }
+          fflush(stderr);
         }
       }
     } break;
@@ -305,7 +306,6 @@ void openmp_trace_sync_region(ompt_sync_region_t kind,
         openmp_trace_sync = NULL;
       }
     } break;
-    default:;
     }
   }
 }
@@ -322,7 +322,7 @@ static void openmp_trace_work(ompt_work_t wstype,
   if (NULL != parallel_data && ompt_work_sections <= wstype &&
       wstype < ompt_work_workshare) {
     int sync_n;
-    switch (endpoint) {
+    switch ((int)endpoint) {
     case OPENMP_TRACE_ENABLE(ompt_scope_beginend):
     case ompt_scope_begin: {
       if (OPENMP_TRACE_ENABLE(ompt_scope_beginend) != endpoint) {
@@ -345,7 +345,6 @@ static void openmp_trace_work(ompt_work_t wstype,
         openmp_trace_sync = NULL;
       }
     } break;
-    default:;
     }
   }
 }
@@ -387,6 +386,7 @@ static void openmp_trace_finalize(ompt_data_t *tool_data) {
         fprintf(stderr, "OMP/TRACE INFO: parallelism is nested (%i)\n",
                 openmp_trace_parallel_n);
       }
+      fflush(stderr);
     }
   }
 }
