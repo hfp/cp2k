@@ -100,7 +100,11 @@ typedef ompt_set_result_t (*ompt_set_callback_t)(ompt_callbacks_t,
     ++openmp_trace_issues_n;                                                   \
   }
 #define OPENMP_TRACE_UNUSED(VAR) (void)VAR
-#define OPENMP_TRACE_BEGINEND 0 /*ompt_scope_beginend*/
+#if 0
+#define OPENMP_TRACE_ENABLE(FEATURE) (FEATURE)
+#else
+#define OPENMP_TRACE_ENABLE(FEATURE) 0
+#endif
 
 enum {
   openmp_trace_level_high = 3,
@@ -229,11 +233,9 @@ static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
   if (NULL != parallel_data) {
     int sync_n;
     switch (endpoint) {
-#if OPENMP_TRACE_BEGINEND
-    case ompt_scope_beginend:
-#endif
+    case OPENMP_TRACE_ENABLE(ompt_scope_beginend):
     case ompt_scope_begin: {
-      if (OPENMP_TRACE_BEGINEND != endpoint) {
+      if (OPENMP_TRACE_ENABLE(ompt_scope_beginend) != endpoint) {
 #pragma omp atomic capture
         sync_n = openmp_trace_sync_n++;
       } else {
@@ -267,11 +269,9 @@ void openmp_trace_sync_region(ompt_sync_region_t kind,
   if (NULL != parallel_data && ompt_sync_region_barrier_implementation > kind) {
     int sync_n;
     switch (endpoint) {
-#if OPENMP_TRACE_BEGINEND
-    case ompt_scope_beginend:
-#endif
+    case OPENMP_TRACE_ENABLE(ompt_scope_beginend):
     case ompt_scope_begin: {
-      if (OPENMP_TRACE_BEGINEND != endpoint) {
+      if (OPENMP_TRACE_ENABLE(ompt_scope_beginend) != endpoint) {
 #pragma omp atomic capture
         sync_n = openmp_trace_sync_n++;
       } else {
@@ -323,11 +323,9 @@ static void openmp_trace_work(ompt_work_t wstype,
       wstype < ompt_work_workshare) {
     int sync_n;
     switch (endpoint) {
-#if OPENMP_TRACE_BEGINEND
-    case ompt_scope_beginend:
-#endif
+    case OPENMP_TRACE_ENABLE(ompt_scope_beginend):
     case ompt_scope_begin: {
-      if (OPENMP_TRACE_BEGINEND != endpoint) {
+      if (OPENMP_TRACE_ENABLE(ompt_scope_beginend) != endpoint) {
 #pragma omp atomic capture
         sync_n = openmp_trace_sync_n++;
       } else {
