@@ -170,8 +170,8 @@ static void openmp_trace_symbol(const void *symbol, char *str, size_t size,
 /* give a name to a kind of synchronization construct */
 static const char *openmp_trace_sync_name(int kind) {
   static const char *kinds[] = {
-      "master", "barrier", "implicit barrier", "explicit barrier", "sections",
-      "single", "single"};
+      "master",   "barrier", "implicit barrier", "explicit barrier",
+      "sections", "single",  "single",           "workshare"};
   return (kind * sizeof(*kinds)) < sizeof(kinds) ? kinds[kind]
                                                  : "synchronization";
 }
@@ -331,7 +331,7 @@ static void openmp_trace_work(ompt_work_t wstype,
   OPENMP_TRACE_UNUSED(count);
   assert(0 < wstype);
   if (NULL != parallel_data && ompt_work_sections <= wstype &&
-      wstype < ompt_work_workshare) {
+      wstype <= ompt_work_workshare) {
     int sync_n;
     switch ((int)endpoint) {
     case OPENMP_TRACE_ENABLE(ompt_scope_beginend):
