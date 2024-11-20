@@ -92,7 +92,7 @@ typedef ompt_set_result_t (*ompt_set_callback_t)(ompt_callbacks_t,
 #define OPENMP_TRACE_PTR_SYMBOL(PTR)                                           \
   (const void *)(0x0FFFFFFFFFFFFFFF & ((uintptr_t)(PTR)))
 #define OPENMP_TRACE_PTR(PTR, KIND)                                            \
-  ((((uintptr_t)(0xF & (KIND))) << 56) |                                       \
+  (const void *)((((uintptr_t)(0xF & (KIND))) << 56) |                         \
    (uintptr_t)OPENMP_TRACE_PTR_SYMBOL(PTR))
 #define OPENMP_TRACE_SET_CALLBACK(PREFIX, NAME)                                \
   if (ompt_set_never ==                                                        \
@@ -252,7 +252,8 @@ static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
         sync_n = openmp_trace_sync_n;
       }
       if (0 == sync_n) {
-        parallel_data->ptr = (void *)OPENMP_TRACE_PTR(codeptr_ra, 0);
+        assert(OPENMP_TRACE_PTR(codeptr_ra, 0) == codeptr_ra);
+        parallel_data->ptr = (void *)codeptr_ra;
         openmp_trace_sync = parallel_data;
       }
     } break;
@@ -287,6 +288,7 @@ void openmp_trace_sync_region(ompt_sync_region_t kind,
         sync_n = openmp_trace_sync_n;
       }
       if (0 == sync_n) {
+        assert(OPENMP_TRACE_PTR(codeptr_ra, 0) == codeptr_ra);
         parallel_data->ptr = (void *)OPENMP_TRACE_PTR(codeptr_ra, kind);
         openmp_trace_sync = parallel_data;
       } else if (NULL != openmp_trace_sync &&
@@ -340,6 +342,7 @@ static void openmp_trace_work(ompt_work_t wstype,
         sync_n = openmp_trace_sync_n;
       }
       if (0 == sync_n) {
+        assert(OPENMP_TRACE_PTR(codeptr_ra, 0) == codeptr_ra);
         parallel_data->ptr = (void *)OPENMP_TRACE_PTR(
             codeptr_ra, ompt_sync_region_barrier_implementation + 1);
         openmp_trace_sync = parallel_data;
