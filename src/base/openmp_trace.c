@@ -169,8 +169,9 @@ static void openmp_trace_symbol(const void *symbol, char *str, size_t size,
 
 /* give a name to a kind of synchronization construct */
 static const char *openmp_trace_sync_name(int kind) {
-  static const char *kinds[] = {"master", "barrier", "implicit barrier",
-                                "explicit barrier"};
+  static const char *kinds[] = {
+      "master", "barrier", "implicit barrier", "explicit barrier", "sections",
+      "single", "single"};
   return (kind * sizeof(*kinds)) < sizeof(kinds) ? kinds[kind]
                                                  : "synchronization";
 }
@@ -343,9 +344,10 @@ static void openmp_trace_work(ompt_work_t wstype,
         sync_n = openmp_trace_sync_n;
       }
       if (0 == sync_n) {
+        const int kind = wstype - ompt_work_sections +
+                         ompt_sync_region_barrier_implementation;
         assert(OPENMP_TRACE_PTR(codeptr_ra, 0) == codeptr_ra);
-        parallel_data->ptr = (void *)OPENMP_TRACE_PTR(
-            codeptr_ra, ompt_sync_region_barrier_implementation + 1);
+        parallel_data->ptr = (void *)OPENMP_TRACE_PTR(codeptr_ra, kind);
         openmp_trace_sync = parallel_data;
       }
     } break;
