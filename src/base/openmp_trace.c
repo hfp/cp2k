@@ -93,7 +93,7 @@ typedef ompt_set_result_t (*ompt_set_callback_t)(ompt_callbacks_t,
   (const void *)(0x0FFFFFFFFFFFFFFF & ((uintptr_t)(PTR)))
 #define OPENMP_TRACE_PTR(PTR, KIND)                                            \
   (const void *)((((uintptr_t)(0xF & (KIND))) << 56) |                         \
-   (uintptr_t)OPENMP_TRACE_PTR_SYMBOL(PTR))
+                 (uintptr_t)OPENMP_TRACE_PTR_SYMBOL(PTR))
 #define OPENMP_TRACE_SET_CALLBACK(PREFIX, NAME)                                \
   if (ompt_set_never ==                                                        \
       set_callback(ompt_callback_##NAME, (ompt_callback_t)PREFIX##_##NAME)) {  \
@@ -113,7 +113,8 @@ typedef ompt_set_result_t (*ompt_set_callback_t)(ompt_callbacks_t,
 #endif
 
 enum {
-  openmp_trace_level_high = 3,
+  openmp_trace_level_deflt = 2,
+  openmp_trace_level_high = 4,
   openmp_trace_level_warn,
   openmp_trace_level_info
 };
@@ -372,9 +373,11 @@ static int openmp_trace_initialize(ompt_function_lookup_t lookup,
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, parallel_begin);
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, parallel_end);
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, master);
-  OPENMP_TRACE_SET_CALLBACK(openmp_trace, work);
-  if (openmp_trace_level_high <= openmp_trace_level || 0 > openmp_trace_level) {
+  if (openmp_trace_level_deflt < openmp_trace_level || 0 > openmp_trace_level) {
     OPENMP_TRACE_SET_CALLBACK(openmp_trace, sync_region);
+  }
+  if (openmp_trace_level_high <= openmp_trace_level || 0 > openmp_trace_level) {
+    OPENMP_TRACE_SET_CALLBACK(openmp_trace, work);
   }
   assert(NULL != openmp_trace_get_parallel_info);
   return 0 == openmp_trace_issues();
