@@ -53,6 +53,7 @@ typedef enum ompt_set_result_t {
 typedef enum ompt_callbacks_t {
   ompt_callback_parallel_begin = 3,
   ompt_callback_parallel_end = 4,
+  ompt_callback_work = 20,
   ompt_callback_master = 21,
   ompt_callback_sync_region = 23,
 } ompt_callbacks_t;
@@ -65,6 +66,13 @@ typedef enum ompt_sync_region_t {
   ompt_sync_region_barrier_explicit,
   ompt_sync_region_barrier_implementation
 } ompt_sync_region_t;
+typedef enum ompt_work_t {
+  ompt_work_loop = 1,
+  ompt_work_sections,
+  ompt_work_single_executor,
+  ompt_work_single_other,
+  ompt_work_workshare,
+} ompt_work_t;
 
 typedef void (*ompt_interface_fn_t)(void);
 typedef int (*ompt_get_parallel_info_t)(int, ompt_data_t **, int *);
@@ -79,8 +87,13 @@ typedef ompt_set_result_t (*ompt_set_callback_t)(ompt_callbacks_t,
 #include <unistd.h>
 #endif
 
+#define OPENMP_TRACE_PTR_KIND(PTR) (int)(((uintptr_t)(PTR)) >> 56)
+#define OPENMP_TRACE_PTR_SYMBOL(PTR)                                           \
+  (const void *)(0x0FFFFFFFFFFFFFFF & ((uintptr_t)(PTR)))
+#define OPENMP_TRACE_PTR(PTR, KIND)                                            \
+  ((((uintptr_t)(0xF & (KIND))) << 56) |                                       \
+   (uintptr_t)OPENMP_TRACE_PTR_SYMBOL(PTR))
 #define OPENMP_TRACE_UNUSED(VAR) (void)VAR
-
 #define OPENMP_TRACE_SET_CALLBACK(PREFIX, NAME)                                \
   if (ompt_set_never ==                                                        \
       set_callback(ompt_callback_##NAME, (ompt_callback_t)PREFIX##_##NAME)) {  \
@@ -94,7 +107,6 @@ enum {
 };
 
 static int openmp_trace_parallel_n;
-static int openmp_trace_sync_kind;
 static int openmp_trace_sync_n;
 
 static const void *openmp_trace_parallel;
@@ -145,7 +157,7 @@ static void openmp_trace_symbol(const void *symbol, char *str, size_t size,
 /* give a name to a kind of synchronization construct */
 static const char *openmp_trace_sync_name(int kind) {
   static const char *kinds[] = {"master", "barrier", "implicit barrier",
-                                "barrier", "barrier"};
+                                "explicit barrier"};
   return (kind * sizeof(*kinds)) < sizeof(kinds) ? kinds[kind]
                                                  : "synchronization";
 }
@@ -160,27 +172,28 @@ static void openmp_trace_parallel_begin(
   OPENMP_TRACE_UNUSED(parallel_data);
   OPENMP_TRACE_UNUSED(requested_parallelism);
   if (ompt_parallel_team & flags) {
-#pragma omp critical(openmp_trace)
-    if (NULL != openmp_trace_sync) {
+    const ompt_data_t *sync;
+#pragma omp atomic read
+    sync = openmp_trace_sync;
+    if (NULL != sync) {
       ++openmp_trace_issues_n;
       if (1 /*assert*/ < openmp_trace_level || 0 > openmp_trace_level) {
-        const char *const name = openmp_trace_sync_name(openmp_trace_sync_kind);
-        char sym_sync[1024], sym_parallel[1024];
-        openmp_trace_symbol(openmp_trace_sync->ptr, sym_sync, sizeof(sym_sync),
-                            1 /*cleanup*/);
-        openmp_trace_symbol(codeptr_ra, sym_parallel, sizeof(sym_parallel),
-                            1 /*cleanup*/);
-        if ('\0' != *sym_parallel) {
+        const char *const name =
+            openmp_trace_sync_name(OPENMP_TRACE_PTR_KIND(sync->ptr));
+        char symbol[1024];
+        openmp_trace_symbol(codeptr_ra, symbol, sizeof(symbol), 1 /*cleanup*/);
+        if ('\0' != *symbol) {
           fprintf(stderr,
-                  "OMP/TRACE ERROR: parallel region \"%s\""
-                  " opened in %s",
-                  sym_parallel, name);
+                  "OMP/TRACE ERROR: parallel region \"%s\" opened in %s",
+                  symbol, name);
         } else {
           fprintf(stderr, "OMP/TRACE ERROR: parallel region opened in %s",
                   name);
         }
-        if ('\0' != *sym_sync) {
-          fprintf(stderr, " \"%s\"\n", sym_sync);
+        openmp_trace_symbol(OPENMP_TRACE_PTR_SYMBOL(sync->ptr), symbol,
+                            sizeof(symbol), 1 /*cleanup*/);
+        if ('\0' != *symbol) {
+          fprintf(stderr, " \"%s\"\n", symbol);
         } else {
           fprintf(stderr, "\n");
         }
@@ -212,18 +225,20 @@ static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
                                 const void *codeptr_ra) {
   OPENMP_TRACE_UNUSED(task_data);
   if (NULL != parallel_data) {
+    int sync_n;
     switch (endpoint) {
     case ompt_scope_begin: {
-#pragma omp critical(openmp_trace)
-      if (0 == openmp_trace_sync_n++) {
-        parallel_data->ptr = (void *)codeptr_ra;
+#pragma omp atomic capture
+      sync_n = openmp_trace_sync_n++;
+      if (0 == sync_n) {
+        parallel_data->ptr = (void *)OPENMP_TRACE_PTR(codeptr_ra, 0);
         openmp_trace_sync = parallel_data;
-        openmp_trace_sync_kind = 0;
       }
     } break;
     case ompt_scope_end: {
-#pragma omp critical(openmp_trace)
-      if (0 == --openmp_trace_sync_n) {
+#pragma omp atomic capture
+      sync_n = --openmp_trace_sync_n;
+      if (0 == sync_n) {
         openmp_trace_sync = NULL;
       }
     } break;
@@ -240,13 +255,14 @@ void openmp_trace_sync_region(ompt_sync_region_t kind,
   OPENMP_TRACE_UNUSED(task_data);
   assert(0 < kind);
   if (NULL != parallel_data && ompt_sync_region_barrier_implementation > kind) {
+    int sync_n;
     switch (endpoint) {
     case ompt_scope_begin: {
-#pragma omp critical(openmp_trace)
-      if (0 == openmp_trace_sync_n++) {
-        parallel_data->ptr = (void *)codeptr_ra;
+#pragma omp atomic capture
+      sync_n = openmp_trace_sync_n++;
+      if (0 == sync_n) {
+        parallel_data->ptr = (void *)OPENMP_TRACE_PTR(codeptr_ra, kind);
         openmp_trace_sync = parallel_data;
-        openmp_trace_sync_kind = kind;
       } else if (NULL != openmp_trace_sync &&
                  parallel_data != openmp_trace_sync) {
         if (openmp_trace_level_warn <= openmp_trace_level ||
@@ -265,8 +281,43 @@ void openmp_trace_sync_region(ompt_sync_region_t kind,
       }
     } break;
     case ompt_scope_end: {
-#pragma omp critical(openmp_trace)
-      if (0 == --openmp_trace_sync_n) {
+#pragma omp atomic capture
+      sync_n = --openmp_trace_sync_n;
+      if (0 == sync_n) {
+        openmp_trace_sync = NULL;
+      }
+    } break;
+    default:; /* ompt_scope_beginend */
+    }
+  }
+}
+
+/* https://www.openmp.org/spec-html/5.0/openmpsu187.html */
+static void openmp_trace_work(ompt_work_t wstype,
+                              ompt_scope_endpoint_t endpoint,
+                              ompt_data_t *parallel_data,
+                              ompt_data_t *task_data, uint64_t count,
+                              const void *codeptr_ra) {
+  OPENMP_TRACE_UNUSED(task_data);
+  OPENMP_TRACE_UNUSED(count);
+  assert(0 < wstype);
+  if (NULL != parallel_data && ompt_work_sections <= wstype &&
+      wstype <= ompt_work_workshare) {
+    int sync_n;
+    switch (endpoint) {
+    case ompt_scope_begin: {
+#pragma omp atomic capture
+      sync_n = openmp_trace_sync_n++;
+      if (0 == sync_n) {
+        parallel_data->ptr = (void *)OPENMP_TRACE_PTR(
+            codeptr_ra, ompt_sync_region_barrier_implementation + 1);
+        openmp_trace_sync = parallel_data;
+      }
+    } break;
+    case ompt_scope_end: {
+#pragma omp atomic capture
+      sync_n = --openmp_trace_sync_n;
+      if (0 == sync_n) {
         openmp_trace_sync = NULL;
       }
     } break;
@@ -288,6 +339,7 @@ static int openmp_trace_initialize(ompt_function_lookup_t lookup,
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, parallel_begin);
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, parallel_end);
   OPENMP_TRACE_SET_CALLBACK(openmp_trace, master);
+  OPENMP_TRACE_SET_CALLBACK(openmp_trace, work);
   if (openmp_trace_level_high <= openmp_trace_level || 0 > openmp_trace_level) {
     OPENMP_TRACE_SET_CALLBACK(openmp_trace, sync_region);
   }
@@ -300,14 +352,13 @@ static void openmp_trace_finalize(ompt_data_t *tool_data) {
   OPENMP_TRACE_UNUSED(tool_data);
   if (openmp_trace_level_info <= openmp_trace_level || 0 > openmp_trace_level) {
     if (1 < openmp_trace_parallel_n) { /* nested */
-      char sym_parallel[1024];
-      openmp_trace_symbol(openmp_trace_parallel, sym_parallel,
-                          sizeof(sym_parallel), 1 /*cleanup*/);
-      if ('\0' != *sym_parallel) {
+      char symbol[1024];
+      openmp_trace_symbol(openmp_trace_parallel, symbol, sizeof(symbol),
+                          1 /*cleanup*/);
+      if ('\0' != *symbol) {
         fprintf(stderr,
-                "OMP/TRACE INFO: parallelism "
-                "in \"%s\" is nested (%i)\n",
-                sym_parallel, openmp_trace_parallel_n);
+                "OMP/TRACE INFO: parallelism in \"%s\" is nested (%i)\n",
+                symbol, openmp_trace_parallel_n);
       } else {
         fprintf(stderr, "OMP/TRACE INFO: parallelism is nested (%i)\n",
                 openmp_trace_parallel_n);
