@@ -45,7 +45,8 @@ typedef struct ompt_start_tool_result_t {
 } ompt_start_tool_result_t;
 typedef enum ompt_scope_endpoint_t {
   ompt_scope_begin = 1,
-  ompt_scope_end
+  ompt_scope_end,
+  ompt_scope_beginend
 } ompt_scope_endpoint_t;
 typedef enum ompt_set_result_t {
   ompt_set_never = 1,
@@ -93,12 +94,13 @@ typedef ompt_set_result_t (*ompt_set_callback_t)(ompt_callbacks_t,
 #define OPENMP_TRACE_PTR(PTR, KIND)                                            \
   ((((uintptr_t)(0xF & (KIND))) << 56) |                                       \
    (uintptr_t)OPENMP_TRACE_PTR_SYMBOL(PTR))
-#define OPENMP_TRACE_UNUSED(VAR) (void)VAR
 #define OPENMP_TRACE_SET_CALLBACK(PREFIX, NAME)                                \
   if (ompt_set_never ==                                                        \
       set_callback(ompt_callback_##NAME, (ompt_callback_t)PREFIX##_##NAME)) {  \
     ++openmp_trace_issues_n;                                                   \
   }
+#define OPENMP_TRACE_UNUSED(VAR) (void)VAR
+#define OPENMP_TRACE_BEGINEND 0 /*ompt_scope_beginend*/
 
 enum {
   openmp_trace_level_high = 3,
@@ -227,9 +229,17 @@ static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
   if (NULL != parallel_data) {
     int sync_n;
     switch (endpoint) {
+#if OPENMP_TRACE_BEGINEND
+    case ompt_scope_beginend:
+#endif
     case ompt_scope_begin: {
+      if (OPENMP_TRACE_BEGINEND != endpoint) {
 #pragma omp atomic capture
-      sync_n = openmp_trace_sync_n++;
+        sync_n = openmp_trace_sync_n++;
+      } else {
+#pragma omp atomic read
+        sync_n = openmp_trace_sync_n;
+      }
       if (0 == sync_n) {
         parallel_data->ptr = (void *)OPENMP_TRACE_PTR(codeptr_ra, 0);
         openmp_trace_sync = parallel_data;
@@ -242,7 +252,7 @@ static void openmp_trace_master(ompt_scope_endpoint_t endpoint,
         openmp_trace_sync = NULL;
       }
     } break;
-    default:; /* ompt_scope_beginend */
+    default:;
     }
   }
 }
@@ -257,9 +267,17 @@ void openmp_trace_sync_region(ompt_sync_region_t kind,
   if (NULL != parallel_data && ompt_sync_region_barrier_implementation > kind) {
     int sync_n;
     switch (endpoint) {
+#if OPENMP_TRACE_BEGINEND
+    case ompt_scope_beginend:
+#endif
     case ompt_scope_begin: {
+      if (OPENMP_TRACE_BEGINEND != endpoint) {
 #pragma omp atomic capture
-      sync_n = openmp_trace_sync_n++;
+        sync_n = openmp_trace_sync_n++;
+      } else {
+#pragma omp atomic read
+        sync_n = openmp_trace_sync_n;
+      }
       if (0 == sync_n) {
         parallel_data->ptr = (void *)OPENMP_TRACE_PTR(codeptr_ra, kind);
         openmp_trace_sync = parallel_data;
@@ -268,12 +286,12 @@ void openmp_trace_sync_region(ompt_sync_region_t kind,
         if (openmp_trace_level_warn <= openmp_trace_level ||
             0 > openmp_trace_level) {
           const char *const name = openmp_trace_sync_name(kind);
-          char sym_sync[1024];
-          openmp_trace_symbol(codeptr_ra, sym_sync, sizeof(sym_sync),
+          char symbol[1024];
+          openmp_trace_symbol(codeptr_ra, symbol, sizeof(symbol),
                               1 /*cleanup*/);
           fprintf(stderr, "OMP/TRACE WARNING: potential deadlock in %s", name);
-          if ('\0' != *sym_sync) {
-            fprintf(stderr, " \"%s\"\n", sym_sync);
+          if ('\0' != *symbol) {
+            fprintf(stderr, " \"%s\"\n", symbol);
           } else {
             fprintf(stderr, "\n");
           }
@@ -287,7 +305,7 @@ void openmp_trace_sync_region(ompt_sync_region_t kind,
         openmp_trace_sync = NULL;
       }
     } break;
-    default:; /* ompt_scope_beginend */
+    default:;
     }
   }
 }
@@ -302,12 +320,20 @@ static void openmp_trace_work(ompt_work_t wstype,
   OPENMP_TRACE_UNUSED(count);
   assert(0 < wstype);
   if (NULL != parallel_data && ompt_work_sections <= wstype &&
-      wstype <= ompt_work_workshare) {
+      wstype < ompt_work_workshare) {
     int sync_n;
     switch (endpoint) {
+#if OPENMP_TRACE_BEGINEND
+    case ompt_scope_beginend:
+#endif
     case ompt_scope_begin: {
+      if (OPENMP_TRACE_BEGINEND != endpoint) {
 #pragma omp atomic capture
-      sync_n = openmp_trace_sync_n++;
+        sync_n = openmp_trace_sync_n++;
+      } else {
+#pragma omp atomic read
+        sync_n = openmp_trace_sync_n;
+      }
       if (0 == sync_n) {
         parallel_data->ptr = (void *)OPENMP_TRACE_PTR(
             codeptr_ra, ompt_sync_region_barrier_implementation + 1);
@@ -321,7 +347,7 @@ static void openmp_trace_work(ompt_work_t wstype,
         openmp_trace_sync = NULL;
       }
     } break;
-    default:; /* ompt_scope_beginend */
+    default:;
     }
   }
 }
