@@ -297,19 +297,34 @@ void openmp_trace_sync_region(ompt_sync_region_t kind,
         assert(OPENMP_TRACE_PTR(codeptr_ra, 0) == codeptr_ra);
         parallel_data->ptr = (void *)OPENMP_TRACE_PTR(codeptr_ra, kind);
         openmp_trace_sync = parallel_data;
-      } else if (NULL != openmp_trace_sync &&
-                 parallel_data != openmp_trace_sync) {
-        if (openmp_trace_level_warn <= openmp_trace_level ||
-            0 > openmp_trace_level) {
+      } else if (openmp_trace_level_warn <= openmp_trace_level ||
+                 0 > openmp_trace_level) {
+        const ompt_data_t *sync;
+#pragma omp atomic read
+        sync = openmp_trace_sync;
+        if (NULL != sync && parallel_data != sync) {
           const char *const name = openmp_trace_sync_name(kind);
-          char symbol[1024];
+          char symbol[1024], symbol2[1024];
           openmp_trace_symbol(codeptr_ra, symbol, sizeof(symbol),
                               1 /*cleanup*/);
+          openmp_trace_symbol(OPENMP_TRACE_PTR_SYMBOL(sync->ptr), symbol2,
+                              sizeof(symbol2), 1 /*cleanup*/);
           if ('\0' != *symbol) {
-            OPENMP_TRACE_PRINT("WARN", "potential deadlock in %s \"%s\"\n",
-                               name, symbol);
+            if ('\0' != *symbol2) {
+              OPENMP_TRACE_PRINT("WARN",
+                                 "potential deadlock at \"%s\" in %s \"%s\"\n",
+                                 symbol2, name, symbol);
+            } else {
+              OPENMP_TRACE_PRINT("WARN", "potential deadlock in %s \"%s\"\n",
+                                 name, symbol);
+            }
           } else {
-            OPENMP_TRACE_PRINT("WARN", "potential deadlock in %s\n", name);
+            if ('\0' != *symbol2) {
+              OPENMP_TRACE_PRINT("WARN", "potential deadlock at \"%s\" in %s\n",
+                                 symbol2, name);
+            } else {
+              OPENMP_TRACE_PRINT("WARN", "potential deadlock in %s\n", name);
+            }
           }
         }
       }
