@@ -155,6 +155,9 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: dlaf_neigvec_min_input
       REAL(KIND=dp), INTENT(IN)                          :: eps_check_diag_input
 
+      INTEGER, SAVE                                      :: counter = 0
+      INTEGER                                            :: initialized
+
       fallback_applied = .FALSE.
 
       IF (diag_lib == "ScaLAPACK") THEN
@@ -180,8 +183,12 @@ CONTAINS
          CPABORT("ERROR in diag_init: Initialization of unknown diagonalization library requested")
       END IF
 
-      ! Initialization of requested diagonalization library:
-      IF (diag_type == FM_DIAG_TYPE_ELPA) THEN
+      ! Initialization of requested diagonalization library
+!$OMP ATOMIC CAPTURE
+         counter = counter + 1
+         initialized = counter
+!$OMP END ATOMIC
+      IF (diag_type == FM_DIAG_TYPE_ELPA .AND. 1 == initialized) THEN
          CALL initialize_elpa_library()
          CALL set_elpa_kernel(elpa_kernel)
          CALL set_elpa_qr(elpa_qr, elpa_qr_unsafe)
