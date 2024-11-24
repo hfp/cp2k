@@ -1,7 +1,9 @@
 PROJHOME := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 CP2KHOME := $(abspath $(PROJHOME)/../..)
+OMP_TRACE := $(wildcard $(PROJHOME)/../base/openmp_trace.c)
 ALL_HEADERS := $(shell find . -name "*.h") $(shell find ../offload/ -name "*.h")
-ALL_OBJECTS := ../offload/offload_library.o \
+ALL_OBJECTS :=  $(OMP_TRACE:.c=.o) \
+        ../offload/offload_library.o \
         dbm_distribution.o \
         dbm_library.o \
         dbm_matrix.o \
@@ -19,10 +21,22 @@ else
 OPT ?= 0
 endif
 
+# Intel Compiler
+INTEL ?= 0
+
 # Optimization flag derived from OPT flag
 OPTFLAG ?= -O$(patsubst O%,%,$(OPT))
 
-CFLAGS := -fopenmp -g $(OPTFLAG) -march=native -Wall -Wextra -Wcast-qual
+CFLAGS := -g $(OPTFLAG) -march=native -Wall -Wextra -Wcast-qual
+
+ifeq ($(INTEL),0)
+CFLAGS += -fopenmp
+LIBS += -fopenmp
+else
+CFLAGS += -qopenmp
+LIBS += -qopenmp
+CC = icx
+endif
 
 # Some additional flags when relying on default-CC
 ifeq ($(CC),)
@@ -48,10 +62,13 @@ endif
 ifneq ($(OPENCL),0)
 OPENCL_OFFLOAD := $(firstword $(wildcard $(CP2KHOME)/lib/*/*/exts/dbcsr/libdbcsr.a))
 OPENCL_GENKRNL := $(PROJHOME)/dbm_multiply_opencl.cl.h
+ifneq ($(INTEL),0)
+LIBS += -lifcoremt
+endif
 endif
 
 # Make foundational runtimes available
-LIBS += -fopenmp -ldl -lstdc++ -lc -lm
+LIBS += -ldl -lstdc++ -lc -lm
 
 
 # Make BLAS/LAPACK available
@@ -166,7 +183,7 @@ endif
 
 # Build with MPI when mpicc compiler is present.
 ifneq ($(MPICC),)
-%.o: %.c $(ALL_HEADERS)
+%.o: %.c $(OMP_TRACE) $(ALL_HEADERS)
 	cd $(dir $<); $(MPICC) -c -std=c11 $(CFLAGS) -D__parallel $(notdir $<)
 
 dbm_miniapp.x: dbm_miniapp.o $(ALL_OBJECTS)
@@ -175,7 +192,7 @@ dbm_miniapp.x: dbm_miniapp.o $(ALL_OBJECTS)
 
 # Build without MPI otherwise.
 else
-%.o: %.c $(ALL_HEADERS)
+%.o: %.c $(OMP_TRACE) $(ALL_HEADERS)
 	cd $(dir $<); $(CC) -c -std=c11 $(CFLAGS) $(notdir $<)
 
 dbm_miniapp.x: dbm_miniapp.o $(ALL_OBJECTS)
