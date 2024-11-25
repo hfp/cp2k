@@ -21,13 +21,14 @@ else
 OPT ?= 0
 endif
 
-# Intel Compiler
-INTEL ?= 0
-
 # Optimization flag derived from OPT flag
 OPTFLAG ?= -O$(patsubst O%,%,$(OPT))
 
 CFLAGS := -g $(OPTFLAG) -march=native -Wall -Wextra -Wcast-qual
+
+# Intel Compiler
+ICX := $(shell which icx 2>/dev/null)
+INTEL ?= $(if $(ICX),1,0)
 
 ifeq ($(INTEL),0)
 CFLAGS += -fopenmp
@@ -35,7 +36,7 @@ LIBS += -fopenmp
 else
 CFLAGS += -qopenmp
 LIBS += -qopenmp
-CC = icx
+CC := icx
 endif
 
 # Some additional flags when relying on default-CC
@@ -62,8 +63,8 @@ endif
 ifneq ($(OPENCL),0)
 OPENCL_OFFLOAD := $(firstword $(wildcard $(CP2KHOME)/lib/*/*/exts/dbcsr/libdbcsr.a))
 OPENCL_GENKRNL := $(PROJHOME)/dbm_multiply_opencl.cl.h
-ifneq ($(INTEL),0)
-LIBS += -lifcoremt
+ifneq ($(ICX),)
+LIBS += -lifcoremt -limf
 endif
 endif
 
