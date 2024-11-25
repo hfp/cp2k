@@ -437,6 +437,11 @@ ompt_start_tool_result_t *ompt_start_tool(unsigned int omp_version,
     openmp_start_tool.finalize = (ompt_finalize_t)openmp_trace_finalize;
     openmp_start_tool.tool_data.ptr = NULL;
     result = &openmp_start_tool;
+#if defined(NDEBUG)
+    if (1 == openmp_trace_level) {
+      openmp_trace_level = 2; /* adjust trace level */
+    }
+#endif
   }
   return result;
 }
