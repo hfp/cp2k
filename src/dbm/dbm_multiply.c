@@ -169,8 +169,8 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
     }
   }
   const double epsilon = libxsmm_matdiff_epsilon(&diff);
-  if (0 < epsilon) {
-    fprintf(stderr, "INFO ACC/LIBDBM: mnk=%ix%ix%i ntasks=%i diff=%g",
+  if (1E-15 < epsilon) {
+    fprintf(stderr, "INFO ACC/LIBDBM: mnk=%ix%ix%i ntasks=%i diff=%g\n",
             mnk_range[0][1], mnk_range[1][1], mnk_range[2][1], ntasks, epsilon);
   }
   dbm_shard_release(&shard_r);
