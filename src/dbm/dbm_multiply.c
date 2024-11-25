@@ -240,7 +240,7 @@ static void multiply_packs(const bool transa, const bool transb,
   const int *free_index_sizes_b =
       (transb) ? matrix_b->row_sizes : matrix_b->col_sizes;
 
-#pragma omp parallel reduction(+: flop_sum)
+#pragma omp parallel reduction(+ : flop_sum)
   {
     // Blocks are ordered first by shard. Creating lookup tables of boundaries.
 #pragma omp for nowait
@@ -262,7 +262,7 @@ static void multiply_packs(const bool transa, const bool transb,
       }
     }
 
-#pragma omp for collapse(2) schedule(dynamic,1)
+#pragma omp for collapse(2) schedule(dynamic, 1)
     for (int shard_row = 0; shard_row < nshard_rows; shard_row++) {
       for (int shard_col = 0; shard_col < nshard_cols; shard_col++) {
         const int ishard = shard_row * nshard_cols + shard_col;
