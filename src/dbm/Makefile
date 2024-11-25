@@ -110,7 +110,7 @@ LIBS += $(OPENCL_OFFLOAD) -lgfortran
 ifneq (Darwin,$(shell uname))
 OPENCL_LIB := $(shell ldconfig -p 2>/dev/null | grep -m1 OpenCL | rev | cut -d' ' -f1 | rev)
 ifeq (,$(OPENCL_LIB))
-OPENCL_LIB := $(wildcard /usr/lib/x86_64-linux-gnu/libOpenCL.so.1)
+OPENCL_LIB := /usr/lib/x86_64-linux-gnu/libOpenCL.so.1
 endif
 ifneq (,$(CUDA_PATH))
 ifeq (,$(wildcard $(OPENCL_INC)))
@@ -124,12 +124,16 @@ else ifneq (,$(wildcard $(OPENCL_ROOT)/include/CL/cl.h))
 ifeq (,$(wildcard $(OPENCL_INC)))
 CFLAGS += -I$(OPENCL_ROOT)/include
 endif
-LIBS += -L$(OPENCL_ROOT)/lib64
-else ifneq (,$(wildcard $(OCL_ROOT)/include/CL/cl.h))
+LIBS += -L$(OPENCL_ROOT)/$(if $(wildcard $(OPENCL_ROOT)/lib64),lib64,lib)
+else ifneq (,$(ICX))
+OPENCL_ROOT := $(abspath $(dir $(ICX))/..)
+ifneq (,$(wildcard $(OPENCL_ROOT)/include/sycl/CL/cl.h))
+LIBS += -L$(OPENCL_ROOT)/$(if $(wildcard $(OPENCL_ROOT)/lib64),lib64,lib)
+LIBS += -L$(OPENCL_ROOT)/compiler/lib/intel64 -lintlc
 ifeq (,$(wildcard $(OPENCL_INC)))
-CFLAGS += -I$(OCL_ROOT)/include
+CFLAGS += -I$(OPENCL_ROOT)/include/sycl
 endif
-LIBS += -L$(OCL_ROOT)/lib64
+endif
 endif
 # OPENCL_INC: directory containing CL/cl.h.
 ifneq (,$(wildcard $(OPENCL_INC)))
