@@ -31,11 +31,11 @@ ICX := $(shell which icx 2>/dev/null)
 INTEL ?= $(if $(ICX),1,0)
 
 ifeq ($(INTEL),0)
+LIBS += $(if $(OMPRT),-l$(OMPRT),-fopenmp)
 CFLAGS += -fopenmp
-LIBS += -fopenmp
 else
+LIBS += $(if $(OMPRT),-l$(OMPRT),-qopenmp)
 CFLAGS += -qopenmp
-LIBS += -qopenmp
 CC := icx
 endif
 
