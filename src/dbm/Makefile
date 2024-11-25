@@ -31,9 +31,11 @@ ICX := $(shell which icx 2>/dev/null)
 INTEL ?= $(if $(ICX),1,0)
 
 ifeq ($(INTEL),0)
+MKL_FCRTL := gf
 LIBS += $(if $(OMPRT),-l$(OMPRT),-fopenmp)
 CFLAGS += -fopenmp
 else
+MKL_FCRTL := intel
 LIBS += $(if $(OMPRT),-l$(OMPRT),-qopenmp)
 CFLAGS += -qopenmp
 CC := icx
@@ -74,10 +76,9 @@ LIBS += -ldl -lstdc++ -lc -lm
 
 # Make BLAS/LAPACK available
 ifneq ($(MKLROOT),)
-LIBS += \
-        -L$(MKLROOT)/lib/intel64 \
+LIBS += -L$(MKLROOT)/lib/intel64 \
         -Wl,--start-group \
-        -lmkl_gf_lp64 \
+        -lmkl_$(MKL_FCRTL)_lp64 \
         -lmkl_core \
         -lmkl_sequential \
         -Wl,--end-group
