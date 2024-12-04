@@ -229,20 +229,10 @@ CONTAINS
 !>      09.2024 update+arm [Hans Pabst]
 ! **************************************************************************************************
    PURE FUNCTION m_cpuid_name(cpuid)
-      INTEGER, OPTIONAL, INTENT(IN)                      :: cpuid
-      CHARACTER(len=default_string_length), POINTER      :: m_cpuid_name
+      INTEGER, OPTIONAL, INTENT(IN)         :: cpuid
+      CHARACTER(len=default_string_length)  :: m_cpuid_name
 
-      CHARACTER(len=default_string_length), SAVE, TARGET :: name_arm_arch64 = "arm_arch64", &
-                                                            name_arm_sve128 = "arm_sve128", &
-                                                            name_arm_sve256 = "arm_sve256", &
-                                                            name_arm_sve512 = "arm_sve512", &
-                                                            name_generic = "generic", &
-                                                            name_unknown = "unknown", &
-                                                            name_x86_avx = "x86_avx", &
-                                                            name_x86_avx2 = "x86_avx2", &
-                                                            name_x86_avx512 = "x86_avx512", &
-                                                            name_x86_sse4 = "x86_sse4"
-      INTEGER                                            :: isa
+      INTEGER                               :: isa
 
       IF (PRESENT(cpuid)) THEN
          isa = cpuid
@@ -252,25 +242,25 @@ CONTAINS
 
       SELECT CASE (isa)
       CASE (MACHINE_CPU_GENERIC)
-         m_cpuid_name => name_generic
+         m_cpuid_name = "generic"
       CASE (MACHINE_X86_SSE4)
-         m_cpuid_name => name_x86_sse4
+         m_cpuid_name = "x86_sse4"
       CASE (MACHINE_X86_AVX)
-         m_cpuid_name => name_x86_avx
+         m_cpuid_name = "x86_avx"
       CASE (MACHINE_X86_AVX2)
-         m_cpuid_name => name_x86_avx2
+         m_cpuid_name = "x86_avx2"
       CASE (MACHINE_X86_AVX512)
-         m_cpuid_name => name_x86_avx512
+         m_cpuid_name = "x86_avx512"
       CASE (MACHINE_ARM_ARCH64)
-         m_cpuid_name => name_arm_arch64
+         m_cpuid_name = "arm_arch64"
       CASE (MACHINE_ARM_SVE128)
-         m_cpuid_name => name_arm_sve128
+         m_cpuid_name = "arm_sve128"
       CASE (MACHINE_ARM_SVE256)
-         m_cpuid_name => name_arm_sve256
+         m_cpuid_name = "arm_sve256"
       CASE (MACHINE_ARM_SVE512)
-         m_cpuid_name => name_arm_sve512
+         m_cpuid_name = "arm_sve512"
       CASE DEFAULT
-         m_cpuid_name => name_unknown
+         m_cpuid_name = "unknown"
       END SELECT
    END FUNCTION m_cpuid_name
 
