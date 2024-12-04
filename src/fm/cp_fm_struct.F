@@ -19,7 +19,8 @@ MODULE cp_fm_struct
                                               cp_logger_type,&
                                               cp_to_string
    USE kinds,                           ONLY: dp
-   USE machine,                         ONLY: m_flush
+   USE machine,                         ONLY: m_cpuid_vlen,&
+                                              m_flush
    USE message_passing,                 ONLY: mp_para_env_release,&
                                               mp_para_env_type
 #include "../base/base_uses.f90"
@@ -33,9 +34,8 @@ MODULE cp_fm_struct
 ! the default blacs block sizes
 ! consider using #ifdefs to give them the optimal values
 ! these can be changed using scf_control
-! *** these are used by default
-   INTEGER, PRIVATE :: optimal_blacs_col_block_size = 32
-   INTEGER, PRIVATE :: optimal_blacs_row_block_size = 32
+   INTEGER, PRIVATE :: optimal_blacs_col_block_size = 64
+   INTEGER, PRIVATE :: optimal_blacs_row_block_size = 64
    LOGICAL, PRIVATE :: force_block_size = .FALSE.
 
    PUBLIC :: cp_fm_struct_type, cp_fm_struct_p_type
@@ -142,7 +142,7 @@ CONTAINS
       LOGICAL, OPTIONAL, INTENT(in)                :: square_blocks
       LOGICAL, OPTIONAL, INTENT(in)                :: force_block
 
-      INTEGER                                      :: dumblock, i
+      INTEGER                                      :: i, nrow_local, ncol_local, vlen
 #if defined(__parallel)
       INTEGER                                      :: iunit, stat
       INTEGER, EXTERNAL                            :: numroc
@@ -193,32 +193,37 @@ CONTAINS
          fmstruct%ncol_global = ncol_global
       END IF
 
-      ! try to avoid small left-over blocks (anyway naive)
+      ! allow setting the number of blocks to zero or negative (request default blocksize)
       IF (PRESENT(nrow_block)) THEN
-         IF (nrow_block > 0) & ! allows setting the number of blocks to -1 to explicitly set to auto
-            fmstruct%nrow_block = nrow_block
-      END IF
-      IF (.NOT. my_force_block) THEN
-         dumblock = CEILING(REAL(fmstruct%nrow_global, KIND=dp)/ &
-                            REAL(fmstruct%context%num_pe(1), KIND=dp))
-         fmstruct%nrow_block = MAX(1, MIN(fmstruct%nrow_block, dumblock))
+         IF (0 < nrow_block) fmstruct%nrow_block = nrow_block
       END IF
       IF (PRESENT(ncol_block)) THEN
-         IF (ncol_block > 0) & ! allows setting the number of blocks to -1 to explicitly set to auto
-            fmstruct%ncol_block = ncol_block
-      END IF
-      IF (.NOT. my_force_block) THEN
-         dumblock = CEILING(REAL(fmstruct%ncol_global, KIND=dp)/ &
-                            REAL(fmstruct%context%num_pe(2), KIND=dp))
-         fmstruct%ncol_block = MAX(1, MIN(fmstruct%ncol_block, dumblock))
+         IF (0 < ncol_block) fmstruct%ncol_block = ncol_block
       END IF
 
-      ! square matrix -> square blocks (otherwise some op fail)
+      ! square matrix -> square blocks (otherwise, e.g., PDPOTRF fails)
       my_square_blocks = fmstruct%nrow_global == fmstruct%ncol_global
-      IF (PRESENT(square_blocks)) my_square_blocks = square_blocks
+      IF (PRESENT(square_blocks) .AND. .NOT. my_square_blocks) THEN
+         my_square_blocks = square_blocks
+      END IF
       IF (my_square_blocks) THEN
          fmstruct%nrow_block = MIN(fmstruct%nrow_block, fmstruct%ncol_block)
          fmstruct%ncol_block = fmstruct%nrow_block
+      END IF
+
+      ! adjust block size to avoid uneven work work
+      nrow_local = CEILING(REAL(fmstruct%nrow_global, KIND=dp)/ &
+                           REAL(fmstruct%context%num_pe(1), KIND=dp))
+      ncol_local = CEILING(REAL(fmstruct%ncol_global, KIND=dp)/ &
+                           REAL(fmstruct%context%num_pe(2), KIND=dp))
+      CPASSERT(0 < nrow_local .AND. 0 < ncol_local)
+      fmstruct%nrow_block = MIN(fmstruct%nrow_block, nrow_local)
+      fmstruct%ncol_block = MIN(fmstruct%ncol_block, ncol_local)
+
+      vlen = m_cpuid_vlen() ! make blocks multiples of vlen
+      IF (.NOT. my_force_block .AND. 1 < vlen) THEN
+         fmstruct%nrow_block = (fmstruct%nrow_block + vlen - 1)/vlen*vlen
+         fmstruct%ncol_block = (fmstruct%ncol_block + vlen - 1)/vlen*vlen
       END IF
 
       ALLOCATE (fmstruct%nrow_locals(0:(fmstruct%context%num_pe(1) - 1)), &
@@ -610,8 +615,12 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: nrow_block, ncol_block
       LOGICAL, INTENT(IN), OPTIONAL                      :: force_block
 
-      IF (PRESENT(ncol_block)) optimal_blacs_col_block_size = ncol_block
-      IF (PRESENT(nrow_block)) optimal_blacs_row_block_size = nrow_block
+      IF (PRESENT(ncol_block)) THEN
+         IF (0 < ncol_block) optimal_blacs_col_block_size = ncol_block
+      END IF
+      IF (PRESENT(nrow_block)) THEN
+         IF (0 < nrow_block) optimal_blacs_row_block_size = nrow_block
+      END IF
       IF (PRESENT(force_block)) force_block_size = force_block
 
    END SUBROUTINE cp_fm_struct_config
