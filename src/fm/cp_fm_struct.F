@@ -209,16 +209,16 @@ CONTAINS
          dumblock = CEILING(REAL(fmstruct%ncol_global, KIND=dp)/ &
                             REAL(fmstruct%context%num_pe(2), KIND=dp))
          fmstruct%ncol_block = MAX(1, MIN(fmstruct%ncol_block, dumblock))
+      END IF
 
-         ! square matrix -> square blocks (in the past/otherwise, some ops failed)
-         my_square_blocks = fmstruct%nrow_global == fmstruct%ncol_global
-         IF (PRESENT(square_blocks) .AND. .NOT. my_square_blocks) THEN
-            my_square_blocks = square_blocks
-         END IF
-         IF (my_square_blocks) THEN
-            fmstruct%nrow_block = MIN(fmstruct%nrow_block, fmstruct%ncol_block)
-            fmstruct%ncol_block = fmstruct%nrow_block
-         END IF
+      ! square matrix -> square blocks (otherwise ops can fail, e.g., PDORMTR)
+      my_square_blocks = fmstruct%nrow_global == fmstruct%ncol_global
+      IF (PRESENT(square_blocks) .AND. .NOT. my_square_blocks) THEN
+         my_square_blocks = square_blocks
+      END IF
+      IF (my_square_blocks) THEN
+         fmstruct%nrow_block = MIN(fmstruct%nrow_block, fmstruct%ncol_block)
+         fmstruct%ncol_block = fmstruct%nrow_block
       END IF
 
       vlen = m_cpuid_vlen()
