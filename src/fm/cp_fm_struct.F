@@ -142,7 +142,7 @@ CONTAINS
       LOGICAL, OPTIONAL, INTENT(in)                :: square_blocks
       LOGICAL, OPTIONAL, INTENT(in)                :: force_block
 
-      INTEGER                                      :: dumblock, i, vlen
+      INTEGER                                      :: i, nrow_local, ncol_local, vlen
 #if defined(__parallel)
       INTEGER                                      :: iunit, stat
       INTEGER, EXTERNAL                            :: numroc
@@ -201,28 +201,27 @@ CONTAINS
          IF (0 < ncol_block) fmstruct%ncol_block = ncol_block
       END IF
 
-      ! adjust block size if not forced like avoiding small remainder blocks
-      IF (.NOT. my_force_block) THEN
-         dumblock = CEILING(REAL(fmstruct%nrow_global, KIND=dp)/ &
-                            REAL(fmstruct%context%num_pe(1), KIND=dp))
-         fmstruct%nrow_block = MAX(1, MIN(fmstruct%nrow_block, dumblock))
-         dumblock = CEILING(REAL(fmstruct%ncol_global, KIND=dp)/ &
-                            REAL(fmstruct%context%num_pe(2), KIND=dp))
-         fmstruct%ncol_block = MAX(1, MIN(fmstruct%ncol_block, dumblock))
-
-         ! square matrix -> square blocks (otherwise in the past, some ops failed)
-         my_square_blocks = fmstruct%nrow_global == fmstruct%ncol_global
-         IF (PRESENT(square_blocks) .AND. .NOT. my_square_blocks) THEN
-            my_square_blocks = square_blocks
-         END IF
-         IF (my_square_blocks) THEN
-            fmstruct%nrow_block = MIN(fmstruct%nrow_block, fmstruct%ncol_block)
-            fmstruct%ncol_block = fmstruct%nrow_block
-         END IF
+      ! square matrix -> square blocks (otherwise, e.g., PDPOTRF fails)
+      my_square_blocks = fmstruct%nrow_global == fmstruct%ncol_global
+      IF (PRESENT(square_blocks) .AND. .NOT. my_square_blocks) THEN
+         my_square_blocks = square_blocks
+      END IF
+      IF (my_square_blocks) THEN
+         fmstruct%nrow_block = MIN(fmstruct%nrow_block, fmstruct%ncol_block)
+         fmstruct%ncol_block = fmstruct%nrow_block
       END IF
 
-      vlen = m_cpuid_vlen()
-      IF (1 < vlen) THEN ! always make blocks a multiple of vlen
+      ! adjust block size to avoid uneven work work
+      nrow_local = CEILING(REAL(fmstruct%nrow_global, KIND=dp)/ &
+                           REAL(fmstruct%context%num_pe(1), KIND=dp))
+      ncol_local = CEILING(REAL(fmstruct%ncol_global, KIND=dp)/ &
+                           REAL(fmstruct%context%num_pe(2), KIND=dp))
+      CPASSERT(0 < nrow_local .AND. 0 < ncol_local)
+      fmstruct%nrow_block = MIN(fmstruct%nrow_block, nrow_local)
+      fmstruct%ncol_block = MIN(fmstruct%ncol_block, ncol_local)
+
+      vlen = m_cpuid_vlen() ! make blocks multiples of vlen
+      IF (.NOT. my_force_block .AND. 1 < vlen) THEN
          fmstruct%nrow_block = (fmstruct%nrow_block + vlen - 1)/vlen*vlen
          fmstruct%ncol_block = (fmstruct%ncol_block + vlen - 1)/vlen*vlen
       END IF
