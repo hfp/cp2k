@@ -165,14 +165,14 @@ CONTAINS
       CHARACTER(LEN=bufferlen)                           :: buffer
       INTEGER                                            :: cpuid, i, icol, iline, stat
 
-       model_name = "UNKNOWN"
-       buffer = ""
-       OPEN(121245, FILE="/proc/cpuinfo", ACTION="READ", STATUS="OLD", ACCESS="STREAM", IOSTAT=stat)
-       IF (stat == 0) THEN
+      model_name = "UNKNOWN"
+      buffer = ""
+      OPEN (121245, FILE="/proc/cpuinfo", ACTION="READ", STATUS="OLD", ACCESS="STREAM", IOSTAT=stat)
+      IF (stat == 0) THEN
          DO i = 1, bufferlen
-            READ(121245, END=999) buffer(I:I)
+            READ (121245, END=999) buffer(I:I)
          END DO
-999      CLOSE(121245)
+999      CLOSE (121245)
          i = INDEX(buffer, "model name")
          IF (i > 0) THEN
             icol = i - 1 + INDEX(buffer(i:), ":")
@@ -304,14 +304,14 @@ CONTAINS
          CASE (MACHINE_X86_SSE4)
          CASE (MACHINE_ARM_ARCH64) ! NEON
          CASE (MACHINE_ARM_SVE128)
-            m_cpuid_vlen = 16 / nbytes
+            m_cpuid_vlen = 16/nbytes
          CASE (MACHINE_X86_AVX)
          CASE (MACHINE_X86_AVX2)
          CASE (MACHINE_ARM_SVE256)
-            m_cpuid_vlen = 32 / nbytes
+            m_cpuid_vlen = 32/nbytes
          CASE (MACHINE_X86_AVX512)
          CASE (MACHINE_ARM_SVE512)
-            m_cpuid_vlen = 64 / nbytes
+            m_cpuid_vlen = 64/nbytes
          CASE DEFAULT ! unknown or generic
             m_cpuid_vlen = 1 ! scalar
          END SELECT
