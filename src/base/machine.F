@@ -163,7 +163,7 @@ CONTAINS
       INTEGER, PARAMETER                                 :: bufferlen = 2048
 
       CHARACTER(LEN=bufferlen)                           :: buffer
-      INTEGER                                            :: cpuid, i, icol, iline, stat
+      INTEGER                                            :: i, icol, iline, stat
 
       model_name = "UNKNOWN"
       buffer = ""
@@ -384,12 +384,11 @@ CONTAINS
 !> \brief Can be used to get a nice core
 ! **************************************************************************************************
    SUBROUTINE m_abort()
-#if !defined(__GFORTRAN__) && !defined(__INTEL_COMPILER) && !defined(__INTEL_LLVM_COMPILER)
       INTERFACE
          SUBROUTINE abort() BIND(C, name="abort")
          END SUBROUTINE
       END INTERFACE
-#endif
+
       CALL abort()
    END SUBROUTINE m_abort
 
@@ -406,7 +405,7 @@ CONTAINS
       run_on = 0
 #else
       INTEGER                   ::   istat
-#if !defined(__GFORTRAN__)
+
       INTERFACE
          FUNCTION kill(pid, sig) BIND(C, name="kill") RESULT(errno)
             IMPORT
@@ -414,12 +413,12 @@ CONTAINS
             INTEGER(KIND=C_INT)                      :: errno
          END FUNCTION
       END INTERFACE
-#endif
+
       ! If sig is 0, then no signal is sent, but error checking is still
       ! performed; this can be used to check for the existence of a process
       ! ID or process group ID.
 
-      istat = kill(pid, 0)
+      istat = kill(pid=pid, sig=0)
       IF (istat == 0) THEN
          run_on = 1 ! no error, process exists
       ELSE
@@ -606,19 +605,20 @@ CONTAINS
 !> \param curdir ...
 ! **************************************************************************************************
    SUBROUTINE m_getcwd(curdir)
-      CHARACTER(len=*), INTENT(OUT)               :: curdir
+      CHARACTER(len=*), INTENT(OUT)            :: curdir
+      TYPE(C_PTR)                              :: stat
+      INTEGER                                  :: i
       CHARACTER(len=default_path_length), TARGET  :: tmp
-#if !defined(__GFORTRAN__)
-      TYPE(C_PTR)                                 :: stat
-      INTEGER                                     :: i
+
       INTERFACE
          FUNCTION getcwd(buf, buflen) BIND(C, name="getcwd") RESULT(stat)
             IMPORT
-            CHARACTER(KIND=C_CHAR), DIMENSION(*)  :: buf
-            INTEGER(KIND=C_INT), VALUE            :: buflen
-            TYPE(C_PTR)                           :: stat
+            CHARACTER(KIND=C_CHAR), DIMENSION(*)     :: buf
+            INTEGER(KIND=C_INT), VALUE               :: buflen
+            TYPE(C_PTR)                              :: stat
          END FUNCTION
       END INTERFACE
+
       stat = getcwd(tmp, LEN(tmp))
       IF (.NOT. C_ASSOCIATED(stat)) THEN
          WRITE (*, *) "m_getcwd failed"
@@ -626,15 +626,6 @@ CONTAINS
       END IF
       i = INDEX(tmp, c_null_char) - 1
       curdir = tmp(1:i)
-#else
-      INTEGER                                     :: stat
-      stat = getcwd(tmp)
-      IF (stat /= 0) THEN
-         WRITE (*, *) "m_getcwd failed"
-         CALL m_abort()
-      END IF
-      curdir = tmp
-#endif
    END SUBROUTINE m_getcwd
 
 ! **************************************************************************************************
@@ -645,7 +636,7 @@ CONTAINS
    SUBROUTINE m_chdir(dir, ierror)
       CHARACTER(len=*), INTENT(IN)             :: dir
       INTEGER, INTENT(OUT)                     :: ierror
-#if !defined(__GFORTRAN__)
+
       INTERFACE
          FUNCTION chdir(path) BIND(C, name="chdir") RESULT(errno)
             IMPORT
@@ -653,7 +644,7 @@ CONTAINS
             INTEGER(KIND=C_INT)                      :: errno
          END FUNCTION
       END INTERFACE
-#endif
+
       ierror = chdir(TRIM(dir)//c_null_char)
    END SUBROUTINE m_chdir
 
@@ -663,14 +654,14 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE m_getpid(pid)
       INTEGER, INTENT(OUT)                     :: pid
-#if !defined(__GFORTRAN__)
+
       INTERFACE
          FUNCTION getpid() BIND(C, name="getpid") RESULT(pid)
             IMPORT
             INTEGER(KIND=C_INT)              :: pid
          END FUNCTION
       END INTERFACE
-#endif
+
       pid = getpid()
    END SUBROUTINE m_getpid
 
@@ -684,7 +675,7 @@ CONTAINS
       CHARACTER(LEN=*), INTENT(IN)             :: path
 
       INTEGER                                  :: istat
-#if !defined(__GFORTRAN__)
+
       INTERFACE
          FUNCTION unlink(path) BIND(C, name="unlink") RESULT(errno)
             IMPORT
@@ -692,7 +683,7 @@ CONTAINS
             INTEGER(KIND=C_INT)                      :: errno
          END FUNCTION
       END INTERFACE
-#endif
+
       istat = unlink(TRIM(path)//c_null_char)
    END FUNCTION m_unlink
 
@@ -706,7 +697,7 @@ CONTAINS
       CHARACTER(LEN=*), INTENT(IN)             :: source, TARGET
 
       INTEGER                                  :: istat
-#if !defined(__GFORTRAN__)
+
       INTERFACE
          FUNCTION rename(src, dest) BIND(C, name="rename") RESULT(errno)
             IMPORT
@@ -714,7 +705,7 @@ CONTAINS
             INTEGER(KIND=C_INT)                      :: errno
          END FUNCTION
       END INTERFACE
-#endif
+
       IF (TARGET == source) THEN
          WRITE (*, *) "Warning: m_mov ", TRIM(TARGET), " equals ", TRIM(source)
          RETURN
