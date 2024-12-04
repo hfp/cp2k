@@ -194,8 +194,12 @@ CONTAINS
       END IF
 
       ! allow setting the number of blocks to zero or negative (request default blocksize)
-      IF (PRESENT(nrow_block)) IF(0 < nrow_block) fmstruct%nrow_block = nrow_block
-      IF (PRESENT(ncol_block)) IF(0 < ncol_block) fmstruct%ncol_block = ncol_block
+      IF (PRESENT(nrow_block)) THEN
+         IF (0 < nrow_block) fmstruct%nrow_block = nrow_block
+      END IF
+      IF (PRESENT(ncol_block)) THEN
+         IF (0 < ncol_block) fmstruct%ncol_block = ncol_block
+      END IF
 
       ! adjust block size if not forced like avoiding small remainder blocks
       IF (.NOT. my_force_block) THEN
@@ -612,8 +616,12 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: nrow_block, ncol_block
       LOGICAL, INTENT(IN), OPTIONAL                      :: force_block
 
-      IF (PRESENT(ncol_block)) IF(0 < ncol_block) optimal_blacs_col_block_size = ncol_block
-      IF (PRESENT(nrow_block)) IF(0 < nrow_block) optimal_blacs_row_block_size = nrow_block
+      IF (PRESENT(ncol_block)) THEN
+         IF (0 < ncol_block) optimal_blacs_col_block_size = ncol_block
+      END IF
+      IF (PRESENT(nrow_block)) THEN
+         IF (0 < nrow_block) optimal_blacs_row_block_size = nrow_block
+      END IF
       IF (PRESENT(force_block)) force_block_size = force_block
 
    END SUBROUTINE cp_fm_struct_config
