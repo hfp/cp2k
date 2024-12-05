@@ -18,7 +18,6 @@ MODULE cp_fm_struct
                                               cp_logger_get_default_unit_nr,&
                                               cp_logger_type,&
                                               cp_to_string
-   USE kinds,                           ONLY: dp
    USE machine,                         ONLY: m_cpuid_vlen,&
                                               m_flush
    USE message_passing,                 ONLY: mp_para_env_release,&
@@ -142,7 +141,7 @@ CONTAINS
       LOGICAL, OPTIONAL, INTENT(in)                :: square_blocks
       LOGICAL, OPTIONAL, INTENT(in)                :: force_block
 
-      INTEGER                                      :: i, nrow_local, ncol_local, vlen
+      INTEGER                                      :: dumblock, i, vlen
 #if defined(__parallel)
       INTEGER                                      :: iunit, stat
       INTEGER, EXTERNAL                            :: numroc
@@ -153,14 +152,13 @@ CONTAINS
 
       ALLOCATE (fmstruct)
 
-      fmstruct%nrow_block = optimal_blacs_row_block_size
-      fmstruct%ncol_block = optimal_blacs_col_block_size
-
       IF (.NOT. PRESENT(template_fmstruct)) THEN
          CPASSERT(PRESENT(context))
          CPASSERT(PRESENT(nrow_global))
          CPASSERT(PRESENT(ncol_global))
          fmstruct%local_leading_dimension = 1
+         fmstruct%nrow_block = optimal_blacs_row_block_size
+         fmstruct%ncol_block = optimal_blacs_col_block_size
       ELSE
          fmstruct%context => template_fmstruct%context
          fmstruct%para_env => template_fmstruct%para_env
@@ -201,6 +199,16 @@ CONTAINS
          IF (0 < ncol_block) fmstruct%ncol_block = ncol_block
       END IF
 
+      ! adjust block size to avoid uneven work
+      IF (.NOT. my_force_block) THEN
+         dumblock = (fmstruct%nrow_global + fmstruct%context%num_pe(1) - 1)/ &
+                    fmstruct%context%num_pe(1)*fmstruct%context%num_pe(1)
+         fmstruct%nrow_block = MAX(MIN(fmstruct%nrow_block, dumblock), 1)
+         dumblock = (fmstruct%ncol_global + fmstruct%context%num_pe(2) - 1)/ &
+                    fmstruct%context%num_pe(1)*fmstruct%context%num_pe(2)
+         fmstruct%ncol_block = MAX(MIN(fmstruct%ncol_block, dumblock), 1)
+      END IF
+
       ! square matrix -> square blocks (otherwise, e.g., PDPOTRF fails)
       my_square_blocks = fmstruct%nrow_global == fmstruct%ncol_global
       IF (PRESENT(square_blocks) .AND. .NOT. my_square_blocks) THEN
@@ -210,15 +218,6 @@ CONTAINS
          fmstruct%nrow_block = MIN(fmstruct%nrow_block, fmstruct%ncol_block)
          fmstruct%ncol_block = fmstruct%nrow_block
       END IF
-
-      ! adjust block size to avoid uneven work work
-      nrow_local = CEILING(REAL(fmstruct%nrow_global, KIND=dp)/ &
-                           REAL(fmstruct%context%num_pe(1), KIND=dp))
-      ncol_local = CEILING(REAL(fmstruct%ncol_global, KIND=dp)/ &
-                           REAL(fmstruct%context%num_pe(2), KIND=dp))
-      CPASSERT(0 < nrow_local .AND. 0 < ncol_local)
-      fmstruct%nrow_block = MIN(fmstruct%nrow_block, nrow_local)
-      fmstruct%ncol_block = MIN(fmstruct%ncol_block, ncol_local)
 
       vlen = m_cpuid_vlen() ! make blocks multiples of vlen
       IF (.NOT. my_force_block .AND. 1 < vlen) THEN
