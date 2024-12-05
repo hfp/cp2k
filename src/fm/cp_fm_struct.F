@@ -181,6 +181,7 @@ CONTAINS
       IF (0 >= fmstruct%ncol_block) THEN
          fmstruct%ncol_block = optimal_blacs_col_block_size
       END IF
+      CPASSERT(0 < fmstruct%nrow_block .AND. 0 < fmstruct%ncol_block)
 
       IF (PRESENT(context)) THEN
          fmstruct%context => context
@@ -204,29 +205,30 @@ CONTAINS
       IF (.NOT. my_force_block) THEN
          dumblock = (fmstruct%nrow_global + fmstruct%context%num_pe(1) - 1)/ &
                     fmstruct%context%num_pe(1)*fmstruct%context%num_pe(1)
-         fmstruct%nrow_block = MAX(MIN(fmstruct%nrow_block, dumblock), 1)
+         fmstruct%nrow_block = MIN(fmstruct%nrow_block, dumblock)
          dumblock = (fmstruct%ncol_global + fmstruct%context%num_pe(2) - 1)/ &
                     fmstruct%context%num_pe(1)*fmstruct%context%num_pe(2)
-         fmstruct%ncol_block = MAX(MIN(fmstruct%ncol_block, dumblock), 1)
+         fmstruct%ncol_block = MIN(fmstruct%ncol_block, dumblock)
+      END IF
+
+      vlen = m_cpuid_vlen() ! make block size multiple of vlen
+      IF (.NOT. my_force_block .AND. 1 < vlen) THEN
+         fmstruct%nrow_block = (fmstruct%nrow_block + vlen - 1)/vlen*vlen
+         fmstruct%ncol_block = (fmstruct%ncol_block + vlen - 1)/vlen*vlen
       END IF
 
       ! square matrix -> square blocks (otherwise, e.g., PDPOTRF fails)
       my_square_blocks = fmstruct%nrow_global == fmstruct%ncol_global
-      IF (PRESENT(square_blocks) .AND. .NOT. my_square_blocks) THEN
-         my_square_blocks = square_blocks
-      END IF
+      ! however, requesting non-square blocks takes precedence
+      IF (PRESENT(square_blocks)) my_square_blocks = square_blocks
       IF (my_square_blocks) THEN
          fmstruct%nrow_block = MIN(fmstruct%nrow_block, fmstruct%ncol_block)
          fmstruct%ncol_block = fmstruct%nrow_block
       END IF
 
-      vlen = m_cpuid_vlen() ! make block size multiple of vlen
-      IF (.NOT. my_force_block .AND. 1 < vlen) THEN
-         ! it is fine if block size ends up larger than global/local size
-         fmstruct%nrow_block = (fmstruct%nrow_block + vlen - 1)/vlen*vlen
-         fmstruct%ncol_block = (fmstruct%ncol_block + vlen - 1)/vlen*vlen
-      END IF
-      CPASSERT(0 < fmstruct%nrow_block .AND. 0 < fmstruct%ncol_block)
+      ! ensure block size is non-zero and not larger than global size
+      fmstruct%nrow_block = MAX(MIN(fmstruct%nrow_block, fmstruct%nrow_global), 1)
+      fmstruct%ncol_block = MAX(MIN(fmstruct%ncol_block, fmstruct%ncol_global), 1)
 
       ALLOCATE (fmstruct%nrow_locals(0:(fmstruct%context%num_pe(1) - 1)), &
                 fmstruct%ncol_locals(0:(fmstruct%context%num_pe(2) - 1)))
