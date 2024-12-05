@@ -141,7 +141,7 @@ CONTAINS
       LOGICAL, OPTIONAL, INTENT(in)                :: square_blocks
       LOGICAL, OPTIONAL, INTENT(in)                :: force_block
 
-      INTEGER                                      :: dumblock, i, vlen
+      INTEGER                                      :: i, vlen
 #if defined(__parallel)
       INTEGER                                      :: iunit, stat
       INTEGER, EXTERNAL                            :: numroc
@@ -199,18 +199,8 @@ CONTAINS
          fmstruct%ncol_global = ncol_global
       END IF
 
-      ! adjust block size to avoid uneven work
       my_force_block = force_block_size
       IF (PRESENT(force_block)) my_force_block = force_block
-      IF (.NOT. my_force_block) THEN
-         dumblock = (fmstruct%nrow_global + fmstruct%context%num_pe(1) - 1)/ &
-                    fmstruct%context%num_pe(1)*fmstruct%context%num_pe(1)
-         fmstruct%nrow_block = MIN(fmstruct%nrow_block, dumblock)
-         dumblock = (fmstruct%ncol_global + fmstruct%context%num_pe(2) - 1)/ &
-                    fmstruct%context%num_pe(1)*fmstruct%context%num_pe(2)
-         fmstruct%ncol_block = MIN(fmstruct%ncol_block, dumblock)
-      END IF
-
       vlen = m_cpuid_vlen() ! make block size multiple of vlen
       IF (.NOT. my_force_block .AND. 1 < vlen) THEN
          fmstruct%nrow_block = (fmstruct%nrow_block + vlen - 1)/vlen*vlen
