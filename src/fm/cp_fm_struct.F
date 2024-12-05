@@ -157,8 +157,8 @@ CONTAINS
          CPASSERT(PRESENT(nrow_global))
          CPASSERT(PRESENT(ncol_global))
          fmstruct%local_leading_dimension = 1
-         fmstruct%nrow_block = optimal_blacs_row_block_size
-         fmstruct%ncol_block = optimal_blacs_col_block_size
+         fmstruct%nrow_block = 0 ! populate default later
+         fmstruct%ncol_block = 0 ! populate default later
       ELSE
          fmstruct%context => template_fmstruct%context
          fmstruct%para_env => template_fmstruct%para_env
@@ -172,8 +172,15 @@ CONTAINS
             template_fmstruct%local_leading_dimension
       END IF
 
-      my_force_block = force_block_size
-      IF (PRESENT(force_block)) my_force_block = force_block
+      ! allow to request default block size (zero or negative value)
+      IF (PRESENT(nrow_block)) fmstruct%nrow_block = nrow_block
+      IF (PRESENT(ncol_block)) fmstruct%ncol_block = ncol_block
+      IF (0 >= fmstruct%nrow_block) THEN
+         fmstruct%nrow_block = optimal_blacs_row_block_size
+      END IF
+      IF (0 >= fmstruct%ncol_block) THEN
+         fmstruct%ncol_block = optimal_blacs_col_block_size
+      END IF
 
       IF (PRESENT(context)) THEN
          fmstruct%context => context
@@ -191,15 +198,9 @@ CONTAINS
          fmstruct%ncol_global = ncol_global
       END IF
 
-      ! allow setting the number of blocks to zero or negative (request default blocksize)
-      IF (PRESENT(nrow_block)) THEN
-         IF (0 < nrow_block) fmstruct%nrow_block = nrow_block
-      END IF
-      IF (PRESENT(ncol_block)) THEN
-         IF (0 < ncol_block) fmstruct%ncol_block = ncol_block
-      END IF
-
       ! adjust block size to avoid uneven work
+      my_force_block = force_block_size
+      IF (PRESENT(force_block)) my_force_block = force_block
       IF (.NOT. my_force_block) THEN
          dumblock = (fmstruct%nrow_global + fmstruct%context%num_pe(1) - 1)/ &
                     fmstruct%context%num_pe(1)*fmstruct%context%num_pe(1)
@@ -219,11 +220,13 @@ CONTAINS
          fmstruct%ncol_block = fmstruct%nrow_block
       END IF
 
-      vlen = m_cpuid_vlen() ! make blocks multiples of vlen
+      vlen = m_cpuid_vlen() ! make block size multiple of vlen
       IF (.NOT. my_force_block .AND. 1 < vlen) THEN
+         ! it is fine if block size ends up larger than global/local size
          fmstruct%nrow_block = (fmstruct%nrow_block + vlen - 1)/vlen*vlen
          fmstruct%ncol_block = (fmstruct%ncol_block + vlen - 1)/vlen*vlen
       END IF
+      CPASSERT(0 < fmstruct%nrow_block .AND. 0 < fmstruct%ncol_block)
 
       ALLOCATE (fmstruct%nrow_locals(0:(fmstruct%context%num_pe(1) - 1)), &
                 fmstruct%ncol_locals(0:(fmstruct%context%num_pe(2) - 1)))
