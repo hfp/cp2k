@@ -141,7 +141,7 @@ CONTAINS
       LOGICAL, OPTIONAL, INTENT(in)                :: square_blocks
       LOGICAL, OPTIONAL, INTENT(in)                :: force_block
 
-      INTEGER                                      :: i, vlen
+      INTEGER                                      :: block_ncol, block_nrow, i, vlen
 #if defined(__parallel)
       INTEGER                                      :: iunit, stat
       INTEGER, EXTERNAL                            :: numroc
@@ -201,10 +201,21 @@ CONTAINS
 
       my_force_block = force_block_size
       IF (PRESENT(force_block)) my_force_block = force_block
-      vlen = m_cpuid_vlen() ! make block size multiple of vlen
-      IF (.NOT. my_force_block .AND. 1 < vlen) THEN
-         fmstruct%nrow_block = (fmstruct%nrow_block + vlen - 1)/vlen*vlen
-         fmstruct%ncol_block = (fmstruct%ncol_block + vlen - 1)/vlen*vlen
+      IF (.NOT. my_force_block) THEN
+         block_nrow = (fmstruct%nrow_global + fmstruct%context%num_pe(1) - 1)/ &
+                      (fmstruct%context%num_pe(1))*fmstruct%context%num_pe(1)
+         block_ncol = (fmstruct%ncol_global + fmstruct%context%num_pe(2) - 1)/ &
+                      (fmstruct%context%num_pe(1))*fmstruct%context%num_pe(2)
+         vlen = m_cpuid_vlen()
+         IF (1 < vlen) THEN ! make block size multiple of vlen
+            fmstruct%nrow_block = (fmstruct%nrow_block + vlen - 1)/vlen*vlen
+            fmstruct%ncol_block = (fmstruct%ncol_block + vlen - 1)/vlen*vlen
+            block_nrow = block_nrow/vlen*vlen ! floor
+            block_ncol = block_ncol/vlen*vlen ! floor
+         END IF
+         ! ensure block size is non-zero and not larger than local size
+         fmstruct%nrow_block = MAX(MIN(fmstruct%nrow_block, block_nrow), 1)
+         fmstruct%ncol_block = MAX(MIN(fmstruct%ncol_block, block_ncol), 1)
       END IF
 
       ! square matrix -> square blocks (otherwise, e.g., PDPOTRF fails)
@@ -215,10 +226,6 @@ CONTAINS
          fmstruct%nrow_block = MIN(fmstruct%nrow_block, fmstruct%ncol_block)
          fmstruct%ncol_block = fmstruct%nrow_block
       END IF
-
-      ! ensure block size is non-zero and not larger than global size
-      fmstruct%nrow_block = MAX(MIN(fmstruct%nrow_block, fmstruct%nrow_global), 1)
-      fmstruct%ncol_block = MAX(MIN(fmstruct%ncol_block, fmstruct%ncol_global), 1)
 
       ALLOCATE (fmstruct%nrow_locals(0:(fmstruct%context%num_pe(1) - 1)), &
                 fmstruct%ncol_locals(0:(fmstruct%context%num_pe(2) - 1)))
