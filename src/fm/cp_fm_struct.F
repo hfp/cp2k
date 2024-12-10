@@ -33,6 +33,7 @@ MODULE cp_fm_struct
 ! the default blacs block sizes
 ! consider using #ifdefs to give them the optimal values
 ! these can be changed using scf_control
+! *** these are used by default
    INTEGER, PRIVATE :: optimal_blacs_col_block_size = 64
    INTEGER, PRIVATE :: optimal_blacs_row_block_size = 64
    LOGICAL, PRIVATE :: force_block_size = .FALSE.
@@ -141,7 +142,7 @@ CONTAINS
       LOGICAL, OPTIONAL, INTENT(in)                :: square_blocks
       LOGICAL, OPTIONAL, INTENT(in)                :: force_block
 
-      INTEGER                                      :: block_ncol, block_nrow, i, vlen
+      INTEGER                                      :: i, nmax_block, vlen
 #if defined(__parallel)
       INTEGER                                      :: iunit, stat
       INTEGER, EXTERNAL                            :: numroc
@@ -202,20 +203,16 @@ CONTAINS
       my_force_block = force_block_size
       IF (PRESENT(force_block)) my_force_block = force_block
       IF (.NOT. my_force_block) THEN
-         block_nrow = (fmstruct%nrow_global + fmstruct%context%num_pe(1) - 1)/ &
-                      (fmstruct%context%num_pe(1))*fmstruct%context%num_pe(1)
-         block_ncol = (fmstruct%ncol_global + fmstruct%context%num_pe(2) - 1)/ &
-                      (fmstruct%context%num_pe(1))*fmstruct%context%num_pe(2)
          vlen = m_cpuid_vlen()
-         IF (1 < vlen) THEN ! make block size multiple of vlen
-            fmstruct%nrow_block = (fmstruct%nrow_block + vlen - 1)/vlen*vlen
-            fmstruct%ncol_block = (fmstruct%ncol_block + vlen - 1)/vlen*vlen
-            block_nrow = block_nrow/vlen*vlen ! floor
-            block_ncol = block_ncol/vlen*vlen ! floor
-         END IF
-         ! ensure block size is non-zero and not larger than local size
-         fmstruct%nrow_block = MAX(MIN(fmstruct%nrow_block, block_nrow), 1)
-         fmstruct%ncol_block = MAX(MIN(fmstruct%ncol_block, block_ncol), 1)
+         nmax_block = (fmstruct%nrow_global + fmstruct%context%num_pe(1) - 1)/ &
+                      (fmstruct%context%num_pe(1))*fmstruct%context%num_pe(1)
+         IF (1 < vlen) nmax_block = nmax_block/vlen*vlen ! floor
+         fmstruct%nrow_block = MAX(MIN(fmstruct%nrow_block, nmax_block), 1)
+
+         nmax_block = (fmstruct%ncol_global + fmstruct%context%num_pe(2) - 1)/ &
+                      (fmstruct%context%num_pe(1))*fmstruct%context%num_pe(2)
+         IF (1 < vlen) nmax_block = nmax_block/vlen*vlen ! floor
+         fmstruct%ncol_block = MAX(MIN(fmstruct%ncol_block, nmax_block), 1)
       END IF
 
       ! square matrix -> square blocks (otherwise, e.g., PDPOTRF fails)
@@ -616,11 +613,18 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: nrow_block, ncol_block
       LOGICAL, INTENT(IN), OPTIONAL                      :: force_block
 
+      INTEGER                                            :: vlen
+
+      vlen = m_cpuid_vlen()
       IF (PRESENT(ncol_block)) THEN
-         IF (0 < ncol_block) optimal_blacs_col_block_size = ncol_block
+         IF (0 < ncol_block) THEN
+            optimal_blacs_col_block_size = (ncol_block + vlen - 1)/vlen*vlen
+         END IF
       END IF
       IF (PRESENT(nrow_block)) THEN
-         IF (0 < nrow_block) optimal_blacs_row_block_size = nrow_block
+         IF (0 < nrow_block) THEN
+            optimal_blacs_row_block_size = (nrow_block + vlen - 1)/vlen*vlen
+         END IF
       END IF
       IF (PRESENT(force_block)) force_block_size = force_block
 
