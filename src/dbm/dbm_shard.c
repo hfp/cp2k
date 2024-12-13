@@ -14,6 +14,10 @@
 #include "dbm_hyperparams.h"
 #include "dbm_shard.h"
 
+#if defined(__LIBXSMM)
+#include <libxsmm.h>
+#endif
+
 /*******************************************************************************
  * \brief Internal routine for finding a power of two greater than given number.
  * \author Ole Schuett
@@ -52,7 +56,11 @@ static void hashtable_init(dbm_shard_t *shard) {
   shard->hashtable_size =
       next_power2(HASHTABLE_FACTOR * shard->nblocks_allocated);
   shard->hashtable_mask = shard->hashtable_size - 1;
+#if defined(__LIBXSMM)
+  shard->hashtable_prime = 0;
+#else
   shard->hashtable_prime = next_prime(shard->hashtable_size);
+#endif
   shard->hashtable = calloc(shard->hashtable_size, sizeof(int));
   assert(shard->hashtable != NULL);
 }
@@ -121,12 +129,19 @@ void dbm_shard_release(dbm_shard_t *shard) {
  * \brief Private hash function based on Cantor pairing function.
  *        https://en.wikipedia.org/wiki/Pairing_function#Cantor_pairing_function
  *        Szudzik's elegant pairing proved to be too asymmetric wrt. row / col.
- *        Using unsigned int to return a positive number even after overflow.
  * \author Ole Schuett
  ******************************************************************************/
-static inline unsigned int hash(const unsigned int row,
-                                const unsigned int col) {
-  return (row + col) * (row + col + 1) / 2 + row; // Division by 2 is cheap.
+static inline int hash(const dbm_shard_t *shard, unsigned int row,
+                       unsigned int col) {
+#if defined(__LIBXSMM)
+  const unsigned int h = libxsmm_hash32(((uint64_t)row << 32) | col);
+  const int result = h & shard->hashtable_mask;
+#else
+  // unsigned int to get a positive number even after overflow
+  const unsigned int h = (row + col) * (row + col + 1) / 2 + row;
+  const int result = (h * shard->hashtable_prime) & shard->hashtable_mask;
+#endif
+  return result;
 }
 
 /*******************************************************************************
@@ -137,7 +152,7 @@ static void hashtable_insert(dbm_shard_t *shard, const int block_idx) {
   assert(0 <= block_idx && block_idx < shard->nblocks);
   const dbm_block_t *blk = &shard->blocks[block_idx];
   const int row = blk->row, col = blk->col;
-  int slot = (shard->hashtable_prime * hash(row, col)) & shard->hashtable_mask;
+  int slot = hash(shard, row, col);
   while (true) {
     if (shard->hashtable[slot] == 0) {
       shard->hashtable[slot] = block_idx + 1; // 1-based because 0 means empty
@@ -154,7 +169,7 @@ static void hashtable_insert(dbm_shard_t *shard, const int block_idx) {
  ******************************************************************************/
 dbm_block_t *dbm_shard_lookup(const dbm_shard_t *shard, const int row,
                               const int col) {
-  int slot = (shard->hashtable_prime * hash(row, col)) & shard->hashtable_mask;
+  int slot = hash(shard, row, col);
   while (true) {
     const int block_idx = shard->hashtable[slot] - 1; // 1-based, 0 means empty.
     if (block_idx < 0) {
