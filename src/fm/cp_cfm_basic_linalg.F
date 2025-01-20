@@ -614,14 +614,9 @@ CONTAINS
       ldb = SIZE(b, 1)
       ldc = SIZE(c, 1)
 
-#if defined(__MKL)
-      CALL zgemm3m(transa, transb, m, n, k, alpha, a(i_a, j_a), &
-                   lda, b(i_b, j_b), ldb, beta, c(i_c, j_c), ldc)
-#else
+      ! consider zgemm3m
       CALL zgemm(transa, transb, m, n, k, alpha, a(i_a, j_a), &
                  lda, b(i_b, j_b), ldb, beta, c(i_c, j_c), ldc)
-#endif
-
 #endif
       CALL timestop(handle)
    END SUBROUTINE cp_cfm_gemm
