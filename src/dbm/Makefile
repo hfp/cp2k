@@ -91,10 +91,10 @@ endif
 all: dbm_miniapp.x
 
 clean:
-	rm -fv *.o ../offload/*.o $(OPENCL_GENKRNL)
+	rm -fv $(ALL_OBJECTS) $(OPENCL_GENKRNL)
 
 realclean: clean
-	rm -fv *.x
+	rm -fv dbm_miniapp.x
 
 
 # Enable OpenCL when DBCSR library was prebuilt (assume __DBCSR_ACC).
