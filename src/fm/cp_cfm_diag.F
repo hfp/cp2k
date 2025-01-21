@@ -17,7 +17,8 @@ MODULE cp_cfm_diag
                                   cp_cfm_column_scale, &
                                   cp_cfm_scale, &
                                   cp_cfm_triangular_invert, &
-                                  cp_cfm_triangular_multiply
+                                  cp_cfm_triangular_multiply, &
+                                  cp_cfm_uplo_to_full
    USE cp_cfm_types, ONLY: cp_cfm_get_info, &
                            cp_cfm_set_element, &
                            cp_cfm_to_cfm, &
@@ -94,6 +95,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), INTENT(OUT) :: eigenvalues
 
       CHARACTER(len=*), PARAMETER :: routineN = 'cp_cfm_heevd_base'
+      CHARACTER, PARAMETER                     :: uplo = 'U'
 
       COMPLEX(KIND=dp), DIMENSION(:), POINTER  :: work
       COMPLEX(KIND=dp), DIMENSION(:, :), &
@@ -113,6 +115,10 @@ CONTAINS
 
       CALL timeset(routineN, handle)
 
+      IF ((uplo == "L") .OR. (uplo == "l")) THEN
+         CALL cp_cfm_uplo_to_full(matrix, eigenvectors)
+      END IF
+
       n = matrix%matrix_struct%nrow_global
       m => matrix%local_data
       ALLOCATE (iwork(1), rwork(1), work(1))
@@ -125,7 +131,7 @@ CONTAINS
       v => eigenvectors%local_data
       descm(:) = matrix%matrix_struct%descriptor(:)
       descv(:) = eigenvectors%matrix_struct%descriptor(:)
-      CALL pzheevd('V', 'U', n, m(1, 1), 1, 1, descm, eigenvalues(1), v(1, 1), 1, 1, descv, &
+      CALL pzheevd('V', uplo, n, m(1, 1), 1, 1, descm, eigenvalues(1), v(1, 1), 1, 1, descv, &
                    work(1), lwork, rwork(1), lrwork, iwork(1), liwork, info)
       ! The work space query for lwork does not return always sufficiently large values.
       ! Let's add some margin to avoid crashes.
@@ -134,7 +140,7 @@ CONTAINS
       lrwork = CEILING(rwork(1)) + 1000000
       liwork = iwork(1)
 #else
-      CALL zheevd('V', 'U', n, m(1, 1), SIZE(m, 1), eigenvalues(1), &
+      CALL zheevd('V', uplo, n, m(1, 1), SIZE(m, 1), eigenvalues(1), &
                   work(1), lwork, rwork(1), lrwork, iwork(1), liwork, info)
       lwork = CEILING(REAL(work(1), KIND=dp))
       lrwork = CEILING(rwork(1))
@@ -152,14 +158,14 @@ CONTAINS
       CALL ieee_set_halting_mode(IEEE_ALL, .FALSE.)
 #endif
 
-      CALL pzheevd('V', 'U', n, m(1, 1), 1, 1, descm, eigenvalues(1), v(1, 1), 1, 1, descv, &
+      CALL pzheevd('V', uplo, n, m(1, 1), 1, 1, descm, eigenvalues(1), v(1, 1), 1, 1, descv, &
                    work(1), lwork, rwork(1), lrwork, iwork(1), liwork, info)
 
 #if defined (__HAS_IEEE_EXCEPTIONS)
       CALL ieee_set_halting_mode(IEEE_ALL, halt)
 #endif
 #else
-      CALL zheevd('V', 'U', n, m(1, 1), SIZE(m, 1), eigenvalues(1), &
+      CALL zheevd('V', uplo, n, m(1, 1), SIZE(m, 1), eigenvalues(1), &
                   work(1), lwork, rwork(1), lrwork, iwork(1), liwork, info)
       eigenvectors%local_data = matrix%local_data
 #endif
