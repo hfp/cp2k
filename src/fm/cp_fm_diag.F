@@ -552,11 +552,12 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE cp_fm_syevd_base(matrix, eigenvectors, eigenvalues, info)
 
-      TYPE(cp_fm_type), INTENT(IN)          :: matrix, eigenvectors
+      TYPE(cp_fm_type), INTENT(IN)             :: matrix, eigenvectors
       REAL(KIND=dp), DIMENSION(:), INTENT(OUT) :: eigenvalues
       INTEGER, INTENT(OUT), OPTIONAL           :: info
 
       CHARACTER(LEN=*), PARAMETER              :: routineN = 'cp_fm_syevd_base'
+      CHARACTER, PARAMETER                     :: uplo = 'U'
 
       CHARACTER(LEN=2*default_string_length)   :: message
       INTEGER                                  :: handle, myinfo
@@ -574,6 +575,10 @@ CONTAINS
 #endif
 
       CALL timeset(routineN, handle)
+
+      IF ((uplo == "L") .OR. (uplo == "l")) THEN
+         CALL cp_fm_uplo_to_full(matrix, eigenvectors)
+      END IF
 
       myinfo = 0
 
@@ -596,7 +601,7 @@ CONTAINS
       lwork = -1
       ALLOCATE (work(1))
 
-      CALL pdsyevd('V', 'U', n, m(1, 1), 1, 1, descm, eigenvalues(1), v(1, 1), 1, 1, descv, &
+      CALL pdsyevd('V', uplo, n, m(1, 1), 1, 1, descm, eigenvalues(1), v(1, 1), 1, 1, descv, &
                    work(1), lwork, iwork(1), liwork, myinfo)
 
       IF (matrix%matrix_struct%para_env%is_source() .AND. (myinfo /= 0)) THEN
@@ -626,7 +631,7 @@ CONTAINS
       CALL ieee_set_halting_mode(IEEE_ALL, .FALSE.)
 #endif
 
-      CALL pdsyevd('V', 'U', n, m(1, 1), 1, 1, descm, eigenvalues(1), v(1, 1), 1, 1, descv, &
+      CALL pdsyevd('V', uplo, n, m(1, 1), 1, 1, descm, eigenvalues(1), v(1, 1), 1, 1, descv, &
                    work(1), lwork, iwork(1), liwork, myinfo)
 
 #if defined (__HAS_IEEE_EXCEPTIONS)
