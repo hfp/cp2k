@@ -1796,9 +1796,9 @@ CONTAINS
       COMPLEX(dp), DIMENSION(:, :)                       :: evecs
       COMPLEX(dp), DIMENSION(:)                          :: evals
 
-      COMPLEX(dp), DIMENSION(:, :), ALLOCATABLE          :: matrix_c
+      COMPLEX(dp), ALLOCATABLE, DIMENSION(:, :)          :: matrix_c
       INTEGER                                            :: n
-      REAL(dp), DIMENSION(:), ALLOCATABLE                :: eigenvalues
+      REAL(dp), ALLOCATABLE, DIMENSION(:)                :: eigenvalues
 
       IF (SIZE(matrix, 1) /= SIZE(matrix, 2)) CPABORT("Expected square matrix")
       ! IF (MAXVAL(ABS(matrix + TRANSPOSE(matrix))) > 1e-14_dp) CPABORT("Expected anti-symmetric matrix")
@@ -1806,7 +1806,7 @@ CONTAINS
       n = SIZE(matrix, 1)
       ALLOCATE (matrix_c(n, n), eigenvalues(n))
 
-      matrix_c = CMPLX(0.0_dp, -matrix, kind=dp)
+      matrix_c(:, :) = CMPLX(0.0_dp, -matrix, kind=dp)
       CALL diag_complex(matrix_c, evecs, eigenvalues)
       evals = CMPLX(0.0_dp, eigenvalues, kind=dp)
 
