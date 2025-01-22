@@ -64,15 +64,16 @@ static void hashtable_init(dbm_shard_t *shard) {
 void dbm_shard_init(dbm_shard_t *shard) {
   shard->nblocks = 0;
   shard->nblocks_allocated = INITIAL_NBLOCKS_ALLOCATED;
-  shard->blocks = malloc(shard->nblocks_allocated * sizeof(dbm_block_t));
-  assert(shard->blocks != NULL);
+  shard->blocks = (0 < shard->nblocks_allocated
+                       ? malloc(shard->nblocks_allocated * sizeof(dbm_block_t))
+                       : NULL);
   hashtable_init(shard);
   shard->data_size = 0;
   shard->data_promised = 0;
   shard->data_allocated = INITIAL_DATA_ALLOCATED;
-  shard->data = malloc(shard->data_allocated * sizeof(double));
-  assert(shard->data != NULL);
-
+  shard->data = (0 < shard->data_allocated
+                     ? malloc(shard->data_allocated * sizeof(double))
+                     : NULL);
   omp_init_lock(&shard->lock);
 }
 
