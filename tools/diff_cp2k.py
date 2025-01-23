@@ -86,6 +86,9 @@ def read_file(filename, field, special_keys, stats_keys):
                 if "NAMEOUT=" in line:
                     nameout[0] = line.split("=", 2)[1].strip()
                     continue
+                if "ENERGY| Total FORCE_EVAL ( QS ) energy [" in line:
+                    nameout[1] = line.split("]", 2)[1].strip()
+                    continue
                 if "ENERGY| Total FORCE_EVAL ( QS ) energy " in line:
                     nameout[1] = line.split(":", 2)[1].strip()
                     continue
