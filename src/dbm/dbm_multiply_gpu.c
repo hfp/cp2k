@@ -107,15 +107,16 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
                                     const double alpha, const int kshard,
                                     dbm_multiply_gpu_context_t *ctx) {
 
-  if (ntasks == 0) {
+  const dbm_shard_t *shard_c_host = &ctx->shards_c_host[kshard];
+  dbm_shard_gpu_t *shard_c_dev = &ctx->shards_c_dev[kshard];
+  assert(NULL != shard_c_host && NULL != shard_c_dev);
+
+  if (0 == ntasks) {
     return; // Nothing to do.
   }
 
   // Select GPU device.
   offload_activate_chosen_device();
-
-  const dbm_shard_t *shard_c_host = &ctx->shards_c_host[kshard];
-  dbm_shard_gpu_t *shard_c_dev = &ctx->shards_c_dev[kshard];
 
   // Upload new batch.
   dbm_task_t *batch_dev = &ctx->batches_dev[kshard * ctx->max_batch_size];
@@ -149,6 +150,7 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
   }
 
   // Launch kernel.
+  assert(0 != shard_c_dev->data_size);
   dbm_multiply_gpu_launch_kernel(shard_c_dev->stream, mnk_range, alpha, ntasks,
                                  batch_dev, ctx->pack_a_dev.data,
                                  ctx->pack_b_dev.data, shard_c_dev->data);
