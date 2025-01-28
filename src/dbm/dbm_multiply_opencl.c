@@ -124,9 +124,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     }
     ACC_OPENCL_RELEASE(c_dbcsr_acc_opencl_config.lock_main);
   } else if (NULL == kernel) {
-    ACC_OPENCL_ACQUIRE(c_dbcsr_acc_opencl_config.lock_main);
     kernel = clCloneKernel(kernel_global, &result);
-    ACC_OPENCL_RELEASE(c_dbcsr_acc_opencl_config.lock_main);
   }
 #else
 #error "OpenCL kernel code not found!"
