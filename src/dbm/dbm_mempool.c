@@ -95,25 +95,32 @@ static void *internal_mempool_malloc(const size_t size, const bool on_device) {
     return NULL;
   }
 
-  dbm_memchunk_t *chunk;
+  dbm_memchunk_t *chunk = NULL;
 
 #pragma omp critical(dbm_mempool_modify)
   {
     // Find a suitable chunk in mempool_available.
-    dbm_memchunk_t **indirect = &mempool_available_head;
-    while (*indirect != NULL && (*indirect)->on_device != on_device) {
+    dbm_memchunk_t **indirect = &mempool_available_head, **best = NULL;
+    while (*indirect != NULL) {
+      if ((*indirect)->on_device == on_device) {
+        if (NULL == best) { // Fallback
+          best = indirect;
+        }
+        if (size <= (*indirect)->size) {
+          best = indirect;
+          break;
+        }
+      }
       indirect = &(*indirect)->next;
     }
-    chunk = *indirect;
 
     // If a chunck was found, remove it from mempool_available.
-    if (chunk != NULL) {
+    if (best != NULL) {
+      chunk = *best;
+      *best = chunk->next;
       assert(chunk->on_device == on_device);
-      *indirect = chunk->next;
-    }
-
-    // If no chunk was found, allocate a new one.
-    if (chunk == NULL) {
+    } else { // Allocate a new chunk.
+      assert(chunk == NULL);
       chunk = malloc(sizeof(dbm_memchunk_t));
       assert(chunk != NULL);
       chunk->on_device = on_device;
