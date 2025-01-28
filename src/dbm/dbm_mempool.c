@@ -13,6 +13,7 @@
 
 #include "../offload/offload_library.h"
 #include "../offload/offload_runtime.h"
+#include "dbm_hyperparams.h"
 #include "dbm_mempool.h"
 #include "dbm_mpi.h"
 
@@ -100,14 +101,16 @@ static void *internal_mempool_malloc(const size_t size, const bool on_device) {
 #pragma omp critical(dbm_mempool_modify)
   {
     // Find a suitable chunk in mempool_available.
-    dbm_memchunk_t **indirect = &mempool_available_head, **best = NULL;
+    dbm_memchunk_t **indirect = &mempool_available_head, **hit = NULL;
     while (*indirect != NULL) {
       if ((*indirect)->on_device == on_device) {
-        if (NULL == best) { // Fallback
-          best = indirect;
+        const size_t max_size = (size_t)(ALLOCATION_FACTOR * size + 0.5);
+        const size_t hit_size = (*indirect)->size;
+        if (NULL == hit) { // Fallback
+          hit = indirect;
         }
-        if (size <= (*indirect)->size) {
-          best = indirect;
+        if (size <= hit_size && hit_size <= max_size) {
+          hit = indirect;
           break;
         }
       }
@@ -115,9 +118,9 @@ static void *internal_mempool_malloc(const size_t size, const bool on_device) {
     }
 
     // If a chunck was found, remove it from mempool_available.
-    if (best != NULL) {
-      chunk = *best;
-      *best = chunk->next;
+    if (hit != NULL) {
+      chunk = *hit;
+      *hit = chunk->next;
       assert(chunk->on_device == on_device);
     } else { // Allocate a new chunk.
       assert(chunk == NULL);
@@ -128,16 +131,16 @@ static void *internal_mempool_malloc(const size_t size, const bool on_device) {
       chunk->mem = NULL;
     }
 
-    // Resize chunk if needed.
-    if (chunk->size < size) {
-      actual_free(chunk->mem, chunk->on_device);
-      chunk->mem = actual_malloc(size, chunk->on_device);
-      chunk->size = size;
-    }
-
     // Insert chunk into mempool_allocated.
     chunk->next = mempool_allocated_head;
     mempool_allocated_head = chunk;
+  }
+
+  // Resize chunk if needed (outside of critical section).
+  if (chunk->size < size) {
+    actual_free(chunk->mem, chunk->on_device);
+    chunk->mem = actual_malloc(size, chunk->on_device);
+    chunk->size = size;
   }
 
   return chunk->mem;
