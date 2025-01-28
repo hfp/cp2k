@@ -11,10 +11,6 @@
 #include "dbm_multiply_gpu_kernel.h"
 #include "dbm_multiply_opencl.cl.h"
 
-#if !defined(OPENCL_DBM_TLS) && 1
-#define OPENCL_DBM_TLS LIBXSMM_TLS
-#endif
-
 void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                                     const int mnk_range[3][2], double alpha,
                                     int ntasks, const dbm_task_t *tasks,
@@ -23,11 +19,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                                     double *shard_c_data) {
   /* creating/calling kernel must be consistent across threads */
   static cl_kernel kernel_global = NULL;
-#if defined(OPENCL_DBM_TLS)
-  static OPENCL_DBM_TLS cl_kernel kernel = NULL;
-#else
-  cl_kernel kernel = NULL;
-#endif
+  static LIBXSMM_TLS cl_kernel kernel = NULL;
   static int ndims = 1;
   static size_t wgsize[] = {0, 0, 0};
   const libxsmm_timer_tickint start = libxsmm_timer_tick();
@@ -132,7 +124,9 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     }
     ACC_OPENCL_RELEASE(c_dbcsr_acc_opencl_config.lock_main);
   } else if (NULL == kernel) {
+    ACC_OPENCL_ACQUIRE(c_dbcsr_acc_opencl_config.lock_main);
     kernel = clCloneKernel(kernel_global, &result);
+    ACC_OPENCL_RELEASE(c_dbcsr_acc_opencl_config.lock_main);
   }
 #else
 #error "OpenCL kernel code not found!"
