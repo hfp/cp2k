@@ -161,13 +161,6 @@ static void *internal_mempool_malloc(const size_t size, const bool on_device) {
     chunk->size = size; // update
   }
 
-  // Resize chunk if needed (outside of critical section).
-  if (chunk->size < size) {
-    actual_free(chunk->mem, chunk->on_device);
-    chunk->mem = actual_malloc(size, chunk->on_device);
-    chunk->size = size;
-  }
-
   return chunk->mem;
 }
 
