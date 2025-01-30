@@ -87,10 +87,14 @@ def read_file(filename, field, special_keys, stats_keys):
                     nameout[0] = line.split("=", 2)[1].strip()
                     continue
                 if "ENERGY| Total FORCE_EVAL ( QS ) energy [" in line:
-                    nameout[1] = line.split("]", 2)[1].strip()
+                    split = line.split("]", 2)
+                    if 2 == len(split):
+                        nameout[1] = split[1].strip()
                     continue
                 if "ENERGY| Total FORCE_EVAL ( QS ) energy " in line:
-                    nameout[1] = line.split(":", 2)[1].strip()
+                    split = line.split(":", 2)
+                    if 2 == len(split):
+                        nameout[1] = split[1].strip()
                     continue
                 if "DBCSR STATISTICS" not in line and nstats == 0:
                     continue
@@ -139,18 +143,18 @@ def print_value(ref, value, show_comp):
         comp = (value - ref) / ref * 100
     else:
         comp = float("Inf")
-    color = "\033[0m"
-    endc = "\033[0m"
+    color = "\033[0m"  # reset
+    nocol = "\033[0m"  # reset
     if comp > 0:
-        color = "\033[92m"
+        color = "\033[92m"  # green
     elif comp < 0:
-        color = "\033[94m"
+        color = "\033[94m"  # blue
     if abs(comp) > 100:
-        color += "\033[1m"
+        color += "\033[1m"  # bold
     if show_comp:
-        sys.stdout.write(color + "%10.3f" % value + "%5.0f" % comp + endc)
+        sys.stdout.write(color + "%10.3f" % value + "%5.0f" % comp + nocol)
     else:
-        sys.stdout.write(color + "%10.3f" % value + endc)
+        sys.stdout.write(color + "%10.3f" % value + nocol)
 
 
 #################
@@ -275,17 +279,17 @@ def main():
     ref = 0
     if len(files[args.file_lists[args.base - 1]][1]) > 0:
         ref = float(files[args.file_lists[args.base - 1]][1])
-    color = "\033[0m"
-    endc = "\033[0m"
+    color = "\033[0m"  # reset
+    nocol = "\033[0m"  # reset
     for filename in args.file_lists:
         if len(files[filename][1]) > 0 and ref != 0:
             comp = (float(files[filename][1]) - ref) / ref
             if abs(comp) > 1e-14:
-                color = "\033[91m"
+                color = "\033[91m"  # red
             else:
-                color = "\033[0m"
+                color = "\033[0m"  # reset
             print(
-                ("{0} ==> {1} : {2} : " + color + "{3}" + endc).format(
+                ("{0} ==> {1} : {2} : " + color + "{3}" + nocol).format(
                     files[filename][0],
                     filename,
                     files[filename][1],
