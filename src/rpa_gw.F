@@ -2661,8 +2661,8 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'compute_eps_head_Berry'
 
-      INTEGER :: col, col_end_in_block, col_offset, col_size, handle, i_col, i_row, ikp, nkp, row, &
-         row_offset, row_size, row_start_in_block, nmo
+      INTEGER :: col, col_end_in_block, col_offset, col_size, handle, i_col, i_row, ikp, nkp, nmo, &
+         row, row_offset, row_size, row_start_in_block
       REAL(KIND=dp)                                      :: abs_k_square, cell_volume, &
                                                             correct_kpoint(3), cos_square, &
                                                             eigen_diff, relative_kpoint(3), &
@@ -2719,9 +2719,9 @@ CONTAINS
                col_end_in_block = col_size
             END IF
 
-            DO i_row = row_start_in_block, MIN(row_size, nmo-row_offset+1)
+            DO i_row = row_start_in_block, MIN(row_size, nmo - row_offset + 1)
 
-               DO i_col = 1, MIN(col_end_in_block, nmo-col_offset+1)
+               DO i_col = 1, MIN(col_end_in_block, nmo - col_offset + 1)
 
                   eigen_diff = Eigenval(i_col + col_offset - 1) - Eigenval(i_row + row_offset - 1)
 
@@ -2759,9 +2759,9 @@ CONTAINS
                col_end_in_block = col_size
             END IF
 
-            DO i_row = row_start_in_block, MIN(row_size, nmo-row_offset+1)
+            DO i_row = row_start_in_block, MIN(row_size, nmo - row_offset + 1)
 
-               DO i_col = 1, MIN(col_end_in_block, nmo-col_offset+1)
+               DO i_col = 1, MIN(col_end_in_block, nmo - col_offset + 1)
 
                   eigen_diff = Eigenval(i_col + col_offset - 1) - Eigenval(i_row + row_offset - 1)
 

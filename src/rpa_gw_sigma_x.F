@@ -130,7 +130,7 @@ CONTAINS
       REAL(KIND=dp) :: E_GAP_GW, E_HOMO_GW, E_LUMO_GW, eh1, ehfx, eigval_dft, eigval_hf_at_dft, &
          energy_exc, energy_exc1, energy_exc1_aux_fit, energy_exc_aux_fit, energy_total, &
          exx_minus_vxc, hfx_fraction, min_direct_HF_at_DFT_gap, t1, t2, tmp
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)     :: matrix_tmp_2_diag
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: matrix_tmp_2_diag
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: Eigenval_kp_HF_at_DFT, vec_Sigma_x
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: Eigenval_kp, vec_Sigma_x_minus_vxc_gw, &
                                                             vec_Sigma_x_minus_vxc_gw_im
