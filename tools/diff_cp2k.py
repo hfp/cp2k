@@ -86,15 +86,9 @@ def read_file(filename, field, special_keys, stats_keys):
                 if "NAMEOUT=" in line:
                     nameout[0] = line.split("=", 2)[1].strip()
                     continue
-                if "ENERGY| Total FORCE_EVAL ( QS ) energy [" in line:
-                    split = line.split("]", 2)
-                    if 2 == len(split):
-                        nameout[1] = split[1].strip()
-                    continue
-                if "ENERGY| Total FORCE_EVAL ( QS ) energy " in line:
-                    split = line.split(":", 2)
-                    if 2 == len(split):
-                        nameout[1] = split[1].strip()
+                if "ENERGY| Total FORCE_EVAL ( QS ) energy" in line:
+                    split = line.split()
+                    nameout[1] = split[-1]  # last item
                     continue
                 if "DBCSR STATISTICS" not in line and nstats == 0:
                     continue
