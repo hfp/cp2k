@@ -379,8 +379,7 @@ static void collocate_one_grid_level(
       const int actual_group_size = imin(group_size, nthreads - dest_thread);
       // Parallelize summation by dividing grid points across group members.
       const int rank = modulo(ithread, group_size); // position within the group
-      const int64_t lb =
-          ((int64_t)npts_local_total * rank) / actual_group_size;
+      const int64_t lb = ((int64_t)npts_local_total * rank) / actual_group_size;
       const int64_t ub =
           ((int64_t)npts_local_total * (rank + 1)) / actual_group_size;
       if (src_thread < nthreads) {
