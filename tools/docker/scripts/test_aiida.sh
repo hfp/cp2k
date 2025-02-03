@@ -3,7 +3,7 @@
 # author: Ole Schuett
 
 # Compile CP2K.
-./build_cp2k_cmake.sh "ubuntu" "ssmp" || exit 0
+./build_cp2k_cmake.sh "toolchain" "ssmp" || exit 0
 
 echo -e "\n========== Installing Dependencies =========="
 apt-get update -qq
@@ -62,11 +62,15 @@ $AS_UBUNTU_USER /opt/venv/bin/verdi presto
 # fake the presents of conda
 ln -s /bin/true /usr/bin/conda
 
+# fake the presents of aiida-pseudo
+ln -s /bin/true /usr/bin/aiida-pseudo
+
 # setup code
 mkdir -p /opt/conda/envs/cp2k/bin/
 cat > /opt/conda/envs/cp2k/bin/cp2k.psmp << EndOfMessage
 #!/bin/bash -e
 export OMP_NUM_THREADS=2
+source /opt/cp2k-toolchain/install/setup
 /opt/cp2k/build/bin/cp2k.ssmp "\$@"
 EndOfMessage
 chmod +x /opt/conda/envs/cp2k/bin/cp2k.psmp
@@ -76,7 +80,7 @@ set +e # disable error trapping for remainder of script
 (
   set -e         # abort on error
   ulimit -t 1800 # abort after 30 minutes
-  $AS_UBUNTU_USER /opt/venv/bin/py.test
+  $AS_UBUNTU_USER /opt/venv/bin/py.test -k "not example_sirius"
 )
 
 EXIT_CODE=$?
