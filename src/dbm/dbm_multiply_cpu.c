@@ -120,7 +120,7 @@ void dbm_multiply_cpu_process_batch(const int ntasks, dbm_task_t batch[ntasks],
     task_next = batch[batch_order[(itask + 1) < ntasks ? (itask + 1) : itask]];
 
     if (task.m != kernel_m || task.n != kernel_n || task.k != kernel_k) {
-      if (LIBXSMM_SMM(task.m, task.n, task.m, 1 /*in-$ !RFO*/,
+      if (LIBXSMM_SMM(task.m, task.n, task.m, 1 /*assume in-$, no RFO*/,
                       sizeof(double))) {
 #if LIBXSMM_VERSION2(1, 17) < LIBXSMM_VERSION_NUMBER
         const libxsmm_gemm_shape shape = libxsmm_create_gemm_shape(
