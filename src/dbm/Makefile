@@ -45,7 +45,7 @@ CFLAGS += -qopenmp
 CC := $(if $(filter-out 0,$(MPI)),mpiicx,icx)
 endif
 
-ifneq ($(MPI),)
+ifneq ($(MPI),0)
 CFLAGS += -D__parallel
 ifneq ($(MPICC),)
 CC := $(MPICC)
