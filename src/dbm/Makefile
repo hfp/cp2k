@@ -46,10 +46,10 @@ CC := $(if $(filter-out 0,$(MPI)),mpiicx,icx)
 endif
 
 ifneq ($(MPI),)
-  CFLAGS += -D__parallel
-  ifneq ($(MPICC),)
-    CC := $(MPICC)
-  endif
+CFLAGS += -D__parallel
+ifneq ($(MPICC),)
+CC := $(MPICC)
+endif
 endif
 
 NVCC := $(shell which nvcc 2>/dev/null)
@@ -98,10 +98,10 @@ all: dbm_miniapp.x
 
 clean:
 	rm -fv $(ALL_OBJECTS) $(OPENCL_GENKRNL) \
-    dbm_multiply_gpu.o \
-    dbm_multiply_gpu_kernel.o \
-    dbm_multiply_opencl.o \
-    dbm_miniapp.o
+        dbm_multiply_gpu.o \
+        dbm_multiply_gpu_kernel.o \
+        dbm_multiply_opencl.o \
+        dbm_miniapp.o
 
 realclean: clean
 	rm -fv dbm_miniapp.x
