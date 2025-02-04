@@ -127,19 +127,17 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
   offloadEventRecord(batch_uploaded, shard_c_dev->stream);
 
   // Reallocate shard_c_dev->data if necessary.
+  double *old_data_dev = NULL;
   if (shard_c_host->data_promised > shard_c_dev->data_allocated) {
-    double *old_data_dev = shard_c_dev->data;
     shard_c_dev->data_allocated =
         ALLOCATION_FACTOR * shard_c_host->data_promised;
+    old_data_dev = shard_c_dev->data;
     shard_c_dev->data =
         dbm_mempool_device_malloc(shard_c_dev->data_allocated * sizeof(double));
+    // Omit to wait for copy before freeing old buffer.
     offloadMemcpyAsyncDtoD(shard_c_dev->data, old_data_dev,
                            shard_c_dev->data_size * sizeof(double),
                            shard_c_dev->stream);
-
-    // Wait for copy to complete before freeing old buffer.
-    offloadStreamSynchronize(shard_c_dev->stream);
-    dbm_mempool_free(old_data_dev);
 
     // Zero new blocks if necessary.
     const int tail = shard_c_host->data_promised - shard_c_dev->data_size;
@@ -158,6 +156,11 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
   // Wait for batch to be uploaded before refilling it.
   offloadEventSynchronize(batch_uploaded);
   offloadEventDestroy(batch_uploaded);
+
+  // Safely freeing old buffer.
+  if (NULL != old_data_dev) {
+    dbm_mempool_free(old_data_dev);
+  }
 }
 
 /*******************************************************************************
