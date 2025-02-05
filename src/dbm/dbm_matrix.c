@@ -310,7 +310,8 @@ void dbm_filter(dbm_matrix_t *matrix, const double eps) {
                 shard, old_blk.row, old_blk.col, block_size);
             assert(new_blk->offset <= old_blk.offset);
             if (new_blk->offset != old_blk.offset) {
-              // Using memmove instead of memcpy because it handles overlap correctly.
+              // Using memmove instead of memcpy because it handles overlap
+              // correctly.
               double *new_blk_data = &shard->data[new_blk->offset];
               memmove(new_blk_data, old_blk_data, block_size * sizeof(double));
             }
