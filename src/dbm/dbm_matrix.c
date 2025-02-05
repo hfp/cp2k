@@ -294,29 +294,26 @@ void dbm_filter(dbm_matrix_t *matrix, const double eps) {
 
     for (int iblock = 0; iblock < old_nblocks; iblock++) {
       const dbm_block_t old_blk = shard->blocks[iblock];
+      const double *old_blk_data = &shard->data[old_blk.offset];
       const int row_size = matrix->row_sizes[old_blk.row];
       const int col_size = matrix->col_sizes[old_blk.col];
       const int block_size = row_size * col_size;
+      double norm = 0.0;
       // For historic reasons zero-sized blocks are never filtered.
-      if (block_size > 0) {
-        const double *old_blk_data = &shard->data[old_blk.offset];
-        double norm = 0.0;
-        for (int i = 0; i < block_size; i++) {
-          const double value = old_blk_data[i];
-          norm += value * value;
-          if (eps2 <= norm) {
-            // Re-create block.
-            dbm_block_t *new_blk = dbm_shard_promise_new_block(
-                shard, old_blk.row, old_blk.col, block_size);
-            assert(new_blk->offset <= old_blk.offset);
-            if (new_blk->offset != old_blk.offset) {
-              // Using memmove instead of memcpy because it handles overlap
-              // correctly.
-              double *new_blk_data = &shard->data[new_blk->offset];
-              memmove(new_blk_data, old_blk_data, block_size * sizeof(double));
-            }
-            break;
+      for (int i = 0; i < block_size; i++) {
+        const double value = old_blk_data[i];
+        norm += value * value;
+        if (eps2 <= norm) {
+          // Re-create block.
+          dbm_block_t *new_blk = dbm_shard_promise_new_block(
+              shard, old_blk.row, old_blk.col, block_size);
+          assert(new_blk->offset <= old_blk.offset);
+          if (new_blk->offset != old_blk.offset) {
+            // Using memmove because it can handle overlapping buffers.
+            double *new_blk_data = &shard->data[new_blk->offset];
+            memmove(new_blk_data, old_blk_data, block_size * sizeof(double));
           }
+          break;
         }
       }
     }
