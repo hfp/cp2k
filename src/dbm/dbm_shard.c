@@ -149,14 +149,13 @@ static void hashtable_insert(dbm_shard_t *shard, const int block_idx) {
   assert(0 <= block_idx && block_idx < shard->nblocks);
   const dbm_block_t *blk = &shard->blocks[block_idx];
   const int row = blk->row, col = blk->col;
-  int slot = (shard->hashtable_prime * hash(row, col)) & shard->hashtable_mask;
-  while (true) {
+  int i = shard->hashtable_prime * hash(row, col);
+  for (;; ++i) { // increment for linear probing
+    const int slot = i & shard->hashtable_mask;
     if (shard->hashtable[slot] == 0) {
       shard->hashtable[slot] = block_idx + 1; // 1-based because 0 means empty
       return;
     }
-    // linear probing
-    slot = (slot + 1) & shard->hashtable_mask;
   }
 }
 
@@ -166,8 +165,9 @@ static void hashtable_insert(dbm_shard_t *shard, const int block_idx) {
  ******************************************************************************/
 dbm_block_t *dbm_shard_lookup(const dbm_shard_t *shard, const int row,
                               const int col) {
-  int slot = (shard->hashtable_prime * hash(row, col)) & shard->hashtable_mask;
-  while (true) {
+  int i = shard->hashtable_prime * hash(row, col);
+  for (;; ++i) { // increment for linear probing
+    const int slot = i & shard->hashtable_mask;
     const int block_idx = shard->hashtable[slot] - 1; // 1-based, 0 means empty.
     if (block_idx < 0) {
       return NULL; // block not found
@@ -177,8 +177,6 @@ dbm_block_t *dbm_shard_lookup(const dbm_shard_t *shard, const int row,
     if (blk->row == row && blk->col == col) {
       return blk;
     }
-    // linear probing
-    slot = (slot + 1) & shard->hashtable_mask;
   }
 }
 
