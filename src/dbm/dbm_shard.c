@@ -14,6 +14,8 @@
 #include "dbm_hyperparams.h"
 #include "dbm_shard.h"
 
+#define DBM_LOOKUP_LINEAR 4
+
 /*******************************************************************************
  * \brief Internal routine for finding a power of two greater than given number.
  * \author Ole Schuett
@@ -172,14 +174,18 @@ dbm_block_t *dbm_shard_lookup(const dbm_shard_t *shard, const int row,
                               const int col) {
   int slot = (shard->hashtable_prime * hash(row, col)) & hashtable_mask(shard);
   for (;; slot = (slot + 1) & hashtable_mask(shard)) { // linear probing
-    const int block_idx = shard->hashtable[slot] - 1; // 1-based, 0 means empty.
-    if (block_idx < 0) {
-      return NULL; // block not found
-    }
-    assert(0 <= block_idx && block_idx < shard->nblocks);
-    dbm_block_t *blk = &shard->blocks[block_idx];
-    if (blk->row == row && blk->col == col) {
-      return blk;
+    const int n = ((slot + DBM_LOOKUP_LINEAR) <= hashtable_mask(shard) ? DBM_LOOKUP_LINEAR : 1);
+    const int *hashtable = shard->hashtable + slot;
+    for (int i = 0; i < n; ++i) {
+      const int block_idx = hashtable[i];
+      if (block_idx <= 0) { // 1-based, 0 means empty.
+        return NULL; // block not found
+      }
+      assert(0 < block_idx && block_idx <= shard->nblocks);
+      dbm_block_t *blk = &shard->blocks[block_idx - 1];
+      if (blk->row == row && blk->col == col) {
+        return blk;
+      }
     }
   }
 }
