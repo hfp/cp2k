@@ -122,9 +122,8 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
   dbm_task_t *batch_dev = &ctx->batches_dev[kshard * ctx->max_batch_size];
   const size_t size = ntasks * sizeof(dbm_task_t);
   offloadMemcpyAsyncHtoD(batch_dev, batch, size, shard_c_dev->stream);
-  offloadEvent_t batch_uploaded;
-  offloadEventCreate(&batch_uploaded);
-  offloadEventRecord(batch_uploaded, shard_c_dev->stream);
+  offloadEvent_t memsetup;
+  offloadEventCreate(&memsetup);
 
   // Reallocate shard_c_dev->data if necessary.
   double *old_data_dev = NULL;
@@ -138,12 +137,15 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
     offloadMemcpyAsyncDtoD(shard_c_dev->data, old_data_dev,
                            shard_c_dev->data_size * sizeof(double),
                            shard_c_dev->stream);
+    offloadEventRecord(memsetup, shard_c_dev->stream);
 
     // Zero new blocks if necessary.
     const int tail = shard_c_host->data_promised - shard_c_dev->data_size;
     offloadMemsetAsync(&shard_c_dev->data[shard_c_dev->data_size], 0,
                        tail * sizeof(double), shard_c_dev->stream);
     shard_c_dev->data_size = shard_c_host->data_promised;
+  } else { // event only covers offloadMemcpyAsyncHtoD
+    offloadEventRecord(memsetup, shard_c_dev->stream);
   }
 
   // Launch kernel.
@@ -153,9 +155,11 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
                                  ctx->pack_b_dev.data, shard_c_dev->data);
   OFFLOAD_CHECK(offloadGetLastError());
 
-  // Wait for batch to be uploaded before refilling it.
-  offloadEventSynchronize(batch_uploaded);
-  offloadEventDestroy(batch_uploaded);
+  // Wait for:
+  // - Batch to be uploaded (before refilling it).
+  // - Device memory buffer (if resized).
+  offloadEventSynchronize(memsetup);
+  offloadEventDestroy(memsetup);
 
   // Safely freeing old buffer.
   if (NULL != old_data_dev) {
