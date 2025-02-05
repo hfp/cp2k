@@ -234,9 +234,9 @@ static void fill_send_buffers(
         blks_send[jblock].free_index = plan->blk->col;
         blks_send[jblock].sum_index = plan->blk->row;
       } else {
-        memcpy(data_send + offset, blk_data, sizeof(double) * plan_size);
         for (int i = 0; i < plan_size; i++) {
           const double element = blk_data[i];
+          data_send[offset + i] = element;
           norm += element * element;
         }
         blks_send[jblock].free_index = plan->blk->row;
