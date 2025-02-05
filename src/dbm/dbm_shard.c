@@ -155,9 +155,8 @@ static void hashtable_insert(dbm_shard_t *shard, const int block_idx) {
   assert(0 <= block_idx && block_idx < shard->nblocks);
   const dbm_block_t *blk = &shard->blocks[block_idx];
   const int row = blk->row, col = blk->col;
-  int i = shard->hashtable_prime * hash(row, col);
-  for (;; ++i) { // increment for linear probing
-    const int slot = i & hashtable_mask(shard);
+  int slot = (shard->hashtable_prime * hash(row, col)) & hashtable_mask(shard);
+  for (;; slot = (slot + 1) & hashtable_mask(shard)) { // linear probing
     if (shard->hashtable[slot] == 0) {
       shard->hashtable[slot] = block_idx + 1; // 1-based because 0 means empty
       return;
@@ -171,9 +170,8 @@ static void hashtable_insert(dbm_shard_t *shard, const int block_idx) {
  ******************************************************************************/
 dbm_block_t *dbm_shard_lookup(const dbm_shard_t *shard, const int row,
                               const int col) {
-  int i = shard->hashtable_prime * hash(row, col);
-  for (;; ++i) { // increment for linear probing
-    const int slot = i & hashtable_mask(shard);
+  int slot = (shard->hashtable_prime * hash(row, col)) & hashtable_mask(shard);
+  for (;; slot = (slot + 1) & hashtable_mask(shard)) { // linear probing
     const int block_idx = shard->hashtable[slot] - 1; // 1-based, 0 means empty.
     if (block_idx < 0) {
       return NULL; // block not found
