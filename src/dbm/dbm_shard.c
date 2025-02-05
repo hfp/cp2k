@@ -51,7 +51,6 @@ static void hashtable_init(dbm_shard_t *shard) {
   // Choosing size as power of two allows to replace modulo with bitwise AND.
   shard->hashtable_size =
       next_power2(HASHTABLE_FACTOR * shard->nblocks_allocated);
-  shard->hashtable_mask = shard->hashtable_size - 1;
   shard->hashtable_prime = next_prime(shard->hashtable_size);
   shard->hashtable = calloc(shard->hashtable_size, sizeof(int));
   assert(shard->hashtable != NULL);
@@ -94,7 +93,6 @@ void dbm_shard_copy(dbm_shard_t *shard_a, const dbm_shard_t *shard_b) {
     assert(shard_a->hashtable != NULL);
   }
   shard_a->hashtable_size = shard_b->hashtable_size;
-  shard_a->hashtable_mask = shard_b->hashtable_mask;
   shard_a->hashtable_prime = shard_b->hashtable_prime;
 
   if (shard_a->data_allocated < shard_b->data_size) {
@@ -142,6 +140,14 @@ static inline unsigned int hash(const unsigned int row,
 }
 
 /*******************************************************************************
+ * \brief Internal routine for masking a slot in the hash-table.
+ * \author Hans Pabst
+ ******************************************************************************/
+static inline int hashtable_mask(const dbm_shard_t *shard) {
+  return shard->hashtable_size - 1;
+}
+
+/*******************************************************************************
  * \brief Private routine for inserting a block into a shard's hashtable.
  * \author Ole Schuett
  ******************************************************************************/
@@ -151,7 +157,7 @@ static void hashtable_insert(dbm_shard_t *shard, const int block_idx) {
   const int row = blk->row, col = blk->col;
   int i = shard->hashtable_prime * hash(row, col);
   for (;; ++i) { // increment for linear probing
-    const int slot = i & shard->hashtable_mask;
+    const int slot = i & hashtable_mask(shard);
     if (shard->hashtable[slot] == 0) {
       shard->hashtable[slot] = block_idx + 1; // 1-based because 0 means empty
       return;
@@ -167,7 +173,7 @@ dbm_block_t *dbm_shard_lookup(const dbm_shard_t *shard, const int row,
                               const int col) {
   int i = shard->hashtable_prime * hash(row, col);
   for (;; ++i) { // increment for linear probing
-    const int slot = i & shard->hashtable_mask;
+    const int slot = i & hashtable_mask(shard);
     const int block_idx = shard->hashtable[slot] - 1; // 1-based, 0 means empty.
     if (block_idx < 0) {
       return NULL; // block not found
