@@ -14,8 +14,6 @@
 #include "dbm_hyperparams.h"
 #include "dbm_shard.h"
 
-#define DBM_LOOKUP_LINEAR 64
-
 /*******************************************************************************
  * \brief Internal routine for finding a power of two greater than given number.
  * \author Ole Schuett
@@ -159,17 +157,11 @@ static void hashtable_insert(dbm_shard_t *shard, const int block_idx) {
   const unsigned int h = hash(blk->row, blk->col);
   int slot = (shard->hashtable_prime * h) & hashtable_mask(shard);
   for (;; slot = (slot + 1) & hashtable_mask(shard)) { // linear probing
-    int *hashtable = shard->hashtable + slot;
-    if ((slot + DBM_LOOKUP_LINEAR) <= hashtable_mask(shard)) {
-      for (int i = 0; i < DBM_LOOKUP_LINEAR; ++i) {
-        if (hashtable[i] == 0) {        // 0 means empty
-          hashtable[i] = block_idx + 1; // 1-based
-          return;
-        }
+    for (int i = slot; i < shard->hashtable_size; ++i) {
+      if (shard->hashtable[i] == 0) {        // 0 means empty
+        shard->hashtable[i] = block_idx + 1; // 1-based
+        return;
       }
-    } else if (*hashtable == 0) { // 0 means empty
-      *hashtable = block_idx + 1; // 1-based
-      return;
     }
   }
 }
@@ -182,21 +174,8 @@ dbm_block_t *dbm_shard_lookup(const dbm_shard_t *shard, const int row,
                               const int col) {
   int slot = (shard->hashtable_prime * hash(row, col)) & hashtable_mask(shard);
   for (;; slot = (slot + 1) & hashtable_mask(shard)) { // linear probing
-    const int *hashtable = shard->hashtable + slot;
-    if ((slot + DBM_LOOKUP_LINEAR) <= hashtable_mask(shard)) {
-      for (int i = 0; i < DBM_LOOKUP_LINEAR; ++i) {
-        const int block_idx = hashtable[i];
-        if (block_idx == 0) { // 1-based, 0 means empty
-          return NULL;        // block not found
-        }
-        assert(0 < block_idx && block_idx <= shard->nblocks);
-        dbm_block_t *blk = &shard->blocks[block_idx - 1];
-        if (blk->row == row && blk->col == col) {
-          return blk;
-        }
-      }
-    } else {
-      const int block_idx = *hashtable;
+    for (int i = slot; i < shard->hashtable_size; ++i) {
+      const int block_idx = shard->hashtable[i];
       if (block_idx == 0) { // 1-based, 0 means empty
         return NULL;        // block not found
       }
