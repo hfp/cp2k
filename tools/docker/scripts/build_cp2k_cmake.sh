@@ -62,6 +62,8 @@ elif [[ "${PROFILE}" == "toolchain" ]]; then
 fi
 export
 # TODO: Reconcile PROFILE/VERSION with CP2K_BUILD_OPTIONS in CMakeLists.txt.
+#PROFILE_BLAS_VENDOR="-DCP2K_BLAS_VENDOR=OpenBLAS"
+#
 if [[ "${PROFILE}" == "spack" ]] && [[ "${VERSION}" == "psmp" ]]; then
   # PyTorch's TorchConfig.cmake is buried in the Python site-packages directory
   export Torch_DIR="/opt/spack/var/spack/environments/myenv/spack-env/view/lib/python3.11/site-packages/torch/share/cmake/Torch"
@@ -71,8 +73,8 @@ if [[ "${PROFILE}" == "spack" ]] && [[ "${VERSION}" == "psmp" ]]; then
     -DCMAKE_C_FLAGS="-fno-lto" \
     -DCMAKE_Fortran_FLAGS="-fno-lto" \
     -DCMAKE_INSTALL_PREFIX=/opt/cp2k \
-    -DCP2K_BLAS_VENDOR="OpenBLAS" \
-    -DCP2K_SCALAPACK_VENDOR="GENERIC" \
+    ${PROFILE_BLAS_VENDOR} \
+    -DCP2K_SCALAPACK_VENDOR=GENERIC \
     -Werror=dev \
     -DCP2K_USE_LIBINT2=ON \
     -DCP2K_USE_LIBXC=ON \
@@ -102,7 +104,7 @@ elif [[ "${PROFILE}" == "toolchain" ]] && [[ "${VERSION}" == "ssmp" ]]; then
     -GNinja \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
     -DCMAKE_INSTALL_LIBDIR=lib \
-    -DCP2K_BLAS_VENDOR=OpenBLAS \
+    ${PROFILE_BLAS_VENDOR} \
     -DCP2K_USE_COSMA=OFF \
     -DCP2K_USE_DEEPMD=ON \
     -DCP2K_USE_DFTD4=ON \
@@ -128,7 +130,7 @@ elif [[ "${PROFILE}" == "toolchain" ]] && [[ "${VERSION}" == "sdbg" ]]; then
     -DCMAKE_INSTALL_PREFIX=/opt/cp2k \
     -Werror=dev \
     -DCP2K_DEBUG_MODE=ON \
-    -DCP2K_BLAS_VENDOR=OpenBLAS \
+    ${PROFILE_BLAS_VENDOR} \
     -DCP2K_USE_LIBINT2=ON \
     -DCP2K_USE_LIBXC=ON \
     -DCP2K_USE_FFTW3=ON \
@@ -147,7 +149,7 @@ elif [[ "${PROFILE}" == "toolchain" ]] && [[ "${VERSION}" == "psmp" ]]; then
     -GNinja \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
     -DCMAKE_INSTALL_LIBDIR=lib \
-    -DCP2K_BLAS_VENDOR=OpenBLAS \
+    ${PROFILE_BLAS_VENDOR} \
     -DCP2K_USE_COSMA=ON \
     -DCP2K_USE_DEEPMD=ON \
     -DCP2K_USE_DFTD4=ON \
@@ -179,7 +181,7 @@ elif [[ "${PROFILE}" == "toolchain" ]] && [[ "${VERSION}" == "pdbg" ]]; then
     -DCMAKE_INSTALL_PREFIX=/opt/cp2k \
     -Werror=dev \
     -DCP2K_DEBUG_MODE=ON \
-    -DCP2K_BLAS_VENDOR=OpenBLAS \
+    ${PROFILE_BLAS_VENDOR} \
     -DCP2K_USE_LIBINT2=ON \
     -DCP2K_USE_LIBXC=ON \
     -DCP2K_USE_FFTW3=ON \
@@ -200,7 +202,7 @@ elif [[ "${PROFILE}" == "ubuntu" ]] && [[ "${VERSION}" == "ssmp" ]]; then
     -GNinja \
     -DCMAKE_INSTALL_PREFIX=/opt/cp2k \
     -Werror=dev \
-    -DCP2K_BLAS_VENDOR=OpenBLAS \
+    ${PROFILE_BLAS_VENDOR} \
     -DCP2K_USE_LIBINT2=ON \
     -DCP2K_USE_FFTW3=ON \
     -DCP2K_USE_LIBXSMM=ON \
@@ -222,7 +224,7 @@ elif [[ "${PROFILE}" == "ubuntu_i386" ]] && [[ "${VERSION}" == "ssmp" ]]; then
     -GNinja \
     -DCMAKE_INSTALL_PREFIX=/opt/cp2k \
     -Werror=dev \
-    -DCP2K_BLAS_VENDOR=OpenBLAS \
+    ${PROFILE_BLAS_VENDOR} \
     -DCP2K_USE_LIBINT2=ON \
     -DCP2K_USE_FFTW3=ON \
     -DCP2K_USE_LIBXC=OFF \
@@ -242,7 +244,7 @@ elif [[ "${PROFILE}" == "minimal" ]] && [[ "${VERSION}" == "ssmp" ]]; then
     -GNinja \
     -DCMAKE_INSTALL_PREFIX=/opt/cp2k \
     -Werror=dev \
-    -DCP2K_BLAS_VENDOR=OpenBLAS \
+    ${PROFILE_BLAS_VENDOR} \
     -DCP2K_USE_LIBINT2=OFF \
     -DCP2K_USE_LIBXC=OFF \
     -DCP2K_USE_FFTW3=OFF \
