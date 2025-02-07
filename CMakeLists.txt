@@ -121,31 +121,34 @@ option(
 option(CP2K_USE_GRPP "Enable libgrpp support" OFF)
 option(CP2K_USE_TREXIO "Enable trexio support" OFF)
 option(CP2K_USE_HDF5 "Enable HDF5 support" OFF)
-option(CP2K_USE_LIBXSMM "Use libxsmm for small gemms" OFF)
 option(CP2K_USE_LIBSMEAGOL "Enable libsmeagol support" OFF)
-option(CP2K_DBCSR_USE_CPU_ONLY "Enable compilation DBCSR CPU version" OFF)
 option(BUILD_SHARED_LIBS "Build cp2k shared library" ON)
 option(
   CP2K_USE_FFTW3_WITH_MKL
-  "MKL has its own compatible implementation of the fftw. This option when ON will use the original implementation of the fftw library"
+  "MKL has its own compatible implementation of the fftw library. This option, when ON, will use the separate and original fftw library."
   OFF)
 
-option(
-  CP2K_ENABLE_GRID_GPU
-  "disable the hardware accelerated backend for grid related functions. It is only effective when general gpu support is enabled."
-  ON)
-option(
-  CP2K_ENABLE_PW_GPU
-  "disable the ffts accelerated (mostly GPU) backend. It is only effective when general gpu support is enabled."
-  OFF)
-option(
-  CP2K_ENABLE_DBM_GPU
-  "disable the dbm accelerated (mostly GPU) backend. It is only effective when general gpu support is enabled."
-  ON)
+cmake_dependent_option(CP2K_USE_LIBXSMM "Use libxsmm for small gemms" OFF
+                       "NOT CP2K_USE_ACCEL MATCHES \"OPENCL\"" ON)
 
 cmake_dependent_option(
-  CP2K_USE_UNIFIED_MEMORY "Use CPU/GPU unified memory.
-  requires Mi250x or future AMD architectures to be fully functional" OFF
+  CP2K_DBCSR_USE_CPU_ONLY "Disable the DBCSR accelerated backend" OFF
+  "NOT CP2K_USE_ACCEL MATCHES \"OPENCL\"" OFF)
+
+cmake_dependent_option(
+  CP2K_ENABLE_DBM_GPU "Disable the dbm accelerated backend (mostly GPU)." ON
+  "CP2K_USE_ACCEL" OFF)
+
+cmake_dependent_option(
+  CP2K_ENABLE_GRID_GPU "Disable acceleration for grid related functions." ON
+  "CP2K_USE_ACCEL MATCHES \"HIP|CUDA\"" OFF)
+
+cmake_dependent_option(
+  CP2K_ENABLE_PW_GPU "Disable the ffts accelerated backend (mostly GPU)." OFF
+  "CP2K_USE_ACCEL MATCHES \"HIP|CUDA\"" OFF)
+
+cmake_dependent_option(
+  CP2K_USE_UNIFIED_MEMORY "Use CPU/GPU unified memory (Mi250x onwards)" OFF
   "CP2K_USE_ACCEL MATCHES \"HIP\"" OFF)
 
 cmake_dependent_option(CP2K_ENABLE_ELPA_OPENMP_SUPPORT
@@ -256,10 +259,10 @@ if(${cp2k_build_options_up} STREQUAL "DEFAULT")
 endif()
 
 # ##############################################################################
-# # gpu related options                                                    # #
+# gpu related options
 # ##############################################################################
 
-set(CP2K_SUPPORTED_ACCELERATION_TARGETS CUDA HIP NONE)
+set(CP2K_SUPPORTED_ACCELERATION_TARGETS CUDA HIP OPENCL NONE)
 set(CP2K_SUPPORTED_CUDA_ARCHITECTURES
     K20X
     K40
@@ -295,14 +298,14 @@ set_property(
 
 set(CP2K_USE_ACCEL
     "NONE"
-    CACHE STRING "Set hardware acceleration support: CUDA, HIP")
+    CACHE STRING "Set hardware acceleration support: CUDA, HIP, OPENCL")
 
 set_property(CACHE CP2K_USE_ACCEL
              PROPERTY STRINGS ${CP2K_SUPPORTED_ACCELERATION_TARGETS})
 
 # ##############################################################################
 # specific variables for the regtests. Binaries will be created with an
-# extension               #
+# extension
 # ##############################################################################
 
 set(__cp2k_ext "")
@@ -460,6 +463,7 @@ endif()
 
 set(CP2K_USE_HIP OFF)
 set(CP2K_USE_CUDA OFF)
+set(CP2K_USE_OPENCL OFF)
 
 option(CP2K_USE_PW_GPU "Enable GPU in CUDA" OFF)
 if(CP2K_USE_ACCEL MATCHES "CUDA")
@@ -550,6 +554,10 @@ elseif(CP2K_USE_ACCEL MATCHES "HIP")
       set(CMAKE_HIP_ARCHITECTURES "gfx942:xnack+")
     endif()
   endif()
+elseif(CP2K_USE_ACCEL MATCHES "OPENCL")
+  enable_language(C)
+  find_package(OpenCL REQUIRED)
+  set(CP2K_USE_OPENCL ON)
 endif()
 
 # PACKAGE DISCOVERY (compiler configuration can impact package discovery)
