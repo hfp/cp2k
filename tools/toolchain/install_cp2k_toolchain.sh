@@ -343,9 +343,9 @@ if (command -v mpiexec > /dev/null 2>&1); then
     with_openmpi="__SYSTEM__"
   elif (mpiexec --version 2>&1 | grep -s -q "Intel"); then
     echo "MPI is detected and it appears to be Intel MPI"
-    with_gcc="__DONTUSE__"
-    with_amd="__DONTUSE__"
-    with_intel="__SYSTEM__"
+    #with_gcc="__DONTUSE__"
+    #with_amd="__DONTUSE__"
+    #with_intel="__SYSTEM__"
     with_intelmpi="__SYSTEM__"
     export MPI_MODE="intelmpi"
   else # default to mpich
@@ -424,7 +424,7 @@ while [ $# -ge 1 ]; do
       export DOWNLOADER_FLAGS="--no-check-certificate"
       ;;
     --install-all)
-      # set all package to the default installation status
+      # set all packages to the default installation status
       for ii in ${package_list}; do
         if [ "${ii}" != "intel" ] &&
           [ "${ii}" != "intelmpi" ] &&
@@ -914,8 +914,9 @@ if [ "${ENABLE_CRAY}" = "__TRUE__" ]; then
       ;;
     intelmpi)
       if [ "$with_intelmpi" = "__DONTUSE__" ]; then
-        with_gcc="__DONTUSE__"
-        with_intel="__SYSTEM__"
+        #with_gcc="__DONTUSE__"
+        #with_amd="__DONTUSE__"
+        #with_intel="__SYSTEM__"
         add_include_from_paths MPI_CFLAGS "mpi.h" $INCLUDE_PATHS
         add_include_from_paths MPI_LDFLAGS "libmpi.*" $LIB_PATHS
         export MPI_CFLAGS
