@@ -63,6 +63,7 @@ fi
 export
 # TODO: Reconcile PROFILE/VERSION with CP2K_BUILD_OPTIONS in CMakeLists.txt.
 #PROFILE_BLAS_VENDOR="-DCP2K_BLAS_VENDOR=OpenBLAS"
+#PROFILE_SCALAPACK_VENDOR="-DCP2K_SCALAPACK_VENDOR=GENERIC"
 #
 if [[ "${PROFILE}" == "spack" ]] && [[ "${VERSION}" == "psmp" ]]; then
   # PyTorch's TorchConfig.cmake is buried in the Python site-packages directory
@@ -74,7 +75,7 @@ if [[ "${PROFILE}" == "spack" ]] && [[ "${VERSION}" == "psmp" ]]; then
     -DCMAKE_Fortran_FLAGS="-fno-lto" \
     -DCMAKE_INSTALL_PREFIX=/opt/cp2k \
     ${PROFILE_BLAS_VENDOR} \
-    -DCP2K_SCALAPACK_VENDOR=GENERIC \
+    ${PROFILE_SCALAPACK_VENDOR} \
     -Werror=dev \
     -DCP2K_USE_LIBINT2=ON \
     -DCP2K_USE_LIBXC=ON \
@@ -150,6 +151,7 @@ elif [[ "${PROFILE}" == "toolchain" ]] && [[ "${VERSION}" == "psmp" ]]; then
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
     -DCMAKE_INSTALL_LIBDIR=lib \
     ${PROFILE_BLAS_VENDOR} \
+    ${PROFILE_SCALAPACK_VENDOR} \
     -DCP2K_USE_COSMA=ON \
     -DCP2K_USE_DEEPMD=ON \
     -DCP2K_USE_DFTD4=ON \
@@ -182,6 +184,7 @@ elif [[ "${PROFILE}" == "toolchain" ]] && [[ "${VERSION}" == "pdbg" ]]; then
     -Werror=dev \
     -DCP2K_DEBUG_MODE=ON \
     ${PROFILE_BLAS_VENDOR} \
+    ${PROFILE_SCALAPACK_VENDOR} \
     -DCP2K_USE_LIBINT2=ON \
     -DCP2K_USE_LIBXC=ON \
     -DCP2K_USE_FFTW3=ON \
