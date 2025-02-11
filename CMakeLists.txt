@@ -131,6 +131,9 @@ option(
 cmake_dependent_option(CP2K_USE_LIBXSMM "Use libxsmm for small gemms" OFF
                        "NOT CP2K_USE_ACCEL MATCHES \"OPENCL\"" ON)
 
+cmake_dependent_option(CP2K_USE_LIBVDWXC "Enable libvdwxc support WITH SIRIUS"
+                       ON "CP2K_USE_SIRIUS" OFF)
+
 cmake_dependent_option(
   CP2K_DBCSR_USE_CPU_ONLY "Disable the DBCSR accelerated backend" OFF
   "NOT CP2K_USE_ACCEL MATCHES \"OPENCL\"" OFF)
@@ -229,7 +232,8 @@ if(${cp2k_build_options_up} STREQUAL "FULL")
   set(CP2K_USE_SPGLIB ON)
   set(CP2K_USE_LIBTORCH ON)
   set(CP2K_USE_HDF5 ON)
-  # set(CP@K_USE_LIBGRPP ON)
+  set(CP2K_USE_LIBGRPP ON)
+  set(CP2K_USE_TREXIO ON)
 endif()
 
 if(${cp2k_build_options_up} STREQUAL "SERIAL")
@@ -578,10 +582,6 @@ if(CP2K_USE_HDF5)
   find_package(HDF5 REQUIRED COMPONENTS C Fortran)
 endif()
 
-# uncomment this when libgrpp cmake support is complete
-
-# if (CP2K_USE_LIBGRPP) find_package(libgrpp REQUIRED) endif()
-
 if(CP2K_USE_COSMA)
   find_package(cosma REQUIRED)
 
@@ -721,8 +721,6 @@ if(CP2K_USE_MPI_F08 AND NOT MPI_Fortran_HAVE_F08_MODULE)
 endif()
 
 if(CP2K_USE_TREXIO)
-  set(CP2K_USE_GRPP ON)
-  message(INFO "GRPP will also be enabled.")
   find_package(TrexIO REQUIRED)
 endif()
 
