@@ -1445,7 +1445,7 @@ set(CP2K_PROGS_F
     motion/xyz2dcd.F
     nequip_unittest.F)
 
-if(CP2K_USE_CUDA OR CP2K_USE_HIP)
+if(CP2K_USE_CUDA OR CP2K_USE_HIP OR CP2K_USE_OPENCL)
   if(CP2K_ENABLE_PW_GPU)
     list(APPEND CP2K_SRCS_GPU "pw/gpu/pw_gpu_kernels.cu")
     list(APPEND CP2K_SRCS_C ${CP2K_PW_SRCS_C})
@@ -1546,6 +1546,7 @@ else()
 endif()
 set(CP2K_GPU_DFLAGS
     $<$<BOOL:${CP2K_USE_UNIFIED_MEMORY}>:__OFFLOAD_UNIFIED_MEMORY>
+    $<$<BOOL:${CP2K_USE_OPENCL}>:__OFFLOAD_OPENCL>
     $<$<BOOL:${CP2K_USE_CUDA}>:__OFFLOAD_CUDA>
     $<$<COMPILE_LANGUAGE:CUDA>:__OFFLOAD_CUDA>
     $<$<BOOL:${CP2K_USE_HIP}>:__OFFLOAD_HIP
@@ -1697,7 +1698,7 @@ target_compile_definitions(
     $<$<BOOL:${CP2K_USE_CUSOLVER_MP}>:__CUSOLVERMP>
     ${CP2K_GPU_DFLAGS})
 
-if(CP2K_USE_CUDA OR CP2K_USE_HIP)
+if(CP2K_USE_CUDA OR CP2K_USE_HIP OR CP2K_USE_OPENCL)
   target_compile_definitions(
     cp2k
     PUBLIC $<$<NOT:$<BOOL:${CP2K_DBCSR_USE_CPU_ONLY}>>:__DBCSR_ACC>
