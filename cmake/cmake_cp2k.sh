@@ -47,8 +47,8 @@ if [[ "${PROFILE}" == "spack" ]] && [[ "${VERSION}" == "psmp" ]]; then
     -DCMAKE_C_FLAGS="-fno-lto" \
     -DCMAKE_Fortran_FLAGS="-fno-lto" \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    ${PROFILE_BLAS_VENDOR} \
-    ${PROFILE_SCALAPACK_VENDOR} \
+    "${PROFILE_BLAS_VENDOR}" \
+    "${PROFILE_SCALAPACK_VENDOR}" \
     -DCP2K_USE_LIBINT2=ON \
     -DCP2K_USE_LIBXC=ON \
     -DCP2K_USE_FFTW3=ON \
@@ -78,7 +78,7 @@ elif [[ "${PROFILE}" == "toolchain" ]] && [[ "${VERSION}" == "ssmp" ]]; then
     -GNinja \
     -DCMAKE_INSTALL_LIBDIR=lib \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    ${PROFILE_BLAS_VENDOR} \
+    "${PROFILE_BLAS_VENDOR}" \
     -DCP2K_USE_COSMA=OFF \
     -DCP2K_USE_DEEPMD=ON \
     -DCP2K_USE_DFTD4=ON \
@@ -102,7 +102,7 @@ elif [[ "${PROFILE}" == "toolchain" ]] && [[ "${VERSION}" == "sdbg" ]]; then
   cmake \
     -GNinja \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    ${PROFILE_BLAS_VENDOR} \
+    "${PROFILE_BLAS_VENDOR}" \
     -DCP2K_DEBUG_MODE=ON \
     -DCP2K_USE_COSMA=OFF \
     -DCP2K_USE_DLAF=OFF \
@@ -122,8 +122,8 @@ elif [[ "${PROFILE}" == "toolchain" ]] && [[ "${VERSION}" == "psmp" ]]; then
     -GNinja \
     -DCMAKE_INSTALL_LIBDIR=lib \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    ${PROFILE_BLAS_VENDOR} \
-    ${PROFILE_SCALAPACK_VENDOR} \
+    "${PROFILE_BLAS_VENDOR}" \
+    "${PROFILE_SCALAPACK_VENDOR}" \
     -DCP2K_USE_COSMA=ON \
     -DCP2K_USE_DEEPMD=ON \
     -DCP2K_USE_DFTD4=ON \
@@ -152,8 +152,8 @@ elif [[ "${PROFILE}" == "toolchain" ]] && [[ "${VERSION}" == "pdbg" ]]; then
   cmake \
     -GNinja \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    ${PROFILE_BLAS_VENDOR} \
-    ${PROFILE_SCALAPACK_VENDOR} \
+    "${PROFILE_BLAS_VENDOR}" \
+    "${PROFILE_SCALAPACK_VENDOR}" \
     -DCP2K_DEBUG_MODE=ON \
     -DCP2K_USE_COSMA=OFF \
     -DCP2K_USE_DLAF=OFF \
@@ -174,7 +174,7 @@ elif [[ "${PROFILE}" == "ubuntu" ]] && [[ "${VERSION}" == "ssmp" ]]; then
   cmake \
     -GNinja \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    ${PROFILE_BLAS_VENDOR} \
+    "${PROFILE_BLAS_VENDOR}" \
     -DCP2K_USE_COSMA=OFF \
     -DCP2K_USE_DLAF=OFF \
     -DCP2K_USE_FFTW3=ON \
@@ -195,7 +195,7 @@ elif [[ "${PROFILE}" == "ubuntu_i386" ]] && [[ "${VERSION}" == "ssmp" ]]; then
   cmake \
     -GNinja \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    ${PROFILE_BLAS_VENDOR} \
+    "${PROFILE_BLAS_VENDOR}" \
     -DCP2K_USE_COSMA=OFF \
     -DCP2K_USE_DLAF=OFF \
     -DCP2K_USE_FFTW3=ON \
@@ -214,7 +214,7 @@ elif [[ "${PROFILE}" == "minimal" ]] && [[ "${VERSION}" == "ssmp" ]]; then
   cmake \
     -GNinja \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    ${PROFILE_BLAS_VENDOR} \
+    "${PROFILE_BLAS_VENDOR}" \
     -DCP2K_USE_COSMA=OFF \
     -DCP2K_USE_DLAF=OFF \
     -DCP2K_USE_FFTW3=OFF \
