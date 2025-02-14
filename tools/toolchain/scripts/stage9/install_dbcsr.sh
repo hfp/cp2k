@@ -42,7 +42,7 @@ case "${with_dbcsr}" in
       CMAKE_OPTIONS="-DBUILD_TESTING=NO -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_VERBOSE_MAKEFILE=ON"
       CMAKE_OPTIONS="${CMAKE_OPTIONS} -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DUSE_OPENMP=ON -DUSE_SMM=blas -DWITH_EXAMPLES=NO"
       if [ "${MPI_MODE}" == "no" ]; then
-        CMAKE_OPTIONS="${CMAKE_OPTIONS} -DUSE_MPI=NO"
+        CMAKE_OPTIONS="${CMAKE_OPTIONS} -DUSE_MPI=OFF"
       else
         CMAKE_OPTIONS="${CMAKE_OPTIONS} -DUSE_MPI=ON"
       fi
@@ -55,6 +55,7 @@ case "${with_dbcsr}" in
       cd ..
       if [ "${ENABLE_CUDA}" == "__TRUE__" ]; then
         mkdir build-cuda
+        cd build-cuda
         CMAKE_OPTIONS="${CMAKE_OPTIONS} -DUSE_ACCEL=cuda -DWITH_GPU=P100"
         cmake \
           -DCMAKE_INSTALL_PREFIX=${pkg_install_dir}-cuda \
@@ -66,6 +67,7 @@ case "${with_dbcsr}" in
       fi
       if [ "${ENABLE_HIP}" == "__TRUE__" ]; then
         mkdir build-hip
+        cd build-hip
         CMAKE_OPTIONS="${CMAKE_OPTIONS} -DUSE_ACCEL=hip -DWITH_GPU=Mi250"
         cmake \
           -DCMAKE_INSTALL_PREFIX=${pkg_install_dir}-hip \

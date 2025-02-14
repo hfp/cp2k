@@ -311,6 +311,11 @@ def render_keyword(
     location = get_text(keyword.find("LOCATION"))
     lone_keyword_value = get_text(keyword.find("LONE_KEYWORD_VALUE"))
 
+    # Check that the usage string starts with one of the keyword names.
+    if keyword.tag == "KEYWORD" and usage:
+        if not any(usage.upper().startswith(n) for n in keyword_names):
+            print(f"Warning: Keyword {keyword_xref} has bad usage: {location}")
+
     # Find keyword data type.
     data_type_element = keyword.find("DATA_TYPE")
     assert data_type_element is not None
@@ -336,7 +341,7 @@ def render_keyword(
 
     # Use Sphinx's py:data directive to document keywords.
     output += [f"```{{py:data}}  {canonical_name}"]
-    n_var_brackets = f"[{n_var}]" if n_var > 1 else ""
+    n_var_brackets = f"[{n_var}]" if n_var > 1 else "[ ]" if n_var == -1 else ""
     if section_xref:
         output += [f":module: {section_xref}"]
     else:
