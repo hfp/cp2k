@@ -1519,7 +1519,8 @@ if(CP2K_USE_HIP)
 endif()
 add_library(cp2k_linalg_libs INTERFACE)
 if(CP2K_USE_LIBXSMM AND CP2K_LIBXSMM_LIBRARY_DIRS)
-  target_link_directories(cp2k_linalg_libs INTERFACE ${CP2K_LIBXSMM_LIBRARY_DIRS})
+  target_link_directories(cp2k_linalg_libs INTERFACE
+                          ${CP2K_LIBXSMM_LIBRARY_DIRS})
 endif()
 target_link_libraries(
   cp2k_linalg_libs
