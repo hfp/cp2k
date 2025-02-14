@@ -73,6 +73,10 @@ if(NOT CP2K_CONFIG_PACKAGE)
     endif()
   endif()
 endif()
+
+# cleanup list (regularly contains empty items)
+list(FILTER CP2K_SCALAPACK_LINK_LIBRARIES EXCLUDE REGEX "^$")
+
 # check if found
 find_package_handle_standard_args(SCALAPACK
                                   REQUIRED_VARS CP2K_SCALAPACK_LINK_LIBRARIES)
