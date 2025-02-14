@@ -59,6 +59,8 @@ if(NOT TARGET cp2k::LibXSMM::libxsmm)
 
     if(${__lib_search_up}_FOUND AND NOT TARGET cp2k::LibXSMM::${__lib})
       add_library(cp2k::LibXSMM::${__lib} INTERFACE IMPORTED)
+      target_link_directories(cp2k::LibXSMM::${__lib} INTERFACE
+                              ${${__lib_search_up}_LIBRARY_DIRS})
     endif()
 
     set_target_properties(
