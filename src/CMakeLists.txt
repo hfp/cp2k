@@ -1425,6 +1425,11 @@ set(CP2K_GRID_SRCS_HIP
     grid/hip/grid_hip_collocate.cu grid/hip/grid_hip_integrate.cu
     grid/hip/grid_hip_context.cu)
 
+set(CP2K_OPENCL_TOOLDIR ../exts/dbcsr/src/acc/opencl)
+set(CP2K_OPENCL_SCRIPT ${CP2K_OPENCL_TOOLDIR}/acc_opencl.sh)
+set(CP2K_OPENCL_COMMON common/opencl_atomics.h common/opencl_common.h)
+list(TRANSFORM CP2K_OPENCL_COMMON PREPEND ${CP2K_OPENCL_TOOLDIR}/)
+
 set(CP2K_DBM_SRCS_GPU dbm/dbm_multiply_gpu_kernel.cu)
 set(CP2K_DBM_SRCS_GPU_C dbm/dbm_multiply_opencl.c dbm/dbm_multiply_gpu.c)
 set(CP2K_DBM_SRCS_OPENCL dbm/dbm_multiply_opencl.cl)
@@ -1446,13 +1451,6 @@ set(CP2K_PROGS_F
     nequip_unittest.F)
 
 if(CP2K_USE_CUDA OR CP2K_USE_HIP OR CP2K_USE_OPENCL)
-  if(CP2K_USE_OPENCL)
-    set(CP2K_OPENCL_TOOLDIR ../exts/dbcsr/src/acc/opencl)
-    set(CP2K_OPENCL_SCRIPT ${CP2K_OPENCL_TOOLDIR}/acc_opencl.sh)
-    set(CP2K_OPENCL_COMMON common/opencl_atomics.h common/opencl_common.h)
-    list(TRANSFORM CP2K_OPENCL_COMMON PREPEND ${CP2K_OPENCL_TOOLDIR}/)
-  endif()
-
   if(CP2K_ENABLE_PW_GPU)
     list(APPEND CP2K_SRCS_GPU "pw/gpu/pw_gpu_kernels.cu")
     list(APPEND CP2K_SRCS_C ${CP2K_PW_SRCS_C})
@@ -1460,14 +1458,13 @@ if(CP2K_USE_CUDA OR CP2K_USE_HIP OR CP2K_USE_OPENCL)
 
   if(CP2K_ENABLE_DBM_GPU)
     if(CP2K_USE_OPENCL)
-      set(CP2K_DBM_OPENCL_KERNEL dbm/dbm_multiply_opencl.cl)
       add_custom_target(
-        CP2K_DBM_SRCS_GPU_OPENCL ALL
+        CP2K_DBM_OPENCL_TARGET ALL
         COMMAND ${CP2K_OPENCL_SCRIPT} -b 6 -p ""
-                ${CP2K_DBM_OPENCL_KERNEL} ${CP2K_DBM_OPENCL_KERNEL}.h
-        DEPENDS ${CP2K_OPENCL_SCRIPT} ${CP2K_DBM_OPENCL_KERNEL}
+                ${CP2K_DBM_SRCS_OPENCL} ${CP2K_DBM_SRCS_OPENCL}.h
+        DEPENDS ${CP2K_OPENCL_SCRIPT} ${CP2K_DBM_SRCS_OPENCL}
                 ${CP2K_OPENCL_COMMON}
-        BYPRODUCTS ${CP2K_DBM_OPENCL_KERNEL}.h)
+        BYPRODUCTS ${CP2K_DBM_SRCS_OPENCL}.h)
     endif()
     list(APPEND CP2K_DBM_SRCS_C ${CP2K_DBM_SRCS_GPU_C})
     list(APPEND CP2K_SRCS_GPU ${CP2K_DBM_SRCS_GPU})
@@ -1608,6 +1605,8 @@ if(CP2K_USE_ACCEL MATCHES "CUDA")
 elseif(CP2K_USE_ACCEL MATCHES "HIP")
   set_property(TARGET cp2k PROPERTY HIP_ARCHITECTURES
                                     ${CMAKE_HIP_ARCHITECTURES})
+elseif(CP2K_USE_ACCEL MATCHES "OPENCL")
+  include_directories(${CP2K_OPENCL_TOOLDIR})
 endif()
 
 # mix the target and variables pointing to the include directories.
