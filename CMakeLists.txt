@@ -769,14 +769,14 @@ message(
 
 message(
   "  - BLAS AND LAPACK\n\n"
-  "   - vendor:              ${CP2K_BLAS_VENDOR}\n"
+  "   - vendor: ${CP2K_BLAS_VENDOR}\n"
   "   - include directories: ${CP2K_BLAS_INCLUDE_DIR} ${LAPACK_INCLUDE_DIR}\n"
-  "   - libraries:           ${CP2K_BLAS_LINK_LIBRARIES} ${CP2K_LAPACK_LINK_LIBRARIES}\n\n"
+  "   - libraries: ${CP2K_BLAS_LINK_LIBRARIES} ${CP2K_LAPACK_LINK_LIBRARIES}\n\n"
 )
 
 if(CP2K_USE_MPI)
   message("  - MPI\n" "   - include directories:  ${MPI_INCLUDE_DIRS}\n"
-          "   - libraries:           ${MPI_LIBRARIES}\n\n")
+          "   - libraries: ${MPI_LIBRARIES}\n\n")
 
   if(CP2K_USE_MPI_F08)
     message("   - MPI_08:              ON\n")
@@ -789,7 +789,7 @@ if(CP2K_USE_MPI)
   endif()
 
   message("  - SCALAPACK:\n"
-          "    - libraries : ${CP2K_SCALAPACK_LINK_LIBRARIES}\n\n")
+          "    - libraries: ${CP2K_SCALAPACK_LINK_LIBRARIES}\n\n")
 endif()
 
 if((CP2K_USE_ACCEL MATCHES "CUDA") OR (CP2K_USE_ACCEL MATCHES "HIP"))
@@ -797,22 +797,22 @@ if((CP2K_USE_ACCEL MATCHES "CUDA") OR (CP2K_USE_ACCEL MATCHES "HIP"))
   message("  - Hardware Acceleration:\n")
   if(CP2K_USE_ACCEL MATCHES "CUDA")
     message(
-      "   - CUDA:\n" "     - GPU target architecture : ${CP2K_WITH_GPU}\n"
-      "     - GPU architecture number : ${CP2K_ACC_ARCH_NUMBER}\n"
-      "     - GPU profiling enabled :   ${CP2K_WITH_CUDA_PROFILING}\n\n")
+      "   - CUDA:\n" "     - GPU target architecture: ${CP2K_WITH_GPU}\n"
+      "     - GPU architecture number: ${CP2K_ACC_ARCH_NUMBER}\n"
+      "     - GPU profiling enabled: ${CP2K_WITH_CUDA_PROFILING}\n\n")
   endif()
 
   if(CP2K_USE_ACCEL MATCHES "HIP")
-    message("   - HIP:\n" "    - GPU target architecture : ${CP2K_WITH_GPU}\n"
-            "    - GPU architecture number : ${CP2K_ACC_ARCH_NUMBER}\n"
+    message("   - HIP:\n" "    - GPU target architecture: ${CP2K_WITH_GPU}\n"
+            "    - GPU architecture number: ${CP2K_ACC_ARCH_NUMBER}\n"
             "    - FLAGS: ${CMAKE_HIP_FLAGS}")
   endif()
 
   message(
     "      - GPU accelerated modules\n"
-    "        - PW     module : ${CP2K_ENABLE_PW_GPU}\n"
-    "        - GRID   module : ${CP2K_ENABLE_GRID_GPU}\n"
-    "        - DBM    module : ${CP2K_ENABLE_DBM_GPU}\n\n")
+    "        - PW     module: ${CP2K_ENABLE_PW_GPU}\n"
+    "        - GRID   module: ${CP2K_ENABLE_GRID_GPU}\n"
+    "        - DBM    module: ${CP2K_ENABLE_DBM_GPU}\n\n")
 endif()
 
 if(CP2K_USE_CUSOLVER_MP)
@@ -845,8 +845,8 @@ endif()
 
 if(CP2K_USE_FFTW3)
   message("  - FFTW3\n"
-          "    - include directories : ${CP2K_FFTW3_INCLUDE_DIRS}\n"
-          "    - libraries : ${CP2K_FFTW3_LINK_LIBRARIES}\n\n")
+          "    - include directories: ${CP2K_FFTW3_INCLUDE_DIRS}\n"
+          "    - libraries: ${CP2K_FFTW3_LINK_LIBRARIES}\n\n")
 endif()
 
 if(CP2K_USE_PLUMED)
@@ -859,7 +859,7 @@ if(CP2K_USE_LIBXSMM)
   message(
     "  - libxsmm\n"
     "    - include directories: ${CP2K_LIBXSMM_INCLUDE_DIRS}\n"
-    "    - libraries:           ${CP2K_LIBXSMMEXT_LINK_LIBRARIES};${CP2K_LIBXSMMF_LINK_LIBRARIES}\n\n"
+    "    - libraries: ${CP2K_LIBXSMMEXT_LINK_LIBRARIES};${CP2K_LIBXSMMF_LINK_LIBRARIES}\n\n"
   )
 endif()
 
@@ -871,8 +871,8 @@ endif()
 if(CP2K_USE_DFTD4)
   message(
     " - DFTD4 :\n"
-    "   - include directories:  ${CP2K_DFTD4_INCLUDE_DIR}\n"
-    "   - libraries:            ${CP2K_DFTD4_LINK_LIBRARIES};${CP2K_DFTD4_LIB_LINK_LIBRARIES}\n\n"
+    "   - include directories: ${CP2K_DFTD4_INCLUDE_DIR}\n"
+    "   - libraries: ${CP2K_DFTD4_LINK_LIBRARIES};${CP2K_DFTD4_LIB_LINK_LIBRARIES}\n\n"
   )
 endif()
 
@@ -882,8 +882,8 @@ endif()
 
 if(CP2K_USE_LIBSMEAGOL)
   message(" - LIBSMEAGOL :\n"
-          "   - include directories:   ${CP2K_LIBSMEAGOL_INCLUDE_DIRS}\n"
-          "   - libraries:             ${CP2K_LIBSMEAGOL_LINK_LIBRARIES}\n\n")
+          "   - include directories: ${CP2K_LIBSMEAGOL_INCLUDE_DIRS}\n"
+          "   - libraries: ${CP2K_LIBSMEAGOL_LINK_LIBRARIES}\n\n")
 endif()
 
 if(CP2K_USE_SIRIUS)
@@ -892,41 +892,41 @@ endif()
 
 if(CP2K_USE_COSMA)
   message(" - COSMA\n" "   - include directories: ${CP2K_COSMA_INCLUDE_DIRS}\n"
-          "   - libraries:           ${CP2K_COSMA_LINK_LIBRARIES}\n\n")
+          "   - libraries: ${CP2K_COSMA_LINK_LIBRARIES}\n\n")
 endif()
 
 if(CP2K_USE_LIBINT2)
   message(" - libint2\n"
           "   - include directories: ${CP2K_LIBINT2_INCLUDE_DIRS}\n"
-          "   - libraries:           ${CP2K_LIBINT2_LINK_LIBRARIES}\n\n")
+          "   - libraries: ${CP2K_LIBINT2_LINK_LIBRARIES}\n\n")
 endif()
 
 if(CP2K_USE_VORI)
   message(" - libvori\n"
           "   - include directories: ${CP2K_LIBVORI_INCLUDE_DIRS}\n"
-          "   - libraries:           ${CP2K_LIBVORI_LINK_LIBRARIES}\n\n")
+          "   - libraries: ${CP2K_LIBVORI_LINK_LIBRARIES}\n\n")
 endif()
 
 if(CP2K_USE_ELPA)
   message(" - ELPA\n" "   - include directories: ${CP2K_ELPA_INCLUDE_DIRS}\n"
-          "   - libraries:           ${CP2K_ELPA_LINK_LIBRARIES}\n\n")
+          "   - libraries: ${CP2K_ELPA_LINK_LIBRARIES}\n\n")
 endif()
 
 if(CP2K_USE_DLAF)
   message(" - DLA-Future\n"
           "   - include directories: ${CP2K_DLAF_INCLUDE_DIRS}\n"
-          "   - libraries:           ${CP2K_DLAF_LINK_LIBRARIES}\n\n")
+          "   - libraries: ${CP2K_DLAF_LINK_LIBRARIES}\n\n")
 endif()
 
 if(CP2K_USE_GRPP)
   message(" - grpp\n" "   - include directories: ${GRPP_INCLUDE_DIRS}\n"
-          "   - libraries:           ${GRPP_LINK_LIBRARIES}\n\n")
+          "   - libraries: ${GRPP_LINK_LIBRARIES}\n\n")
 endif()
 
 if(CP2K_USE_TREXIO)
   message(" - trexio\n"
           "   - include directories: ${CP2K_TREXIO_INCLUDE_DIRS}\n"
-          "   - libraries:           ${CP2K_TREXIO_LINK_LIBRARIES}\n\n")
+          "   - libraries: ${CP2K_TREXIO_LINK_LIBRARIES}\n\n")
 endif()
 
 message(
