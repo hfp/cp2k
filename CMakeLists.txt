@@ -438,7 +438,7 @@ find_package(Lapack REQUIRED) # also calls find_package(BLAS)
 # SMM (Small Matrix-Matrix multiplication)
 if(CP2K_USE_LIBXSMM)
   find_package(LibXSMM REQUIRED)
-  message(STATUS "Using libxsmm for Small Matrix Multiplication")
+  message(STATUS "Using LibXSMM for Small Matrix Multiplication")
 endif()
 
 # in practice it is always for any decent configuration. But I add a flags to
@@ -768,15 +768,16 @@ message(
   "--------------------------------------------------------------------\n\n")
 
 message(
-  "  - BLAS AND LAPACK\n\n"
-  "   - vendor: ${CP2K_BLAS_VENDOR}\n"
-  "   - include directories: ${CP2K_BLAS_INCLUDE_DIR} ${LAPACK_INCLUDE_DIR}\n"
-  "   - libraries: ${CP2K_BLAS_LINK_LIBRARIES} ${CP2K_LAPACK_LINK_LIBRARIES}\n\n"
+  "  - BLAS AND LAPACK\n"
+  "    - vendor: ${CP2K_BLAS_VENDOR}\n"
+  "    - include directories: ${CP2K_BLAS_INCLUDE_DIR} ${LAPACK_INCLUDE_DIR}\n"
+  "    - libraries: ${CP2K_BLAS_LINK_LIBRARIES} ${CP2K_LAPACK_LINK_LIBRARIES}\n\n"
 )
 
 if(CP2K_USE_MPI)
-  message("  - MPI\n" "   - include directories:  ${MPI_INCLUDE_DIRS}\n"
-          "   - libraries: ${MPI_LIBRARIES}\n\n")
+  message("  - MPI\n"
+          "    - include directories:  ${MPI_INCLUDE_DIRS}\n"
+          "    - libraries: ${MPI_LIBRARIES}\n\n")
 
   if(CP2K_USE_MPI_F08)
     message("   - MPI_08:              ON\n")
@@ -839,8 +840,8 @@ endif()
 
 if(CP2K_USE_HDF5)
   message("  - HDF5\n" "   - version: ${HDF5_VERSION}\n"
-          "   - include directories: ${HDF5_INCLUDE_DIRS}\n"
-          "   - libraries: ${HDF5_LIBRARIES}\n\n")
+          "    - include directories: ${HDF5_INCLUDE_DIRS}\n"
+          "    - libraries: ${HDF5_LIBRARIES}\n\n")
 endif()
 
 if(CP2K_USE_FFTW3)
@@ -857,7 +858,7 @@ endif()
 
 if(CP2K_USE_LIBXSMM)
   message(
-    "  - libxsmm\n"
+    "  - LIBXSMM\n"
     "    - include directories: ${CP2K_LIBXSMM_INCLUDE_DIRS}\n"
     "    - libraries: ${CP2K_LIBXSMMEXT_LINK_LIBRARIES};${CP2K_LIBXSMMF_LINK_LIBRARIES}\n\n"
   )
