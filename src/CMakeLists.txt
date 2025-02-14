@@ -1446,12 +1446,29 @@ set(CP2K_PROGS_F
     nequip_unittest.F)
 
 if(CP2K_USE_CUDA OR CP2K_USE_HIP OR CP2K_USE_OPENCL)
+  if(CP2K_USE_OPENCL)
+    set(CP2K_OPENCL_TOOLDIR ../exts/dbcsr/src/acc/opencl)
+    set(CP2K_OPENCL_SCRIPT ${CP2K_OPENCL_TOOLDIR}/acc_opencl.sh)
+    set(CP2K_OPENCL_COMMON common/opencl_atomics.h common/opencl_common.h)
+    list(TRANSFORM CP2K_OPENCL_COMMON PREPEND ${CP2K_OPENCL_TOOLDIR}/)
+  endif()
+
   if(CP2K_ENABLE_PW_GPU)
     list(APPEND CP2K_SRCS_GPU "pw/gpu/pw_gpu_kernels.cu")
     list(APPEND CP2K_SRCS_C ${CP2K_PW_SRCS_C})
   endif()
 
   if(CP2K_ENABLE_DBM_GPU)
+    if(CP2K_USE_OPENCL)
+      set(CP2K_DBM_OPENCL_KERNEL dbm/dbm_multiply_opencl.cl)
+      add_custom_target(
+        CP2K_DBM_SRCS_GPU_OPENCL ALL
+        COMMAND ${CP2K_OPENCL_SCRIPT} -b 6 -p ""
+                ${CP2K_DBM_OPENCL_KERNEL} ${CP2K_DBM_OPENCL_KERNEL}.h
+        DEPENDS ${CP2K_OPENCL_SCRIPT} ${CP2K_DBM_OPENCL_KERNEL}
+                ${CP2K_OPENCL_COMMON}
+        BYPRODUCTS ${CP2K_DBM_OPENCL_KERNEL}.h)
+    endif()
     list(APPEND CP2K_DBM_SRCS_C ${CP2K_DBM_SRCS_GPU_C})
     list(APPEND CP2K_SRCS_GPU ${CP2K_DBM_SRCS_GPU})
   endif()
@@ -1470,11 +1487,10 @@ endif()
 list(APPEND CP2K_SRCS_C ${CP2K_DBM_SRCS_C} ${CP2K_GRID_SRCS_C})
 
 # ##############################################################################
-#
-# ##############################################################################
-
 # check that the files registered in CMakeLists.txt are all present and return
 # an error otherwise. cmake only runs this test nothing else below
+# ##############################################################################
+
 if(CP2K_ENABLE_CONSISTENCY_CHECKS)
   cp2k_compare_src_with_list(
     "${CP2K_FPGA_SRC_C};${CP2K_SRCS_C};${CP2K_OFFLOAD_SRCS_C};${CP2K_DBM_SRCS_C};${CP2K_GRID_SRCS_C};${CP2K_PW_SRCS_C};${CP2K_DBM_SRCS_GPU_C};${CP2K_PROGS_C}"
