@@ -1425,7 +1425,7 @@ set(CP2K_GRID_SRCS_HIP
     grid/hip/grid_hip_collocate.cu grid/hip/grid_hip_integrate.cu
     grid/hip/grid_hip_context.cu)
 
-set(CP2K_OPENCL_TOOLDIR ../exts/dbcsr/src/acc/opencl)
+set(CP2K_OPENCL_TOOLDIR ${CMAKE_CURRENT_SOURCE_DIR}/../exts/dbcsr/src/acc/opencl)
 set(CP2K_OPENCL_SCRIPT ${CP2K_OPENCL_TOOLDIR}/acc_opencl.sh)
 set(CP2K_OPENCL_COMMON common/opencl_atomics.h common/opencl_common.h)
 list(TRANSFORM CP2K_OPENCL_COMMON PREPEND ${CP2K_OPENCL_TOOLDIR}/)
