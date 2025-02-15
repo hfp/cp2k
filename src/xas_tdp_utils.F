@@ -174,7 +174,7 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'setup_xas_tdp_prob'
 
       INTEGER                                            :: handle
-      INTEGER, DIMENSION(:), POINTER                     :: submat_blk_size
+      INTEGER, CONTIGUOUS, DIMENSION(:), POINTER         :: submat_blk_size
       LOGICAL                                            :: do_coul, do_hfx, do_os, do_sc, do_sf, &
                                                             do_sg, do_tda, do_tp, do_xc
       REAL(dp)                                           :: eps_filter, sx
@@ -839,7 +839,7 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER                        :: routineN = 'prep_for_ot'
 
-      INTEGER :: blk, handle, i, iblk, ido_mo, ispin, jblk, maxel, minel, nao, natom, ndo_mo, &
+      INTEGER :: handle, i, iblk, ido_mo, ispin, jblk, maxel, minel, nao, natom, ndo_mo, &
          nelec_spin(2), nhomo(2), nlumo(2), nspins, start_block, start_col, start_row
       LOGICAL                                            :: do_os, found
       REAL(dp), DIMENSION(:, :), POINTER                 :: pblock
@@ -924,7 +924,7 @@ CONTAINS
          CALL dbcsr_iterator_start(iter, xas_tdp_env%ot_prec(ispin)%matrix)
          DO WHILE (dbcsr_iterator_blocks_left(iter))
 
-            CALL dbcsr_iterator_next_block(iter, row=iblk, column=jblk, blk=blk)
+            CALL dbcsr_iterator_next_block(iter, row=iblk, column=jblk)
 
             CALL dbcsr_get_block_p(xas_tdp_env%ot_prec(ispin)%matrix, iblk, jblk, pblock, found)
 
@@ -1088,11 +1088,11 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER                        :: routineN = 'get_q_projector'
 
-      INTEGER                                            :: blk, handle, iblk, imo, ispin, jblk, &
+      INTEGER                                            :: handle, iblk, imo, ispin, jblk, &
                                                             nblk_row, ndo_mo, nspins
-      INTEGER, DIMENSION(:), POINTER                     :: blk_size_q, row_blk_size
+      INTEGER, CONTIGUOUS, DIMENSION(:), POINTER         :: blk_size_q, row_blk_size
       LOGICAL                                            :: found_block, my_dosf
-      REAL(dp), DIMENSION(:), POINTER                    :: work_block
+      REAL(dp), DIMENSION(:, :), POINTER                 :: work_block
       TYPE(dbcsr_distribution_type), POINTER             :: dist_q
       TYPE(dbcsr_iterator_type)                          :: iter
       TYPE(dbcsr_type), POINTER                          :: one_sp
@@ -1126,7 +1126,7 @@ CONTAINS
          CALL dbcsr_iterator_start(iter, one_sp)
          DO WHILE (dbcsr_iterator_blocks_left(iter))
 
-            CALL dbcsr_iterator_next_block(iter, row=iblk, column=jblk, blk=blk)
+            CALL dbcsr_iterator_next_block(iter, row=iblk, column=jblk)
 
             ! get the block
             CALL dbcsr_get_block_p(one_sp, iblk, jblk, work_block, found_block)
@@ -1176,11 +1176,11 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'build_gs_contribution'
 
-      INTEGER                                            :: blk, handle, iblk, imo, ispin, jblk, &
+      INTEGER                                            :: handle, iblk, imo, ispin, jblk, &
                                                             nblk_row, ndo_mo, nspins
-      INTEGER, DIMENSION(:), POINTER                     :: blk_size_a, row_blk_size
+      INTEGER, CONTIGUOUS, DIMENSION(:), POINTER         :: blk_size_a, row_blk_size
       LOGICAL                                            :: found_block, my_dosf
-      REAL(dp), DIMENSION(:), POINTER                    :: work_block
+      REAL(dp), DIMENSION(:, :), POINTER                 :: work_block
       TYPE(dbcsr_distribution_type), POINTER             :: dbcsr_dist, dist_a
       TYPE(dbcsr_iterator_type)                          :: iter
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: m_ks, matrix_ks, matrix_s
@@ -1228,7 +1228,7 @@ CONTAINS
          CALL dbcsr_iterator_start(iter, m_ks(ispin)%matrix)
          DO WHILE (dbcsr_iterator_blocks_left(iter))
 
-            CALL dbcsr_iterator_next_block(iter, row=iblk, column=jblk, blk=blk)
+            CALL dbcsr_iterator_next_block(iter, row=iblk, column=jblk)
 
 !           Get the block
             CALL dbcsr_get_block_p(m_ks(ispin)%matrix, iblk, jblk, work_block, found_block)
@@ -1253,7 +1253,7 @@ CONTAINS
          CALL dbcsr_iterator_start(iter, matrix_s(1)%matrix)
          DO WHILE (dbcsr_iterator_blocks_left(iter))
 
-            CALL dbcsr_iterator_next_block(iter, row=iblk, column=jblk, blk=blk)
+            CALL dbcsr_iterator_next_block(iter, row=iblk, column=jblk)
 
 !           Get the block
             CALL dbcsr_get_block_p(matrix_s(1)%matrix, iblk, jblk, work_block, found_block)
@@ -1307,11 +1307,11 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER                        :: routineN = 'build_metric'
 
-      INTEGER                                            :: blk, handle, i, iblk, jblk, nao, &
-                                                            nblk_row, ndo_mo, nspins
-      INTEGER, DIMENSION(:), POINTER                     :: blk_size_g, row_blk_size
+      INTEGER                                            :: handle, i, iblk, jblk, nao, nblk_row, &
+                                                            ndo_mo, nspins
+      INTEGER, CONTIGUOUS, DIMENSION(:), POINTER         :: blk_size_g, row_blk_size
       LOGICAL                                            :: found_block, my_do_inv
-      REAL(dp), DIMENSION(:), POINTER                    :: work_block
+      REAL(dp), DIMENSION(:, :), POINTER                 :: work_block
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env
       TYPE(dbcsr_distribution_type), POINTER             :: dist_g
       TYPE(dbcsr_iterator_type)                          :: iter
@@ -1343,7 +1343,7 @@ CONTAINS
       CALL dbcsr_iterator_start(iter, matrix_s(1)%matrix)
       DO WHILE (dbcsr_iterator_blocks_left(iter))
 
-         CALL dbcsr_iterator_next_block(iter, row=iblk, column=jblk, blk=blk)
+         CALL dbcsr_iterator_next_block(iter, row=iblk, column=jblk)
 
 !        Get the block
          CALL dbcsr_get_block_p(matrix_s(1)%matrix, iblk, jblk, work_block, found_block)
@@ -1385,7 +1385,7 @@ CONTAINS
          CALL dbcsr_iterator_start(iter, matrix_sinv)
          DO WHILE (dbcsr_iterator_blocks_left(iter))
 
-            CALL dbcsr_iterator_next_block(iter, row=iblk, column=jblk, blk=blk)
+            CALL dbcsr_iterator_next_block(iter, row=iblk, column=jblk)
 
 !           Get the block
             CALL dbcsr_get_block_p(matrix_sinv, iblk, jblk, work_block, found_block)
@@ -1510,7 +1510,7 @@ CONTAINS
       INTEGER                                            :: group, handle, homo, iex, isc, isf, nao, &
                                                             ndo_mo, ndo_so, nex, npcols, nprows, &
                                                             nsc, nsf, ntot, tas(2), tbs(2)
-      INTEGER, DIMENSION(:), POINTER                     :: col_blk_size, col_dist, row_blk_size, &
+      INTEGER, CONTIGUOUS, DIMENSION(:), POINTER         :: col_blk_size, col_dist, row_blk_size, &
                                                             row_dist, row_dist_new
       INTEGER, DIMENSION(:, :), POINTER                  :: pgrid
       LOGICAL                                            :: do_roks, do_uks
@@ -1947,7 +1947,7 @@ CONTAINS
       INTEGER                                            :: group, handle, iex, isg, itp, nao, &
                                                             ndo_mo, nex, npcols, nprows, nsg, &
                                                             ntot, ntp
-      INTEGER, DIMENSION(:), POINTER                     :: col_blk_size, col_dist, row_blk_size, &
+      INTEGER, CONTIGUOUS, DIMENSION(:), POINTER         :: col_blk_size, col_dist, row_blk_size, &
                                                             row_dist, row_dist_new
       INTEGER, DIMENSION(:, :), POINTER                  :: pgrid
       REAL(dp)                                           :: eps_filter, soc_gst, sqrt2
@@ -2800,7 +2800,7 @@ CONTAINS
       LOGICAL, OPTIONAL                                  :: symmetric
       INTEGER, DIMENSION(2), OPTIONAL                    :: tracea_start, traceb_start
 
-      INTEGER                                            :: blk, iex, jex, ndo_mo, ndo_so
+      INTEGER                                            :: iex, jex, ndo_mo, ndo_so
       INTEGER, DIMENSION(2)                              :: tas, tbs
       LOGICAL                                            :: do_diags, found, my_symm
       REAL(dp)                                           :: soc_elem
@@ -2830,7 +2830,7 @@ CONTAINS
       CALL dbcsr_iterator_start(iter, amew_soc)
       DO WHILE (dbcsr_iterator_blocks_left(iter))
 
-         CALL dbcsr_iterator_next_block(iter, row=iex, column=jex, blk=blk)
+         CALL dbcsr_iterator_next_block(iter, row=iex, column=jex)
 
          IF (my_symm .AND. iex > jex) CYCLE
 
@@ -2887,7 +2887,7 @@ CONTAINS
       REAL(dp), OPTIONAL                                 :: pref_diags
       LOGICAL, OPTIONAL                                  :: symmetric
 
-      INTEGER                                            :: blk, iex, jex
+      INTEGER                                            :: iex, jex
       LOGICAL                                            :: do_diags, found, my_symm
       REAL(dp)                                           :: soc_elem
       REAL(dp), ALLOCATABLE, DIMENSION(:)                :: diag
@@ -2905,7 +2905,7 @@ CONTAINS
       CALL dbcsr_iterator_start(iter, amew_soc)
       DO WHILE (dbcsr_iterator_blocks_left(iter))
 
-         CALL dbcsr_iterator_next_block(iter, row=iex, column=jex, blk=blk)
+         CALL dbcsr_iterator_next_block(iter, row=iex, column=jex)
 
          IF (my_symm .AND. iex > jex) CYCLE
 

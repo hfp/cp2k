@@ -30,12 +30,13 @@ MODULE rpa_im_time_force_methods
    USE cp_dbcsr_api,                    ONLY: &
         dbcsr_add, dbcsr_add_on_diag, dbcsr_clear, dbcsr_complete_redistribute, dbcsr_copy, &
         dbcsr_create, dbcsr_distribution_new, dbcsr_distribution_release, dbcsr_distribution_type, &
-        dbcsr_frobenius_norm, dbcsr_get_block_p, dbcsr_iterator_blocks_left, &
-        dbcsr_iterator_next_block, dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, &
-        dbcsr_multiply, dbcsr_p_type, dbcsr_release, dbcsr_scale, dbcsr_set, dbcsr_type, &
-        dbcsr_type_antisymmetric, dbcsr_type_no_symmetry, dbcsr_type_symmetric
+        dbcsr_get_block_p, dbcsr_iterator_blocks_left, dbcsr_iterator_next_block, &
+        dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, dbcsr_multiply, &
+        dbcsr_p_type, dbcsr_release, dbcsr_scale, dbcsr_set, dbcsr_type, dbcsr_type_antisymmetric, &
+        dbcsr_type_no_symmetry, dbcsr_type_symmetric
    USE cp_dbcsr_cholesky,               ONLY: cp_dbcsr_cholesky_decompose,&
                                               cp_dbcsr_cholesky_invert
+   USE cp_dbcsr_contrib,                ONLY: dbcsr_frobenius_norm
    USE cp_dbcsr_diag,                   ONLY: cp_dbcsr_power
    USE cp_dbcsr_operations,             ONLY: copy_dbcsr_to_fm,&
                                               copy_fm_to_dbcsr,&
@@ -203,9 +204,9 @@ CONTAINS
                                                             dist_RI, dummy_end, dummy_start, &
                                                             end_blocks, sizes_AO, sizes_RI, &
                                                             start_blocks
+      INTEGER, CONTIGUOUS, DIMENSION(:), POINTER         :: col_bsize, row_bsize
       INTEGER, DIMENSION(2)                              :: pdims_t2c
       INTEGER, DIMENSION(3)                              :: nblks_total, pcoord, pdims, pdims_t3c
-      INTEGER, DIMENSION(:), POINTER                     :: col_bsize, row_bsize
       LOGICAL                                            :: do_periodic, use_virial
       REAL(dp)                                           :: compression_factor, eps_pgf_orb, &
                                                             eps_pgf_orb_old, memory, occ
@@ -2994,8 +2995,8 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER                        :: routineN = 'get_2c_mme_forces'
 
-      INTEGER :: atom_a, atom_b, blk, G_count, handle, i_xyz, iatom, ikind, iset, jatom, jkind, &
-         jset, natom, nkind, nseta, nsetb, offset_hab_a, offset_hab_b, R_count, sgfa, sgfb
+      INTEGER :: atom_a, atom_b, G_count, handle, i_xyz, iatom, ikind, iset, jatom, jkind, jset, &
+         natom, nkind, nseta, nsetb, offset_hab_a, offset_hab_b, R_count, sgfa, sgfb
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: atom_of_kind, kind_of
       INTEGER, DIMENSION(:), POINTER                     :: la_max, la_min, lb_max, lb_min, npgfa, &
                                                             npgfb, nsgfa, nsgfb
@@ -3037,7 +3038,7 @@ CONTAINS
       CALL dbcsr_iterator_start(iter, G_PQ)
       DO WHILE (dbcsr_iterator_blocks_left(iter))
 
-         CALL dbcsr_iterator_next_block(iter, row=iatom, column=jatom, blk=blk)
+         CALL dbcsr_iterator_next_block(iter, row=iatom, column=jatom)
          CALL dbcsr_get_block_p(G_PQ, iatom, jatom, pblock, found)
          IF (.NOT. found) CYCLE
          IF (iatom > jatom) CYCLE

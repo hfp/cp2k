@@ -15,8 +15,8 @@
 MODULE mao_optimizer
    USE cp_dbcsr_api,                    ONLY: &
         dbcsr_add, dbcsr_copy, dbcsr_create, dbcsr_distribution_type, dbcsr_get_info, &
-        dbcsr_maxabs, dbcsr_p_type, dbcsr_release, dbcsr_reserve_diag_blocks, dbcsr_type, &
-        dbcsr_type_symmetric
+        dbcsr_p_type, dbcsr_release, dbcsr_reserve_diag_blocks, dbcsr_type, dbcsr_type_symmetric
+   USE cp_dbcsr_contrib,                ONLY: dbcsr_maxabs
    USE cp_dbcsr_operations,             ONLY: dbcsr_allocate_matrix_set,&
                                               dbcsr_deallocate_matrix_set
    USE kinds,                           ONLY: dp
@@ -61,7 +61,7 @@ CONTAINS
       CHARACTER(len=*), PARAMETER                        :: routineN = 'mao_optimize'
 
       INTEGER                                            :: handle, i, ispin, iter, nspin
-      INTEGER, DIMENSION(:), POINTER                     :: col_blk_sizes, mao_sizes_a, mao_sizes_b
+      INTEGER, CONTIGUOUS, DIMENSION(:), POINTER         :: col_blk_sizes, mao_sizes_a, mao_sizes_b
       LOGICAL                                            :: spin_warning
       REAL(KIND=dp)                                      :: a1, a2, alpha, an, beta, eps_fun, fa1, &
                                                             fa2, fnnew, fnold, fval, grad_norm

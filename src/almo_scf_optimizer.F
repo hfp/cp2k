@@ -41,16 +41,17 @@ MODULE almo_scf_optimizer
    USE cp_dbcsr_api,                    ONLY: &
         dbcsr_add, dbcsr_add_on_diag, dbcsr_copy, dbcsr_create, dbcsr_desymmetrize, &
         dbcsr_distribution_get, dbcsr_distribution_type, dbcsr_dot, dbcsr_filter, dbcsr_finalize, &
-        dbcsr_frobenius_norm, dbcsr_func_dtanh, dbcsr_func_inverse, dbcsr_func_tanh, &
-        dbcsr_function_of_elements, dbcsr_get_block_p, dbcsr_get_diag, dbcsr_get_info, &
-        dbcsr_hadamard_product, dbcsr_iterator_blocks_left, dbcsr_iterator_next_block, &
-        dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, dbcsr_maxabs, &
+        dbcsr_get_block_p, dbcsr_get_diag, dbcsr_get_info, dbcsr_iterator_blocks_left, &
+        dbcsr_iterator_next_block, dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, &
         dbcsr_multiply, dbcsr_nblkcols_total, dbcsr_nblkrows_total, dbcsr_p_type, &
         dbcsr_print_block_sum, dbcsr_release, dbcsr_reserve_block2d, dbcsr_scale, dbcsr_set, &
-        dbcsr_set_diag, dbcsr_triu, dbcsr_type, dbcsr_type_no_symmetry, dbcsr_work_create
+        dbcsr_set_diag, dbcsr_type, dbcsr_type_no_symmetry, dbcsr_work_create
    USE cp_dbcsr_cholesky,               ONLY: cp_dbcsr_cholesky_decompose,&
                                               cp_dbcsr_cholesky_invert,&
                                               cp_dbcsr_cholesky_restore
+   USE cp_dbcsr_contrib,                ONLY: dbcsr_frobenius_norm,&
+                                              dbcsr_hadamard_product,&
+                                              dbcsr_maxabs
    USE cp_external_control,             ONLY: external_control
    USE cp_files,                        ONLY: close_file,&
                                               open_file
@@ -875,7 +876,7 @@ CONTAINS
       CHARACTER(LEN=20)                                  :: iter_type
       INTEGER :: cg_iteration, dim_op, fixed_line_search_niter, handle, idim0, ielem, ispin, &
          iteration, line_search_iteration, max_iter, my_special_case, ndomains, nmo, nspins, &
-         outer_iteration, outer_max_iter, para_group_handle, prec_type, reim, unit_nr
+         outer_iteration, outer_max_iter, prec_type, reim, unit_nr
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: nocc
       LOGICAL :: blissful_neglect, converged, just_started, line_search, normalize_orbitals, &
          optimize_theta, outer_prepare_to_exit, penalty_occ_local, penalty_occ_vol, &
@@ -897,7 +898,7 @@ CONTAINS
          STsiginv_0, tempNOcc, tempNOcc_1, tempOccOcc
       TYPE(domain_submatrix_type), ALLOCATABLE, &
          DIMENSION(:, :)                                 :: bad_modes_projector_down, domain_r_down
-      TYPE(mp_comm_type)                                 :: para_group
+      TYPE(mp_comm_type)                                 :: group
 
       CALL timeset(routineN, handle)
 
@@ -1310,8 +1311,7 @@ CONTAINS
                   ALLOCATE (z2(nmo))
                   ALLOCATE (reim_diag(nmo))
 
-                  CALL dbcsr_get_info(tempOccOcc(ispin), group=para_group_handle)
-                  CALL para_group%set_handle(para_group_handle)
+                  CALL dbcsr_get_info(tempOccOcc(ispin), group=group)
 
                   DO idim0 = 1, SIZE(op_sm_set_qs, 2) ! this loop is over miller ind
 
@@ -1336,7 +1336,7 @@ CONTAINS
 
                         reim_diag = 0.0_dp
                         CALL dbcsr_get_diag(tempOccOcc(ispin), reim_diag)
-                        CALL para_group%sum(reim_diag)
+                        CALL group%sum(reim_diag)
                         z2(:) = z2(:) + reim_diag(:)*reim_diag(:)
 
                      END DO
@@ -1699,10 +1699,7 @@ CONTAINS
 
                            !CALL dbcsr_copy(m_tmp_no_3,&
                            !        quench_t(ispin))
-                           !CALL dbcsr_function_of_elements(m_tmp_no_3,&
-                           !        func=dbcsr_func_inverse,&
-                           !        a0=0.0_dp,&
-                           !        a1=1.0_dp)
+                           !CALL inverse_of_elements(m_tmp_no_3)
                            !CALL dbcsr_copy(m_tmp_no_2,step)
                            !CALL dbcsr_hadamard_product(&
                            !        m_tmp_no_2,&
@@ -2016,7 +2013,7 @@ CONTAINS
       CHARACTER(LEN=30)                                  :: iter_type, print_string
       INTEGER :: cg_iteration, dim_op, handle, iatom, idim0, isgf, ispin, iteration, &
          line_search_iteration, linear_search_type, max_iter, natom, ncol, nspins, &
-         outer_iteration, outer_max_iter, para_group_handle, prec_type, reim, unit_nr
+         outer_iteration, outer_max_iter, prec_type, reim, unit_nr
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: first_sgf, last_sgf, nocc, nsgf
       LOGICAL                                            :: converged, d_bfgs, just_started, l_bfgs, &
                                                             line_search, outer_prepare_to_exit, &
@@ -2039,7 +2036,7 @@ CONTAINS
          tempOccOcc2, tempOccOcc3
       TYPE(dbcsr_type), ALLOCATABLE, DIMENSION(:, :, :)  :: m_B0
       TYPE(lbfgs_history_type)                           :: nlmo_lbfgs_history
-      TYPE(mp_comm_type)                                 :: para_group
+      TYPE(mp_comm_type)                                 :: group
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
 
@@ -2410,8 +2407,7 @@ CONTAINS
 
             DO ispin = 1, nspins
 
-               CALL dbcsr_get_info(m_sig_sqrti_ii(ispin), group=para_group_handle)
-               CALL para_group%set_handle(para_group_handle)
+               CALL dbcsr_get_info(m_sig_sqrti_ii(ispin), group=group)
 
                ! compute diagonal (a^t.sigma0.a)^(-1/2)
                CALL dbcsr_multiply("N", "N", 1.0_dp, &
@@ -2426,7 +2422,7 @@ CONTAINS
                                    retain_sparsity=.TRUE.)
                ALLOCATE (diagonal(nocc(ispin)))
                CALL dbcsr_get_diag(m_sig_sqrti_ii(ispin), diagonal)
-               CALL para_group%sum(diagonal)
+               CALL group%sum(diagonal)
                ! TODO: works for zero diagonal elements?
                diagonal(:) = 1.0_dp/SQRT(diagonal(:))
                CALL dbcsr_set(m_sig_sqrti_ii(ispin), 0.0_dp)
@@ -3687,7 +3683,7 @@ CONTAINS
                         CALL cp_dbcsr_cholesky_decompose(sigma_vv_sqrt, &
                                                          para_env=almo_scf_env%para_env, &
                                                          blacs_env=almo_scf_env%blacs_env)
-                        CALL dbcsr_triu(sigma_vv_sqrt)
+                        CALL make_triu(sigma_vv_sqrt)
                         CALL dbcsr_filter(sigma_vv_sqrt, almo_scf_env%eps_filter)
                         ! apply SOLVE to compute U^(-1) : U*U^(-1)=I
                         CALL dbcsr_get_info(sigma_vv_sqrt, nfullrows_total=n)
@@ -4897,6 +4893,39 @@ CONTAINS
    END SUBROUTINE harris_foulkes_correction
 
 ! **************************************************************************************************
+!> \brief triu of a dbcsr matrix
+!> \param matrix ...
+! **************************************************************************************************
+   SUBROUTINE make_triu(matrix)
+      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
+
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'make_triu'
+
+      INTEGER                                            :: col, handle, i, j, row
+      REAL(dp), DIMENSION(:, :), POINTER                 :: block
+      TYPE(dbcsr_iterator_type)                          :: iter
+
+      CALL timeset(routineN, handle)
+
+      CALL dbcsr_iterator_start(iter, matrix)
+      DO WHILE (dbcsr_iterator_blocks_left(iter))
+         CALL dbcsr_iterator_next_block(iter, row, col, block)
+         IF (row > col) block(:, :) = 0.0_dp
+         IF (row == col) THEN
+            DO j = 1, SIZE(block, 2)
+            DO i = j + 1, SIZE(block, 1)
+               block(i, j) = 0.0_dp
+            END DO
+            END DO
+         END IF
+      END DO
+      CALL dbcsr_iterator_stop(iter)
+      CALL dbcsr_filter(matrix, eps=0.0_dp)
+
+      CALL timestop(handle)
+   END SUBROUTINE make_triu
+
+! **************************************************************************************************
 !> \brief Computes a diagonal preconditioner for the cg optimization of k matrix
 !> \param prec ...
 !> \param vd_prop ...
@@ -4921,8 +4950,9 @@ CONTAINS
                                           spin_factor, eps_filter)
 
       TYPE(dbcsr_type), INTENT(INOUT)                    :: prec
-      TYPE(dbcsr_type), INTENT(IN)                       :: vd_prop, f, x, oo_inv_x_tr, s, grad, &
-                                                            vd_blk, t, template_vd_vd_blk, &
+      TYPE(dbcsr_type), INTENT(IN)                       :: vd_prop, f, x, oo_inv_x_tr, s
+      TYPE(dbcsr_type), INTENT(INOUT)                    :: grad
+      TYPE(dbcsr_type), INTENT(IN)                       :: vd_blk, t, template_vd_vd_blk, &
                                                             template_vr_vr_blk, template_n_vr
       REAL(KIND=dp), INTENT(IN)                          :: spin_factor, eps_filter
 
@@ -5043,7 +5073,7 @@ CONTAINS
 
       CALL dbcsr_add(prec, t1, 1.0_dp, 1.0_dp)
 
-      CALL dbcsr_function_of_elements(prec, dbcsr_func_inverse)
+      CALL inverse_of_elements(prec)
       CALL dbcsr_filter(prec, eps_filter)
 
       DEALLOCATE (q_diagonal)
@@ -5271,8 +5301,7 @@ CONTAINS
       CALL dbcsr_scale(almo_scf_env%opt_k_denom(ispin), &
                        2.0_dp*spin_factor)
 
-      CALL dbcsr_function_of_elements(almo_scf_env%opt_k_denom(ispin), &
-                                      dbcsr_func_inverse)
+      CALL inverse_of_elements(almo_scf_env%opt_k_denom(ispin))
       CALL dbcsr_filter(almo_scf_env%opt_k_denom(ispin), &
                         eps_filter)
 
@@ -5903,7 +5932,7 @@ CONTAINS
 !
 !  END SUBROUTINE truncate_subspace_v_blk
 
-! *****************************************************************************
+! **************************************************************************************************
 !> \brief Compute the gradient wrt the main variable (e.g. Theta, X)
 !> \param m_grad_out ...
 !> \param m_ks ...
@@ -5949,9 +5978,8 @@ CONTAINS
                                special_case, m_sig_sqrti_ii, op_sm_set, weights, energy_coeff, &
                                localiz_coeff)
 
-      TYPE(dbcsr_type), INTENT(INOUT)                    :: m_grad_out
-      TYPE(dbcsr_type), INTENT(IN)                       :: m_ks, m_s, m_t, m_t0, m_siginv, &
-                                                            m_quench_t, m_FTsiginv, &
+      TYPE(dbcsr_type), INTENT(INOUT)                    :: m_grad_out, m_ks, m_s, m_t, m_t0, &
+                                                            m_siginv, m_quench_t, m_FTsiginv, &
                                                             m_siginvTFTsiginv, m_ST, m_STsiginv0, &
                                                             m_theta
       TYPE(domain_submatrix_type), DIMENSION(:), &
@@ -6283,19 +6311,13 @@ CONTAINS
       ! transform d_E/d_T to d_E/d_theta
       IF (optimize_theta) THEN
          CALL dbcsr_copy(m_tmp_no_2, m_theta)
-         CALL dbcsr_function_of_elements(m_tmp_no_2, &
-                                         !func=dbcsr_func_cos,&
-                                         func=dbcsr_func_dtanh, &
-                                         a0=0.0_dp, &
-                                         a1=1.0_dp/envelope_amplitude)
-         CALL dbcsr_scale(m_tmp_no_2, &
-                          envelope_amplitude)
+         CALL dtanh_of_elements(m_tmp_no_2, alpha=1.0_dp/envelope_amplitude)
+         CALL dbcsr_scale(m_tmp_no_2, envelope_amplitude)
          CALL dbcsr_set(m_tmp_no_3, 0.0_dp)
          CALL dbcsr_filter(m_tmp_no_3, eps_filter)
          CALL dbcsr_hadamard_product(m_tmp_no_1, &
                                      m_tmp_no_2, &
-                                     m_tmp_no_3, &
-                                     b_assume_value=1.0_dp)
+                                     m_tmp_no_3)
          CALL dbcsr_hadamard_product(m_tmp_no_3, &
                                      m_quench_t, &
                                      m_grad_out)
@@ -6320,7 +6342,7 @@ CONTAINS
 
    END SUBROUTINE compute_gradient
 
-! *****************************************************************************
+! **************************************************************************************************
 !> \brief Serial code that prints matrices readable by Mathematica
 !> \param matrix - matrix to print
 !> \param filename ...
@@ -6428,7 +6450,7 @@ CONTAINS
 
    END SUBROUTINE print_mathematica_matrix
 
-! *****************************************************************************
+! **************************************************************************************************
 !> \brief Compute the objective functional of NLMOs
 !> \param localization_obj_function_ispin ...
 !> \param penalty_func_ispin ...
@@ -6466,12 +6488,11 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER                        :: routineN = 'compute_obj_nlmos'
 
-      INTEGER                                            :: handle, idim0, ielem, para_group_handle, &
-                                                            reim
+      INTEGER                                            :: handle, idim0, ielem, reim
       REAL(KIND=dp)                                      :: det1, fval
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: reim_diag, z2
       TYPE(dbcsr_type)                                   :: tempNOcc1, tempOccOcc1, tempOccOcc2
-      TYPE(mp_comm_type)                                 :: para_group
+      TYPE(mp_comm_type)                                 :: group
 
       CALL timeset(routineN, handle)
 
@@ -6490,8 +6511,7 @@ CONTAINS
       ALLOCATE (z2(nocc))
       ALLOCATE (reim_diag(nocc))
 
-      CALL dbcsr_get_info(tempOccOcc2, group=para_group_handle)
-      CALL para_group%set_handle(para_group_handle)
+      CALL dbcsr_get_info(tempOccOcc2, group=group)
 
       DO idim0 = 1, SIZE(m_B0, 2) ! this loop is over miller ind
 
@@ -6514,7 +6534,7 @@ CONTAINS
 
             reim_diag = 0.0_dp
             CALL dbcsr_get_diag(tempOccOcc2, reim_diag)
-            CALL para_group%sum(reim_diag)
+            CALL group%sum(reim_diag)
             z2(:) = z2(:) + reim_diag(:)*reim_diag(:)
 
          END DO
@@ -6566,7 +6586,7 @@ CONTAINS
 
    END SUBROUTINE compute_obj_nlmos
 
-! *****************************************************************************
+! **************************************************************************************************
 !> \brief Compute the gradient wrt the main variable
 !> \param m_grad_out ...
 !> \param m_B0 ...
@@ -6748,7 +6768,7 @@ CONTAINS
 
    END SUBROUTINE compute_gradient_nlmos
 
-! *****************************************************************************
+! **************************************************************************************************
 !> \brief Compute MO coeffs from the main optimized variable (e.g. Theta, X)
 !> \param m_var_in ...
 !> \param m_t_out ...
@@ -6784,10 +6804,9 @@ CONTAINS
                                            special_case, nocc_of_domain, order_lanczos, eps_lanczos, max_iter_lanczos)
 
       TYPE(dbcsr_type), INTENT(IN)                       :: m_var_in
-      TYPE(dbcsr_type), INTENT(INOUT)                    :: m_t_out
-      TYPE(dbcsr_type), INTENT(IN)                       :: m_quench_t, m_t0, m_oo_template, &
-                                                            m_STsiginv0, m_s
-      TYPE(dbcsr_type), INTENT(INOUT)                    :: m_sig_sqrti_ii_out
+      TYPE(dbcsr_type), INTENT(INOUT)                    :: m_t_out, m_quench_t, m_t0, &
+                                                            m_oo_template, m_STsiginv0, m_s, &
+                                                            m_sig_sqrti_ii_out
       TYPE(domain_submatrix_type), DIMENSION(:), &
          INTENT(IN)                                      :: domain_r_down, domain_s_inv
       TYPE(domain_map_type), INTENT(IN)                  :: domain_map
@@ -6839,12 +6858,8 @@ CONTAINS
             CPABORT("Max norm of the initial guess is too large")
          END IF
          ! use artanh to tame MOs
-         CALL dbcsr_function_of_elements(m_tmp_no_1, &
-                                         func=dbcsr_func_tanh, &
-                                         a0=0.0_dp, &
-                                         a1=1.0_dp/envelope_amplitude)
-         CALL dbcsr_scale(m_tmp_no_1, &
-                          envelope_amplitude)
+         CALL tanh_of_elements(m_tmp_no_1, alpha=1.0_dp/envelope_amplitude)
+         CALL dbcsr_scale(m_tmp_no_1, envelope_amplitude)
       END IF
       CALL dbcsr_hadamard_product(m_tmp_no_1, m_quench_t, &
                                   m_t_out)
@@ -6908,7 +6923,7 @@ CONTAINS
 
    END SUBROUTINE compute_xalmos_from_main_var
 
-! *****************************************************************************
+! **************************************************************************************************
 !> \brief Compute the preconditioner matrices and invert them if necessary
 !> \param domain_prec_out ...
 !> \param m_prec_out ...
@@ -7237,7 +7252,7 @@ CONTAINS
 
    END SUBROUTINE compute_preconditioner
 
-! *****************************************************************************
+! **************************************************************************************************
 !> \brief Compute beta for conjugate gradient algorithms
 !> \param beta ...
 !> \param numer ...
@@ -7400,9 +7415,8 @@ CONTAINS
 
    END SUBROUTINE compute_cg_beta
 
-! *****************************************************************************
-!> \brief computes the step matrix from the gradient and Hessian using
-!>         the Newton-Raphson method
+! **************************************************************************************************
+!> \brief computes the step matrix from the gradient and Hessian using the Newton-Raphson method
 !> \param optimizer ...
 !> \param m_grad ...
 !> \param m_delta ...
@@ -10275,8 +10289,8 @@ CONTAINS
       TYPE(dbcsr_type), DIMENSION(:), INTENT(INOUT)      :: m_t_out
       REAL(KIND=dp), INTENT(OUT)                         :: energy_out, penalty_out
       TYPE(dbcsr_type), DIMENSION(:), INTENT(INOUT)      :: m_sig_sqrti_ii_out, m_FTsiginv_out, &
-                                                            m_siginvTFTsiginv_out, m_ST_out
-      TYPE(dbcsr_type), DIMENSION(:), INTENT(IN)         :: m_STsiginv0_in, m_quench_t_in
+                                                            m_siginvTFTsiginv_out, m_ST_out, &
+                                                            m_STsiginv0_in, m_quench_t_in
       TYPE(domain_submatrix_type), DIMENSION(:, :), &
          INTENT(IN)                                      :: domain_r_down_in
       LOGICAL, INTENT(IN)                                :: assume_t0_q0x, just_started, &
@@ -10624,7 +10638,7 @@ CONTAINS
 
       !RZK-noncritical: can be formulated without submatrices
       REAL(KIND=dp), INTENT(INOUT)                       :: reduction_out
-      TYPE(dbcsr_type), DIMENSION(:), INTENT(IN)         :: grad_in, step_in, hess_in
+      TYPE(dbcsr_type), DIMENSION(:), INTENT(INOUT)      :: grad_in, step_in, hess_in
       TYPE(domain_submatrix_type), DIMENSION(:, :), &
          INTENT(IN)                                      :: hess_submatrix_in
       TYPE(dbcsr_type), DIMENSION(:), INTENT(IN)         :: quench_t_in
@@ -11047,6 +11061,85 @@ CONTAINS
       CALL timestop(handle)
 
    END SUBROUTINE wrap_up_xalmo_scf
+
+! **************************************************************************************************
+!> \brief Computes tanh(alpha*x) of the matrix elements. Fails if |alpha*x| >= 1.
+!> \param matrix ...
+!> \param alpha ...
+!> \author Ole Schuett
+! **************************************************************************************************
+   SUBROUTINE tanh_of_elements(matrix, alpha)
+      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
+      REAL(kind=dp), INTENT(IN)                          :: alpha
+
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'tanh_of_elements'
+
+      INTEGER                                            :: handle
+      REAL(kind=dp), DIMENSION(:, :), POINTER            :: block
+      TYPE(dbcsr_iterator_type)                          :: iter
+
+      CALL timeset(routineN, handle)
+      CALL dbcsr_iterator_start(iter, matrix)
+      DO WHILE (dbcsr_iterator_blocks_left(iter))
+         CALL dbcsr_iterator_next_block(iter, block=block)
+         block = TANH(alpha*block)
+      END DO
+      CALL dbcsr_iterator_stop(iter)
+      CALL timestop(handle)
+
+   END SUBROUTINE tanh_of_elements
+
+! **************************************************************************************************
+!> \brief Computes d(tanh(alpha*x)) / dx of the matrix elements. Fails if |alpha*x| >= 1.
+!> \param matrix ...
+!> \param alpha ...
+!> \author Ole Schuett
+! **************************************************************************************************
+   SUBROUTINE dtanh_of_elements(matrix, alpha)
+      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
+      REAL(kind=dp), INTENT(IN)                          :: alpha
+
+      CHARACTER(len=*), PARAMETER                        :: routineN = 'dtanh_of_elements'
+
+      INTEGER                                            :: handle
+      REAL(kind=dp), DIMENSION(:, :), POINTER            :: block
+      TYPE(dbcsr_iterator_type)                          :: iter
+
+      CALL timeset(routineN, handle)
+      CALL dbcsr_iterator_start(iter, matrix)
+      DO WHILE (dbcsr_iterator_blocks_left(iter))
+         CALL dbcsr_iterator_next_block(iter, block=block)
+         block = alpha*(1.0_dp - TANH(block)**2)
+      END DO
+      CALL dbcsr_iterator_stop(iter)
+      CALL timestop(handle)
+
+   END SUBROUTINE dtanh_of_elements
+
+! **************************************************************************************************
+!> \brief Computes 1/x of the matrix elements.
+!> \param matrix ...
+!> \author Ole Schuett
+! **************************************************************************************************
+   SUBROUTINE inverse_of_elements(matrix)
+      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
+
+      CHARACTER(len=*), PARAMETER :: routineN = 'inverse_of_elements'
+
+      INTEGER                                            :: handle
+      REAL(kind=dp), DIMENSION(:, :), POINTER            :: block
+      TYPE(dbcsr_iterator_type)                          :: iter
+
+      CALL timeset(routineN, handle)
+      CALL dbcsr_iterator_start(iter, matrix)
+      DO WHILE (dbcsr_iterator_blocks_left(iter))
+         CALL dbcsr_iterator_next_block(iter, block=block)
+         block = 1.0_dp/block
+      END DO
+      CALL dbcsr_iterator_stop(iter)
+      CALL timestop(handle)
+
+   END SUBROUTINE inverse_of_elements
 
 END MODULE almo_scf_optimizer
 

@@ -27,11 +27,7 @@ MODULE cp_dbcsr_api
         dbcsr_distribution_release_prv => dbcsr_distribution_release, &
         dbcsr_distribution_type_prv => dbcsr_distribution_type, dbcsr_dot_prv => dbcsr_dot, &
         dbcsr_filter_prv => dbcsr_filter, dbcsr_finalize_lib, &
-        dbcsr_finalize_prv => dbcsr_finalize, dbcsr_frobenius_norm_prv => dbcsr_frobenius_norm, &
-        dbcsr_func_dtanh, dbcsr_func_inverse, dbcsr_func_tanh, &
-        dbcsr_function_of_elements_prv => dbcsr_function_of_elements, &
-        dbcsr_gershgorin_norm_prv => dbcsr_gershgorin_norm, &
-        dbcsr_get_block_diag_prv => dbcsr_get_block_diag, &
+        dbcsr_finalize_prv => dbcsr_finalize, dbcsr_get_block_diag_prv => dbcsr_get_block_diag, &
         dbcsr_get_block_p_prv => dbcsr_get_block_p, dbcsr_get_data_p_prv => dbcsr_get_data_p, &
         dbcsr_get_data_size_prv => dbcsr_get_data_size, &
         dbcsr_get_data_type_prv => dbcsr_get_data_type, dbcsr_get_default_config, &
@@ -40,14 +36,12 @@ MODULE cp_dbcsr_api
         dbcsr_get_num_blocks_prv => dbcsr_get_num_blocks, &
         dbcsr_get_occupation_prv => dbcsr_get_occupation, &
         dbcsr_get_stored_coordinates_prv => dbcsr_get_stored_coordinates, &
-        dbcsr_hadamard_product_prv => dbcsr_hadamard_product, &
         dbcsr_has_symmetry_prv => dbcsr_has_symmetry, dbcsr_init_lib, &
-        dbcsr_init_random_prv => dbcsr_init_random, &
         dbcsr_iterator_blocks_left_prv => dbcsr_iterator_blocks_left, &
         dbcsr_iterator_next_block_prv => dbcsr_iterator_next_block, &
         dbcsr_iterator_start_prv => dbcsr_iterator_start, &
         dbcsr_iterator_stop_prv => dbcsr_iterator_stop, &
-        dbcsr_iterator_type_prv => dbcsr_iterator_type, dbcsr_maxabs_prv => dbcsr_maxabs, &
+        dbcsr_iterator_type_prv => dbcsr_iterator_type, &
         dbcsr_mp_grid_setup_prv => dbcsr_mp_grid_setup, dbcsr_multiply_prv => dbcsr_multiply, &
         dbcsr_nblkcols_total_prv => dbcsr_nblkcols_total, &
         dbcsr_nblkrows_total_prv => dbcsr_nblkrows_total, &
@@ -63,15 +57,19 @@ MODULE cp_dbcsr_api
         dbcsr_reserve_diag_blocks_prv => dbcsr_reserve_diag_blocks, dbcsr_reset_randmat_seed, &
         dbcsr_run_tests, dbcsr_scale_by_vector_prv => dbcsr_scale_by_vector, &
         dbcsr_scale_prv => dbcsr_scale, dbcsr_set_config, dbcsr_set_diag_prv => dbcsr_set_diag, &
-        dbcsr_set_prv => dbcsr_set, dbcsr_setname_prv => dbcsr_setname, &
-        dbcsr_sum_replicated_prv => dbcsr_sum_replicated, dbcsr_test_mm, &
-        dbcsr_trace_prv => dbcsr_trace, dbcsr_transpose, dbcsr_transposed_prv => dbcsr_transposed, &
-        dbcsr_triu_prv => dbcsr_triu, dbcsr_type_antisymmetric, dbcsr_type_complex_8, &
+        dbcsr_set_prv => dbcsr_set, dbcsr_sum_replicated_prv => dbcsr_sum_replicated, &
+        dbcsr_test_mm, dbcsr_trace_prv => dbcsr_trace, dbcsr_transpose, &
+        dbcsr_transposed_prv => dbcsr_transposed, dbcsr_type_antisymmetric, dbcsr_type_complex_8, &
         dbcsr_type_no_symmetry, dbcsr_type_prv => dbcsr_type, dbcsr_type_real_8, &
         dbcsr_type_real_default, dbcsr_type_symmetric, dbcsr_valid_index_prv => dbcsr_valid_index, &
         dbcsr_verify_matrix_prv => dbcsr_verify_matrix, dbcsr_work_create_prv => dbcsr_work_create
-   USE kinds,                           ONLY: dp,&
+   USE dbm_api,                         ONLY: &
+        dbm_add, dbm_checksum, dbm_clear, dbm_copy, dbm_create, dbm_distribution_obj, &
+        dbm_iterator, dbm_redistribute, dbm_scale, dbm_type, dbm_zero
+   USE kinds,                           ONLY: default_string_length,&
+                                              dp,&
                                               int_8
+   USE message_passing,                 ONLY: mp_comm_type
 #include "../base/base_uses.f90"
 
    IMPLICIT NONE
@@ -148,7 +146,6 @@ MODULE cp_dbcsr_api
    ! getters / setters
    PUBLIC :: dbcsr_get_info
    PUBLIC :: dbcsr_distribution_get
-   PUBLIC :: dbcsr_setname
    PUBLIC :: dbcsr_get_matrix_type
    PUBLIC :: dbcsr_get_occupation
    PUBLIC :: dbcsr_nblkrows_total
@@ -183,19 +180,9 @@ MODULE cp_dbcsr_api
    PUBLIC :: dbcsr_test_mm
 
    ! high level matrix functions
-   PUBLIC :: dbcsr_hadamard_product
-   PUBLIC :: dbcsr_func_dtanh
-   PUBLIC :: dbcsr_func_inverse
-   PUBLIC :: dbcsr_func_tanh
    PUBLIC :: dbcsr_print
    PUBLIC :: dbcsr_print_block_sum
    PUBLIC :: dbcsr_checksum
-   PUBLIC :: dbcsr_maxabs
-   PUBLIC :: dbcsr_gershgorin_norm
-   PUBLIC :: dbcsr_frobenius_norm
-   PUBLIC :: dbcsr_init_random
-   PUBLIC :: dbcsr_function_of_elements
-   PUBLIC :: dbcsr_triu
 
    ! csr conversion
    PUBLIC :: dbcsr_csr_type
@@ -220,36 +207,28 @@ MODULE cp_dbcsr_api
    END TYPE
 
    TYPE dbcsr_type
-      TYPE(dbcsr_type_prv), PRIVATE :: prv = dbcsr_type_prv()
+      PRIVATE
+      TYPE(dbcsr_type_prv)  :: dbcsr = dbcsr_type_prv()
+      TYPE(dbm_type) :: dbm = dbm_type()
    END TYPE dbcsr_type
 
    TYPE dbcsr_distribution_type
-      TYPE(dbcsr_distribution_type_prv), PRIVATE        :: prv = dbcsr_distribution_type_prv()
+      PRIVATE
+      TYPE(dbcsr_distribution_type_prv) :: dbcsr = dbcsr_distribution_type_prv()
+      TYPE(dbm_distribution_obj)        :: dbm = dbm_distribution_obj()
    END TYPE dbcsr_distribution_type
 
    TYPE dbcsr_iterator_type
-      TYPE(dbcsr_iterator_type_prv), PRIVATE :: prv = dbcsr_iterator_type_prv()
+      PRIVATE
+      TYPE(dbcsr_iterator_type_prv)  :: dbcsr = dbcsr_iterator_type_prv()
+      TYPE(dbm_iterator) :: dbm = dbm_iterator()
    END TYPE dbcsr_iterator_type
 
    INTERFACE dbcsr_create
       MODULE PROCEDURE dbcsr_create_new, dbcsr_create_template
    END INTERFACE
 
-   INTERFACE dbcsr_get_block_p
-      MODULE PROCEDURE dbcsr_get_block_p
-      MODULE PROCEDURE dbcsr_get_2d_block_p
-   END INTERFACE
-
-   INTERFACE dbcsr_iterator_next_block
-      MODULE PROCEDURE dbcsr_iterator_next_block_index
-      MODULE PROCEDURE dbcsr_iterator_next_1d_block
-      MODULE PROCEDURE dbcsr_iterator_next_2d_block
-   END INTERFACE
-
-   INTERFACE dbcsr_put_block
-      MODULE PROCEDURE dbcsr_put_block
-      MODULE PROCEDURE dbcsr_put_block2d
-   END INTERFACE
+   LOGICAL, PARAMETER, PRIVATE :: USE_DBCSR_BACKEND = .TRUE.
 
 CONTAINS
 
@@ -308,7 +287,12 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(IN)                       :: matrix_b
       REAL(kind=dp), INTENT(IN)                          :: alpha_scalar, beta_scalar
 
-      CALL dbcsr_add_prv(matrix_a%prv, matrix_b%prv, alpha_scalar, beta_scalar)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_add_prv(matrix_a%dbcsr, matrix_b%dbcsr, alpha_scalar, beta_scalar)
+      ELSE
+         IF (alpha_scalar /= 1.0_dp .OR. beta_scalar /= 1.0_dp) CPABORT("Not yet implemented for DBM.")
+         CALL dbm_add(matrix_a%dbm, matrix_b%dbm)
+      END IF
    END SUBROUTINE dbcsr_add
 
 ! **************************************************************************************************
@@ -323,7 +307,11 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: block_row, block_col
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: block
 
-      CALL dbcsr_add_block_node_prv(matrix%prv, block_row, block_col, block)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_add_block_node_prv(matrix%dbcsr, block_row, block_col, block)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_add_block_node
 
 ! **************************************************************************************************
@@ -335,7 +323,11 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
       REAL(kind=dp), INTENT(IN)                          :: alpha_scalar
 
-      CALL dbcsr_add_on_diag_prv(matrix%prv, alpha_scalar)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_add_on_diag_prv(matrix%dbcsr, alpha_scalar)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_add_on_diag
 
 ! **************************************************************************************************
@@ -349,7 +341,11 @@ CONTAINS
       TYPE(dbcsr_distribution_type), INTENT(IN)          :: distribution
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix_new
 
-      CALL dbcsr_binary_read_prv(filepath, distribution%prv, matrix_new%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_binary_read_prv(filepath, distribution%dbcsr, matrix_new%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_binary_read
 
 ! **************************************************************************************************
@@ -361,7 +357,11 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
       CHARACTER(LEN=*), INTENT(IN)                       :: filepath
 
-      CALL dbcsr_binary_write_prv(matrix%prv, filepath)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_binary_write_prv(matrix%dbcsr, filepath)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_binary_write
 
 ! **************************************************************************************************
@@ -375,7 +375,12 @@ CONTAINS
       LOGICAL, INTENT(IN), OPTIONAL                      :: pos
       REAL(KIND=dp)                                      :: checksum
 
-      checksum = dbcsr_checksum_prv(matrix%prv, pos=pos)
+      IF (USE_DBCSR_BACKEND) THEN
+         checksum = dbcsr_checksum_prv(matrix%dbcsr, pos=pos)
+      ELSE
+         IF (PRESENT(pos)) CPABORT("Not yet implemented for DBM.")
+         checksum = dbm_checksum(matrix%dbm)
+      END IF
    END FUNCTION dbcsr_checksum
 
 ! **************************************************************************************************
@@ -385,7 +390,11 @@ CONTAINS
    SUBROUTINE dbcsr_clear(matrix)
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
 
-      CALL dbcsr_clear_prv(matrix%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_clear_prv(matrix%dbcsr)
+      ELSE
+         CALL dbm_clear(matrix%dbm)
+      END IF
    END SUBROUTINE
 
 ! **************************************************************************************************
@@ -397,7 +406,11 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(IN)                       :: matrix
       TYPE(dbcsr_type), INTENT(INOUT)                    :: redist
 
-      CALL dbcsr_complete_redistribute_prv(matrix%prv, redist%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_complete_redistribute_prv(matrix%dbcsr, redist%dbcsr)
+      ELSE
+         CALL dbm_redistribute(matrix%dbm, redist%dbm)
+      END IF
    END SUBROUTINE dbcsr_complete_redistribute
 
 ! **************************************************************************************************
@@ -409,7 +422,11 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(INOUT)                    :: dbcsr_mat
       TYPE(dbcsr_csr_type), INTENT(INOUT)                :: csr_mat
 
-      CALL convert_csr_to_dbcsr_prv(dbcsr_mat%prv, csr_mat)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL convert_csr_to_dbcsr_prv(dbcsr_mat%dbcsr, csr_mat)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_convert_csr_to_dbcsr
 
 ! **************************************************************************************************
@@ -421,7 +438,11 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(IN)                       :: dbcsr_mat
       TYPE(dbcsr_csr_type), INTENT(INOUT)                :: csr_mat
 
-      CALL convert_dbcsr_to_csr_prv(dbcsr_mat%prv, csr_mat)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL convert_dbcsr_to_csr_prv(dbcsr_mat%dbcsr, csr_mat)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_convert_dbcsr_to_csr
 
 ! **************************************************************************************************
@@ -438,8 +459,15 @@ CONTAINS
       CHARACTER(LEN=*), INTENT(IN), OPTIONAL             :: name
       LOGICAL, INTENT(IN), OPTIONAL                      :: keep_sparsity, keep_imaginary
 
-      CALL dbcsr_copy_prv(matrix_b%prv, matrix_a%prv, name=name, keep_sparsity=keep_sparsity, &
-                          keep_imaginary=keep_imaginary)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_copy_prv(matrix_b%dbcsr, matrix_a%dbcsr, name=name, &
+                             keep_sparsity=keep_sparsity, keep_imaginary=keep_imaginary)
+      ELSE
+         IF (PRESENT(name) .OR. PRESENT(keep_sparsity) .OR. PRESENT(keep_imaginary)) THEN
+            CPABORT("Not yet implemented for DBM.")
+         END IF
+         CALL dbm_copy(matrix_b%dbm, matrix_a%dbm)
+      END IF
    END SUBROUTINE dbcsr_copy
 
 ! **************************************************************************************************
@@ -461,14 +489,23 @@ CONTAINS
       CHARACTER(len=*), INTENT(IN)                       :: name
       TYPE(dbcsr_distribution_type), INTENT(IN)          :: dist
       CHARACTER, INTENT(IN)                              :: matrix_type
-      INTEGER, DIMENSION(:), INTENT(INOUT), POINTER      :: row_blk_size, col_blk_size
+      INTEGER, CONTIGUOUS, DIMENSION(:), POINTER         :: row_blk_size, col_blk_size
       INTEGER, INTENT(IN), OPTIONAL                      :: nze, data_type
       LOGICAL, INTENT(IN), OPTIONAL                      :: reuse_arrays, mutable_work
 
-      CALL dbcsr_create_prv(matrix=matrix%prv, name=name, dist=dist%prv, matrix_type=matrix_type, &
-                            row_blk_size=row_blk_size, col_blk_size=col_blk_size, nze=nze, &
-                            data_type=data_type, reuse_arrays=reuse_arrays, &
-                            mutable_work=mutable_work)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_create_prv(matrix=matrix%dbcsr, name=name, dist=dist%dbcsr, &
+                               matrix_type=matrix_type, row_blk_size=row_blk_size, &
+                               col_blk_size=col_blk_size, nze=nze, data_type=data_type, &
+                               reuse_arrays=reuse_arrays, mutable_work=mutable_work)
+      ELSE
+         IF (matrix_type /= "N" .OR. PRESENT(nze) .OR. PRESENT(data_type) .OR. &
+             PRESENT(reuse_arrays) .OR. PRESENT(mutable_work)) THEN
+            CPABORT("Not yet implemented for DBM.")
+         END IF
+         CALL dbm_create(matrix%dbm, name=name, dist=dist%dbm, &
+                         row_block_sizes=row_blk_size, col_block_sizes=col_blk_size)
+      END IF
    END SUBROUTINE dbcsr_create_new
 
 ! **************************************************************************************************
@@ -494,16 +531,37 @@ CONTAINS
       TYPE(dbcsr_distribution_type), INTENT(IN), &
          OPTIONAL                                        :: dist
       CHARACTER, INTENT(IN), OPTIONAL                    :: matrix_type
-      INTEGER, DIMENSION(:), INTENT(INOUT), OPTIONAL, &
+      INTEGER, CONTIGUOUS, DIMENSION(:), OPTIONAL, &
          POINTER                                         :: row_blk_size, col_blk_size
       INTEGER, INTENT(IN), OPTIONAL                      :: nze, data_type
       LOGICAL, INTENT(IN), OPTIONAL                      :: reuse_arrays, mutable_work
 
-      CALL dbcsr_create_prv(matrix=matrix%prv, name=name, template=template%prv, dist=dist%prv, &
-                            matrix_type=matrix_type, &
-                            row_blk_size=row_blk_size, col_blk_size=col_blk_size, &
-                            nze=nze, data_type=data_type, reuse_arrays=reuse_arrays, &
-                            mutable_work=mutable_work)
+      CHARACTER                                          :: my_matrix_type
+      CHARACTER(len=default_string_length)               :: my_name
+      INTEGER, CONTIGUOUS, DIMENSION(:), POINTER         :: my_col_blk_size, my_row_blk_size
+      TYPE(dbcsr_distribution_type)                      :: my_dist
+
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_create_prv(matrix=matrix%dbcsr, name=name, template=template%dbcsr, &
+                               dist=dist%dbcsr, matrix_type=matrix_type, &
+                               row_blk_size=row_blk_size, col_blk_size=col_blk_size, &
+                               nze=nze, data_type=data_type, reuse_arrays=reuse_arrays, &
+                               mutable_work=mutable_work)
+      ELSE
+         CALL dbcsr_get_info(template, name=my_name, matrix_type=my_matrix_type, distribution=my_dist, &
+                             row_blk_size=my_row_blk_size, col_blk_size=my_col_blk_size)
+         IF (PRESENT(name)) my_name = name
+         IF (PRESENT(dist)) my_dist = dist
+         IF (PRESENT(matrix_type)) my_matrix_type = matrix_type
+         IF (PRESENT(row_blk_size)) my_row_blk_size = row_blk_size
+         IF (PRESENT(col_blk_size)) my_col_blk_size = col_blk_size
+         IF (my_matrix_type /= "N" .OR. PRESENT(nze) .OR. PRESENT(data_type) .OR. &
+             PRESENT(reuse_arrays) .OR. PRESENT(mutable_work)) THEN
+            CPABORT("Not yet implemented for DBM.")
+         END IF
+         CALL dbm_create(matrix%dbm, name=my_name, dist=my_dist%dbm, &
+                         row_block_sizes=my_row_blk_size, col_block_sizes=my_col_blk_size)
+      END IF
    END SUBROUTINE dbcsr_create_template
 
 ! **************************************************************************************************
@@ -522,11 +580,16 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(IN), OPTIONAL             :: csr_sparsity
       INTEGER, INTENT(IN), OPTIONAL                      :: numnodes
 
-      IF (PRESENT(csr_sparsity)) THEN
-         CALL dbcsr_csr_create_from_dbcsr_prv(dbcsr_mat%prv, csr_mat, dist_format, &
-                                              csr_sparsity%prv, numnodes)
+      IF (USE_DBCSR_BACKEND) THEN
+         IF (PRESENT(csr_sparsity)) THEN
+            CALL dbcsr_csr_create_from_dbcsr_prv(dbcsr_mat%dbcsr, csr_mat, dist_format, &
+                                                 csr_sparsity%dbcsr, numnodes)
+         ELSE
+            CALL dbcsr_csr_create_from_dbcsr_prv(dbcsr_mat%dbcsr, csr_mat, &
+                                                 dist_format, numnodes=numnodes)
+         END IF
       ELSE
-         CALL dbcsr_csr_create_from_dbcsr_prv(dbcsr_mat%prv, csr_mat, dist_format, numnodes=numnodes)
+         CPABORT("Not yet implemented for DBM.")
       END IF
    END SUBROUTINE dbcsr_csr_create_from_dbcsr
 
@@ -547,16 +610,20 @@ CONTAINS
 
       TYPE(dbcsr_type)                                   :: cmatrix, tmp_matrix
 
-      CALL dbcsr_create_prv(tmp_matrix%prv, template=rmatrix%prv, data_type=dbcsr_type_complex_8)
-      CALL dbcsr_create_prv(cmatrix%prv, template=rmatrix%prv, data_type=dbcsr_type_complex_8)
-      CALL dbcsr_copy_prv(cmatrix%prv, rmatrix%prv)
-      CALL dbcsr_copy_prv(tmp_matrix%prv, imatrix%prv)
-      CALL dbcsr_add_prv(cmatrix%prv, tmp_matrix%prv, rone, ione)
-      CALL dbcsr_release_prv(tmp_matrix%prv)
-      ! Convert to csr
-      CALL dbcsr_csr_create_from_dbcsr_prv(cmatrix%prv, csr_mat, dist_format)
-      CALL convert_dbcsr_to_csr_prv(cmatrix%prv, csr_mat)
-      CALL dbcsr_release_prv(cmatrix%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_create_prv(tmp_matrix%dbcsr, template=rmatrix%dbcsr, data_type=dbcsr_type_complex_8)
+         CALL dbcsr_create_prv(cmatrix%dbcsr, template=rmatrix%dbcsr, data_type=dbcsr_type_complex_8)
+         CALL dbcsr_copy_prv(cmatrix%dbcsr, rmatrix%dbcsr)
+         CALL dbcsr_copy_prv(tmp_matrix%dbcsr, imatrix%dbcsr)
+         CALL dbcsr_add_prv(cmatrix%dbcsr, tmp_matrix%dbcsr, rone, ione)
+         CALL dbcsr_release_prv(tmp_matrix%dbcsr)
+         ! Convert to csr
+         CALL dbcsr_csr_create_from_dbcsr_prv(cmatrix%dbcsr, csr_mat, dist_format)
+         CALL convert_dbcsr_to_csr_prv(cmatrix%dbcsr, csr_mat)
+         CALL dbcsr_release_prv(cmatrix%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_csr_create_and_convert_complex
 
 ! **************************************************************************************************
@@ -568,7 +635,11 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(IN)                       :: matrix_a
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix_b
 
-      CALL dbcsr_desymmetrize_prv(matrix_a%prv, matrix_b%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_desymmetrize_prv(matrix_a%dbcsr, matrix_b%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_desymmetrize
 
 ! **************************************************************************************************
@@ -578,7 +649,11 @@ CONTAINS
    SUBROUTINE dbcsr_distribute(matrix)
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
 
-      CALL dbcsr_distribute_prv(matrix%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_distribute_prv(matrix%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_distribute
 
 ! **************************************************************************************************
@@ -614,9 +689,13 @@ CONTAINS
       LOGICAL, INTENT(OUT), OPTIONAL                     :: subgroups_defined
       INTEGER, INTENT(OUT), OPTIONAL                     :: prow_group, pcol_group
 
-      CALL dbcsr_distribution_get_prv(dist%prv, row_dist, col_dist, nrows, ncols, has_threads, &
-                                      group, mynode, numnodes, nprows, npcols, myprow, mypcol, &
-                                      pgrid, subgroups_defined, prow_group, pcol_group)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_distribution_get_prv(dist%dbcsr, row_dist, col_dist, nrows, ncols, has_threads, &
+                                         group, mynode, numnodes, nprows, npcols, myprow, mypcol, &
+                                         pgrid, subgroups_defined, prow_group, pcol_group)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_distribution_get
 
 ! **************************************************************************************************
@@ -626,7 +705,11 @@ CONTAINS
    SUBROUTINE dbcsr_distribution_hold(dist)
       TYPE(dbcsr_distribution_type)                      :: dist
 
-      CALL dbcsr_distribution_hold_prv(dist%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_distribution_hold_prv(dist%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_distribution_hold
 
 ! **************************************************************************************************
@@ -648,8 +731,12 @@ CONTAINS
       INTEGER, DIMENSION(:), INTENT(INOUT), POINTER      :: row_dist, col_dist
       LOGICAL, INTENT(IN), OPTIONAL                      :: reuse_arrays
 
-      CALL dbcsr_distribution_new_prv(dist%prv, template%prv, group, pgrid, &
-                                      row_dist, col_dist, reuse_arrays)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_distribution_new_prv(dist%dbcsr, template%dbcsr, group, pgrid, &
+                                         row_dist, col_dist, reuse_arrays)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_distribution_new
 
 ! **************************************************************************************************
@@ -659,7 +746,11 @@ CONTAINS
    SUBROUTINE dbcsr_distribution_release(dist)
       TYPE(dbcsr_distribution_type)                      :: dist
 
-      CALL dbcsr_distribution_release_prv(dist%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_distribution_release_prv(dist%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_distribution_release
 
 ! **************************************************************************************************
@@ -672,7 +763,11 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(IN)                       :: matrix_a, matrix_b
       REAL(kind=dp), INTENT(INOUT)                       :: result
 
-      CALL dbcsr_dot_prv(matrix_a%prv, matrix_b%prv, RESULT)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_dot_prv(matrix_a%dbcsr, matrix_b%dbcsr, RESULT)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_dot
 
 ! **************************************************************************************************
@@ -684,7 +779,11 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
       REAL(dp), INTENT(IN)                               :: eps
 
-      CALL dbcsr_filter_prv(matrix%prv, eps)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_filter_prv(matrix%dbcsr, eps)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_filter
 
 ! **************************************************************************************************
@@ -694,48 +793,12 @@ CONTAINS
    SUBROUTINE dbcsr_finalize(matrix)
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
 
-      CALL dbcsr_finalize_prv(matrix%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_finalize_prv(matrix%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_finalize
-
-! **************************************************************************************************
-!> \brief ...
-!> \param matrix ...
-!> \return ...
-! **************************************************************************************************
-   FUNCTION dbcsr_frobenius_norm(matrix) RESULT(norm)
-      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
-      REAL(KIND=dp)                                      :: norm
-
-      norm = dbcsr_frobenius_norm_prv(matrix%prv)
-   END FUNCTION dbcsr_frobenius_norm
-
-! **************************************************************************************************
-!> \brief ...
-!> \param matrix ...
-!> \param func ...
-!> \param a0 ...
-!> \param a1 ...
-!> \param a2 ...
-! **************************************************************************************************
-   SUBROUTINE dbcsr_function_of_elements(matrix, func, a0, a1, a2)
-      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
-      INTEGER, INTENT(IN)                                :: func
-      REAL(kind=dp), INTENT(IN), OPTIONAL                :: a0, a1, a2
-
-      CALL dbcsr_function_of_elements_prv(matrix%prv, func, a0, a1, a2)
-   END SUBROUTINE dbcsr_function_of_elements
-
-! **************************************************************************************************
-!> \brief ...
-!> \param matrix ...
-!> \return ...
-! **************************************************************************************************
-   FUNCTION dbcsr_gershgorin_norm(matrix) RESULT(norm)
-      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
-      REAL(KIND=dp)                                      :: norm
-
-      norm = dbcsr_gershgorin_norm_prv(matrix%prv)
-   END FUNCTION dbcsr_gershgorin_norm
 
 ! **************************************************************************************************
 !> \brief ...
@@ -746,7 +809,11 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(IN)                       :: matrix
       TYPE(dbcsr_type), INTENT(INOUT)                    :: diag
 
-      CALL dbcsr_get_block_diag_prv(matrix%prv, diag%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_get_block_diag_prv(matrix%dbcsr, diag%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_get_block_diag
 
 ! **************************************************************************************************
@@ -760,34 +827,18 @@ CONTAINS
 !> \param col_size ...
 ! **************************************************************************************************
    SUBROUTINE dbcsr_get_block_p(matrix, row, col, block, found, row_size, col_size)
-      TYPE(dbcsr_type), INTENT(IN)                       :: matrix
-      INTEGER, INTENT(IN)                                :: row, col
-      REAL(kind=dp), DIMENSION(:), POINTER               :: block
-      LOGICAL, INTENT(OUT)                               :: found
-      INTEGER, INTENT(OUT), OPTIONAL                     :: row_size, col_size
-
-      CALL dbcsr_get_block_p_prv(matrix%prv, row, col, block, found, row_size, col_size)
-   END SUBROUTINE dbcsr_get_block_p
-
-! **************************************************************************************************
-!> \brief ...
-!> \param matrix ...
-!> \param row ...
-!> \param col ...
-!> \param block ...
-!> \param found ...
-!> \param row_size ...
-!> \param col_size ...
-! **************************************************************************************************
-   SUBROUTINE dbcsr_get_2d_block_p(matrix, row, col, block, found, row_size, col_size)
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
       INTEGER, INTENT(IN)                                :: row, col
       REAL(kind=dp), DIMENSION(:, :), POINTER            :: block
       LOGICAL, INTENT(OUT)                               :: found
       INTEGER, INTENT(OUT), OPTIONAL                     :: row_size, col_size
 
-      CALL dbcsr_get_block_p_prv(matrix%prv, row, col, block, found, row_size, col_size)
-   END SUBROUTINE dbcsr_get_2d_block_p
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_get_block_p_prv(matrix%dbcsr, row, col, block, found, row_size, col_size)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
+   END SUBROUTINE dbcsr_get_block_p
 
 ! **************************************************************************************************
 !> \brief ...
@@ -803,7 +854,11 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: lb, ub
       REAL(kind=dp), DIMENSION(:), POINTER               :: res
 
-      res => dbcsr_get_data_p_prv(matrix%prv, select_data_type, lb, ub)
+      IF (USE_DBCSR_BACKEND) THEN
+         res => dbcsr_get_data_p_prv(matrix%dbcsr, select_data_type, lb, ub)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END FUNCTION dbcsr_get_data_p
 
 ! **************************************************************************************************
@@ -815,7 +870,11 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(IN)                       :: matrix
       INTEGER                                            :: data_size
 
-      data_size = dbcsr_get_data_size_prv(matrix%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         data_size = dbcsr_get_data_size_prv(matrix%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END FUNCTION dbcsr_get_data_size
 
 ! **************************************************************************************************
@@ -823,11 +882,15 @@ CONTAINS
 !> \param matrix ...
 !> \return ...
 ! **************************************************************************************************
-   PURE FUNCTION dbcsr_get_data_type(matrix) RESULT(data_type)
+   FUNCTION dbcsr_get_data_type(matrix) RESULT(data_type)
       TYPE(dbcsr_type), INTENT(IN)                       :: matrix
       INTEGER                                            :: data_type
 
-      data_type = dbcsr_get_data_type_prv(matrix%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         data_type = dbcsr_get_data_type_prv(matrix%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END FUNCTION dbcsr_get_data_type
 
 ! **************************************************************************************************
@@ -839,7 +902,11 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(IN)                       :: matrix
       REAL(kind=dp), DIMENSION(:), INTENT(OUT)           :: diag
 
-      CALL dbcsr_get_diag_prv(matrix%prv, diag)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_get_diag_prv(matrix%dbcsr, diag)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_get_diag
 
 ! **************************************************************************************************
@@ -885,37 +952,43 @@ CONTAINS
          OPTIONAL                                        :: distribution
       CHARACTER(len=*), INTENT(OUT), OPTIONAL            :: name
       CHARACTER, INTENT(OUT), OPTIONAL                   :: matrix_type
-      INTEGER, INTENT(OUT), OPTIONAL                     :: data_type, group
+      INTEGER, INTENT(OUT), OPTIONAL                     :: data_type
+      TYPE(mp_comm_type), INTENT(OUT), OPTIONAL          :: group
 
+      INTEGER                                            :: group_handle
       TYPE(dbcsr_distribution_type_prv)                  :: my_distribution
 
-      CALL dbcsr_get_info_prv(matrix=matrix%prv, &
-                              nblkrows_total=nblkrows_total, &
-                              nblkcols_total=nblkcols_total, &
-                              nfullrows_total=nfullrows_total, &
-                              nfullcols_total=nfullcols_total, &
-                              nblkrows_local=nblkrows_local, &
-                              nblkcols_local=nblkcols_local, &
-                              nfullrows_local=nfullrows_local, &
-                              nfullcols_local=nfullcols_local, &
-                              my_prow=my_prow, &
-                              my_pcol=my_pcol, &
-                              local_rows=local_rows, &
-                              local_cols=local_cols, &
-                              proc_row_dist=proc_row_dist, &
-                              proc_col_dist=proc_col_dist, &
-                              row_blk_size=row_blk_size, &
-                              col_blk_size=col_blk_size, &
-                              row_blk_offset=row_blk_offset, &
-                              col_blk_offset=col_blk_offset, &
-                              distribution=my_distribution, &
-                              name=name, &
-                              matrix_type=matrix_type, &
-                              data_type=data_type, &
-                              group=group)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_get_info_prv(matrix=matrix%dbcsr, &
+                                 nblkrows_total=nblkrows_total, &
+                                 nblkcols_total=nblkcols_total, &
+                                 nfullrows_total=nfullrows_total, &
+                                 nfullcols_total=nfullcols_total, &
+                                 nblkrows_local=nblkrows_local, &
+                                 nblkcols_local=nblkcols_local, &
+                                 nfullrows_local=nfullrows_local, &
+                                 nfullcols_local=nfullcols_local, &
+                                 my_prow=my_prow, &
+                                 my_pcol=my_pcol, &
+                                 local_rows=local_rows, &
+                                 local_cols=local_cols, &
+                                 proc_row_dist=proc_row_dist, &
+                                 proc_col_dist=proc_col_dist, &
+                                 row_blk_size=row_blk_size, &
+                                 col_blk_size=col_blk_size, &
+                                 row_blk_offset=row_blk_offset, &
+                                 col_blk_offset=col_blk_offset, &
+                                 distribution=my_distribution, &
+                                 name=name, &
+                                 matrix_type=matrix_type, &
+                                 data_type=data_type, &
+                                 group=group_handle)
 
-      IF (PRESENT(distribution)) distribution%prv = my_distribution
-
+         IF (PRESENT(distribution)) distribution%dbcsr = my_distribution
+         IF (PRESENT(group)) CALL group%set_handle(group_handle)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_get_info
 
 ! **************************************************************************************************
@@ -923,11 +996,15 @@ CONTAINS
 !> \param matrix ...
 !> \return ...
 ! **************************************************************************************************
-   PURE FUNCTION dbcsr_get_matrix_type(matrix) RESULT(matrix_type)
+   FUNCTION dbcsr_get_matrix_type(matrix) RESULT(matrix_type)
       TYPE(dbcsr_type), INTENT(IN)                       :: matrix
       CHARACTER                                          :: matrix_type
 
-      matrix_type = dbcsr_get_matrix_type_prv(matrix%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         matrix_type = dbcsr_get_matrix_type_prv(matrix%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END FUNCTION dbcsr_get_matrix_type
 
 ! **************************************************************************************************
@@ -935,11 +1012,15 @@ CONTAINS
 !> \param matrix ...
 !> \return ...
 ! **************************************************************************************************
-   PURE FUNCTION dbcsr_get_num_blocks(matrix) RESULT(num_blocks)
+   FUNCTION dbcsr_get_num_blocks(matrix) RESULT(num_blocks)
       TYPE(dbcsr_type), INTENT(IN)                       :: matrix
       INTEGER                                            :: num_blocks
 
-      num_blocks = dbcsr_get_num_blocks_prv(matrix%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         num_blocks = dbcsr_get_num_blocks_prv(matrix%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END FUNCTION dbcsr_get_num_blocks
 
 ! **************************************************************************************************
@@ -951,7 +1032,11 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(IN)                       :: matrix
       REAL(KIND=dp)                                      :: occupation
 
-      occupation = dbcsr_get_occupation_prv(matrix%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         occupation = dbcsr_get_occupation_prv(matrix%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END FUNCTION dbcsr_get_occupation
 
 ! **************************************************************************************************
@@ -966,58 +1051,43 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: row, column
       INTEGER, INTENT(OUT)                               :: processor
 
-      CALL dbcsr_get_stored_coordinates_prv(matrix%prv, row, column, processor)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_get_stored_coordinates_prv(matrix%dbcsr, row, column, processor)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_get_stored_coordinates
-
-! **************************************************************************************************
-!> \brief ...
-!> \param matrix_a ...
-!> \param matrix_b ...
-!> \param matrix_c ...
-!> \param b_assume_value ...
-! **************************************************************************************************
-   SUBROUTINE dbcsr_hadamard_product(matrix_a, matrix_b, matrix_c, b_assume_value)
-      TYPE(dbcsr_type), INTENT(IN)                       :: matrix_a, matrix_b
-      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix_c
-      REAL(KIND=dp), INTENT(IN), OPTIONAL                :: b_assume_value
-
-      CALL dbcsr_hadamard_product_prv(matrix_a%prv, matrix_b%prv, matrix_c%prv, b_assume_value)
-   END SUBROUTINE dbcsr_hadamard_product
 
 ! **************************************************************************************************
 !> \brief ...
 !> \param matrix ...
 !> \return ...
 ! **************************************************************************************************
-   PURE FUNCTION dbcsr_has_symmetry(matrix) RESULT(has_symmetry)
+   FUNCTION dbcsr_has_symmetry(matrix) RESULT(has_symmetry)
       TYPE(dbcsr_type), INTENT(IN)                       :: matrix
       LOGICAL                                            :: has_symmetry
 
-      has_symmetry = dbcsr_has_symmetry_prv(matrix%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         has_symmetry = dbcsr_has_symmetry_prv(matrix%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END FUNCTION dbcsr_has_symmetry
-
-! **************************************************************************************************
-!> \brief ...
-!> \param matrix ...
-!> \param keep_sparsity ...
-! **************************************************************************************************
-   SUBROUTINE dbcsr_init_random(matrix, keep_sparsity)
-      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
-      LOGICAL, OPTIONAL                                  :: keep_sparsity
-
-      CALL dbcsr_init_random_prv(matrix%prv, keep_sparsity=keep_sparsity)
-   END SUBROUTINE dbcsr_init_random
 
 ! **************************************************************************************************
 !> \brief ...
 !> \param iterator ...
 !> \return ...
 ! **************************************************************************************************
-   PURE FUNCTION dbcsr_iterator_blocks_left(iterator) RESULT(blocks_left)
+   FUNCTION dbcsr_iterator_blocks_left(iterator) RESULT(blocks_left)
       TYPE(dbcsr_iterator_type), INTENT(IN)              :: iterator
       LOGICAL                                            :: blocks_left
 
-      blocks_left = dbcsr_iterator_blocks_left_prv(iterator%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         blocks_left = dbcsr_iterator_blocks_left_prv(iterator%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END FUNCTION dbcsr_iterator_blocks_left
 
 ! **************************************************************************************************
@@ -1025,64 +1095,40 @@ CONTAINS
 !> \param iterator ...
 !> \param row ...
 !> \param column ...
-!> \param blk ...
-! **************************************************************************************************
-   SUBROUTINE dbcsr_iterator_next_block_index(iterator, row, column, blk)
-      TYPE(dbcsr_iterator_type), INTENT(INOUT)           :: iterator
-      INTEGER, INTENT(OUT)                               :: row, column, blk
-
-      CALL dbcsr_iterator_next_block_prv(iterator%prv, row=row, column=column, blk=blk)
-   END SUBROUTINE dbcsr_iterator_next_block_index
-
-! **************************************************************************************************
-!> \brief ...
-!> \param iterator ...
-!> \param row ...
-!> \param column ...
 !> \param block ...
-!> \param block_number ...
+!> \param block_number_argument_has_been_removed ...
 !> \param row_size ...
 !> \param col_size ...
 !> \param row_offset ...
 !> \param col_offset ...
 ! **************************************************************************************************
-   SUBROUTINE dbcsr_iterator_next_1d_block(iterator, row, column, block, &
-                                           block_number, row_size, col_size, &
-                                           row_offset, col_offset)
+   SUBROUTINE dbcsr_iterator_next_block(iterator, row, column, block, &
+                                        block_number_argument_has_been_removed, &
+                                        row_size, col_size, &
+                                        row_offset, col_offset)
       TYPE(dbcsr_iterator_type), INTENT(INOUT)           :: iterator
-      INTEGER, INTENT(OUT)                               :: row, column
-      REAL(kind=dp), DIMENSION(:), POINTER               :: block
-      INTEGER, INTENT(OUT), OPTIONAL                     :: block_number, row_size, col_size, &
-                                                            row_offset, col_offset
+      INTEGER, INTENT(OUT), OPTIONAL                     :: row, column
+      REAL(kind=dp), DIMENSION(:, :), OPTIONAL, POINTER  :: block
+      LOGICAL, OPTIONAL :: block_number_argument_has_been_removed
+      INTEGER, INTENT(OUT), OPTIONAL                     :: row_size, col_size, row_offset, &
+                                                            col_offset
 
-      CALL dbcsr_iterator_next_block_prv(iterator%prv, row, column, block, block_number, &
-                                         row_size, col_size, row_offset, col_offset)
-   END SUBROUTINE dbcsr_iterator_next_1d_block
+      INTEGER                                            :: my_column, my_row
+      REAL(kind=dp), DIMENSION(:, :), POINTER            :: my_block
 
-! **************************************************************************************************
-!> \brief ...
-!> \param iterator ...
-!> \param row ...
-!> \param column ...
-!> \param block ...
-!> \param block_number ...
-!> \param row_size ...
-!> \param col_size ...
-!> \param row_offset ...
-!> \param col_offset ...
-! **************************************************************************************************
-   SUBROUTINE dbcsr_iterator_next_2d_block(iterator, row, column, block, &
-                                           block_number, row_size, col_size, &
-                                           row_offset, col_offset)
-      TYPE(dbcsr_iterator_type), INTENT(INOUT)           :: iterator
-      INTEGER, INTENT(OUT)                               :: row, column
-      REAL(kind=dp), DIMENSION(:, :), POINTER            :: block
-      INTEGER, INTENT(OUT), OPTIONAL                     :: block_number, row_size, col_size, &
-                                                            row_offset, col_offset
+      CPASSERT(.NOT. PRESENT(block_number_argument_has_been_removed))
 
-      CALL dbcsr_iterator_next_block_prv(iterator%prv, row, column, block, block_number, &
-                                         row_size, col_size, row_offset, col_offset)
-   END SUBROUTINE dbcsr_iterator_next_2d_block
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_iterator_next_block_prv(iterator%dbcsr, row=my_row, column=my_column, &
+                                            block=my_block, row_size=row_size, col_size=col_size, &
+                                            row_offset=row_offset, col_offset=col_offset)
+         IF (PRESENT(block)) block => my_block
+         IF (PRESENT(row)) row = my_row
+         IF (PRESENT(column)) column = my_column
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
+   END SUBROUTINE dbcsr_iterator_next_block
 
 ! **************************************************************************************************
 !> \brief ...
@@ -1099,8 +1145,12 @@ CONTAINS
       LOGICAL, INTENT(IN), OPTIONAL                      :: shared, dynamic, dynamic_byrows, &
                                                             read_only
 
-      CALL dbcsr_iterator_start_prv(iterator%prv, matrix%prv, shared, dynamic, dynamic_byrows, &
-                                    read_only)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_iterator_start_prv(iterator%dbcsr, matrix%dbcsr, shared, dynamic, &
+                                       dynamic_byrows, read_only)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_iterator_start
 
 ! **************************************************************************************************
@@ -1110,20 +1160,12 @@ CONTAINS
    SUBROUTINE dbcsr_iterator_stop(iterator)
       TYPE(dbcsr_iterator_type), INTENT(INOUT)           :: iterator
 
-      CALL dbcsr_iterator_stop_prv(iterator%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_iterator_stop_prv(iterator%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_iterator_stop
-
-! **************************************************************************************************
-!> \brief ...
-!> \param matrix ...
-!> \return ...
-! **************************************************************************************************
-   FUNCTION dbcsr_maxabs(matrix) RESULT(norm)
-      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
-      REAL(KIND=dp)                                      :: norm
-
-      norm = dbcsr_maxabs_prv(matrix%prv)
-   END FUNCTION dbcsr_maxabs
 
 ! **************************************************************************************************
 !> \brief ...
@@ -1132,7 +1174,11 @@ CONTAINS
    SUBROUTINE dbcsr_mp_grid_setup(dist)
       TYPE(dbcsr_distribution_type), INTENT(INOUT)       :: dist
 
-      CALL dbcsr_mp_grid_setup_prv(dist%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_mp_grid_setup_prv(dist%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_mp_grid_setup
 
 ! **************************************************************************************************
@@ -1169,9 +1215,13 @@ CONTAINS
       REAL(kind=dp), INTENT(IN), OPTIONAL                :: filter_eps
       INTEGER(int_8), INTENT(OUT), OPTIONAL              :: flop
 
-      CALL dbcsr_multiply_prv(transa, transb, alpha, matrix_a%prv, matrix_b%prv, beta, &
-                              matrix_c%prv, first_row, last_row, first_column, last_column, &
-                              first_k, last_k, retain_sparsity, filter_eps=filter_eps, flop=flop)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_multiply_prv(transa, transb, alpha, matrix_a%dbcsr, matrix_b%dbcsr, beta, &
+                                 matrix_c%dbcsr, first_row, last_row, first_column, last_column, &
+                                 first_k, last_k, retain_sparsity, filter_eps=filter_eps, flop=flop)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_multiply
 
 ! **************************************************************************************************
@@ -1183,7 +1233,11 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(IN)                       :: matrix
       INTEGER                                            :: nblkcols_total
 
-      nblkcols_total = dbcsr_nblkcols_total_prv(matrix%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         nblkcols_total = dbcsr_nblkcols_total_prv(matrix%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END FUNCTION dbcsr_nblkcols_total
 
 ! **************************************************************************************************
@@ -1195,7 +1249,11 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(IN)                       :: matrix
       INTEGER                                            :: nblkrows_total
 
-      nblkrows_total = dbcsr_nblkrows_total_prv(matrix%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         nblkrows_total = dbcsr_nblkrows_total_prv(matrix%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END FUNCTION dbcsr_nblkrows_total
 
 ! **************************************************************************************************
@@ -1207,7 +1265,11 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(IN)                       :: matrix
       INTEGER                                            :: nfullcols_total
 
-      nfullcols_total = dbcsr_nfullcols_total_prv(matrix%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         nfullcols_total = dbcsr_nfullcols_total_prv(matrix%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END FUNCTION dbcsr_nfullcols_total
 
 ! **************************************************************************************************
@@ -1219,7 +1281,11 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(IN)                       :: matrix
       INTEGER                                            :: nfullrows_total
 
-      nfullrows_total = dbcsr_nfullrows_total_prv(matrix%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         nfullrows_total = dbcsr_nfullrows_total_prv(matrix%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END FUNCTION dbcsr_nfullrows_total
 
 ! **************************************************************************************************
@@ -1236,7 +1302,11 @@ CONTAINS
       CHARACTER(*), INTENT(in), OPTIONAL                 :: variable_name
       INTEGER, OPTIONAL                                  :: unit_nr
 
-      CALL dbcsr_print_prv(matrix%prv, nodata, matlab_format, variable_name, unit_nr)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_print_prv(matrix%dbcsr, nodata, matlab_format, variable_name, unit_nr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_print
 
 ! **************************************************************************************************
@@ -1248,25 +1318,12 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(IN)                       :: matrix
       INTEGER, OPTIONAL                                  :: unit_nr
 
-      CALL dbcsr_print_block_sum_prv(matrix%prv, unit_nr)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_print_block_sum_prv(matrix%dbcsr, unit_nr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_print_block_sum
-
-! **************************************************************************************************
-!> \brief ...
-!> \param matrix ...
-!> \param row ...
-!> \param col ...
-!> \param block ...
-!> \param summation ...
-! **************************************************************************************************
-   SUBROUTINE dbcsr_put_block2d(matrix, row, col, block, summation)
-      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
-      INTEGER, INTENT(IN)                                :: row, col
-      REAL(kind=dp), DIMENSION(:, :), INTENT(IN)         :: block
-      LOGICAL, INTENT(IN), OPTIONAL                      :: summation
-
-      CALL dbcsr_put_block_prv(matrix%prv, row, col, block, summation=summation)
-   END SUBROUTINE dbcsr_put_block2d
 
 ! **************************************************************************************************
 !> \brief ...
@@ -1279,10 +1336,14 @@ CONTAINS
    SUBROUTINE dbcsr_put_block(matrix, row, col, block, summation)
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
       INTEGER, INTENT(IN)                                :: row, col
-      REAL(kind=dp), DIMENSION(:), INTENT(IN)            :: block
+      REAL(kind=dp), DIMENSION(:, :), INTENT(IN)         :: block
       LOGICAL, INTENT(IN), OPTIONAL                      :: summation
 
-      CALL dbcsr_put_block_prv(matrix%prv, row, col, block, summation=summation)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_put_block_prv(matrix%dbcsr, row, col, block, summation=summation)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_put_block
 
 ! **************************************************************************************************
@@ -1292,7 +1353,11 @@ CONTAINS
    SUBROUTINE dbcsr_release(matrix)
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
 
-      CALL dbcsr_release_prv(matrix%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_release_prv(matrix%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_release
 
 ! **************************************************************************************************
@@ -1302,7 +1367,11 @@ CONTAINS
    SUBROUTINE dbcsr_replicate_all(matrix)
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
 
-      CALL dbcsr_replicate_all_prv(matrix%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_replicate_all_prv(matrix%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_replicate_all
 
 ! **************************************************************************************************
@@ -1312,7 +1381,11 @@ CONTAINS
    SUBROUTINE dbcsr_reserve_all_blocks(matrix)
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
 
-      CALL dbcsr_reserve_all_blocks_prv(matrix%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_reserve_all_blocks_prv(matrix%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_reserve_all_blocks
 
 ! **************************************************************************************************
@@ -1327,7 +1400,11 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: row, col
       REAL(kind=dp), DIMENSION(:, :), POINTER            :: block
 
-      CALL dbcsr_reserve_block2d_prv(matrix%prv, row, col, block)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_reserve_block2d_prv(matrix%dbcsr, row, col, block)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_reserve_block2d
 
 ! **************************************************************************************************
@@ -1340,7 +1417,11 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
       INTEGER, DIMENSION(:), INTENT(IN)                  :: rows, cols
 
-      CALL dbcsr_reserve_blocks_prv(matrix%prv, rows, cols)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_reserve_blocks_prv(matrix%dbcsr, rows, cols)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_reserve_blocks
 
 ! **************************************************************************************************
@@ -1350,7 +1431,11 @@ CONTAINS
    SUBROUTINE dbcsr_reserve_diag_blocks(matrix)
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
 
-      CALL dbcsr_reserve_diag_blocks_prv(matrix%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_reserve_diag_blocks_prv(matrix%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_reserve_diag_blocks
 
 ! **************************************************************************************************
@@ -1362,7 +1447,11 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
       REAL(kind=dp), INTENT(IN)                          :: alpha_scalar
 
-      CALL dbcsr_scale_prv(matrix%prv, alpha_scalar)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_scale_prv(matrix%dbcsr, alpha_scalar)
+      ELSE
+         CALL dbm_scale(matrix%dbm, alpha_scalar)
+      END IF
    END SUBROUTINE dbcsr_scale
 
 ! **************************************************************************************************
@@ -1376,7 +1465,11 @@ CONTAINS
       REAL(kind=dp), DIMENSION(:), INTENT(IN), TARGET    :: alpha
       CHARACTER(LEN=*), INTENT(IN)                       :: side
 
-      CALL dbcsr_scale_by_vector_prv(matrix%prv, alpha, side)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_scale_by_vector_prv(matrix%dbcsr, alpha, side)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_scale_by_vector
 
 ! **************************************************************************************************
@@ -1388,7 +1481,15 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
       REAL(kind=dp), INTENT(IN)                          :: alpha
 
-      CALL dbcsr_set_prv(matrix%prv, alpha)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_set_prv(matrix%dbcsr, alpha)
+      ELSE
+         IF (alpha == 0.0_dp) THEN
+            CALL dbm_zero(matrix%dbm)
+         ELSE
+            CPABORT("Not yet implemented for DBM.")
+         END IF
+      END IF
    END SUBROUTINE dbcsr_set
 
 ! **************************************************************************************************
@@ -1400,20 +1501,12 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
       REAL(kind=dp), DIMENSION(:), INTENT(IN)            :: diag
 
-      CALL dbcsr_set_diag_prv(matrix%prv, diag)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_set_diag_prv(matrix%dbcsr, diag)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_set_diag
-
-! **************************************************************************************************
-!> \brief ...
-!> \param matrix ...
-!> \param newname ...
-! **************************************************************************************************
-   SUBROUTINE dbcsr_setname(matrix, newname)
-      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
-      CHARACTER(len=*), INTENT(IN)                       :: newname
-
-      CALL dbcsr_setname_prv(matrix%prv, newname)
-   END SUBROUTINE dbcsr_setname
 
 ! **************************************************************************************************
 !> \brief ...
@@ -1422,7 +1515,11 @@ CONTAINS
    SUBROUTINE dbcsr_sum_replicated(matrix)
       TYPE(dbcsr_type), INTENT(inout)                    :: matrix
 
-      CALL dbcsr_sum_replicated_prv(matrix%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_sum_replicated_prv(matrix%dbcsr)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_sum_replicated
 
 ! **************************************************************************************************
@@ -1434,7 +1531,11 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(IN)                       :: matrix
       REAL(kind=dp), INTENT(OUT)                         :: trace
 
-      CALL dbcsr_trace_prv(matrix%prv, trace)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_trace_prv(matrix%dbcsr, trace)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
    END SUBROUTINE dbcsr_trace
 
 ! **************************************************************************************************
@@ -1453,36 +1554,36 @@ CONTAINS
       TYPE(dbcsr_distribution_type), INTENT(IN), &
          OPTIONAL                                        :: use_distribution
 
-      IF (PRESENT(use_distribution)) THEN
-         CALL dbcsr_transposed_prv(transposed%prv, normal%prv, shallow_data_copy=shallow_data_copy, &
-                                   transpose_distribution=transpose_distribution, &
-                                   use_distribution=use_distribution%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         IF (PRESENT(use_distribution)) THEN
+            CALL dbcsr_transposed_prv(transposed%dbcsr, normal%dbcsr, &
+                                      shallow_data_copy=shallow_data_copy, &
+                                      transpose_distribution=transpose_distribution, &
+                                      use_distribution=use_distribution%dbcsr)
+         ELSE
+            CALL dbcsr_transposed_prv(transposed%dbcsr, normal%dbcsr, &
+                                      shallow_data_copy=shallow_data_copy, &
+                                      transpose_distribution=transpose_distribution)
+         END IF
       ELSE
-         CALL dbcsr_transposed_prv(transposed%prv, normal%prv, shallow_data_copy=shallow_data_copy, &
-                                   transpose_distribution=transpose_distribution)
+         CPABORT("Not yet implemented for DBM.")
       END IF
    END SUBROUTINE dbcsr_transposed
 
 ! **************************************************************************************************
 !> \brief ...
 !> \param matrix ...
-! **************************************************************************************************
-   SUBROUTINE dbcsr_triu(matrix)
-      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
-
-      CALL dbcsr_triu_prv(matrix%prv)
-   END SUBROUTINE dbcsr_triu
-
-! **************************************************************************************************
-!> \brief ...
-!> \param matrix ...
 !> \return ...
 ! **************************************************************************************************
-   PURE FUNCTION dbcsr_valid_index(matrix) RESULT(valid_index)
+   FUNCTION dbcsr_valid_index(matrix) RESULT(valid_index)
       TYPE(dbcsr_type), INTENT(IN)                       :: matrix
       LOGICAL                                            :: valid_index
 
-      valid_index = dbcsr_valid_index_prv(matrix%prv)
+      IF (USE_DBCSR_BACKEND) THEN
+         valid_index = dbcsr_valid_index_prv(matrix%dbcsr)
+      ELSE
+         valid_index = .TRUE. ! Does not apply to DBM.
+      END IF
    END FUNCTION dbcsr_valid_index
 
 ! **************************************************************************************************
@@ -1496,7 +1597,11 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: verbosity
       LOGICAL, INTENT(IN), OPTIONAL                      :: local
 
-      CALL dbcsr_verify_matrix_prv(matrix%prv, verbosity, local)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_verify_matrix_prv(matrix%dbcsr, verbosity, local)
+      ELSE
+         ! Does not apply to DBM.
+      END IF
    END SUBROUTINE dbcsr_verify_matrix
 
 ! **************************************************************************************************
@@ -1512,7 +1617,11 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: nblks_guess, sizedata_guess, n
       LOGICAL, INTENT(in), OPTIONAL                      :: work_mutable
 
-      CALL dbcsr_work_create_prv(matrix%prv, nblks_guess, sizedata_guess, n, work_mutable)
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_work_create_prv(matrix%dbcsr, nblks_guess, sizedata_guess, n, work_mutable)
+      ELSE
+         ! Does not apply to DBM.
+      END IF
    END SUBROUTINE dbcsr_work_create
 
 END MODULE cp_dbcsr_api

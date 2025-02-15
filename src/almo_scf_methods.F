@@ -21,15 +21,16 @@ MODULE almo_scf_methods
    USE cp_blacs_env,                    ONLY: cp_blacs_env_type
    USE cp_dbcsr_api,                    ONLY: &
         dbcsr_add, dbcsr_add_on_diag, dbcsr_copy, dbcsr_create, dbcsr_distribution_get, &
-        dbcsr_distribution_type, dbcsr_filter, dbcsr_finalize, dbcsr_frobenius_norm, &
-        dbcsr_get_block_p, dbcsr_get_diag, dbcsr_get_info, dbcsr_get_stored_coordinates, &
-        dbcsr_init_random, dbcsr_iterator_blocks_left, dbcsr_iterator_next_block, &
-        dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, dbcsr_multiply, &
-        dbcsr_nblkcols_total, dbcsr_nblkrows_total, dbcsr_print, dbcsr_release, &
+        dbcsr_distribution_type, dbcsr_filter, dbcsr_finalize, dbcsr_get_block_p, dbcsr_get_diag, &
+        dbcsr_get_info, dbcsr_get_stored_coordinates, dbcsr_iterator_blocks_left, &
+        dbcsr_iterator_next_block, dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, &
+        dbcsr_multiply, dbcsr_nblkcols_total, dbcsr_nblkrows_total, dbcsr_print, dbcsr_release, &
         dbcsr_reserve_block2d, dbcsr_scale_by_vector, dbcsr_set, dbcsr_set_diag, dbcsr_transposed, &
         dbcsr_type, dbcsr_type_no_symmetry, dbcsr_type_symmetric, dbcsr_work_create
    USE cp_dbcsr_cholesky,               ONLY: cp_dbcsr_cholesky_decompose,&
                                               cp_dbcsr_cholesky_invert
+   USE cp_dbcsr_contrib,                ONLY: dbcsr_frobenius_norm,&
+                                              dbcsr_init_random
    USE cp_log_handling,                 ONLY: cp_get_default_logger,&
                                               cp_logger_get_default_unit_nr,&
                                               cp_logger_type
@@ -2104,8 +2105,7 @@ CONTAINS
    SUBROUTINE apply_domain_operators(matrix_in, matrix_out, operator1, operator2, &
                                      dpattern, map, node_of_domain, my_action, filter_eps, matrix_trimmer, use_trimmer)
 
-      TYPE(dbcsr_type), INTENT(IN)                       :: matrix_in
-      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix_out
+      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix_in, matrix_out
       TYPE(domain_submatrix_type), DIMENSION(:), &
          INTENT(IN)                                      :: operator1
       TYPE(domain_submatrix_type), DIMENSION(:), &
@@ -2471,7 +2471,7 @@ CONTAINS
    SUBROUTINE construct_domain_s_sqrt(matrix_s, subm_s_sqrt, subm_s_sqrt_inv, &
                                       dpattern, map, node_of_domain)
 
-      TYPE(dbcsr_type), INTENT(IN)                       :: matrix_s
+      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix_s
       TYPE(domain_submatrix_type), DIMENSION(:), &
          INTENT(INOUT)                                   :: subm_s_sqrt, subm_s_sqrt_inv
       TYPE(dbcsr_type), INTENT(IN)                       :: dpattern
@@ -2543,7 +2543,7 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE construct_domain_s_inv(matrix_s, subm_s_inv, dpattern, map, &
                                      node_of_domain)
-      TYPE(dbcsr_type), INTENT(IN)                       :: matrix_s
+      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix_s
       TYPE(domain_submatrix_type), DIMENSION(:), &
          INTENT(INOUT)                                   :: subm_s_inv
       TYPE(dbcsr_type), INTENT(IN)                       :: dpattern
@@ -3207,13 +3207,13 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE construct_test(matrix_no, dpattern, map, node_of_domain)
 
-      TYPE(dbcsr_type), INTENT(IN)                       :: matrix_no, dpattern
+      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix_no, dpattern
       TYPE(domain_map_type), INTENT(IN)                  :: map
       INTEGER, DIMENSION(:), INTENT(IN)                  :: node_of_domain
 
       CHARACTER(len=*), PARAMETER                        :: routineN = 'construct_test'
 
-      INTEGER                                            :: GroupID, handle, ndomains
+      INTEGER                                            :: handle, ndomains
       TYPE(dbcsr_type)                                   :: copy1
       TYPE(domain_submatrix_type), ALLOCATABLE, &
          DIMENSION(:)                                    :: subm_nn, subm_no
@@ -3222,8 +3222,7 @@ CONTAINS
       CALL timeset(routineN, handle)
 
       ndomains = dbcsr_nblkcols_total(dpattern)
-      CALL dbcsr_get_info(dpattern, group=GroupID)
-      CALL group%set_handle(groupid)
+      CALL dbcsr_get_info(dpattern, group=group)
 
       ALLOCATE (subm_no(ndomains), subm_nn(ndomains))
       CALL init_submatrices(subm_no)

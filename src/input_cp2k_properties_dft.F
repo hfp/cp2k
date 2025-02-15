@@ -2059,11 +2059,14 @@ CONTAINS
       CPASSERT(.NOT. ASSOCIATED(section))
       CALL section_create(section, __LOCATION__, name="GW", &
                           description="Parameters needed to set up a GW calculation for "// &
-                          "electronic level energies of molecules and the band structure of "// &
-                          "materials (currently only 2D materials tested). For the GW "// &
-                          "algorithm for molecules, see "// &
+                          "electronic level energies $\varepsilon_{n\mathbf{k}}^{G_0W_0}$ "// &
+                          "of molecules and the band structure of materials: "// &
+                          "$\varepsilon_{n\mathbf{k}}^{G_0W_0}=  "// &
+                          "\varepsilon_{n\mathbf{k}}^\text{DFT}+\Sigma_{n\mathbf{k}} "// &
+                          "-v^\text{xc}_{n\mathbf{k}}$. "// &
+                          "For the GW algorithm for molecules, see "// &
                           "<https://doi.org/10.1021/acs.jctc.0c01282>. "// &
-                          "For 2D materials, see <http://arxiv.org/abs/2306.16066>.", &
+                          "For 2D materials, see <https://doi.org/10.1021/acs.jctc.3c01230>.", &
                           n_keywords=1, n_subsections=1, repeats=.FALSE.)
 
       NULLIFY (keyword)
@@ -2190,12 +2193,25 @@ CONTAINS
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
-      CALL keyword_create(keyword, __LOCATION__, name="MINIMAX_VERSION", &
-                          description="Version of the minimax time and frequency grid "// &
-                          "for Fourier transforms χ(iτ) -> χ(iω) -> W(iω) -> W(iτ) -> "// &
-                          "Σ(iτ) -> Σ(iω). At present, version 1 and 2 is available.", &
-                          usage="MINIMAX_VERSION 2", &
-                          default_i_val=1)
+      CALL keyword_create(keyword, __LOCATION__, name="FREQ_MAX_FIT", &
+                          description="For analytic continuation, a fit on Σ(iω) is performed. "// &
+                          "This fit is then evaluated at a real frequency, Σ(ω), which is used "// &
+                          "in the quasiparticle equation "// &
+                          "$\varepsilon_{n\mathbf{k}}^{G_0W_0}=  "// &
+                          "\varepsilon_{n\mathbf{k}}^\text{DFT}+\Sigma_{n\mathbf{k}} "// &
+                          "-v^\text{xc}_{n\mathbf{k}}$. The keyword FREQ_MAX_FIT "// &
+                          "determines fitting range for the self-energy Σ(iω) on "// &
+                          "imaginary axis: i*[0, ω_max] for empty orbitals/bands, i*[-ω_max,0] "// &
+                          "for occ orbitals. A smaller ω_max might lead to better numerical "// &
+                          "stability (i.e., if you observe clearly wrong GW eigenvalues/bands "// &
+                          "around HOMO/LUMO, decreasing ω_max might fix this issue). "// &
+                          "A small benchmark of ω_max is contained in Fig. 5 of "// &
+                          "J. Wilhelm et al., JCTC 12, 3623-3635 (2016). "// &
+                          "Note that we used ω_max = 1 Ha = 27.211 eV in the benchmark "// &
+                          "M. Azizi et al., PRB 109, 245101 (2024).", &
+                          unit_str="eV", &
+                          usage="FREQ_MAX_FIT 20.0", &
+                          default_r_val=cp_unit_to_cp2k(value=10.0_dp, unit_str="eV"))
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 

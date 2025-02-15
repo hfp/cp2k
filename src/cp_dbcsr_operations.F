@@ -21,12 +21,12 @@ MODULE cp_dbcsr_operations
         dbcsr_add, dbcsr_complete_redistribute, dbcsr_convert_sizes_to_offsets, dbcsr_copy, &
         dbcsr_create, dbcsr_deallocate_matrix, dbcsr_desymmetrize, dbcsr_distribution_get, &
         dbcsr_distribution_new, dbcsr_distribution_release, dbcsr_distribution_type, &
-        dbcsr_frobenius_norm, dbcsr_get_data_type, dbcsr_get_info, dbcsr_get_matrix_type, &
-        dbcsr_iterator_blocks_left, dbcsr_iterator_next_block, dbcsr_iterator_start, &
-        dbcsr_iterator_stop, dbcsr_iterator_type, dbcsr_multiply, dbcsr_p_type, dbcsr_release, &
-        dbcsr_reserve_all_blocks, dbcsr_scale, dbcsr_type, dbcsr_type_antisymmetric, &
-        dbcsr_type_no_symmetry, dbcsr_type_real_8, dbcsr_type_symmetric, dbcsr_valid_index, &
-        dbcsr_verify_matrix
+        dbcsr_get_data_type, dbcsr_get_info, dbcsr_get_matrix_type, dbcsr_iterator_blocks_left, &
+        dbcsr_iterator_next_block, dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, &
+        dbcsr_multiply, dbcsr_p_type, dbcsr_release, dbcsr_reserve_all_blocks, dbcsr_scale, &
+        dbcsr_type, dbcsr_type_antisymmetric, dbcsr_type_no_symmetry, dbcsr_type_real_8, &
+        dbcsr_type_symmetric, dbcsr_valid_index, dbcsr_verify_matrix
+   USE cp_dbcsr_contrib,                ONLY: dbcsr_frobenius_norm
    USE cp_fm_basic_linalg,              ONLY: cp_fm_gemm
    USE cp_fm_struct,                    ONLY: cp_fm_struct_create,&
                                               cp_fm_struct_release,&
@@ -153,7 +153,7 @@ CONTAINS
       INTEGER                                            :: col, handle, ncol_block, ncol_global, &
                                                             nrow_block, nrow_global, row
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: first_col, first_row, last_col, last_row
-      INTEGER, DIMENSION(:), POINTER                     :: col_blk_size, row_blk_size
+      INTEGER, CONTIGUOUS, DIMENSION(:), POINTER         :: col_blk_size, row_blk_size
       INTEGER, DIMENSION(:, :), POINTER                  :: pgrid
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: dbcsr_block, fm_block
       TYPE(dbcsr_distribution_type)                      :: bc_dist
@@ -220,7 +220,7 @@ CONTAINS
       INTEGER                                            :: group_handle, handle, ncol_block, &
                                                             nfullcols_total, nfullrows_total, &
                                                             nrow_block
-      INTEGER, DIMENSION(:), POINTER                     :: col_blk_size, row_blk_size
+      INTEGER, CONTIGUOUS, DIMENSION(:), POINTER         :: col_blk_size, row_blk_size
       INTEGER, DIMENSION(:, :), POINTER                  :: pgrid
       TYPE(dbcsr_distribution_type)                      :: bc_dist, dist
       TYPE(dbcsr_type)                                   :: bc_mat, matrix_nosym
@@ -466,7 +466,7 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'dbcsr_multiply_local'
 
-      INTEGER                                            :: blk, col, coloff, my_ncol, row, rowoff, &
+      INTEGER                                            :: col, coloff, my_ncol, row, rowoff, &
                                                             timing_handle
       LOGICAL                                            :: has_symm
       REAL(dp)                                           :: my_alpha, my_alpha2
@@ -489,10 +489,10 @@ CONTAINS
                   dbcsr_get_matrix_type(matrix_a) .EQ. dbcsr_type_antisymmetric)
 
 !$OMP     PARALLEL DEFAULT(NONE) SHARED(matrix_a,vec_b,vec_c,ncol,my_alpha2,my_alpha,my_ncol,has_symm) &
-!$OMP              PRIVATE(iter,row,col,data_d,blk,rowoff,coloff)
+!$OMP              PRIVATE(iter,row,col,data_d,rowoff,coloff)
       CALL dbcsr_iterator_start(iter, matrix_a, read_only=.TRUE., dynamic=.TRUE., dynamic_byrows=.TRUE.)
       DO WHILE (dbcsr_iterator_blocks_left(iter))
-         CALL dbcsr_iterator_next_block(iter, row, col, data_d, blk, row_offset=rowoff, col_offset=coloff)
+         CALL dbcsr_iterator_next_block(iter, row, col, data_d, row_offset=rowoff, col_offset=coloff)
          IF (my_ncol .NE. 1) THEN
             CALL dgemm('N', 'N', &
                        SIZE(data_d, 1), my_ncol, SIZE(data_d, 2), &
@@ -514,7 +514,7 @@ CONTAINS
       IF (has_symm) THEN
          CALL dbcsr_iterator_start(iter, matrix_a)
          DO WHILE (dbcsr_iterator_blocks_left(iter))
-            CALL dbcsr_iterator_next_block(iter, row, col, data_d, blk, row_offset=rowoff, col_offset=coloff)
+            CALL dbcsr_iterator_next_block(iter, row, col, data_d, row_offset=rowoff, col_offset=coloff)
             IF (row .NE. col) THEN
                IF (my_ncol .NE. 1) THEN
                   CALL dgemm('T', 'N', &
@@ -561,7 +561,7 @@ CONTAINS
       INTEGER                                            :: a_ncol, a_nrow, b_ncol, b_nrow, c_ncol, &
                                                             c_nrow, k_in, k_out, timing_handle, &
                                                             timing_handle_mult
-      INTEGER, DIMENSION(:), POINTER                     :: col_blk_size, col_blk_size_right_in, &
+      INTEGER, CONTIGUOUS, DIMENSION(:), POINTER         :: col_blk_size, col_blk_size_right_in, &
                                                             col_blk_size_right_out, col_dist, &
                                                             row_blk_size, row_dist
       TYPE(dbcsr_type)                                   :: in, out
@@ -705,7 +705,7 @@ CONTAINS
 
       INTEGER                                            :: data_type, k, my_symmetry_mode, nao, &
                                                             npcols, timing_handle
-      INTEGER, DIMENSION(:), POINTER                     :: col_blk_size_left, col_dist_left, &
+      INTEGER, CONTIGUOUS, DIMENSION(:), POINTER         :: col_blk_size_left, col_dist_left, &
                                                             row_blk_size, row_dist
       LOGICAL                                            :: check_product, my_keep_sparsity
       REAL(KIND=dp)                                      :: my_alpha, norm
@@ -881,7 +881,7 @@ CONTAINS
       TYPE(dbcsr_type), INTENT(IN)                       :: template
 
       INTEGER                                            :: data_type, k_in
-      INTEGER, DIMENSION(:), POINTER                     :: col_blk_size_right_in, row_blk_size
+      INTEGER, CONTIGUOUS, DIMENSION(:), POINTER         :: col_blk_size_right_in, row_blk_size
       TYPE(dbcsr_distribution_type)                      :: dist_right_in, tmpl_dist
 
       CALL cp_fm_get_info(fm_in, ncol_global=k_in)
@@ -918,7 +918,7 @@ CONTAINS
 
       CHARACTER                                          :: mysym
       INTEGER                                            :: my_data_type, npcols, nprows
-      INTEGER, DIMENSION(:), POINTER                     :: col_blk_size, col_dist, row_blk_size, &
+      INTEGER, CONTIGUOUS, DIMENSION(:), POINTER         :: col_blk_size, col_dist, row_blk_size, &
                                                             row_dist
       TYPE(dbcsr_distribution_type)                      :: dist_m_n, tmpl_dist
 
@@ -968,7 +968,7 @@ CONTAINS
 
       CHARACTER                                          :: mysym
       INTEGER                                            :: my_data_type, npcols
-      INTEGER, DIMENSION(:), POINTER                     :: col_blk_size, col_dist, row_blk_size, &
+      INTEGER, CONTIGUOUS, DIMENSION(:), POINTER         :: col_blk_size, col_dist, row_blk_size, &
                                                             row_dist
       TYPE(dbcsr_distribution_type)                      :: dist_m_n, tmpl_dist
 

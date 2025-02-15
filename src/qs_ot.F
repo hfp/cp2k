@@ -16,14 +16,16 @@ MODULE qs_ot
    USE arnoldi_api,                     ONLY: arnoldi_extremal
    USE cp_dbcsr_api,                    ONLY: &
         dbcsr_add, dbcsr_add_on_diag, dbcsr_copy, dbcsr_distribution_type, dbcsr_filter, &
-        dbcsr_frobenius_norm, dbcsr_gershgorin_norm, dbcsr_get_block_p, dbcsr_get_info, &
-        dbcsr_get_occupation, dbcsr_hadamard_product, dbcsr_init_p, dbcsr_iterator_blocks_left, &
-        dbcsr_iterator_next_block, dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, &
-        dbcsr_multiply, dbcsr_release, dbcsr_release_p, dbcsr_scale, dbcsr_scale_by_vector, &
-        dbcsr_set, dbcsr_transposed, dbcsr_type
+        dbcsr_get_block_p, dbcsr_get_info, dbcsr_get_occupation, dbcsr_init_p, &
+        dbcsr_iterator_blocks_left, dbcsr_iterator_next_block, dbcsr_iterator_start, &
+        dbcsr_iterator_stop, dbcsr_iterator_type, dbcsr_multiply, dbcsr_release, dbcsr_release_p, &
+        dbcsr_scale, dbcsr_scale_by_vector, dbcsr_set, dbcsr_transposed, dbcsr_type
    USE cp_dbcsr_cholesky,               ONLY: cp_dbcsr_cholesky_decompose,&
                                               cp_dbcsr_cholesky_invert,&
                                               cp_dbcsr_cholesky_restore
+   USE cp_dbcsr_contrib,                ONLY: dbcsr_frobenius_norm,&
+                                              dbcsr_gershgorin_norm,&
+                                              dbcsr_hadamard_product
    USE cp_dbcsr_diag,                   ONLY: cp_dbcsr_heevd,&
                                               cp_dbcsr_syevd
    USE kinds,                           ONLY: dp
@@ -112,9 +114,9 @@ CONTAINS
       INTEGER, PARAMETER                                 :: taylor_order = 50
       REAL(KIND=dp), PARAMETER                           :: alpha = 0.1_dp, f2_eps = 0.01_dp
 
-      INTEGER                                            :: blk, col, col_size, group_handle, &
-                                                            handle, i, k, n, p, row, row_size
-      REAL(dp), DIMENSION(:, :), POINTER                 :: DATA
+      INTEGER                                            :: col, col_size, handle, i, k, n, p, row, &
+                                                            row_size
+      REAL(dp), DIMENSION(:, :), POINTER                 :: block
       REAL(KIND=dp)                                      :: expfactor, f2, norm_fro, norm_gct, tmp
       TYPE(dbcsr_distribution_type)                      :: dist
       TYPE(dbcsr_iterator_type)                          :: iter
@@ -140,19 +142,17 @@ CONTAINS
       CALL dbcsr_copy(C, C_NEW)
       CALL dbcsr_iterator_start(iter, C)
       DO WHILE (dbcsr_iterator_blocks_left(iter))
-         CALL dbcsr_iterator_next_block(iter, row, col, DATA, blk, &
-                                        row_size=row_size, col_size=col_size)
+         CALL dbcsr_iterator_next_block(iter, row, col, block, row_size=row_size, col_size=col_size)
          DO p = 1, col_size ! p
          DO i = 1, row_size ! i
-            tmp = SQRT(DATA(i, p)**2 + f2_eps)
+            tmp = SQRT(block(i, p)**2 + f2_eps)
             f2 = f2 + tmp
-            DATA(i, p) = DATA(i, p)/tmp
+            block(i, p) = block(i, p)/tmp
          END DO
          END DO
       END DO
       CALL dbcsr_iterator_stop(iter)
-      CALL dbcsr_get_info(C, group=group_handle)
-      CALL group%set_handle(group_handle)
+      CALL dbcsr_get_info(C, group=group)
       CALL group%sum(f2)
       !
       !
@@ -869,7 +869,7 @@ CONTAINS
       TYPE(dbcsr_iterator_type)                :: iter
       INTEGER, DIMENSION(:), POINTER           :: row_blk_offset, col_blk_offset
       REAL(dp), DIMENSION(:, :), POINTER       :: block_in_re, block_in_im, block_out_re, block_out_im
-      INTEGER                                  :: row, col, blk
+      INTEGER                                  :: row, col
       LOGICAL                                  :: found
       COMPLEX(dp)                              :: cval_in, cval_out
       TYPE(dbcsr_distribution_type)            :: dist
@@ -901,7 +901,7 @@ CONTAINS
          CALL dbcsr_get_info(qs_ot_env%rot_mat_dedu, row_blk_offset=row_blk_offset, col_blk_offset=col_blk_offset)
          CALL dbcsr_iterator_start(iter, qs_ot_env%rot_mat_dedu)
          DO WHILE (dbcsr_iterator_blocks_left(iter))
-            CALL dbcsr_iterator_next_block(iter, row, col, blk)
+            CALL dbcsr_iterator_next_block(iter, row, col)
             CALL dbcsr_get_block_p(inner_deriv_re, row, col, block_in_re, found)
             CALL dbcsr_get_block_p(inner_deriv_im, row, col, block_in_im, found)
             CALL dbcsr_get_block_p(outer_deriv_re, row, col, block_out_re, found)
@@ -1403,9 +1403,9 @@ CONTAINS
       CHARACTER(len=*), PARAMETER                        :: routineN = 'qs_ot_p2m_diag'
       REAL(KIND=dp), PARAMETER                           :: rone = 1.0_dp, rzero = 0.0_dp
 
-      INTEGER                                            :: blk, col, col_offset, col_size, handle, &
-                                                            i, j, k, row, row_offset, row_size
-      REAL(dp), DIMENSION(:, :), POINTER                 :: DATA
+      INTEGER                                            :: col, col_offset, col_size, handle, i, j, &
+                                                            k, row, row_offset, row_size
+      REAL(dp), DIMENSION(:, :), POINTER                 :: block
       REAL(KIND=dp)                                      :: a, b
       TYPE(dbcsr_iterator_type)                          :: iter
 
@@ -1440,8 +1440,8 @@ CONTAINS
       CALL dbcsr_copy(qs_ot_env%matrix_cosp_b, qs_ot_env%matrix_cosp)
       CALL dbcsr_iterator_start(iter, qs_ot_env%matrix_cosp_b)
       DO WHILE (dbcsr_iterator_blocks_left(iter))
-         CALL dbcsr_iterator_next_block(iter, row, col, DATA, &
-                                        block_number=blk, row_size=row_size, col_size=col_size, &
+         CALL dbcsr_iterator_next_block(iter, row, col, block, &
+                                        row_size=row_size, col_size=col_size, &
                                         row_offset=row_offset, col_offset=col_offset)
          DO j = 1, col_size
          DO i = 1, row_size
@@ -1449,7 +1449,7 @@ CONTAINS
                  - SQRT(qs_ot_env%evals(col_offset + j - 1)))/2.0_dp
             b = (SQRT(qs_ot_env%evals(row_offset + i - 1)) &
                  + SQRT(qs_ot_env%evals(col_offset + j - 1)))/2.0_dp
-            DATA(i, j) = -0.5_dp*qs_ot_sinc(a)*qs_ot_sinc(b)
+            block(i, j) = -0.5_dp*qs_ot_sinc(a)*qs_ot_sinc(b)
          END DO
          END DO
       END DO
@@ -1458,14 +1458,14 @@ CONTAINS
       CALL dbcsr_copy(qs_ot_env%matrix_sinp_b, qs_ot_env%matrix_sinp)
       CALL dbcsr_iterator_start(iter, qs_ot_env%matrix_sinp_b)
       DO WHILE (dbcsr_iterator_blocks_left(iter))
-         CALL dbcsr_iterator_next_block(iter, row, col, DATA, &
-                                        block_number=blk, row_size=row_size, col_size=col_size, &
+         CALL dbcsr_iterator_next_block(iter, row, col, block, &
+                                        row_size=row_size, col_size=col_size, &
                                         row_offset=row_offset, col_offset=col_offset)
          DO j = 1, col_size
          DO i = 1, row_size
             a = SQRT(qs_ot_env%evals(row_offset + i - 1))
             b = SQRT(qs_ot_env%evals(col_offset + j - 1))
-            DATA(i, j) = qs_ot_sincf(a, b)
+            block(i, j) = qs_ot_sincf(a, b)
          END DO
          END DO
       END DO

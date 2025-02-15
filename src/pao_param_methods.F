@@ -187,8 +187,7 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'pao_assert_unitary'
 
-      INTEGER                                            :: acol, arow, group_handle, handle, i, &
-                                                            iatom, M, N
+      INTEGER                                            :: acol, arow, handle, i, iatom, M, N
       INTEGER, DIMENSION(:), POINTER                     :: blk_sizes_pao, blk_sizes_pri
       REAL(dp)                                           :: delta_max
       REAL(dp), DIMENSION(:, :), POINTER                 :: block_test, tmp1, tmp2
@@ -227,8 +226,7 @@ CONTAINS
       CALL dbcsr_iterator_stop(iter)
 !$OMP END PARALLEL
 
-      CALL dbcsr_get_info(matrix_U, group=group_handle)
-      CALL group%set_handle(group_handle)
+      CALL dbcsr_get_info(matrix_U, group=group)
 
       CALL group%max(delta_max)
       IF (pao%iw > 0) WRITE (pao%iw, *) 'PAO| checked unitaryness, max delta:', delta_max
@@ -254,7 +252,7 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'pao_calc_grad_lnv_wrt_AB'
 
       INTEGER                                            :: handle, nspin
-      INTEGER, DIMENSION(:), POINTER                     :: pao_blk_sizes
+      INTEGER, CONTIGUOUS, DIMENSION(:), POINTER         :: pao_blk_sizes
       REAL(KIND=dp)                                      :: filter_eps
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_ks, matrix_s, rho_ao
       TYPE(dbcsr_type) :: matrix_HB, matrix_HPS, matrix_M, matrix_M1, matrix_M1_dc, matrix_M2, &

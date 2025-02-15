@@ -135,7 +135,7 @@ CONTAINS
                                                             nbr_center(2), nmo, nsgf, nspins, &
                                                             nstates(2), output_unit
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: first_sgf, last_sgf
-      INTEGER, DIMENSION(:), POINTER                     :: row_blk_sizes
+      INTEGER, CONTIGUOUS, DIMENSION(:), POINTER         :: row_blk_sizes
       REAL(dp)                                           :: chk(3), ck(3), ckdk(3), dk(3)
       REAL(dp), DIMENSION(:, :), POINTER                 :: basisfun_center, vecbuf_c0
       TYPE(cell_type), POINTER                           :: cell
@@ -862,8 +862,8 @@ CONTAINS
       CHARACTER(LEN=*), PARAMETER :: routineN = 'polar_tb_operators_berry'
 
       COMPLEX(dp)                                        :: zdeta
-      INTEGER                                            :: blk, handle, i, icol, idir, irow, ispin, &
-                                                            nmo, nspins
+      INTEGER                                            :: handle, i, icol, idir, irow, ispin, nmo, &
+                                                            nspins
       LOGICAL                                            :: do_raman, found
       REAL(dp)                                           :: dd, fdir
       REAL(dp), DIMENSION(3)                             :: kvec, ria, rib
@@ -905,7 +905,7 @@ CONTAINS
          CALL dbcsr_iterator_start(iter, matrix_s(1)%matrix)
          DO WHILE (dbcsr_iterator_blocks_left(iter))
             NULLIFY (s_block, d_block)
-            CALL dbcsr_iterator_next_block(iter, irow, icol, s_block, blk)
+            CALL dbcsr_iterator_next_block(iter, irow, icol, s_block)
             ria = particle_set(irow)%r
             rib = particle_set(icol)%r
             DO idir = 1, 3
@@ -1187,8 +1187,7 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'polar_tb_operators_local'
 
-      INTEGER                                            :: blk, handle, i, icol, irow, ispin, nmo, &
-                                                            nspins
+      INTEGER                                            :: handle, i, icol, irow, ispin, nmo, nspins
       LOGICAL                                            :: do_raman, found
       REAL(dp)                                           :: fdir
       REAL(dp), DIMENSION(3)                             :: ria, rib
@@ -1226,7 +1225,7 @@ CONTAINS
          CALL dbcsr_iterator_start(iter, matrix_s(1)%matrix)
          DO WHILE (dbcsr_iterator_blocks_left(iter))
             NULLIFY (s_block, d_block)
-            CALL dbcsr_iterator_next_block(iter, irow, icol, s_block, blk)
+            CALL dbcsr_iterator_next_block(iter, irow, icol, s_block)
             ria = particle_set(irow)%r
             ria = pbc(ria, cell)
             rib = particle_set(icol)%r
