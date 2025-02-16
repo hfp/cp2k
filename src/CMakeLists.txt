@@ -1425,7 +1425,8 @@ set(CP2K_GRID_SRCS_HIP
     grid/hip/grid_hip_collocate.cu grid/hip/grid_hip_integrate.cu
     grid/hip/grid_hip_context.cu)
 
-set(CP2K_OPENCL_TOOLDIR ${CMAKE_CURRENT_SOURCE_DIR}/../exts/dbcsr/src/acc/opencl)
+set(CP2K_OPENCL_TOOLDIR
+    ${CMAKE_CURRENT_SOURCE_DIR}/../exts/dbcsr/src/acc/opencl)
 set(CP2K_OPENCL_SCRIPT ${CP2K_OPENCL_TOOLDIR}/acc_opencl.sh)
 set(CP2K_OPENCL_COMMON common/opencl_atomics.h common/opencl_common.h)
 list(TRANSFORM CP2K_OPENCL_COMMON PREPEND ${CP2K_OPENCL_TOOLDIR}/)
@@ -1450,7 +1451,9 @@ set(CP2K_PROGS_F
     motion/xyz2dcd.F
     nequip_unittest.F)
 
-if(CP2K_USE_CUDA OR CP2K_USE_HIP OR CP2K_USE_OPENCL)
+if(CP2K_USE_CUDA
+   OR CP2K_USE_HIP
+   OR CP2K_USE_OPENCL)
   if(CP2K_ENABLE_PW_GPU)
     list(APPEND CP2K_SRCS_GPU "pw/gpu/pw_gpu_kernels.cu")
     list(APPEND CP2K_SRCS_C ${CP2K_PW_SRCS_C})
@@ -1460,12 +1463,13 @@ if(CP2K_USE_CUDA OR CP2K_USE_HIP OR CP2K_USE_OPENCL)
     if(CP2K_USE_OPENCL)
       add_custom_target(
         CP2K_DBM_OPENCL_TARGET ALL
-        COMMAND ${CP2K_OPENCL_SCRIPT} -b 6 -p \"\"
-                ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_SRCS_OPENCL}
-                ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_SRCS_OPENCL}.h
+        COMMAND
+          ${CP2K_OPENCL_SCRIPT} -b 6 -p \"\"
+          ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_SRCS_OPENCL}
+          ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_SRCS_OPENCL}.h
         DEPENDS ${CP2K_OPENCL_SCRIPT} ${CP2K_OPENCL_COMMON}
                 ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_SRCS_OPENCL}
-     BYPRODUCTS ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_SRCS_OPENCL}.h)
+        BYPRODUCTS ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_SRCS_OPENCL}.h)
     endif()
     list(APPEND CP2K_DBM_SRCS_C ${CP2K_DBM_SRCS_GPU_C})
     list(APPEND CP2K_SRCS_GPU ${CP2K_DBM_SRCS_GPU})
@@ -1714,7 +1718,9 @@ target_compile_definitions(
     $<$<BOOL:${CP2K_USE_CUSOLVER_MP}>:__CUSOLVERMP>
     ${CP2K_GPU_DFLAGS})
 
-if(CP2K_USE_CUDA OR CP2K_USE_HIP OR CP2K_USE_OPENCL)
+if(CP2K_USE_CUDA
+   OR CP2K_USE_HIP
+   OR CP2K_USE_OPENCL)
   target_compile_definitions(
     cp2k
     PUBLIC $<$<NOT:$<BOOL:${CP2K_DBCSR_USE_CPU_ONLY}>>:__DBCSR_ACC>

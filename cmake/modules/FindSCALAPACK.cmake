@@ -17,13 +17,15 @@ cp2k_set_default_paths(SCALAPACK "SCALAPACK")
 # check if we have mkl as blas library or not and pick the scalapack from mkl
 # distro if found
 if(NOT CP2K_CONFIG_PACKAGE)
-  if(CP2K_SCALAPACK_VENDOR MATCHES "MKL|auto" AND TARGET cp2k::BLAS::MKL::scalapack_link)
+  if(CP2K_SCALAPACK_VENDOR MATCHES "MKL|auto"
+     AND TARGET cp2k::BLAS::MKL::scalapack_link)
     # we have mkl check for the different mkl target
     get_target_property(
       CP2K_SCALAPACK_LINK_LIBRARIES cp2k::BLAS::MKL::scalapack_link
       INTERFACE_LINK_LIBRARIES)
     set(CP2K_SCALAPACK_FOUND yes)
-  elseif(CP2K_SCALAPACK_VENDOR MATCHES "SCI|auto" AND TARGET cp2k::BLAS::SCI::scalapack_link)
+  elseif(CP2K_SCALAPACK_VENDOR MATCHES "SCI|auto"
+         AND TARGET cp2k::BLAS::SCI::scalapack_link)
     get_target_property(
       CP2K_SCALAPACK_LINK_LIBRARIES cp2k::BLAS::SCI::scalapack_link
       INTERFACE_LINK_LIBRARIES)

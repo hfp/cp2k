@@ -775,7 +775,7 @@ message(
 )
 
 if(CP2K_USE_MPI)
-  message("  - MPI\n"
+  message("  - MPI\n" # let below line separate
           "    - include directories:  ${MPI_INCLUDE_DIRS}\n"
           "    - libraries: ${MPI_LIBRARIES}\n\n")
 
@@ -798,7 +798,8 @@ if((CP2K_USE_ACCEL MATCHES "CUDA") OR (CP2K_USE_ACCEL MATCHES "HIP"))
   message("  - Hardware Acceleration:\n")
   if(CP2K_USE_ACCEL MATCHES "CUDA")
     message(
-      "   - CUDA:\n" "     - GPU target architecture: ${CP2K_WITH_GPU}\n"
+      "   - CUDA:\n" # let below line separate
+      "     - GPU target architecture: ${CP2K_WITH_GPU}\n"
       "     - GPU architecture number: ${CP2K_ACC_ARCH_NUMBER}\n"
       "     - GPU profiling enabled: ${CP2K_WITH_CUDA_PROFILING}\n\n")
   endif()
