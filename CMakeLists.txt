@@ -805,10 +805,11 @@ if((CP2K_USE_ACCEL MATCHES "CUDA") OR (CP2K_USE_ACCEL MATCHES "HIP"))
   endif()
 
   if(CP2K_USE_ACCEL MATCHES "HIP")
-    message("   - HIP:\n" # let below line separate
-            "     - GPU target architecture: ${CP2K_WITH_GPU}\n"
-            "     - GPU architecture number: ${CP2K_ACC_ARCH_NUMBER}\n"
-            "     - FLAGS: ${CMAKE_HIP_FLAGS}")
+    message(
+      "   - HIP:\n" # let below line separate
+      "     - GPU target architecture: ${CP2K_WITH_GPU}\n"
+      "     - GPU architecture number: ${CP2K_ACC_ARCH_NUMBER}\n"
+      "     - FLAGS: ${CMAKE_HIP_FLAGS}")
   endif()
 
   message(
@@ -831,10 +832,11 @@ if(CP2K_USE_CUSOLVER_MP)
 endif()
 
 if(CP2K_USE_LIBXC)
-  message("  - LibXC\n" # let below line separate
-          "    - version:  ${Libxc_VERSION}\n"
-          "    - include directories: ${Libxc_INCLUDE_DIRS}\n"
-          "    - libraries: ${Libxc_LIBRARIES}\n\n")
+  message(
+    "  - LibXC\n" # let below line separate
+    "    - version:  ${Libxc_VERSION}\n"
+    "    - include directories: ${Libxc_INCLUDE_DIRS}\n"
+    "    - libraries: ${Libxc_LIBRARIES}\n\n")
 endif()
 
 if(CP2K_USE_LIBTORCH)
@@ -843,10 +845,11 @@ if(CP2K_USE_LIBTORCH)
 endif()
 
 if(CP2K_USE_HDF5)
-  message("  - HDF5\n" # let below line separate
-          "    - version: ${HDF5_VERSION}\n"
-          "    - include directories: ${HDF5_INCLUDE_DIRS}\n"
-          "    - libraries: ${HDF5_LIBRARIES}\n\n")
+  message(
+    "  - HDF5\n" # let below line separate
+    "    - version: ${HDF5_VERSION}\n"
+    "    - include directories: ${HDF5_INCLUDE_DIRS}\n"
+    "    - libraries: ${HDF5_LIBRARIES}\n\n")
 endif()
 
 if(CP2K_USE_FFTW3)
@@ -1030,11 +1033,12 @@ if(NOT CP2K_USE_GRPP)
   message("   - grpp")
 endif()
 
-message("\n\n" # let below line separate
-        "To run the regtests you need to run the following commands\n"
-        "\n\n cd ..\n" # let below line separate
-        " export CP2K_DATA_DIR=${CMAKE_SOURCE_DIR}/data/\n"
-        " ./tests/do_regtest.py ${cp2k_BINARY_DIR}/bin ${__cp2k_ext}\n\n")
+message(
+  "\n\n" # let below line separate
+  "To run the regtests you need to run the following commands\n"
+  "\n\n cd ..\n" # let below line separate
+  " export CP2K_DATA_DIR=${CMAKE_SOURCE_DIR}/data/\n"
+  " ./tests/do_regtest.py ${cp2k_BINARY_DIR}/bin ${__cp2k_ext}\n\n")
 
 # files needed for cmake
 
