@@ -1461,6 +1461,7 @@ if(CP2K_USE_CUDA
 
   if(CP2K_ENABLE_DBM_GPU)
     if(CP2K_USE_OPENCL)
+      # DBM-kernel: OpenCL code is packaged into string-literal (include file)
       add_custom_target(
         CP2K_DBM_OPENCL_TARGET ALL
         COMMAND

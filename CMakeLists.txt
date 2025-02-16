@@ -805,9 +805,10 @@ if((CP2K_USE_ACCEL MATCHES "CUDA") OR (CP2K_USE_ACCEL MATCHES "HIP"))
   endif()
 
   if(CP2K_USE_ACCEL MATCHES "HIP")
-    message("   - HIP:\n" "    - GPU target architecture: ${CP2K_WITH_GPU}\n"
-            "    - GPU architecture number: ${CP2K_ACC_ARCH_NUMBER}\n"
-            "    - FLAGS: ${CMAKE_HIP_FLAGS}")
+    message("   - HIP:\n" # let below line separate
+            "     - GPU target architecture: ${CP2K_WITH_GPU}\n"
+            "     - GPU architecture number: ${CP2K_ACC_ARCH_NUMBER}\n"
+            "     - FLAGS: ${CMAKE_HIP_FLAGS}")
   endif()
 
   message(
@@ -830,17 +831,20 @@ if(CP2K_USE_CUSOLVER_MP)
 endif()
 
 if(CP2K_USE_LIBXC)
-  message("  - LibXC\n" "    - VERSION:  ${Libxc_VERSION}\n"
+  message("  - LibXC\n" # let below line separate
+          "    - version:  ${Libxc_VERSION}\n"
           "    - include directories: ${Libxc_INCLUDE_DIRS}\n"
           "    - libraries: ${Libxc_LIBRARIES}\n\n")
 endif()
 
 if(CP2K_USE_LIBTORCH)
-  message("  - LIBTORCH\n" "    - libraries: ${CP2K_LIBTORCH_LIBRARIES}\n\n")
+  message("  - LIBTORCH\n" # let below line separate
+          "    - libraries: ${CP2K_LIBTORCH_LIBRARIES}\n\n")
 endif()
 
 if(CP2K_USE_HDF5)
-  message("  - HDF5\n" "   - version: ${HDF5_VERSION}\n"
+  message("  - HDF5\n" # let below line separate
+          "    - version: ${HDF5_VERSION}\n"
           "    - include directories: ${HDF5_INCLUDE_DIRS}\n"
           "    - libraries: ${HDF5_LIBRARIES}\n\n")
 endif()
@@ -866,13 +870,14 @@ if(CP2K_USE_LIBXSMM)
 endif()
 
 if(CP2K_USE_SPLA)
-  message(" - SPLA\n" "   - include directories: ${SPLA_INCLUDE_DIRS}\n"
+  message(" - SPLA\n" # let below line separate
+          "   - include directories: ${SPLA_INCLUDE_DIRS}\n"
           "   - libraries: ${SPLA_LIBRARIES}\n\n")
 endif()
 
 if(CP2K_USE_DFTD4)
   message(
-    " - DFTD4 :\n"
+    " - DFTD4\n"
     "   - include directories: ${CP2K_DFTD4_INCLUDE_DIR}\n"
     "   - libraries: ${CP2K_DFTD4_LINK_LIBRARIES};${CP2K_DFTD4_LIB_LINK_LIBRARIES}\n\n"
   )
@@ -883,7 +888,7 @@ if(CP2K_USE_DEEPMD)
 endif()
 
 if(CP2K_USE_LIBSMEAGOL)
-  message(" - LIBSMEAGOL :\n"
+  message(" - LIBSMEAGOL\n"
           "   - include directories: ${CP2K_LIBSMEAGOL_INCLUDE_DIRS}\n"
           "   - libraries: ${CP2K_LIBSMEAGOL_LINK_LIBRARIES}\n\n")
 endif()
@@ -893,7 +898,8 @@ if(CP2K_USE_SIRIUS)
 endif()
 
 if(CP2K_USE_COSMA)
-  message(" - COSMA\n" "   - include directories: ${CP2K_COSMA_INCLUDE_DIRS}\n"
+  message(" - COSMA\n" # let below line separate
+          "   - include directories: ${CP2K_COSMA_INCLUDE_DIRS}\n"
           "   - libraries: ${CP2K_COSMA_LINK_LIBRARIES}\n\n")
 endif()
 
@@ -910,7 +916,8 @@ if(CP2K_USE_VORI)
 endif()
 
 if(CP2K_USE_ELPA)
-  message(" - ELPA\n" "   - include directories: ${CP2K_ELPA_INCLUDE_DIRS}\n"
+  message(" - ELPA\n" # let below line separate
+          "   - include directories: ${CP2K_ELPA_INCLUDE_DIRS}\n"
           "   - libraries: ${CP2K_ELPA_LINK_LIBRARIES}\n\n")
 endif()
 
@@ -921,7 +928,8 @@ if(CP2K_USE_DLAF)
 endif()
 
 if(CP2K_USE_GRPP)
-  message(" - grpp\n" "   - include directories: ${GRPP_INCLUDE_DIRS}\n"
+  message(" - grpp\n" # let below line separate
+          "   - include directories: ${GRPP_INCLUDE_DIRS}\n"
           "   - libraries: ${GRPP_LINK_LIBRARIES}\n\n")
 endif()
 
@@ -1022,8 +1030,10 @@ if(NOT CP2K_USE_GRPP)
   message("   - grpp")
 endif()
 
-message("\n\n" "To run the regtests you need to run the following commands\n"
-        "\n\n cd ..\n" " export CP2K_DATA_DIR=${CMAKE_SOURCE_DIR}/data/\n"
+message("\n\n" # let below line separate
+        "To run the regtests you need to run the following commands\n"
+        "\n\n cd ..\n" # let below line separate
+        " export CP2K_DATA_DIR=${CMAKE_SOURCE_DIR}/data/\n"
         " ./tests/do_regtest.py ${cp2k_BINARY_DIR}/bin ${__cp2k_ext}\n\n")
 
 # files needed for cmake
