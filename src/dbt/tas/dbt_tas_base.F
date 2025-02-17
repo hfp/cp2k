@@ -464,14 +464,14 @@ CONTAINS
       INTEGER, INTENT(OUT)                               :: processor
 
       INTEGER, DIMENSION(2)                              :: pcoord
-      INTEGER                                            :: pdim2
+      TYPE(dbt_tas_split_info)                           :: info
 
       pcoord(1) = matrix%dist%row_dist%dist(row)
       pcoord(2) = matrix%dist%col_dist%dist(column)
-      pdim2 = dbt_tas_info(matrix)%pdims(2)
+      info = dbt_tas_info(matrix)
 
       ! workaround for inefficient mpi_cart_rank
-      processor = pcoord(1)*pdim2 + pcoord(2)
+      processor = pcoord(1)*info%pdims(2) + pcoord(2)
 
    END SUBROUTINE
 
