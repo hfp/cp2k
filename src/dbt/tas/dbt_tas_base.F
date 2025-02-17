@@ -822,10 +822,10 @@ CONTAINS
 !> \author Patrick Seewald
 ! **************************************************************************************************
    FUNCTION dbt_tas_info(matrix)
-      TYPE(dbt_tas_type), INTENT(IN)                     :: matrix
-      TYPE(dbt_tas_split_info)                           :: dbt_tas_info
+      TYPE(dbt_tas_type), TARGET, INTENT(IN)             :: matrix
+      TYPE(dbt_tas_split_info), POINTER                  :: dbt_tas_info
 
-      dbt_tas_info = matrix%dist%info
+      dbt_tas_info => matrix%dist%info
    END FUNCTION
 
 ! **************************************************************************************************
