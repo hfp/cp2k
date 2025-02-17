@@ -120,10 +120,10 @@ CONTAINS
       CHARACTER(len=*), INTENT(IN)                       :: name
       TYPE(dbt_tas_distribution_type), INTENT(INOUT)     :: dist
 
-      CLASS(dbt_tas_rowcol_data), INTENT(IN)       :: row_blk_size, col_blk_size
+      CLASS(dbt_tas_rowcol_data), INTENT(IN)         :: row_blk_size, col_blk_size
       LOGICAL, INTENT(IN), OPTIONAL                  :: own_dist
 
-      TYPE(dbt_tas_split_info)                     :: info
+      TYPE(dbt_tas_split_info)                       :: info
 
       INTEGER, DIMENSION(:), POINTER, CONTIGUOUS     :: row_blk_size_vec, col_blk_size_vec
       INTEGER                                        :: nrows, ncols, irow, col, icol, row
@@ -464,14 +464,14 @@ CONTAINS
       INTEGER, INTENT(OUT)                               :: processor
 
       INTEGER, DIMENSION(2)                              :: pcoord
-      TYPE(dbt_tas_split_info)                           :: info
+      INTEGER                                            :: pdim2
 
       pcoord(1) = matrix%dist%row_dist%dist(row)
       pcoord(2) = matrix%dist%col_dist%dist(column)
-      info = dbt_tas_info(matrix)
+      pdim2 = dbt_tas_info(matrix)%pdims(2)
 
       ! workaround for inefficient mpi_cart_rank
-      processor = pcoord(1)*info%pdims(2) + pcoord(2)
+      processor = pcoord(1)*pdim2 + pcoord(2)
 
    END SUBROUTINE
 
@@ -751,12 +751,15 @@ CONTAINS
 
       INTEGER                                            :: handle, i
       INTEGER, DIMENSION(SIZE(rows))                     :: columns_group, rows_group
+      TYPE(dbt_tas_split_info)                           :: info
 
       CALL timeset(routineN, handle)
 
+      info = dbt_tas_info(matrix)
+
       CPASSERT(SIZE(rows) == SIZE(columns))
       DO i = 1, SIZE(rows)
-         CALL dbt_index_global_to_local(dbt_tas_info(matrix), matrix%dist, &
+         CALL dbt_index_global_to_local(info, matrix%dist, &
                                         row=rows(i), row_group=rows_group(i), &
                                         column=columns(i), column_group=columns_group(i))
       END DO
