@@ -123,7 +123,7 @@ CONTAINS
       CLASS(dbt_tas_rowcol_data), INTENT(IN)         :: row_blk_size, col_blk_size
       LOGICAL, INTENT(IN), OPTIONAL                  :: own_dist
 
-      TYPE(dbt_tas_split_info)                       :: info
+      TYPE(dbt_tas_split_info), POINTER              :: info
 
       INTEGER, DIMENSION(:), POINTER, CONTIGUOUS     :: row_blk_size_vec, col_blk_size_vec
       INTEGER                                        :: nrows, ncols, irow, col, icol, row
@@ -464,7 +464,7 @@ CONTAINS
       INTEGER, INTENT(OUT)                               :: processor
 
       INTEGER, DIMENSION(2)                              :: pcoord
-      TYPE(dbt_tas_split_info)                           :: info
+      TYPE(dbt_tas_split_info), POINTER                  :: info
 
       pcoord(1) = matrix%dist%row_dist%dist(row)
       pcoord(2) = matrix%dist%col_dist%dist(column)
@@ -751,7 +751,7 @@ CONTAINS
 
       INTEGER                                            :: handle, i
       INTEGER, DIMENSION(SIZE(rows))                     :: columns_group, rows_group
-      TYPE(dbt_tas_split_info)                           :: info
+      TYPE(dbt_tas_split_info), POINTER                  :: info
 
       CALL timeset(routineN, handle)
 
