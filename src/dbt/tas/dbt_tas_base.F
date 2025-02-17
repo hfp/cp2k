@@ -145,7 +145,7 @@ CONTAINS
       ALLOCATE (matrix%row_blk_size, source=row_blk_size)
       ALLOCATE (matrix%col_blk_size, source=col_blk_size)
 
-      info = dbt_tas_info(matrix)
+      info => dbt_tas_info(matrix)
 
       SELECT CASE (info%split_rowcol)
       CASE (rowsplit)
@@ -468,7 +468,7 @@ CONTAINS
 
       pcoord(1) = matrix%dist%row_dist%dist(row)
       pcoord(2) = matrix%dist%col_dist%dist(column)
-      info = dbt_tas_info(matrix)
+      info => dbt_tas_info(matrix)
 
       ! workaround for inefficient mpi_cart_rank
       processor = pcoord(1)*info%pdims(2) + pcoord(2)
@@ -755,7 +755,7 @@ CONTAINS
 
       CALL timeset(routineN, handle)
 
-      info = dbt_tas_info(matrix)
+      info => dbt_tas_info(matrix)
 
       CPASSERT(SIZE(rows) == SIZE(columns))
       DO i = 1, SIZE(rows)
