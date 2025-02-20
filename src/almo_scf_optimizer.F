@@ -43,9 +43,9 @@ MODULE almo_scf_optimizer
         dbcsr_distribution_get, dbcsr_distribution_type, dbcsr_dot, dbcsr_filter, dbcsr_finalize, &
         dbcsr_get_block_p, dbcsr_get_diag, dbcsr_get_info, dbcsr_iterator_blocks_left, &
         dbcsr_iterator_next_block, dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, &
-        dbcsr_multiply, dbcsr_nblkcols_total, dbcsr_nblkrows_total, dbcsr_p_type, &
-        dbcsr_print_block_sum, dbcsr_release, dbcsr_reserve_block2d, dbcsr_scale, dbcsr_set, &
-        dbcsr_set_diag, dbcsr_type, dbcsr_type_no_symmetry, dbcsr_work_create
+        dbcsr_multiply, dbcsr_p_type, dbcsr_print_block_sum, dbcsr_put_block, dbcsr_release, &
+        dbcsr_scale, dbcsr_set, dbcsr_set_diag, dbcsr_type, dbcsr_type_no_symmetry, &
+        dbcsr_work_create
    USE cp_dbcsr_cholesky,               ONLY: cp_dbcsr_cholesky_decompose,&
                                               cp_dbcsr_cholesky_invert,&
                                               cp_dbcsr_cholesky_restore
@@ -3217,7 +3217,7 @@ CONTAINS
       INTEGER                                            :: discarded_v, handle, iblock_col, &
                                                             iblock_col_size, iblock_row, &
                                                             iblock_row_size, ispin, retained_v
-      REAL(kind=dp), DIMENSION(:, :), POINTER            :: data_p, p_new_block
+      REAL(kind=dp), DIMENSION(:, :), POINTER            :: data_p
       TYPE(dbcsr_iterator_type)                          :: iter
 
       CALL timeset(routineN, handle)
@@ -3244,19 +3244,10 @@ CONTAINS
             discarded_v = almo_scf_env%nvirt_disc_of_domain(iblock_col, ispin)
             CPASSERT(retained_v .GT. 0)
             CPASSERT(discarded_v .GT. 0)
-
-            NULLIFY (p_new_block)
-            CALL dbcsr_reserve_block2d(almo_scf_env%matrix_v_disc_blk(ispin), &
-                                       iblock_row, iblock_col, p_new_block)
-            CPASSERT(ASSOCIATED(p_new_block))
-            CPASSERT(retained_v + discarded_v .EQ. iblock_col_size)
-            p_new_block(:, :) = data_p(:, (retained_v + 1):iblock_col_size)
-
-            NULLIFY (p_new_block)
-            CALL dbcsr_reserve_block2d(almo_scf_env%matrix_v_blk(ispin), &
-                                       iblock_row, iblock_col, p_new_block)
-            CPASSERT(ASSOCIATED(p_new_block))
-            p_new_block(:, :) = data_p(:, 1:retained_v)
+            CALL dbcsr_put_block(almo_scf_env%matrix_v_disc_blk(ispin), iblock_row, iblock_col, &
+                                 block=data_p(:, (retained_v + 1):iblock_col_size))
+            CALL dbcsr_put_block(almo_scf_env%matrix_v_blk(ispin), iblock_row, iblock_col, &
+                                 block=data_p(:, 1:retained_v))
 
          END DO ! iterator
          CALL dbcsr_iterator_stop(iter)
@@ -5635,10 +5626,7 @@ CONTAINS
 !!      END IF
 !!
 !!      ! copy right singular vectors into a unitary matrix
-!!      NULLIFY (p_new_block)
-!!      CALL dbcsr_reserve_block2d(temp_u_v_full_blk,iblock_col,iblock_col,p_new_block)
-!!      CPASSERT(ASSOCIATED(p_new_block))
-!!      p_new_block(:,:) = right_vectors(:,:)
+!!      CALL dbcsr_put_block(temp_u_v_full_blk,iblock_col,iblock_col,right_vectors)
 !!
 !!      deallocate(eigenvalues)
 !!      deallocate(data_copy)
@@ -5911,13 +5899,8 @@ CONTAINS
 !
 !          retained_v=almo_scf_env%nvirt_of_domain(iblock_col,ispin)
 !
-!          NULLIFY (p_new_block)
-!          !CALL dbcsr_reserve_block2d(almo_scf_env%matrix_v_blk(ispin),&
-!          CALL dbcsr_reserve_block2d(almo_scf_env%matrix_v(ispin),&
-!                  iblock_row,iblock_col,p_new_block)
-!          CPASSERT(ASSOCIATED(p_new_block))
+!          CALL dbcsr_put_block(almo_scf_env%matrix_v(ispin), iblock_row,iblock_col,data_p(:,1:retained_v))
 !          CPASSERT(retained_v.gt.0)
-!          p_new_block(:,:) = data_p(:,1:retained_v)
 !
 !       ENDDO ! iterator
 !       CALL dbcsr_iterator_stop(iter)
@@ -6388,11 +6371,9 @@ CONTAINS
          CPABORT("mathematica files: serial code only")
       END IF
 
-      nblkrows_tot = dbcsr_nblkrows_total(matrix)
-      nblkcols_tot = dbcsr_nblkcols_total(matrix)
+      CALL dbcsr_get_info(matrix, row_blk_size=ao_blk_sizes, col_blk_size=mo_blk_sizes, &
+                          nblkrows_total=nblkrows_tot, nblkcols_total=nblkcols_tot)
       CPASSERT(nblkrows_tot == nblkcols_tot)
-      CALL dbcsr_get_info(matrix, row_blk_size=ao_blk_sizes)
-      CALL dbcsr_get_info(matrix, col_blk_size=mo_blk_sizes)
       ALLOCATE (mo_block_sizes(nblkcols_tot), ao_block_sizes(nblkcols_tot))
       mo_block_sizes(:) = mo_blk_sizes(:)
       ao_block_sizes(:) = ao_blk_sizes(:)
@@ -8341,8 +8322,9 @@ CONTAINS
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: eigenvalues, Grad_vec, Step_vec, tmp, &
                                                             tmpr, work
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: F_ao_block, F_mo_block, H, Hinv, &
-                                                            S_ao_block, S_mo_block, test, test2
-      REAL(KIND=dp), DIMENSION(:, :), POINTER            :: block_p, p_new_block
+                                                            new_block, S_ao_block, S_mo_block, &
+                                                            test, test2
+      REAL(KIND=dp), DIMENSION(:, :), POINTER            :: block_p
       TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(dbcsr_distribution_type)                      :: main_dist
       TYPE(dbcsr_type)                                   :: matrix_F_ao_sym, matrix_F_mo_sym, &
@@ -8375,11 +8357,9 @@ CONTAINS
          CPABORT("serial code only")
       END IF
 
-      nblkrows_tot = dbcsr_nblkrows_total(quench_t)
-      nblkcols_tot = dbcsr_nblkcols_total(quench_t)
+      CALL dbcsr_get_info(quench_t, row_blk_size=ao_blk_sizes, col_blk_size=mo_blk_sizes, &
+                          nblkrows_total=nblkrows_tot, nblkcols_total=nblkcols_tot)
       CPASSERT(nblkrows_tot == nblkcols_tot)
-      CALL dbcsr_get_info(quench_t, row_blk_size=ao_blk_sizes)
-      CALL dbcsr_get_info(quench_t, col_blk_size=mo_blk_sizes)
       ALLOCATE (mo_block_sizes(nblkcols_tot), ao_block_sizes(nblkcols_tot))
       ALLOCATE (ao_domain_sizes(nblkcols_tot))
       mo_block_sizes(:) = mo_blk_sizes(:)
@@ -8972,19 +8952,16 @@ CONTAINS
             CALL dbcsr_get_block_p(quench_t, &
                                    row, col, block_p, found_row)
             IF (found_row) THEN
-
-               NULLIFY (p_new_block)
-               CALL dbcsr_reserve_block2d(matrix_step, row, col, p_new_block)
-               CPASSERT(ASSOCIATED(p_new_block))
                ! copy the data column by column
+               ALLOCATE (new_block(ao_block_sizes(row), mo_block_sizes(col)))
                DO orb_i = 1, mo_block_sizes(col)
-                  p_new_block(:, orb_i) = &
+                  new_block(:, orb_i) = &
                      Step_vec(lev1_vert_offset + ao_domain_sizes(col)*(orb_i - 1) + lev2_vert_offset + 1: &
                               lev1_vert_offset + ao_domain_sizes(col)*(orb_i - 1) + lev2_vert_offset + ao_block_sizes(row))
                END DO
-
+               CALL dbcsr_put_block(matrix_step, row, col, new_block)
+               DEALLOCATE (new_block)
                lev2_vert_offset = lev2_vert_offset + ao_block_sizes(row)
-
             END IF
 
          END DO

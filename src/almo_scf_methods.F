@@ -21,12 +21,12 @@ MODULE almo_scf_methods
    USE cp_blacs_env,                    ONLY: cp_blacs_env_type
    USE cp_dbcsr_api,                    ONLY: &
         dbcsr_add, dbcsr_add_on_diag, dbcsr_copy, dbcsr_create, dbcsr_distribution_get, &
-        dbcsr_distribution_type, dbcsr_filter, dbcsr_finalize, dbcsr_get_block_p, dbcsr_get_diag, &
-        dbcsr_get_info, dbcsr_get_stored_coordinates, dbcsr_iterator_blocks_left, &
-        dbcsr_iterator_next_block, dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, &
-        dbcsr_multiply, dbcsr_nblkcols_total, dbcsr_nblkrows_total, dbcsr_print, dbcsr_release, &
-        dbcsr_reserve_block2d, dbcsr_scale_by_vector, dbcsr_set, dbcsr_set_diag, dbcsr_transposed, &
-        dbcsr_type, dbcsr_type_no_symmetry, dbcsr_type_symmetric, dbcsr_work_create
+        dbcsr_distribution_type, dbcsr_filter, dbcsr_finalize, dbcsr_get_diag, dbcsr_get_info, &
+        dbcsr_iterator_blocks_left, dbcsr_iterator_next_block, dbcsr_iterator_start, &
+        dbcsr_iterator_stop, dbcsr_iterator_type, dbcsr_multiply, dbcsr_print, dbcsr_put_block, &
+        dbcsr_release, dbcsr_reserve_all_blocks, dbcsr_reserve_diag_blocks, dbcsr_scale_by_vector, &
+        dbcsr_set, dbcsr_set_diag, dbcsr_transposed, dbcsr_type, dbcsr_type_no_symmetry, &
+        dbcsr_type_symmetric, dbcsr_work_create
    USE cp_dbcsr_cholesky,               ONLY: cp_dbcsr_cholesky_decompose,&
                                               cp_dbcsr_cholesky_invert
    USE cp_dbcsr_contrib,                ONLY: dbcsr_frobenius_norm,&
@@ -94,38 +94,10 @@ CONTAINS
 !> \author Rustam Z Khaliullin
 ! **************************************************************************************************
    SUBROUTINE fill_matrix_with_ones(matrix)
-
       TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
 
-      INTEGER                                            :: col, hold, iblock_col, iblock_row, &
-                                                            mynode, nblkcols_tot, nblkrows_tot, row
-      LOGICAL                                            :: tr
-      REAL(KIND=dp), DIMENSION(:, :), POINTER            :: p_new_block
-      TYPE(dbcsr_distribution_type)                      :: dist
-
-      CALL dbcsr_get_info(matrix, distribution=dist)
-      CALL dbcsr_distribution_get(dist, mynode=mynode)
-      CALL dbcsr_work_create(matrix, work_mutable=.TRUE.)
-      nblkrows_tot = dbcsr_nblkrows_total(matrix)
-      nblkcols_tot = dbcsr_nblkcols_total(matrix)
-      DO row = 1, nblkrows_tot
-         DO col = 1, nblkcols_tot
-            tr = .FALSE.
-            iblock_row = row
-            iblock_col = col
-            CALL dbcsr_get_stored_coordinates(matrix, &
-                                              iblock_row, iblock_col, hold)
-            IF (hold .EQ. mynode) THEN
-               NULLIFY (p_new_block)
-               CALL dbcsr_reserve_block2d(matrix, &
-                                          iblock_row, iblock_col, p_new_block)
-               CPASSERT(ASSOCIATED(p_new_block))
-               p_new_block(:, :) = 1.0_dp
-            END IF
-         END DO
-      END DO
-      CALL dbcsr_finalize(matrix)
-
+      CALL dbcsr_reserve_all_blocks(matrix)
+      CALL dbcsr_set(matrix, 1.0_dp)
    END SUBROUTINE fill_matrix_with_ones
 
 ! **************************************************************************************************
@@ -155,7 +127,7 @@ CONTAINS
 
       DO ispin = 1, almo_scf_env%nspins
 
-         ndomains = dbcsr_nblkcols_total(almo_scf_env%quench_t(ispin))
+         CALL dbcsr_get_info(almo_scf_env%quench_t(ispin), nblkcols_total=ndomains)
 
          ! 0. Create KS_xx
          CALL construct_submatrices( &
@@ -922,8 +894,8 @@ CONTAINS
                                                             nocc_of_block, nvirt_of_block, orbital
       LOGICAL                                            :: block_needed
       REAL(kind=dp), ALLOCATABLE, DIMENSION(:)           :: eigenvalues, work
-      REAL(kind=dp), ALLOCATABLE, DIMENSION(:, :)        :: data_copy
-      REAL(kind=dp), DIMENSION(:, :), POINTER            :: data_p, p_new_block
+      REAL(kind=dp), ALLOCATABLE, DIMENSION(:, :)        :: data_copy, new_block
+      REAL(kind=dp), DIMENSION(:, :), POINTER            :: data_p
       TYPE(dbcsr_iterator_type)                          :: iter
       TYPE(dbcsr_type)                                   :: matrix_ks_blk_orthog, &
                                                             matrix_t_blk_orthog, matrix_tmp, &
@@ -1006,18 +978,16 @@ CONTAINS
                ! copy eigenvectors into two dbcsr matrices - occupied and virtuals
                nocc_of_block = almo_scf_env%nocc_of_domain(iblock_col, ispin)
                IF (nocc_of_block .GT. 0) THEN
-                  NULLIFY (p_new_block)
-                  CALL dbcsr_reserve_block2d(matrix_t_blk_orthog, iblock_row, iblock_col, p_new_block)
-                  CPASSERT(ASSOCIATED(p_new_block))
-                  p_new_block(:, :) = data_copy(:, 1:nocc_of_block)
+                  CALL dbcsr_put_block(matrix_t_blk_orthog, iblock_row, iblock_col, &
+                                       block=data_copy(:, 1:nocc_of_block))
                   ! copy eigenvalues into diagonal dbcsr matrix - Eoo
-                  NULLIFY (p_new_block)
-                  CALL dbcsr_reserve_block2d(almo_scf_env%matrix_eoo(ispin), iblock_row, iblock_col, p_new_block)
-                  CPASSERT(ASSOCIATED(p_new_block))
-                  p_new_block(:, :) = 0.0_dp
+                  ALLOCATE (new_block(nocc_of_block, nocc_of_block))
+                  new_block(:, :) = 0.0_dp
                   DO orbital = 1, nocc_of_block
-                     p_new_block(orbital, orbital) = eigenvalues(orbital)
+                     new_block(orbital, orbital) = eigenvalues(orbital)
                   END DO
+                  CALL dbcsr_put_block(almo_scf_env%matrix_eoo(ispin), iblock_row, iblock_col, new_block)
+                  DEALLOCATE (new_block)
                   !! Retrieve occupied MOs energies for smearing purpose, if requested
                   !! RS-WARNING: Hack to retrieve the occupied energies, since matrix_eoo seems to be ill-defined
                   !!             for multiprocessing (any idea for fix?)
@@ -1036,18 +1006,16 @@ CONTAINS
                ! now virtuals
                nvirt_of_block = almo_scf_env%nvirt_of_domain(iblock_col, ispin)
                IF (nvirt_of_block .GT. 0) THEN
-                  NULLIFY (p_new_block)
-                  CALL dbcsr_reserve_block2d(matrix_v_blk_orthog, iblock_row, iblock_col, p_new_block)
-                  CPASSERT(ASSOCIATED(p_new_block))
-                  p_new_block(:, :) = data_copy(:, (nocc_of_block + 1):(nocc_of_block + nvirt_of_block))
+                  CALL dbcsr_put_block(matrix_v_blk_orthog, iblock_row, iblock_col, &
+                                       block=data_copy(:, (nocc_of_block + 1):(nocc_of_block + nvirt_of_block)))
                   ! virtual energies
-                  NULLIFY (p_new_block)
-                  CALL dbcsr_reserve_block2d(almo_scf_env%matrix_evv_full(ispin), iblock_row, iblock_col, p_new_block)
-                  CPASSERT(ASSOCIATED(p_new_block))
-                  p_new_block(:, :) = 0.0_dp
+                  ALLOCATE (new_block(nvirt_of_block, nvirt_of_block))
+                  new_block(:, :) = 0.0_dp
                   DO orbital = 1, nvirt_of_block
-                     p_new_block(orbital, orbital) = eigenvalues(nocc_of_block + orbital)
+                     new_block(orbital, orbital) = eigenvalues(nocc_of_block + orbital)
                   END DO
+                  CALL dbcsr_put_block(almo_scf_env%matrix_evv_full(ispin), iblock_row, iblock_col, new_block)
+                  DEALLOCATE (new_block)
                END IF
 
                DEALLOCATE (WORK)
@@ -1113,7 +1081,7 @@ CONTAINS
       INTEGER                                            :: handle, iblock_col, iblock_row, &
                                                             iblock_size, methodID
       REAL(kind=dp), ALLOCATABLE, DIMENSION(:, :)        :: data_copy
-      REAL(kind=dp), DIMENSION(:, :), POINTER            :: data_p, p_new_block
+      REAL(kind=dp), DIMENSION(:, :), POINTER            :: data_p
       TYPE(dbcsr_iterator_type)                          :: iter
 
       CALL timeset(routineN, handle)
@@ -1144,13 +1112,8 @@ CONTAINS
             !!! IT IS EXTREMELY IMPORTANT THAT THE BLOCKS OF THE "OUT"  !!!
             !!! MATRIX ARE DISTRIBUTED AS THE BLOCKS OF THE "IN" MATRIX !!!
 
-            NULLIFY (p_new_block)
-            CALL dbcsr_reserve_block2d(matrix_out, iblock_row, iblock_col, p_new_block)
-            CPASSERT(ASSOCIATED(p_new_block))
-            p_new_block(:, :) = data_copy(:, :)
-
+            CALL dbcsr_put_block(matrix_out, iblock_row, iblock_col, data_copy)
             DEALLOCATE (data_copy)
-
          END IF
 
       END DO
@@ -1183,7 +1146,7 @@ CONTAINS
       LOGICAL                                            :: block_needed
       REAL(kind=dp), ALLOCATABLE, DIMENSION(:)           :: eigenvalues, work
       REAL(kind=dp), ALLOCATABLE, DIMENSION(:, :)        :: data_copy
-      REAL(kind=dp), DIMENSION(:, :), POINTER            :: data_p, p_new_block
+      REAL(kind=dp), DIMENSION(:, :), POINTER            :: data_p
       TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(dbcsr_iterator_type)                          :: iter
       TYPE(dbcsr_type)                                   :: matrix_t_blk_tmp
@@ -1251,14 +1214,10 @@ CONTAINS
                !!! P AND T MATRICES ARE LOCATED ON THE SAME NODES            !!!
 
                ! copy eigenvectors into two dbcsr matrices - occupied and virtuals
-               NULLIFY (p_new_block)
-               CALL dbcsr_reserve_block2d(matrix_t_blk_tmp, &
-                                          iblock_row, iblock_col, p_new_block)
-               nocc_of_block = SIZE(p_new_block, 2)
-               CPASSERT(ASSOCIATED(p_new_block))
-               CPASSERT(nocc_of_block .GT. 0)
-               p_new_block(:, :) = data_copy(:, iblock_size - nocc_of_block + 1:)
-
+               nocc_of_block = almo_scf_env%nocc_of_domain(iblock_col, ispin)
+               CPASSERT(nocc_of_block > 0)
+               CALL dbcsr_put_block(matrix_t_blk_tmp, iblock_row, iblock_col, &
+                                    block=data_copy(:, iblock_size - nocc_of_block + 1:))
                DEALLOCATE (WORK)
                DEALLOCATE (data_copy)
                DEALLOCATE (eigenvalues)
@@ -1793,40 +1752,20 @@ CONTAINS
       INTEGER, DIMENSION(:), INTENT(IN)                  :: nocc_of_domain
       REAL(KIND=dp), INTENT(IN)                          :: value
 
-      INTEGER                                            :: hold, iblock_col, iblock_row, mynode, &
-                                                            nblkrows_tot, row
-      LOGICAL                                            :: found, tr
-      REAL(KIND=dp), DIMENSION(:, :), POINTER            :: p_new_block
-      TYPE(dbcsr_distribution_type)                      :: dist
+      INTEGER                                            :: col, row
+      REAL(KIND=dp), DIMENSION(:, :), POINTER            :: block
+      TYPE(dbcsr_iterator_type)                          :: iter
 
-      CALL dbcsr_get_info(matrix, distribution=dist)
-      CALL dbcsr_distribution_get(dist, mynode=mynode)
-      !mynode = dbcsr_mp_mynode(dbcsr_distribution_mp(dbcsr_distribution(matrix)))
-      CALL dbcsr_work_create(matrix, work_mutable=.TRUE.)
+      CALL dbcsr_reserve_diag_blocks(matrix)
 
-      nblkrows_tot = dbcsr_nblkrows_total(matrix)
-
-      DO row = 1, nblkrows_tot
-         IF (nocc_of_domain(row) == 0) THEN
-            tr = .FALSE.
-            iblock_row = row
-            iblock_col = row
-            CALL dbcsr_get_stored_coordinates(matrix, iblock_row, iblock_col, hold)
-            IF (hold .EQ. mynode) THEN
-               NULLIFY (p_new_block)
-               CALL dbcsr_get_block_p(matrix, iblock_row, iblock_col, p_new_block, found)
-               IF (found) THEN
-                  p_new_block(1, 1) = value
-               ELSE
-                  CALL dbcsr_reserve_block2d(matrix, iblock_row, iblock_col, p_new_block)
-                  CPASSERT(ASSOCIATED(p_new_block))
-                  p_new_block(1, 1) = value
-               END IF
-            END IF ! mynode
-         END IF !zero-electron block
+      CALL dbcsr_iterator_start(iter, matrix)
+      DO WHILE (dbcsr_iterator_blocks_left(iter))
+         CALL dbcsr_iterator_next_block(iter, row, col, block)
+         IF (row == col .AND. nocc_of_domain(row) == 0) THEN
+            block(1, 1) = value
+         END IF
       END DO
-
-      CALL dbcsr_finalize(matrix)
+      CALL dbcsr_iterator_stop(iter)
 
    END SUBROUTINE set_zero_electron_blocks_in_mo_mo_matrix
 
@@ -2150,7 +2089,7 @@ CONTAINS
          CPABORT("TRIMMER MATRIX IS REQUIRED")
       END IF
 
-      ndomains = dbcsr_nblkcols_total(dpattern)
+      CALL dbcsr_get_info(dpattern, nblkcols_total=ndomains)
 
       ALLOCATE (subm_in(ndomains))
       ALLOCATE (subm_temp(ndomains))
@@ -2487,7 +2426,7 @@ CONTAINS
 
       CALL timeset(routineN, handle)
 
-      ndomains = dbcsr_nblkcols_total(dpattern)
+      CALL dbcsr_get_info(dpattern, nblkcols_total=ndomains)
       CPASSERT(SIZE(subm_s_sqrt) .EQ. ndomains)
       CPASSERT(SIZE(subm_s_sqrt_inv) .EQ. ndomains)
       ALLOCATE (subm_s(ndomains))
@@ -2559,7 +2498,7 @@ CONTAINS
 
       CALL timeset(routineN, handle)
 
-      ndomains = dbcsr_nblkcols_total(dpattern)
+      CALL dbcsr_get_info(dpattern, nblkcols_total=ndomains)
 
       CPASSERT(SIZE(subm_s_inv) .EQ. ndomains)
       ALLOCATE (subm_s(ndomains))
@@ -2650,7 +2589,7 @@ CONTAINS
       CALL dbcsr_release(m_tmp_no_1)
       CALL dbcsr_release(m_tmp_no_2)
 
-      ndomains = dbcsr_nblkcols_total(dpattern)
+      CALL dbcsr_get_info(dpattern, nblkcols_total=ndomains)
       CPASSERT(SIZE(subm_r_down) .EQ. ndomains)
 
       CALL construct_submatrices(matrix_r, subm_r_down, &
@@ -3221,8 +3160,7 @@ CONTAINS
 
       CALL timeset(routineN, handle)
 
-      ndomains = dbcsr_nblkcols_total(dpattern)
-      CALL dbcsr_get_info(dpattern, group=group)
+      CALL dbcsr_get_info(dpattern, group=group, nblkcols_total=ndomains)
 
       ALLOCATE (subm_no(ndomains), subm_nn(ndomains))
       CALL init_submatrices(subm_no)

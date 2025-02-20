@@ -49,11 +49,10 @@ MODULE almo_scf
    USE cp_control_types,                ONLY: dft_control_type
    USE cp_dbcsr_api,                    ONLY: &
         dbcsr_add, dbcsr_add_on_diag, dbcsr_binary_read, dbcsr_checksum, dbcsr_copy, dbcsr_create, &
-        dbcsr_distribution_get, dbcsr_distribution_type, dbcsr_filter, dbcsr_finalize, &
-        dbcsr_get_info, dbcsr_get_stored_coordinates, dbcsr_iterator_blocks_left, &
-        dbcsr_iterator_next_block, dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, &
-        dbcsr_multiply, dbcsr_nblkcols_total, dbcsr_nblkrows_total, dbcsr_p_type, dbcsr_release, &
-        dbcsr_reserve_block2d, dbcsr_scale, dbcsr_set, dbcsr_type, dbcsr_type_no_symmetry, &
+        dbcsr_distribution_type, dbcsr_filter, dbcsr_finalize, dbcsr_get_info, &
+        dbcsr_iterator_blocks_left, dbcsr_iterator_next_block, dbcsr_iterator_start, &
+        dbcsr_iterator_stop, dbcsr_iterator_type, dbcsr_multiply, dbcsr_p_type, dbcsr_release, &
+        dbcsr_reserve_all_blocks, dbcsr_scale, dbcsr_set, dbcsr_type, dbcsr_type_no_symmetry, &
         dbcsr_type_symmetric, dbcsr_work_create
    USE cp_dbcsr_contrib,                ONLY: dbcsr_init_random
    USE cp_dbcsr_diag,                   ONLY: cp_dbcsr_syevd
@@ -227,10 +226,9 @@ CONTAINS
 
       ! copy basic quantities
       almo_scf_env%nspins = dft_control%nspins
-      almo_scf_env%natoms = dbcsr_nblkrows_total(matrix_s(1)%matrix)
       almo_scf_env%nmolecules = SIZE(molecule_set)
-      CALL dbcsr_get_info(matrix_s(1)%matrix, nfullrows_total=naos)
-      almo_scf_env%naos = naos
+      CALL dbcsr_get_info(matrix_s(1)%matrix, &
+                          nfullrows_total=almo_scf_env%naos, nblkrows_total=almo_scf_env%natoms)
 
       !! retrieve smearing parameters, and check compatibility of methods requested
       almo_scf_env%smear = dft_control%smear
@@ -255,6 +253,7 @@ CONTAINS
       nspins = almo_scf_env%nspins
       nmols = almo_scf_env%nmolecules
       natoms = almo_scf_env%natoms
+      naos = almo_scf_env%naos
 
       ! Define groups: either atomic or molecular
       IF (almo_scf_env%domain_layout_mos == almo_domain_layout_molecular) THEN
@@ -1360,14 +1359,9 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'almo_scf_delocalization'
 
-      INTEGER                                            :: col, handle, hold, iblock_col, &
-                                                            iblock_row, ispin, mynode, &
-                                                            nblkcols_tot, nblkrows_tot, row, &
-                                                            unit_nr
-      LOGICAL                                            :: almo_experimental, tr
-      REAL(KIND=dp), DIMENSION(:, :), POINTER            :: p_new_block
+      INTEGER                                            :: handle, ispin, unit_nr
+      LOGICAL                                            :: almo_experimental
       TYPE(cp_logger_type), POINTER                      :: logger
-      TYPE(dbcsr_distribution_type)                      :: dist
       TYPE(dbcsr_type), ALLOCATABLE, DIMENSION(:)        :: no_quench
       TYPE(optimizer_options_type)                       :: arbitrary_optimizer
 
@@ -1401,33 +1395,8 @@ CONTAINS
          CALL dbcsr_create(no_quench(1), &
                            template=almo_scf_env%matrix_t(1), &
                            matrix_type=dbcsr_type_no_symmetry)
-         CALL dbcsr_get_info(no_quench(1), distribution=dist)
-         CALL dbcsr_distribution_get(dist, mynode=mynode)
-         CALL dbcsr_work_create(no_quench(1), &
-                                work_mutable=.TRUE.)
-         nblkrows_tot = dbcsr_nblkrows_total(no_quench(1))
-         nblkcols_tot = dbcsr_nblkcols_total(no_quench(1))
-         ! RZK-warning: is it a quadratic-scaling routine?
-         ! As a matter of fact it is! But this block treats
-         ! fully delocalized MOs. So it is unavoidable.
-         ! C'est la vie
-         DO row = 1, nblkrows_tot
-            DO col = 1, nblkcols_tot
-               tr = .FALSE.
-               iblock_row = row
-               iblock_col = col
-               CALL dbcsr_get_stored_coordinates(no_quench(1), &
-                                                 iblock_row, iblock_col, hold)
-               IF (hold .EQ. mynode) THEN
-                  NULLIFY (p_new_block)
-                  CALL dbcsr_reserve_block2d(no_quench(1), &
-                                             iblock_row, iblock_col, p_new_block)
-                  CPASSERT(ASSOCIATED(p_new_block))
-                  p_new_block(:, :) = 1.0_dp
-               END IF
-            END DO
-         END DO
-         CALL dbcsr_finalize(no_quench(1))
+         CALL dbcsr_reserve_all_blocks(no_quench(1))
+         CALL dbcsr_set(no_quench(1), 1.0_dp)
          IF (almo_scf_env%nspins .GT. 1) THEN
             DO ispin = 2, almo_scf_env%nspins
                CALL dbcsr_create(no_quench(ispin), &
