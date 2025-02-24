@@ -16,11 +16,11 @@ MODULE qs_tddfpt2_stda_utils
    USE cp_control_types,                ONLY: stda_control_type,&
                                               tddfpt2_control_type
    USE cp_dbcsr_api,                    ONLY: &
-        dbcsr_add_on_diag, dbcsr_create, dbcsr_distribution_type, dbcsr_filter, dbcsr_finalize, &
-        dbcsr_get_block_p, dbcsr_iterator_blocks_left, dbcsr_iterator_next_block, &
-        dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, dbcsr_p_type, &
-        dbcsr_release, dbcsr_set, dbcsr_type, dbcsr_type_antisymmetric, dbcsr_type_no_symmetry, &
-        dbcsr_type_symmetric
+        dbcsr_create, dbcsr_distribution_type, dbcsr_filter, dbcsr_finalize, dbcsr_get_block_p, &
+        dbcsr_iterator_blocks_left, dbcsr_iterator_next_block, dbcsr_iterator_start, &
+        dbcsr_iterator_stop, dbcsr_iterator_type, dbcsr_p_type, dbcsr_release, dbcsr_set, &
+        dbcsr_type, dbcsr_type_antisymmetric, dbcsr_type_no_symmetry, dbcsr_type_symmetric
+   USE cp_dbcsr_contrib,                ONLY: dbcsr_add_on_diag
    USE cp_dbcsr_cp2k_link,              ONLY: cp_dbcsr_alloc_block_from_nbl
    USE cp_dbcsr_operations,             ONLY: copy_dbcsr_to_fm,&
                                               copy_fm_to_dbcsr,&
@@ -468,8 +468,9 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE get_lowdin_x(shalf, xvec, xt)
 
-      TYPE(dbcsr_type)                                   :: shalf
-      TYPE(cp_fm_type), DIMENSION(:), INTENT(IN)         :: xvec, xt
+      TYPE(dbcsr_type), INTENT(IN)                       :: shalf
+      TYPE(cp_fm_type), DIMENSION(:), INTENT(IN)         :: xvec
+      TYPE(cp_fm_type), DIMENSION(:), INTENT(INOUT)      :: xt
 
       CHARACTER(len=*), PARAMETER                        :: routineN = 'get_lowdin_x'
 
@@ -512,7 +513,8 @@ CONTAINS
       TYPE(tddfpt_subgroup_env_type)                     :: sub_env
       TYPE(tddfpt_work_matrices)                         :: work
       LOGICAL, INTENT(IN)                                :: is_rks_triplets
-      TYPE(cp_fm_type), DIMENSION(:), INTENT(IN)         :: X, res
+      TYPE(cp_fm_type), DIMENSION(:), INTENT(IN)         :: X
+      TYPE(cp_fm_type), DIMENSION(:), INTENT(INOUT)      :: res
 
       CHARACTER(len=*), PARAMETER :: routineN = 'stda_calculate_kernel'
 

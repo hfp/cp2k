@@ -8,11 +8,9 @@
 MODULE cp_dbcsr_api
    USE dbcsr_api,                       ONLY: &
         convert_csr_to_dbcsr_prv => dbcsr_convert_csr_to_dbcsr, &
-        convert_dbcsr_to_csr_prv => dbcsr_convert_dbcsr_to_csr, &
-        dbcsr_add_on_diag_prv => dbcsr_add_on_diag, dbcsr_add_prv => dbcsr_add, &
+        convert_dbcsr_to_csr_prv => dbcsr_convert_dbcsr_to_csr, dbcsr_add_prv => dbcsr_add, &
         dbcsr_binary_read_prv => dbcsr_binary_read, dbcsr_binary_write_prv => dbcsr_binary_write, &
-        dbcsr_checksum_prv => dbcsr_checksum, dbcsr_clear_mempools, &
-        dbcsr_clear_prv => dbcsr_clear, &
+        dbcsr_clear_mempools, dbcsr_clear_prv => dbcsr_clear, &
         dbcsr_complete_redistribute_prv => dbcsr_complete_redistribute, &
         dbcsr_convert_offsets_to_sizes, dbcsr_convert_sizes_to_offsets, &
         dbcsr_copy_prv => dbcsr_copy, dbcsr_create_prv => dbcsr_create, dbcsr_csr_create, &
@@ -27,10 +25,9 @@ MODULE cp_dbcsr_api
         dbcsr_distribution_release_prv => dbcsr_distribution_release, &
         dbcsr_distribution_type_prv => dbcsr_distribution_type, dbcsr_dot_prv => dbcsr_dot, &
         dbcsr_filter_prv => dbcsr_filter, dbcsr_finalize_lib, &
-        dbcsr_finalize_prv => dbcsr_finalize, dbcsr_get_block_diag_prv => dbcsr_get_block_diag, &
-        dbcsr_get_block_p_prv => dbcsr_get_block_p, dbcsr_get_data_p_prv => dbcsr_get_data_p, &
-        dbcsr_get_data_size_prv => dbcsr_get_data_size, dbcsr_get_default_config, &
-        dbcsr_get_diag_prv => dbcsr_get_diag, dbcsr_get_info_prv => dbcsr_get_info, &
+        dbcsr_finalize_prv => dbcsr_finalize, dbcsr_get_block_p_prv => dbcsr_get_block_p, &
+        dbcsr_get_data_p_prv => dbcsr_get_data_p, dbcsr_get_data_size_prv => dbcsr_get_data_size, &
+        dbcsr_get_default_config, dbcsr_get_info_prv => dbcsr_get_info, &
         dbcsr_get_matrix_type_prv => dbcsr_get_matrix_type, &
         dbcsr_get_num_blocks_prv => dbcsr_get_num_blocks, &
         dbcsr_get_occupation_prv => dbcsr_get_occupation, &
@@ -42,24 +39,20 @@ MODULE cp_dbcsr_api
         dbcsr_iterator_stop_prv => dbcsr_iterator_stop, &
         dbcsr_iterator_type_prv => dbcsr_iterator_type, &
         dbcsr_mp_grid_setup_prv => dbcsr_mp_grid_setup, dbcsr_multiply_prv => dbcsr_multiply, &
-        dbcsr_no_transpose, dbcsr_print_block_sum_prv => dbcsr_print_block_sum, &
-        dbcsr_print_config, dbcsr_print_prv => dbcsr_print, dbcsr_print_statistics, &
+        dbcsr_no_transpose, dbcsr_print_config, dbcsr_print_statistics, &
         dbcsr_put_block_prv => dbcsr_put_block, dbcsr_release_prv => dbcsr_release, &
         dbcsr_replicate_all_prv => dbcsr_replicate_all, &
-        dbcsr_reserve_all_blocks_prv => dbcsr_reserve_all_blocks, &
-        dbcsr_reserve_blocks_prv => dbcsr_reserve_blocks, &
-        dbcsr_reserve_diag_blocks_prv => dbcsr_reserve_diag_blocks, dbcsr_reset_randmat_seed, &
-        dbcsr_run_tests, dbcsr_scale_by_vector_prv => dbcsr_scale_by_vector, &
-        dbcsr_scale_prv => dbcsr_scale, dbcsr_set_config, dbcsr_set_diag_prv => dbcsr_set_diag, &
+        dbcsr_reserve_blocks_prv => dbcsr_reserve_blocks, dbcsr_reset_randmat_seed, &
+        dbcsr_run_tests, dbcsr_scale_prv => dbcsr_scale, dbcsr_set_config, &
         dbcsr_set_prv => dbcsr_set, dbcsr_sum_replicated_prv => dbcsr_sum_replicated, &
-        dbcsr_test_mm, dbcsr_trace_prv => dbcsr_trace, dbcsr_transpose, &
-        dbcsr_transposed_prv => dbcsr_transposed, dbcsr_type_antisymmetric, dbcsr_type_complex_8, &
-        dbcsr_type_no_symmetry, dbcsr_type_prv => dbcsr_type, dbcsr_type_real_8, &
-        dbcsr_type_symmetric, dbcsr_valid_index_prv => dbcsr_valid_index, &
+        dbcsr_test_mm, dbcsr_transpose, dbcsr_transposed_prv => dbcsr_transposed, &
+        dbcsr_type_antisymmetric, dbcsr_type_complex_8, dbcsr_type_no_symmetry, &
+        dbcsr_type_prv => dbcsr_type, dbcsr_type_real_8, dbcsr_type_symmetric, &
+        dbcsr_valid_index_prv => dbcsr_valid_index, &
         dbcsr_verify_matrix_prv => dbcsr_verify_matrix, dbcsr_work_create_prv => dbcsr_work_create
    USE dbm_api,                         ONLY: &
-        dbm_add, dbm_checksum, dbm_clear, dbm_copy, dbm_distribution_obj, dbm_iterator, &
-        dbm_redistribute, dbm_scale, dbm_type, dbm_zero
+        dbm_add, dbm_clear, dbm_copy, dbm_distribution_obj, dbm_iterator, dbm_redistribute, &
+        dbm_scale, dbm_type, dbm_zero
    USE kinds,                           ONLY: dp,&
                                               int_8
    USE message_passing,                 ONLY: mp_comm_type
@@ -106,34 +99,26 @@ MODULE cp_dbcsr_api
    PUBLIC :: dbcsr_set
    PUBLIC :: dbcsr_add
    PUBLIC :: dbcsr_scale
-   PUBLIC :: dbcsr_scale_by_vector
    PUBLIC :: dbcsr_transposed
    PUBLIC :: dbcsr_multiply
    PUBLIC :: dbcsr_copy
    PUBLIC :: dbcsr_desymmetrize
-   PUBLIC :: dbcsr_add_on_diag
-   PUBLIC :: dbcsr_get_block_diag
-   PUBLIC :: dbcsr_set_diag
-   PUBLIC :: dbcsr_get_diag
    PUBLIC :: dbcsr_filter
-   PUBLIC :: dbcsr_trace
-   PUBLIC :: dbcsr_dot
    PUBLIC :: dbcsr_complete_redistribute
-   PUBLIC :: dbcsr_get_block_p
-   PUBLIC :: dbcsr_clear
-
-   ! block reservation
-   PUBLIC :: dbcsr_reserve_diag_blocks
    PUBLIC :: dbcsr_reserve_blocks
-   PUBLIC :: dbcsr_reserve_all_blocks
+   PUBLIC :: dbcsr_put_block
+   PUBLIC :: dbcsr_get_block_p
+   PUBLIC :: dbcsr_get_readonly_block_p
+   PUBLIC :: dbcsr_clear
 
    ! iterator
    PUBLIC :: dbcsr_iterator_start
+   PUBLIC :: dbcsr_iterator_readonly_start
    PUBLIC :: dbcsr_iterator_stop
    PUBLIC :: dbcsr_iterator_blocks_left
    PUBLIC :: dbcsr_iterator_next_block
 
-   ! getters / setters
+   ! getters
    PUBLIC :: dbcsr_get_info
    PUBLIC :: dbcsr_distribution_get
    PUBLIC :: dbcsr_get_matrix_type
@@ -145,7 +130,6 @@ MODULE cp_dbcsr_api
    PUBLIC :: dbcsr_valid_index
 
    ! work operations
-   PUBLIC :: dbcsr_put_block
    PUBLIC :: dbcsr_work_create
    PUBLIC :: dbcsr_verify_matrix
    PUBLIC :: dbcsr_get_data_p
@@ -162,11 +146,7 @@ MODULE cp_dbcsr_api
    PUBLIC :: dbcsr_convert_sizes_to_offsets
    PUBLIC :: dbcsr_run_tests
    PUBLIC :: dbcsr_test_mm
-
-   ! high level matrix functions
-   PUBLIC :: dbcsr_print
-   PUBLIC :: dbcsr_print_block_sum
-   PUBLIC :: dbcsr_checksum
+   PUBLIC :: dbcsr_dot_threadsafe
 
    ! csr conversion
    PUBLIC :: dbcsr_csr_type
@@ -282,22 +262,6 @@ CONTAINS
 
 ! **************************************************************************************************
 !> \brief ...
-!> \param matrix ...
-!> \param alpha_scalar ...
-! **************************************************************************************************
-   SUBROUTINE dbcsr_add_on_diag(matrix, alpha_scalar)
-      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
-      REAL(kind=dp), INTENT(IN)                          :: alpha_scalar
-
-      IF (USE_DBCSR_BACKEND) THEN
-         CALL dbcsr_add_on_diag_prv(matrix%dbcsr, alpha_scalar)
-      ELSE
-         CPABORT("Not yet implemented for DBM.")
-      END IF
-   END SUBROUTINE dbcsr_add_on_diag
-
-! **************************************************************************************************
-!> \brief ...
 !> \param filepath ...
 !> \param distribution ...
 !> \param matrix_new ...
@@ -329,25 +293,6 @@ CONTAINS
          CPABORT("Not yet implemented for DBM.")
       END IF
    END SUBROUTINE dbcsr_binary_write
-
-! **************************************************************************************************
-!> \brief ...
-!> \param matrix ...
-!> \param pos ...
-!> \return ...
-! **************************************************************************************************
-   FUNCTION dbcsr_checksum(matrix, pos) RESULT(checksum)
-      TYPE(dbcsr_type), INTENT(IN)                       :: matrix
-      LOGICAL, INTENT(IN), OPTIONAL                      :: pos
-      REAL(KIND=dp)                                      :: checksum
-
-      IF (USE_DBCSR_BACKEND) THEN
-         checksum = dbcsr_checksum_prv(matrix%dbcsr, pos=pos)
-      ELSE
-         IF (PRESENT(pos)) CPABORT("Not yet implemented for DBM.")
-         checksum = dbm_checksum(matrix%dbm)
-      END IF
-   END FUNCTION dbcsr_checksum
 
 ! **************************************************************************************************
 !> \brief ...
@@ -692,23 +637,6 @@ CONTAINS
 
 ! **************************************************************************************************
 !> \brief ...
-!> \param matrix_a ...
-!> \param matrix_b ...
-!> \param RESULT ...
-! **************************************************************************************************
-   SUBROUTINE dbcsr_dot(matrix_a, matrix_b, RESULT)
-      TYPE(dbcsr_type), INTENT(IN)                       :: matrix_a, matrix_b
-      REAL(kind=dp), INTENT(INOUT)                       :: result
-
-      IF (USE_DBCSR_BACKEND) THEN
-         CALL dbcsr_dot_prv(matrix_a%dbcsr, matrix_b%dbcsr, RESULT)
-      ELSE
-         CPABORT("Not yet implemented for DBM.")
-      END IF
-   END SUBROUTINE dbcsr_dot
-
-! **************************************************************************************************
-!> \brief ...
 !> \param matrix ...
 !> \param eps ...
 ! **************************************************************************************************
@@ -740,22 +668,6 @@ CONTAINS
 ! **************************************************************************************************
 !> \brief ...
 !> \param matrix ...
-!> \param diag ...
-! **************************************************************************************************
-   SUBROUTINE dbcsr_get_block_diag(matrix, diag)
-      TYPE(dbcsr_type), INTENT(IN)                       :: matrix
-      TYPE(dbcsr_type), INTENT(INOUT)                    :: diag
-
-      IF (USE_DBCSR_BACKEND) THEN
-         CALL dbcsr_get_block_diag_prv(matrix%dbcsr, diag%dbcsr)
-      ELSE
-         CPABORT("Not yet implemented for DBM.")
-      END IF
-   END SUBROUTINE dbcsr_get_block_diag
-
-! **************************************************************************************************
-!> \brief ...
-!> \param matrix ...
 !> \param row ...
 !> \param col ...
 !> \param block ...
@@ -776,6 +688,41 @@ CONTAINS
          CPABORT("Not yet implemented for DBM.")
       END IF
    END SUBROUTINE dbcsr_get_block_p
+
+! **************************************************************************************************
+!> \brief Like dbcsr_get_block_p() but with matrix being INTENT(IN).
+!>        When invoking this routine, the caller promises not to modify the returned block.
+!> \param matrix ...
+!> \param row ...
+!> \param col ...
+!> \param block ...
+!> \param found ...
+!> \param row_size ...
+!> \param col_size ...
+! **************************************************************************************************
+   SUBROUTINE dbcsr_get_readonly_block_p(matrix, row, col, block, found, row_size, col_size)
+      TYPE(dbcsr_type), INTENT(IN), TARGET               :: matrix
+      INTEGER, INTENT(IN)                                :: row, col
+      REAL(kind=dp), DIMENSION(:, :), POINTER            :: block
+      LOGICAL, INTENT(OUT)                               :: found
+      INTEGER, INTENT(OUT), OPTIONAL                     :: row_size, col_size
+
+      TYPE(dbcsr_type), POINTER                          :: matrix_p
+
+      MARK_USED(matrix)
+      MARK_USED(row)
+      MARK_USED(col)
+      MARK_USED(block)
+      MARK_USED(found)
+      MARK_USED(row_size)
+      MARK_USED(col_size)
+      IF (USE_DBCSR_BACKEND) THEN
+         matrix_p => matrix ! Hacky workaround to shake the INTENT(IN).
+         CALL dbcsr_get_block_p_prv(matrix_p%dbcsr, row, col, block, found, row_size, col_size)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
+   END SUBROUTINE dbcsr_get_readonly_block_p
 
 ! **************************************************************************************************
 !> \brief ...
@@ -811,22 +758,6 @@ CONTAINS
          CPABORT("Not yet implemented for DBM.")
       END IF
    END FUNCTION dbcsr_get_data_size
-
-! **************************************************************************************************
-!> \brief ...
-!> \param matrix ...
-!> \param diag ...
-! **************************************************************************************************
-   SUBROUTINE dbcsr_get_diag(matrix, diag)
-      TYPE(dbcsr_type), INTENT(IN)                       :: matrix
-      REAL(kind=dp), DIMENSION(:), INTENT(OUT)           :: diag
-
-      IF (USE_DBCSR_BACKEND) THEN
-         CALL dbcsr_get_diag_prv(matrix%dbcsr, diag)
-      ELSE
-         CPABORT("Not yet implemented for DBM.")
-      END IF
-   END SUBROUTINE dbcsr_get_diag
 
 ! **************************************************************************************************
 !> \brief ...
@@ -1053,21 +984,40 @@ CONTAINS
 !> \param shared ...
 !> \param dynamic ...
 !> \param dynamic_byrows ...
-!> \param read_only ...
 ! **************************************************************************************************
-   SUBROUTINE dbcsr_iterator_start(iterator, matrix, shared, dynamic, dynamic_byrows, read_only)
+   SUBROUTINE dbcsr_iterator_start(iterator, matrix, shared, dynamic, dynamic_byrows)
       TYPE(dbcsr_iterator_type), INTENT(OUT)             :: iterator
-      TYPE(dbcsr_type), INTENT(IN)                       :: matrix
-      LOGICAL, INTENT(IN), OPTIONAL                      :: shared, dynamic, dynamic_byrows, &
-                                                            read_only
+      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
+      LOGICAL, INTENT(IN), OPTIONAL                      :: shared, dynamic, dynamic_byrows
 
       IF (USE_DBCSR_BACKEND) THEN
-         CALL dbcsr_iterator_start_prv(iterator%dbcsr, matrix%dbcsr, shared, dynamic, &
-                                       dynamic_byrows, read_only)
+         CALL dbcsr_iterator_start_prv(iterator%dbcsr, matrix%dbcsr, shared, dynamic, dynamic_byrows)
       ELSE
          CPABORT("Not yet implemented for DBM.")
       END IF
    END SUBROUTINE dbcsr_iterator_start
+
+! **************************************************************************************************
+!> \brief Like dbcsr_iterator_start() but with matrix being INTENT(IN).
+!>        When invoking this routine, the caller promises not to modify the returned blocks.
+!> \param iterator ...
+!> \param matrix ...
+!> \param shared ...
+!> \param dynamic ...
+!> \param dynamic_byrows ...
+! **************************************************************************************************
+   SUBROUTINE dbcsr_iterator_readonly_start(iterator, matrix, shared, dynamic, dynamic_byrows)
+      TYPE(dbcsr_iterator_type), INTENT(OUT)             :: iterator
+      TYPE(dbcsr_type), INTENT(IN)                       :: matrix
+      LOGICAL, INTENT(IN), OPTIONAL                      :: shared, dynamic, dynamic_byrows
+
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_iterator_start_prv(iterator%dbcsr, matrix%dbcsr, shared, dynamic, &
+                                       dynamic_byrows, read_only=.TRUE.)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
+   END SUBROUTINE dbcsr_iterator_readonly_start
 
 ! **************************************************************************************************
 !> \brief ...
@@ -1143,43 +1093,6 @@ CONTAINS
 ! **************************************************************************************************
 !> \brief ...
 !> \param matrix ...
-!> \param nodata ...
-!> \param matlab_format ...
-!> \param variable_name ...
-!> \param unit_nr ...
-! **************************************************************************************************
-   SUBROUTINE dbcsr_print(matrix, nodata, matlab_format, variable_name, unit_nr)
-      TYPE(dbcsr_type), INTENT(IN)                       :: matrix
-      LOGICAL, INTENT(IN), OPTIONAL                      :: nodata, matlab_format
-      CHARACTER(*), INTENT(in), OPTIONAL                 :: variable_name
-      INTEGER, OPTIONAL                                  :: unit_nr
-
-      IF (USE_DBCSR_BACKEND) THEN
-         CALL dbcsr_print_prv(matrix%dbcsr, nodata, matlab_format, variable_name, unit_nr)
-      ELSE
-         CPABORT("Not yet implemented for DBM.")
-      END IF
-   END SUBROUTINE dbcsr_print
-
-! **************************************************************************************************
-!> \brief ...
-!> \param matrix ...
-!> \param unit_nr ...
-! **************************************************************************************************
-   SUBROUTINE dbcsr_print_block_sum(matrix, unit_nr)
-      TYPE(dbcsr_type), INTENT(IN)                       :: matrix
-      INTEGER, OPTIONAL                                  :: unit_nr
-
-      IF (USE_DBCSR_BACKEND) THEN
-         CALL dbcsr_print_block_sum_prv(matrix%dbcsr, unit_nr)
-      ELSE
-         CPABORT("Not yet implemented for DBM.")
-      END IF
-   END SUBROUTINE dbcsr_print_block_sum
-
-! **************************************************************************************************
-!> \brief ...
-!> \param matrix ...
 !> \param row ...
 !> \param col ...
 !> \param block ...
@@ -1229,20 +1142,6 @@ CONTAINS
 ! **************************************************************************************************
 !> \brief ...
 !> \param matrix ...
-! **************************************************************************************************
-   SUBROUTINE dbcsr_reserve_all_blocks(matrix)
-      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
-
-      IF (USE_DBCSR_BACKEND) THEN
-         CALL dbcsr_reserve_all_blocks_prv(matrix%dbcsr)
-      ELSE
-         CPABORT("Not yet implemented for DBM.")
-      END IF
-   END SUBROUTINE dbcsr_reserve_all_blocks
-
-! **************************************************************************************************
-!> \brief ...
-!> \param matrix ...
 !> \param rows ...
 !> \param cols ...
 ! **************************************************************************************************
@@ -1260,20 +1159,6 @@ CONTAINS
 ! **************************************************************************************************
 !> \brief ...
 !> \param matrix ...
-! **************************************************************************************************
-   SUBROUTINE dbcsr_reserve_diag_blocks(matrix)
-      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
-
-      IF (USE_DBCSR_BACKEND) THEN
-         CALL dbcsr_reserve_diag_blocks_prv(matrix%dbcsr)
-      ELSE
-         CPABORT("Not yet implemented for DBM.")
-      END IF
-   END SUBROUTINE dbcsr_reserve_diag_blocks
-
-! **************************************************************************************************
-!> \brief ...
-!> \param matrix ...
 !> \param alpha_scalar ...
 ! **************************************************************************************************
    SUBROUTINE dbcsr_scale(matrix, alpha_scalar)
@@ -1286,24 +1171,6 @@ CONTAINS
          CALL dbm_scale(matrix%dbm, alpha_scalar)
       END IF
    END SUBROUTINE dbcsr_scale
-
-! **************************************************************************************************
-!> \brief ...
-!> \param matrix ...
-!> \param alpha ...
-!> \param side ...
-! **************************************************************************************************
-   SUBROUTINE dbcsr_scale_by_vector(matrix, alpha, side)
-      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
-      REAL(kind=dp), DIMENSION(:), INTENT(IN), TARGET    :: alpha
-      CHARACTER(LEN=*), INTENT(IN)                       :: side
-
-      IF (USE_DBCSR_BACKEND) THEN
-         CALL dbcsr_scale_by_vector_prv(matrix%dbcsr, alpha, side)
-      ELSE
-         CPABORT("Not yet implemented for DBM.")
-      END IF
-   END SUBROUTINE dbcsr_scale_by_vector
 
 ! **************************************************************************************************
 !> \brief ...
@@ -1328,22 +1195,6 @@ CONTAINS
 ! **************************************************************************************************
 !> \brief ...
 !> \param matrix ...
-!> \param diag ...
-! **************************************************************************************************
-   SUBROUTINE dbcsr_set_diag(matrix, diag)
-      TYPE(dbcsr_type), INTENT(INOUT)                    :: matrix
-      REAL(kind=dp), DIMENSION(:), INTENT(IN)            :: diag
-
-      IF (USE_DBCSR_BACKEND) THEN
-         CALL dbcsr_set_diag_prv(matrix%dbcsr, diag)
-      ELSE
-         CPABORT("Not yet implemented for DBM.")
-      END IF
-   END SUBROUTINE dbcsr_set_diag
-
-! **************************************************************************************************
-!> \brief ...
-!> \param matrix ...
 ! **************************************************************************************************
    SUBROUTINE dbcsr_sum_replicated(matrix)
       TYPE(dbcsr_type), INTENT(inout)                    :: matrix
@@ -1354,22 +1205,6 @@ CONTAINS
          CPABORT("Not yet implemented for DBM.")
       END IF
    END SUBROUTINE dbcsr_sum_replicated
-
-! **************************************************************************************************
-!> \brief ...
-!> \param matrix ...
-!> \param trace ...
-! **************************************************************************************************
-   SUBROUTINE dbcsr_trace(matrix, trace)
-      TYPE(dbcsr_type), INTENT(IN)                       :: matrix
-      REAL(kind=dp), INTENT(OUT)                         :: trace
-
-      IF (USE_DBCSR_BACKEND) THEN
-         CALL dbcsr_trace_prv(matrix%dbcsr, trace)
-      ELSE
-         CPABORT("Not yet implemented for DBM.")
-      END IF
-   END SUBROUTINE dbcsr_trace
 
 ! **************************************************************************************************
 !> \brief ...
@@ -1456,5 +1291,22 @@ CONTAINS
          ! Does not apply to DBM.
       END IF
    END SUBROUTINE dbcsr_work_create
+
+! **************************************************************************************************
+!> \brief ...
+!> \param matrix_a ...
+!> \param matrix_b ...
+!> \param RESULT ...
+! **************************************************************************************************
+   SUBROUTINE dbcsr_dot_threadsafe(matrix_a, matrix_b, RESULT)
+      TYPE(dbcsr_type), INTENT(IN)                       :: matrix_a, matrix_b
+      REAL(kind=dp), INTENT(INOUT)                       :: result
+
+      IF (USE_DBCSR_BACKEND) THEN
+         CALL dbcsr_dot_prv(matrix_a%dbcsr, matrix_b%dbcsr, RESULT)
+      ELSE
+         CPABORT("Not yet implemented for DBM.")
+      END IF
+   END SUBROUTINE dbcsr_dot_threadsafe
 
 END MODULE cp_dbcsr_api

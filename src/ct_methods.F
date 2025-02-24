@@ -13,17 +13,21 @@
 ! **************************************************************************************************
 MODULE ct_methods
    USE cp_dbcsr_api,                    ONLY: &
-        dbcsr_add, dbcsr_add_on_diag, dbcsr_copy, dbcsr_create, dbcsr_desymmetrize, dbcsr_dot, &
-        dbcsr_filter, dbcsr_finalize, dbcsr_get_diag, dbcsr_get_info, dbcsr_iterator_blocks_left, &
-        dbcsr_iterator_next_block, dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, &
-        dbcsr_multiply, dbcsr_put_block, dbcsr_release, dbcsr_reserve_diag_blocks, dbcsr_scale, &
-        dbcsr_set, dbcsr_set_diag, dbcsr_transposed, dbcsr_type, dbcsr_type_no_symmetry, &
-        dbcsr_work_create
+        dbcsr_add, dbcsr_copy, dbcsr_create, dbcsr_desymmetrize, dbcsr_filter, dbcsr_finalize, &
+        dbcsr_get_info, dbcsr_iterator_blocks_left, dbcsr_iterator_next_block, &
+        dbcsr_iterator_readonly_start, dbcsr_iterator_start, dbcsr_iterator_stop, &
+        dbcsr_iterator_type, dbcsr_multiply, dbcsr_put_block, dbcsr_release, dbcsr_scale, &
+        dbcsr_set, dbcsr_transposed, dbcsr_type, dbcsr_type_no_symmetry, dbcsr_work_create
    USE cp_dbcsr_cholesky,               ONLY: cp_dbcsr_cholesky_decompose,&
                                               cp_dbcsr_cholesky_invert
-   USE cp_dbcsr_contrib,                ONLY: dbcsr_frobenius_norm,&
+   USE cp_dbcsr_contrib,                ONLY: dbcsr_add_on_diag,&
+                                              dbcsr_dot,&
+                                              dbcsr_frobenius_norm,&
+                                              dbcsr_get_diag,&
                                               dbcsr_hadamard_product,&
-                                              dbcsr_maxabs
+                                              dbcsr_maxabs,&
+                                              dbcsr_reserve_diag_blocks,&
+                                              dbcsr_set_diag
    USE cp_dbcsr_diag,                   ONLY: cp_dbcsr_syevd
    USE cp_log_handling,                 ONLY: cp_get_default_logger,&
                                               cp_logger_get_default_unit_nr,&
@@ -1519,7 +1523,7 @@ CONTAINS
       IF (do_eigenvalues) &
          CALL dbcsr_work_create(e, work_mutable=.TRUE.)
 
-      CALL dbcsr_iterator_start(iter, matrix)
+      CALL dbcsr_iterator_readonly_start(iter, matrix)
 
       DO WHILE (dbcsr_iterator_blocks_left(iter))
 
