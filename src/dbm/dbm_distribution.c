@@ -86,8 +86,9 @@ static int find_best_nrow_shards(const int nshards, const int nrows,
 
   for (int nrow_shards = 1; nrow_shards <= nshards; nrow_shards++) {
     const int ncol_shards = nshards / nrow_shards;
-    if (nrow_shards * ncol_shards != nshards)
+    if (nrow_shards * ncol_shards != nshards) {
       continue; // Not a factor of nshards.
+    }
     const double ratio = (double)nrow_shards / (double)ncol_shards;
     const double error = fabs(log(target / ratio));
     if (error < best_error) {
@@ -120,7 +121,7 @@ void dbm_distribution_new(dbm_distribution_t **dist_out, const int fortran_comm,
   const int col_dim_remains[2] = {0, 1};
   const dbm_mpi_comm_t col_comm = dbm_mpi_cart_sub(dist->comm, col_dim_remains);
 
-  const int nshards = SHARDS_PER_THREAD * omp_get_max_threads();
+  const int nshards = DBM_SHARDS_PER_THREAD * omp_get_max_threads();
   const int nrow_shards = find_best_nrow_shards(nshards, nrows, ncols);
   const int ncol_shards = nshards / nrow_shards;
 
