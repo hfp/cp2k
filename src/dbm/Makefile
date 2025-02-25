@@ -28,7 +28,7 @@ CFLAGS := -fPIC -g $(OPTFLAG) -march=native -Wall -Wextra -Wcast-qual
 
 # Intel Compiler
 ICX := $(shell which icx 2>/dev/null)
-INTEL ?= $(if $(ICX),1,0)
+INTEL ?= $(if $(ICX),$(if $(filter-out 0,$(GNU)),0,1),0)
 
 # Build with MPI when MPICC is given
 MPI ?= $(if $(MPICC),1,0)
