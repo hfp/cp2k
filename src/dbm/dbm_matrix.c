@@ -522,13 +522,13 @@ double dbm_checksum(const dbm_matrix_t *matrix) {
 }
 
 /*******************************************************************************
- * \brief Returns the absolute value of the larges element of the entire matrix.
+ * \brief Returns the largest absolute value of all matrix elements.
  * \author Ole Schuett
  ******************************************************************************/
 double dbm_maxabs(const dbm_matrix_t *matrix) {
   double maxabs = 0.0;
   for (int ishard = 0; ishard < dbm_get_num_shards(matrix); ishard++) {
-    dbm_shard_t *shard = &matrix->shards[ishard];
+    const dbm_shard_t *shard = &matrix->shards[ishard];
     for (int i = 0; i < shard->data_size; i++) {
       maxabs = fmax(maxabs, fabs(shard->data[i]));
     }
