@@ -12,7 +12,6 @@
 #include <string.h>
 
 #include "dbm_hyperparams.h"
-#include "dbm_mempool.h"
 #include "dbm_mpi.h"
 
 /*******************************************************************************
@@ -366,7 +365,7 @@ static dbm_packed_matrix_t pack_matrix(const bool trans_matrix,
   }
   dbm_pack_block_t *blks_send =
       dbm_mpi_alloc_mem(nblks_send_max * sizeof(dbm_pack_block_t));
-  double *data_send = dbm_mempool_host_malloc(ndata_send_max * sizeof(double));
+  double *data_send = dbm_mpi_alloc_mem(ndata_send_max * sizeof(double));
 
   // Cannot parallelize over packs (there might be too few of them).
   for (int ipack = 0; ipack < nsend_packs; ipack++) {
@@ -409,7 +408,7 @@ static dbm_packed_matrix_t pack_matrix(const bool trans_matrix,
     const int ndata_recv = isum(nranks, data_recv_count);
 
     // 4th communication: Exchange data.
-    double *data_recv = dbm_mempool_host_malloc(ndata_recv * sizeof(double));
+    double *data_recv = dbm_mpi_alloc_mem(ndata_recv * sizeof(double));
     dbm_mpi_alltoallv_double(data_send, data_send_count, data_send_displ,
                              data_recv, data_recv_count, data_recv_displ,
                              dist->comm);
@@ -426,7 +425,7 @@ static dbm_packed_matrix_t pack_matrix(const bool trans_matrix,
 
   // Deallocate send buffers.
   dbm_mpi_free_mem(blks_send);
-  dbm_mempool_free(data_send);
+  dbm_mpi_free_mem(data_send);
 
   // Allocate pack_recv.
   int max_nblocks = 0, max_data_size = 0;
@@ -441,7 +440,7 @@ static dbm_packed_matrix_t pack_matrix(const bool trans_matrix,
   packed.recv_pack.blocks =
       dbm_mpi_alloc_mem(packed.max_nblocks * sizeof(dbm_pack_block_t));
   packed.recv_pack.data =
-      dbm_mempool_host_malloc(packed.max_data_size * sizeof(double));
+      dbm_mpi_alloc_mem(packed.max_data_size * sizeof(double));
 
   return packed; // Ownership of packed transfers to caller.
 }
@@ -509,10 +508,10 @@ static dbm_pack_t *sendrecv_pack(const int itick, const int nticks,
  ******************************************************************************/
 static void free_packed_matrix(dbm_packed_matrix_t *packed) {
   dbm_mpi_free_mem(packed->recv_pack.blocks);
-  dbm_mempool_free(packed->recv_pack.data);
+  dbm_mpi_free_mem(packed->recv_pack.data);
   for (int ipack = 0; ipack < packed->nsend_packs; ipack++) {
     dbm_mpi_free_mem(packed->send_packs[ipack].blocks);
-    dbm_mempool_free(packed->send_packs[ipack].data);
+    dbm_mpi_free_mem(packed->send_packs[ipack].data);
   }
   free(packed->send_packs);
 }
