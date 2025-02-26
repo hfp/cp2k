@@ -12,12 +12,12 @@
 
 #include "../offload/offload_runtime.h"
 #include "dbm_hyperparams.h"
+#include "dbm_internal.h"
 #include "dbm_library.h"
 #include "dbm_multiply.h"
 #include "dbm_multiply_comm.h"
 #include "dbm_multiply_cpu.h"
 #include "dbm_multiply_gpu.h"
-#include "dbm_internal.h"
 
 #if defined(__LIBXSMM)
 #include <libxsmm.h>
