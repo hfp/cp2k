@@ -84,7 +84,8 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         const char *const wg_env = getenv("DBM_MULTIPLY_WG");
         const char *const sm_env = getenv("DBM_MULTIPLY_SM");
         sm = (NULL == sm_env ? 0 /*default*/ : atoi(sm_env));
-        wgsize[0] = (NULL == wg_env ? (unsigned long int)LIBXSMM_ABS(sm) : strtoul(wg_env, NULL, 10));
+        wgsize[0] = (NULL == wg_env ? (unsigned long int)LIBXSMM_ABS(sm)
+                                    : strtoul(wg_env, NULL, 10));
         if (0 != wgsize2 && 0 < wgsize[0]) { /* subgroups */
           if (LIBXSMM_DELTA(wgsize[0], wgsize1) <=
               LIBXSMM_DELTA(wgsize[0], wgsize2)) { /* select SG-size */
@@ -103,7 +104,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         offset += (size_t)LIBXSMM_SNPRINTF(
             params + offset, sizeof(params) - offset,
             " %s %s -DBN=%i -DWG=%i -DSG=%i -DLU=%i", 0 != gpu ? "-DGPU" : "",
-            0 != sm ?  "-DSM" : "", bn, (int)wgsize[0], (int)wgsize2, lu);
+            0 != sm ? "-DSM" : "", bn, (int)wgsize[0], (int)wgsize2, lu);
       }
       if (0 != c_dbcsr_acc_opencl_config.device.intel && 0 < xf) {
         flags = "-cl-intel-256-GRF-per-thread";

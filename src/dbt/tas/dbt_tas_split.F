@@ -675,7 +675,7 @@ CONTAINS
 !> \author Patrick Seewald
 ! **************************************************************************************************
    SUBROUTINE group_to_mrowcol(info, rowcol_dist, igroup, rowcols)
-      TYPE(dbt_tas_split_info), INTENT(IN)                        :: info
+      TYPE(dbt_tas_split_info), INTENT(IN)               :: info
 
       CLASS(dbt_tas_distribution), INTENT(IN)                     :: rowcol_dist
       INTEGER, INTENT(IN)                                         :: igroup
