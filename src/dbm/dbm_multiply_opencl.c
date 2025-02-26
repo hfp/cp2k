@@ -50,12 +50,18 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       const char *const xf_env = getenv("DBM_MULTIPLY_XF");
       const char *const lu_env = getenv("DBM_MULTIPLY_LU");
       const char *const bn_env = getenv("DBM_MULTIPLY_BN");
+      const char *const sm_env = getenv("DBM_MULTIPLY_SM");
+      const char *const wg_env = getenv("DBM_MULTIPLY_WG");
       const int bn0 = (0 == c_dbcsr_acc_opencl_config.device.nv
                            ? (0 == c_dbcsr_acc_opencl_config.device.amd ? 4 : 8)
                            : 2);
       int bn = LIBXSMM_CLMP(NULL == bn_env ? bn0 : atoi(bn_env), 1, 32);
       int lu = LIBXSMM_CLMP(NULL == lu_env ? 0 : atoi(lu_env), -2, 1);
-      int sm = 0, gen = (NULL == gen_env ? 1 /*default*/ : atoi(gen_env));
+      int sm = (NULL == sm_env ? 0 /*default*/ : atoi(sm_env));
+      int gen = ((NULL == lu_env && NULL == bn_env && NULL == sm_env &&
+                  NULL == wg_env)
+                     ? (NULL == gen_env ? 1 /*default*/ : atoi(gen_env))
+                     : 0);
       const int gpu =
           (CL_DEVICE_TYPE_GPU == c_dbcsr_acc_opencl_config.device.type);
       const int xf = (NULL == xf_env ? -1 /*default*/ : atoi(xf_env));
@@ -81,9 +87,6 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         lu = bn = 0;
         ndims = 3;
       } else {
-        const char *const wg_env = getenv("DBM_MULTIPLY_WG");
-        const char *const sm_env = getenv("DBM_MULTIPLY_SM");
-        sm = (NULL == sm_env ? 0 /*default*/ : atoi(sm_env));
         wgsize[0] = (NULL == wg_env ? (unsigned long int)LIBXSMM_ABS(sm)
                                     : strtoul(wg_env, NULL, 10));
         if (0 != wgsize2 && 0 < wgsize[0]) { /* subgroups */
