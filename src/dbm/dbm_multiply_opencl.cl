@@ -74,6 +74,7 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
              global const dbm_task_t *tasks, global const double *restrict amat,
              global const double *restrict bmat, global double *restrict cmat) {
   const int i = (int)get_global_id(0);
+  double cvec[BN];
 #if defined(BCST_WG)
   if (i < size)
 #endif
@@ -82,7 +83,6 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
     const SINT m = i - tid * max_m;
     global const dbm_task_t *const task = &tasks[itask + tid];
     if (m < XM(task)) { /* valid task */
-      double cvec[BN];
       bmat += XB(task);
 #if defined(BCST_WG)
       if (XM(task) <= XN(task)) { /* BCST_WG to broadcast B-values */
