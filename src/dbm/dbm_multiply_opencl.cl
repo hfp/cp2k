@@ -8,7 +8,7 @@
 #include "dbm_multiply_opencl.irh"
 #else
 #include "../../exts/dbcsr/src/acc/opencl/common/opencl_atomics.h"
-#include "dbm_multiply_internal.h"
+#include "dbm_internal.h"
 
 #if defined(WG) && (0 < WG) && defined(GPU) && (200 <= ACC_OPENCL_VERSION)
 #if defined(SG) && (0 < SG)

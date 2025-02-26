@@ -12,13 +12,8 @@
 #include <string.h>
 
 #include "dbm_hyperparams.h"
+#include "dbm_internal.h"
 #include "dbm_mpi.h"
-
-/*******************************************************************************
- * \brief Returns the larger of two given integer (missing from the C standard)
- * \author Ole Schuett
- ******************************************************************************/
-static inline int imax(int x, int y) { return (x > y ? x : y); }
 
 /*******************************************************************************
  * \brief Private routine for computing greatest common divisor of two numbers.
@@ -360,8 +355,8 @@ static dbm_packed_matrix_t pack_matrix(const bool trans_matrix,
   // Allocate send buffers for maximum number of blocks/data over all packs.
   int nblks_send_max = 0, ndata_send_max = 0;
   for (int ipack = 0; ipack < nsend_packs; ++ipack) {
-    nblks_send_max = imax(nblks_send_max, nblks_send_per_pack[ipack]);
-    ndata_send_max = imax(ndata_send_max, ndata_send_per_pack[ipack]);
+    nblks_send_max = DBM_MAX(nblks_send_max, nblks_send_per_pack[ipack]);
+    ndata_send_max = DBM_MAX(ndata_send_max, ndata_send_per_pack[ipack]);
   }
   dbm_pack_block_t *blks_send =
       dbm_mpi_alloc_mem(nblks_send_max * sizeof(dbm_pack_block_t));
@@ -430,8 +425,8 @@ static dbm_packed_matrix_t pack_matrix(const bool trans_matrix,
   // Allocate pack_recv.
   int max_nblocks = 0, max_data_size = 0;
   for (int ipack = 0; ipack < packed.nsend_packs; ipack++) {
-    max_nblocks = imax(max_nblocks, packed.send_packs[ipack].nblocks);
-    max_data_size = imax(max_data_size, packed.send_packs[ipack].data_size);
+    max_nblocks = DBM_MAX(max_nblocks, packed.send_packs[ipack].nblocks);
+    max_data_size = DBM_MAX(max_data_size, packed.send_packs[ipack].data_size);
   }
   dbm_mpi_max_int(&max_nblocks, 1, packed.dist_ticks->comm);
   dbm_mpi_max_int(&max_data_size, 1, packed.dist_ticks->comm);

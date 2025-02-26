@@ -17,7 +17,7 @@
 #include "dbm_multiply_comm.h"
 #include "dbm_multiply_cpu.h"
 #include "dbm_multiply_gpu.h"
-#include "dbm_multiply_internal.h"
+#include "dbm_internal.h"
 
 #if defined(__LIBXSMM)
 #include <libxsmm.h>
@@ -26,12 +26,6 @@
 #if !defined(DBM_MULTIPLY_VALIDATE) && 0
 #define DBM_MULTIPLY_VALIDATE
 #endif
-
-/*******************************************************************************
- * \brief Returns the larger of two given integer (missing from the C standard).
- * \author Ole Schuett
- ******************************************************************************/
-static inline int imax(int x, int y) { return (x > y ? x : y); }
 
 /*******************************************************************************
  * \brief Updates the min/max of a range of values (initially {INT_MAX, 0}).
@@ -75,7 +69,7 @@ static float *compute_rows_max_eps(const bool trans, const dbm_matrix_t *matrix,
 #pragma omp for
     for (int i = 0; i < nrows; i++) {
       const float f =
-          ((float)filter_eps) / ((float)imax(1, nblocks_per_row[i]));
+          ((float)filter_eps) / ((float)DBM_MAX(1, nblocks_per_row[i]));
       row_max_eps[i] = f * f;
     }
   } // end of omp parallel region

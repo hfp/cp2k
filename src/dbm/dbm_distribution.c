@@ -15,6 +15,7 @@
 
 #include "dbm_distribution.h"
 #include "dbm_hyperparams.h"
+#include "dbm_internal.h"
 
 /*******************************************************************************
  * \brief Private routine for creating a new one dimensional distribution.
@@ -69,18 +70,12 @@ static void dbm_dist_1d_free(dbm_dist_1d_t *dist) {
 }
 
 /*******************************************************************************
- * \brief Returns the larger of two given integer (missing from the C standard)
- * \author Ole Schuett
- ******************************************************************************/
-static inline int imax(int x, int y) { return (x > y ? x : y); }
-
-/*******************************************************************************
  * \brief Private routine for finding the optimal number of shard rows.
  * \author Ole Schuett
  ******************************************************************************/
 static int find_best_nrow_shards(const int nshards, const int nrows,
                                  const int ncols) {
-  const double target = (double)imax(nrows, 1) / (double)imax(ncols, 1);
+  const double target = (double)DBM_MAX(nrows, 1) / (double)DBM_MAX(ncols, 1);
   int best_nrow_shards = nshards;
   double best_error = fabs(log(target / (double)nshards));
 
