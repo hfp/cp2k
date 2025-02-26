@@ -19,7 +19,7 @@
 #endif
 #define BCST_NO(V) (V)
 
-#if defined(SM)
+#if defined(SM) && (0 < SM)
 #define TLS(MEM) (MEM)[get_local_id(0)]
 #else
 #define TLS(MEM) (MEM)
@@ -80,8 +80,8 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
              global const dbm_task_t *tasks, global const double *restrict amat,
              global const double *restrict bmat, global double *restrict cmat) {
   const int i = (int)get_global_id(0);
-#if defined(SM)
-  local double cvec[WG][BN];
+#if defined(SM) && (0 < SM)
+  local double cvec[WG][BN + SM - 1];
 #else
   double cvec[BN];
 #endif
