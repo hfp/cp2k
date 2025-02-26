@@ -68,13 +68,12 @@ static void actual_free(void *memory, const bool on_device) {
  * \brief Private struct for storing a chunk of memory.
  * \author Ole Schuett
  ******************************************************************************/
-struct dbm_memchunk {
+typedef struct dbm_memchunk {
   bool on_device;
   size_t size;
   void *mem;
   struct dbm_memchunk *next;
-};
-typedef struct dbm_memchunk dbm_memchunk_t;
+} dbm_memchunk_t;
 
 /*******************************************************************************
  * \brief Private linked list of memory chunks that are available.
@@ -109,15 +108,17 @@ static void *internal_mempool_malloc(const size_t size, const bool on_device) {
   {
     // Find a suitable chunk in mempool_available.
     dbm_memchunk_t **indirect = &mempool_available_head, **hit = NULL;
+    size_t hit_diff = size;
     while (*indirect != NULL) {
-      if ((*indirect)->on_device == on_device) {
-        const size_t max_size = DBM_ALLOCATION_FACTOR * size /*+ 0.5*/;
-        const size_t hit_size = (*indirect)->size;
-        if (size <= hit_size && hit_size <= max_size) {
+      if ((*indirect)->on_device == on_device && size <= (*indirect)->size) {
+        const size_t size_diff = (*indirect)->size - size;
+        if (size_diff < hit_diff) {
           hit = indirect;
-          break;
-        }
-        else if (NULL == hit) { // Fallback
+          if (0 == size_diff) {
+            break;
+          }
+          hit_diff = size_diff;
+        } else if (NULL == hit) { // Fallback
           hit = indirect;
         }
       }
