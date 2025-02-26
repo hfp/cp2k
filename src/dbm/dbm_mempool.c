@@ -107,26 +107,28 @@ static void *internal_mempool_malloc(const size_t size, const bool on_device) {
 #pragma omp critical(dbm_mempool_modify)
   {
     // Find a suitable chunk in mempool_available.
-    dbm_memchunk_t **indirect = &mempool_available_head, **hit = NULL;
-    size_t hit_diff = size;
-    while (*indirect != NULL) {
-      if ((*indirect)->on_device == on_device && size <= (*indirect)->size) {
-        const size_t size_diff = (*indirect)->size - size;
-        if (size_diff < hit_diff) {
+    dbm_memchunk_t **indirect = &mempool_available_head;
+    dbm_memchunk_t **hit = NULL, **fallback = NULL;
+    for (; NULL != *indirect; indirect = &(*indirect)->next) {
+      if ((*indirect)->on_device == on_device) {
+        if ((*indirect)->size < size) {
+          if (NULL == fallback || (*fallback)->size < (*indirect)->size) {
+            fallback = indirect;
+          }
+        } else if (NULL == hit || (*indirect)->size < (*hit)->size) {
           hit = indirect;
-          if (0 == size_diff) {
+          if (size == (*hit)->size) {
             break;
           }
-          hit_diff = size_diff;
-        } else if (NULL == hit) { // Fallback
-          hit = indirect;
         }
       }
-      indirect = &(*indirect)->next;
+    }
+    if (NULL == hit) {
+      hit = fallback;
     }
 
     // If a chunck was found, remove it from mempool_available.
-    if (hit != NULL) {
+    if (NULL != hit) {
       chunk = *hit;
       *hit = chunk->next;
       assert(chunk->on_device == on_device);
