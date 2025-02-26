@@ -97,16 +97,14 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
           wgsize2 = 0;
         }
         wgsize[0] = LIBXSMM_CLMP(wgsize[0], 0, wgsize0);
-        if (0 == wgsize[0]) {
-          sm = 0;
-        }
+        sm = ((0 != sm && 0 != wgsize[0])
+                  ? (LIBXSMM_ISPOT(bn * sizeof(double)) + 1)
+                  : 0);
         gen = 0;
         offset += (size_t)LIBXSMM_SNPRINTF(
             params + offset, sizeof(params) - offset,
             " %s -DLU=%i -DBN=%i -DSM=%i -DWG=%i -DSG=%i",
-            0 != gpu ? "-DGPU" : "", lu, bn,
-            0 != sm ? (LIBXSMM_ISPOT(bn * sizeof(double)) ? 2 : 1) : 0,
-            (int)wgsize[0], (int)wgsize2);
+            0 != gpu ? "-DGPU" : "", lu, bn, sm, (int)wgsize[0], (int)wgsize2);
       }
       if (0 != c_dbcsr_acc_opencl_config.device.intel && 0 < xf) {
         flags = "-cl-intel-256-GRF-per-thread";
