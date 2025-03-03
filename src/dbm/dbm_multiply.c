@@ -69,7 +69,7 @@ static float *compute_rows_max_eps(const bool trans, const dbm_matrix_t *matrix,
 #pragma omp for
     for (int i = 0; i < nrows; i++) {
       const float f =
-          ((float)filter_eps) / ((float)DBM_MAX(1, nblocks_per_row[i]));
+          ((float)filter_eps) / ((float)imax(1, nblocks_per_row[i]));
       row_max_eps[i] = f * f;
     }
   } // end of omp parallel region
