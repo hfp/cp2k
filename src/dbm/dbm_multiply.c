@@ -23,8 +23,8 @@
 #include <libxsmm.h>
 #endif
 
-#if !defined(DBM_MULTIPLY_VALIDATE) && 0
-#define DBM_MULTIPLY_VALIDATE
+#if !defined(DBM_VALIDATE_AGAINST_LIBXSMM) && 0
+#define DBM_VALIDATE_AGAINST_LIBXSMM
 #endif
 
 /*******************************************************************************
@@ -135,7 +135,7 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
   dbm_multiply_gpu_process_batch(ntasks, batch, mnk_range, alpha, kshard,
                                  &ctx->gpu);
-#if defined(DBM_MULTIPLY_VALIDATE) && defined(__LIBXSMM)
+#if defined(DBM_VALIDATE_AGAINST_LIBXSMM) && defined(__LIBXSMM)
   dbm_shard_gpu_t *const shard_g = &ctx->gpu.shards_c_dev[kshard];
   dbm_shard_t shard_r;
   dbm_shard_allocate_promised_blocks(shard_c);
