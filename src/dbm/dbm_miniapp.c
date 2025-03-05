@@ -169,8 +169,7 @@ static void set_all_blocks(dbm_matrix_t *matrix) {
       dbm_iterator_next_block(iter, &row, &col, &block, &row_size, &col_size);
       const int block_size = row_size * col_size;
       for (int i = 0; i < block_size; i++) {
-#if defined(DBM_VALIDATE_AGAINST_LIBXSMM) && defined(__LIBXSMM) &&             \
-    defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
+#if defined(DBM_VALIDATE_AGAINST_LIBXSMM) && defined(__LIBXSMM)
         block[i] = 1.0 / (i + 1);
 #else
         block[i] = 1.0;
@@ -186,8 +185,7 @@ static void set_all_blocks(dbm_matrix_t *matrix) {
  ******************************************************************************/
 void benchmark_multiply(const int M, const int N, const int K, const int m,
                         const int n, const int k, const dbm_mpi_comm_t comm) {
-#if defined(DBM_VALIDATE_AGAINST_LIBXSMM) && defined(__LIBXSMM) &&             \
-    defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
+#if defined(DBM_VALIDATE_AGAINST_LIBXSMM) && defined(__LIBXSMM)
   dbm_matrix_t *matrix_a = create_some_matrix(M, K, 1, m, k, k, comm);
   dbm_matrix_t *matrix_b = create_some_matrix(K, N, k, k, 1, n, comm);
 #else
@@ -213,8 +211,7 @@ void benchmark_multiply(const int M, const int N, const int K, const int m,
 
   // Validate checksum.
   // Since all matrix elements were set to 1.0 the checksum is an integer.
-#if defined(DBM_VALIDATE_AGAINST_LIBXSMM) && defined(__LIBXSMM) &&             \
-    defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
+#if defined(DBM_VALIDATE_AGAINST_LIBXSMM) && defined(__LIBXSMM)
   const double expected = 0, checksum = 0;
 #else
   const double expected = (int64_t)M * (int64_t)m * (int64_t)N * (int64_t)n *
