@@ -70,8 +70,10 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       const size_t wgsize0 = c_dbcsr_acc_opencl_config.device.wgsize[0];
       const size_t wgsize1 = c_dbcsr_acc_opencl_config.device.wgsize[1];
       size_t wgsize2 = c_dbcsr_acc_opencl_config.device.wgsize[2];
-      size_t offset =
-          (0 == c_dbcsr_acc_opencl_config.debug ? strlen(params) : 0);
+      size_t offset = ((0 == c_dbcsr_acc_opencl_config.debug &&
+                        0 == c_dbcsr_acc_opencl_config.dump)
+                           ? strlen(params)
+                           : 0);
       offset += (size_t)c_dbcsr_acc_opencl_flags_atomics(
           &c_dbcsr_acc_opencl_config.device, c_dbcsr_acc_opencl_atomic_fp_64,
           extensions, &nextensions, params + offset, sizeof(params) - offset);
