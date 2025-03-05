@@ -32,10 +32,11 @@ static void print_func(char *message, int output_unit) {
 }
 
 /*******************************************************************************
- * \brief Returns the smaller of two given integer (missing from the C standard)
+ * \brief Returns the smaller/larger of two given integers.
  * \author Ole Schuett
  ******************************************************************************/
 static inline int imin(int x, int y) { return (x < y ? x : y); }
+static inline int imax(int x, int y) { return (x > y ? x : y); }
 
 /*******************************************************************************
  * \brief Private routine for creating a distribution.
@@ -326,17 +327,19 @@ int main(int argc, char *argv[]) {
         continue;
       }
       if (0 < mnk[0]) { /* valid MxNxK? */
-        int nm = (NULL == arg ? 0 : atoi(arg)), nn, nk;
-        if (0 < nm) {
+        const int m = mnk[0];
+        const int n = (0 < mnk[1] ? mnk[1] : m);
+        const int k = (0 < mnk[2] ? mnk[2] : m);
+        int M = (NULL == arg ? 0 : atoi(arg)), N, K;
+        if (0 < M) {
           arg = strtok(NULL, delims);
-          nn = (NULL == arg ? 1 : atoi(arg));
+          N = (NULL == arg ? 1 : atoi(arg));
           arg = strtok(NULL, delims);
-          nk = (NULL == arg ? 1 : atoi(arg));
+          K = (NULL == arg ? 1 : atoi(arg));
         } else { /* default */
-          nm = nn = nk = 128;
+          M = N = K = 128;
         }
-        benchmark_multiply(nm, nn, nk, mnk[0], 0 < mnk[1] ? mnk[1] : mnk[0],
-                           0 < mnk[2] ? mnk[2] : mnk[0], comm);
+        benchmark_multiply(imax(M, m), imax(N, n), imax(K, k), m, n, k, comm);
         mnk[0] = mnk[1] = mnk[2] = 0;
       } else {
         fprintf(stderr, "ERROR: invalid argument(s)\n");
