@@ -86,7 +86,10 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
     const int max_m = size / ntasks, tid = i / max_m;
     const SINT m = i - tid * max_m;
     global const dbm_task_t *const task = &tasks[itask + tid];
-    if (m < XM(task)) { /* valid task */
+#if !defined(NDEBUG)
+    if (m < XM(task))
+#endif
+    { /* valid task */
       bmat += XB(task);
 #if defined(BCST_WG)
       if (XM(task) <= XN(task)) { /* BCST_WG to broadcast B-values */
