@@ -32,11 +32,10 @@ static void print_func(char *message, int output_unit) {
 }
 
 /*******************************************************************************
- * \brief Returns the smaller/larger of two given integers.
+ * \brief Returns the smaller of the two integers (missing from the C standard).
  * \author Ole Schuett
  ******************************************************************************/
 static inline int imin(int x, int y) { return (x < y ? x : y); }
-static inline int imax(int x, int y) { return (x > y ? x : y); }
 
 /*******************************************************************************
  * \brief Private routine for creating a distribution.
@@ -214,8 +213,7 @@ void benchmark_multiply(const int M, const int N, const int K, const int m,
 #if defined(DBM_VALIDATE_AGAINST_LIBXSMM) && defined(__LIBXSMM)
   const double expected = 0, checksum = 0;
 #else
-  const double expected = (int64_t)M * (int64_t)m * (int64_t)N * (int64_t)n *
-                          (int64_t)K * (int64_t)K * (int64_t)k * (int64_t)k;
+  const double expected = (uint64_t)M * m * N * n * K * K * k * k;
   const double checksum = dbm_checksum(matrix_c);
 #endif
 
@@ -336,7 +334,7 @@ int main(int argc, char *argv[]) {
         } else { /* default */
           M = N = K = 128;
         }
-        benchmark_multiply(imax(M, m), imax(N, n), imax(K, k), m, n, k, comm);
+        benchmark_multiply(M, N, K, m, n, k, comm);
         mnk[0] = mnk[1] = mnk[2] = 0;
       } else {
         fprintf(stderr, "ERROR: invalid argument(s)\n");
