@@ -506,7 +506,7 @@ void dbm_iterator_next_block(dbm_iterator_t *iter, int *row, int *col,
 void dbm_iterator_stop(dbm_iterator_t *iter) { free(iter); }
 
 /*******************************************************************************
- * \brief Private routine for to accumulate using Kahan's summation.
+ * \brief Private routine to accumulate using Kahan's summation.
  * \author Hans Pabst
  ******************************************************************************/
 static double kahan_sum(double value, double *accumulator,
