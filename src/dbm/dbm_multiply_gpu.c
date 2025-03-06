@@ -18,7 +18,7 @@
 #include <stdio.h>
 
 /*******************************************************************************
- * \brief Internal routine for intializing the gpu backend.
+ * \brief Internal routine for initializing the gpu backend.
  * \author Ole Schuett
  ******************************************************************************/
 void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,

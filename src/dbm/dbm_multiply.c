@@ -89,7 +89,7 @@ typedef struct {
 } backend_context_t;
 
 /*******************************************************************************
- * \brief Private routine for intializing the multiplication backend.
+ * \brief Private routine for initializing the multiplication backend.
  * \author Ole Schuett
  ******************************************************************************/
 static backend_context_t *backend_start(const dbm_matrix_t *matrix_c) {
