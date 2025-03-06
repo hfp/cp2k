@@ -162,8 +162,10 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
       libxsmm_matdiff_reduce(&diff, &d);
     }
   }
+  const char *const maxeps_env = getenv("DBM_MULTIPLY_MAXEPS");
+  const double maxeps = (NULL == maxeps_env ? 1E-13 : fabs(atof(maxeps_env)));
   const double epsilon = libxsmm_matdiff_epsilon(&diff);
-  if (1E-15 < epsilon) {
+  if (maxeps < epsilon) {
     fprintf(stderr, "INFO ACC/LIBDBM: mnk=%ix%ix%i ntasks=%i diff=%g\n",
             mnk[0][1], mnk[1][1], mnk[2][1], ntasks, epsilon);
   }
