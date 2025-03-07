@@ -133,8 +133,7 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
                                   dbm_shard_t *shard_c,
                                   backend_context_t *ctx) {
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
-  dbm_multiply_gpu_process_batch(ntasks, batch, mnk, alpha, kshard,
-                                 &ctx->gpu);
+  dbm_multiply_gpu_process_batch(ntasks, batch, mnk, alpha, kshard, &ctx->gpu);
 #if defined(DBM_VALIDATE_AGAINST_LIBXSMM) && defined(__LIBXSMM)
   dbm_shard_gpu_t *const shard_g = &ctx->gpu.shards_c_dev[kshard];
   dbm_shard_t shard_r;
@@ -339,16 +338,16 @@ static void multiply_packs(const bool transa, const bool transb,
             min_max(mnk[2], k);
 
             if (ntasks == DBM_MAX_BATCH_SIZE) {
-              backend_process_batch(ntasks, batch, mnk, alpha, pack_a,
-                                    pack_b, ishard, shard_c, ctx);
+              backend_process_batch(ntasks, batch, mnk, alpha, pack_a, pack_b,
+                                    ishard, shard_c, ctx);
               mnk[0][0] = mnk[1][0] = mnk[2][0] = INT_MAX;
               mnk[0][1] = mnk[1][1] = mnk[2][1] = 0;
               ntasks = 0;
             }
           }
         }
-        backend_process_batch(ntasks, batch, mnk, alpha, pack_a, pack_b,
-                              ishard, shard_c, ctx);
+        backend_process_batch(ntasks, batch, mnk, alpha, pack_a, pack_b, ishard,
+                              shard_c, ctx);
       }
     }
   }
