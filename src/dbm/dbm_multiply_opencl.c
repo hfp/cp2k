@@ -50,8 +50,8 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       const char *const sm_env = getenv("DBM_MULTIPLY_SM");
       const char *const wg_env = getenv("DBM_MULTIPLY_WG");
       const int bn0 = (0 == c_dbcsr_acc_opencl_config.device.nv
-                           ? (0 == c_dbcsr_acc_opencl_config.device.amd ? 4 : 8)
-                           : 2);
+                           ? 8
+                           : 4);
       int lu = LIBXSMM_CLMP(NULL == lu_env ? 0 : atoi(lu_env), -2, 1);
       int sm = (NULL == sm_env ? 0 /*default*/ : atoi(sm_env));
       int bn = LIBXSMM_CLMP(
