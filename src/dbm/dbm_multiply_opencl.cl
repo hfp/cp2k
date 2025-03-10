@@ -43,7 +43,7 @@
 #define DBM_MULTIPLY(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, BN)               \
   do { /* DBM_MULTIPLY_KERNEL specialized over N */                            \
     SINT n0 = 0, n1 = XN(TASK) - (BN);                                         \
-    UNROLL_AUTO for (SINT n = 0; n < (BN); ++n) { (CVEC)[n] = ZERO; }          \
+    UNROLL_FORCE(BN) for (SINT n = 0; n < (BN); ++n) { (CVEC)[n] = ZERO; }     \
     UNROLL_OUTER(1) for (; n0 <= n1; n0 += (BN)) {                             \
       DBM_MULTIPLY_KERNEL(TASK, AMAT, BMAT, CVEC, M, n0, BN);                  \
       DBM_MULTIPLY_STORE(ALPHA, TASK, CMAT, CVEC, M, n0, BN);                  \
