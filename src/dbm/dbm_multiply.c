@@ -419,10 +419,6 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   free(rows_max_eps);
   backend_stop(ctx);
 
-  // Compute average flops per rank.
-  dbm_mpi_sum_int64(flop, 1, matrix_c->dist->comm);
-  *flop = (*flop + matrix_c->dist->nranks - 1) / matrix_c->dist->nranks;
-
   // Final filter pass.
   dbm_filter(matrix_c, filter_eps);
 }
