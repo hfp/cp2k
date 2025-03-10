@@ -25,7 +25,6 @@
     UNROLL_AUTO for (SINT n = 0; n < (N1); ++n) { /* flush to global */        \
       const int idx = IDT(M, n + (N0), XM(TASK), XN(TASK)) + XC(TASK);         \
       ACCUMULATE((CMAT) + idx, (ALPHA) * (CVEC)[n]);                           \
-      (CVEC)[n] = ZERO; /* reset */                                            \
     }                                                                          \
   } while (0)
 
@@ -47,6 +46,7 @@
     UNROLL_OUTER(1) for (; n0 <= n1; n0 += (BN)) {                             \
       DBM_MULTIPLY_KERNEL(TASK, AMAT, BMAT, CVEC, M, n0, BN);                  \
       DBM_MULTIPLY_STORE(ALPHA, TASK, CMAT, CVEC, M, n0, BN);                  \
+      UNROLL_FORCE(BN) for (SINT n = 0; n < (BN); ++n) { (CVEC)[n] = ZERO; }   \
     }                                                                          \
     DBM_MULTIPLY_KERNEL(TASK, AMAT, BMAT, CVEC, M, n0, XN(TASK) - n0);         \
     DBM_MULTIPLY_STORE(ALPHA, TASK, CMAT, CVEC, M, n0, XN(TASK) - n0);         \
