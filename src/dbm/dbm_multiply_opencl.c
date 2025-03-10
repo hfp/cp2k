@@ -12,7 +12,7 @@
 #include "dbm_multiply_opencl.cl.h"
 
 typedef struct {
-  int max_m, avg_m, avg_n, avg_k;
+  int max_m, avg_m, avg_n, avg_k, changes;
 } dbm_multiply_gpu_launch_info_t;
 
 static void dbm_multiply_gpu_launch_info(dbm_multiply_gpu_launch_info_t* info,
@@ -24,10 +24,14 @@ static void dbm_multiply_gpu_launch_info(dbm_multiply_gpu_launch_info_t* info,
   info->avg_n = tasks[0].n;
   info->avg_k = tasks[0].k;
   for (; i < ntasks; ++i) {
-    info->max_m = imax(info->max_m, tasks[i].m);
-    info->avg_m = (info->avg_m + tasks[i].m) / 2;
-    info->avg_n = (info->avg_n + tasks[i].n) / 2;
-    info->avg_k = (info->avg_k + tasks[i].k) / 2;
+    const int m = tasks[i].m, n = tasks[i].n, k = tasks[i].k;
+    info->max_m = imax(info->max_m, m);
+    if (info->avg_m != m || info->avg_n != n || info->avg_k != k) {
+      info->avg_m = (info->avg_m + m) / 2;
+      info->avg_n = (info->avg_n + n) / 2;
+      info->avg_k = (info->avg_k + k) / 2;
+      ++info->changes;
+    }
   }
 }
 
@@ -229,13 +233,15 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
                                                 sizeof(cl_ulong), &end, NULL)) {
       const double dkrnl = 1E-9 * LIBXSMM_DELTA(begin, end);
       const double dtotl = 1E+3 * LIBXSMM_MAX(dkrnl, dhost);
+      int pure;
       if (1 < ndims) { /* DBM_MULTIPLY_GEN */
         dbm_multiply_gpu_launch_info(&info, tasks_host, ntasks);
       }
+      pure = (100 * (ntasks - info.changes) + ntasks - 1) / ntasks;
       fprintf(stderr,
-              "INFO ACC/LIBDBM: DBM-kernel mnk=%ix%ix%i "
+              "INFO ACC/LIBDBM: DBM-kernel mnk=%ix%ix%i pure=%i%% "
               "ntasks=%i kernel_ms=%.2g total_ms=%.2g gflops=%.1f\n",
-              info.avg_m, info.avg_n, info.avg_k, ntasks, dkrnl, dtotl,
+              info.avg_m, info.avg_n, info.avg_k, pure, ntasks, dkrnl, dtotl,
               2E-6 * info.avg_m * info.avg_n * info.avg_k * ntasks / dtotl);
     }
   }
