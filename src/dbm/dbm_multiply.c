@@ -9,6 +9,7 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+#include <omp.h>
 
 #include "../offload/offload_runtime.h"
 #include "dbm_hyperparams.h"
@@ -222,9 +223,9 @@ static void multiply_packs(const bool transa, const bool transb,
 
   const int nshard_rows = matrix_c->dist->rows.nshards;
   const int nshard_cols = matrix_c->dist->cols.nshards;
-  int shard_row_start[nshard_rows], shard_col_start[nshard_cols];
-  memset(shard_row_start, 0, nshard_rows * sizeof(int));
-  memset(shard_col_start, 0, nshard_cols * sizeof(int));
+  int* shard_row_start = calloc(nshard_rows, sizeof(int));
+  int* shard_col_start = calloc(nshard_cols, sizeof(int));
+  assert(NULL != shard_row_start && NULL != shard_col_start);
 
   const int *sum_index_sizes_a =
       (transa) ? matrix_a->row_sizes : matrix_a->col_sizes;
@@ -237,6 +238,10 @@ static void multiply_packs(const bool transa, const bool transb,
 
 #pragma omp parallel reduction(+ : flop_sum)
   {
+    // Thread-private array covering given work in piece-wise fashion.
+    dbm_task_t* batch = omp_alloc(DBM_MAX_BATCH_SIZE, omp_null_allocator);
+    assert(NULL != batch);
+
     // Blocks are ordered first by shard. Creating lookup tables of boundaries.
 #pragma omp for nowait
     for (int iblock = 1; iblock < pack_a->nblocks; iblock++) {
@@ -262,7 +267,6 @@ static void multiply_packs(const bool transa, const bool transb,
       for (int shard_col = 0; shard_col < nshard_cols; shard_col++) {
         const int ishard = shard_row * nshard_cols + shard_col;
         dbm_shard_t *shard_c = &matrix_c->shards[ishard];
-        dbm_task_t batch[DBM_MAX_BATCH_SIZE];
         int mnk[][2] = {{INT_MAX, 0}, {INT_MAX, 0}, {INT_MAX, 0}};
         int ntasks = 0;
 
@@ -350,7 +354,13 @@ static void multiply_packs(const bool transa, const bool transb,
                               shard_c, ctx);
       }
     }
+    
+    omp_free(batch);
   }
+
+  free(shard_row_start);
+  free(shard_col_start);
+
   *flop += flop_sum;
 }
 
