@@ -22,7 +22,7 @@ static void dbm_multiply_gpu_launch_info(dbm_multiply_gpu_launch_info_t *info,
   info->avg_m = tasks[0].m;
   info->avg_n = tasks[0].n;
   info->avg_k = tasks[0].k;
-  for (; i < ntasks; ++i) {
+  for (info->changes = 0; i < ntasks; ++i) {
     const int m = tasks[i].m, n = tasks[i].n, k = tasks[i].k;
     info->max_m = imax(info->max_m, m);
     if (info->avg_m != m || info->avg_n != n || info->avg_k != k) {
@@ -53,7 +53,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
   size_t work_size[] = {1, 1, 1}, ibatch = 0;
   size_t iadata = 0, ibdata = 0, icdata = 0;
   const size_t work_tasks = ntasks;
-  dbm_multiply_gpu_launch_info_t info;
+  dbm_multiply_gpu_launch_info_t info = {0};
   c_dbcsr_acc_opencl_info_memptr_t adata, bdata, cdata, batch;
   assert(NULL != pack_a_data && NULL != pack_b_data && NULL != shard_c_data);
   assert(NULL != str && NULL != str->queue);
