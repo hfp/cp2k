@@ -210,11 +210,21 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
       const double flops = 1E-6 * mnk[0][1] * mnk[1][1] * mnk[2][1] * ntasks;
       const double dkrnl = 1E-9 * LIBXSMM_DELTA(begin, end);
       const double dtotl = 1E+3 * LIBXSMM_MAX(dkrnl, dhost);
-      fprintf(stderr,
-              "INFO ACC/LIBDBM: DBM-kernel mnk=%ix%ix%i..%ix%ix%i "
-              "ntasks=%i kernel_ms=%.2g total_ms=%.2g gflops=%.1f\n",
-              mnk[0][0], mnk[1][0], mnk[2][0], mnk[0][1], mnk[1][1], mnk[2][1],
-              ntasks, dkrnl, dtotl, flops / dtotl);
+      if (mnk[0][0] == mnk[0][1] && mnk[1][0] == mnk[1][1] && 0 == mnk[2][0] == mnk[2][1]) {
+        fprintf(stderr,
+                "INFO ACC/LIBDBM: DBM-kernel mnk=%ix%ix%i "
+                "ntasks=%i kernel_ms=%.2g total_ms=%.2g gflops=%.1f\n",
+                mnk[0][1], mnk[1][1], mnk[2][1],
+                ntasks, dkrnl, dtotl, flops / dtotl);
+      }
+      else { /* inhomogeneous */
+        fprintf(stderr,
+                "INFO ACC/LIBDBM: DBM-kernel mnk=%ix%ix%i %ix%ix%i "
+                "ntasks=%i kernel_ms=%.2g total_ms=%.2g gflops=%.1f\n",
+                mnk[0][0], mnk[1][0], mnk[2][0],
+                mnk[0][1], mnk[1][1], mnk[2][1],
+                ntasks, dkrnl, dtotl, flops / dtotl);
+      }
     }
   }
   OFFLOAD_CHECK(result);
