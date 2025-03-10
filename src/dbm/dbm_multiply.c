@@ -97,7 +97,7 @@ static backend_context_t *backend_start(const dbm_matrix_t *matrix_c) {
   backend_context_t *ctx = calloc(1, sizeof(backend_context_t));
 
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
-  dbm_multiply_gpu_start(DBM_BATCHSIZE_MAX, dbm_get_num_shards(matrix_c),
+  dbm_multiply_gpu_start(DBM_MAX_BATCH_SIZE, dbm_get_num_shards(matrix_c),
                          matrix_c->shards, &ctx->gpu);
 #else
   (void)matrix_c; // mark as used
@@ -239,7 +239,7 @@ static void multiply_packs(const bool transa, const bool transb,
 #pragma omp parallel reduction(+ : flop_sum)
   {
     // Thread-private array covering given work in piece-wise fashion.
-    dbm_task_t* batch = omp_alloc(sizeof(dbm_task_t) * DBM_BATCHSIZE_MAX, omp_null_allocator);
+    dbm_task_t* batch = omp_alloc(sizeof(dbm_task_t) * DBM_MAX_BATCH_SIZE, omp_null_allocator);
     assert(NULL != batch);
 
     // Blocks are ordered first by shard. Creating lookup tables of boundaries.
@@ -268,7 +268,7 @@ static void multiply_packs(const bool transa, const bool transb,
         const int ishard = shard_row * nshard_cols + shard_col;
         dbm_shard_t *shard_c = &matrix_c->shards[ishard];
         int mnk[][2] = {{INT_MAX, 0}, {INT_MAX, 0}, {INT_MAX, 0}};
-        int batchsize = DBM_BATCHSIZE_MAX, ntasks = 0, k_avg = 0;
+        int ntasks = 0;
 
         // Use a merge-join to find pairs of blocks with matching sum indices.
         // This utilizes that blocks within a shard are ordered by sum_index.
@@ -337,15 +337,13 @@ static void multiply_packs(const bool transa, const bool transb,
             ++ntasks;
 
             // track MxN-shape covering an entire batch
-            k_avg = (k_avg + k) / 2; // calibrate batchsize
             min_max(mnk[0], m);
             min_max(mnk[1], n);
             min_max(mnk[2], k);
 
-            if (batchsize <= ntasks) {
+            if (ntasks == DBM_MAX_BATCH_SIZE) {
               backend_process_batch(ntasks, batch, mnk, alpha, pack_a, pack_b,
                                     ishard, shard_c, ctx);
-              batchsize = (DBM_BATCHSIZE_MAX - DBM_BATCHSIZE_MIN) * (k_avg - mnk[2][0]) / mnk[2][1] + DBM_BATCHSIZE_MIN;
               mnk[0][0] = mnk[1][0] = mnk[2][0] = INT_MAX;
               mnk[0][1] = mnk[1][1] = mnk[2][1] = 0;
               ntasks = 0;
