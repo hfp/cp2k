@@ -239,7 +239,7 @@ static void multiply_packs(const bool transa, const bool transb,
 #pragma omp parallel reduction(+ : flop_sum)
   {
     // Thread-private array covering given work in piece-wise fashion.
-    dbm_task_t* batch = omp_alloc(DBM_BATCHSIZE_MAX, omp_null_allocator);
+    dbm_task_t* batch = omp_alloc(sizeof(dbm_task_t) * DBM_BATCHSIZE_MAX, omp_null_allocator);
     assert(NULL != batch);
 
     // Blocks are ordered first by shard. Creating lookup tables of boundaries.
@@ -357,7 +357,7 @@ static void multiply_packs(const bool transa, const bool transb,
       }
     }
     
-    omp_free(batch);
+    omp_free(batch, omp_null_allocator);
   }
 
   free(shard_row_start);
