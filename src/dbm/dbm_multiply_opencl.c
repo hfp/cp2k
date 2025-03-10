@@ -12,8 +12,9 @@
 #include "dbm_multiply_opencl.cl.h"
 
 void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
-                                    const int mnk[3][2], double alpha,
-                                    int ntasks, const dbm_task_t *tasks,
+                                    double alpha, int ntasks,
+                                    const dbm_task_t *tasks_host,
+                                    const dbm_task_t *tasks,
                                     const double *pack_a_data,
                                     const double *pack_b_data,
                                     double *shard_c_data) {
@@ -27,14 +28,11 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
   cl_event event, *const perf_event =
                       ((0 <= verbosity && 2 >= verbosity) ? NULL : &event);
   const c_dbcsr_acc_opencl_stream_t *const str = ACC_OPENCL_STREAM(stream);
-  const size_t max_m = mnk[0][1], work_tasks = ntasks;
   size_t work_size[] = {1, 1, 1}, ibatch = 0, iadata = 0, ibdata = 0,
          icdata = 0;
+  const size_t work_tasks = ntasks;
   c_dbcsr_acc_opencl_info_memptr_t adata, bdata, cdata, batch;
   assert(NULL != pack_a_data && NULL != pack_b_data && NULL != shard_c_data);
-  assert(0 < mnk[0][0] && 0 < mnk[0][1] && mnk[0][0] <= mnk[0][1]);
-  assert(0 < mnk[1][0] && 0 < mnk[1][1] && mnk[1][0] <= mnk[1][1]);
-  assert(0 < mnk[2][0] && 0 < mnk[2][1] && mnk[2][0] <= mnk[2][1]);
   assert(NULL != str && NULL != str->queue);
   assert(0 < ntasks && NULL != tasks);
 #if defined(OPENCL_DBM_SOURCE_MULTIPLY)
@@ -184,15 +182,14 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
     result |= clSetKernelArg(kernel, 9, sizeof(cl_uint), &zero /*C_shape0*/);
   } else {
     result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &ntasks);
-    work_size[0] = work_tasks * max_m;
-    result |= clSetKernelArg(kernel, 3, sizeof(cl_int), work_size);
+    work_size[0] = work_tasks;
     if (0 < wgsize[0]) { /* fixup to be a multiple of the WG-size */
       work_size[0] = LIBXSMM_UP(work_size[0], wgsize[0]);
     }
-    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 4, batch.memory);
-    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 5, adata.memory);
-    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 6, bdata.memory);
-    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 7, cdata.memory);
+    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 3, batch.memory);
+    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 4, adata.memory);
+    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 5, bdata.memory);
+    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 6, cdata.memory);
   }
   result |= clEnqueueNDRangeKernel(
       str->queue, kernel, ndims, NULL, work_size, 0 < wgsize[0] ? wgsize : NULL,
@@ -207,24 +204,17 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
         EXIT_SUCCESS == clGetEventProfilingInfo(*perf_event,
                                                 CL_PROFILING_COMMAND_END,
                                                 sizeof(cl_ulong), &end, NULL)) {
-      const double flops = 1E-6 * mnk[0][1] * mnk[1][1] * mnk[2][1] * ntasks;
+      const int m_avg = tasks_host[0].m;
+      const int n_avg = tasks_host[0].n;
+      const int k_avg = tasks_host[0].k;
+      const double flops = 2E-6 * m_avg * n_avg * k_avg * ntasks;
       const double dkrnl = 1E-9 * LIBXSMM_DELTA(begin, end);
       const double dtotl = 1E+3 * LIBXSMM_MAX(dkrnl, dhost);
-      if (mnk[0][0] == mnk[0][1] && mnk[1][0] == mnk[1][1] && 0 == mnk[2][0] == mnk[2][1]) {
-        fprintf(stderr,
-                "INFO ACC/LIBDBM: DBM-kernel mnk=%ix%ix%i "
-                "ntasks=%i kernel_ms=%.2g total_ms=%.2g gflops=%.1f\n",
-                mnk[0][1], mnk[1][1], mnk[2][1],
-                ntasks, dkrnl, dtotl, flops / dtotl);
-      }
-      else { /* inhomogeneous */
-        fprintf(stderr,
-                "INFO ACC/LIBDBM: DBM-kernel mnk=%ix%ix%i %ix%ix%i "
-                "ntasks=%i kernel_ms=%.2g total_ms=%.2g gflops=%.1f\n",
-                mnk[0][0], mnk[1][0], mnk[2][0],
-                mnk[0][1], mnk[1][1], mnk[2][1],
-                ntasks, dkrnl, dtotl, flops / dtotl);
-      }
+      fprintf(stderr,
+              "INFO ACC/LIBDBM: DBM-kernel mnk=%ix%ix%i "
+              "ntasks=%i kernel_ms=%.2g total_ms=%.2g gflops=%.1f\n",
+              m_avg, n_avg, k_avg,
+              ntasks, dkrnl, dtotl, flops / dtotl);
     }
   }
   OFFLOAD_CHECK(result);

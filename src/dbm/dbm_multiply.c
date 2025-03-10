@@ -29,19 +29,6 @@
 #endif
 
 /*******************************************************************************
- * \brief Updates the min/max of a range of values (initially {INT_MAX, 0}).
- * \author Hans Pabst
- ******************************************************************************/
-static inline void min_max(int result[2], int value) {
-  if (value < result[0]) {
-    result[0] = value;
-  }
-  if (result[1] < value) {
-    result[1] = value;
-  }
-}
-
-/*******************************************************************************
  * \brief Private routine for computing the max filter threshold for each row.
  * \author Ole Schuett
  ******************************************************************************/
@@ -128,13 +115,13 @@ static void backend_upload_packs(const dbm_pack_t *pack_a,
  * \author Ole Schuett
  ******************************************************************************/
 static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
-                                  const int mnk[3][2], const double alpha,
+                                  const double alpha,
                                   const dbm_pack_t *pack_a,
                                   const dbm_pack_t *pack_b, const int kshard,
                                   dbm_shard_t *shard_c,
                                   backend_context_t *ctx) {
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
-  dbm_multiply_gpu_process_batch(ntasks, batch, mnk, alpha, kshard, &ctx->gpu);
+  dbm_multiply_gpu_process_batch(ntasks, batch, alpha, kshard, &ctx->gpu);
 #if defined(DBM_VALIDATE_AGAINST_LIBXSMM) && defined(__LIBXSMM)
   dbm_shard_gpu_t *const shard_g = &ctx->gpu.shards_c_dev[kshard];
   dbm_shard_t shard_r;
@@ -166,8 +153,7 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
   const double maxeps = (NULL == maxeps_env ? 1E-13 : fabs(atof(maxeps_env)));
   const double epsilon = libxsmm_matdiff_epsilon(&diff);
   if (maxeps < epsilon) {
-    fprintf(stderr, "INFO ACC/LIBDBM: mnk=%ix%ix%i ntasks=%i diff=%g\n",
-            mnk[0][1], mnk[1][1], mnk[2][1], ntasks, epsilon);
+    fprintf(stderr, "INFO ACC/LIBDBM: diff=%g\n", epsilon);
   }
   dbm_shard_release(&shard_r);
 #else
@@ -176,7 +162,6 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
   (void)shard_c; // mark as used
 #endif
 #else
-  (void)mnk;
   (void)kshard;
   (void)ctx; // mark as used
   dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b, shard_c);
@@ -267,7 +252,6 @@ static void multiply_packs(const bool transa, const bool transb,
       for (int shard_col = 0; shard_col < nshard_cols; shard_col++) {
         const int ishard = shard_row * nshard_cols + shard_col;
         dbm_shard_t *shard_c = &matrix_c->shards[ishard];
-        int mnk[][2] = {{INT_MAX, 0}, {INT_MAX, 0}, {INT_MAX, 0}};
         int ntasks = 0;
 
         // Use a merge-join to find pairs of blocks with matching sum indices.
@@ -336,21 +320,14 @@ static void multiply_packs(const bool transa, const bool transb,
             batch[ntasks].offset_c = blk_c->offset;
             ++ntasks;
 
-            // track MxN-shape covering an entire batch
-            min_max(mnk[0], m);
-            min_max(mnk[1], n);
-            min_max(mnk[2], k);
-
             if (ntasks == DBM_MAX_BATCH_SIZE) {
-              backend_process_batch(ntasks, batch, mnk, alpha, pack_a, pack_b,
+              backend_process_batch(ntasks, batch, alpha, pack_a, pack_b,
                                     ishard, shard_c, ctx);
-              mnk[0][0] = mnk[1][0] = mnk[2][0] = INT_MAX;
-              mnk[0][1] = mnk[1][1] = mnk[2][1] = 0;
               ntasks = 0;
             }
           }
         }
-        backend_process_batch(ntasks, batch, mnk, alpha, pack_a, pack_b, ishard,
+        backend_process_batch(ntasks, batch, alpha, pack_a, pack_b, ishard,
                               shard_c, ctx);
       }
     }

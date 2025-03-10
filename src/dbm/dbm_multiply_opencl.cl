@@ -59,29 +59,23 @@ __attribute__((intel_reqd_sub_group_size(SG)))
 #endif
 #endif
 kernel void
-dbm_multiply(double alpha, int itask, int ntasks, int size,
+dbm_multiply(double alpha, int itask, int ntasks,
              global const dbm_task_t *tasks, global const double *restrict amat,
              global const double *restrict bmat, global double *restrict cmat) {
+  const int size = (int)get_global_size(0);
   const int i = (int)get_global_id(0);
 #if defined(SM) && (0 < SM)
   local double tls[WG][BN + SM - 1], *const cvec = &tls[get_local_id(0)];
 #else
   double cvec[BN];
 #endif
-#if !defined(NDEBUG)
-  if (i < size)
+#if defined(WG) && (0 < WG)
+  if (i < ntasks)
 #endif
-  {
-    const int max_m = size / ntasks, tid = i / max_m;
-    const SINT m = i - tid * max_m;
-    global const dbm_task_t *const task = &tasks[itask + tid];
-#if !defined(NDEBUG)
-    if (m < XM(task))
-#endif
-    { /* valid task */
-      bmat += XB(task);
-      DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN);
-    }
+  { /* valid task */
+    global const dbm_task_t *const task = &tasks[itask + i];
+    bmat += XB(task);
+    DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN);
   }
 }
 #endif
