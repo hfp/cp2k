@@ -15,9 +15,8 @@ typedef struct {
   int max_m, avg_m, avg_n, avg_k, changes;
 } dbm_multiply_gpu_launch_info_t;
 
-static void dbm_multiply_gpu_launch_info(dbm_multiply_gpu_launch_info_t* info,
-  const dbm_task_t *tasks, int ntasks)
-{
+static void dbm_multiply_gpu_launch_info(dbm_multiply_gpu_launch_info_t *info,
+                                         const dbm_task_t *tasks, int ntasks) {
   int i = 1;
   info->max_m = tasks[0].m;
   info->avg_m = tasks[0].m;
@@ -35,9 +34,8 @@ static void dbm_multiply_gpu_launch_info(dbm_multiply_gpu_launch_info_t* info,
   }
 }
 
-void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream,
-                                    double alpha, int ntasks,
-                                    const dbm_task_t *tasks_host,
+void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
+                                    int ntasks, const dbm_task_t *tasks_host,
                                     const dbm_task_t *tasks,
                                     const double *pack_a_data,
                                     const double *pack_b_data,

@@ -7,9 +7,9 @@
 
 #include <assert.h>
 #include <limits.h>
+#include <omp.h>
 #include <stdlib.h>
 #include <string.h>
-#include <omp.h>
 
 #include "../offload/offload_runtime.h"
 #include "dbm_hyperparams.h"
@@ -115,8 +115,7 @@ static void backend_upload_packs(const dbm_pack_t *pack_a,
  * \author Ole Schuett
  ******************************************************************************/
 static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
-                                  const double alpha,
-                                  const dbm_pack_t *pack_a,
+                                  const double alpha, const dbm_pack_t *pack_a,
                                   const dbm_pack_t *pack_b, const int kshard,
                                   dbm_shard_t *shard_c,
                                   backend_context_t *ctx) {
@@ -208,8 +207,8 @@ static void multiply_packs(const bool transa, const bool transb,
 
   const int nshard_rows = matrix_c->dist->rows.nshards;
   const int nshard_cols = matrix_c->dist->cols.nshards;
-  int* shard_row_start = calloc(nshard_rows, sizeof(int));
-  int* shard_col_start = calloc(nshard_cols, sizeof(int));
+  int *shard_row_start = calloc(nshard_rows, sizeof(int));
+  int *shard_col_start = calloc(nshard_cols, sizeof(int));
   assert(NULL != shard_row_start && NULL != shard_col_start);
 
   const int *sum_index_sizes_a =
@@ -224,7 +223,8 @@ static void multiply_packs(const bool transa, const bool transb,
 #pragma omp parallel reduction(+ : flop_sum)
   {
     // Thread-private array covering given work in piece-wise fashion.
-    dbm_task_t* batch = omp_alloc(sizeof(dbm_task_t) * DBM_MAX_BATCH_SIZE, omp_null_allocator);
+    dbm_task_t *batch =
+        omp_alloc(sizeof(dbm_task_t) * DBM_MAX_BATCH_SIZE, omp_null_allocator);
     assert(NULL != batch);
 
     // Blocks are ordered first by shard. Creating lookup tables of boundaries.
@@ -331,7 +331,7 @@ static void multiply_packs(const bool transa, const bool transb,
                               shard_c, ctx);
       }
     }
-    
+
     omp_free(batch, omp_null_allocator);
   }
 

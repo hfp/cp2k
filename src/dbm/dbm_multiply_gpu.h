@@ -64,8 +64,7 @@ void dbm_multiply_gpu_upload_packs(const dbm_pack_t *pack_a,
  * \author Ole Schuett
  ******************************************************************************/
 void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
-                                    const double alpha,
-                                    const int kshard,
+                                    const double alpha, const int kshard,
                                     dbm_multiply_gpu_context_t *ctx);
 
 /*******************************************************************************
