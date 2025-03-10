@@ -68,17 +68,17 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
 #else
   double cvec[BN];
 #endif
-#if !defined(NDEBUG)
+#if defined(WG) && (0 < WG) && !defined(NDEBUG)
   if (i < size)
 #endif
-  {
+  { /* valid task */
     const int max_m = size / ntasks, tid = i / max_m;
     const SINT m = i - tid * max_m;
     global const dbm_task_t *const task = &tasks[itask + tid];
 #if !defined(NDEBUG)
     if (m < XM(task))
 #endif
-    { /* valid task */
+    { /* valid slice (subtask) */
       bmat += XB(task);
       DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN);
     }
