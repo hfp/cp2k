@@ -13,17 +13,21 @@
 #define SINT short
 
 #define X(T, I) (T)->I /* task can be taken by value or by pointer */
-#define XA(T) X(T, offset_a)
-#define XB(T) X(T, offset_b)
 #define XC(T) X(T, offset_c)
-#define XM(T) (SINT) X(T, m)
-#define XN(T) (SINT) X(T, n)
 #define XK(T) (SINT) X(T, k)
 
-#if 1
+#if !defined(CLINEAR)
+#define XA(T) X(T, offset_a)
+#define XB(T) X(T, offset_b)
+#define XM(T) (SINT) X(T, m)
+#define XN(T) (SINT) X(T, n)
 #define IX IDX
 #define IT IDT
 #else
+#define XA(T) X(T, offset_b)
+#define XB(T) X(T, offset_a)
+#define XM(T) (SINT) X(T, n)
+#define XN(T) (SINT) X(T, m)
 #define IX IDT
 #define IT IDX
 #endif
@@ -36,25 +40,25 @@
     }                                                                          \
   } while (0)
 
-#define DBM_MULTIPLY_KERNEL(TASK, AMAT, BMAT, CVEC, M, N0, BN)                 \
+#define DBM_MULTIPLY_KERNEL(TASK, AMAT, BMAT, CVEC, M, N0, CN)                 \
   do { /* CVEC accumulates result */                                           \
     UNROLL_AUTO for (SINT k = 0; k < XK(TASK); ++k) {                          \
       const double a = (AMAT)[XA(TASK) + IT(M, k, XM(TASK), XK(TASK))];        \
       const int idx = IX(k, N0, XK(TASK), XN(TASK));                           \
-      UNROLL_AUTO for (SINT n = 0; n < (BN); ++n) {                            \
+      UNROLL_AUTO for (SINT n = 0; n < (CN); ++n) {                            \
         (CVEC)[n] = MAD(a, (BMAT)[idx + n], (CVEC)[n]);                        \
       }                                                                        \
     }                                                                          \
   } while (0)
 
-#define DBM_MULTIPLY(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, BN)               \
+#define DBM_MULTIPLY(ALPHA, TASK, AMAT, BMAT, CMAT, CVEC, M, CN)               \
   do { /* DBM_MULTIPLY_KERNEL specialized over N */                            \
-    SINT n0 = 0, n1 = XN(TASK) - (BN);                                         \
-    UNROLL_FORCE(BN) for (SINT n = 0; n < (BN); ++n) { (CVEC)[n] = ZERO; }     \
-    UNROLL_OUTER(1) for (; n0 <= n1; n0 += (BN)) {                             \
-      DBM_MULTIPLY_KERNEL(TASK, AMAT, BMAT, CVEC, M, n0, BN);                  \
-      DBM_MULTIPLY_STORE(ALPHA, TASK, CMAT, CVEC, M, n0, BN);                  \
-      UNROLL_FORCE(BN) for (SINT n = 0; n < (BN); ++n) { (CVEC)[n] = ZERO; }   \
+    SINT n0 = 0, n1 = XN(TASK) - (CN);                                         \
+    UNROLL_FORCE(CN) for (SINT n = 0; n < (CN); ++n) { (CVEC)[n] = ZERO; }     \
+    UNROLL_OUTER(1) for (; n0 <= n1; n0 += (CN)) {                             \
+      DBM_MULTIPLY_KERNEL(TASK, AMAT, BMAT, CVEC, M, n0, CN);                  \
+      DBM_MULTIPLY_STORE(ALPHA, TASK, CMAT, CVEC, M, n0, CN);                  \
+      UNROLL_FORCE(CN) for (SINT n = 0; n < (CN); ++n) { (CVEC)[n] = ZERO; }   \
     }                                                                          \
     DBM_MULTIPLY_KERNEL(TASK, AMAT, BMAT, CVEC, M, n0, XN(TASK) - n0);         \
     DBM_MULTIPLY_STORE(ALPHA, TASK, CMAT, CVEC, M, n0, XN(TASK) - n0);         \
@@ -68,13 +72,20 @@ __attribute__((intel_reqd_sub_group_size(SG)))
 #endif
 kernel void
 dbm_multiply(double alpha, int itask, int ntasks, int size,
-             global const dbm_task_t *tasks, global const double *restrict amat,
-             global const double *restrict bmat, global double *restrict cmat) {
+             global const dbm_task_t *tasks,
+#if !defined(CLINEAR)
+             global const double *restrict amat,
+             global const double *restrict bmat,
+#else
+             global const double *restrict bmat,
+             global const double *restrict amat,
+#endif
+             global double *restrict cmat) {
   const int i = (int)get_global_id(0);
 #if defined(SM) && (0 < SM)
-  local double tls[WG][BN + SM - 1], *const cvec = &tls[get_local_id(0)];
+  local double tls[WG][CN + SM - 1], *const cvec = &tls[get_local_id(0)];
 #else
-  double cvec[BN];
+  double cvec[CN];
 #endif
 #if defined(WG) && (0 < WG)
   if (i < size)
@@ -88,7 +99,7 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
 #endif
     { /* valid slice (subtask) */
       bmat += XB(task);
-      DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, BN);
+      DBM_MULTIPLY(alpha, task, amat, bmat, cmat, cvec, m, CN);
     }
   }
 }
