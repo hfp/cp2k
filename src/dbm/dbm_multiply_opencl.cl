@@ -20,10 +20,18 @@
 #define XN(T) (SINT) X(T, n)
 #define XK(T) (SINT) X(T, k)
 
+#if 1
+#define IX IDX
+#define IT IDT
+#else
+#define IX IDT
+#define IT IDX
+#endif
+
 #define DBM_MULTIPLY_STORE(ALPHA, TASK, CMAT, CVEC, M, N0, N1)                 \
   do { /* CMAT atomically accumulates CVEC */                                  \
     UNROLL_AUTO for (SINT n = 0; n < (N1); ++n) { /* flush to global */        \
-      const int idx = IDT(M, n + (N0), XM(TASK), XN(TASK)) + XC(TASK);         \
+      const int idx = IT(M, n + (N0), XM(TASK), XN(TASK)) + XC(TASK);          \
       ACCUMULATE((CMAT) + idx, (ALPHA) * (CVEC)[n]);                           \
     }                                                                          \
   } while (0)
@@ -31,8 +39,8 @@
 #define DBM_MULTIPLY_KERNEL(TASK, AMAT, BMAT, CVEC, M, N0, BN)                 \
   do { /* CVEC accumulates result */                                           \
     UNROLL_AUTO for (SINT k = 0; k < XK(TASK); ++k) {                          \
-      const double a = (AMAT)[XA(TASK) + IDT(M, k, XM(TASK), XK(TASK))];       \
-      const int idx = IDX(k, N0, XK(TASK), XN(TASK));                          \
+      const double a = (AMAT)[XA(TASK) + IT(M, k, XM(TASK), XK(TASK))];        \
+      const int idx = IX(k, N0, XK(TASK), XN(TASK));                           \
       UNROLL_AUTO for (SINT n = 0; n < (BN); ++n) {                            \
         (CVEC)[n] = MAD(a, (BMAT)[idx + n], (CVEC)[n]);                        \
       }                                                                        \
@@ -68,7 +76,7 @@ dbm_multiply(double alpha, int itask, int ntasks, int size,
 #else
   double cvec[BN];
 #endif
-#if defined(WG) && (0 < WG) && !defined(NDEBUG)
+#if defined(WG) && (0 < WG)
   if (i < size)
 #endif
   { /* valid task */
