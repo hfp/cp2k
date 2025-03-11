@@ -113,6 +113,7 @@ void *dbm_mempool_device_malloc(const size_t size) {
   return chunk->mem;
 #else
   (void)size; // mark used
+  return NULL;
 #endif
 }
 
