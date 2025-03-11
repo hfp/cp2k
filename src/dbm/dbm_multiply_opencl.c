@@ -69,17 +69,17 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
           "-cl-fast-relaxed-math -cl-denorms-are-zero";
       const char *const gen_env = getenv("DBM_MULTIPLY_GEN");
       const char *const lin_env = getenv("DBM_MULTIPLY_LIN");
-      const char *const cn_env = getenv("DBM_MULTIPLY_CN");
+      const char *const bn_env = getenv("DBM_MULTIPLY_BN");
       const char *const sm_env = getenv("DBM_MULTIPLY_SM");
       const char *const wg_env = getenv("DBM_MULTIPLY_WG");
       const char *const lu_env = getenv("DBM_MULTIPLY_LU");
       const char *const xf_env = getenv("DBM_MULTIPLY_XF");
       int sm = (NULL == sm_env ? 0 /*default*/ : atoi(sm_env));
-      const int cn0 = (0 == c_dbcsr_acc_opencl_config.device.nv ? 4 : 2);
-      const int cn1 = ((0 == sm && 0 == clinear) ? cn0 : (cn0 * 2));
-      int cn = LIBXSMM_CLMP(NULL == cn_env ? cn1 : atoi(cn_env), 1, 32);
+      const int bn0 = (0 == c_dbcsr_acc_opencl_config.device.nv ? 8 : 4);
+      const int bn1 = ((0 == sm && 0 == clinear) ? bn0 : (bn0 * 2));
+      int bn = LIBXSMM_CLMP(NULL == bn_env ? bn1 : atoi(bn_env), 1, 32);
       int lu = LIBXSMM_CLMP(NULL == lu_env ? 0 : atoi(lu_env), -2, 1);
-      int gen = ((NULL == lu_env && NULL == cn_env && NULL == lin_env &&
+      int gen = ((NULL == lu_env && NULL == bn_env && NULL == lin_env &&
                   NULL == sm_env && NULL == wg_env)
                      ? (NULL == gen_env ? 1 /*default*/ : atoi(gen_env))
                      : 0);
@@ -107,7 +107,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
                                      " -DDBM_MULTIPLY_OPENCL_GEN");
         wgsize[1] = wgsize[2] = 1;
         wgsize[0] = 16;
-        lu = cn = 0;
+        lu = bn = 0;
         ndims = 3;
       } else {
         wgsize[0] = (NULL == wg_env ? (unsigned long int)LIBXSMM_ABS(sm)
@@ -124,14 +124,14 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
         }
         wgsize[0] = LIBXSMM_CLMP(wgsize[0], 0, wgsize0);
         sm = ((0 != sm && 0 != wgsize[0])
-                  ? (LIBXSMM_ISPOT(cn * sizeof(double)) + 1)
+                  ? (LIBXSMM_ISPOT(bn * sizeof(double)) + 1)
                   : 0);
         clinear = (NULL == lin_env ? 0 /*default*/ : atoi(lin_env));
         gen = 0;
         offset += (size_t)LIBXSMM_SNPRINTF(
             params + offset, sizeof(params) - offset,
-            " %s %s -DCN=%i -DSM=%i -DLU=%i -DWG=%i -DSG=%i",
-            0 != gpu ? "-DGPU" : "", 0 == clinear ? "" : "-DCLINEAR", cn, sm,
+            " %s %s -DBN=%i -DSM=%i -DLU=%i -DWG=%i -DSG=%i",
+            0 != gpu ? "-DGPU" : "", 0 == clinear ? "" : "-DCLINEAR", bn, sm,
             lu, (int)wgsize[0], (int)wgsize2);
       }
       if (0 != c_dbcsr_acc_opencl_config.device.intel && 0 < xf) {
@@ -152,8 +152,8 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
           if (0 != clinear) {
             fprintf(stderr, " lin=%i", clinear);
           }
-          if (0 != cn) {
-            fprintf(stderr, " cn=%i", cn);
+          if (0 != bn) {
+            fprintf(stderr, " bn=%i", bn);
           }
           if (0 != sm) {
             fprintf(stderr, " sm=%i", sm);
