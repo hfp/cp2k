@@ -153,10 +153,9 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
   const double epsilon = libxsmm_matdiff_epsilon(&diff);
   if (maxeps < epsilon) {
     if (LIBXSMM_NOTNAN(diff.v_tst)) {
-      fprintf(stderr, "INFO ACC/LIBDBM: diff=%g (|%g-%g|=%g)\n",
-        epsilon, diff.v_ref, diff.v_tst, diff.linf_abs);
-    }
-    else {
+      fprintf(stderr, "INFO ACC/LIBDBM: diff=%g (|%g-%g|=%g)\n", epsilon,
+              diff.v_ref, diff.v_tst, diff.linf_abs);
+    } else {
       fprintf(stderr, "INFO ACC/LIBDBM: diff=%g\n", epsilon);
     }
   }
