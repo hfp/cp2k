@@ -127,12 +127,12 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
                   ? (LIBXSMM_ISPOT(bn * sizeof(double)) + 1)
                   : 0);
         clinear = (NULL == lin_env ? 0 /*default*/ : atoi(lin_env));
-        gen = 0;
         offset += (size_t)LIBXSMM_SNPRINTF(
             params + offset, sizeof(params) - offset,
             " %s %s -DBN=%i -DSM=%i -DLU=%i -DWG=%i -DSG=%i",
             0 != gpu ? "-DGPU" : "", 0 == clinear ? "" : "-DCLINEAR", bn, sm,
             lu, (int)wgsize[0], (int)wgsize2);
+        gen = 0;
       }
       if (0 != c_dbcsr_acc_opencl_config.device.intel && 0 < xf) {
         flags = "-cl-intel-256-GRF-per-thread";
