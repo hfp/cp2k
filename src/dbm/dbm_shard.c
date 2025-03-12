@@ -96,8 +96,8 @@ void dbm_shard_copy(dbm_shard_t *shard_a, const dbm_shard_t *shard_b) {
   shard_a->hashtable_prime = shard_b->hashtable_prime;
 
   if (shard_a->data_allocated < shard_b->data_size) {
-    free(shard_a->data);
-    shard_a->data = malloc(shard_b->data_size * sizeof(double));
+    dbm_mempool_free(shard_a->data);
+    shard_a->data = dbm_mempool_host_malloc(shard_b->data_size * sizeof(double));
     shard_a->data_allocated = shard_b->data_size;
     assert(shard_a->data != NULL);
   }
@@ -123,7 +123,7 @@ void dbm_shard_copy(dbm_shard_t *shard_a, const dbm_shard_t *shard_b) {
 void dbm_shard_release(dbm_shard_t *shard) {
   free(shard->blocks);
   free(shard->hashtable);
-  free(shard->data);
+  dbm_mempool_free(shard->data);
   omp_destroy_lock(&shard->lock);
 }
 
@@ -230,7 +230,8 @@ void dbm_shard_allocate_promised_blocks(dbm_shard_t *shard) {
   // Reallocate data array if necessary.
   if (shard->data_promised > shard->data_allocated) {
     shard->data_allocated = DBM_ALLOCATION_FACTOR * shard->data_promised;
-    shard->data = realloc(shard->data, shard->data_allocated * sizeof(double));
+    dbm_mempool_free(shard->data);
+    shard->data = dbm_mempool_host_malloc(shard->data_allocated * sizeof(double));
     assert(shard->data != NULL);
   }
 
