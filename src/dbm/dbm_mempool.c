@@ -181,7 +181,7 @@ void *dbm_mempool_device_malloc(const size_t size) {
  * \brief Internal routine for releasing memory back to the pool.
  * \author Ole Schuett
  ******************************************************************************/
-void dbm_mempool_free(void *mem) {
+void dbm_mempool_free(const void *mem) {
   if (mem == NULL) {
     return;
   }

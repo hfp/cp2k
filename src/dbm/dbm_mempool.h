@@ -29,7 +29,7 @@ void *dbm_mempool_device_malloc(const size_t size);
  * \brief Internal routine for releasing memory back to the pool.
  * \author Ole Schuett
  ******************************************************************************/
-void dbm_mempool_free(void *memory);
+void dbm_mempool_free(const void *memory);
 
 /*******************************************************************************
  * \brief Internal routine for freeing all memory in the pool (not thread-safe).
