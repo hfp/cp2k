@@ -14,6 +14,7 @@
 
 #include "../offload/offload_library.h"
 #include "../offload/offload_runtime.h"
+#include "dbm_hyperparams.h"
 #include "dbm_mempool.h"
 #include "dbm_mpi.h"
 
@@ -125,7 +126,7 @@ static void *internal_mempool_malloc(const size_t size, const bool on_device) {
     }
 
     // If a chunck was found, remove it from mempool_available.
-    if (NULL != hit) {
+    if (NULL != hit && (*hit)->size <= (DBM_ALLOCATION_FACTOR * (size * 2))) {
       chunk = *hit;
       *hit = chunk->next;
       assert(chunk->on_device == on_device);
