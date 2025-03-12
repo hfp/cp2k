@@ -48,7 +48,8 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
   static int ndims = 1, clinear = 0;
   static size_t wgsize[] = {0, 0, 0};
   const libxsmm_timer_tickint start = libxsmm_timer_tick();
-  const int verbosity = c_dbcsr_acc_opencl_config.verbosity;
+  const c_dbcsr_acc_opencl_config_t *const config = &c_dbcsr_acc_opencl_config;
+  const int verbosity = config->verbosity;
   int result = EXIT_SUCCESS;
   cl_event event, *const perf_event =
                       ((0 <= verbosity && 2 >= verbosity) ? NULL : &event);
@@ -63,7 +64,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
   assert(0 < ntasks && NULL != tasks);
 #if defined(OPENCL_DBM_SOURCE_MULTIPLY)
   if (NULL == kernel_global) { /* initial check if kernel is present */
-    ACC_OPENCL_ACQUIRE(c_dbcsr_acc_opencl_config.lock_main);
+    ACC_OPENCL_ACQUIRE(config->lock_main);
     if (NULL == kernel_global) {
       char params[ACC_OPENCL_BUFFERSIZE] =
           "-cl-fast-relaxed-math -cl-denorms-are-zero";
@@ -74,8 +75,9 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
       const char *const wg_env = getenv("DBM_MULTIPLY_WG");
       const char *const lu_env = getenv("DBM_MULTIPLY_LU");
       const char *const xf_env = getenv("DBM_MULTIPLY_XF");
+      const c_dbcsr_acc_opencl_device_t *const devinfo = &config->device;
       int sm = (NULL == sm_env ? 0 /*default*/ : atoi(sm_env));
-      const int bn0 = (0 == c_dbcsr_acc_opencl_config.device.nv ? 4 : 2);
+      const int bn0 = (0 == devinfo->nv ? (0 == devinfo->amd ? 4 : 8) : 2);
       const int bn1 = ((0 == sm && 0 == clinear) ? bn0 : (bn0 * 2));
       int bn = LIBXSMM_CLMP(NULL == bn_env ? bn1 : atoi(bn_env), 1, 32);
       int lu = LIBXSMM_CLMP(NULL == lu_env ? 0 : atoi(lu_env), -2, 1);
@@ -83,24 +85,19 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
                   NULL == lu_env && NULL == lin_env)
                      ? (NULL == gen_env ? 1 /*default*/ : atoi(gen_env))
                      : 0);
-      const int gpu =
-          (CL_DEVICE_TYPE_GPU == c_dbcsr_acc_opencl_config.device.type);
+      const int gpu = (CL_DEVICE_TYPE_GPU == devinfo->type);
       const int xf = (NULL == xf_env ? -1 /*default*/ : atoi(xf_env));
       const char *extensions[] = {NULL, NULL}, *flags = NULL;
       size_t nextensions = sizeof(extensions) / sizeof(*extensions);
-      const size_t wgsize0 = c_dbcsr_acc_opencl_config.device.wgsize[0];
-      const size_t wgsize1 = c_dbcsr_acc_opencl_config.device.wgsize[1];
-      size_t wgsize2 = c_dbcsr_acc_opencl_config.device.wgsize[2];
-      size_t offset = ((0 == c_dbcsr_acc_opencl_config.debug &&
-                        0 == c_dbcsr_acc_opencl_config.dump)
-                           ? strlen(params)
-                           : 0);
+      const size_t wgsize0 = devinfo->wgsize[0], wgsize1 = devinfo->wgsize[1];
+      size_t wgsize2 = devinfo->wgsize[2];
+      size_t offset =
+          ((0 == config->debug && 0 == config->dump) ? strlen(params) : 0);
       offset += (size_t)c_dbcsr_acc_opencl_flags_atomics(
-          &c_dbcsr_acc_opencl_config.device, c_dbcsr_acc_opencl_atomic_fp_64,
-          extensions, &nextensions, params + offset, sizeof(params) - offset);
+          devinfo, c_dbcsr_acc_opencl_atomic_fp_64, extensions, &nextensions,
+          params + offset, sizeof(params) - offset);
       if (2 <= gen || (0 != gen && 0 != wgsize2 /*subgroups*/ &&
-                       2 <= *c_dbcsr_acc_opencl_config.device.std_level &&
-                       NULL != extensions[1] &&
+                       2 <= *devinfo->std_level && NULL != extensions[1] &&
                        NULL != strstr(extensions[1], "cl_ext_float_atomics"))) {
         offset +=
             (size_t)LIBXSMM_SNPRINTF(params + offset, sizeof(params) - offset,
@@ -134,7 +131,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
             lu, (int)wgsize[0], (int)wgsize2);
         gen = 0;
       }
-      if (0 != c_dbcsr_acc_opencl_config.device.intel && 0 < xf) {
+      if (0 != devinfo->intel && 0 < xf) {
         flags = "-cl-intel-256-GRF-per-thread";
       }
       result |= (sizeof(params) > offset ? EXIT_SUCCESS : EXIT_FAILURE);
@@ -176,7 +173,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
     } else {
       kernel = clCloneKernel(kernel_global, &result);
     }
-    ACC_OPENCL_RELEASE(c_dbcsr_acc_opencl_config.lock_main);
+    ACC_OPENCL_RELEASE(config->lock_main);
   } else if (NULL == kernel) {
     kernel = clCloneKernel(kernel_global, &result);
   }
