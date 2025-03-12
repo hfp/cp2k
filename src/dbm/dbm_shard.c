@@ -231,11 +231,13 @@ void dbm_shard_allocate_promised_blocks(dbm_shard_t *shard) {
 
   // Reallocate data array if necessary.
   if (shard->data_promised > shard->data_allocated) {
+    const double *data = shard->data;
     shard->data_allocated = DBM_ALLOCATION_FACTOR * shard->data_promised;
-    dbm_mempool_free(shard->data);
     shard->data =
         dbm_mempool_host_malloc(shard->data_allocated * sizeof(double));
     assert(shard->data != NULL);
+    memcpy(shard->data, data, shard->data_size * sizeof(double));
+    dbm_mempool_free(data);
   }
 
   // Zero new blocks.
