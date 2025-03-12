@@ -15,6 +15,7 @@
 #include "dbm_hyperparams.h"
 #include "dbm_internal.h"
 #include "dbm_library.h"
+#include "dbm_mempool.h"
 #include "dbm_multiply.h"
 #include "dbm_multiply_comm.h"
 #include "dbm_multiply_cpu.h"
@@ -228,7 +229,8 @@ static void multiply_packs(const bool transa, const bool transb,
 #pragma omp parallel reduction(+ : flop_sum)
   {
     // Thread-private array covering given work in piece-wise fashion.
-    dbm_task_t *batch = dbm_mempool_host_malloc(sizeof(dbm_task_t) * DBM_MAX_BATCH_SIZE);
+    dbm_task_t *batch =
+        dbm_mempool_host_malloc(sizeof(dbm_task_t) * DBM_MAX_BATCH_SIZE);
 
     // Blocks are ordered first by shard. Creating lookup tables of boundaries.
 #pragma omp for nowait

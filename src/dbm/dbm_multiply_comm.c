@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include "dbm_hyperparams.h"
+#include "dbm_mempool.h"
 #include "dbm_mpi.h"
 
 /*******************************************************************************

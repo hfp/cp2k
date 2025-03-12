@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include "dbm_hyperparams.h"
+#include "dbm_mempool.h"
 #include "dbm_shard.h"
 
 /*******************************************************************************
@@ -97,7 +98,8 @@ void dbm_shard_copy(dbm_shard_t *shard_a, const dbm_shard_t *shard_b) {
 
   if (shard_a->data_allocated < shard_b->data_size) {
     dbm_mempool_free(shard_a->data);
-    shard_a->data = dbm_mempool_host_malloc(shard_b->data_size * sizeof(double));
+    shard_a->data =
+        dbm_mempool_host_malloc(shard_b->data_size * sizeof(double));
     shard_a->data_allocated = shard_b->data_size;
     assert(shard_a->data != NULL);
   }
@@ -231,7 +233,8 @@ void dbm_shard_allocate_promised_blocks(dbm_shard_t *shard) {
   if (shard->data_promised > shard->data_allocated) {
     shard->data_allocated = DBM_ALLOCATION_FACTOR * shard->data_promised;
     dbm_mempool_free(shard->data);
-    shard->data = dbm_mempool_host_malloc(shard->data_allocated * sizeof(double));
+    shard->data =
+        dbm_mempool_host_malloc(shard->data_allocated * sizeof(double));
     assert(shard->data != NULL);
   }
 
