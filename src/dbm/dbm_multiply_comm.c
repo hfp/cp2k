@@ -502,10 +502,10 @@ static dbm_pack_t *sendrecv_pack(const int itick, const int nticks,
  ******************************************************************************/
 static void free_packed_matrix(dbm_packed_matrix_t *packed) {
   dbm_mpi_free_mem(packed->recv_pack.blocks);
-  dbm_mempool_free(packed->recv_pack.data);
+  dbm_mempool_host_free(packed->recv_pack.data);
   for (int ipack = 0; ipack < packed->nsend_packs; ipack++) {
     dbm_mpi_free_mem(packed->send_packs[ipack].blocks);
-    dbm_mempool_free(packed->send_packs[ipack].data);
+    dbm_mempool_host_free(packed->send_packs[ipack].data);
   }
   free(packed->send_packs);
 }

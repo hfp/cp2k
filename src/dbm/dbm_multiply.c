@@ -337,7 +337,7 @@ static void multiply_packs(const bool transa, const bool transb,
       }
     }
 
-    dbm_mempool_free(batch);
+    dbm_mempool_host_free(batch);
   }
 
   free(shard_row_start);
