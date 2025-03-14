@@ -11,6 +11,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "../offload/offload_library.h"
 #include "../offload/offload_runtime.h"
