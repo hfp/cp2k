@@ -101,9 +101,9 @@ static void *internal_mempool_malloc(dbm_memchunk_t **available_head,
   }
 
   dbm_memchunk_t *chunk = NULL;
-  const bool on_device = mempool_device_available_head == *available_head;
-  assert(on_device || mempool_host_available_head == *available_head);
-  assert(on_device || mempool_host_allocated_head == *allocated_head);
+  const bool on_device = (&mempool_device_available_head == available_head);
+  assert(on_device || &mempool_host_available_head == available_head);
+  assert(on_device || &mempool_host_allocated_head == allocated_head);
 
 #pragma omp critical(dbm_mempool_modify)
   {
