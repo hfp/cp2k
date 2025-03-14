@@ -53,7 +53,7 @@ static void *actual_malloc(const size_t size, const bool on_device) {
  ******************************************************************************/
 static void actual_free(const void *memory, const bool on_device) {
   if (NULL != memory) {
-    void* mem = (void*)(uintptr_t)memory;
+    void *mem = (void *)(uintptr_t)memory;
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
     if (on_device) {
       offload_activate_chosen_device();
@@ -285,11 +285,13 @@ void dbm_mempool_statistics(dbm_memstats_t *memstats) {
   assert(NULL != memstats);
   memset(memstats, 0, sizeof(*memstats));
 
-  for (chunk = mempool_device_available_head; NULL != chunk; chunk = chunk->next) {
+  for (chunk = mempool_device_available_head; NULL != chunk;
+       chunk = chunk->next) {
     memstats->device_size += chunk->size;
     ++memstats->device_mallocs;
   }
-  for (chunk = mempool_host_available_head; NULL != chunk; chunk = chunk->next) {
+  for (chunk = mempool_host_available_head; NULL != chunk;
+       chunk = chunk->next) {
     memstats->host_size += chunk->size;
     ++memstats->host_mallocs;
   }
