@@ -41,6 +41,7 @@ cd build || return 1
 #
 if [[ "${PROFILE}" == "spack" ]] && [[ "${VERSION}" == "psmp" ]]; then
   # PyTorch's TorchConfig.cmake is buried in the Python site-packages directory
+  # TODO: DeepMD-kit is not available in the Spack environment (yet)
   export Torch_DIR="/opt/spack/var/spack/environments/myenv/spack-env/view/lib/python3.11/site-packages/torch/share/cmake/Torch"
   cmake \
     -GNinja \
@@ -50,27 +51,7 @@ if [[ "${PROFILE}" == "spack" ]] && [[ "${VERSION}" == "psmp" ]]; then
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
     "${PROFILE_BLAS_VENDOR}" \
     "${PROFILE_SCALAPACK_VENDOR}" \
-    -DCP2K_USE_LIBINT2=ON \
-    -DCP2K_USE_LIBXC=ON \
-    -DCP2K_USE_FFTW3=ON \
-    -DCP2K_USE_HDF5=ON \
-    -DCP2K_USE_SPGLIB=ON \
-    -DCP2K_USE_VORI=ON \
-    -DCP2K_USE_MPI=ON \
-    -DCP2K_USE_MPI_F08=ON \
-    -DCP2K_USE_LIBXSMM=ON \
-    -DCP2K_USE_PLUMED=ON \
-    -DCP2K_USE_SPLA=ON \
-    -DCP2K_USE_ELPA=ON \
-    -DCP2K_USE_COSMA=ON \
-    -DCP2K_USE_SIRIUS=ON \
-    -DCP2K_USE_LIBVDWXC=ON \
-    -DCP2K_USE_GRPP=ON \
-    -DCP2K_USE_TREXIO=ON \
-    -DCP2K_USE_LIBTORCH=ON \
-    -DCP2K_USE_DLAF=ON \
-    -DCP2K_USE_DFTD4=ON \
-    -DCP2K_USE_LIBSMEAGOL=ON \
+    -DCP2K_USE_DEEPMD=OFF \
     -Werror=dev \
     .. |& tee ./cmake.log
   CMAKE_EXIT_CODE=$?
@@ -82,22 +63,7 @@ elif [[ "${PROFILE}" == "toolchain" ]] && [[ "${VERSION}" == "ssmp" ]]; then
     -DCMAKE_INSTALL_LIBDIR=lib \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
     "${PROFILE_BLAS_VENDOR}" \
-    -DCP2K_USE_COSMA=OFF \
-    -DCP2K_USE_DEEPMD=ON \
-    -DCP2K_USE_DFTD4=ON \
-    -DCP2K_USE_DLAF=OFF \
-    -DCP2K_USE_FFTW3=ON \
-    -DCP2K_USE_GRPP=ON \
-    -DCP2K_USE_HDF5=ON \
-    -DCP2K_USE_LIBINT2=ON \
-    -DCP2K_USE_LIBTORCH=ON \
-    -DCP2K_USE_LIBXC=ON \
-    -DCP2K_USE_LIBXSMM=ON \
     -DCP2K_USE_MPI=OFF \
-    -DCP2K_USE_MPI_F08=OFF \
-    -DCP2K_USE_SPGLIB=ON \
-    -DCP2K_USE_TREXIO=ON \
-    -DCP2K_USE_VORI=ON \
     -Werror=dev \
     .. |& tee ./cmake.log
   CMAKE_EXIT_CODE=$?
@@ -109,16 +75,8 @@ elif [[ "${PROFILE}" == "toolchain" ]] && [[ "${VERSION}" == "sdbg" ]]; then
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
     "${PROFILE_BLAS_VENDOR}" \
     -DCP2K_DEBUG_MODE=ON \
-    -DCP2K_USE_COSMA=OFF \
-    -DCP2K_USE_DLAF=OFF \
-    -DCP2K_USE_FFTW3=ON \
-    -DCP2K_USE_LIBINT2=ON \
     -DCP2K_USE_LIBTORCH=OFF \
-    -DCP2K_USE_LIBXC=ON \
     -DCP2K_USE_MPI=OFF \
-    -DCP2K_USE_MPI_F08=OFF \
-    -DCP2K_USE_SPGLIB=ON \
-    -DCP2K_USE_VORI=ON \
     -Werror=dev \
     .. |& tee ./cmake.log
   CMAKE_EXIT_CODE=$?
@@ -131,27 +89,7 @@ elif [[ "${PROFILE}" == "toolchain" ]] && [[ "${VERSION}" == "psmp" ]]; then
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
     "${PROFILE_BLAS_VENDOR}" \
     "${PROFILE_SCALAPACK_VENDOR}" \
-    -DCP2K_USE_COSMA=ON \
-    -DCP2K_USE_DEEPMD=ON \
-    -DCP2K_USE_DFTD4=ON \
     -DCP2K_USE_DLAF=OFF \
-    -DCP2K_USE_ELPA=ON \
-    -DCP2K_USE_FFTW3=ON \
-    -DCP2K_USE_GRPP=ON \
-    -DCP2K_USE_HDF5=ON \
-    -DCP2K_USE_LIBINT2=ON \
-    -DCP2K_USE_LIBSMEAGOL=ON \
-    -DCP2K_USE_LIBTORCH=ON \
-    -DCP2K_USE_LIBXC=ON \
-    -DCP2K_USE_LIBXSMM=ON \
-    -DCP2K_USE_MPI=ON \
-    -DCP2K_USE_MPI_F08=ON \
-    -DCP2K_USE_PLUMED=ON \
-    -DCP2K_USE_SIRIUS=ON \
-    -DCP2K_USE_SPGLIB=ON \
-    -DCP2K_USE_SPLA=ON \
-    -DCP2K_USE_TREXIO=ON \
-    -DCP2K_USE_VORI=ON \
     -Werror=dev \
     .. |& tee ./cmake.log
   CMAKE_EXIT_CODE=$?
@@ -166,14 +104,7 @@ elif [[ "${PROFILE}" == "toolchain" ]] && [[ "${VERSION}" == "pdbg" ]]; then
     -DCP2K_DEBUG_MODE=ON \
     -DCP2K_USE_COSMA=OFF \
     -DCP2K_USE_DLAF=OFF \
-    -DCP2K_USE_FFTW3=ON \
-    -DCP2K_USE_LIBINT2=ON \
     -DCP2K_USE_LIBTORCH=OFF \
-    -DCP2K_USE_LIBXC=ON \
-    -DCP2K_USE_MPI=ON \
-    -DCP2K_USE_MPI_F08=ON \
-    -DCP2K_USE_SPGLIB=ON \
-    -DCP2K_USE_VORI=ON \
     -Werror=dev \
     .. |& tee ./cmake.log
   CMAKE_EXIT_CODE=$?
@@ -186,16 +117,9 @@ elif [[ "${PROFILE}" == "ubuntu" ]] && [[ "${VERSION}" == "ssmp" ]]; then
     -DCMAKE_BUILD_TYPE="RelWithDebInfo" \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
     "${PROFILE_BLAS_VENDOR}" \
-    -DCP2K_USE_COSMA=OFF \
-    -DCP2K_USE_DLAF=OFF \
-    -DCP2K_USE_FFTW3=ON \
-    -DCP2K_USE_LIBINT2=ON \
     -DCP2K_USE_LIBTORCH=OFF \
     -DCP2K_USE_LIBXC=OFF \
-    -DCP2K_USE_LIBXSMM=ON \
-    -DCP2K_USE_HDF5=ON \
     -DCP2K_USE_MPI=OFF \
-    -DCP2K_USE_MPI_F08=OFF \
     -DCP2K_USE_SPGLIB=OFF \
     -DCP2K_USE_VORI=OFF \
     -Werror=dev \
@@ -208,15 +132,12 @@ elif [[ "${PROFILE}" == "minimal" ]] && [[ "${VERSION}" == "ssmp" ]]; then
     -DCMAKE_BUILD_TYPE="Release" \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
     "${PROFILE_BLAS_VENDOR}" \
-    -DCP2K_USE_COSMA=OFF \
-    -DCP2K_USE_DLAF=OFF \
     -DCP2K_USE_FFTW3=OFF \
     -DCP2K_USE_LIBINT2=OFF \
     -DCP2K_USE_LIBTORCH=OFF \
     -DCP2K_USE_LIBXC=OFF \
     -DCP2K_USE_LIBXSMM=OFF \
     -DCP2K_USE_MPI=OFF \
-    -DCP2K_USE_MPI_F08=OFF \
     -DCP2K_USE_SPGLIB=OFF \
     -DCP2K_USE_VORI=OFF \
     -Werror=dev \
@@ -229,22 +150,19 @@ elif [[ "${PROFILE}" == "minimal" ]] && [[ "${VERSION}" == "psmp" ]]; then
     -DCMAKE_BUILD_TYPE="Release" \
     -DCMAKE_INSTALL_LIBDIR=lib \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    -DCP2K_BLAS_VENDOR=OpenBLAS \
+    "${PROFILE_BLAS_VENDOR}" \
+    "${PROFILE_SCALAPACK_VENDOR}" \
     -DCP2K_USE_COSMA=OFF \
     -DCP2K_USE_DEEPMD=OFF \
     -DCP2K_USE_DFTD4=OFF \
     -DCP2K_USE_DLAF=OFF \
     -DCP2K_USE_ELPA=OFF \
-    -DCP2K_USE_FFTW3=ON \
     -DCP2K_USE_GRPP=OFF \
     -DCP2K_USE_HDF5=OFF \
     -DCP2K_USE_LIBINT2=OFF \
     -DCP2K_USE_LIBSMEAGOL=OFF \
     -DCP2K_USE_LIBTORCH=OFF \
     -DCP2K_USE_LIBXC=OFF \
-    -DCP2K_USE_LIBXSMM=ON \
-    -DCP2K_USE_MPI=ON \
-    -DCP2K_USE_MPI_F08=ON \
     -DCP2K_USE_PLUMED=OFF \
     -DCP2K_USE_SIRIUS=OFF \
     -DCP2K_USE_SPGLIB=OFF \
