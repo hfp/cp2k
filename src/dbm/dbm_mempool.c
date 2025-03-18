@@ -140,12 +140,8 @@ static void *internal_mempool_malloc(dbm_memchunk_t **available_head,
       chunk = *reuse;
       *reuse = chunk->next;
     } else { // Allocate a new chunk.
-      assert(chunk == NULL);
-      chunk = malloc(sizeof(dbm_memchunk_t));
+      chunk = calloc(1, sizeof(dbm_memchunk_t));
       assert(chunk != NULL);
-      chunk->mem = NULL;
-      chunk->size = 0;
-      chunk->used = 0;
     }
 
     // Insert chunk into mempool_allocated.
