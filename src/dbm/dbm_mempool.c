@@ -117,27 +117,33 @@ static void *internal_mempool_malloc(dbm_memchunk_t **available_head,
 #pragma omp critical(dbm_mempool_modify)
   {
     // Find a suitable chunk in mempool_available.
-    dbm_memchunk_t **hit = NULL, **fallback = NULL;
+    dbm_memchunk_t **reuse = NULL, **reclaim = NULL;
     for (; NULL != *available_head; available_head = &(*available_head)->next) {
-      if ((*available_head)->size < size) { // needs reallocation
-        if (NULL == fallback || (*fallback)->size < (*available_head)->size) {
-          fallback = available_head;
+      const size_t cur_size = (*available_head)->size;
+      if (cur_size < size) { // needs reallocation
+#if 0
+        const double usage = (double)(*available_head)->used / cur_size;
+        if (NULL == reclaim || (usage * (*reclaim)->size) < (*reclaim)->used) {
+#else
+        if (NULL == reclaim || (*reclaim)->size < cur_size) {
+#endif
+          reclaim = available_head;
         }
-      } else if (NULL == hit || (*available_head)->size < (*hit)->size) {
-        hit = available_head;
-        if (size == (*hit)->size) {
+      } else if (NULL == reuse || cur_size < (*reuse)->size) {
+        reuse = available_head;
+        if (size == (*reuse)->size) {
           break; // exact match
         }
       }
     }
-    if (NULL == hit) {
-      hit = fallback;
+    if (NULL == reuse) {
+      reuse = reclaim;
     }
 
     // If a chunck was found, remove it from mempool_available.
-    if (NULL != hit) {
-      chunk = *hit;
-      *hit = chunk->next;
+    if (NULL != reuse) {
+      chunk = *reuse;
+      *reuse = chunk->next;
     } else { // Allocate a new chunk.
       assert(chunk == NULL);
       chunk = malloc(sizeof(dbm_memchunk_t));
@@ -150,15 +156,15 @@ static void *internal_mempool_malloc(dbm_memchunk_t **available_head,
     // Insert chunk into mempool_allocated.
     chunk->next = *allocated_head;
     *allocated_head = chunk;
-
-    // Resize chunk if needed
-    if (chunk->size < size) {
-      actual_free(chunk->mem, on_device);
-      chunk->mem = actual_malloc(size, on_device);
-      chunk->size = size; // update
-    }
-    chunk->used = size; // stats
   }
+
+  // Resize chunk if needed (not in critical section)
+  if (chunk->size < size) {
+    actual_free(chunk->mem, on_device);
+    chunk->mem = actual_malloc(size, on_device);
+    chunk->size = size; // update
+  }
+  chunk->used = size; // stats
 
   return chunk->mem;
 }

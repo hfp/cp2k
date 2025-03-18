@@ -127,7 +127,7 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
   double *old_data_dev = NULL;
   if (shard_c_host->data_promised > shard_c_dev->data_allocated) {
     shard_c_dev->data_allocated =
-        DBM_OVERCOMMIT_DEVICE * shard_c_host->data_promised;
+        DBM_ALLOCATION_FACTOR * shard_c_host->data_promised;
     old_data_dev = shard_c_dev->data;
     shard_c_dev->data =
         dbm_mempool_device_malloc(shard_c_dev->data_allocated * sizeof(double));

@@ -198,7 +198,7 @@ dbm_block_t *dbm_shard_promise_new_block(dbm_shard_t *shard, const int row,
                                          const int col, const int block_size) {
   // Grow blocks array if necessary.
   if (shard->nblocks_allocated < shard->nblocks + 1) {
-    shard->nblocks_allocated = DBM_OVERCOMMIT_HOST * (shard->nblocks + 1);
+    shard->nblocks_allocated = DBM_ALLOCATION_FACTOR * (shard->nblocks + 1);
     shard->blocks =
         realloc(shard->blocks, shard->nblocks_allocated * sizeof(dbm_block_t));
     assert(shard->blocks != NULL);
@@ -232,7 +232,7 @@ void dbm_shard_allocate_promised_blocks(dbm_shard_t *shard) {
   // Reallocate data array if necessary.
   if (shard->data_promised > shard->data_allocated) {
     const double *data = shard->data;
-    shard->data_allocated = DBM_OVERCOMMIT_HOST * shard->data_promised;
+    shard->data_allocated = DBM_ALLOCATION_FACTOR * shard->data_promised;
     shard->data =
         dbm_mempool_host_malloc(shard->data_allocated * sizeof(double));
     assert(shard->data != NULL);
