@@ -199,7 +199,7 @@ void dbm_library_print_stats(const int fortran_comm,
   if (0 < memstats.device_mallocs) {
     dbm_mpi_max_uint64(&memstats.device_size, 1, comm);
     snprintf(buffer, sizeof(buffer),
-             " Device                                        "
+             " Device                            "
              " %20" PRIuPTR "  %10" PRIuPTR "  %10" PRIuPTR "\n",
              (uintptr_t)memstats.device_mallocs,
              (uintptr_t)((memstats.device_used + (512U << 10)) >> 20),
@@ -209,7 +209,7 @@ void dbm_library_print_stats(const int fortran_comm,
   if (0 < memstats.host_mallocs) {
     dbm_mpi_max_uint64(&memstats.host_size, 1, comm);
     snprintf(buffer, sizeof(buffer),
-             " Host                                          "
+             " Host                              "
              " %20" PRIuPTR "  %10" PRIuPTR "  %10" PRIuPTR "\n",
              (uintptr_t)memstats.host_mallocs,
              (uintptr_t)((memstats.host_used + (512U << 10)) >> 20),
