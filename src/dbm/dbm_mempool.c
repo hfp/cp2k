@@ -254,7 +254,7 @@ void dbm_mempool_device_free(const void *memory) {
 }
 
 /*******************************************************************************
- * \brief Internal routine for freeing all memory in the pool (not thread-safe).
+ * \brief Internal routine for freeing all memory in the pool.
  * \author Ole Schuett
  ******************************************************************************/
 void dbm_mempool_clear(void) {
@@ -280,25 +280,39 @@ void dbm_mempool_clear(void) {
 }
 
 /*******************************************************************************
- * \brief Internal routine to query statistics (not thread-safe).
+ * \brief Internal routine to query statistics.
  * \author Hans Pabst
  ******************************************************************************/
 void dbm_mempool_statistics(dbm_memstats_t *memstats) {
   dbm_memchunk_t *chunk;
   assert(NULL != memstats);
   memset(memstats, 0, sizeof(*memstats));
-
-  for (chunk = mempool_device_available_head; NULL != chunk;
-       chunk = chunk->next) {
-    memstats->device_used += chunk->used;
-    memstats->device_size += chunk->size;
-    ++memstats->device_mallocs;
-  }
-  for (chunk = mempool_host_available_head; NULL != chunk;
-       chunk = chunk->next) {
-    memstats->host_used += chunk->used;
-    memstats->host_size += chunk->size;
-    ++memstats->host_mallocs;
+#pragma omp critical(dbm_mempool_modify)
+  {
+    for (chunk = mempool_device_available_head; NULL != chunk;
+         chunk = chunk->next) {
+      memstats->device_used += chunk->used;
+      memstats->device_size += chunk->size;
+      ++memstats->device_mallocs;
+    }
+    for (chunk = mempool_device_allocated_head; NULL != chunk;
+         chunk = chunk->next) {
+      memstats->device_used += chunk->used;
+      memstats->device_size += chunk->size;
+      ++memstats->device_mallocs;
+    }
+    for (chunk = mempool_host_available_head; NULL != chunk;
+         chunk = chunk->next) {
+      memstats->host_used += chunk->used;
+      memstats->host_size += chunk->size;
+      ++memstats->host_mallocs;
+    }
+    for (chunk = mempool_host_allocated_head; NULL != chunk;
+         chunk = chunk->next) {
+      memstats->host_used += chunk->used;
+      memstats->host_size += chunk->size;
+      ++memstats->host_mallocs;
+    }
   }
 }
 
