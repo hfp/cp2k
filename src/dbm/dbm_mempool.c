@@ -121,12 +121,7 @@ static void *internal_mempool_malloc(dbm_memchunk_t **available_head,
     for (; NULL != *available_head; available_head = &(*available_head)->next) {
       const size_t cur_size = (*available_head)->size;
       if (cur_size < size) { // needs reallocation
-#if 0
-        const double usage = (double)(*available_head)->used / cur_size;
-        if (NULL == reclaim || (usage * (*reclaim)->size) < (*reclaim)->used) {
-#else
         if (NULL == reclaim || (*reclaim)->size < cur_size) {
-#endif
           reclaim = available_head;
         }
       } else if (NULL == reuse || cur_size < (*reuse)->size) {
