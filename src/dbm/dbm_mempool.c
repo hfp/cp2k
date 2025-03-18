@@ -80,7 +80,7 @@ static void actual_free(const void *memory, const bool on_device) {
 typedef struct dbm_memchunk {
   void *mem; // first: allows to cast memchunk into mem-ptr...
   struct dbm_memchunk *next;
-  size_t size;
+  size_t size, used;
 } dbm_memchunk_t;
 
 /*******************************************************************************
@@ -119,14 +119,14 @@ static void *internal_mempool_malloc(dbm_memchunk_t **available_head,
     // Find a suitable chunk in mempool_available.
     dbm_memchunk_t **hit = NULL, **fallback = NULL;
     for (; NULL != *available_head; available_head = &(*available_head)->next) {
-      if ((*available_head)->size < size) {
+      if ((*available_head)->size < size) { // needs reallocation
         if (NULL == fallback || (*fallback)->size < (*available_head)->size) {
           fallback = available_head;
         }
       } else if (NULL == hit || (*available_head)->size < (*hit)->size) {
         hit = available_head;
         if (size == (*hit)->size) {
-          break;
+          break; // exact match
         }
       }
     }
@@ -135,15 +135,16 @@ static void *internal_mempool_malloc(dbm_memchunk_t **available_head,
     }
 
     // If a chunck was found, remove it from mempool_available.
-    if (NULL != hit /*&& (*hit)->size <= (DBM_ALLOCATION_FACTOR * size)*/) {
+    if (NULL != hit) {
       chunk = *hit;
       *hit = chunk->next;
     } else { // Allocate a new chunk.
       assert(chunk == NULL);
       chunk = malloc(sizeof(dbm_memchunk_t));
       assert(chunk != NULL);
-      chunk->size = 0;
       chunk->mem = NULL;
+      chunk->size = 0;
+      chunk->used = 0;
     }
 
     // Insert chunk into mempool_allocated.
@@ -156,6 +157,7 @@ static void *internal_mempool_malloc(dbm_memchunk_t **available_head,
       chunk->mem = actual_malloc(size, on_device);
       chunk->size = size; // update
     }
+    chunk->used = size; // stats
   }
 
   return chunk->mem;
@@ -288,11 +290,13 @@ void dbm_mempool_statistics(dbm_memstats_t *memstats) {
 
   for (chunk = mempool_device_available_head; NULL != chunk;
        chunk = chunk->next) {
+    memstats->device_used += chunk->used;
     memstats->device_size += chunk->size;
     ++memstats->device_mallocs;
   }
   for (chunk = mempool_host_available_head; NULL != chunk;
        chunk = chunk->next) {
+    memstats->host_used += chunk->used;
     memstats->host_size += chunk->size;
     ++memstats->host_mallocs;
   }

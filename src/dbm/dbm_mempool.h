@@ -48,7 +48,9 @@ void dbm_mempool_clear(void);
  * \author Hans Pabst
  ******************************************************************************/
 typedef struct dbm_memstats_t {
-  // Memory consumption (maximum).
+  // Memory used out of consumed.
+  uint64_t host_used, device_used;
+  // Memory consumption.
   uint64_t host_size, device_size;
   // Number of allocations.
   uint64_t host_mallocs, device_mallocs;
