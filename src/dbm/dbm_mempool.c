@@ -20,10 +20,34 @@
 #include "dbm_mpi.h"
 
 /*******************************************************************************
+ * \brief Private struct for storing a chunk of memory.
+ * \author Ole Schuett
+ ******************************************************************************/
+typedef struct dbm_memchunk {
+  void *mem; // first: allows to cast memchunk into mem-ptr...
+  struct dbm_memchunk *next;
+  size_t size, used;
+} dbm_memchunk_t;
+
+/*******************************************************************************
+ * \brief Private linked list of memory chunks that are available.
+ * \author Ole Schuett
+ ******************************************************************************/
+static dbm_memchunk_t *mempool_device_available_head = NULL;
+static dbm_memchunk_t *mempool_host_available_head = NULL;
+
+/*******************************************************************************
+ * \brief Private linked list of memory chunks that are in use.
+ * \author Ole Schuett
+ ******************************************************************************/
+static dbm_memchunk_t *mempool_device_allocated_head = NULL;
+static dbm_memchunk_t *mempool_host_allocated_head = NULL;
+
+/*******************************************************************************
  * \brief Private routine for actually allocating system memory.
  * \author Ole Schuett
  ******************************************************************************/
-static void *actual_malloc(const size_t size, const bool on_device) {
+static void *actual_malloc(size_t size, bool on_device) {
   void *memory = NULL;
 
   if (0 != size) {
@@ -52,7 +76,7 @@ static void *actual_malloc(const size_t size, const bool on_device) {
  * \brief Private routine for actually freeing system memory.
  * \author Ole Schuett
  ******************************************************************************/
-static void actual_free(const void *memory, const bool on_device) {
+static void actual_free(const void *memory, bool on_device) {
   if (NULL != memory) {
     void *mem = (void *)(uintptr_t)memory;
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
@@ -74,28 +98,27 @@ static void actual_free(const void *memory, const bool on_device) {
 }
 
 /*******************************************************************************
- * \brief Private struct for storing a chunk of memory.
+ * \brief Private routine for freeing all memory in the pool.
  * \author Ole Schuett
  ******************************************************************************/
-typedef struct dbm_memchunk {
-  void *mem; // first: allows to cast memchunk into mem-ptr...
-  struct dbm_memchunk *next;
-  size_t size, used;
-} dbm_memchunk_t;
-
-/*******************************************************************************
- * \brief Private linked list of memory chunks that are available.
- * \author Ole Schuett
- ******************************************************************************/
-static dbm_memchunk_t *mempool_device_available_head = NULL;
-static dbm_memchunk_t *mempool_host_available_head = NULL;
-
-/*******************************************************************************
- * \brief Private linked list of memory chunks that are in use.
- * \author Ole Schuett
- ******************************************************************************/
-static dbm_memchunk_t *mempool_device_allocated_head = NULL;
-static dbm_memchunk_t *mempool_host_allocated_head = NULL;
+static void internal_mempool_clear(bool on_device) {
+  if (on_device) {
+    // Free chunks in mempool_available.
+    while (mempool_device_available_head != NULL) {
+      dbm_memchunk_t *chunk = mempool_device_available_head;
+      mempool_device_available_head = chunk->next;
+      actual_free(chunk->mem, true);
+      free(chunk);
+    }
+  } else {
+    while (mempool_host_available_head != NULL) {
+      dbm_memchunk_t *chunk = mempool_host_available_head;
+      mempool_host_available_head = chunk->next;
+      actual_free(chunk->mem, false);
+      free(chunk);
+    }
+  }
+}
 
 /*******************************************************************************
  * \brief Private routine for allocating host or device memory from the pool.
@@ -104,7 +127,7 @@ static dbm_memchunk_t *mempool_host_allocated_head = NULL;
 #if (0 != DBM_MEMPOOL_DEVICE) || (0 != DBM_MEMPOOL_HOST)
 static void *internal_mempool_malloc(dbm_memchunk_t **available_head,
                                      dbm_memchunk_t **allocated_head,
-                                     const size_t size) {
+                                     size_t size) {
   if (size == 0) {
     return NULL;
   }
@@ -116,6 +139,8 @@ static void *internal_mempool_malloc(dbm_memchunk_t **available_head,
 
 #pragma omp critical(dbm_mempool_modify)
   {
+    size_t total_used = 0, total_size = 0;
+
     // Find a suitable chunk in mempool_available.
     dbm_memchunk_t **reuse = NULL, **reclaim = NULL;
     for (; NULL != *available_head; available_head = &(*available_head)->next) {
@@ -124,6 +149,8 @@ static void *internal_mempool_malloc(dbm_memchunk_t **available_head,
         if (NULL == reclaim || (*reclaim)->size < cur_size) {
           reclaim = available_head;
         }
+        total_used += (*available_head)->used;
+        total_size += cur_size;
       } else if (NULL == reuse || cur_size < (*reuse)->size) {
         reuse = available_head;
         if (size == (*reuse)->size) {
@@ -132,7 +159,11 @@ static void *internal_mempool_malloc(dbm_memchunk_t **available_head,
       }
     }
     if (NULL == reuse) {
-      reuse = reclaim;
+      if (((double)total_used / total_size) <= DBM_MEMPOOL_AUTOPURGE) {
+        internal_mempool_clear(on_device);
+      } else {
+        reuse = reclaim;
+      }
     }
 
     // If a chunck was found, remove it from mempool_available.
@@ -165,7 +196,7 @@ static void *internal_mempool_malloc(dbm_memchunk_t **available_head,
  * \brief Internal routine for allocating host memory from the pool.
  * \author Ole Schuett
  ******************************************************************************/
-void *dbm_mempool_host_malloc(const size_t size) {
+void *dbm_mempool_host_malloc(size_t size) {
 #if (0 != DBM_MEMPOOL_HOST)
   return internal_mempool_malloc(&mempool_host_available_head,
                                  &mempool_host_allocated_head, size);
@@ -178,7 +209,7 @@ void *dbm_mempool_host_malloc(const size_t size) {
  * \brief Internal routine for allocating device memory from the pool
  * \author Ole Schuett
  ******************************************************************************/
-void *dbm_mempool_device_malloc(const size_t size) {
+void *dbm_mempool_device_malloc(size_t size) {
 #if (0 != DBM_MEMPOOL_DEVICE)
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
   return internal_mempool_malloc(&mempool_device_available_head,
@@ -251,30 +282,6 @@ void dbm_mempool_device_free(const void *memory) {
 }
 
 /*******************************************************************************
- * \brief Private routine for freeing all memory in the pool.
- * \author Ole Schuett
- ******************************************************************************/
-static void internal_mempool_clear(const bool on_device) {
-#pragma omp critical(dbm_mempool_modify)
-  if (on_device) {
-    // Free chunks in mempool_available.
-    while (mempool_device_available_head != NULL) {
-      dbm_memchunk_t *chunk = mempool_device_available_head;
-      mempool_device_available_head = chunk->next;
-      actual_free(chunk->mem, true);
-      free(chunk);
-    }
-  } else {
-    while (mempool_host_available_head != NULL) {
-      dbm_memchunk_t *chunk = mempool_host_available_head;
-      mempool_host_available_head = chunk->next;
-      actual_free(chunk->mem, false);
-      free(chunk);
-    }
-  }
-}
-
-/*******************************************************************************
  * \brief Internal routine for freeing all memory in the pool.
  * \author Ole Schuett
  ******************************************************************************/
@@ -283,8 +290,11 @@ void dbm_mempool_clear(void) {
   assert(mempool_device_allocated_head == NULL);
   assert(mempool_host_allocated_head == NULL);
 
-  internal_mempool_clear(true);
-  internal_mempool_clear(false);
+#pragma omp critical(dbm_mempool_modify)
+  {
+    internal_mempool_clear(true);
+    internal_mempool_clear(false);
+  }
 }
 
 /*******************************************************************************
