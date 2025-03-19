@@ -251,29 +251,40 @@ void dbm_mempool_device_free(const void *memory) {
 }
 
 /*******************************************************************************
+ * \brief Private routine for freeing all memory in the pool.
+ * \author Ole Schuett
+ ******************************************************************************/
+static void internal_mempool_clear(const bool on_device) {
+#pragma omp critical(dbm_mempool_modify)
+  if (on_device) {
+    // Free chunks in mempool_available.
+    while (mempool_device_available_head != NULL) {
+      dbm_memchunk_t *chunk = mempool_device_available_head;
+      mempool_device_available_head = chunk->next;
+      actual_free(chunk->mem, true);
+      free(chunk);
+    }
+  } else {
+    while (mempool_host_available_head != NULL) {
+      dbm_memchunk_t *chunk = mempool_host_available_head;
+      mempool_host_available_head = chunk->next;
+      actual_free(chunk->mem, false);
+      free(chunk);
+    }
+  }
+}
+
+/*******************************************************************************
  * \brief Internal routine for freeing all memory in the pool.
  * \author Ole Schuett
  ******************************************************************************/
 void dbm_mempool_clear(void) {
-  assert(omp_get_num_threads() == 1);
-
   // check for memory leak
   assert(mempool_device_allocated_head == NULL);
   assert(mempool_host_allocated_head == NULL);
 
-  // Free chunks in mempool_available.
-  while (mempool_device_available_head != NULL) {
-    dbm_memchunk_t *chunk = mempool_device_available_head;
-    mempool_device_available_head = chunk->next;
-    actual_free(chunk->mem, true);
-    free(chunk);
-  }
-  while (mempool_host_available_head != NULL) {
-    dbm_memchunk_t *chunk = mempool_host_available_head;
-    mempool_host_available_head = chunk->next;
-    actual_free(chunk->mem, false);
-    free(chunk);
-  }
+  internal_mempool_clear(true);
+  internal_mempool_clear(false);
 }
 
 /*******************************************************************************
