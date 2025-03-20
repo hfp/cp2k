@@ -19,7 +19,7 @@
  ******************************************************************************/
 #define CHECK(status)                                                          \
   if (status != MPI_SUCCESS) {                                                 \
-    fprintf(stderr, "MPI error in %s:%i\n", __FILE__, __LINE__);               \
+    fprintf(stderr, "MPI error #%i in %s:%i\n", status, __FILE__, __LINE__);   \
     MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);                                   \
   }
 #endif
