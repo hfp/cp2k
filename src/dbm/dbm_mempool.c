@@ -44,6 +44,12 @@ static dbm_memchunk_t *mempool_device_allocated_head = NULL;
 static dbm_memchunk_t *mempool_host_allocated_head = NULL;
 
 /*******************************************************************************
+ * \brief Private statistics.
+ * \author Hans Pabst
+ ******************************************************************************/
+static dbm_memstats_t mempool_stats = {0};
+
+/*******************************************************************************
  * \brief Private routine for actually allocating system memory.
  * \author Ole Schuett
  ******************************************************************************/
@@ -168,12 +174,21 @@ static void *internal_mempool_malloc(dbm_memchunk_t **available_head,
     // Insert chunk into mempool_allocated.
     chunk->next = *allocated_head;
     *allocated_head = chunk;
+
+    // Update statistics.
+    if (chunk->size < size) {
+      if (on_device) {
+        ++mempool_stats.device_mallocs;
+      } else {
+        ++mempool_stats.host_mallocs;
+      }
+    }
   }
 
-  // Resize chunk (not in critical section)
+  // Resize chunk (not in critical section).
   if (chunk->size < size) {
     void *memory = chunk->mem;
-    chunk->mem = NULL; // race ok (mempool_free)
+    chunk->mem = NULL; // race ok (free and stats)
     actual_free(memory, on_device);
     chunk->mem = actual_malloc(size, on_device);
     chunk->size = size;
@@ -294,35 +309,44 @@ void dbm_mempool_clear(void) {
  * \author Hans Pabst
  ******************************************************************************/
 void dbm_mempool_statistics(dbm_memstats_t *memstats) {
-  dbm_memchunk_t *chunk;
   assert(NULL != memstats);
-  memset(memstats, 0, sizeof(*memstats));
+  memset(memstats, 0, sizeof(dbm_memstats_t));
 #pragma omp critical(dbm_mempool_modify)
   {
+    dbm_memchunk_t *chunk;
     for (chunk = mempool_device_available_head; NULL != chunk;
          chunk = chunk->next) {
       memstats->device_used += chunk->used;
       memstats->device_size += chunk->size;
-      ++memstats->device_mallocs;
     }
     for (chunk = mempool_device_allocated_head; NULL != chunk;
          chunk = chunk->next) {
       memstats->device_used += chunk->used;
       memstats->device_size += chunk->size;
-      ++memstats->device_mallocs;
     }
     for (chunk = mempool_host_available_head; NULL != chunk;
          chunk = chunk->next) {
       memstats->host_used += chunk->used;
       memstats->host_size += chunk->size;
-      ++memstats->host_mallocs;
     }
     for (chunk = mempool_host_allocated_head; NULL != chunk;
          chunk = chunk->next) {
       memstats->host_used += chunk->used;
       memstats->host_size += chunk->size;
-      ++memstats->host_mallocs;
     }
+    if (mempool_stats.device_used < memstats->device_used) {
+      mempool_stats.device_used = memstats->device_used;
+    }
+    if (mempool_stats.device_size < memstats->device_size) {
+      mempool_stats.device_size = memstats->device_size;
+    }
+    if (mempool_stats.host_used < memstats->host_used) {
+      mempool_stats.host_used = memstats->host_used;
+    }
+    if (mempool_stats.host_size < memstats->host_size) {
+      mempool_stats.host_size = memstats->host_size;
+    }
+    memcpy(memstats, &mempool_stats, sizeof(dbm_memstats_t));
   }
 }
 
