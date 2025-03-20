@@ -113,23 +113,6 @@ static void actual_free(const void *memory, bool on_device) {
 }
 
 /*******************************************************************************
- * \brief Private routine for freeing all memory in the pool.
- * \author Ole Schuett
- ******************************************************************************/
-static void internal_mempool_clear(dbm_memchunk_t **available_head) {
-  const bool on_device = (&mempool_device_available_head == available_head);
-  assert(on_device || &mempool_host_available_head == available_head);
-
-  // Free chunks in mempool_available.
-  while (NULL != *available_head) {
-    dbm_memchunk_t *chunk = *available_head;
-    *available_head = chunk->next; // remove chunk
-    actual_free(chunk->mem, on_device);
-    free(chunk);
-  }
-}
-
-/*******************************************************************************
  * \brief Private routine for allocating host or device memory from the pool.
  * \author Ole Schuett
  ******************************************************************************/
@@ -284,6 +267,23 @@ void dbm_mempool_device_free(const void *memory) {
 #else
   actual_free(memory, true);
 #endif
+}
+
+/*******************************************************************************
+ * \brief Private routine for freeing all memory in the pool.
+ * \author Ole Schuett
+ ******************************************************************************/
+static void internal_mempool_clear(dbm_memchunk_t **available_head) {
+  const bool on_device = (&mempool_device_available_head == available_head);
+  assert(on_device || &mempool_host_available_head == available_head);
+
+  // Free chunks in mempool_available.
+  while (NULL != *available_head) {
+    dbm_memchunk_t *chunk = *available_head;
+    *available_head = chunk->next; // remove chunk
+    actual_free(chunk->mem, on_device);
+    free(chunk);
+  }
 }
 
 /*******************************************************************************
