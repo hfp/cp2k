@@ -73,6 +73,15 @@ static void *actual_malloc(size_t size, bool on_device) {
     memory = dbm_mpi_alloc_mem(size);
 #endif
     assert(memory != NULL);
+
+    // Update statistics.
+    if (on_device) {
+#pragma omp atomic
+      ++mempool_stats.device_mallocs;
+    } else {
+#pragma omp atomic
+      ++mempool_stats.host_mallocs;
+    }
   }
 
   return memory;
@@ -149,9 +158,7 @@ static void *internal_mempool_malloc(dbm_memchunk_t **available_head,
           break; // exact match
         }
       } else if (NULL != reclaim) {
-        const double u = (double)(*reclaim)->size / (*reclaim)->used;
-        const double v = (double)s / (*available_head)->used;
-        if ((u * (*reclaim)->size) < (v * s)) {
+        if (s > (*reclaim)->size) {
           reclaim = available_head;
         }
       } else {
@@ -174,15 +181,6 @@ static void *internal_mempool_malloc(dbm_memchunk_t **available_head,
     // Insert chunk into mempool_allocated.
     chunk->next = *allocated_head;
     *allocated_head = chunk;
-
-    // Update statistics.
-    if (chunk->size < size) {
-      if (on_device) {
-        ++mempool_stats.device_mallocs;
-      } else {
-        ++mempool_stats.host_mallocs;
-      }
-    }
   }
 
   // Resize chunk (not in critical section).
