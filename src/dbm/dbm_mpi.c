@@ -373,7 +373,7 @@ int dbm_mpi_sendrecv_byte(const void *sendbuf, const int sendcount,
 #if defined(__parallel)
   MPI_Status status;
   CHECK(MPI_Sendrecv(sendbuf, sendcount, MPI_BYTE, dest, sendtag, recvbuf,
-                     recvcount, MPI_BYTE, source, recvtag, comm, &status))
+                     recvcount, MPI_BYTE, source, recvtag, comm, &status));
   int count_received;
   CHECK(MPI_Get_count(&status, MPI_BYTE, &count_received));
   return count_received;
@@ -403,7 +403,7 @@ int dbm_mpi_sendrecv_double(const double *sendbuf, const int sendcount,
 #if defined(__parallel)
   MPI_Status status;
   CHECK(MPI_Sendrecv(sendbuf, sendcount, MPI_DOUBLE, dest, sendtag, recvbuf,
-                     recvcount, MPI_DOUBLE, source, recvtag, comm, &status))
+                     recvcount, MPI_DOUBLE, source, recvtag, comm, &status));
   int count_received;
   CHECK(MPI_Get_count(&status, MPI_DOUBLE, &count_received));
   return count_received;
