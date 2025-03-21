@@ -30,18 +30,22 @@ typedef struct dbm_memchunk {
 } dbm_memchunk_t;
 
 /*******************************************************************************
- * \brief Private linked list of memory chunks that are available.
+ * \brief Private single-linked lists of memory chunks available and allocated.
  * \author Ole Schuett
  ******************************************************************************/
+#if DBM_MEMPOOL_DEVICE
 static dbm_memchunk_t *mempool_device_available_head = NULL;
-static dbm_memchunk_t *mempool_host_available_head = NULL;
+static dbm_memchunk_t *mempool_device_allocated_head = NULL;
+#endif
 
 /*******************************************************************************
- * \brief Private linked list of memory chunks that are in use.
+ * \brief Private single-linked lists of memory chunks available and allocated.
  * \author Ole Schuett
  ******************************************************************************/
-static dbm_memchunk_t *mempool_device_allocated_head = NULL;
+#if DBM_MEMPOOL_HOST
+static dbm_memchunk_t *mempool_host_available_head = NULL;
 static dbm_memchunk_t *mempool_host_allocated_head = NULL;
+#endif
 
 /*******************************************************************************
  * \brief Private statistics.
@@ -125,9 +129,15 @@ static void *internal_mempool_malloc(dbm_memchunk_t **available_head,
   }
 
   dbm_memchunk_t *chunk = NULL;
+#if DBM_MEMPOOL_DEVICE
   const bool on_device = (&mempool_device_available_head == available_head);
+#else
+  const bool on_device = false;
+#endif
+#if DBM_MEMPOOL_HOST
   assert(on_device || &mempool_host_available_head == available_head);
   assert(on_device || &mempool_host_allocated_head == allocated_head);
+#endif
 
 #pragma omp critical(dbm_mempool_modify)
   {
@@ -273,9 +283,16 @@ void dbm_mempool_device_free(const void *memory) {
  * \brief Private routine for freeing all memory in the pool.
  * \author Ole Schuett
  ******************************************************************************/
+#if DBM_MEMPOOL_DEVICE || DBM_MEMPOOL_HOST
 static void internal_mempool_clear(dbm_memchunk_t **available_head) {
+#if DBM_MEMPOOL_DEVICE
   const bool on_device = (&mempool_device_available_head == available_head);
+#else
+  const bool on_device = false;
+#endif
+#if DBM_MEMPOOL_HOST
   assert(on_device || &mempool_host_available_head == available_head);
+#endif
 
   // Free chunks in mempool_available.
   while (NULL != *available_head) {
@@ -285,20 +302,23 @@ static void internal_mempool_clear(dbm_memchunk_t **available_head) {
     free(chunk);
   }
 }
+#endif
 
 /*******************************************************************************
  * \brief Internal routine for freeing all memory in the pool.
  * \author Ole Schuett
  ******************************************************************************/
 void dbm_mempool_clear(void) {
-  // check for memory leak
-  assert(mempool_device_allocated_head == NULL);
-  assert(mempool_host_allocated_head == NULL);
-
 #pragma omp critical(dbm_mempool_modify)
   {
+#if DBM_MEMPOOL_DEVICE
+    assert(mempool_device_allocated_head == NULL); // check for leak
     internal_mempool_clear(&mempool_device_available_head);
+#endif
+#if DBM_MEMPOOL_HOST
+    assert(mempool_host_allocated_head == NULL); // check for leak
     internal_mempool_clear(&mempool_host_available_head);
+#endif
   }
 }
 
@@ -311,26 +331,16 @@ void dbm_mempool_statistics(dbm_memstats_t *memstats) {
   memset(memstats, 0, sizeof(dbm_memstats_t));
 #pragma omp critical(dbm_mempool_modify)
   {
-    dbm_memchunk_t *chunk;
-    for (chunk = mempool_device_available_head; NULL != chunk;
+#if DBM_MEMPOOL_DEVICE
+    for (dbm_memchunk_t *chunk = mempool_device_available_head; NULL != chunk;
          chunk = chunk->next) {
       memstats->device_used += chunk->used;
       memstats->device_size += chunk->size;
     }
-    for (chunk = mempool_device_allocated_head; NULL != chunk;
+    for (dbm_memchunk_t *chunk = mempool_device_allocated_head; NULL != chunk;
          chunk = chunk->next) {
       memstats->device_used += chunk->used;
       memstats->device_size += chunk->size;
-    }
-    for (chunk = mempool_host_available_head; NULL != chunk;
-         chunk = chunk->next) {
-      memstats->host_used += chunk->used;
-      memstats->host_size += chunk->size;
-    }
-    for (chunk = mempool_host_allocated_head; NULL != chunk;
-         chunk = chunk->next) {
-      memstats->host_used += chunk->used;
-      memstats->host_size += chunk->size;
     }
     if (mempool_stats.device_used < memstats->device_used) {
       mempool_stats.device_used = memstats->device_used;
@@ -338,12 +348,25 @@ void dbm_mempool_statistics(dbm_memstats_t *memstats) {
     if (mempool_stats.device_size < memstats->device_size) {
       mempool_stats.device_size = memstats->device_size;
     }
+#endif
+#if DBM_MEMPOOL_HOST
+    for (dbm_memchunk_t *chunk = mempool_host_available_head; NULL != chunk;
+         chunk = chunk->next) {
+      memstats->host_used += chunk->used;
+      memstats->host_size += chunk->size;
+    }
+    for (dbm_memchunk_t *chunk = mempool_host_allocated_head; NULL != chunk;
+         chunk = chunk->next) {
+      memstats->host_used += chunk->used;
+      memstats->host_size += chunk->size;
+    }
     if (mempool_stats.host_used < memstats->host_used) {
       mempool_stats.host_used = memstats->host_used;
     }
     if (mempool_stats.host_size < memstats->host_size) {
       mempool_stats.host_size = memstats->host_size;
     }
+#endif
     memcpy(memstats, &mempool_stats, sizeof(dbm_memstats_t));
   }
 }
