@@ -11,6 +11,10 @@
 #include "dbm_multiply_gpu_kernel.h"
 #include "dbm_multiply_opencl.cl.h"
 
+#if defined(__DBCSR_ACC)
+#include <acc_libsmm.h>
+#endif
+
 typedef struct {
   int max_m, max_n, avg_m, avg_n, avg_k, changes;
 } dbm_multiply_gpu_launch_info_t;
