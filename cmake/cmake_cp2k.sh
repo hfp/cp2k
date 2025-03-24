@@ -36,9 +36,6 @@ cd build || return 1
 
 # TODO: Reconcile PROFILE/VERSION with CP2K_BUILD_OPTIONS in CMakeLists.txt
 #
-#PROFILE_BLAS_VENDOR="-DCP2K_BLAS_VENDOR=OpenBLAS"
-#PROFILE_SCALAPACK_VENDOR="-DCP2K_SCALAPACK_VENDOR=GENERIC"
-#
 if [[ "${PROFILE}" == "spack" ]] && [[ "${VERSION}" == "psmp" ]]; then
   # PyTorch's TorchConfig.cmake is buried in the Python site-packages directory
   # TODO: DeepMD-kit is not available in the Spack environment (yet)
@@ -49,8 +46,26 @@ if [[ "${PROFILE}" == "spack" ]] && [[ "${VERSION}" == "psmp" ]]; then
     -DCMAKE_C_FLAGS="-fno-lto" \
     -DCMAKE_Fortran_FLAGS="-fno-lto" \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    "${PROFILE_BLAS_VENDOR}" \
-    "${PROFILE_SCALAPACK_VENDOR}" \
+    -DCP2K_BLAS_VENDOR="auto" \
+    -DCP2K_SCALAPACK_VENDOR="auto" \
+    -DCP2K_USE_DEEPMD=OFF \
+    -Werror=dev \
+    .. |& tee ./cmake.log
+  CMAKE_EXIT_CODE=$?
+
+elif [[ "${PROFILE}" == "spack_all" ]] && [[ "${VERSION}" == "psmp" ]]; then
+  cmake \
+    -GNinja \
+    -DCMAKE_BUILD_TYPE="Release" \
+    -DCMAKE_C_FLAGS="-fno-lto" \
+    -DCMAKE_Fortran_FLAGS="-fno-lto" \
+    -DCMAKE_INSTALL_LIBDIR=lib \
+    -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+    -DCP2K_BLAS_VENDOR="OpenBLAS" \
+    -DCP2K_SCALAPACK_VENDOR="GENERIC" \
+    -DCP2K_USE_DLAF=OFF \
+    -DCP2K_USE_LIBTORCH=OFF \
+    -DCP2K_USE_PLUMED=OFF \
     -DCP2K_USE_DEEPMD=OFF \
     -Werror=dev \
     .. |& tee ./cmake.log
@@ -64,8 +79,8 @@ elif [[ "${PROFILE}" == "spack_minimal" ]] && [[ "${VERSION}" == "psmp" ]]; then
     -DCMAKE_Fortran_FLAGS="-fno-lto" \
     -DCMAKE_INSTALL_LIBDIR=lib \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    "${PROFILE_BLAS_VENDOR}" \
-    "${PROFILE_SCALAPACK_VENDOR}" \
+    -DCP2K_BLAS_VENDOR="auto" \
+    -DCP2K_SCALAPACK_VENDOR="auto" \
     -DCP2K_USE_COSMA=OFF \
     -DCP2K_USE_DEEPMD=OFF \
     -DCP2K_USE_DFTD4=OFF \
@@ -77,6 +92,7 @@ elif [[ "${PROFILE}" == "spack_minimal" ]] && [[ "${VERSION}" == "psmp" ]]; then
     -DCP2K_USE_LIBSMEAGOL=OFF \
     -DCP2K_USE_LIBTORCH=OFF \
     -DCP2K_USE_LIBXC=OFF \
+    -DCP2K_USE_MPI=ON \
     -DCP2K_USE_PLUMED=OFF \
     -DCP2K_USE_SIRIUS=OFF \
     -DCP2K_USE_SPGLIB=OFF \
@@ -93,7 +109,7 @@ elif [[ "${PROFILE}" == "toolchain" ]] && [[ "${VERSION}" == "ssmp" ]]; then
     -DCMAKE_BUILD_TYPE="Release" \
     -DCMAKE_INSTALL_LIBDIR=lib \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    "${PROFILE_BLAS_VENDOR}" \
+    -DCP2K_BLAS_VENDOR="auto" \
     -DCP2K_USE_MPI=OFF \
     -Werror=dev \
     .. |& tee ./cmake.log
@@ -104,7 +120,7 @@ elif [[ "${PROFILE}" == "toolchain" ]] && [[ "${VERSION}" == "sdbg" ]]; then
     -GNinja \
     -DCMAKE_BUILD_TYPE="RelWithDebInfo" \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    "${PROFILE_BLAS_VENDOR}" \
+    -DCP2K_BLAS_VENDOR="auto" \
     -DCP2K_DEBUG_MODE=ON \
     -DCP2K_USE_LIBTORCH=OFF \
     -DCP2K_USE_MPI=OFF \
@@ -118,8 +134,8 @@ elif [[ "${PROFILE}" == "toolchain" ]] && [[ "${VERSION}" == "psmp" ]]; then
     -DCMAKE_BUILD_TYPE="Release" \
     -DCMAKE_INSTALL_LIBDIR=lib \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    "${PROFILE_BLAS_VENDOR}" \
-    "${PROFILE_SCALAPACK_VENDOR}" \
+    -DCP2K_BLAS_VENDOR="auto" \
+    -DCP2K_SCALAPACK_VENDOR="auto" \
     -DCP2K_USE_DLAF=OFF \
     -Werror=dev \
     .. |& tee ./cmake.log
@@ -130,8 +146,8 @@ elif [[ "${PROFILE}" == "toolchain" ]] && [[ "${VERSION}" == "pdbg" ]]; then
     -GNinja \
     -DCMAKE_BUILD_TYPE="RelWithDebInfo" \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    "${PROFILE_BLAS_VENDOR}" \
-    "${PROFILE_SCALAPACK_VENDOR}" \
+    -DCP2K_BLAS_VENDOR="auto" \
+    -DCP2K_SCALAPACK_VENDOR="auto" \
     -DCP2K_DEBUG_MODE=ON \
     -DCP2K_USE_COSMA=OFF \
     -DCP2K_USE_DLAF=OFF \
@@ -147,7 +163,7 @@ elif [[ "${PROFILE}" == "ubuntu" ]] && [[ "${VERSION}" == "ssmp" ]]; then
     -GNinja \
     -DCMAKE_BUILD_TYPE="RelWithDebInfo" \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    "${PROFILE_BLAS_VENDOR}" \
+    -DCP2K_BLAS_VENDOR="auto" \
     -DCP2K_USE_LIBTORCH=OFF \
     -DCP2K_USE_LIBXC=OFF \
     -DCP2K_USE_MPI=OFF \
@@ -160,14 +176,35 @@ elif [[ "${PROFILE}" == "ubuntu" ]] && [[ "${VERSION}" == "ssmp" ]]; then
     .. |& tee ./cmake.log
   CMAKE_EXIT_CODE=$?
 
+elif [[ "${PROFILE}" == "minimal" ]] && [[ "${VERSION}" == "ssmp" ]]; then
+  cmake \
+    -GNinja \
+    -DCMAKE_BUILD_TYPE="Release" \
+    -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+    -DCP2K_BLAS_VENDOR=OpenBLAS \
+    -DCP2K_USE_DEEPMD=OFF \
+    -DCP2K_USE_DFTD4=OFF \
+    -DCP2K_USE_FFTW3=OFF \
+    -DCP2K_USE_LIBINT2=OFF \
+    -DCP2K_USE_LIBTORCH=OFF \
+    -DCP2K_USE_LIBXC=OFF \
+    -DCP2K_USE_LIBXSMM=OFF \
+    -DCP2K_USE_MPI=OFF \
+    -DCP2K_USE_SPGLIB=OFF \
+    -DCP2K_USE_TREXIO=OFF \
+    -DCP2K_USE_VORI=OFF \
+    -Werror=dev \
+    .. |& tee ./cmake.log
+  CMAKE_EXIT_CODE=$?
+
 elif [[ "${PROFILE}" == "toolchain_all" ]] && [[ "${VERSION}" == "psmp" ]]; then
   cmake \
     -GNinja \
     -DCMAKE_BUILD_TYPE="Release" \
     -DCMAKE_INSTALL_LIBDIR=lib \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    "${PROFILE_BLAS_VENDOR}" \
-    "${PROFILE_SCALAPACK_VENDOR}" \
+    -DCP2K_BLAS_VENDOR="auto" \
+    -DCP2K_SCALAPACK_VENDOR="auto" \
     -DCP2K_USE_DLAF=OFF \
     -Werror=dev \
     .. |& tee ./cmake.log
@@ -179,8 +216,8 @@ elif [[ "${PROFILE}" == "toolchain_minimal" ]] && [[ "${VERSION}" == "psmp" ]]; 
     -DCMAKE_BUILD_TYPE="Release" \
     -DCMAKE_INSTALL_LIBDIR=lib \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    "${PROFILE_BLAS_VENDOR}" \
-    "${PROFILE_SCALAPACK_VENDOR}" \
+    -DCP2K_BLAS_VENDOR="auto" \
+    -DCP2K_SCALAPACK_VENDOR="auto" \
     -DCP2K_USE_COSMA=OFF \
     -DCP2K_USE_DEEPMD=OFF \
     -DCP2K_USE_DFTD4=OFF \
