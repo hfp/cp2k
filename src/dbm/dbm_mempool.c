@@ -139,7 +139,7 @@ static void *internal_mempool_malloc(dbm_memchunk_t **available_head,
     return NULL;
   }
 
-  dbm_memchunk_t *chunk = NULL, *chunk_purge = NULL;
+  dbm_memchunk_t *chunk = NULL;
 #if DBM_MEMPOOL_DEVICE_ENABLED
   const bool on_device = (&mempool_device_available_head == available_head);
 #else
@@ -153,23 +153,11 @@ static void *internal_mempool_malloc(dbm_memchunk_t **available_head,
 #pragma omp critical(dbm_mempool_modify)
   {
     // Find a suitable chunk in mempool_available.
-    dbm_memchunk_t **reuse = NULL, **reclaim = NULL, **purge = NULL;
+    dbm_memchunk_t **reuse = NULL, **reclaim = NULL;
     for (; NULL != *available_head; available_head = &(*available_head)->next) {
       const size_t s = (*available_head)->size;
-      if (size <= s) {
-        if (NULL == reuse) {
-          reuse = available_head;
-        } else if (s < (*reuse)->size) {
-          if (NULL == purge) {
-            purge = reuse;
-          } else {
-            const double usage = (double)(*reuse)->used / (*reuse)->size;
-            if (usage < ((double)(*purge)->used / (*purge)->size)) {
-              purge = reuse;
-            }
-          }
-          reuse = available_head;
-        }
+      if (size <= s && (NULL == reuse || s < (*reuse)->size)) {
+        reuse = available_head;
         if (size == (*reuse)->size) {
           break; // exact match
         }
@@ -181,19 +169,11 @@ static void *internal_mempool_malloc(dbm_memchunk_t **available_head,
         reclaim = available_head;
       }
     }
-    if (NULL != reuse) {
-      if (NULL != purge) {
-        const double usage = (double)(*purge)->used / (*purge)->size;
-        if (usage <= DBM_MEMPOOL_PURGE) {
-          chunk_purge = *purge;
-          *purge = chunk_purge->next;
-          if (*purge == *reuse) {
-            reuse = purge;
-          }
-        }
+    if (NULL == reuse && NULL != reclaim) {
+      double s = (on_device ? DBM_OVERCOMMIT_DEVICE : DBM_OVERCOMMIT_HOST);
+      if (size <= ((*reclaim)->size * s)) {
+        reuse = reclaim;
       }
-    } else {
-      reuse = reclaim;
     }
 
     // Remove chunk from mempool_available.
@@ -217,9 +197,6 @@ static void *internal_mempool_malloc(dbm_memchunk_t **available_head,
     actual_free(memory, on_device);
     chunk->mem = actual_malloc(size, on_device);
     chunk->size = size;
-  } else if (NULL != chunk_purge) {
-    actual_free(chunk_purge->mem, on_device);
-    free(chunk_purge);
   }
   chunk->used = size; // stats
 
