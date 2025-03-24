@@ -10,6 +10,7 @@
 
 #define DBM_OMP_SCHEDULE schedule(dynamic, 1)
 
+#define DBM_MEMPOOL_PURGE 0.2
 #define DBM_MEMPOOL_DEVICE 1
 #define DBM_MEMPOOL_HOST 1
 
