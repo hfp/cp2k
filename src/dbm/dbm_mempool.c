@@ -152,24 +152,21 @@ static void *internal_mempool_malloc(dbm_memchunk_t **available_head,
 
 #pragma omp critical(dbm_mempool_modify)
   {
-    const double overcommit = (on_device ? DBM_OVERCOMMIT_DEVICE : DBM_OVERCOMMIT_HOST);
     // Find a suitable chunk in mempool_available.
     dbm_memchunk_t **reuse = NULL, **reclaim = NULL;
     for (; NULL != *available_head; available_head = &(*available_head)->next) {
       const size_t s = (*available_head)->size;
       if (size <= s && (NULL == reuse || s < (*reuse)->size)) {
         reuse = available_head;
-        if ((*reuse)->size <= (size * overcommit)) {
+        if (size == (*reuse)->size) {
           break; // early exit
         }
       } else if (NULL == reclaim || s > (*reclaim)->size) {
         reclaim = available_head;
       }
     }
-    if (NULL == reuse && NULL != reclaim) {
-      if (size <= ((*reclaim)->size * overcommit)) {
-        reuse = reclaim;
-      }
+    if (NULL == reuse) {
+      reuse = reclaim;
     }
 
     // Remove chunk from mempool_available.
