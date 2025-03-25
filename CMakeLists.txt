@@ -767,8 +767,9 @@ if(CP2K_USE_LIBXC)
 endif()
 
 if(CP2K_USE_LIBTORCH)
-  message("  - LIBTORCH\n" # let below line separate
-          "    - libraries: ${CP2K_LIBTORCH_LIBRARIES}\n\n")
+  message("  - LIBTORCH\n" "    - extra CXX flags: ${TORCH_CXX_FLAGS}\n"
+          "    - include directories: ${TORCH_INCLUDE_DIRS}\n"
+          "    - libraries: ${TORCH_LIBRARY}\n")
 endif()
 
 if(CP2K_USE_HDF5)
