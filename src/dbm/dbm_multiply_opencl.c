@@ -57,7 +57,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
   const c_dbcsr_acc_opencl_config_t *const config = &c_dbcsr_acc_opencl_config;
   const char *const smm_env = getenv("DBM_MULTIPLY_SMM");
   const int verbosity = config->verbosity;
-  const int max_kernel_dim = (NULL == smm_env ? 0 /*default*/ : atoi(smm_env));
+  int max_kernel_dim = (NULL == smm_env ? 0 /*default*/ : atoi(smm_env));
   int result = EXIT_SUCCESS;
   cl_event event = NULL, *const perf_event =
                              ((0 <= verbosity && 2 >= verbosity) ? NULL
@@ -235,6 +235,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
         clEnqueueNDRangeKernel(str->queue, kernel, ndims, NULL, work_size,
                                0 < wgsize[0] ? wgsize : NULL, 0 /*num_wait*/,
                                NULL /*wait_list*/, perf_event);
+    max_kernel_dim = 0;
   } else { /* homogeneous */
     const int pzero = 0, pbase = 3, pnext = 6;
     const int param_format = pzero | (pbase << 8) | (pnext << 16);
@@ -259,9 +260,10 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
           LIBXSMM_MAX(dkrnl, dhost / c_dbcsr_acc_opencl_config.nthreads * 1E+3);
       const int pure = (100 * (ntasks - info.changes) + ntasks - 1) / ntasks;
       fprintf(stderr,
-              "INFO ACC/LIBDBM: DBM-kernel mnk=%ix%ix%i pure=%i%% "
+              "INFO ACC/LIBDBM: %s-kernel mnk=%ix%ix%i pure=%i%% "
               "ntasks=%i kernel_ms=%.1f total_ms=%.1f gflops=%.1f\n",
-              info.avg_m, info.avg_n, info.avg_k, pure, ntasks, dkrnl, dtotl,
+              0 == max_kernel_dim ? "DBM" : "SMM", info.avg_m, info.avg_n,
+              info.avg_k, pure, ntasks, dkrnl, dtotl,
               2E-6 * info.avg_m * info.avg_n * info.avg_k * ntasks *
                   c_dbcsr_acc_opencl_config.nranks / dtotl);
     }
