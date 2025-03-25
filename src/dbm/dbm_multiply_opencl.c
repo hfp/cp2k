@@ -12,25 +12,27 @@
 #include "dbm_multiply_opencl.cl.h"
 
 #if defined(__DBCSR_ACC)
-#include <acc_libsmm.h>
+#include <smm/opencl_libsmm.h>
 #endif
 
 typedef struct {
-  int max_m, max_n, avg_m, avg_n, avg_k, changes;
+  int max_m, max_n, max_k, avg_m, avg_n, avg_k, changes;
 } dbm_multiply_gpu_launch_info_t;
 
 static void dbm_multiply_gpu_launch_info(dbm_multiply_gpu_launch_info_t *info,
                                          const dbm_task_t *tasks, int ntasks) {
   int i = 1;
   info->max_m = tasks[0].m;
-  info->avg_m = tasks[0].m;
   info->max_n = tasks[0].n;
-  info->avg_n = tasks[0].n;
-  info->avg_k = tasks[0].k;
+  info->max_k = tasks[0].k;
+  info->avg_m = info->max_m;
+  info->avg_n = info->max_n;
+  info->avg_k = info->max_k;
   for (info->changes = 0; i < ntasks; ++i) {
     const int m = tasks[i].m, n = tasks[i].n, k = tasks[i].k;
     info->max_m = imax(info->max_m, m);
     info->max_n = imax(info->max_n, n);
+    info->max_k = imax(info->max_k, k);
     if (info->avg_m != m || info->avg_n != n || info->avg_k != k) {
       info->avg_m = (info->avg_m + m) / 2;
       info->avg_n = (info->avg_n + n) / 2;
@@ -53,9 +55,9 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
   static size_t wgsize[] = {0, 0, 0};
   const libxsmm_timer_tickint start = libxsmm_timer_tick();
   const c_dbcsr_acc_opencl_config_t *const config = &c_dbcsr_acc_opencl_config;
-  const int verbosity = config->verbosity;
+  const int verbosity = config->verbosity, max_kernel_dim = 80;
   int result = EXIT_SUCCESS;
-  cl_event event, *const perf_event =
+  cl_event event = NULL, *const perf_event =
                       ((0 <= verbosity && 2 >= verbosity) ? NULL : &event);
   const c_dbcsr_acc_opencl_stream_t *const str = ACC_OPENCL_STREAM(stream);
   size_t work_size[] = {1, 1, 1}, ibatch = 0;
@@ -182,52 +184,59 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
 #else
 #error "OpenCL kernel code not found!"
 #endif
-  result |= c_dbcsr_acc_opencl_info_devptr_lock(&adata, NULL /*lock*/,
-                                                pack_a_data, 1 /*esize*/,
-                                                NULL /*amount*/, &iadata);
-  result |= c_dbcsr_acc_opencl_info_devptr_lock(&bdata, NULL /*lock*/,
-                                                pack_b_data, 1 /*esize*/,
-                                                NULL /*amount*/, &ibdata);
-  result |= c_dbcsr_acc_opencl_info_devptr_lock(&cdata, NULL /*lock*/,
-                                                shard_c_data, 1 /*esize*/,
-                                                NULL /*amount*/, &icdata);
-  result |= c_dbcsr_acc_opencl_info_devptr_lock(
-      &batch, NULL /*lock*/, tasks /*batch*/, sizeof(dbm_task_t), &work_tasks,
-      &ibatch);
-  assert(0 == iadata && 0 == ibdata && 0 == icdata);
-  result |= clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha);
-  result |= clSetKernelArg(kernel, 1, sizeof(cl_int), &ibatch);
-  if (1 < ndims) { /* DBM_MULTIPLY_GEN */
-    const cl_uint zero = 0;
-    assert(0 != wgsize[1] && 0 != wgsize[1] && 0 != wgsize[2]);
-    work_size[0] = 16;
-    assert(1 == work_size[1]);
-    work_size[2] = work_tasks;
-    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 2, batch.memory);
-    result |= clSetKernelArg(kernel, 3, sizeof(cl_uint), &zero /*shape*/);
-    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 4, adata.memory);
-    result |= clSetKernelArg(kernel, 5, sizeof(cl_uint), &zero /*A_shape0*/);
-    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 6, bdata.memory);
-    result |= clSetKernelArg(kernel, 7, sizeof(cl_uint), &zero /*B_shape0*/);
-    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 8, cdata.memory);
-    result |= clSetKernelArg(kernel, 9, sizeof(cl_uint), &zero /*C_shape0*/);
-  } else {
-    size_t size = work_tasks;
-    dbm_multiply_gpu_launch_info(&info, tasks_host, ntasks);
-    size *= (0 == clinear ? info.max_m : info.max_n);
-    /* fixup to be a multiple of the WG-size */
-    work_size[0] = (0 < wgsize[0] ? LIBXSMM_UP(size, wgsize[0]) : size);
-    result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &ntasks);
-    result |= clSetKernelArg(kernel, 3, sizeof(cl_int), &size);
-    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 4, batch.memory);
-    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 5, adata.memory);
-    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 6, bdata.memory);
-    result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 7, cdata.memory);
+  dbm_multiply_gpu_launch_info(&info, tasks_host, ntasks);
+  if (0 != info.changes || 1 != alpha || max_kernel_dim < info.max_m || max_kernel_dim < info.max_n || max_kernel_dim < info.max_k) {
+    result |= c_dbcsr_acc_opencl_info_devptr_lock(&adata, NULL /*lock*/,
+                                                  pack_a_data, 1 /*esize*/,
+                                                  NULL /*amount*/, &iadata);
+    result |= c_dbcsr_acc_opencl_info_devptr_lock(&bdata, NULL /*lock*/,
+                                                  pack_b_data, 1 /*esize*/,
+                                                  NULL /*amount*/, &ibdata);
+    result |= c_dbcsr_acc_opencl_info_devptr_lock(&cdata, NULL /*lock*/,
+                                                  shard_c_data, 1 /*esize*/,
+                                                  NULL /*amount*/, &icdata);
+    result |= c_dbcsr_acc_opencl_info_devptr_lock(
+        &batch, NULL /*lock*/, tasks /*batch*/, sizeof(dbm_task_t), &work_tasks,
+        &ibatch);
+    assert(0 == iadata && 0 == ibdata && 0 == icdata);
+    result |= clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha);
+    result |= clSetKernelArg(kernel, 1, sizeof(cl_int), &ibatch);
+    if (1 < ndims) { /* DBM_MULTIPLY_GEN */
+      const cl_uint zero = 0;
+      assert(0 != wgsize[1] && 0 != wgsize[1] && 0 != wgsize[2]);
+      work_size[0] = 16;
+      assert(1 == work_size[1]);
+      work_size[2] = work_tasks;
+      result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 2, batch.memory);
+      result |= clSetKernelArg(kernel, 3, sizeof(cl_uint), &zero /*shape*/);
+      result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 4, adata.memory);
+      result |= clSetKernelArg(kernel, 5, sizeof(cl_uint), &zero /*A_shape0*/);
+      result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 6, bdata.memory);
+      result |= clSetKernelArg(kernel, 7, sizeof(cl_uint), &zero /*B_shape0*/);
+      result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 8, cdata.memory);
+      result |= clSetKernelArg(kernel, 9, sizeof(cl_uint), &zero /*C_shape0*/);
+    } else {
+      size_t size = work_tasks;
+      size *= (0 == clinear ? info.max_m : info.max_n);
+      /* fixup to be a multiple of the WG-size */
+      work_size[0] = (0 < wgsize[0] ? LIBXSMM_UP(size, wgsize[0]) : size);
+      result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &ntasks);
+      result |= clSetKernelArg(kernel, 3, sizeof(cl_int), &size);
+      result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 4, batch.memory);
+      result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 5, adata.memory);
+      result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 6, bdata.memory);
+      result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 7, cdata.memory);
+    }
+    result |= clEnqueueNDRangeKernel(
+        str->queue, kernel, ndims, NULL, work_size, 0 < wgsize[0] ? wgsize : NULL,
+        0 /*num_wait*/, NULL /*wait_list*/, perf_event);
+  } else { /* homogeneous */
+    const int pzero = 0, pbase = 3, pnext = 6;
+    const int param_format = pzero | (pbase << 8) | (pnext << 16);
+    result |= opencl_libsmm_acc_process(NULL /*tasks_host*/, tasks, ntasks, dbcsr_type_real_8, pack_a_data, pack_b_data,
+      shard_c_data, info.max_m, info.max_n, info.max_k, max_kernel_dim, 1 /*homogeneous*/, stream, NULL /*c_stream*/, param_format);
   }
-  result |= clEnqueueNDRangeKernel(
-      str->queue, kernel, ndims, NULL, work_size, 0 < wgsize[0] ? wgsize : NULL,
-      0 /*num_wait*/, NULL /*wait_list*/, perf_event);
-  if (NULL != perf_event && EXIT_SUCCESS == result &&
+  if (NULL != perf_event && NULL != *perf_event && EXIT_SUCCESS == result &&
       EXIT_SUCCESS == clWaitForEvents(1, perf_event)) {
     const double dhost = libxsmm_timer_duration(start, libxsmm_timer_tick());
     cl_ulong begin = 0, end = 0;
@@ -240,11 +249,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
       const double dkrnl = LIBXSMM_DELTA(begin, end) * 1E-6;
       const double dtotl =
           LIBXSMM_MAX(dkrnl, dhost / c_dbcsr_acc_opencl_config.nthreads * 1E+3);
-      int pure;
-      if (1 < ndims) { /* DBM_MULTIPLY_GEN */
-        dbm_multiply_gpu_launch_info(&info, tasks_host, ntasks);
-      }
-      pure = (100 * (ntasks - info.changes) + ntasks - 1) / ntasks;
+      const int pure = (100 * (ntasks - info.changes) + ntasks - 1) / ntasks;
       fprintf(stderr,
               "INFO ACC/LIBDBM: DBM-kernel mnk=%ix%ix%i pure=%i%% "
               "ntasks=%i kernel_ms=%.1f total_ms=%.1f gflops=%.1f\n",
