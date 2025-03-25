@@ -55,7 +55,9 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
   static size_t wgsize[] = {0, 0, 0};
   const libxsmm_timer_tickint start = libxsmm_timer_tick();
   const c_dbcsr_acc_opencl_config_t *const config = &c_dbcsr_acc_opencl_config;
-  const int verbosity = config->verbosity, max_kernel_dim = 80;
+  const char *const smm_env = getenv("DBM_MULTIPLY_SMM");
+  const int verbosity = config->verbosity;
+  const int max_kernel_dim = (NULL == smm_env ? 0 /*default*/ : atoi(smm_env));
   int result = EXIT_SUCCESS;
   cl_event event = NULL, *const perf_event =
                              ((0 <= verbosity && 2 >= verbosity) ? NULL
@@ -64,8 +66,9 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
   size_t work_size[] = {1, 1, 1}, ibatch = 0;
   size_t iadata = 0, ibdata = 0, icdata = 0;
   const size_t work_tasks = ntasks;
-  dbm_multiply_gpu_launch_info_t info = {0};
   c_dbcsr_acc_opencl_info_memptr_t adata, bdata, cdata, batch;
+  dbm_multiply_gpu_launch_info_t info = {0};
+  dbm_multiply_gpu_launch_info(&info, tasks_host, ntasks);
   assert(NULL != pack_a_data && NULL != pack_b_data && NULL != shard_c_data);
   assert(NULL != str && NULL != str->queue);
   assert(0 < ntasks && NULL != tasks);
@@ -185,7 +188,6 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
 #else
 #error "OpenCL kernel code not found!"
 #endif
-  dbm_multiply_gpu_launch_info(&info, tasks_host, ntasks);
   if (0 != info.changes || 1 != alpha || max_kernel_dim < info.max_m ||
       max_kernel_dim < info.max_n || max_kernel_dim < info.max_k) {
     result |= c_dbcsr_acc_opencl_info_devptr_lock(&adata, NULL /*lock*/,
@@ -240,7 +242,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
         NULL /*tasks_host*/, &tasks->m, ntasks, dbcsr_type_real_8, pack_a_data,
         pack_b_data, shard_c_data, info.max_m, info.max_n, info.max_k,
         max_kernel_dim, 1 /*homogeneous*/, stream, NULL /*c_stream*/,
-        param_format);
+        param_format, perf_event);
   }
   if (NULL != perf_event && NULL != *perf_event && EXIT_SUCCESS == result &&
       EXIT_SUCCESS == clWaitForEvents(1, perf_event)) {
