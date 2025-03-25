@@ -58,7 +58,8 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
   const int verbosity = config->verbosity, max_kernel_dim = 80;
   int result = EXIT_SUCCESS;
   cl_event event = NULL, *const perf_event =
-                      ((0 <= verbosity && 2 >= verbosity) ? NULL : &event);
+                             ((0 <= verbosity && 2 >= verbosity) ? NULL
+                                                                 : &event);
   const c_dbcsr_acc_opencl_stream_t *const str = ACC_OPENCL_STREAM(stream);
   size_t work_size[] = {1, 1, 1}, ibatch = 0;
   size_t iadata = 0, ibdata = 0, icdata = 0;
@@ -185,7 +186,8 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
 #error "OpenCL kernel code not found!"
 #endif
   dbm_multiply_gpu_launch_info(&info, tasks_host, ntasks);
-  if (0 != info.changes || 1 != alpha || max_kernel_dim < info.max_m || max_kernel_dim < info.max_n || max_kernel_dim < info.max_k) {
+  if (0 != info.changes || 1 != alpha || max_kernel_dim < info.max_m ||
+      max_kernel_dim < info.max_n || max_kernel_dim < info.max_k) {
     result |= c_dbcsr_acc_opencl_info_devptr_lock(&adata, NULL /*lock*/,
                                                   pack_a_data, 1 /*esize*/,
                                                   NULL /*amount*/, &iadata);
@@ -227,14 +229,18 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
       result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 6, bdata.memory);
       result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 7, cdata.memory);
     }
-    result |= clEnqueueNDRangeKernel(
-        str->queue, kernel, ndims, NULL, work_size, 0 < wgsize[0] ? wgsize : NULL,
-        0 /*num_wait*/, NULL /*wait_list*/, perf_event);
+    result |=
+        clEnqueueNDRangeKernel(str->queue, kernel, ndims, NULL, work_size,
+                               0 < wgsize[0] ? wgsize : NULL, 0 /*num_wait*/,
+                               NULL /*wait_list*/, perf_event);
   } else { /* homogeneous */
     const int pzero = 0, pbase = 3, pnext = 6;
     const int param_format = pzero | (pbase << 8) | (pnext << 16);
-    result |= opencl_libsmm_acc_process(NULL /*tasks_host*/, tasks, ntasks, dbcsr_type_real_8, pack_a_data, pack_b_data,
-      shard_c_data, info.max_m, info.max_n, info.max_k, max_kernel_dim, 1 /*homogeneous*/, stream, NULL /*c_stream*/, param_format);
+    result |= opencl_libsmm_acc_process(
+        NULL /*tasks_host*/, &tasks->m, ntasks, dbcsr_type_real_8, pack_a_data,
+        pack_b_data, shard_c_data, info.max_m, info.max_n, info.max_k,
+        max_kernel_dim, 1 /*homogeneous*/, stream, NULL /*c_stream*/,
+        param_format);
   }
   if (NULL != perf_event && NULL != *perf_event && EXIT_SUCCESS == result &&
       EXIT_SUCCESS == clWaitForEvents(1, perf_event)) {
