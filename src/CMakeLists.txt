@@ -1648,7 +1648,7 @@ elseif(CP2K_USE_ACCEL MATCHES "HIP")
   set_property(TARGET cp2k PROPERTY HIP_ARCHITECTURES
                                     ${CMAKE_HIP_ARCHITECTURES})
 elseif(CP2K_USE_ACCEL MATCHES "OPENCL")
-  include_directories(${CP2K_OPENCL_TOOLDIR} ${CP2K_OPENCL_TOOLDIR}/..)
+  include_directories(${CP2K_OPENCL_TOOLDIR})
 endif()
 
 # mix the target and variables pointing to the include directories.
