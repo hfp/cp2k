@@ -16,20 +16,21 @@
 #endif
 
 typedef struct {
-  int max_m, max_n, max_k, avg_m, avg_n, avg_k, changes;
+  int max_m, max_n, max_k, avg_m, avg_n, avg_k, mnk_count, c_count;
 } dbm_multiply_gpu_launch_info_t;
 
 static void dbm_multiply_gpu_launch_info(dbm_multiply_gpu_launch_info_t *info,
                                          const dbm_task_t *tasks, int ntasks) {
-  int i = 1;
+  int i = 1, avg_c = tasks[0].offset_c;
   info->max_m = tasks[0].m;
   info->max_n = tasks[0].n;
   info->max_k = tasks[0].k;
   info->avg_m = info->max_m;
   info->avg_n = info->max_n;
   info->avg_k = info->max_k;
-  for (info->changes = 0; i < ntasks; ++i) {
+  for (info->mnk_count = info->c_count = 0; i < ntasks; ++i) {
     const int m = tasks[i].m, n = tasks[i].n, k = tasks[i].k;
+    const int c = tasks[i].offset_c;
     info->max_m = imax(info->max_m, m);
     info->max_n = imax(info->max_n, n);
     info->max_k = imax(info->max_k, k);
@@ -37,7 +38,11 @@ static void dbm_multiply_gpu_launch_info(dbm_multiply_gpu_launch_info_t *info,
       info->avg_m = (info->avg_m + m) / 2;
       info->avg_n = (info->avg_n + n) / 2;
       info->avg_k = (info->avg_k + k) / 2;
-      ++info->changes;
+      ++info->mnk_count;
+    }
+    if (avg_c != c) {
+      avg_c = (avg_c + c) / 2;
+      ++info->c_count;
     }
   }
 }
@@ -55,9 +60,11 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
   static size_t wgsize[] = {0, 0, 0};
   const libxsmm_timer_tickint start = libxsmm_timer_tick();
   const c_dbcsr_acc_opencl_config_t *const config = &c_dbcsr_acc_opencl_config;
+#if defined(OPENCL_LIBSMM_PFORMAT)
   const char *const smm_env = getenv("DBM_MULTIPLY_SMM");
-  const int verbosity = config->verbosity;
   int max_kernel_dim = (NULL == smm_env ? 0 /*default*/ : atoi(smm_env));
+#endif
+  const int verbosity = config->verbosity;
   int result = EXIT_SUCCESS;
   cl_event event = NULL, *const perf_event =
                              ((0 <= verbosity && 2 >= verbosity) ? NULL
@@ -188,8 +195,11 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
 #else
 #error "OpenCL kernel code not found!"
 #endif
-  if (0 != info.changes || 1 != alpha || max_kernel_dim < info.max_m ||
-      max_kernel_dim < info.max_n || max_kernel_dim < info.max_k) {
+#if defined(OPENCL_LIBSMM_PFORMAT)
+  if (0 != info.mnk_count || 1 != alpha || max_kernel_dim < info.max_m ||
+      max_kernel_dim < info.max_n || max_kernel_dim < info.max_k)
+#endif
+  {
     result |= c_dbcsr_acc_opencl_info_devptr_lock(&adata, NULL /*lock*/,
                                                   pack_a_data, 1 /*esize*/,
                                                   NULL /*amount*/, &iadata);
@@ -235,8 +245,9 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
         clEnqueueNDRangeKernel(str->queue, kernel, ndims, NULL, work_size,
                                0 < wgsize[0] ? wgsize : NULL, 0 /*num_wait*/,
                                NULL /*wait_list*/, perf_event);
-    max_kernel_dim = 0;
-  } else { /* homogeneous */
+  }
+#if defined(OPENCL_LIBSMM_PFORMAT)
+  else { /* homogeneous */
     const int pzero = 0, pbase = 3, pnext = 6;
     const int param_format = pzero | (pbase << 8) | (pnext << 16);
     result |= opencl_libsmm_acc_process(
@@ -245,6 +256,7 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
         max_kernel_dim, 1 /*homogeneous*/, stream, NULL /*c_stream*/,
         param_format, perf_event);
   }
+#endif
   if (NULL != perf_event && NULL != *perf_event && EXIT_SUCCESS == result &&
       EXIT_SUCCESS == clWaitForEvents(1, perf_event)) {
     const double dhost = libxsmm_timer_duration(start, libxsmm_timer_tick());
@@ -255,17 +267,22 @@ void dbm_multiply_gpu_launch_kernel(const offloadStream_t stream, double alpha,
         EXIT_SUCCESS == clGetEventProfilingInfo(*perf_event,
                                                 CL_PROFILING_COMMAND_END,
                                                 sizeof(cl_ulong), &end, NULL)) {
+#if defined(OPENCL_LIBSMM_PFORMAT)
+      const char *const kind = (0 == max_kernel_dim ? "DBM" : "SMM");
+#else
+      const char *const kind = "DBM";
+#endif
       const double dkrnl = LIBXSMM_DELTA(begin, end) * 1E-6;
-      const double dtotl =
-          LIBXSMM_MAX(dkrnl, dhost / c_dbcsr_acc_opencl_config.nthreads * 1E+3);
-      const int pure = (100 * (ntasks - info.changes) + ntasks - 1) / ntasks;
+      const double dtotl = LIBXSMM_MAX(dkrnl, dhost / config->nthreads * 1E+3);
+      const int pure = (100 * (ntasks - info.mnk_count) + ntasks - 1) / ntasks;
+      const int cmix = (100 * (ntasks - info.c_count) + ntasks - 1) / ntasks;
       fprintf(stderr,
-              "INFO ACC/LIBDBM: %s-kernel mnk=%ix%ix%i pure=%i%% "
+              "INFO ACC/LIBDBM: %s-kernel mnk=%ix%ix%i pure=%i%% cmix=%i%% "
               "ntasks=%i kernel_ms=%.1f total_ms=%.1f gflops=%.1f\n",
-              0 == max_kernel_dim ? "DBM" : "SMM", info.avg_m, info.avg_n,
-              info.avg_k, pure, ntasks, dkrnl, dtotl,
+              kind, info.avg_m, info.avg_n, info.avg_k, pure, cmix, ntasks,
+              dkrnl, dtotl,
               2E-6 * info.avg_m * info.avg_n * info.avg_k * ntasks *
-                  c_dbcsr_acc_opencl_config.nranks / dtotl);
+                  config->nranks / dtotl);
     }
   }
   OFFLOAD_CHECK(result);
