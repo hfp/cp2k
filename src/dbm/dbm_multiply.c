@@ -198,15 +198,6 @@ static void backend_stop(backend_context_t *ctx) {
 }
 
 /*******************************************************************************
- * \brief Comperator to order tasks by C-index.
- * \author Hans Pabst
- ******************************************************************************/
-static int compare_tasks(const void *a, const void *b) {
-  const dbm_task_t *task_a = a, *task_b = b;
-  return task_a->offset_c - task_b->offset_c;
-}
-
-/*******************************************************************************
  * \brief Private routine for multipling two packs.
  * \author Ole Schuett
  ******************************************************************************/
@@ -219,7 +210,6 @@ static void multiply_packs(const bool transa, const bool transb,
                            const float *rows_max_eps, int64_t *flop,
                            backend_context_t *ctx) {
   const float alpha2 = alpha * alpha;
-  const bool sort_tasks = true;
   int64_t flop_sum = 0;
 
   const int nshard_rows = matrix_c->dist->rows.nshards;
@@ -337,9 +327,6 @@ static void multiply_packs(const bool transa, const bool transb,
             ++ntasks;
 
             if (ntasks == DBM_MAX_BATCH_SIZE) {
-              if (sort_tasks) {
-                qsort(batch, ntasks, sizeof(dbm_task_t), &compare_tasks);
-              }
               backend_process_batch(ntasks, batch, alpha, pack_a, pack_b,
                                     ishard, shard_c, ctx);
               ntasks = 0;
