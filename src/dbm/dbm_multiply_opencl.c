@@ -50,8 +50,6 @@ static void dbm_multiply_opencl_launch_kernel(
     const double *pack_b_data, double *shard_c_data) {
   const DBM_TIMER_TICKINT start = DBM_TIMER_TICK();
   const c_dbcsr_acc_opencl_config_t *const config = &c_dbcsr_acc_opencl_config;
-  const int pzero = 0xFFFF & (param_format);
-  const int pnext = 0xFFFF & (param_format >> 16);
 #if defined(OPENCL_LIBSMM_PFORMAT)
   const char *const smm_env = getenv("DBM_MULTIPLY_SMM");
   int max_kernel_dim = (NULL == smm_env ? 0 /*default*/ : atoi(smm_env));
@@ -61,7 +59,6 @@ static void dbm_multiply_opencl_launch_kernel(
   cl_event e = NULL, *const event =
                          ((0 <= verbosity && 2 >= verbosity) ? NULL : &e);
   dbm_multiply_gpu_launch_info_t info = {0};
-  dbm_multiply_gpu_launch_info(&info, params_host, ntasks, pnext);
   assert(NULL != pack_a_data && NULL != pack_b_data && NULL != shard_c_data);
   assert(NULL != params_host || 0 == ntasks);
   assert(NULL != params || 0 == ntasks);
@@ -69,6 +66,8 @@ static void dbm_multiply_opencl_launch_kernel(
     return;
   }
 #if defined(OPENCL_LIBSMM_PFORMAT)
+  dbm_multiply_gpu_launch_info(&info, params_host, ntasks,
+                               0xFFFF & (param_format >> 16));
   if (0 != info.mnk_changes || 1 != alpha ||
       (max_kernel_dim * max_kernel_dim) < (info.max_m * info.max_n))
 #endif
@@ -216,6 +215,12 @@ static void dbm_multiply_opencl_launch_kernel(
     assert(0 == iadata && 0 == ibdata && 0 == icdata);
     result |= clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha);
     result |= clSetKernelArg(kernel, 1, sizeof(cl_int), &ibatch);
+#if !defined(OPENCL_LIBSMM_PFORMAT)
+    if (NULL != event && 1 == ndims) {
+      dbm_multiply_gpu_launch_info(&info, params_host, ntasks,
+                                   0xFFFF & (param_format >> 16));
+    }
+#endif
     if (1 < ndims) { /* DBM_MULTIPLY_GEN */
       const cl_uint zero = 0;
       assert(0 != wgsize[1] && 0 != wgsize[1] && 0 != wgsize[2]);
