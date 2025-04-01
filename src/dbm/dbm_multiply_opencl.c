@@ -64,7 +64,7 @@ static void dbm_multiply_opencl_launch_kernel(
   int result = EXIT_SUCCESS;
   cl_event e = NULL, *const event =
                          ((0 <= verbosity && 2 >= verbosity) ? NULL : &e);
-  dbm_multiply_gpu_launch_info_t info = {0};
+  dbm_multiply_gpu_launch_info_t info = {-1};
   assert(NULL != pack_a_data && NULL != pack_b_data && NULL != shard_c_data);
   assert(NULL != params_host || 0 == ntasks);
   assert(NULL != params || 0 == ntasks);
@@ -72,9 +72,11 @@ static void dbm_multiply_opencl_launch_kernel(
     return;
   }
 #if defined(OPENCL_LIBSMM_PFORMAT)
-  dbm_multiply_gpu_launch_info(&info, params_host, ntasks,
-                               0xFFFF & (param_format >> 16));
-  if (0 != info.mnk_changes || 1 != alpha ||
+  if (0 < max_kernel_dim && 1 != alpha) {
+    dbm_multiply_gpu_launch_info(&info, params_host, ntasks,
+                                 0xFFFF & (param_format >> 16));
+  }
+  if (0 != info.mnk_changes ||
       (max_kernel_dim * max_kernel_dim) < (info.max_m * info.max_n))
 #endif
   {
