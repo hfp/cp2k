@@ -35,12 +35,18 @@ static void dbm_multiply_gpu_launch_info(dbm_multiply_gpu_launch_info_t *info,
     info->max_m = imax(info->max_m, m);
     info->max_n = imax(info->max_n, n);
     info->max_k = imax(info->max_k, k);
-    if (m != avg_m || n != avg_n || k != avg_k) {
+    if (m != avg_m || n != avg_n || k != avg_k) { /* approximation */
       avg_m = (avg_m + m) / 2;
       avg_n = (avg_n + n) / 2;
       avg_k = (avg_k + k) / 2;
       ++info->mnk_changes;
     }
+  }
+}
+
+static void dbm_multiply_opencl_print(FILE *stream, const char *name, int val) {
+  if (0 != val) {
+    fprintf(stream, " %s=%i", name, val);
   }
 }
 
@@ -165,27 +171,13 @@ static void dbm_multiply_opencl_launch_kernel(
           if (EXIT_SUCCESS == result) {
             const double ds = DBM_TIMER_DIFF(start, DBM_TIMER_TICK());
             fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel gpu=%i", gpu);
-            if (0 != gen) { /* generated kernel */
-              fprintf(stderr, " gen=%i", gen);
-            }
-            if (0 != clinear) {
-              fprintf(stderr, " lin=%i", clinear);
-            }
-            if (0 != bn) {
-              fprintf(stderr, " bn=%i", bn);
-            }
-            if (0 != sm) {
-              fprintf(stderr, " sm=%i", sm);
-            }
-            if (0 != wgsize[0]) {
-              fprintf(stderr, " wg=%i", (int)wgsize[0]);
-            }
-            if (0 != wgsize2) {
-              fprintf(stderr, " sg=%i", (int)wgsize2);
-            }
-            if (0 != lu) {
-              fprintf(stderr, " lu=%i", lu);
-            }
+            dbm_multiply_opencl_print(stderr, "gen", gen); /* generated */
+            dbm_multiply_opencl_print(stderr, "lin", clinear);
+            dbm_multiply_opencl_print(stderr, "bn", bn);
+            dbm_multiply_opencl_print(stderr, "sm", sm);
+            dbm_multiply_opencl_print(stderr, "wg", (int)wgsize[0]);
+            dbm_multiply_opencl_print(stderr, "sg", (int)wgsize2);
+            dbm_multiply_opencl_print(stderr, "lu", lu);
             fprintf(stderr, " ms=%.1f\n", 1E3 * ds);
           } else {
             fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel failed to generate\n");
@@ -302,8 +294,7 @@ void dbm_multiply_gpu_launch_kernel(offloadStream_t stream, double alpha,
                                     const double *pack_a_data,
                                     const double *pack_b_data,
                                     double *shard_c_data) {
-  const int pzero = 0, pnext = 6;
-  const int param_format = pzero | (pnext << 16);
+  const int pzero = 0, pnext = 6, param_format = pzero | (pnext << 16);
   dbm_multiply_opencl_launch_kernel(stream, alpha, ntasks, param_format,
                                     &tasks_host->m, &tasks->m, pack_a_data,
                                     pack_b_data, shard_c_data);
