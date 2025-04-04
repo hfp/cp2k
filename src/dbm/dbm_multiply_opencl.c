@@ -248,11 +248,9 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
     ibatch /= stride;
     result |= clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha);
     result |= clSetKernelArg(kernel, 1, sizeof(cl_int), &ibatch);
-#if !defined(OPENCL_LIBSMM_PFORMAT) || (0 >= OPENCL_LIBSMM_PFORMAT)
-    if (NULL != event && 1 == ndims) {
+    if (NULL != event || 1 == ndims) {
       dbm_multiply_gpu_launch_info(&info, params_host, ntasks, stride);
     }
-#endif
     if (1 < ndims) { /* DBM_MULTIPLY_GEN */
       const cl_uint zero = 0;
       assert(0 != wgsize[1] && 0 != wgsize[1] && 0 != wgsize[2]);
