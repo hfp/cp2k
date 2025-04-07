@@ -34,7 +34,7 @@ LIBXSMM_ATTRIBUTE_CTOR static void dbm_multiply_opencl_initialize(void) {
   const char *const smm_env = getenv("DBM_MULTIPLY_SMM");
   const int smm = (NULL == smm_env ? 0 /*default*/ : atoi(smm_env));
   dbm_multiply_opencl_smm =
-      LIBXSMM_MIN(smm, (1 << (OPENCL_LIBSMM_PFORMAT - 1)) - 1);
+      LIBXSMM_MIN(1 != smm ? smm : 64, (1 << (OPENCL_LIBSMM_PFORMAT - 1)) - 1);
   if (0 > dbm_multiply_opencl_smm) {
     opencl_libsmm_acc_set_dbm_launch_fn(dbm_multiply_opencl_launch_kernel);
   }
