@@ -124,6 +124,10 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
     static int ndims = 1, clinear = 0;
     static size_t wgsize[] = {0, 0, 0};
     const c_dbcsr_acc_opencl_stream_t *const str = ACC_OPENCL_STREAM(stream);
+    const c_dbcsr_acc_opencl_device_t *const devinfo = &config->device;
+    ACC_OPENCL_LOCKTYPE *const lock_memory =
+        (NULL != devinfo->clSetKernelArgMemPointerINTEL ? NULL
+                                                        : config->lock_memory);
     c_dbcsr_acc_opencl_info_memptr_t adata, bdata, cdata, batch;
     const int stride = (0 == param_format ? 6 : 3);
     size_t work_size[] = {1, 1, 1}, ibatch = 0;
@@ -142,7 +146,6 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         const char *const wg_env = getenv("DBM_MULTIPLY_WG");
         const char *const lu_env = getenv("DBM_MULTIPLY_LU");
         const char *const xf_env = getenv("DBM_MULTIPLY_XF");
-        const c_dbcsr_acc_opencl_device_t *const devinfo = &config->device;
         int sm = (NULL == sm_env ? 0 /*default*/ : atoi(sm_env));
         const int bn0 = (0 == devinfo->nv ? (0 == devinfo->amd ? 4 : 8) : 2);
         const int bn1 = ((0 == sm && 0 == clinear) ? bn0 : (bn0 * 2));
@@ -232,6 +235,9 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
 #else
 #error "OpenCL kernel code not found!"
 #endif
+    if (NULL != lock_memory) {
+      ACC_OPENCL_ACQUIRE(lock_memory);
+    }
     result |= c_dbcsr_acc_opencl_info_devptr_lock(&adata, NULL /*lock*/,
                                                   pack_a_data, 1 /*esize*/,
                                                   NULL /*amount*/, &iadata);
@@ -244,6 +250,9 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
     result |= c_dbcsr_acc_opencl_info_devptr_lock(
         &batch, NULL /*lock*/, params /*batch*/, sizeof(int) * stride,
         &work_tasks, &ibatch);
+    if (NULL != lock_memory) {
+      ACC_OPENCL_RELEASE(lock_memory);
+    }
     assert(0 == iadata && 0 == ibdata && 0 == icdata && 0 == (ibatch % stride));
     ibatch /= stride;
     result |= clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha);
