@@ -253,8 +253,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
     if (NULL != lock_memory) {
       ACC_OPENCL_RELEASE(lock_memory);
     }
-    assert(0 == iadata && 0 == ibdata && 0 == icdata && 0 == (ibatch % stride));
-    ibatch /= stride;
+    assert(0 == iadata && 0 == ibdata && 0 == icdata);
     result |= clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha);
     result |= clSetKernelArg(kernel, 1, sizeof(cl_int), &ibatch);
     if (NULL != event || 1 == ndims) {
