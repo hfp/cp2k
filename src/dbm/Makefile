@@ -144,11 +144,12 @@ endif
 LIBS += -L$(OPENCL_ROOT)/$(if $(wildcard $(OPENCL_ROOT)/lib64),lib64,lib)
 else ifneq (,$(ICX))
 OPENCL_ROOT := $(abspath $(dir $(ICX))/..)
-ifneq (,$(wildcard $(OPENCL_ROOT)/include/sycl/CL/cl.h))
+CLINC := $(wildcard $(OPENCL_ROOT)/include/sycl/CL/cl.h $(OPENCL_ROOT)/include/CL/cl.h)
+ifneq (,$(CLINC))
 LIBS += -L$(OPENCL_ROOT)/$(if $(wildcard $(OPENCL_ROOT)/lib64),lib64,lib)
 LIBS += -L$(OPENCL_ROOT)/compiler/lib/intel64 -lintlc
 ifeq (,$(wildcard $(OPENCL_INC)))
-CFLAGS += -I$(OPENCL_ROOT)/include/sycl
+CFLAGS += -I$(abspath $(dir $(firstword $(CLINC)))/..)
 endif
 endif
 endif
