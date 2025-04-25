@@ -57,13 +57,17 @@ CC := $(MPICC)
 endif
 endif
 
+ifeq ($(filter-out 0,$(OPENCL)),)
 NVCC := $(shell which nvcc 2>/dev/null)
 NVARCH := sm_70
 NVFLAGS := -g $(OPTFLAG) -lineinfo -arch $(NVARCH) -Wno-deprecated-gpu-targets -Xcompiler "$(CFLAGS)" -D__OFFLOAD_CUDA
 
 HIPCC := $(shell which hipcc 2>/dev/null)
 HIPARCH := gfx90a
+ROCM_PATH_ENV := $(shell echo "$${ROCM_PATH}")
+ROCM_PATH := $(if $(ROCM_PATH_ENV),$(ROCM_PATH_ENV),/opt/rocm)
 HIPFLAGS := -fPIE -g $(OPTFLAG) --offload-arch=$(HIPARCH) -Wall -Wextra -Werror -I${ROCM_PATH}/include -D__OFFLOAD_HIP -D__HIP_PLATFORM_AMD__ -D__HIP_PLATFORM_AMD__
+endif
 
 # prefer NVCC or HIPCC over OpenCL
 ifneq ($(NVCC)$(HIPCC),)
