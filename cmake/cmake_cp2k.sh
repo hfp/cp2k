@@ -37,7 +37,6 @@ cd build || return 1
 # TODO: Reconcile PROFILE/VERSION with CP2K_BUILD_OPTIONS in CMakeLists.txt
 #
 if [[ "${PROFILE}" == "spack_all" ]] && [[ "${VERSION}" == "psmp" ]]; then
-  # TODO: DeepMD-kit is not available in the Spack environment (yet)
   # PyTorch's TorchConfig.cmake is buried in the Python site-packages directory
   Torch_DIR="$(dirname "$(find /opt/spack/lib -name TorchConfig.cmake)")"
   export Torch_DIR
@@ -50,7 +49,6 @@ if [[ "${PROFILE}" == "spack_all" ]] && [[ "${VERSION}" == "psmp" ]]; then
   CMAKE_EXIT_CODE=$?
 
 elif [[ "${PROFILE}" == "spack_all" ]] && [[ "${VERSION}" == "ssmp" ]]; then
-  # TODO: DeepMD-kit is not available in the Spack environment (yet)
   # PyTorch's TorchConfig.cmake is buried in the Python site-packages directory
   Torch_DIR="$(dirname "$(find /opt/spack/lib -name TorchConfig.cmake)")"
   export Torch_DIR
@@ -88,6 +86,7 @@ elif [[ "${PROFILE}" == "toolchain_all" ]] && [[ "${VERSION}" == "psmp" ]]; then
     -DCP2K_USE_EVERYTHING=ON \
     -DCP2K_USE_DLAF=OFF \
     -DCP2K_USE_MPI=ON \
+    -DCP2K_USE_PEXSI=OFF \
     -Werror=dev \
     .. |& tee ./cmake.log
   CMAKE_EXIT_CODE=$?
@@ -98,6 +97,7 @@ elif [[ "${PROFILE}" == "toolchain_all" ]] && [[ "${VERSION}" == "ssmp" ]]; then
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
     -DCP2K_USE_EVERYTHING=ON \
     -DCP2K_USE_MPI=OFF \
+    -DCP2K_USE_PEXSI=OFF \
     -Werror=dev \
     .. |& tee ./cmake.log
   CMAKE_EXIT_CODE=$?
@@ -130,6 +130,7 @@ elif [[ "${PROFILE}" == "toolchain" ]] && [[ "${VERSION}" == "pdbg" ]]; then
     -DCP2K_USE_COSMA=OFF \
     -DCP2K_USE_DLAF=OFF \
     -DCP2K_USE_LIBTORCH=OFF \
+    -DCP2K_USE_PEXSI=OFF \
     -Werror=dev \
     .. |& tee ./cmake.log
   CMAKE_EXIT_CODE=$?
@@ -144,6 +145,7 @@ elif [[ "${PROFILE}" == "toolchain" ]] && [[ "${VERSION}" == "sdbg" ]]; then
     -DCP2K_USE_EVERYTHING=ON \
     -DCP2K_USE_LIBTORCH=OFF \
     -DCP2K_USE_MPI=OFF \
+    -DCP2K_USE_PEXSI=OFF \
     -Werror=dev \
     .. |& tee ./cmake.log
   CMAKE_EXIT_CODE=$?
@@ -156,15 +158,17 @@ elif [[ "${PROFILE}" == "ubuntu" ]] && [[ "${VERSION}" == "ssmp" ]]; then
     -DCMAKE_BUILD_TYPE="RelWithDebInfo" \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
     -DCP2K_USE_EVERYTHING=ON \
+    -DCP2K_USE_ACE=OFF \
+    -DCP2K_USE_DEEPMD=OFF \
+    -DCP2K_USE_DFTD4=OFF \
+    -DCP2K_USE_GREENX=OFF \
     -DCP2K_USE_LIBTORCH=OFF \
     -DCP2K_USE_LIBXC=OFF \
     -DCP2K_USE_MPI=OFF \
+    -DCP2K_USE_PEXSI=OFF \
     -DCP2K_USE_SPGLIB=OFF \
     -DCP2K_USE_VORI=OFF \
-    -DCP2K_USE_DFTD4=OFF \
-    -DCP2K_USE_DEEPMD=OFF \
     -DCP2K_USE_TREXIO=OFF \
-    -DCP2K_USE_GREENX=OFF \
     -Werror=dev \
     .. |& tee ./cmake.log
   CMAKE_EXIT_CODE=$?
