@@ -1224,8 +1224,8 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'fill_fm_L_from_L_loc_non_blocking'
 
-      INTEGER :: dummy_proc, handle, handle2, i_entry_rec, i_row, iproc, j_col, &
-         LLL, MMM, ncol_local, nrow_local, proc_send, send_pcol, send_prow
+      INTEGER :: dummy_proc, handle, handle2, i_entry_rec, i_row, iproc, j_col, LLL, MMM, &
+         ncol_local, nrow_local, proc_send, send_pcol, send_prow
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: entry_counter, num_entries_rec, &
                                                             num_entries_send
       INTEGER, DIMENSION(:), POINTER                     :: col_indices, row_indices
