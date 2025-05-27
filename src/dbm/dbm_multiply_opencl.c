@@ -319,7 +319,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
     const char *const kind = "DBM";
 #endif
     const int pure = (100 * (ntasks - task.mnk_changes) + ntasks - 1) / ntasks;
-    const double dtotl = LIBXSMM_MIN(diter, dhost);
+    const double dtotl = LIBXSMM_MAX(diter, dhost);
     start2 = stop;
     fprintf(stderr,
             "INFO ACC/LIBDBM: %s-kernel mnk=%ix%ix%i "
