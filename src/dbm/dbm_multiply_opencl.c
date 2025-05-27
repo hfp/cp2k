@@ -322,11 +322,10 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
     const double dtotl = LIBXSMM_MIN(diter, dhost);
     start2 = stop;
     fprintf(stderr,
-            "INFO ACC/LIBDBM: %s-kernel mnk=%ix%ix%i pure=%i%% ntasks=%i "
-            "ims=%.1f hms=%.1f gflops=%.1f\n",
+            "INFO ACC/LIBDBM: %s-kernel mnk=%ix%ix%i "
+            "pure=%i%% ntasks=%i ms=%.1f\n",
             kind, task.max_m, task.max_n, task.max_k, pure, ntasks,
-            1E+3 * diter, 1E+3 * dhost,
-            1E-9 * task.max_m * task.max_n * task.max_k * ntasks / dtotl);
+            1E+3 * dtotl);
   }
   return result;
 }
