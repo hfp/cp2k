@@ -436,11 +436,19 @@ CONTAINS
       LOGICAL, INTENT(IN), OPTIONAL                      :: reuse_arrays, mutable_work
 
       IF (USE_DBCSR_BACKEND) THEN
-         CALL dbcsr_create_prv(matrix=matrix%dbcsr, name=name, template=template%dbcsr, &
-                               dist=dist%dbcsr, matrix_type=matrix_type, &
-                               row_blk_size=row_blk_size, col_blk_size=col_blk_size, &
-                               nze=0, data_type=dbcsr_type_real_8, reuse_arrays=reuse_arrays, &
-                               mutable_work=mutable_work)
+         IF (PRESENT(dist)) THEN
+            CALL dbcsr_create_prv(matrix=matrix%dbcsr, name=name, template=template%dbcsr, &
+                                  dist=dist%dbcsr, matrix_type=matrix_type, &
+                                  row_blk_size=row_blk_size, col_blk_size=col_blk_size, &
+                                  nze=0, data_type=dbcsr_type_real_8, reuse_arrays=reuse_arrays, &
+                                  mutable_work=mutable_work)
+         ELSE
+            CALL dbcsr_create_prv(matrix=matrix%dbcsr, name=name, template=template%dbcsr, &
+                                  matrix_type=matrix_type, &
+                                  row_blk_size=row_blk_size, col_blk_size=col_blk_size, &
+                                  nze=0, data_type=dbcsr_type_real_8, reuse_arrays=reuse_arrays, &
+                                  mutable_work=mutable_work)
+         END IF
       ELSE
          CPABORT("Not yet implemented for DBM.")
       END IF
