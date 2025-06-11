@@ -622,8 +622,14 @@ CONTAINS
       LOGICAL, INTENT(IN), OPTIONAL                      :: reuse_arrays
 
       IF (USE_DBCSR_BACKEND) THEN
-         CALL dbcsr_distribution_new_prv(dist%dbcsr, template%dbcsr, group, pgrid, &
-                                         row_dist, col_dist, reuse_arrays)
+         IF (PRESENT(template)) THEN
+            CALL dbcsr_distribution_new_prv(dist%dbcsr, template%dbcsr, group, pgrid, &
+                                            row_dist, col_dist, reuse_arrays)
+         ELSE
+            CALL dbcsr_distribution_new_prv(dist%dbcsr, group=group, pgrid=pgrid, &
+                                            row_dist=row_dist, col_dist=col_dist, &
+                                            reuse_arrays=reuse_arrays)
+         END IF
       ELSE
          CPABORT("Not yet implemented for DBM.")
       END IF
