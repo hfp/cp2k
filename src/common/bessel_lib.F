@@ -16,7 +16,8 @@
 MODULE bessel_lib
 
    USE kinds,                           ONLY: dp
-   USE mathconstants,                   ONLY: fac, pio2
+   USE mathconstants,                   ONLY: fac,&
+                                              pio2
 #include "../base/base_uses.f90"
 
    IMPLICIT NONE
@@ -172,7 +173,7 @@ CONTAINS
       REAL(KIND=dp)                                      :: arg, fact, xsq
       REAL(KIND=dp), DIMENSION(4)                        :: trig
 
-      IF ((x*x - 0.5_dp) > l)) THEN
+      IF ((x*x - 0.5_dp) > l) THEN
          arg = x - pio2*REAL(l, KIND=dp)
          trig(1) = SIN(arg)/x
          trig(2) = COS(arg)/x
