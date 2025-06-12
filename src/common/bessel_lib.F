@@ -16,8 +16,7 @@
 MODULE bessel_lib
 
    USE kinds,                           ONLY: dp
-   USE mathconstants,                   ONLY: fac,&
-                                              pio2
+   USE mathconstants,                   ONLY: fac, pio2
 #include "../base/base_uses.f90"
 
    IMPLICIT NONE
