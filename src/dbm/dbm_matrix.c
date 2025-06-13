@@ -391,7 +391,7 @@ void dbm_zero(dbm_matrix_t *matrix) {
   for (int ishard = 0; ishard < dbm_get_num_shards(matrix); ishard++) {
     dbm_shard_t *shard = &matrix->shards[ishard];
     if (shard->data != NULL) {
-      memset(shard->data, 0, shard->data_size * sizeof(double));      
+      memset(shard->data, 0, shard->data_size * sizeof(double));
     }
   }
 }
