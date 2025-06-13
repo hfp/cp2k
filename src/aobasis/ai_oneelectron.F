@@ -547,7 +547,8 @@ CONTAINS
                   END DO
                END DO
 
-               CPASSERT(PRESENT(deltaR) .AND. PRESENT(iatom) .AND. PRESENT(jatom) .AND. PRESENT(katom))
+               CPASSERT(PRESENT(iatom) .AND. PRESENT(jatom) .AND. PRESENT(katom))
+               CPASSERT(PRESENT(deltaR))
                DO idir = 1, 3
                   DO j = ncoset(lb_min_set - 1) + 1, ncoset(lb_max_set)
                      DO i = ncoset(la_min_set - 1) + 1, ncoset(la_max_set)
