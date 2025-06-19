@@ -71,27 +71,35 @@ void grid_ref_create_task_list(
 
   size_t size = nblocks * sizeof(int);
   task_list->block_offsets = malloc(size);
-  assert(task_list->block_offsets != NULL);
-  memcpy(task_list->block_offsets, block_offsets, size);
+  assert(task_list->block_offsets != NULL || size == 0);
+  if (block_offsets != NULL) {
+    memcpy(task_list->block_offsets, block_offsets, size);
+  }
 
   size = 3 * natoms * sizeof(double);
   task_list->atom_positions = malloc(size);
-  assert(task_list->atom_positions != NULL);
-  memcpy(task_list->atom_positions, atom_positions, size);
+  assert(task_list->atom_positions != NULL || size == 0);
+  if (atom_positions != NULL) {
+    memcpy(task_list->atom_positions, atom_positions, size);
+  }
 
   size = natoms * sizeof(int);
   task_list->atom_kinds = malloc(size);
-  assert(task_list->atom_kinds != NULL);
-  memcpy(task_list->atom_kinds, atom_kinds, size);
+  assert(task_list->atom_kinds != NULL || size == 0);
+  if (atom_kinds != NULL) {
+    memcpy(task_list->atom_kinds, atom_kinds, size);
+  }
 
   size = nkinds * sizeof(grid_basis_set *);
   task_list->basis_sets = malloc(size);
-  assert(task_list->basis_sets != NULL);
-  memcpy(task_list->basis_sets, basis_sets, size);
+  assert(task_list->basis_sets != NULL || size == 0);
+  if (basis_sets != NULL) {
+    memcpy(task_list->basis_sets, basis_sets, size);
+  }
 
   size = ntasks * sizeof(grid_ref_task);
   task_list->tasks = malloc(size);
-  assert(task_list->tasks != NULL);
+  assert(task_list->tasks != NULL || size == 0);
   for (int i = 0; i < ntasks; i++) {
     task_list->tasks[i].level = level_list[i];
     task_list->tasks[i].iatom = iatom_list[i];
@@ -111,7 +119,7 @@ void grid_ref_create_task_list(
   // Store grid layouts.
   size = nlevels * sizeof(grid_ref_layout);
   task_list->layouts = malloc(size);
-  assert(task_list->layouts != NULL);
+  assert(task_list->layouts != NULL || size == 0);
   for (int level = 0; level < nlevels; level++) {
     for (int i = 0; i < 3; i++) {
       task_list->layouts[level].npts_global[i] = npts_global[level][i];
@@ -131,9 +139,9 @@ void grid_ref_create_task_list(
   // Find first and last task for each level and block.
   size = nlevels * nblocks * sizeof(int);
   task_list->first_level_block_task = malloc(size);
-  assert(task_list->first_level_block_task != NULL);
+  assert(task_list->first_level_block_task != NULL || size == 0);
   task_list->last_level_block_task = malloc(size);
-  assert(task_list->last_level_block_task != NULL);
+  assert(task_list->last_level_block_task != NULL || size == 0);
   for (int i = 0; i < nlevels * nblocks; i++) {
     task_list->first_level_block_task[i] = 0;
     task_list->last_level_block_task[i] = -1; // last < first means no tasks
