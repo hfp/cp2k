@@ -1,7 +1,12 @@
 import re
 import traceback
 from dataclasses import dataclass
-from typing import Any, Dict, Tuple, Optional, Protocol, Literal
+from typing import Any, Dict, Tuple, Optional
+
+try:  # Python 3.8
+    from typing import Literal, Protocol
+except ImportError:
+    from typing_extensions import Literal, Protocol
 
 
 # ======================================================================================
