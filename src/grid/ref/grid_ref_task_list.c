@@ -270,6 +270,11 @@ static void collocate_one_grid_level(
     const int border_width[3], const double dh[3][3], const double dh_inv[3][3],
     const double *pab_blocks, offload_buffer *grid) {
 
+  assert(task_list != NULL);
+  if (task_list->ntasks == 0) {
+    return; // nothing to do
+  }
+
 // Using default(shared) because with GCC 9 the behavior around const changed:
 // https://www.gnu.org/software/gcc/gcc-9/porting_to.html
 #pragma omp parallel default(shared)
