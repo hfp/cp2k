@@ -642,9 +642,12 @@ void grid_cpu_integrate_task_list(
 
   assert(task_list->nlevels == nlevels);
   assert(task_list->natoms == natoms);
+  assert(hab_blocks != NULL);
 
   // Zero result arrays.
-  memset(hab_blocks->host_buffer, 0, hab_blocks->size);
+  if (hab_blocks->host_buffer != NULL) {
+    memset(hab_blocks->host_buffer, 0, hab_blocks->size);
+  }
   if (forces != NULL) {
     memset(forces, 0, natoms * 3 * sizeof(double));
   }
