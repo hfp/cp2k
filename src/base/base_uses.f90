@@ -39,7 +39,12 @@
 ! In contrast to CPWARN, the warning counter is not increased
 #define CPHINT(MSG) CALL cp__h(__SHORT_FILE__,__LINE__,MSG)
 
+! CPASSERT can be elided if NDEBUG is defined.
+#if defined(NDEBUG)
+# define CPASSERT(COND)
+#else
 # define CPASSERT(COND) IF(.NOT.(COND))CALL cp__a(__SHORT_FILE__,__LINE__)
+#endif
 
 ! The MARK_USED macro can be used to mark an argument/variable as used. It is intended to make
 ! it possible to switch on -Werror=unused-dummy-argument, but deal elegantly with, e.g.,
