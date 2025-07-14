@@ -70,6 +70,9 @@ CONTAINS
 !> \author Ole Schuett
 ! **************************************************************************************************
    SUBROUTINE cp_abort(location, message)
+#if defined(__GNUC__)
+!GCC$ ATTRIBUTES NORETURN :: cp_abort
+#endif
       CHARACTER(len=*), INTENT(in)                       :: location, message
 
       IF (ASSOCIATED(cp_abort_hook)) THEN
@@ -157,6 +160,9 @@ CONTAINS
 !> \author Ole Schuett
 ! **************************************************************************************************
    SUBROUTINE cp__a(filename, lineNr)
+#if defined(__GNUC__)
+!GCC$ ATTRIBUTES NORETURN :: cp__a
+#endif
       CHARACTER(len=*), INTENT(in)                       :: filename
       INTEGER, INTENT(in)                                :: lineNr
 
@@ -173,6 +179,9 @@ CONTAINS
 !> \author Ole Schuett
 ! **************************************************************************************************
    SUBROUTINE cp__b(filename, lineNr, message)
+#if defined(__GNUC__)
+!GCC$ ATTRIBUTES NORETURN :: cp__b
+#endif
       CHARACTER(len=*), INTENT(in)                       :: filename
       INTEGER, INTENT(in)                                :: lineNr
       CHARACTER(len=*), INTENT(in)                       :: message
