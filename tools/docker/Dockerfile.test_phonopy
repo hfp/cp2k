@@ -1,14 +1,14 @@
 #
 # This file was created by generate_dockerfiles.py.
-# Usage: podman build --shm-size=1g -f ./Dockerfile.test_fedora-psmp ../../
+# Usage: podman build --shm-size=1g -f ./Dockerfile.test_phonopy ../../
 #
 
-FROM fedora:41
+FROM ubuntu:24.04
 
 # Install requirements for the toolchain.
 WORKDIR /opt/cp2k-toolchain
 COPY ./tools/toolchain/install_requirements*.sh ./
-RUN ./install_requirements.sh fedora:41
+RUN ./install_requirements.sh ubuntu:24.04
 
 # Install the toolchain.
 RUN mkdir scripts
@@ -22,7 +22,7 @@ COPY ./tools/toolchain/scripts/VERSION \
 COPY ./tools/toolchain/install_cp2k_toolchain.sh .
 RUN ./install_cp2k_toolchain.sh \
     --install-all \
-    --mpi-mode=mpich \
+    --mpi-mode=no \
     --with-dbcsr \
     --with-gcc=system \
     --dry-run
@@ -73,13 +73,9 @@ COPY ./tools/build_utils ./tools/build_utils
 COPY ./cmake ./cmake
 COPY ./CMakeLists.txt .
 
-# Build CP2K with CMake and run regression tests.
-ARG TESTOPTS=""
-COPY ./tools/docker/scripts/build_cp2k_cmake.sh ./tools/docker/scripts/test_regtest_cmake.sh ./
-RUN /bin/bash -o pipefail -c " \
-    TESTOPTS='${TESTOPTS}' \
-    ./test_regtest_cmake.sh toolchain_all psmp |& tee report.log && \
-    rm -rf regtesting"
+# Run test for phonopy.
+COPY ./tools/docker/scripts/build_cp2k_cmake.sh ./tools/docker/scripts/test_phonopy.sh ./
+RUN ./test_phonopy.sh 2>&1 | tee report.log
 
 # Output the report if the image is old and was therefore pulled from the build cache.
 CMD cat $(find ./report.log -mmin +10) | sed '/^Summary:/ s/$/ (cached)/'
