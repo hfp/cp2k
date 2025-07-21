@@ -44,6 +44,7 @@ if [[ "${PROFILE}" == "spack_all" ]] && [[ "${VERSION}" == "psmp" ]]; then
     -GNinja \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
     -DCP2K_USE_EVERYTHING=ON \
+    -DCP2K_USE_DLAF=OFF \
     -DCP2K_USE_LIBXSMM=OFF \
     -DCP2K_USE_TBLITE=OFF \
     -Werror=dev \
@@ -65,20 +66,33 @@ elif [[ "${PROFILE}" == "spack_all" ]] && [[ "${VERSION}" == "ssmp" ]]; then
     .. |& tee ./cmake.log
   CMAKE_EXIT_CODE=$?
 
-elif [[ "${PROFILE}" == "spack_minimal" ]] && [[ "${VERSION}" == "psmp" ]]; then
+elif [[ "${PROFILE}" == "toolchain_all" ]] && [[ "${VERSION}" == "pdbg" ]]; then
   cmake \
     -GNinja \
+    -DCMAKE_BUILD_TYPE="Debug" \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    -DCP2K_USE_MPI=ON \
+    -DCP2K_USE_EVERYTHING=ON \
+    -DCP2K_USE_DLAF=OFF \
+    -DCP2K_USE_PEXSI=OFF \
     -Werror=dev \
     .. |& tee ./cmake.log
   CMAKE_EXIT_CODE=$?
 
-elif [[ "${PROFILE}" == "spack_minimal" ]] && [[ "${VERSION}" == "ssmp" ]]; then
+elif [[ "${PROFILE}" == "toolchain_all" ]] && [[ "${VERSION}" == "sdbg" ]]; then
+  # TODO Re-enable LIBTORCH and ACE. For some reason they currently lead to a
+  # floating-point exception in `fit_and_continuation_2pole()` at rpa_gw.F:3979.
+  #
+  # TODO Re-enable GREENX. It currently leads to a floating-point exception
+  # in `greenx_get_minimax_grid()` at greenx_interface.F:314.
   cmake \
     -GNinja \
+    -DCMAKE_BUILD_TYPE="Debug" \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+    -DCP2K_USE_EVERYTHING=ON \
     -DCP2K_USE_MPI=OFF \
+    -DCP2K_USE_LIBTORCH=OFF \
+    -DCP2K_USE_ACE=OFF \
+    -DCP2K_USE_GREENX=OFF \
     -Werror=dev \
     .. |& tee ./cmake.log
   CMAKE_EXIT_CODE=$?
@@ -89,8 +103,6 @@ elif [[ "${PROFILE}" == "toolchain_all" ]] && [[ "${VERSION}" == "psmp" ]]; then
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
     -DCP2K_USE_EVERYTHING=ON \
     -DCP2K_USE_DLAF=OFF \
-    -DCP2K_USE_LIBXSMM=OFF \
-    -DCP2K_USE_MPI=ON \
     -DCP2K_USE_PEXSI=OFF \
     -Werror=dev \
     .. |& tee ./cmake.log
@@ -101,57 +113,34 @@ elif [[ "${PROFILE}" == "toolchain_all" ]] && [[ "${VERSION}" == "ssmp" ]]; then
     -GNinja \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
     -DCP2K_USE_EVERYTHING=ON \
-    -DCP2K_USE_LIBXSMM=OFF \
-    -DCP2K_USE_MPI=OFF \
-    -DCP2K_USE_PEXSI=OFF \
-    -Werror=dev \
-    .. |& tee ./cmake.log
-  CMAKE_EXIT_CODE=$?
-
-elif [[ "${PROFILE}" == "toolchain_minimal" ]] && [[ "${VERSION}" == "psmp" ]]; then
-  cmake \
-    -GNinja \
-    -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    -DCP2K_USE_MPI=ON \
-    -Werror=dev \
-    .. |& tee ./cmake.log
-  CMAKE_EXIT_CODE=$?
-
-elif [[ "${PROFILE}" == "toolchain_minimal" ]] && [[ "${VERSION}" == "ssmp" ]]; then
-  cmake \
-    -GNinja \
-    -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
     -DCP2K_USE_MPI=OFF \
     -Werror=dev \
     .. |& tee ./cmake.log
   CMAKE_EXIT_CODE=$?
 
-elif [[ "${PROFILE}" == "toolchain" ]] && [[ "${VERSION}" == "pdbg" ]]; then
+elif [[ "${PROFILE}" == "toolchain_generic" ]] && [[ "${VERSION}" == "psmp" ]]; then
   cmake \
     -GNinja \
-    -DCMAKE_BUILD_TYPE="RelWithDebInfo" \
+    -DCMAKE_BUILD_TYPE="Generic" \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    -DCP2K_DEBUG_MODE=ON \
     -DCP2K_USE_EVERYTHING=ON \
-    -DCP2K_USE_COSMA=OFF \
     -DCP2K_USE_DLAF=OFF \
-    -DCP2K_USE_LIBTORCH=OFF \
     -DCP2K_USE_PEXSI=OFF \
     -Werror=dev \
     .. |& tee ./cmake.log
   CMAKE_EXIT_CODE=$?
 
-elif [[ "${PROFILE}" == "toolchain" ]] && [[ "${VERSION}" == "sdbg" ]]; then
+elif [[ "${PROFILE}" == "toolchain_asan" ]] && [[ "${VERSION}" == "psmp" ]]; then
+  # TODO Re-enable GREENX. It currently leads to a heap-buffer-overflow
+  # in `greenx_refine_pade()` at greenx_interface.F:80.
   cmake \
     -GNinja \
-    -DCMAKE_BUILD_TYPE="RelWithDebInfo" \
+    -DCMAKE_BUILD_TYPE="ASAN" \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    -DCP2K_BLAS_VENDOR="auto" \
-    -DCP2K_DEBUG_MODE=ON \
     -DCP2K_USE_EVERYTHING=ON \
-    -DCP2K_USE_LIBTORCH=OFF \
-    -DCP2K_USE_MPI=OFF \
+    -DCP2K_USE_DLAF=OFF \
     -DCP2K_USE_PEXSI=OFF \
+    -DCP2K_USE_GREENX=OFF \
     -Werror=dev \
     .. |& tee ./cmake.log
   CMAKE_EXIT_CODE=$?
