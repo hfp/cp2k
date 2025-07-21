@@ -40,7 +40,7 @@ add_compile_options(
   "$<$<COMPILE_LANG_AND_ID:Fortran,GNU>:$<$<VERSION_GREATER_EQUAL:${CMAKE_Fortran_COMPILER_VERSION},11>:-fallow-argument-mismatch>>"
   "$<$<COMPILE_LANG_AND_ID:Fortran,GNU>:-Wno-deprecated-declarations;-Wno-maybe-uninitialized;-Wuninitialized;-Wuse-without-only>"
   "$<$<COMPILE_LANG_AND_ID:Fortran,GNU>:-Werror=aliasing;-Werror=ampersand;-Werror=c-binding-type;-Werror=intrinsic-shadow>"
-  "$<$<COMPILE_LANG_AND_ID:Fortran,GNU>:-Werror=intrinsics-std;-Werror=line-truncation;-Werror=tabs;-Werror=target-lifetime>"
+  "$<$<COMPILE_LANG_AND_ID:Fortran,GNU>:-Werror=intrinsics-std;-Werror=tabs;-Werror=target-lifetime>"
   "$<$<COMPILE_LANG_AND_ID:Fortran,GNU>:-Werror=underflow;-Werror=unused-but-set-variable;-Werror=unused-variable>"
   "$<$<COMPILE_LANG_AND_ID:Fortran,GNU>:-Werror=unused-dummy-argument;-Werror=unused-parameter>"
   "$<$<COMPILE_LANG_AND_ID:Fortran,GNU>:-Werror=unused-label;-Werror=conversion;-Werror=zerotrip>"
