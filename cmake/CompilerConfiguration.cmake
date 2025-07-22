@@ -115,6 +115,8 @@ add_compile_options(
   "$<$<COMPILE_LANG_AND_ID:Fortran,Cray>:-f;free;-M3105;-ME7212;-hnoacc;-M1234>"
 )
 add_compile_options(
+  "$<$<COMPILE_LANG_AND_ID:C,Intel>:-qopenmp>"
+  "$<$<COMPILE_LANG_AND_ID:C,IntelLLVM>:-qopenmp>"
   "$<$<COMPILE_LANG_AND_ID:C,Cray>:-hnoacc;-h;nomessage=1234>")
 
 # Release
@@ -143,8 +145,8 @@ add_compile_options(
   "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:Fortran,Cray>>:-G2>")
 add_compile_options(
   "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:C,PGI>>:-fast>"
-  "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:C,Intel>>:-O3;-g>"
-  "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:C,IntelLLVM>>:-O3;-g>"
+  "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:C,Intel>>:-O2;-g>"
+  "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:C,IntelLLVM>>:-O2;-g>"
   "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:C,Cray>>:-G2>"
   "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:C,NAG>>:-g;-C>"
   "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:C,Clang>>:-O1;-g;-fno-omit-frame-pointer>"
