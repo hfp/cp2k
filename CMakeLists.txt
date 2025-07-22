@@ -660,7 +660,8 @@ if(CP2K_USE_FFTW3)
       )
     endif()
 
-    if((CP2K_ENABLE_FFTW3_OPENMP_SUPPORT) AND (NOT TARGET cp2k::FFTW3::fftw3_omp))
+    if((CP2K_ENABLE_FFTW3_OPENMP_SUPPORT) AND (NOT TARGET cp2k::FFTW3::fftw3_omp
+                                              ))
       message(
         FATAL_ERROR
           "FFTW3 was compiled without openmp support (--enable-openmp option in the FFTW3 build system)."
