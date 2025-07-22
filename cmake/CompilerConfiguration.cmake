@@ -35,7 +35,7 @@ endif()
 
 # Baseline
 add_compile_options(
-  "$<$<COMPILE_LANG_AND_ID:Fortran,GNU>:-std=f2008;-fopenmp;-ffree-form;-fimplicit-none>"
+  "$<$<COMPILE_LANG_AND_ID:Fortran,GNU>:-std=f2008;-fopenmp;-ffree-form;-ffree-line-length-none;-fimplicit-none>"
   "$<$<COMPILE_LANG_AND_ID:Fortran,GNU>:-g;-fno-omit-frame-pointer;-fbacktrace>"
   "$<$<COMPILE_LANG_AND_ID:Fortran,GNU>:$<$<VERSION_GREATER_EQUAL:${CMAKE_Fortran_COMPILER_VERSION},11>:-fallow-argument-mismatch>>"
   "$<$<COMPILE_LANG_AND_ID:Fortran,GNU>:-Wno-deprecated-declarations;-Wno-maybe-uninitialized;-Wuninitialized;-Wuse-without-only>"
@@ -108,8 +108,8 @@ add_link_options("$<$<CONFIG:ASAN>:-fsanitize=address>")
 
 # Baseline
 add_compile_options(
-  "$<$<COMPILE_LANG_AND_ID:Fortran,Intel>:-free;-stand f18;-fpp;-heap-arrays;-D__MAX_CONTR=4>"
-  "$<$<COMPILE_LANG_AND_ID:Fortran,IntelLLVM>:-free;-fpp;-D__MAX_CONTR=4>"
+  "$<$<COMPILE_LANG_AND_ID:Fortran,Intel>:-free;-stand f18;-fpp;-qopenmp;-heap-arrays;-D__MAX_CONTR=4>"
+  "$<$<COMPILE_LANG_AND_ID:Fortran,IntelLLVM>:-free;-fpp;-qopenmp;-D__MAX_CONTR=4>"
   "$<$<COMPILE_LANG_AND_ID:Fortran,PGI>:-Mfreeform;-Mextend;-Mallocatable=03>"
   "$<$<COMPILE_LANG_AND_ID:Fortran,NAG>:-f2008;-free;-Warn=reallocation;-Warn=subnormal>"
   "$<$<COMPILE_LANG_AND_ID:Fortran,Cray>:-f;free;-M3105;-ME7212;-hnoacc;-M1234>"
