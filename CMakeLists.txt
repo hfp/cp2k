@@ -37,7 +37,7 @@ project(
   cp2k
   DESCRIPTION "CP2K"
   HOMEPAGE_URL "https://www.cp2k.org"
-  VERSION "2025.1"
+  VERSION "2025.2"
   LANGUAGES Fortran C CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
@@ -356,9 +356,11 @@ if(NOT Python_EXECUTABLE)
 endif()
 
 # get the git hash Get the latest abbreviated commit hash of the working branch
+# As a fall back, e.g. in a container, try reading a file named "REVISION".
 execute_process(
-  COMMAND git log -1 --format=%h
+  COMMAND bash -c "git log -1 --format=%h || cat REVISION"
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
+  ERROR_QUIET
   OUTPUT_VARIABLE CP2K_GIT_HASH
   OUTPUT_STRIP_TRAILING_WHITESPACE)
 
