@@ -12,7 +12,7 @@
 
 #define SINT short
 
-#if defined(USE_SP)
+#if defined(PRECISION) && (1 == PRECISION)
 #define CVT(A) convert_float(A)
 #define TYPE float
 #else

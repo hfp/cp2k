@@ -140,6 +140,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             "-cl-fast-relaxed-math -cl-denorms-are-zero";
         const char *const gen_env = getenv("DBM_MULTIPLY_GEN");
         const char *const lin_env = getenv("DBM_MULTIPLY_LIN");
+        const char *const fp_env = getenv("DBM_MULTIPLY_FP");
         const char *const bn_env = getenv("DBM_MULTIPLY_BN");
         const char *const sm_env = getenv("DBM_MULTIPLY_SM");
         const char *const wg_env = getenv("DBM_MULTIPLY_WG");
@@ -154,6 +155,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                     NULL == lu_env && NULL == lin_env && 0 == param_format)
                        ? (NULL == gen_env ? 1 /*default*/ : atoi(gen_env))
                        : 0);
+        const int precision = (NULL == fp_env ? 0 /*default*/ : atoi(fp_env));
         const int gpu = (CL_DEVICE_TYPE_GPU == devinfo->type);
         const int xf = (NULL == xf_env ? -1 /*default*/ : atoi(xf_env));
         const char *extensions[] = {NULL, NULL}, *options = NULL;
@@ -199,6 +201,11 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
               " %s %s -DBN=%i -DSM=%i -DLU=%i -DWG=%i -DSG=%i",
               0 != gpu ? "-DGPU" : "", 0 == clinear ? "" : "-DCLINEAR", bn, sm,
               lu, (int)wgsize[0], (int)wgsize2);
+          if (0 != precision) {
+            offset +=
+                (size_t)LIBXSMM_SNPRINTF(flags + offset, sizeof(flags) - offset,
+                                         " -DPRECISION=%i", precision);
+          }
           gen = 0;
         }
         if (0 != devinfo->intel && 0 < xf) {
@@ -215,6 +222,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel gpu=%i", gpu);
             dbm_multiply_opencl_print(stderr, "gen", gen); /* generated */
             dbm_multiply_opencl_print(stderr, "lin", clinear);
+            dbm_multiply_opencl_print(stderr, "fp", precision);
             dbm_multiply_opencl_print(stderr, "bn", bn);
             dbm_multiply_opencl_print(stderr, "sm", sm);
             dbm_multiply_opencl_print(stderr, "wg", (int)wgsize[0]);
