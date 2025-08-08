@@ -222,7 +222,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             dbm_multiply_opencl_print(stderr, "lu", lu);
             fprintf(stderr, " ms=%.1f\n", 1E3 * ds);
           } else {
-            fprintf(stderr, "ERROR ACC/LIBDBM: DBM-kernel failed to generate!\n");
+            fprintf(stderr, "ERROR ACC/LIBDBM: DBM-kernel not generated!\n");
           }
         }
       }
