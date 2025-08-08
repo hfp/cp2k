@@ -12,8 +12,9 @@
 
 #define SINT short
 
-#if defined(TYPE)
-#define CVT(A) convert_##TYPE(A)
+#if defined(USE_SP)
+#define CVT(A) convert_float(A)
+#define TYPE float
 #else
 #define TYPE double
 #define CVT(A) A
