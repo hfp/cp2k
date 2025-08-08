@@ -160,16 +160,15 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         const int xf = (NULL == xf_env ? -1 /*default*/ : atoi(xf_env));
         const char *extensions[] = {NULL, NULL}, *options = NULL;
         size_t nextensions = sizeof(extensions) / sizeof(*extensions);
-        const size_t wgsize0 = devinfo->wgsize[0], wgsize1 = devinfo->wgsize[1];
-        size_t wgsize2 = devinfo->wgsize[2];
+        size_t sgsize = devinfo->wgsize[2];
         size_t offset =
             ((0 == config->debug && 0 == config->dump) ? strlen(flags) : 0);
         offset += (size_t)c_dbcsr_acc_opencl_flags_atomics(
             devinfo, c_dbcsr_acc_opencl_atomic_fp_64, extensions, &nextensions,
             flags + offset, sizeof(flags) - offset);
         if (2 <= gen ||
-            (0 != gen && 0 != wgsize2 /*subgroups*/ &&
-             2 <= *devinfo->std_level && NULL != extensions[1] &&
+            (0 != gen && 1 < sgsize /*subgroups*/ && 2 <= *devinfo->std_level &&
+             NULL != extensions[1] &&
              NULL != strstr(extensions[1], "cl_ext_float_atomics"))) {
           offset +=
               (size_t)LIBXSMM_SNPRINTF(flags + offset, sizeof(flags) - offset,
@@ -181,17 +180,17 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         } else {
           wgsize[0] = (NULL == wg_env ? (unsigned long int)LIBXSMM_ABS(sm)
                                       : strtoul(wg_env, NULL, 10));
-          if (0 != wgsize2 && 0 < wgsize[0]) { /* subgroups */
-            if (LIBXSMM_DELTA(wgsize[0], wgsize1) <=
-                LIBXSMM_DELTA(wgsize[0], wgsize2)) { /* select SG-size */
-              wgsize2 = wgsize1;
+          if (1 < sgsize && 0 < wgsize[0]) { /* subgroups */
+            if (LIBXSMM_DELTA(wgsize[0], devinfo->wgsize[1]) <=
+                LIBXSMM_DELTA(wgsize[0], sgsize)) { /* select SG-size */
+              sgsize = devinfo->wgsize[1];
             }
-            wgsize[0] = LIBXSMM_UP(wgsize[0], wgsize2);
+            wgsize[0] = LIBXSMM_UP(wgsize[0], sgsize);
           } else {
-            wgsize[0] = LIBXSMM_UP(wgsize[0], wgsize1);
-            wgsize2 = 0;
+            wgsize[0] = LIBXSMM_UP(wgsize[0], devinfo->wgsize[1]);
+            sgsize = 0;
           }
-          wgsize[0] = LIBXSMM_CLMP(wgsize[0], 0, wgsize0);
+          wgsize[0] = LIBXSMM_CLMP(wgsize[0], 0, devinfo->wgsize[0]);
           sm = ((0 != sm && 0 != wgsize[0])
                     ? (LIBXSMM_ISPOT(bn * sizeof(double)) + 1)
                     : 0);
@@ -200,7 +199,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
               flags + offset, sizeof(flags) - offset,
               " %s %s -DBN=%i -DSM=%i -DLU=%i -DWG=%i -DSG=%i",
               0 != gpu ? "-DGPU" : "", 0 == clinear ? "" : "-DCLINEAR", bn, sm,
-              lu, (int)wgsize[0], (int)wgsize2);
+              lu, (int)wgsize[0], (int)sgsize);
           if (0 != precision) {
             offset +=
                 (size_t)LIBXSMM_SNPRINTF(flags + offset, sizeof(flags) - offset,
@@ -221,7 +220,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
           dbm_multiply_opencl_print(stderr, "bn", bn);
           dbm_multiply_opencl_print(stderr, "sm", sm);
           dbm_multiply_opencl_print(stderr, "wg", (int)wgsize[0]);
-          dbm_multiply_opencl_print(stderr, "sg", (int)wgsize2);
+          dbm_multiply_opencl_print(stderr, "sg", (int)sgsize);
           dbm_multiply_opencl_print(stderr, "lu", lu);
           fprintf(stderr, " -> ");
         }
