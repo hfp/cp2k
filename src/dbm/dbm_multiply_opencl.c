@@ -151,8 +151,9 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         const int bn1 = ((0 == sm && 0 == clinear) ? bn0 : (bn0 * 2));
         int bn = LIBXSMM_CLMP(NULL == bn_env ? bn1 : atoi(bn_env), 1, 32);
         int lu = LIBXSMM_CLMP(NULL == lu_env ? 0 : atoi(lu_env), -2, 1);
-        int gen = ((NULL == bn_env && NULL == sm_env && NULL == wg_env &&
-                    NULL == lu_env && NULL == lin_env && 0 == param_format)
+        int gen = ((NULL == fp_env && NULL == bn_env && NULL == sm_env &&
+                    NULL == wg_env && NULL == lu_env && NULL == lin_env &&
+                    0 == param_format)
                        ? (NULL == gen_env ? 1 /*default*/ : atoi(gen_env))
                        : 0);
         const int precision = (NULL == fp_env ? 0 /*default*/ : atoi(fp_env));
