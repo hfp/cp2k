@@ -212,25 +212,29 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
           options = "-cl-intel-256-GRF-per-thread";
         }
         result |= (sizeof(flags) > offset ? EXIT_SUCCESS : EXIT_FAILURE);
+        if (2 <= verbosity || 0 > verbosity || EXIT_SUCCESS != result) {
+          const char *const kind = (EXIT_SUCCESS == result ? "INFO" : "ERROR");
+          fprintf(stderr, "%s ACC/LIBDBM: DBM-kernel gpu=%i", kind, gpu);
+          dbm_multiply_opencl_print(stderr, "gen", gen); /* generated */
+          dbm_multiply_opencl_print(stderr, "lin", clinear);
+          dbm_multiply_opencl_print(stderr, "fp", precision);
+          dbm_multiply_opencl_print(stderr, "bn", bn);
+          dbm_multiply_opencl_print(stderr, "sm", sm);
+          dbm_multiply_opencl_print(stderr, "wg", (int)wgsize[0]);
+          dbm_multiply_opencl_print(stderr, "sg", (int)wgsize2);
+          dbm_multiply_opencl_print(stderr, "lu", lu);
+          fprintf(stderr, " -> ");
+        }
         result |= c_dbcsr_acc_opencl_kernel(
             0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY, "dbm_multiply",
             flags, options, NULL /*try*/, NULL /*try_ok*/, extensions,
             nextensions, &kernel_global);
-        if (2 <= verbosity || 0 > verbosity) {
+        if (2 <= verbosity || 0 > verbosity || EXIT_SUCCESS != result) {
           if (EXIT_SUCCESS == result) {
             const double ds = DBM_TIMER_DIFF(start, DBM_TIMER_TICK());
-            fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel gpu=%i", gpu);
-            dbm_multiply_opencl_print(stderr, "gen", gen); /* generated */
-            dbm_multiply_opencl_print(stderr, "lin", clinear);
-            dbm_multiply_opencl_print(stderr, "fp", precision);
-            dbm_multiply_opencl_print(stderr, "bn", bn);
-            dbm_multiply_opencl_print(stderr, "sm", sm);
-            dbm_multiply_opencl_print(stderr, "wg", (int)wgsize[0]);
-            dbm_multiply_opencl_print(stderr, "sg", (int)wgsize2);
-            dbm_multiply_opencl_print(stderr, "lu", lu);
-            fprintf(stderr, " ms=%.1f\n", 1E3 * ds);
+            fprintf(stderr, "%.1f ms\n", 1E3 * ds);
           } else {
-            fprintf(stderr, "ERROR ACC/LIBDBM: DBM-kernel not generated!\n");
+            fprintf(stderr, "FAILED!\n");
           }
         }
       }
