@@ -556,9 +556,10 @@ CONTAINS
       INTEGER                                            :: me
       TYPE(neighbor_list_iterator_type), POINTER         :: iterator
 
-      IF (SIZE(iterator_set) .NE. 1 .AND. .NOT. PRESENT(mepos)) &
+      CPASSERT(ASSOCIATED(iterator_set))
+      IF (SIZE(iterator_set) .NE. 1 .AND. .NOT. PRESENT(mepos)) THEN
          CPABORT("Parallel iterator calls must include 'mepos'")
-
+      END IF
       IF (PRESENT(mepos)) THEN
          me = mepos
       ELSE
@@ -1041,15 +1042,11 @@ CONTAINS
       REAL(dp), DIMENSION(3), INTENT(OUT), OPTIONAL      :: r
 
       IF (ASSOCIATED(neighbor_node)) THEN
-
          IF (PRESENT(neighbor)) neighbor = neighbor_node%neighbor
          IF (PRESENT(r)) r(:) = neighbor_node%r(:)
          IF (PRESENT(cell)) cell(:) = neighbor_node%cell(:)
-
       ELSE
-
          CPABORT("The requested neighbor node is not associated")
-
       END IF
 
    END SUBROUTINE get_neighbor_node
