@@ -305,7 +305,7 @@ CONTAINS
       INTEGER                                   :: i
       INTEGER, DIMENSION(9)                     :: desca, descb, descout
 #endif
-#if defined(__MKL)
+#if defined(__MKL) && (2025 <= __INTEL_MKL__)
       REAL(KIND=dp)                             :: beta
 #endif
 
@@ -372,7 +372,7 @@ CONTAINS
             CALL pdtrmm(chol_pos, 'U', chol_transa, 'N', n, neig, alpha, b(1, 1), 1, 1, descb, out(1, 1), 1, 1, descout)
          END IF
       END IF
-#elif defined(__MKL)
+#elif defined(__MKL) && (2025 <= __INTEL_MKL__)
       beta = 0.0_dp
       IF (op .EQ. "SOLVE") THEN
          IF (matrix%use_sp) THEN
