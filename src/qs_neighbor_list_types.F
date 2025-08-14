@@ -551,8 +551,8 @@ CONTAINS
       INTEGER, INTENT(IN), OPTIONAL                      :: mepos
       INTEGER, OPTIONAL                                  :: ikind, jkind, nkind, ilist, nlist, &
                                                             inode, nnode, iatom, jatom
-      INTEGER, DIMENSION(3), OPTIONAL                    :: cell
       REAL(dp), DIMENSION(3), OPTIONAL                   :: r
+      INTEGER, DIMENSION(3), OPTIONAL                    :: cell
 
       INTEGER                                            :: me
       TYPE(neighbor_list_iterator_type), POINTER         :: iterator
