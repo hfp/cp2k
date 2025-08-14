@@ -598,6 +598,7 @@ elseif(CP2K_USE_ACCEL MATCHES "OPENCL")
   if(EXISTS ${CP2K_OPENCL_TOOLDIR}/acc_opencl.sh)
     list(TRANSFORM CP2K_OPENCL_COMMON PREPEND ${CP2K_OPENCL_TOOLDIR}/)
     set(CP2K_USE_OPENCL ON)
+    message("OpenCL backend: ${CP2K_OPENCL_TOOLDIR}")
   else()
     message(
       FATAL_ERROR
