@@ -23,14 +23,14 @@ MODULE qs_fb_env_methods
    USE cp_dbcsr_operations,             ONLY: copy_dbcsr_to_fm,&
                                               dbcsr_allocate_matrix_set,&
                                               dbcsr_deallocate_matrix_set
-   USE cp_fm_basic_linalg,              ONLY: cp_fm_gemm,&
+   USE cp_fm_basic_linalg,              ONLY: cp_fm_cholesky_restore,&
+                                              cp_fm_gemm,&
                                               cp_fm_symm,&
                                               cp_fm_triangular_invert,&
                                               cp_fm_triangular_multiply,&
                                               cp_fm_uplo_to_full
    USE cp_fm_cholesky,                  ONLY: cp_fm_cholesky_decompose,&
-                                              cp_fm_cholesky_reduce,&
-                                              cp_fm_cholesky_restore
+                                              cp_fm_cholesky_reduce
    USE cp_fm_diag,                      ONLY: choose_eigv_solver,&
                                               cp_fm_power
    USE cp_fm_struct,                    ONLY: cp_fm_struct_create,&

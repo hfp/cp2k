@@ -34,13 +34,13 @@ MODULE rt_delta_pulse
                                               cp_dbcsr_sm_fm_multiply,&
                                               dbcsr_allocate_matrix_set,&
                                               dbcsr_deallocate_matrix_set
-   USE cp_fm_basic_linalg,              ONLY: cp_fm_scale_and_add,&
+   USE cp_fm_basic_linalg,              ONLY: cp_fm_cholesky_restore,&
+                                              cp_fm_scale_and_add,&
                                               cp_fm_triangular_multiply,&
                                               cp_fm_uplo_to_full
    USE cp_fm_cholesky,                  ONLY: cp_fm_cholesky_decompose,&
                                               cp_fm_cholesky_invert,&
-                                              cp_fm_cholesky_reduce,&
-                                              cp_fm_cholesky_restore
+                                              cp_fm_cholesky_reduce
    USE cp_fm_diag,                      ONLY: cp_fm_syevd
    USE cp_fm_struct,                    ONLY: cp_fm_struct_create,&
                                               cp_fm_struct_release,&

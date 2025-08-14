@@ -12,7 +12,6 @@
 !> \author Fawzi Mohamed
 ! **************************************************************************************************
 MODULE cp_fm_cholesky
-   USE cp_blacs_env,                    ONLY: cp_blacs_env_type
    USE cp_dlaf_utils_api,               ONLY: cp_dlaf_create_grid,&
                                               cp_dlaf_initialize
    USE cp_fm_dlaf_api,                  ONLY: cp_pdpotrf_dlaf,&
@@ -32,7 +31,7 @@ MODULE cp_fm_cholesky
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'cp_fm_cholesky'
 
    PUBLIC :: cp_fm_cholesky_decompose, cp_fm_cholesky_invert, &
-             cp_fm_cholesky_reduce, cp_fm_cholesky_restore
+             cp_fm_cholesky_reduce
 
    ! The following saved variables are Cholesky decomposition global
    ! Stores the default library for Cholesky decomposition
@@ -140,13 +139,13 @@ CONTAINS
 !> \author Joost VandeVondele
 ! **************************************************************************************************
    SUBROUTINE cp_fm_cholesky_invert(matrix, n, info_out)
-      TYPE(cp_fm_type), INTENT(IN)           :: matrix
+      TYPE(cp_fm_type), INTENT(IN)              :: matrix
       INTEGER, INTENT(in), OPTIONAL             :: n
       INTEGER, INTENT(OUT), OPTIONAL            :: info_out
 
       CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_cholesky_invert'
-      REAL(KIND=dp), DIMENSION(:, :), POINTER  :: a
-      REAL(KIND=sp), DIMENSION(:, :), POINTER  :: a_sp
+      REAL(KIND=dp), DIMENSION(:, :), POINTER   :: a
+      REAL(KIND=sp), DIMENSION(:, :), POINTER   :: a_sp
       INTEGER                                   :: info, handle
       INTEGER                                   :: my_n
 #if defined(__parallel)
@@ -228,11 +227,11 @@ CONTAINS
 !> \author Joost VandeVondele
 ! **************************************************************************************************
    SUBROUTINE cp_fm_cholesky_reduce(matrix, matrixb, itype)
-      TYPE(cp_fm_type), INTENT(IN)     :: matrix, matrixb
-      INTEGER, OPTIONAL                   :: itype
+      TYPE(cp_fm_type), INTENT(IN)              :: matrix, matrixb
+      INTEGER, OPTIONAL                         :: itype
 
       CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_cholesky_reduce'
-      REAL(KIND=dp), DIMENSION(:, :), POINTER  :: a, b
+      REAL(KIND=dp), DIMENSION(:, :), POINTER   :: a, b
       INTEGER                                   :: info, handle
       INTEGER                                   :: n, my_itype
 #if defined(__parallel)
@@ -272,135 +271,5 @@ CONTAINS
       CALL timestop(handle)
 
    END SUBROUTINE cp_fm_cholesky_reduce
-
-!
-! op can be "SOLVE" (out = U^-1 * in ) or "MULTIPLY"   (out = U * in )
-! pos can be "LEFT" or "RIGHT" (U at the left or at the right)
-!
-! DEPRECATED, see cp_fm_basic_linalg:cp_fm_triangular_multiply
-!
-! **************************************************************************************************
-!> \brief ...
-!> \param matrix ...
-!> \param neig ...
-!> \param matrixb ...
-!> \param matrixout ...
-!> \param op ...
-!> \param pos ...
-!> \param transa ...
-! **************************************************************************************************
-   SUBROUTINE cp_fm_cholesky_restore(matrix, neig, matrixb, matrixout, op, pos, transa)
-      TYPE(cp_fm_type), INTENT(IN)         :: matrix, matrixb, matrixout
-      INTEGER, INTENT(IN)                     :: neig
-      CHARACTER(LEN=*), INTENT(IN)            :: op
-      CHARACTER(LEN=*), INTENT(IN), OPTIONAL  :: pos
-      CHARACTER(LEN=*), INTENT(IN), OPTIONAL  :: transa
-
-      CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_cholesky_restore'
-      REAL(KIND=dp), DIMENSION(:, :), POINTER         :: a, b, out
-      REAL(KIND=sp), DIMENSION(:, :), POINTER         :: a_sp, b_sp, out_sp
-      INTEGER                                   :: itype, handle
-      INTEGER                                   :: n
-      REAL(KIND=dp)                           :: alpha
-      INTEGER                                   :: myprow, mypcol
-      TYPE(cp_blacs_env_type), POINTER          :: context
-      CHARACTER                                 :: chol_pos, chol_transa
-#if defined(__parallel)
-      INTEGER                                   :: i
-      INTEGER, DIMENSION(9)                     :: desca, descb, descout
-#endif
-
-      CALL timeset(routineN, handle)
-
-      context => matrix%matrix_struct%context
-      myprow = context%mepos(1)
-      mypcol = context%mepos(2)
-      n = matrix%matrix_struct%nrow_global
-      itype = 1
-      IF (op /= "SOLVE" .AND. op /= "MULTIPLY") &
-         CPABORT("wrong argument op")
-
-      IF (PRESENT(pos)) THEN
-         SELECT CASE (pos)
-         CASE ("LEFT")
-            chol_pos = 'L'
-         CASE ("RIGHT")
-            chol_pos = 'R'
-         CASE DEFAULT
-            CPABORT("wrong argument pos")
-         END SELECT
-      ELSE
-         chol_pos = 'L'
-      END IF
-
-      chol_transa = 'N'
-      IF (PRESENT(transa)) chol_transa = transa
-
-      IF ((matrix%use_sp .NEQV. matrixb%use_sp) .OR. (matrix%use_sp .NEQV. matrixout%use_sp)) &
-         CPABORT("not the same precision")
-
-      ! notice b is the cholesky guy
-      a => matrix%local_data
-      b => matrixb%local_data
-      out => matrixout%local_data
-      a_sp => matrix%local_data_sp
-      b_sp => matrixb%local_data_sp
-      out_sp => matrixout%local_data_sp
-
-#if defined(__parallel)
-
-      desca(:) = matrix%matrix_struct%descriptor(:)
-      descb(:) = matrixb%matrix_struct%descriptor(:)
-      descout(:) = matrixout%matrix_struct%descriptor(:)
-      alpha = 1.0_dp
-      DO i = 1, neig
-         IF (matrix%use_sp) THEN
-            CALL pscopy(n, a_sp(1, 1), 1, i, desca, 1, out_sp(1, 1), 1, i, descout, 1)
-         ELSE
-            CALL pdcopy(n, a(1, 1), 1, i, desca, 1, out(1, 1), 1, i, descout, 1)
-         END IF
-      END DO
-      IF (op .EQ. "SOLVE") THEN
-         IF (matrix%use_sp) THEN
-            CALL pstrsm(chol_pos, 'U', chol_transa, 'N', n, neig, REAL(alpha, sp), b_sp(1, 1), 1, 1, descb, &
-                        out_sp(1, 1), 1, 1, descout)
-         ELSE
-            CALL pdtrsm(chol_pos, 'U', chol_transa, 'N', n, neig, alpha, b(1, 1), 1, 1, descb, out(1, 1), 1, 1, descout)
-         END IF
-      ELSE
-         IF (matrix%use_sp) THEN
-            CALL pstrmm(chol_pos, 'U', chol_transa, 'N', n, neig, REAL(alpha, sp), b_sp(1, 1), 1, 1, descb, &
-                        out_sp(1, 1), 1, 1, descout)
-         ELSE
-            CALL pdtrmm(chol_pos, 'U', chol_transa, 'N', n, neig, alpha, b(1, 1), 1, 1, descb, out(1, 1), 1, 1, descout)
-         END IF
-      END IF
-#else
-
-      alpha = 1.0_dp
-      IF (matrix%use_sp) THEN
-         CALL scopy(neig*n, a_sp(1, 1), 1, out_sp(1, 1), 1)
-      ELSE
-         CALL dcopy(neig*n, a(1, 1), 1, out(1, 1), 1)
-      END IF
-      IF (op .EQ. "SOLVE") THEN
-         IF (matrix%use_sp) THEN
-            CALL strsm(chol_pos, 'U', chol_transa, 'N', n, neig, REAL(alpha, sp), b_sp(1, 1), SIZE(b_sp, 1), out_sp(1, 1), n)
-         ELSE
-            CALL dtrsm(chol_pos, 'U', chol_transa, 'N', n, neig, alpha, b(1, 1), SIZE(b, 1), out(1, 1), n)
-         END IF
-      ELSE
-         IF (matrix%use_sp) THEN
-            CALL strmm(chol_pos, 'U', chol_transa, 'N', n, neig, REAL(alpha, sp), b_sp(1, 1), n, out_sp(1, 1), n)
-         ELSE
-            CALL dtrmm(chol_pos, 'U', chol_transa, 'N', n, neig, alpha, b(1, 1), n, out(1, 1), n)
-         END IF
-      END IF
-
-#endif
-
-      CALL timestop(handle)
-
-   END SUBROUTINE cp_fm_cholesky_restore
 
 END MODULE cp_fm_cholesky

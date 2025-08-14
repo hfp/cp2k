@@ -29,14 +29,14 @@ MODULE qs_scf_block_davidson
                                               cp_dbcsr_m_by_n_from_row_template,&
                                               cp_dbcsr_m_by_n_from_template,&
                                               cp_dbcsr_sm_fm_multiply
-   USE cp_fm_basic_linalg,              ONLY: cp_fm_column_scale,&
+   USE cp_fm_basic_linalg,              ONLY: cp_fm_cholesky_restore,&
+                                              cp_fm_column_scale,&
                                               cp_fm_scale_and_add,&
                                               cp_fm_symm,&
                                               cp_fm_transpose,&
                                               cp_fm_triangular_invert,&
                                               cp_fm_uplo_to_full
-   USE cp_fm_cholesky,                  ONLY: cp_fm_cholesky_decompose,&
-                                              cp_fm_cholesky_restore
+   USE cp_fm_cholesky,                  ONLY: cp_fm_cholesky_decompose
    USE cp_fm_diag,                      ONLY: choose_eigv_solver,&
                                               cp_fm_power
    USE cp_fm_struct,                    ONLY: cp_fm_struct_create,&

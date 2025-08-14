@@ -24,9 +24,9 @@ MODULE qs_scf_post_tb
                                               dbcsr_type
    USE cp_dbcsr_operations,             ONLY: copy_dbcsr_to_fm
    USE cp_dbcsr_output,                 ONLY: cp_dbcsr_write_sparse_matrix
+   USE cp_fm_basic_linalg,              ONLY: cp_fm_cholesky_restore
    USE cp_fm_cholesky,                  ONLY: cp_fm_cholesky_decompose,&
-                                              cp_fm_cholesky_reduce,&
-                                              cp_fm_cholesky_restore
+                                              cp_fm_cholesky_reduce
    USE cp_fm_diag,                      ONLY: choose_eigv_solver
    USE cp_fm_struct,                    ONLY: cp_fm_struct_create,&
                                               cp_fm_struct_release,&

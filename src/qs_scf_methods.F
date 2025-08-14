@@ -23,12 +23,12 @@ MODULE qs_scf_methods
         dbcsr_multiply, dbcsr_p_type, dbcsr_type
    USE cp_dbcsr_operations,             ONLY: copy_dbcsr_to_fm,&
                                               cp_dbcsr_sm_fm_multiply
-   USE cp_fm_basic_linalg,              ONLY: cp_fm_column_scale,&
+   USE cp_fm_basic_linalg,              ONLY: cp_fm_cholesky_restore,&
+                                              cp_fm_column_scale,&
                                               cp_fm_symm,&
                                               cp_fm_triangular_multiply,&
                                               cp_fm_uplo_to_full
-   USE cp_fm_cholesky,                  ONLY: cp_fm_cholesky_reduce,&
-                                              cp_fm_cholesky_restore
+   USE cp_fm_cholesky,                  ONLY: cp_fm_cholesky_reduce
    USE cp_fm_diag,                      ONLY: choose_eigv_solver,&
                                               cp_fm_block_jacobi
    USE cp_fm_struct,                    ONLY: cp_fm_struct_create,&

@@ -28,13 +28,13 @@ MODULE preconditioner_makes
                                               cp_dbcsr_m_by_n_from_template,&
                                               cp_dbcsr_sm_fm_multiply,&
                                               cp_fm_to_dbcsr_row_template
-   USE cp_fm_basic_linalg,              ONLY: cp_fm_column_scale,&
+   USE cp_fm_basic_linalg,              ONLY: cp_fm_cholesky_restore,&
+                                              cp_fm_column_scale,&
                                               cp_fm_triangular_invert,&
                                               cp_fm_triangular_multiply,&
                                               cp_fm_uplo_to_full
    USE cp_fm_cholesky,                  ONLY: cp_fm_cholesky_decompose,&
-                                              cp_fm_cholesky_reduce,&
-                                              cp_fm_cholesky_restore
+                                              cp_fm_cholesky_reduce
    USE cp_fm_diag,                      ONLY: choose_eigv_solver
    USE cp_fm_struct,                    ONLY: cp_fm_struct_create,&
                                               cp_fm_struct_release,&

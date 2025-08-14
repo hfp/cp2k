@@ -16,7 +16,7 @@ MODULE preconditioner_apply
    USE cp_dbcsr_api,                    ONLY: &
         dbcsr_copy, dbcsr_iterator_blocks_left, dbcsr_iterator_next_block, dbcsr_iterator_start, &
         dbcsr_iterator_stop, dbcsr_iterator_type, dbcsr_multiply, dbcsr_release, dbcsr_type
-   USE cp_fm_cholesky,                  ONLY: cp_fm_cholesky_restore
+   USE cp_fm_basic_linalg,              ONLY: cp_fm_cholesky_restore
    USE cp_fm_types,                     ONLY: cp_fm_create,&
                                               cp_fm_get_info,&
                                               cp_fm_release,&
