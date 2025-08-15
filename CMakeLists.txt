@@ -623,7 +623,10 @@ if(CP2K_USE_ACCEL MATCHES "OPENCL")
   endif()
 endif()
 
-# ==================================
+message("\n------------------------------------------------------------")
+message("-                    Other dependencies                    -")
+message("------------------------------------------------------------\n")
+
 if(CP2K_USE_ELPA)
   find_package(Elpa REQUIRED)
 endif()
