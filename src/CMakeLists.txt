@@ -1661,6 +1661,7 @@ elseif(CP2K_USE_ACCEL MATCHES "HIP")
                                     ${CMAKE_HIP_ARCHITECTURES})
 elseif(CP2K_USE_ACCEL MATCHES "OPENCL")
   include_directories(${CP2K_OPENCL_BACKEND})
+  include_directories(${OpenCL_INCLUDE_DIR})
 endif()
 
 # mix the target and variables pointing to the include directories.
