@@ -1504,14 +1504,16 @@ if(CP2K_USE_CUDA
 
   if(CP2K_ENABLE_DBM_GPU)
     if(CP2K_USE_OPENCL)
-      # DBM-kernel: OpenCL code is packaged into string-literal (include file)
+      set(CP2K_OPENCL_DEPENDS ${CP2K_OPENCL_COMMON})
+      list(TRANSFORM CP2K_OPENCL_DEPENDS PREPEND ${CP2K_OPENCL_BACKEND}/)
       add_custom_target(
         CP2K_DBM_OPENCL_TARGET ALL
         COMMAND
-          ${CP2K_OPENCL_BACKEND}/acc_opencl.sh -b 6 -p \"\"
+          # generate header file with OpenCL code as string-literal
+          ${CP2K_OPENCL_SCRIPT} -b 6 -p \"\"
           ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_SRCS_OPENCL}
           ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_SRCS_OPENCL}.h
-        DEPENDS ${CP2K_OPENCL_BACKEND}/acc_opencl.sh ${CP2K_OPENCL_COMMON}
+        DEPENDS ${CP2K_OPENCL_SCRIPT} ${CP2K_OPENCL_DEPENDS}
                 ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_SRCS_OPENCL}
         BYPRODUCTS ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_SRCS_OPENCL}.h)
     endif()

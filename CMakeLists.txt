@@ -597,33 +597,30 @@ message("------------------------------------------------------------\n")
 
 find_package(DBCSR 2.6 REQUIRED)
 
-# Discover CP2K_OPENCL_BACKEND. DBCSR is discovered prior (DBCSR_DIR).
+# Discover CP2K_OPENCL_BACKEND. DBCSR must be discovered prior (DBCSR_DIR).
 if(CP2K_USE_ACCEL MATCHES "OPENCL")
   message("\n------------------------------------------------------------")
   message("-                          OPENCL                          -")
   message("------------------------------------------------------------\n")
   find_package(OpenCL REQUIRED)
 
-  # common header files used by OpenCL kernels
-  set(CP2K_OPENCL_COMMON opencl_atomics.h opencl_common.h)
-
-  set(CP2K_OPENCL_BACKEND ${DBCSR_DIR}/../../../share/opencl)
-  if(NOT EXISTS ${CP2K_OPENCL_BACKEND}/acc_opencl.sh)
-    message(
-      WARNING
-        "OpenCL backend: cannot find tool directory (${CP2K_OPENCL_BACKEND})")
-    set(CP2K_OPENCL_BACKEND
-        ${CMAKE_CURRENT_SOURCE_DIR}/exts/dbcsr/src/acc/opencl)
-    list(TRANSFORM CP2K_OPENCL_COMMON PREPEND common/)
+  set(CP2K_OPENCL_BACKEND "${DBCSR_DIR}/../../../include/acc/opencl")
+  if(NOT EXISTS ${CP2K_OPENCL_BACKEND})
+    get_target_property(CP2K_DBCSR_INCLUDE_DIRS DBCSR::dbcsr
+                        INTERFACE_INCLUDE_DIRECTORIES)
+    list(GET CP2K_DBCSR_INCLUDE_DIRS 0 CP2K_DBCSR_INCLUDE_DIR)
+    set(CP2K_OPENCL_BACKEND "${CP2K_DBCSR_INCLUDE_DIR}/acc/opencl")
   endif()
 
-  if(EXISTS ${CP2K_OPENCL_BACKEND}/acc_opencl.sh)
+  set(CP2K_OPENCL_SCRIPT
+      "${CP2K_OPENCL_BACKEND}/../../../share/opencl/acc_opencl.sh")
+  if(EXISTS ${CP2K_OPENCL_SCRIPT})
+    set(CP2K_OPENCL_COMMON common/opencl_atomics.h common/opencl_common.h)
     list(TRANSFORM CP2K_OPENCL_COMMON PREPEND ${CP2K_OPENCL_BACKEND}/)
+    include_directories(${CP2K_OPENCL_BACKEND})
     set(CP2K_USE_OPENCL ON)
   else()
-    message(
-      FATAL_ERROR
-        "OpenCL backend: cannot find tool directory (${CP2K_OPENCL_BACKEND})")
+    message(FATAL_ERROR "OpenCL backend not found")
   endif()
 endif()
 
