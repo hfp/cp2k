@@ -597,8 +597,7 @@ message("------------------------------------------------------------\n")
 
 find_package(DBCSR 2.6 REQUIRED)
 
-# The OpenCL backend leverages DBCSR to supply CP2K_OPENCL_TOOLDIR. For the time
-# being, DBCSR must be discovered first (DBCSR_DIR).
+# Discover CP2K_OPENCL_BACKEND. DBCSR is discovered prior (DBCSR_DIR).
 if(CP2K_USE_ACCEL MATCHES "OPENCL")
   message("\n------------------------------------------------------------")
   message("-                          OPENCL                          -")
@@ -608,23 +607,23 @@ if(CP2K_USE_ACCEL MATCHES "OPENCL")
   # common header files used by OpenCL kernels
   set(CP2K_OPENCL_COMMON opencl_atomics.h opencl_common.h)
 
-  set(CP2K_OPENCL_TOOLDIR ${DBCSR_DIR}/../../../share/opencl)
-  if(NOT EXISTS ${CP2K_OPENCL_TOOLDIR}/acc_opencl.sh)
+  set(CP2K_OPENCL_BACKEND ${DBCSR_DIR}/../../../share/opencl)
+  if(NOT EXISTS ${CP2K_OPENCL_BACKEND}/acc_opencl.sh)
     message(
       WARNING
-        "OpenCL backend: cannot find tool directory (${CP2K_OPENCL_TOOLDIR})")
-    set(CP2K_OPENCL_TOOLDIR
+        "OpenCL backend: cannot find tool directory (${CP2K_OPENCL_BACKEND})")
+    set(CP2K_OPENCL_BACKEND
         ${CMAKE_CURRENT_SOURCE_DIR}/exts/dbcsr/src/acc/opencl)
     list(TRANSFORM CP2K_OPENCL_COMMON PREPEND common/)
   endif()
 
-  if(EXISTS ${CP2K_OPENCL_TOOLDIR}/acc_opencl.sh)
-    list(TRANSFORM CP2K_OPENCL_COMMON PREPEND ${CP2K_OPENCL_TOOLDIR}/)
+  if(EXISTS ${CP2K_OPENCL_BACKEND}/acc_opencl.sh)
+    list(TRANSFORM CP2K_OPENCL_COMMON PREPEND ${CP2K_OPENCL_BACKEND}/)
     set(CP2K_USE_OPENCL ON)
   else()
     message(
       FATAL_ERROR
-        "OpenCL backend: cannot find tool directory (${CP2K_OPENCL_TOOLDIR})")
+        "OpenCL backend: cannot find tool directory (${CP2K_OPENCL_BACKEND})")
   endif()
 endif()
 
