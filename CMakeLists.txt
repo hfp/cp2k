@@ -582,14 +582,37 @@ elseif(CP2K_USE_ACCEL MATCHES "HIP")
       set(CMAKE_HIP_ARCHITECTURES "gfx942:xnack+")
     endif()
   endif()
-elseif(CP2K_USE_ACCEL MATCHES "OPENCL")
+endif()
+
+message("\n------------------------------------------------------------")
+message("-                          OPENMP                          -")
+message("------------------------------------------------------------\n")
+
+# PACKAGE DISCOVERY (compiler configuration can impact package discovery)
+find_package(OpenMP REQUIRED COMPONENTS Fortran C CXX)
+
+message("\n------------------------------------------------------------")
+message("-                          DBCSR                           -")
+message("------------------------------------------------------------\n")
+
+find_package(DBCSR 2.6 REQUIRED)
+
+# The OpenCL backend leverages DBCSR to supply CP2K_OPENCL_TOOLDIR. For the time
+# being, DBCSR must be discovered first (DBCSR_DIR).
+if(CP2K_USE_ACCEL MATCHES "OPENCL")
+  message("\n------------------------------------------------------------")
+  message("-                          OPENCL                          -")
+  message("------------------------------------------------------------\n")
   find_package(OpenCL REQUIRED)
 
   # common header files used by OpenCL kernels
   set(CP2K_OPENCL_COMMON opencl_atomics.h opencl_common.h)
 
-  set(CP2K_OPENCL_TOOLDIR ${DBCSR_DIR}/share/opencl)
+  set(CP2K_OPENCL_TOOLDIR ${DBCSR_DIR}/../../../share/opencl)
   if(NOT EXISTS ${CP2K_OPENCL_TOOLDIR}/acc_opencl.sh)
+    message(
+      WARNING
+        "OpenCL backend: cannot find tool directory (${CP2K_OPENCL_TOOLDIR})")
     set(CP2K_OPENCL_TOOLDIR
         ${CMAKE_CURRENT_SOURCE_DIR}/exts/dbcsr/src/acc/opencl)
     list(TRANSFORM CP2K_OPENCL_COMMON PREPEND common/)
@@ -604,15 +627,6 @@ elseif(CP2K_USE_ACCEL MATCHES "OPENCL")
         "OpenCL backend: cannot find tool directory (${CP2K_OPENCL_TOOLDIR})")
   endif()
 endif()
-
-message("\n------------------------------------------------------------")
-message("-                          OPENMP                          -")
-message("------------------------------------------------------------\n")
-
-# PACKAGE DISCOVERY (compiler configuration can impact package discovery)
-find_package(OpenMP REQUIRED COMPONENTS Fortran C CXX)
-
-find_package(DBCSR 2.6 REQUIRED)
 
 # ==================================
 if(CP2K_USE_ELPA)
@@ -847,8 +861,7 @@ get_target_property(CP2K_LIBS cp2k_link_libs INTERFACE_LINK_LIBRARIES)
 configure_file(cmake/libcp2k.pc.in libcp2k.pc @ONLY)
 
 message(
-  ""
-  "--------------------------------------------------------------------\n"
+  "\n--------------------------------------------------------------------\n"
   "-                                                                  -\n"
   "-               Summary of enabled dependencies                    -\n"
   "-                                                                  -\n"
