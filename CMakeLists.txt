@@ -597,8 +597,8 @@ message("------------------------------------------------------------\n")
 
 find_package(DBCSR 2.6 REQUIRED)
 
-# The OpenCL backend leverages DBCSR to supply CP2K_OPENCL_TOOLDIR.
-# For the time being, DBCSR must be discovered first (DBCSR_DIR).
+# The OpenCL backend leverages DBCSR to supply CP2K_OPENCL_TOOLDIR. For the time
+# being, DBCSR must be discovered first (DBCSR_DIR).
 if(CP2K_USE_ACCEL MATCHES "OPENCL")
   message("\n------------------------------------------------------------")
   message("-                          OPENCL                          -")
