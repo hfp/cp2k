@@ -1514,10 +1514,6 @@ if(CP2K_USE_CUDA
                 ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_SRCS_OPENCL}
         OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_SRCS_OPENCL}.h
         COMMENT "Generating OpenCL kernel for DBM")
-      add_custom_target(
-        dbm_multiply_opencl
-        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_SRCS_OPENCL}.h)
-      add_dependencies(${CP2K_LIBS} dbm_multiply_opencl)
       list(APPEND CP2K_DBM_SRCS_C ${CP2K_DBM_SRCS_GPU_C})
     else()
       list(APPEND CP2K_SRCS_GPU ${CP2K_DBM_SRCS_GPU})
