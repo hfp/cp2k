@@ -140,7 +140,8 @@ static void backend_process_batch(const int ntasks,
 #else
   (void)kshard;
   (void)ctx; // mark as used
-  dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b, shard_c);
+  dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b, shard_c,
+                                 0 /*default options*/);
 #endif
 #if defined(DBM_VALIDATE_AGAINST_LIBXSMM) && defined(__LIBXSMM)
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
@@ -148,15 +149,11 @@ static void backend_process_batch(const int ntasks,
   /* start transferring final state of result matrix to host */
   offloadMemcpyAsyncDtoH(shard_c->data, shardg->data,
                          shard_c->data_size * sizeof(double), shardg->stream);
-#else
-  const int max_threads = omp_get_max_threads();
-  omp_set_num_threads(1);
 #endif
-  dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b, &shardr);
+  dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b, &shardr,
+                                 DBM_MULTIPLY_BLAS_LIBRARY);
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
   offloadStreamSynchronize(shardg->stream); /* finish transfer */
-#else
-  omp_set_num_threads(max_threads);
 #endif
   libxsmm_matdiff_info diff;
   libxsmm_matdiff_clear(&diff);
