@@ -135,7 +135,7 @@ static void backend_process_batch(const int ntasks,
   }
 #endif
 #endif
-  int options = 0; /* default */
+  int options = DBM_MULTIPLY_TASK_REORDER; /* BLAS and LIBXSMM benefit */
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
   dbm_multiply_gpu_process_batch(ntasks, batch, alpha, kshard, &ctx->gpu);
 #else
@@ -143,7 +143,7 @@ static void backend_process_batch(const int ntasks,
   (void)ctx; // mark as used
   dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b, shard_c,
                                  options);
-  options = DBM_MULTIPLY_BLAS_LIBRARY;
+  options |= DBM_MULTIPLY_BLAS_LIBRARY;
 #endif
 #if defined(DBM_VALIDATE_AGAINST_LIBXSMM) && defined(__LIBXSMM)
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
