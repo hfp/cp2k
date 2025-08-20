@@ -128,20 +128,21 @@ static void backend_process_batch(const int ntasks,
   dbm_shard_copy(&shardr, shard_c);
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
   dbm_shard_gpu_t *const shardg = &ctx->gpu.shards_c_dev[kshard];
-  assert(shardr->nblocks == shardg->nblocks);
-  assert(shardr->data_size == shardg->data_size);
+  assert(shardr.data_size == shardg->data_size);
   /* start transferring initial state of result matrix to host */
-  offloadMemcpyAsyncDtoH(shardr->data, shardg->data,
-                         shardr->data_size * sizeof(double), shardg->stream);
+  offloadMemcpyAsyncDtoH(shardr.data, shardg->data,
+                         shardr.data_size * sizeof(double), shardg->stream);
 #endif
 #endif
+  int options = 0; /* default */
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
   dbm_multiply_gpu_process_batch(ntasks, batch, alpha, kshard, &ctx->gpu);
 #else
   (void)kshard;
   (void)ctx; // mark as used
   dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b, shard_c,
-                                 0 /*default options*/);
+                                 options);
+  options = DBM_MULTIPLY_BLAS_LIBRARY;
 #endif
 #if defined(DBM_VALIDATE_AGAINST_LIBXSMM) && defined(__LIBXSMM)
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
@@ -151,7 +152,7 @@ static void backend_process_batch(const int ntasks,
                          shard_c->data_size * sizeof(double), shardg->stream);
 #endif
   dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b, &shardr,
-                                 DBM_MULTIPLY_BLAS_LIBRARY);
+                                 options);
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
   offloadStreamSynchronize(shardg->stream); /* finish transfer */
 #endif
@@ -181,6 +182,7 @@ static void backend_process_batch(const int ntasks,
   }
   dbm_shard_release(&shardr);
 #elif defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
+  (void)options;
   (void)pack_a;
   (void)pack_b;
   (void)shard_c; // mark as used
