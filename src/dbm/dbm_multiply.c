@@ -128,10 +128,11 @@ static void backend_process_batch(const int ntasks,
   dbm_shard_copy(&shardr, shard_c);
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
   dbm_shard_gpu_t *const shardg = &ctx->gpu.shards_c_dev[kshard];
-  assert(shardr.data_size == shardg->data_size);
-  /* start transferring initial state of result matrix to host */
-  offloadMemcpyAsyncDtoH(shardr.data, shardg->data,
-                         shardr.data_size * sizeof(double), shardg->stream);
+  if (0 != shardg->data_size) {
+    /* start transferring initial state of result matrix to host */
+    offloadMemcpyAsyncDtoH(shardr.data, shardg->data,
+                           shardr.data_size * sizeof(double), shardg->stream);
+  }
 #endif
 #endif
   int options = 0; /* default */
@@ -148,6 +149,7 @@ static void backend_process_batch(const int ntasks,
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
   offloadStreamSynchronize(shardg->stream); /* finish transfer */
   /* start transferring final state of result matrix to host */
+  assert(shardr.data_size == shardg->data_size);
   offloadMemcpyAsyncDtoH(shard_c->data, shardg->data,
                          shard_c->data_size * sizeof(double), shardg->stream);
 #endif
