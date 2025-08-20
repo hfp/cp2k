@@ -165,7 +165,6 @@ for mpi in '' mpich openmpi; do
     cmake_mpi_args=(
       "-DCMAKE_INSTALL_PREFIX:PATH=${MPI_HOME}"
       "-DCMAKE_INSTALL_Fortran_MODULES:PATH=${MPI_FORTRAN_MOD_DIR}/cp2k"
-      "-DCMAKE_INSTALL_LIBDIR:PATH=lib"
       "-DCP2K_CMAKE_SUFFIX:STRING=${MPI_SUFFIX}"
       "-DCP2K_DATA_DIR:PATH=%{_datadir}/cp2k/data"
       "-DCP2K_USE_MPI:BOOL=ON"
@@ -173,8 +172,8 @@ for mpi in '' mpich openmpi; do
     )
   else
     cmake_mpi_args=(
-      "-DCP2K_USE_MPI:BOOL=OFF"
       "-DCMAKE_INSTALL_Fortran_MODULES:PATH=%{_fmoddir}/cp2k"
+      "-DCP2K_USE_MPI:BOOL=OFF"
     )
   fi
 
@@ -249,7 +248,7 @@ done
 %{_bindir}/graph.ssmp
 %{_bindir}/grid_miniapp.ssmp
 %{_bindir}/xyz2dcd.ssmp
-%{_libdir}/libcp2k.so.*
+%{_libdir}/libcp2k.so*
 
 %files devel
 %{_fmoddir}/cp2k/
@@ -265,7 +264,7 @@ done
 %{_libdir}/openmpi/bin/graph.psmp
 %{_libdir}/openmpi/bin/grid_miniapp.psmp
 %{_libdir}/openmpi/bin/xyz2dcd.psmp
-%{_libdir}/openmpi/lib/libcp2k.so.*
+%{_libdir}/openmpi/lib/libcp2k.so*
 
 %files openmpi-devel
 %{_fmoddir}/openmpi/cp2k/
@@ -281,7 +280,7 @@ done
 %{_libdir}/mpich/bin/graph.psmp
 %{_libdir}/mpich/bin/grid_miniapp.psmp
 %{_libdir}/mpich/bin/xyz2dcd.psmp
-%{_libdir}/mpich/lib/libcp2k.so.*
+%{_libdir}/mpich/lib/libcp2k.so*
 
 %files mpich-devel
 %{_fmoddir}/mpich/cp2k/
