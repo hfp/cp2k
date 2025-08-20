@@ -25,10 +25,6 @@
 #include <libxsmm.h>
 #endif
 
-#if !defined(DBM_VALIDATE_AGAINST_LIBXSMM) && 0
-#define DBM_VALIDATE_AGAINST_LIBXSMM
-#endif
-
 /*******************************************************************************
  * \brief Private routine for computing the max filter threshold for each row.
  * \author Ole Schuett
@@ -121,73 +117,91 @@ static void backend_process_batch(const int ntasks,
                                   const dbm_pack_t *pack_b, const int kshard,
                                   dbm_shard_t *shard_c,
                                   backend_context_t *ctx) {
-#if defined(DBM_VALIDATE_AGAINST_LIBXSMM) && defined(__LIBXSMM)
-  dbm_shard_t shardr;
-  dbm_shard_init(&shardr);
-  dbm_shard_allocate_promised_blocks(shard_c);
-  dbm_shard_copy(&shardr, shard_c);
+  /* BLAS and LIBXSMM benefit in general from DBM_MULTIPLY_TASK_REORDER */
+  int cpu_options = DBM_MULTIPLY_TASK_REORDER;
+
+#if defined(__LIBXSMM)
+  const char *const validate_env = getenv("DBM_MULTIPLY_VALIDATE");
+  const char *const maxeps_env = getenv("DBM_MULTIPLY_MAXEPS");
+  const int validate = (NULL == validate_env ? (NULL == maxeps_env ? 0 : 1)
+                                             : atoi(validate_env));
+  dbm_shard_t shard_r;
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
-  dbm_shard_gpu_t *const shardg = &ctx->gpu.shards_c_dev[kshard];
-  if (0 != shardg->data_size) {
-    /* start transferring initial state of result matrix to host */
-    offloadMemcpyAsyncDtoH(shardr.data, shardg->data,
-                           shardr.data_size * sizeof(double), shardg->stream);
+  dbm_shard_gpu_t *const shard_g = &ctx->gpu.shards_c_dev[kshard];
+  offloadEvent_t event, *pevent = NULL;
+#endif
+  if (0 != validate) {
+    dbm_shard_init(&shard_r);
+    dbm_shard_allocate_promised_blocks(shard_c);
+    dbm_shard_copy(&shard_r, shard_c);
+#if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
+    if (0 != shard_g->data_size) { /* initial state of result matrix */
+      offloadMemcpyAsyncDtoH(shard_r.data, shard_g->data,
+                             shard_r.data_size * sizeof(double),
+                             shard_g->stream);
+      offloadEventCreate(&event);
+      offloadEventRecord(event, shard_g->stream);
+      pevent = &event;
+    }
+#endif
   }
 #endif
-#endif
-  int options = DBM_MULTIPLY_TASK_REORDER; /* BLAS and LIBXSMM benefit */
+
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
   dbm_multiply_gpu_process_batch(ntasks, batch, alpha, kshard, &ctx->gpu);
 #else
   (void)kshard;
-  (void)ctx; // mark as used
+  (void)ctx; /* mark as used */
   dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b, shard_c,
-                                 options);
-  options |= DBM_MULTIPLY_BLAS_LIBRARY;
+                                 cpu_options);
 #endif
-#if defined(DBM_VALIDATE_AGAINST_LIBXSMM) && defined(__LIBXSMM)
+
+#if defined(__LIBXSMM)
+  if (0 != validate) {
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
-  offloadStreamSynchronize(shardg->stream); /* finish transfer */
-  /* start transferring final state of result matrix to host */
-  assert(shardr.data_size == shardg->data_size);
-  offloadMemcpyAsyncDtoH(shard_c->data, shardg->data,
-                         shard_c->data_size * sizeof(double), shardg->stream);
-#endif
-  dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b, &shardr,
-                                 options);
-#if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
-  offloadStreamSynchronize(shardg->stream); /* finish transfer */
-#endif
-  libxsmm_matdiff_info diff;
-  libxsmm_matdiff_clear(&diff);
-  for (int itask = 0; itask < ntasks; ++itask) {
-    const dbm_task_t task = batch[itask];
-    const double *const tst = &shard_c->data[task.offset_c];
-    const double *const ref = &shardr.data[task.offset_c];
-    libxsmm_matdiff_info d;
-    if (EXIT_SUCCESS == libxsmm_matdiff(&d, LIBXSMM_DATATYPE(double), task.m,
-                                        task.n, ref, tst, NULL /*ldref*/,
-                                        NULL /*ldtst*/)) {
-      libxsmm_matdiff_reduce(&diff, &d);
+    /* start transferring final state of result matrix */
+    assert(shard_c->data_size == shard_g->data_size);
+    offloadMemcpyAsyncDtoH(shard_c->data, shard_g->data,
+                           shard_c->data_size * sizeof(double),
+                           shard_g->stream);
+    if (NULL != pevent) {
+      offloadEventSynchronize(*pevent);
+      offloadEventDestroy(*pevent); /* finish transferring initial state */
     }
-  }
-  const char *const maxeps_env = getenv("DBM_MULTIPLY_MAXEPS");
-  const double maxeps = (NULL == maxeps_env ? 1E-13 : fabs(atof(maxeps_env)));
-  const double epsilon = libxsmm_matdiff_epsilon(&diff);
-  if (maxeps < epsilon) {
-    if (LIBXSMM_NOTNAN(diff.v_tst)) {
-      fprintf(stderr, "INFO ACC/LIBDBM: diff=%g (|%g-%g|=%g)\n", epsilon,
-              diff.v_ref, diff.v_tst, diff.linf_abs);
-    } else {
-      fprintf(stderr, "INFO ACC/LIBDBM: diff=%g\n", epsilon);
+    dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b,
+                                   &shard_r, cpu_options);
+    offloadStreamSynchronize(shard_g->stream); /* finish result */
+#else
+    dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b,
+                                   &shard_r,
+                                   cpu_options | DBM_MULTIPLY_BLAS_LIBRARY);
+#endif
+    libxsmm_matdiff_info diff;
+    libxsmm_matdiff_clear(&diff);
+    for (int itask = 0; itask < ntasks; ++itask) {
+      const dbm_task_t task = batch[itask];
+      const double *const tst = &shard_c->data[task.offset_c];
+      const double *const ref = &shard_r.data[task.offset_c];
+      libxsmm_matdiff_info d;
+      if (EXIT_SUCCESS == libxsmm_matdiff(&d, LIBXSMM_DATATYPE(double), task.m,
+                                          task.n, ref, tst, NULL /*ldref*/,
+                                          NULL /*ldtst*/)) {
+        libxsmm_matdiff_reduce(&diff, &d);
+      }
     }
+    const double maxeps = (NULL == maxeps_env ? 1E-13 : fabs(atof(maxeps_env)));
+    const double epsilon = libxsmm_matdiff_epsilon(&diff);
+    if (maxeps < epsilon) {
+      if (LIBXSMM_NOTNAN(diff.v_tst)) {
+        fprintf(stderr, "INFO ACC/LIBDBM: ntasks=%i diff=%g (|%g - %g| = %g)\n",
+                ntasks, epsilon, diff.v_ref, diff.v_tst, diff.linf_abs);
+      } else {
+        fprintf(stderr, "INFO ACC/LIBDBM: ntasks=%i diff=%g\n", ntasks,
+                epsilon);
+      }
+    }
+    dbm_shard_release(&shard_r);
   }
-  dbm_shard_release(&shardr);
-#elif defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
-  (void)options;
-  (void)pack_a;
-  (void)pack_b;
-  (void)shard_c; // mark as used
 #endif
 }
 
