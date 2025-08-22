@@ -196,21 +196,24 @@ static void backend_process_batch(const int ntasks,
                                    cpu_options | DBM_MULTIPLY_BLAS_LIBRARY);
 #endif
     double epsilon = 0;
-    for (int itask = 0; itask < ntasks; ++itask) {
-      const dbm_task_t task = batch[itask];
-      const double *const tst = &shard_c->data[task.offset_c];
-      const double *const ref = &shard_r.data[task.offset_c];
-      for (int i = 0; i < (task.m * task.n); ++i) {
-        const double diff = tst[i] - ref[i];
-        const double drel = fabs(0 != ref[i] ? (diff / ref[i]) : diff);
-        if (epsilon < drel)
+    int itask = 0;
+    for (int i = 0; i < ntasks; ++i) {
+      const dbm_task_t *const task = &batch[i];
+      const double *const tst = &shard_c->data[task->offset_c];
+      const double *const ref = &shard_r.data[task->offset_c];
+      for (int j = 0; j < (task->m * task->n); ++j) {
+        const double diff = tst[j] - ref[j];
+        const double drel = fabs(0 != ref[j] ? (diff / ref[j]) : diff);
+        if (epsilon < drel) {
           epsilon = drel;
+          itask = i;
+        }
       }
     }
     if (dbm_multiply_maxeps < epsilon) {
       if (0 == dbm_multiply_verify) {
-        fprintf(stderr, "INFO ACC/LIBDBM: ntasks=%i diff=%g\n", ntasks,
-                epsilon);
+        fprintf(stderr, "INFO ACC/LIBDBM: ntasks=%i task=%i diff=%g\n", ntasks,
+                itask, epsilon);
       }
       ++*nerrors;
     }
