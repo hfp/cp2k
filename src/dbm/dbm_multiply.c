@@ -141,66 +141,43 @@ static void backend_process_batch(const int ntasks,
                                   const dbm_task_t batch[ntasks],
                                   const double alpha, const dbm_pack_t *pack_a,
                                   const dbm_pack_t *pack_b, const int kshard,
-                                  const bool verify, dbm_shard_t *shard_c,
-                                  backend_context_t *ctx) {
+                                  dbm_shard_t *shard_c, dbm_shard_t *shard_r,
+                                  const bool finish, backend_context_t *ctx) {
   /* BLAS and LIBXSMM benefit in general from DBM_MULTIPLY_TASK_REORDER */
   const int cpu_options = DBM_MULTIPLY_TASK_REORDER;
 
-  dbm_shard_t shard_r;
-#if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
-  dbm_shard_gpu_t *const shard_g = &ctx->gpu.shards_c_dev[kshard];
-  offloadEvent_t event, *pevent = NULL;
-#endif
-  if (verify) {
-    dbm_shard_init(&shard_r);
-    dbm_shard_allocate_promised_blocks(shard_c);
-    dbm_shard_copy(&shard_r, shard_c);
-#if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
-    if (0 != shard_g->data_size) { /* initial state of result matrix */
-      offloadMemcpyAsyncDtoH(shard_r.data, shard_g->data,
-                             shard_r.data_size * sizeof(double),
-                             shard_g->stream);
-      offloadEventCreate(&event);
-      offloadEventRecord(event, shard_g->stream);
-      pevent = &event;
-    }
-#endif
-  }
-
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
   dbm_multiply_gpu_process_batch(ntasks, batch, alpha, kshard, &ctx->gpu);
+  if (finish) { // Start downloading the current shard of matrix_c.
+    dbm_multiply_gpu_download_results(&ctx->gpu);
+  }
+  if (NULL != shard_r) {
+    dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b,
+                                   shard_r, cpu_options);
+    if (finish) {
+      dbm_shard_gpu_t *const shard_g = &ctx->gpu.shards_c_dev[kshard];
+      // Due to validation, finish downloading results a bit earlier.
+      offloadStreamSynchronize(shard_g->stream);
+    }
+  }
 #else
   (void)kshard;
-  (void)ctx; /* mark as used */
+  (void)ctx; // mark used
   dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b, shard_c,
                                  cpu_options);
-#endif
-
-  if (verify) {
-#if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
-    /* start transferring final state of result matrix */
-    assert(shard_c->data_size == shard_g->data_size);
-    offloadMemcpyAsyncDtoH(shard_c->data, shard_g->data,
-                           shard_c->data_size * sizeof(double),
-                           shard_g->stream);
-    if (NULL != pevent) {
-      offloadEventSynchronize(*pevent);
-      offloadEventDestroy(*pevent); /* finish transferring initial state */
-    }
+  if (NULL != shard_r) {
     dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b,
-                                   &shard_r, cpu_options);
-    offloadStreamSynchronize(shard_g->stream); /* finish result */
-#else
-    dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b,
-                                   &shard_r,
+                                   shard_r,
                                    cpu_options | DBM_MULTIPLY_BLAS_LIBRARY);
+  }
 #endif
+  if (NULL != shard_r && finish) {
     double epsilon = 0;
     int itask = 0;
     for (int i = 0; i < ntasks; ++i) {
       const dbm_task_t *const task = &batch[i];
       const double *const tst = &shard_c->data[task->offset_c];
-      const double *const ref = &shard_r.data[task->offset_c];
+      const double *const ref = &shard_r->data[task->offset_c];
       for (int j = 0; j < (task->m * task->n); ++j) {
         const double diff = tst[j] - ref[j];
         const double drel = fabs(0 != ref[j] ? (diff / ref[j]) : diff);
@@ -217,20 +194,7 @@ static void backend_process_batch(const int ntasks,
       }
       ++dbm_multiply_nerrors;
     }
-    dbm_shard_release(&shard_r);
   }
-}
-
-/*******************************************************************************
- * \brief Private routine for downloading results of the multiplication backend.
- * \author Ole Schuett
- ******************************************************************************/
-static void backend_download_results(backend_context_t *ctx) {
-#if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
-  dbm_multiply_gpu_download_results(&ctx->gpu);
-#else
-  (void)ctx; // mark as used
-#endif
 }
 
 /*******************************************************************************
@@ -305,8 +269,15 @@ static void multiply_packs(const bool transa, const bool transb,
     for (int shard_row = 0; shard_row < nshard_rows; shard_row++) {
       for (int shard_col = 0; shard_col < nshard_cols; shard_col++) {
         const int ishard = shard_row * nshard_cols + shard_col;
-        dbm_shard_t *shard_c = &matrix_c->shards[ishard];
+        dbm_shard_t *const shard_c = &matrix_c->shards[ishard];
+        dbm_shard_t shard_tmp, *shard_r = NULL;
         int ntasks = 0;
+
+        if (verify) {
+          shard_r = &shard_tmp;
+          dbm_shard_init(shard_r);
+          dbm_shard_copy(shard_r, shard_c);
+        }
 
         // Use a merge-join to find pairs of blocks with matching sum indices.
         // This utilizes that blocks within a shard are ordered by sum_index.
@@ -356,6 +327,9 @@ static void multiply_packs(const bool transa, const bool transb,
               assert(dbm_get_shard_index(matrix_c, row, col) == ishard);
               assert(dbm_get_stored_coordinates(matrix_c, row, col) ==
                      matrix_c->dist->my_rank);
+              if (NULL != shard_r) {
+                blk_c = dbm_shard_promise_new_block(shard_r, row, col, m * n);
+              }
               blk_c = dbm_shard_promise_new_block(shard_c, row, col, m * n);
             }
 
@@ -378,13 +352,17 @@ static void multiply_packs(const bool transa, const bool transb,
 
             if (ntasks == DBM_MAX_BATCH_SIZE) {
               backend_process_batch(ntasks, batch, alpha, pack_a, pack_b,
-                                    ishard, verify, shard_c, ctx);
+                                    ishard, shard_c, shard_r, false, ctx);
               ntasks = 0;
             }
           }
         }
         backend_process_batch(ntasks, batch, alpha, pack_a, pack_b, ishard,
-                              verify, shard_c, ctx);
+                              shard_c, shard_r, true, ctx);
+
+        if (NULL != shard_r) {
+          dbm_shard_release(shard_r);
+        }
       }
     }
 
@@ -458,9 +436,6 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
     multiply_packs(transa, transb, alpha, pack_a, pack_b, matrix_a, matrix_b,
                    matrix_c, retain_sparsity, verify, rows_max_eps, flop, ctx);
   }
-
-  // Start downloading matrix_c from the GPU.
-  backend_download_results(ctx);
 
   // Wait for all other MPI ranks to complete, then release ressources.
   dbm_comm_iterator_stop(iter);
