@@ -141,17 +141,17 @@ static void backend_process_batch(const int ntasks,
                                   const dbm_task_t batch[ntasks],
                                   const double alpha, const dbm_pack_t *pack_a,
                                   const dbm_pack_t *pack_b, const int kshard,
-                                  int *nerrors, dbm_shard_t *shard_c,
+                                  const bool verify, dbm_shard_t *shard_c,
                                   backend_context_t *ctx) {
   /* BLAS and LIBXSMM benefit in general from DBM_MULTIPLY_TASK_REORDER */
-  int cpu_options = DBM_MULTIPLY_TASK_REORDER;
+  const int cpu_options = DBM_MULTIPLY_TASK_REORDER;
 
   dbm_shard_t shard_r;
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
   dbm_shard_gpu_t *const shard_g = &ctx->gpu.shards_c_dev[kshard];
   offloadEvent_t event, *pevent = NULL;
 #endif
-  if (NULL != nerrors) { /* verify */
+  if (verify) {
     dbm_shard_init(&shard_r);
     dbm_shard_allocate_promised_blocks(shard_c);
     dbm_shard_copy(&shard_r, shard_c);
@@ -176,7 +176,7 @@ static void backend_process_batch(const int ntasks,
                                  cpu_options);
 #endif
 
-  if (NULL != nerrors) { /* verify */
+  if (verify) {
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
     /* start transferring final state of result matrix */
     assert(shard_c->data_size == shard_g->data_size);
@@ -215,7 +215,7 @@ static void backend_process_batch(const int ntasks,
         fprintf(stderr, "INFO ACC/LIBDBM: ntasks=%i task=%i diff=%g\n", ntasks,
                 itask, epsilon);
       }
-      ++*nerrors;
+      ++dbm_multiply_nerrors;
     }
     dbm_shard_release(&shard_r);
   }
@@ -253,7 +253,7 @@ static void multiply_packs(const bool transa, const bool transb,
                            const dbm_pack_t *pack_b,
                            const dbm_matrix_t *matrix_a,
                            const dbm_matrix_t *matrix_b, dbm_matrix_t *matrix_c,
-                           const bool retain_sparsity,
+                           const bool retain_sparsity, const bool verify,
                            const float *rows_max_eps, int64_t *flop,
                            backend_context_t *ctx) {
   const float alpha2 = alpha * alpha;
@@ -274,21 +274,7 @@ static void multiply_packs(const bool transa, const bool transb,
   const int *free_index_sizes_b =
       (transb) ? matrix_b->row_sizes : matrix_b->col_sizes;
 
-  int *nerrors = (0 == dbm_multiply_verify ? NULL : &dbm_multiply_nerrors);
-  const char *const maxeps_env = getenv("DBM_MULTIPLY_MAXEPS");
-  if (NULL == nerrors) {
-    const char *const verify_env = getenv("DBM_MULTIPLY_VERIFY");
-    if (NULL != verify_env) {
-      nerrors = (0 != atoi(verify_env) ? &dbm_multiply_nerrors : NULL);
-    } else if (NULL != maxeps_env) {
-      dbm_multiply_maxeps = fabs(atof(maxeps_env));
-      nerrors = &dbm_multiply_nerrors;
-    }
-  } else if (NULL != maxeps_env) {
-    dbm_multiply_maxeps = fabs(atof(maxeps_env));
-  }
   dbm_multiply_nerrors = 0;
-
 #pragma omp parallel reduction(+ : flop_sum, dbm_multiply_nerrors)
   {
     // Thread-private array covering given work in piece-wise fashion.
@@ -392,13 +378,13 @@ static void multiply_packs(const bool transa, const bool transb,
 
             if (ntasks == DBM_MAX_BATCH_SIZE) {
               backend_process_batch(ntasks, batch, alpha, pack_a, pack_b,
-                                    ishard, nerrors, shard_c, ctx);
+                                    ishard, verify, shard_c, ctx);
               ntasks = 0;
             }
           }
         }
         backend_process_batch(ntasks, batch, alpha, pack_a, pack_b, ishard,
-                              nerrors, shard_c, ctx);
+                              verify, shard_c, ctx);
       }
     }
 
@@ -449,13 +435,28 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   dbm_comm_iterator_t *iter =
       dbm_comm_iterator_start(transa, transb, matrix_a, matrix_b, matrix_c);
 
+  // Determine if validation shall be performed.
+  bool verify = (0 != dbm_multiply_verify);
+  const char *const maxeps_env = getenv("DBM_MULTIPLY_MAXEPS");
+  if (!verify) {
+    const char *const verify_env = getenv("DBM_MULTIPLY_VERIFY");
+    if (NULL != verify_env) {
+      verify = (0 != atoi(verify_env));
+    } else if (NULL != maxeps_env) {
+      dbm_multiply_maxeps = fabs(atof(maxeps_env));
+      verify = true;
+    }
+  } else if (NULL != maxeps_env) {
+    dbm_multiply_maxeps = fabs(atof(maxeps_env));
+  }
+
   // Main loop.
   *flop = 0;
   dbm_pack_t *pack_a, *pack_b;
   while (dbm_comm_iterator_next(iter, &pack_a, &pack_b)) {
     backend_upload_packs(pack_a, pack_b, ctx);
     multiply_packs(transa, transb, alpha, pack_a, pack_b, matrix_a, matrix_b,
-                   matrix_c, retain_sparsity, rows_max_eps, flop, ctx);
+                   matrix_c, retain_sparsity, verify, rows_max_eps, flop, ctx);
   }
 
   // Start downloading matrix_c from the GPU.
