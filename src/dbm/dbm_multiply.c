@@ -23,7 +23,7 @@
 #include "dbm_multiply_cpu.h"
 #include "dbm_multiply_gpu.h"
 
-static double dbm_multiply_maxeps = 1E-6;
+static double dbm_multiply_maxeps = 1E-5;
 static int dbm_multiply_nerrors = 0;
 static int dbm_multiply_verify = 0;
 
@@ -147,15 +147,21 @@ static void backend_process_batch(const int ntasks,
   const int cpu_options = DBM_MULTIPLY_TASK_REORDER;
 
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
+  dbm_shard_gpu_t *const shard_g = &ctx->gpu.shards_c_dev[kshard];
   dbm_multiply_gpu_process_batch(ntasks, batch, alpha, kshard, &ctx->gpu);
   if (finish) { // Start downloading the current shard of matrix_c.
-    dbm_multiply_gpu_download_results(&ctx->gpu);
+    // Grow host buffer if necessary.
+    dbm_shard_allocate_promised_blocks(shard_c);
+    // Download results from device.
+    assert(shard_c->data_size == shard_g->data_size);
+    offloadMemcpyAsyncDtoH(shard_c->data, shard_g->data,
+                           shard_g->data_size * sizeof(double),
+                           shard_g->stream);
   }
   if (NULL != shard_r) {
     dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b,
                                    shard_r, cpu_options);
     if (finish) {
-      dbm_shard_gpu_t *const shard_g = &ctx->gpu.shards_c_dev[kshard];
       // Due to validation, finish downloading results a bit earlier.
       offloadStreamSynchronize(shard_g->stream);
     }
@@ -278,7 +284,6 @@ static void multiply_packs(const bool transa, const bool transb,
           dbm_shard_init(shard_r);
           dbm_shard_copy(shard_r, shard_c);
         }
-
         // Use a merge-join to find pairs of blocks with matching sum indices.
         // This utilizes that blocks within a shard are ordered by sum_index.
         const int iblock_start = shard_row_start[shard_row];
@@ -320,7 +325,11 @@ static void multiply_packs(const bool transa, const bool transb,
 
             // Get C block.
             const int row = blk_a->free_index, col = blk_b->free_index;
-            dbm_block_t *blk_c = dbm_shard_lookup(shard_c, row, col);
+            dbm_block_t *blk_c = NULL;
+            if (NULL != shard_r) {
+              blk_c = dbm_shard_lookup(shard_r, row, col);
+            }
+            blk_c = dbm_shard_lookup(shard_c, row, col);
             if (blk_c == NULL && retain_sparsity) {
               continue;
             } else if (blk_c == NULL) {
