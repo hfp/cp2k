@@ -304,8 +304,7 @@ CONTAINS
 #if defined(__parallel)
       INTEGER                                   :: i
       INTEGER, DIMENSION(9)                     :: desca, descb, descout
-#endif
-#if defined(__MKL) && (2025 <= __INTEL_MKL__)
+#elif defined(__MKL) && (2025 <= __INTEL_MKL__)
       REAL(KIND=dp)                             :: beta
 #endif
 
