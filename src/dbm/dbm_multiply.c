@@ -7,7 +7,9 @@
 
 #include <assert.h>
 #include <limits.h>
+#include <math.h>
 #include <omp.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -21,9 +23,33 @@
 #include "dbm_multiply_cpu.h"
 #include "dbm_multiply_gpu.h"
 
-#if defined(__LIBXSMM)
-#include <libxsmm.h>
-#endif
+static double dbm_multiply_maxeps = 1E-6;
+static int dbm_multiply_nerrors = 0;
+static int dbm_multiply_verify = 0;
+
+/*******************************************************************************
+ * \brief Get state of validation: if enabled or not, and number of errors.
+ * \author Hans Pabst
+ ******************************************************************************/
+bool dbm_multiply_get_verify(int *last_nerrors) {
+  assert(omp_get_num_threads() == 1);
+  if (NULL != last_nerrors) {
+    *last_nerrors = dbm_multiply_nerrors;
+  }
+  return (0 != dbm_multiply_verify ? true : false);
+}
+
+/*******************************************************************************
+ * \brief Set state of validation: if enabled or not, and accepted margin.
+ * \author Hans Pabst
+ ******************************************************************************/
+void dbm_multiply_set_verify(const bool enable, const double *maxeps) {
+  assert(omp_get_num_threads() == 1);
+  dbm_multiply_verify = (enable ? 1 : 0);
+  if (NULL != maxeps) {
+    dbm_multiply_maxeps = fabs(*maxeps);
+  }
+}
 
 /*******************************************************************************
  * \brief Private routine for computing the max filter threshold for each row.
@@ -115,22 +141,17 @@ static void backend_process_batch(const int ntasks,
                                   const dbm_task_t batch[ntasks],
                                   const double alpha, const dbm_pack_t *pack_a,
                                   const dbm_pack_t *pack_b, const int kshard,
-                                  dbm_shard_t *shard_c,
+                                  int *nerrors, dbm_shard_t *shard_c,
                                   backend_context_t *ctx) {
   /* BLAS and LIBXSMM benefit in general from DBM_MULTIPLY_TASK_REORDER */
   int cpu_options = DBM_MULTIPLY_TASK_REORDER;
 
-#if defined(__LIBXSMM)
-  const char *const validate_env = getenv("DBM_MULTIPLY_VALIDATE");
-  const char *const maxeps_env = getenv("DBM_MULTIPLY_MAXEPS");
-  const int validate = (NULL == validate_env ? (NULL == maxeps_env ? 0 : 1)
-                                             : atoi(validate_env));
   dbm_shard_t shard_r;
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
   dbm_shard_gpu_t *const shard_g = &ctx->gpu.shards_c_dev[kshard];
   offloadEvent_t event, *pevent = NULL;
 #endif
-  if (0 != validate) {
+  if (NULL != nerrors) { /* verify */
     dbm_shard_init(&shard_r);
     dbm_shard_allocate_promised_blocks(shard_c);
     dbm_shard_copy(&shard_r, shard_c);
@@ -145,7 +166,6 @@ static void backend_process_batch(const int ntasks,
     }
 #endif
   }
-#endif
 
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
   dbm_multiply_gpu_process_batch(ntasks, batch, alpha, kshard, &ctx->gpu);
@@ -156,8 +176,7 @@ static void backend_process_batch(const int ntasks,
                                  cpu_options);
 #endif
 
-#if defined(__LIBXSMM)
-  if (0 != validate) {
+  if (NULL != nerrors) { /* verify */
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
     /* start transferring final state of result matrix */
     assert(shard_c->data_size == shard_g->data_size);
@@ -176,33 +195,27 @@ static void backend_process_batch(const int ntasks,
                                    &shard_r,
                                    cpu_options | DBM_MULTIPLY_BLAS_LIBRARY);
 #endif
-    libxsmm_matdiff_info diff;
-    libxsmm_matdiff_clear(&diff);
+    double epsilon = 0;
     for (int itask = 0; itask < ntasks; ++itask) {
       const dbm_task_t task = batch[itask];
       const double *const tst = &shard_c->data[task.offset_c];
       const double *const ref = &shard_r.data[task.offset_c];
-      libxsmm_matdiff_info d;
-      if (EXIT_SUCCESS == libxsmm_matdiff(&d, LIBXSMM_DATATYPE(double), task.m,
-                                          task.n, ref, tst, NULL /*ldref*/,
-                                          NULL /*ldtst*/)) {
-        libxsmm_matdiff_reduce(&diff, &d);
+      for (int i = 0; i < (task.m * task.n); ++i) {
+        const double diff = tst[i] - ref[i];
+        const double drel = fabs(0 != ref[i] ? (diff / ref[i]) : diff);
+        if (epsilon < drel)
+          epsilon = drel;
       }
     }
-    const double maxeps = (NULL == maxeps_env ? 1E-13 : fabs(atof(maxeps_env)));
-    const double epsilon = libxsmm_matdiff_epsilon(&diff);
-    if (maxeps < epsilon) {
-      if (LIBXSMM_NOTNAN(diff.v_tst)) {
-        fprintf(stderr, "INFO ACC/LIBDBM: ntasks=%i diff=%g (|%g - %g| = %g)\n",
-                ntasks, epsilon, diff.v_ref, diff.v_tst, diff.linf_abs);
-      } else {
+    if (dbm_multiply_maxeps < epsilon) {
+      if (0 == dbm_multiply_verify) {
         fprintf(stderr, "INFO ACC/LIBDBM: ntasks=%i diff=%g\n", ntasks,
                 epsilon);
       }
+      ++*nerrors;
     }
     dbm_shard_release(&shard_r);
   }
-#endif
 }
 
 /*******************************************************************************
@@ -258,7 +271,22 @@ static void multiply_packs(const bool transa, const bool transb,
   const int *free_index_sizes_b =
       (transb) ? matrix_b->row_sizes : matrix_b->col_sizes;
 
-#pragma omp parallel reduction(+ : flop_sum)
+  int *nerrors = (0 == dbm_multiply_verify ? NULL : &dbm_multiply_nerrors);
+  const char *const maxeps_env = getenv("DBM_MULTIPLY_MAXEPS");
+  if (NULL == nerrors) {
+    const char *const verify_env = getenv("DBM_MULTIPLY_VERIFY");
+    if (NULL != verify_env) {
+      nerrors = (0 != atoi(verify_env) ? &dbm_multiply_nerrors : NULL);
+    } else if (NULL != maxeps_env) {
+      dbm_multiply_maxeps = fabs(atof(maxeps_env));
+      nerrors = &dbm_multiply_nerrors;
+    }
+  } else if (NULL != maxeps_env) {
+    dbm_multiply_maxeps = fabs(atof(maxeps_env));
+  }
+  dbm_multiply_nerrors = 0;
+
+#pragma omp parallel reduction(+ : flop_sum, dbm_multiply_nerrors)
   {
     // Thread-private array covering given work in piece-wise fashion.
     dbm_task_t *batch =
@@ -361,13 +389,13 @@ static void multiply_packs(const bool transa, const bool transb,
 
             if (ntasks == DBM_MAX_BATCH_SIZE) {
               backend_process_batch(ntasks, batch, alpha, pack_a, pack_b,
-                                    ishard, shard_c, ctx);
+                                    ishard, nerrors, shard_c, ctx);
               ntasks = 0;
             }
           }
         }
         backend_process_batch(ntasks, batch, alpha, pack_a, pack_b, ishard,
-                              shard_c, ctx);
+                              nerrors, shard_c, ctx);
       }
     }
 

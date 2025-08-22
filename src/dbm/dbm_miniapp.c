@@ -171,11 +171,7 @@ static void set_all_blocks(dbm_matrix_t *matrix) {
       dbm_iterator_next_block(iter, &row, &col, &block, &row_size, &col_size);
       const int block_size = row_size * col_size;
       for (int i = 0; i < block_size; i++) {
-#if defined(DBM_VALIDATE_AGAINST_LIBXSMM) && defined(__LIBXSMM)
         block[i] = 1.0 / (i + 1);
-#else
-        block[i] = 1.0;
-#endif
       }
     }
     dbm_iterator_stop(iter);
@@ -187,13 +183,8 @@ static void set_all_blocks(dbm_matrix_t *matrix) {
  ******************************************************************************/
 void benchmark_multiply(const int M, const int N, const int K, const int m,
                         const int n, const int k, const dbm_mpi_comm_t comm) {
-#if defined(DBM_VALIDATE_AGAINST_LIBXSMM) && defined(__LIBXSMM)
   dbm_matrix_t *matrix_a = create_some_matrix(M, K, 1, m, k, k, comm);
   dbm_matrix_t *matrix_b = create_some_matrix(K, N, k, k, 1, n, comm);
-#else
-  dbm_matrix_t *matrix_a = create_some_matrix(M, K, m, m, k, k, comm);
-  dbm_matrix_t *matrix_b = create_some_matrix(K, N, k, k, n, n, comm);
-#endif
   dbm_distribution_t *dist_c = create_dist(M, N, comm);
   dbm_matrix_t *matrix_c = NULL;
   dbm_create(&matrix_c, dist_c, "result", M, N, matrix_a->row_sizes,
@@ -205,20 +196,13 @@ void benchmark_multiply(const int M, const int N, const int K, const int m,
   set_all_blocks(matrix_a);
   set_all_blocks(matrix_b);
 
+  dbm_multiply_set_verify(true /*enable*/, NULL /*maxeps*/);
+
   int64_t flop = 0;
   const double time_start_multiply = omp_get_wtime();
   dbm_multiply(false, false, 1.0, matrix_a, matrix_b, 1.0, matrix_c, false,
                1e-8, &flop);
   const double time_end_multiply = omp_get_wtime();
-
-  // Validate checksum.
-  // Since all matrix elements were set to 1.0 the checksum is an integer.
-#if defined(DBM_VALIDATE_AGAINST_LIBXSMM) && defined(__LIBXSMM)
-  const double expected = 0, checksum = 0;
-#else
-  const double expected = (uint64_t)M * m * N * n * K * K * k * k;
-  const double checksum = dbm_checksum(matrix_c);
-#endif
 
   dbm_release(matrix_a);
   dbm_release(matrix_b);
@@ -227,7 +211,12 @@ void benchmark_multiply(const int M, const int N, const int K, const int m,
   if (dbm_mpi_comm_rank(comm) == 0) {
     printf("%5i x %5i x %5i  with  %3i x %3i x %3i blocks: ", M, N, K, m, n, k);
   }
-  if (checksum == expected) {
+
+  // Validate result
+  int last_nerrors = 0;
+  const bool validate = dbm_multiply_get_verify(&last_nerrors);
+  assert(validate);
+  if (0 == last_nerrors) {
     dbm_mpi_sum_int64(&flop, 1, comm);
     if (dbm_mpi_comm_rank(comm) == 0) {
       const double duration = time_end_multiply - time_start_multiply;
@@ -236,7 +225,7 @@ void benchmark_multiply(const int M, const int N, const int K, const int m,
     }
   } else {
     printf("ERROR\n");
-    fprintf(stderr, "Expected checksum %f but got %f.\n", expected, checksum);
+    fprintf(stderr, "Failed validation (nerrors=%i).\n", last_nerrors);
     exit(1);
   }
 }
