@@ -33,25 +33,6 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
                   const bool retain_sparsity, const double filter_eps,
                   int64_t *flop);
 
-/*******************************************************************************
- * \brief Get state of validation: if enabled or not, and number of errors.
-
-          If enabled or not is denoted by the return value, and optionally
-          the last number of errors (can be NULL).
- * \author Hans Pabst
- ******************************************************************************/
-bool dbm_multiply_get_verify(int *last_nerrors);
-
-/*******************************************************************************
- * \brief Set state of validation: if enabled or not, and accepted margin.
-
-          The accepted margin (maxeps) is optional (can be NULL).
-          Enabling verification may not be supported, but can be
-          confirmed (dbm_multiply_get_verify).
- * \author Hans Pabst
- ******************************************************************************/
-void dbm_multiply_set_verify(const bool enable, const double *maxeps);
-
 #endif
 
 // EOF

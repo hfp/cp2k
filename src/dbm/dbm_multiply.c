@@ -28,30 +28,6 @@ static int dbm_multiply_nerrors = 0;
 static int dbm_multiply_verify = 0;
 
 /*******************************************************************************
- * \brief Get state of validation: if enabled or not, and number of errors.
- * \author Hans Pabst
- ******************************************************************************/
-bool dbm_multiply_get_verify(int *last_nerrors) {
-  assert(omp_get_num_threads() == 1);
-  if (NULL != last_nerrors) {
-    *last_nerrors = dbm_multiply_nerrors;
-  }
-  return (0 != dbm_multiply_verify ? true : false);
-}
-
-/*******************************************************************************
- * \brief Set state of validation: if enabled or not, and accepted margin.
- * \author Hans Pabst
- ******************************************************************************/
-void dbm_multiply_set_verify(const bool enable, const double *maxeps) {
-  assert(omp_get_num_threads() == 1);
-  dbm_multiply_verify = (enable ? 1 : 0);
-  if (NULL != maxeps) {
-    dbm_multiply_maxeps = fabs(*maxeps);
-  }
-}
-
-/*******************************************************************************
  * \brief Private routine for computing the max filter threshold for each row.
  * \author Ole Schuett
  ******************************************************************************/
@@ -392,8 +368,11 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
                   const double beta, dbm_matrix_t *matrix_c,
                   const bool retain_sparsity, const double filter_eps,
                   int64_t *flop) {
-
   assert(omp_get_num_threads() == 1);
+  assert(matrix_a != NULL && matrix_b != NULL && matrix_c != NULL);
+
+  // Compute filter thresholds for each row.
+  float *rows_max_eps = compute_rows_max_eps(transa, matrix_a, filter_eps);
 
   // Throughout the matrix multiplication code the "sum_index" and "free_index"
   // denote the summation (aka dummy) and free index from the Einstein notation.
@@ -407,18 +386,8 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   assert(num_free_index_a == matrix_c->nrows);
   assert(num_free_index_b == matrix_c->ncols);
 
-  // Prepare matrix_c.
+  // Prepare matrix_c (host).
   dbm_scale(matrix_c, beta);
-
-  // Start uploading matrix_c to the GPU.
-  backend_context_t *ctx = backend_start(matrix_c);
-
-  // Compute filter thresholds for each row.
-  float *rows_max_eps = compute_rows_max_eps(transa, matrix_a, filter_eps);
-
-  // Redistribute matrix_a and matrix_b across MPI ranks.
-  dbm_comm_iterator_t *iter =
-      dbm_comm_iterator_start(transa, transb, matrix_a, matrix_b, matrix_c);
 
   // Determine if validation shall be performed.
   bool verify = (0 != dbm_multiply_verify);
@@ -431,9 +400,24 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
       dbm_multiply_maxeps = fabs(atof(maxeps_env));
       verify = true;
     }
-  } else if (NULL != maxeps_env) {
-    dbm_multiply_maxeps = fabs(atof(maxeps_env));
   }
+
+  dbm_matrix_t matrix_t, *matrix_d = NULL;
+  if (verify) {
+    dbm_distribution_t *const dist_shared = matrix_c->dist;
+    matrix_d = &matrix_t;
+    dbm_create(&matrix_d, dist_shared,
+                matrix_c->name, matrix_c->nrows, matrix_c->ncols,
+                matrix_c->row_sizes, matrix_c->col_sizes);
+    dbm_copy(matrix_d, matrix_c);
+  }
+
+  // Start uploading matrix_c to the GPU.
+  backend_context_t *ctx = backend_start(matrix_c);
+
+  // Redistribute matrix_a and matrix_b across MPI ranks.
+  dbm_comm_iterator_t *iter =
+      dbm_comm_iterator_start(transa, transb, matrix_a, matrix_b, matrix_c);
 
   // Main loop.
   *flop = 0;
@@ -446,11 +430,17 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
 
   // Wait for all other MPI ranks to complete, then release ressources.
   dbm_comm_iterator_stop(iter);
-  free(rows_max_eps);
   backend_stop(ctx);
 
   // Final filter pass.
   dbm_filter(matrix_c, filter_eps);
+
+  if (NULL != matrix_d) {
+    dbm_release(matrix_d);
+  }
+
+  // Release filter thresholds.
+  free(rows_max_eps);
 }
 
 // EOF
