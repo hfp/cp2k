@@ -279,11 +279,6 @@ static void multiply_packs(const bool transa, const bool transb,
         dbm_shard_t shard_tmp, *shard_r = NULL;
         int ntasks = 0;
 
-        if (verify) {
-          shard_r = &shard_tmp;
-          dbm_shard_init(shard_r);
-          dbm_shard_copy(shard_r, shard_c);
-        }
         // Use a merge-join to find pairs of blocks with matching sum indices.
         // This utilizes that blocks within a shard are ordered by sum_index.
         const int iblock_start = shard_row_start[shard_row];
@@ -325,20 +320,13 @@ static void multiply_packs(const bool transa, const bool transb,
 
             // Get C block.
             const int row = blk_a->free_index, col = blk_b->free_index;
-            dbm_block_t *blk_c = NULL;
-            if (NULL != shard_r) {
-              blk_c = dbm_shard_lookup(shard_r, row, col);
-            }
-            blk_c = dbm_shard_lookup(shard_c, row, col);
+            dbm_block_t *blk_c = dbm_shard_lookup(shard_c, row, col);
             if (blk_c == NULL && retain_sparsity) {
               continue;
             } else if (blk_c == NULL) {
               assert(dbm_get_shard_index(matrix_c, row, col) == ishard);
               assert(dbm_get_stored_coordinates(matrix_c, row, col) ==
                      matrix_c->dist->my_rank);
-              if (NULL != shard_r) {
-                blk_c = dbm_shard_promise_new_block(shard_r, row, col, m * n);
-              }
               blk_c = dbm_shard_promise_new_block(shard_c, row, col, m * n);
             }
 
@@ -360,11 +348,21 @@ static void multiply_packs(const bool transa, const bool transb,
             ++ntasks;
 
             if (ntasks == DBM_MAX_BATCH_SIZE) {
+              if (verify && NULL == shard_r) {
+                shard_r = &shard_tmp;
+                dbm_shard_init(shard_r);
+                dbm_shard_copy(shard_r, shard_c);
+              }
               backend_process_batch(ntasks, batch, alpha, pack_a, pack_b,
                                     ishard, shard_c, shard_r, false, ctx);
               ntasks = 0;
             }
           }
+        }
+        if (verify && NULL == shard_r) {
+          shard_r = &shard_tmp;
+          dbm_shard_init(shard_r);
+          dbm_shard_copy(shard_r, shard_c);
         }
         backend_process_batch(ntasks, batch, alpha, pack_a, pack_b, ishard,
                               shard_c, shard_r, true, ctx);
