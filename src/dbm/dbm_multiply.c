@@ -74,7 +74,7 @@ static float *compute_rows_max_eps(const bool trans, const dbm_matrix_t *matrix,
         nblocks_per_row[row]++;
       }
     }
-#pragma omp single
+#pragma omp master
     dbm_mpi_sum_int(nblocks_per_row, nrows, matrix->dist->comm);
 #pragma omp barrier
 #pragma omp for
