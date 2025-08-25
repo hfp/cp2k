@@ -579,8 +579,8 @@ double dbm_maxeps(const dbm_matrix_t *matrix_a, const dbm_matrix_t *matrix_b) {
     assert(shard_a->nblocks == shard_b->nblocks);
     for (int iblock = 0; iblock < shard_a->nblocks; ++iblock) {
       const dbm_block_t *const blk_a = &shard_a->blocks[iblock];
-      const dbm_block_t *const blk_b = dbm_shard_lookup(shard_b,
-        blk_a->row, blk_a->col);
+      const dbm_block_t *const blk_b =
+          dbm_shard_lookup(shard_b, blk_a->row, blk_a->col);
       const int row_size = matrix_a->row_sizes[blk_a->row];
       const int col_size = matrix_a->col_sizes[blk_a->col];
       assert(row_size == matrix_b->row_sizes[blk_b->row]);

@@ -197,9 +197,8 @@ void benchmark_multiply(const int M, const int N, const int K, const int m,
   set_all_blocks(matrix_b);
 
   dbm_distribution_t *const dist_shared = matrix_c->dist;
-  dbm_create(&matrix_d, dist_shared,
-              matrix_c->name, matrix_c->nrows, matrix_c->ncols,
-              matrix_c->row_sizes, matrix_c->col_sizes);
+  dbm_create(&matrix_d, dist_shared, matrix_c->name, matrix_c->nrows,
+             matrix_c->ncols, matrix_c->row_sizes, matrix_c->col_sizes);
   dbm_copy(matrix_d, matrix_c);
 
   int64_t flop = 0;
@@ -207,7 +206,7 @@ void benchmark_multiply(const int M, const int N, const int K, const int m,
   dbm_multiply(false, false, 1.0, matrix_a, matrix_b, 1.0, matrix_c, false,
                1e-8, &flop);
   const double time_end_multiply = omp_get_wtime();
-  
+
   // Calculate result on the host for validation
   dbm_multiply(false, false, 1.0, matrix_a, matrix_b, 1.0, matrix_d, false,
                1e-8, NULL);

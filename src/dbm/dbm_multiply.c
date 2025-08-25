@@ -134,11 +134,12 @@ static void backend_process_batch(const int ntasks,
 #else
     (void)kshard;
     (void)finish;
-    dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b, shard_c,
-                                   cpu_options);
+    dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b,
+                                   shard_c, cpu_options);
 #endif
   } else { // Validate against host.
-    dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b, shard_c,
+    dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b,
+                                   shard_c,
                                    cpu_options | DBM_MULTIPLY_BLAS_LIBRARY);
   }
 }
@@ -343,14 +344,13 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   const char *const maxeps_env = getenv("DBM_MULTIPLY_MAXEPS");
   const char *const verify_env = getenv("DBM_MULTIPLY_VERIFY");
   const double maxeps = (NULL == maxeps_env ? 1E-5 : fabs(atof(maxeps_env)));
-  const int verify = (NULL == verify_env ? (NULL == maxeps_env ? 0 : 1)
-                                         : atoi(verify_env));
+  const int verify =
+      (NULL == verify_env ? (NULL == maxeps_env ? 0 : 1) : atoi(verify_env));
   dbm_matrix_t *matrix_d = NULL;
   if (0 != verify) {
     dbm_distribution_t *const dist_shared = matrix_c->dist;
-    dbm_create(&matrix_d, dist_shared,
-                matrix_c->name, matrix_c->nrows, matrix_c->ncols,
-                matrix_c->row_sizes, matrix_c->col_sizes);
+    dbm_create(&matrix_d, dist_shared, matrix_c->name, matrix_c->nrows,
+               matrix_c->ncols, matrix_c->row_sizes, matrix_c->col_sizes);
     dbm_copy(matrix_d, matrix_c);
   }
 
@@ -379,7 +379,8 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   backend_stop(ctx);
 
   if (NULL != matrix_d) {
-    iter = dbm_comm_iterator_start(transa, transb, matrix_a, matrix_b, matrix_d);
+    iter =
+        dbm_comm_iterator_start(transa, transb, matrix_a, matrix_b, matrix_d);
     while (dbm_comm_iterator_next(iter, &pack_a, &pack_b)) {
       multiply_packs(transa, transb, alpha, pack_a, pack_b, matrix_a, matrix_b,
                      matrix_d, retain_sparsity, rows_max_eps, NULL, NULL);
