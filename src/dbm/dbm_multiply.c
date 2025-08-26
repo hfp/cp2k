@@ -390,7 +390,12 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
     dbm_comm_iterator_stop(iter);
     const double epsilon = dbm_maxeps(matrix_d, matrix_c);
     if (maxeps < epsilon) {
-      fprintf(stderr, "INFO ACC/LIBDBM: npacks=%i diff=%g\n", npacks, epsilon);
+      if (1 == verify) {
+        fprintf(stderr, "WARN ACC/LIBDBM: npacks=%i diff=%g\n", npacks, epsilon);
+      } else {
+        fprintf(stderr, "ERROR ACC/LIBDBM: npacks=%i diff=%g\n", npacks, epsilon);
+        exit(EXIT_FAILURE);
+      }
     }
     dbm_release(matrix_d);
   }
