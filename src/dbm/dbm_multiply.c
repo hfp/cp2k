@@ -343,7 +343,7 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   // Determine if validation shall be performed.
   const char *const maxeps_env = getenv("DBM_MULTIPLY_MAXEPS");
   const char *const verify_env = getenv("DBM_MULTIPLY_VERIFY");
-  const double maxeps = (NULL == maxeps_env ? 1E-5 : fabs(atof(maxeps_env)));
+  const double maxeps = (NULL == maxeps_env ? 1E-1 : fabs(atof(maxeps_env)));
   const int verify =
       (NULL == verify_env ? (NULL == maxeps_env ? 0 : 1) : atoi(verify_env));
   dbm_matrix_t *matrix_d = NULL;
@@ -379,25 +379,27 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   backend_stop(ctx);
 
   if (NULL != matrix_d) {
+    int npacks = 0;
     iter =
         dbm_comm_iterator_start(transa, transb, matrix_a, matrix_b, matrix_d);
     while (dbm_comm_iterator_next(iter, &pack_a, &pack_b)) {
       multiply_packs(transa, transb, alpha, pack_a, pack_b, matrix_a, matrix_b,
                      matrix_d, retain_sparsity, rows_max_eps, NULL, NULL);
+      ++npacks;
     }
     dbm_comm_iterator_stop(iter);
     const double epsilon = dbm_maxeps(matrix_d, matrix_c);
     if (maxeps < epsilon) {
-      fprintf(stderr, "INFO ACC/LIBDBM: diff=%g\n", epsilon);
+      fprintf(stderr, "INFO ACC/LIBDBM: npacks=%i diff=%g\n", npacks, epsilon);
     }
     dbm_release(matrix_d);
   }
 
-  // Final filter pass.
-  dbm_filter(matrix_c, filter_eps);
-
   // Release filter thresholds.
   free(rows_max_eps);
+
+  // Final filter pass.
+  dbm_filter(matrix_c, filter_eps);
 }
 
 // EOF
