@@ -391,9 +391,11 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
     const double epsilon = dbm_maxeps(matrix_d, matrix_c);
     if (maxeps < epsilon) {
       if (1 == verify) {
-        fprintf(stderr, "WARN ACC/LIBDBM: npacks=%i diff=%g\n", npacks, epsilon);
+        fprintf(stderr, "WARN ACC/LIBDBM: npacks=%i diff=%g\n", npacks,
+                epsilon);
       } else {
-        fprintf(stderr, "ERROR ACC/LIBDBM: npacks=%i diff=%g\n", npacks, epsilon);
+        fprintf(stderr, "ERROR ACC/LIBDBM: npacks=%i diff=%g\n", npacks,
+                epsilon);
         exit(EXIT_FAILURE);
       }
     }
