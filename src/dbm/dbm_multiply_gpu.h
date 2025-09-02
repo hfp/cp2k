@@ -31,6 +31,7 @@ typedef struct {
  ******************************************************************************/
 typedef struct {
   offloadStream_t main_stream;
+  offloadEvent_t upload_event;
 
   int nshards;
   dbm_shard_t *shards_c_host;
@@ -50,6 +51,12 @@ typedef struct {
 void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,
                             dbm_shard_t *shards_c_host,
                             dbm_multiply_gpu_context_t *ctx);
+
+/*******************************************************************************
+ * \brief Internal routine to start uploading packs (uses ctx's upload event).
+ * \author Hans Pabst
+ ******************************************************************************/
+bool dbm_multiply_gpu_upload_packs_begin(dbm_multiply_gpu_context_t *ctx);
 
 /*******************************************************************************
  * \brief Internal routine for uploading newly arrived packs onto the device.

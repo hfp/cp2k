@@ -92,17 +92,19 @@ static backend_context_t *backend_start(const dbm_matrix_t *matrix_c) {
  * \brief Private routine for handing newly arrived packs to the backend.
  * \author Ole Schuett
  ******************************************************************************/
-static void backend_upload_packs(const dbm_pack_t *pack_a,
+static bool backend_upload_packs(const dbm_pack_t *pack_a,
                                  const dbm_pack_t *pack_b,
                                  backend_context_t *ctx) {
-
+  bool result = false;
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
-  dbm_multiply_gpu_upload_packs(pack_a, pack_b, &ctx->gpu);
+  result = dbm_multiply_gpu_upload_packs_begin(&ctx->gpu);
+  /*if (result)*/ { dbm_multiply_gpu_upload_packs(pack_a, pack_b, &ctx->gpu); }
 #else
   (void)pack_a; // mark as used
   (void)pack_b;
   (void)ctx;
 #endif
+  return result;
 }
 
 /*******************************************************************************
@@ -369,9 +371,11 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   // Main loop.
   dbm_pack_t *pack_a, *pack_b;
   while (dbm_comm_iterator_next(iter, &pack_a, &pack_b)) {
-    backend_upload_packs(pack_a, pack_b, ctx);
+    const bool uploaded = backend_upload_packs(pack_a, pack_b, ctx);
     multiply_packs(transa, transb, alpha, pack_a, pack_b, matrix_a, matrix_b,
-                   matrix_c, retain_sparsity, rows_max_eps, flop, ctx);
+                   matrix_c, retain_sparsity, rows_max_eps, flop,
+                   ctx /*uploaded ? ctx : NULL*/);
+    (void)uploaded; // mark used
   }
 
   // Wait for all other MPI ranks to complete, then release ressources.

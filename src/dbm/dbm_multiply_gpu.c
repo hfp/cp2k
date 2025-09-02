@@ -31,6 +31,7 @@ void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,
   ctx->shards_c_host = shards_c_host;
   ctx->max_batch_size = max_batch_size;
   offloadStreamCreate(&ctx->main_stream);
+  offloadEventCreate(&ctx->upload_event);
 
   // Allocate device storage for batches.
   const size_t size = nshards * max_batch_size * sizeof(dbm_task_t);
@@ -70,6 +71,22 @@ static void upload_pack(const dbm_pack_t *pack_host, dbm_pack_t *pack_dev,
 }
 
 /*******************************************************************************
+ * \brief Internal routine to start uploading packs (uses ctx's upload event).
+ * \author Hans Pabst
+ ******************************************************************************/
+bool dbm_multiply_gpu_upload_packs_begin(dbm_multiply_gpu_context_t *ctx) {
+  // Assume GPU device was activated earlier.
+  // Wait for all c-streams to complete before overwriting old packs.
+  for (int i = 0; i < ctx->nshards; i++) {
+    offloadEventRecord(ctx->upload_event, ctx->shards_c_dev[i].stream);
+    offloadStreamWaitEvent(ctx->main_stream, ctx->upload_event);
+  }
+  // Record event to check if all c-streams already completed.
+  offloadEventRecord(ctx->upload_event, ctx->main_stream);
+  return offloadEventQuery(ctx->upload_event);
+}
+
+/*******************************************************************************
  * \brief Internal routine for uploading newly arrived packs onto the device.
  * \author Ole Schuett
  ******************************************************************************/
@@ -77,23 +94,14 @@ void dbm_multiply_gpu_upload_packs(const dbm_pack_t *pack_a,
                                    const dbm_pack_t *pack_b,
                                    dbm_multiply_gpu_context_t *ctx) {
   // Assume GPU device was activated earlier.
-  // Wait for all c-streams to complete before overwriting old packs.
-  offloadEvent_t event;
-  offloadEventCreate(&event);
-  for (int i = 0; i < ctx->nshards; i++) {
-    offloadEventRecord(event, ctx->shards_c_dev[i].stream);
-    offloadStreamWaitEvent(ctx->main_stream, event);
-  }
-
   upload_pack(pack_a, &ctx->pack_a_dev, ctx->main_stream);
   upload_pack(pack_b, &ctx->pack_b_dev, ctx->main_stream);
 
   // Have all c-streams wait until new packs are uploaded.
-  offloadEventRecord(event, ctx->main_stream);
+  offloadEventRecord(ctx->upload_event, ctx->main_stream);
   for (int i = 0; i < ctx->nshards; i++) {
-    offloadStreamWaitEvent(ctx->shards_c_dev[i].stream, event);
+    offloadStreamWaitEvent(ctx->shards_c_dev[i].stream, ctx->upload_event);
   }
-  offloadEventDestroy(event);
 }
 
 /*******************************************************************************
@@ -203,6 +211,7 @@ void dbm_multiply_gpu_stop(dbm_multiply_gpu_context_t *ctx) {
   dbm_mempool_device_free(ctx->pack_b_dev.data);
   dbm_mempool_device_free(ctx->batches_dev);
   offloadStreamDestroy(ctx->main_stream);
+  offloadEventDestroy(ctx->upload_event);
 }
 
 #endif // defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
