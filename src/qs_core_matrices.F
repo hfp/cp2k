@@ -314,7 +314,7 @@ CONTAINS
          IF (dft_control%qs_control%do_ppl_method == do_ppl_analytic) THEN
             CALL get_qs_env(qs_env, lri_env=lri_env)
             IF (ASSOCIATED(lri_env)) THEN
-              use_lrigpw = (dft_control%qs_control%lrigpw .AND. lri_env%ppl_ri)
+               use_lrigpw = (dft_control%qs_control%lrigpw .AND. lri_env%ppl_ri)
             END IF
             IF (use_lrigpw) THEN
                IF (lri_env%exact_1c_terms) THEN
