@@ -98,21 +98,14 @@ static backend_context_t *backend_start(const dbm_matrix_t *matrix_c) {
 static bool backend_upload_packs(const dbm_pack_t *pack_a,
                                  const dbm_pack_t *pack_b,
                                  backend_context_t *ctx) {
-  bool result = false;
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
-  result = dbm_multiply_gpu_upload_packs_begin(&ctx->gpu);
-#if DBM_HYBRID_HOST_DEVICE
-  if (result)
-#endif
-  {
-    dbm_multiply_gpu_upload_packs(pack_a, pack_b, &ctx->gpu);
-  }
+  return dbm_multiply_gpu_upload_packs(pack_a, pack_b, &ctx->gpu);
 #else
   (void)pack_a; // mark as used
   (void)pack_b;
   (void)ctx;
+  return false;
 #endif
-  return result;
 }
 
 /*******************************************************************************

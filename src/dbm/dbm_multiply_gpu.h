@@ -54,16 +54,10 @@ void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,
                             dbm_multiply_gpu_context_t *ctx);
 
 /*******************************************************************************
- * \brief Internal routine to start uploading packs (uses ctx's upload event).
- * \author Hans Pabst
- ******************************************************************************/
-bool dbm_multiply_gpu_upload_packs_begin(dbm_multiply_gpu_context_t *ctx);
-
-/*******************************************************************************
  * \brief Internal routine for uploading newly arrived packs onto the device.
- * \author Ole Schuett
+ * \author Ole Schuett and Hans Pabst
  ******************************************************************************/
-void dbm_multiply_gpu_upload_packs(const dbm_pack_t *pack_a,
+bool dbm_multiply_gpu_upload_packs(const dbm_pack_t *pack_a,
                                    const dbm_pack_t *pack_b,
                                    dbm_multiply_gpu_context_t *ctx);
 
