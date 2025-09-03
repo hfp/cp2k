@@ -125,9 +125,10 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
   dbm_task_t *batch_dev = &ctx->batches_dev[kshard * ctx->max_batch_size];
   const size_t size = ntasks * sizeof(dbm_task_t);
   offloadMemcpyAsyncHtoD(batch_dev, batch, size, shard_c_dev->stream);
+  offloadEvent_t memsetup;
+  offloadEventCreate(&memsetup);
 
   // Reallocate shard_c_dev->data if necessary.
-  offloadEvent_t memsetup;
   double *old_data_dev = NULL;
   if (shard_c_host->data_promised > shard_c_dev->data_allocated) {
     shard_c_dev->data_allocated =
@@ -140,9 +141,8 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
     offloadMemcpyAsyncDtoD(shard_c_dev->data, old_data_dev,
                            shard_c_dev->data_size * sizeof(double),
                            shard_c_dev->stream);
-    offloadEventCreate(&memsetup);
-    offloadEventRecord(memsetup, shard_c_dev->stream);
   }
+  offloadEventRecord(memsetup, shard_c_dev->stream);
 
   // Zero new blocks if necessary.
   if (shard_c_host->data_promised > shard_c_dev->data_size) {
@@ -172,9 +172,10 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
   // Wait for:
   // - Batch to be uploaded (before refilling it).
   // - Safely freeing device buffer (if resized).
+  offloadEventSynchronize(memsetup);
+  offloadEventDestroy(memsetup);
+
   if (NULL != old_data_dev) {
-    offloadEventSynchronize(memsetup);
-    offloadEventDestroy(memsetup);
     dbm_mempool_device_free(old_data_dev);
   }
 }
