@@ -23,6 +23,7 @@ typedef struct {
   int data_size;
   int data_allocated;
   offloadStream_t stream;
+  offloadEvent_t event;
 } dbm_shard_gpu_t;
 
 /*******************************************************************************

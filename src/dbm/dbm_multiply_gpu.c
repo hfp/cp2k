@@ -44,6 +44,7 @@ void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,
     const dbm_shard_t *shard_c_host = &ctx->shards_c_host[i];
     dbm_shard_gpu_t *shard_c_dev = &ctx->shards_c_dev[i];
     offloadStreamCreate(&shard_c_dev->stream);
+    offloadEventCreate(&shard_c_dev->event);
     shard_c_dev->data_size = shard_c_host->data_size;
     // only allocate data_size on device rather than data_allocated
     shard_c_dev->data_allocated = shard_c_host->data_size;
@@ -125,8 +126,6 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
   dbm_task_t *batch_dev = &ctx->batches_dev[kshard * ctx->max_batch_size];
   const size_t size = ntasks * sizeof(dbm_task_t);
   offloadMemcpyAsyncHtoD(batch_dev, batch, size, shard_c_dev->stream);
-  offloadEvent_t memsetup;
-  offloadEventCreate(&memsetup);
 
   // Reallocate shard_c_dev->data if necessary.
   double *old_data_dev = NULL;
@@ -142,7 +141,7 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
                            shard_c_dev->data_size * sizeof(double),
                            shard_c_dev->stream);
   }
-  offloadEventRecord(memsetup, shard_c_dev->stream);
+  offloadEventRecord(shard_c_dev->event, shard_c_dev->stream);
 
   // Zero new blocks if necessary.
   if (shard_c_host->data_promised > shard_c_dev->data_size) {
@@ -172,8 +171,7 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
   // Wait for:
   // - Batch to be uploaded (before refilling it).
   // - Safely freeing device buffer (if resized).
-  offloadEventSynchronize(memsetup);
-  offloadEventDestroy(memsetup);
+  offloadEventSynchronize(shard_c_dev->event);
 
   if (NULL != old_data_dev) {
     dbm_mempool_device_free(old_data_dev);
@@ -189,9 +187,10 @@ void dbm_multiply_gpu_stop(dbm_multiply_gpu_context_t *ctx) {
   // Wait for completion, then free gpu ressources.
 #pragma omp parallel for DBM_OMP_SCHEDULE
   for (int i = 0; i < ctx->nshards; i++) {
-    dbm_shard_gpu_t *shard_c_dev = &ctx->shards_c_dev[i];
+    dbm_shard_gpu_t *const shard_c_dev = &ctx->shards_c_dev[i];
     offloadStreamSynchronize(shard_c_dev->stream);
     offloadStreamDestroy(shard_c_dev->stream);
+    offloadEventDestroy(shard_c_dev->event);
     dbm_mempool_device_free(shard_c_dev->data);
   }
   free(ctx->shards_c_dev);
