@@ -130,16 +130,8 @@ static void backend_process_batch(const int ntasks,
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
     if (!force_cpu) {
       dbm_shard_gpu_t *const shard_g = &ctx->gpu.shards_c_dev[kshard];
-      dbm_multiply_gpu_process_batch(ntasks, batch, alpha, kshard, &ctx->gpu);
-      if (finish) { // Start downloading the current shard of matrix_c.
-        // Grow host buffer if necessary.
-        dbm_shard_allocate_promised_blocks(shard_c);
-        // Download results from device.
-        assert(shard_c->data_size == shard_g->data_size);
-        offloadMemcpyAsyncDtoH(shard_c->data, shard_g->data,
-                               shard_g->data_size * sizeof(double),
-                               shard_g->stream);
-      }
+      dbm_multiply_gpu_process_batch(ntasks, batch, alpha, kshard, finish,
+                                     &ctx->gpu);
     } else
 #endif
     {

@@ -72,6 +72,7 @@ void dbm_multiply_gpu_upload_packs(const dbm_pack_t *pack_a,
  ******************************************************************************/
 void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
                                     const double alpha, const int kshard,
+                                    const bool finish,
                                     dbm_multiply_gpu_context_t *ctx);
 
 /*******************************************************************************

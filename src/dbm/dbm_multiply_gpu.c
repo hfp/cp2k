@@ -110,14 +110,15 @@ void dbm_multiply_gpu_upload_packs(const dbm_pack_t *pack_a,
  ******************************************************************************/
 void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
                                     const double alpha, const int kshard,
+                                    const bool finish,
                                     dbm_multiply_gpu_context_t *ctx) {
   if (ntasks == 0) {
     return; // Nothing to do.
   }
 
   // Assume GPU device was activated earlier.
-  const dbm_shard_t *shard_c_host = &ctx->shards_c_host[kshard];
-  dbm_shard_gpu_t *shard_c_dev = &ctx->shards_c_dev[kshard];
+  dbm_shard_gpu_t *const shard_c_dev = &ctx->shards_c_dev[kshard];
+  dbm_shard_t *const shard_c_host = &ctx->shards_c_host[kshard];
   assert(NULL != shard_c_host && NULL != shard_c_dev);
 
   // Upload new batch.
@@ -167,6 +168,16 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
   // Safely freeing old buffer.
   if (NULL != old_data_dev) {
     dbm_mempool_device_free(old_data_dev);
+  }
+
+  if (finish) { // Start downloading the current shard of matrix_c.
+    // Grow host buffer if necessary.
+    dbm_shard_allocate_promised_blocks(shard_c_host);
+    // Download results from device.
+    assert(shard_c_host->data_size == shard_c_dev->data_size);
+    offloadMemcpyAsyncDtoH(shard_c_host->data, shard_c_dev->data,
+                           shard_c_dev->data_size * sizeof(double),
+                           shard_c_dev->stream);
   }
 }
 
