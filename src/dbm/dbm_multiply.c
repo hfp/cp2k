@@ -98,7 +98,10 @@ static bool backend_upload_packs(const dbm_pack_t *pack_a,
   bool result = false;
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
   result = dbm_multiply_gpu_upload_packs_begin(&ctx->gpu);
-  /*if (result)*/ { dbm_multiply_gpu_upload_packs(pack_a, pack_b, &ctx->gpu); }
+#if DBM_HYBRID_HOST_DEVICE
+  if (result)
+#endif
+  { dbm_multiply_gpu_upload_packs(pack_a, pack_b, &ctx->gpu); }
 #else
   (void)pack_a; // mark as used
   (void)pack_b;
@@ -374,8 +377,12 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
     const bool uploaded = backend_upload_packs(pack_a, pack_b, ctx);
     multiply_packs(transa, transb, alpha, pack_a, pack_b, matrix_a, matrix_b,
                    matrix_c, retain_sparsity, rows_max_eps, flop,
-                   ctx /*uploaded ? ctx : NULL*/);
+#if DBM_HYBRID_HOST_DEVICE
+                   uploaded ? ctx : NULL);
+#else
+                   ctx);
     (void)uploaded; // mark used
+#endif
   }
 
   // Wait for all other MPI ranks to complete, then release ressources.
@@ -383,23 +390,19 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   backend_stop(ctx);
 
   if (NULL != matrix_d) {
-    int npacks = 0;
     iter =
         dbm_comm_iterator_start(transa, transb, matrix_a, matrix_b, matrix_d);
     while (dbm_comm_iterator_next(iter, &pack_a, &pack_b)) {
       multiply_packs(transa, transb, alpha, pack_a, pack_b, matrix_a, matrix_b,
                      matrix_d, retain_sparsity, rows_max_eps, NULL, NULL);
-      ++npacks;
     }
     dbm_comm_iterator_stop(iter);
     const double epsilon = dbm_maxeps(matrix_d, matrix_c);
     if (maxeps < epsilon) {
       if (1 == verify) {
-        fprintf(stderr, "WARN ACC/LIBDBM: npacks=%i diff=%g\n", npacks,
-                epsilon);
+        fprintf(stderr, "WARN ACC/LIBDBM: diff=%g\n", epsilon);
       } else {
-        fprintf(stderr, "ERROR ACC/LIBDBM: npacks=%i diff=%g\n", npacks,
-                epsilon);
+        fprintf(stderr, "ERROR ACC/LIBDBM: diff=%g\n", epsilon);
         exit(EXIT_FAILURE);
       }
     }
