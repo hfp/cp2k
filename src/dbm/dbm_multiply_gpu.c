@@ -171,27 +171,6 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
 }
 
 /*******************************************************************************
- * \brief Internal routine for downloading results from the device.
- * \author Ole Schuett
- ******************************************************************************/
-void dbm_multiply_gpu_download_results(dbm_multiply_gpu_context_t *ctx) {
-  // Assume GPU device was activated earlier.
-#pragma omp parallel for DBM_OMP_SCHEDULE
-  for (int i = 0; i < ctx->nshards; i++) {
-    // Grow host buffer if necessary.
-    dbm_shard_t *shard_c_host = &ctx->shards_c_host[i];
-    dbm_shard_allocate_promised_blocks(shard_c_host);
-
-    // Download results from device.
-    dbm_shard_gpu_t *shard_c_dev = &ctx->shards_c_dev[i];
-    assert(shard_c_host->data_size == shard_c_dev->data_size);
-    const size_t size = shard_c_dev->data_size * sizeof(double);
-    offloadMemcpyAsyncDtoH(shard_c_host->data, shard_c_dev->data, size,
-                           shard_c_dev->stream);
-  }
-}
-
-/*******************************************************************************
  * \brief Internal routine for shutting down the gpu backend.
  * \author Ole Schuett
  ******************************************************************************/

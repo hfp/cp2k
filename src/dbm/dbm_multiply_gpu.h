@@ -75,12 +75,6 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
                                     dbm_multiply_gpu_context_t *ctx);
 
 /*******************************************************************************
- * \brief Internal routine for downloading results from the device.
- * \author Ole Schuett
- ******************************************************************************/
-void dbm_multiply_gpu_download_results(dbm_multiply_gpu_context_t *ctx);
-
-/*******************************************************************************
  * \brief Internal routine for shutting down the gpu backend.
  * \author Ole Schuett
  ******************************************************************************/
