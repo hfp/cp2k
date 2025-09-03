@@ -69,6 +69,7 @@ typedef struct {
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
   dbm_multiply_gpu_context_t gpu;
 #endif
+  int cpu_options; // Binary or'ed dbm_multiply_cpu_options (enum).
 } backend_context_t;
 
 /*******************************************************************************
@@ -76,7 +77,9 @@ typedef struct {
  * \author Ole Schuett
  ******************************************************************************/
 static backend_context_t *backend_start(const dbm_matrix_t *matrix_c) {
-  backend_context_t *ctx = calloc(1, sizeof(backend_context_t));
+  backend_context_t *const ctx = calloc(1, sizeof(backend_context_t));
+  // BLAS and LIBXSMM benefit in general from DBM_MULTIPLY_TASK_REORDER.
+  ctx->cpu_options = DBM_MULTIPLY_TASK_REORDER;
 
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
   dbm_multiply_gpu_start(DBM_MAX_BATCH_SIZE, dbm_get_num_shards(matrix_c),
@@ -101,7 +104,9 @@ static bool backend_upload_packs(const dbm_pack_t *pack_a,
 #if DBM_HYBRID_HOST_DEVICE
   if (result)
 #endif
-  { dbm_multiply_gpu_upload_packs(pack_a, pack_b, &ctx->gpu); }
+  {
+    dbm_multiply_gpu_upload_packs(pack_a, pack_b, &ctx->gpu);
+  }
 #else
   (void)pack_a; // mark as used
   (void)pack_b;
@@ -118,34 +123,34 @@ static void backend_process_batch(const int ntasks,
                                   const dbm_task_t batch[ntasks],
                                   const double alpha, const dbm_pack_t *pack_a,
                                   const dbm_pack_t *pack_b, const int kshard,
-                                  const bool finish, dbm_shard_t *shard_c,
+                                  dbm_shard_t *shard_c, const bool finish,
+                                  const bool force_cpu,
                                   backend_context_t *ctx) {
-  // BLAS and LIBXSMM benefit in general from DBM_MULTIPLY_TASK_REORDER.
-  const int cpu_options = DBM_MULTIPLY_TASK_REORDER;
-
   if (NULL != ctx) {
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
-    dbm_shard_gpu_t *const shard_g = &ctx->gpu.shards_c_dev[kshard];
-    dbm_multiply_gpu_process_batch(ntasks, batch, alpha, kshard, &ctx->gpu);
-    if (finish) { // Start downloading the current shard of matrix_c.
-      // Grow host buffer if necessary.
-      dbm_shard_allocate_promised_blocks(shard_c);
-      // Download results from device.
-      assert(shard_c->data_size == shard_g->data_size);
-      offloadMemcpyAsyncDtoH(shard_c->data, shard_g->data,
-                             shard_g->data_size * sizeof(double),
-                             shard_g->stream);
-    }
-#else
-    (void)kshard;
-    (void)finish;
-    dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b,
-                                   shard_c, cpu_options);
+    if (!force_cpu) {
+      dbm_shard_gpu_t *const shard_g = &ctx->gpu.shards_c_dev[kshard];
+      dbm_multiply_gpu_process_batch(ntasks, batch, alpha, kshard, &ctx->gpu);
+      if (finish) { // Start downloading the current shard of matrix_c.
+        // Grow host buffer if necessary.
+        dbm_shard_allocate_promised_blocks(shard_c);
+        // Download results from device.
+        assert(shard_c->data_size == shard_g->data_size);
+        offloadMemcpyAsyncDtoH(shard_c->data, shard_g->data,
+                               shard_g->data_size * sizeof(double),
+                               shard_g->stream);
+      }
+    } else
 #endif
-  } else { // Validate against host.
+    {
+      (void)kshard;
+      (void)finish;
+      dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b,
+                                     shard_c, ctx->cpu_options);
+    }
+  } else { // Validate against host (aka CPU).
     dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b,
-                                   shard_c,
-                                   cpu_options | DBM_MULTIPLY_BLAS_LIBRARY);
+                                   shard_c, DBM_MULTIPLY_BLAS_LIBRARY);
   }
 }
 
@@ -169,9 +174,11 @@ static void multiply_packs(const bool transa, const bool transb,
                            const dbm_pack_t *pack_b,
                            const dbm_matrix_t *matrix_a,
                            const dbm_matrix_t *matrix_b, dbm_matrix_t *matrix_c,
-                           const bool retain_sparsity,
-                           const float *rows_max_eps, int64_t *flop,
-                           backend_context_t *ctx) {
+                           const float *rows_max_eps,
+                           const bool retain_sparsity, const bool force_cpu,
+                           int64_t *flop, backend_context_t *ctx) {
+  // For validation, FLOPS do not count, and relying on ctx is not necessary.
+  backend_context_t *const context = (NULL != flop ? ctx : NULL);
   const float alpha2 = alpha * alpha;
   int64_t flop_sum = 0;
 
@@ -293,13 +300,13 @@ static void multiply_packs(const bool transa, const bool transb,
 
             if (ntasks == DBM_MAX_BATCH_SIZE) {
               backend_process_batch(ntasks, batch, alpha, pack_a, pack_b,
-                                    ishard, false, shard_c, ctx);
+                                    ishard, shard_c, false, force_cpu, context);
               ntasks = 0;
             }
           }
         }
         backend_process_batch(ntasks, batch, alpha, pack_a, pack_b, ishard,
-                              true, shard_c, ctx);
+                              shard_c, true, force_cpu, context);
       }
     }
 
@@ -376,13 +383,12 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   while (dbm_comm_iterator_next(iter, &pack_a, &pack_b)) {
     const bool uploaded = backend_upload_packs(pack_a, pack_b, ctx);
     multiply_packs(transa, transb, alpha, pack_a, pack_b, matrix_a, matrix_b,
-                   matrix_c, retain_sparsity, rows_max_eps, flop,
-#if DBM_HYBRID_HOST_DEVICE
-                   uploaded ? ctx : NULL);
-#else
-                   ctx);
-    (void)uploaded; // mark used
+                   matrix_c, rows_max_eps, retain_sparsity,
+#if !DBM_HYBRID_HOST_DEVICE
+                   false &&
 #endif
+                       !uploaded,
+                   flop, ctx);
   }
 
   // Wait for all other MPI ranks to complete, then release ressources.
@@ -394,7 +400,7 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
         dbm_comm_iterator_start(transa, transb, matrix_a, matrix_b, matrix_d);
     while (dbm_comm_iterator_next(iter, &pack_a, &pack_b)) {
       multiply_packs(transa, transb, alpha, pack_a, pack_b, matrix_a, matrix_b,
-                     matrix_d, retain_sparsity, rows_max_eps, NULL, NULL);
+                     matrix_d, rows_max_eps, retain_sparsity, true, NULL, ctx);
     }
     dbm_comm_iterator_stop(iter);
     const double epsilon = dbm_maxeps(matrix_d, matrix_c);
