@@ -43,7 +43,7 @@ static float *compute_rows_max_eps(const bool trans, const dbm_matrix_t *matrix,
         const dbm_block_t *blk = &shard->blocks[iblock];
         const int row = (trans) ? blk->col : blk->row;
 #pragma omp atomic
-        nblocks_per_row[row]++;
+        ++nblocks_per_row[row];
       }
     }
 #pragma omp master
