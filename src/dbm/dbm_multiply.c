@@ -319,9 +319,6 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   assert(omp_get_num_threads() == 1);
   assert(matrix_a != NULL && matrix_b != NULL && matrix_c != NULL);
 
-  // Compute filter thresholds for each row.
-  float *rows_max_eps = compute_rows_max_eps(transa, matrix_a, filter_eps);
-
   // Throughout the matrix multiplication code the "sum_index" and "free_index"
   // denote the summation (aka dummy) and free index from the Einstein notation.
   const int num_sum_index_a = (transa) ? matrix_a->nrows : matrix_a->ncols;
@@ -350,6 +347,9 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
                matrix_c->ncols, matrix_c->row_sizes, matrix_c->col_sizes);
     dbm_copy(matrix_d, matrix_c);
   }
+
+  // Compute filter thresholds for each row.
+  float *rows_max_eps = compute_rows_max_eps(transa, matrix_a, filter_eps);
 
   // Start uploading matrix_c to the GPU.
   backend_context_t *ctx = backend_start(matrix_c);
