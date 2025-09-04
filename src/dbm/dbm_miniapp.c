@@ -221,20 +221,19 @@ void benchmark_multiply(const int M, const int N, const int K, const int m,
                  1e-8, NULL);
 
     const double maxeps = 1E-5, epsilon = dbm_maxeps(matrix_d, matrix_c);
-    if (maxeps >= epsilon) {
-      dbm_mpi_sum_int64(&flop, 1, comm);
-      if (dbm_mpi_comm_rank(comm) == 0) {
-        const double duration = time_end_multiply - time_start_multiply;
-        printf("%6.3f s =>  %6.1f GFLOP/s\n", duration, 1e-9 * flop / duration);
-        fflush(stdout);
-      }
-    } else {
+    if (maxeps < epsilon) {
       printf("ERROR\n");
       fprintf(stderr, "Failed validation (epsilon=%f).\n", epsilon);
       exit(1);
     }
-
     dbm_release(matrix_d);
+  }
+
+  dbm_mpi_sum_int64(&flop, 1, comm);
+  if (dbm_mpi_comm_rank(comm) == 0) {
+    const double duration = time_end_multiply - time_start_multiply;
+    printf("%6.3f s =>  %6.1f GFLOP/s\n", duration, 1e-9 * flop / duration);
+    fflush(stdout);
   }
 
   dbm_release(matrix_a);
