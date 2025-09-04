@@ -197,7 +197,7 @@ void benchmark_multiply(const int M, const int N, const int K, const int m,
   set_all_blocks(matrix_b);
 
   const char *const verify_env = getenv("DBM_MULTIPLY_VERIFY");
-  const int skip_verify = (NULL == verify_env ? 0 : atoi(verify_env));
+  const int skip_verify = (NULL == verify_env ? 0 : (atoi(verify_env) + 1));
 
   if (0 == skip_verify) {
     dbm_distribution_t *const dist_shared = matrix_c->dist;
