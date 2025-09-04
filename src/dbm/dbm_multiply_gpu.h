@@ -35,7 +35,6 @@ typedef struct {
   offloadEvent_t upload_event;
 
   int nshards;
-  dbm_shard_t *shards_c_host;
   dbm_shard_gpu_t *shards_c_dev;
 
   dbm_pack_t pack_a_dev;
@@ -66,8 +65,8 @@ bool dbm_multiply_gpu_upload_packs(const dbm_pack_t *pack_a,
  * \author Ole Schuett
  ******************************************************************************/
 void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
-                                    const double alpha, const int kshard,
-                                    const bool finish,
+                                    const double alpha, dbm_shard_t *shard_c,
+                                    const int kshard, const bool finish,
                                     dbm_multiply_gpu_context_t *ctx);
 
 /*******************************************************************************

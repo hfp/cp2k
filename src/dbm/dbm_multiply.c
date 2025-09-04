@@ -122,13 +122,14 @@ static void backend_process_batch(const int ntasks,
   if (NULL != ctx) {
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
     if (!force_cpu) {
-      dbm_multiply_gpu_process_batch(ntasks, batch, alpha, kshard, finish,
-                                     &ctx->gpu);
+      dbm_multiply_gpu_process_batch(ntasks, batch, alpha, shard_c, kshard,
+                                     finish, &ctx->gpu);
     } else
 #endif
     {
       (void)kshard;
       (void)finish;
+      (void)force_cpu;
       dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b,
                                      shard_c, ctx->cpu_options);
     }

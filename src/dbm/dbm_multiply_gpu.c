@@ -28,7 +28,6 @@ void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,
   offload_activate_chosen_device();
 
   ctx->nshards = nshards;
-  ctx->shards_c_host = shards_c_host;
   ctx->max_batch_size = max_batch_size;
   offloadStreamCreate(&ctx->main_stream);
   offloadEventCreate(&ctx->upload_event);
@@ -41,7 +40,7 @@ void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,
   ctx->shards_c_dev = malloc(nshards * sizeof(dbm_shard_gpu_t));
   assert(ctx->shards_c_dev != NULL || nshards == 0);
   for (int i = 0; i < nshards; i++) {
-    const dbm_shard_t *shard_c_host = &ctx->shards_c_host[i];
+    const dbm_shard_t *const shard_c_host = &shards_c_host[i];
     dbm_shard_gpu_t *shard_c_dev = &ctx->shards_c_dev[i];
     offloadStreamCreate(&shard_c_dev->stream);
     offloadEventCreate(&shard_c_dev->event);
@@ -111,8 +110,8 @@ bool dbm_multiply_gpu_upload_packs(const dbm_pack_t *pack_a,
  * \author Ole Schuett
  ******************************************************************************/
 void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
-                                    const double alpha, const int kshard,
-                                    const bool finish,
+                                    const double alpha, dbm_shard_t *shard_c,
+                                    const int kshard, const bool finish,
                                     dbm_multiply_gpu_context_t *ctx) {
   if (ntasks == 0) {
     return; // Nothing to do.
@@ -120,8 +119,7 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
 
   // Assume GPU device was activated earlier.
   dbm_shard_gpu_t *const shard_c_dev = &ctx->shards_c_dev[kshard];
-  dbm_shard_t *const shard_c_host = &ctx->shards_c_host[kshard];
-  assert(NULL != shard_c_host && NULL != shard_c_dev);
+  assert(NULL != shard_c && NULL != shard_c_dev);
 
   // Upload new batch.
   dbm_task_t *batch_dev = &ctx->batches_dev[kshard * ctx->max_batch_size];
@@ -130,10 +128,10 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
 
   // Reallocate shard_c_dev->data if necessary.
   double *old_data_dev = NULL;
-  if (shard_c_host->data_promised > shard_c_dev->data_allocated) {
+  if (shard_c->data_promised > shard_c_dev->data_allocated) {
     shard_c_dev->data_allocated =
-        DBM_OVERCOMMIT_DEVICE * shard_c_host->data_promised;
-    assert(shard_c_host->data_promised <= shard_c_dev->data_allocated);
+        DBM_OVERCOMMIT_DEVICE * shard_c->data_promised;
+    assert(shard_c->data_promised <= shard_c_dev->data_allocated);
     old_data_dev = shard_c_dev->data;
     shard_c_dev->data =
         dbm_mempool_device_malloc(shard_c_dev->data_allocated * sizeof(double));
@@ -145,11 +143,11 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
   offloadEventRecord(shard_c_dev->event, shard_c_dev->stream);
 
   // Zero new blocks if necessary.
-  if (shard_c_host->data_promised > shard_c_dev->data_size) {
-    const int tail = shard_c_host->data_promised - shard_c_dev->data_size;
+  if (shard_c->data_promised > shard_c_dev->data_size) {
+    const int tail = shard_c->data_promised - shard_c_dev->data_size;
     offloadMemsetAsync(&shard_c_dev->data[shard_c_dev->data_size], 0,
                        tail * sizeof(double), shard_c_dev->stream);
-    shard_c_dev->data_size = shard_c_host->data_promised;
+    shard_c_dev->data_size = shard_c->data_promised;
   }
 
   // Launch kernel.
@@ -161,10 +159,10 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
 
   if (finish) { // Start downloading the current shard of matrix_c.
     // Grow host buffer if necessary.
-    dbm_shard_allocate_promised_blocks(shard_c_host);
+    dbm_shard_allocate_promised_blocks(shard_c);
     // Download results from device.
-    assert(shard_c_host->data_size == shard_c_dev->data_size);
-    offloadMemcpyAsyncDtoH(shard_c_host->data, shard_c_dev->data,
+    assert(shard_c->data_size == shard_c_dev->data_size);
+    offloadMemcpyAsyncDtoH(shard_c->data, shard_c_dev->data,
                            shard_c_dev->data_size * sizeof(double),
                            shard_c_dev->stream);
   }
