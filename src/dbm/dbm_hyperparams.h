@@ -10,7 +10,6 @@
 
 #define DBM_OMP_SCHEDULE schedule(dynamic, 1)
 
-#define DBM_HYBRID_HOST_DEVICE 0
 #define DBM_ALLOC_OPENMP 1
 #define DBM_ALLOC_MPI 0
 

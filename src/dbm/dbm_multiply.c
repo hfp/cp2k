@@ -367,12 +367,9 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   dbm_pack_t *pack_a, *pack_b;
   while (dbm_comm_iterator_next(iter, &pack_a, &pack_b)) {
     const bool uploaded = backend_upload_packs(pack_a, pack_b, ctx);
+    (void)uploaded; // mark used
     multiply_packs(transa, transb, alpha, pack_a, pack_b, matrix_a, matrix_b,
-                   matrix_c, rows_max_eps, retain_sparsity,
-#if !DBM_HYBRID_HOST_DEVICE
-                   false &&
-#endif
-                       !uploaded,
+                   matrix_c, rows_max_eps, retain_sparsity, false /*!uploaded*/,
                    flop, ctx);
   }
 

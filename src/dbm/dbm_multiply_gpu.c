@@ -87,9 +87,7 @@ bool dbm_multiply_gpu_upload_packs(const dbm_pack_t *pack_a,
   offloadEventRecord(ctx->upload_event, ctx->main_stream);
 
   bool uploaded = false;
-#if DBM_HYBRID_HOST_DEVICE
-  if (offloadEventQuery(ctx->upload_event))
-#endif
+  /*if (offloadEventQuery(ctx->upload_event))*/
   {
     upload_pack(pack_a, &ctx->pack_a_dev, ctx->main_stream);
     upload_pack(pack_b, &ctx->pack_b_dev, ctx->main_stream);
