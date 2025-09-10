@@ -272,34 +272,30 @@ CONTAINS
 
    END SUBROUTINE cp_fm_cholesky_reduce
 
-!
-! op can be "SOLVE" (out = U^-1 * in ) or "MULTIPLY"   (out = U * in )
-! pos can be "LEFT" or "RIGHT" (U at the left or at the right)
-!
-! DEPRECATED, see cp_fm_basic_linalg:cp_fm_triangular_multiply
-!
 ! **************************************************************************************************
-!> \brief ...
-!> \param matrix ...
+!> \brief apply Cholesky decomposition
+!>        op can be "SOLVE" (out = U^-1 * in) or "MULTIPLY"  (out = U * in)
+!>        pos can be "LEFT" or "RIGHT" (U at the left or at the right)
+!> \param fm_matrix ...
 !> \param neig ...
-!> \param matrixb ...
-!> \param matrixout ...
+!> \param fm_matrixb ...
+!> \param fm_matrixout ...
 !> \param op ...
 !> \param pos ...
 !> \param transa ...
 ! **************************************************************************************************
-   SUBROUTINE cp_fm_cholesky_restore(matrix, neig, matrixb, matrixout, op, pos, transa)
-      TYPE(cp_fm_type), INTENT(IN)              :: matrix, matrixb, matrixout
+   SUBROUTINE cp_fm_cholesky_restore(fm_matrix, neig, fm_matrixb, fm_matrixout, op, pos, transa)
+      TYPE(cp_fm_type), INTENT(IN)              :: fm_matrix, fm_matrixb, fm_matrixout
       INTEGER, INTENT(IN)                       :: neig
       CHARACTER(LEN=*), INTENT(IN)              :: op
       CHARACTER(LEN=*), INTENT(IN), OPTIONAL    :: pos
       CHARACTER(LEN=*), INTENT(IN), OPTIONAL    :: transa
 
       CHARACTER(len=*), PARAMETER :: routineN = 'cp_fm_cholesky_restore'
-      REAL(KIND=dp), DIMENSION(:, :), POINTER   :: a, b, out
-      REAL(KIND=sp), DIMENSION(:, :), POINTER   :: a_sp, b_sp, out_sp
+      REAL(KIND=dp), DIMENSION(:, :), POINTER   :: a, b, outm
+      REAL(KIND=sp), DIMENSION(:, :), POINTER   :: a_sp, b_sp, outm_sp
       REAL(KIND=dp)                             :: alpha
-      INTEGER                                   :: handle, ilda, n
+      INTEGER                                   :: handle, mdim, n
       CHARACTER                                 :: chol_pos, chol_transa
 #if defined(__parallel)
       INTEGER                                   :: i
@@ -310,99 +306,88 @@ CONTAINS
 
       CALL timeset(routineN, handle)
 
-      n = matrix%matrix_struct%nrow_global
-      IF (op /= "SOLVE" .AND. op /= "MULTIPLY") &
-         CPABORT("wrong argument op")
+      ! wrong argument op
+      CPASSERT((op == "SOLVE") .OR. (op == "MULTIPLY"))
+      ! not the same precision
+      CPASSERT(fm_matrix%use_sp .EQV. fm_matrixb%use_sp)
+      CPASSERT(fm_matrix%use_sp .EQV. fm_matrixout%use_sp)
 
-      IF (PRESENT(pos)) THEN
-         SELECT CASE (pos)
-         CASE ("LEFT")
-            chol_pos = 'L'
-            ilda = 1
-         CASE ("RIGHT")
-            chol_pos = 'R'
-            ilda = 2
-         CASE DEFAULT
-            CPABORT("wrong argument pos")
-         END SELECT
-      ELSE
-         chol_pos = 'L'
-         ilda = 1
-      END IF
+      chol_pos = 'L'
+      IF (PRESENT(pos)) chol_pos = pos(1:1)
+      CPASSERT((chol_pos == 'L') .OR. (chol_pos == 'R'))
 
       chol_transa = 'N'
       IF (PRESENT(transa)) chol_transa = transa
 
-      IF ((matrix%use_sp .NEQV. matrixb%use_sp) .OR. (matrix%use_sp .NEQV. matrixout%use_sp)) &
-         CPABORT("not the same precision")
-
       ! notice b is the cholesky guy
-      a => matrix%local_data
-      b => matrixb%local_data
-      out => matrixout%local_data
-      a_sp => matrix%local_data_sp
-      b_sp => matrixb%local_data_sp
-      out_sp => matrixout%local_data_sp
-
+      a => fm_matrix%local_data
+      b => fm_matrixb%local_data
+      outm => fm_matrixout%local_data
+      a_sp => fm_matrix%local_data_sp
+      b_sp => fm_matrixb%local_data_sp
+      outm_sp => fm_matrixout%local_data_sp
+      n = fm_matrix%matrix_struct%nrow_global
+      mdim = MERGE(1, 2, 'L' .EQ. chol_pos)
       alpha = 1.0_dp
+
 #if defined(__parallel)
-      desca(:) = matrix%matrix_struct%descriptor(:)
-      descb(:) = matrixb%matrix_struct%descriptor(:)
-      descout(:) = matrixout%matrix_struct%descriptor(:)
+      desca(:) = fm_matrix%matrix_struct%descriptor(:)
+      descb(:) = fm_matrixb%matrix_struct%descriptor(:)
+      descout(:) = fm_matrixout%matrix_struct%descriptor(:)
       DO i = 1, neig
-         IF (matrix%use_sp) THEN
-            CALL pscopy(n, a_sp(1, 1), 1, i, desca, 1, out_sp(1, 1), 1, i, descout, 1)
+         IF (fm_matrix%use_sp) THEN
+            CALL pscopy(n, a_sp(1, 1), 1, i, desca, 1, outm_sp(1, 1), 1, i, descout, 1)
          ELSE
-            CALL pdcopy(n, a(1, 1), 1, i, desca, 1, out(1, 1), 1, i, descout, 1)
+            CALL pdcopy(n, a(1, 1), 1, i, desca, 1, outm(1, 1), 1, i, descout, 1)
          END IF
       END DO
       IF (op .EQ. "SOLVE") THEN
-         IF (matrix%use_sp) THEN
+         IF (fm_matrix%use_sp) THEN
             CALL pstrsm(chol_pos, 'U', chol_transa, 'N', n, neig, REAL(alpha, sp), b_sp(1, 1), 1, 1, descb, &
-                        out_sp(1, 1), 1, 1, descout)
+                        outm_sp(1, 1), 1, 1, descout)
          ELSE
-            CALL pdtrsm(chol_pos, 'U', chol_transa, 'N', n, neig, alpha, b(1, 1), 1, 1, descb, out(1, 1), 1, 1, descout)
+            CALL pdtrsm(chol_pos, 'U', chol_transa, 'N', n, neig, alpha, b(1, 1), 1, 1, descb, outm(1, 1), 1, 1, descout)
          END IF
       ELSE
-         IF (matrix%use_sp) THEN
+         IF (fm_matrix%use_sp) THEN
             CALL pstrmm(chol_pos, 'U', chol_transa, 'N', n, neig, REAL(alpha, sp), b_sp(1, 1), 1, 1, descb, &
-                        out_sp(1, 1), 1, 1, descout)
+                        outm_sp(1, 1), 1, 1, descout)
          ELSE
-            CALL pdtrmm(chol_pos, 'U', chol_transa, 'N', n, neig, alpha, b(1, 1), 1, 1, descb, out(1, 1), 1, 1, descout)
+            CALL pdtrmm(chol_pos, 'U', chol_transa, 'N', n, neig, alpha, b(1, 1), 1, 1, descb, outm(1, 1), 1, 1, descout)
          END IF
       END IF
 #elif defined(__MKL) && (2025 <= __INTEL_MKL__)
       beta = 0.0_dp
       IF (op .EQ. "SOLVE") THEN
-         IF (matrix%use_sp) THEN
-            CALL strsm_oop(chol_pos, 'U', chol_transa, 'N', n, neig, REAL(alpha, sp), b_sp(1, 1), SIZE(b_sp, ilda), a_sp(1, 1), n, REAL(beta, sp), out_sp(1, 1), n)
+         IF (fm_matrix%use_sp) THEN
+            CALL strsm_oop(chol_pos, 'U', chol_transa, 'N', n, neig, REAL(alpha, sp), b_sp(1, 1), SIZE(b_sp, mdim), a_sp(1, 1), n, REAL(beta, sp), outm_sp(1, 1), n)
          ELSE
-            CALL dtrsm_oop(chol_pos, 'U', chol_transa, 'N', n, neig, alpha, b(1, 1), SIZE(b, ilda), a(1, 1), n, beta, out(1, 1), n)
+            CALL dtrsm_oop(chol_pos, 'U', chol_transa, 'N', n, neig, alpha, b(1, 1), SIZE(b, mdim), a(1, 1), n, beta, outm(1, 1), n)
          END IF
       ELSE
-         IF (matrix%use_sp) THEN
-            CALL strmm_oop(chol_pos, 'U', chol_transa, 'N', n, neig, REAL(alpha, sp), b_sp(1, 1), SIZE(b_sp, ilda), a_sp(1, 1), n, REAL(beta, sp), out_sp(1, 1), n)
+         IF (fm_matrix%use_sp) THEN
+            CALL strmm_oop(chol_pos, 'U', chol_transa, 'N', n, neig, REAL(alpha, sp), b_sp(1, 1), SIZE(b_sp, mdim), a_sp(1, 1), n, REAL(beta, sp), outm_sp(1, 1), n)
          ELSE
-            CALL dtrmm_oop(chol_pos, 'U', chol_transa, 'N', n, neig, alpha, b(1, 1), SIZE(b, ilda), a(1, 1), n, beta, out(1, 1), n)
+            CALL dtrmm_oop(chol_pos, 'U', chol_transa, 'N', n, neig, alpha, b(1, 1), SIZE(b, mdim), a(1, 1), n, beta, outm(1, 1), n)
          END IF
       END IF
 #else
-      IF (matrix%use_sp) THEN
-         CALL scopy(neig*n, a_sp(1, 1), 1, out_sp(1, 1), 1)
+      IF (fm_matrix%use_sp) THEN
+         CALL scopy(neig*n, a_sp(1, 1), 1, outm_sp(1, 1), 1)
       ELSE
-         CALL dcopy(neig*n, a(1, 1), 1, out(1, 1), 1)
+         CALL dcopy(neig*n, a(1, 1), 1, outm(1, 1), 1)
       END IF
       IF (op .EQ. "SOLVE") THEN
-         IF (matrix%use_sp) THEN
-            CALL strsm(chol_pos, 'U', chol_transa, 'N', n, neig, REAL(alpha, sp), b_sp(1, 1), SIZE(b_sp, ilda), out_sp(1, 1), n)
+         IF (fm_matrix%use_sp) THEN
+            CALL strsm(chol_pos, 'U', chol_transa, 'N', n, neig, REAL(alpha, sp), b_sp(1, 1), SIZE(b_sp, mdim), outm_sp(1, 1), n)
          ELSE
-            CALL dtrsm(chol_pos, 'U', chol_transa, 'N', n, neig, alpha, b(1, 1), SIZE(b, ilda), out(1, 1), n)
+            CALL dtrsm(chol_pos, 'U', chol_transa, 'N', n, neig, alpha, b(1, 1), SIZE(b, mdim), outm(1, 1), n)
          END IF
       ELSE
-         IF (matrix%use_sp) THEN
-            CALL strmm(chol_pos, 'U', chol_transa, 'N', n, neig, REAL(alpha, sp), b_sp(1, 1), SIZE(b_sp, ilda), out_sp(1, 1), n)
+         IF (fm_matrix%use_sp) THEN
+            CALL strmm(chol_pos, 'U', chol_transa, 'N', n, neig, REAL(alpha, sp), b_sp(1, 1), SIZE(b_sp, mdim), outm_sp(1, 1), n)
          ELSE
-            CALL dtrmm(chol_pos, 'U', chol_transa, 'N', n, neig, alpha, b(1, 1), SIZE(b, ilda), out(1, 1), n)
+            CALL dtrmm(chol_pos, 'U', chol_transa, 'N', n, neig, alpha, b(1, 1), SIZE(b, mdim), outm(1, 1), n)
          END IF
       END IF
 #endif
