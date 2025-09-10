@@ -338,12 +338,15 @@ void dbm_filter(dbm_matrix_t *matrix, const double eps) {
  ******************************************************************************/
 void dbm_reserve_blocks(dbm_matrix_t *matrix, const int nblocks,
                         const int rows[], const int cols[]) {
-  assert(omp_get_num_threads() == omp_get_max_threads() &&
+  const int nthreads = omp_get_num_threads(), ithread = omp_get_thread_num();
+  assert(omp_get_max_threads() == nthreads &&
          "Please call dbm_reserve_blocks within an OpenMP parallel region.");
+  const int istart = (nblocks + nthreads - 1) / nthreads * ithread;
   const int my_rank = matrix->dist->my_rank;
-  for (int i = 0; i < nblocks; i++) {
+  for (int n = istart; n < (istart + nblocks); ++n) {
+    const int i = n % nblocks;
     const int ishard = dbm_get_shard_index(matrix, rows[i], cols[i]);
-    dbm_shard_t *shard = &matrix->shards[ishard];
+    dbm_shard_t *const shard = &matrix->shards[ishard];
     omp_set_lock(&shard->lock);
     assert(0 <= rows[i] && rows[i] < matrix->nrows);
     assert(0 <= cols[i] && cols[i] < matrix->ncols);
