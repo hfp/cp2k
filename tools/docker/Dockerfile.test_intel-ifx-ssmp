@@ -1,6 +1,6 @@
 #
 # This file was created by generate_dockerfiles.py.
-# Usage: podman build --shm-size=1g -f ./Dockerfile.test_intel-oneapi-hpckit-ssmp ../../
+# Usage: podman build --shm-size=1g -f ./Dockerfile.test_intel-ifx-ssmp ../../
 #
 
 FROM intel/oneapi-hpckit:2025.2.2-0-devel-ubuntu24.04
