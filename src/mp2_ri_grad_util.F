@@ -1038,6 +1038,7 @@ CONTAINS
       ! allocate the structure that will hold the messages to be sent
       ALLOCATE (buffer_send(number_of_send))
       ! can be zero-sized
+      CPASSERT(0 /= number_of_send)
       IF (0 /= number_of_send) THEN
          ! grid_ref_2_send_pos is an array (map) that given a pair
          ! (ref_send_prow,ref_send_pcol) returns
@@ -1127,7 +1128,8 @@ CONTAINS
 
       ! can be zero-sized
       ALLOCATE (buffer_rec(number_of_rec))
-      IF (0 /= number_of_send) THEN
+      CPASSERT(0 /= number_of_rec)
+      IF (0 /= number_of_rec) THEN
          rec_counter = 0
          DO proc_shift = 1, para_env%num_pe - 1
             proc_receive = MODULO(para_env%mepos - proc_shift, para_env%num_pe)
