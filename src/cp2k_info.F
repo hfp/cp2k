@@ -93,7 +93,9 @@ CONTAINS
       END IF
 
 !$    flags = TRIM(flags)//" omp"
-#if defined(__LIBINT)
+
+      ! TODO: remove __INTEL_LLVM_COMPILER condition (regtests)
+#if defined(__LIBINT) && !defined(__INTEL_LLVM_COMPILER)
       flags = TRIM(flags)//" libint"
 #endif
 #if defined(__FFTW3)
@@ -284,10 +286,6 @@ CONTAINS
 #endif
 #if defined(__GREENX)
       flags = TRIM(flags)//" greenx"
-#endif
-      ! TODO: removal when regtests pass
-#if defined(__INTEL_LLVM_COMPILER)
-      flags = TRIM(flags)//" ifx"
 #endif
 
    END FUNCTION cp2k_flags

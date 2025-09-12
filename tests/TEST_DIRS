@@ -13,16 +13,16 @@ xTB/regtest-tblite-gfn1                                     tblite
 QS/regtest-hf-3c                                            libint
 Fist/regtest-ace                                            ace
 QS/regtest-double-hybrid-stress-laplace                     libint libxc
-QS/regtest-rpa-sigma                                        libint greenx !ifx
+QS/regtest-rpa-sigma                                        libint greenx
 TMC/regtest_ana_on_the_fly                                  parallel mpiranks>2
 QS/regtest-cusolver                                         cusolvermp
 QS/regtest-dlaf                                             dlaf
 QS/regtest-dlaf-2                                           dlaf libint
 QS/regtest-pao-2
-QS/regtest-tddfpt-force-gapw                                libint libxc !ifx
-QS/regtest-tddfpt-4                                         libint libxc !ifx
-QS/regtest-tddfpt-force-3                                   libint !ifx
-QS/regtest-debug-5                                          libint !ifx
+QS/regtest-tddfpt-force-gapw                                libint libxc
+QS/regtest-tddfpt-4                                         libint libxc
+QS/regtest-tddfpt-force-3                                   libint
+QS/regtest-debug-5                                          libint
 QS/regtest-gpw-4
 ATOM/regtest-1
 xTB/regtest-gfn0                                            libdftd4
@@ -32,21 +32,21 @@ xTB/regtest-gfn0-m2                                         libdftd4
 xTB/regtest-gfn0-m3                                         libdftd4
 xTB/regtest-gfn0-m4                                         libdftd4
 Fist/regtest-7-1
-QS/regtest-debug-7                                          libint !ifx
-QS/regtest-hfx                                              libint !ifx
-QS/regtest-debug-6                                          libint !ifx
+QS/regtest-debug-7                                          libint
+QS/regtest-hfx                                              libint
+QS/regtest-debug-6                                          libint
 QS/regtest-rtp-5
-QS/regtest-tddfpt-force                                     libint !ifx
+QS/regtest-tddfpt-force                                     libint
 QS/regtest-gpw-3
 DFTB/regtest-scc
 Fist/regtest-opt
-QS/regtest-ec                                               libint libvori !ifx
-QS/regtest-as-1                                             libint !ifx
+QS/regtest-ec                                               libint libvori
+QS/regtest-as-1                                             libint
 QS/regtest-gpw-1                                            libint libvori
-QS/regtest-tddfpt-force-2                                   libint !ifx
+QS/regtest-tddfpt-force-2                                   libint
 Fist/regtest-12
 QS/regtest-ot
-QS/regtest-ec-force                                         libint !ifx
+QS/regtest-ec-force                                         libint
 QS/regtest-embed                                            libint
 xTB/regtest-5
 xTB/regtest-gfn1-d
