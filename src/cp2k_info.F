@@ -94,7 +94,10 @@ CONTAINS
 
 !$    flags = TRIM(flags)//" omp"
 
-      ! TODO: remove __INTEL_LLVM_COMPILER condition (regtests)
+      ! TODO: remove __INTEL_LLVM_COMPILER conditions (regtests)
+#if defined(__INTEL_LLVM_COMPILER)
+      flags = TRIM(flags)//" ifx"
+#endif
 #if defined(__LIBINT) && !defined(__INTEL_LLVM_COMPILER)
       flags = TRIM(flags)//" libint"
 #endif
