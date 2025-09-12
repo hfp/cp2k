@@ -502,7 +502,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: my_start_row, my_end_row, my_start_col, &
                                                             my_end_col
       TYPE(group_dist_d1_type), INTENT(IN)               :: gd_row, gd_col
-      INTEGER, CONTIGUOUS, DIMENSION(:, :), INTENT(IN)   :: group_grid_2_mepos
+      INTEGER, ALLOCATABLE, DIMENSION(:, :), INTENT(IN)  :: group_grid_2_mepos
       INTEGER, INTENT(IN)                                :: ngroup_row, ngroup_col
       TYPE(cp_fm_type), INTENT(OUT)                      :: fm_mat
       INTEGER, INTENT(IN), OPTIONAL                      :: integ_group_size, color_group
@@ -898,7 +898,7 @@ CONTAINS
          INTENT(OUT)                                     :: mat2D
       INTEGER, INTENT(IN)                                :: my_rows, my_start_row, my_end_row, &
                                                             my_cols, my_start_col, my_end_col
-      INTEGER, CONTIGUOUS, DIMENSION(:, :), INTENT(IN)   :: group_grid_2_mepos, mepos_2_grid_group
+      INTEGER, ALLOCATABLE, DIMENSION(:, :), INTENT(IN)  :: group_grid_2_mepos, mepos_2_grid_group
       INTEGER, INTENT(IN)                                :: ngroup_row, ngroup_col
       TYPE(cp_fm_type), INTENT(INOUT)                    :: fm_mat
 
