@@ -467,8 +467,6 @@ CONTAINS
             WRITE (unit_nr, '(T2,A,T61,A20)') "Computing Chebyshev", ADJUSTR("FALSE")
          END IF
 
-         WRITE (unit_nr, '(T2,A,T61,L20)') "Using PAO", ls_scf_env%do_pao
-
          WRITE (unit_nr, '(T2,A)') REPEAT("-", 79)
          WRITE (unit_nr, '()')
          CALL m_flush(unit_nr)
