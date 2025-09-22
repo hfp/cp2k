@@ -567,9 +567,9 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'dbcsr_matrix_vector_mult'
 
-      INTEGER                                            :: col, handle, handle1, ithread, mypcol, &
-                                                            myprow, ncols, nrows, pcol, prow, &
-                                                            prow_handle, row, m, n, k
+      INTEGER                                            :: col, handle, handle1, ithread, k, m, &
+                                                            mypcol, myprow, n, ncols, nrows, pcol, &
+                                                            prow, prow_handle, row
       REAL(kind=real_8), DIMENSION(:), POINTER           :: data_vec
       REAL(kind=real_8), DIMENSION(:, :), POINTER        :: data_d, vec_res
       TYPE(dbcsr_distribution_type)                      :: dist
@@ -613,7 +613,7 @@ CONTAINS
          IF ((m .EQ. 0) .OR. (n .EQ. 0) .OR. (k .EQ. 0)) CYCLE
          CPASSERT(n .EQ. 1)
          pcol = hash_table_get(fast_vec_row%hash_table, col)
-         CALL dgemv('N', m, k, &
+         CALL dgemm('N', 'T', m, n, k, &
                     1.0_dp, data_d, m, &
                     fast_vec_row%blk_map(pcol)%ptr, n, &
                     1.0_dp, &
