@@ -459,12 +459,10 @@ CONTAINS
             CPABORT("Unknown cluster type")
          END SELECT
 
+         WRITE (unit_nr, '(T2,A,T61,L20)') "Computing Chebyshev", ls_scf_env%chebyshev%compute_chebyshev
          IF (ls_scf_env%chebyshev%compute_chebyshev) THEN
-            WRITE (unit_nr, '(T2,A,T61,A20)') "Computing Chebyshev", ADJUSTR("TRUE")
             WRITE (unit_nr, '(T2,A,T61,I20)') "N_CHEBYSHEV:", ls_scf_env%chebyshev%n_chebyshev
             WRITE (unit_nr, '(T2,A,T61,I20)') "N_GRIDPOINT_DOS:", ls_scf_env%chebyshev%n_gridpoint_dos
-         ELSE
-            WRITE (unit_nr, '(T2,A,T61,A20)') "Computing Chebyshev", ADJUSTR("FALSE")
          END IF
 
          WRITE (unit_nr, '(T2,A)') REPEAT("-", 79)
