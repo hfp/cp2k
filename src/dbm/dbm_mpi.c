@@ -18,10 +18,11 @@
  * \brief Check given MPI status and upon failure abort with a nice message.
  * \author Ole Schuett
  ******************************************************************************/
-#define CHECK(STATUS)                                                          \
+#define CHECK(CMD)                                                             \
   do {                                                                         \
-    if (MPI_SUCCESS != (STATUS)) {                                             \
-      fprintf(stderr, "MPI error #%i in %s:%i\n", STATUS, __FILE__, __LINE__); \
+    const int error = (CMD);                                                   \
+    if (MPI_SUCCESS != error) {                                                \
+      fprintf(stderr, "MPI error #%i in %s:%i\n", error, __FILE__, __LINE__);  \
       MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);                                 \
     }                                                                          \
   } while (0)
