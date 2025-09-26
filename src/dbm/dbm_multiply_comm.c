@@ -11,8 +11,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../offload/offload_mempool.h"
 #include "dbm_hyperparams.h"
 #include "dbm_mpi.h"
+
+#if 0
+#define DBM_MULTIPLY_COMM_MEMPOOL
+#endif
 
 /*******************************************************************************
  * \brief Private routine for computing greatest common divisor of two numbers.
@@ -403,7 +408,11 @@ static dbm_packed_matrix_t pack_matrix(const bool trans_matrix,
     const int ndata_recv = isum(nranks, data_recv_count);
 
     // 4th communication: Exchange data.
+#if defined(DBM_MULTIPLY_COMM_MEMPOOL)
+    double *data_recv = offload_mempool_host_malloc(ndata_recv * sizeof(double));
+#else
     double *data_recv = dbm_mpi_alloc_mem(ndata_recv * sizeof(double));
+#endif
     dbm_mpi_alltoallv_double(data_send, data_send_count, data_send_displ,
                              data_recv, data_recv_count, data_recv_displ,
                              dist->comm);
@@ -434,8 +443,13 @@ static dbm_packed_matrix_t pack_matrix(const bool trans_matrix,
   packed.max_data_size = max_data_size;
   packed.recv_pack.blocks =
       dbm_mpi_alloc_mem(packed.max_nblocks * sizeof(dbm_pack_block_t));
+#if defined(DBM_MULTIPLY_COMM_MEMPOOL)
+  packed.recv_pack.data =
+      offload_mempool_host_malloc(packed.max_data_size * sizeof(double));
+#else
   packed.recv_pack.data =
       dbm_mpi_alloc_mem(packed.max_data_size * sizeof(double));
+#endif
 
   return packed; // Ownership of packed transfers to caller.
 }
@@ -502,10 +516,18 @@ static dbm_pack_t *sendrecv_pack(const int itick, const int nticks,
  ******************************************************************************/
 static void free_packed_matrix(dbm_packed_matrix_t *packed) {
   dbm_mpi_free_mem(packed->recv_pack.blocks);
+#if defined(DBM_MULTIPLY_COMM_MEMPOOL)
+  offload_mempool_host_free(packed->recv_pack.data);
+#else
   dbm_mpi_free_mem(packed->recv_pack.data);
+#endif
   for (int ipack = 0; ipack < packed->nsend_packs; ipack++) {
     dbm_mpi_free_mem(packed->send_packs[ipack].blocks);
+#if defined(DBM_MULTIPLY_COMM_MEMPOOL)
+    offload_mempool_host_free(packed->send_packs[ipack].data);
+#else
     dbm_mpi_free_mem(packed->send_packs[ipack].data);
+#endif
   }
   free(packed->send_packs);
 }
