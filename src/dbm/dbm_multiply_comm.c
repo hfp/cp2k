@@ -11,9 +11,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../mpiwrap/message_passing.h"
 #include "../offload/offload_mempool.h"
-#include "dbm_hyperparams.h"
-#include "dbm_mpi.h"
 
 #if 0
 #define DBM_MULTIPLY_COMM_MEMPOOL

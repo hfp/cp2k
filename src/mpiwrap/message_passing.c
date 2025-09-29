@@ -4,14 +4,13 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
+#include "message_passing.h"
 
 #include <assert.h>
 #include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "dbm_mpi.h"
 
 #if defined(__parallel)
 /*******************************************************************************

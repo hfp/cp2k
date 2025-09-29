@@ -16,10 +16,10 @@
 #include <libxsmm.h>
 #endif
 
+#include "../mpiwrap/message_passing.h"
 #include "../offload/offload_library.h"
 #include "dbm_library.h"
 #include "dbm_matrix.h"
-#include "dbm_mpi.h"
 
 /*******************************************************************************
  * \brief Wrapper for printf, passed to dbm_library_print_stats.

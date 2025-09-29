@@ -12,9 +12,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../mpiwrap/message_passing.h"
 #include "../offload/offload_mempool.h"
 #include "dbm_library.h"
-#include "dbm_mpi.h"
 
 #define DBM_NUM_COUNTERS 64
 

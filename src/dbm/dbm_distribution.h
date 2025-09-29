@@ -8,7 +8,7 @@
 #ifndef DBM_DISTRIBUTION_H
 #define DBM_DISTRIBUTION_H
 
-#include "dbm_mpi.h"
+#include "../mpiwrap/message_passing.h"
 
 /*******************************************************************************
  * \brief Internal struct for storing a one dimensional distribution.
