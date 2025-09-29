@@ -4,6 +4,9 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
+#include "offload_mempool.h"
+#include "offload_library.h"
+#include "offload_runtime.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -13,10 +16,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "offload_library.h"
-#include "offload_mempool.h"
-#include "offload_runtime.h"
 
 #if defined(__parallel)
 #include <mpi.h>
