@@ -47,7 +47,7 @@ static float *compute_rows_max_eps(const bool trans, const dbm_matrix_t *matrix,
       }
     }
 #pragma omp master
-    dbm_mpi_sum_int(nblocks_per_row, nrows, matrix->dist->comm);
+    message_passing_sum_int(nblocks_per_row, nrows, matrix->dist->comm);
 #pragma omp barrier
 #pragma omp for
     for (int i = 0; i < nrows; i++) {

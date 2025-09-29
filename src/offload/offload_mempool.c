@@ -343,11 +343,11 @@ void offload_mempool_stats_print(int fortran_comm,
   assert(omp_get_num_threads() == 1);
 
   char buffer[100];
-  // const dbm_mpi_comm_t comm = dbm_mpi_comm_f2c(fortran_comm);
+  // const message_passing_comm_t comm = message_passing_comm_f2c(fortran_comm);
   offload_mempool_stats_t memstats;
   offload_mempool_stats_get(&memstats);
-  // dbm_mpi_max_uint64(&memstats.device_mallocs, 1, comm);
-  // dbm_mpi_max_uint64(&memstats.host_mallocs, 1, comm);
+  // message_passing_max_uint64(&memstats.device_mallocs, 1, comm);
+  // message_passing_max_uint64(&memstats.host_mallocs, 1, comm);
 
   if (0 != memstats.device_mallocs || 0 != memstats.host_mallocs) {
     print_func("\n", output_unit);
@@ -377,7 +377,7 @@ void offload_mempool_stats_print(int fortran_comm,
                output_unit);
   }
   if (0 < memstats.device_mallocs) {
-    // dbm_mpi_max_uint64(&memstats.device_size, 1, comm);
+    // message_passing_max_uint64(&memstats.device_size, 1, comm);
     snprintf(buffer, sizeof(buffer),
              " Device                            "
              " %20" PRIuPTR "  %10" PRIuPTR "  %10" PRIuPTR "\n",
@@ -387,7 +387,7 @@ void offload_mempool_stats_print(int fortran_comm,
     print_func(buffer, output_unit);
   }
   if (0 < memstats.host_mallocs) {
-    // dbm_mpi_max_uint64(&memstats.host_size, 1, comm);
+    // message_passing_max_uint64(&memstats.host_size, 1, comm);
     snprintf(buffer, sizeof(buffer),
              " Host                              "
              " %20" PRIuPTR "  %10" PRIuPTR "  %10" PRIuPTR "\n",

@@ -124,9 +124,9 @@ void dbm_redistribute(const dbm_matrix_t *matrix, dbm_matrix_t *redist) {
     assert(matrix->col_sizes[i] == redist->col_sizes[i]);
   }
 
-  assert(dbm_mpi_comms_are_similar(matrix->dist->comm, redist->dist->comm));
-  const dbm_mpi_comm_t comm = redist->dist->comm;
-  const int nranks = dbm_mpi_comm_size(comm);
+  assert(message_passing_comms_are_similar(matrix->dist->comm, redist->dist->comm));
+  const message_passing_comm_t comm = redist->dist->comm;
+  const int nranks = message_passing_comm_size(comm);
 
   // 1st pass: Compute send_count.
   int send_count[nranks];
@@ -146,7 +146,7 @@ void dbm_redistribute(const dbm_matrix_t *matrix, dbm_matrix_t *redist) {
 
   // 1st communication: Exchange counts.
   int recv_count[nranks];
-  dbm_mpi_alltoall_int(send_count, 1, recv_count, 1, comm);
+  message_passing_alltoall_int(send_count, 1, recv_count, 1, comm);
 
   // Compute displacements and allocate data buffers.
   int send_displ[nranks + 1], recv_displ[nranks + 1];
@@ -157,8 +157,8 @@ void dbm_redistribute(const dbm_matrix_t *matrix, dbm_matrix_t *redist) {
   }
   const int total_send_count = send_displ[nranks];
   const int total_recv_count = recv_displ[nranks];
-  double *data_send = dbm_mpi_alloc_mem(total_send_count * sizeof(double));
-  double *data_recv = dbm_mpi_alloc_mem(total_recv_count * sizeof(double));
+  double *data_send = message_passing_alloc_mem(total_send_count * sizeof(double));
+  double *data_recv = message_passing_alloc_mem(total_recv_count * sizeof(double));
 
   // 2nd pass: Fill send_data.
   int send_data_positions[nranks];
@@ -184,9 +184,9 @@ void dbm_redistribute(const dbm_matrix_t *matrix, dbm_matrix_t *redist) {
   }
 
   // 2nd communication: Exchange data.
-  dbm_mpi_alltoallv_double(data_send, send_count, send_displ, data_recv,
+  message_passing_alltoallv_double(data_send, send_count, send_displ, data_recv,
                            recv_count, recv_displ, comm);
-  dbm_mpi_free_mem(data_send);
+  message_passing_free_mem(data_send);
 
   // 3rd pass: Unpack data.
   dbm_clear(redist);
@@ -203,7 +203,7 @@ void dbm_redistribute(const dbm_matrix_t *matrix, dbm_matrix_t *redist) {
     recv_data_pos += 2 + block_size;
   }
   assert(recv_data_pos == total_recv_count);
-  dbm_mpi_free_mem(data_recv);
+  message_passing_free_mem(data_recv);
 }
 
 /*******************************************************************************
@@ -540,7 +540,7 @@ double dbm_checksum(const dbm_matrix_t *matrix) {
       kahan_sum(value * value, &checksum, &compensation);
     }
   }
-  dbm_mpi_sum_double(&checksum, 1, matrix->dist->comm);
+  message_passing_sum_double(&checksum, 1, matrix->dist->comm);
   return checksum;
 }
 
@@ -556,7 +556,7 @@ double dbm_maxabs(const dbm_matrix_t *matrix) {
       maxabs = fmax(maxabs, fabs(shard->data[i]));
     }
   }
-  dbm_mpi_max_double(&maxabs, 1, matrix->dist->comm);
+  message_passing_max_double(&maxabs, 1, matrix->dist->comm);
   return maxabs;
 }
 
@@ -598,7 +598,7 @@ double dbm_maxeps(const dbm_matrix_t *matrix_a, const dbm_matrix_t *matrix_b) {
     }
   }
 
-  dbm_mpi_max_double(&epsilon, 1, matrix_a->dist->comm);
+  message_passing_max_double(&epsilon, 1, matrix_a->dist->comm);
   return epsilon;
 }
 
