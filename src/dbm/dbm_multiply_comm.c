@@ -24,8 +24,9 @@
  * \author Ole Schuett
  ******************************************************************************/
 static int gcd(const int a, const int b) {
-  if (a == 0)
+  if (a == 0) {
     return b;
+  }
   return gcd(b % a, a); // Euclid's algorithm.
 }
 
