@@ -21,10 +21,8 @@
 #include <mpi.h>
 #endif
 
-/*******************************************************************************
- * \brief Internal parameter used to tune pooled memory allocation.
- ******************************************************************************/
-#define OFFLOAD_ALLOC_OPENMP 1
+#define OFFLOAD_MEMPOOL_PRINT(FN, MSG, OUTPUT_UNIT) ((FN)(MSG, (int)strlen(MSG), OUTPUT_UNIT))
+#define OFFLOAD_MEMPOOL_OMPALLOC 1
 
 /*******************************************************************************
  * \brief Private struct for storing a chunk of memory.
@@ -75,9 +73,9 @@ static void *actual_malloc(const size_t size, const bool on_device) {
     offload_activate_chosen_device();
     offloadMallocHost(&memory, size);
   }
-#elif OFFLOAD_ALLOC_OPENMP && (201811 /*v5.0*/ <= _OPENMP)
+#elif OFFLOAD_MEMPOOL_OMPALLOC && (201811 /*v5.0*/ <= _OPENMP)
   memory = omp_alloc(size, omp_null_allocator);
-#elif defined(__parallel) && !OFFLOAD_ALLOC_OPENMP
+#elif defined(__parallel) && !OFFLOAD_MEMPOOL_OMPALLOC
   if (MPI_SUCCESS != MPI_Alloc_mem((MPI_Aint)size, MPI_INFO_NULL, &memory)) {
     fprintf(stderr, "ERROR: MPI_Alloc_mem failed at %s:%i\n", name, __FILE__,
             __LINE__);
@@ -117,10 +115,10 @@ static void actual_free(void *memory, const bool on_device) {
     offload_activate_chosen_device();
     offloadFreeHost(memory);
   }
-#elif OFFLOAD_ALLOC_OPENMP && (201811 /*v5.0*/ <= _OPENMP)
+#elif OFFLOAD_MEMPOOL_OMPALLOC && (201811 /*v5.0*/ <= _OPENMP)
   (void)on_device; // mark used
   omp_free(memory, omp_null_allocator);
-#elif defined(__parallel) && !OFFLOAD_ALLOC_OPENMP
+#elif defined(__parallel) && !OFFLOAD_MEMPOOL_OMPALLOC
   (void)on_device; // mark used
   if (MPI_SUCCESS != MPI_Free_mem(memory)) {
     fprintf(stderr, "ERROR: MPI_Free_mem failed at %s:%i\n", name, __FILE__,
@@ -338,11 +336,11 @@ void offload_mempool_stats_get(offload_mempool_stats_t *memstats) {
 }
 
 /*******************************************************************************
- * \brief Internal routine to prints statistics.
+ * \brief Print allocation statistics..
  * \author Hans Pabst
  ******************************************************************************/
 void offload_mempool_stats_print(int fortran_comm,
-                                 void (*print_func)(char *, int),
+                                 void (*print_func)(const char *, int, int),
                                  int output_unit) {
   assert(omp_get_num_threads() == 1);
 
@@ -354,29 +352,29 @@ void offload_mempool_stats_print(int fortran_comm,
   cp_mpi_max_uint64(&memstats.host_mallocs, 1, comm);
 
   if (0 != memstats.device_mallocs || 0 != memstats.host_mallocs) {
-    print_func("\n", output_unit);
-    print_func(
+    OFFLOAD_MEMPOOL_PRINT(print_func, "\n", output_unit);
+    OFFLOAD_MEMPOOL_PRINT(print_func,
         " ----------------------------------------------------------------"
         "---------------\n",
         output_unit);
-    print_func(
+    OFFLOAD_MEMPOOL_PRINT(print_func,
         " -                                                               "
         "              -\n",
         output_unit);
 
-    print_func(
+    OFFLOAD_MEMPOOL_PRINT(print_func,
         " -                         OFFLOAD MEMPOOL STATISTICS            "
         "              -\n",
         output_unit);
-    print_func(
+    OFFLOAD_MEMPOOL_PRINT(print_func,
         " -                                                               "
         "              -\n",
         output_unit);
-    print_func(
+    OFFLOAD_MEMPOOL_PRINT(print_func,
         " ----------------------------------------------------------------"
         "---------------\n",
         output_unit);
-    print_func(" Memory consumption               "
+    OFFLOAD_MEMPOOL_PRINT(print_func," Memory consumption               "
                " Number of allocations  Used [MiB]  Size [MiB]\n",
                output_unit);
   }
@@ -388,7 +386,7 @@ void offload_mempool_stats_print(int fortran_comm,
              (uintptr_t)memstats.device_mallocs,
              (uintptr_t)((memstats.device_used + (512U << 10)) >> 20),
              (uintptr_t)((memstats.device_size + (512U << 10)) >> 20));
-    print_func(buffer, output_unit);
+    OFFLOAD_MEMPOOL_PRINT(print_func, buffer, output_unit);
   }
   if (0 < memstats.host_mallocs) {
     cp_mpi_max_uint64(&memstats.host_size, 1, comm);
@@ -398,10 +396,10 @@ void offload_mempool_stats_print(int fortran_comm,
              (uintptr_t)memstats.host_mallocs,
              (uintptr_t)((memstats.host_used + (512U << 10)) >> 20),
              (uintptr_t)((memstats.host_size + (512U << 10)) >> 20));
-    print_func(buffer, output_unit);
+    OFFLOAD_MEMPOOL_PRINT(print_func, buffer, output_unit);
   }
   if (0 < memstats.device_mallocs || 0 < memstats.host_mallocs) {
-    print_func(
+    OFFLOAD_MEMPOOL_PRINT(print_func,
         " ----------------------------------------------------------------"
         "---------------\n",
         output_unit);

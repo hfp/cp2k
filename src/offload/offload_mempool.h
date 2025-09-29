@@ -65,11 +65,11 @@ typedef struct offload_mempool_stats_t {
 void offload_mempool_stats_get(offload_mempool_stats_t *memstats);
 
 /*******************************************************************************
- * \brief Internal routine to prints statistics.
+ * \brief Print allocation statistics.
  * \author Hans Pabst
  ******************************************************************************/
 void offload_mempool_stats_print(int fortran_comm,
-                                 void (*print_func)(char *, int),
+                                 void (*print_func)(const char *, int, int),
                                  int output_unit);
 
 #ifdef __cplusplus
