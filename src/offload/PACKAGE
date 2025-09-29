@@ -2,6 +2,7 @@
     "description": "Common infrastructure for offloading to accelerator devices",
     "requires": [
         "../base",
+        "../mpiwrap",
     ],
     "public": [
         "offload_api.F",

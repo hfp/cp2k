@@ -4,7 +4,7 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: GPL-2.0-or-later                                 */
 /*----------------------------------------------------------------------------*/
-#include "message_passing.h"
+#include "cp_mpi.h"
 
 #include <assert.h>
 #include <omp.h>
@@ -31,7 +31,7 @@
  * \brief Wrapper around MPI_Init.
  * \author Ole Schuett
  ******************************************************************************/
-void message_passing_init(int *argc, char ***argv) {
+void cp_mpi_init(int *argc, char ***argv) {
 #if defined(__parallel)
   CHECK(MPI_Init(argc, argv));
 #else
@@ -44,7 +44,7 @@ void message_passing_init(int *argc, char ***argv) {
  * \brief Wrapper around MPI_Finalize.
  * \author Ole Schuett
  ******************************************************************************/
-void message_passing_finalize() {
+void cp_mpi_finalize() {
 #if defined(__parallel)
   CHECK(MPI_Finalize());
 #endif
@@ -54,7 +54,7 @@ void message_passing_finalize() {
  * \brief Returns MPI_COMM_WORLD.
  * \author Ole Schuett
  ******************************************************************************/
-message_passing_comm_t message_passing_get_comm_world() {
+cp_mpi_comm_t cp_mpi_get_comm_world() {
 #if defined(__parallel)
   return MPI_COMM_WORLD;
 #else
@@ -66,7 +66,7 @@ message_passing_comm_t message_passing_get_comm_world() {
  * \brief Wrapper around MPI_Comm_f2c.
  * \author Ole Schuett
  ******************************************************************************/
-message_passing_comm_t message_passing_comm_f2c(const int fortran_comm) {
+cp_mpi_comm_t cp_mpi_comm_f2c(const int fortran_comm) {
 #if defined(__parallel)
   return MPI_Comm_f2c(fortran_comm);
 #else
@@ -79,7 +79,7 @@ message_passing_comm_t message_passing_comm_f2c(const int fortran_comm) {
  * \brief Wrapper around MPI_Comm_c2f.
  * \author Ole Schuett
  ******************************************************************************/
-int message_passing_comm_c2f(const message_passing_comm_t comm) {
+int cp_mpi_comm_c2f(const cp_mpi_comm_t comm) {
 #if defined(__parallel)
   return MPI_Comm_c2f(comm);
 #else
@@ -92,7 +92,7 @@ int message_passing_comm_c2f(const message_passing_comm_t comm) {
  * \brief Wrapper around MPI_Comm_rank.
  * \author Ole Schuett
  ******************************************************************************/
-int message_passing_comm_rank(const message_passing_comm_t comm) {
+int cp_mpi_comm_rank(const cp_mpi_comm_t comm) {
 #if defined(__parallel)
   int rank;
   CHECK(MPI_Comm_rank(comm, &rank));
@@ -107,7 +107,7 @@ int message_passing_comm_rank(const message_passing_comm_t comm) {
  * \brief Wrapper around MPI_Comm_size.
  * \author Ole Schuett
  ******************************************************************************/
-int message_passing_comm_size(const message_passing_comm_t comm) {
+int cp_mpi_comm_size(const cp_mpi_comm_t comm) {
 #if defined(__parallel)
   int nranks;
   CHECK(MPI_Comm_size(comm, &nranks));
@@ -122,8 +122,7 @@ int message_passing_comm_size(const message_passing_comm_t comm) {
  * \brief Wrapper around MPI_Dims_create.
  * \author Ole Schuett
  ******************************************************************************/
-void message_passing_dims_create(const int nnodes, const int ndims,
-                                 int dims[]) {
+void cp_mpi_dims_create(const int nnodes, const int ndims, int dims[]) {
 #if defined(__parallel)
   CHECK(MPI_Dims_create(nnodes, ndims, dims));
 #else
@@ -138,12 +137,11 @@ void message_passing_dims_create(const int nnodes, const int ndims,
  * \brief Wrapper around MPI_Cart_create.
  * \author Ole Schuett
  ******************************************************************************/
-message_passing_comm_t
-message_passing_cart_create(const message_passing_comm_t comm_old,
-                            const int ndims, const int dims[],
-                            const int periods[], const int reorder) {
+cp_mpi_comm_t cp_mpi_cart_create(const cp_mpi_comm_t comm_old, const int ndims,
+                                 const int dims[], const int periods[],
+                                 const int reorder) {
 #if defined(__parallel)
-  message_passing_comm_t comm_cart;
+  cp_mpi_comm_t comm_cart;
   CHECK(MPI_Cart_create(comm_old, ndims, dims, periods, reorder, &comm_cart));
   return comm_cart;
 #else
@@ -160,8 +158,8 @@ message_passing_cart_create(const message_passing_comm_t comm_old,
  * \brief Wrapper around MPI_Cart_get.
  * \author Ole Schuett
  ******************************************************************************/
-void message_passing_cart_get(const message_passing_comm_t comm, int maxdims,
-                              int dims[], int periods[], int coords[]) {
+void cp_mpi_cart_get(const cp_mpi_comm_t comm, int maxdims, int dims[],
+                     int periods[], int coords[]) {
 #if defined(__parallel)
   CHECK(MPI_Cart_get(comm, maxdims, dims, periods, coords));
 #else
@@ -178,8 +176,7 @@ void message_passing_cart_get(const message_passing_comm_t comm, int maxdims,
  * \brief Wrapper around MPI_Cart_rank.
  * \author Ole Schuett
  ******************************************************************************/
-int message_passing_cart_rank(const message_passing_comm_t comm,
-                              const int coords[]) {
+int cp_mpi_cart_rank(const cp_mpi_comm_t comm, const int coords[]) {
 #if defined(__parallel)
   int rank;
   CHECK(MPI_Cart_rank(comm, coords, &rank));
@@ -195,11 +192,10 @@ int message_passing_cart_rank(const message_passing_comm_t comm,
  * \brief Wrapper around MPI_Cart_sub.
  * \author Ole Schuett
  ******************************************************************************/
-message_passing_comm_t
-message_passing_cart_sub(const message_passing_comm_t comm,
-                         const int remain_dims[]) {
+cp_mpi_comm_t cp_mpi_cart_sub(const cp_mpi_comm_t comm,
+                              const int remain_dims[]) {
 #if defined(__parallel)
-  message_passing_comm_t newcomm;
+  cp_mpi_comm_t newcomm;
   CHECK(MPI_Cart_sub(comm, remain_dims, &newcomm));
   return newcomm;
 #else
@@ -213,7 +209,7 @@ message_passing_cart_sub(const message_passing_comm_t comm,
  * \brief Wrapper around MPI_Comm_free.
  * \author Ole Schuett
  ******************************************************************************/
-void message_passing_comm_free(message_passing_comm_t *comm) {
+void cp_mpi_comm_free(cp_mpi_comm_t *comm) {
 #if defined(__parallel)
   CHECK(MPI_Comm_free(comm));
 #else
@@ -225,8 +221,8 @@ void message_passing_comm_free(message_passing_comm_t *comm) {
  * \brief Wrapper around MPI_Comm_compare.
  * \author Ole Schuett
  ******************************************************************************/
-bool message_passing_comms_are_similar(const message_passing_comm_t comm1,
-                                       const message_passing_comm_t comm2) {
+bool cp_mpi_comms_are_similar(const cp_mpi_comm_t comm1,
+                              const cp_mpi_comm_t comm2) {
 #if defined(__parallel)
   int res;
   CHECK(MPI_Comm_compare(comm1, comm2, &res));
@@ -242,16 +238,14 @@ bool message_passing_comms_are_similar(const message_passing_comm_t comm1,
  * \brief Wrapper around MPI_Allreduce for op MPI_MAX and datatype MPI_INT.
  * \author Ole Schuett
  ******************************************************************************/
-void message_passing_max_int(int *values, const int count,
-                             const message_passing_comm_t comm) {
+void cp_mpi_max_int(int *values, const int count, const cp_mpi_comm_t comm) {
 #if defined(__parallel)
   int value = 0;
-  void *recvbuf =
-      (1 < count ? message_passing_alloc_mem(count * sizeof(int)) : &value);
+  void *recvbuf = (1 < count ? cp_mpi_alloc_mem(count * sizeof(int)) : &value);
   CHECK(MPI_Allreduce(values, recvbuf, count, MPI_INT, MPI_MAX, comm));
   memcpy(values, recvbuf, count * sizeof(int));
   if (1 < count) {
-    message_passing_free_mem(recvbuf);
+    cp_mpi_free_mem(recvbuf);
   }
 #else
   (void)comm; // mark used
@@ -264,17 +258,16 @@ void message_passing_max_int(int *values, const int count,
  * \brief Wrapper around MPI_Allreduce for op MPI_MAX and datatype MPI_UINT64_T.
  * \author Ole Schuett
  ******************************************************************************/
-void message_passing_max_uint64(uint64_t *values, const int count,
-                                const message_passing_comm_t comm) {
+void cp_mpi_max_uint64(uint64_t *values, const int count,
+                       const cp_mpi_comm_t comm) {
 #if defined(__parallel)
   uint64_t value = 0;
   void *recvbuf =
-      (1 < count ? message_passing_alloc_mem(count * sizeof(uint64_t))
-                 : &value);
+      (1 < count ? cp_mpi_alloc_mem(count * sizeof(uint64_t)) : &value);
   CHECK(MPI_Allreduce(values, recvbuf, count, MPI_UINT64_T, MPI_MAX, comm));
   memcpy(values, recvbuf, count * sizeof(uint64_t));
   if (1 < count) {
-    message_passing_free_mem(recvbuf);
+    cp_mpi_free_mem(recvbuf);
   }
 #else
   (void)comm; // mark used
@@ -287,16 +280,16 @@ void message_passing_max_uint64(uint64_t *values, const int count,
  * \brief Wrapper around MPI_Allreduce for op MPI_MAX and datatype MPI_DOUBLE.
  * \author Ole Schuett
  ******************************************************************************/
-void message_passing_max_double(double *values, const int count,
-                                const message_passing_comm_t comm) {
+void cp_mpi_max_double(double *values, const int count,
+                       const cp_mpi_comm_t comm) {
 #if defined(__parallel)
   double value = 0;
   void *recvbuf =
-      (1 < count ? message_passing_alloc_mem(count * sizeof(double)) : &value);
+      (1 < count ? cp_mpi_alloc_mem(count * sizeof(double)) : &value);
   CHECK(MPI_Allreduce(values, recvbuf, count, MPI_DOUBLE, MPI_MAX, comm));
   memcpy(values, recvbuf, count * sizeof(double));
   if (1 < count) {
-    message_passing_free_mem(recvbuf);
+    cp_mpi_free_mem(recvbuf);
   }
 #else
   (void)comm; // mark used
@@ -309,16 +302,14 @@ void message_passing_max_double(double *values, const int count,
  * \brief Wrapper around MPI_Allreduce for op MPI_SUM and datatype MPI_INT.
  * \author Ole Schuett
  ******************************************************************************/
-void message_passing_sum_int(int *values, const int count,
-                             const message_passing_comm_t comm) {
+void cp_mpi_sum_int(int *values, const int count, const cp_mpi_comm_t comm) {
 #if defined(__parallel)
   int value = 0;
-  void *recvbuf =
-      (1 < count ? message_passing_alloc_mem(count * sizeof(int)) : &value);
+  void *recvbuf = (1 < count ? cp_mpi_alloc_mem(count * sizeof(int)) : &value);
   CHECK(MPI_Allreduce(values, recvbuf, count, MPI_INT, MPI_SUM, comm));
   memcpy(values, recvbuf, count * sizeof(int));
   if (1 < count) {
-    message_passing_free_mem(recvbuf);
+    cp_mpi_free_mem(recvbuf);
   }
 #else
   (void)comm; // mark used
@@ -331,16 +322,16 @@ void message_passing_sum_int(int *values, const int count,
  * \brief Wrapper around MPI_Allreduce for op MPI_SUM and datatype MPI_INT64_T.
  * \author Ole Schuett
  ******************************************************************************/
-void message_passing_sum_int64(int64_t *values, const int count,
-                               const message_passing_comm_t comm) {
+void cp_mpi_sum_int64(int64_t *values, const int count,
+                      const cp_mpi_comm_t comm) {
 #if defined(__parallel)
   int64_t value = 0;
   void *recvbuf =
-      (1 < count ? message_passing_alloc_mem(count * sizeof(int64_t)) : &value);
+      (1 < count ? cp_mpi_alloc_mem(count * sizeof(int64_t)) : &value);
   CHECK(MPI_Allreduce(values, recvbuf, count, MPI_INT64_T, MPI_SUM, comm));
   memcpy(values, recvbuf, count * sizeof(int64_t));
   if (1 < count) {
-    message_passing_free_mem(recvbuf);
+    cp_mpi_free_mem(recvbuf);
   }
 #else
   (void)comm; // mark used
@@ -353,16 +344,16 @@ void message_passing_sum_int64(int64_t *values, const int count,
  * \brief Wrapper around MPI_Allreduce for op MPI_SUM and datatype MPI_DOUBLE.
  * \author Ole Schuett
  ******************************************************************************/
-void message_passing_sum_double(double *values, const int count,
-                                const message_passing_comm_t comm) {
+void cp_mpi_sum_double(double *values, const int count,
+                       const cp_mpi_comm_t comm) {
 #if defined(__parallel)
   double value = 0;
   void *recvbuf =
-      (1 < count ? message_passing_alloc_mem(count * sizeof(double)) : &value);
+      (1 < count ? cp_mpi_alloc_mem(count * sizeof(double)) : &value);
   CHECK(MPI_Allreduce(values, recvbuf, count, MPI_DOUBLE, MPI_SUM, comm));
   memcpy(values, recvbuf, count * sizeof(double));
   if (1 < count) {
-    message_passing_free_mem(recvbuf);
+    cp_mpi_free_mem(recvbuf);
   }
 #else
   (void)comm; // mark used
@@ -375,11 +366,10 @@ void message_passing_sum_double(double *values, const int count,
  * \brief Wrapper around MPI_Sendrecv for datatype MPI_BYTE.
  * \author Ole Schuett
  ******************************************************************************/
-int message_passing_sendrecv_byte(const void *sendbuf, const int sendcount,
-                                  const int dest, const int sendtag,
-                                  void *recvbuf, const int recvcount,
-                                  const int source, const int recvtag,
-                                  const message_passing_comm_t comm) {
+int cp_mpi_sendrecv_byte(const void *sendbuf, const int sendcount,
+                         const int dest, const int sendtag, void *recvbuf,
+                         const int recvcount, const int source,
+                         const int recvtag, const cp_mpi_comm_t comm) {
 #if defined(__parallel)
   MPI_Status status;
   CHECK(MPI_Sendrecv(sendbuf, sendcount, MPI_BYTE, dest, sendtag, recvbuf,
@@ -397,8 +387,7 @@ int message_passing_sendrecv_byte(const void *sendbuf, const int sendcount,
   (void)source;
   (void)recvtag;
   (void)comm;
-  fprintf(stderr,
-          "Error: message_passing_sendrecv_byte not available without MPI\n");
+  fprintf(stderr, "Error: cp_mpi_sendrecv_byte not available without MPI\n");
   abort();
 #endif
 }
@@ -407,11 +396,10 @@ int message_passing_sendrecv_byte(const void *sendbuf, const int sendcount,
  * \brief Wrapper around MPI_Sendrecv for datatype MPI_DOUBLE.
  * \author Ole Schuett
  ******************************************************************************/
-int message_passing_sendrecv_double(const double *sendbuf, const int sendcount,
-                                    const int dest, const int sendtag,
-                                    double *recvbuf, const int recvcount,
-                                    const int source, const int recvtag,
-                                    const message_passing_comm_t comm) {
+int cp_mpi_sendrecv_double(const double *sendbuf, const int sendcount,
+                           const int dest, const int sendtag, double *recvbuf,
+                           const int recvcount, const int source,
+                           const int recvtag, const cp_mpi_comm_t comm) {
 #if defined(__parallel)
   MPI_Status status;
   CHECK(MPI_Sendrecv(sendbuf, sendcount, MPI_DOUBLE, dest, sendtag, recvbuf,
@@ -429,8 +417,7 @@ int message_passing_sendrecv_double(const double *sendbuf, const int sendcount,
   (void)source;
   (void)recvtag;
   (void)comm;
-  fprintf(stderr,
-          "Error: message_passing_sendrecv_double not available without MPI\n");
+  fprintf(stderr, "Error: cp_mpi_sendrecv_double not available without MPI\n");
   abort();
 #endif
 }
@@ -439,9 +426,8 @@ int message_passing_sendrecv_double(const double *sendbuf, const int sendcount,
  * \brief Wrapper around MPI_Alltoall for datatype MPI_INT.
  * \author Ole Schuett
  ******************************************************************************/
-void message_passing_alltoall_int(const int *sendbuf, const int sendcount,
-                                  int *recvbuf, const int recvcount,
-                                  const message_passing_comm_t comm) {
+void cp_mpi_alltoall_int(const int *sendbuf, const int sendcount, int *recvbuf,
+                         const int recvcount, const cp_mpi_comm_t comm) {
 #if defined(__parallel)
   CHECK(MPI_Alltoall(sendbuf, sendcount, MPI_INT, recvbuf, recvcount, MPI_INT,
                      comm));
@@ -456,10 +442,10 @@ void message_passing_alltoall_int(const int *sendbuf, const int sendcount,
  * \brief Wrapper around MPI_Alltoallv for datatype MPI_BYTE.
  * \author Ole Schuett
  ******************************************************************************/
-void message_passing_alltoallv_byte(const void *sendbuf, const int *sendcounts,
-                                    const int *sdispls, void *recvbuf,
-                                    const int *recvcounts, const int *rdispls,
-                                    const message_passing_comm_t comm) {
+void cp_mpi_alltoallv_byte(const void *sendbuf, const int *sendcounts,
+                           const int *sdispls, void *recvbuf,
+                           const int *recvcounts, const int *rdispls,
+                           const cp_mpi_comm_t comm) {
 #if defined(__parallel)
   CHECK(MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_BYTE, recvbuf,
                       recvcounts, rdispls, MPI_BYTE, comm));
@@ -475,11 +461,10 @@ void message_passing_alltoallv_byte(const void *sendbuf, const int *sendcounts,
  * \brief Wrapper around MPI_Alltoallv for datatype MPI_DOUBLE.
  * \author Ole Schuett
  ******************************************************************************/
-void message_passing_alltoallv_double(const double *sendbuf,
-                                      const int *sendcounts, const int *sdispls,
-                                      double *recvbuf, const int *recvcounts,
-                                      const int *rdispls,
-                                      const message_passing_comm_t comm) {
+void cp_mpi_alltoallv_double(const double *sendbuf, const int *sendcounts,
+                             const int *sdispls, double *recvbuf,
+                             const int *recvcounts, const int *rdispls,
+                             const cp_mpi_comm_t comm) {
 #if defined(__parallel)
   CHECK(MPI_Alltoallv(sendbuf, sendcounts, sdispls, MPI_DOUBLE, recvbuf,
                       recvcounts, rdispls, MPI_DOUBLE, comm));
@@ -495,7 +480,7 @@ void message_passing_alltoallv_double(const double *sendbuf,
  * \brief Wrapper around MPI_Alloc_mem.
  * \author Hans Pabst
  ******************************************************************************/
-void *message_passing_alloc_mem(size_t size) {
+void *cp_mpi_alloc_mem(size_t size) {
   void *result = NULL;
 #if DBM_ALLOC_MPI && defined(__parallel)
   CHECK(MPI_Alloc_mem((MPI_Aint)size, MPI_INFO_NULL, &result));
@@ -511,7 +496,7 @@ void *message_passing_alloc_mem(size_t size) {
  * \brief Wrapper around MPI_Free_mem.
  * \author Hans Pabst
  ******************************************************************************/
-void message_passing_free_mem(void *mem) {
+void cp_mpi_free_mem(void *mem) {
 #if DBM_ALLOC_MPI && defined(__parallel)
   CHECK(MPI_Free_mem(mem));
 #elif DBM_ALLOC_OPENMP && (201811 /*v5.0*/ <= _OPENMP)

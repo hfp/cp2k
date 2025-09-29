@@ -5,7 +5,7 @@
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
 #include "offload_mempool.h"
-#include "../mpiwrap/message_passing.h"
+#include "../mpiwrap/cp_mpi.h"
 #include "offload_library.h"
 #include "offload_runtime.h"
 
@@ -347,11 +347,11 @@ void offload_mempool_stats_print(int fortran_comm,
   assert(omp_get_num_threads() == 1);
 
   char buffer[100];
-  const message_passing_comm_t comm = message_passing_comm_f2c(fortran_comm);
+  const cp_mpi_comm_t comm = cp_mpi_comm_f2c(fortran_comm);
   offload_mempool_stats_t memstats;
   offload_mempool_stats_get(&memstats);
-  message_passing_max_uint64(&memstats.device_mallocs, 1, comm);
-  message_passing_max_uint64(&memstats.host_mallocs, 1, comm);
+  cp_mpi_max_uint64(&memstats.device_mallocs, 1, comm);
+  cp_mpi_max_uint64(&memstats.host_mallocs, 1, comm);
 
   if (0 != memstats.device_mallocs || 0 != memstats.host_mallocs) {
     print_func("\n", output_unit);
@@ -381,7 +381,7 @@ void offload_mempool_stats_print(int fortran_comm,
                output_unit);
   }
   if (0 < memstats.device_mallocs) {
-    message_passing_max_uint64(&memstats.device_size, 1, comm);
+    cp_mpi_max_uint64(&memstats.device_size, 1, comm);
     snprintf(buffer, sizeof(buffer),
              " Device                            "
              " %20" PRIuPTR "  %10" PRIuPTR "  %10" PRIuPTR "\n",
@@ -391,7 +391,7 @@ void offload_mempool_stats_print(int fortran_comm,
     print_func(buffer, output_unit);
   }
   if (0 < memstats.host_mallocs) {
-    message_passing_max_uint64(&memstats.host_size, 1, comm);
+    cp_mpi_max_uint64(&memstats.host_size, 1, comm);
     snprintf(buffer, sizeof(buffer),
              " Host                              "
              " %20" PRIuPTR "  %10" PRIuPTR "  %10" PRIuPTR "\n",

@@ -5,7 +5,7 @@
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
 #include "dbm_library.h"
-#include "../mpiwrap/message_passing.h"
+#include "../mpiwrap/cp_mpi.h"
 #include "../offload/offload_mempool.h"
 
 #include <assert.h>
@@ -127,7 +127,7 @@ void dbm_library_print_stats(const int fortran_comm,
     abort();
   }
 
-  const message_passing_comm_t comm = message_passing_comm_f2c(fortran_comm);
+  const cp_mpi_comm_t comm = cp_mpi_comm_f2c(fortran_comm);
   // Sum all counters across threads and mpi ranks.
   int64_t counters[DBM_NUM_COUNTERS][2] = {{0}};
   double total = 0.0;
@@ -136,7 +136,7 @@ void dbm_library_print_stats(const int fortran_comm,
     for (int j = 0; j < max_threads; j++) {
       counters[i][0] += per_thread_counters[j][i];
     }
-    message_passing_sum_int64(&counters[i][0], 1, comm);
+    cp_mpi_sum_int64(&counters[i][0], 1, comm);
     total += counters[i][0];
   }
 
