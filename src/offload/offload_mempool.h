@@ -7,16 +7,13 @@
 #ifndef OFFLOAD_MEMPOOL_H
 #define OFFLOAD_MEMPOOL_H
 
+#include <stddef.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include <stdint.h>
-
-/*******************************************************************************
- * \brief Hyperparameters used to tune pooled memory allocation.
- ******************************************************************************/
-#define OFFLOAD_ALLOC_OPENMP 1
 
 /*******************************************************************************
  * \brief Internal routine for allocating host memory from the pool.

@@ -4,6 +4,9 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
+#include "dbm_distribution.h"
+#include "dbm_hyperparams.h"
+#include "dbm_internal.h"
 
 #include <assert.h>
 #include <math.h>
@@ -13,16 +16,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "dbm_distribution.h"
-#include "dbm_hyperparams.h"
-#include "dbm_internal.h"
-
 /*******************************************************************************
  * \brief Private routine for creating a new one dimensional distribution.
  * \author Ole Schuett
  ******************************************************************************/
 static void dbm_dist_1d_new(dbm_dist_1d_t *dist, const int length,
-                            const int coords[length], const message_passing_comm_t comm,
+                            const int coords[length],
+                            const message_passing_comm_t comm,
                             const int nshards) {
   dist->comm = comm;
   dist->nshards = nshards;
@@ -113,10 +113,12 @@ void dbm_distribution_new(dbm_distribution_t **dist_out, const int fortran_comm,
   dist->nranks = message_passing_comm_size(dist->comm);
 
   const int row_dim_remains[2] = {1, 0};
-  const message_passing_comm_t row_comm = message_passing_cart_sub(dist->comm, row_dim_remains);
+  const message_passing_comm_t row_comm =
+      message_passing_cart_sub(dist->comm, row_dim_remains);
 
   const int col_dim_remains[2] = {0, 1};
-  const message_passing_comm_t col_comm = message_passing_cart_sub(dist->comm, col_dim_remains);
+  const message_passing_comm_t col_comm =
+      message_passing_cart_sub(dist->comm, col_dim_remains);
 
   const int nshards = DBM_SHARDS_PER_THREAD * omp_get_max_threads();
   const int nrow_shards = find_best_nrow_shards(nshards, nrows, ncols);

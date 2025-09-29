@@ -4,7 +4,6 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
-
 #ifndef DBM_HYPERPARAMS_H
 #define DBM_HYPERPARAMS_H
 

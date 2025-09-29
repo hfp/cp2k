@@ -70,29 +70,32 @@ void message_passing_dims_create(const int nnodes, const int ndims, int dims[]);
  * \brief Wrapper around MPI_Cart_create.
  * \author Ole Schuett
  ******************************************************************************/
-message_passing_comm_t message_passing_cart_create(const message_passing_comm_t comm_old,
-                                   const int ndims, const int dims[],
-                                   const int periods[], const int reorder);
+message_passing_comm_t
+message_passing_cart_create(const message_passing_comm_t comm_old,
+                            const int ndims, const int dims[],
+                            const int periods[], const int reorder);
 
 /*******************************************************************************
  * \brief Wrapper around MPI_Cart_get.
  * \author Ole Schuett
  ******************************************************************************/
-void message_passing_cart_get(const message_passing_comm_t comm, int maxdims, int dims[],
-                      int periods[], int coords[]);
+void message_passing_cart_get(const message_passing_comm_t comm, int maxdims,
+                              int dims[], int periods[], int coords[]);
 
 /*******************************************************************************
  * \brief Wrapper around MPI_Cart_rank.
  * \author Ole Schuett
  ******************************************************************************/
-int message_passing_cart_rank(const message_passing_comm_t comm, const int coords[]);
+int message_passing_cart_rank(const message_passing_comm_t comm,
+                              const int coords[]);
 
 /*******************************************************************************
  * \brief Wrapper around MPI_Cart_sub.
  * \author Ole Schuett
  ******************************************************************************/
-message_passing_comm_t message_passing_cart_sub(const message_passing_comm_t comm,
-                                const int remain_dims[]);
+message_passing_comm_t
+message_passing_cart_sub(const message_passing_comm_t comm,
+                         const int remain_dims[]);
 
 /*******************************************************************************
  * \brief Wrapper around MPI_Comm_free.
@@ -105,90 +108,96 @@ void message_passing_comm_free(message_passing_comm_t *comm);
  * \author Ole Schuett
  ******************************************************************************/
 bool message_passing_comms_are_similar(const message_passing_comm_t comm1,
-                               const message_passing_comm_t comm2);
+                                       const message_passing_comm_t comm2);
 
 /*******************************************************************************
  * \brief Wrapper around MPI_Allreduce for op MPI_MAX and datatype MPI_INT.
  * \author Ole Schuett
  ******************************************************************************/
-void message_passing_max_int(int *values, const int count, const message_passing_comm_t comm);
+void message_passing_max_int(int *values, const int count,
+                             const message_passing_comm_t comm);
 
 /*******************************************************************************
  * \brief Wrapper around MPI_Allreduce for op MPI_MAX and datatype MPI_UINT64_T.
  * \author Hans Pabst
  ******************************************************************************/
 void message_passing_max_uint64(uint64_t *values, const int count,
-                        const message_passing_comm_t comm);
+                                const message_passing_comm_t comm);
 
 /*******************************************************************************
  * \brief Wrapper around MPI_Allreduce for op MPI_MAX and datatype MPI_DOUBLE.
  * \author Ole Schuett
  ******************************************************************************/
 void message_passing_max_double(double *values, const int count,
-                        const message_passing_comm_t comm);
+                                const message_passing_comm_t comm);
 
 /*******************************************************************************
  * \brief Wrapper around MPI_Allreduce for op MPI_SUM and datatype MPI_INT.
  * \author Ole Schuett
  ******************************************************************************/
-void message_passing_sum_int(int *values, const int count, const message_passing_comm_t comm);
+void message_passing_sum_int(int *values, const int count,
+                             const message_passing_comm_t comm);
 
 /*******************************************************************************
  * \brief Wrapper around MPI_Allreduce for op MPI_SUM and datatype MPI_INT64_T.
  * \author Ole Schuett
  ******************************************************************************/
 void message_passing_sum_int64(int64_t *values, const int count,
-                       const message_passing_comm_t comm);
+                               const message_passing_comm_t comm);
 
 /*******************************************************************************
  * \brief Wrapper around MPI_Allreduce for op MPI_SUM and datatype MPI_DOUBLE.
  * \author Ole Schuett
  ******************************************************************************/
 void message_passing_sum_double(double *values, const int count,
-                        const message_passing_comm_t comm);
+                                const message_passing_comm_t comm);
 
 /*******************************************************************************
  * \brief Wrapper around MPI_Sendrecv for datatype MPI_BYTE.
  * \author Ole Schuett
  ******************************************************************************/
 int message_passing_sendrecv_byte(const void *sendbuf, const int sendcount,
-                          const int dest, const int sendtag, void *recvbuf,
-                          const int recvcount, const int source,
-                          const int recvtag, const message_passing_comm_t comm);
+                                  const int dest, const int sendtag,
+                                  void *recvbuf, const int recvcount,
+                                  const int source, const int recvtag,
+                                  const message_passing_comm_t comm);
 
 /*******************************************************************************
  * \brief Wrapper around MPI_Sendrecv for datatype MPI_DOUBLE.
  * \author Ole Schuett
  ******************************************************************************/
 int message_passing_sendrecv_double(const double *sendbuf, const int sendcount,
-                            const int dest, const int sendtag, double *recvbuf,
-                            const int recvcount, const int source,
-                            const int recvtag, const message_passing_comm_t comm);
+                                    const int dest, const int sendtag,
+                                    double *recvbuf, const int recvcount,
+                                    const int source, const int recvtag,
+                                    const message_passing_comm_t comm);
 
 /*******************************************************************************
  * \brief Wrapper around MPI_Alltoall for datatype MPI_INT.
  * \author Ole Schuett
  ******************************************************************************/
-void message_passing_alltoall_int(const int *sendbuf, const int sendcount, int *recvbuf,
-                          const int recvcount, const message_passing_comm_t comm);
+void message_passing_alltoall_int(const int *sendbuf, const int sendcount,
+                                  int *recvbuf, const int recvcount,
+                                  const message_passing_comm_t comm);
 
 /*******************************************************************************
  * \brief Wrapper around MPI_Alltoallv for datatype MPI_BYTE.
  * \author Ole Schuett
  ******************************************************************************/
 void message_passing_alltoallv_byte(const void *sendbuf, const int *sendcounts,
-                            const int *sdispls, void *recvbuf,
-                            const int *recvcounts, const int *rdispls,
-                            const message_passing_comm_t comm);
+                                    const int *sdispls, void *recvbuf,
+                                    const int *recvcounts, const int *rdispls,
+                                    const message_passing_comm_t comm);
 
 /*******************************************************************************
  * \brief Wrapper around MPI_Alltoallv for datatype MPI_DOUBLE.
  * \author Ole Schuett
  ******************************************************************************/
-void message_passing_alltoallv_double(const double *sendbuf, const int *sendcounts,
-                              const int *sdispls, double *recvbuf,
-                              const int *recvcounts, const int *rdispls,
-                              const message_passing_comm_t comm);
+void message_passing_alltoallv_double(const double *sendbuf,
+                                      const int *sendcounts, const int *sdispls,
+                                      double *recvbuf, const int *recvcounts,
+                                      const int *rdispls,
+                                      const message_passing_comm_t comm);
 
 /*******************************************************************************
  * \brief Wrapper around MPI_Alloc_mem.

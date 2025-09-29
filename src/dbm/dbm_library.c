@@ -4,6 +4,9 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
+#include "dbm_library.h"
+#include "../mpiwrap/message_passing.h"
+#include "../offload/offload_mempool.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -11,10 +14,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "../mpiwrap/message_passing.h"
-#include "../offload/offload_mempool.h"
-#include "dbm_library.h"
 
 #define DBM_NUM_COUNTERS 64
 

@@ -4,6 +4,8 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
+#include "dbm_matrix.h"
+#include "dbm_hyperparams.h"
 
 #include <assert.h>
 #include <math.h>
@@ -12,9 +14,6 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "dbm_hyperparams.h"
-#include "dbm_matrix.h"
 
 /*******************************************************************************
  * \brief Creates a new matrix.
@@ -124,7 +123,8 @@ void dbm_redistribute(const dbm_matrix_t *matrix, dbm_matrix_t *redist) {
     assert(matrix->col_sizes[i] == redist->col_sizes[i]);
   }
 
-  assert(message_passing_comms_are_similar(matrix->dist->comm, redist->dist->comm));
+  assert(message_passing_comms_are_similar(matrix->dist->comm,
+                                           redist->dist->comm));
   const message_passing_comm_t comm = redist->dist->comm;
   const int nranks = message_passing_comm_size(comm);
 
@@ -157,8 +157,10 @@ void dbm_redistribute(const dbm_matrix_t *matrix, dbm_matrix_t *redist) {
   }
   const int total_send_count = send_displ[nranks];
   const int total_recv_count = recv_displ[nranks];
-  double *data_send = message_passing_alloc_mem(total_send_count * sizeof(double));
-  double *data_recv = message_passing_alloc_mem(total_recv_count * sizeof(double));
+  double *data_send =
+      message_passing_alloc_mem(total_send_count * sizeof(double));
+  double *data_recv =
+      message_passing_alloc_mem(total_recv_count * sizeof(double));
 
   // 2nd pass: Fill send_data.
   int send_data_positions[nranks];
@@ -185,7 +187,7 @@ void dbm_redistribute(const dbm_matrix_t *matrix, dbm_matrix_t *redist) {
 
   // 2nd communication: Exchange data.
   message_passing_alltoallv_double(data_send, send_count, send_displ, data_recv,
-                           recv_count, recv_displ, comm);
+                                   recv_count, recv_displ, comm);
   message_passing_free_mem(data_send);
 
   // 3rd pass: Unpack data.

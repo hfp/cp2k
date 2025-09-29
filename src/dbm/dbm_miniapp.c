@@ -4,6 +4,10 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
+#include "../mpiwrap/message_passing.h"
+#include "../offload/offload_library.h"
+#include "dbm_library.h"
+#include "dbm_matrix.h"
 
 #include <assert.h>
 #include <omp.h>
@@ -15,11 +19,6 @@
 #if defined(__LIBXSMM)
 #include <libxsmm.h>
 #endif
-
-#include "../mpiwrap/message_passing.h"
-#include "../offload/offload_library.h"
-#include "dbm_library.h"
-#include "dbm_matrix.h"
 
 /*******************************************************************************
  * \brief Wrapper for printf, passed to dbm_library_print_stats.
@@ -182,7 +181,8 @@ static void set_all_blocks(dbm_matrix_t *matrix) {
  * \author Ole Schuett
  ******************************************************************************/
 void benchmark_multiply(const int M, const int N, const int K, const int m,
-                        const int n, const int k, const message_passing_comm_t comm) {
+                        const int n, const int k,
+                        const message_passing_comm_t comm) {
   dbm_matrix_t *matrix_a = create_some_matrix(M, K, 1, m, k, k, comm);
   dbm_matrix_t *matrix_b = create_some_matrix(K, N, k, k, 1, n, comm);
   dbm_distribution_t *dist_c = create_dist(M, N, comm);
@@ -351,7 +351,8 @@ int main(int argc, char *argv[]) {
   }
 
   if (EXIT_SUCCESS == result) {
-    dbm_library_print_stats(message_passing_comm_c2f(comm), &print_func, my_rank);
+    dbm_library_print_stats(message_passing_comm_c2f(comm), &print_func,
+                            my_rank);
   }
   dbm_library_finalize();
   message_passing_comm_free(&comm);

@@ -4,7 +4,6 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
-
 #ifndef DBM_DISTRIBUTION_H
 #define DBM_DISTRIBUTION_H
 
@@ -18,7 +17,7 @@ typedef struct {
   int length;       // global number of rows/cols
   int *index2coord; // maps row/col indicies to cart coordinate
   int nlocals;
-  int *local_indicies; // list of row/col indicies that reside locally.
+  int *local_indicies;         // list of row/col indicies that reside locally.
   message_passing_comm_t comm; // 1D communicator
   int nranks;
   int my_rank;

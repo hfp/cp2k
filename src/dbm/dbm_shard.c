@@ -4,16 +4,16 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
+#include "dbm_shard.h"
+#include "../offload/offload_mempool.h"
+#include "dbm_hyperparams.h"
+
 #include <assert.h>
 #include <omp.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "../offload/offload_mempool.h"
-#include "dbm_hyperparams.h"
-#include "dbm_shard.h"
 
 /*******************************************************************************
  * \brief Internal routine for finding a power of two greater than given number.

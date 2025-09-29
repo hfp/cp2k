@@ -4,6 +4,15 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
+#include "dbm_multiply.h"
+#include "../offload/offload_mempool.h"
+#include "../offload/offload_runtime.h"
+#include "dbm_hyperparams.h"
+#include "dbm_internal.h"
+#include "dbm_library.h"
+#include "dbm_multiply_comm.h"
+#include "dbm_multiply_cpu.h"
+#include "dbm_multiply_gpu.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -12,16 +21,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "../offload/offload_mempool.h"
-#include "../offload/offload_runtime.h"
-#include "dbm_hyperparams.h"
-#include "dbm_internal.h"
-#include "dbm_library.h"
-#include "dbm_multiply.h"
-#include "dbm_multiply_comm.h"
-#include "dbm_multiply_cpu.h"
-#include "dbm_multiply_gpu.h"
 
 /*******************************************************************************
  * \brief Private routine for computing the max filter threshold for each row.

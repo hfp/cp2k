@@ -4,15 +4,13 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
-
 #include "dbm_multiply_comm.h"
+#include "../mpiwrap/message_passing.h"
+#include "../offload/offload_mempool.h"
 
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "../mpiwrap/message_passing.h"
-#include "../offload/offload_mempool.h"
 
 #if 0
 #define DBM_MULTIPLY_COMM_MEMPOOL
@@ -365,7 +363,8 @@ static dbm_packed_matrix_t pack_matrix(const bool trans_matrix,
   }
   dbm_pack_block_t *blks_send =
       message_passing_alloc_mem(nblks_send_max * sizeof(dbm_pack_block_t));
-  double *data_send = message_passing_alloc_mem(ndata_send_max * sizeof(double));
+  double *data_send =
+      message_passing_alloc_mem(ndata_send_max * sizeof(double));
 
   // Cannot parallelize over packs (there might be too few of them).
   for (int ipack = 0; ipack < nsend_packs; ipack++) {
@@ -381,7 +380,8 @@ static dbm_packed_matrix_t pack_matrix(const bool trans_matrix,
 
     // 1st communication: Exchange block counts.
     int blks_recv_count[nranks], blks_recv_displ[nranks];
-    message_passing_alltoall_int(blks_send_count, 1, blks_recv_count, 1, dist->comm);
+    message_passing_alltoall_int(blks_send_count, 1, blks_recv_count, 1,
+                                 dist->comm);
     icumsum(nranks, blks_recv_count, blks_recv_displ);
     const int nblocks_recv = isum(nranks, blks_recv_count);
 
@@ -403,19 +403,21 @@ static dbm_packed_matrix_t pack_matrix(const bool trans_matrix,
     // 3rd communication: Exchange data counts.
     // TODO: could be computed from blks_recv.
     int data_recv_count[nranks], data_recv_displ[nranks];
-    message_passing_alltoall_int(data_send_count, 1, data_recv_count, 1, dist->comm);
+    message_passing_alltoall_int(data_send_count, 1, data_recv_count, 1,
+                                 dist->comm);
     icumsum(nranks, data_recv_count, data_recv_displ);
     const int ndata_recv = isum(nranks, data_recv_count);
 
     // 4th communication: Exchange data.
 #if defined(DBM_MULTIPLY_COMM_MEMPOOL)
-    double *data_recv = offload_mempool_host_malloc(ndata_recv * sizeof(double));
+    double *data_recv =
+        offload_mempool_host_malloc(ndata_recv * sizeof(double));
 #else
     double *data_recv = message_passing_alloc_mem(ndata_recv * sizeof(double));
 #endif
-    message_passing_alltoallv_double(data_send, data_send_count, data_send_displ,
-                             data_recv, data_recv_count, data_recv_displ,
-                             dist->comm);
+    message_passing_alltoallv_double(
+        data_send, data_send_count, data_send_displ, data_recv, data_recv_count,
+        data_recv_displ, dist->comm);
 
     // Post-process received blocks and assemble them into a pack.
     postprocess_received_blocks(nranks, dist_indices->nshards, nblocks_recv,
