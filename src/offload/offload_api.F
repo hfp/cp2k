@@ -10,16 +10,9 @@
 !> \author Ole Schuett
 ! **************************************************************************************************
 MODULE offload_api
-   USE ISO_C_BINDING,                   ONLY: C_ASSOCIATED,&
-                                              C_CHAR,&
-                                              C_F_POINTER,&
-                                              C_FUNPTR,&
-                                              C_FUNLOC,&
-                                              C_INT,&
-                                              C_NULL_CHAR,&
-                                              C_NULL_PTR,&
-                                              C_PTR,&
-                                              C_SIZE_T
+   USE ISO_C_BINDING,                   ONLY: &
+        C_ASSOCIATED, C_CHAR, C_FUNLOC, C_FUNPTR, C_F_POINTER, C_INT, C_NULL_CHAR, C_NULL_PTR, &
+        C_PTR, C_SIZE_T
    USE kinds,                           ONLY: dp,&
                                               int_8
    USE message_passing,                 ONLY: mp_comm_type
@@ -342,8 +335,8 @@ CONTAINS
 !> \author Ole Schuett
 ! **************************************************************************************************
    SUBROUTINE offload_mempool_stats_print(mpi_comm, output_unit)
-      TYPE(mp_comm_type), INTENT(IN)            :: mpi_comm
-      INTEGER, INTENT(IN)                       :: output_unit
+      TYPE(mp_comm_type), INTENT(IN)                     :: mpi_comm
+      INTEGER, INTENT(IN)                                :: output_unit
 
       INTERFACE
          SUBROUTINE offload_mempool_stats_print_c(mpi_comm, print_func, output_unit) &
@@ -370,8 +363,8 @@ CONTAINS
 !> \author Hans Pabst
 ! **************************************************************************************************
    SUBROUTINE print_func(msg, msglen, output_unit) BIND(C, name="offload_api_print_func")
-      CHARACTER(KIND=C_CHAR), INTENT(IN)        :: msg(*)
-      INTEGER(KIND=C_INT), INTENT(IN), VALUE    :: msglen, output_unit
+      CHARACTER(KIND=C_CHAR), INTENT(IN)                 :: msg(*)
+      INTEGER(KIND=C_INT), INTENT(IN), VALUE             :: msglen, output_unit
 
       IF (output_unit <= 0) RETURN ! Omit to print the message.
       WRITE (output_unit, FMT="(100A)", ADVANCE="NO") msg(1:msglen)

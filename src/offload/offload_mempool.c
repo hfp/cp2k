@@ -21,7 +21,8 @@
 #include <mpi.h>
 #endif
 
-#define OFFLOAD_MEMPOOL_PRINT(FN, MSG, OUTPUT_UNIT) ((FN)(MSG, (int)strlen(MSG), OUTPUT_UNIT))
+#define OFFLOAD_MEMPOOL_PRINT(FN, MSG, OUTPUT_UNIT)                            \
+  ((FN)(MSG, (int)strlen(MSG), OUTPUT_UNIT))
 #define OFFLOAD_MEMPOOL_OMPALLOC 1
 
 /*******************************************************************************
@@ -353,30 +354,36 @@ void offload_mempool_stats_print(int fortran_comm,
 
   if (0 != memstats.device_mallocs || 0 != memstats.host_mallocs) {
     OFFLOAD_MEMPOOL_PRINT(print_func, "\n", output_unit);
-    OFFLOAD_MEMPOOL_PRINT(print_func,
+    OFFLOAD_MEMPOOL_PRINT(
+        print_func,
         " ----------------------------------------------------------------"
         "---------------\n",
         output_unit);
-    OFFLOAD_MEMPOOL_PRINT(print_func,
+    OFFLOAD_MEMPOOL_PRINT(
+        print_func,
         " -                                                               "
         "              -\n",
         output_unit);
 
-    OFFLOAD_MEMPOOL_PRINT(print_func,
+    OFFLOAD_MEMPOOL_PRINT(
+        print_func,
         " -                         OFFLOAD MEMPOOL STATISTICS            "
         "              -\n",
         output_unit);
-    OFFLOAD_MEMPOOL_PRINT(print_func,
+    OFFLOAD_MEMPOOL_PRINT(
+        print_func,
         " -                                                               "
         "              -\n",
         output_unit);
-    OFFLOAD_MEMPOOL_PRINT(print_func,
+    OFFLOAD_MEMPOOL_PRINT(
+        print_func,
         " ----------------------------------------------------------------"
         "---------------\n",
         output_unit);
-    OFFLOAD_MEMPOOL_PRINT(print_func," Memory consumption               "
-               " Number of allocations  Used [MiB]  Size [MiB]\n",
-               output_unit);
+    OFFLOAD_MEMPOOL_PRINT(print_func,
+                          " Memory consumption               "
+                          " Number of allocations  Used [MiB]  Size [MiB]\n",
+                          output_unit);
   }
   if (0 < memstats.device_mallocs) {
     cp_mpi_max_uint64(&memstats.device_size, 1, comm);
@@ -399,7 +406,8 @@ void offload_mempool_stats_print(int fortran_comm,
     OFFLOAD_MEMPOOL_PRINT(print_func, buffer, output_unit);
   }
   if (0 < memstats.device_mallocs || 0 < memstats.host_mallocs) {
-    OFFLOAD_MEMPOOL_PRINT(print_func,
+    OFFLOAD_MEMPOOL_PRINT(
+        print_func,
         " ----------------------------------------------------------------"
         "---------------\n",
         output_unit);
