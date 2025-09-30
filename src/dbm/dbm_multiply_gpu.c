@@ -145,8 +145,10 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
       shard_g->data_size = shard_c->data_promised;
     }
 
-    // Launch kernel.
+    OFFLOAD_CHECK(offloadGetLastError());
     assert(0 != shard_g->data_size);
+
+    // Launch kernel.
     dbm_multiply_gpu_launch_kernel(shard_g->stream, alpha, ntasks, batch,
                                    batch_dev, ctx->pack_a_dev.data,
                                    ctx->pack_b_dev.data, shard_g->data);
