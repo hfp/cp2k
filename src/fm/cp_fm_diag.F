@@ -15,7 +15,6 @@
 !> \author Joost VandeVondele (2003-08)
 ! **************************************************************************************************
 MODULE cp_fm_diag
-
    USE cp_blacs_types, ONLY: cp_blacs_type
    USE cp_blacs_env, ONLY: cp_blacs_env_type
    USE cp_fm_basic_linalg, ONLY: cp_fm_column_scale, &
@@ -530,7 +529,7 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE cp_fm_syevd_base(matrix, eigenvectors, eigenvalues, info)
 
-      TYPE(cp_fm_type), INTENT(IN)          :: matrix, eigenvectors
+      TYPE(cp_fm_type), INTENT(IN)             :: matrix, eigenvectors
       REAL(KIND=dp), DIMENSION(:), INTENT(OUT) :: eigenvalues
       INTEGER, INTENT(OUT), OPTIONAL           :: info
 
@@ -540,12 +539,12 @@ CONTAINS
       INTEGER                                  :: handle, myinfo
 #if defined(__parallel)
       TYPE(cp_blacs_env_type), POINTER         :: context
-      INTEGER                                  :: liwork, lwork, &
-                                                  mypcol, myprow, n
+      INTEGER                                  :: liwork, lwork, n
       INTEGER, DIMENSION(9)                    :: descm, descv
       INTEGER, DIMENSION(:), POINTER           :: iwork
       REAL(KIND=dp), DIMENSION(:), POINTER     :: work
       REAL(KIND=dp), DIMENSION(:, :), POINTER  :: m, v
+      REAL(KIND=dp), TARGET                    :: w(1)
 #if defined (__HAS_IEEE_EXCEPTIONS)
       LOGICAL, DIMENSION(5)                    :: halt
 #endif
@@ -560,8 +559,6 @@ CONTAINS
       n = matrix%matrix_struct%nrow_global
       m => matrix%local_data
       context => matrix%matrix_struct%context
-      myprow = context%mepos(1)
-      mypcol = context%mepos(2)
       descm(:) = matrix%matrix_struct%descriptor(:)
 
       v => eigenvectors%local_data
@@ -572,7 +569,7 @@ CONTAINS
 
       ! Work space query
       lwork = -1
-      ALLOCATE (work(1))
+      work => w
 
       CALL pdsyevd('V', 'U', n, m(1, 1), 1, 1, descm, eigenvalues(1), v(1, 1), 1, 1, descv, &
                    work(1), lwork, iwork(1), liwork, myinfo)
@@ -586,16 +583,30 @@ CONTAINS
          END IF
       END IF
 
-      ! look here for a PDORMTR warning :-)
-      ! this routine seems to need more workspace than reported
-      ! (? lapack bug ...)
-      ! arbitrary additional memory  ... we give 100000 more words
-      ! (it seems to depend on the block size used)
+      lwork = NINT(work(1)) ! can be insufficient due to bug in reference ScaLAPACK
+      ! Query workspace for QDORMTR as called by reference ScaLAPACK (PDSYEVD).
+      CALL pdormtr('L', 'U', 'N', n, n, m(1, 1), 1, 1, descm, m(1, 1), &
+                   v(1, 1), 1, 1, descv, work(1), -1, myinfo)
 
-      lwork = NINT(work(1) + 100000)
-      ! lwork = NINT(work(1))
-      DEALLOCATE (work)
+      IF (matrix%matrix_struct%para_env%is_source() .AND. (myinfo /= 0)) THEN
+         WRITE (message, "(A,I0,A)") "ERROR in PDORMTR: Work space query failed (INFO = ", myinfo, ")"
+         IF (PRESENT(info)) THEN
+            CPWARN(TRIM(message))
+         ELSE
+            CPABORT(TRIM(message))
+         END IF
+      END IF
+
+      IF (lwork .LT. (work(1) + 2*n)) THEN
+         lwork = NINT(work(1)) + 2*n ! still wrong by 2*N
+      END IF
       ALLOCATE (work(lwork))
+
+      IF (liwork .LT. iwork(1)) THEN
+         liwork = iwork(1)
+         DEALLOCATE (iwork)
+         ALLOCATE (iwork(liwork))
+      END IF
 
       ! Scalapack takes advantage of IEEE754 exceptions for speedup.
       ! Therefore, we disable floating point traps temporarily.
@@ -675,8 +686,8 @@ CONTAINS
       CHARACTER(LEN=1)                             :: job_type
       REAL(KIND=dp)                                :: abstol, work_syevx_local
       INTEGER                                      :: handle, info, &
-                                                      liwork, lwork, m, mypcol, &
-                                                      myprow, n, nb, npcol, &
+                                                      liwork, lwork, m, &
+                                                      n, nb, npcol, &
                                                       nprow, output_unit, &
                                                       neig_local
       LOGICAL                                      :: ionode, needs_evecs
@@ -729,8 +740,6 @@ CONTAINS
       abstol = 2.0_dp*dlamch("S")
 
       context => matrix%matrix_struct%context
-      myprow = context%mepos(1)
-      mypcol = context%mepos(2)
       nprow = context%num_pe(1)
       npcol = context%num_pe(2)
 
