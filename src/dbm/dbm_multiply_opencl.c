@@ -97,6 +97,9 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
   const int verbosity = config->verbosity,
             info = (0 > verbosity || 2 < verbosity);
   int result = EXIT_SUCCESS;
+#if defined(OPENCL_LIBSMM_PFORMAT) && (0 < OPENCL_LIBSMM_PFORMAT)
+  int dbcsr = 0;
+#endif
   dbm_multiply_gpu_launch_info_t task = {0};
   assert(NULL != pack_a_data && NULL != pack_b_data && NULL != shard_c_data);
   assert(NULL != params_host || 0 == ntasks);
@@ -319,6 +322,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         task.max_m | task.max_n << OPENCL_LIBSMM_PFORMAT |
             (task.max_k << (OPENCL_LIBSMM_PFORMAT * 2)),
         NULL);
+    dbcsr = 1;
   }
 #endif
   if (0 != info && EXIT_SUCCESS == result) {
@@ -327,7 +331,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
     const double dhost = DBM_TIMER_DIFF(start, stop);
     const double diter = (0 < start2 ? DBM_TIMER_DIFF(start, start2) : dhost);
 #if defined(OPENCL_LIBSMM_PFORMAT) && (0 < OPENCL_LIBSMM_PFORMAT)
-    const char *const kind = (0 >= dbm_multiply_opencl_smm ? "DBM" : "SMM");
+    const char *const kind = (0 == dbcsr ? "DBM" : "SMM");
 #else
     const char *const kind = "DBM";
 #endif
