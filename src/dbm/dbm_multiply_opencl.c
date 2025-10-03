@@ -150,31 +150,30 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         const char *const wg_env = getenv("DBM_MULTIPLY_WG");
         const char *const lu_env = getenv("DBM_MULTIPLY_LU");
         const char *const xf_env = getenv("DBM_MULTIPLY_XF");
+        const char *exts[] = {NULL, NULL}, *options = NULL;
         int sm = (NULL == sm_env ? 0 /*default*/ : atoi(sm_env));
-        const int bn0 = (0 == devinfo->nv ? (0 == devinfo->amd ? 4 : 8) : 2);
+        const int dd = (0 != config->debug && 0 != config->dump);
+        const int xf = (NULL == xf_env ? -1 /*default*/ : atoi(xf_env));
+        const int bn0 = (0 == devinfo->nv ? 8 : 2), uid = devinfo->uid;
         const int bn1 = ((0 == sm && 0 == clinear) ? bn0 : (bn0 * 2));
+        const int gpu = (CL_DEVICE_TYPE_GPU == devinfo->type);
+        const int precision = (NULL == fp_env ? 0 /*default*/ : atoi(fp_env));
+        const int gen0 = (NULL == fp_env && NULL == bn_env && NULL == sm_env &&
+                          NULL == wg_env && NULL == lu_env && NULL == lin_env &&
+                          0 == param_format);
+        const int gen1 = (devinfo->intel && 0x0bd0 <= uid && 0x0bdb >= uid);
+        int gen = (0 != gen0 ? (NULL == gen_env ? gen1 : atoi(gen_env)) : 0);
         int bn = LIBXSMM_CLMP(NULL == bn_env ? bn1 : atoi(bn_env), 1, 32);
         int lu = LIBXSMM_CLMP(NULL == lu_env ? 0 : atoi(lu_env), -2, 1);
-        int gen = ((NULL == fp_env && NULL == bn_env && NULL == sm_env &&
-                    NULL == wg_env && NULL == lu_env && NULL == lin_env &&
-                    0 == param_format)
-                       ? (NULL == gen_env ? 1 /*default*/ : atoi(gen_env))
-                       : 0);
-        const int precision = (NULL == fp_env ? 0 /*default*/ : atoi(fp_env));
-        const int gpu = (CL_DEVICE_TYPE_GPU == devinfo->type);
-        const int xf = (NULL == xf_env ? -1 /*default*/ : atoi(xf_env));
-        const char *extensions[] = {NULL, NULL}, *options = NULL;
-        size_t nextensions = sizeof(extensions) / sizeof(*extensions);
+        size_t nexts = sizeof(exts) / sizeof(*exts);
         size_t sgsize = devinfo->wgsize[2];
-        size_t offset =
-            ((0 == config->debug && 0 == config->dump) ? strlen(flags) : 0);
+        size_t offset = (0 == dd ? strlen(flags) : 0);
         offset += (size_t)c_dbcsr_acc_opencl_flags_atomics(
-            devinfo, c_dbcsr_acc_opencl_atomic_fp_64, extensions, &nextensions,
+            devinfo, c_dbcsr_acc_opencl_atomic_fp_64, exts, &nexts,
             flags + offset, sizeof(flags) - offset);
-        if (2 <= gen ||
-            (0 != gen && 1 < sgsize /*subgroups*/ && 2 <= *devinfo->std_level &&
-             NULL != extensions[1] &&
-             NULL != strstr(extensions[1], "cl_ext_float_atomics"))) {
+        if (2 <= gen || (0 != gen && 1 < sgsize /*subgroups*/ &&
+                         2 <= *devinfo->std_level && NULL != exts[1] &&
+                         NULL != strstr(exts[1], "cl_ext_float_atomics"))) {
           offset +=
               (size_t)LIBXSMM_SNPRINTF(flags + offset, sizeof(flags) - offset,
                                        " -DDBM_MULTIPLY_OPENCL_GEN");
@@ -231,8 +230,8 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         }
         result |= c_dbcsr_acc_opencl_kernel(
             0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY, "dbm_multiply",
-            flags, options, NULL /*try*/, NULL /*try_ok*/, extensions,
-            nextensions, &kernel_global);
+            flags, options, NULL /*try*/, NULL /*try_ok*/, exts, nexts,
+            &kernel_global);
         if (2 <= verbosity || 0 > verbosity || EXIT_SUCCESS != result) {
           if (EXIT_SUCCESS == result) {
             const double ds = DBM_TIMER_DIFF(start, DBM_TIMER_TICK());
