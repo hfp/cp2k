@@ -5,6 +5,7 @@
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
 #include "../offload/offload_library.h"
+#include "../offload/offload_mempool.h"
 #include "common/grid_library.h"
 #include "grid_replay.h"
 

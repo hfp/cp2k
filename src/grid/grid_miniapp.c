@@ -4,14 +4,14 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
+#include "../offload/offload_library.h"
+#include "../offload/offload_mempool.h"
+#include "common/grid_library.h"
+#include "grid_replay.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "../offload/offload_library.h"
-#include "common/grid_library.h"
-#include "grid_replay.h"
 
 /*******************************************************************************
  * \brief Wrapper for printf, passed to grid_library_print_stats.
