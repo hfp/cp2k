@@ -184,7 +184,7 @@ template <typename T> class grid_info {
   gpu_vector<T> grid_;
 
 public:
-  grid_info(){};
+  grid_info() {};
 
   grid_info(const int *full_size__, const int *local_size__,
             const int *border_width__) {
