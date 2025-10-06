@@ -8,7 +8,6 @@
         "../subsys",
         "../mpiwrap",
         "../offload",
-        "./common",
         "./ref",
         "./cpu",
         "./dgemm",
