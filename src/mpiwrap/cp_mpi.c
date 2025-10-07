@@ -94,8 +94,10 @@ int cp_mpi_comm_c2f(const cp_mpi_comm_t comm) {
  ******************************************************************************/
 int cp_mpi_comm_rank(const cp_mpi_comm_t comm) {
 #if defined(__parallel)
-  int rank;
-  CHECK(MPI_Comm_rank(comm, &rank));
+  int rank = 0;
+  if (MPI_COMM_NULL != comm) { // !MPI_Comm_compare
+    CHECK(MPI_Comm_rank(comm, &rank));
+  }
   return rank;
 #else
   (void)comm; // mark used
@@ -109,8 +111,10 @@ int cp_mpi_comm_rank(const cp_mpi_comm_t comm) {
  ******************************************************************************/
 int cp_mpi_comm_size(const cp_mpi_comm_t comm) {
 #if defined(__parallel)
-  int nranks;
-  CHECK(MPI_Comm_size(comm, &nranks));
+  int nranks = 1;
+  if (MPI_COMM_NULL != comm) { // !MPI_Comm_compare
+    CHECK(MPI_Comm_size(comm, &nranks));
+  }
   return nranks;
 #else
   (void)comm; // mark used
@@ -225,6 +229,7 @@ bool cp_mpi_comms_are_similar(const cp_mpi_comm_t comm1,
                               const cp_mpi_comm_t comm2) {
 #if defined(__parallel)
   int res;
+  assert(MPI_COMM_NULL != comm1 && comm1 != comm2);
   CHECK(MPI_Comm_compare(comm1, comm2, &res));
   return res == MPI_IDENT || res == MPI_CONGRUENT || res == MPI_SIMILAR;
 #else
@@ -240,12 +245,15 @@ bool cp_mpi_comms_are_similar(const cp_mpi_comm_t comm1,
  ******************************************************************************/
 void cp_mpi_max_int(int *values, const int count, const cp_mpi_comm_t comm) {
 #if defined(__parallel)
-  int value = 0;
-  void *recvbuf = (1 < count ? cp_mpi_alloc_mem(count * sizeof(int)) : &value);
-  CHECK(MPI_Allreduce(values, recvbuf, count, MPI_INT, MPI_MAX, comm));
-  memcpy(values, recvbuf, count * sizeof(int));
-  if (1 < count) {
-    cp_mpi_free_mem(recvbuf);
+  if (MPI_COMM_NULL != comm) { // !MPI_Comm_compare
+    int value = 0;
+    void *recvbuf =
+        (1 < count ? cp_mpi_alloc_mem(count * sizeof(int)) : &value);
+    CHECK(MPI_Allreduce(values, recvbuf, count, MPI_INT, MPI_MAX, comm));
+    memcpy(values, recvbuf, count * sizeof(int));
+    if (1 < count) {
+      cp_mpi_free_mem(recvbuf);
+    }
   }
 #else
   (void)comm; // mark used
@@ -261,13 +269,15 @@ void cp_mpi_max_int(int *values, const int count, const cp_mpi_comm_t comm) {
 void cp_mpi_max_uint64(uint64_t *values, const int count,
                        const cp_mpi_comm_t comm) {
 #if defined(__parallel)
-  uint64_t value = 0;
-  void *recvbuf =
-      (1 < count ? cp_mpi_alloc_mem(count * sizeof(uint64_t)) : &value);
-  CHECK(MPI_Allreduce(values, recvbuf, count, MPI_UINT64_T, MPI_MAX, comm));
-  memcpy(values, recvbuf, count * sizeof(uint64_t));
-  if (1 < count) {
-    cp_mpi_free_mem(recvbuf);
+  if (MPI_COMM_NULL != comm) { // !MPI_Comm_compare
+    uint64_t value = 0;
+    void *recvbuf =
+        (1 < count ? cp_mpi_alloc_mem(count * sizeof(uint64_t)) : &value);
+    CHECK(MPI_Allreduce(values, recvbuf, count, MPI_UINT64_T, MPI_MAX, comm));
+    memcpy(values, recvbuf, count * sizeof(uint64_t));
+    if (1 < count) {
+      cp_mpi_free_mem(recvbuf);
+    }
   }
 #else
   (void)comm; // mark used
@@ -283,13 +293,15 @@ void cp_mpi_max_uint64(uint64_t *values, const int count,
 void cp_mpi_max_double(double *values, const int count,
                        const cp_mpi_comm_t comm) {
 #if defined(__parallel)
-  double value = 0;
-  void *recvbuf =
-      (1 < count ? cp_mpi_alloc_mem(count * sizeof(double)) : &value);
-  CHECK(MPI_Allreduce(values, recvbuf, count, MPI_DOUBLE, MPI_MAX, comm));
-  memcpy(values, recvbuf, count * sizeof(double));
-  if (1 < count) {
-    cp_mpi_free_mem(recvbuf);
+  if (MPI_COMM_NULL != comm) { // !MPI_Comm_compare
+    double value = 0;
+    void *recvbuf =
+        (1 < count ? cp_mpi_alloc_mem(count * sizeof(double)) : &value);
+    CHECK(MPI_Allreduce(values, recvbuf, count, MPI_DOUBLE, MPI_MAX, comm));
+    memcpy(values, recvbuf, count * sizeof(double));
+    if (1 < count) {
+      cp_mpi_free_mem(recvbuf);
+    }
   }
 #else
   (void)comm; // mark used
@@ -304,12 +316,15 @@ void cp_mpi_max_double(double *values, const int count,
  ******************************************************************************/
 void cp_mpi_sum_int(int *values, const int count, const cp_mpi_comm_t comm) {
 #if defined(__parallel)
-  int value = 0;
-  void *recvbuf = (1 < count ? cp_mpi_alloc_mem(count * sizeof(int)) : &value);
-  CHECK(MPI_Allreduce(values, recvbuf, count, MPI_INT, MPI_SUM, comm));
-  memcpy(values, recvbuf, count * sizeof(int));
-  if (1 < count) {
-    cp_mpi_free_mem(recvbuf);
+  if (MPI_COMM_NULL != comm) { // !MPI_Comm_compare
+    int value = 0;
+    void *recvbuf =
+        (1 < count ? cp_mpi_alloc_mem(count * sizeof(int)) : &value);
+    CHECK(MPI_Allreduce(values, recvbuf, count, MPI_INT, MPI_SUM, comm));
+    memcpy(values, recvbuf, count * sizeof(int));
+    if (1 < count) {
+      cp_mpi_free_mem(recvbuf);
+    }
   }
 #else
   (void)comm; // mark used
@@ -324,12 +339,15 @@ void cp_mpi_sum_int(int *values, const int count, const cp_mpi_comm_t comm) {
  ******************************************************************************/
 void cp_mpi_sum_long(long *values, const int count, const cp_mpi_comm_t comm) {
 #if defined(__parallel)
-  long value = 0;
-  void *recvbuf = (1 < count ? cp_mpi_alloc_mem(count * sizeof(long)) : &value);
-  CHECK(MPI_Allreduce(values, recvbuf, count, MPI_LONG, MPI_SUM, comm));
-  memcpy(values, recvbuf, count * sizeof(long));
-  if (1 < count) {
-    cp_mpi_free_mem(recvbuf);
+  if (MPI_COMM_NULL != comm) { // !MPI_Comm_compare
+    long value = 0;
+    void *recvbuf =
+        (1 < count ? cp_mpi_alloc_mem(count * sizeof(long)) : &value);
+    CHECK(MPI_Allreduce(values, recvbuf, count, MPI_LONG, MPI_SUM, comm));
+    memcpy(values, recvbuf, count * sizeof(long));
+    if (1 < count) {
+      cp_mpi_free_mem(recvbuf);
+    }
   }
 #else
   (void)comm; // mark used
@@ -345,13 +363,15 @@ void cp_mpi_sum_long(long *values, const int count, const cp_mpi_comm_t comm) {
 void cp_mpi_sum_int64(int64_t *values, const int count,
                       const cp_mpi_comm_t comm) {
 #if defined(__parallel)
-  int64_t value = 0;
-  void *recvbuf =
-      (1 < count ? cp_mpi_alloc_mem(count * sizeof(int64_t)) : &value);
-  CHECK(MPI_Allreduce(values, recvbuf, count, MPI_INT64_T, MPI_SUM, comm));
-  memcpy(values, recvbuf, count * sizeof(int64_t));
-  if (1 < count) {
-    cp_mpi_free_mem(recvbuf);
+  if (MPI_COMM_NULL != comm) { // !MPI_Comm_compare
+    int64_t value = 0;
+    void *recvbuf =
+        (1 < count ? cp_mpi_alloc_mem(count * sizeof(int64_t)) : &value);
+    CHECK(MPI_Allreduce(values, recvbuf, count, MPI_INT64_T, MPI_SUM, comm));
+    memcpy(values, recvbuf, count * sizeof(int64_t));
+    if (1 < count) {
+      cp_mpi_free_mem(recvbuf);
+    }
   }
 #else
   (void)comm; // mark used
@@ -367,13 +387,15 @@ void cp_mpi_sum_int64(int64_t *values, const int count,
 void cp_mpi_sum_double(double *values, const int count,
                        const cp_mpi_comm_t comm) {
 #if defined(__parallel)
-  double value = 0;
-  void *recvbuf =
-      (1 < count ? cp_mpi_alloc_mem(count * sizeof(double)) : &value);
-  CHECK(MPI_Allreduce(values, recvbuf, count, MPI_DOUBLE, MPI_SUM, comm));
-  memcpy(values, recvbuf, count * sizeof(double));
-  if (1 < count) {
-    cp_mpi_free_mem(recvbuf);
+  if (MPI_COMM_NULL != comm) { // !MPI_Comm_compare
+    double value = 0;
+    void *recvbuf =
+        (1 < count ? cp_mpi_alloc_mem(count * sizeof(double)) : &value);
+    CHECK(MPI_Allreduce(values, recvbuf, count, MPI_DOUBLE, MPI_SUM, comm));
+    memcpy(values, recvbuf, count * sizeof(double));
+    if (1 < count) {
+      cp_mpi_free_mem(recvbuf);
+    }
   }
 #else
   (void)comm; // mark used
@@ -394,7 +416,7 @@ int cp_mpi_sendrecv_byte(const void *sendbuf, const int sendcount,
   MPI_Status status;
   CHECK(MPI_Sendrecv(sendbuf, sendcount, MPI_BYTE, dest, sendtag, recvbuf,
                      recvcount, MPI_BYTE, source, recvtag, comm, &status));
-  int count_received;
+  int count_received = 0;
   CHECK(MPI_Get_count(&status, MPI_BYTE, &count_received));
   return count_received;
 #else

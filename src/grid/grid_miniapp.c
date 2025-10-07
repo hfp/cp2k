@@ -4,14 +4,20 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
-#include "../offload/offload_library.h"
-#include "../offload/offload_mempool.h"
 #include "common/grid_library.h"
 #include "grid_replay.h"
+
+#include "../mpiwrap/cp_mpi.h"
+#include "../offload/offload_library.h"
+#include "../offload/offload_mempool.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#if defined(__parallel) || 1 // Need MPI_COMM_NULL
+#include <mpi.h>
+#endif
 
 /*******************************************************************************
  * \brief Wrapper for printf, passed to grid_library_print_stats.
@@ -73,8 +79,9 @@ int main(int argc, char *argv[]) {
                                    cycles_per_block, tolerance);
 
   if (success) {
-    grid_library_print_stats(0 /*fortran_comm*/, &print_func, 0 /*rank*/);
-    offload_mempool_stats_print(0 /*fortran_comm*/, &print_func, 0 /*rank*/);
+    const int fortran_comm = cp_mpi_comm_c2f(MPI_COMM_NULL);
+    grid_library_print_stats(fortran_comm, &print_func, 0 /*rank*/);
+    offload_mempool_stats_print(fortran_comm, &print_func, 0 /*rank*/);
     grid_library_finalize();
   } else {
     fprintf(stderr, "Error: Maximal difference is too large.\n");
