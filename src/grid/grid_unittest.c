@@ -4,19 +4,17 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
-#include "common/grid_library.h"
-#include "grid_replay.h"
-
-#include "../mpiwrap/cp_mpi.h"
 #include "../offload/offload_library.h"
 #include "../offload/offload_mempool.h"
+#include "common/grid_library.h"
+#include "grid_replay.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-// For MPI_COMM_NULL, and to call MPI_Init/Finalize (avoids spurious error).
-#if defined(__parallel) || 1 // Need MPI_COMM_NULL
+// Only used to call MPI_Init and MPI_Finalize to avoid spurious MPI error.
+#if defined(__parallel)
 #include <mpi.h>
 #endif
 
@@ -94,9 +92,8 @@ int main(int argc, char *argv[]) {
   errors += run_test(argv[1], "general_overflow.task");
 
   if (errors == 0) {
-    const int fortran_comm = cp_mpi_comm_c2f(MPI_COMM_NULL);
-    grid_library_print_stats(fortran_comm, &print_func, 0 /*rank*/);
-    offload_mempool_stats_print(fortran_comm, &print_func, 0 /*rank*/);
+    grid_library_print_stats(0 /*fortran_comm*/, &print_func, 0 /*rank*/);
+    offload_mempool_stats_print(0 /*fortran_comm*/, &print_func, 0 /*rank*/);
     grid_library_finalize();
     printf("\nAll tests have passed :-)\n");
   } else {
