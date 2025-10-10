@@ -230,7 +230,6 @@ bool cp_mpi_comms_are_similar(const cp_mpi_comm_t comm1,
                               const cp_mpi_comm_t comm2) {
 #if defined(__parallel)
   int res;
-  assert(MPI_COMM_NULL != comm1 && comm1 != comm2);
   CHECK(MPI_Comm_compare(comm1, comm2, &res));
   return res == MPI_IDENT || res == MPI_CONGRUENT || res == MPI_SIMILAR;
 #else
