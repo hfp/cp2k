@@ -584,14 +584,16 @@ CONTAINS
          END IF
       END IF
 
+      ! There is a bug in reference ScaLAPACK calling PDORMTR with insufficient lwork.
+      ! The reference code subtracts 2*N from incoming lwork.
+      lwork = NINT(work(1)) + 2*n
+      ALLOCATE (work(lwork))
+
       IF (liwork .LT. iwork(1)) THEN
          liwork = iwork(1)
          DEALLOCATE (iwork)
          ALLOCATE (iwork(liwork))
       END IF
-
-      lwork = NINT(work(1))
-      ALLOCATE (work(lwork))
 
       ! Scalapack takes advantage of IEEE754 exceptions for speedup.
       ! Therefore, we disable floating point traps temporarily.
