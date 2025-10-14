@@ -584,6 +584,7 @@ CONTAINS
       END IF
 
       lwork = NINT(work(1)) ! can be insufficient due to bug in reference ScaLAPACK
+#if !defined(__SCALAPACK_NO_WA)
       ! Query workspace for QDORMTR as called by reference ScaLAPACK (PDSYEVD).
       CALL pdormtr('L', 'U', 'N', n, n, m(1, 1), 1, 1, descm, m(1, 1), &
                    v(1, 1), 1, 1, descv, work(1), -1, myinfo)
@@ -600,15 +601,17 @@ CONTAINS
       IF (lwork .LT. (work(1) + 2*n)) THEN
          lwork = NINT(work(1)) + 2*n ! still wrong by 2*N
       END IF
+#endif
       ALLOCATE (work(lwork))
 
+      ! Initial/documented amount of liwork is exceeded (slightly worrisome too).
       IF (liwork .LT. iwork(1)) THEN
          liwork = iwork(1)
          DEALLOCATE (iwork)
          ALLOCATE (iwork(liwork))
       END IF
 
-      ! Scalapack takes advantage of IEEE754 exceptions for speedup.
+      ! ScaLAPACK takes advantage of IEEE754 exceptions for speedup.
       ! Therefore, we disable floating point traps temporarily.
 #if defined (__HAS_IEEE_EXCEPTIONS)
       CALL ieee_get_halting_mode(IEEE_ALL, halt)
