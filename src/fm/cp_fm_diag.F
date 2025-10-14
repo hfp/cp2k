@@ -15,7 +15,6 @@
 !> \author Joost VandeVondele (2003-08)
 ! **************************************************************************************************
 MODULE cp_fm_diag
-
    USE cp_blacs_types, ONLY: cp_blacs_type
    USE cp_blacs_env, ONLY: cp_blacs_env_type
    USE cp_fm_basic_linalg, ONLY: cp_fm_column_scale, &
@@ -584,9 +583,23 @@ CONTAINS
          END IF
       END IF
 
-      ! There is a bug in reference ScaLAPACK calling PDORMTR with insufficient lwork.
-      ! The reference code subtracts 2*N from incoming lwork.
-      lwork = NINT(work(1)) + 2*n
+      lwork = NINT(work(1)) ! can be insufficient due to bug in reference ScaLAPACK
+      ! Query workspace for QDORMTR as called by reference ScaLAPACK (PDSYEVD).
+      CALL pdormtr('L', 'U', 'N', n, n, m(1, 1), 1, 1, descm, m(1, 1), &
+                   v(1, 1), 1, 1, descv, work(1), -1, myinfo)
+
+      IF (matrix%matrix_struct%para_env%is_source() .AND. (myinfo /= 0)) THEN
+         WRITE (message, "(A,I0,A)") "ERROR in PDORMTR: Work space query failed (INFO = ", myinfo, ")"
+         IF (PRESENT(info)) THEN
+            CPWARN(TRIM(message))
+         ELSE
+            CPABORT(TRIM(message))
+         END IF
+      END IF
+
+      IF (lwork .LT. (work(1) + 2*n)) THEN
+         lwork = NINT(work(1)) + 2*n ! still wrong by 2*N
+      END IF
       ALLOCATE (work(lwork))
 
       IF (liwork .LT. iwork(1)) THEN
