@@ -397,18 +397,30 @@ CONTAINS
 ! **************************************************************************************************
 !> \brief Issues an error messages and exits (optionally only warns).
 !> \param mesg message to be issued
-!> \param info error code
-!> \param warn only warn
+!> \param info error code (optional)
+!> \param warn only warn (optional)
 ! **************************************************************************************************
    SUBROUTINE cp_fm_error(mesg, info, warn)
       CHARACTER(LEN=*), INTENT(IN)                       :: mesg
-      INTEGER, INTENT(IN)                                :: info
-      LOGICAL, INTENT(IN)                                :: warn
+      INTEGER, INTENT(IN), OPTIONAL                      :: info
+      LOGICAL, INTENT(IN), OPTIONAL                      :: warn
 
       CHARACTER(LEN=2*default_string_length)             :: message
+      LOGICAL                                            :: warning
 
-      WRITE (message, "(A,A,I0,A)") mesg, " (INFO = ", info, ")"
-      IF (warn) THEN
+      IF (PRESENT(info)) THEN
+         WRITE (message, "(A,A,I0,A)") mesg, " (INFO = ", info, ")"
+      ELSE
+         WRITE (message, "(A)") mesg
+      END IF
+
+      IF (PRESENT(warn)) THEN
+         warning = warn
+      ELSE ! abort
+         warning = .FALSE.
+      END IF
+
+      IF (warning) THEN
          CPWARN(TRIM(message))
       ELSE
          CPABORT(TRIM(message))
@@ -630,8 +642,8 @@ CONTAINS
       MARK_USED(eigenvalues)
       myinfo = -1
       IF (PRESENT(info)) info = myinfo
-      CPABORT("ERROR in "//TRIM(routineN)// &
-              ": Matrix diagonalization using PDSYEVD requested without ScaLAPACK support")
+      CALL cp_fm_error("ERROR in "//TRIM(routineN)// &
+                       ": Matrix diagonalization using PDSYEVD requested without ScaLAPACK support")
 #endif
 
       CALL timestop(handle)
