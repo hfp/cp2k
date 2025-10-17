@@ -79,7 +79,18 @@ def main() -> None:
     if not file_list:
         sys.stdout.write("Searching for files...\r")
         sys.stdout.flush()
-        for root, dirs, files in os.walk("."):
+
+        try:
+            output = subprocess.check_output(["git", "ls-files"], encoding="utf8")
+            walk_list = []
+            for line in filter(None, output.split("\n")):
+                dir, file = os.path.split(line)
+                walk_list.append((os.path.join(".", dir), [dir], [file]))
+        except Exception:
+            walk_list = os.walk(".")
+            pass
+
+        for root, dirs, files in walk_list:
             if root.startswith("./tools/toolchain/build"):
                 continue
             if root.startswith("./tools/toolchain/install"):
