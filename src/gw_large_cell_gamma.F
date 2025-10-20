@@ -779,16 +779,15 @@ CONTAINS
       NULLIFY (mat_V_kp)
       ALLOCATE (mat_V_kp(ikp_start:ikp_end, 2))
 
-      DO ikp = ikp_start, ikp_end
-         DO re_im = 1, 2
+      DO re_im = 1, 2
+         DO ikp = ikp_start, ikp_end
             NULLIFY (mat_V_kp(ikp, re_im)%matrix)
             ALLOCATE (mat_V_kp(ikp, re_im)%matrix)
             CALL dbcsr_create(mat_V_kp(ikp, re_im)%matrix, template=bs_env%mat_RI_RI%matrix)
             CALL dbcsr_reserve_all_blocks(mat_V_kp(ikp, re_im)%matrix)
             CALL dbcsr_set(mat_V_kp(ikp, re_im)%matrix, 0.0_dp)
-
-         END DO ! re_im
-      END DO ! ikp
+         END DO ! ikp
+      END DO ! re_im
 
       CALL get_qs_env(qs_env=qs_env, &
                       particle_set=particle_set, &
@@ -828,8 +827,8 @@ CONTAINS
       bs_env%kpoints_chi_eps_W%nkp_grid = bs_env%nkp_grid_chi_eps_W_orig
 
       ALLOCATE (fm_V_kp(ikp_start:ikp_end, 2))
-      DO ikp = ikp_start, ikp_end
-         DO re_im = 1, 2
+      DO re_im = 1, 2
+         DO ikp = ikp_start, ikp_end
             CALL cp_fm_create(fm_V_kp(ikp, re_im), bs_env%fm_RI_RI%matrix_struct)
             CALL copy_dbcsr_to_fm(mat_V_kp(ikp, re_im)%matrix, fm_V_kp(ikp, re_im))
             CALL dbcsr_deallocate_matrix(mat_V_kp(ikp, re_im)%matrix)
