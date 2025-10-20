@@ -42,9 +42,6 @@ def main() -> None:
             f.write(install_deps_toolchain_intel(base_image=base_image, with_ifx="yes"))
             f.write(regtest(ver, intel=True, testopts="--mpiexec mpiexec"))
 
-    with OutputFile(f"Dockerfile.test_nvhpc", args.check) as f:
-        f.write(install_deps_toolchain_nvhpc())
-
     with OutputFile(f"Dockerfile.test_minimal", args.check) as f:
         f.write(install_deps_ubuntu())
         f.write(regtest_cmake("minimal", "ssmp"))
@@ -85,10 +82,6 @@ def main() -> None:
         with OutputFile(f"Dockerfile.test_cuda_{gpu_ver}", args.check) as f:
             f.write(install_deps_toolchain_cuda(gpu_ver=gpu_ver))
             f.write(regtest_cmake(f"toolchain_cuda_{gpu_ver}", "psmp"))
-
-        with OutputFile(f"Dockerfile.test_hip_cuda_{gpu_ver}", args.check) as f:
-            f.write(install_deps_toolchain_hip_cuda(gpu_ver=gpu_ver))
-            f.write(regtest("psmp", "local_hip"))
 
         with OutputFile(f"Dockerfile.test_performance_cuda_{gpu_ver}", args.check) as f:
             f.write(install_deps_toolchain_cuda(gpu_ver=gpu_ver))
@@ -318,7 +311,6 @@ COPY ./tools ./tools
 COPY ./tests ./tests
 COPY ./cmake ./cmake
 COPY ./CMakeLists.txt .
-COPY ./Makefile .
 RUN bash -c "if [ -n "${{GIT_COMMIT_SHA}}" ] ; then echo "git:\${{GIT_COMMIT_SHA::7}}" > REVISION; fi"
 
 # Run test for {name}.
@@ -548,54 +540,6 @@ FROM {base_image}
 
 
 # ======================================================================================
-def install_deps_toolchain_nvhpc() -> str:
-    return rf"""
-FROM ubuntu:22.04
-
-# Install Ubuntu packages.
-RUN apt-get update -qq && apt-get install -qq --no-install-recommends \
-    apt-transport-https \
-    ca-certificates \
-    dirmngr \
-    gnupg2 \
-    libopenblas-dev \
-    make \
-    nano \
-    python3 \
-    wget \
-   && rm -rf /var/lib/apt/lists/*
-
-RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/hpc-sdk/ubuntu/DEB-GPG-KEY-NVIDIA-HPC-SDK
-RUN echo 'deb https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64 /' > /etc/apt/sources.list.d/nvhpc.list
-
-# Install NVIDIA's HPC SDK but only keep the compilers to reduce Docker image size.
-RUN apt-get update -qq && \
-    apt-get install -qq --no-install-recommends nvhpc-22-11 && \
-    rm -rf /var/lib/apt/lists/* && \
-    rm -rf /opt/nvidia/hpc_sdk/Linux_x86_64/22.11/math_libs && \
-    rm -rf /opt/nvidia/hpc_sdk/Linux_x86_64/22.11/comm_libs && \
-    rm -rf /opt/nvidia/hpc_sdk/Linux_x86_64/22.11/profilers && \
-    rm -rf /opt/nvidia/hpc_sdk/Linux_x86_64/22.11/cuda
-
-ENV PATH ${{PATH}}:/opt/nvidia/hpc_sdk/Linux_x86_64/22.11/compilers/bin
-
-# Install CP2K using Linux-x86-64-nvhpc.ssmp.
-WORKDIR /opt/cp2k
-COPY ./Makefile .
-COPY ./src ./src
-COPY ./exts ./exts
-COPY ./data ./data
-COPY ./tests ./tests
-COPY ./tools/build_utils ./tools/build_utils
-COPY ./tools/regtesting ./tools/regtesting
-COPY ./arch/Linux-x86-64-nvhpc.ssmp /opt/cp2k/arch/
-
-# This takes over an hour!
-RUN make -j ARCH=Linux-x86-64-nvhpc VERSION=ssmp cp2k
-"""
-
-
-# ======================================================================================
 def install_deps_toolchain_cuda(gpu_ver: str, **kwargs: str) -> str:
     deps = rf"""
 FROM nvidia/cuda:12.9.1-devel-ubuntu24.04
@@ -622,117 +566,6 @@ RUN apt-get update -qq && apt-get install -qq --no-install-recommends \
         **kwargs,
     )
     return deps
-
-
-# ======================================================================================
-def install_deps_toolchain_hip_cuda(gpu_ver: str) -> str:
-    return rf"""
-FROM nvidia/cuda:12.9.1-devel-ubuntu24.04
-
-# Setup CUDA environment.
-ENV CUDA_PATH /usr/local/cuda
-ENV LD_LIBRARY_PATH /usr/local/cuda/lib64
-ENV HIP_PLATFORM nvidia
-ENV ROCM_VER 4.5.2
-ENV HIP_DIR /opt/HIP-rocm-4.5.2
-ENV HIPAMD_DIR /opt/hipamd-rocm-4.5.2
-
-# Disable JIT cache as there seems to be an issue with file locking on overlayfs.
-# See also https://github.com/cp2k/cp2k/pull/2337
-ENV CUDA_CACHE_DISABLE 1
-
-RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true \
-    && apt-get update -qq && apt-get install -qq --no-install-recommends \
-    ca-certificates \
-    build-essential \
-    cmake \
-    git \
-    gfortran \
-    mpich \
-    libmpich-dev \
-    wget \
-    libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install HIP from source because the hip-nvcc package drags in 10GB of unnecessary dependencies.
-WORKDIR /opt
-
-RUN wget -q https://github.com/Kitware/CMake/releases/download/v3.20.6/cmake-3.20.6-Linux-x86_64.sh \
-    && echo "4772100c2578927eed5aa9e1a80694c0d64410448c0fda73d31b0eae18645784  cmake-3.20.6-Linux-x86_64.sh" | sha256sum --check \
-    && sh cmake-3.20.6-Linux-x86_64.sh --prefix=/usr/local --skip-license \
-    && rm -f cmake-3.20.6-Linux-x86_64.sh \
-    && cmake --version
-
-RUN wget -q https://github.com/ROCm-Developer-Tools/HIP/archive/refs/tags/rocm-${{ROCM_VER}}.tar.gz -O HIP-rocm-${{ROCM_VER}}.tar.gz\
-    && echo "c2113dc3c421b8084cd507d91b6fbc0170765a464b71fb0d96bb875df368f160  HIP-rocm-${{ROCM_VER}}.tar.gz" |  sha256sum --check \
-    && tar -xzf HIP-rocm-*.tar.gz \
-    && wget -q https://github.com/ROCm-Developer-Tools/hipamd/archive/refs/tags/rocm-${{ROCM_VER}}.tar.gz -O hipamd-rocm-${{ROCM_VER}}.tar.gz \
-    && echo "b6f35b1a1d0c466b5af28e26baf646ae63267eccc4852204db1e0c7222a39ce2  hipamd-rocm-${{ROCM_VER}}.tar.gz" | sha256sum --check \
-    && tar -xzf hipamd-rocm-*.tar.gz \
-    && wget -q https://github.com/ROCmSoftwarePlatform/hipBLAS/archive/refs/tags/rocm-${{ROCM_VER}}.tar.gz -O hipBLAS-rocm-${{ROCM_VER}}.tar.gz \
-    && echo "82dd82a41bbadbb2a91a2a44a5d8e0d2e4f36d3078286ed4db3549b1fb6d6978  hipBLAS-rocm-${{ROCM_VER}}.tar.gz" | sha256sum --check \
-    && tar -xzf hipBLAS-rocm-*.tar.gz \
-    && wget -q https://github.com/ROCmSoftwarePlatform/hipFFT/archive/refs/tags/rocm-${{ROCM_VER}}.tar.gz -O hipFFT-rocm-${{ROCM_VER}}.tar.gz \
-    && echo "32ba6a5f50cfede3777a43794371ffb1363302131d8a0382d96df90ed7bc911a  hipFFT-rocm-${{ROCM_VER}}.tar.gz" | sha256sum --check \
-    && tar -xzf hipFFT-rocm-*.tar.gz
-
-RUN cd ${{HIPAMD_DIR}} \
-    && mkdir -p build \
-    && cd build \
-    && mkdir /opt/rocm-${{ROCM_VER}} \
-    && cmake -DHIP_COMMON_DIR=${{HIP_DIR}} -DHIP_PLATFORM=nvidia -DCMAKE_INSTALL_PREFIX=/opt/rocm-${{ROCM_VER}}/hip .. > /dev/null 2>&1 \
-    && make -j > /dev/null 2>&1 \
-    && make install > /dev/null 2>&1 \
-    && cd ../..
-
-# Install hipBLAS from source.
-RUN cd hipBLAS-rocm-* \
-    && mkdir build \
-    && cd build \
-    && cmake -DCMAKE_INSTALL_PREFIX=/opt/rocm-${{ROCM_VER}} -DUSE_CUDA=YES -DCMAKE_MODULE_PATH=/opt/rocm-${{ROCM_VER}} -DCMAKE_MODULE_PATH=/opt/rocm-${{ROCM_VER}}/hip/cmake .. > /dev/null 2>&1 \
-    && make -j > /dev/null 2>&1 \
-    && make install > /dev/null 2>&1 \
-    && cd .. \
-    && rm -rf hipBLAS-rocm-*
-
-ENV CPATH ${{CPATH}}:/opt/rocm-${{ROCM_VER}}/hip/include
-# Install hipFFT from source.
-RUN cd hipFFT-rocm-* \
-    && mkdir build \
-    && cd build \
-    && cmake -DCMAKE_INSTALL_PREFIX=/opt/rocm-${{ROCM_VER}} -DBUILD_WITH_LIB=CUDA .. > /dev/null 2>&1 \
-    && make -j > /dev/null 2>&1 \
-    && make install > /dev/null 2>&1 \
-    && rm -rf hipFFT*
-
-# Workaround for HIP installer.
-RUN cp -f /opt/hipBLAS-rocm-${{ROCM_VER}}/build/library/src/libhipblas.so /opt/rocm-${{ROCM_VER}}/hipblas/lib/ && \
-    cp -f /opt/hipFFT-rocm-${{ROCM_VER}}/build/library/libhipfft.so /opt/rocm-${{ROCM_VER}}/hipfft/lib/
-
-# This is the alternative installation path via Ubuntu packages.
-## https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation-Guide.html#ubuntu
-## https://rocmdocs.amd.com/en/latest/Installation_Guide/HIP-Installation.html#nvidia-platform
-#RUN apt-key adv --fetch-keys https://repo.radeon.com/rocm/rocm.gpg.key
-#RUN echo 'deb [arch=amd64] https://repo.radeon.com/rocm/apt/debian/ ubuntu main' > /etc/apt/sources.list.d/rocm.list
-#RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true \
-#    && apt-get update -qq \
-#    && apt-get install --yes --no-install-recommends hip-nvcc hipblas \
-#    && rm -rf /var/lib/apt/lists/*
-
-# Setup HIP environment.
-ENV ROCM_PATH /opt/rocm-${{ROCM_VER}}
-ENV PATH ${{PATH}}:${{ROCM_PATH}}/hip/bin
-ENV LD_LIBRARY_PATH ${{LD_LIBRARY_PATH}}:${{ROCM_PATH}}/lib
-ENV HIP_PLATFORM nvidia
-RUN hipconfig
-
-""" + install_toolchain(
-        base_image="ubuntu",
-        mpi_mode="mpich",
-        enable_hip="yes",
-        gpu_ver=gpu_ver,
-        with_dbcsr="no",
-    )
 
 
 # ======================================================================================
