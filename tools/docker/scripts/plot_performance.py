@@ -29,7 +29,7 @@ def main():
     for title, plot, timing in zip(titles, plots, timings):
         timing["rest"] = timing["total"] - sum([timing.get(r, 0.0) for r in routines])
 
-        full_title = f"Timings of {title} ({timings['total']} s in total)"
+        full_title = f"{title}: {timings['total']} s"
         print(f'Plot: name="{plot}", title="{full_title}", ylabel="time [s]"')
         for r in ["rest"] + routines:
             t = timing.get(r, 0.0)
