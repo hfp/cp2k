@@ -406,6 +406,7 @@ CONTAINS
       MARK_USED(uplo)
       MARK_USED(n)
       MARK_USED(info)
+      MARK_USED(blacs_context)
       MARK_USED(dlaf_handle)
       MARK_USED(dlaf_name)
       MARK_USED(message)
