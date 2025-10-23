@@ -2531,8 +2531,8 @@ CONTAINS
       iatom_old = 0
       jatom_old = 0
 
-      DO irow = 1, nrow_local
-         DO jcol = 1, ncol_local
+      DO jcol = 1, ncol_local
+         DO irow = 1, nrow_local
 
             i_bf = row_indices(irow)
             j_bf = col_indices(jcol)
