@@ -246,10 +246,10 @@ CONTAINS
       CHARACTER, PARAMETER                               :: uplo = 'L'
 
       CHARACTER(LEN=100)                                 :: message
-      REAL(KIND=dp), DIMENSION(:, :), POINTER            :: a, z
       INTEGER                                            :: blacs_context, dlaf_handle, handle, n
       INTEGER, DIMENSION(9)                              :: desca, descz
       INTEGER, TARGET                                    :: info
+      REAL(KIND=dp), DIMENSION(:, :), POINTER            :: a, z
 
       CALL timeset(routineN, handle)
 
