@@ -77,7 +77,7 @@ __attribute__((intel_reqd_sub_group_size(SG)))
 #endif
 kernel void
 dbm_multiply(double alpha, int itask, int ntasks, int size, int param_format,
-             global const int *params,
+             constant const int *params,  /* constant address space hint */
 #if !defined(CLINEAR)
              global const double *restrict a, global const double *restrict b,
 #else
@@ -86,7 +86,8 @@ dbm_multiply(double alpha, int itask, int ntasks, int size, int param_format,
              global double *restrict c) {
   const int i = (int)get_global_id(0);
 #if defined(SM) && (0 < SM)
-  local TYPE tls[WG][BN + SM - 1], *const cvec = &tls[get_local_id(0)];
+  local TYPE tls[WG][BN + SM - 1];
+  TYPE *restrict const cvec = &tls[get_local_id(0)][0];
 #else
   TYPE cvec[BN];
 #endif
