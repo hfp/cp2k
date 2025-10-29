@@ -65,6 +65,7 @@ typedef struct {
   int rank;               // target mpi rank
   int row_size;
   int col_size;
+  int plan_size; // cached = row_size * col_size
 } plan_t;
 
 /*******************************************************************************
@@ -79,7 +80,6 @@ static void create_pack_plans(const bool trans_matrix, const bool trans_dist,
                               const int npacks, plan_t *plans_per_pack[npacks],
                               int nblks_per_pack[npacks],
                               int ndata_per_pack[npacks]) {
-
   memset(nblks_per_pack, 0, npacks * sizeof(int));
   memset(ndata_per_pack, 0, npacks * sizeof(int));
 
@@ -134,13 +134,15 @@ static void create_pack_plans(const bool trans_matrix, const bool trans_dist,
         const int rank = cp_mpi_cart_rank(comm, coords);
         const int row_size = matrix->row_sizes[blk->row];
         const int col_size = matrix->col_sizes[blk->col];
-        ndata_mythread[ipack] += row_size * col_size;
+        const int plan_size = row_size * col_size;
         // Create plan.
         const int iplan = --nblks_mythread[ipack];
         plans_per_pack[ipack][iplan].blk = blk;
         plans_per_pack[ipack][iplan].rank = rank;
         plans_per_pack[ipack][iplan].row_size = row_size;
         plans_per_pack[ipack][iplan].col_size = col_size;
+        plans_per_pack[ipack][iplan].plan_size = plan_size;
+        ndata_mythread[ipack] += plan_size;
       }
     }
 #pragma omp critical
@@ -160,7 +162,6 @@ static void fill_send_buffers(
     int blks_send_count[nranks], int data_send_count[nranks],
     int blks_send_displ[nranks], int data_send_displ[nranks],
     dbm_pack_block_t blks_send[nblks_send], double data_send[ndata_send]) {
-
   memset(blks_send_count, 0, nranks * sizeof(int));
   memset(data_send_count, 0, nranks * sizeof(int));
 
@@ -174,7 +175,7 @@ static void fill_send_buffers(
     for (int iblock = 0; iblock < nblks_send; iblock++) {
       const plan_t *plan = &plans[iblock];
       nblks_mythread[plan->rank] += 1;
-      ndata_mythread[plan->rank] += plan->row_size * plan->col_size;
+      ndata_mythread[plan->rank] += plan->plan_size;
     }
 
     // Sum nblks and ndata across threads.
@@ -201,13 +202,13 @@ static void fill_send_buffers(
     // 4th pass: Fill blks_send and data_send arrays.
 #pragma omp for schedule(static) // Need static to match previous loop.
     for (int iblock = 0; iblock < nblks_send; iblock++) {
-      const plan_t *plan = &plans[iblock];
-      const dbm_block_t *blk = plan->blk;
+      const plan_t *const plan = &plans[iblock];
+      const dbm_block_t *const blk = plan->blk;
       const int ishard = dbm_get_shard_index(matrix, blk->row, blk->col);
-      const dbm_shard_t *shard = &matrix->shards[ishard];
+      const dbm_shard_t *const shard = &matrix->shards[ishard];
       const double *blk_data = &shard->data[blk->offset];
       const int row_size = plan->row_size, col_size = plan->col_size;
-      const int plan_size = row_size * col_size;
+      const int plan_size = plan->plan_size;
       const int irank = plan->rank;
 
       // The blk_send_data is ordered by rank, thread, and block.
@@ -327,10 +328,9 @@ static void postprocess_received_blocks(
  ******************************************************************************/
 static dbm_packed_matrix_t pack_matrix(const bool trans_matrix,
                                        const bool trans_dist,
-                                       const dbm_matrix_t *matrix,
-                                       const dbm_distribution_t *dist,
+                                       const dbm_matrix_t *restrict matrix,
+                                       const dbm_distribution_t *restrict dist,
                                        const int nticks) {
-
   assert(cp_mpi_comms_are_similar(matrix->dist->comm, dist->comm));
 
   // The row/col indicies are distributed along one cart dimension and the
@@ -355,26 +355,38 @@ static dbm_packed_matrix_t pack_matrix(const bool trans_matrix,
                     dist_ticks, nticks, nsend_packs, plans_per_pack,
                     nblks_send_per_pack, ndata_send_per_pack);
 
-  // Allocate send buffers for maximum number of blocks/data over all packs.
-  int nblks_send_max = 0, ndata_send_max = 0;
-  for (int ipack = 0; ipack < nsend_packs; ++ipack) {
-    nblks_send_max = imax(nblks_send_max, nblks_send_per_pack[ipack]);
-    ndata_send_max = imax(ndata_send_max, ndata_send_per_pack[ipack]);
-  }
-  dbm_pack_block_t *blks_send =
-      cp_mpi_alloc_mem(nblks_send_max * sizeof(dbm_pack_block_t));
-  double *data_send = cp_mpi_alloc_mem(ndata_send_max * sizeof(double));
+  // Allocate send buffers adaptively (reuse and grow as needed, no upfront
+  // bounds).
+  dbm_pack_block_t *blks_send = NULL;
+  double *data_send = NULL;
+  int blks_send_capacity = 0;
+  int data_send_capacity = 0;
 
-  // Cannot parallelize over packs (there might be too few of them).
   for (int ipack = 0; ipack < nsend_packs; ipack++) {
-    // Fill send buffers according to plans.
+    const int need_blks = nblks_send_per_pack[ipack];
+    const int need_data = ndata_send_per_pack[ipack];
+    if (need_blks > blks_send_capacity) {
+      if (blks_send) {
+        cp_mpi_free_mem(blks_send);
+      }
+      blks_send = cp_mpi_alloc_mem(need_blks * sizeof(dbm_pack_block_t));
+      blks_send_capacity = need_blks;
+    }
+    if (need_data > data_send_capacity) {
+      if (data_send) {
+        cp_mpi_free_mem(data_send);
+      }
+      data_send = cp_mpi_alloc_mem(need_data * sizeof(double));
+      data_send_capacity = need_data;
+    }
+
     const int nranks = dist->nranks;
     int blks_send_count[nranks], data_send_count[nranks];
     int blks_send_displ[nranks], data_send_displ[nranks];
-    fill_send_buffers(matrix, trans_matrix, nblks_send_per_pack[ipack],
-                      ndata_send_per_pack[ipack], plans_per_pack[ipack], nranks,
-                      blks_send_count, data_send_count, blks_send_displ,
-                      data_send_displ, blks_send, data_send);
+    fill_send_buffers(matrix, trans_matrix, need_blks, need_data,
+                      plans_per_pack[ipack], nranks, blks_send_count,
+                      data_send_count, blks_send_displ, data_send_displ,
+                      blks_send, data_send);
     free(plans_per_pack[ipack]);
 
     // 1st communication: Exchange block counts.
@@ -389,10 +401,11 @@ static dbm_packed_matrix_t pack_matrix(const bool trans_matrix,
     int blks_send_count_byte[nranks], blks_send_displ_byte[nranks];
     int blks_recv_count_byte[nranks], blks_recv_displ_byte[nranks];
     for (int i = 0; i < nranks; i++) { // TODO: this is ugly!
-      blks_send_count_byte[i] = blks_send_count[i] * sizeof(dbm_pack_block_t);
-      blks_send_displ_byte[i] = blks_send_displ[i] * sizeof(dbm_pack_block_t);
-      blks_recv_count_byte[i] = blks_recv_count[i] * sizeof(dbm_pack_block_t);
-      blks_recv_displ_byte[i] = blks_recv_displ[i] * sizeof(dbm_pack_block_t);
+      const int sz = (int)sizeof(dbm_pack_block_t);
+      blks_send_count_byte[i] = blks_send_count[i] * sz;
+      blks_send_displ_byte[i] = blks_send_displ[i] * sz;
+      blks_recv_count_byte[i] = blks_recv_count[i] * sz;
+      blks_recv_displ_byte[i] = blks_recv_displ[i] * sz;
     }
     cp_mpi_alltoallv_byte(blks_send, blks_send_count_byte, blks_send_displ_byte,
                           blks_recv, blks_recv_count_byte, blks_recv_displ_byte,
@@ -426,9 +439,11 @@ static dbm_packed_matrix_t pack_matrix(const bool trans_matrix,
     packed.send_packs[ipack].data = data_recv;
   }
 
-  // Deallocate send buffers.
-  cp_mpi_free_mem(blks_send);
-  cp_mpi_free_mem(data_send);
+  // Deallocate adaptive send buffers.
+  if (blks_send)
+    cp_mpi_free_mem(blks_send);
+  if (data_send)
+    cp_mpi_free_mem(data_send);
 
   // Allocate pack_recv.
   int max_nblocks = 0, max_data_size = 0;
