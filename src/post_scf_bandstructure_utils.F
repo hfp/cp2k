@@ -591,8 +591,8 @@ CONTAINS
       ALLOCATE (bs_env%cfm_mo_coeff_kp(nkp_bs_and_DOS, bs_env%n_spin))
       ALLOCATE (bs_env%cfm_ks_kp(nkp_bs_and_DOS, bs_env%n_spin))
       ALLOCATE (bs_env%cfm_s_kp(nkp_bs_and_DOS))
-      DO ispin = 1, bs_env%n_spin
       DO ikp = 1, nkp_bs_and_DOS
+      DO ispin = 1, bs_env%n_spin
          CALL cp_cfm_create(bs_env%cfm_mo_coeff_kp(ikp, ispin), bs_env%cfm_work_mo%matrix_struct)
          CALL cp_cfm_create(bs_env%cfm_ks_kp(ikp, ispin), bs_env%cfm_work_mo%matrix_struct)
       END DO
