@@ -201,9 +201,14 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
           clinear = (NULL == lin_env ? 0 /*default*/ : atoi(lin_env));
           offset += (size_t)LIBXSMM_SNPRINTF(
               flags + offset, sizeof(flags) - offset,
-              " %s %s -DBN=%i -DSM=%i -DLU=%i -DWG=%i -DSG=%i",
-              0 != gpu ? "-DGPU" : "", 0 == clinear ? "" : "-DCLINEAR", bn, sm,
-              lu, (int)wgsize[0], (int)sgsize);
+              " %s %s -DCONSTANT=%s -DBN=%i -DSM=%i -DLU=%i -DWG=%i -DSG=%i",
+              0 != gpu ? "-DGPU" : "", 0 == clinear ? "" : "-DCLINEAR",
+#if defined(ACC_OPENCL_CMEM)
+              EXIT_SUCCESS == c_dbcsr_acc_opencl_use_cmem(devinfo) ? "constant"
+                                                                   :
+#endif
+                                                                   "global",
+              bn, sm, lu, (int)wgsize[0], (int)sgsize);
           if (0 != precision) {
             offset +=
                 (size_t)LIBXSMM_SNPRINTF(flags + offset, sizeof(flags) - offset,
