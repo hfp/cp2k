@@ -50,8 +50,8 @@ dbm_comm_iterator_t *dbm_comm_iterator_start(const bool transa,
                                              const dbm_matrix_t *matrix_c);
 
 /*******************************************************************************
- * \brief Internal routine for retrieving next pair of packs from given iterator.
- * \author Ole Schuett
+ * \brief Internal routine for retrieving next pair of packs from given
+ *iterator. \author Ole Schuett
  ******************************************************************************/
 bool dbm_comm_iterator_next(dbm_comm_iterator_t *iter, dbm_pack_t **pack_a,
                             dbm_pack_t **pack_b);
