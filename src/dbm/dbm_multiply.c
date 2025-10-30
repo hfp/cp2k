@@ -314,12 +314,12 @@ static void multiply_packs(const bool transa, const bool transb,
 
             // Add block multiplication to batch.
             dbm_task_t *const tptr = &batch[ntasks];
-            tptr->m = m;
-            tptr->n = n;
-            tptr->k = k;
             tptr->offset_a = blk_a->offset;
             tptr->offset_b = blk_b->offset;
             tptr->offset_c = blk_c->offset;
+            tptr->m = m;
+            tptr->n = n;
+            tptr->k = k;
             ++ntasks;
 
             if (ntasks == DBM_MAX_BATCH_SIZE) {
