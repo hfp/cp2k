@@ -355,12 +355,10 @@ static dbm_packed_matrix_t pack_matrix(const bool trans_matrix,
                     dist_ticks, nticks, nsend_packs, plans_per_pack,
                     nblks_send_per_pack, ndata_send_per_pack);
 
-  // Allocate send buffers adaptively (reuse and grow as needed, no upfront
-  // bounds).
+  // Allocate send buffers adaptively (reuse/grow, no upfront bounds).
+  int blks_send_capacity = 0, data_send_capacity = 0;
   dbm_pack_block_t *blks_send = NULL;
   double *data_send = NULL;
-  int blks_send_capacity = 0;
-  int data_send_capacity = 0;
 
   for (int ipack = 0; ipack < nsend_packs; ipack++) {
     const int need_blks = nblks_send_per_pack[ipack];
@@ -440,10 +438,12 @@ static dbm_packed_matrix_t pack_matrix(const bool trans_matrix,
   }
 
   // Deallocate adaptive send buffers.
-  if (blks_send)
+  if (blks_send) {
     cp_mpi_free_mem(blks_send);
-  if (data_send)
+  }
+  if (data_send) {
     cp_mpi_free_mem(data_send);
+  }
 
   // Allocate pack_recv.
   int max_nblocks = 0, max_data_size = 0;
@@ -576,7 +576,7 @@ dbm_comm_iterator_t *dbm_comm_iterator_start(const bool transa,
 }
 
 /*******************************************************************************
- * \brief Internal routine for retriving next pair of packs from given iterator.
+ * \brief Internal routine for retrieving next pair of packs of given iterator.
  * \author Ole Schuett
  ******************************************************************************/
 bool dbm_comm_iterator_next(dbm_comm_iterator_t *iter, dbm_pack_t **pack_a,
@@ -587,11 +587,11 @@ bool dbm_comm_iterator_next(dbm_comm_iterator_t *iter, dbm_pack_t **pack_a,
 
   // Start each rank at a different tick to spread the load on the sources.
   const int shift = iter->dist->rows.my_rank + iter->dist->cols.my_rank;
-  const int shifted_itick = (iter->itick + shift) % iter->nticks;
-  *pack_a = sendrecv_pack(shifted_itick, iter->nticks, &iter->packed_a);
-  *pack_b = sendrecv_pack(shifted_itick, iter->nticks, &iter->packed_b);
+  const int itick = (iter->itick + shift) % iter->nticks;
+  *pack_a = sendrecv_pack(itick, iter->nticks, &iter->packed_a);
+  *pack_b = sendrecv_pack(itick, iter->nticks, &iter->packed_b);
 
-  iter->itick++;
+  ++iter->itick;
   return true;
 }
 
