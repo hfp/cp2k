@@ -24,7 +24,39 @@
 #define OFFLOAD_MEMPOOL_PRINT(FN, MSG, OUTPUT_UNIT)                            \
   ((FN)(MSG, (int)strlen(MSG), OUTPUT_UNIT))
 #define OFFLOAD_MEMPOOL_OMPALLOC 1
+#define OFFLOAD_MEMPOOL_ALIGN 64 // alignment of allocated chunks
+#define OFFLOAD_MEMPOOL_XALLOC 7 // percentage on (re)alloted memory
 #define OFFLOAD_MEMPOOL_XREUSE 4 // skip reuse if chunk >= X*required
+
+/*******************************************************************************
+ * \brief Round to multiple of alignment size.
+ * \author Hans Pabst
+ ******************************************************************************/
+static inline size_t roundup_aligned(size_t size) {
+  return 0 != size ? ((size + (OFFLOAD_MEMPOOL_ALIGN - 1)) &
+                      ~(OFFLOAD_MEMPOOL_ALIGN - 1))
+                   : 0;
+}
+
+/*******************************************************************************
+ * \brief Round to next power of two after adding small slack.
+ * \author Hans Pabst
+ ******************************************************************************/
+static inline size_t roundup_memsize(size_t size) {
+  size_t result = size + (size * OFFLOAD_MEMPOOL_XALLOC) / 100;
+  // Optional: next power of two for small blocks (up to 1MB).
+  if (result < (1U << 20)) {
+    size_t x = result - 1;
+    x |= x >> 1;
+    x |= x >> 2;
+    x |= x >> 4;
+    x |= x >> 8;
+    x |= x >> 16;
+    x |= x >> 32;
+    result = x + 1;
+  }
+  return result;
+}
 
 /*******************************************************************************
  * \brief Private struct for storing a chunk of memory.
@@ -66,7 +98,6 @@ static void *actual_malloc(const size_t size, const bool on_device) {
   }
 
   void *memory = NULL;
-
 #if defined(__OFFLOAD)
   if (on_device) {
     offload_activate_chosen_device();
@@ -143,7 +174,7 @@ static void *internal_mempool_malloc(offload_mempool_t *pool, const size_t size,
     return NULL;
   }
 
-  const size_t req = round_up_aligned(size);
+  const size_t req = roundup_aligned(size);
   offload_memchunk_t *chunk;
 
 #pragma omp critical(offload_mempool_modify)
@@ -155,7 +186,7 @@ static void *internal_mempool_malloc(offload_mempool_t *pool, const size_t size,
       const size_t s = (*indirect)->size;
       if (req <= s && (reuse == NULL || s < (*reuse)->size)) {
         // Skip oversized blocks and limit fragmentation.
-        if (s <= req * OFFLOAD_MEMPOOL_XREUSE) {
+        if (s <= (req * OFFLOAD_MEMPOOL_XREUSE)) {
           reuse = indirect; // reuse smallest suitable chunk
           if (s == req) {
             break; // perfect match, exit early
@@ -185,7 +216,7 @@ static void *internal_mempool_malloc(offload_mempool_t *pool, const size_t size,
 
   // Resize chunk outside of critical region before adding it to allocated list.
   if (chunk->size < req) {
-    const size_t target = on_device ? req : grow_target(req);
+    const size_t target = on_device ? req : roundup_memsize(req);
     // Free previous memory and allocate with growth (host only).
     actual_free(chunk->mem, on_device);
     chunk->mem = actual_malloc(target, on_device);
