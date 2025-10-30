@@ -25,35 +25,26 @@
   ((FN)(MSG, (int)strlen(MSG), OUTPUT_UNIT))
 #define OFFLOAD_MEMPOOL_OMPALLOC 1
 #define OFFLOAD_MEMPOOL_ALIGN 64 // alignment of allocated chunks
-#define OFFLOAD_MEMPOOL_XALLOC 7 // percentage on (re)alloted memory
-#define OFFLOAD_MEMPOOL_XREUSE 4 // skip reuse if chunk >= X*required
+#define OFFLOAD_MEMPOOL_XREUSE 4 // skip reuse if chunk >= X*size
 
 /*******************************************************************************
- * \brief Round to multiple of alignment size.
- * \author Hans Pabst
- ******************************************************************************/
-static inline size_t roundup_aligned(size_t size) {
-  return 0 != size ? ((size + (OFFLOAD_MEMPOOL_ALIGN - 1)) &
-                      ~(OFFLOAD_MEMPOOL_ALIGN - 1))
-                   : 0;
-}
-
-/*******************************************************************************
- * \brief Round to next power of two after adding small slack.
+ * \brief Round up blocks to next POT, otherwise round-up to alignment size.
  * \author Hans Pabst
  ******************************************************************************/
 static inline size_t roundup_memsize(size_t size) {
-  size_t result = size + (size * OFFLOAD_MEMPOOL_XALLOC) / 100;
-  // Optional: next power of two for small blocks (up to 1MB).
-  if (result < (1U << 20)) {
-    size_t x = result - 1;
-    x |= x >> 1;
-    x |= x >> 2;
-    x |= x >> 4;
-    x |= x >> 8;
-    x |= x >> 16;
-    x |= x >> 32;
-    result = x + 1;
+  size_t result = size;
+  if ((1U << 20) <= size) {
+    result =
+        ((size + (OFFLOAD_MEMPOOL_ALIGN - 1)) & ~(OFFLOAD_MEMPOOL_ALIGN - 1));
+  } else if (0 != size) { // small request (up to 1MB)
+    result = size - 1;
+    result |= result >> 1;
+    result |= result >> 2;
+    result |= result >> 4;
+    result |= result >> 8;
+    result |= result >> 16;
+    result |= result >> 32;
+    ++result;
   }
   return result;
 }
@@ -174,7 +165,7 @@ static void *internal_mempool_malloc(offload_mempool_t *pool, const size_t size,
     return NULL;
   }
 
-  const size_t req = roundup_aligned(size);
+  const size_t upsize = roundup_memsize(size);
   offload_memchunk_t *chunk;
 
 #pragma omp critical(offload_mempool_modify)
@@ -184,11 +175,11 @@ static void *internal_mempool_malloc(offload_mempool_t *pool, const size_t size,
     offload_memchunk_t **indirect = &pool->available_head;
     while (*indirect != NULL) {
       const size_t s = (*indirect)->size;
-      if (req <= s && (reuse == NULL || s < (*reuse)->size)) {
+      if (upsize <= s && (reuse == NULL || s < (*reuse)->size)) {
         // Skip oversized blocks and limit fragmentation.
-        if (s <= (req * OFFLOAD_MEMPOOL_XREUSE)) {
+        if (s <= (upsize * OFFLOAD_MEMPOOL_XREUSE)) {
           reuse = indirect; // reuse smallest suitable chunk
-          if (s == req) {
+          if (s == upsize) {
             break; // perfect match, exit early
           }
         }
@@ -215,15 +206,14 @@ static void *internal_mempool_malloc(offload_mempool_t *pool, const size_t size,
   }
 
   // Resize chunk outside of critical region before adding it to allocated list.
-  if (chunk->size < req) {
-    const size_t target = on_device ? req : roundup_memsize(req);
-    // Free previous memory and allocate with growth (host only).
+  if (chunk->size < upsize) {
+    // Free previous memory and allocate with growth.
     actual_free(chunk->mem, on_device);
-    chunk->mem = actual_malloc(target, on_device);
-    chunk->size = target;
+    chunk->mem = actual_malloc(upsize, on_device);
+    chunk->size = upsize;
   }
 
-  chunk->used = req; // for statistics
+  chunk->used = upsize; // for statistics
 
   // Insert chunk into allocated list.
 #pragma omp critical(offload_mempool_modify)
