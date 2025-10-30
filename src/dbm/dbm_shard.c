@@ -160,15 +160,17 @@ static void hashtable_insert(dbm_shard_t *shard, const int block_idx) {
   assert(0 <= block_idx && block_idx < shard->nblocks);
   const dbm_block_t *blk = &shard->blocks[block_idx];
   const unsigned int h = hash(blk->row, blk->col);
-  int slot = (shard->hashtable_prime * h) & hashtable_mask(shard);
-  for (;; slot = (slot + 1) & hashtable_mask(shard)) { // linear probing
-    for (int i = slot; i < shard->hashtable_size; ++i) {
-      if (shard->hashtable[i] == 0) {        // 0 means empty
-        shard->hashtable[i] = block_idx + 1; // 1-based
-        return;
-      }
+  const int mask = hashtable_mask(shard);
+  int slot = (shard->hashtable_prime * h) & mask;
+  const int start = slot;
+
+  do {
+    if (shard->hashtable[slot] == 0) {        // 0 means empty
+      shard->hashtable[slot] = block_idx + 1; // 1-based index
+      break;
     }
-  }
+    slot = (slot + 1) & mask;
+  } while (slot != start); // table full
 }
 
 /*******************************************************************************
@@ -177,20 +179,26 @@ static void hashtable_insert(dbm_shard_t *shard, const int block_idx) {
  ******************************************************************************/
 dbm_block_t *dbm_shard_lookup(const dbm_shard_t *shard, const int row,
                               const int col) {
-  int slot = (shard->hashtable_prime * hash(row, col)) & hashtable_mask(shard);
-  for (;; slot = (slot + 1) & hashtable_mask(shard)) { // linear probing
-    for (int i = slot; i < shard->hashtable_size; ++i) {
-      const int block_idx = shard->hashtable[i];
-      if (block_idx == 0) { // 1-based, 0 means empty
-        return NULL;        // block not found
-      }
-      assert(0 < block_idx && block_idx <= shard->nblocks);
-      dbm_block_t *blk = &shard->blocks[block_idx - 1];
-      if (blk->row == row && blk->col == col) {
-        return blk;
-      }
+  const int mask = hashtable_mask(shard); // shard->hashtable_size - 1
+  int slot =
+      (shard->hashtable_prime * hash((unsigned)row, (unsigned)col)) & mask;
+  const int start = slot; // remember start to avoid infinite loop if table full
+
+  do {
+    const int block_idx = shard->hashtable[slot]; // 0 means empty
+    if (block_idx == 0) {
+      return NULL;
     }
+    assert(block_idx > 0 && block_idx <= shard->nblocks);
+    dbm_block_t *blk = &shard->blocks[block_idx - 1];
+    if (blk->row == row && blk->col == col) {
+      return blk;
+    }
+    slot = (slot + 1) & mask;
   }
+  // full cycle (should not happen if load factor < 1)
+  while (slot != start);
+  return NULL;
 }
 
 /*******************************************************************************
