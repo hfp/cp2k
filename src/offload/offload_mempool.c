@@ -24,6 +24,7 @@
 #define OFFLOAD_MEMPOOL_PRINT(FN, MSG, OUTPUT_UNIT)                            \
   ((FN)(MSG, (int)strlen(MSG), OUTPUT_UNIT))
 #define OFFLOAD_MEMPOOL_OMPALLOC 1
+#define OFFLOAD_MEMPOOL_XREUSE 4 // skip reuse if chunk >= X*required
 
 /*******************************************************************************
  * \brief Private struct for storing a chunk of memory.
@@ -142,20 +143,23 @@ static void *internal_mempool_malloc(offload_mempool_t *pool, const size_t size,
     return NULL;
   }
 
+  const size_t req = round_up_aligned(size);
   offload_memchunk_t *chunk;
 
 #pragma omp critical(offload_mempool_modify)
   {
     // Find a possible chunk to reuse or reclaim in available list.
-    offload_memchunk_t **reuse = NULL,
-                       **reclaim = NULL; // ** for easy list removal
+    offload_memchunk_t **reuse = NULL, **reclaim = NULL;
     offload_memchunk_t **indirect = &pool->available_head;
     while (*indirect != NULL) {
       const size_t s = (*indirect)->size;
-      if (size <= s && (reuse == NULL || s < (*reuse)->size)) {
-        reuse = indirect; // reuse smallest suitable chunk
-        if (s == size) {
-          break; // perfect match, exit early
+      if (req <= s && (reuse == NULL || s < (*reuse)->size)) {
+        // Skip oversized blocks and limit fragmentation.
+        if (s <= req * OFFLOAD_MEMPOOL_XREUSE) {
+          reuse = indirect; // reuse smallest suitable chunk
+          if (s == req) {
+            break; // perfect match, exit early
+          }
         }
       } else if (reclaim == NULL || (*reclaim)->size < s) {
         reclaim = indirect; // reclaim largest unsuitable chunk
@@ -180,13 +184,15 @@ static void *internal_mempool_malloc(offload_mempool_t *pool, const size_t size,
   }
 
   // Resize chunk outside of critical region before adding it to allocated list.
-  if (chunk->size < size) {
+  if (chunk->size < req) {
+    const size_t target = on_device ? req : grow_target(req);
+    // Free previous memory and allocate with growth (host only).
     actual_free(chunk->mem, on_device);
-    chunk->mem = actual_malloc(size, on_device);
-    chunk->size = size;
+    chunk->mem = actual_malloc(target, on_device);
+    chunk->size = target;
   }
 
-  chunk->used = size; // for statistics
+  chunk->used = req; // for statistics
 
   // Insert chunk into allocated list.
 #pragma omp critical(offload_mempool_modify)
