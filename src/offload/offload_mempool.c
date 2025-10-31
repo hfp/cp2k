@@ -26,12 +26,13 @@
 #define OFFLOAD_MEMPOOL_OMPALLOC 1
 #define OFFLOAD_MEMPOOL_ALIGN 64 // alignment of allocated chunks
 #define OFFLOAD_MEMPOOL_REUSE 36 // skip reuse if chunk >= X*size
-#define OFFLOAD_MEMPOOL_CLEAN 7  // GC if size/used ratio hikes
+#define OFFLOAD_MEMPOOL_TRIM 7   // GC if size/used ratio hikes
 
 /*******************************************************************************
  * \brief Private routine to round-up blocks to next POT or alignment size.
  * \author Hans Pabst
  ******************************************************************************/
+#if 0 < OFFLOAD_MEMPOOL_ALIGN
 static inline size_t roundup_memsize(size_t size) {
   size_t result = size;
   if ((1U << 20) <= size) {
@@ -49,6 +50,7 @@ static inline size_t roundup_memsize(size_t size) {
   }
   return result;
 }
+#endif
 
 /*******************************************************************************
  * \brief Private struct for storing a chunk of memory.
@@ -79,6 +81,7 @@ static offload_mempool_t mempool_host = {0}, mempool_device = {0};
  * \author Hans Pabst
  ******************************************************************************/
 static uint64_t host_malloc_counter = 0, device_malloc_counter = 0;
+static uint64_t host_malloc_peak = 0, device_malloc_peak = 0;
 
 /*******************************************************************************
  * \brief Private routine for actually allocating system memory.
@@ -167,7 +170,11 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
   }
 
   offload_memchunk_t *chunk;
+#if 0 < OFFLOAD_MEMPOOL_ALIGN
   const size_t upsize = roundup_memsize(size);
+#else
+  const size_t upsize = size;
+#endif
   const bool on_device = (pool == &mempool_device);
   assert(on_device || pool == &mempool_host);
 #pragma omp critical(offload_mempool_modify)
@@ -249,7 +256,7 @@ void *offload_mempool_device_malloc(const size_t size) {
  * \brief Private routine for freeing all memory in the pool (not locked!).
  * \author Ole Schuett and Hans Pabst
  ******************************************************************************/
-static void internal_mempool_clear(offload_mempool_t *pool) {
+static void internal_mempool_clear(offload_mempool_t *pool, uint64_t peak) {
   const bool on_device = (pool == &mempool_device);
   assert(on_device || pool == &mempool_host);
   // Free all chunks in available list.
@@ -259,14 +266,24 @@ static void internal_mempool_clear(offload_mempool_t *pool) {
     actual_free(chunk->mem, on_device);
     free(chunk);
   }
+  // Record peak size
+  if (on_device) {
+    if (device_malloc_peak < peak) {
+      device_malloc_peak = peak;
+    }
+  } else {
+    if (host_malloc_peak < peak) {
+      host_malloc_peak = peak;
+    }
+  }
 }
 
 /*******************************************************************************
  * \brief Private routine for summing alloc sizes of all chunks in given list.
  * \author Ole Schuett and Hans Pabst
  ******************************************************************************/
-static size_t sum_chunks_size(const offload_memchunk_t *head, size_t offset) {
-  size_t result = 0;
+static uint64_t sum_chunks_size(const offload_memchunk_t *head, size_t offset) {
+  uint64_t result = 0;
   for (const offload_memchunk_t *chunk = head; chunk != NULL;
        chunk = chunk->next) {
     result += *(const size_t *)((const char *)chunk + offset);
@@ -278,14 +295,18 @@ static size_t sum_chunks_size(const offload_memchunk_t *head, size_t offset) {
  * \brief Private routine to query statistics.
  * \author Hans Pabst
  ******************************************************************************/
-void stats_get_sizes(const offload_mempool_t *pool, size_t *size,
-                     size_t *used) {
-  const size_t offset_size = offsetof(offload_memchunk_t, size);
-  const size_t offset_used = offsetof(offload_memchunk_t, used);
-  *size = sum_chunks_size(pool->available_head, offset_size) +
-          sum_chunks_size(pool->allocated_head, offset_size);
-  *used = sum_chunks_size(pool->available_head, offset_used) +
-          sum_chunks_size(pool->allocated_head, offset_used);
+void stats_get_sizes(const offload_mempool_t *pool, uint64_t *size,
+                     uint64_t *used) {
+  if (NULL != size) {
+    const size_t offset = offsetof(offload_memchunk_t, size);
+    *size = sum_chunks_size(pool->available_head, offset) +
+            sum_chunks_size(pool->allocated_head, offset);
+  }
+  if (NULL != used) {
+    const size_t offset = offsetof(offload_memchunk_t, used);
+    *used = sum_chunks_size(pool->available_head, offset) +
+            sum_chunks_size(pool->allocated_head, offset);
+  }
 }
 
 /*******************************************************************************
@@ -299,12 +320,12 @@ static void internal_mempool_free(offload_mempool_t *pool, const void *mem) {
 
 #pragma omp critical(offload_mempool_modify)
   {
-#if 1 < OFFLOAD_MEMPOOL_CLEAN
-    size_t size = 0, used = 0;
+#if 1 < OFFLOAD_MEMPOOL_TRIM
+    uint64_t size = 0, used = 0;
     stats_get_sizes(pool, &size, &used);
-    used *= OFFLOAD_MEMPOOL_CLEAN;
+    used *= OFFLOAD_MEMPOOL_TRIM;
     if (used <= size) {
-      internal_mempool_clear(pool);
+      internal_mempool_clear(pool, size);
     }
 #endif
 
@@ -349,8 +370,11 @@ void offload_mempool_clear(void) {
   // TODO: check for leaks like assert(pool->allocated_head == NULL).
 #pragma omp critical(offload_mempool_modify)
   {
-    internal_mempool_clear(&mempool_host);
-    internal_mempool_clear(&mempool_device);
+    uint64_t size = 0;
+    stats_get_sizes(&mempool_host, &size, NULL);
+    internal_mempool_clear(&mempool_host, size);
+    stats_get_sizes(&mempool_device, &size, NULL);
+    internal_mempool_clear(&mempool_device, size);
   }
 }
 
@@ -362,15 +386,17 @@ void offload_mempool_stats_get(offload_mempool_stats_t *memstats) {
   assert(NULL != memstats);
 #pragma omp critical(offload_mempool_modify)
   {
-    size_t size = 0, used = 0;
     memstats->host_mallocs = host_malloc_counter;
-    stats_get_sizes(&mempool_host, &size, &used);
-    memstats->host_size = size;
-    memstats->host_used = used;
+    stats_get_sizes(&mempool_host, &memstats->host_size, &memstats->host_used);
+    memstats->host_peak = memstats->host_size < host_malloc_peak
+                              ? host_malloc_peak
+                              : memstats->host_size;
     memstats->device_mallocs = device_malloc_counter;
-    stats_get_sizes(&mempool_device, &size, &used);
-    memstats->device_size = size;
-    memstats->device_used = used;
+    stats_get_sizes(&mempool_device, &memstats->device_size,
+                    &memstats->device_used);
+    memstats->device_peak = memstats->device_size < device_malloc_peak
+                                ? device_malloc_peak
+                                : memstats->device_size;
   }
 }
 
@@ -424,23 +450,23 @@ void offload_mempool_stats_print(int fortran_comm,
                           output_unit);
   }
   if (0 < memstats.device_mallocs) {
-    cp_mpi_max_uint64(&memstats.device_size, 1, comm);
+    cp_mpi_max_uint64(&memstats.device_peak, 1, comm);
     snprintf(buffer, sizeof(buffer),
              " Device                            "
              " %20" PRIuPTR "  %10" PRIuPTR "  %10" PRIuPTR "\n",
              (uintptr_t)memstats.device_mallocs,
              (uintptr_t)((memstats.device_used + (512U << 10)) >> 20),
-             (uintptr_t)((memstats.device_size + (512U << 10)) >> 20));
+             (uintptr_t)((memstats.device_peak + (512U << 10)) >> 20));
     OFFLOAD_MEMPOOL_PRINT(print_func, buffer, output_unit);
   }
   if (0 < memstats.host_mallocs) {
-    cp_mpi_max_uint64(&memstats.host_size, 1, comm);
+    cp_mpi_max_uint64(&memstats.host_peak, 1, comm);
     snprintf(buffer, sizeof(buffer),
              " Host                              "
              " %20" PRIuPTR "  %10" PRIuPTR "  %10" PRIuPTR "\n",
              (uintptr_t)memstats.host_mallocs,
              (uintptr_t)((memstats.host_used + (512U << 10)) >> 20),
-             (uintptr_t)((memstats.host_size + (512U << 10)) >> 20));
+             (uintptr_t)((memstats.host_peak + (512U << 10)) >> 20));
     OFFLOAD_MEMPOOL_PRINT(print_func, buffer, output_unit);
   }
   if (0 < memstats.device_mallocs || 0 < memstats.host_mallocs) {
