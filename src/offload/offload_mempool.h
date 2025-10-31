@@ -50,10 +50,12 @@ void offload_mempool_clear(void);
  * \author Hans Pabst
  ******************************************************************************/
 typedef struct offload_mempool_stats_t {
-  // Memory used out of consumed.
-  uint64_t host_used, device_used;
-  // Memory consumption.
+  // Memory consumption (entire pool).
   uint64_t host_size, device_size;
+  // Memory currently used.
+  uint64_t host_used, device_used;
+  // Memory peak consumption.
+  uint64_t host_peak, device_peak;
   // Number of allocations.
   uint64_t host_mallocs, device_mallocs;
 } offload_mempool_stats_t;
