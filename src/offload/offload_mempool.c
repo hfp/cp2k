@@ -24,20 +24,20 @@
 #define OFFLOAD_MEMPOOL_PRINT(FN, MSG, OUTPUT_UNIT)                            \
   ((FN)(MSG, (int)strlen(MSG), OUTPUT_UNIT))
 #define OFFLOAD_MEMPOOL_OMPALLOC 1
-#define OFFLOAD_MEMPOOL_ALIGN 64 // alignment of allocated chunks
-#define OFFLOAD_MEMPOOL_REUSE 36 // skip reuse if chunk >= X*size
-#define OFFLOAD_MEMPOOL_TRIM 7   // GC if size/used ratio hikes
+#define OFFLOAD_MEMPOOL_UPSIZE 64 // allocate multiples of upsize
+#define OFFLOAD_MEMPOOL_REUSE 36  // skip reuse if chunk >= X*size
+#define OFFLOAD_MEMPOOL_TRIM 7    // GC if size/used ratio hikes
 
 /*******************************************************************************
  * \brief Private routine to round-up blocks to next POT or alignment size.
  * \author Hans Pabst
  ******************************************************************************/
-#if 0 < OFFLOAD_MEMPOOL_ALIGN
 static inline size_t roundup_memsize(size_t size) {
   size_t result = size;
+#if 1 < OFFLOAD_MEMPOOL_UPSIZE
   if ((1U << 20) <= size) {
     result =
-        ((size + (OFFLOAD_MEMPOOL_ALIGN - 1)) & ~(OFFLOAD_MEMPOOL_ALIGN - 1));
+        ((size + (OFFLOAD_MEMPOOL_UPSIZE - 1)) & ~(OFFLOAD_MEMPOOL_UPSIZE - 1));
   } else if (0 != size) { // small request (up to 1MB)
     result = size - 1;
     result |= result >> 1;
@@ -48,9 +48,9 @@ static inline size_t roundup_memsize(size_t size) {
     result |= result >> 32;
     ++result;
   }
+#endif
   return result;
 }
-#endif
 
 /*******************************************************************************
  * \brief Private struct for storing a chunk of memory.
@@ -170,11 +170,7 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
   }
 
   offload_memchunk_t *chunk;
-#if 0 < OFFLOAD_MEMPOOL_ALIGN
   const size_t upsize = roundup_memsize(size);
-#else
-  const size_t upsize = size;
-#endif
   const bool on_device = (pool == &mempool_device);
   assert(on_device || pool == &mempool_host);
 #pragma omp critical(offload_mempool_modify)
