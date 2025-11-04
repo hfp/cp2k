@@ -25,7 +25,7 @@
   ((FN)(MSG, (int)strlen(MSG), OUTPUT_UNIT))
 #define OFFLOAD_MEMPOOL_OMPALLOC 1
 #define OFFLOAD_MEMPOOL_UPSIZE (2 << 20) // permit slack size when reuse
-#define OFFLOAD_MEMPOOL_SKIP 16          // no reuse if larger SKIP*need
+#define OFFLOAD_MEMPOOL_SKIP 24          // no reuse if larger SKIP*need
 #define OFFLOAD_MEMPOOL_TRIM 0           // GC if size/use ratio hikes
 
 /*******************************************************************************
@@ -170,8 +170,15 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
             break; // perfect match, exit early
           }
         }
-      } else if (reclaim == NULL || (*reclaim)->size < s) {
-        reclaim = indirect; // reclaim smallest unsuitable chunk
+      } else { // reclaim largest unsuitable chunk
+        if (reclaim != NULL) {
+          const size_t u = (*indirect)->used;
+          if ((u * (*reclaim)->size) < (s * (*reclaim)->used)) {
+            reclaim = indirect;
+          }
+        } else {
+          reclaim = indirect;
+        }
       }
       indirect = &(*indirect)->next;
     }
