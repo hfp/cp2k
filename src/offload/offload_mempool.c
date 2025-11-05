@@ -35,7 +35,7 @@
 typedef struct offload_memchunk {
   void *mem; // first: allows to cast memchunk into mem-ptr...
   struct offload_memchunk *next;
-  size_t size, used;
+  size_t size, used, n;
 } offload_memchunk_t;
 
 /*******************************************************************************
@@ -170,15 +170,8 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
             break; // perfect match, exit early
           }
         }
-      } else { // reclaim largest unsuitable chunk
-        if (reclaim != NULL) {
-          const size_t u = (*indirect)->used;
-          if ((u * (*reclaim)->size) < (s * (*reclaim)->used)) {
-            reclaim = indirect;
-          }
-        } else {
-          reclaim = indirect;
-        }
+      } else if (reclaim == NULL || (*indirect)->n < (*reclaim)->n) {
+        reclaim = indirect; // reclaim least utilized chunk
       }
       indirect = &(*indirect)->next;
     }
@@ -200,17 +193,20 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
 
   // Resize/allocate chunk outside of critical region.
   if (chunk != NULL) {
-    if (chunk->size < size) {
-      // Free previous memory and allocate with growth.
+    if (size <= chunk->size) {
+      ++chunk->n;
+    } else { // Free memory and allocate with growth.
       actual_free(chunk->mem, on_device);
       chunk->mem = actual_malloc(size, on_device);
       chunk->size = size;
+      chunk->n = 0;
     }
   } else {
     chunk = malloc(sizeof(offload_memchunk_t));
     assert(chunk != NULL);
     chunk->mem = actual_malloc(size, on_device);
     chunk->size = size;
+    chunk->n = 0;
   }
   chunk->used = size; // for statistics
 
