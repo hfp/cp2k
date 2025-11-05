@@ -33,7 +33,7 @@
 typedef struct offload_memchunk {
   void *mem; // first: allows to cast memchunk into mem-ptr...
   struct offload_memchunk *next;
-  size_t size, used, n;
+  size_t size, used, tick;
 } offload_memchunk_t;
 
 /*******************************************************************************
@@ -163,7 +163,8 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
         { // (nearly) perfect match, exit early
           break;
         }
-      } else if (reclaim == NULL || (*indirect)->n < (*reclaim)->n) {
+      } else if (reclaim == NULL || (*indirect)->tick < (*reclaim)->tick
+                                 || (*indirect)->size > (*reclaim)->size) {
         reclaim = indirect; // reclaim least utilized chunk
       }
       indirect = &(*indirect)->next;
@@ -185,23 +186,21 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
   }
 
   // Resize/allocate chunk outside of critical region.
-  if (chunk != NULL) {
-    if (size <= chunk->size) {
-      ++chunk->n;
-    } else { // Free memory and allocate with growth.
-      actual_free(chunk->mem, on_device);
-      chunk->mem = actual_malloc(size, on_device);
-      chunk->size = size;
-      chunk->n = 0;
-    }
-  } else {
+  if (chunk == NULL) {
     chunk = malloc(sizeof(offload_memchunk_t));
     assert(chunk != NULL);
     chunk->mem = actual_malloc(size, on_device);
     chunk->size = size;
-    chunk->n = 0;
   }
-  chunk->used = size; // for statistics
+  // Free memory and allocate with growth.
+  else if (chunk->size < size) {
+    actual_free(chunk->mem, on_device);
+    chunk->mem = actual_malloc(size, on_device);
+    chunk->size = size;
+  }
+  // For statistics.
+  chunk->tick = on_device ? device_malloc_counter : host_malloc_counter;
+  chunk->used = size;
 
   // Insert chunk into allocated list.
 #pragma omp critical(offload_mempool_modify)
