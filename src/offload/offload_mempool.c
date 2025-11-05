@@ -26,7 +26,6 @@
 #define OFFLOAD_MEMPOOL_OMPALLOC 1
 #define OFFLOAD_MEMPOOL_UPSIZE (2 << 20) // permit slack size when reuse
 #define OFFLOAD_MEMPOOL_SKIP 24          // no reuse if larger SKIP*need
-#define OFFLOAD_MEMPOOL_TRIM 0           // GC if size/use ratio hikes
 
 /*******************************************************************************
  * \brief Private struct for storing a chunk of memory.
@@ -304,14 +303,6 @@ static void internal_mempool_free(offload_mempool_t *pool, const void *mem) {
 
 #pragma omp critical(offload_mempool_modify)
   {
-#if 1 < OFFLOAD_MEMPOOL_TRIM
-    uint64_t size = 0, used = 0;
-    stats_sizes_get(pool, &size, &used);
-    used *= OFFLOAD_MEMPOOL_TRIM;
-    if (used <= size) {
-      internal_mempool_clear(pool, size);
-    }
-#endif
     // Find chunk in allocated list.
     offload_memchunk_t **indirect = &pool->allocated_head;
     while (*indirect != NULL && (*indirect)->mem != mem) {
