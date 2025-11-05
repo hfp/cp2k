@@ -25,7 +25,6 @@
   ((FN)(MSG, (int)strlen(MSG), OUTPUT_UNIT))
 #define OFFLOAD_MEMPOOL_OMPALLOC 1
 #define OFFLOAD_MEMPOOL_UPSIZE (2 << 20) // permit slack size when reuse
-#define OFFLOAD_MEMPOOL_SKIP 24          // no reuse if larger SKIP*need
 
 /*******************************************************************************
  * \brief Private struct for storing a chunk of memory.
@@ -155,19 +154,14 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
     while (*indirect != NULL) {
       const size_t s = (*indirect)->size;
       if (size <= s && (reuse == NULL || s < (*reuse)->size)) {
+        reuse = indirect; // reuse smallest suitable chunk
 #if 0 < OFFLOAD_MEMPOOL_UPSIZE
-        const size_t upsize = size + OFFLOAD_MEMPOOL_UPSIZE;
+        if (s <= (size + OFFLOAD_MEMPOOL_UPSIZE))
 #else
-        const size_t upsize = size;
+        if (s <= size)
 #endif
-#if 1 < OFFLOAD_MEMPOOL_SKIP
-        if (s <= (upsize * OFFLOAD_MEMPOOL_SKIP))
-#endif
-        {
-          reuse = indirect; // reuse smallest suitable chunk
-          if (s <= upsize) {
-            break; // perfect match, exit early
-          }
+        { // (nearly) perfect match, exit early
+          break;
         }
       } else if (reclaim == NULL || (*indirect)->n < (*reclaim)->n) {
         reclaim = indirect; // reclaim least utilized chunk
@@ -175,13 +169,13 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
       indirect = &(*indirect)->next;
     }
 
-    // Select an existing chunk or allocate a new one.
+    // Select an existing chunk or prepare a new one.
     if (reuse != NULL) {
       // Reusing an exising chunk which is already large enough.
       chunk = *reuse;
       *reuse = chunk->next; // remove chunk from available list.
     } else if (reclaim != NULL) {
-      // Reclaiming an existing chunk (resize is outside of crit. region).
+      // Reclaiming an existing chunk (resize outside of crit. region).
       chunk = *reclaim;
       *reclaim = chunk->next; // remove chunk from available list.
     } else {
