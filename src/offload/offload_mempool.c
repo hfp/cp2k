@@ -25,6 +25,7 @@
   ((FN)(MSG, (int)strlen(MSG), OUTPUT_UNIT))
 #define OFFLOAD_MEMPOOL_OMPALLOC 1
 #define OFFLOAD_MEMPOOL_UPSIZE (2 << 20) // permit slack size when reuse
+#define OFFLOAD_MEMPOOL_TRIM 2           // shrink if TRIM*size
 
 /*******************************************************************************
  * \brief Private struct for storing a chunk of memory.
@@ -54,8 +55,9 @@ static offload_mempool_t mempool_host = {0}, mempool_device = {0};
  * \brief Private some counters for statistics.
  * \author Hans Pabst
  ******************************************************************************/
-static uint64_t host_malloc_counter = 0, device_malloc_counter = 0;
-static uint64_t host_malloc_peak = 0, device_malloc_peak = 0;
+static struct {
+  uint64_t counter, peak;
+} host_stats = {0, 0}, device_stats = {0, 0};
 
 /*******************************************************************************
  * \brief Private routine for actually allocating system memory.
@@ -90,10 +92,10 @@ static void *actual_malloc(const size_t size, const bool on_device) {
   // Update statistics.
   if (on_device) {
 #pragma omp atomic
-    ++device_malloc_counter;
+    ++device_stats.counter;
   } else {
 #pragma omp atomic
-    ++host_malloc_counter;
+    ++host_stats.counter;
   }
 
   assert(memory != NULL);
@@ -154,6 +156,10 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
     while (*indirect != NULL) {
       const size_t s = (*indirect)->size;
       if (size <= s && (reuse == NULL || s < (*reuse)->size)) {
+        if (reuse != NULL &&
+            (reclaim == NULL || (*reclaim)->tick > (*reuse)->tick)) {
+          reclaim = reuse;
+        }
         reuse = indirect; // reuse smallest suitable chunk
 #if 0 < OFFLOAD_MEMPOOL_UPSIZE
         if (s <= (size + OFFLOAD_MEMPOOL_UPSIZE))
@@ -163,8 +169,8 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
         { // (nearly) perfect match, exit early
           break;
         }
-      } else if (reclaim == NULL || (*indirect)->tick < (*reclaim)->tick
-                                 || (*indirect)->size > (*reclaim)->size) {
+      } else if (reclaim == NULL || ((*reclaim)->tick >= (*indirect)->tick &&
+                                     (*reclaim)->size <= (*indirect)->size)) {
         reclaim = indirect; // reclaim least utilized chunk
       }
       indirect = &(*indirect)->next;
@@ -172,16 +178,23 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
 
     // Select an existing chunk or prepare a new one.
     if (reuse != NULL) {
-      // Reusing an exising chunk which is already large enough.
-      chunk = *reuse;
-      *reuse = chunk->next; // remove chunk from available list.
-    } else if (reclaim != NULL) {
-      // Reclaiming an existing chunk (resize outside of crit. region).
+#if 1 < OFFLOAD_MEMPOOL_TRIM
+      if (reclaim != NULL && (size * OFFLOAD_MEMPOOL_TRIM) <= (*reclaim)->size) {
+        chunk = *reclaim;
+        *reclaim = chunk->next; // remove chunk from list
+        chunk->size = 0; // trigger reallocation
+      }
+      else
+#endif
+      { // Reusing an exising chunk which is already large enough.
+        chunk = *reuse;
+        *reuse = chunk->next; // remove chunk from list
+      }
+    }
+    // Reclaim a chunk (resize outside of crit. region).
+    else if (reclaim != NULL) {
       chunk = *reclaim;
-      *reclaim = chunk->next; // remove chunk from available list.
-    } else {
-      // Allocate a new chunk (outside of crit. region).
-      assert(chunk == NULL);
+      *reclaim = chunk->next; // remove chunk from list
     }
   }
 
@@ -199,7 +212,7 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
     chunk->size = size;
   }
   // For statistics.
-  chunk->tick = on_device ? device_malloc_counter : host_malloc_counter;
+  chunk->tick = on_device ? device_stats.counter : host_stats.counter;
   chunk->used = size;
 
   // Insert chunk into allocated list.
@@ -244,12 +257,12 @@ static void internal_mempool_clear(offload_mempool_t *pool, uint64_t peak) {
   }
   // Record peak size
   if (on_device) {
-    if (device_malloc_peak < peak) {
-      device_malloc_peak = peak;
+    if (device_stats.peak < peak) {
+      device_stats.peak = peak;
     }
   } else {
-    if (host_malloc_peak < peak) {
-      host_malloc_peak = peak;
+    if (host_stats.peak < peak) {
+      host_stats.peak = peak;
     }
   }
 }
@@ -353,16 +366,16 @@ void offload_mempool_stats_get(offload_mempool_stats_t *memstats) {
   assert(NULL != memstats);
 #pragma omp critical(offload_mempool_modify)
   {
-    memstats->host_mallocs = host_malloc_counter;
+    memstats->host_mallocs = host_stats.counter;
     stats_sizes_get(&mempool_host, &memstats->host_size, &memstats->host_used);
-    memstats->host_peak = memstats->host_size < host_malloc_peak
-                              ? host_malloc_peak
+    memstats->host_peak = memstats->host_size < host_stats.peak
+                              ? host_stats.peak
                               : memstats->host_size;
-    memstats->device_mallocs = device_malloc_counter;
+    memstats->device_mallocs = device_stats.counter;
     stats_sizes_get(&mempool_device, &memstats->device_size,
                     &memstats->device_used);
-    memstats->device_peak = memstats->device_size < device_malloc_peak
-                                ? device_malloc_peak
+    memstats->device_peak = memstats->device_size < device_stats.peak
+                                ? device_stats.peak
                                 : memstats->device_size;
   }
 }
