@@ -195,9 +195,9 @@ CONTAINS
          ELSE IF (TRIM(header) == "POSDATA") THEN
             IF (ionode) THEN
                CALL readbuffer(socket, mxmat, 9)
-               cellh = RESHAPE(mxmat, (/3, 3/))
+               cellh = RESHAPE(mxmat, [3, 3])
                CALL readbuffer(socket, mxmat, 9)
-               cellih = RESHAPE(mxmat, (/3, 3/))
+               cellih = RESHAPE(mxmat, [3, 3])
                CALL readbuffer(socket, nat)
                cellh = TRANSPOSE(cellh)
                cellih = TRANSPOSE(cellih)
@@ -240,7 +240,7 @@ CONTAINS
             vir = TRANSPOSE(virial%pv_virial)
 
             CALL external_control(should_stop, "IPI", globenv=globenv)
-            IF (should_stop) EXIT
+            IF (should_stop) EXIT driver_loop
 
             hasdata = .TRUE.
          ELSE IF (TRIM(header) == "GETFORCE") THEN
@@ -250,7 +250,7 @@ CONTAINS
                CALL writebuffer(socket, pot)
                CALL writebuffer(socket, nat)
                CALL writebuffer(socket, combuf, 3*nat)
-               CALL writebuffer(socket, RESHAPE(vir, (/9/)), 9)
+               CALL writebuffer(socket, RESHAPE(vir, [9]), 9)
 
                ! i-pi can also receive an arbitrary string, that will be printed out to the "extra"
                ! trajectory file. this is useful if you want to return additional information, e.g.
@@ -262,7 +262,7 @@ CONTAINS
             hasdata = .FALSE.
          ELSE
             IF (output_unit > 0) WRITE (output_unit, *) " @DRIVER MODE:  Socket disconnected, time to exit."
-            EXIT
+            EXIT driver_loop
          END IF
       END DO driver_loop
 

@@ -99,7 +99,7 @@ MODULE mp2_types
 
    TYPE mp2_direct_type
       LOGICAL                                            :: big_send = .FALSE.
-   END TYPE
+   END TYPE mp2_direct_type
 
    TYPE mp2_gpw_type
       REAL(KIND=dp)                                      :: eps_grid = 0.0_dp, &
@@ -109,7 +109,7 @@ MODULE mp2_types
       REAL(KIND=dp)                                      :: cutoff = 0.0_dp, &
                                                             relative_cutoff = 0.0_dp
       INTEGER                                            :: size_lattice_sum = 0
-   END TYPE
+   END TYPE mp2_gpw_type
 
    TYPE ri_mp2_type
       INTEGER                                            :: block_size = 0, &
@@ -448,7 +448,7 @@ CONTAINS
       IF (ASSOCIATED(mp2_env%ri_rpa%xc_section_aux)) CALL section_vals_release(mp2_env%ri_rpa%xc_section_aux)
       IF (ASSOCIATED(mp2_env%ri_rpa%xc_section_primary)) CALL section_vals_release(mp2_env%ri_rpa%xc_section_primary)
 
-      IF (mp2_env%eri_method .EQ. do_eri_mme) CALL cp_eri_mme_finalize(mp2_env%eri_mme_param)
+      IF (mp2_env%eri_method == do_eri_mme) CALL cp_eri_mme_finalize(mp2_env%eri_mme_param)
       IF (ASSOCIATED(mp2_env%eri_mme_param)) DEALLOCATE (mp2_env%eri_mme_param)
       IF (ASSOCIATED(mp2_env%ri_rpa_im_time%tau_tj)) DEALLOCATE (mp2_env%ri_rpa_im_time%tau_tj)
       IF (ASSOCIATED(mp2_env%ri_rpa_im_time%tau_wj)) DEALLOCATE (mp2_env%ri_rpa_im_time%tau_wj)

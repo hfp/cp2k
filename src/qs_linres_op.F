@@ -589,7 +589,7 @@ CONTAINS
          CALL dbcsr_set(matrix_dso(1)%matrix, 0.0_dp)
          CALL dbcsr_set(matrix_dso(2)%matrix, 0.0_dp)
          CALL dbcsr_set(matrix_dso(3)%matrix, 0.0_dp)
-         CALL rRc_xyz_ao(matrix_dso, qs_env, (/0.0_dp, 0.0_dp, 0.0_dp/), 1)
+         CALL rRc_xyz_ao(matrix_dso, qs_env, [0.0_dp, 0.0_dp, 0.0_dp], 1)
       END IF
       !
       ! multiply by the mos
@@ -1274,9 +1274,9 @@ CONTAINS
 
       factor = 0.0_dp
 
-      IF ((b .EQ. a + 1 .OR. b .EQ. a - 2) .AND. (c .EQ. b + 1 .OR. c .EQ. b - 2)) THEN
+      IF ((b == a + 1 .OR. b == a - 2) .AND. (c == b + 1 .OR. c == b - 2)) THEN
          factor = 1.0_dp
-      ELSEIF ((b .EQ. a - 1 .OR. b .EQ. a + 2) .AND. (c .EQ. b - 1 .OR. c .EQ. b + 2)) THEN
+      ELSEIF ((b == a - 1 .OR. b == a + 2) .AND. (c == b - 1 .OR. c == b + 2)) THEN
          factor = -1.0_dp
       END IF
 
@@ -1393,11 +1393,11 @@ CONTAINS
       a => matrix%local_data
       DO icol_local = 1, ncol_local
          icol_global = matrix%matrix_struct%col_indices(icol_local)
-         IF (icol_global .GT. n) CYCLE
+         IF (icol_global > n) CYCLE
          rrc = rc(:, icol_global)
          DO irow_local = 1, nrow_local
             irow_global = matrix%matrix_struct%row_indices(irow_local)
-            IF (irow_global .GT. m) CYCLE
+            IF (irow_global > m) CYCLE
             rra = ra(:, irow_global)
             dist = pbc(rrc, rra, cell)
             a(irow_local, icol_local) = a(irow_local, icol_local)*dist(ixyz)

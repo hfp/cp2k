@@ -307,7 +307,7 @@ CONTAINS
                      CALL integrate_pgf_product( &
                         la_max=la_max(iset), zeta=zeta(ipgf, iset), la_min=la_min(iset), &
                         lb_max=0, zetb=0.0_dp, lb_min=0, &
-                        ra=ra, rab=(/0.0_dp, 0.0_dp, 0.0_dp/), &
+                        ra=ra, rab=[0.0_dp, 0.0_dp, 0.0_dp], &
                         rsgrid=rs_v(igrid_level), &
                         hab=I_tmp2, &
                         o1=na1 - 1, &
@@ -343,7 +343,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE mp2_eri_2c_integrate_gpw
 
 ! **************************************************************************************************
 !> \brief Integrates the potential of a RI function obtaining the forces and stress tensor
@@ -667,7 +667,7 @@ CONTAINS
 
                   CALL integrate_pgf_product(la_max=la_max(iset), zeta=zeta(ipgf, iset)/2.0_dp, la_min=la_min(iset), &
                                              lb_max=0, zetb=zeta(ipgf, iset)/2.0_dp, lb_min=0, &
-                                             ra=ra, rab=(/0.0_dp, 0.0_dp, 0.0_dp/), &
+                                             ra=ra, rab=[0.0_dp, 0.0_dp, 0.0_dp], &
                                              rsgrid=rs_v(igrid_level), &
                                              hab=I_tmp2, &
                                              pab=pab, &
@@ -901,7 +901,7 @@ CONTAINS
 
                   CALL integrate_pgf_product(la_max=la_max(iset), zeta=zeta(ipgf, iset)/2.0_dp, la_min=la_min(iset), &
                                              lb_max=0, zetb=zeta(ipgf, iset)/2.0_dp, lb_min=0, &
-                                             ra=ra, rab=(/0.0_dp, 0.0_dp, 0.0_dp/), &
+                                             ra=ra, rab=[0.0_dp, 0.0_dp, 0.0_dp], &
                                              rsgrid=rs_v(igrid_level), &
                                              hab=I_tmp2, &
                                              pab=pab, &
@@ -937,7 +937,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE integrate_potential
 
 ! **************************************************************************************************
 !> \brief Prepares GPW calculation for RI-MP2/RI-RPA

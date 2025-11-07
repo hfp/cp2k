@@ -99,7 +99,7 @@ CONTAINS
       CALL section_create(section, __LOCATION__, name="DBCSR", &
                           description="Configuration options for the DBCSR library.", &
                           n_keywords=1, n_subsections=0, repeats=.FALSE., &
-                          citations=(/Borstnik2014, Schuett2016/))
+                          citations=[Borstnik2014, Schuett2016])
 
       NULLIFY (keyword)
 
@@ -117,15 +117,15 @@ CONTAINS
                           usage="mm_driver blas", &
                           default_i_val=mm_driver_auto, &
                           enum_c_vals=s2a("AUTO", "BLAS", "MATMUL", "SMM", "XSMM"), &
-                          enum_i_vals=(/mm_driver_auto, mm_driver_blas, mm_driver_matmul, mm_driver_smm, &
-                                        mm_driver_xsmm/), &
+                          enum_i_vals=[mm_driver_auto, mm_driver_blas, mm_driver_matmul, mm_driver_smm, &
+                                       mm_driver_xsmm], &
                           enum_desc=s2a("Choose automatically the best available driver", &
                                         "BLAS (requires the BLAS library at link time)", &
                                         "Fortran MATMUL", &
                                         "Library optimised for Small Matrix Multiplies "// &
                                         "(requires the SMM library at link time)", &
                                         "LIBXSMM"), &
-                          citations=(/Heinecke2016/))
+                          citations=[Heinecke2016])
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -489,7 +489,7 @@ CONTAINS
             new_atom_b = .FALSE.
             CYCLE
          END IF
-         IF (blk_cnt + nadd .GT. SIZE(rows)) THEN
+         IF (blk_cnt + nadd > SIZE(rows)) THEN
             ALLOCATE (tmp(blk_cnt + nadd))
             tmp(1:blk_cnt) = rows(1:blk_cnt)
             DEALLOCATE (rows)
@@ -674,7 +674,7 @@ CONTAINS
                   DO jshell = 1, nshell_b(jset)
                      gto_loop: DO ipgf = 1, npgf_a(iset)
                         DO jpgf = 1, npgf_b(jset)
-                           IF (rpgfa(ipgf, iset) + rpgfb(jpgf, jset) .GE. dab) THEN
+                           IF (rpgfa(ipgf, iset) + rpgfb(jpgf, jset) >= dab) THEN
                               ! more selective screening with radius calculated for each primitive GTO
                               r_a = exp_radius(l_a(ishell, iset), &
                                                zet_a(ipgf, iset), &
@@ -684,8 +684,8 @@ CONTAINS
                                                zet_b(jpgf, jset), &
                                                eps_pgf_orb, &
                                                gcc_b(jpgf, jshell, jset))
-                              IF (r_a + r_b .GE. dab) THEN
-                                 IF (irow .EQ. iatom) THEN
+                              IF (r_a + r_b >= dab) THEN
+                                 IF (irow == iatom) THEN
                                     screen_blk(isgf + 1:isgf + nso(l_a(ishell, iset)), &
                                                jsgf + 1:jsgf + nso(l_b(jshell, jset))) = 1.0_dp
                                  ELSE

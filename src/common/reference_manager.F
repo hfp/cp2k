@@ -67,7 +67,7 @@ MODULE reference_manager
    ! useful to build arrays
    TYPE reference_p_type
       TYPE(reference_type), POINTER :: ref => NULL()
-   END TYPE
+   END TYPE reference_p_type
 
    ! the bibliography
    INTEGER, SAVE :: nbib = 0
@@ -89,7 +89,7 @@ CONTAINS
       ! set as cited
       thebib(key)%ref%is_cited = .TRUE.
 
-   END SUBROUTINE
+   END SUBROUTINE cite_reference
 
 ! **************************************************************************************************
 !> \brief Checks for each reference if any mpi-rank has marked it for citation.
@@ -179,7 +179,7 @@ CONTAINS
       mylen = LEN_TRIM(citation_key)
       ires = 0
       DO I = 1, mylen
-       IF (INDEX("0123456789thequickbrownfoxjumpsoverthelazydogTHEQUICKBROWNFOXJUMPSOVERTHELAZYDOG", citation_key(i:i)) .NE. 0) THEN
+         IF (INDEX("0123456789thequickbrownfoxjumpsoverthelazydogTHEQUICKBROWNFOXJUMPSOVERTHELAZYDOG", citation_key(i:i)) /= 0) THEN
             ires = ires + 1
             tmp = citation_key(i:i)
             citation_key(ires:ires) = tmp

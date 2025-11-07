@@ -544,7 +544,7 @@ CONTAINS
                DO iz = 1, nbin
 
                   ! put the probe in the center of the current voxel
-                  pos(:) = (/ox + (ix - 0.5_dp)*delr, oy + (iy - 0.5_dp)*delr, oz + (iz - 0.5_dp)*delr/)
+                  pos(:) = [ox + (ix - 0.5_dp)*delr, oy + (iy - 0.5_dp)*delr, oz + (iz - 0.5_dp)*delr]
 
                   ! calc interaction energy for the current probe position
                   helium_env(k)%helium%pos(:, 1, 1) = pos(:)
@@ -556,7 +556,7 @@ CONTAINS
                   CALL helium_pbc(helium_env(k)%helium, pbc2)
                   wrapped = .FALSE.
                   DO ic = 1, 3
-                     IF (ABS(pbc1(ic) - pbc2(ic)) .GT. 10.0_dp*EPSILON(0.0_dp)) THEN
+                     IF (ABS(pbc1(ic) - pbc2(ic)) > 10.0_dp*EPSILON(0.0_dp)) THEN
                         wrapped = .TRUE.
                      END IF
                   END DO

@@ -108,11 +108,11 @@ CONTAINS
       DO i = 1, SIZE(pairs, 2)
          jmol = pairs(1, i)
          ! counting loop
-         IF (jmol .NE. imol) THEN
-            IF (imol .NE. 0) THEN
+         IF (jmol /= imol) THEN
+            IF (imol /= 0) THEN
                ALLOCATE (graph(imol)%vertex%neighbors(nneighbors))
                graph(imol)%vertex%degree = nneighbors
-               IF (nneighbors .GT. maxdegree) maxdegree = nneighbors
+               IF (nneighbors > maxdegree) maxdegree = nneighbors
             END IF
             imol = jmol
             nneighbors = 0
@@ -120,10 +120,10 @@ CONTAINS
          nneighbors = nneighbors + 1
       END DO
 
-      IF (imol .NE. 0) THEN
+      IF (imol /= 0) THEN
          ALLOCATE (graph(imol)%vertex%neighbors(nneighbors))
          graph(imol)%vertex%degree = nneighbors
-         IF (nneighbors .GT. maxdegree) maxdegree = nneighbors
+         IF (nneighbors > maxdegree) maxdegree = nneighbors
       END IF
 
       kg_env%maxdegree = maxdegree
@@ -137,7 +137,7 @@ CONTAINS
 
       DO i = 1, SIZE(pairs, 2)
          jmol = pairs(1, i)
-         IF (jmol .NE. imol) THEN
+         IF (jmol /= imol) THEN
             ineighbor = 0
             imol = jmol
          END IF
@@ -155,7 +155,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE kg_create_graph
 
    ! greedy algorithm
 ! **************************************************************************************************
@@ -189,7 +189,7 @@ CONTAINS
             nneighbors = SIZE(graph(i)%vertex%neighbors)
             DO j = 1, nneighbors
                color = graph(i)%vertex%neighbors(j)%vertex%color
-               IF (color .NE. 0) color_present(color) = .TRUE.
+               IF (color /= 0) color_present(color) = .TRUE.
             END DO
          END IF
          DO j = 1, maxdegree + 1 !nnodes
@@ -198,7 +198,7 @@ CONTAINS
                EXIT
             END IF
          END DO
-         IF (newcolor .GT. ncolors) ncolors = newcolor
+         IF (newcolor > ncolors) ncolors = newcolor
          graph(i)%vertex%color = newcolor ! smallest possible
       END DO
 
@@ -206,7 +206,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE color_graph_greedy
 
    ! prints the subset info to the screen - useful for vmd visualization
    ! note that the index starts with '0' and not with '1'
@@ -236,9 +236,9 @@ CONTAINS
             WRITE (unit_nr, '(T2,I5,1X,A)', ADVANCE='NO') i, "|"
             counter = 0
             DO j = 1, nnodes
-               IF (graph(j)%vertex%color .EQ. i) THEN
+               IF (graph(j)%vertex%color == i) THEN
                   counter = counter + 1
-                  IF (MOD(counter, 13) .EQ. 0) THEN
+                  IF (MOD(counter, 13) == 0) THEN
                      counter = counter + 1
                      WRITE (unit_nr, '()') ! line break
                      WRITE (unit_nr, '(6X,A)', ADVANCE='NO') " |" ! indent next line
@@ -253,7 +253,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE print_subsets
 
 ! **************************************************************************************************
 !> \brief ...
@@ -272,7 +272,7 @@ CONTAINS
 
       value = (huge_4 - INT(dsat, KIND=int_8))*huge_4 + huge_4 - degree
 
-   END FUNCTION
+   END FUNCTION kg_get_value
 
 ! **************************************************************************************************
 !> \brief ...
@@ -300,7 +300,7 @@ CONTAINS
 
       DEALLOCATE (values)
 
-   END SUBROUTINE
+   END SUBROUTINE kg_cp_heap_fill
 
 ! **************************************************************************************************
 !> \brief ...
@@ -328,7 +328,7 @@ CONTAINS
 
       END IF
 
-   END SUBROUTINE
+   END SUBROUTINE kg_update_node
 
    ! Subroutine revised by Samuel Andermatt (2013.11)
 ! **************************************************************************************************
@@ -361,7 +361,7 @@ CONTAINS
       maxdegree = kg_env%maxdegree
       nnodes = SIZE(graph)
 
-      IF (kg_env%maxdegree .EQ. 0) THEN
+      IF (kg_env%maxdegree == 0) THEN
          ! all nodes are disconnected
 
          ncolors = 1
@@ -398,7 +398,7 @@ CONTAINS
                   EXIT
                END IF
             END DO
-            IF (this%color .GT. ncolors) ncolors = this%color
+            IF (this%color > ncolors) ncolors = this%color
 
             ! update all neighboring nodes
             DO i = 1, nneighbors
@@ -438,7 +438,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE kg_dsatur
 
 ! **************************************************************************************************
 !> \brief Checks if the color of two nodes can be exchanged legally
@@ -487,7 +487,7 @@ CONTAINS
          END IF
       END DO
 
-   END SUBROUTINE
+   END SUBROUTINE kg_check_switch
 
 ! **************************************************************************************************
 !> \brief An algorithm that works on an already colored graph and tries to
@@ -558,7 +558,7 @@ CONTAINS
       DEALLOCATE (color_present)
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE kg_pair_switching
 
 ! **************************************************************************************************
 !> \brief ...
@@ -596,7 +596,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE check_coloring
 
 ! **************************************************************************************************
 !> \brief ...
@@ -615,7 +615,7 @@ CONTAINS
       END DO
       DEALLOCATE (graph)
 
-   END SUBROUTINE
+   END SUBROUTINE deallocate_graph
 
 ! **************************************************************************************************
 !> \brief ...
@@ -698,6 +698,6 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE kg_vertex_coloring
 
-END MODULE
+END MODULE kg_vertex_coloring_methods

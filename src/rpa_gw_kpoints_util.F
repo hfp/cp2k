@@ -653,7 +653,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE get_dummys
 
 ! **************************************************************************************************
 !> \brief ...
@@ -680,7 +680,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE release_dummys
 
 ! **************************************************************************************************
 !> \brief ...
@@ -1121,7 +1121,7 @@ CONTAINS
             iatom = atom_from_RI_index(row_indices(irow))
             jatom = atom_from_RI_index(col_indices(jcol))
 
-            IF (iatom .NE. iatom_old .OR. jatom .NE. jatom_old) THEN
+            IF (iatom /= iatom_old .OR. jatom /= jatom_old) THEN
 
                ! symmetrize=.FALSE. necessary since we already have a symmetrized index_to_cell
                CALL compute_weight_re_im(weight_re, weight_im, &
@@ -1414,7 +1414,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE compute_wkp_W
 
 ! **************************************************************************************************
 !> \brief ...
@@ -1441,7 +1441,7 @@ CONTAINS
                qs_env%mp2_env%ri_rpa_im_time%kpoints_Sigma_no_xc, &
                para_env)
 
-      nkp_grid_G(1:3) = (/1, 1, 1/)
+      nkp_grid_G(1:3) = [1, 1, 1]
 
       CALL get_qs_env(qs_env=qs_env, para_env=para_env)
 

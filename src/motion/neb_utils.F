@@ -373,7 +373,7 @@ CONTAINS
       INTEGER, INTENT(IN)                                :: output_unit
 
       CHARACTER(len=*), PARAMETER :: routineN = 'neb_calc_energy_forces'
-      CHARACTER(LEN=1), DIMENSION(3), PARAMETER          :: lab = (/"X", "Y", "Z"/)
+      CHARACTER(LEN=1), DIMENSION(3), PARAMETER          :: lab = ["X", "Y", "Z"]
 
       INTEGER                                            :: handle, i, irep, j, n_int, n_rep, &
                                                             n_rep_neb, nsize_wrk
@@ -685,14 +685,14 @@ CONTAINS
          tangent(:) = (coords%wrk(:, i) - coords%wrk(:, i - 1))/distance1 + &
                       (coords%wrk(:, i + 1) - coords%wrk(:, i))/distance2
       CASE (do_it_neb, do_ci_neb, do_d_neb)
-         IF ((energies(i + 1) .GT. energies(i)) .AND. (energies(i) .GT. (energies(i - 1)))) THEN
+         IF ((energies(i + 1) > energies(i)) .AND. (energies(i) > (energies(i - 1)))) THEN
             tangent(:) = coords%wrk(:, i + 1) - coords%wrk(:, i)
-         ELSE IF ((energies(i + 1) .LT. energies(i)) .AND. (energies(i) .LT. (energies(i - 1)))) THEN
+         ELSE IF ((energies(i + 1) < energies(i)) .AND. (energies(i) < (energies(i - 1)))) THEN
             tangent(:) = coords%wrk(:, i) - coords%wrk(:, i - 1)
          ELSE
             DVmax = MAX(ABS(energies(i + 1) - energies(i)), ABS(energies(i - 1) - energies(i)))
             DVmin = MIN(ABS(energies(i + 1) - energies(i)), ABS(energies(i - 1) - energies(i)))
-            IF (energies(i + 1) .GE. energies(i - 1)) THEN
+            IF (energies(i + 1) >= energies(i - 1)) THEN
                tangent(:) = (coords%wrk(:, i + 1) - coords%wrk(:, i))*DVmax + (coords%wrk(:, i) - coords%wrk(:, i - 1))*DVmin
             ELSE
                tangent(:) = (coords%wrk(:, i + 1) - coords%wrk(:, i))*DVmin + (coords%wrk(:, i) - coords%wrk(:, i - 1))*DVmax
@@ -854,7 +854,7 @@ CONTAINS
                   (SIZE(array3) /= nsize_int*nsize_int))
          ! This condition should always be satisfied..
          CPASSERT(check)
-         value = DOT_PRODUCT(MATMUL(RESHAPE(array3, (/nsize_int, nsize_int/)), array1), array2)
+         value = DOT_PRODUCT(MATMUL(RESHAPE(array3, [nsize_int, nsize_int]), array1), array2)
       ELSE
          value = DOT_PRODUCT(array1, array2)
       END IF

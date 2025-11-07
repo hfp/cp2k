@@ -417,7 +417,7 @@ CONTAINS
       Lists: DO ilist = 1, nonbonded%nlists
          neighbor_kind_pair => nonbonded%neighbor_kind_pairs(ilist)
          npairs = neighbor_kind_pair%npairs
-         IF (npairs == 0) CYCLE
+         IF (npairs == 0) CYCLE Lists
          list => neighbor_kind_pair%list
          cvi = neighbor_kind_pair%cell_vector
          cell_v = MATMUL(cell%hmat, cvi)
@@ -459,7 +459,7 @@ CONTAINS
                   ! scale the electrostatic interaction if needed
                   ! (most often scaled to zero)
                   fac_ij = neighbor_kind_pair%ei_scale(ipair)
-                  IF (fac_ij <= 0) CYCLE
+                  IF (fac_ij <= 0) CYCLE Pairs
                ELSE
                   fac_ij = 1.0_dp
                END IF
@@ -581,16 +581,16 @@ CONTAINS
       Lists: DO ilist = 1, nonbonded%nlists
          neighbor_kind_pair => nonbonded%neighbor_kind_pairs(ilist)
          nscale = neighbor_kind_pair%nscale
-         IF (nscale == 0) CYCLE
+         IF (nscale == 0) CYCLE Lists
          list => neighbor_kind_pair%list
          Kind_Group_Loop: DO igrp = 1, neighbor_kind_pair%ngrp_kind
             istart = neighbor_kind_pair%grp_kind_start(igrp)
-            IF (istart > nscale) CYCLE
+            IF (istart > nscale) CYCLE Kind_Group_Loop
             iend = MIN(neighbor_kind_pair%grp_kind_end(igrp), nscale)
             Pairs: DO ipair = istart, iend
                ! only use pairs that are (partially) excluded for electrostatics
                fac_ij = -1.0_dp + neighbor_kind_pair%ei_scale(ipair)
-               IF (fac_ij >= 0) CYCLE
+               IF (fac_ij >= 0) CYCLE Pairs
 
                atom_a = list(1, ipair)
                atom_b = list(2, ipair)
@@ -1581,7 +1581,7 @@ CONTAINS
             Lists: DO ilist = 1, nonbonded%nlists
                neighbor_kind_pair => nonbonded%neighbor_kind_pairs(ilist)
                npairs = neighbor_kind_pair%npairs
-               IF (npairs == 0) CYCLE
+               IF (npairs == 0) CYCLE Lists
                list => neighbor_kind_pair%list
                cvi = neighbor_kind_pair%cell_vector
                cell_v = MATMUL(cell%hmat, cvi)
@@ -1633,7 +1633,7 @@ CONTAINS
                DO icell = -ncells, ncells
                DO jcell = -ncells, ncells
                DO kcell = -ncells, ncells
-                  cell_v = MATMUL(cell%hmat, REAL((/icell, jcell, kcell/), KIND=dp))
+                  cell_v = MATMUL(cell%hmat, REAL([icell, jcell, kcell], KIND=dp))
                   IF (ALL(cell_v == 0.0_dp) .AND. (atom_a == atom_b)) CYCLE
                   rab = rab0 + cell_v
                   rab2 = rab(1)**2 + rab(2)**2 + rab(3)**2
@@ -2042,7 +2042,7 @@ CONTAINS
          WRITE (iw, '(/,A,I8)') "FIELD GRADIENT FOR ATOM: ", i
          WRITE (iw, '(A,9F15.9)') " NUMERICAL:  ", efield2n, &
             " ANALYTICAL: ", efield2(:, i), &
-            " ERROR:      ", RESHAPE(efield2n, (/9/)) - efield2(:, i)
+            " ERROR:      ", RESHAPE(efield2n, [9]) - efield2(:, i)
       END DO
    END SUBROUTINE debug_ewald_multipoles_fields
 

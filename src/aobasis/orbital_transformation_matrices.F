@@ -552,7 +552,7 @@ CONTAINS
          v = p_func(1, l, ma + 1, mb, r1, r, lr)*(1.0_dp - dd) + p_func(-1, l, -ma - 1, mb, r1, r, lr)*SQRT(1.0_dp + dd)
          w = p_func(1, l, ma - 1, mb, r1, r, lr) - p_func(-1, l, -ma + 1, mb, r1, r, lr)
       END IF
-   END SUBROUTINE
+   END SUBROUTINE r_recursion
 
 ! **************************************************************************************************
 !> \brief   Release rotation matrices
@@ -615,7 +615,7 @@ CONTAINS
                lz = l - lx - ly
                jc = co(lx, ly, lz)
                IF ((jc >= from) .AND. (jc <= to)) THEN
-                  symbol = cgf_symbol(1, (/lx, ly, lz/))
+                  symbol = cgf_symbol(1, [lx, ly, lz])
                   WRITE (UNIT=string(i:), FMT="(A18)") TRIM(symbol(3:12))
                   i = i + 18
                END IF

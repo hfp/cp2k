@@ -46,13 +46,13 @@ MODULE fftw3_lib
       MODULE PROCEDURE :: fftw_alloc_complex_1d
       MODULE PROCEDURE :: fftw_alloc_complex_2d
       MODULE PROCEDURE :: fftw_alloc_complex_3d
-   END INTERFACE
+   END INTERFACE fftw_alloc
 
    INTERFACE fftw_dealloc
       MODULE PROCEDURE :: fftw_dealloc_complex_1d
       MODULE PROCEDURE :: fftw_dealloc_complex_2d
       MODULE PROCEDURE :: fftw_dealloc_complex_3d
-   END INTERFACE
+   END INTERFACE fftw_dealloc
 
 CONTAINS
 
@@ -130,7 +130,7 @@ CONTAINS
       MARK_USED(FFTW_NO_SLOW)
       MARK_USED(FFTW_NO_FIXED_RADIX_LARGE_N)
       MARK_USED(FFTW_ALLOW_PRUNING)
-   END SUBROUTINE
+   END SUBROUTINE dummy_routine_to_call_mark_used
 #endif
 
 ! **************************************************************************************************
@@ -174,7 +174,7 @@ CONTAINS
       MARK_USED(ionode)
 #endif
 
-   END SUBROUTINE
+   END SUBROUTINE fftw3_do_cleanup
 
 ! **************************************************************************************************
 !> \brief ...
@@ -222,7 +222,7 @@ CONTAINS
       MARK_USED(wisdom_file)
 #endif
 
-   END SUBROUTINE
+   END SUBROUTINE fftw3_do_init
 
 ! **************************************************************************************************
 !> \brief ...
@@ -502,7 +502,7 @@ CONTAINS
 
 #endif
 
-   END SUBROUTINE
+   END SUBROUTINE fftw3_create_guru_plan
 
 ! **************************************************************************************************
 
@@ -549,7 +549,7 @@ CONTAINS
       guru_supported = .FALSE.
 #endif
 
-   END FUNCTION
+   END FUNCTION fftw3_is_guru_supported
 
 ! **************************************************************************************************
 
@@ -569,7 +569,7 @@ CONTAINS
       INTEGER, INTENT(OUT)                               :: rows_per_thread, rows_per_thread_r, &
                                                             th_planA, th_planB
 
-      IF (MOD(nrows, nt) .EQ. 0) THEN
+      IF (MOD(nrows, nt) == 0) THEN
          rows_per_thread = nrows/nt
          rows_per_thread_r = 0
          th_planA = nt
@@ -581,7 +581,7 @@ CONTAINS
          th_planB = nt - th_planA
       END IF
 
-   END SUBROUTINE
+   END SUBROUTINE fftw3_compute_rows_per_th
 
 ! **************************************************************************************************
 
@@ -642,7 +642,7 @@ CONTAINS
          CPABORT("fftw3_create_plan (remaining)")
       END IF
 
-   END SUBROUTINE
+   END SUBROUTINE fftw3_create_3d_plans
 
 ! **************************************************************************************************
 
@@ -853,11 +853,11 @@ CONTAINS
                                      rows_per_thread_r, &
                                      th_planA, th_planB)
 
-      IF (th_planB .GT. 0) THEN
-         IF (tid .LT. th_planA) THEN
+      IF (th_planB > 0) THEN
+         IF (tid < th_planA) THEN
             i_off = (tid)*(istride*(rows_per_thread)) + 1
             o_off = (tid)*(ostride*(rows_per_thread)) + 1
-            IF (rows_per_thread .GT. 0) THEN
+            IF (rows_per_thread > 0) THEN
                CALL fftw_execute_dft(plan, input(i_off), &
                                      output(o_off))
             END IF
@@ -892,7 +892,7 @@ CONTAINS
       IF (.FALSE.) THEN; DO; IF (ABS(input(1)) > ABS(output(1))) EXIT; END DO; END IF
 #endif
 
-   END SUBROUTINE
+   END SUBROUTINE fftw3_workshare_execute_dft
 
 ! **************************************************************************************************
 
@@ -1042,7 +1042,7 @@ CONTAINS
 !$    END IF
 
 ! Check for total number of rows not divisible by num_threads
-!$    IF (num_rows*plan%num_threads_needed .NE. plan%m) THEN
+!$    IF (num_rows*plan%num_threads_needed /= plan%m) THEN
 !$       plan%need_alt_plan = .TRUE.
 !$    END IF
 
@@ -1166,7 +1166,7 @@ CONTAINS
 !$          out_offset = 1 + plan%num_rows*my_id
 !$       END IF
 !$       scal_offset = 1 + plan%n*plan%num_rows*my_id
-!$       IF (plan%need_alt_plan .AND. my_id .EQ. plan%num_threads_needed - 1) THEN
+!$       IF (plan%need_alt_plan .AND. my_id == plan%num_threads_needed - 1) THEN
 !$          num_rows = plan%alt_num_rows
 !$          fftw_plan = plan%alt_fftw_plan
 !$       ELSE
@@ -1201,4 +1201,4 @@ CONTAINS
 
       END SUBROUTINE fftw31dm
 
-   END MODULE
+   END MODULE fftw3_lib

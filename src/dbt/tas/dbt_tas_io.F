@@ -109,7 +109,7 @@ CONTAINS
          WRITE (unit_nr_prv, *)
       END IF
 
-   END SUBROUTINE
+   END SUBROUTINE dbt_tas_write_matrix_info
 
 ! **************************************************************************************************
 !> \brief Write info on tall-and-skinny matrix distribution & load balance
@@ -150,7 +150,7 @@ CONTAINS
       ndbt_p_sum = dbt_tas_get_num_blocks_total(matrix)
       nelement_p_sum = dbt_tas_get_nze_total(matrix)
 
-      tmp = (/nblock, nelement/)
+      tmp = [nblock, nelement]
       CALL mp_comm%max(tmp)
       ndbt_p_max = tmp(1); nelement_p_max = tmp(2)
 
@@ -160,13 +160,13 @@ CONTAINS
       CALL mp_comm_group%sum(ndbt_s)
       CALL mp_comm_group%sum(nelement_s)
 
-      tmp_i8 = (/ndbt_s, nelement_s/)
+      tmp_i8 = [ndbt_s, nelement_s]
       CALL mp_comm%max(tmp_i8)
       ndbt_s_max = tmp_i8(1); nelement_s_max = tmp_i8(2)
 
       ndbt_tot = dbt_tas_nblkrows_total(matrix)*dbt_tas_nblkcols_total(matrix)
       occupation = -1.0_dp
-      IF (ndbt_tot .NE. 0) occupation = 100.0_dp*REAL(ndbt_p_sum, dp)/REAL(ndbt_tot, dp)
+      IF (ndbt_tot /= 0) occupation = 100.0_dp*REAL(ndbt_p_sum, dp)/REAL(ndbt_tot, dp)
 
       dist = dbm_get_distribution(matrix%matrix)
       rowdist => dbm_distribution_row_dist(dist)
@@ -201,7 +201,7 @@ CONTAINS
             END IF
          END IF
       END IF
-   END SUBROUTINE
+   END SUBROUTINE dbt_tas_write_dist
 
 ! **************************************************************************************************
 !> \brief Print info on how matrix is split
@@ -252,7 +252,7 @@ CONTAINS
             groupdims(1), "x", groupdims(2)
       END IF
 
-   END SUBROUTINE
+   END SUBROUTINE dbt_tas_write_split_info
 
 ! **************************************************************************************************
 !> \brief ...
@@ -270,7 +270,7 @@ CONTAINS
          unit_nr_out = 0
       END IF
 
-   END FUNCTION
+   END FUNCTION prep_output_unit
 
-END MODULE
+END MODULE dbt_tas_io
 

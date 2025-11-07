@@ -262,7 +262,7 @@ CONTAINS
 
       logger => cp_get_default_logger()
 
-      is_anti_symmetric = dbcsr_get_matrix_type(rho_ao(1, 1)%matrix) .EQ. dbcsr_type_antisymmetric
+      is_anti_symmetric = dbcsr_get_matrix_type(rho_ao(1, 1)%matrix) == dbcsr_type_antisymmetric
 
       IF (my_geo_change) THEN
          CALL m_memory(memsize_before)
@@ -523,7 +523,7 @@ CONTAINS
       ALLOCATE (ee_buffer2(ncos_max**4))
       ALLOCATE (ee_primitives_tmp(nsgf_max**4))
 
-      IF (my_nspins .EQ. 0) my_nspins = dft_control%nspins
+      IF (my_nspins == 0) my_nspins = dft_control%nspins
 
       ALLOCATE (max_contraction(max_set, natom))
 
@@ -543,7 +543,7 @@ CONTAINS
             sgfb = first_sgfb(1, jset)
             ! if the primitives are assumed to be all of max_val2, max_val2*p2s_b becomes
             ! the maximum value after multiplication with sphi_b
-            max_contraction(jset, jatom) = MAXVAL((/(SUM(ABS(sphi_b(1:ncob, i))), i=sgfb, sgfb + nsgfb(jset) - 1)/))
+            max_contraction(jset, jatom) = MAXVAL([(SUM(ABS(sphi_b(1:ncob, i))), i=sgfb, sgfb + nsgfb(jset) - 1)])
             max_pgf = MAX(max_pgf, npgfb(jset))
          END DO
       END DO
@@ -897,7 +897,7 @@ CONTAINS
       !! is taken into account by the following criterion:
       !!
       !! IF(katom+latom<=iatom+jatom)  THEN
-      !!   IF( ((iatom+jatom).EQ.(katom+latom) ) .AND.(katom<iatom)) CYCLE
+      !!   IF( ((iatom+jatom)==(katom+latom) ) .AND.(katom<iatom)) CYCLE
       !!
       !! Depending on the degeneracy of an integral the exchange contribution is multiplied by a corresponding
       !! factor ( symm_fac ).
@@ -1138,12 +1138,12 @@ CONTAINS
             latom_block = INT(MODULO(atom_block, nblocks)) + 1
             tmp_block = atom_block/nblocks
             katom_block = INT(MODULO(tmp_block, nblocks)) + 1
-            IF (latom_block < katom_block) CYCLE
+            IF (latom_block < katom_block) CYCLE atomic_blocks
             tmp_block = tmp_block/nblocks
             jatom_block = INT(MODULO(tmp_block, nblocks)) + 1
             tmp_block = tmp_block/nblocks
             iatom_block = INT(MODULO(tmp_block, nblocks)) + 1
-            IF (jatom_block < iatom_block) CYCLE
+            IF (jatom_block < iatom_block) CYCLE atomic_blocks
             my_current_counter = my_current_counter + 1
             IF (my_current_counter > distribution_energy%number_of_atom_quartets) EXIT atomic_blocks
 
@@ -1161,7 +1161,7 @@ CONTAINS
                               shm_pmax_block(latom_block, iatom_block), &
                               shm_pmax_block(katom_block, jatom_block))
 
-            IF (2.0_dp*coeffs_kind_max0 + pmax_blocks < log10_eps_schwarz) CYCLE
+            IF (2.0_dp*coeffs_kind_max0 + pmax_blocks < log10_eps_schwarz) CYCLE atomic_blocks
 
             CALL build_pair_list(natom, list_ij, set_list_ij, iatom_start, iatom_end, &
                                  jatom_start, jatom_end, &
@@ -1218,7 +1218,7 @@ CONTAINS
                   latom = list_kl%elements(i_list_kl)%pair(2)
 
                   IF (.NOT. (katom + latom <= iatom + jatom)) CYCLE
-                  IF (((iatom + jatom) .EQ. (katom + latom)) .AND. (katom < iatom)) CYCLE
+                  IF (((iatom + jatom) == (katom + latom)) .AND. (katom < iatom)) CYCLE
                   i_set_list_kl_start = list_kl%elements(i_list_kl)%set_bounds(1)
                   i_set_list_kl_stop = list_kl%elements(i_list_kl)%set_bounds(2)
                   kkind = list_kl%elements(i_list_kl)%kind_pair(1)
@@ -1983,8 +1983,8 @@ CONTAINS
 
       !! Print some memeory information if this is the first step
       IF (my_geo_change) THEN
-         tmp_i8(1:8) = (/shm_storage_counter_integrals, shm_neris_onthefly, shm_neris_incore, shm_neris_disk, &
-                         shm_neris_total, shm_stor_count_int_disk, shm_nprim_ints, shm_stor_count_max_val/)
+         tmp_i8(1:8) = [shm_storage_counter_integrals, shm_neris_onthefly, shm_neris_incore, shm_neris_disk, &
+                        shm_neris_total, shm_stor_count_int_disk, shm_nprim_ints, shm_stor_count_max_val]
          CALL para_env%sum(tmp_i8)
          shm_storage_counter_integrals = tmp_i8(1)
          shm_neris_onthefly = tmp_i8(2)
@@ -2962,7 +2962,7 @@ CONTAINS
             DO mb = 1, mb_max
                DO ma = 1, ma_max
                   iint = iint + 1
-                  IF (ABS(prim(iint)) .GT. 0.0000000000001) &
+                  IF (ABS(prim(iint)) > 0.0000000000001) &
                      WRITE (99, *) atom_offsets(i, 1) + ma + set_offsets(iset, 1, i, 1) - 1, &
                      atom_offsets(j, 1) + ma + set_offsets(jset, 1, j, 1) - 1, &
                      atom_offsets(k, 1) + ma + set_offsets(kset, 1, k, 1) - 1, &

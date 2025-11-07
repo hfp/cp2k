@@ -663,7 +663,7 @@ CONTAINS
                CALL pair_radius_setup(orb_present, orb_present, orb_radius, orb_radius, pair_radius_lb)
                DO jkind = 1, nkind
                   DO ikind = 1, nkind
-                     IF (pair_radius(ikind, jkind) + cutoff_screen_factor*roperator .LE. pair_radius_lb(ikind, jkind)) &
+                     IF (pair_radius(ikind, jkind) + cutoff_screen_factor*roperator <= pair_radius_lb(ikind, jkind)) &
                         pair_radius(ikind, jkind) = pair_radius_lb(ikind, jkind) - roperator
                   END DO
                END DO
@@ -1312,7 +1312,7 @@ CONTAINS
                IF (my_molecular) THEN
                   mol_b = atom(jkind)%list_b_mol(jatom_local)
                   IF (PRESENT(subset_of_mol)) THEN
-                     IF (subset_of_mol(mol_b) .NE. current_subset) CYCLE
+                     IF (subset_of_mol(mol_b) /= current_subset) CYCLE
                   END IF
                END IF
                r = r_pbc(:, atom_b)
@@ -1371,7 +1371,7 @@ CONTAINS
                                     IF (sb_min(1) >= subcell(i, j, k)%s_max(1)) CYCLE loop_i
                                  END IF
 
-                                 IF (subcell(i, j, k)%natom == 0) CYCLE
+                                 IF (subcell(i, j, k)%natom == 0) CYCLE loop_i
 
                                  DO iatom_subcell = 1, subcell(i, j, k)%natom
                                     iatom_local = subcell(i, j, k)%atom_list(iatom_subcell)
@@ -1638,8 +1638,8 @@ CONTAINS
       ALLOCATE (list(na + nb))
 
       n = na
-      IF (na .GT. 0) list(1:na) = lista(1:na)
-      IF (nb .GT. 0) THEN
+      IF (na > 0) list(1:na) = lista(1:na)
+      IF (nb > 0) THEN
          loopb: DO ib = 1, nb
             DO i = 1, na
                IF (listb(ib) == list(i)) CYCLE loopb
@@ -1757,10 +1757,10 @@ CONTAINS
             nblock_max = nblock(mype)
             nelement_sum = nelement(mype)
             nelement_max = nelement(mype)
-            tmp = (/nblock_sum, nelement_sum/)
+            tmp = [nblock_sum, nelement_sum]
             CALL para_env%sum(tmp)
             nblock_sum = tmp(1); nelement_sum = tmp(2)
-            tmp = (/nblock_max, nelement_max/)
+            tmp = [nblock_max, nelement_max]
             CALL para_env%max(tmp)
             nblock_max = tmp(1); nelement_max = tmp(2)
          END IF

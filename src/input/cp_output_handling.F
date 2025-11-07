@@ -205,9 +205,9 @@ CONTAINS
                           usage="silent", &
                           default_i_val=my_print_level, lone_keyword_i_val=silent_print_level, &
                           enum_c_vals=s2a("on", "off", "silent", "low", "medium", "high", "debug"), &
-                          enum_i_vals=(/silent_print_level - 1, debug_print_level + 1, &
-                                        silent_print_level, low_print_level, &
-                                        medium_print_level, high_print_level, debug_print_level/))
+                          enum_i_vals=[silent_print_level - 1, debug_print_level + 1, &
+                                       silent_print_level, low_print_level, &
+                                       medium_print_level, high_print_level, debug_print_level])
       CALL section_add_keyword(print_key_section, keyword)
       CALL keyword_release(keyword)
 
@@ -268,7 +268,7 @@ CONTAINS
                           "all iteration levels are checked for the last iteration step.", &
                           usage="ADD_LAST (NO|NUMERIC|SYMBOLIC)", &
                           enum_c_vals=s2a("no", "numeric", "symbolic"), &
-                          enum_i_vals=(/add_last_no, add_last_numeric, add_last_symbolic/), &
+                          enum_i_vals=[add_last_no, add_last_numeric, add_last_symbolic], &
                           enum_desc=s2a("Do not mark last iteration specifically", &
                                         "Mark last iteration with its iteration number", &
                                         "Mark last iteration with lowercase letter l"), &
@@ -1090,7 +1090,7 @@ CONTAINS
                                   logger%para_env%is_source() .OR. &
                                   my_mpi_io)) THEN
          CALL section_vals_val_get(print_key, "FILENAME", c_val=outPath)
-         IF (my_on_file .OR. outPath .NE. '__STD_OUT__') THEN
+         IF (my_on_file .OR. outPath /= '__STD_OUT__') THEN
             CPASSERT(unit_nr > 0)
             IF (.NOT. my_mpi_io) THEN
                CALL close_file(unit_nr, "KEEP")

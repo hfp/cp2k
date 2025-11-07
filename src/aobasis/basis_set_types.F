@@ -396,7 +396,7 @@ CONTAINS
                pbasis%ly(ncgf) = indco(2, ico)
                pbasis%lz(ncgf) = indco(3, ico)
                pbasis%cgf_symbol(ncgf) = &
-                  cgf_symbol(pbasis%n(ishell, iset), (/pbasis%lx(ncgf), pbasis%ly(ncgf), pbasis%lz(ncgf)/))
+                  cgf_symbol(pbasis%n(ishell, iset), [pbasis%lx(ncgf), pbasis%ly(ncgf), pbasis%lz(ncgf)])
             END DO
             DO m = -lshell, lshell
                nsgf = nsgf + 1
@@ -844,7 +844,7 @@ CONTAINS
       n = SIZE(gto_basis_set%cphi, 1)
 
       gto_basis_set%sphi = 0.0_dp
-      IF (n .GT. 0) THEN
+      IF (n > 0) THEN
          lmax = -1
          ! Ensure proper setup of orbtramat
          DO iset = 1, gto_basis_set%nset
@@ -876,7 +876,7 @@ CONTAINS
       n = SIZE(gto_basis_set%scon, 1)
 
       gto_basis_set%scon = 0.0_dp
-      IF (n .GT. 0) THEN
+      IF (n > 0) THEN
          DO iset = 1, gto_basis_set%nset
             lmin = gto_basis_set%lmin(iset)
             lmax = gto_basis_set%lmax(iset)
@@ -944,7 +944,7 @@ CONTAINS
          zeta => gto_basis_set%zet(1:npgfa, iset)
          CALL coulomb2(lmax, npgfa, zeta, rpgfa, lmin, &
                        lmax, npgfa, zeta, rpgfa, lmin, &
-                       (/0.0_dp, 0.0_dp, 0.0_dp/), 0.0_dp, gaa, vv, ff(0:))
+                       [0.0_dp, 0.0_dp, 0.0_dp], 0.0_dp, gaa, vv, ff(0:))
          DO ishell = 1, gto_basis_set%nshell(iset)
             DO icgf = gto_basis_set%first_cgf(ishell, iset), &
                gto_basis_set%last_cgf(ishell, iset)
@@ -1207,7 +1207,7 @@ CONTAINS
          basis_set_file_name = cbasis(ibasis)
          tmp = basis_set_file_name
          CALL uppercase(tmp)
-         IF (INDEX(tmp, "MOLOPT") .NE. 0) CALL cite_reference(VandeVondele2007)
+         IF (INDEX(tmp, "MOLOPT") /= 0) CALL cite_reference(VandeVondele2007)
       END DO
 
       ! Search for the requested basis set in the basis set file
@@ -1225,7 +1225,7 @@ CONTAINS
 
          tmp = basis_set_name
          CALL uppercase(tmp)
-         IF (INDEX(tmp, "MOLOPT") .NE. 0) CALL cite_reference(VandeVondele2007)
+         IF (INDEX(tmp, "MOLOPT") /= 0) CALL cite_reference(VandeVondele2007)
 
          nset = 0
          maxshell = 0
@@ -1261,7 +1261,7 @@ CONTAINS
          CALL reallocate(gto_basis_set%m, 1, nsgf)
          CALL reallocate(gto_basis_set%norm_cgf, 1, ncgf)
 
-         IF (tmp .NE. "NONE") THEN
+         IF (tmp /= "NONE") THEN
             search_loop: DO
 
                CALL parser_search_string(parser, TRIM(bsname), .TRUE., found, line)
@@ -1431,9 +1431,9 @@ CONTAINS
                               gto_basis_set%ly(ncgf) = indco(2, ico)
                               gto_basis_set%lz(ncgf) = indco(3, ico)
                               gto_basis_set%cgf_symbol(ncgf) = &
-                                 cgf_symbol(n(ishell, iset), (/gto_basis_set%lx(ncgf), &
-                                                               gto_basis_set%ly(ncgf), &
-                                                               gto_basis_set%lz(ncgf)/))
+                                 cgf_symbol(n(ishell, iset), [gto_basis_set%lx(ncgf), &
+                                                              gto_basis_set%ly(ncgf), &
+                                                              gto_basis_set%lz(ncgf)])
                            END DO
                            DO m = -lshell, lshell
                               nsgf = nsgf + 1
@@ -1463,7 +1463,7 @@ CONTAINS
 
       END DO basis_loop
 
-      IF (tmp .NE. "NONE") THEN
+      IF (tmp /= "NONE") THEN
          IF (.NOT. basis_found) THEN
             basis_set_file_name = ""
             DO ibasis = 1, nbasis
@@ -1734,9 +1734,9 @@ CONTAINS
                gto_basis_set%ly(ncgf) = indco(2, ico)
                gto_basis_set%lz(ncgf) = indco(3, ico)
                gto_basis_set%cgf_symbol(ncgf) = &
-                  cgf_symbol(n(ishell, iset), (/gto_basis_set%lx(ncgf), &
-                                                gto_basis_set%ly(ncgf), &
-                                                gto_basis_set%lz(ncgf)/))
+                  cgf_symbol(n(ishell, iset), [gto_basis_set%lx(ncgf), &
+                                               gto_basis_set%ly(ncgf), &
+                                               gto_basis_set%lz(ncgf)])
             END DO
             DO m = -lshell, lshell
                nsgf = nsgf + 1
@@ -2259,7 +2259,7 @@ CONTAINS
          tmp = basis_set_name
          CALL uppercase(tmp)
 
-         IF (tmp .NE. "NONE") THEN
+         IF (tmp /= "NONE") THEN
             search_loop: DO
 
                CALL parser_search_string(parser, TRIM(bsname), .TRUE., found, line)
@@ -2339,7 +2339,7 @@ CONTAINS
 
       END DO basis_loop
 
-      IF (tmp .NE. "NONE") THEN
+      IF (tmp /= "NONE") THEN
          IF (.NOT. basis_found) THEN
             basis_set_file_name = ""
             DO ibasis = 1, nbasis
@@ -2556,9 +2556,9 @@ CONTAINS
             gto_basis_set%ly(ncgf) = indco(2, ico)
             gto_basis_set%lz(ncgf) = indco(3, ico)
             gto_basis_set%cgf_symbol(ncgf) = &
-               cgf_symbol(np, (/gto_basis_set%lx(ncgf), &
-                                gto_basis_set%ly(ncgf), &
-                                gto_basis_set%lz(ncgf)/))
+               cgf_symbol(np, [gto_basis_set%lx(ncgf), &
+                               gto_basis_set%ly(ncgf), &
+                               gto_basis_set%lz(ncgf)])
          END DO
          DO m = -lshell, lshell
             nsgf = nsgf + 1
@@ -2650,7 +2650,7 @@ CONTAINS
       REAL(dp)                                           :: srules
 
       REAL(dp), DIMENSION(7), PARAMETER :: &
-         xns = (/1.0_dp, 2.0_dp, 3.0_dp, 3.7_dp, 4.0_dp, 4.2_dp, 4.4_dp/)
+         xns = [1.0_dp, 2.0_dp, 3.0_dp, 3.7_dp, 4.0_dp, 4.2_dp, 4.4_dp]
 
       INTEGER                                            :: i, l1, l2, m, m1, m2, nn
       REAL(dp)                                           :: s
@@ -2878,6 +2878,6 @@ CONTAINS
          END DO
       END DO
 
-   END SUBROUTINE
+   END SUBROUTINE sort_gto_basis_set
 
 END MODULE basis_set_types

@@ -96,7 +96,7 @@ CONTAINS
 
          !Angular dependance %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
          Vang = 0.0_dp
-         IF (gcn_weight2 .NE. 0.0) THEN
+         IF (gcn_weight2 /= 0.0) THEN
 
             !Calculation of the normal vector centered on the Me atom of the pair, only the first time that an interaction with the metal atom of the pair is evaluated
             IF (gal%n_vectors(1, jparticle) == 0.0_dp .AND. &
@@ -136,7 +136,7 @@ CONTAINS
          !Attractive Gaussian %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
          Vgaussian = 0.0_dp
          drji2 = DOT_PRODUCT(rji, rji)
-         IF (gcn_weight .NE. 0.0) THEN
+         IF (gcn_weight /= 0.0) THEN
             !Alpha is the angle of the Me-O vector with the normale vector. Used for gaussian attaction
 
             cosalpha = DOT_PRODUCT(rji, nvec)/SQRT(drji2)
@@ -405,7 +405,7 @@ CONTAINS
          IF (gal%gcn(jparticle) < 11.5_dp) gcn_weight2 = 1.0_dp !For angular, 0 only for true core atoms
 
          !Angular dependance %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-         IF (gcn_weight2 .NE. 0.0) THEN
+         IF (gcn_weight2 /= 0.0) THEN
 
             !Calculation of the normal vector centered on the Me atom of the pair, only the first time that an interaction with the metal atom of the pair is evaluated
             IF (gal%n_vectors(1, jparticle) == 0.0_dp .AND. &
@@ -449,7 +449,7 @@ CONTAINS
          !END Angular%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
          !Attractive Gaussian %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-         IF (gcn_weight .NE. 0.0) THEN
+         IF (gcn_weight /= 0.0) THEN
             !Alpha is the angle of the Me-O vector with the normale vector. Used for gaussian attaction
             cosalpha = DOT_PRODUCT(rji, nvec)/drji
             IF (cosalpha < -1.0_dp) cosalpha = -1.0_dp
@@ -676,7 +676,7 @@ CONTAINS
             jkind = neighbor_kind_pair%ij_kind(2, igrp)
             pot => potparm%pot(ikind, jkind)%pot
             npairs = iend - istart + 1
-            IF (pot%no_mb) CYCLE
+            IF (pot%no_mb) CYCLE Kind_Group_Loop1
             DO i = 1, SIZE(pot%type)
                IF (pot%type(i) == gal_type) npairs_tot = npairs_tot + npairs
             END DO
@@ -701,7 +701,7 @@ CONTAINS
             cvi = neighbor_kind_pair%cell_vector
             pot => potparm%pot(ikind, jkind)%pot
             npairs = iend - istart + 1
-            IF (pot%no_mb) CYCLE
+            IF (pot%no_mb) CYCLE Kind_Group_Loop2
             cell_v = MATMUL(cell%hmat, cvi)
             DO i = 1, SIZE(pot%type)
                ! gal

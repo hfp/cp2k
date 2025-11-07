@@ -92,7 +92,7 @@ CONTAINS
          bmax = MAXVAL(bs_m(2::2))
          CALL generate_mixed_block_sizes(sizes_m, matrix_sizes(1), bs_m)
       ELSE
-         CALL generate_mixed_block_sizes(sizes_m, matrix_sizes(1), (/1, 13, 2, 5/))
+         CALL generate_mixed_block_sizes(sizes_m, matrix_sizes(1), [1, 13, 2, 5])
          bmin = 5; bmax = 13
       END IF
       IF (ASSOCIATED(bs_n)) THEN
@@ -100,7 +100,7 @@ CONTAINS
          bmax = MAX(bmax, MAXVAL(bs_n(2::2)))
          CALL generate_mixed_block_sizes(sizes_n, matrix_sizes(2), bs_n)
       ELSE
-         CALL generate_mixed_block_sizes(sizes_n, matrix_sizes(2), (/1, 13, 2, 5/))
+         CALL generate_mixed_block_sizes(sizes_n, matrix_sizes(2), [1, 13, 2, 5])
          bmin = MIN(bmin, 5); bmax = MAX(bmax, 13)
       END IF
       IF (ASSOCIATED(bs_k)) THEN
@@ -108,7 +108,7 @@ CONTAINS
          bmax = MAX(bmax, MAXVAL(bs_k(2::2)))
          CALL generate_mixed_block_sizes(sizes_k, matrix_sizes(3), bs_k)
       ELSE
-         CALL generate_mixed_block_sizes(sizes_k, matrix_sizes(3), (/1, 13, 2, 5/))
+         CALL generate_mixed_block_sizes(sizes_k, matrix_sizes(3), [1, 13, 2, 5])
          bmin = MIN(bmin, 5); bmax = MAX(bmax, 13)
       END IF
 
@@ -240,14 +240,14 @@ CONTAINS
             CALL group%sum(flop)
             duration = MAX(duration, EPSILON(duration))  ! avoid division by zero
             flops_all = REAL(flop, KIND=dp)/duration/numnodes/(1024*1024)
-            IF (io_unit .GT. 0) THEN
+            IF (io_unit > 0) THEN
                WRITE (io_unit, '(A,I5,A,I5,A,F12.3,A,I9,A)') &
                   " loop ", loop_iter, " with ", numnodes, " MPI ranks: using ", &
                   duration, "s ", INT(flops_all), " Mflops/rank"
                CALL m_flush(io_unit)
             END IF
 
-            IF (loop_iter .EQ. n_loops .OR. always_checksum) THEN
+            IF (loop_iter == n_loops .OR. always_checksum) THEN
                cs = dbm_checksum(matrix_c)
                IF (io_unit > 0) THEN
                   WRITE (io_unit, *) "Final checksums", cs
@@ -288,11 +288,11 @@ CONTAINS
       CALL timeset(routineN, handle)
 
       ! Check that the counter was initialised (or has not overflowed)
-      CPASSERT(randmat_counter .NE. 0)
+      CPASSERT(randmat_counter /= 0)
       ! the counter goes into the seed. Every new call gives a new random matrix
       randmat_counter = randmat_counter + 1
 
-      IF (sparsity .GT. 1) THEN
+      IF (sparsity > 1) THEN
          my_sparsity = sparsity/100.0
       ELSE
          my_sparsity = sparsity

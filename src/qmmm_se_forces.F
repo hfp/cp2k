@@ -151,7 +151,7 @@ CONTAINS
                CALL get_se_param(se_kind_a, &
                                  defined=defined, &
                                  natorb=natorb_a)
-               IF (.NOT. defined .OR. natorb_a < 1) CYCLE
+               IF (.NOT. defined .OR. natorb_a < 1) CYCLE Kinds
                Atoms: DO i = 1, SIZE(list)
                   iqm = iqm + 1
                   iatom = list(i)
@@ -297,14 +297,14 @@ CONTAINS
             rt1 = r_pbc(1)
             rt2 = r_pbc(2)
             rt3 = r_pbc(3)
-            rij = (/rt1, rt2, rt3/)
+            rij = [rt1, rt2, rt3]
             se_kind_mm%zeff = mm_charges(Imm)
             ! Computes the screening factor for the spherical cutoff
             IF (qmmm_spherical_cutoff(1) > 0.0_dp) THEN
                CALL spherical_cutoff_factor(qmmm_spherical_cutoff, rij, sph_chrg_factor)
                se_kind_mm%zeff = se_kind_mm%zeff*sph_chrg_factor
             END IF
-            IF (ABS(se_kind_mm%zeff) <= EPSILON(0.0_dp)) CYCLE
+            IF (ABS(se_kind_mm%zeff) <= EPSILON(0.0_dp)) CYCLE LoopMM
             ! Integrals derivatives involving QM - MM atoms
             CALL drotnuc(se_kind_a, se_kind_mm, rij, itype=itype, de1b=de1b, &
                          se_int_control=se_int_control, anag=anag, delta=delta, &

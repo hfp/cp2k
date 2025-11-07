@@ -774,8 +774,8 @@ CONTAINS
       IF (PRESENT(mtargetr)) THEN
          rmat => mtargetr%local_data
          IF ((.NOT. cp_fm_struct_equivalent(mtargetr%matrix_struct, msource%matrix_struct)) .OR. &
-             (SIZE(rmat, 1) .NE. SIZE(zmat, 1)) .OR. &
-             (SIZE(rmat, 2) .NE. SIZE(zmat, 2))) THEN
+             (SIZE(rmat, 1) /= SIZE(zmat, 1)) .OR. &
+             (SIZE(rmat, 2) /= SIZE(zmat, 2))) THEN
             CPABORT("size of local_data of mtargetr differ to msource")
          END IF
          ! copy local data
@@ -786,8 +786,8 @@ CONTAINS
       IF (PRESENT(mtargeti)) THEN
          imat => mtargeti%local_data
          IF ((.NOT. cp_fm_struct_equivalent(mtargeti%matrix_struct, msource%matrix_struct)) .OR. &
-             (SIZE(imat, 1) .NE. SIZE(zmat, 1)) .OR. &
-             (SIZE(imat, 2) .NE. SIZE(zmat, 2))) THEN
+             (SIZE(imat, 1) /= SIZE(zmat, 1)) .OR. &
+             (SIZE(imat, 2) /= SIZE(zmat, 2))) THEN
             CPABORT("size of local_data of mtargeti differ to msource")
          END IF
          ! copy local data
@@ -826,8 +826,8 @@ CONTAINS
       IF (PRESENT(msourcer)) THEN
          rmat => msourcer%local_data
          IF ((.NOT. cp_fm_struct_equivalent(msourcer%matrix_struct, mtarget%matrix_struct)) .OR. &
-             (SIZE(rmat, 1) .NE. SIZE(zmat, 1)) .OR. &
-             (SIZE(rmat, 2) .NE. SIZE(zmat, 2))) THEN
+             (SIZE(rmat, 1) /= SIZE(zmat, 1)) .OR. &
+             (SIZE(rmat, 2) /= SIZE(zmat, 2))) THEN
             CPABORT("size of local_data of msourcer differ to mtarget")
          END IF
          mode = mode + 1
@@ -837,8 +837,8 @@ CONTAINS
       IF (PRESENT(msourcei)) THEN
          imat => msourcei%local_data
          IF ((.NOT. cp_fm_struct_equivalent(msourcei%matrix_struct, mtarget%matrix_struct)) .OR. &
-             (SIZE(imat, 1) .NE. SIZE(zmat, 1)) .OR. &
-             (SIZE(imat, 2) .NE. SIZE(zmat, 2))) THEN
+             (SIZE(imat, 1) /= SIZE(zmat, 1)) .OR. &
+             (SIZE(imat, 2) /= SIZE(zmat, 2))) THEN
             CPABORT("size of local_data of msourcei differ to mtarget")
          END IF
          mode = mode + 2
@@ -938,9 +938,9 @@ CONTAINS
 
          CALL para_env%allgather(send_rank, all_ranks)
          IF (ASSOCIATED(destination%matrix_struct)) THEN
-            ALLOCATE (source2global(0:COUNT(all_ranks .NE. mp_proc_null) - 1))
+            ALLOCATE (source2global(0:COUNT(all_ranks /= mp_proc_null) - 1))
             DO i = 0, global_size - 1
-               IF (all_ranks(i) .NE. mp_proc_null) THEN
+               IF (all_ranks(i) /= mp_proc_null) THEN
                   source2global(all_ranks(i)) = i
                END IF
             END DO
@@ -948,9 +948,9 @@ CONTAINS
 
          CALL para_env%allgather(recv_rank, all_ranks)
          IF (ASSOCIATED(source%matrix_struct)) THEN
-            ALLOCATE (dest2global(0:COUNT(all_ranks .NE. mp_proc_null) - 1))
+            ALLOCATE (dest2global(0:COUNT(all_ranks /= mp_proc_null) - 1))
             DO i = 0, global_size - 1
-               IF (all_ranks(i) .NE. mp_proc_null) THEN
+               IF (all_ranks(i) /= mp_proc_null) THEN
                   dest2global(all_ranks(i)) = i
                END IF
             END DO
@@ -973,7 +973,7 @@ CONTAINS
          IF (ASSOCIATED(source%matrix_struct)) THEN
             IF ((send_rank == 0)) THEN
                ! need to use separate buffers here in case this is actually global rank 0
-               src_block_tmp = (/send_dist%nrow_block, send_dist%ncol_block/)
+               src_block_tmp = [send_dist%nrow_block, send_dist%ncol_block]
                CALL para_env%isend(src_block_tmp, 0, send_req(1), tag=src_tag)
                CALL para_env%isend(send_dist%context%num_pe, 0, send_req(2), tag=src_tag)
             END IF
@@ -981,7 +981,7 @@ CONTAINS
 
          IF (ASSOCIATED(destination%matrix_struct)) THEN
             IF ((recv_rank == 0)) THEN
-               dest_block_tmp = (/recv_dist%nrow_block, recv_dist%ncol_block/)
+               dest_block_tmp = [recv_dist%nrow_block, recv_dist%ncol_block]
                CALL para_env%isend(dest_block_tmp, 0, send_req(3), tag=dest_tag)
                CALL para_env%isend(recv_dist%context%num_pe, 0, send_req(4), tag=dest_tag)
             END IF
@@ -1074,9 +1074,9 @@ CONTAINS
             ! src_p/q now contains the process row/column ID that will send data to that row/column
 
             DO q = 0, src_num_pe(2) - 1
-               ncols = COUNT(src_q .EQ. q)
+               ncols = COUNT(src_q == q)
                DO p = 0, src_num_pe(1) - 1
-                  nrows = COUNT(src_p .EQ. p)
+                  nrows = COUNT(src_p == p)
                   ! Use the send_dist here as we are looking up the processes where the data comes from
                   recv_count(info%src_blacs2mpi(p, q)) = nrows*ncols
                END DO
@@ -1093,7 +1093,7 @@ CONTAINS
 
             ! Issue receive calls on ranks which expect data
             DO k = 0, send_size - 1
-               IF (recv_count(k) .GT. 0) THEN
+               IF (recv_count(k) > 0) THEN
                   CALL para_env%irecv(info%recv_buf(info%recv_disp(k) + 1:info%recv_disp(k) + recv_count(k)), &
                                       source2global(k), info%recv_request(k))
                ELSE
@@ -1129,9 +1129,9 @@ CONTAINS
             ! dest_p/q now contain the process row/column ID that will receive data from that row/column
 
             DO q = 0, dest_num_pe(2) - 1
-               ncols = COUNT(dest_q .EQ. q)
+               ncols = COUNT(dest_q == q)
                DO p = 0, dest_num_pe(1) - 1
-                  nrows = COUNT(dest_p .EQ. p)
+                  nrows = COUNT(dest_p == p)
                   send_count(dest_blacs2mpi(p, q)) = nrows*ncols
                END DO
             END DO
@@ -1159,7 +1159,7 @@ CONTAINS
 
             ! For each non-zero send_count, call mpi_isend
             DO k = 0, recv_size - 1
-               IF (send_count(k) .GT. 0) THEN
+               IF (send_count(k) > 0) THEN
                   CALL para_env%isend(info%send_buf(send_disp(k) + 1:send_disp(k) + send_count(k)), &
                                       dest2global(k), info%send_request(k))
                ELSE

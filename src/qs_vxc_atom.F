@@ -1075,18 +1075,18 @@ CONTAINS
       SELECT CASE (accuracy)
       CASE (:4)
          nstep = 2
-         ak(-2:2) = (/1.0_dp, -8.0_dp, 0.0_dp, 8.0_dp, -1.0_dp/)/12.0_dp
-         bl(-2:2) = (/-1.0_dp, 16.0_dp, -30.0_dp, 16.0_dp, -1.0_dp/)/12.0_dp
+         ak(-2:2) = [1.0_dp, -8.0_dp, 0.0_dp, 8.0_dp, -1.0_dp]/12.0_dp
+         bl(-2:2) = [-1.0_dp, 16.0_dp, -30.0_dp, 16.0_dp, -1.0_dp]/12.0_dp
       CASE (5:7)
          nstep = 3
-         ak(-3:3) = (/-1.0_dp, 9.0_dp, -45.0_dp, 0.0_dp, 45.0_dp, -9.0_dp, 1.0_dp/)/60.0_dp
-         bl(-3:3) = (/2.0_dp, -27.0_dp, 270.0_dp, -490.0_dp, 270.0_dp, -27.0_dp, 2.0_dp/)/180.0_dp
+         ak(-3:3) = [-1.0_dp, 9.0_dp, -45.0_dp, 0.0_dp, 45.0_dp, -9.0_dp, 1.0_dp]/60.0_dp
+         bl(-3:3) = [2.0_dp, -27.0_dp, 270.0_dp, -490.0_dp, 270.0_dp, -27.0_dp, 2.0_dp]/180.0_dp
       CASE (8:)
          nstep = 4
-         ak(-4:4) = (/1.0_dp, -32.0_dp/3.0_dp, 56.0_dp, -224.0_dp, 0.0_dp, &
-                      224.0_dp, -56.0_dp, 32.0_dp/3.0_dp, -1.0_dp/)/280.0_dp
-         bl(-4:4) = (/-1.0_dp, 128.0_dp/9.0_dp, -112.0_dp, 896.0_dp, -14350.0_dp/9.0_dp, &
-                      896.0_dp, -112.0_dp, 128.0_dp/9.0_dp, -1.0_dp/)/560.0_dp
+         ak(-4:4) = [1.0_dp, -32.0_dp/3.0_dp, 56.0_dp, -224.0_dp, 0.0_dp, &
+                     224.0_dp, -56.0_dp, 32.0_dp/3.0_dp, -1.0_dp]/280.0_dp
+         bl(-4:4) = [-1.0_dp, 128.0_dp/9.0_dp, -112.0_dp, 896.0_dp, -14350.0_dp/9.0_dp, &
+                     896.0_dp, -112.0_dp, 128.0_dp/9.0_dp, -1.0_dp]/560.0_dp
       END SELECT
       oeps1 = 1.0_dp/epsrho
       oeps2 = 1.0_dp/(epsrho**2)
@@ -1475,14 +1475,14 @@ CONTAINS
       SELECT CASE (accuracy)
       CASE (:4)
          nstep = 2
-         ak(-2:2) = (/1.0_dp, -8.0_dp, 0.0_dp, 8.0_dp, -1.0_dp/)/12.0_dp
+         ak(-2:2) = [1.0_dp, -8.0_dp, 0.0_dp, 8.0_dp, -1.0_dp]/12.0_dp
       CASE (5:7)
          nstep = 3
-         ak(-3:3) = (/-1.0_dp, 9.0_dp, -45.0_dp, 0.0_dp, 45.0_dp, -9.0_dp, 1.0_dp/)/60.0_dp
+         ak(-3:3) = [-1.0_dp, 9.0_dp, -45.0_dp, 0.0_dp, 45.0_dp, -9.0_dp, 1.0_dp]/60.0_dp
       CASE (8:)
          nstep = 4
-         ak(-4:4) = (/1.0_dp, -32.0_dp/3.0_dp, 56.0_dp, -224.0_dp, 0.0_dp, &
-                      224.0_dp, -56.0_dp, 32.0_dp/3.0_dp, -1.0_dp/)/280.0_dp
+         ak(-4:4) = [1.0_dp, -32.0_dp/3.0_dp, 56.0_dp, -224.0_dp, 0.0_dp, &
+                     224.0_dp, -56.0_dp, 32.0_dp/3.0_dp, -1.0_dp]/280.0_dp
       END SELECT
       oeps1 = 1.0_dp/epsrho
 
@@ -2273,7 +2273,7 @@ CONTAINS
          DO iset2 = 1, nset
             CALL get_none0_cg_list(my_CG, lmin(iset1), lmax(iset1), lmin(iset2), lmax(iset2), &
                                    max_s_harm, lmax_expansion, cg_list, cg_n_list, max_iso_not0_local)
-            CPASSERT(max_iso_not0_local .LE. max_iso_not0)
+            CPASSERT(max_iso_not0_local <= max_iso_not0)
 
             n2 = nsoset(lmax(iset2))
             DO ipgf1 = 1, npgf(iset1)
@@ -2290,7 +2290,7 @@ CONTAINS
                   lmax12 = lmax(iset1) + lmax(iset2)
 
                   ! reduce expansion local densities
-                  IF (lmin12 .LE. lmax_expansion) THEN
+                  IF (lmin12 <= lmax_expansion) THEN
 
                      gg = 0.0_dp
                      IF (lmin12 == 0) THEN
@@ -2300,7 +2300,7 @@ CONTAINS
                      END IF
 
                      ! limit the expansion of the local densities to a max L
-                     IF (lmax12 .GT. lmax_expansion) lmax12 = lmax_expansion
+                     IF (lmax12 > lmax_expansion) lmax12 = lmax_expansion
 
                      DO l = lmin12 + 1, lmax12
                         gg(1:nr, l) = grid_atom%rad(1:nr)*gg(:, l - 1)
@@ -2448,7 +2448,7 @@ CONTAINS
             DO iset2 = 1, nset
                CALL get_none0_cg_list(my_CG, lmin(iset1), lmax(iset1), lmin(iset2), lmax(iset2), &
                                       max_s_harm, lmax_expansion, cg_list, cg_n_list, max_iso_not0_local)
-               CPASSERT(max_iso_not0_local .LE. max_iso_not0)
+               CPASSERT(max_iso_not0_local <= max_iso_not0)
                CALL get_none0_cg_list(my_CG_dxyz, lmin(iset1), lmax(iset1), lmin(iset2), lmax(iset2), &
                                       max_s_harm, lmax_expansion, dcg_list, dcg_n_list, dmax_iso_not0_local)
 
@@ -2467,7 +2467,7 @@ CONTAINS
                      lmax12 = lmax(iset1) + lmax(iset2)
 
                      !test reduce expansion local densities
-                     IF (lmin12 .LE. lmax_expansion) THEN
+                     IF (lmin12 <= lmax_expansion) THEN
 
                         gg = 0.0_dp
                         dgg = 0.0_dp
@@ -2479,7 +2479,7 @@ CONTAINS
                         END IF
 
                         !test reduce expansion local densities
-                        IF (lmax12 .GT. lmax_expansion) lmax12 = lmax_expansion
+                        IF (lmax12 > lmax_expansion) lmax12 = lmax_expansion
 
                         DO l = lmin12 + 1, lmax12
                            gg(1:nr, l) = grid_atom%rad(1:nr)*gg(:, l - 1)

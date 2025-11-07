@@ -137,7 +137,7 @@ CONTAINS
 
       IF (flush_should_flush) FLUSH (lunit)
 
-   END SUBROUTINE
+   END SUBROUTINE m_flush
 
 ! **************************************************************************************************
 !> \brief returns time from a real-time clock, protected against rolling
@@ -373,7 +373,7 @@ CONTAINS
 999   CLOSE (121245)
       DATA(I:80) = ""
       READ (DATA, *, IOSTAT=iostat) raw
-      IF (iostat .NE. 0) THEN
+      IF (iostat /= 0) THEN
          wt = 0.0_dp
       ELSE
          ! convert from J to kJ
@@ -407,7 +407,7 @@ CONTAINS
    SUBROUTINE m_abort()
       INTERFACE
          SUBROUTINE abort() BIND(C, name="abort")
-         END SUBROUTINE
+         END SUBROUTINE abort
       END INTERFACE
 
       CALL abort()
@@ -432,7 +432,7 @@ CONTAINS
             IMPORT
             INTEGER(KIND=C_INT), VALUE                :: pid, sig
             INTEGER(KIND=C_INT)                      :: errno
-         END FUNCTION
+         END FUNCTION kill
       END INTERFACE
 
       ! If sig is 0, then no signal is sent, but error checking is still
@@ -472,7 +472,7 @@ CONTAINS
          FUNCTION getpagesize() BIND(C, name="getpagesize") RESULT(RES)
             IMPORT
             INTEGER(C_INT) :: RES
-         END FUNCTION
+         END FUNCTION getpagesize
       END INTERFACE
 
       ! reading from statm
@@ -489,7 +489,7 @@ CONTAINS
       ! m2 = resident
       ! m3 = shared
       READ (DATA, *, IOSTAT=iostat) m1, m2, m3
-      IF (iostat .NE. 0) THEN
+      IF (iostat /= 0) THEN
          mem_local = 0
       ELSE
          mem_local = m2
@@ -576,16 +576,16 @@ CONTAINS
 
          get_field_value_in_bytes = 0
          start = INDEX(meminfo, field)
-         IF (start .NE. 0) THEN
+         IF (start /= 0) THEN
             start = start + LEN_TRIM(field)
-            IF (start .LT. Nbuffer) THEN
+            IF (start < Nbuffer) THEN
                READ (meminfo(start:), *, ERR=999, END=999) value
                ! XXXXXXX convert from Kb to bytes XXXXXXXX
                get_field_value_in_bytes = value*1024
 999            CONTINUE
             END IF
          END IF
-      END FUNCTION
+      END FUNCTION get_field_value_in_bytes
    END SUBROUTINE m_memory_details
 
 ! **************************************************************************************************
@@ -608,7 +608,7 @@ CONTAINS
             CHARACTER(KIND=C_CHAR), DIMENSION(*)     :: buf
             INTEGER(KIND=C_INT), VALUE               :: buflen
             INTEGER(KIND=C_INT)                      :: errno
-         END FUNCTION
+         END FUNCTION gethostname
       END INTERFACE
 
       istat = gethostname(buf, LEN(buf))
@@ -637,7 +637,7 @@ CONTAINS
             CHARACTER(KIND=C_CHAR), DIMENSION(*)     :: buf
             INTEGER(KIND=C_INT), VALUE               :: buflen
             TYPE(C_PTR)                              :: stat
-         END FUNCTION
+         END FUNCTION getcwd
       END INTERFACE
 
       stat = getcwd(tmp, LEN(tmp))
@@ -663,7 +663,7 @@ CONTAINS
             IMPORT
             CHARACTER(KIND=C_CHAR), DIMENSION(*)     :: path
             INTEGER(KIND=C_INT)                      :: errno
-         END FUNCTION
+         END FUNCTION chdir
       END INTERFACE
 
       ierror = chdir(TRIM(dir)//c_null_char)
@@ -680,7 +680,7 @@ CONTAINS
          FUNCTION getpid() BIND(C, name="getpid") RESULT(pid)
             IMPORT
             INTEGER(KIND=C_INT)              :: pid
-         END FUNCTION
+         END FUNCTION getpid
       END INTERFACE
 
       pid = getpid()
@@ -702,7 +702,7 @@ CONTAINS
             IMPORT
             CHARACTER(KIND=C_CHAR), DIMENSION(*)     :: path
             INTEGER(KIND=C_INT)                      :: errno
-         END FUNCTION
+         END FUNCTION unlink
       END INTERFACE
 
       istat = unlink(TRIM(path)//c_null_char)
@@ -724,7 +724,7 @@ CONTAINS
             IMPORT
             CHARACTER(KIND=C_CHAR), DIMENSION(*)     :: src, dest
             INTEGER(KIND=C_INT)                      :: errno
-         END FUNCTION
+         END FUNCTION rename
       END INTERFACE
 
       IF (TARGET == source) THEN
@@ -738,7 +738,7 @@ CONTAINS
 
       ! now move
       istat = rename(TRIM(source)//c_null_char, TRIM(TARGET)//c_null_char)
-      IF (istat .NE. 0) THEN
+      IF (istat /= 0) THEN
          WRITE (*, *) "Trying to move "//TRIM(source)//" to "//TRIM(TARGET)//"."
          WRITE (*, *) "rename returned status: ", istat
          WRITE (*, *) "Problem moving file"

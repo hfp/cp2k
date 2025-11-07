@@ -53,14 +53,14 @@ MODULE libint_2c_3c
       REAL(dp)                              :: ZetaInv = 0.0_dp, EtaInv = 0.0_dp, ZetapEtaInv = 0.0_dp, Rho = 0.0_dp
       REAL(dp), DIMENSION(3)                :: W = 0.0_dp
       REAL(dp), DIMENSION(prim_data_f_size) :: Fm = 0.0_dp
-   END TYPE
+   END TYPE params_2c
 
    TYPE :: params_3c
       INTEGER                               :: m_max = 0
       REAL(dp)                              :: ZetaInv = 0.0_dp, EtaInv = 0.0_dp, ZetapEtaInv = 0.0_dp, Rho = 0.0_dp
       REAL(dp), DIMENSION(3)                :: Q = 0.0_dp, W = 0.0_dp
       REAL(dp), DIMENSION(prim_data_f_size) :: Fm = 0.0_dp
-   END TYPE
+   END TYPE params_3c
 
    ! A potential type based on the hfx_potential_type concept, but only for implemented
    ! 2- and 3-center operators
@@ -71,7 +71,7 @@ MODULE libint_2c_3c
       CHARACTER(default_path_length)        :: filename = ""
       REAL(dp)                              :: scale_coulomb = 0.0_dp ! Only, for WFC methods
       REAL(dp)                              :: scale_longrange = 0.0_dp ! Only, for WFC methods
-   END TYPE
+   END TYPE libint_potential_type
 
 CONTAINS
 
@@ -359,7 +359,7 @@ CONTAINS
             S1234 = EXP(-zeti*zetj*params%EtaInv*SUM((rj - ri)**2))
             prefac = 2._dp*pi/params%Rho*SQRT((pi*params%ZetapEtaInv)**3)*S1234
 
-            CPASSERT(get_lmax_init() .GE. params%m_max) !check if truncated coulomb init correctly
+            CPASSERT(get_lmax_init() >= params%m_max) !check if truncated coulomb init correctly
             CALL t_c_g0_n(params%Fm, use_gamma, R, T, params%m_max)
             IF (use_gamma) CALL fgamma(params%m_max, T, params%Fm)
             params%Fm = prefac*params%Fm
@@ -389,7 +389,7 @@ CONTAINS
             S1234 = EXP(-zeti*zetj*params%EtaInv*SUM((rj - ri)**2))
             prefac = 2._dp*pi/params%Rho*SQRT((pi*params%ZetapEtaInv)**3)*S1234
 
-            CPASSERT(get_lmax_init() .GE. params%m_max) !check if truncated coulomb init correctly
+            CPASSERT(get_lmax_init() >= params%m_max) !check if truncated coulomb init correctly
             CALL t_c_g0_n(params%Fm, use_gamma, R, T, params%m_max)
             IF (use_gamma) CALL fgamma(params%m_max, T, params%Fm)
 
@@ -759,7 +759,7 @@ CONTAINS
             S1234 = EXP(-zeti*zetj*params%EtaInv*SUM((rj - ri)**2))
             prefac = 2._dp*pi/params%Rho*SQRT((pi*params%ZetapEtaInv)**3)*S1234
 
-            CPASSERT(get_lmax_init() .GE. params%m_max) !check if truncated coulomb init correctly
+            CPASSERT(get_lmax_init() >= params%m_max) !check if truncated coulomb init correctly
             CALL t_c_g0_n(params%Fm, use_gamma, R, T, params%m_max)
             IF (use_gamma) CALL fgamma(params%m_max, T, params%Fm)
             params%Fm = prefac*params%Fm
@@ -789,7 +789,7 @@ CONTAINS
             S1234 = EXP(-zeti*zetj*params%EtaInv*SUM((rj - ri)**2))
             prefac = 2._dp*pi/params%Rho*SQRT((pi*params%ZetapEtaInv)**3)*S1234
 
-            CPASSERT(get_lmax_init() .GE. params%m_max) !check if truncated coulomb init correctly
+            CPASSERT(get_lmax_init() >= params%m_max) !check if truncated coulomb init correctly
             CALL t_c_g0_n(params%Fm, use_gamma, R, T, params%m_max)
             IF (use_gamma) CALL fgamma(params%m_max, T, params%Fm)
 
@@ -984,7 +984,7 @@ CONTAINS
          T = params%Rho*SUM((rj - rk)**2)
          prefac = 2._dp*pi/params%Rho*SQRT((pi*params%ZetapEtaInv)**3)
 
-         CPASSERT(get_lmax_init() .GE. params%m_max) !check if truncated coulomb init correctly
+         CPASSERT(get_lmax_init() >= params%m_max) !check if truncated coulomb init correctly
          CALL t_c_g0_n(params%Fm, use_gamma, R, T, params%m_max)
          IF (use_gamma) CALL fgamma(params%m_max, T, params%Fm)
          params%Fm = prefac*params%Fm
@@ -1012,7 +1012,7 @@ CONTAINS
          T = params%Rho*SUM((rj - rk)**2)
          prefac = 2._dp*pi/params%Rho*SQRT((pi*params%ZetapEtaInv)**3)
 
-         CPASSERT(get_lmax_init() .GE. params%m_max) !check if truncated coulomb init correctly
+         CPASSERT(get_lmax_init() >= params%m_max) !check if truncated coulomb init correctly
          CALL t_c_g0_n(params%Fm, use_gamma, R, T, params%m_max)
          IF (use_gamma) CALL fgamma(params%m_max, T, params%Fm)
 
@@ -1237,7 +1237,7 @@ CONTAINS
          T = params%Rho*SUM((rj - rk)**2)
          prefac = 2._dp*pi/params%Rho*SQRT((pi*params%ZetapEtaInv)**3)
 
-         CPASSERT(get_lmax_init() .GE. params%m_max) !check if truncated coulomb init correctly
+         CPASSERT(get_lmax_init() >= params%m_max) !check if truncated coulomb init correctly
          CALL t_c_g0_n(params%Fm, use_gamma, R, T, params%m_max)
          IF (use_gamma) CALL fgamma(params%m_max, T, params%Fm)
          params%Fm = prefac*params%Fm
@@ -1265,7 +1265,7 @@ CONTAINS
          T = params%Rho*SUM((rj - rk)**2)
          prefac = 2._dp*pi/params%Rho*SQRT((pi*params%ZetapEtaInv)**3)
 
-         CPASSERT(get_lmax_init() .GE. params%m_max) !check if truncated coulomb init correctly
+         CPASSERT(get_lmax_init() >= params%m_max) !check if truncated coulomb init correctly
          CALL t_c_g0_n(params%Fm, use_gamma, R, T, params%m_max)
          IF (use_gamma) CALL fgamma(params%m_max, T, params%Fm)
 

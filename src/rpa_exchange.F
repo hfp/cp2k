@@ -100,11 +100,11 @@ MODULE rpa_exchange
       PROCEDURE, PASS(exchange_env), NON_OVERRIDABLE :: create => hfx_create_subgroup
       !PROCEDURE, PASS(exchange_env), NON_OVERRIDABLE :: integrate => integrate_exchange
       PROCEDURE, PASS(exchange_env), NON_OVERRIDABLE :: release => hfx_release_subgroup
-   END TYPE
+   END TYPE rpa_exchange_env_type
 
    TYPE dbcsr_matrix_p_set
       TYPE(dbcsr_type), ALLOCATABLE, DIMENSION(:) :: matrix_set
-   END TYPE
+   END TYPE dbcsr_matrix_p_set
 
    TYPE rpa_exchange_work_type
       PRIVATE
@@ -128,7 +128,7 @@ MODULE rpa_exchange
       PROCEDURE, PRIVATE, PASS(exchange_work), NON_OVERRIDABLE :: redistribute_into_subgroups
       PROCEDURE, PRIVATE, PASS(exchange_work), NON_OVERRIDABLE :: compute_fm => rpa_exchange_work_compute_fm
       PROCEDURE, PRIVATE, PASS(exchange_work), NON_OVERRIDABLE :: compute_hfx => rpa_exchange_work_compute_hfx
-   END TYPE
+   END TYPE rpa_exchange_work_type
 
 CONTAINS
 
@@ -245,7 +245,7 @@ CONTAINS
          END DO
          DEALLOCATE (qs_env%mp2_env%ri_rpa%mo_coeff_v)
       END IF
-   END SUBROUTINE
+   END SUBROUTINE rpa_exchange_work_create
 
 ! **************************************************************************************************
 !> \brief ... Initializes x_data on a subgroup
@@ -369,7 +369,7 @@ CONTAINS
       CALL cp_fm_release(exchange_work%fm_mat_R_half_gemm)
 
       CALL exchange_work%exchange_env%release()
-   END SUBROUTINE
+   END SUBROUTINE rpa_exchange_work_release
 
 ! **************************************************************************************************
 !> \brief ...
@@ -463,7 +463,7 @@ CONTAINS
       ! Manipulate eigenvalues to get diagonal matrix
       IF (exchange_work%exchange_correction == rpa_exchange_axk) THEN
          DO iib = 1, dimen_RI
-            IF (ABS(eigenval(iib)) .GE. thresh) THEN
+            IF (ABS(eigenval(iib)) >= thresh) THEN
                eigenval(iib) = &
                   SQRT((1.0_dp/(eigenval(iib)**2))*LOG(1.0_dp + eigenval(iib)) &
                        - 1.0_dp/(eigenval(iib)*(eigenval(iib) + 1.0_dp)))
@@ -473,7 +473,7 @@ CONTAINS
          END DO
       ELSE IF (exchange_work%exchange_correction == rpa_exchange_sosex) THEN
          DO iib = 1, dimen_RI
-            IF (ABS(eigenval(iib)) .GE. thresh) THEN
+            IF (ABS(eigenval(iib)) >= thresh) THEN
                eigenval(iib) = &
                   SQRT(-(1.0_dp/(eigenval(iib)**2))*LOG(1.0_dp + eigenval(iib)) &
                        + 1.0_dp/eigenval(iib))

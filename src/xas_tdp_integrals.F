@@ -198,7 +198,7 @@ CONTAINS
                   !we check for rbc or rac because of symmetry in ab_nl
                   CALL get_iterator_info(ac_iter, r=rac)
                   rbc(:) = rac(:) - rab(:)
-                  IF (.NOT. (ALL(ABS(rbc) .LE. 1.0E-8_dp) .OR. ALL(ABS(rac) .LE. 1.0E-8_dp))) CYCLE
+                  IF (.NOT. (ALL(ABS(rbc) <= 1.0E-8_dp) .OR. ALL(ABS(rac) <= 1.0E-8_dp))) CYCLE
 
                END IF
 
@@ -228,7 +228,7 @@ CONTAINS
                   !we check for rbc or rac because of symmetry in ab_nl
                   CALL get_iterator_info(ac_iter, r=rac)
                   rbc(:) = rac(:) - rab(:)
-                  IF (.NOT. (ALL(ABS(rbc) .LE. 1.0E-8_dp) .OR. ALL(ABS(rac) .LE. 1.0E-8_dp))) CYCLE
+                  IF (.NOT. (ALL(ABS(rbc) <= 1.0E-8_dp) .OR. ALL(ABS(rac) <= 1.0E-8_dp))) CYCLE
 
                END IF
 
@@ -394,7 +394,7 @@ CONTAINS
                   egfa = sgfa + basis_set%nsgf_set(iset) - 1
 
                   max_contr(iset, ibasis) = &
-                     MAXVAL((/(SUM(ABS(basis_set%sphi(1:ncoa, i))), i=sgfa, egfa)/))
+                     MAXVAL([(SUM(ABS(basis_set%sphi(1:ncoa, i))), i=sgfa, egfa)])
 
                END DO !iset
             END DO !ibasis
@@ -973,7 +973,7 @@ CONTAINS
                   !only take a,b,c if b,c (or a,c because of symmetry) share the same center
                   CALL get_iterator_info(ac_iter, r=rac)
                   rbc(:) = rac(:) - rab(:)
-                  IF (.NOT. (ALL(ABS(rbc) .LE. 1.0E-8_dp) .OR. ALL(ABS(rac) .LE. 1.0E-8_dp))) CYCLE
+                  IF (.NOT. (ALL(ABS(rbc) <= 1.0E-8_dp) .OR. ALL(ABS(rac) <= 1.0E-8_dp))) CYCLE
 
                END IF
 
@@ -1436,7 +1436,7 @@ CONTAINS
 
       IF (.NOT. xas_tdp_control%is_periodic) THEN
          CALL int_operators_r12_ab_os(r12_operator=operator_coulomb, vab=xas_tdp_env%ri_inv_coul, &
-                                      rab=(/0.0_dp, 0.0_dp, 0.0_dp/), fba=ri_basis, fbb=ri_basis, &
+                                      rab=[0.0_dp, 0.0_dp, 0.0_dp], fba=ri_basis, fbb=ri_basis, &
                                       calculate_forces=.FALSE.)
          CPASSERT(ASSOCIATED(xas_tdp_control))
       ELSE

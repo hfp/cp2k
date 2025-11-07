@@ -99,7 +99,7 @@ CONTAINS
       CALL timeset(routineN, handle)
 
       ! Check that the counter was initialised (or has not overflowed)
-      CPASSERT(randmat_counter .NE. 0)
+      CPASSERT(randmat_counter /= 0)
       ! the counter goes into the seed. Every new call gives a new random matrix
       randmat_counter = randmat_counter + 1
 
@@ -142,12 +142,12 @@ CONTAINS
       DO row = 1, dbt_tas_nblkrows_total(matrix)
          DO col = 1, dbt_tas_nblkcols_total(matrix)
             CALL dlarnv(1, jseed, 1, rn)
-            IF (rn(1) .LT. sparsity) THEN
+            IF (rn(1) < sparsity) THEN
                tr = .FALSE.
                row_s = row; col_s = col
                CALL dbt_tas_get_stored_coordinates(matrix, row_s, col_s, node_holds_blk)
 
-               IF (node_holds_blk .EQ. mynode) THEN
+               IF (node_holds_blk == mynode) THEN
                   row_size = rbsize_obj%data(row_s)
                   col_size = cbsize_obj%data(col_s)
                   nze = row_size*col_size
@@ -163,7 +163,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE dbt_tas_setup_test_matrix
 
 ! **************************************************************************************************
 !> \brief Benchmark routine. Due to random sparsity (as opposed to structured sparsity pattern),
@@ -301,7 +301,7 @@ CONTAINS
          CALL comm_dbm%free()
       END IF
 
-   END SUBROUTINE
+   END SUBROUTINE dbt_tas_benchmark_mm
 
 ! **************************************************************************************************
 !> \brief Test tall-and-skinny matrix multiplication for accuracy
@@ -346,7 +346,7 @@ CONTAINS
       mynode = mp_comm%mepos
       abort = .FALSE.
       io_unit = -1
-      IF (mynode .EQ. 0) io_unit = unit_nr
+      IF (mynode == 0) io_unit = unit_nr
 
       CALL dbt_tas_multiply(transa, transb, transc, 1.0_dp, matrix_a, matrix_b, &
                             0.0_dp, matrix_c, &
@@ -480,7 +480,7 @@ CONTAINS
       CALL dbt_tas_convert_to_dbm(matrix, dbm_m)
       dbt_tas_checksum = dbm_checksum(dbm_m)
       CALL dbm_release(dbm_m)
-   END FUNCTION
+   END FUNCTION dbt_tas_checksum
 
 ! **************************************************************************************************
 !> \brief Create random block sizes
@@ -500,7 +500,7 @@ CONTAINS
          size_i = MOD((d - 1)/repeat, SIZE(sizes)) + 1
          dbt_sizes(d) = sizes(size_i)
       END DO
-   END SUBROUTINE
+   END SUBROUTINE dbt_tas_random_bsizes
 
 ! **************************************************************************************************
 !> \brief Reset the seed used for generating random matrices to default value
@@ -508,6 +508,6 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE dbt_tas_reset_randmat_seed()
       randmat_counter = rand_seed_init
-   END SUBROUTINE
+   END SUBROUTINE dbt_tas_reset_randmat_seed
 
-END MODULE
+END MODULE dbt_tas_test

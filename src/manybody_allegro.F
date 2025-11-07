@@ -98,7 +98,7 @@ CONTAINS
             jkind = neighbor_kind_pair%ij_kind(2, igrp)
             pot => potparm%pot(ikind, jkind)%pot
             npairs = iend - istart + 1
-            IF (pot%no_mb) CYCLE
+            IF (pot%no_mb) CYCLE Kind_Group_Loop1
             DO i = 1, SIZE(pot%type)
                IF (pot%type(i) == allegro_type) npairs_tot = npairs_tot + npairs
             END DO
@@ -123,7 +123,7 @@ CONTAINS
             cvi = neighbor_kind_pair%cell_vector
             pot => potparm%pot(ikind, jkind)%pot
             npairs = iend - istart + 1
-            IF (pot%no_mb) CYCLE
+            IF (pot%no_mb) CYCLE Kind_Group_Loop2
             cell_v = MATMUL(cell%hmat, cvi)
             DO i = 1, SIZE(pot%type)
                ! ALLEGRO
@@ -481,7 +481,7 @@ CONTAINS
       IF (use_virial) THEN
          CALL torch_dict_get(outputs, "virial", virial_tensor)
          CALL torch_tensor_data_ptr(virial_tensor, virial3d)
-         allegro_data%virial(:, :) = RESHAPE(virial3d, (/3, 3/))*allegro%unit_energy_val
+         allegro_data%virial(:, :) = RESHAPE(virial3d, [3, 3])*allegro%unit_energy_val
          CALL torch_tensor_release(virial_tensor)
       END IF
 

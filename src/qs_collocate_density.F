@@ -303,7 +303,7 @@ CONTAINS
                                                  prefactor=1.0_dp, cutoff=0.0_dp)
 
                CALL collocate_pgf_product(ni, 1/(2*alpha**2), 0, 0, 0.0_dp, 0, ra, &
-                                          (/0.0_dp, 0.0_dp, 0.0_dp/), 1.0_dp, pab, 0, 0, rs_rho, &
+                                          [0.0_dp, 0.0_dp, 0.0_dp], 1.0_dp, pab, 0, 0, rs_rho, &
                                           ga_gb_function=GRID_FUNC_AB, radius=radius, &
                                           use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern)
 
@@ -460,7 +460,7 @@ CONTAINS
             END IF
          END DO
 
-         IF (npme .GT. 0) THEN
+         IF (npme > 0) THEN
             DO j = 1, npme
 
                iatom = cores(j)
@@ -477,7 +477,7 @@ CONTAINS
                                                  prefactor=1.0_dp, cutoff=0.0_dp)
 
                CALL collocate_pgf_product(ni, alpha, 0, 0, 0.0_dp, 0, ra, &
-                                          (/0.0_dp, 0.0_dp, 0.0_dp/), 1.0_dp, pab, 0, 0, rs_rho, &
+                                          [0.0_dp, 0.0_dp, 0.0_dp], 1.0_dp, pab, 0, 0, rs_rho, &
                                           radius=radius, ga_gb_function=GRID_FUNC_AB, &
                                           use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern)
 
@@ -653,7 +653,7 @@ CONTAINS
                                                    zeta=zeta(ipgf, iset), &
                                                    la_min=la_min(iset), &
                                                    lb_max=0, zetb=0.0_dp, lb_min=0, &
-                                                   ra=ra, rab=(/0.0_dp, 0.0_dp, 0.0_dp/), &
+                                                   ra=ra, rab=[0.0_dp, 0.0_dp, 0.0_dp], &
                                                    scale=1._dp, &
                                                    pab=pab, o1=na1, o2=0, &
                                                    rsgrid=rs_grid, &
@@ -741,7 +741,7 @@ CONTAINS
                                  CALL collocate_pgf_product( &
                                     la_max(iset), zeta(ipgf, iset), la_min(iset), &
                                     la_max(jset), zeta(jpgf, jset), la_min(jset), &
-                                    ra, (/0.0_dp, 0.0_dp, 0.0_dp/), 1.0_dp, pab, na1, nb1, &
+                                    ra, [0.0_dp, 0.0_dp, 0.0_dp], 1.0_dp, pab, na1, nb1, &
                                     rs_grid, &
                                     radius=radius, ga_gb_function=GRID_FUNC_AB)
                               END IF
@@ -881,7 +881,7 @@ CONTAINS
                END IF
             END DO
 
-            IF (npme .GT. 0) THEN
+            IF (npme > 0) THEN
                DO j = 1, npme
 
                   iatom = cores(j)
@@ -896,7 +896,7 @@ CONTAINS
                                                     prefactor=-1.0_dp, cutoff=0.0_dp)
 
                   CALL collocate_pgf_product(0, alpha, 0, 0, 0.0_dp, 0, ra, &
-                                             (/0.0_dp, 0.0_dp, 0.0_dp/), -1.0_dp, pab, 0, 0, rs_rho, &
+                                             [0.0_dp, 0.0_dp, 0.0_dp], -1.0_dp, pab, 0, 0, rs_rho, &
                                              radius=radius, ga_gb_function=GRID_FUNC_AB, &
                                              use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern)
 
@@ -1015,7 +1015,7 @@ CONTAINS
             END IF
          END DO
 
-         IF (npme .GT. 0) THEN
+         IF (npme > 0) THEN
             DO j = 1, npme
 
                iatom = cores(j)
@@ -1031,7 +1031,7 @@ CONTAINS
                                                  prefactor=-1.0_dp, cutoff=0.0_dp)
 
                CALL collocate_pgf_product(0, alpha, 0, 0, 0.0_dp, 0, ra, &
-                                          (/0.0_dp, 0.0_dp, 0.0_dp/), -1.0_dp, pab, 0, 0, rs_rho, &
+                                          [0.0_dp, 0.0_dp, 0.0_dp], -1.0_dp, pab, 0, 0, rs_rho, &
                                           radius=radius, ga_gb_function=dabqadb_func, &
                                           use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern)
 
@@ -1113,7 +1113,7 @@ CONTAINS
          npme = npme + 1
       END IF
 
-      IF (npme .GT. 0) THEN
+      IF (npme > 0) THEN
          atom_a = qs_env%qmmm_env_qm%image_charge_pot%image_mm_list(iatom)
          ra(:) = pbc(qs_env%qmmm_env_qm%image_charge_pot%particles_all(atom_a)%r, cell)
          subpatch_pattern = 0
@@ -1126,7 +1126,7 @@ CONTAINS
                                            prefactor=1.0_dp, cutoff=0.0_dp)
 
          CALL collocate_pgf_product(0, qs_env%qmmm_env_qm%image_charge_pot%eta, &
-                                    0, 0, 0.0_dp, 0, ra, (/0.0_dp, 0.0_dp, 0.0_dp/), 1.0_dp, pab, 0, 0, rs_rho, &
+                                    0, 0, 0.0_dp, 0, ra, [0.0_dp, 0.0_dp, 0.0_dp], 1.0_dp, pab, 0, 0, rs_rho, &
                                     radius=radius, ga_gb_function=GRID_FUNC_AB, &
                                     use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern)
       END IF
@@ -1213,7 +1213,7 @@ CONTAINS
          END IF
       END DO
 
-      IF (npme .GT. 0) THEN
+      IF (npme > 0) THEN
          DO j = 1, npme
             iatom = cores(j)
             atom_a = qs_env%qmmm_env_qm%image_charge_pot%image_mm_list(iatom)
@@ -1229,7 +1229,7 @@ CONTAINS
 
             CALL collocate_pgf_product( &
                0, qs_env%qmmm_env_qm%image_charge_pot%eta, &
-               0, 0, 0.0_dp, 0, ra, (/0.0_dp, 0.0_dp, 0.0_dp/), coeff(iatom), pab, 0, 0, rs_rho, &
+               0, 0, 0.0_dp, 0, ra, [0.0_dp, 0.0_dp, 0.0_dp], coeff(iatom), pab, 0, 0, rs_rho, &
                radius=radius, ga_gb_function=GRID_FUNC_AB, &
                use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern)
          END DO
@@ -1312,7 +1312,7 @@ CONTAINS
          npme = npme + 1
       END IF
 
-      IF (npme .GT. 0) THEN
+      IF (npme > 0) THEN
          ra(:) = pbc(particle_set(iatom)%r, cell)
          subpatch_pattern = 0
          radius = exp_radius_very_extended(la_min=0, la_max=0, &
@@ -1323,7 +1323,7 @@ CONTAINS
                                            prefactor=1.0_dp, cutoff=0.0_dp)
 
          CALL collocate_pgf_product(0, eta, 0, 0, 0.0_dp, 0, ra, &
-                                    (/0.0_dp, 0.0_dp, 0.0_dp/), 1.0_dp, pab, 0, 0, rs_rho, &
+                                    [0.0_dp, 0.0_dp, 0.0_dp], 1.0_dp, pab, 0, 0, rs_rho, &
                                     radius=radius, ga_gb_function=GRID_FUNC_AB, &
                                     use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern)
       END IF
@@ -1413,7 +1413,7 @@ CONTAINS
             END IF
          END DO
 
-         IF (npme .GT. 0) THEN
+         IF (npme > 0) THEN
             DO j = 1, npme
                iatom = cores(j)
                ra(:) = pbc(particle_set(iatom)%r, cell)
@@ -1427,7 +1427,7 @@ CONTAINS
 
                CALL collocate_pgf_product( &
                   0, eta, &
-                  0, 0, 0.0_dp, 0, ra, (/0.0_dp, 0.0_dp, 0.0_dp/), coeff(iatom), pab, 0, 0, rs_rho, &
+                  0, 0, 0.0_dp, 0, ra, [0.0_dp, 0.0_dp, 0.0_dp], coeff(iatom), pab, 0, 0, rs_rho, &
                   radius=radius, ga_gb_function=GRID_FUNC_AB, &
                   use_subpatch=.TRUE., subpatch_pattern=subpatch_pattern)
             END DO
@@ -1823,9 +1823,9 @@ CONTAINS
             ikind = particle_set(iatom)%atomic_kind%kind_number
             jkind = particle_set(jatom)%atomic_kind%kind_number
 
-            IF (iatom .NE. iatom_old .OR. jatom .NE. jatom_old .OR. img .NE. img_old) THEN
+            IF (iatom /= iatom_old .OR. jatom /= jatom_old .OR. img /= img_old) THEN
 
-               IF (iatom .NE. iatom_old) ra(:) = pbc(particle_set(iatom)%r, cell)
+               IF (iatom /= iatom_old) ra(:) = pbc(particle_set(iatom)%r, cell)
 
                IF (iatom <= jatom) THEN
                   brow = iatom
@@ -1835,7 +1835,7 @@ CONTAINS
                   bcol = iatom
                END IF
 
-               IF (ikind .NE. ikind_old) THEN
+               IF (ikind /= ikind_old) THEN
                   IF (my_soft) THEN
                      CALL get_qs_kind(qs_kind_set(ikind), basis_set=orb_basis_set, &
                                       basis_type="ORB_SOFT")
@@ -1854,7 +1854,7 @@ CONTAINS
                                          zet=zeta)
                END IF
 
-               IF (jkind .NE. jkind_old) THEN
+               IF (jkind /= jkind_old) THEN
                   IF (my_soft) THEN
                      CALL get_qs_kind(qs_kind_set(jkind), basis_set=orb_basis_set, &
                                       basis_type="ORB_SOFT")
@@ -1890,7 +1890,7 @@ CONTAINS
 
             END IF
 
-            IF (atom_pair_changed .OR. iset_old .NE. iset .OR. jset_old .NE. jset) THEN
+            IF (atom_pair_changed .OR. iset_old /= iset .OR. jset_old /= jset) THEN
 
                ncoa = npgfa(iset)*ncoset(la_max(iset))
                sgfa = first_sgfa(1, iset)
@@ -1950,7 +1950,7 @@ CONTAINS
             ! check whether we need to use fawzi's generalised collocation scheme
             IF (rs_rho(igrid_level)%desc%distributed) THEN
                !tasks(4,:) is 0 for replicated, 1 for distributed 2 for exceptional distributed tasks
-               IF (tasks(itask)%dist_type .EQ. 2) THEN
+               IF (tasks(itask)%dist_type == 2) THEN
                   use_subpatch = .TRUE.
                ELSE
                   use_subpatch = .FALSE.
@@ -2206,9 +2206,9 @@ CONTAINS
          ikind = particle_set(iatom)%atomic_kind%kind_number
          jkind = particle_set(jatom)%atomic_kind%kind_number
 
-         IF (iatom .NE. iatom_old .OR. jatom .NE. jatom_old .OR. img .NE. img_old) THEN
+         IF (iatom /= iatom_old .OR. jatom /= jatom_old .OR. img /= img_old) THEN
 
-            IF (iatom .NE. iatom_old) ra(:) = pbc(particle_set(iatom)%r, cell)
+            IF (iatom /= iatom_old) ra(:) = pbc(particle_set(iatom)%r, cell)
 
             IF (iatom <= jatom) THEN
                brow = iatom
@@ -2218,7 +2218,7 @@ CONTAINS
                bcol = iatom
             END IF
 
-            IF (ikind .NE. ikind_old) THEN
+            IF (ikind /= ikind_old) THEN
                IF (my_soft) THEN
                   CALL get_qs_kind(qs_kind_set(ikind), basis_set=orb_basis_set, &
                                    basis_type="ORB_SOFT")
@@ -2237,7 +2237,7 @@ CONTAINS
                                       zet=zeta)
             END IF
 
-            IF (jkind .NE. jkind_old) THEN
+            IF (jkind /= jkind_old) THEN
                IF (my_soft) THEN
                   CALL get_qs_kind(qs_kind_set(jkind), basis_set=orb_basis_set, &
                                    basis_type="ORB_SOFT")
@@ -2273,7 +2273,7 @@ CONTAINS
 
          END IF
 
-         IF (atom_pair_changed .OR. iset_old .NE. iset .OR. jset_old .NE. jset) THEN
+         IF (atom_pair_changed .OR. iset_old /= iset .OR. jset_old /= jset) THEN
 
             ncoa = npgfa(iset)*ncoset(la_max(iset))
             sgfa = first_sgfa(1, iset)
@@ -2333,7 +2333,7 @@ CONTAINS
          ! check whether we need to use fawzi's generalised collocation scheme
          IF (rs_rho(igrid_level)%desc%distributed) THEN
             !tasks(4,:) is 0 for replicated, 1 for distributed 2 for exceptional distributed tasks
-            IF (tasks(itask)%dist_type .EQ. 2) THEN
+            IF (tasks(itask)%dist_type == 2) THEN
                use_subpatch = .TRUE.
             ELSE
                use_subpatch = .FALSE.
@@ -2557,7 +2557,7 @@ CONTAINS
 
                      CALL collocate_pgf_product(la_max(iset), zeta(ipgf, iset), la_min(iset), &
                                                 0, 0.0_dp, 0, &
-                                                ra, (/0.0_dp, 0.0_dp, 0.0_dp/), &
+                                                ra, [0.0_dp, 0.0_dp, 0.0_dp], &
                                                 scale, pab, na1 - 1, 0, rs_rho(igrid_level), &
                                                 radius=radius, ga_gb_function=GRID_FUNC_AB)
                   END IF
@@ -2795,7 +2795,7 @@ CONTAINS
 
                   CALL collocate_pgf_product(la_max(iset), zeta(ipgf, iset), la_min(iset), &
                                              0, 0.0_dp, 0, &
-                                             ra, (/0.0_dp, 0.0_dp, 0.0_dp/), &
+                                             ra, [0.0_dp, 0.0_dp, 0.0_dp], &
                                              scale, pab, na1 - 1, 0, rs_rho(igrid_level), &
                                              radius=radius, ga_gb_function=GRID_FUNC_AB)
                END IF

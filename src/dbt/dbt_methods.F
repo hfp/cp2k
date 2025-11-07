@@ -132,7 +132,7 @@ CONTAINS
       CALL dbt_copy_expert(tensor_in, tensor_out, order, summation, bounds, move_data, unit_nr)
       CALL tensor_in%pgrid%mp_comm_2d%sync()
       CALL timestop(handle)
-   END SUBROUTINE
+   END SUBROUTINE dbt_copy
 
 ! **************************************************************************************************
 !> \brief expert routine for copying a tensor. For internal use only.
@@ -272,7 +272,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE dbt_copy_expert
 
 ! **************************************************************************************************
 !> \brief copy without communication, requires that both tensors have same process grid and distribution
@@ -316,7 +316,7 @@ CONTAINS
 !$OMP END PARALLEL
 
       CALL timestop(handle)
-   END SUBROUTINE
+   END SUBROUTINE dbt_copy_nocomm
 
 ! **************************************************************************************************
 !> \brief copy matrix to tensor.
@@ -376,7 +376,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE dbt_copy_matrix_to_tensor
 
 ! **************************************************************************************************
 !> \brief copy tensor to matrix
@@ -426,7 +426,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE dbt_copy_tensor_to_matrix
 
 ! **************************************************************************************************
 !> \brief Contract tensors by multiplying matrix representations.
@@ -552,7 +552,7 @@ CONTAINS
       CALL tensor_1%pgrid%mp_comm_2d%sync()
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE dbt_contract
 
 ! **************************************************************************************************
 !> \brief expert routine for tensor contraction. For internal use only.
@@ -642,22 +642,22 @@ CONTAINS
       CPASSERT(tensor_2%valid)
       CPASSERT(tensor_3%valid)
 
-      assert_stmt = SIZE(contract_1) .EQ. SIZE(contract_2)
+      assert_stmt = SIZE(contract_1) == SIZE(contract_2)
       CPASSERT(assert_stmt)
 
-      assert_stmt = SIZE(map_1) .EQ. SIZE(notcontract_1)
+      assert_stmt = SIZE(map_1) == SIZE(notcontract_1)
       CPASSERT(assert_stmt)
 
-      assert_stmt = SIZE(map_2) .EQ. SIZE(notcontract_2)
+      assert_stmt = SIZE(map_2) == SIZE(notcontract_2)
       CPASSERT(assert_stmt)
 
-      assert_stmt = SIZE(notcontract_1) + SIZE(contract_1) .EQ. ndims_tensor(tensor_1)
+      assert_stmt = SIZE(notcontract_1) + SIZE(contract_1) == ndims_tensor(tensor_1)
       CPASSERT(assert_stmt)
 
-      assert_stmt = SIZE(notcontract_2) + SIZE(contract_2) .EQ. ndims_tensor(tensor_2)
+      assert_stmt = SIZE(notcontract_2) + SIZE(contract_2) == ndims_tensor(tensor_2)
       CPASSERT(assert_stmt)
 
-      assert_stmt = SIZE(map_1) + SIZE(map_2) .EQ. ndims_tensor(tensor_3)
+      assert_stmt = SIZE(map_1) + SIZE(map_2) == ndims_tensor(tensor_3)
       CPASSERT(assert_stmt)
 
       unit_nr_prv = prep_output_unit(unit_nr)
@@ -1118,7 +1118,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE dbt_contract_expert
 
 ! **************************************************************************************************
 !> \brief align tensor index with data
@@ -1142,7 +1142,7 @@ CONTAINS
       notcontract_out = align(notcontract_in)
       indp_out(align) = indp_in
 
-   END SUBROUTINE
+   END SUBROUTINE align_tensor
 
 ! **************************************************************************************************
 !> \brief Prepare tensor for contraction: redistribute to a 2d format which can be contracted by
@@ -1197,7 +1197,7 @@ CONTAINS
       CALL blk_dims_tensor(tensor1, dims1)
       CALL blk_dims_tensor(tensor2, dims2)
 
-      IF (PRODUCT(int(dims1, int_8)) .GE. PRODUCT(int(dims2, int_8))) THEN
+      IF (PRODUCT(int(dims1, int_8)) >= PRODUCT(int(dims2, int_8))) THEN
          ref_tensor = 1
       ELSE
          ref_tensor = 2
@@ -1350,7 +1350,7 @@ CONTAINS
       END SELECT
 
       IF (unit_nr_prv > 0) THEN
-         IF (compat1 .NE. compat1_old) THEN
+         IF (compat1 /= compat1_old) THEN
             WRITE (unit_nr_prv, '(T2,A,1X,A,A,1X)', advance='no') "compatibility of", TRIM(tensor1_out%name), ":"
             SELECT CASE (compat1)
             CASE (0)
@@ -1361,7 +1361,7 @@ CONTAINS
                WRITE (unit_nr_prv, '(A)') "Transposed"
             END SELECT
          END IF
-         IF (compat2 .NE. compat2_old) THEN
+         IF (compat2 /= compat2_old) THEN
             WRITE (unit_nr_prv, '(T2,A,1X,A,A,1X)', advance='no') "compatibility of", TRIM(tensor2_out%name), ":"
             SELECT CASE (compat2)
             CASE (0)
@@ -1377,7 +1377,7 @@ CONTAINS
       IF (new1 .AND. PRESENT(move_data_1)) move_data_1 = .TRUE.
       IF (new2 .AND. PRESENT(move_data_2)) move_data_2 = .TRUE.
 
-   END SUBROUTINE
+   END SUBROUTINE reshape_mm_compatible
 
 ! **************************************************************************************************
 !> \brief Prepare tensor for contraction: redistribute to a 2d format which can be contracted by
@@ -1449,7 +1449,7 @@ CONTAINS
       END IF
 
       IF (unit_nr_prv > 0) THEN
-         IF (compat1_old .NE. compat1 .OR. compat2_old .NE. compat2) THEN
+         IF (compat1_old /= compat1 .OR. compat2_old /= compat2) THEN
             WRITE (unit_nr_prv, '(T2,A,1X,A,A,1X)', advance='no') "compatibility of", TRIM(tensor_out%name), ":"
             IF (compat1 == 1 .AND. compat2 == 2) THEN
                WRITE (unit_nr_prv, '(A)') "Normal"
@@ -1461,7 +1461,7 @@ CONTAINS
          END IF
       END IF
 
-   END SUBROUTINE
+   END SUBROUTINE reshape_mm_small
 
 ! **************************************************************************************************
 !> \brief update contraction storage that keeps track of process grids during a batched contraction
@@ -1508,7 +1508,7 @@ CONTAINS
       change_criterion = MAX(REAL(nsplit, dp)/storage%nsplit_avg, REAL(storage%nsplit_avg, dp)/nsplit)
       IF (change_criterion > default_nsplit_accept_ratio) do_change_pgrid(2) = .TRUE.
 
-   END FUNCTION
+   END FUNCTION update_contraction_storage
 
 ! **************************************************************************************************
 !> \brief Check if 2d index is compatible with tensor index
@@ -1530,7 +1530,7 @@ CONTAINS
          compat_map = 2
       END IF
 
-   END FUNCTION
+   END FUNCTION compat_map
 
 ! **************************************************************************************************
 !> \brief
@@ -1543,7 +1543,7 @@ CONTAINS
       CALL sort(ind_ref, SIZE(ind_ref), sort_indices)
       ind_dep(:) = ind_dep(sort_indices)
 
-   END SUBROUTINE
+   END SUBROUTINE index_linked_sort
 
 ! **************************************************************************************************
 !> \brief
@@ -1563,7 +1563,7 @@ CONTAINS
 
       ALLOCATE (opt_pgrid%tas_split_info, SOURCE=tas_split_info)
       CALL dbt_tas_info_hold(opt_pgrid%tas_split_info)
-   END FUNCTION
+   END FUNCTION opt_pgrid
 
 ! **************************************************************************************************
 !> \brief Copy tensor to tensor with modified index mapping
@@ -1667,7 +1667,7 @@ CONTAINS
       CALL dbt_distribution_destroy(dist)
 
       CALL timestop(handle)
-   END SUBROUTINE
+   END SUBROUTINE dbt_remap
 
 ! **************************************************************************************************
 !> \brief Align index with data
@@ -1694,7 +1694,7 @@ CONTAINS
       IF (PRESENT(order)) order = order_prv
 
       CALL timestop(handle)
-   END SUBROUTINE
+   END SUBROUTINE dbt_align_index
 
 ! **************************************************************************************************
 !> \brief Create new tensor by reordering index, data is copied exactly (shallow copy)
@@ -1749,7 +1749,7 @@ CONTAINS
       END IF
 
       CALL timestop(handle)
-   END SUBROUTINE
+   END SUBROUTINE dbt_permute_index
 
 ! **************************************************************************************************
 !> \brief Map contraction bounds to bounds referring to tensor indices
@@ -1811,7 +1811,7 @@ CONTAINS
       IF (PRESENT(do_crop_1)) do_crop_1 = do_crop(1)
       IF (PRESENT(do_crop_2)) do_crop_2 = do_crop(2)
 
-   END SUBROUTINE
+   END SUBROUTINE dbt_map_bounds_to_tensors
 
 ! **************************************************************************************************
 !> \brief print tensor contraction indices in a human readable way
@@ -1886,7 +1886,7 @@ CONTAINS
          WRITE (unit_nr_prv, '(A)') ")"
       END IF
 
-   END SUBROUTINE
+   END SUBROUTINE dbt_print_contraction_index
 
 ! **************************************************************************************************
 !> \brief Initialize batched contraction for this tensor.
@@ -1969,7 +1969,7 @@ CONTAINS
          END IF
       #:endfor
 
-   END SUBROUTINE
+   END SUBROUTINE dbt_batched_contract_init
 
 ! **************************************************************************************************
 !> \brief finalize batched contraction. This performs all communication that has been postponed in
@@ -2009,7 +2009,7 @@ CONTAINS
       CALL tensor%pgrid%mp_comm_2d%sync()
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE dbt_batched_contract_finalize
 
 ! **************************************************************************************************
 !> \brief change the process grid of a tensor
@@ -2120,7 +2120,7 @@ CONTAINS
       IF (PRESENT(pgrid_changed)) pgrid_changed = .TRUE.
 
       CALL timestop(handle)
-   END SUBROUTINE
+   END SUBROUTINE dbt_change_pgrid
 
 ! **************************************************************************************************
 !> \brief map tensor to a new 2d process grid for the matrix representation.
@@ -2175,6 +2175,6 @@ CONTAINS
       END IF
       CALL dbt_pgrid_destroy(pgrid)
 
-   END SUBROUTINE
+   END SUBROUTINE dbt_change_pgrid_2d
 
-END MODULE
+END MODULE dbt_methods

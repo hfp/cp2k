@@ -73,8 +73,8 @@ CONTAINS
       TYPE(preconditioner_type)                          :: preconditioner
       LOGICAL                                            :: preconditioner_in_use
 
-      preconditioner_in_use = .NOT. (preconditioner%in_use .EQ. 0)
-   END FUNCTION
+      preconditioner_in_use = .NOT. (preconditioner%in_use == 0)
+   END FUNCTION preconditioner_in_use
 
 ! **************************************************************************************************
 !> \brief ...

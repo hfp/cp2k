@@ -63,11 +63,11 @@ MODULE qs_vcd
 
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'qs_vcd'
 
-   REAL(dp), DIMENSION(3, 3, 3), PARAMETER  :: Levi_Civita = RESHAPE((/ &
+   REAL(dp), DIMENSION(3, 3, 3), PARAMETER  :: Levi_Civita = RESHAPE([ &
                                                           0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, -1.0_dp, 0.0_dp, 1.0_dp, 0.0_dp, &
                                                           0.0_dp, 0.0_dp, 1.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, -1.0_dp, 0.0_dp, 0.0_dp, &
-                                                        0.0_dp, -1.0_dp, 0.0_dp, 1.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp/), &
-                                                                     (/3, 3, 3/))
+                                                         0.0_dp, -1.0_dp, 0.0_dp, 1.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp], &
+                                                                     [3, 3, 3])
    INTEGER, DIMENSION(3, 3), PARAMETER :: multipole_2d_to_1d = RESHAPE([4, 5, 6, 5, 7, 8, 6, 8, 9], [3, 3])
 CONTAINS
 
@@ -117,7 +117,7 @@ CONTAINS
 
          ! I_{alpha beta}^lambda = 1/2c \sum_j^occ ...
          aat_prefactor = 1.0_dp!/(c_light_au * 2._dp)
-         IF (nspins .EQ. 1) aat_prefactor = aat_prefactor*2.0_dp
+         IF (nspins == 1) aat_prefactor = aat_prefactor*2.0_dp
 
          ! The non-PP part of the AAT consists of four contributions:
          !  (A1):  + P^0 * ε_{alpha gamma delta} * < mu | r_beta r_gamma ∂_delta | nu > * (mu == lambda)

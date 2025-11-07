@@ -393,7 +393,7 @@ CONTAINS
 
             CALL get_none0_cg_list(my_CG, lmin(iset1), lmax(iset1), lmin(iset2), lmax(iset2), &
                                    max_s_harm, lmax_expansion, cg_list, cg_n_list, max_iso_not0_local)
-            CPASSERT(max_iso_not0_local .LE. max_iso_not0)
+            CPASSERT(max_iso_not0_local <= max_iso_not0)
 
             DO ipgf1 = 1, npgf(iset1)
                g1(1:nr) = EXP(-zet(ipgf1, iset1)*grid_atom%rad2(1:nr))
@@ -442,7 +442,7 @@ CONTAINS
                   vgg(:, :, :, j) = 0.0_dp
                   done_vgg = .FALSE.
                   ! reduce the number of terms in the expansion local densities
-                  IF (lmin12 .LE. lmax_expansion) THEN
+                  IF (lmin12 <= lmax_expansion) THEN
                      IF (lmin12 == 0) THEN
                         gg(1:nr, lmin12, j) = g1(1:nr)*g2(1:nr)
                         gg0(1:nr) = gg(1:nr, lmin12, j)
@@ -452,7 +452,7 @@ CONTAINS
                      END IF
 
                      ! reduce the number of terms in the expansion local densities
-                     IF (lmax12 .GT. lmax_expansion) lmax12 = lmax_expansion
+                     IF (lmax12 > lmax_expansion) lmax12 = lmax_expansion
 
                      DO l = lmin12 + 1, lmax12
                         gg(1:nr, l, j) = grid_atom%rad(1:nr)*gg(1:nr, l - 1, j)
@@ -882,7 +882,7 @@ CONTAINS
                                     lmax(iset) + nder, npgf(iset), zet(:, iset), rpgf(:, iset), lmin(iset), &
                                     lmax(jset), npgf(jset), zet(:, jset), rpgf(:, jset), lmin(jset), &
                                     alpha_c, core_radius, zeta_j, core_charge, &
-                                    (/0.0_dp, 0.0_dp, 0.0_dp/), 0.0_dp, rab, rab2, rab2, &
+                                    [0.0_dp, 0.0_dp, 0.0_dp], 0.0_dp, rab, rab2, rab2, &
                                     hab(:, :, nij), verf, vnuc, ff(0:), nder, habd)
 
                                  ! *** The derivatives w.r.t. atomic center b are    ***
@@ -891,7 +891,7 @@ CONTAINS
                                  CALL verfc_force(habd, pab(:, :, nij), force_a, force_b, nder, &
                                                   lmax(iset), lmin(iset), npgf(iset), zet(:, iset), &
                                                   lmax(jset), lmin(jset), npgf(jset), zet(:, jset), &
-                                                  (/0.0_dp, 0.0_dp, 0.0_dp/))
+                                                  [0.0_dp, 0.0_dp, 0.0_dp])
 
                                  DEALLOCATE (habd)
                                  force_i = force_a + force_b
@@ -912,7 +912,7 @@ CONTAINS
                                     lmax(iset), npgf(iset), zet(:, iset), rpgf(:, iset), lmin(iset), &
                                     lmax(jset), npgf(jset), zet(:, jset), rpgf(:, jset), lmin(jset), &
                                     alpha_c, core_radius, zeta_j, core_charge, &
-                                    (/0.0_dp, 0.0_dp, 0.0_dp/), 0.0_dp, rab, rab2, rab2, &
+                                    [0.0_dp, 0.0_dp, 0.0_dp], 0.0_dp, rab, rab2, rab2, &
                                     hab(:, :, nij), verf, vnuc, ff(0:))
                               END IF
                            END DO
@@ -1075,7 +1075,7 @@ CONTAINS
       CALL atom_solve_cneo(fmat, f, utrans, wfn, ener, pmat, r, distance, nsgf, nne)
       ! test if zero initial guess is better
       IF (SQRT(DOT_PRODUCT(r, r)) > 1.e-12_dp .AND. DOT_PRODUCT(f, f) /= 0.0_dp) THEN
-         CALL atom_solve_cneo(fmat, (/0.0_dp, 0.0_dp, 0.0_dp/), utrans, wfn, &
+         CALL atom_solve_cneo(fmat, [0.0_dp, 0.0_dp, 0.0_dp], utrans, wfn, &
                               ener, pmat, r_tmp, distance, nsgf, nne)
          IF (DOT_PRODUCT(r_tmp, r_tmp) < DOT_PRODUCT(r, r)) THEN
             f = 0.0_dp
@@ -1117,7 +1117,7 @@ CONTAINS
             END IF
             CALL invert_matrix_3x3(jac, jac_inv, det, try_svd=.TRUE.)
          END IF
-         df = -RESHAPE(MATMUL(jac_inv, RESHAPE(r, (/3, 1/))), (/3/))
+         df = -RESHAPE(MATMUL(jac_inv, RESHAPE(r, [3, 1])), [3])
          df_norm = SQRT(DOT_PRODUCT(df, df))
          f_tmp = f
          r_tmp = r
@@ -1199,7 +1199,7 @@ CONTAINS
 
             CALL get_none0_cg_list(my_CG, lmin(iset1), lmax(iset1), lmin(iset2), lmax(iset2), &
                                    max_s_harm, lmax_expansion, cg_list, cg_n_list, max_iso_not0_local)
-            CPASSERT(max_iso_not0_local .LE. max_iso_not0)
+            CPASSERT(max_iso_not0_local <= max_iso_not0)
 
             n2s = nsoset(lmax(iset2))
             DO ipgf1 = 1, npgf(iset1)

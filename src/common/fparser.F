@@ -58,27 +58,27 @@ MODULE fparser
                              cErf = 22, &
                              cErfc = 23, &
                              VarBegin = 24
-   CHARACTER(LEN=1), DIMENSION(cAdd:cPow), PARAMETER :: Ops = (/'+', &
-                                                                '-', &
-                                                                '*', &
-                                                                '/', &
-                                                                '^'/)
-   CHARACTER(LEN=5), DIMENSION(cAbs:cErfc), PARAMETER :: Funcs = (/'abs  ', &
-                                                                   'exp  ', &
-                                                                   'log10', &
-                                                                   'log  ', &
-                                                                   'sqrt ', &
-                                                                   'sinh ', &
-                                                                   'cosh ', &
-                                                                   'tanh ', &
-                                                                   'sin  ', &
-                                                                   'cos  ', &
-                                                                   'tan  ', &
-                                                                   'asin ', &
-                                                                   'acos ', &
-                                                                   'atan ', &
-                                                                   'erf  ', &
-                                                                   'erfc '/)
+   CHARACTER(LEN=1), DIMENSION(cAdd:cPow), PARAMETER :: Ops = ['+', &
+                                                               '-', &
+                                                               '*', &
+                                                               '/', &
+                                                               '^']
+   CHARACTER(LEN=5), DIMENSION(cAbs:cErfc), PARAMETER :: Funcs = ['abs  ', &
+                                                                  'exp  ', &
+                                                                  'log10', &
+                                                                  'log  ', &
+                                                                  'sqrt ', &
+                                                                  'sinh ', &
+                                                                  'cosh ', &
+                                                                  'tanh ', &
+                                                                  'sin  ', &
+                                                                  'cos  ', &
+                                                                  'tan  ', &
+                                                                  'asin ', &
+                                                                  'acos ', &
+                                                                  'atan ', &
+                                                                  'erf  ', &
+                                                                  'erfc ']
 ! **************************************************************************************************
    TYPE tComp
       INTEGER(is), DIMENSION(:), POINTER :: ByteCode => NULL()
@@ -307,13 +307,13 @@ CONTAINS
             r = RealNum(Func(j:), ib, in, err)
             IF (err) CALL ParseErrMsg(j, FuncStr, 'Invalid number format:  '//Func(j + ib - 1:j + in - 2))
             j = j + in - 1
-            IF (j > lFunc) EXIT
+            IF (j > lFunc) EXIT step
             c = Func(j:j)
          ELSE ! Check for variable
             n = VariableIndex(Func(j:), Var, ib, in)
             IF (n == 0) CALL ParseErrMsg(j, FuncStr, 'Invalid element: '//Func(j + ib - 1:j + in - 2))
             j = j + in - 1
-            IF (j > lFunc) EXIT
+            IF (j > lFunc) EXIT step
             c = Func(j:j)
          END IF
          DO WHILE (c == ')') ! Check for closing parenthesis
@@ -327,7 +327,7 @@ CONTAINS
          !-- -------- --------- --------- --------- --------- --------- --------- -------
          ! Now, we have a legal operand: A legal operator or end of string must follow
          !-- -------- --------- --------- --------- --------- --------- --------- -------
-         IF (j > lFunc) EXIT
+         IF (j > lFunc) EXIT step
          IF (ANY(c == Ops)) THEN ! Check for multiple operators
             IF (j + 1 > lFunc) CALL ParseErrMsg(j, FuncStr)
             IF (ANY(Func(j + 1:j + 1) == Ops)) CALL ParseErrMsg(j + 1, FuncStr, 'Multiple operators')
@@ -351,9 +351,9 @@ CONTAINS
       !----- -------- --------- --------- --------- --------- --------- --------- -------
       ! Return error message
       !----- -------- --------- --------- --------- --------- --------- --------- -------
-      CHARACTER(LEN=*), DIMENSION(4), PARAMETER :: m = (/'Division by zero                ', &
+      CHARACTER(LEN=*), DIMENSION(4), PARAMETER :: m = ['Division by zero                ', &
          'Argument of SQRT negative       ', 'Argument of LOG negative        ', &
-         'Argument of ASIN or ACOS illegal'/)
+         'Argument of ASIN or ACOS illegal']
       CHARACTER(LEN=LEN(m))                              :: msg
 
 !----- -------- --------- --------- --------- --------- --------- --------- -------
@@ -514,12 +514,12 @@ CONTAINS
 !----- -------- --------- --------- --------- --------- --------- --------- -------
 
       lstr = LEN_TRIM(str)
-      ipos(:) = (/(k, k=1, lstr)/)
+      ipos(:) = [(k, k=1, lstr)]
       k = 1
       DO WHILE (str(k:lstr) /= ' ')
          IF (str(k:k) == ' ') THEN
             str(k:lstr) = str(k + 1:lstr)//' ' ! Move 1 character to left
-            ipos(k:lstr) = (/ipos(k + 1:lstr), 0/) ! Move 1 element to left
+            ipos(k:lstr) = [ipos(k + 1:lstr), 0] ! Move 1 element to left
             k = k - 1
          END IF
          k = k + 1
@@ -1009,12 +1009,12 @@ CONTAINS
                a(j, i) = (a(j - 1, i)*fac - a(j - 1, i - 1))/(fac - 1.0_rn)
                fac = con2*fac
                errt = MAX(ABS(a(j, i) - a(j - 1, i)), ABS(a(j, i) - a(j - 1, i - 1)))
-               IF (errt .LE. err) THEN
+               IF (errt <= err) THEN
                   err = errt
                   derivative = a(j, i)
                END IF
             END DO
-            IF (ABS(a(i, i) - a(i - 1, i - 1)) .GE. safe*err) RETURN
+            IF (ABS(a(i, i) - a(i - 1, i - 1)) >= safe*err) RETURN
          END DO
       ELSE
          CPABORT("DX provided equals zero!")

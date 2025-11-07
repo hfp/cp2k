@@ -53,7 +53,7 @@ MODULE dbt_test
       #:for ndim in ndims
          MODULE PROCEDURE dist_sparse_tensor_to_repl_dense_${ndim}$d_array
       #:endfor
-   END INTERFACE
+   END INTERFACE dist_sparse_tensor_to_repl_dense_array
 
    INTEGER, SAVE :: randmat_counter = 0
    INTEGER, PARAMETER, PRIVATE :: rand_seed_init = 12341313
@@ -104,7 +104,7 @@ CONTAINS
 !$OMP END PARALLEL
 
       CALL dbt_destroy(tensor2_tmp)
-   END FUNCTION
+   END FUNCTION dbt_equal
 
 ! **************************************************************************************************
 !> \brief check if two blocks are equal
@@ -114,9 +114,9 @@ CONTAINS
       TYPE(block_nd), INTENT(IN) :: block1, block2
       LOGICAL                    :: blocks_equal
 
-      blocks_equal = MAXVAL(ABS(block1%blk - block2%blk)) .LT. 1.0E-12_dp
+      blocks_equal = MAXVAL(ABS(block1%blk - block2%blk)) < 1.0E-12_dp
 
-   END FUNCTION
+   END FUNCTION blocks_equal
 
 ! **************************************************************************************************
 !> \brief Compute factorial
@@ -126,8 +126,8 @@ CONTAINS
       INTEGER, INTENT(IN) :: n
       INTEGER             :: k
       INTEGER             :: factorial
-      factorial = PRODUCT((/(k, k=1, n)/))
-   END FUNCTION
+      factorial = PRODUCT([(k, k=1, n)])
+   END FUNCTION factorial
 
 ! **************************************************************************************************
 !> \brief Compute all permutations p of (1, 2, ..., n)
@@ -160,8 +160,8 @@ CONTAINS
                pp(j) = t
             END DO
          END IF
-      END SUBROUTINE
-   END SUBROUTINE
+      END SUBROUTINE perm
+   END SUBROUTINE permute
 
 ! **************************************************************************************************
 !> \brief Test equivalence of all tensor formats, using a random distribution.
@@ -203,7 +203,7 @@ CONTAINS
       mynode = mp_comm%mepos
 
       io_unit = 0
-      IF (mynode .EQ. 0) io_unit = unit_nr
+      IF (mynode == 0) io_unit = unit_nr
 
       CALL permute(ndims, perm)
       ALLOCATE (map1_ref, source=perm(1:ndims/2, 1))
@@ -356,7 +356,7 @@ CONTAINS
          END DO
       END DO
       CALL dbt_pgrid_destroy(comm_nd)
-   END SUBROUTINE
+   END SUBROUTINE dbt_test_formats
 
 ! **************************************************************************************************
 !> \brief Allocate and fill test tensor - entries are enumerated by their index s.t. they only depend
@@ -389,7 +389,7 @@ CONTAINS
       mynode = mp_comm%mepos
 
       IF (.NOT. enumerate) THEN
-         CPASSERT(randmat_counter .NE. 0)
+         CPASSERT(randmat_counter /= 0)
 
          randmat_counter = randmat_counter + 1
       END IF
@@ -473,7 +473,7 @@ CONTAINS
       CALL dbt_iterator_stop(iterator)
 !$OMP END PARALLEL
 
-   END SUBROUTINE
+   END SUBROUTINE dbt_setup_test_tensor
 
 ! **************************************************************************************************
 !> \brief Enumerate tensor entries in block
@@ -510,7 +510,7 @@ CONTAINS
                END IF
             #:endfor
 
-         END SUBROUTINE
+         END SUBROUTINE enumerate_block_elements
 
          #:for ndim in ndims
 ! **************************************************************************************************
@@ -530,7 +530,7 @@ CONTAINS
                INTEGER, DIMENSION(ndims_tensor(tensor))                   :: blk_start, blk_end
                LOGICAL                                                    :: found
 
-               CPASSERT(ndims_tensor(tensor) .EQ. ${ndim}$)
+               CPASSERT(ndims_tensor(tensor) == ${ndim}$)
                CALL dbt_get_info(tensor, nfull_total=dims_nd)
                CALL allocate_any(array, shape_spec=dims_nd)
                array(${shape_colon(ndim)}$) = 0.0_dp
@@ -556,7 +556,7 @@ CONTAINS
 !$OMP END PARALLEL
                CALL tensor%pgrid%mp_comm_2d%sum(array)
 
-            END SUBROUTINE
+            END SUBROUTINE dist_sparse_tensor_to_repl_dense_${ndim}$d_array
          #:endfor
 
 ! **************************************************************************************************
@@ -620,7 +620,7 @@ CONTAINS
             mp_comm = tensor_1%pgrid%mp_comm_2d
             mynode = mp_comm%mepos
             io_unit = -1
-            IF (mynode .EQ. 0) io_unit = unit_nr
+            IF (mynode == 0) io_unit = unit_nr
 
             cs_1 = dbt_checksum(tensor_1)
             cs_2 = dbt_checksum(tensor_2)
@@ -762,9 +762,9 @@ CONTAINS
             END ASSOCIATE
 
             eql_diff = MAXVAL(ABS(array_3_test_mm(:, :) - array_3_mm(:, :)))
-            notzero = MAXVAL(ABS(array_3_test_mm(:, :))) .GT. 1.0E-12_dp
+            notzero = MAXVAL(ABS(array_3_test_mm(:, :))) > 1.0E-12_dp
 
-            eql = eql_diff .LT. 1.0E-11_dp
+            eql = eql_diff < 1.0E-11_dp
 
             IF (.NOT. eql .OR. .NOT. notzero) THEN
                IF (io_unit > 0) WRITE (io_unit, *) 'Test failed!', eql_diff
@@ -773,7 +773,7 @@ CONTAINS
                IF (io_unit > 0) WRITE (io_unit, *) 'Test passed!', eql_diff
             END IF
 
-         END SUBROUTINE
+         END SUBROUTINE dbt_contract_test
 
 ! **************************************************************************************************
 !> \brief mapped sizes in 2d
@@ -784,7 +784,7 @@ CONTAINS
             INTEGER, DIMENSION(2)             :: sizes_2d
             sizes_2d(1) = PRODUCT(nd_sizes(map1))
             sizes_2d(2) = PRODUCT(nd_sizes(map2))
-         END FUNCTION
+         END FUNCTION sizes_2d
 
 ! **************************************************************************************************
 !> \brief checksum of a tensor consistent with block_checksum
@@ -794,7 +794,7 @@ CONTAINS
             TYPE(dbt_type), INTENT(IN) :: tensor
             REAL(KIND=dp) :: dbt_checksum
             dbt_checksum = dbt_tas_checksum(tensor%matrix_rep)
-         END FUNCTION
+         END FUNCTION dbt_checksum
 
 ! **************************************************************************************************
 !> \brief Reset the seed used for generating random matrices to default value
@@ -802,6 +802,6 @@ CONTAINS
 ! **************************************************************************************************
          SUBROUTINE dbt_reset_randmat_seed()
             randmat_counter = rand_seed_init
-         END SUBROUTINE
+         END SUBROUTINE dbt_reset_randmat_seed
 
-      END MODULE
+      END MODULE dbt_test

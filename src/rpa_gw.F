@@ -1828,12 +1828,12 @@ CONTAINS
          DO j_col = 1, ncol_local
             i_glob = row_indices(i_row)
             j_glob = col_indices(j_col)
-            IF (i_glob .LE. nao) THEN
+            IF (i_glob <= nao) THEN
                E_i = Eigenval(i_glob, ikp, 1)
             ELSE
                E_i = Eigenval(i_glob - nao, ikp, 1)
             END IF
-            IF (j_glob .LE. nao) THEN
+            IF (j_glob <= nao) THEN
                E_j = Eigenval(j_glob, ikp, 1)
             ELSE
                E_j = Eigenval(j_glob - nao, ikp, 1)
@@ -2023,7 +2023,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE add_dbcsr_submatrix
 
 ! **************************************************************************************************
 !> \brief ...
@@ -2109,7 +2109,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE create_cfm_double_row_col_size
 
 ! **************************************************************************************************
 !> \brief ...
@@ -2184,7 +2184,7 @@ CONTAINS
       DO k = 1, SIZE(array, 3)
 
          ! check for NaN
-         IF (array(i, j, k) .NE. array(i, j, k)) array(i, j, k) = real_value
+         IF (array(i, j, k) /= array(i, j, k)) array(i, j, k) = real_value
 
       END DO
       END DO
@@ -2192,7 +2192,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE check_NaN
 
 ! **************************************************************************************************
 !> \brief ...
@@ -3419,7 +3419,7 @@ CONTAINS
                         m_level = i_row + row_offset - 1
 
                         ! we only compute the correction for n=m
-                        IF (m_level .NE. n_level_gw) CYCLE
+                        IF (m_level /= n_level_gw) CYCLE
 
                         IF (.NOT. do_extra_kpoints) THEN
 
@@ -3472,7 +3472,7 @@ CONTAINS
                         contribution = weight*(eps_inv_head(ikp) - 1.0_dp)/abs_k_square*(data_block(i_row, i_col))**2
 
                         ! we only compute the correction for n=m
-                        IF (m_level .NE. n_level_gw) CYCLE
+                        IF (m_level /= n_level_gw) CYCLE
 
                         IF (.NOT. do_extra_kpoints) THEN
 
@@ -6709,7 +6709,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE contract_cubic_gw
 
 ! **************************************************************************************************
 !> \brief ...
@@ -6779,9 +6779,9 @@ CONTAINS
          trace_shape(1) = SIZE(block_1, 1)*SIZE(block_1, 2)
          vec_Sigma_prv(n_start:n_end) = &
             vec_Sigma_prv(n_start:n_end) + &
-            (/(DOT_PRODUCT(RESHAPE(block_1(:, :, n), trace_shape), &
-                           RESHAPE(block_2(:, :, n), trace_shape)), &
-               n=n_start_block, n_end_block)/)
+            [(DOT_PRODUCT(RESHAPE(block_1(:, :, n), trace_shape), &
+                          RESHAPE(block_2(:, :, n), trace_shape)), &
+              n=n_start_block, n_end_block)]
          DEALLOCATE (block_1, block_2)
       END DO
       CALL dbt_iterator_stop(iter)
@@ -6796,7 +6796,7 @@ CONTAINS
          vec_Sigma(mo_bounds_off(1):mo_bounds_off(2)) + vec_Sigma_prv
 
       CALL timestop(handle)
-   END SUBROUTINE
+   END SUBROUTINE trace_sigma_gw
 
 ! **************************************************************************************************
 !> \brief ...

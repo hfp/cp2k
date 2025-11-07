@@ -35,16 +35,16 @@ CONTAINS
       INTEGER, INTENT(out)                               :: n_next
 
       INTEGER, PARAMETER                                 :: ndata = 149, ndata1024 = 149
-      INTEGER, DIMENSION(ndata), PARAMETER :: idata = (/3, 4, 5, 6, 8, 9, 12, 15, 16, 18, 20, 24, &
-         25, 27, 30, 32, 36, 40, 45, 48, 54, 60, 64, 72, 75, 80, 81, 90, 96, 100, 108, 120, 125, &
-         128, 135, 144, 150, 160, 162, 180, 192, 200, 216, 225, 240, 243, 256, 270, 288, 300, 320, &
-         324, 360, 375, 384, 400, 405, 432, 450, 480, 486, 500, 512, 540, 576, 600, 625, 640, 648, &
-         675, 720, 729, 750, 768, 800, 810, 864, 900, 960, 972, 1000, 1024, 1080, 1125, 1152, 1200,&
-         1215, 1280, 1296, 1350, 1440, 1458, 1500, 1536, 1600, 1620, 1728, 1800, 1875, 1920, 1944, &
-         2000, 2025, 2048, 2160, 2250, 2304, 2400, 2430, 2500, 2560, 2592, 2700, 2880, 3000, 3072, &
-         3125, 3200, 3240, 3375, 3456, 3600, 3750, 3840, 3888, 4000, 4050, 4096, 4320, 4500, 4608, &
-         4800, 5000, 5120, 5184, 5400, 5625, 5760, 6000, 6144, 6400, 6480, 6750, 6912, 7200, 7500, &
-         7680, 8000, ctrig_length/)
+      INTEGER, DIMENSION(ndata), PARAMETER :: idata = [3, 4, 5, 6, 8, 9, 12, 15, 16, 18, 20, 24, 25&
+         , 27, 30, 32, 36, 40, 45, 48, 54, 60, 64, 72, 75, 80, 81, 90, 96, 100, 108, 120, 125, 128,&
+         135, 144, 150, 160, 162, 180, 192, 200, 216, 225, 240, 243, 256, 270, 288, 300, 320, 324, &
+         360, 375, 384, 400, 405, 432, 450, 480, 486, 500, 512, 540, 576, 600, 625, 640, 648, 675, &
+         720, 729, 750, 768, 800, 810, 864, 900, 960, 972, 1000, 1024, 1080, 1125, 1152, 1200, 1215&
+         , 1280, 1296, 1350, 1440, 1458, 1500, 1536, 1600, 1620, 1728, 1800, 1875, 1920, 1944, 2000&
+         , 2025, 2048, 2160, 2250, 2304, 2400, 2430, 2500, 2560, 2592, 2700, 2880, 3000, 3072, 3125&
+         , 3200, 3240, 3375, 3456, 3600, 3750, 3840, 3888, 4000, 4050, 4096, 4320, 4500, 4608, 4800&
+         , 5000, 5120, 5184, 5400, 5625, 5760, 6000, 6144, 6400, 6480, 6750, 6912, 7200, 7500, 7680&
+         , 8000, ctrig_length]
 
       INTEGER                                            :: i
 
@@ -205,11 +205,11 @@ CONTAINS
             WRITE (*, 37) (idata(1, j), j=1, 149)
             CPABORT("")
          END IF
-         IF (n .EQ. idata(1, i)) THEN
+         IF (n == idata(1, i)) THEN
             ic = 0
             DO j = 1, 6
                itt = idata(1 + j, i)
-               IF (itt .GT. 1) THEN
+               IF (itt > 1) THEN
                   ic = ic + 1
                   now(j) = idata(1 + j, i)
                ELSE
@@ -229,7 +229,7 @@ CONTAINS
 
       twopi = 6.283185307179586_dp
       angle = isign*twopi/n
-      IF (MOD(n, 2) .EQ. 0) THEN
+      IF (MOD(n, 2) == 0) THEN
          nh = n/2
          trig(1, 1) = 1._dp
          trig(2, 1) = 0._dp
@@ -301,7 +301,7 @@ CONTAINS
 
 !         sqrt(.5_dp)
                   rt2i = 0.7071067811865475_dp
-                  IF (now .EQ. 2) THEN
+                  IF (now == 2) THEN
                      ia = 1
                      nin1 = ia - after
                      nout1 = ia - atn
@@ -322,8 +322,8 @@ CONTAINS
                         END DO; END DO
                      DO 2000, ia = 2, after
                         ias = ia - 1
-                        IF (2*ias .EQ. after) THEN
-                           IF (isign .EQ. 1) THEN
+                        IF (2*ias == after) THEN
+                           IF (isign == 1) THEN
                               nin1 = ia - after
                               nout1 = ia - atn
                               DO ib = 1, before
@@ -360,8 +360,8 @@ CONTAINS
                                     zout(2, j, nout2) = s2 + s1
                                  END DO; END DO
                            END IF
-                        ELSE IF (4*ias .EQ. after) THEN
-                           IF (isign .EQ. 1) THEN
+                        ELSE IF (4*ias == after) THEN
+                           IF (isign == 1) THEN
                               nin1 = ia - after
                               nout1 = ia - atn
                               DO ib = 1, before
@@ -402,8 +402,8 @@ CONTAINS
                                     zout(2, j, nout2) = s1 - s2
                                  END DO; END DO
                            END IF
-                        ELSE IF (4*ias .EQ. 3*after) THEN
-                           IF (isign .EQ. 1) THEN
+                        ELSE IF (4*ias == 3*after) THEN
+                           IF (isign == 1) THEN
                               nin1 = ia - after
                               nout1 = ia - atn
                               DO ib = 1, before
@@ -469,8 +469,8 @@ CONTAINS
                               END DO; END DO
                         END IF
 2000                    CONTINUE
-                        ELSE IF (now .EQ. 4) THEN
-                        IF (isign .EQ. 1) THEN
+                        ELSE IF (now == 4) THEN
+                        IF (isign == 1) THEN
                            ia = 1
                            nin1 = ia - after
                            nout1 = ia - atn
@@ -511,7 +511,7 @@ CONTAINS
                               END DO; END DO
                            DO 4000, ia = 2, after
                               ias = ia - 1
-                              IF (2*ias .EQ. after) THEN
+                              IF (2*ias == after) THEN
                                  nin1 = ia - after
                                  nout1 = ia - atn
                                  DO ib = 1, before
@@ -650,7 +650,7 @@ CONTAINS
                                  END DO; END DO
                               DO 4100, ia = 2, after
                                  ias = ia - 1
-                                 IF (2*ias .EQ. after) THEN
+                                 IF (2*ias == after) THEN
                                     nin1 = ia - after
                                     nout1 = ia - atn
                                     DO ib = 1, before
@@ -749,8 +749,8 @@ CONTAINS
                                  END IF
 4100                             CONTINUE
                                  END IF
-                                 ELSE IF (now .EQ. 8) THEN
-                                 IF (isign .EQ. -1) THEN
+                                 ELSE IF (now == 8) THEN
+                                 IF (isign == -1) THEN
                                     ia = 1
                                     nin1 = ia - after
                                     nout1 = ia - atn
@@ -1192,7 +1192,7 @@ CONTAINS
 8001                                      CONTINUE
 
                                           END IF
-                                          ELSE IF (now .EQ. 3) THEN
+                                          ELSE IF (now == 3) THEN
 !         .5_dp*sqrt(3._dp)
                                           bb = isign*0.8660254037844387_dp
                                           ia = 1
@@ -1227,8 +1227,8 @@ CONTAINS
                                              END DO; END DO
                                           DO 3000, ia = 2, after
                                              ias = ia - 1
-                                             IF (4*ias .EQ. 3*after) THEN
-                                             IF (isign .EQ. 1) THEN
+                                             IF (4*ias == 3*after) THEN
+                                             IF (isign == 1) THEN
                                                 nin1 = ia - after
                                                 nout1 = ia - atn
                                                 DO ib = 1, before
@@ -1289,8 +1289,8 @@ CONTAINS
                                                       zout(2, j, nout3) = s1 - r2
                                                    END DO; END DO
                                              END IF
-                                             ELSE IF (8*ias .EQ. 3*after) THEN
-                                             IF (isign .EQ. 1) THEN
+                                             ELSE IF (8*ias == 3*after) THEN
+                                             IF (isign == 1) THEN
                                                 nin1 = ia - after
                                                 nout1 = ia - atn
                                                 DO ib = 1, before
@@ -1398,7 +1398,7 @@ CONTAINS
                                                 END DO; END DO
                                              END IF
 3000                                         CONTINUE
-                                             ELSE IF (now .EQ. 5) THEN
+                                             ELSE IF (now == 5) THEN
 !         cos(2._dp*pi/5._dp)
                                              cos2 = 0.3090169943749474_dp
 !         cos(4._dp*pi/5._dp)
@@ -1461,8 +1461,8 @@ CONTAINS
                                                 END DO; END DO
                                              DO 5000, ia = 2, after
                                                 ias = ia - 1
-                                                IF (8*ias .EQ. 5*after) THEN
-                                                   IF (isign .EQ. 1) THEN
+                                                IF (8*ias == 5*after) THEN
+                                                   IF (isign == 1) THEN
                                                       nin1 = ia - after
                                                       nout1 = ia - atn
                                                       DO ib = 1, before
@@ -1651,7 +1651,7 @@ CONTAINS
                                                       END DO; END DO
                                                 END IF
 5000                                            CONTINUE
-                                                ELSE IF (now .EQ. 6) THEN
+                                                ELSE IF (now == 6) THEN
 !         .5_dp*sqrt(3._dp)
                                                 bb = isign*0.8660254037844387_dp
 

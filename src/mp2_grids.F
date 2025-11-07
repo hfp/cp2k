@@ -145,7 +145,7 @@ CONTAINS
             ALLOCATE (x_tw(2*num_integ_points))
             x_tw = 0.0_dp
             ierr = 0
-            IF (num_integ_points .LE. 20) THEN
+            IF (num_integ_points <= 20) THEN
                CALL get_rpa_minimax_coeff(num_integ_points, e_range, x_tw, ierr)
             ELSE
                CALL get_rpa_minimax_coeff_larger_grid(num_integ_points, e_range, x_tw)
@@ -194,7 +194,7 @@ CONTAINS
             ALLOCATE (x_tw(2*num_integ_points))
             x_tw = 0.0_dp
 
-            IF (num_integ_points .LE. 20) THEN
+            IF (num_integ_points <= 20) THEN
                CALL get_exp_minimax_coeff(num_integ_points, e_range, x_tw)
             ELSE
                CALL get_exp_minimax_coeff_gw(num_integ_points, e_range, x_tw)
@@ -1507,7 +1507,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE gap_and_max_eig_diff_kpoints
 
 ! **************************************************************************************************
 !> \brief returns minimal and maximal energy values for the E_range for the minimax grid selection
@@ -1585,6 +1585,6 @@ CONTAINS
       END IF
 
       CALL timestop(handle)
-   END SUBROUTINE
+   END SUBROUTINE determine_energy_range
 
 END MODULE mp2_grids

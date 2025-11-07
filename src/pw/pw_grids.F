@@ -879,7 +879,7 @@ CONTAINS
             END IF
          END IF
          ! reset if the distribution can not be fulfilled
-         IF (PRODUCT(my_rs_dims) .NE. np) my_rs_dims = [0, 0]
+         IF (PRODUCT(my_rs_dims) /= np) my_rs_dims = [0, 0]
          ! reset if the distribution can not be dealt with [1,np]
          IF (ALL(my_rs_dims == [1, np])) my_rs_dims = [0, 0]
 
@@ -1151,7 +1151,7 @@ CONTAINS
 
       ! pos_of_x(i) tells on which cpu pw%array(i,:,:) is located
       ! should be computable in principle, without the need for communication
-      IF (pw_grid%para%mode .EQ. PW_MODE_DISTRIBUTED) THEN
+      IF (pw_grid%para%mode == PW_MODE_DISTRIBUTED) THEN
          ALLOCATE (pw_grid%para%pos_of_x(pw_grid%bounds(1, 1):pw_grid%bounds(2, 1)))
          pw_grid%para%pos_of_x = 0
          pw_grid%para%pos_of_x(pw_grid%bounds_local(1, 1):pw_grid%bounds_local(2, 1)) = pw_grid%para%group%mepos
@@ -1354,7 +1354,7 @@ CONTAINS
 
       length = length_x**2 + length_y**2 + length_z**2
 
-   END SUBROUTINE
+   END SUBROUTINE pw_vec_length
 
 ! **************************************************************************************************
 !> \brief Count total number of g vectors
@@ -1717,7 +1717,7 @@ CONTAINS
       length = INT(int_size*MAX(ng, 1)*MAX(nmaps, 1), KIND=C_SIZE_T)
       stat = offload_malloc_pinned_mem(cptr_g_hatmap, length)
       CPASSERT(stat == 0)
-      CALL c_f_pointer(cptr_g_hatmap, pw_grid%g_hatmap, (/MAX(ng, 1), MAX(nmaps, 1)/))
+      CALL c_f_pointer(cptr_g_hatmap, pw_grid%g_hatmap, [MAX(ng, 1), MAX(nmaps, 1)])
 #else
       ALLOCATE (pw_grid%g_hatmap(1, 1))
 #endif

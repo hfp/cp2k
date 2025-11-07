@@ -129,7 +129,7 @@ CONTAINS
       ALLOCATE (blacs_env)
       CALL blacs_env%create(para_env, blacs_grid_layout, blacs_repeatable, row_major, grid_2d)
 
-   END SUBROUTINE
+   END SUBROUTINE cp_blacs_env_create
 
 ! **************************************************************************************************
 !> \brief allocates and initializes a type that represent a blacs context
@@ -172,7 +172,7 @@ CONTAINS
          npcol = grid_2d(2)
       END IF
 
-      IF (nprow*npcol .NE. npe) THEN
+      IF (nprow*npcol /= npe) THEN
          ! hard code for the time being the grid layout
          my_blacs_grid_layout = BLACS_GRID_SQUARE
          IF (PRESENT(blacs_grid_layout)) my_blacs_grid_layout = blacs_grid_layout
@@ -184,7 +184,7 @@ CONTAINS
             gcd_max = -1
             DO ipe = 1, CEILING(SQRT(REAL(npe, dp)))
                jpe = npe/ipe
-               IF (ipe*jpe .NE. npe) CYCLE
+               IF (ipe*jpe /= npe) CYCLE
                IF (gcd(ipe, jpe) >= gcd_max) THEN
                   nprow = ipe
                   npcol = jpe

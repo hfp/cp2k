@@ -105,7 +105,7 @@ CONTAINS
       TYPE(global_environment_type), POINTER             :: globenv
 
       CHARACTER(len=*), PARAMETER                        :: routineN = 'vb_anal'
-      CHARACTER(LEN=1), DIMENSION(3), PARAMETER          :: lab = (/"X", "Y", "Z"/)
+      CHARACTER(LEN=1), DIMENSION(3), PARAMETER          :: lab = ["X", "Y", "Z"]
 
       CHARACTER(LEN=default_string_length)               :: description_d, description_p
       INTEGER :: handle, i, icoord, icoordm, icoordp, ierr, imap, iounit, ip1, ip2, iparticle1, &
@@ -197,7 +197,7 @@ CONTAINS
             CALL f_env_rm_defaults(f_env, ierr)
          ELSE
             CALL get_moving_atoms(force_env=f_env%force_env, Ilist=Mlist)
-            something_frozen = SIZE(particles) .NE. SIZE(Mlist)
+            something_frozen = SIZE(particles) /= SIZE(Mlist)
             natoms = SIZE(Mlist)
             ncoord = natoms*3
             ALLOCATE (Clist(ncoord))
@@ -1141,7 +1141,7 @@ CONTAINS
       INTEGER                                            :: handle, jj
 
       CALL timeset(routineN, handle)
-      IF (unit .GT. 0) THEN
+      IF (unit > 0) THEN
          ! degrees of freedom, i.e. the rank
          WRITE (unit) dof
          ! eigenvalues in one record

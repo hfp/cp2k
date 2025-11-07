@@ -352,7 +352,7 @@ CONTAINS
       ngroup = para_env%num_pe/para_env_sub%num_pe
 
       ! Preparations for MME method to compute ERIs
-      IF (qs_env%mp2_env%eri_method .EQ. do_eri_mme) THEN
+      IF (qs_env%mp2_env%eri_method == do_eri_mme) THEN
          ! cell might have changed, so we need to reset parameters
          CALL cp_eri_mme_set_params(eri_param, cell, qs_kind_set, basis_type_1="ORB", basis_type_2="RI_AUX", para_env=para_env)
       END IF
@@ -973,11 +973,11 @@ CONTAINS
          ! local block index for R/P and a
          loc_P = igroup + 1; loc_a = iproc + 1
 
-         CPASSERT(SIZE(sizes_L) .EQ. ngroup)
-         CPASSERT(SIZE(sizes_B) .EQ. nproc)
-         CPASSERT(sizes_L(loc_P) .EQ. SIZE(BIb_C, 1))
-         CPASSERT(sizes_L(loc_P) .EQ. SIZE(my_Lrows, 2))
-         CPASSERT(sizes_B(loc_a) .EQ. SIZE(BIb_C, 2))
+         CPASSERT(SIZE(sizes_L) == ngroup)
+         CPASSERT(SIZE(sizes_B) == nproc)
+         CPASSERT(sizes_L(loc_P) == SIZE(BIb_C, 1))
+         CPASSERT(sizes_L(loc_P) == SIZE(my_Lrows, 2))
+         CPASSERT(sizes_B(loc_a) == SIZE(BIb_C, 2))
 
          ! Tensor distributions as follows:
          ! Process grid NG x Nw
@@ -1005,9 +1005,9 @@ CONTAINS
 
          ! setup distribution vectors such that distribution matches parallel data layout of BIb_C and my_Lrows
          dist_B_i = [0]
-         dist_B_a = (/(i, i=0, nproc - 1)/)
-         dist_L_R = (/(MODULO(i, nproc), i=0, ngroup - 1)/) ! R index is replicated in my_Lrows, we impose a cyclic distribution
-         dist_L_P = (/(i, i=0, ngroup - 1)/)
+         dist_B_a = [(i, i=0, nproc - 1)]
+         dist_L_R = [(MODULO(i, nproc), i=0, ngroup - 1)] ! R index is replicated in my_Lrows, we impose a cyclic distribution
+         dist_L_P = [(i, i=0, ngroup - 1)]
 
          ! create distributions and tensors
          CALL dbt_distribution_new(dist_B, mp_comm_B, dist_L_P, dist_B_a, dist_B_i)
@@ -1020,7 +1020,7 @@ CONTAINS
          IF (debug) THEN
             ! check that tensor distribution is correct
             CALL dbt_get_stored_coordinates(tB_in, [loc_P, loc_a, 1], check_proc)
-            CPASSERT(check_proc .EQ. iproc_glob)
+            CPASSERT(check_proc == iproc_glob)
          END IF
 
          ! reserve (R|ai) block
@@ -1238,7 +1238,7 @@ CONTAINS
       CALL cp_fm_release(intermed_mat%fm_BIb_jb)
       DEALLOCATE (intermed_mat%local_col_row_info)
 
-   END SUBROUTINE
+   END SUBROUTINE release_intermediate_matrices
 
 ! **************************************************************************************************
 !> \brief ...

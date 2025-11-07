@@ -42,32 +42,32 @@ MODULE hfx_load_balance_methods
 
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'hfx_load_balance_methods'
 
-   REAL(KIND=dp), PARAMETER :: p1_energy(12) = (/2.9461408209700424_dp, 1.0624718662999657_dp, &
-                                                 -1.91570128356921242E-002_dp, -1.6668495454436603_dp, &
-                                                 1.7512639006523709_dp, -9.76074323945336081E-002_dp, &
-                                                 2.6230786127311889_dp, -0.31870737623014189_dp, &
-                                                 7.9588203912690973_dp, 1.8331423413134813_dp, &
-                                                 -0.15427618665346299_dp, 0.19749436090711650_dp/)
-   REAL(KIND=dp), PARAMETER :: p2_energy(12) = (/2.3104682960662593_dp, 1.8744052737304417_dp, &
-                                                 -9.36564055598656797E-002_dp, 0.64284973765086939_dp, &
-                                                 1.0137565430060556_dp, -6.80088178288954567E-003_dp, &
-                                                 1.1692629207374552_dp, -2.6314710080507573_dp, &
-                                                 19.237814781880786_dp, 1.0505934173661349_dp, &
-                                                 0.80382371955699250_dp, 0.49903401991818103_dp/)
-   REAL(KIND=dp), PARAMETER :: p3_energy(2) = (/7.82336287670072350E-002_dp, 0.38073304105744837_dp/)
-   REAL(KIND=dp), PARAMETER :: p1_forces(12) = (/2.5746279948798874_dp, 1.3420575378609276_dp, &
-                                                 -9.41673106447732111E-002_dp, 0.94568006899317825_dp, &
-                                                 -1.4511897117448544_dp, 0.59178934677316952_dp, &
-                                                 2.7291149361757236_dp, -0.50555512044800210_dp, &
-                                                 8.3508180969609871_dp, 1.6829982496141809_dp, &
-                                                 -0.74895370472152600_dp, 0.43801726744197500_dp/)
-   REAL(KIND=dp), PARAMETER :: p2_forces(12) = (/2.6398568961569020_dp, 2.3024918834564101_dp, &
-                                                 5.33216585432061581E-003_dp, 0.45572145697283628_dp, &
-                                                 1.8119743851500618_dp, -0.12533918548421166_dp, &
-                                                 -1.4040312084552751_dp, -4.5331650463917859_dp, &
-                                                 12.593431549069477_dp, 1.1311978374487595_dp, &
-                                                 1.4245996087624646_dp, 1.1425350529853495_dp/)
-   REAL(KIND=dp), PARAMETER :: p3_forces(2) = (/0.12051930516830946_dp, 1.3828051586144336_dp/)
+   REAL(KIND=dp), PARAMETER :: p1_energy(12) = [2.9461408209700424_dp, 1.0624718662999657_dp, &
+                                                -1.91570128356921242E-002_dp, -1.6668495454436603_dp, &
+                                                1.7512639006523709_dp, -9.76074323945336081E-002_dp, &
+                                                2.6230786127311889_dp, -0.31870737623014189_dp, &
+                                                7.9588203912690973_dp, 1.8331423413134813_dp, &
+                                                -0.15427618665346299_dp, 0.19749436090711650_dp]
+   REAL(KIND=dp), PARAMETER :: p2_energy(12) = [2.3104682960662593_dp, 1.8744052737304417_dp, &
+                                                -9.36564055598656797E-002_dp, 0.64284973765086939_dp, &
+                                                1.0137565430060556_dp, -6.80088178288954567E-003_dp, &
+                                                1.1692629207374552_dp, -2.6314710080507573_dp, &
+                                                19.237814781880786_dp, 1.0505934173661349_dp, &
+                                                0.80382371955699250_dp, 0.49903401991818103_dp]
+   REAL(KIND=dp), PARAMETER :: p3_energy(2) = [7.82336287670072350E-002_dp, 0.38073304105744837_dp]
+   REAL(KIND=dp), PARAMETER :: p1_forces(12) = [2.5746279948798874_dp, 1.3420575378609276_dp, &
+                                                -9.41673106447732111E-002_dp, 0.94568006899317825_dp, &
+                                                -1.4511897117448544_dp, 0.59178934677316952_dp, &
+                                                2.7291149361757236_dp, -0.50555512044800210_dp, &
+                                                8.3508180969609871_dp, 1.6829982496141809_dp, &
+                                                -0.74895370472152600_dp, 0.43801726744197500_dp]
+   REAL(KIND=dp), PARAMETER :: p2_forces(12) = [2.6398568961569020_dp, 2.3024918834564101_dp, &
+                                                5.33216585432061581E-003_dp, 0.45572145697283628_dp, &
+                                                1.8119743851500618_dp, -0.12533918548421166_dp, &
+                                                -1.4040312084552751_dp, -4.5331650463917859_dp, &
+                                                12.593431549069477_dp, 1.1311978374487595_dp, &
+                                                1.4245996087624646_dp, 1.1425350529853495_dp]
+   REAL(KIND=dp), PARAMETER :: p3_forces(2) = [0.12051930516830946_dp, 1.3828051586144336_dp]
 
 !***
 
@@ -700,13 +700,13 @@ CONTAINS
          dest = MODULO(mepos + 1, ncpu)
          source = MODULO(mepos - 1, ncpu)
          DO icpu = 0, ncpu - 1
-            IF (icpu .NE. ncpu - 1) THEN
+            IF (icpu /= ncpu - 1) THEN
                CALL para_env%isendrecv(sendbuffer, dest, recbuffer, source, &
                                        req(1), req(2), 13)
             END IF
             data_from = MODULO(mepos - icpu, ncpu)
             cost_matrix(data_from*nbins*n_threads + 1:data_from*nbins*n_threads + nbins*n_threads) = sendbuffer
-            IF (icpu .NE. ncpu - 1) THEN
+            IF (icpu /= ncpu - 1) THEN
                CALL mp_waitall(req)
             END IF
             swapbuffer => sendbuffer
@@ -768,7 +768,7 @@ CONTAINS
          dest = MODULO(mepos + 1, ncpu)
          source = MODULO(mepos - 1, ncpu)
          DO icpu = 0, ncpu - 1
-            IF (icpu .NE. ncpu - 1) THEN
+            IF (icpu /= ncpu - 1) THEN
                CALL para_env%isendrecv(sendbuffer, dest, recbuffer, source, &
                                        req(1), req(2), 13)
             END IF
@@ -781,7 +781,7 @@ CONTAINS
                END DO
             END DO
 
-            IF (icpu .NE. ncpu - 1) THEN
+            IF (icpu /= ncpu - 1) THEN
                CALL mp_waitall(req)
             END IF
             swapbuffer => sendbuffer
@@ -1137,7 +1137,7 @@ CONTAINS
       a = p
       b = q
 
-      DO WHILE (b .NE. 0)
+      DO WHILE (b /= 0)
          IF (a > b) THEN
             a = a - b
          ELSE
@@ -1148,7 +1148,7 @@ CONTAINS
 
       nBins = p*q/a
 
-   END SUBROUTINE
+   END SUBROUTINE hfx_calculate_PQ
 
 ! **************************************************************************************************
 !> \brief Recursive permutation routine for the load balancing of the integral
@@ -1277,14 +1277,14 @@ CONTAINS
 
          row = (katom_block - 1)*nblocks + jatom_block
          inv_perm = 1
-         DO WHILE (permute(inv_perm) .NE. row)
+         DO WHILE (permute(inv_perm) /= row)
             inv_perm = inv_perm + 1
          END DO
          row = inv_perm
 
          col = (iatom_block - 1)*nblocks + latom_block
          inv_perm = 1
-         DO WHILE (permute(inv_perm) .NE. col)
+         DO WHILE (permute(inv_perm) /= col)
             inv_perm = inv_perm + 1
          END DO
          col = inv_perm
@@ -1321,7 +1321,7 @@ CONTAINS
 
 !       every second recursion step, compute row sum instead of column sum
 
-         IF (MODULO(step, 2) .EQ. 0) THEN
+         IF (MODULO(step, 2) == 0) THEN
             idx = row
          ELSE
             idx = col
@@ -1348,7 +1348,7 @@ CONTAINS
 
 !   calculate next prime factor of nProc
       nBins = 2
-      DO WHILE (MODULO(INT(nProc), INT(nBins)) .NE. 0)
+      DO WHILE (MODULO(INT(nProc), INT(nBins)) /= 0)
          nBins = nBins + 1
       END DO
 
@@ -1609,7 +1609,7 @@ CONTAINS
          ! sync before/after ring of isendrecv
          CALL para_env%sync()
          DO icpu = 0, ncpu - 1
-            IF (icpu .NE. ncpu - 1) THEN
+            IF (icpu /= ncpu - 1) THEN
                CALL para_env%isendrecv(sendbuffer, dest, recbuffer, source, &
                                        req(1), req(2), 13)
             END IF
@@ -1618,7 +1618,7 @@ CONTAINS
             end_idx = start_idx + bins_per_rank(data_from + 1) - 1
             cost_matrix(start_idx:end_idx) = sendbuffer(1:end_idx - start_idx + 1)
 
-            IF (icpu .NE. ncpu - 1) THEN
+            IF (icpu /= ncpu - 1) THEN
                CALL mp_waitall(req)
             END IF
             swapbuffer => sendbuffer
@@ -1667,7 +1667,7 @@ CONTAINS
          ! sync before/after ring of isendrecv
          CALL para_env%sync()
          DO icpu = 0, ncpu - 1
-            IF (icpu .NE. ncpu - 1) THEN
+            IF (icpu /= ncpu - 1) THEN
                CALL para_env%isendrecv(sendbuffer, dest, recbuffer, source, &
                                        req(1), req(2), 13)
             END IF
@@ -1680,7 +1680,7 @@ CONTAINS
                END DO
             END DO
 
-            IF (icpu .NE. ncpu - 1) THEN
+            IF (icpu /= ncpu - 1) THEN
                CALL mp_waitall(req)
             END IF
             swapbuffer => sendbuffer
@@ -2026,7 +2026,7 @@ CONTAINS
             latom = list_kl%elements(i_list_kl)%pair(2)
 
             IF (.NOT. (katom + latom <= iatom + jatom)) CYCLE
-            IF (((iatom + jatom) .EQ. (katom + latom)) .AND. (katom < iatom)) CYCLE
+            IF (((iatom + jatom) == (katom + latom)) .AND. (katom < iatom)) CYCLE
 
             IF (eval_type == hfx_do_eval_forces) THEN
                IF (.NOT. use_virial) THEN

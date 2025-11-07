@@ -120,7 +120,7 @@ CONTAINS
          END IF
 
          ! check parametrization
-         IF (TRIM(param) .NE. TRIM(ADJUSTL(id2str(pao%parameterization)))) &
+         IF (TRIM(param) /= TRIM(ADJUSTL(id2str(pao%parameterization)))) &
             CPABORT("Restart PAO parametrization does not match")
 
          ! check kinds
@@ -271,20 +271,20 @@ CONTAINS
             READ (unit_nr, fmt=*) label, natoms
             ALLOCATE (positions(natoms, 3), atom2kind(natoms), xblocks(natoms))
             positions = 0.0_dp; atom2kind = -1
-            IF (PRESENT(ml_range)) ml_range = (/1, natoms/)
+            IF (PRESENT(ml_range)) ml_range = [1, natoms]
 
          ELSE IF (TRIM(label) == "MLRange") THEN
             ! Natoms entry has to come first
             CPASSERT(natoms > 0)
             ! range of atoms whose xblocks are used for machine learning
             READ (unit_nr, fmt=*) label, i1, i2
-            IF (PRESENT(ml_range)) ml_range = (/i1, i2/)
+            IF (PRESENT(ml_range)) ml_range = [i1, i2]
 
          ELSE IF (TRIM(label) == "Atom") THEN
             READ (unit_nr, fmt=*) label, iatom, str_in, pos_in
             CPASSERT(ALLOCATED(kinds))
             DO ikind = 1, nkinds
-               IF (TRIM(kinds(ikind)%name) .EQ. TRIM(str_in)) EXIT
+               IF (TRIM(kinds(ikind)%name) == TRIM(str_in)) EXIT
             END DO
             CPASSERT(ALLOCATED(atom2kind) .AND. ALLOCATED(positions))
             atom2kind(iatom) = ikind
@@ -351,11 +351,11 @@ CONTAINS
 
       IF (pao_kind%nparams /= nparams) &
          CPABORT("Number of parameters do not match")
-      IF (TRIM(pao_kind%name) .NE. TRIM(name)) &
+      IF (TRIM(pao_kind%name) /= TRIM(name)) &
          CPABORT("Kind names do not match")
       IF (pao_kind%z /= z) &
          CPABORT("Atomic numbers do not match")
-      IF (TRIM(pao_kind%prim_basis_name) .NE. TRIM(basis_set%name)) &
+      IF (TRIM(pao_kind%prim_basis_name) /= TRIM(basis_set%name)) &
          CPABORT("Primary Basis-set name does not match")
       IF (pao_kind%prim_basis_size /= basis_set%nsgf) &
          CPABORT("Primary Basis-set size does not match")

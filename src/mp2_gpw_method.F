@@ -228,7 +228,7 @@ CONTAINS
       mem_min = HUGE(0)
       DO p = 1, ngroup
          q = ngroup/p
-         IF (p*q .NE. ngroup) CYCLE
+         IF (p*q /= ngroup) CYCLE
 
          CALL estimate_memory_usage(wfn_size, p, q, para_env_sub%num_pe, nmo, virtual(1), homo(1), calc_ex, mem_try)
 
@@ -253,7 +253,7 @@ CONTAINS
       wfn_calc_best = HUGE(wfn_calc_best)
       DO p = 1, ngroup
          q = ngroup/p
-         IF (p*q .NE. ngroup) CYCLE
+         IF (p*q /= ngroup) CYCLE
 
          CALL estimate_memory_usage(wfn_size, p, q, para_env_sub%num_pe, nmo, virtual(1), homo(1), calc_ex, mem_try)
 
@@ -587,7 +587,7 @@ CONTAINS
       ! Mb
       mem_try = mem_try*8.0D+00/1024.0D+00**2
 
-   END SUBROUTINE
+   END SUBROUTINE estimate_memory_usage
 
 ! **************************************************************************************************
 !> \brief ...

@@ -105,7 +105,7 @@ CONTAINS
                END DO
             END IF
          END IF
-         IF (IC .EQ. 1) THEN
+         IF (IC == 1) THEN
             IF (TRANSB == 'N' .OR. TRANSB == 'n') THEN
                CALL zgetmo(Z(1, 1, id), LOT, NFFT, N, B(1, ITR), LDBX)
             ELSE
@@ -170,11 +170,11 @@ CONTAINS
 
       REAL(dp), DIMENSION(:, :, :), POINTER              :: zin_real, zout_real
 
-      CALL C_F_POINTER(C_LOC(zin), zin_real, (/2, mm, m/))
-      CALL C_F_POINTER(C_LOC(zout), zout_real, (/2, nn, n/))
+      CALL C_F_POINTER(C_LOC(zin), zin_real, [2, mm, m])
+      CALL C_F_POINTER(C_LOC(zout), zout_real, [2, nn, n])
       CALL fftstp(mm, nfft, m, nn, n, zin_real, zout_real, trig, now, after, before, isign)
 
-   END SUBROUTINE
+   END SUBROUTINE fftstp_cmplx
 
 ! **************************************************************************************************
 !> \brief ...
@@ -202,12 +202,12 @@ CONTAINS
 
       REAL(dp), DIMENSION(:, :, :), POINTER              :: zin_real, zout_real
 
-      CALL C_F_POINTER(C_LOC(zin), zin_real, (/2, mm, m/))
-      CALL C_F_POINTER(C_LOC(zout), zout_real, (/2, nn, n/))
+      CALL C_F_POINTER(C_LOC(zin), zin_real, [2, mm, m])
+      CALL C_F_POINTER(C_LOC(zout), zout_real, [2, nn, n])
 
       CALL fftpre(mm, nfft, m, nn, n, zin_real, zout_real, trig, now, after, before, isign)
 
-   END SUBROUTINE
+   END SUBROUTINE fftpre_cmplx
 
 ! **************************************************************************************************
 !> \brief ...
@@ -236,12 +236,12 @@ CONTAINS
 
       REAL(dp), DIMENSION(:, :, :), POINTER              :: zin_real, zout_real
 
-      CALL C_F_POINTER(C_LOC(zin), zin_real, (/2, mm, m/))
-      CALL C_F_POINTER(C_LOC(zout), zout_real, (/2, nn, n/))
+      CALL C_F_POINTER(C_LOC(zin), zin_real, [2, mm, m])
+      CALL C_F_POINTER(C_LOC(zout), zout_real, [2, nn, n])
 
       CALL fftrot(mm, nfft, m, nn, n, zin_real, zout_real, trig, now, after, before, isign)
 
-   END SUBROUTINE
+   END SUBROUTINE fftrot_cmplx
 
 !-----------------------------------------------------------------------------!
 !  Copyright (C) Stefan Goedecker, Lausanne, Switzerland, August 1, 1991
@@ -3487,7 +3487,7 @@ CONTAINS
       INTEGER, INTENT(OUT)                               :: ic
 
       INTEGER, PARAMETER                                 :: nt = 82
-      INTEGER, DIMENSION(7, nt), PARAMETER :: idata = RESHAPE((/3, 3, 1, 1, 1, 1, 1, 4, 4, 1, 1, 1,&
+      INTEGER, DIMENSION(7, nt), PARAMETER :: idata = RESHAPE([3, 3, 1, 1, 1, 1, 1, 4, 4, 1, 1, 1, &
          1, 1, 5, 5, 1, 1, 1, 1, 1, 6, 6, 1, 1, 1, 1, 1, 8, 8, 1, 1, 1, 1, 1, 9, 3, 3, 1, 1, 1, 1, &
          12, 4, 3, 1, 1, 1, 1, 15, 5, 3, 1, 1, 1, 1, 16, 4, 4, 1, 1, 1, 1, 18, 6, 3, 1, 1, 1, 1, 20&
          , 5, 4, 1, 1, 1, 1, 24, 8, 3, 1, 1, 1, 1, 25, 5, 5, 1, 1, 1, 1, 27, 3, 3, 3, 1, 1, 1, 30, &
@@ -3508,7 +3508,7 @@ CONTAINS
          3, 3, 1, 720, 5, 4, 4, 3, 3, 1, 729, 3, 3, 3, 3, 3, 3, 750, 6, 5, 5, 5, 1, 1, 768, 4, 4, 4&
          , 4, 3, 1, 800, 8, 5, 5, 4, 1, 1, 810, 6, 5, 3, 3, 3, 1, 864, 8, 4, 3, 3, 3, 1, 900, 5, 5,&
          4, 3, 3, 1, 960, 5, 4, 4, 4, 3, 1, 972, 4, 3, 3, 3, 3, 3, 1000, 8, 5, 5, 5, 1, 1, &
-         ctrig_length, 4, 4, 4, 4, 4, 1/), (/7, nt/))
+         ctrig_length, 4, 4, 4, 4, 4, 1], [7, nt])
 
       INTEGER                                            :: i, itt, j
       REAL(dp)                                           :: angle, twopi

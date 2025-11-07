@@ -123,7 +123,7 @@ CONTAINS
 
       CALL world_to_group_proc_map(iproc, pdims, split_rowcol, split_info%pgrid_split_size, igroup_check, pdims_group, iproc_group)
 
-      IF (igroup_check .NE. split_info%igroup) THEN
+      IF (igroup_check /= split_info%igroup) THEN
          CPABORT('inconsistent subgroups')
       END IF
 
@@ -131,7 +131,7 @@ CONTAINS
 
       iproc_group_check = split_info%mp_comm_group%mepos
 
-      CPASSERT(iproc_group_check .EQ. iproc_group)
+      CPASSERT(iproc_group_check == iproc_group)
 
       CALL mp_comm_group%free()
 
@@ -140,7 +140,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE dbt_tas_create_split_rows_or_cols
 
 ! **************************************************************************************************
 !> \brief Create default cartesian process grid that is consistent with default split heuristic
@@ -170,7 +170,7 @@ CONTAINS
       CALL dbt_tas_mp_comm%create(mp_comm, 2, npdims)
 
       CALL timestop(handle)
-   END FUNCTION
+   END FUNCTION dbt_tas_mp_comm
 
 ! **************************************************************************************************
 !> \brief Get optimal process grid dimensions consistent with dbt_tas_create_split
@@ -210,7 +210,7 @@ CONTAINS
          dbt_tas_mp_dims(:) = [group_dims(1), group_dims(2)*nsplit_opt]
       END SELECT
 
-   END FUNCTION
+   END FUNCTION dbt_tas_mp_dims
 
 ! **************************************************************************************************
 !> \brief Heuristic to get good split factor for a given process grid OR a given number of processes
@@ -285,12 +285,12 @@ CONTAINS
          get_opt_nsplit = nsplit_list(minpos)
       ELSE
          get_opt_nsplit = nsplit
-         DO WHILE (MOD(numproc, get_opt_nsplit) .NE. 0)
+         DO WHILE (MOD(numproc, get_opt_nsplit) /= 0)
             get_opt_nsplit = get_opt_nsplit - 1
          END DO
       END IF
 
-   END FUNCTION
+   END FUNCTION get_opt_nsplit
 
 ! **************************************************************************************************
 !> \brief Derive optimal cartesian process grid from matrix sizes. This ensures optimality for
@@ -317,7 +317,7 @@ CONTAINS
       END IF
 
       mp_comm_new = dbt_tas_mp_comm(mp_comm, split_rowcol, nsplit)
-   END FUNCTION
+   END FUNCTION dbt_tas_mp_comm_from_matrix_sizes
 
 ! **************************************************************************************************
 !> \brief Split Cartesian process grid using a default split heuristic.
@@ -368,7 +368,7 @@ CONTAINS
       IF (opt_nsplit_prv) THEN
          nsplit_opt = get_opt_nsplit(pdim_split, nsplit, split_pgrid=.TRUE., pdim_nonsplit=pdim_nonsplit)
       ELSE
-         IF (MOD(pdims(split_rowcol), nsplit) .NE. 0) THEN
+         IF (MOD(pdims(split_rowcol), nsplit) /= 0) THEN
             CPABORT("Split factor does not divide process grid dimension")
          END IF
          nsplit_opt = nsplit
@@ -387,7 +387,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE dbt_tas_create_split
 
 ! **************************************************************************************************
 !> \brief Whether to accept proposed process grid dimensions (based on ratio of dimensions)
@@ -406,11 +406,11 @@ CONTAINS
       IF (relative) THEN
          dims_opt = 0
          CALL mp_dims_create(PRODUCT(dims), dims_opt)
-         accept_pgrid_dims = (MAXVAL(REAL(dims, dp))/MAXVAL(dims_opt) .LT. default_pdims_accept_ratio)
+         accept_pgrid_dims = (MAXVAL(REAL(dims, dp))/MAXVAL(dims_opt) < default_pdims_accept_ratio)
       ELSE
-         accept_pgrid_dims = (MAXVAL(REAL(dims, dp))/MINVAL(dims) .LT. default_pdims_accept_ratio**2)
+         accept_pgrid_dims = (MAXVAL(REAL(dims, dp))/MINVAL(dims) < default_pdims_accept_ratio**2)
       END IF
-   END FUNCTION
+   END FUNCTION accept_pgrid_dims
 
 ! **************************************************************************************************
 !> \brief Get info on split
@@ -446,7 +446,7 @@ CONTAINS
          END SELECT
       END IF
 
-   END SUBROUTINE
+   END SUBROUTINE dbt_tas_get_split_info
 
 ! **************************************************************************************************
 !> \brief ...
@@ -481,7 +481,7 @@ CONTAINS
       split_info%pdims = 0
 
       IF (ALLOCATED(split_info%ngroup_opt)) DEALLOCATE (split_info%ngroup_opt)
-   END SUBROUTINE
+   END SUBROUTINE dbt_tas_release_info
 
 ! **************************************************************************************************
 !> \brief ...
@@ -498,7 +498,7 @@ CONTAINS
       END IF
       ref => split_info%refcount
       ref = ref + 1
-   END SUBROUTINE
+   END SUBROUTINE dbt_tas_info_hold
 
 ! **************************************************************************************************
 !> \brief map global process info to group
@@ -539,7 +539,7 @@ CONTAINS
          IF (PRESENT(iproc_group)) pcoord_group = [pcoord(1), MOD(pcoord(2), pgrid_split_size)]
       END SELECT
       IF (PRESENT(iproc_group)) iproc_group = pcoord_group(1)*pdims_group(2) + pcoord_group(2)
-   END SUBROUTINE
+   END SUBROUTINE world_to_group_proc_map
 
 ! **************************************************************************************************
 !> \brief map local process info to global info
@@ -576,7 +576,7 @@ CONTAINS
          pcoord = [pcoord_group(1), igroup*pgrid_split_size + pcoord_group(2)]
       END SELECT
       iproc = pcoord(1)*pdims(2) + pcoord(2)
-   END SUBROUTINE
+   END SUBROUTINE group_to_world_proc_map
 
 ! **************************************************************************************************
 !> \brief map group local block index to global matrix index
@@ -606,7 +606,7 @@ CONTAINS
             IF (PRESENT(column)) column = cols(column_group)
          END ASSOCIATE
       END SELECT
-   END SUBROUTINE
+   END SUBROUTINE dbt_index_local_to_global
 
 ! **************************************************************************************************
 !> \brief map global block index to group local index
@@ -633,7 +633,7 @@ CONTAINS
          IF (PRESENT(column_group)) column_group = i8_bsearch(dist%local_rowcols, column)
       END SELECT
 
-   END SUBROUTINE
+   END SUBROUTINE dbt_index_global_to_local
 
 ! **************************************************************************************************
 !> \brief binary search for 8-byte integers
@@ -664,7 +664,7 @@ CONTAINS
          END IF
       END DO
       res = lindex
-   END FUNCTION
+   END FUNCTION i8_bsearch
 
 ! **************************************************************************************************
 !> \brief maps a process subgroup to matrix rows/columns
@@ -702,7 +702,7 @@ CONTAINS
 
       ALLOCATE (sort_indices(nrowcols))
       CALL sort(rowcols, nrowcols, sort_indices)
-   END SUBROUTINE
+   END SUBROUTINE group_to_mrowcol
 
 ! **************************************************************************************************
 !> \brief freeze current split factor such that it is never changed during multiplication
@@ -713,6 +713,6 @@ CONTAINS
       TYPE(dbt_tas_split_info), INTENT(INOUT)            :: info
 
       info%strict_split = [.TRUE., .TRUE.]
-   END SUBROUTINE
+   END SUBROUTINE dbt_tas_set_strict_split
 
-END MODULE
+END MODULE dbt_tas_split

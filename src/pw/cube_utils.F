@@ -147,7 +147,7 @@ CONTAINS
 
       IF (info%orthorhombic) THEN
          imr = MAX(1, CEILING(radius/info%drmin))
-         IF (imr .GT. info%max_radius) THEN
+         IF (imr > info%max_radius) THEN
             !
             ! This is an important check. If the required radius for mapping the density is different
             ! from the actual computed one, (significant) errors can occur.
@@ -197,7 +197,7 @@ CONTAINS
       ELSE
          ! no info to be deallocated
       END IF
-   END SUBROUTINE
+   END SUBROUTINE destroy_cube_info
 
 ! **************************************************************************************************
 !> \brief ...
@@ -309,7 +309,7 @@ CONTAINS
             END DO
             info%ub_cube(:, i) = 1 - info%lb_cube(:, i)
          END DO
-         IF (check_1 .NE. check_2) THEN
+         IF (check_1 /= check_2) THEN
             CPABORT("Irreproducible fp math caused memory corruption")
          END IF
 
@@ -317,7 +317,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE
+   END SUBROUTINE init_cube_info
 
    ! try to hide things from the optimizer, so that we get the same numbers,
    ! always (this solves the optimisation problems with the intel and nag compiler

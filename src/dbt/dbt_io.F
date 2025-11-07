@@ -113,7 +113,7 @@ CONTAINS
          END IF
       END IF
 
-   END SUBROUTINE
+   END SUBROUTINE dbt_write_tensor_info
 
 ! **************************************************************************************************
 !> \brief Write info on tensor distribution & load balance
@@ -140,7 +140,7 @@ CONTAINS
       nblock_sum = dbt_get_num_blocks_total(tensor)
       nelement_sum = dbt_get_nze_total(tensor)
 
-      tmp = (/nblock, nelement/)
+      tmp = [nblock, nelement]
       CALL tensor%pgrid%mp_comm_2d%max(tmp)
       nblock_max = tmp(1); nelement_max = tmp(2)
 
@@ -148,7 +148,7 @@ CONTAINS
       nblock_tot = PRODUCT(INT(bdims, KIND=int_8))
 
       occupation = -1.0_dp
-      IF (nblock_tot .NE. 0) occupation = 100.0_dp*REAL(nblock_sum, dp)/REAL(nblock_tot, dp)
+      IF (nblock_tot /= 0) occupation = 100.0_dp*REAL(nblock_sum, dp)/REAL(nblock_tot, dp)
 
       IF (unit_nr_prv > 0) THEN
          WRITE (unit_nr_prv, "(T2,A)") &
@@ -161,7 +161,7 @@ CONTAINS
          WRITE (unit_nr_prv, "(T15,A,T68,I13)") "Maximum number of matrix elements per CPU:", nelement_max
       END IF
 
-   END SUBROUTINE
+   END SUBROUTINE dbt_write_tensor_dist
 
 ! **************************************************************************************************
 !> \brief Write all tensor blocks
@@ -191,7 +191,7 @@ CONTAINS
          CALL dbt_iterator_next_block(iterator, blk_index, blk_size=blk_size)
          CALL dbt_get_stored_coordinates(tensor, blk_index, proc)
          mynode = tensor%pgrid%mp_comm_2d%mepos
-         CPASSERT(proc .EQ. mynode)
+         CPASSERT(proc == mynode)
          #:for ndim in ndims
             IF (ndims_tensor(tensor) == ${ndim}$) THEN
                CALL dbt_get_block(tensor, blk_index, blk_values_${ndim}$, found)
@@ -203,7 +203,7 @@ CONTAINS
          #:endfor
       END DO
       CALL dbt_iterator_stop(iterator)
-   END SUBROUTINE
+   END SUBROUTINE dbt_write_blocks
 
 ! **************************************************************************************************
 !> \brief Write a tensor block
@@ -264,7 +264,7 @@ CONTAINS
                   END IF
                #:endfor
             END IF
-         END SUBROUTINE
+         END SUBROUTINE dbt_write_block
 
 ! **************************************************************************************************
 !> \author Patrick Seewald
@@ -285,7 +285,7 @@ CONTAINS
                CALL dbt_iterator_next_block(iterator, blk_index, blk_size=blk_size)
                CALL dbt_get_stored_coordinates(tensor, blk_index, proc)
                mynode = tensor%pgrid%mp_comm_2d%mepos
-               CPASSERT(proc .EQ. mynode)
+               CPASSERT(proc == mynode)
                #:for ndim in ndims
                   IF (ndims_tensor(tensor) == ${ndim}$) THEN
                      WRITE (io_unit_all, '(T7,A,T16,A,${ndim}$I3,1X,A,1X,I3,A2,${ndim}$I3)') &
@@ -294,7 +294,7 @@ CONTAINS
                #:endfor
             END DO
             CALL dbt_iterator_stop(iterator)
-         END SUBROUTINE
+         END SUBROUTINE dbt_write_block_indices
 
 ! **************************************************************************************************
 !> \author Patrick Seewald
@@ -306,7 +306,7 @@ CONTAINS
             IF (ALLOCATED(pgrid%tas_split_info)) THEN
                CALL dbt_tas_write_split_info(pgrid%tas_split_info, unit_nr)
             END IF
-         END SUBROUTINE
+         END SUBROUTINE dbt_write_split_info
 
 ! **************************************************************************************************
 !> \author Patrick Seewald
@@ -321,6 +321,6 @@ CONTAINS
                unit_nr_out = 0
             END IF
 
-         END FUNCTION
+         END FUNCTION prep_output_unit
 
-      END MODULE
+      END MODULE dbt_io

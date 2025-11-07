@@ -292,7 +292,7 @@ CONTAINS
                                           per_potentials=qmmm_env%added_charges%per_potentials, par_scheme=qmmm_env%par_scheme, &
                                           qmmm_spherical_cutoff=qmmm_env%spherical_cutoff, shells=shells)
       END IF
-      IF (qmmm_env%added_shells%num_mm_atoms .GT. 0) THEN
+      IF (qmmm_env%added_shells%num_mm_atoms > 0) THEN
          shells = .TRUE.
          CALL qmmm_elec_with_gaussian_low(grids, qmmm_env%added_shells%added_particles, &
                                           qmmm_env%added_shells%mm_core_chrg, &
@@ -590,7 +590,7 @@ CONTAINS
          Atoms: DO Imm = 1, SIZE(per_pot%mm_atom_index)
             IF (par_scheme == do_par_atom) THEN
                myind = Imm + (IRadTyp - 1)*SIZE(per_pot%mm_atom_index)
-               IF (MOD(myind, para_env%num_pe) /= para_env%mepos) CYCLE
+               IF (MOD(myind, para_env%num_pe) /= para_env%mepos) CYCLE Atoms
             END IF
             LIndMM = per_pot%mm_atom_index(Imm)
             IndMM = mm_atom_index(LIndMM)
@@ -804,7 +804,7 @@ CONTAINS
          Atoms: DO Imm = 1, SIZE(pot%mm_atom_index)
             IF (par_scheme == do_par_atom) THEN
                myind = Imm + (IRadTyp - 1)*SIZE(pot%mm_atom_index)
-               IF (MOD(myind, para_env%num_pe) /= para_env%mepos) CYCLE
+               IF (MOD(myind, para_env%num_pe) /= para_env%mepos) CYCLE Atoms
             END IF
             LIndMM = pot%mm_atom_index(Imm)
             IndMM = mm_atom_index(LIndMM)

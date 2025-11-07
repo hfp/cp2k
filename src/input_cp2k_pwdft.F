@@ -209,7 +209,7 @@ CONTAINS
          CALL keyword_create(keyword, __LOCATION__, name="VDW_FUNCTIONAL", &
                              description="Select the Van der Walls functionals corrections type", &
                              default_i_val=SIRIUS_NO_VDW, &
-                             enum_i_vals=(/SIRIUS_NO_VDW, SIRIUS_FUNC_VDWDF, SIRIUS_FUNC_VDWDF2, SIRIUS_FUNC_VDWDFCX/), &
+                             enum_i_vals=[SIRIUS_NO_VDW, SIRIUS_FUNC_VDWDF, SIRIUS_FUNC_VDWDF2, SIRIUS_FUNC_VDWDFCX], &
                              enum_c_vals=s2a("NONE", "FUNC_VDWDF", "FUNC_VDWDF2", "FUNC_VDWDFCX"), &
                              enum_desc=s2a("No VdW correction", &
                                            "FUNC_VDWDF", &
@@ -337,7 +337,7 @@ CONTAINS
             CASE (SIRIUS_INTEGER_ARRAY_TYPE)
                CALL sirius_option_get(section_name, name, ctype, C_LOC(ivec(1)), max_length=16)
 
-               IF (num_possible_values .EQ. 0) THEN
+               IF (num_possible_values == 0) THEN
                   CALL keyword_create(keyword, __LOCATION__, &
                                       name=name, &
                                       description=TRIM(ADJUSTL(description)), &
@@ -383,7 +383,7 @@ CONTAINS
             CASE (SIRIUS_NUMBER_ARRAY_TYPE)
                CALL sirius_option_get(section_name, name, ctype, C_LOC(rvec(1)), max_length=16)
 
-               IF (num_possible_values .EQ. 0) THEN
+               IF (num_possible_values == 0) THEN
                   CALL keyword_create(keyword, __LOCATION__, &
                                       name=name, &
                                       description=TRIM(ADJUSTL(description)), &

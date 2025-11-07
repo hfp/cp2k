@@ -516,7 +516,7 @@ CONTAINS
          END DO
 
          ! Exit loop, if all atoms are in the list
-         IF (sym%ulequatom(sym%ngroup) == natoms) EXIT
+         IF (sym%ulequatom(sym%ngroup) == natoms) EXIT loop
 
          ! Search for the next atom which is not in the list yet
          DO jatom = 2, natoms
@@ -948,9 +948,9 @@ CONTAINS
       INTEGER                                            :: i, iatom, natoms
 
       ! Define the Cartesian axis vectors
-      sym%x_axis = (/1.0_dp, 0.0_dp, 0.0_dp/)
-      sym%y_axis = (/0.0_dp, 1.0_dp, 0.0_dp/)
-      sym%z_axis = (/0.0_dp, 0.0_dp, 1.0_dp/)
+      sym%x_axis = [1.0_dp, 0.0_dp, 0.0_dp]
+      sym%y_axis = [0.0_dp, 1.0_dp, 0.0_dp]
+      sym%z_axis = [0.0_dp, 0.0_dp, 1.0_dp]
 
       ! Initialize lists for symmetry elements
       sym%sec(:, :, :) = 0.0_dp
@@ -1145,10 +1145,10 @@ CONTAINS
          ! 0 < tenval(1) < tenval(2) = tenval(3)
          ! special case: 0 = tenval(1) < tenval(2) = tenval(3)
          IF (sym%tenval(1) < eps_tenval) sym%linear = .TRUE.
-         CALL tracar(sym, coord, (/3, 1, 2/))
+         CALL tracar(sym, coord, [3, 1, 2])
       ELSE
          ! 0 < tenval(1) = tenval(2) < tenval(3) or 0 < tenval(1) < tenval(2) < tenval(3)
-         CALL tracar(sym, coord, (/1, 2, 3/))
+         CALL tracar(sym, coord, [1, 2, 3])
       END IF
 
       ! Continue with the new coordinate axes
@@ -1757,7 +1757,7 @@ CONTAINS
 
       d = SQRT(SUM((a - b)**2))
 
-   END FUNCTION
+   END FUNCTION dist
 ! **************************************************************************************************
 !> \brief   Write atomic coordinates to output unit iw.
 !> \param coord ...

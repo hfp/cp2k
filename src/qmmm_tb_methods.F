@@ -1288,7 +1288,7 @@ CONTAINS
             rt1 = r_pbc(1)
             rt2 = r_pbc(2)
             rt3 = r_pbc(3)
-            rij = (/rt1, rt2, rt3/)
+            rij = [rt1, rt2, rt3]
             dr = SQRT(SUM(rij**2))
             qeff = mm_charges(Imm)
             ! Computes the screening factor for the spherical cutoff (if defined)
@@ -1296,7 +1296,7 @@ CONTAINS
                CALL spherical_cutoff_factor(qmmm_spherical_cutoff, rij, sph_chrg_factor)
                qeff = qeff*sph_chrg_factor
             END IF
-            IF (ABS(qeff) <= qsmall) CYCLE
+            IF (ABS(qeff) <= qsmall) CYCLE LoopMM
             IF (dr > rtiny) THEN
                IF (pot_type == 0) THEN
                   sr = gamma_rab_sr(dr, qm_alpha, eta_mm, 0.0_dp)
@@ -1372,7 +1372,7 @@ CONTAINS
             rt1 = r_pbc(1)
             rt2 = r_pbc(2)
             rt3 = r_pbc(3)
-            rij = (/rt1, rt2, rt3/)
+            rij = [rt1, rt2, rt3]
             dr = SQRT(SUM(rij**2))
             qeff = mm_charges(Imm)
             ! Computes the screening factor for the spherical cutoff (if defined)
@@ -1381,7 +1381,7 @@ CONTAINS
                CALL spherical_cutoff_factor(qmmm_spherical_cutoff, rij, sph_chrg_factor)
                qeff = qeff*sph_chrg_factor
             END IF
-            IF (ABS(qeff) <= qsmall) CYCLE
+            IF (ABS(qeff) <= qsmall) CYCLE LoopMM
             IF (dr > rtiny) THEN
                drp = dr + ddrmm
                drm = dr - ddrmm

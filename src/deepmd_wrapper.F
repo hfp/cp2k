@@ -59,7 +59,7 @@ CONTAINS
             IMPORT :: C_PTR, C_CHAR
             CHARACTER(kind=C_CHAR), DIMENSION(*)               :: filename
             TYPE(C_PTR)                                        :: NewDeepPot
-         END FUNCTION
+         END FUNCTION NewDeepPot
       END INTERFACE
       INTERFACE
          FUNCTION DeepPotCheckOK(model) BIND(C, name="DP_DeepPotCheckOK")
@@ -85,7 +85,7 @@ CONTAINS
       ! Check for errors.
       error_c_ptr = DeepPotCheckOK(model%c_ptr)
       CPASSERT(C_ASSOCIATED(error_c_ptr))
-      CALL C_F_POINTER(error_c_ptr, error_f_ptr, shape=(/default_string_length/))
+      CALL C_F_POINTER(error_c_ptr, error_f_ptr, shape=[default_string_length])
       error_str = ""
       DO i = 1, default_string_length
          IF (error_f_ptr(i) == C_NULL_CHAR) EXIT
@@ -149,7 +149,7 @@ CONTAINS
             REAL(C_DOUBLE), DIMENSION(9)                       :: virial
             REAL(C_DOUBLE), DIMENSION(natom)                   :: atomic_energy
             REAL(C_DOUBLE), DIMENSION(natom, 9)                :: atomic_virial
-         END SUBROUTINE
+         END SUBROUTINE DeepPotCompute
       END INTERFACE
 
       CALL timeset(routineN, handle)
@@ -181,7 +181,7 @@ CONTAINS
 #endif
 
       CALL timestop(handle)
-   END SUBROUTINE
+   END SUBROUTINE deepmd_model_compute
 
 ! **************************************************************************************************
 !> \brief Releases a deepmd model and all its ressources.

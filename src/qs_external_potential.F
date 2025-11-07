@@ -327,7 +327,7 @@ CONTAINS
       CALL section_vals_val_get(ext_pot_section, "DX", r_val=dx)
       CALL section_vals_val_get(ext_pot_section, "ERROR_LIMIT", r_val=lerr)
       CALL get_generic_info(ext_pot_section, "FUNCTION", coupling_function, my_par, my_val, &
-                            input_variables=(/"X", "Y", "Z"/), i_rep_sec=1)
+                            input_variables=["X", "Y", "Z"], i_rep_sec=1)
       CALL initf(1)
       CALL parsef(1, TRIM(coupling_function), my_par)
 
@@ -436,7 +436,7 @@ CONTAINS
 
             ! Find the process that has the data for indices i_pbc and j_pbc
             ! and store the data to bcast_buffer. Assuming that each process has full z data
-            IF (grid%pw_grid%para%mode .NE. PW_MODE_LOCAL) THEN
+            IF (grid%pw_grid%para%mode /= PW_MODE_LOCAL) THEN
                DO ip = 0, num_pe - 1
                   IF (grid%pw_grid%para%bo(1, 1, ip, 1) <= i_pbc - lbounds(1) + 1 .AND. &
                       grid%pw_grid%para%bo(2, 1, ip, 1) >= i_pbc - lbounds(1) + 1 .AND. &
