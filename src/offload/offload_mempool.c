@@ -33,7 +33,7 @@
 typedef struct offload_memchunk {
   void *mem; // first: allows to cast memchunk into mem-ptr...
   struct offload_memchunk *next;
-  size_t size, used, tick;
+  size_t size, used;
 } offload_memchunk_t;
 
 /*******************************************************************************
@@ -164,8 +164,7 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
         { // (nearly) perfect match, exit early
           break;
         }
-      } else if (reclaim == NULL || ((*reclaim)->size <= (*indirect)->size &&
-                                     (*reclaim)->tick >= (*indirect)->tick)) {
+      } else if (reclaim == NULL || (*reclaim)->size < (*indirect)->size) {
         reclaim = indirect; // reclaim chunk
       }
       indirect = &(*indirect)->next;
@@ -198,7 +197,6 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
     chunk->size = size;
   }
   // For statistics.
-  chunk->tick = on_device ? device_stats.mallocs : host_stats.mallocs;
   chunk->used = size;
 
   // Insert chunk into allocated list.
