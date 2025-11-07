@@ -25,7 +25,6 @@
   ((FN)(MSG, (int)strlen(MSG), OUTPUT_UNIT))
 #define OFFLOAD_MEMPOOL_OMPALLOC 1
 #define OFFLOAD_MEMPOOL_UPSIZE (2 << 20) // permit slack size when reuse
-#define OFFLOAD_MEMPOOL_TRIM 24          // shrink if TRIM*used < size
 
 /*******************************************************************************
  * \brief Private struct for storing a chunk of memory.
@@ -156,13 +155,6 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
     while (*indirect != NULL) {
       const size_t s = (*indirect)->size;
       if (size <= s && (reuse == NULL || s < (*reuse)->size)) {
-#if 1 < OFFLOAD_MEMPOOL_TRIM
-        if (reuse != NULL &&
-            (reclaim == NULL || ((*reclaim)->size <= (*reuse)->size &&
-                                 ((*reclaim)->tick >= (*reuse)->tick)))) {
-          reclaim = reuse;
-        }
-#endif
         reuse = indirect; // reuse smallest suitable chunk
 #if 0 < OFFLOAD_MEMPOOL_UPSIZE
         if (s <= (size + OFFLOAD_MEMPOOL_UPSIZE))
@@ -170,26 +162,17 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
         if (s <= size)
 #endif
         { // (nearly) perfect match, exit early
-          reclaim = NULL;
           break;
         }
       } else if (reclaim == NULL || ((*reclaim)->size <= (*indirect)->size &&
-                                     ((*reclaim)->tick >= (*indirect)->tick))) {
-        reclaim = indirect; // reclaim least utilized chunk
+                                     (*reclaim)->tick >= (*indirect)->tick)) {
+        reclaim = indirect; // reclaim chunk
       }
       indirect = &(*indirect)->next;
     }
 
     // Select an existing chunk or prepare a new one.
     if (reuse != NULL) {
-#if 1 < OFFLOAD_MEMPOOL_TRIM
-      if (reclaim != NULL &&
-          ((*reclaim)->used * OFFLOAD_MEMPOOL_TRIM) < (*reclaim)->size) {
-        actual_free((*reclaim)->mem, on_device);
-        (*reclaim)->size = (*reclaim)->used = (*reclaim)->tick = 0;
-        (*reclaim)->mem = NULL;
-      }
-#endif
       // Reusing an exising chunk which is already large enough.
       chunk = *reuse;
       *reuse = chunk->next; // remove chunk from list
