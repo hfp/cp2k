@@ -10,7 +10,8 @@
 !> \author Patrick Seewald
 ! **************************************************************************************************
 MODULE dbt_tas_reshape_ops
-   USE OMP_LIB,                         ONLY: omp_get_max_threads,&
+   USE OMP_LIB,                         ONLY: omp_destroy_lock,&
+                                              omp_get_max_threads,&
                                               omp_get_num_threads,&
                                               omp_get_thread_num,&
                                               omp_init_lock,&
@@ -90,9 +91,8 @@ CONTAINS
       INTEGER(KIND=int_8), DIMENSION(2)                  :: blk_index
       INTEGER(kind=omp_lock_kind), ALLOCATABLE, &
          DIMENSION(:)                                    :: locks
-      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: num_blocks_recv, num_blocks_send, &
-                                                            num_entries_recv, num_entries_send, &
-                                                            num_rec, num_send
+      INTEGER, ALLOCATABLE, DIMENSION(:) :: num_blocks_recv, num_blocks_send, num_entries_recv, &
+         num_entries_send, num_rec, num_send, send_blocks_local, send_entries_local
       INTEGER, DIMENSION(2)                              :: blk_size
       LOGICAL                                            :: move_prv, tr_in
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: block
@@ -133,12 +133,11 @@ CONTAINS
       ALLOCATE (buffer_send(0:numnodes - 1))
       ALLOCATE (buffer_recv(0:numnodes - 1))
       ALLOCATE (num_blocks_recv(0:numnodes - 1))
-      ALLOCATE (num_blocks_send(0:numnodes - 1))
+      ALLOCATE (num_blocks_send(0:numnodes - 1), SOURCE=0)
       ALLOCATE (num_entries_recv(0:numnodes - 1))
-      ALLOCATE (num_entries_send(0:numnodes - 1))
+      ALLOCATE (num_entries_send(0:numnodes - 1), SOURCE=0)
       ALLOCATE (num_rec(0:2*numnodes - 1))
-      ALLOCATE (num_send(0:2*numnodes - 1))
-      num_send(:) = 0
+      ALLOCATE (num_send(0:2*numnodes - 1), SOURCE=0)
       ALLOCATE (req_array(1:numnodes, 4))
       ALLOCATE (locks(0:numnodes - 1))
       DO iproc = 0, numnodes - 1
@@ -146,8 +145,10 @@ CONTAINS
       END DO
 
       CALL timeset(routineN//"_get_coord", handle2)
-!$OMP PARALLEL DEFAULT(NONE) SHARED(matrix_in,matrix_out,tr_in,num_send) &
-!$OMP PRIVATE(iter,blk_index,blk_size,iproc)
+!$OMP PARALLEL DEFAULT(NONE) SHARED(matrix_in,matrix_out,tr_in,num_entries_send,num_blocks_send,numnodes) &
+!$OMP PRIVATE(iter,blk_index,blk_size,iproc,send_entries_local,send_blocks_local)
+      ALLOCATE (send_entries_local(0:numnodes - 1), SOURCE=0)
+      ALLOCATE (send_blocks_local(0:numnodes - 1), SOURCE=0)
       CALL dbt_tas_iterator_start(iter, matrix_in)
       DO WHILE (dbt_tas_iterator_blocks_left(iter))
          CALL dbt_tas_iterator_next_block(iter, blk_index(1), blk_index(2), &
@@ -157,14 +158,22 @@ CONTAINS
          ELSE
             CALL dbt_tas_get_stored_coordinates(matrix_out, blk_index(1), blk_index(2), iproc)
          END IF
-!$OMP ATOMIC
-         num_send(2*iproc) = num_send(2*iproc) + PRODUCT(blk_size)
-!$OMP ATOMIC
-         num_send(2*iproc + 1) = num_send(2*iproc + 1) + 1
+         send_entries_local(iproc) = send_entries_local(iproc) + PRODUCT(blk_size)
+         send_blocks_local(iproc) = send_blocks_local(iproc) + 1
       END DO
       CALL dbt_tas_iterator_stop(iter)
+!$OMP CRITICAL
+      num_entries_send(:) = num_entries_send(:) + send_entries_local(:)
+      num_blocks_send(:) = num_blocks_send(:) + send_blocks_local(:)
+!$OMP END CRITICAL
+      DEALLOCATE (send_entries_local, send_blocks_local)
 !$OMP END PARALLEL
       CALL timestop(handle2)
+
+      DO iproc = 0, numnodes - 1
+         num_send(2*iproc) = num_entries_send(iproc)
+         num_send(2*iproc + 1) = num_blocks_send(iproc)
+      END DO
 
       CALL timeset(routineN//"_alltoall", handle2)
       CALL mp_comm%alltoall(num_send, num_rec, 2)
@@ -202,8 +211,12 @@ CONTAINS
 !$OMP END PARALLEL
 
       IF (move_prv) CALL dbt_tas_clear(matrix_in)
-
       CALL timestop(handle2)
+
+      DO iproc = 0, numnodes - 1
+         CALL omp_destroy_lock(locks(iproc))
+      END DO
+      DEALLOCATE (locks)
 
       CALL timeset(routineN//"_communicate_buffer", handle2)
       CALL dbt_tas_communicate_buffer(mp_comm, buffer_recv, buffer_send, req_array)
@@ -216,7 +229,7 @@ CONTAINS
 
       CALL timeset(routineN//"_buffer_obtain", handle2)
 
-      ! TODO Add OpenMP to the buffer unpacking.
+      ! Parallel unpack of received blocks.
       nblk = SUM(num_blocks_recv)
       ALLOCATE (blks_to_allocate(nblk, 2))
 
@@ -237,8 +250,10 @@ CONTAINS
 !$OMP END PARALLEL
       DEALLOCATE (blks_to_allocate)
 
+!$OMP PARALLEL DEFAULT(NONE) SHARED(buffer_recv,matrix_out,numnodes,summation) &
+!$OMP PRIVATE(iproc,ndata,blk_index,blk_size,block)
+!$OMP DO SCHEDULE(DYNAMIC)
       DO iproc = 0, numnodes - 1
-         ! First, we need to get the index to create block
          DO WHILE (dbt_buffer_blocks_left(buffer_recv(iproc)))
             CALL dbt_buffer_get_next_block(buffer_recv(iproc), ndata, blk_index)
             CALL dbt_tas_blk_sizes(matrix_out, blk_index(1), blk_index(2), blk_size(1), blk_size(2))
@@ -249,6 +264,8 @@ CONTAINS
          END DO
          CALL dbt_buffer_destroy(buffer_recv(iproc))
       END DO
+!$OMP END DO
+!$OMP END PARALLEL
 
       CALL timestop(handle2)
 
@@ -378,8 +395,7 @@ CONTAINS
       ALLOCATE (num_entries_recv(0:numnodes - 1))
       ALLOCATE (num_entries_send(0:numnodes - 1))
       ALLOCATE (num_rec(0:2*numnodes - 1))
-      ALLOCATE (num_send(0:2*numnodes - 1))
-      num_send(:) = 0
+      ALLOCATE (num_send(0:2*numnodes - 1), SOURCE=0)
       ALLOCATE (req_array(1:numnodes, 4))
       ALLOCATE (locks(0:numnodes - 1))
       max_threads = 1
@@ -563,8 +579,7 @@ CONTAINS
       ALLOCATE (num_entries_recv(0:numnodes - 1))
       ALLOCATE (num_entries_send(0:numnodes - 1))
       ALLOCATE (num_rec(0:2*numnodes - 1))
-      ALLOCATE (num_send(0:2*numnodes - 1))
-      num_send(:) = 0
+      ALLOCATE (num_send(0:2*numnodes - 1), SOURCE=0)
       ALLOCATE (req_array(1:numnodes, 4))
       ALLOCATE (locks(0:numnodes - 1))
       DO iproc = 0, numnodes - 1
