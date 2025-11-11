@@ -2138,10 +2138,11 @@ CONTAINS
       CHARACTER(LEN=*), PARAMETER :: routineN = 'build_3c_integrals'
 
       INTEGER :: block_end_i, block_end_j, block_end_k, block_start_i, block_start_j, &
-         block_start_k, egfi, handle, handle2, i, iatom, ibasis, ikind, ilist, imax, iset, jatom, &
-         jcell, jkind, jset, katom, kcell, kkind, kset, m_max, max_ncoj, max_nset, max_nsgfi, &
-         maxli, maxlj, maxlk, mepos, natom, nbasis, ncell_RI, ncoi, ncoj, ncok, nimg, nseti, &
-         nsetj, nsetk, nthread, op_ij, op_jk, op_pos_prv, sgfi, sgfj, sgfk, unit_id
+         block_start_k, eg_local, handle, handle2, i, iatom, ibasis, ikind, ilist, imax, iset, &
+         jatom, jcell, jkind, jset, katom, kcell, kkind, kset, m_max, max_ncoj, max_nset, &
+         max_nsgfi, maxli, maxlj, maxlk, mepos, natom, nbasis, ncell_RI, ncoi, ncoj, ncok, nimg, &
+         nseti, nsetj, nsetk, nsgf, nthread, op_ij, op_jk, op_pos_prv, sg_local, sgfi, sgfj, sgfk, &
+         unit_id
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: img_to_RI_cell_prv
       INTEGER, DIMENSION(2)                              :: bo
       INTEGER, DIMENSION(3)                              :: blk_idx, blk_size, cell_j, cell_k, &
@@ -2154,12 +2155,13 @@ CONTAINS
       LOGICAL                                            :: block_not_zero, cell_sym_prv, debug, &
                                                             desymmetrize_prv, do_hfx_kpoints_prv, &
                                                             do_kpoints_prv, found, skip
-      REAL(KIND=dp)                                      :: dij, dik, djk, dr_ij, dr_ik, dr_jk, &
-                                                            kind_radius_i, kind_radius_j, &
-                                                            kind_radius_k, max_contraction_i, &
-                                                            prefac, sijk_ext
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: ccp_buffer, cpp_buffer, &
-                                                            max_contraction_j, max_contraction_k
+      REAL(KIND=dp) :: dij, dik, djk, dr_ij, dr_ik, dr_jk, kind_radius_i, kind_radius_j, &
+         kind_radius_k, max_contraction_i_val, max_contraction_j_val, max_contraction_k_val, &
+         prefac, sijk_ext
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: ccp_buffer, cpp_buffer
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
+         TARGET                                          :: max_sphi_norm_i, max_sphi_norm_j, &
+                                                            max_sphi_norm_k
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: block_t, dummy_block_t, sijk, &
                                                             sijk_contr, tmp_ijk
       REAL(KIND=dp), DIMENSION(1, 1, 1)                  :: counter
@@ -2167,6 +2169,8 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), POINTER               :: set_radius_i, set_radius_j, set_radius_k
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: rpgf_i, rpgf_j, rpgf_k, sphi_i, sphi_j, &
                                                             sphi_k, zeti, zetj, zetk
+      REAL(KIND=dp), POINTER                             :: max_contr_i_ptr(:), max_contr_j_ptr(:), &
+                                                            max_contr_k_ptr(:)
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(cell_type), POINTER                           :: cell
       TYPE(cp_2d_r_p_type), DIMENSION(:, :), POINTER     :: spi, spk, tspj
@@ -2324,6 +2328,7 @@ CONTAINS
       !contiguous sphi arrays (and transposed in the case of sphi_i)
 
       NULLIFY (tspj, spi, spk)
+      NULLIFY (max_contr_i_ptr, max_contr_j_ptr, max_contr_k_ptr)
       ALLOCATE (spi(max_nset, nbasis), tspj(max_nset, nbasis), spk(max_nset, nbasis))
 
       DO ibasis = 1, nbasis
@@ -2335,30 +2340,76 @@ CONTAINS
          END DO
       END DO
 
+      IF (PRESENT(int_eps)) THEN
+         ALLOCATE (max_sphi_norm_i(max_nset, nbasis), SOURCE=0.0_dp)
+         ALLOCATE (max_sphi_norm_j(max_nset, nbasis), SOURCE=0.0_dp)
+         ALLOCATE (max_sphi_norm_k(max_nset, nbasis), SOURCE=0.0_dp)
+      END IF
+
       DO ilist = 1, 3
          DO ibasis = 1, nbasis
-            IF (ilist == 1) basis_set => basis_i(ibasis)%gto_basis_set
-            IF (ilist == 2) basis_set => basis_j(ibasis)%gto_basis_set
-            IF (ilist == 3) basis_set => basis_k(ibasis)%gto_basis_set
+            SELECT CASE (ilist)
+            CASE (1)
+               basis_set => basis_i(ibasis)%gto_basis_set
+            CASE (2)
+               basis_set => basis_j(ibasis)%gto_basis_set
+            CASE (3)
+               basis_set => basis_k(ibasis)%gto_basis_set
+            END SELECT
 
             DO iset = 1, basis_set%nset
-
+               nsgf = basis_set%nsgf_set(iset)
                ncoi = basis_set%npgf(iset)*ncoset(basis_set%lmax(iset))
-               sgfi = basis_set%first_sgf(1, iset)
-               egfi = sgfi + basis_set%nsgf_set(iset) - 1
+               sg_local = basis_set%first_sgf(1, iset)
+               eg_local = sg_local + nsgf - 1
 
-               IF (ilist == 1) THEN
-                  ALLOCATE (spi(iset, ibasis)%array(ncoi, basis_set%nsgf_set(iset)))
-                  spi(iset, ibasis)%array(:, :) = basis_set%sphi(1:ncoi, sgfi:egfi)
-
-               ELSE IF (ilist == 2) THEN
-                  ALLOCATE (tspj(iset, ibasis)%array(basis_set%nsgf_set(iset), ncoi))
-                  tspj(iset, ibasis)%array(:, :) = TRANSPOSE(basis_set%sphi(1:ncoi, sgfi:egfi))
-
-               ELSE
-                  ALLOCATE (spk(iset, ibasis)%array(ncoi, basis_set%nsgf_set(iset)))
-                  spk(iset, ibasis)%array(:, :) = basis_set%sphi(1:ncoi, sgfi:egfi)
-               END IF
+               SELECT CASE (ilist)
+               CASE (1)
+                  ALLOCATE (spi(iset, ibasis)%array(ncoi, nsgf))
+                  IF (ncoi > 0 .AND. nsgf > 0) THEN
+                     spi(iset, ibasis)%array(:, :) = basis_set%sphi(1:ncoi, sg_local:eg_local)
+                  ELSE
+                     spi(iset, ibasis)%array(:, :) = 0.0_dp
+                  END IF
+                  IF (PRESENT(int_eps)) THEN
+                     IF (ncoi > 0 .AND. nsgf > 0) THEN
+                        max_sphi_norm_i(iset, ibasis) = MAXVAL(SUM(ABS(basis_set%sphi(1:ncoi, sg_local:eg_local)), &
+                                                                   DIM=1))
+                     ELSE
+                        max_sphi_norm_i(iset, ibasis) = 0.0_dp
+                     END IF
+                  END IF
+               CASE (2)
+                  ALLOCATE (tspj(iset, ibasis)%array(nsgf, ncoi))
+                  IF (ncoi > 0 .AND. nsgf > 0) THEN
+                     tspj(iset, ibasis)%array(:, :) = TRANSPOSE(basis_set%sphi(1:ncoi, sg_local:eg_local))
+                  ELSE
+                     tspj(iset, ibasis)%array(:, :) = 0.0_dp
+                  END IF
+                  IF (PRESENT(int_eps)) THEN
+                     IF (ncoi > 0 .AND. nsgf > 0) THEN
+                        max_sphi_norm_j(iset, ibasis) = MAXVAL(SUM(ABS(basis_set%sphi(1:ncoi, sg_local:eg_local)), &
+                                                                   DIM=1))
+                     ELSE
+                        max_sphi_norm_j(iset, ibasis) = 0.0_dp
+                     END IF
+                  END IF
+               CASE (3)
+                  ALLOCATE (spk(iset, ibasis)%array(ncoi, nsgf))
+                  IF (ncoi > 0 .AND. nsgf > 0) THEN
+                     spk(iset, ibasis)%array(:, :) = basis_set%sphi(1:ncoi, sg_local:eg_local)
+                  ELSE
+                     spk(iset, ibasis)%array(:, :) = 0.0_dp
+                  END IF
+                  IF (PRESENT(int_eps)) THEN
+                     IF (ncoi > 0 .AND. nsgf > 0) THEN
+                        max_sphi_norm_k(iset, ibasis) = MAXVAL(SUM(ABS(basis_set%sphi(1:ncoi, sg_local:eg_local)), &
+                                                                   DIM=1))
+                     ELSE
+                        max_sphi_norm_k(iset, ibasis) = 0.0_dp
+                     END IF
+                  END IF
+               END SELECT
 
             END DO !iset
          END DO !ibasis
@@ -2468,7 +2519,6 @@ CONTAINS
          IF (do_kpoints_prv) prefac = 1.0_dp
 
          IF (do_kpoints_prv) THEN
-
             IF (ANY([cell_j(1), cell_j(2), cell_j(3)] < kp_index_lbounds) .OR. &
                 ANY([cell_j(1), cell_j(2), cell_j(3)] > kp_index_ubounds)) CYCLE
 
@@ -2512,17 +2562,10 @@ CONTAINS
          IF (kind_radius_k + kind_radius_i + dr_ik < dik) CYCLE
 
          IF (PRESENT(int_eps)) THEN
-            ALLOCATE (max_contraction_j(nsetj))
-            DO jset = 1, nsetj
-               sgfj = first_sgf_j(1, jset)
-               max_contraction_j(jset) = MAXVAL([(SUM(ABS(sphi_j(:, i))), i=sgfj, sgfj + nsgfj(jset) - 1)])
-            END DO
-
-            ALLOCATE (max_contraction_k(nsetk))
-            DO kset = 1, nsetk
-               sgfk = first_sgf_k(1, kset)
-               max_contraction_k(kset) = MAXVAL([(SUM(ABS(sphi_k(:, i))), i=sgfk, sgfk + nsgfk(kset) - 1)])
-            END DO
+            NULLIFY (max_contr_i_ptr, max_contr_j_ptr, max_contr_k_ptr)
+            IF (nseti > 0) max_contr_i_ptr => max_sphi_norm_i(1:nseti, ikind)
+            IF (nsetj > 0) max_contr_j_ptr => max_sphi_norm_j(1:nsetj, jkind)
+            IF (nsetk > 0) max_contr_k_ptr => max_sphi_norm_k(1:nsetk, kkind)
          END IF
 
          CALL dbt_blk_sizes(t3c(jcell, kcell), blk_idx, blk_size)
@@ -2533,14 +2576,12 @@ CONTAINS
          DO iset = 1, nseti
 
             sgfi = first_sgf_i(1, iset)
-            max_contraction_i = MAXVAL([(SUM(ABS(sphi_i(:, i))), i=sgfi, sgfi + nsgfi(iset) - 1)])
+            IF (PRESENT(int_eps)) max_contraction_i_val = max_contr_i_ptr(iset)
 
             DO jset = 1, nsetj
-
                IF (set_radius_j(jset) + set_radius_i(iset) + dr_ij < dij) CYCLE
 
                DO kset = 1, nsetk
-
                   IF (set_radius_j(jset) + set_radius_k(kset) + dr_jk < djk) CYCLE
                   IF (set_radius_k(kset) + set_radius_i(iset) + dr_ik < dik) CYCLE
 
@@ -2580,9 +2621,11 @@ CONTAINS
                   END IF
 
                   IF (PRESENT(int_eps)) THEN
-                     IF (int_eps > sijk_ext*(max_contraction_i* &
-                                             max_contraction_j(jset)* &
-                                             max_contraction_k(kset))) THEN
+                     max_contraction_j_val = max_contr_j_ptr(jset)
+                     max_contraction_k_val = max_contr_k_ptr(kset)
+                     IF (int_eps > sijk_ext*(max_contraction_i_val* &
+                                             max_contraction_j_val* &
+                                             max_contraction_k_val)) THEN
                         DEALLOCATE (sijk)
                         CYCLE
                      END IF
@@ -2640,9 +2683,6 @@ CONTAINS
          END IF
 
          DEALLOCATE (block_t)
-         IF (PRESENT(int_eps)) THEN
-            DEALLOCATE (max_contraction_j, max_contraction_k)
-         END IF
       END DO
 
       IF (ALLOCATED(ccp_buffer)) DEALLOCATE (ccp_buffer)
@@ -2704,6 +2744,10 @@ CONTAINS
       ELSE
          CPABORT("requested symmetric case not implemented")
       END IF
+
+      IF (ALLOCATED(max_sphi_norm_i)) DEALLOCATE (max_sphi_norm_i)
+      IF (ALLOCATED(max_sphi_norm_j)) DEALLOCATE (max_sphi_norm_j)
+      IF (ALLOCATED(max_sphi_norm_k)) DEALLOCATE (max_sphi_norm_k)
 
       DO ibasis = 1, nbasis
          DO iset = 1, max_nset
