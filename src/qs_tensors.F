@@ -2156,7 +2156,7 @@ CONTAINS
                                                             desymmetrize_prv, do_hfx_kpoints_prv, &
                                                             do_kpoints_prv, found, skip
       REAL(KIND=dp) :: dij, dik, djk, dr_ij, dr_ik, dr_jk, kind_radius_i, kind_radius_j, &
-         kind_radius_k, max_contraction_i_val, max_contraction_j_val, max_contraction_k_val, &
+         kind_radius_k, max_contraction_i, max_contraction_j, max_contraction_k, &
          prefac, sijk_ext
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: ccp_buffer, cpp_buffer
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
@@ -2447,7 +2447,7 @@ CONTAINS
 !$OMP         bounds_j,bounds_k,nimg,basis_i,basis_j,basis_k,dr_ij,dr_jk,dr_ik,ncoset,&
 !$OMP         potential_parameter,int_eps,t3c,tspj,spi,spk,debug,cell_to_index,&
 !$OMP         natom,nl_3c,cell,op_pos_prv,do_hfx_kpoints_prv,RI_range,ncell_RI, &
-!$OMP         img_to_RI_cell_prv, cell_sym_prv) &
+!$OMP         img_to_RI_cell_prv, cell_sym_prv, max_sphi_norm_i, max_sphi_norm_j, max_sphi_norm_k) &
 !$OMP PRIVATE (lib,nl_3c_iter,ikind,jkind,kkind,iatom,jatom,katom,rij,rjk,rik,cell_j,cell_k,&
 !$OMP          prefac,jcell,kcell,first_sgf_i,lmax_i,lmin_i,npgfi,nseti,nsgfi,rpgf_i,set_radius_i,&
 !$OMP          sphi_i,zeti,kind_radius_i,first_sgf_j,lmax_j,lmin_j,npgfj,nsetj,nsgfj,rpgf_j,&
@@ -2456,7 +2456,8 @@ CONTAINS
 !$OMP          sgfk,sijk,ri,rj,rk,sijk_ext,block_not_zero,max_contraction_i,max_contraction_j,&
 !$OMP          max_contraction_k,iset,jset,kset,block_t,blk_size,sijk_contr,cpp_buffer,ccp_buffer,&
 !$OMP          block_start_j,block_end_j,block_start_k,block_end_k,block_start_i,block_end_i,found,&
-!$OMP          dummy_block_t,sp,handle2,mepos,bo,skip,tmp_ijk,i,blk_idx)
+!$OMP          dummy_block_t,sp,handle2,mepos,bo,skip,tmp_ijk,i,blk_idx,&
+!$OMP          max_contr_i_ptr, max_contr_j_ptr, max_contr_k_ptr)
 
       mepos = 0
 !$    mepos = omp_get_thread_num()
@@ -2576,7 +2577,7 @@ CONTAINS
          DO iset = 1, nseti
 
             sgfi = first_sgf_i(1, iset)
-            IF (PRESENT(int_eps)) max_contraction_i_val = max_contr_i_ptr(iset)
+            IF (PRESENT(int_eps)) max_contraction_i = max_contr_i_ptr(iset)
 
             DO jset = 1, nsetj
                IF (set_radius_j(jset) + set_radius_i(iset) + dr_ij < dij) CYCLE
@@ -2621,11 +2622,11 @@ CONTAINS
                   END IF
 
                   IF (PRESENT(int_eps)) THEN
-                     max_contraction_j_val = max_contr_j_ptr(jset)
-                     max_contraction_k_val = max_contr_k_ptr(kset)
-                     IF (int_eps > sijk_ext*(max_contraction_i_val* &
-                                             max_contraction_j_val* &
-                                             max_contraction_k_val)) THEN
+                     max_contraction_j = max_contr_j_ptr(jset)
+                     max_contraction_k = max_contr_k_ptr(kset)
+                     IF (int_eps > sijk_ext*(max_contraction_i* &
+                                             max_contraction_j* &
+                                             max_contraction_k)) THEN
                         DEALLOCATE (sijk)
                         CYCLE
                      END IF
