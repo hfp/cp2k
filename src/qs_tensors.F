@@ -2156,8 +2156,7 @@ CONTAINS
                                                             desymmetrize_prv, do_hfx_kpoints_prv, &
                                                             do_kpoints_prv, found, skip
       REAL(KIND=dp) :: dij, dik, djk, dr_ij, dr_ik, dr_jk, kind_radius_i, kind_radius_j, &
-         kind_radius_k, max_contraction_i, max_contraction_j, max_contraction_k, &
-         prefac, sijk_ext
+         kind_radius_k, max_contraction_i, max_contraction_j, max_contraction_k, prefac, sijk_ext
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: ccp_buffer, cpp_buffer
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
          TARGET                                          :: max_sphi_norm_i, max_sphi_norm_j, &
