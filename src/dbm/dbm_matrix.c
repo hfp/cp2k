@@ -128,27 +128,43 @@ void dbm_redistribute(const dbm_matrix_t *matrix, dbm_matrix_t *redist) {
   const int nranks = cp_mpi_comm_size(comm);
 
   // 1st pass: Compute send_count.
-  int send_count[nranks];
+  int *const send_count = cp_mpi_alloc_mem(nranks * sizeof(int));
   memset(send_count, 0, nranks * sizeof(int));
-  for (int ishard = 0; ishard < dbm_get_num_shards(matrix); ishard++) {
-    dbm_shard_t *shard = &matrix->shards[ishard];
-    for (int iblock = 0; iblock < shard->nblocks; iblock++) {
-      const dbm_block_t *blk = &shard->blocks[iblock];
-      const int row_size = matrix->row_sizes[blk->row];
-      const int col_size = matrix->col_sizes[blk->col];
-      const int block_size = row_size * col_size;
-      const int rank = dbm_get_stored_coordinates(redist, blk->row, blk->col);
-      assert(0 <= rank && rank < nranks);
-      send_count[rank] += 2 + block_size;
+  assert(send_count != NULL || nranks == 0);
+#pragma omp parallel
+  {
+    int *const thread_send_count = calloc(nranks, sizeof(int));
+    assert(thread_send_count != NULL || nranks == 0);
+#pragma omp for
+    for (int ishard = 0; ishard < dbm_get_num_shards(matrix); ishard++) {
+      const dbm_shard_t *const shard = &matrix->shards[ishard];
+      for (int iblock = 0; iblock < shard->nblocks; iblock++) {
+        const dbm_block_t *blk = &shard->blocks[iblock];
+        const int row_size = matrix->row_sizes[blk->row];
+        const int col_size = matrix->col_sizes[blk->col];
+        const int block_size = row_size * col_size;
+        const int rank = dbm_get_stored_coordinates(redist, blk->row, blk->col);
+        assert(0 <= rank && rank < nranks);
+        thread_send_count[rank] += 2 + block_size;
+      }
     }
+#pragma omp critical
+    for (int irank = 0; irank < nranks; irank++) {
+      send_count[irank] += thread_send_count[irank];
+    }
+    free(thread_send_count);
   }
 
   // 1st communication: Exchange counts.
-  int recv_count[nranks];
+  int *const recv_count = cp_mpi_alloc_mem(nranks * sizeof(int));
+  assert(recv_count != NULL || nranks == 0);
   cp_mpi_alltoall_int(send_count, 1, recv_count, 1, comm);
 
   // Compute displacements and allocate data buffers.
-  int send_displ[nranks + 1], recv_displ[nranks + 1];
+  int *const send_displ = cp_mpi_alloc_mem((nranks + 1) * sizeof(int));
+  assert(send_displ != NULL || (nranks + 1) == 0);
+  int *const recv_displ = cp_mpi_alloc_mem((nranks + 1) * sizeof(int));
+  assert(recv_displ != NULL || (nranks + 1) == 0);
   send_displ[0] = recv_displ[0] = 0;
   for (int irank = 1; irank <= nranks; irank++) {
     send_displ[irank] = send_displ[irank - 1] + send_count[irank - 1];
@@ -160,10 +176,9 @@ void dbm_redistribute(const dbm_matrix_t *matrix, dbm_matrix_t *redist) {
   double *data_recv = cp_mpi_alloc_mem(total_recv_count * sizeof(double));
 
   // 2nd pass: Fill send_data.
-  int send_data_positions[nranks];
-  memcpy(send_data_positions, send_displ, nranks * sizeof(int));
+#pragma omp parallel for
   for (int ishard = 0; ishard < dbm_get_num_shards(matrix); ishard++) {
-    dbm_shard_t *shard = &matrix->shards[ishard];
+    const dbm_shard_t *shard = &matrix->shards[ishard];
     for (int iblock = 0; iblock < shard->nblocks; iblock++) {
       const dbm_block_t *blk = &shard->blocks[iblock];
       const double *blk_data = &shard->data[blk->offset];
@@ -171,37 +186,36 @@ void dbm_redistribute(const dbm_matrix_t *matrix, dbm_matrix_t *redist) {
       const int col_size = matrix->col_sizes[blk->col];
       const int block_size = row_size * col_size;
       const int rank = dbm_get_stored_coordinates(redist, blk->row, blk->col);
-      const int pos = send_data_positions[rank];
+      int pos;
+#pragma omp atomic capture
+      pos = send_displ[rank]++;
       data_send[pos + 0] = blk->row; // send integers as doubles
       data_send[pos + 1] = blk->col;
       memcpy(&data_send[pos + 2], blk_data, block_size * sizeof(double));
-      send_data_positions[rank] += 2 + block_size;
     }
-  }
-  for (int irank = 0; irank < nranks; irank++) {
-    assert(send_data_positions[irank] == send_displ[irank + 1]);
   }
 
   // 2nd communication: Exchange data.
   cp_mpi_alltoallv_double(data_send, send_count, send_displ, data_recv,
                           recv_count, recv_displ, comm);
   cp_mpi_free_mem(data_send);
+  cp_mpi_free_mem(send_count);
+  cp_mpi_free_mem(recv_count);
+  cp_mpi_free_mem(send_displ);
+  cp_mpi_free_mem(recv_displ);
 
   // 3rd pass: Unpack data.
   dbm_clear(redist);
-  int recv_data_pos = 0;
-  while (recv_data_pos < total_recv_count) {
-    const int row = (int)data_recv[recv_data_pos + 0];
-    const int col = (int)data_recv[recv_data_pos + 1];
-    assert(data_recv[recv_data_pos + 0] - (double)row == 0.0);
-    assert(data_recv[recv_data_pos + 1] - (double)col == 0.0);
-    dbm_put_block(redist, row, col, false, &data_recv[recv_data_pos + 2]);
-    const int row_size = matrix->row_sizes[row];
-    const int col_size = matrix->col_sizes[col];
-    const int block_size = row_size * col_size;
-    recv_data_pos += 2 + block_size;
+#pragma omp parallel for
+  for (int i = 0; i < total_recv_count;
+       i += 2 + redist->row_sizes[(int)data_recv[i]] *
+                    redist->col_sizes[(int)data_recv[i + 1]]) {
+    const int row = (int)data_recv[i];
+    const int col = (int)data_recv[i + 1];
+    assert(data_recv[i] - (double)row == 0.0);
+    assert(data_recv[i + 1] - (double)col == 0.0);
+    dbm_put_block(redist, row, col, false, &data_recv[i + 2]);
   }
-  assert(recv_data_pos == total_recv_count);
   cp_mpi_free_mem(data_recv);
 }
 
