@@ -206,16 +206,19 @@ void dbm_redistribute(const dbm_matrix_t *matrix, dbm_matrix_t *redist) {
 
   // 3rd pass: Unpack data.
   dbm_clear(redist);
-#pragma omp parallel for
-  for (int i = 0; i < total_recv_count;
-       i += 2 + redist->row_sizes[(int)data_recv[i]] *
-                    redist->col_sizes[(int)data_recv[i + 1]]) {
-    const int row = (int)data_recv[i];
-    const int col = (int)data_recv[i + 1];
-    assert(data_recv[i] - (double)row == 0.0);
-    assert(data_recv[i + 1] - (double)col == 0.0);
-    dbm_put_block(redist, row, col, false, &data_recv[i + 2]);
+  int recv_data_pos = 0;
+  while (recv_data_pos < total_recv_count) {
+    const int row = (int)data_recv[recv_data_pos + 0];
+    const int col = (int)data_recv[recv_data_pos + 1];
+    assert(data_recv[recv_data_pos + 0] - (double)row == 0.0);
+    assert(data_recv[recv_data_pos + 1] - (double)col == 0.0);
+    dbm_put_block(redist, row, col, false, &data_recv[recv_data_pos + 2]);
+    const int row_size = matrix->row_sizes[row];
+    const int col_size = matrix->col_sizes[col];
+    const int block_size = row_size * col_size;
+    recv_data_pos += 2 + block_size;
   }
+  assert(recv_data_pos == total_recv_count);
   cp_mpi_free_mem(data_recv);
 }
 
