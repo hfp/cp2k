@@ -184,7 +184,7 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
 void dbm_multiply_gpu_stop(dbm_multiply_gpu_context_t *ctx) {
   // Assume GPU device was activated earlier.
   // Wait for completion, then free gpu ressources.
-#pragma omp parallel for DBM_OMP_SCHEDULE
+#pragma omp parallel for
   for (int i = 0; i < ctx->nshards; i++) {
     dbm_shard_gpu_t *const shard_g = &ctx->shards_c_dev[i];
     offloadStreamSynchronize(shard_g->stream);

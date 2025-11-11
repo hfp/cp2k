@@ -101,7 +101,7 @@ void dbm_copy(dbm_matrix_t *matrix_a, const dbm_matrix_t *matrix_b) {
 
   assert(matrix_a->dist == matrix_b->dist);
 
-#pragma omp parallel for DBM_OMP_SCHEDULE
+#pragma omp parallel for
   for (int ishard = 0; ishard < dbm_get_num_shards(matrix_a); ishard++) {
     dbm_shard_copy(&matrix_a->shards[ishard], &matrix_b->shards[ishard]);
   }
@@ -265,7 +265,7 @@ void dbm_put_block(dbm_matrix_t *matrix, const int row, const int col,
 void dbm_clear(dbm_matrix_t *matrix) {
   assert(omp_get_num_threads() == 1);
 
-#pragma omp parallel for DBM_OMP_SCHEDULE
+#pragma omp parallel for
   for (int ishard = 0; ishard < dbm_get_num_shards(matrix); ishard++) {
     dbm_shard_t *shard = &matrix->shards[ishard];
     shard->nblocks = 0;
@@ -289,7 +289,7 @@ void dbm_filter(dbm_matrix_t *matrix, const double eps) {
   }
   const double eps2 = eps * eps;
 
-#pragma omp parallel for DBM_OMP_SCHEDULE
+#pragma omp parallel for
   for (int ishard = 0; ishard < dbm_get_num_shards(matrix); ishard++) {
     dbm_shard_t *shard = &matrix->shards[ishard];
     const int old_nblocks = shard->nblocks;
@@ -355,7 +355,7 @@ void dbm_reserve_blocks(dbm_matrix_t *matrix, const int nblocks,
   }
 #pragma omp barrier
 
-#pragma omp for DBM_OMP_SCHEDULE
+#pragma omp for
   for (int ishard = 0; ishard < dbm_get_num_shards(matrix); ishard++) {
     dbm_shard_t *shard = &matrix->shards[ishard];
     dbm_shard_allocate_promised_blocks(shard);
@@ -376,7 +376,7 @@ void dbm_scale(dbm_matrix_t *matrix, const double alpha) {
     return;
   }
 
-#pragma omp parallel for DBM_OMP_SCHEDULE
+#pragma omp parallel for
   for (int ishard = 0; ishard < dbm_get_num_shards(matrix); ishard++) {
     dbm_shard_t *shard = &matrix->shards[ishard];
     for (int i = 0; i < shard->data_size; i++) {
@@ -392,7 +392,7 @@ void dbm_scale(dbm_matrix_t *matrix, const double alpha) {
 void dbm_zero(dbm_matrix_t *matrix) {
   assert(omp_get_num_threads() == 1);
 
-#pragma omp parallel for DBM_OMP_SCHEDULE
+#pragma omp parallel for
   for (int ishard = 0; ishard < dbm_get_num_shards(matrix); ishard++) {
     dbm_shard_t *shard = &matrix->shards[ishard];
     if (shard->data != NULL) {
@@ -409,7 +409,7 @@ void dbm_add(dbm_matrix_t *matrix_a, const dbm_matrix_t *matrix_b) {
   assert(omp_get_num_threads() == 1);
   assert(matrix_a->dist == matrix_b->dist);
 
-#pragma omp parallel for DBM_OMP_SCHEDULE
+#pragma omp parallel for
   for (int ishard = 0; ishard < dbm_get_num_shards(matrix_b); ishard++) {
     dbm_shard_t *shard_a = &matrix_a->shards[ishard];
     const dbm_shard_t *shard_b = &matrix_b->shards[ishard];
@@ -571,7 +571,7 @@ double dbm_maxeps(const dbm_matrix_t *matrix_a, const dbm_matrix_t *matrix_b) {
   assert(matrix_a->dist == matrix_b->dist);
   assert(num_shards == dbm_get_num_shards(matrix_b));
 
-#pragma omp parallel for DBM_OMP_SCHEDULE
+#pragma omp parallel for
   for (int ishard = 0; ishard < num_shards; ++ishard) {
     const dbm_shard_t *const shard_a = &matrix_a->shards[ishard];
     const dbm_shard_t *const shard_b = &matrix_b->shards[ishard];
