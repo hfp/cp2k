@@ -162,10 +162,10 @@ CONTAINS
          send_blocks_local(iproc) = send_blocks_local(iproc) + 1
       END DO
       CALL dbt_tas_iterator_stop(iter)
-!$OMP CRITICAL
+!$OMP CRITICAL(dbt_tas_merge)
       num_entries_send(:) = num_entries_send(:) + send_entries_local(:)
       num_blocks_send(:) = num_blocks_send(:) + send_blocks_local(:)
-!$OMP END CRITICAL
+!$OMP END CRITICAL(dbt_tas_merge)
       DEALLOCATE (send_entries_local, send_blocks_local)
 !$OMP END PARALLEL
       CALL timestop(handle2)
@@ -598,10 +598,10 @@ CONTAINS
          send_blocks_local(iproc) = send_blocks_local(iproc) + 1
       END DO
       CALL dbm_iterator_stop(iter)
-!$OMP CRITICAL
+!$OMP CRITICAL(dbt_tas_reshape)
       num_entries_send(:) = num_entries_send(:) + send_entries_local(:)
       num_blocks_send(:) = num_blocks_send(:) + send_blocks_local(:)
-!$OMP END CRITICAL
+!$OMP END CRITICAL(dbt_tas_reshape)
       DEALLOCATE (send_entries_local, send_blocks_local)
 !$OMP END PARALLEL
 
