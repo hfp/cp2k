@@ -96,7 +96,7 @@ CONTAINS
          IF (.NOT. blocks_equal(blk_data1, blk_data2)) THEN
 !$OMP ATOMIC WRITE
             dbt_equal = .FALSE.
-!$OMP END ATOMIC WRITE
+!$OMP END ATOMIC
          END IF
       END DO
 

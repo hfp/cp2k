@@ -1154,7 +1154,7 @@ CONTAINS
          END DO loop_l3
 !$OMP ATOMIC UPDATE
          indlstx = MAX(indlstx, indlst)
-!$OMP END ATOMIC UPDATE
+!$OMP END ATOMIC
 !$OMP END PARALLEL
 
          IF (indlstx >= myspaceout) THEN
@@ -2320,7 +2320,7 @@ CONTAINS
 
 !$OMP ATOMIC UPDATE
          indlstx = MAX(indlstx, indlst)
-!$OMP END ATOMIC UPDATE
+!$OMP END ATOMIC
 !$OMP END PARALLEL
 
          IF (indlstx >= myspaceout) THEN
