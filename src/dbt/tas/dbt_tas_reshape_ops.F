@@ -91,8 +91,9 @@ CONTAINS
       INTEGER(KIND=int_8), DIMENSION(2)                  :: blk_index
       INTEGER(kind=omp_lock_kind), ALLOCATABLE, &
          DIMENSION(:)                                    :: locks
-      INTEGER, ALLOCATABLE, DIMENSION(:) :: num_blocks_recv, num_blocks_send, num_entries_recv, &
-         num_entries_send, num_rec, num_send, send_blocks_local, send_entries_local
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: num_blocks_recv, num_blocks_send, &
+                                                            num_entries_recv, num_entries_send, &
+                                                            num_rec, num_send
       INTEGER, DIMENSION(2)                              :: blk_size
       LOGICAL                                            :: move_prv, tr_in
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: block
@@ -133,9 +134,9 @@ CONTAINS
       ALLOCATE (buffer_send(0:numnodes - 1))
       ALLOCATE (buffer_recv(0:numnodes - 1))
       ALLOCATE (num_blocks_recv(0:numnodes - 1))
-      ALLOCATE (num_blocks_send(0:numnodes - 1), SOURCE=0)
+      ALLOCATE (num_blocks_send(0:numnodes - 1))
       ALLOCATE (num_entries_recv(0:numnodes - 1))
-      ALLOCATE (num_entries_send(0:numnodes - 1), SOURCE=0)
+      ALLOCATE (num_entries_send(0:numnodes - 1))
       ALLOCATE (num_rec(0:2*numnodes - 1))
       ALLOCATE (num_send(0:2*numnodes - 1), SOURCE=0)
       ALLOCATE (req_array(1:numnodes, 4))
@@ -145,10 +146,8 @@ CONTAINS
       END DO
 
       CALL timeset(routineN//"_get_coord", handle2)
-!$OMP PARALLEL DEFAULT(NONE) SHARED(matrix_in,matrix_out,tr_in,num_entries_send,num_blocks_send,numnodes) &
-!$OMP PRIVATE(iter,blk_index,blk_size,iproc,send_entries_local,send_blocks_local)
-      ALLOCATE (send_entries_local(0:numnodes - 1), SOURCE=0)
-      ALLOCATE (send_blocks_local(0:numnodes - 1), SOURCE=0)
+!$OMP PARALLEL DEFAULT(NONE) SHARED(matrix_in,matrix_out,tr_in,num_send,locks) &
+!$OMP PRIVATE(iter,blk_index,blk_size,iproc)
       CALL dbt_tas_iterator_start(iter, matrix_in)
       DO WHILE (dbt_tas_iterator_blocks_left(iter))
          CALL dbt_tas_iterator_next_block(iter, blk_index(1), blk_index(2), &
@@ -158,22 +157,14 @@ CONTAINS
          ELSE
             CALL dbt_tas_get_stored_coordinates(matrix_out, blk_index(1), blk_index(2), iproc)
          END IF
-         send_entries_local(iproc) = send_entries_local(iproc) + PRODUCT(blk_size)
-         send_blocks_local(iproc) = send_blocks_local(iproc) + 1
+         CALL omp_set_lock(locks(iproc))
+         num_send(2*iproc) = num_send(2*iproc) + PRODUCT(blk_size)
+         num_send(2*iproc + 1) = num_send(2*iproc + 1) + 1
+         CALL omp_unset_lock(locks(iproc))
       END DO
       CALL dbt_tas_iterator_stop(iter)
-!$OMP CRITICAL(dbt_tas_merge)
-      num_entries_send(:) = num_entries_send(:) + send_entries_local(:)
-      num_blocks_send(:) = num_blocks_send(:) + send_blocks_local(:)
-!$OMP END CRITICAL(dbt_tas_merge)
-      DEALLOCATE (send_entries_local, send_blocks_local)
 !$OMP END PARALLEL
       CALL timestop(handle2)
-
-      DO iproc = 0, numnodes - 1
-         num_send(2*iproc) = num_entries_send(iproc)
-         num_send(2*iproc + 1) = num_blocks_send(iproc)
-      END DO
 
       CALL timeset(routineN//"_alltoall", handle2)
       CALL mp_comm%alltoall(num_send, num_rec, 2)
@@ -211,17 +202,14 @@ CONTAINS
       IF (move_prv) CALL dbt_tas_clear(matrix_in)
       CALL timestop(handle2)
 
-      DO iproc = 0, numnodes - 1
-         CALL omp_destroy_lock(locks(iproc))
-      END DO
-      DEALLOCATE (locks)
-
       CALL timeset(routineN//"_communicate_buffer", handle2)
       CALL dbt_tas_communicate_buffer(mp_comm, buffer_recv, buffer_send, req_array)
 
       DO iproc = 0, numnodes - 1
          CALL dbt_buffer_destroy(buffer_send(iproc))
+         CALL omp_destroy_lock(locks(iproc))
       END DO
+      DEALLOCATE (locks)
 
       CALL timestop(handle2)
 
@@ -404,7 +392,7 @@ CONTAINS
          CALL omp_init_lock(locks(iproc))
       END DO
 
-!$OMP PARALLEL DEFAULT(NONE) SHARED(matrix_in,matrix_out,num_send,ngroup,iprocs) &
+!$OMP PARALLEL DEFAULT(NONE) SHARED(matrix_in,matrix_out,num_send,ngroup,iprocs,locks) &
 !$OMP PRIVATE(iter,blk_index,blk_size,cache_idx,i,iproc)
       cache_idx = omp_get_thread_num() + 1
       CALL dbm_iterator_start(iter, matrix_in)
@@ -415,10 +403,10 @@ CONTAINS
                                               iprocs(:, cache_idx))
          DO i = 1, ngroup
             iproc = iprocs(i, cache_idx)
-!$OMP ATOMIC
+            CALL omp_set_lock(locks(iproc))
             num_send(2*iproc) = num_send(2*iproc) + PRODUCT(blk_size)
-!$OMP ATOMIC
             num_send(2*iproc + 1) = num_send(2*iproc + 1) + 1
+            CALL omp_unset_lock(locks(iproc))
          END DO
       END DO
       CALL dbm_iterator_stop(iter)
@@ -466,7 +454,9 @@ CONTAINS
 
       DO iproc = 0, numnodes - 1
          CALL dbt_buffer_destroy(buffer_send(iproc))
+         CALL omp_destroy_lock(locks(iproc))
       END DO
+      DEALLOCATE (locks)
 
       CALL timestop(handle2)
 
@@ -536,8 +526,9 @@ CONTAINS
       INTEGER(KIND=int_8), DIMENSION(2)                  :: blk_index_i8
       INTEGER(kind=omp_lock_kind), ALLOCATABLE, &
          DIMENSION(:)                                    :: locks
-      INTEGER, ALLOCATABLE, DIMENSION(:) :: num_blocks_recv, num_blocks_send, num_entries_recv, &
-         num_entries_send, num_rec, num_send, send_blocks_local, send_entries_local
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: num_blocks_recv, num_blocks_send, &
+                                                            num_entries_recv, num_entries_send, &
+                                                            num_rec, num_send
       INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: blks_to_allocate
       INTEGER, DIMENSION(2)                              :: blk_index, blk_size
       INTEGER, DIMENSION(:), POINTER                     :: col_block_sizes, row_block_sizes
@@ -573,9 +564,9 @@ CONTAINS
       ALLOCATE (buffer_send(0:numnodes - 1))
       ALLOCATE (buffer_recv(0:numnodes - 1))
       ALLOCATE (num_blocks_recv(0:numnodes - 1))
-      ALLOCATE (num_blocks_send(0:numnodes - 1), SOURCE=0)
+      ALLOCATE (num_blocks_send(0:numnodes - 1))
       ALLOCATE (num_entries_recv(0:numnodes - 1))
-      ALLOCATE (num_entries_send(0:numnodes - 1), SOURCE=0)
+      ALLOCATE (num_entries_send(0:numnodes - 1))
       ALLOCATE (num_rec(0:2*numnodes - 1))
       ALLOCATE (num_send(0:2*numnodes - 1), SOURCE=0)
       ALLOCATE (req_array(1:numnodes, 4))
@@ -584,31 +575,20 @@ CONTAINS
          CALL omp_init_lock(locks(iproc))
       END DO
 
-!$OMP PARALLEL DEFAULT(NONE) SHARED(matrix_in,matrix_out,num_entries_send,num_blocks_send,numnodes) &
-!$OMP PRIVATE(iter,blk_index,blk_size,iproc,send_entries_local,send_blocks_local)
-      ALLOCATE (send_entries_local(0:numnodes - 1), SOURCE=0)
-      ALLOCATE (send_blocks_local(0:numnodes - 1), SOURCE=0)
-
+!$OMP PARALLEL DEFAULT(NONE) SHARED(matrix_in,matrix_out,num_send,locks) &
+!$OMP PRIVATE(iter,blk_index,blk_size,iproc)
       CALL dbm_iterator_start(iter, matrix_in%matrix)
       DO WHILE (dbm_iterator_blocks_left(iter))
          CALL dbm_iterator_next_block(iter, blk_index(1), blk_index(2), &
                                       row_size=blk_size(1), col_size=blk_size(2))
          CALL dbm_get_stored_coordinates(matrix_out, blk_index(1), blk_index(2), iproc)
-         send_entries_local(iproc) = send_entries_local(iproc) + PRODUCT(blk_size)
-         send_blocks_local(iproc) = send_blocks_local(iproc) + 1
+         CALL omp_set_lock(locks(iproc))
+         num_send(2*iproc) = num_send(2*iproc) + PRODUCT(blk_size)
+         num_send(2*iproc + 1) = num_send(2*iproc + 1) + 1
+         CALL omp_unset_lock(locks(iproc))
       END DO
       CALL dbm_iterator_stop(iter)
-!$OMP CRITICAL(dbt_tas_reshape)
-      num_entries_send(:) = num_entries_send(:) + send_entries_local(:)
-      num_blocks_send(:) = num_blocks_send(:) + send_blocks_local(:)
-!$OMP END CRITICAL(dbt_tas_reshape)
-      DEALLOCATE (send_entries_local, send_blocks_local)
 !$OMP END PARALLEL
-
-      DO iproc = 0, numnodes - 1
-         num_send(2*iproc) = num_entries_send(iproc)
-         num_send(2*iproc + 1) = num_blocks_send(iproc)
-      END DO
 
       CALL timeset(routineN//"_alltoall", handle2)
       CALL mp_comm%alltoall(num_send, num_rec, 2)
@@ -638,11 +618,6 @@ CONTAINS
       CALL dbm_iterator_stop(iter)
 !$OMP END PARALLEL
 
-      DO iproc = 0, numnodes - 1
-         CALL omp_destroy_lock(locks(iproc))
-      END DO
-      DEALLOCATE (locks)
-
       IF (move_prv) CALL dbt_tas_clear(matrix_in)
 
       CALL timeset(routineN//"_communicate_buffer", handle2)
@@ -650,7 +625,9 @@ CONTAINS
 
       DO iproc = 0, numnodes - 1
          CALL dbt_buffer_destroy(buffer_send(iproc))
+         CALL omp_destroy_lock(locks(iproc))
       END DO
+      DEALLOCATE (locks)
 
       CALL timestop(handle2)
 
