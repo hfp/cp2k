@@ -160,6 +160,7 @@ CONTAINS
          CALL destroy_block(blk_data)
       END DO
       CALL dbt_iterator_stop(iter)
+      DEALLOCATE (nblks_send_mythread, ndata_send_mythread)
 !$OMP BARRIER
 
       CALL dbt_communicate_buffer(mp_comm, buffer_recv, buffer_send)
