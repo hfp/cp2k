@@ -2959,7 +2959,6 @@ CONTAINS
          INTEGER                                  :: handle
 #if defined(__parallel)
          INTEGER                                  :: i, ierr, msglen
-         INTEGER, DIMENSION(:), ALLOCATABLE       :: imsg
 #endif
 
          CALL mp_timeset(routineN, handle)
@@ -2969,22 +2968,8 @@ CONTAINS
          IF (comm%mepos == source) msglen = LEN_TRIM(msg)
 
          CALL comm%bcast(msglen, source)
-         ! this is a workaround to avoid problems on the T3E
-         ! at the moment we have a data alignment error when trying to
-         ! broadcast characters on the T3E (not always!)
-         ! JH 19/3/99 on galileo
-         ! CALL mpi_bcast(msg,msglen,MPI_CHARACTER,source,gid%handle,ierr)
-         ALLOCATE (imsg(1:msglen))
-         DO i = 1, msglen
-            imsg(i) = ICHAR(msg(i:i))
-         END DO
-         CALL mpi_bcast(imsg, msglen, MPI_INTEGER, source, comm%handle, ierr)
+         CALL mpi_bcast(msg, msglen, MPI_CHARACTER, source, comm%handle, ierr)
          IF (ierr /= 0) CALL mp_stop(ierr, "mpi_bcast @ "//routineN)
-         msg = ""
-         DO i = 1, msglen
-            msg(i:i) = CHAR(imsg(i))
-         END DO
-         DEALLOCATE (imsg)
          CALL add_perf(perf_id=2, count=1, msg_size=msglen*charlen)
 #else
          MARK_USED(msg)
@@ -3008,7 +2993,6 @@ CONTAINS
          INTEGER                                  :: handle
 #if defined(__parallel)
          INTEGER                                  :: i, ierr, msglen
-         INTEGER, DIMENSION(:), ALLOCATABLE       :: imsg
 #endif
 
          CALL mp_timeset(routineN, handle)
@@ -3018,22 +3002,8 @@ CONTAINS
          IF (comm%is_source()) msglen = LEN_TRIM(msg)
 
          CALL comm%bcast(msglen, comm%source)
-         ! this is a workaround to avoid problems on the T3E
-         ! at the moment we have a data alignment error when trying to
-         ! broadcast characters on the T3E (not always!)
-         ! JH 19/3/99 on galileo
-         ! CALL mpi_bcast(msg,msglen,MPI_CHARACTER,source,gid%handle,ierr)
-         ALLOCATE (imsg(1:msglen))
-         DO i = 1, msglen
-            imsg(i) = ICHAR(msg(i:i))
-         END DO
-         CALL mpi_bcast(imsg, msglen, MPI_INTEGER, comm%source, comm%handle, ierr)
+         CALL mpi_bcast(msg, msglen, MPI_CHARACTER, comm%source, comm%handle, ierr)
          IF (ierr /= 0) CALL mp_stop(ierr, "mpi_bcast @ "//routineN)
-         msg = ""
-         DO i = 1, msglen
-            msg(i:i) = CHAR(imsg(i))
-         END DO
-         DEALLOCATE (imsg)
          CALL add_perf(perf_id=2, count=1, msg_size=msglen*charlen)
 #else
          MARK_USED(msg)
