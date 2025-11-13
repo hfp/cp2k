@@ -337,17 +337,19 @@ void dbm_reserve_blocks(dbm_matrix_t *matrix, const int nblocks,
   assert(omp_get_num_threads() == omp_get_max_threads() &&
          "Please call dbm_reserve_blocks within an OpenMP parallel region.");
   const int my_rank = matrix->dist->my_rank;
+
   for (int i = 0; i < nblocks; i++) {
-    const int ishard = dbm_get_shard_index(matrix, rows[i], cols[i]);
+    const int row = rows[i], col = cols[i];
+    assert(0 <= row && row < matrix->nrows);
+    assert(0 <= col && col < matrix->ncols);
+    assert(dbm_get_stored_coordinates(matrix, row, col) == my_rank);
+    const int ishard = dbm_get_shard_index(matrix, row, col);
     dbm_shard_t *const shard = &matrix->shards[ishard];
-    omp_set_lock(&shard->lock);
-    assert(0 <= rows[i] && rows[i] < matrix->nrows);
-    assert(0 <= cols[i] && cols[i] < matrix->ncols);
-    assert(dbm_get_stored_coordinates(matrix, rows[i], cols[i]) == my_rank);
-    const int row_size = matrix->row_sizes[rows[i]];
-    const int col_size = matrix->col_sizes[cols[i]];
+    const int row_size = matrix->row_sizes[row];
+    const int col_size = matrix->col_sizes[col];
     const int block_size = row_size * col_size;
-    dbm_shard_get_or_promise_block(shard, rows[i], cols[i], block_size);
+    omp_set_lock(&shard->lock);
+    dbm_shard_get_or_promise_block(shard, row, col, block_size);
     omp_unset_lock(&shard->lock);
   }
 #pragma omp barrier
