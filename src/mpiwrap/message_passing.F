@@ -21,14 +21,12 @@
 !> \author JGH
 ! **************************************************************************************************
 MODULE message_passing
-   USE ISO_C_BINDING, ONLY: C_F_POINTER, &
-                            C_PTR
+   USE ISO_C_BINDING, ONLY: C_F_POINTER, C_LOC, C_PTR, C_INT, C_NULL_PTR
    USE kinds, ONLY: &
       dp, int_4, int_4_size, int_8, int_8_size, real_4, real_4_size, real_8, &
       real_8_size, default_string_length
    USE machine, ONLY: m_abort
-   USE mp_perf_env, ONLY: add_perf, &
-                          add_mp_perf_env, rm_mp_perf_env
+   USE mp_perf_env, ONLY: add_perf, add_mp_perf_env, rm_mp_perf_env
 
 #include "../base/base_uses.f90"
 
@@ -59,55 +57,15 @@ MODULE message_passing
 #endif
 
 #if defined(__parallel)
-#if defined(__MPI_F08)
-   USE mpi_f08, ONLY: mpi_allgather, mpi_allgatherv, mpi_alloc_mem, mpi_allreduce, mpi_alltoall, mpi_alltoallv, mpi_bcast, &
-                     mpi_cart_coords, mpi_cart_create, mpi_cart_get, mpi_cart_rank, mpi_cart_sub, mpi_dims_create, mpi_file_close, &
-                      mpi_file_get_size, mpi_file_open, mpi_file_read_at_all, mpi_file_read_at, mpi_file_write_at_all, &
-                  mpi_file_write_at, mpi_free_mem, mpi_gather, mpi_gatherv, mpi_get_address, mpi_group_translate_ranks, mpi_irecv, &
-                      mpi_isend, mpi_recv, mpi_reduce, mpi_reduce_scatter, mpi_rget, mpi_scatter, mpi_send, &
-                     mpi_sendrecv, mpi_sendrecv_replace, mpi_testany, mpi_waitall, mpi_waitany, mpi_win_create, mpi_comm_get_attr, &
-              mpi_ibcast, mpi_any_tag, mpi_any_source, mpi_address_kind, mpi_thread_serialized, mpi_errors_return, mpi_comm_world, &
-#if defined(__DLAF)
-                      mpi_thread_multiple, &
-#endif
-                      mpi_comm_self, mpi_comm_null, mpi_info_null, mpi_request_null, mpi_request, mpi_comm, mpi_group, &
-                      mpi_status_ignore, mpi_info, mpi_file, mpi_success, &
-                      mpi_tag_ub, mpi_host, mpi_io, mpi_wtime_is_global, mpi_logical, &
-                      mpi_status, mpi_lor, mpi_2real, mpi_real, mpi_maxloc, mpi_integer8, mpi_bottom, &
-                      mpi_iscatter, mpi_iscatterv, mpi_gatherv, mpi_igatherv, mpi_iallgather, &
-                      mpi_iallgatherv, mpi_status, mpi_comm_type_shared, mpi_integer, mpi_minloc, mpi_2double_precision, &
-                      mpi_file, mpi_minloc, mpi_integer, mpi_sum, mpi_scan, &
-                      mpi_2integer, mpi_in_place, mpi_max, mpi_min, mpi_prod, mpi_iallreduce, mpi_double_precision, &
-                      mpi_error_string, mpi_double_complex, mpi_complex, mpi_type_size, mpi_file_write_all, &
-                      mpi_max_error_string, mpi_datatype, mpi_offset_kind, mpi_win, mpi_mode_rdonly, mpi_mode_rdwr, &
-                      mpi_mode_wronly, mpi_mode_create, mpi_mode_append, mpi_mode_excl, mpi_max_library_version_string, &
-                      mpi_win_null, mpi_file_null, mpi_datatype_null, mpi_character, mpi_mode_nocheck, &
-                      mpi_status_size, mpi_proc_null, mpi_unequal, mpi_similar, mpi_ident, mpi_congruent
-#else
-   USE mpi
-#endif
 ! subroutines: unfortunately, mpi implementations do not provide interfaces for all subroutines (problems with types and ranks explosion),
 !              we do not quite know what is in the module, so we can not include any....
 !              to nevertheless get checking for what is included, we use the mpi module without use clause, getting all there is
-! USE mpi, ONLY: mpi_allgather, mpi_allgatherv, mpi_alloc_mem, mpi_allreduce, mpi_alltoall, mpi_alltoallv, mpi_bcast,&
-!                mpi_cart_coords, mpi_cart_create, mpi_cart_get, mpi_cart_rank, mpi_cart_sub, mpi_dims_create, mpi_file_close,&
-!                mpi_file_get_size, mpi_file_open, mpi_file_read_at_all, mpi_file_read_at, mpi_file_write_at_all,&
-!                mpi_file_write_at, mpi_free_mem, mpi_gather, mpi_gatherv, mpi_get_address, mpi_group_translate_ranks, mpi_irecv,&
-!                mpi_isend, mpi_recv, mpi_reduce, mpi_reduce_scatter, mpi_rget, mpi_scatter, mpi_send,&
-!                mpi_sendrecv, mpi_sendrecv_replace, mpi_testany, mpi_waitall, mpi_waitany, mpi_win_create
-! functions
-! USE mpi, ONLY: mpi_wtime
-! constants
-! USE mpi, ONLY: MPI_DOUBLE_PRECISION, MPI_DOUBLE_COMPLEX, MPI_REAL, MPI_COMPLEX, MPI_ANY_TAG,&
-!                MPI_ANY_SOURCE, MPI_COMM_NULL, MPI_REQUEST_NULL, MPI_WIN_NULL, MPI_STATUS_SIZE, MPI_STATUS_IGNORE, MPI_STATUSES_IGNORE, &
-!                MPI_ADDRESS_KIND, MPI_OFFSET_KIND, MPI_MODE_CREATE, MPI_MODE_RDONLY, MPI_MODE_WRONLY,&
-!                MPI_MODE_RDWR, MPI_MODE_EXCL, MPI_COMM_SELF, MPI_COMM_WORLD, MPI_THREAD_SERIALIZED,&
-!                MPI_ERRORS_RETURN, MPI_SUCCESS, MPI_MAX_PROCESSOR_NAME, MPI_MAX_ERROR_STRING, MPI_IDENT,&
-!                MPI_UNEQUAL, MPI_MAX, MPI_SUM, MPI_INFO_NULL, MPI_IN_PLACE, MPI_CONGRUENT, MPI_SIMILAR, MPI_MIN, MPI_SOURCE,&
-!                MPI_TAG, MPI_INTEGER8, MPI_INTEGER, MPI_MAXLOC, MPI_2INTEGER, MPI_MINLOC, MPI_LOGICAL, MPI_2DOUBLE_PRECISION,&
-!                MPI_LOR, MPI_CHARACTER, MPI_BOTTOM, MPI_MODE_NOCHECK, MPI_2REAL
+#if defined(__MPI_F08)
+   USE mpi_f08
+#else
+   USE mpi
 #endif
-
+#endif
    IMPLICIT NONE
    PRIVATE
 
@@ -140,6 +98,7 @@ MODULE message_passing
    INTEGER, PARAMETER, PUBLIC :: file_amode_excl = MPI_MODE_EXCL
    INTEGER, PARAMETER, PUBLIC :: file_amode_append = MPI_MODE_APPEND
 #else
+   PRIVATE
    LOGICAL, PARAMETER :: cp2k_is_parallel = .FALSE.
    INTEGER, PARAMETER, PUBLIC :: mp_any_tag = -1
    INTEGER, PARAMETER, PUBLIC :: mp_any_source = -2
@@ -2137,9 +2096,10 @@ CONTAINS
          TYPE(mp_request_type), DIMENSION(count), INTENT(inout)   :: array_of_requests
          INTEGER, INTENT(out)                                     :: ierr
 
-         MPI_REQUEST_TYPE, ALLOCATABLE, DIMENSION(:)              :: request_handles
+         MPI_REQUEST_TYPE, ALLOCATABLE, DIMENSION(:), TARGET      :: request_handles
 
          ALLOCATE (request_handles(count), SOURCE=array_of_requests(1:count)%handle)
+         ! OpenMPI before to 5.x misses MPI_STATUSES_IGNORE
          CALL mpi_waitall(count, request_handles, MPI_STATUSES_IGNORE, ierr)
          array_of_requests(1:count)%handle = request_handles(:)
          DEALLOCATE (request_handles)
@@ -2163,7 +2123,7 @@ CONTAINS
 
          INTEGER                                      :: handle
 #if defined(__parallel)
-         INTEGER                                      :: count, i, ierr
+         INTEGER                                      :: count, ierr
          MPI_REQUEST_TYPE, ALLOCATABLE, DIMENSION(:)  :: request_handles
 #endif
 
@@ -2321,14 +2281,13 @@ CONTAINS
 ! **************************************************************************************************
 #if defined(__parallel)
       SUBROUTINE mpi_testany_internal(count, array_of_requests, index, flag, status, ierr)
-         INTEGER, INTENT(in)                                :: count
-         TYPE(mp_request_type), DIMENSION(count), INTENT(inout)           :: array_of_requests
-         INTEGER, INTENT(out)                               :: index
-         LOGICAL, INTENT(out)                               :: flag
-         MPI_STATUS_TYPE, INTENT(out)   :: status
-         INTEGER, INTENT(out)                               :: ierr
+         INTEGER, INTENT(in)                                    :: count
+         TYPE(mp_request_type), DIMENSION(count), INTENT(inout) :: array_of_requests
+         INTEGER, INTENT(out)                                   :: index
+         LOGICAL, INTENT(out)                                   :: flag
+         MPI_STATUS_TYPE, INTENT(out)                           :: status
+         INTEGER, INTENT(out)                                   :: ierr
 
-         INTEGER :: i
          MPI_REQUEST_TYPE, ALLOCATABLE, DIMENSION(:) :: request_handles
 
          ALLOCATE (request_handles(count), SOURCE=array_of_requests(1:count)%handle)
@@ -2958,7 +2917,7 @@ CONTAINS
 
          INTEGER                                  :: handle
 #if defined(__parallel)
-         INTEGER                                  :: i, ierr, msglen
+         INTEGER                                  :: ierr, msglen
 #endif
 
          CALL mp_timeset(routineN, handle)
@@ -2992,7 +2951,7 @@ CONTAINS
 
          INTEGER                                  :: handle
 #if defined(__parallel)
-         INTEGER                                  :: i, ierr, msglen
+         INTEGER                                  :: ierr, msglen
 #endif
 
          CALL mp_timeset(routineN, handle)
@@ -4056,21 +4015,25 @@ CONTAINS
                                    vector_descriptor, index_descriptor) &
          RESULT(type_descriptor)
          TYPE(mp_type_descriptor_type), &
-            DIMENSION(:), INTENT(IN)               :: subtypes
+            DIMENSION(:), INTENT(IN)                :: subtypes
          INTEGER, DIMENSION(2), INTENT(IN), &
-            OPTIONAL                               :: vector_descriptor
+            OPTIONAL                                :: vector_descriptor
          TYPE(mp_indexing_meta_type), &
-            INTENT(IN), OPTIONAL                   :: index_descriptor
-         TYPE(mp_type_descriptor_type)            :: type_descriptor
+            INTENT(IN), OPTIONAL                    :: index_descriptor
+         TYPE(mp_type_descriptor_type)              :: type_descriptor
 
          CHARACTER(len=*), PARAMETER :: routineN = 'mp_type_make_struct'
 
-         INTEGER                                  :: i, n
-         INTEGER, ALLOCATABLE, DIMENSION(:)       :: lengths
+         INTEGER                                    :: i, n
+         INTEGER, ALLOCATABLE, DIMENSION(:)         :: lengths
 #if defined(__parallel)
          INTEGER :: ierr
          INTEGER(kind=mpi_address_kind), &
-            ALLOCATABLE, DIMENSION(:)              :: displacements
+            ALLOCATABLE, DIMENSION(:)               :: displacements
+#if defined(__MPI_F08)
+         ! Even OpenMPI 5.x misses mpi_get_address in the F08 interface
+         EXTERNAL                                   :: mpi_get_address
+#endif
 #endif
          MPI_DATA_TYPE, ALLOCATABLE, DIMENSION(:) :: old_types
 
