@@ -14,6 +14,7 @@ MODULE dbt_reshape_ops
    #:set maxdim = maxrank
    #:set ndims = range(2,maxdim+1)
 
+   USE OMP_LIB, ONLY: omp_destroy_lock, omp_init_lock, omp_lock_kind, omp_set_lock, omp_unset_lock
    USE dbt_allocate_wrap, ONLY: allocate_any
    USE dbt_tas_base, ONLY: dbt_tas_copy, dbt_tas_get_info, dbt_tas_info
    USE dbt_block, ONLY: &
@@ -67,12 +68,13 @@ CONTAINS
       TYPE(dbt_iterator_type)                            :: iter
       TYPE(block_nd)                                     :: blk_data
       TYPE(block_buffer_type), ALLOCATABLE, DIMENSION(:) :: buffer_recv, buffer_send
+      INTEGER(KIND=omp_lock_kind), ALLOCATABLE, &
+         DIMENSION(:)                                    :: locks
       INTEGER, DIMENSION(ndims_tensor(tensor_in))        :: blk_size, ind_nd
       LOGICAL :: found, summation_prv, move_prv
 
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: nblks_send_total, ndata_send_total, &
-                                                            nblks_recv_total, ndata_recv_total, &
-                                                            nblks_send_mythread, ndata_send_mythread
+                                                            nblks_recv_total, ndata_recv_total
       TYPE(mp_comm_type) :: mp_comm
 
       CALL timeset(routineN, handle)
@@ -98,30 +100,27 @@ CONTAINS
       ALLOCATE (buffer_send(0:numnodes - 1), buffer_recv(0:numnodes - 1))
       ALLOCATE (nblks_send_total(0:numnodes - 1), ndata_send_total(0:numnodes - 1), source=0)
       ALLOCATE (nblks_recv_total(0:numnodes - 1), ndata_recv_total(0:numnodes - 1), source=0)
+      ALLOCATE (locks(0:numnodes - 1))
+      DO iproc = 0, numnodes - 1
+         CALL omp_init_lock(locks(iproc))
+      END DO
 
 !$OMP PARALLEL DEFAULT(OMP_DEFAULT_NONE_WITH_OOP) &
 !$OMP SHARED(tensor_in,tensor_out,summation) &
-!$OMP SHARED(buffer_send,buffer_recv,mp_comm,numnodes) &
+!$OMP SHARED(buffer_send,buffer_recv,mp_comm,numnodes,locks) &
 !$OMP SHARED(nblks_send_total,ndata_send_total,nblks_recv_total,ndata_recv_total) &
-!$OMP PRIVATE(nblks_send_mythread,ndata_send_mythread,nblks_recv_mythread) &
-!$OMP PRIVATE(iter,ind_nd,blk_size,blk_data,found,iproc) &
+!$OMP PRIVATE(nblks_recv_mythread,iter,ind_nd,blk_size,blk_data,found,iproc) &
 !$OMP PRIVATE(blks_to_allocate,offset,ndata,iblk,jblk)
-      ALLOCATE (nblks_send_mythread(0:numnodes - 1), ndata_send_mythread(0:numnodes - 1), source=0)
-
       CALL dbt_iterator_start(iter, tensor_in)
       DO WHILE (dbt_iterator_blocks_left(iter))
          CALL dbt_iterator_next_block(iter, ind_nd, blk_size=blk_size)
          CALL dbt_get_stored_coordinates(tensor_out, ind_nd, iproc)
-         nblks_send_mythread(iproc) = nblks_send_mythread(iproc) + 1
-         ndata_send_mythread(iproc) = ndata_send_mythread(iproc) + PRODUCT(blk_size)
+         CALL omp_set_lock(locks(iproc))
+         nblks_send_total(iproc) = nblks_send_total(iproc) + 1
+         ndata_send_total(iproc) = ndata_send_total(iproc) + PRODUCT(blk_size)
+         CALL omp_unset_lock(locks(iproc))
       END DO
       CALL dbt_iterator_stop(iter)
-!$OMP CRITICAL(dbt_reshape)
-      nblks_send_total(:) = nblks_send_total(:) + nblks_send_mythread(:)
-      ndata_send_total(:) = ndata_send_total(:) + ndata_send_mythread(:)
-      nblks_send_mythread(:) = nblks_send_total(:) ! current totals indicate slot for this thread
-      ndata_send_mythread(:) = ndata_send_total(:)
-!$OMP END CRITICAL(dbt_reshape)
 !$OMP BARRIER
 
 !$OMP MASTER
@@ -149,12 +148,12 @@ CONTAINS
          CPASSERT(found)
          ! insert block data
          ndata = PRODUCT(blk_size)
-         ndata_send_mythread(iproc) = ndata_send_mythread(iproc) - ndata
-         offset = ndata_send_mythread(iproc)
+         ndata_send_total(iproc) = ndata_send_total(iproc) - ndata
+         offset = ndata_send_total(iproc)
          buffer_send(iproc)%data(offset + 1:offset + ndata) = blk_data%blk(:)
-         ! insert block index
-         nblks_send_mythread(iproc) = nblks_send_mythread(iproc) - 1
-         iblk = nblks_send_mythread(iproc) + 1
+         ! recycle current totals to indicate slot for this thread
+         iblk = nblks_send_total(iproc) ! insert block index
+         nblks_send_total(iproc) = nblks_send_total(iproc) - 1
          buffer_send(iproc)%blocks(iblk, 1:) = ind_nd(:)
          buffer_send(iproc)%blocks(iblk, 0) = offset
          CALL destroy_block(blk_data)
@@ -219,6 +218,10 @@ CONTAINS
       DEALLOCATE (nblks_recv_total, ndata_recv_total)
       DEALLOCATE (nblks_send_total, ndata_send_total)
       DEALLOCATE (buffer_send, buffer_recv)
+      DO iproc = 0, numnodes - 1
+         CALL omp_destroy_lock(locks(iproc))
+      END DO
+      DEALLOCATE (locks)
 
       IF (move_prv) CALL dbt_clear(tensor_in)
 
