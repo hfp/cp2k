@@ -2080,25 +2080,13 @@ CONTAINS
          INTEGER                                  :: handle
 #if defined(__parallel)
          INTEGER                                  :: count, ierr
-#if !defined(__MPI_F08)
-         INTEGER, ALLOCATABLE, DIMENSION(:, :) :: status
-#else
-         TYPE(MPI_Status), ALLOCATABLE, DIMENSION(:)    :: status
-#endif
 #endif
 
          CALL mp_timeset(routineN, handle)
-
 #if defined(__parallel)
          count = SIZE(requests)
-#if !defined(__MPI_F08)
-         ALLOCATE (status(MPI_STATUS_SIZE, count))
-#else
-         ALLOCATE (status(count))
-#endif
-         CALL mpi_waitall_internal(count, requests, status, ierr) ! MPI_STATUSES_IGNORE openmpi workaround
+         CALL mpi_waitall_internal(count, requests, ierr)
          IF (ierr /= 0) CALL mp_stop(ierr, "mpi_waitall @ mp_waitall_1")
-         DEALLOCATE (status)
          CALL add_perf(perf_id=9, count=1)
 #else
          requests = mp_request_null
@@ -2121,27 +2109,13 @@ CONTAINS
          INTEGER                                  :: handle
 #if defined(__parallel)
          INTEGER                                  :: count, ierr
-#if !defined(__MPI_F08)
-         INTEGER, ALLOCATABLE, DIMENSION(:, :) :: status
-#else
-         TYPE(MPI_Status), ALLOCATABLE, DIMENSION(:)    :: status
-#endif
 #endif
 
          CALL mp_timeset(routineN, handle)
-
 #if defined(__parallel)
          count = SIZE(requests)
-#if !defined(__MPI_F08)
-         ALLOCATE (status(MPI_STATUS_SIZE, count))
-#else
-         ALLOCATE (status(count))
-#endif
-
-         CALL mpi_waitall_internal(count, requests, status, ierr) ! MPI_STATUSES_IGNORE openmpi workaround
+         CALL mpi_waitall_internal(count, requests, ierr)
          IF (ierr /= 0) CALL mp_stop(ierr, "mpi_waitall @ mp_waitall_2")
-         DEALLOCATE (status)
-
          CALL add_perf(perf_id=9, count=1)
 #else
          requests = mp_request_null
@@ -2154,36 +2128,21 @@ CONTAINS
 !>        the issue is with the rank or requests
 !> \param count ...
 !> \param array_of_requests ...
-!> \param array_of_statuses ...
 !> \param ierr ...
 !> \author Joost VandeVondele
 ! **************************************************************************************************
 #if defined(__parallel)
-      SUBROUTINE mpi_waitall_internal(count, array_of_requests, array_of_statuses, ierr)
+      SUBROUTINE mpi_waitall_internal(count, array_of_requests, ierr)
          INTEGER, INTENT(in)                                      :: count
          TYPE(mp_request_type), DIMENSION(count), INTENT(inout)   :: array_of_requests
-#if !defined(__MPI_F08)
-         INTEGER, DIMENSION(MPI_STATUS_SIZE, count), &
-            INTENT(out)                                           :: array_of_statuses
-#else
-         TYPE(MPI_Status), DIMENSION(count), &
-            INTENT(out)                                           :: array_of_statuses
-#endif
          INTEGER, INTENT(out)                                     :: ierr
 
-         INTEGER :: i
-         MPI_REQUEST_TYPE, ALLOCATABLE, DIMENSION(:) :: request_handles
+         MPI_REQUEST_TYPE, ALLOCATABLE, DIMENSION(:)              :: request_handles
 
-         ALLOCATE (request_handles(count))
-         DO i = 1, count
-            request_handles(i) = array_of_requests(i)%handle
-         END DO
-
-         CALL mpi_waitall(count, request_handles, array_of_statuses, ierr)
-
-         DO i = 1, count
-            array_of_requests(i)%handle = request_handles(i)
-         END DO
+         ALLOCATE (request_handles(count), SOURCE=array_of_requests(1:count)%handle)
+         CALL mpi_waitall(count, request_handles, MPI_STATUSES_IGNORE, ierr)
+         array_of_requests(1:count)%handle = request_handles(:)
+         DEALLOCATE (request_handles)
 
       END SUBROUTINE mpi_waitall_internal
 #endif
@@ -2198,32 +2157,29 @@ CONTAINS
 ! **************************************************************************************************
       SUBROUTINE mp_waitany(requests, completed)
          TYPE(mp_request_type), DIMENSION(:), INTENT(inout)     :: requests
-         INTEGER, INTENT(out)                     :: completed
+         INTEGER, INTENT(out)                                   :: completed
 
          CHARACTER(len=*), PARAMETER :: routineN = 'mp_waitany'
 
-         INTEGER                                  :: handle
+         INTEGER                                      :: handle
 #if defined(__parallel)
-         INTEGER                                  :: count, i, ierr
-         MPI_REQUEST_TYPE, ALLOCATABLE, DIMENSION(:) :: request_handles
+         INTEGER                                      :: count, i, ierr
+         MPI_REQUEST_TYPE, ALLOCATABLE, DIMENSION(:)  :: request_handles
 #endif
 
          CALL mp_timeset(routineN, handle)
 
 #if defined(__parallel)
          count = SIZE(requests)
-! Convert CP2K's request_handles to the plane handle for the library
-! (Maybe, the compiler optimizes it away)
-         ALLOCATE (request_handles(count))
-         DO i = 1, count
-            request_handles(i) = requests(i)%handle
-         END DO
+         ! Convert CP2K's request_handles to the plain handle for the library
+         ALLOCATE (request_handles(count), SOURCE=requests(1:count)%handle)
+
          CALL mpi_waitany(count, request_handles, completed, MPI_STATUS_IGNORE, ierr)
          IF (ierr /= 0) CALL mp_stop(ierr, "mpi_waitany @ mp_waitany")
-! Convert the plane handles to CP2K handles
-         DO i = 1, count
-            requests(i)%handle = request_handles(i)
-         END DO
+
+         ! Convert the plain handles to CP2K handles
+         requests(1:count)%handle = request_handles(:)
+         DEALLOCATE (request_handles)
          CALL add_perf(perf_id=9, count=1)
 #else
          requests = mp_request_null
@@ -2375,16 +2331,10 @@ CONTAINS
          INTEGER :: i
          MPI_REQUEST_TYPE, ALLOCATABLE, DIMENSION(:) :: request_handles
 
-         ALLOCATE (request_handles(count))
-         DO i = 1, count
-            request_handles(i) = array_of_requests(i)%handle
-         END DO
-
+         ALLOCATE (request_handles(count), SOURCE=array_of_requests(1:count)%handle)
          CALL mpi_testany(count, request_handles, index, flag, status, ierr)
-
-         DO i = 1, count
-            array_of_requests(i)%handle = request_handles(i)
-         END DO
+         array_of_requests(1:count)%handle = request_handles(:)
+         DEALLOCATE (request_handles)
 
       END SUBROUTINE mpi_testany_internal
 #endif
@@ -2456,11 +2406,12 @@ CONTAINS
       SUBROUTINE mp_comm_split(comm, sub_comm, ngroups, group_distribution, &
                                subgroup_min_size, n_subgroups, group_partition, stride)
          CLASS(mp_comm_type), INTENT(in)                      :: comm
-         CLASS(mp_comm_type), INTENT(out) :: sub_comm
-         INTEGER, INTENT(out)                     :: ngroups
-         INTEGER, DIMENSION(0:), INTENT(INOUT)                    :: group_distribution
-         INTEGER, INTENT(in), OPTIONAL            :: subgroup_min_size, n_subgroups
-         INTEGER, DIMENSION(0:), INTENT(IN), OPTIONAL          :: group_partition
+         CLASS(mp_comm_type), INTENT(out)                     :: sub_comm
+         INTEGER, INTENT(out)                                 :: ngroups
+         INTEGER, DIMENSION(0:), INTENT(INOUT)                :: group_distribution
+         INTEGER, INTENT(in), OPTIONAL                        :: subgroup_min_size, &
+                                                                 n_subgroups
+         INTEGER, DIMENSION(0:), INTENT(IN), OPTIONAL         :: group_partition
          INTEGER, OPTIONAL, INTENT(IN)                        :: stride
 
          CHARACTER(LEN=*), PARAMETER :: routineN = 'mp_comm_split', &
@@ -2542,6 +2493,7 @@ CONTAINS
                ! just ignore silently as we have reasonable defaults. Probably a warning would not be to bad
             END IF
          END IF
+         DEALLOCATE (rank_permutation)
          color = group_distribution(mepos)
          CALL mpi_comm_split(comm%handle, color, 0, sub_comm%handle, ierr)
          IF (ierr /= mpi_success) CALL mp_stop(ierr, "in "//routineP//" split")
@@ -2626,8 +2578,8 @@ CONTAINS
 !> \param comm ...
 ! **************************************************************************************************
       SUBROUTINE mp_bcast_b(msg, source, comm)
-         LOGICAL, INTENT(INOUT)                                            :: msg
-         INTEGER, INTENT(IN)                                            :: source
+         LOGICAL, INTENT(INOUT)                             :: msg
+         INTEGER, INTENT(IN)                                :: source
          CLASS(mp_comm_type), INTENT(IN) :: comm
 
          CHARACTER(len=*), PARAMETER :: routineN = 'mp_bcast_b'
@@ -2659,7 +2611,7 @@ CONTAINS
 !> \param comm ...
 ! **************************************************************************************************
       SUBROUTINE mp_bcast_b_src(msg, comm)
-         LOGICAL, INTENT(INOUT)                                            :: msg
+         LOGICAL, INTENT(INOUT)                             :: msg
          CLASS(mp_comm_type), INTENT(IN) :: comm
 
          CHARACTER(len=*), PARAMETER :: routineN = 'mp_bcast_b_src'
@@ -2691,7 +2643,7 @@ CONTAINS
 ! **************************************************************************************************
       SUBROUTINE mp_bcast_bv(msg, source, comm)
          LOGICAL, CONTIGUOUS, INTENT(INOUT)                 :: msg(:)
-         INTEGER, INTENT(IN)                                            :: source
+         INTEGER, INTENT(IN)                                :: source
          CLASS(mp_comm_type), INTENT(IN) :: comm
 
          CHARACTER(len=*), PARAMETER :: routineN = 'mp_bcast_bv'
@@ -2764,7 +2716,7 @@ CONTAINS
          LOGICAL, DIMENSION(:), INTENT(IN)        :: msgin
          INTEGER, INTENT(IN)                      :: dest
          CLASS(mp_comm_type), INTENT(IN) :: comm
-         TYPE(mp_request_type), INTENT(out)                     :: request
+         TYPE(mp_request_type), INTENT(out)       :: request
          INTEGER, INTENT(in), OPTIONAL            :: tag
 
          CHARACTER(len=*), PARAMETER :: routineN = 'mp_isend_bv'
@@ -2822,10 +2774,10 @@ CONTAINS
 !>      arrays can be pointers or assumed shape, but they must be contiguous!
 ! **************************************************************************************************
       SUBROUTINE mp_irecv_bv(msgout, source, comm, request, tag)
-         LOGICAL, DIMENSION(:), INTENT(INOUT)                    :: msgout
+         LOGICAL, DIMENSION(:), INTENT(INOUT)     :: msgout
          INTEGER, INTENT(IN)                      :: source
          CLASS(mp_comm_type), INTENT(IN) :: comm
-         TYPE(mp_request_type), INTENT(out)                     :: request
+         TYPE(mp_request_type), INTENT(out)       :: request
          INTEGER, INTENT(in), OPTIONAL            :: tag
 
          CHARACTER(len=*), PARAMETER :: routineN = 'mp_irecv_bv'
@@ -2883,18 +2835,18 @@ CONTAINS
 !>      arrays can be pointers or assumed shape, but they must be contiguous!
 ! **************************************************************************************************
       SUBROUTINE mp_isend_bm3(msgin, dest, comm, request, tag)
-         LOGICAL, DIMENSION(:, :, :), INTENT(INOUT)              :: msgin
-         INTEGER, INTENT(IN)                      :: dest
-         CLASS(mp_comm_type), INTENT(IN) :: comm
-         TYPE(mp_request_type), INTENT(out)                     :: request
-         INTEGER, INTENT(in), OPTIONAL            :: tag
+         LOGICAL, DIMENSION(:, :, :), INTENT(INOUT) :: msgin
+         INTEGER, INTENT(IN)                        :: dest
+         CLASS(mp_comm_type), INTENT(IN)            :: comm
+         TYPE(mp_request_type), INTENT(out)         :: request
+         INTEGER, INTENT(in), OPTIONAL              :: tag
 
          CHARACTER(len=*), PARAMETER :: routineN = 'mp_isend_bm3'
 
-         INTEGER                                  :: handle
+         INTEGER                                    :: handle
 #if defined(__parallel)
-         INTEGER                                  :: ierr, msglen, my_tag
-         LOGICAL                                  :: foo(1)
+         INTEGER                                    :: ierr, msglen, my_tag
+         LOGICAL                                    :: foo(1)
 #endif
 
          CALL mp_timeset(routineN, handle)
@@ -2944,18 +2896,18 @@ CONTAINS
 !>      arrays can be pointers or assumed shape, but they must be contiguous!
 ! **************************************************************************************************
       SUBROUTINE mp_irecv_bm3(msgout, source, comm, request, tag)
-         LOGICAL, DIMENSION(:, :, :), INTENT(INOUT)  :: msgout
-         INTEGER, INTENT(IN)                      :: source
+         LOGICAL, DIMENSION(:, :, :), INTENT(INOUT) :: msgout
+         INTEGER, INTENT(IN)                        :: source
          CLASS(mp_comm_type), INTENT(IN) :: comm
-         TYPE(mp_request_type), INTENT(out)                     :: request
-         INTEGER, INTENT(in), OPTIONAL            :: tag
+         TYPE(mp_request_type), INTENT(out)         :: request
+         INTEGER, INTENT(in), OPTIONAL              :: tag
 
          CHARACTER(len=*), PARAMETER :: routineN = 'mp_irecv_bm3'
 
-         INTEGER                                  :: handle
+         INTEGER                                    :: handle
 #if defined(__parallel)
-         INTEGER                                  :: ierr, msglen, my_tag
-         LOGICAL                                  :: foo(1)
+         INTEGER                                    :: ierr, msglen, my_tag
+         LOGICAL                                    :: foo(1)
 #endif
 
          CALL mp_timeset(routineN, handle)
@@ -2999,8 +2951,8 @@ CONTAINS
 ! **************************************************************************************************
       SUBROUTINE mp_bcast_av(msg, source, comm)
          CHARACTER(LEN=*), INTENT(INOUT)          :: msg
-         INTEGER, INTENT(IN)                                  :: source
-         CLASS(mp_comm_type), INTENT(IN) :: comm
+         INTEGER, INTENT(IN)                      :: source
+         CLASS(mp_comm_type), INTENT(IN)          :: comm
 
          CHARACTER(len=*), PARAMETER :: routineN = 'mp_bcast_av'
 
@@ -3097,8 +3049,8 @@ CONTAINS
 !> \param comm ...
 ! **************************************************************************************************
       SUBROUTINE mp_bcast_am(msg, source, comm)
-         CHARACTER(LEN=*), CONTIGUOUS, INTENT(INOUT)      :: msg(:)
-         INTEGER, INTENT(IN)                             :: source
+         CHARACTER(LEN=*), CONTIGUOUS, INTENT(INOUT)  :: msg(:)
+         INTEGER, INTENT(IN)                          :: source
          CLASS(mp_comm_type), INTENT(IN) :: comm
 
          CHARACTER(len=*), PARAMETER :: routineN = 'mp_bcast_am'
@@ -3156,8 +3108,8 @@ CONTAINS
       END SUBROUTINE mp_bcast_am
 
       SUBROUTINE mp_bcast_am_src(msg, comm)
-         CHARACTER(LEN=*), CONTIGUOUS, INTENT(INOUT)      :: msg(:)
-         CLASS(mp_comm_type), INTENT(IN) :: comm
+         CHARACTER(LEN=*), CONTIGUOUS, INTENT(INOUT)  :: msg(:)
+         CLASS(mp_comm_type), INTENT(IN)              :: comm
 
          CHARACTER(len=*), PARAMETER :: routineN = 'mp_bcast_am_src'
 
