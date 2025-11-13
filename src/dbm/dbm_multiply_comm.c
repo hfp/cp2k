@@ -47,12 +47,13 @@ static inline int isum(const int n, const int input[n]) {
 
 /*******************************************************************************
  * \brief Private routine for computing the cumulative sums of given numbers.
- * \author Ole Schuett
+ * \author Ole Schuett and Hans Pabst
  ******************************************************************************/
 static inline void icumsum(const int n, const int input[n], int output[n]) {
-  output[0] = 0;
+  int oval = output[0] = 0, ival = input[0];
   for (int i = 1; i < n; i++) {
-    output[i] = output[i - 1] + input[i - 1];
+    output[i] = (oval += ival);
+    ival = input[i];
   }
 }
 
@@ -189,7 +190,7 @@ static void fill_send_buffers(
 #pragma omp barrier
 
     // Compute send displacements.
-#pragma omp master
+#pragma omp single
     {
       icumsum(nranks, blks_send_count, blks_send_displ);
       icumsum(nranks, data_send_count, data_send_displ);
@@ -299,7 +300,7 @@ static void postprocess_received_blocks(
       nblocks_mythread[ishard] = nblocks_per_shard[ishard];
     }
 #pragma omp barrier
-#pragma omp master
+#pragma omp single
     icumsum(nshards, nblocks_per_shard, shard_start);
 #pragma omp barrier
 #pragma omp for schedule(static) // Need static to match previous loop.
