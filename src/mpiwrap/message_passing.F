@@ -2917,17 +2917,22 @@ CONTAINS
          INTEGER                                  :: handle
 #if defined(__parallel)
          INTEGER                                  :: ierr, msglen
+         INTEGER, DIMENSION(:), ALLOCATABLE       :: imsg
 #endif
 
          CALL mp_timeset(routineN, handle)
 
 #if defined(__parallel)
-
          IF (comm%mepos == source) msglen = LEN_TRIM(msg)
 
          CALL comm%bcast(msglen, source)
-         CALL mpi_bcast(msg, msglen, MPI_CHARACTER, source, comm%handle, ierr)
+         ! Workaround to data alignment issue broadcasting MPI_CHARACTERs.
+         ! CALL mpi_bcast(msg, msglen, MPI_CHARACTER, source, comm%handle, ierr)
+         ALLOCATE (imsg(msglen), SOURCE=ICHAR(msg))
+         CALL mpi_bcast(imsg, msglen, MPI_INTEGER, source, comm%handle, ierr)
          IF (ierr /= 0) CALL mp_stop(ierr, "mpi_bcast @ "//routineN)
+         msg(:) = CHAR(imsg(:))
+         DEALLOCATE (imsg)
          CALL add_perf(perf_id=2, count=1, msg_size=msglen*charlen)
 #else
          MARK_USED(msg)
@@ -2951,6 +2956,7 @@ CONTAINS
          INTEGER                                  :: handle
 #if defined(__parallel)
          INTEGER                                  :: ierr, msglen
+         INTEGER, DIMENSION(:), ALLOCATABLE       :: imsg
 #endif
 
          CALL mp_timeset(routineN, handle)
@@ -2960,8 +2966,14 @@ CONTAINS
          IF (comm%is_source()) msglen = LEN_TRIM(msg)
 
          CALL comm%bcast(msglen, comm%source)
-         CALL mpi_bcast(msg, msglen, MPI_CHARACTER, comm%source, comm%handle, ierr)
+
+         ! Workaround to data alignment issue broadcasting MPI_CHARACTERs.
+         ! CALL mpi_bcast(msg, msglen, MPI_CHARACTER, comm%source, comm%handle, ierr)
+         ALLOCATE (imsg(msglen), SOURCE=ICHAR(msg))
+         CALL mpi_bcast(imsg, msglen, MPI_INTEGER, comm%source, comm%handle, ierr)
          IF (ierr /= 0) CALL mp_stop(ierr, "mpi_bcast @ "//routineN)
+         msg(:) = CHAR(imsg(:))
+         DEALLOCATE (imsg)
          CALL add_perf(perf_id=2, count=1, msg_size=msglen*charlen)
 #else
          MARK_USED(msg)
