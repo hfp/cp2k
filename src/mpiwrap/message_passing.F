@@ -21,7 +21,7 @@
 !> \author JGH
 ! **************************************************************************************************
 MODULE message_passing
-   USE ISO_C_BINDING, ONLY: C_F_POINTER, C_LOC, C_PTR, C_INT, C_NULL_PTR
+   USE ISO_C_BINDING, ONLY: C_F_POINTER, C_PTR
    USE kinds, ONLY: &
       dp, int_4, int_4_size, int_8, int_8_size, real_4, real_4_size, real_8, &
       real_8_size, default_string_length
