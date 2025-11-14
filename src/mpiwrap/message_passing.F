@@ -98,7 +98,6 @@ MODULE message_passing
    INTEGER, PARAMETER, PUBLIC :: file_amode_excl = MPI_MODE_EXCL
    INTEGER, PARAMETER, PUBLIC :: file_amode_append = MPI_MODE_APPEND
 #else
-   PRIVATE
    LOGICAL, PARAMETER :: cp2k_is_parallel = .FALSE.
    INTEGER, PARAMETER, PUBLIC :: mp_any_tag = -1
    INTEGER, PARAMETER, PUBLIC :: mp_any_source = -2
