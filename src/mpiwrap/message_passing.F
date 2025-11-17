@@ -2902,7 +2902,7 @@ CONTAINS
       END SUBROUTINE mp_irecv_bm3
 
 ! **************************************************************************************************
-!> \brief ...
+!> \brief Broadcasts a string.
 !> \param msg ...
 !> \param source ...
 !> \param comm ...
@@ -2917,22 +2917,20 @@ CONTAINS
          INTEGER                                  :: handle
 #if defined(__parallel)
          INTEGER                                  :: ierr, msglen
-         INTEGER, DIMENSION(:), ALLOCATABLE       :: imsg
 #endif
 
          CALL mp_timeset(routineN, handle)
 
 #if defined(__parallel)
-         IF (comm%mepos == source) msglen = LEN_TRIM(msg)
-
+         IF (comm%mepos == source) THEN
+            msglen = LEN_TRIM(msg)
+         ELSE ! need to clear msg
+            msg = ""
+         END IF
          CALL comm%bcast(msglen, source)
-         ! Workaround to data alignment issue broadcasting MPI_CHARACTERs.
-         ! CALL mpi_bcast(msg, msglen, MPI_CHARACTER, source, comm%handle, ierr)
-         ALLOCATE (imsg(msglen), SOURCE=ICHAR(msg))
-         CALL mpi_bcast(imsg, msglen, MPI_INTEGER, source, comm%handle, ierr)
+
+         CALL mpi_bcast(msg, msglen, MPI_CHARACTER, source, comm%handle, ierr)
          IF (ierr /= 0) CALL mp_stop(ierr, "mpi_bcast @ "//routineN)
-         msg(:) = CHAR(imsg(:))
-         DEALLOCATE (imsg)
          CALL add_perf(perf_id=2, count=1, msg_size=msglen*charlen)
 #else
          MARK_USED(msg)
@@ -2943,37 +2941,33 @@ CONTAINS
       END SUBROUTINE mp_bcast_av
 
 ! **************************************************************************************************
-!> \brief ...
+!> \brief Broadcasts a string.
 !> \param msg ...
 !> \param comm ...
 ! **************************************************************************************************
       SUBROUTINE mp_bcast_av_src(msg, comm)
          CHARACTER(LEN=*), INTENT(INOUT)          :: msg
-         CLASS(mp_comm_type), INTENT(IN) :: comm
+         CLASS(mp_comm_type), INTENT(IN)          :: comm
 
          CHARACTER(len=*), PARAMETER :: routineN = 'mp_bcast_av_src'
 
          INTEGER                                  :: handle
 #if defined(__parallel)
          INTEGER                                  :: ierr, msglen
-         INTEGER, DIMENSION(:), ALLOCATABLE       :: imsg
 #endif
 
          CALL mp_timeset(routineN, handle)
 
 #if defined(__parallel)
-
-         IF (comm%is_source()) msglen = LEN_TRIM(msg)
-
+         IF (comm%is_source()) THEN
+            msglen = LEN_TRIM(msg)
+         ELSE ! need to clear msg
+            msg = ""
+         END IF
          CALL comm%bcast(msglen, comm%source)
 
-         ! Workaround to data alignment issue broadcasting MPI_CHARACTERs.
-         ! CALL mpi_bcast(msg, msglen, MPI_CHARACTER, comm%source, comm%handle, ierr)
-         ALLOCATE (imsg(msglen), SOURCE=ICHAR(msg))
-         CALL mpi_bcast(imsg, msglen, MPI_INTEGER, comm%source, comm%handle, ierr)
+         CALL mpi_bcast(msg, msglen, MPI_CHARACTER, comm%source, comm%handle, ierr)
          IF (ierr /= 0) CALL mp_stop(ierr, "mpi_bcast @ "//routineN)
-         msg(:) = CHAR(imsg(:))
-         DEALLOCATE (imsg)
          CALL add_perf(perf_id=2, count=1, msg_size=msglen*charlen)
 #else
          MARK_USED(msg)
@@ -3589,13 +3583,13 @@ CONTAINS
       SUBROUTINE mp_file_open(groupid, fh, filepath, amode_status, info)
          CLASS(mp_comm_type), INTENT(IN)                      :: groupid
          CLASS(mp_file_type), INTENT(OUT)                     :: fh
-         CHARACTER(len=*), INTENT(IN)             :: filepath
-         INTEGER, INTENT(IN)                      :: amode_status
-         TYPE(mp_info_type), INTENT(IN), OPTIONAL            :: info
+         CHARACTER(len=*), INTENT(IN)                         :: filepath
+         INTEGER, INTENT(IN)                                  :: amode_status
+         TYPE(mp_info_type), INTENT(IN), OPTIONAL             :: info
 
 #if defined(__parallel)
          INTEGER                                  :: ierr
-         MPI_INFO_TYPE                           :: my_info
+         MPI_INFO_TYPE                            :: my_info
 #else
          CHARACTER(LEN=10)                        :: fstatus, fposition
          INTEGER                                  :: amode, handle, istat
@@ -3646,11 +3640,11 @@ CONTAINS
 ! **************************************************************************************************
       SUBROUTINE mp_file_delete(filepath, info)
          CHARACTER(len=*), INTENT(IN)             :: filepath
-         TYPE(mp_info_type), INTENT(IN), OPTIONAL            :: info
+         TYPE(mp_info_type), INTENT(IN), OPTIONAL :: info
 
 #if defined(__parallel)
          INTEGER                                  :: ierr
-         MPI_INFO_TYPE                           :: my_info
+         MPI_INFO_TYPE                            :: my_info
          LOGICAL                                  :: exists
 
          ierr = 0
@@ -3797,7 +3791,7 @@ CONTAINS
 ! **************************************************************************************************
       SUBROUTINE mp_file_write_at_ch(fh, offset, msg)
          CHARACTER(LEN=*), INTENT(IN)               :: msg
-         CLASS(mp_file_type), INTENT(IN)                        :: fh
+         CLASS(mp_file_type), INTENT(IN)            :: fh
          INTEGER(kind=file_offset), INTENT(IN)      :: offset
 
 #if defined(__parallel)
@@ -3853,7 +3847,7 @@ CONTAINS
 ! **************************************************************************************************
       SUBROUTINE mp_file_write_at_all_ch(fh, offset, msg)
          CHARACTER(LEN=*), INTENT(IN)               :: msg
-         CLASS(mp_file_type), INTENT(IN)                        :: fh
+         CLASS(mp_file_type), INTENT(IN)            :: fh
          INTEGER(kind=file_offset), INTENT(IN)      :: offset
 
 #if defined(__parallel)
@@ -3910,7 +3904,7 @@ CONTAINS
 ! **************************************************************************************************
       SUBROUTINE mp_file_read_at_ch(fh, offset, msg)
          CHARACTER(LEN=*), INTENT(OUT)              :: msg
-         CLASS(mp_file_type), INTENT(IN)                        :: fh
+         CLASS(mp_file_type), INTENT(IN)            :: fh
          INTEGER(kind=file_offset), INTENT(IN)      :: offset
 
 #if defined(__parallel)
@@ -3966,7 +3960,7 @@ CONTAINS
 ! **************************************************************************************************
       SUBROUTINE mp_file_read_at_all_ch(fh, offset, msg)
          CHARACTER(LEN=*), INTENT(OUT)              :: msg
-         CLASS(mp_file_type), INTENT(IN)                        :: fh
+         CLASS(mp_file_type), INTENT(IN)            :: fh
          INTEGER(kind=file_offset), INTENT(IN)      :: offset
 
 #if defined(__parallel)
@@ -4285,16 +4279,16 @@ CONTAINS
 !> \author Nico Holmberg [05.2017]
 ! **************************************************************************************************
       SUBROUTINE mp_file_write_all_chv(fh, msglen, ndims, buffer, type_descriptor)
-         CLASS(mp_file_type), INTENT(IN)                       :: fh
-         INTEGER, INTENT(IN)                       :: msglen
-         INTEGER, INTENT(IN)                       :: ndims
-         CHARACTER(LEN=msglen), DIMENSION(ndims), INTENT(IN)   :: buffer
+         CLASS(mp_file_type), INTENT(IN)                      :: fh
+         INTEGER, INTENT(IN)                                  :: msglen
+         INTEGER, INTENT(IN)                                  :: ndims
+         CHARACTER(LEN=msglen), DIMENSION(ndims), INTENT(IN)  :: buffer
          TYPE(mp_file_descriptor_type), &
-            INTENT(IN), OPTIONAL                   :: type_descriptor
+            INTENT(IN), OPTIONAL                              :: type_descriptor
 
          CHARACTER(len=*), PARAMETER :: routineN = 'mp_file_write_all_chv'
 
-         INTEGER                                   :: handle
+         INTEGER :: handle
 #if defined(__parallel)
          INTEGER :: ierr
 #else
@@ -4581,7 +4575,7 @@ CONTAINS
 !> \param win ...
 ! **************************************************************************************************
       SUBROUTINE mp_win_free(win)
-         CLASS(mp_win_type), INTENT(INOUT)                             :: win
+         CLASS(mp_win_type), INTENT(INOUT)                  :: win
 
          CHARACTER(len=*), PARAMETER :: routineN = 'mp_win_free'
 
@@ -4617,7 +4611,7 @@ CONTAINS
 !> \param win ...
 ! **************************************************************************************************
       SUBROUTINE mp_win_flush_all(win)
-         CLASS(mp_win_type), INTENT(IN)                                :: win
+         CLASS(mp_win_type), INTENT(IN)                     :: win
 
          CHARACTER(len=*), PARAMETER :: routineN = 'mp_win_flush_all'
 
@@ -4640,7 +4634,7 @@ CONTAINS
 !> \param win ...
 ! **************************************************************************************************
       SUBROUTINE mp_win_lock_all(win)
-         CLASS(mp_win_type), INTENT(IN)                             :: win
+         CLASS(mp_win_type), INTENT(IN)                     :: win
 
          CHARACTER(len=*), PARAMETER :: routineN = 'mp_win_lock_all'
 
@@ -4666,7 +4660,7 @@ CONTAINS
 !> \param win ...
 ! **************************************************************************************************
       SUBROUTINE mp_win_unlock_all(win)
-         CLASS(mp_win_type), INTENT(IN)                             :: win
+         CLASS(mp_win_type), INTENT(IN)                     :: win
 
          CHARACTER(len=*), PARAMETER :: routineN = 'mp_win_unlock_all'
 
