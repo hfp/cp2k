@@ -3098,9 +3098,9 @@ CONTAINS
 
 ! **************************************************************************************************
 !> \brief Finds the location of the minimal element in a vector.
-!> \param[in,out] msg         Find location of maximum element among these
+!> \param[in,out] msg         Find location of minimum element among these
 !>                            data (input).
-!> \param[in] comm             Message passing environment identifier
+!> \param[in] comm            Message passing environment identifier
 !> \par MPI mapping
 !>      mpi_allreduce with the MPI_MINLOC reduction function identifier
 !> \par Invalid data types
@@ -3142,9 +3142,9 @@ CONTAINS
 
 ! **************************************************************************************************
 !> \brief Finds the location of the minimal element in a vector.
-!> \param[in,out] msg         Find location of maximum element among these
+!> \param[in,out] msg         Find location of minimum element among these
 !>                            data (input).
-!> \param[in] comm             Message passing environment identifier
+!> \param[in] comm            Message passing environment identifier
 !> \par MPI mapping
 !>      mpi_allreduce with the MPI_MINLOC reduction function identifier
 !> \par Invalid data types
@@ -3184,9 +3184,9 @@ CONTAINS
 
 ! **************************************************************************************************
 !> \brief Finds the location of the minimal element in a vector.
-!> \param[in,out] msg         Find location of maximum element among these
+!> \param[in,out] msg         Find location of minimum element among these
 !>                            data (input).
-!> \param[in] comm             Message passing environment identifier
+!> \param[in] comm            Message passing environment identifier
 !> \par MPI mapping
 !>      mpi_allreduce with the MPI_MINLOC reduction function identifier
 !> \par Invalid data types
@@ -3226,9 +3226,9 @@ CONTAINS
 
 ! **************************************************************************************************
 !> \brief Finds the location of the minimal element in a vector.
-!> \param[in,out] msg         Find location of maximum element among these
+!> \param[in,out] msg         Find location of minimum element among these
 !>                            data (input).
-!> \param[in] comm             Message passing environment identifier
+!> \param[in] comm            Message passing environment identifier
 !> \par MPI mapping
 !>      mpi_allreduce with the MPI_MINLOC reduction function identifier
 !> \par Invalid data types
@@ -3270,7 +3270,7 @@ CONTAINS
 !> \brief Finds the location of the maximal element in a vector.
 !> \param[in,out] msg         Find location of maximum element among these
 !>                            data (input).
-!> \param[in] comm             Message passing environment identifier
+!> \param[in] comm            Message passing environment identifier
 !> \par MPI mapping
 !>      mpi_allreduce with the MPI_MAXLOC reduction function identifier
 !> \par Invalid data types
@@ -3312,7 +3312,7 @@ CONTAINS
 !> \brief Finds the location of the maximal element in a vector.
 !> \param[in,out] msg         Find location of maximum element among these
 !>                            data (input).
-!> \param[in] comm             Message passing environment identifier
+!> \param[in] comm            Message passing environment identifier
 !> \par MPI mapping
 !>      mpi_allreduce with the MPI_MAXLOC reduction function identifier
 !> \par Invalid data types
@@ -3354,7 +3354,7 @@ CONTAINS
 !> \brief Finds the location of the maximal element in a vector.
 !> \param[in,out] msg         Find location of maximum element among these
 !>                            data (input).
-!> \param[in] comm             Message passing environment identifier
+!> \param[in] comm            Message passing environment identifier
 !> \par MPI mapping
 !>      mpi_allreduce with the MPI_MAXLOC reduction function identifier
 !> \par Invalid data types
@@ -3396,7 +3396,7 @@ CONTAINS
 !> \brief Finds the location of the maximal element in a vector.
 !> \param[in,out] msg         Find location of maximum element among these
 !>                            data (input).
-!> \param[in] comm             Message passing environment identifier
+!> \param[in] comm            Message passing environment identifier
 !> \par MPI mapping
 !>      mpi_allreduce with the MPI_MAXLOC reduction function identifier
 !> \par Invalid data types
@@ -3438,7 +3438,7 @@ CONTAINS
 !> \brief Logical OR reduction
 !> \param[in,out] msg         Datum to perform inclusive disjunction (input)
 !>                            and resultant inclusive disjunction (output)
-!> \param[in] comm             Message passing environment identifier
+!> \param[in] comm            Message passing environment identifier
 !> \par MPI mapping
 !>      mpi_allreduce
 ! **************************************************************************************************
