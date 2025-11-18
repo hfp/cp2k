@@ -2981,48 +2981,17 @@ CONTAINS
 
          INTEGER                                  :: handle
 #if defined(__parallel)
-         INTEGER                                  :: i, ierr, j, k, msglen, msgsiz
-         INTEGER, ALLOCATABLE                     :: imsg(:), imsglen(:)
+         INTEGER                                  :: ierr, msglen
 #endif
 
          CALL mp_timeset(routineN, handle)
 
 #if defined(__parallel)
-         msgsiz = SIZE(msg)
-         ! Determine size of the minimum array of integers to broadcast the string
-         ALLOCATE (imsglen(1:msgsiz))
-         IF (comm%mepos == source) THEN
-            DO j = 1, msgsiz
-               imsglen(j) = LEN_TRIM(msg(j))
-            END DO
-         END IF
-         CALL comm%bcast(imsglen, source)
-         msglen = SUM(imsglen)
-         ! this is a workaround to avoid problems on the T3E
-         ! at the moment we have a data alignment error when trying to
-         ! broadcast characters on the T3E (not always!)
-         ! JH 19/3/99 on galileo
-         ALLOCATE (imsg(1:msglen))
-         k = 0
-         DO j = 1, msgsiz
-            DO i = 1, imsglen(j)
-               k = k + 1
-               imsg(k) = ICHAR(msg(j) (i:i))
-            END DO
-         END DO
-         CALL mpi_bcast(imsg, msglen, MPI_INTEGER, source, comm%handle, ierr)
+         msglen = INT(SIZEOF(msg))
+         IF (comm%mepos /= source) msg = "" ! need to clear msg
+         CALL mpi_bcast(msg, msglen, MPI_CHARACTER, source, comm%handle, ierr)
          IF (ierr /= 0) CALL mp_stop(ierr, "mpi_bcast @ "//routineN)
-         msg = ""
-         k = 0
-         DO j = 1, msgsiz
-            DO i = 1, imsglen(j)
-               k = k + 1
-               msg(j) (i:i) = CHAR(imsg(k))
-            END DO
-         END DO
-         DEALLOCATE (imsg)
-         DEALLOCATE (imsglen)
-         CALL add_perf(perf_id=2, count=1, msg_size=msglen*charlen*msgsiz)
+         CALL add_perf(perf_id=2, count=1, msg_size=msglen*charlen)
 #else
          MARK_USED(msg)
          MARK_USED(source)
@@ -3039,46 +3008,17 @@ CONTAINS
 
          INTEGER                                  :: handle
 #if defined(__parallel)
-         INTEGER                                  :: i, ierr, j, k, msglen, msgsiz
-         INTEGER, ALLOCATABLE                     :: imsg(:), imsglen(:)
+         INTEGER                                  :: ierr, msglen
 #endif
 
          CALL mp_timeset(routineN, handle)
 
 #if defined(__parallel)
-         msgsiz = SIZE(msg)
-         ! Determine size of the minimum array of integers to broadcast the string
-         ALLOCATE (imsglen(1:msgsiz))
-         DO j = 1, msgsiz
-            imsglen(j) = LEN_TRIM(msg(j))
-         END DO
-         CALL comm%bcast(imsglen, comm%source)
-         msglen = SUM(imsglen)
-         ! this is a workaround to avoid problems on the T3E
-         ! at the moment we have a data alignment error when trying to
-         ! broadcast characters on the T3E (not always!)
-         ! JH 19/3/99 on galileo
-         ALLOCATE (imsg(1:msglen))
-         k = 0
-         DO j = 1, msgsiz
-            DO i = 1, imsglen(j)
-               k = k + 1
-               imsg(k) = ICHAR(msg(j) (i:i))
-            END DO
-         END DO
-         CALL mpi_bcast(imsg, msglen, MPI_INTEGER, comm%source, comm%handle, ierr)
+         msglen = INT(SIZEOF(msg))
+         IF (.NOT. comm%is_source()) msg = "" ! need to clear msg
+         CALL mpi_bcast(msg, msglen, MPI_CHARACTER, comm%source, comm%handle, ierr)
          IF (ierr /= 0) CALL mp_stop(ierr, "mpi_bcast @ "//routineN)
-         msg = ""
-         k = 0
-         DO j = 1, msgsiz
-            DO i = 1, imsglen(j)
-               k = k + 1
-               msg(j) (i:i) = CHAR(imsg(k))
-            END DO
-         END DO
-         DEALLOCATE (imsg)
-         DEALLOCATE (imsglen)
-         CALL add_perf(perf_id=2, count=1, msg_size=msglen*charlen*msgsiz)
+         CALL add_perf(perf_id=2, count=1, msg_size=msglen*charlen)
 #else
          MARK_USED(msg)
          MARK_USED(comm)
