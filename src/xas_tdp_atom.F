@@ -121,8 +121,8 @@ MODULE xas_tdp_atom
                                               xc_dset_get_derivative,&
                                               xc_dset_release
    USE xc_derivative_types,             ONLY: xc_derivative_get,&
-                                              xc_derivative_type,&
-                                              xc_derivative_p_type
+                                              xc_derivative_p_type,&
+                                              xc_derivative_type
    USE xc_derivatives,                  ONLY: xc_functionals_eval,&
                                               xc_functionals_get_needs
    USE xc_rho_cflags_types,             ONLY: xc_rho_cflags_type
@@ -2868,22 +2868,22 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE integrate_sc_fxc(int_fxc, iatom, ikind, deriv_set, xas_atom_env, qs_env)
 
-      TYPE(cp_2d_r_p_type), DIMENSION(:, :), POINTER    :: int_fxc
-      INTEGER, INTENT(IN)                               :: iatom, ikind
-      TYPE(xc_derivative_set_type), INTENT(IN)          :: deriv_set
-      TYPE(xas_atom_env_type), POINTER                  :: xas_atom_env
-      TYPE(qs_environment_type), POINTER                :: qs_env
+      TYPE(cp_2d_r_p_type), DIMENSION(:, :), POINTER     :: int_fxc
+      INTEGER, INTENT(IN)                                :: iatom, ikind
+      TYPE(xc_derivative_set_type), INTENT(IN)           :: deriv_set
+      TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
+      TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      INTEGER                                           :: i, maxso, na, nr, nset, nsotot, nspins, &
-                                                           ri_nsgf
-      REAL(dp), ALLOCATABLE, DIMENSION(:, :)            :: fxc, int_so
-      REAL(dp), DIMENSION(:, :), POINTER                :: ri_sphi_so
-      TYPE(cp_3d_r_p_type), ALLOCATABLE, DIMENSION(:)   :: d2e
-      TYPE(dft_control_type), POINTER                   :: dft_control
-      TYPE(grid_atom_type), POINTER                     :: grid_atom
-      TYPE(gto_basis_set_type), POINTER                 :: ri_basis
-      TYPE(qs_kind_type), DIMENSION(:), POINTER         :: qs_kind_set
-      TYPE(xc_derivative_p_type), DIMENSION(3)          :: derivs
+      INTEGER                                            :: i, maxso, na, nr, nset, nsotot, nspins, &
+                                                            ri_nsgf
+      REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: fxc, int_so
+      REAL(dp), DIMENSION(:, :), POINTER                 :: ri_sphi_so
+      TYPE(cp_3d_r_p_type), ALLOCATABLE, DIMENSION(:)    :: d2e
+      TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(grid_atom_type), POINTER                      :: grid_atom
+      TYPE(gto_basis_set_type), POINTER                  :: ri_basis
+      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
+      TYPE(xc_derivative_p_type), DIMENSION(3)           :: derivs
 
       NULLIFY (grid_atom, ri_basis, ri_sphi_so, qs_kind_set, dft_control)
 
