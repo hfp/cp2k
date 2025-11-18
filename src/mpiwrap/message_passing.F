@@ -2921,11 +2921,11 @@ CONTAINS
          CALL mp_timeset(routineN, handle)
 
 #if defined(__parallel)
-         msglen = INT(SIZEOF(msg))
+         msglen = LEN(msg)*charlen
          IF (comm%mepos /= source) msg = "" ! need to clear msg
          CALL mpi_bcast(msg, msglen, MPI_CHARACTER, source, comm%handle, ierr)
          IF (ierr /= 0) CALL mp_stop(ierr, "mpi_bcast @ "//routineN)
-         CALL add_perf(perf_id=2, count=1, msg_size=msglen*charlen)
+         CALL add_perf(perf_id=2, count=1, msg_size=msglen)
 #else
          MARK_USED(msg)
          MARK_USED(source)
@@ -2953,11 +2953,11 @@ CONTAINS
          CALL mp_timeset(routineN, handle)
 
 #if defined(__parallel)
-         msglen = INT(SIZEOF(msg))
+         msglen = LEN(msg)*charlen
          IF (.NOT. comm%is_source()) msg = "" ! need to clear msg
          CALL mpi_bcast(msg, msglen, MPI_CHARACTER, comm%source, comm%handle, ierr)
          IF (ierr /= 0) CALL mp_stop(ierr, "mpi_bcast @ "//routineN)
-         CALL add_perf(perf_id=2, count=1, msg_size=msglen*charlen)
+         CALL add_perf(perf_id=2, count=1, msg_size=msglen)
 #else
          MARK_USED(msg)
          MARK_USED(comm)
@@ -2986,11 +2986,11 @@ CONTAINS
          CALL mp_timeset(routineN, handle)
 
 #if defined(__parallel)
-         msglen = INT(SIZEOF(msg))
+         msglen = SIZE(msg)*LEN(msg(1))*charlen
          IF (comm%mepos /= source) msg = "" ! need to clear msg
          CALL mpi_bcast(msg, msglen, MPI_CHARACTER, source, comm%handle, ierr)
          IF (ierr /= 0) CALL mp_stop(ierr, "mpi_bcast @ "//routineN)
-         CALL add_perf(perf_id=2, count=1, msg_size=msglen*charlen)
+         CALL add_perf(perf_id=2, count=1, msg_size=msglen)
 #else
          MARK_USED(msg)
          MARK_USED(source)
@@ -3013,11 +3013,11 @@ CONTAINS
          CALL mp_timeset(routineN, handle)
 
 #if defined(__parallel)
-         msglen = INT(SIZEOF(msg))
+         msglen = SIZE(msg)*LEN(msg(1))*charlen
          IF (.NOT. comm%is_source()) msg = "" ! need to clear msg
          CALL mpi_bcast(msg, msglen, MPI_CHARACTER, comm%source, comm%handle, ierr)
          IF (ierr /= 0) CALL mp_stop(ierr, "mpi_bcast @ "//routineN)
-         CALL add_perf(perf_id=2, count=1, msg_size=msglen*charlen)
+         CALL add_perf(perf_id=2, count=1, msg_size=msglen)
 #else
          MARK_USED(msg)
          MARK_USED(comm)
