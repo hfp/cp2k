@@ -121,7 +121,8 @@ MODULE xas_tdp_atom
                                               xc_dset_get_derivative,&
                                               xc_dset_release
    USE xc_derivative_types,             ONLY: xc_derivative_get,&
-                                              xc_derivative_type
+                                              xc_derivative_type,&
+                                              xc_derivative_p_type
    USE xc_derivatives,                  ONLY: xc_functionals_eval,&
                                               xc_functionals_get_needs
    USE xc_rho_cflags_types,             ONLY: xc_rho_cflags_type
@@ -2867,24 +2868,24 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE integrate_sc_fxc(int_fxc, iatom, ikind, deriv_set, xas_atom_env, qs_env)
 
-      TYPE(cp_2d_r_p_type), DIMENSION(:, :), POINTER     :: int_fxc
-      INTEGER, INTENT(IN)                                :: iatom, ikind
-      TYPE(xc_derivative_set_type), INTENT(IN)           :: deriv_set
-      TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
-      TYPE(qs_environment_type), POINTER                 :: qs_env
+      TYPE(cp_2d_r_p_type), DIMENSION(:, :), POINTER    :: int_fxc
+      INTEGER, INTENT(IN)                               :: iatom, ikind
+      TYPE(xc_derivative_set_type), INTENT(IN)          :: deriv_set
+      TYPE(xas_atom_env_type), POINTER                  :: xas_atom_env
+      TYPE(qs_environment_type), POINTER                :: qs_env
 
-      INTEGER                                            :: i, maxso, na, nr, nset, nsotot, nspins, &
-                                                            ri_nsgf
-      REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: fxc, int_so
-      REAL(dp), DIMENSION(:, :), POINTER                 :: ri_sphi_so
-      TYPE(cp_3d_r_p_type), ALLOCATABLE, DIMENSION(:)    :: d2e
-      TYPE(dft_control_type), POINTER                    :: dft_control
-      TYPE(grid_atom_type), POINTER                      :: grid_atom
-      TYPE(gto_basis_set_type), POINTER                  :: ri_basis
-      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
-      TYPE(xc_derivative_type), POINTER                  :: deriv(3)
+      INTEGER                                           :: i, maxso, na, nr, nset, nsotot, nspins, &
+                                                           ri_nsgf
+      REAL(dp), ALLOCATABLE, DIMENSION(:, :)            :: fxc, int_so
+      REAL(dp), DIMENSION(:, :), POINTER                :: ri_sphi_so
+      TYPE(cp_3d_r_p_type), ALLOCATABLE, DIMENSION(:)   :: d2e
+      TYPE(dft_control_type), POINTER                   :: dft_control
+      TYPE(grid_atom_type), POINTER                     :: grid_atom
+      TYPE(gto_basis_set_type), POINTER                 :: ri_basis
+      TYPE(qs_kind_type), DIMENSION(:), POINTER         :: qs_kind_set
+      TYPE(xc_derivative_p_type), DIMENSION(3)          :: derivs
 
-      NULLIFY (grid_atom, deriv, ri_basis, ri_sphi_so, qs_kind_set, dft_control)
+      NULLIFY (grid_atom, ri_basis, ri_sphi_so, qs_kind_set, dft_control)
 
       ! Initialization
       CALL get_qs_env(qs_env, qs_kind_set=qs_kind_set, dft_control=dft_control)
@@ -2899,12 +2900,12 @@ CONTAINS
 
       ! Get the second derivatives
       ALLOCATE (d2e(3))
-      deriv(1) => xc_dset_get_derivative(deriv_set, [deriv_rhoa, deriv_rhoa])
-      deriv(2) => xc_dset_get_derivative(deriv_set, [deriv_rhoa, deriv_rhob])
-      deriv(3) => xc_dset_get_derivative(deriv_set, [deriv_rhob, deriv_rhob])
+      derivs(1)%deriv => xc_dset_get_derivative(deriv_set, [deriv_rhoa, deriv_rhoa])
+      derivs(2)%deriv => xc_dset_get_derivative(deriv_set, [deriv_rhoa, deriv_rhob])
+      derivs(3)%deriv => xc_dset_get_derivative(deriv_set, [deriv_rhob, deriv_rhob])
       DO i = 1, 3
-         IF (ASSOCIATED(deriv(i))) THEN
-            CALL xc_derivative_get(deriv(i), deriv_data=d2e(i)%array)
+         IF (ASSOCIATED(derivs(i)%deriv)) THEN
+            CALL xc_derivative_get(derivs(i)%deriv, deriv_data=d2e(i)%array)
          END IF
       END DO
 
@@ -2916,7 +2917,7 @@ CONTAINS
       ! If closed shell, do not need to integrate beta-beta as it is the same as alpha-alpha
       DO i = 1, nspins + 1
          int_so = 0.0_dp
-         IF (ASSOCIATED(deriv(i))) THEN
+         IF (ASSOCIATED(derivs(i)%deriv)) THEN
             fxc(:, :) = d2e(i)%array(:, :, 1)*grid_atom%weight(:, :)
             CALL integrate_so_prod(int_so, fxc, ikind, xas_atom_env, qs_env)
          END IF
