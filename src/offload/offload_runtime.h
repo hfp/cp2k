@@ -168,6 +168,11 @@ static inline void offloadMemcpyAsyncHtoD(void *const ptr1, const void *ptr2,
   OFFLOAD_CHECK(
       hipMemcpyAsync(ptr1, ptr2, size, hipMemcpyHostToDevice, stream));
 #elif defined(__OFFLOAD_OPENCL)
+#if defined(__OFFLOAD_UNIFIED_MEMORY)
+  if (ptr1 == ptr2) {
+    return;
+  }
+#endif
   OFFLOAD_CHECK(c_dbcsr_acc_memcpy_h2d(ptr2, ptr1, size, stream));
 #endif
 }
@@ -190,6 +195,11 @@ static inline void offloadMemcpyAsyncDtoH(void *const ptr1, const void *ptr2,
   OFFLOAD_CHECK(
       hipMemcpyAsync(ptr1, ptr2, size, hipMemcpyDeviceToHost, stream));
 #elif defined(__OFFLOAD_OPENCL)
+#if defined(__OFFLOAD_UNIFIED_MEMORY)
+  if (ptr1 == ptr2) {
+    return;
+  }
+#endif
   OFFLOAD_CHECK(c_dbcsr_acc_memcpy_d2h(ptr2, ptr1, size, stream));
 #endif
 }
@@ -226,6 +236,11 @@ static inline void offloadMemcpyHtoD(void *ptr_device, const void *ptr_host,
 #endif
   OFFLOAD_CHECK(hipMemcpy(ptr_device, ptr_host, size, hipMemcpyHostToDevice));
 #elif defined(__OFFLOAD_OPENCL)
+#if defined(__OFFLOAD_UNIFIED_MEMORY)
+  if (ptr_device == ptr_host) {
+    return;
+  }
+#endif
   offloadMemcpyAsyncHtoD(ptr_device, ptr_host, size, NULL /*stream*/);
 #endif
 }
@@ -245,6 +260,11 @@ static inline void offloadMemcpyDtoH(void *ptr_device, const void *ptr_host,
 #endif
   OFFLOAD_CHECK(hipMemcpy(ptr_device, ptr_host, size, hipMemcpyDeviceToHost));
 #elif defined(__OFFLOAD_OPENCL)
+#if defined(__OFFLOAD_UNIFIED_MEMORY)
+  if (ptr_device == ptr_host) {
+    return;
+  }
+#endif
   offloadMemcpyAsyncDtoH(ptr_device, ptr_host, size, NULL /*stream*/);
 #endif
 }
@@ -373,7 +393,12 @@ static inline void offloadMallocHost(void **ptr, size_t size) {
   *ptr = NULL;
 #endif
 #elif defined(__OFFLOAD_OPENCL)
+#if !defined(__OFFLOAD_UNIFIED_MEMORY)
   OFFLOAD_CHECK(c_dbcsr_acc_host_mem_allocate(ptr, size, NULL /*stream*/));
+#else
+  assert(NULL != ptr);
+  *ptr = NULL;
+#endif
 #else
   assert(NULL != ptr);
   *ptr = malloc(size);
@@ -422,7 +447,9 @@ static inline void offloadFreeHost(void *ptr) {
   OFFLOAD_CHECK(hipHostFree(ptr)); // inconsistent
 #endif
 #elif defined(__OFFLOAD_OPENCL)
+#if !defined(__OFFLOAD_UNIFIED_MEMORY)
   OFFLOAD_CHECK(c_dbcsr_acc_host_mem_deallocate(ptr, NULL /*stream*/));
+#endif
 #else
   free(ptr);
 #endif
