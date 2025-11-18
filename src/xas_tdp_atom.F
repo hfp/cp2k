@@ -2873,8 +2873,8 @@ CONTAINS
       TYPE(xas_atom_env_type), POINTER                   :: xas_atom_env
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      INTEGER                                            :: i, maxso, na, nr, nset, &
-                                                            nsotot, nspins, ri_nsgf
+      INTEGER                                            :: i, maxso, na, nr, nset, nsotot, nspins, &
+                                                            ri_nsgf
       REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: fxc, int_so
       REAL(dp), DIMENSION(:, :), POINTER                 :: ri_sphi_so
       TYPE(cp_3d_r_p_type), ALLOCATABLE, DIMENSION(:)    :: d2e
@@ -2914,7 +2914,7 @@ CONTAINS
 
       ! Integrate for all three derivatives, taking the grid weight into account
       ! If closed shell, do not need to integrate beta-beta as it is the same as alpha-alpha
-      DO i = 1, MERGE(2, 3, nspins /= 2)
+      DO i = 1, nspins + 1
          int_so = 0.0_dp
          IF (ASSOCIATED(deriv(i))) THEN
             fxc(:, :) = d2e(i)%array(:, :, 1)*grid_atom%weight(:, :)
