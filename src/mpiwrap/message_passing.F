@@ -2098,7 +2098,6 @@ CONTAINS
          MPI_REQUEST_TYPE, ALLOCATABLE, DIMENSION(:), TARGET      :: request_handles
 
          ALLOCATE (request_handles(count), SOURCE=array_of_requests(1:count)%handle)
-         ! OpenMPI before to 5.x misses MPI_STATUSES_IGNORE
          CALL mpi_waitall(count, request_handles, MPI_STATUSES_IGNORE, ierr)
          array_of_requests(1:count)%handle = request_handles(:)
          DEALLOCATE (request_handles)
