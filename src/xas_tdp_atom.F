@@ -2900,11 +2900,17 @@ CONTAINS
       ! Get the second derivatives
       ALLOCATE (d2e(3))
       deriv => xc_dset_get_derivative(deriv_set, [deriv_rhoa, deriv_rhoa])
-      CALL xc_derivative_get(deriv, deriv_data=d2e(1)%array)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d2e(1)%array)
+      END IF
       deriv => xc_dset_get_derivative(deriv_set, [deriv_rhoa, deriv_rhob])
-      CALL xc_derivative_get(deriv, deriv_data=d2e(2)%array)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d2e(2)%array)
+      END IF
       deriv => xc_dset_get_derivative(deriv_set, [deriv_rhob, deriv_rhob])
-      CALL xc_derivative_get(deriv, deriv_data=d2e(3)%array)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d2e(3)%array)
+      END IF
 
       ! Allocate some work arrays
       ALLOCATE (fxc(na, nr))
@@ -2976,18 +2982,28 @@ CONTAINS
 
       ALLOCATE (d1e(2))
       deriv => xc_dset_get_derivative(deriv_set, [deriv_rhoa])
-      CALL xc_derivative_get(deriv, deriv_data=d1e(1)%array)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d1e(1)%array)
+      END IF
       deriv => xc_dset_get_derivative(deriv_set, [deriv_rhob])
-      CALL xc_derivative_get(deriv, deriv_data=d1e(2)%array)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d1e(2)%array)
+      END IF
 
       ! In case rhoa -> rhob, take the limit, which involves the (already computed) second derivatives
       ALLOCATE (d2e(3))
       deriv => xc_dset_get_derivative(deriv_set, [deriv_rhoa, deriv_rhoa])
-      CALL xc_derivative_get(deriv, deriv_data=d2e(1)%array)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d2e(1)%array)
+      END IF
       deriv => xc_dset_get_derivative(deriv_set, [deriv_rhoa, deriv_rhob])
-      CALL xc_derivative_get(deriv, deriv_data=d2e(2)%array)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d2e(2)%array)
+      END IF
       deriv => xc_dset_get_derivative(deriv_set, [deriv_rhob, deriv_rhob])
-      CALL xc_derivative_get(deriv, deriv_data=d2e(3)%array)
+      IF (ASSOCIATED(deriv)) THEN
+         CALL xc_derivative_get(deriv, deriv_data=d2e(3)%array)
+      END IF
 
       !Compute the kernel on the grid. Already take weight into acocunt there
       ALLOCATE (fxc(na, nr))
