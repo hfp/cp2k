@@ -2922,13 +2922,8 @@ CONTAINS
          CALL mp_timeset(routineN, handle)
 
 #if defined(__parallel)
-         IF (comm%mepos == source) THEN
-            msglen = LEN_TRIM(msg)
-         ELSE ! need to clear msg
-            msg = ""
-         END IF
-         CALL comm%bcast(msglen, source)
-
+         msglen = INT(SIZEOF(msg))
+         IF (comm%mepos /= source) msg = "" ! need to clear msg
          CALL mpi_bcast(msg, msglen, MPI_CHARACTER, source, comm%handle, ierr)
          IF (ierr /= 0) CALL mp_stop(ierr, "mpi_bcast @ "//routineN)
          CALL add_perf(perf_id=2, count=1, msg_size=msglen*charlen)
@@ -2959,13 +2954,8 @@ CONTAINS
          CALL mp_timeset(routineN, handle)
 
 #if defined(__parallel)
-         IF (comm%is_source()) THEN
-            msglen = LEN_TRIM(msg)
-         ELSE ! need to clear msg
-            msg = ""
-         END IF
-         CALL comm%bcast(msglen, comm%source)
-
+         msglen = INT(SIZEOF(msg))
+         IF (.NOT. comm%is_source()) msg = "" ! need to clear msg
          CALL mpi_bcast(msg, msglen, MPI_CHARACTER, comm%source, comm%handle, ierr)
          IF (ierr /= 0) CALL mp_stop(ierr, "mpi_bcast @ "//routineN)
          CALL add_perf(perf_id=2, count=1, msg_size=msglen*charlen)
