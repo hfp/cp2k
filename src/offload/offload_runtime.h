@@ -386,18 +386,20 @@ static inline void offloadMallocHost(void **ptr, size_t size) {
 #if defined(__OFFLOAD_CUDA)
   OFFLOAD_CHECK(cudaMallocHost(ptr, size));
 #elif defined(__OFFLOAD_HIP)
-#if !defined(__OFFLOAD_UNIFIED_MEMORY)
-  OFFLOAD_CHECK(hipHostMalloc(ptr, size, hipHostMallocDefault)); // inconsistent
-#else
+#if defined(__OFFLOAD_UNIFIED_MEMORY)
+  (void)size; /* mark used */
   assert(NULL != ptr);
   *ptr = NULL;
+#else
+  OFFLOAD_CHECK(hipHostMalloc(ptr, size, hipHostMallocDefault)); // inconsistent
 #endif
 #elif defined(__OFFLOAD_OPENCL)
-#if !defined(__OFFLOAD_UNIFIED_MEMORY)
-  OFFLOAD_CHECK(c_dbcsr_acc_host_mem_allocate(ptr, size, NULL /*stream*/));
-#else
+#if defined(__OFFLOAD_UNIFIED_MEMORY)
+  (void)size; /* mark used */
   assert(NULL != ptr);
   *ptr = NULL;
+#else
+  OFFLOAD_CHECK(c_dbcsr_acc_host_mem_allocate(ptr, size, NULL /*stream*/));
 #endif
 #else
   assert(NULL != ptr);
@@ -443,11 +445,15 @@ static inline void offloadFreeHost(void *ptr) {
 #if defined(__OFFLOAD_CUDA)
   OFFLOAD_CHECK(cudaFreeHost(ptr));
 #elif defined(__OFFLOAD_HIP)
-#if !defined(__OFFLOAD_UNIFIED_MEMORY)
+#if defined(__OFFLOAD_UNIFIED_MEMORY)
+  (void)ptr; /* mark used */
+#else
   OFFLOAD_CHECK(hipHostFree(ptr)); // inconsistent
 #endif
 #elif defined(__OFFLOAD_OPENCL)
-#if !defined(__OFFLOAD_UNIFIED_MEMORY)
+#if defined(__OFFLOAD_UNIFIED_MEMORY)
+  (void)ptr; /* mark used */
+#else
   OFFLOAD_CHECK(c_dbcsr_acc_host_mem_deallocate(ptr, NULL /*stream*/));
 #endif
 #else
