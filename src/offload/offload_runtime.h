@@ -160,19 +160,9 @@ static inline void offloadMemcpyAsyncHtoD(void *const ptr1, const void *ptr2,
   OFFLOAD_CHECK(
       cudaMemcpyAsync(ptr1, ptr2, size, cudaMemcpyHostToDevice, stream));
 #elif defined(__OFFLOAD_HIP)
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  if (ptr1 == ptr2) {
-    return;
-  }
-#endif
   OFFLOAD_CHECK(
       hipMemcpyAsync(ptr1, ptr2, size, hipMemcpyHostToDevice, stream));
 #elif defined(__OFFLOAD_OPENCL)
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  if (ptr1 == ptr2) {
-    return;
-  }
-#endif
   OFFLOAD_CHECK(c_dbcsr_acc_memcpy_h2d(ptr2, ptr1, size, stream));
 #endif
 }
@@ -187,19 +177,9 @@ static inline void offloadMemcpyAsyncDtoH(void *const ptr1, const void *ptr2,
   OFFLOAD_CHECK(
       cudaMemcpyAsync(ptr1, ptr2, size, cudaMemcpyDeviceToHost, stream));
 #elif defined(__OFFLOAD_HIP)
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  if (ptr1 == ptr2) {
-    return;
-  }
-#endif
   OFFLOAD_CHECK(
       hipMemcpyAsync(ptr1, ptr2, size, hipMemcpyDeviceToHost, stream));
 #elif defined(__OFFLOAD_OPENCL)
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  if (ptr1 == ptr2) {
-    return;
-  }
-#endif
   OFFLOAD_CHECK(c_dbcsr_acc_memcpy_d2h(ptr2, ptr1, size, stream));
 #endif
 }
@@ -229,18 +209,8 @@ static inline void offloadMemcpyHtoD(void *ptr_device, const void *ptr_host,
 #if defined(__OFFLOAD_CUDA)
   OFFLOAD_CHECK(cudaMemcpy(ptr_device, ptr_host, size, cudaMemcpyHostToDevice));
 #elif defined(__OFFLOAD_HIP)
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  if (ptr_device == ptr_host) {
-    return;
-  }
-#endif
   OFFLOAD_CHECK(hipMemcpy(ptr_device, ptr_host, size, hipMemcpyHostToDevice));
 #elif defined(__OFFLOAD_OPENCL)
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  if (ptr_device == ptr_host) {
-    return;
-  }
-#endif
   offloadMemcpyAsyncHtoD(ptr_device, ptr_host, size, NULL /*stream*/);
 #endif
 }
@@ -253,18 +223,8 @@ static inline void offloadMemcpyDtoH(void *ptr_device, const void *ptr_host,
 #if defined(__OFFLOAD_CUDA)
   OFFLOAD_CHECK(cudaMemcpy(ptr_device, ptr_host, size, cudaMemcpyDeviceToHost));
 #elif defined(__OFFLOAD_HIP)
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  if (ptr_device == ptr_host) {
-    return;
-  }
-#endif
   OFFLOAD_CHECK(hipMemcpy(ptr_device, ptr_host, size, hipMemcpyDeviceToHost));
 #elif defined(__OFFLOAD_OPENCL)
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  if (ptr_device == ptr_host) {
-    return;
-  }
-#endif
   offloadMemcpyAsyncDtoH(ptr_device, ptr_host, size, NULL /*stream*/);
 #endif
 }
@@ -386,21 +346,9 @@ static inline void offloadMallocHost(void **ptr, size_t size) {
 #if defined(__OFFLOAD_CUDA)
   OFFLOAD_CHECK(cudaMallocHost(ptr, size));
 #elif defined(__OFFLOAD_HIP)
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  (void)size; /* mark used */
-  assert(NULL != ptr);
-  *ptr = NULL;
-#else
   OFFLOAD_CHECK(hipHostMalloc(ptr, size, hipHostMallocDefault)); // inconsistent
-#endif
 #elif defined(__OFFLOAD_OPENCL)
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  (void)size; /* mark used */
-  assert(NULL != ptr);
-  *ptr = NULL;
-#else
   OFFLOAD_CHECK(c_dbcsr_acc_host_mem_allocate(ptr, size, NULL /*stream*/));
-#endif
 #else
   assert(NULL != ptr);
   *ptr = malloc(size);
@@ -445,17 +393,9 @@ static inline void offloadFreeHost(void *ptr) {
 #if defined(__OFFLOAD_CUDA)
   OFFLOAD_CHECK(cudaFreeHost(ptr));
 #elif defined(__OFFLOAD_HIP)
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  (void)ptr; /* mark used */
-#else
   OFFLOAD_CHECK(hipHostFree(ptr)); // inconsistent
-#endif
 #elif defined(__OFFLOAD_OPENCL)
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  (void)ptr; /* mark used */
-#else
   OFFLOAD_CHECK(c_dbcsr_acc_host_mem_deallocate(ptr, NULL /*stream*/));
-#endif
 #else
   free(ptr);
 #endif
