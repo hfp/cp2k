@@ -460,6 +460,7 @@ CONTAINS
 
       CALL timestop(handle2)
 
+      ! Parallel unpack of received blocks.
       nblk = SUM(num_blocks_recv)
       ALLOCATE (blks_to_allocate(nblk, 2))
 
@@ -540,8 +541,6 @@ CONTAINS
       TYPE(mp_cart_type)                                 :: mp_comm
       TYPE(mp_request_type), ALLOCATABLE, &
          DIMENSION(:, :)                                 :: req_array
-
-!!
 
       CALL timeset(routineN, handle)
 
