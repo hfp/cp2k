@@ -13,8 +13,7 @@ MODULE offload_api
    USE ISO_C_BINDING,                   ONLY: &
         C_ASSOCIATED, C_CHAR, C_FUNLOC, C_FUNPTR, C_F_POINTER, C_INT, C_NULL_CHAR, C_NULL_PTR, &
         C_PTR, C_SIZE_T
-   USE kinds,                           ONLY: dp,&
-                                              int_8
+   USE kinds,                           ONLY: dp, int_8
    USE message_passing,                 ONLY: mp_comm_type
 #include "../base/base_uses.f90"
 
@@ -259,9 +258,6 @@ CONTAINS
             INTEGER(KIND=C_INT), VALUE                :: length
             TYPE(C_PTR)                               :: buffer
          END SUBROUTINE offload_create_buffer_c
-      END INTERFACE
-      INTERFACE
-
          FUNCTION offload_get_buffer_host_pointer_c(buffer) &
             BIND(C, name="offload_get_buffer_host_pointer")
             IMPORT :: C_PTR

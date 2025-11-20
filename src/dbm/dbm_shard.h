@@ -32,15 +32,14 @@ typedef struct {
   int nblocks_allocated;
   dbm_block_t *blocks;
 
-  int hashtable_size;  // should be a power of two
-  int hashtable_prime; // should be a coprime of hashtable_size
-  int *hashtable;      // maps row/col to block numbers
+  int hashtable_size;   // should be a power of two
+  int hashtable_prime;  // should be a coprime of hashtable_size
+  int *hashtable;       // maps row/col to block numbers
 
-  int data_promised;  // referenced by a dbm_block_t.offset, but not yet
-                      // allocated
-  int data_allocated; // over-allocated to amortize the cost of resizing
-  int data_size;      // actually allocated and initialized
-  double *data;
+  int data_promised;    // ref'd by dbm_block_t.offset (not yet allocated)
+  int data_allocated;   // actually allocated (capacity of data buffer)
+  int data_size;        // actually allocated and initialized
+  double *data;         // potentially over-allocated (to amortize resizing)
 
   omp_lock_t lock; // used by dbm_put_block
 } dbm_shard_t;
