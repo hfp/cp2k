@@ -633,9 +633,9 @@ CONTAINS
          END DO !iset
 
          !Add the integral to the proper tensor block
-!$OMP CRITICAL(fill_pqX_tensor)
+!$OMP CRITICAL(omp_fill_pqX_tensor)
          CALL dbt_put_block(pq_X, [iatom, jatom, katom], SHAPE(iabc), iabc, summation=.TRUE.)
-!$OMP END CRITICAL(fill_pqX_tensor)
+!$OMP END CRITICAL(omp_fill_pqX_tensor)
 
          DEALLOCATE (iabc)
       END DO !o3c_iterator
