@@ -7,7 +7,6 @@
 #ifndef DBM_SHARD_H
 #define DBM_SHARD_H
 
-#include "../offload/offload_buffer.h"
 #include <omp.h>
 
 #ifdef __cplusplus
@@ -41,7 +40,7 @@ typedef struct {
                       // allocated
   int data_allocated; // over-allocated to amortize the cost of resizing
   int data_size;      // actually allocated and initialized
-  offload_buffer *data;
+  double *data;
 
   omp_lock_t lock; // used by dbm_put_block
 } dbm_shard_t;
