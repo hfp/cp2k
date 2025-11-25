@@ -214,7 +214,11 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
  * \author Ole Schuett
  ******************************************************************************/
 void *offload_mempool_host_malloc(const size_t size) {
-  return internal_mempool_malloc(&mempool_host, size);
+  void *memory = NULL;
+#if !defined(__OFFLOAD_UNIFIED_MEMORY)
+  memory = internal_mempool_malloc(&mempool_host, size);
+#endif
+  return memory;
 }
 
 /*******************************************************************************
