@@ -75,6 +75,7 @@ static void upload_pack(const dbm_pack_t *pack_host, dbm_pack_t *pack_dev,
   }
   offloadMemcpyAsyncHtoD(pack_dev->data, pack_host->data, size, stream);
 #else
+  (void)stream; // mark as used
   if (pack_dev->data_size < pack_host->data_size) {
     pack_dev->data = pack_host->data;
   }
@@ -126,6 +127,8 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *tasks,
   dbm_shard_gpu_t *const shard_g = &ctx->shards_c_dev[kshard];
 #if !defined(__OFFLOAD_UNIFIED_MEMORY)
   double *old_data_dev = NULL;
+#else
+  (void)finish; // mark as used
 #endif
 
   if (0 < ntasks) {
@@ -137,7 +140,7 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *tasks,
     const size_t size = ntasks * sizeof(dbm_task_t);
     offloadMemcpyAsyncHtoD(batch, tasks, size, shard_g->stream);
 #else
-    dbm_task_t *const batch = tasks;
+    const dbm_task_t *const batch = tasks;
 #endif
 
     // Reallocate shard's data if necessary.
