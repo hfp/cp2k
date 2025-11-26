@@ -390,9 +390,15 @@ EOF
 FYPPFLAGS   = -n --line-marker-format=gfortran5
 EOF
   fi
-  if [ "${with_intel}" != "__DONTUSE__" ] &&
-    [ "${with_ifx}" == "__DONTUSE__" ]; then # IFORT
-    cat << EOF >> $__filename
+  if [ "${with_intel}" != "__DONTUSE__" ]; then
+    if [ "${with_ifx}" != "__DONTUSE__" ]; then
+      cat << EOF >> $__filename
+#
+# IFX workarounds
+hfx_contraction_methods.o: FCFLAGS += -O1
+EOF
+    else # IFORT
+      cat << EOF >> $__filename
 #
 # IFORT workarounds
 mp2_optimize_ri_basis.o: FCFLAGS += -O0
@@ -401,6 +407,7 @@ paw_basis_types.o: FCFLAGS += -O1
 # ICX workaround (used along with IFORT)
 grid_dgemm_prepare_pab.o: CFLAGS += -O2
 EOF
+    fi
   fi
   # replace variable values in output file using eval
   local __TMPL=$(cat $__filename)
