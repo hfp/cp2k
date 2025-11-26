@@ -57,11 +57,15 @@ void offload_create_buffer(const int length, offload_buffer **buffer) {
   (*buffer)->host_buffer = NULL;
   (*buffer)->device_buffer = NULL;
 #if defined(OFFLOAD_BUFFER_MEMPOOL)
+#if !defined(__OFFLOAD_UNIFIED_MEMORY)
   (*buffer)->host_buffer = offload_mempool_host_malloc(requested_size);
+#endif
   (*buffer)->device_buffer = offload_mempool_device_malloc(requested_size);
 #elif defined(__OFFLOAD)
   offload_activate_chosen_device();
+#if !defined(__OFFLOAD_UNIFIED_MEMORY)
   offloadMallocHost((void **)&(*buffer)->host_buffer, requested_size);
+#endif
   offloadMalloc((void **)&(*buffer)->device_buffer, requested_size);
 #else
   (*buffer)->host_buffer = malloc(requested_size);
