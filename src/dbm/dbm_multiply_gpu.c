@@ -41,7 +41,7 @@ void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,
   assert(ctx->shards_c_dev != NULL || nshards == 0);
   for (int i = 0; i < nshards; i++) {
     const dbm_shard_t *const shard_c_host = &shards_c_host[i];
-    dbm_shard_gpu_t *shard_g = &ctx->shards_c_dev[i];
+    dbm_shard_gpu_t *const shard_g = &ctx->shards_c_dev[i];
     shard_g->data_size = shard_c_host->data_size;
     offloadStreamCreate(&shard_g->stream);
 #if !defined(__OFFLOAD_UNIFIED_MEMORY)
