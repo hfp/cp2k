@@ -207,17 +207,17 @@ static inline void offloadMemcpyAsyncDtoH(void *ptr_hst, const void *ptr_dev,
 /*******************************************************************************
  * \brief Wrapper around cudaMemcpyAsync(...,cudaMemcpyDeviceToDevice).
  ******************************************************************************/
-static inline void offloadMemcpyAsyncDtoD(void *ptr1, const void *ptr2,
+static inline void offloadMemcpyAsyncDtoD(void *dst, const void *src,
                                           const size_t size,
                                           const offloadStream_t stream) {
 #if defined(__OFFLOAD_CUDA)
   OFFLOAD_CHECK(
-      cudaMemcpyAsync(ptr1, ptr2, size, cudaMemcpyDeviceToDevice, stream));
+      cudaMemcpyAsync(dst, src, size, cudaMemcpyDeviceToDevice, stream));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(
-      hipMemcpyAsync(ptr1, ptr2, size, hipMemcpyDeviceToDevice, stream));
+      hipMemcpyAsync(dst, src, size, hipMemcpyDeviceToDevice, stream));
 #elif defined(__OFFLOAD_OPENCL)
-  OFFLOAD_CHECK(c_dbcsr_acc_memcpy_d2d(ptr2, ptr1, size, stream));
+  OFFLOAD_CHECK(c_dbcsr_acc_memcpy_d2d(src, dst, size, stream));
 #endif
 }
 
