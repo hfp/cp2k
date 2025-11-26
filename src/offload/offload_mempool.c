@@ -72,9 +72,7 @@ static void *actual_malloc(const size_t size, const bool on_device) {
   if (on_device) {
     offload_activate_chosen_device();
     offloadMalloc(&memory, size);
-  } else
-#elif defined(__OFFLOAD) && !defined(__OFFLOAD_UNIFIED_MEMORY)
-  {
+  } else {
     offload_activate_chosen_device();
     offloadMallocHost(&memory, size);
   }
@@ -116,9 +114,7 @@ static void actual_free(void *memory, const bool on_device) {
   if (on_device) {
     offload_activate_chosen_device();
     offloadFree(memory);
-  } else
-#elif defined(__OFFLOAD) && !defined(__OFFLOAD_UNIFIED_MEMORY)
-  {
+  } else {
     offload_activate_chosen_device();
     offloadFreeHost(memory);
   }
