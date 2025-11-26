@@ -242,7 +242,7 @@ dbm_block_t *dbm_shard_promise_new_block(dbm_shard_t *shard, const int row,
 void dbm_shard_allocate_promised_blocks(dbm_shard_t *shard) {
 
   // Reallocate data array if necessary.
-  if (shard->data_promised > shard->data_allocated) {
+  if (shard->data_allocated < shard->data_promised) {
     const double *data = shard->data;
     shard->data_allocated = DBM_ALLOCATION_FACTOR * shard->data_promised;
     assert(shard->data_promised <= shard->data_allocated);
@@ -258,7 +258,7 @@ void dbm_shard_allocate_promised_blocks(dbm_shard_t *shard) {
   // Zero new blocks.
   // The following memset is usually the first touch of the memory, which leads
   // to frequent page faults. The executing thread determines the NUMA location
-  if (shard->data_promised > shard->data_size) {
+  if (shard->data_size < shard->data_promised) {
     const int tail = shard->data_promised - shard->data_size;
     memset(shard->data + shard->data_size, 0, tail * sizeof(double));
     shard->data_size = shard->data_promised;

@@ -24,11 +24,12 @@ endif
 # Optimization flag derived from OPT flag
 OPTFLAG ?= -O$(patsubst O%,%,$(OPT))
 
+# Common compiler flags
 CFLAGS := -fPIC -g $(OPTFLAG) -march=native -Wall -Wextra -Wcast-qual
 
-VALIDATE ?= 0
-ifneq ($(VALIDATE),0)
-CFLAGS += -DDBM_VALIDATE_AGAINST_LIBXSMM
+USM ?= 0
+ifneq ($(USM),0)
+CFLAGS += -D__OFFLOAD_UNIFIED_MEMORY
 endif
 
 # Intel Compiler

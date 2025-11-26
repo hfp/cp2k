@@ -22,7 +22,9 @@ typedef struct {
   int data_size;
   int data_allocated;
   offloadStream_t stream;
+#if !defined(__OFFLOAD_UNIFIED_MEMORY)
   offloadEvent_t event;
+#endif
 } dbm_shard_gpu_t;
 
 /*******************************************************************************
@@ -63,7 +65,7 @@ bool dbm_multiply_gpu_upload_packs(const dbm_pack_t *pack_a,
  * \brief Internal routine for executing the tasks in given batch on the GPU.
  * \author Ole Schuett
  ******************************************************************************/
-void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
+void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *tasks,
                                     const double alpha, dbm_shard_t *shard_c,
                                     const int kshard, const bool finish,
                                     dbm_multiply_gpu_context_t *ctx);
