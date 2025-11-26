@@ -156,23 +156,18 @@ static inline void offloadMemset(void *ptr, const int val, size_t size) {
 static inline void offloadMemcpyAsyncHtoD(void *ptr_dev, const void *ptr_hst,
                                           const size_t size,
                                           offloadStream_t stream) {
+#if defined(__OFFLOAD_UNIFIED_MEMORY)
+  if (ptr_dev == ptr_hst) { /* fast-path only sensible without offsets */
+    return;
+  }
+#endif
 #if defined(__OFFLOAD_CUDA)
   OFFLOAD_CHECK(
       cudaMemcpyAsync(ptr_dev, ptr_hst, size, cudaMemcpyHostToDevice, stream));
 #elif defined(__OFFLOAD_HIP)
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  if (ptr_dev == ptr_hst) { /* fast-path only sensible without offsets */
-    return;
-  }
-#endif
   OFFLOAD_CHECK(
       hipMemcpyAsync(ptr_dev, ptr_hst, size, hipMemcpyHostToDevice, stream));
 #elif defined(__OFFLOAD_OPENCL)
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  if (ptr_dev == ptr_hst) { /* fast-path only sensible without offsets */
-    return;
-  }
-#endif
   OFFLOAD_CHECK(c_dbcsr_acc_memcpy_h2d(ptr_hst, ptr_dev, size, stream));
 #endif
 }
@@ -183,23 +178,18 @@ static inline void offloadMemcpyAsyncHtoD(void *ptr_dev, const void *ptr_hst,
 static inline void offloadMemcpyAsyncDtoH(void *ptr_hst, const void *ptr_dev,
                                           const size_t size,
                                           const offloadStream_t stream) {
+#if defined(__OFFLOAD_UNIFIED_MEMORY)
+  if (ptr_hst == ptr_dev) { /* fast-path only sensible without offsets */
+    return;
+  }
+#endif
 #if defined(__OFFLOAD_CUDA)
   OFFLOAD_CHECK(
       cudaMemcpyAsync(ptr_hst, ptr_dev, size, cudaMemcpyDeviceToHost, stream));
 #elif defined(__OFFLOAD_HIP)
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  if (ptr_hst == ptr_dev) { /* fast-path only sensible without offsets */
-    return;
-  }
-#endif
   OFFLOAD_CHECK(
       hipMemcpyAsync(ptr_hst, ptr_dev, size, hipMemcpyDeviceToHost, stream));
 #elif defined(__OFFLOAD_OPENCL)
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  if (ptr_hst == ptr_dev) { /* fast-path only sensible without offsets */
-    return;
-  }
-#endif
   OFFLOAD_CHECK(c_dbcsr_acc_memcpy_d2h(ptr_dev, ptr_hst, size, stream));
 #endif
 }
@@ -226,21 +216,16 @@ static inline void offloadMemcpyAsyncDtoD(void *dst, const void *src,
  ******************************************************************************/
 static inline void offloadMemcpyHtoD(void *ptr_dev, const void *ptr_hst,
                                      const size_t size) {
+#if defined(__OFFLOAD_UNIFIED_MEMORY)
+  if (ptr_dev == ptr_hst) { /* fast-path only sensible without offsets */
+    return;
+  }
+#endif
 #if defined(__OFFLOAD_CUDA)
   OFFLOAD_CHECK(cudaMemcpy(ptr_dev, ptr_hst, size, cudaMemcpyHostToDevice));
 #elif defined(__OFFLOAD_HIP)
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  if (ptr_dev == ptr_hst) { /* fast-path only sensible without offsets */
-    return;
-  }
-#endif
   OFFLOAD_CHECK(hipMemcpy(ptr_dev, ptr_hst, size, hipMemcpyHostToDevice));
 #elif defined(__OFFLOAD_OPENCL)
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  if (ptr_dev == ptr_hst) { /* fast-path only sensible without offsets */
-    return;
-  }
-#endif
   offloadMemcpyAsyncHtoD(ptr_dev, ptr_hst, size, NULL /*stream*/);
 #endif
 }
@@ -250,21 +235,16 @@ static inline void offloadMemcpyHtoD(void *ptr_dev, const void *ptr_hst,
  ******************************************************************************/
 static inline void offloadMemcpyDtoH(void *ptr_dev, const void *ptr_hst,
                                      const size_t size) {
+#if defined(__OFFLOAD_UNIFIED_MEMORY)
+  if (ptr_dev == ptr_hst) { /* fast-path only sensible without offsets */
+    return;
+  }
+#endif
 #if defined(__OFFLOAD_CUDA)
   OFFLOAD_CHECK(cudaMemcpy(ptr_dev, ptr_hst, size, cudaMemcpyDeviceToHost));
 #elif defined(__OFFLOAD_HIP)
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  if (ptr_dev == ptr_hst) { /* fast-path only sensible without offsets */
-    return;
-  }
-#endif
   OFFLOAD_CHECK(hipMemcpy(ptr_dev, ptr_hst, size, hipMemcpyDeviceToHost));
 #elif defined(__OFFLOAD_OPENCL)
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  if (ptr_dev == ptr_hst) { /* fast-path only sensible without offsets */
-    return;
-  }
-#endif
   offloadMemcpyAsyncDtoH(ptr_dev, ptr_hst, size, NULL /*stream*/);
 #endif
 }
