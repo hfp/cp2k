@@ -225,7 +225,6 @@ list(
   post_scf_bandstructure_utils.F
   gw_utils.F
   gw_integrals.F
-  gw_kp_to_real_space_and_back.F
   hairy_probes.F
   hartree_local_methods.F
   hartree_local_types.F
@@ -320,6 +319,7 @@ list(
   kg_vertex_coloring_methods.F
   kpoint_coulomb_2c.F
   kpoint_io.F
+  kpoint_k_r_trafo_simple.F
   kpoint_methods.F
   kpoint_transitional.F
   kpoint_types.F
@@ -1505,6 +1505,7 @@ set(CP2K_PROGS_F
     dbt/dbt_unittest.F
     dbt/tas/dbt_tas_unittest.F
     start/cp2k.F
+    common/gemm_square_unittest.F
     common/memory_utilities_unittest.F
     common/parallel_rng_types_unittest.F
     metadyn_tools/graph.F
@@ -1833,6 +1834,7 @@ add_library(cp2k::cp2k ALIAS cp2k)
 list(
   APPEND
   __CP2K_APPS
+  "gemm_square_unittest"
   "memory_utilities_unittest"
   "parallel_rng_types_unittest"
   "graph"
@@ -1847,6 +1849,7 @@ list(
 add_executable(cp2k-bin start/cp2k.F)
 # for linking
 
+add_executable(gemm_square_unittest common/gemm_square_unittest.F)
 add_executable(memory_utilities_unittest common/memory_utilities_unittest.F)
 add_executable(parallel_rng_types_unittest common/parallel_rng_types_unittest.F)
 add_executable(graph metadyn_tools/graph.F)

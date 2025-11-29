@@ -69,7 +69,7 @@ add_compile_options(
 add_compile_options(
   "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:Fortran,GNU>>:-O1;-march=native;-mtune=native>"
   "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:CXX,GNU>>:-O1;-march=native;-mtune=native>"
-  "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:C,GNU>>:-O1;-march=native;-mtune=native>"
+  "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:C,GNU>>:-O1;-march=native;-mtune=native;-Wall;-Wextra;-Werror>"
 )
 add_compile_options(
   "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:Fortran,GNU>>:-fsanitize=leak;-Werror=realloc-lhs>"
@@ -88,12 +88,6 @@ add_link_options(
   "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:Fortran,GNU>>:-fsanitize=leak>"
   "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:CXX,GNU>>:-fsanitize=leak>"
   "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:C,GNU>>:-fsanitize=leak>")
-
-# TODO Prevent CMake from wrongly adding -fbacktrace and
-# -fallow-argument-mismatch to CFLAGS. add_compile_options(
-# "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:CXX,GNU>>:-Wall;-Wextra;-Werror>"
-# "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:C,GNU>>:-Wall;-Wextra;-Werror>"
-# )
 
 # Coverage
 add_compile_options(
@@ -154,7 +148,14 @@ add_compile_options(
   "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:C,AppleClang>>:-O0;-g>"
   "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:Fortran,NAG>>:-C=all>")
 
-# Tweaks
+# =================================== Tweaks ===================================
+# Workaround https://gitlab.kitware.com/cmake/cmake/-/issues/27231
+get_target_property(opts MPI::MPI_Fortran INTERFACE_COMPILE_OPTIONS)
+set_target_properties(
+  MPI::MPI_Fortran PROPERTIES INTERFACE_COMPILE_OPTIONS
+                              "$<$<COMPILE_LANGUAGE:Fortran>:${opts}>")
+unset(opts)
+
 if(CMAKE_C_COMPILER_ID STREQUAL "AppleClang")
   set(CMAKE_Fortran_MODOUT_FLAG "-ef") # override to get lower-case module file
                                        # names
