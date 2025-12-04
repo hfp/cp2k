@@ -17,6 +17,10 @@
 #include <assert.h>
 #include <stdio.h>
 
+#if 0
+#define DBM_MULTIPLY_GPU_USM
+#endif
+
 /*******************************************************************************
  * \brief Internal routine for initializing the gpu backend.
  * \author Ole Schuett
@@ -44,7 +48,7 @@ void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,
     dbm_shard_gpu_t *const shard_g = &ctx->shards_c_dev[i];
     shard_g->data_size = shard_c_host->data_size;
     offloadStreamCreate(&shard_g->stream);
-#if !defined(__OFFLOAD_UNIFIED_MEMORY)
+#if !defined(__OFFLOAD_UNIFIED_MEMORY) || !defined(DBM_MULTIPLY_GPU_USM)
     offloadEventCreate(&shard_g->event);
     // only allocate data_size on device rather than data_allocated
     shard_g->data_allocated = shard_c_host->data_size;
@@ -67,7 +71,7 @@ void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,
 static void upload_pack(const dbm_pack_t *pack_host, dbm_pack_t *pack_dev,
                         const offloadStream_t stream) {
 
-#if !defined(__OFFLOAD_UNIFIED_MEMORY)
+#if !defined(__OFFLOAD_UNIFIED_MEMORY) || !defined(DBM_MULTIPLY_GPU_USM)
   const size_t size = pack_host->data_size * sizeof(double);
   if (pack_dev->data_size < pack_host->data_size) {
     offload_mempool_device_free(pack_dev->data);
@@ -125,7 +129,7 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *tasks,
                                     dbm_multiply_gpu_context_t *ctx) {
   // Assume GPU device was activated earlier.
   dbm_shard_gpu_t *const shard_g = &ctx->shards_c_dev[kshard];
-#if !defined(__OFFLOAD_UNIFIED_MEMORY)
+#if !defined(__OFFLOAD_UNIFIED_MEMORY) || !defined(DBM_MULTIPLY_GPU_USM)
   double *old_data_dev = NULL;
 #else
   (void)finish; // mark as used
@@ -135,7 +139,7 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *tasks,
     assert(NULL != shard_c && NULL != shard_g);
 
     // Upload new batch.
-#if !defined(__OFFLOAD_UNIFIED_MEMORY)
+#if !defined(__OFFLOAD_UNIFIED_MEMORY) || !defined(DBM_MULTIPLY_GPU_USM)
     dbm_task_t *const batch = &ctx->batches_dev[kshard * ctx->max_batch_size];
     const size_t size = ntasks * sizeof(dbm_task_t);
     offloadMemcpyAsyncHtoD(batch, tasks, size, shard_g->stream);
@@ -145,7 +149,7 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *tasks,
 
     // Reallocate shard's data if necessary.
     if (shard_g->data_allocated < shard_c->data_promised)
-#if !defined(__OFFLOAD_UNIFIED_MEMORY)
+#if !defined(__OFFLOAD_UNIFIED_MEMORY) || !defined(DBM_MULTIPLY_GPU_USM)
     {
       shard_g->data_allocated = DBM_ALLOCATION_FACTOR * shard_c->data_promised;
       assert(shard_c->data_promised <= shard_g->data_allocated);
@@ -185,7 +189,7 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *tasks,
     OFFLOAD_CHECK(offloadGetLastError());
   }
 
-#if !defined(__OFFLOAD_UNIFIED_MEMORY)
+#if !defined(__OFFLOAD_UNIFIED_MEMORY) || !defined(DBM_MULTIPLY_GPU_USM)
   if (finish) { // Start downloading the current shard of matrix_c.
     // Grow host buffer if necessary.
     dbm_shard_allocate_promised_blocks(shard_c);
@@ -221,14 +225,14 @@ void dbm_multiply_gpu_stop(dbm_multiply_gpu_context_t *ctx) {
     dbm_shard_gpu_t *const shard_g = &ctx->shards_c_dev[i];
     offloadStreamSynchronize(shard_g->stream);
     offloadStreamDestroy(shard_g->stream);
-#if !defined(__OFFLOAD_UNIFIED_MEMORY)
+#if !defined(__OFFLOAD_UNIFIED_MEMORY) || !defined(DBM_MULTIPLY_GPU_USM)
     offloadEventDestroy(shard_g->event);
     offload_mempool_device_free(shard_g->data);
 #endif
   }
   free(ctx->shards_c_dev);
 
-#if !defined(__OFFLOAD_UNIFIED_MEMORY)
+#if !defined(__OFFLOAD_UNIFIED_MEMORY) || !defined(DBM_MULTIPLY_GPU_USM)
   offload_mempool_device_free(ctx->pack_a_dev.data);
   offload_mempool_device_free(ctx->pack_b_dev.data);
 #endif
