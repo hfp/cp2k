@@ -48,8 +48,8 @@ void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,
     dbm_shard_gpu_t *const shard_g = &ctx->shards_c_dev[i];
     shard_g->data_size = shard_c_host->data_size;
     offloadStreamCreate(&shard_g->stream);
-#if !defined(__OFFLOAD_UNIFIED_MEMORY) || !defined(DBM_MULTIPLY_GPU_USM)
     offloadEventCreate(&shard_g->event);
+#if !defined(__OFFLOAD_UNIFIED_MEMORY) || !defined(DBM_MULTIPLY_GPU_USM)
     // only allocate data_size on device rather than data_allocated
     shard_g->data_allocated = shard_c_host->data_size;
     shard_g->data =
@@ -145,6 +145,7 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *tasks,
     offloadMemcpyAsyncHtoD(batch, tasks, size, shard_g->stream);
 #else
     const dbm_task_t *const batch = tasks;
+    offloadStreamSynchronize(shard_g->stream);
 #endif
 
     // Reallocate shard's data if necessary.
@@ -225,8 +226,8 @@ void dbm_multiply_gpu_stop(dbm_multiply_gpu_context_t *ctx) {
     dbm_shard_gpu_t *const shard_g = &ctx->shards_c_dev[i];
     offloadStreamSynchronize(shard_g->stream);
     offloadStreamDestroy(shard_g->stream);
-#if !defined(__OFFLOAD_UNIFIED_MEMORY) || !defined(DBM_MULTIPLY_GPU_USM)
     offloadEventDestroy(shard_g->event);
+#if !defined(__OFFLOAD_UNIFIED_MEMORY) || !defined(DBM_MULTIPLY_GPU_USM)
     offload_mempool_device_free(shard_g->data);
 #endif
   }
