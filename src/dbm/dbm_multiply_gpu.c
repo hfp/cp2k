@@ -211,13 +211,13 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *tasks,
     offloadMemcpyAsyncDtoH(shard_c->data, shard_g->data,
                            shard_g->data_size * sizeof(double),
                            shard_g->stream);
-    // Oversubscribing devices can delay the download, and
-    // shard_c->data may be touched right away, therefore
-    // copies must be completed here.
-    offloadStreamSynchronize(shard_g->stream);
+
+    if (NULL == old_data_dev) {
+      offloadEventSynchronize(shard_g->event);
+    }
   }
 
-  if (0 < ntasks && NULL != old_data_dev) {
+  if (NULL != old_data_dev) {
     offloadEventSynchronize(shard_g->event);
     offload_mempool_device_free(old_data_dev);
   }
