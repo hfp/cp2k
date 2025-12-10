@@ -27,20 +27,21 @@ typedef struct {
 
 /*******************************************************************************
  * \brief Internal struct for storing the gpu backend's context.
- * \author Ole Schuett
+ * \author Ole Schuett and Hans Pabst
  ******************************************************************************/
 typedef struct {
-  offloadStream_t main_stream;
-  offloadEvent_t upload_event;
-
   int nshards;
-  dbm_shard_gpu_t *shards_c_dev;
-
-  dbm_pack_t pack_a_dev;
-  dbm_pack_t pack_b_dev;
-
   int max_batch_size;
   dbm_task_t *batches_dev;
+  dbm_task_t *batches_host;
+  dbm_pack_t pack_a_dev;
+  dbm_pack_t pack_b_dev;
+  dbm_shard_gpu_t *shards_c_dev;
+  offloadStream_t main_stream;
+  offloadEvent_t upload_event;
+  offloadEvent_t *batch_events;
+  unsigned char *batch_slot_ready;
+  int *batch_slot_index;
 } dbm_multiply_gpu_context_t;
 
 /*******************************************************************************
