@@ -36,9 +36,11 @@ void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,
   offloadStreamCreate(&ctx->main_stream);
   offloadEventCreate(&ctx->upload_event);
 
+#if !defined(__OFFLOAD_UNIFIED_MEMORY) || !defined(DBM_MULTIPLY_GPU_USM)
   // Allocate device storage for batches.
   const size_t size = nshards * max_batch_size * sizeof(dbm_task_t);
   ctx->batches_dev = offload_mempool_device_malloc(size);
+#endif
 
   // Allocate and upload shards of result matrix C.
   ctx->shards_c_dev = malloc(nshards * sizeof(dbm_shard_gpu_t));
@@ -70,7 +72,6 @@ void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,
  ******************************************************************************/
 static void upload_pack(const dbm_pack_t *pack_host, dbm_pack_t *pack_dev,
                         const offloadStream_t stream) {
-
 #if !defined(__OFFLOAD_UNIFIED_MEMORY) || !defined(DBM_MULTIPLY_GPU_USM)
   const size_t size = pack_host->data_size * sizeof(double);
   if (pack_dev->data_size < pack_host->data_size) {
@@ -236,8 +237,8 @@ void dbm_multiply_gpu_stop(dbm_multiply_gpu_context_t *ctx) {
 #if !defined(__OFFLOAD_UNIFIED_MEMORY) || !defined(DBM_MULTIPLY_GPU_USM)
   offload_mempool_device_free(ctx->pack_a_dev.data);
   offload_mempool_device_free(ctx->pack_b_dev.data);
-#endif
   offload_mempool_device_free(ctx->batches_dev);
+#endif
   offloadStreamDestroy(ctx->main_stream);
   offloadEventDestroy(ctx->upload_event);
 }

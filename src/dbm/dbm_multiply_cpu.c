@@ -40,7 +40,6 @@ static inline void dbm_dgemm(const char transa, const char transb, const int m,
                              const double *a, const int lda, const double *b,
                              const int ldb, const double beta, double *c,
                              const int ldc) {
-
   dgemm_(&transa, &transb, &m, &n, &k, &alpha, a, &lda, b, &ldb, &beta, c,
          &ldc);
 }
@@ -68,7 +67,6 @@ void dbm_multiply_cpu_process_batch(int ntasks, const dbm_task_t batch[ntasks],
                                     double alpha, const dbm_pack_t *pack_a,
                                     const dbm_pack_t *pack_b,
                                     dbm_shard_t *shard_c, int options) {
-
   if (0 >= ntasks) { // nothing to do
     return;
   }

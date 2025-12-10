@@ -268,7 +268,6 @@ static void postprocess_received_blocks(
     const int blks_recv_count[nranks], const int blks_recv_displ[nranks],
     const int data_recv_displ[nranks],
     dbm_pack_block_t blks_recv[nblocks_recv]) {
-
   int nblocks_per_shard[nshards], shard_start[nshards];
   memset(nblocks_per_shard, 0, nshards * sizeof(int));
   dbm_pack_block_t *blocks_tmp =
@@ -556,7 +555,6 @@ dbm_comm_iterator_t *dbm_comm_iterator_start(const bool transa,
                                              const dbm_matrix_t *matrix_a,
                                              const dbm_matrix_t *matrix_b,
                                              const dbm_matrix_t *matrix_c) {
-
   dbm_comm_iterator_t *iter = malloc(sizeof(dbm_comm_iterator_t));
   assert(iter != NULL);
   iter->dist = matrix_c->dist;

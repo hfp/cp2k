@@ -240,7 +240,6 @@ dbm_block_t *dbm_shard_promise_new_block(dbm_shard_t *shard, const int row,
  * \author Ole Schuett
  ******************************************************************************/
 void dbm_shard_allocate_promised_blocks(dbm_shard_t *shard) {
-
   // Reallocate data array if necessary.
   if (shard->data_allocated < shard->data_promised) {
     const double *data = shard->data;
