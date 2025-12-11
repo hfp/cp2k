@@ -4,9 +4,6 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
-#if defined(DBM_MULTIPLY_OPENCL_GEN)
-#include "dbm_multiply_opencl.irh"
-#else
 #include "../../exts/dbcsr/src/acc/opencl/common/opencl_atomics.h"
 #include "dbm_internal.h"
 

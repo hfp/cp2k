@@ -142,6 +142,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
       if (NULL == kernel_global) {
         char flags[ACC_OPENCL_BUFFERSIZE] =
             "-cl-fast-relaxed-math -cl-denorms-are-zero";
+        const char *const krn_env = getenv("DBM_MULTIPLY_KERNEL");
         const char *const gen_env = getenv("DBM_MULTIPLY_GEN");
         const char *const lin_env = getenv("DBM_MULTIPLY_LIN");
         const char *const fp_env = getenv("DBM_MULTIPLY_FP");
@@ -173,12 +174,15 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         offset += (size_t)c_dbcsr_acc_opencl_flags_atomics(
             devinfo, c_dbcsr_acc_opencl_atomic_fp_64, exts, &nexts,
             flags + offset, sizeof(flags) - offset);
-        if (2 <= gen || (0 != gen && 1 < sgsize /*subgroups*/ &&
-                         2 <= *devinfo->std_level && NULL != exts[1] &&
-                         NULL != strstr(exts[1], "cl_ext_float_atomics"))) {
-          offset +=
-              (size_t)LIBXSMM_SNPRINTF(flags + offset, sizeof(flags) - offset,
-                                       " -DDBM_MULTIPLY_OPENCL_GEN");
+        if (0 != gen && 1 < sgsize /*subgroups*/ && NULL == krn_env) {
+          FILE *const krn_file = fopen("dbm_multiply_opencl.spv", "rb");
+          if (NULL != krn_file) {
+            krn_env = "dbm_multiply_opencl.spv";
+          } else {
+            gen = 0;
+          }
+        }
+        if (0 != gen) {
           wgsize[1] = wgsize[2] = 1;
           wgsize[0] = 16;
           lu = bn = 0;
@@ -237,9 +241,21 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
           fprintf(stderr, " -> ");
         }
         result |= c_dbcsr_acc_opencl_kernel(
-            0 /*source_is_file*/, OPENCL_DBM_SOURCE_MULTIPLY, "dbm_multiply",
-            flags, options, NULL /*try*/, NULL /*try_ok*/, exts, nexts,
-            &kernel_global);
+            NULL == krn_env ? 0 : 1 /*source_is_file*/,
+            NULL == krn_env ? OPENCL_DBM_SOURCE_MULTIPLY : krn_env,
+            "dbm_multiply", flags, options, NULL /*try*/, NULL /*try_ok*/, exts,
+            nexts, &kernel_global);
+        if (EXIT_SUCCESS == result) {
+          size_t wgs[3];
+          if (NULL != krn_env &&
+              EXIT_SUCCESS !=
+                  clGetKernelWorkGroupInfo(kernel_global, device,
+                                           CL_KERNEL_COMPILE_WORK_GROUP_SIZE,
+                                           sizeof(size_t) * 3, wgs, NULL) &&
+              0 != wgs[0] && 0 != wgs[1] && 0 != wgs[2]) {
+            LIBXSMM_ASSIGN127(wgsize, wgs);
+          }
+        }
         if (2 <= verbosity || 0 > verbosity || EXIT_SUCCESS != result) {
           if (EXIT_SUCCESS == result) {
             const double ds = DBM_TIMER_DIFF(start, DBM_TIMER_TICK());

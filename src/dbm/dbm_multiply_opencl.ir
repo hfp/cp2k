@@ -1,42 +1,50 @@
-func @dbm_multiply(%alpha: f64, %itask: i32,
+$dtype = f64
+
+func @dbm_multiply(%alpha: $dtype, %itask: i32,
                    %tasks: memref<i32x6x?>,
-                   %A: memref<f64x?>,
-                   %B: memref<f64x?>,
-                   %C: memref<f64x?>)
-                   work_group_size(16, 1) {
-    %gid = group_id
-    %itask_idx = cast %itask : i32 -> index
+                   %A: memref<$dtype x?>,
+                   %B: memref<$dtype x?>,
+                   %C: memref<$dtype x?>)
+                   attributes{work_group_size=[16,1]} {
+    %gid = group_id.x : index
+    %itask_idx = cast %itask : index
     ; Compute task id
-    %tid = arith.add %itask_idx, %gid : index
+    %tid = add %itask_idx, %gid : index
 
     ; Load task struct
-    %iM = load %tasks[0, %tid] : memref<i32x6x?>
-    %iN = load %tasks[1, %tid] : memref<i32x6x?>
-    %iK = load %tasks[2, %tid] : memref<i32x6x?>
-    %ioffset_a = load %tasks[3, %tid] : memref<i32x6x?>
-    %ioffset_b = load %tasks[4, %tid] : memref<i32x6x?>
-    %ioffset_c = load %tasks[5, %tid] : memref<i32x6x?>
+    %c0 = constant 0 : index
+    %c1 = constant 1 : index
+    %c2 = constant 2 : index
+    %c3 = constant 3 : index
+    %c4 = constant 4 : index
+    %c5 = constant 5 : index
+    %iM = load %tasks[%c0, %tid] : i32
+    %iN = load %tasks[%c1, %tid] : i32
+    %iK = load %tasks[%c2, %tid] : i32
+    %ioffset_a = load %tasks[%c3, %tid] : i32
+    %ioffset_b = load %tasks[%c4, %tid] : i32
+    %ioffset_c = load %tasks[%c5, %tid] : i32
 
     ; Cast task struct to index type
-    %M = cast %iM : i32 -> index
-    %N = cast %iN : i32 -> index
-    %K = cast %iK : i32 -> index
-    %offset_a = cast %ioffset_a : i32 -> index
-    %offset_b = cast %ioffset_b : i32 -> index
-    %offset_c = cast %ioffset_c : i32 -> index
+    %M = cast %iM : index
+    %N = cast %iN : index
+    %K = cast %iK : index
+    %offset_a = cast %ioffset_a : index
+    %offset_b = cast %ioffset_b : index
+    %offset_c = cast %ioffset_c : index
 
     ; Get view on small matrices
-    %MK = arith.mul %M, %K : index
-    %KN = arith.mul %K, %N : index
-    %MN = arith.mul %M, %N : index
-    %av = subview %A[%offset_a:%MK] : memref<f64x?>
-    %bv = subview %B[%offset_b:%KN] : memref<f64x?>
-    %cv = subview %C[%offset_c:%MN] : memref<f64x?>
-    %a = expand %av[0->%M x %K] : memref<f64x?>
-    %b = expand %bv[0->%N x %K] : memref<f64x?>
-    %c = expand %cv[0->%M x %N] : memref<f64x?>
+    %MK = mul %M, %K : index
+    %KN = mul %K, %N : index
+    %MN = mul %M, %N : index
+    %av = subview %A[%offset_a:%MK] : memref<$dtype x?>
+    %bv = subview %B[%offset_b:%KN] : memref<$dtype x?>
+    %cv = subview %C[%offset_c:%MN] : memref<$dtype x?>
+    %a = expand %av[0->%M x %K] : memref<$dtype x?x?,strided<1,?>>
+    %b = expand %bv[0->%N x %K] : memref<$dtype x?x?,strided<1,?>>
+    %c = expand %cv[0->%M x %N] : memref<$dtype x?x?,strided<1,?>>
 
     ; GEMM
-    gemm.n.t.atomic %alpha, %a, %b, 1.0, %c
-        : f64, memref<f64x?x?>, memref<f64x?x?>, f64, memref<f64x?x?>
+    %one = constant 1.0 : $dtype
+    gemm.atomic.n.t %alpha, %a, %b, %one, %c
 }
