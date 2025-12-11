@@ -1,10 +1,10 @@
 $dtype = f64
 
 func @dbm_multiply(%alpha: $dtype, %itask: i32,
-                   %tasks: memref<i32x6x?>,
-                   %A: memref<$dtype x?>,
-                   %B: memref<$dtype x?>,
-                   %C: memref<$dtype x?>)
+                   %tasks: memref<i32x6x1>,
+                   %A: memref<$dtype x1>,
+                   %B: memref<$dtype x1>,
+                   %C: memref<$dtype x1>)
                    attributes{work_group_size=[16,1]} {
     %gid = group_id.x : index
     %itask_idx = cast %itask : index

@@ -142,7 +142,6 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
       if (NULL == kernel_global) {
         char flags[ACC_OPENCL_BUFFERSIZE] =
             "-cl-fast-relaxed-math -cl-denorms-are-zero";
-        const char *const krn_env = getenv("DBM_MULTIPLY_KERNEL");
         const char *const gen_env = getenv("DBM_MULTIPLY_GEN");
         const char *const lin_env = getenv("DBM_MULTIPLY_LIN");
         const char *const fp_env = getenv("DBM_MULTIPLY_FP");
@@ -152,6 +151,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         const char *const lu_env = getenv("DBM_MULTIPLY_LU");
         const char *const ro_env = getenv("DBM_MULTIPLY_RO");
         const char *const xf_env = getenv("DBM_MULTIPLY_XF");
+        const char *krn_env = getenv("DBM_MULTIPLY_KERNEL");
         const char *exts[] = {NULL, NULL}, *options = NULL;
         int sm = (NULL == sm_env ? 0 /*default*/ : atoi(sm_env));
         const int dd = (0 != config->debug && 0 != config->dump);
@@ -175,16 +175,17 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             devinfo, c_dbcsr_acc_opencl_atomic_fp_64, exts, &nexts,
             flags + offset, sizeof(flags) - offset);
         if (0 != gen && 1 < sgsize /*subgroups*/ && NULL == krn_env) {
-          FILE *const krn_file = fopen("dbm_multiply_opencl.spv", "rb");
+          const char *const krn_file_name = "dbm_multiply_opencl.spv";
+          FILE *const krn_file = fopen(krn_file_name, "rb");
           if (NULL != krn_file) {
-            krn_env = "dbm_multiply_opencl.spv";
+            krn_env = krn_file_name;
+            fclose(krn_file);
           } else {
             gen = 0;
           }
         }
         if (0 != gen) {
-          wgsize[1] = wgsize[2] = 1;
-          wgsize[0] = 16;
+          wgsize[0] = wgsize[1] = wgsize[2] = 1;
           lu = bn = 0;
           ndims = 3;
         } else {
@@ -226,7 +227,21 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         if (0 != devinfo->intel && 0 < xf) {
           options = "-cl-intel-256-GRF-per-thread";
         }
-        result |= (sizeof(flags) > offset ? EXIT_SUCCESS : EXIT_FAILURE);
+        if (sizeof(flags) > offset) {
+          const cl_device_id device_id = config->devices[config->device_id];
+          size_t wgs[3];
+          if (NULL != krn_env &&
+              EXIT_SUCCESS ==
+                  clGetKernelWorkGroupInfo(kernel_global, device_id,
+                                           CL_KERNEL_COMPILE_WORK_GROUP_SIZE,
+                                           sizeof(size_t) * 3, wgs, NULL) &&
+              0 != wgs[0] && 0 != wgs[1] && 0 != wgs[2]) {
+            LIBXSMM_ASSIGN127(wgsize, wgs);
+          }
+        }
+        else {
+          result |= EXIT_FAILURE;
+        }
         if (2 <= verbosity || 0 > verbosity || EXIT_SUCCESS != result) {
           const char *const kind = (EXIT_SUCCESS == result ? "INFO" : "ERROR");
           fprintf(stderr, "%s ACC/LIBDBM: DBM-kernel gpu=%i", kind, gpu);
@@ -245,17 +260,6 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             NULL == krn_env ? OPENCL_DBM_SOURCE_MULTIPLY : krn_env,
             "dbm_multiply", flags, options, NULL /*try*/, NULL /*try_ok*/, exts,
             nexts, &kernel_global);
-        if (EXIT_SUCCESS == result) {
-          size_t wgs[3];
-          if (NULL != krn_env &&
-              EXIT_SUCCESS !=
-                  clGetKernelWorkGroupInfo(kernel_global, device,
-                                           CL_KERNEL_COMPILE_WORK_GROUP_SIZE,
-                                           sizeof(size_t) * 3, wgs, NULL) &&
-              0 != wgs[0] && 0 != wgs[1] && 0 != wgs[2]) {
-            LIBXSMM_ASSIGN127(wgsize, wgs);
-          }
-        }
         if (2 <= verbosity || 0 > verbosity || EXIT_SUCCESS != result) {
           if (EXIT_SUCCESS == result) {
             const double ds = DBM_TIMER_DIFF(start, DBM_TIMER_TICK());
@@ -295,19 +299,13 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
     result |= clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha);
     result |= clSetKernelArg(kernel, 1, sizeof(cl_int), &ibatch);
     if (1 < ndims) { /* DBM_MULTIPLY_GEN */
-      const cl_uint zero = 0;
-      assert(0 != wgsize[1] && 0 != wgsize[1] && 0 != wgsize[2]);
-      work_size[0] = 16;
-      assert(1 == work_size[1]);
-      work_size[2] = work_tasks;
+      assert(0 != wgsize[0] && 0 != wgsize[1] && 0 != wgsize[2]);
+      assert(1 == work_size[1] && 1 == work_size[2]);
+      work_size[0] = work_tasks * wgsize[0];
       result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 2, batch.memory);
-      result |= clSetKernelArg(kernel, 3, sizeof(cl_uint), &zero /*shape*/);
-      result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 4, adata.memory);
-      result |= clSetKernelArg(kernel, 5, sizeof(cl_uint), &zero /*A_shape0*/);
-      result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 6, bdata.memory);
-      result |= clSetKernelArg(kernel, 7, sizeof(cl_uint), &zero /*B_shape0*/);
-      result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 8, cdata.memory);
-      result |= clSetKernelArg(kernel, 9, sizeof(cl_uint), &zero /*C_shape0*/);
+      result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 3, adata.memory);
+      result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 4, bdata.memory);
+      result |= c_dbcsr_acc_opencl_set_kernel_ptr(kernel, 5, cdata.memory);
 #if !(defined(OPENCL_LIBSMM_PFORMAT) && (0 < OPENCL_LIBSMM_PFORMAT))
       if (0 != info) {
         dbm_multiply_gpu_launch_info(&task, params_host, ntasks, param_format);
