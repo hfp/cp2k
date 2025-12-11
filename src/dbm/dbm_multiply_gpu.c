@@ -149,8 +149,7 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *tasks,
     assert(NULL != ctx->batches_host);
 
     // Prepare double-buffered upload.
-    dbm_task_t *const batch =
-        &ctx->batches_dev[kshard * ctx->max_batch_size];
+    dbm_task_t *const batch = &ctx->batches_dev[kshard * ctx->max_batch_size];
     const size_t batch_size = (size_t)ntasks * sizeof(dbm_task_t);
     const int slot_count = DBM_MULTIPLY_GPU_STAGES;
     const size_t base = (size_t)kshard * slot_count;
@@ -241,8 +240,7 @@ void dbm_multiply_gpu_stop(dbm_multiply_gpu_context_t *ctx) {
   free(ctx->shards_c_dev);
 
   if (NULL != ctx->batch_events) {
-    const size_t total_slots =
-        (size_t)ctx->nshards * DBM_MULTIPLY_GPU_STAGES;
+    const size_t total_slots = (size_t)ctx->nshards * DBM_MULTIPLY_GPU_STAGES;
     for (size_t i = 0; i < total_slots; ++i) {
       offloadEventDestroy(ctx->batch_events[i]);
     }
