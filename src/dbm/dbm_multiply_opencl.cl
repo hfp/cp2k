@@ -125,4 +125,3 @@ dbm_multiply(double alpha, int itask, int ntasks, int size, int param_format,
     }
   }
 }
-#endif

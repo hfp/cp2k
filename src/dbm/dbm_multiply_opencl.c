@@ -175,12 +175,17 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             devinfo, c_dbcsr_acc_opencl_atomic_fp_64, exts, &nexts,
             flags + offset, sizeof(flags) - offset);
         if (0 != gen && 1 < sgsize /*subgroups*/ && NULL == krn_env) {
-          const char *const krn_file_name = "dbm_multiply_opencl.spv";
-          FILE *const krn_file = fopen(krn_file_name, "rb");
+          krn_env = "dbm_multiply_opencl.spv";
+        }
+        if (NULL != krn_env) {
+          FILE *const krn_file = fopen(krn_env, "rb");
           if (NULL != krn_file) {
-            krn_env = krn_file_name;
             fclose(krn_file);
+            if (0 == gen) {
+              gen = 1;
+            }
           } else {
+            krn_env = NULL;
             gen = 0;
           }
         }
@@ -222,7 +227,6 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                 (size_t)LIBXSMM_SNPRINTF(flags + offset, sizeof(flags) - offset,
                                          " -DPRECISION=%i", precision);
           }
-          gen = 0;
         }
         if (0 != devinfo->intel && 0 < xf) {
           options = "-cl-intel-256-GRF-per-thread";
@@ -230,11 +234,16 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         if (sizeof(flags) > offset) {
           const cl_device_id device_id = config->devices[config->device_id];
           size_t wgs[3];
-          if (NULL != krn_env &&
+          result |= c_dbcsr_acc_opencl_kernel(
+              NULL == krn_env ? 0 : 1 /*source_is_file*/,
+              NULL == krn_env ? OPENCL_DBM_SOURCE_MULTIPLY : krn_env,
+              "dbm_multiply", flags, options, NULL /*try*/, NULL /*try_ok*/, exts,
+              nexts, &kernel_global);
+          if (EXIT_SUCCESS == result && NULL != krn_env &&
               EXIT_SUCCESS ==
                   clGetKernelWorkGroupInfo(kernel_global, device_id,
                                            CL_KERNEL_COMPILE_WORK_GROUP_SIZE,
-                                           sizeof(size_t) * 3, wgs, NULL) &&
+                                           sizeof(wgs), wgs, NULL) &&
               0 != wgs[0] && 0 != wgs[1] && 0 != wgs[2]) {
             LIBXSMM_ASSIGN127(wgsize, wgs);
           }
@@ -255,11 +264,6 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
           dbm_multiply_opencl_print(stderr, "lu", lu);
           fprintf(stderr, " -> ");
         }
-        result |= c_dbcsr_acc_opencl_kernel(
-            NULL == krn_env ? 0 : 1 /*source_is_file*/,
-            NULL == krn_env ? OPENCL_DBM_SOURCE_MULTIPLY : krn_env,
-            "dbm_multiply", flags, options, NULL /*try*/, NULL /*try_ok*/, exts,
-            nexts, &kernel_global);
         if (2 <= verbosity || 0 > verbosity || EXIT_SUCCESS != result) {
           if (EXIT_SUCCESS == result) {
             const double ds = DBM_TIMER_DIFF(start, DBM_TIMER_TICK());
