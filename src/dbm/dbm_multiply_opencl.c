@@ -197,7 +197,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             flags + offset, sizeof(flags) - offset);
         if (NULL == krn_env) {
           if (0 != gen && 1 < sgsize /*subgroups*/) {
-            DBM_INCBIN(dbm_binary_kernel, __FILE__ ".spv", 16);
+            DBM_INCBIN(dbm_binary_kernel, __FILE__ "lx", 16);
             source_kind = dbm_binary_kernel_end - dbm_binary_kernel;
             source = dbm_binary_kernel;
             assert(1 < source_kind);
