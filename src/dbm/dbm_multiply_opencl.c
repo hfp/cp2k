@@ -30,13 +30,15 @@
 #endif
 
 #define DBM_INCBIN(NAME, FILENAME, ALIGN)                                      \
-  __asm__ __volatile__(".section " DBM_INCBIN_SECTION "\n"                     \
-                       ".global " #NAME "\n"                                   \
-                       ".balign " #ALIGN "\n" #NAME ":\n"                      \
-                       ".incbin \"" FILENAME "\"\n"                            \
-                       ".global " #NAME "_end\n");                             \
-  extern LIBXSMM_ALIGNED(const char NAME, ALIGN)[];                            \
-  extern const char NAME##_end[]
+  __asm__(".section " DBM_INCBIN_SECTION "\n"                                  \
+          "  .global " #NAME "\n"                                              \
+          "  .type " #NAME ", @object\n"                                       \
+          "  .balign " #ALIGN "\n"                                             \
+          "" #NAME ":\n"                                                       \
+          "  .incbin \"" FILENAME "\"\n"                                       \
+          "" #NAME "_end:\n"                                                   \
+          ".previous");                                                        \
+  extern const char NAME[], NAME ## _end[]
 
 int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                                       int param_format, const int *params_host,
@@ -195,10 +197,10 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             flags + offset, sizeof(flags) - offset);
         if (NULL == krn_env) {
           if (0 != gen && 1 < sgsize /*subgroups*/) {
-            DBM_INCBIN(dbm_binary_kernel, "dbm_multiply_opencl.spv", 16);
+            DBM_INCBIN(dbm_binary_kernel, __FILE__ ".spv", 16);
             source_kind = dbm_binary_kernel_end - dbm_binary_kernel;
-            assert(1 < source_kind);
             source = dbm_binary_kernel;
+            assert(1 < source_kind);
             lu = bn = 0;
             ndims = 3;
           }
