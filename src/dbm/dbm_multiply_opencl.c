@@ -11,6 +11,10 @@
 #include "dbm_multiply_gpu_kernel.h"
 #include "dbm_multiply_opencl.cl.h"
 
+#if !defined(OPENCL_DBM_SOURCE_MULTIPLY)
+#error "OpenCL kernel source code not found!"
+#endif
+
 #if defined(__DBCSR_ACC)
 #include <smm/opencl_libsmm.h>
 #endif
@@ -18,6 +22,21 @@
 #define DBM_TIMER_DIFF(A, B) libxsmm_timer_duration(A, B)
 #define DBM_TIMER_TICK() libxsmm_timer_tick()
 #define DBM_TIMER_TICKINT libxsmm_timer_tickint
+
+#if defined(_WIN32)
+#define DBM_INCBIN_SECTION ".rdata, \"dr\""
+#else
+#define DBM_INCBIN_SECTION ".rodata"
+#endif
+
+#define DBM_INCBIN(NAME, FILENAME, ALIGN)                                      \
+  __asm__ __volatile__(".section " DBM_INCBIN_SECTION "\n"                     \
+                       ".global " #NAME "\n"                                   \
+                       ".balign " #ALIGN "\n" #NAME ":\n"                      \
+                       ".incbin \"" FILENAME "\"\n"                            \
+                       ".global " #NAME "_end\n");                             \
+  extern LIBXSMM_ALIGNED(const char NAME, ALIGN)[];                            \
+  extern const char NAME##_end[]
 
 int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                                       int param_format, const int *params_host,
@@ -120,12 +139,11 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
       dbm_multiply_opencl_smm < task.max_k || 0 == task.max_k || 1 != alpha)
 #endif
   {
-#if defined(OPENCL_DBM_SOURCE_MULTIPLY)
     /* creating/calling kernel must be consistent across threads */
     static cl_kernel kernel_global = NULL;
     static LIBXSMM_TLS cl_kernel kernel = NULL;
     static int ndims = 1, clinear = 0;
-    static size_t wgsize[] = {0, 0, 0};
+    static size_t wgsize[] = {1, 1, 1};
     const c_dbcsr_acc_opencl_stream_t *const str = ACC_OPENCL_STREAM(stream);
     const c_dbcsr_acc_opencl_device_t *const devinfo = &config->device;
     ACC_OPENCL_LOCKTYPE *const lock_memory =
@@ -142,6 +160,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
       if (NULL == kernel_global) {
         char flags[ACC_OPENCL_BUFFERSIZE] =
             "-cl-fast-relaxed-math -cl-denorms-are-zero";
+        const char *const krn_env = getenv("DBM_MULTIPLY_KERNEL");
         const char *const gen_env = getenv("DBM_MULTIPLY_GEN");
         const char *const lin_env = getenv("DBM_MULTIPLY_LIN");
         const char *const fp_env = getenv("DBM_MULTIPLY_FP");
@@ -151,9 +170,9 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         const char *const lu_env = getenv("DBM_MULTIPLY_LU");
         const char *const ro_env = getenv("DBM_MULTIPLY_RO");
         const char *const xf_env = getenv("DBM_MULTIPLY_XF");
-        const char *krn_env = getenv("DBM_MULTIPLY_KERNEL");
         const char *exts[] = {NULL, NULL}, *options = NULL;
-        int sm = (NULL == sm_env ? 0 /*default*/ : atoi(sm_env));
+        const char *source = OPENCL_DBM_SOURCE_MULTIPLY;
+        int source_kind = 0, sm = (NULL == sm_env ? 0 : atoi(sm_env));
         const int dd = (0 != config->debug && 0 != config->dump);
         const int ro = (NULL == ro_env ? -1 /*default*/ : atoi(ro_env));
         const int xf = (NULL == xf_env ? -1 /*default*/ : atoi(xf_env));
@@ -174,26 +193,25 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         offset += (size_t)c_dbcsr_acc_opencl_flags_atomics(
             devinfo, c_dbcsr_acc_opencl_atomic_fp_64, exts, &nexts,
             flags + offset, sizeof(flags) - offset);
-        if (0 != gen && 1 < sgsize /*subgroups*/ && NULL == krn_env) {
-          krn_env = "dbm_multiply_opencl.spv";
-        }
-        if (NULL != krn_env) {
+        if (NULL == krn_env) {
+          if (0 != gen && 1 < sgsize /*subgroups*/) {
+            DBM_INCBIN(dbm_binary_kernel, "dbm_multiply_opencl.spv", 16);
+            source_kind = dbm_binary_kernel_end - dbm_binary_kernel;
+            assert(1 < source_kind);
+            source = dbm_binary_kernel;
+            lu = bn = 0;
+            ndims = 3;
+          }
+        } else {
           FILE *const krn_file = fopen(krn_env, "rb");
           if (NULL != krn_file) {
             fclose(krn_file);
-            if (0 == gen) {
-              gen = 1;
-            }
-          } else {
-            krn_env = NULL;
-            gen = 0;
+            source = krn_env;
+            source_kind = 1;
           }
+          gen = 0; /* unknown */
         }
-        if (0 != gen) {
-          wgsize[0] = wgsize[1] = wgsize[2] = 1;
-          lu = bn = 0;
-          ndims = 3;
-        } else {
+        if (0 == gen) { /* assemble preprocessor flags, etc */
           wgsize[0] = (NULL == wg_env ? (unsigned long int)LIBXSMM_ABS(sm)
                                       : strtoul(wg_env, NULL, 10));
           if (1 < sgsize && 0 < wgsize[0]) { /* subgroups */
@@ -235,11 +253,9 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
           const cl_device_id device_id = config->devices[config->device_id];
           size_t wgs[3];
           result |= c_dbcsr_acc_opencl_kernel(
-              NULL == krn_env ? 0 : 1 /*source_is_file*/,
-              NULL == krn_env ? OPENCL_DBM_SOURCE_MULTIPLY : krn_env,
-              "dbm_multiply", flags, options, NULL /*try*/, NULL /*try_ok*/, exts,
-              nexts, &kernel_global);
-          if (EXIT_SUCCESS == result && NULL != krn_env &&
+              source_kind, source, "dbm_multiply", flags, options, NULL /*try*/,
+              NULL /*try_ok*/, exts, nexts, &kernel_global);
+          if (EXIT_SUCCESS == result &&
               EXIT_SUCCESS ==
                   clGetKernelWorkGroupInfo(kernel_global, device_id,
                                            CL_KERNEL_COMPILE_WORK_GROUP_SIZE,
@@ -247,8 +263,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
               0 != wgs[0] && 0 != wgs[1] && 0 != wgs[2]) {
             LIBXSMM_ASSIGN127(wgsize, wgs);
           }
-        }
-        else {
+        } else {
           result |= EXIT_FAILURE;
         }
         if (2 <= verbosity || 0 > verbosity || EXIT_SUCCESS != result) {
@@ -278,9 +293,6 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
     } else if (NULL == kernel) {
       kernel = clCloneKernel(kernel_global, &result);
     }
-#else
-#error "OpenCL kernel code not found!"
-#endif
     if (NULL != lock_memory) {
       ACC_OPENCL_ACQUIRE(lock_memory);
     }
