@@ -179,15 +179,14 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         const int xf = (NULL == xf_env ? -1 /*default*/ : atoi(xf_env));
         const int sm0 = (NULL == sm_env ? 0 : atoi(sm_env));
         int source_kind = 0, sm = LIBXSMM_ABS(sm0);
-        const int bn0 = (0 == devinfo->nv ? 8 : 2);
+        const int bn0 = (0 == devinfo->nv ? 8 : 2), uid = devinfo->uid;
         const int bn1 = ((0 == sm && 0 == clinear) ? bn0 : (bn0 * sm * 2));
         const int gpu = (CL_DEVICE_TYPE_GPU == devinfo->type);
         const int precision = (NULL == fp_env ? 0 /*default*/ : atoi(fp_env));
         const int gen0 = (NULL == fp_env && NULL == bn_env && NULL == sm_env &&
                           NULL == wg_env && NULL == lu_env && NULL == lin_env &&
                           NULL == ro_env && 0 == param_format);
-        /* consider only 0x0bd0 <= devinfo->uid && 0x0bdb >= devinfo->uid */
-        const int gen1 = devinfo->intel;
+        const int gen1 = devinfo->intel && 0x0bd0 <= uid && 0x0bdb >= uid;
         int gen = (0 != gen0 ? (NULL == gen_env ? gen1 : atoi(gen_env)) : 0);
         int bn = LIBXSMM_CLMP(NULL == bn_env ? bn1 : atoi(bn_env), 1, 32);
         int lu = LIBXSMM_CLMP(NULL == lu_env ? 0 : atoi(lu_env), -2, 1);
