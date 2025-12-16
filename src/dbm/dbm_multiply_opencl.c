@@ -178,14 +178,15 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         const int dd = (0 != config->debug && 0 != config->dump);
         const int ro = (NULL == ro_env ? -1 /*default*/ : atoi(ro_env));
         const int xf = (NULL == xf_env ? -1 /*default*/ : atoi(xf_env));
-        const int bn0 = (0 == devinfo->nv ? 8 : 2), uid = devinfo->uid;
+        const int bn0 = (0 == devinfo->nv ? 8 : 2);
         const int bn1 = ((0 == sm && 0 == clinear) ? bn0 : (bn0 * 2));
         const int gpu = (CL_DEVICE_TYPE_GPU == devinfo->type);
         const int precision = (NULL == fp_env ? 0 /*default*/ : atoi(fp_env));
         const int gen0 = (NULL == fp_env && NULL == bn_env && NULL == sm_env &&
                           NULL == wg_env && NULL == lu_env && NULL == lin_env &&
                           NULL == ro_env && 0 == param_format);
-        const int gen1 = (devinfo->intel && 0x0bd0 <= uid && 0x0bdb >= uid);
+        /* consider only 0x0bd0 <= devinfo->uid && 0x0bdb >= devinfo->uid */
+        const int gen1 = devinfo->intel;
         int gen = (0 != gen0 ? (NULL == gen_env ? gen1 : atoi(gen_env)) : 0);
         int bn = LIBXSMM_CLMP(NULL == bn_env ? bn1 : atoi(bn_env), 1, 32);
         int lu = LIBXSMM_CLMP(NULL == lu_env ? 0 : atoi(lu_env), -2, 1);
@@ -262,8 +263,12 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                   clGetKernelWorkGroupInfo(kernel_global, device_id,
                                            CL_KERNEL_COMPILE_WORK_GROUP_SIZE,
                                            sizeof(wgs), wgs, NULL) &&
-              0 != wgs[0] && 0 != wgs[1] && 0 != wgs[2]) {
-            LIBXSMM_ASSIGN127(wgsize, wgs);
+              0 != wgs[0] && 0 != wgs[1]) {
+            if (wgs[0] < sgsize) {
+              sgsize = wgs[0];
+            }
+            wgsize[0] = wgs[0];
+            wgsize[1] = wgs[1];
           }
         } else {
           result |= EXIT_FAILURE;
