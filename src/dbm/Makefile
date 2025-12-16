@@ -61,7 +61,8 @@ endif
 ifeq ($(filter-out 0,$(OPENCL)),)
 NVCC := $(shell which nvcc 2>/dev/null)
 NVARCH := sm_70
-NVFLAGS := -g $(OPTFLAG) -lineinfo -arch $(NVARCH) -Wno-deprecated-gpu-targets -Xcompiler "$(CFLAGS)" -D__OFFLOAD_CUDA
+NVARCHX := $(if $(NVARCH),-arch $(NVARCH))
+NVFLAGS := -g $(OPTFLAG) -lineinfo $(NVARCHX) -Wno-deprecated-gpu-targets -Xcompiler "$(CFLAGS)" -D__OFFLOAD_CUDA
 
 HIPCC := $(shell which hipcc 2>/dev/null)
 HIPARCH := gfx90a
