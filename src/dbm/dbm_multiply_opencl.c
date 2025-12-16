@@ -38,7 +38,7 @@
           "  .incbin \"" FILENAME "\"\n"                                       \
           "" #NAME "_end:\n"                                                   \
           ".previous");                                                        \
-  extern const char NAME[], NAME ## _end[]
+  extern const char NAME[], NAME##_end[]
 
 int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                                       int param_format, const int *params_host,
@@ -174,12 +174,13 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         const char *const xf_env = getenv("DBM_MULTIPLY_XF");
         const char *exts[] = {NULL, NULL}, *options = NULL;
         const char *source = OPENCL_DBM_SOURCE_MULTIPLY;
-        int source_kind = 0, sm = (NULL == sm_env ? 0 : atoi(sm_env));
         const int dd = (0 != config->debug && 0 != config->dump);
         const int ro = (NULL == ro_env ? -1 /*default*/ : atoi(ro_env));
         const int xf = (NULL == xf_env ? -1 /*default*/ : atoi(xf_env));
+        const int sm0 = (NULL == sm_env ? 0 : atoi(sm_env));
+        int source_kind = 0, sm = LIBXSMM_ABS(sm0);
         const int bn0 = (0 == devinfo->nv ? 8 : 2);
-        const int bn1 = ((0 == sm && 0 == clinear) ? bn0 : (bn0 * 2));
+        const int bn1 = ((0 == sm && 0 == clinear) ? bn0 : (bn0 * sm * 2));
         const int gpu = (CL_DEVICE_TYPE_GPU == devinfo->type);
         const int precision = (NULL == fp_env ? 0 /*default*/ : atoi(fp_env));
         const int gen0 = (NULL == fp_env && NULL == bn_env && NULL == sm_env &&
@@ -215,7 +216,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
           gen = 0; /* unknown */
         }
         if (0 == gen) { /* assemble preprocessor flags, etc */
-          wgsize[0] = (NULL == wg_env ? (unsigned long int)LIBXSMM_ABS(sm)
+          wgsize[0] = (NULL == wg_env ? (unsigned long int)sm
                                       : strtoul(wg_env, NULL, 10));
           if (1 < sgsize && 0 < wgsize[0]) { /* subgroups */
             if (LIBXSMM_DELTA(wgsize[0], devinfo->wgsize[1]) <=
