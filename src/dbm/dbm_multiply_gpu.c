@@ -16,6 +16,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 
 #define DBM_MULTIPLY_GPU_STAGES 2
 
