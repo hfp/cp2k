@@ -164,7 +164,7 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
         { // (nearly) perfect match, exit early
           break;
         }
-      } else if (reclaim == NULL || (*reclaim)->size < (*indirect)->size) {
+      } else if (reclaim == NULL || (*reclaim)->size < s) {
         reclaim = indirect; // reclaim chunk
       }
       indirect = &(*indirect)->next;
@@ -312,7 +312,7 @@ static void internal_mempool_free(offload_mempool_t *pool, const void *mem) {
 
 /*******************************************************************************
  * \brief Internal routine for releasing memory back to the pool.
- * \author Ole Schuett and Hans Pabst
+ * \author Ole Schuett
  ******************************************************************************/
 void offload_mempool_host_free(const void *memory) {
   internal_mempool_free(&mempool_host, memory);
@@ -320,7 +320,7 @@ void offload_mempool_host_free(const void *memory) {
 
 /*******************************************************************************
  * \brief Internal routine for releasing memory back to the pool.
- * \author Ole Schuett and Hans Pabst
+ * \author Ole Schuett
  ******************************************************************************/
 void offload_mempool_device_free(const void *memory) {
   internal_mempool_free(&mempool_device, memory);
