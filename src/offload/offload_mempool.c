@@ -24,6 +24,7 @@
 #define OFFLOAD_MEMPOOL_PRINT(FN, MSG, OUTPUT_UNIT)                            \
   ((FN)(MSG, (int)strlen(MSG), OUTPUT_UNIT))
 #define OFFLOAD_MEMPOOL_OMPALLOC 1
+#define OFFLOAD_MEMPOOL_COUNTER int
 #define OFFLOAD_MEMPOOL_UPSIZE (2 << 20) // permit slack size when reuse
 
 /*******************************************************************************
@@ -143,45 +144,67 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
   if (size == 0) {
     return NULL;
   }
-
   offload_memchunk_t *chunk = NULL;
   const bool on_device = (pool == &mempool_device);
   assert(on_device || pool == &mempool_host);
 #pragma omp critical(offload_mempool_modify)
   {
     // Find a possible chunk to reuse or reclaim in available list.
-    offload_memchunk_t **reuse = NULL, **reclaim = NULL;
+    offload_memchunk_t **reclaim0 = NULL, **reclaim = NULL, **reuse = NULL;
     offload_memchunk_t **indirect = &pool->available_head;
     while (*indirect != NULL) {
       const size_t s = (*indirect)->size;
-      if (size <= s && (reuse == NULL || s < (*reuse)->size)) {
-        reuse = indirect; // reuse smallest suitable chunk
-#if 0 < OFFLOAD_MEMPOOL_UPSIZE
-        if (s <= (size + OFFLOAD_MEMPOOL_UPSIZE))
-#else
-        if (s <= size)
-#endif
-        { // (nearly) perfect match, exit early
-          break;
+#if defined(OFFLOAD_MEMPOOL_COUNTER)
+      OFFLOAD_MEMPOOL_COUNTER *counter = NULL;
+      if (!on_device && sizeof(OFFLOAD_MEMPOOL_COUNTER) <= s) {
+        counter = (OFFLOAD_MEMPOOL_COUNTER *)(*indirect)->mem;
+        assert(NULL != counter);
+        if (0 == (*indirect)->used) {
+          ++*counter;
+        } else {
+          (*indirect)->used = 0;
+          *counter = 0;
         }
-      } else if (reclaim == NULL || (*reclaim)->size < s) {
-        reclaim = indirect; // reclaim chunk
+      }
+#endif
+      if (size <= s) {
+        if (s <= (size + OFFLOAD_MEMPOOL_UPSIZE)) {
+          reuse = indirect;
+          break; // almost perfect, exit early
+        } else if (reuse != NULL) {
+          if (s < (*reuse)->size) {
+            reuse = indirect;
+          }
+        } else {
+          reuse = indirect;
+        }
+      } else if (reclaim != NULL) {
+#if defined(OFFLOAD_MEMPOOL_COUNTER)
+        if (counter != NULL &&
+            *(OFFLOAD_MEMPOOL_COUNTER *)(*reclaim)->mem < *counter) {
+          reclaim = indirect;
+        } else
+#endif
+            if ((*reclaim)->size < s) {
+          reclaim = indirect;
+        }
+      } else {
+        reclaim0 = reclaim = indirect;
       }
       indirect = &(*indirect)->next;
-    }
+    } // finished searching chunk for reuse/reclaim
 
-    // Select an existing chunk or prepare a new one.
+    // Prefer reuse (already large enough) over reclaim (only struct).
     if (reuse != NULL) {
-      // Reusing an exising chunk which is already large enough.
       chunk = *reuse;
       *reuse = chunk->next; // remove chunk from list
     }
     // Reclaim a chunk (resize outside of crit. region).
-    else if (reclaim != NULL) {
+    else if (reclaim != reclaim0) {
       chunk = *reclaim;
       *reclaim = chunk->next; // remove chunk from list
     }
-  }
+  } // end of critical section
 
   // Resize/allocate chunk outside of critical region.
   if (chunk == NULL) {
@@ -270,15 +293,20 @@ static uint64_t sum_chunks_size(const offload_memchunk_t *head, size_t offset) {
  ******************************************************************************/
 void stats_sizes_get(const offload_mempool_t *pool, uint64_t *size,
                      uint64_t *used) {
+  const size_t offset_size = offsetof(offload_memchunk_t, size);
   if (NULL != size) {
-    const size_t offset = offsetof(offload_memchunk_t, size);
-    *size = sum_chunks_size(pool->allocated_head, offset) +
-            sum_chunks_size(pool->available_head, offset);
+    *size = sum_chunks_size(pool->allocated_head, offset_size) +
+            sum_chunks_size(pool->available_head, offset_size);
   }
   if (NULL != used) {
-    const size_t offset = offsetof(offload_memchunk_t, used);
-    *used = sum_chunks_size(pool->allocated_head, offset) +
-            sum_chunks_size(pool->available_head, offset);
+    const size_t offset_used = offsetof(offload_memchunk_t, used);
+    *used = sum_chunks_size(pool->allocated_head, offset_used) +
+#if defined(OFFLOAD_MEMPOOL_COUNTER)
+            sum_chunks_size(pool->available_head, offset_size);
+#else
+            sum_chunks_size(pool->available_head, offset_used);
+#endif
+    assert(NULL == size || *used <= *size); // sanity
   }
 }
 
