@@ -1,9 +1,4 @@
 [submodule "exts/dbcsr"]
 	path = exts/dbcsr
-<<<<<<< HEAD
 	url = https://github.com/hfp/dbcsr
 	branch = develop
-=======
-	url = https://github.com/cp2k/dbcsr
-	branch = master
->>>>>>> parent of c8cf32602f (Remove DBCSR submodule)
