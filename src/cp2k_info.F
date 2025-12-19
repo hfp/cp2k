@@ -116,15 +116,6 @@ CONTAINS
 #if defined(__ELPA)
       flags = TRIM(flags)//" elpa"
 #endif
-#if defined(__ELPA_NVIDIA_GPU)
-      flags = TRIM(flags)//" elpa_nvidia_gpu"
-#endif
-#if defined(__ELPA_AMD_GPU)
-      flags = TRIM(flags)//" elpa_amd_gpu"
-#endif
-#if defined(__ELPA_INTEL_GPU)
-      flags = TRIM(flags)//" elpa_intel_gpu"
-#endif
 #if defined(__parallel)
 #if defined(__SCALAPACK_NO_WA)
       flags = TRIM(flags)//" parallel scalapack"
@@ -137,12 +128,6 @@ CONTAINS
 #endif
 #if defined(__COSMA)
       flags = TRIM(flags)//" cosma"
-#endif
-#if defined(__QUIP)
-      flags = TRIM(flags)//" quip"
-#endif
-#if defined(__HAS_PATCHED_CUFFT_70)
-      flags = TRIM(flags)//" patched_cufft_70"
 #endif
 #if defined(__ACE)
       flags = TRIM(flags)//" ace"
@@ -178,14 +163,8 @@ CONTAINS
 #if defined(__NO_SOCKETS)
       flags = TRIM(flags)//" no_sockets"
 #endif
-#if defined(__NO_MPI_THREAD_SUPPORT_CHECK)
-      flags = TRIM(flags)//" no_mpi_thread_support_check"
-#endif
 #if defined(__NO_STATM_ACCESS)
       flags = TRIM(flags)//" no_statm_access"
-#endif
-#if defined(__MINGW)
-      flags = TRIM(flags)//" mingw"
 #endif
 #if defined(__PW_CUDA_NO_HOSTALLOC)
       flags = TRIM(flags)//" pw_cuda_no_hostalloc"
