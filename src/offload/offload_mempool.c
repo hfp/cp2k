@@ -150,8 +150,8 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
 #pragma omp critical(offload_mempool_modify)
   {
     // Find a possible chunk to reuse or reclaim in available list.
-    offload_memchunk_t **reclaim0 = NULL, **reclaim = NULL, **reuse = NULL;
     offload_memchunk_t **indirect = &pool->available_head;
+    offload_memchunk_t **reclaim = indirect, **reuse = NULL;
     while (*indirect != NULL) {
       const size_t s = (*indirect)->size;
 #if defined(OFFLOAD_MEMPOOL_COUNTER)
@@ -178,7 +178,8 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
         } else {
           reuse = indirect;
         }
-      } else if (reclaim != NULL) {
+      } else {
+        assert(reclaim != NULL);
 #if defined(OFFLOAD_MEMPOOL_COUNTER)
         if (counter != NULL &&
             *(OFFLOAD_MEMPOOL_COUNTER *)(*reclaim)->mem < *counter) {
@@ -188,8 +189,6 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
             if ((*reclaim)->size < s) {
           reclaim = indirect;
         }
-      } else {
-        reclaim0 = reclaim = indirect;
       }
       indirect = &(*indirect)->next;
     } // finished searching chunk for reuse/reclaim
@@ -197,10 +196,11 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
     // Prefer reuse (already large enough) over reclaim (only struct).
     if (reuse != NULL) {
       chunk = *reuse;
+      assert(*reuse != NULL);
       *reuse = chunk->next; // remove chunk from list
     }
     // Reclaim a chunk (resize outside of crit. region).
-    else if (reclaim != reclaim0) {
+    else if (reclaim != NULL && *reclaim != NULL) {
       chunk = *reclaim;
       *reclaim = chunk->next; // remove chunk from list
     }
