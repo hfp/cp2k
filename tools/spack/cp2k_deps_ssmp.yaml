@@ -34,8 +34,8 @@ spack:
         - smm=blas
     deepmdkit:
       require:
-        - build_system=cmake
         - +enable_pytorch
+        - build_system=cmake
     dftd4:
       require:
         - build_system=cmake
@@ -67,25 +67,26 @@ spack:
         - build_system=cmake
   specs:
     # Minimal
-    - "dbcsr@2.8.0"
-    - "openblas@0.3.29"
+    - "dbcsr@2.9.1"
+    - "openblas@0.3.30"
     # All
-    - "deepmdkit@3.1.0"
+    - "deepmdkit@3.1.2"
     - "dftd4@3.7.0"
     - "fftw@3.3.10"
     - "greenx@2.2"
     - "hdf5@1.14.6"
-    - "lammps-user-pace@2023.11.25.fix2"
-    - "libint@2.9.0"
+    - "lammps-user-pace@2025.12.4"
+    - "libint@2.11.1"
     - "libvori@220621"
     - "libxc@7.0.0"
 #   - "libxsmm@1.17"
-    - "py-torch@2.6"
+    - "py-torch@2.9.0"
     - "spglib@2.5.0"
+#   - "tblite@0.5.0" CMake build error for mctc-lib: target OpenMP::OpenMP_Fortran not found
     - "trexio@2.5.0"
   view:
     default:
-      root: ./spack-env/view
+      root: /opt/spack/view
       exclude:
         # Exclude gcc-runtime to avoid adding a copy of libgomp.so to the view
         - gcc-runtime

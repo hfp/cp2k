@@ -128,7 +128,6 @@ option(CP2K_USE_DFTD4 "Enable DFTD4 support" ${CP2K_USE_EVERYTHING})
 option(CP2K_USE_TBLITE "Enable TBLITE support" ${CP2K_USE_EVERYTHING})
 option(CP2K_USE_FFTW3 "Enable FFTW3 support" ${CP2K_USE_EVERYTHING})
 option(CP2K_USE_GREENX "Enable GreenX support" ${CP2K_USE_EVERYTHING})
-option(CP2K_USE_GRPP "Enable GRPP support" ${CP2K_USE_EVERYTHING})
 option(CP2K_USE_HDF5 "Enable HDF5 support" ${CP2K_USE_EVERYTHING})
 option(CP2K_USE_LIBINT2 "Enable Libint2 support" ${CP2K_USE_EVERYTHING})
 option(CP2K_USE_LIBTORCH "Enable LibTorch support" ${CP2K_USE_EVERYTHING})
@@ -138,7 +137,7 @@ option(CP2K_USE_PEXSI "Enable PEXSI support" ${CP2K_USE_EVERYTHING})
 option(CP2K_USE_SPGLIB "Enable Spglib support" ${CP2K_USE_EVERYTHING})
 option(CP2K_USE_TREXIO "Enable TREXIO support" ${CP2K_USE_EVERYTHING})
 option(CP2K_USE_VORI "Enable Libvori support" ${CP2K_USE_EVERYTHING})
-
+option(CP2K_USE_CRAY_PM_ENERGY "Enable Cray PM energy framework" OFF)
 option(CP2K_USE_STATIC_BLAS "Link against static version of BLAS/LAPACK" OFF)
 option(BUILD_SHARED_LIBS "Build CP2K shared library" ON)
 option(
@@ -164,6 +163,8 @@ cmake_dependent_option(CP2K_USE_PLUMED "Enable PLUMED2 support"
 cmake_dependent_option(CP2K_USE_SIRIUS "Enable SIRIUS support"
                        ${CP2K_USE_EVERYTHING} "CP2K_USE_MPI" OFF)
 cmake_dependent_option(CP2K_USE_SPLA "Enable SpLA support"
+                       ${CP2K_USE_EVERYTHING} "CP2K_USE_MPI" OFF)
+cmake_dependent_option(CP2K_USE_MIMIC "Enable MIMIC support"
                        ${CP2K_USE_EVERYTHING} "CP2K_USE_MPI" OFF)
 cmake_dependent_option(
   CP2K_USE_LIBXSMM "Enable libxsmm support" ${CP2K_USE_EVERYTHING}
@@ -221,6 +222,11 @@ cmake_dependent_option(
   CP2K_USE_SPLA_GEMM_OFFLOADING ON
   "Enable SpLA dgemm offloading (only valid with GPU support on)"
   "(NOT CP2K_USE_ACCEL MATCHES \"NONE\") AND (CP2K_USE_SPLA)" OFF)
+
+cmake_dependent_option(
+  CP2K_USE_CRAY_PM_ACCEL_ENERGY ON
+  "Enable CRAY power management framework with gpu support"
+  "(NOT CP2K_USE_ACCEL MATCHES \"NONE\") AND (CP2K_USE_CRAY_PM_ENERGY)" OFF)
 
 cmake_dependent_option(
   CP2K_USE_LIBVDWXC OFF
@@ -668,7 +674,7 @@ if(CP2K_USE_COSMA)
         " COSMA needs to be build with scalapack offloading support. COSTA_SCALAPACK and COSMA_SCALAPACK should probably be set properly"
     )
   endif()
-  add_library(cp2k::cosma INTERFACE)
+  add_library(cp2k::cosma INTERFACE IMPORTED)
   target_link_libraries(cp2k::cosma INTERFACE cosma::cosma_prefixed_pxgemm
                                               cosma::cosma)
 endif()
@@ -810,6 +816,10 @@ if(CP2K_USE_LIBTORCH)
     set(CMAKE_CXX_STANDARD ${CP2K_TORCH_CXX_STANDARD})
     message("-- Torch setting CMAKE_CXX_STANDARD to ${CP2K_TORCH_CXX_STANDARD}")
   endif()
+endif()
+
+if(CP2K_USE_MIMIC)
+  find_package(MiMiC REQUIRED)
 endif()
 
 if(CP2K_USE_MPI_F08 AND NOT MPI_Fortran_HAVE_F08_MODULE)
@@ -1004,6 +1014,11 @@ if(CP2K_USE_SPLA_GEMM_OFFLOADING)
   message(" - SpLA GEMM offloading\n\n")
 endif()
 
+if(CP2K_USE_MIMIC)
+  message(" - MiMiC\n" "   - include directories: ${CP2K_MIMIC_INCLUDE_DIRS}\n"
+          "   - libraries: ${CP2K_MIMIC_LINK_LIBRARIES}\n\n")
+endif()
+
 if(CP2K_USE_DFTD4)
   message(" - DFTD4\n" "   - include directories :  ${dftd4_INCLUDE_DIRS}\n"
           "   - libraries           :  ${dftd4_LINK_LIBRARIES}\n\n")
@@ -1073,10 +1088,6 @@ if(CP2K_USE_DLAF)
           "   - libraries: ${CP2K_DLAF_LINK_LIBRARIES}\n\n")
 endif()
 
-if(CP2K_USE_GRPP)
-  message(" - GRPP\n")
-endif()
-
 if(CP2K_USE_TREXIO)
   message(" - TREXIO\n"
           "   - include directories: ${CP2K_TREXIO_INCLUDE_DIRS}\n"
@@ -1140,6 +1151,10 @@ if(NOT CP2K_USE_SPLA)
   message("   - SpLA")
 endif()
 
+if(NOT CP2K_USE_MIMIC)
+  message("   - MiMiC")
+endif()
+
 if(NOT CP2K_USE_HDF5)
   message("   - HDF5")
 endif()
@@ -1192,16 +1207,10 @@ if(NOT CP2K_USE_GREENX)
   message("   - GreenX")
 endif()
 
-if(NOT CP2K_USE_GRPP)
-  message("   - GRPP")
-endif()
-
 message(
   "\n\n" # let below line separate
-  "To run the regtests you need to run the following commands\n"
-  "\n\n cd ..\n" # let below line separate
-  " export CP2K_DATA_DIR=${CMAKE_SOURCE_DIR}/data/\n"
-  " ./tests/do_regtest.py ${cp2k_BINARY_DIR}/bin ${__cp2k_ext}\n\n")
+  "After building CP2K the regtests can be run with the following command:\n"
+  "   ./tests/do_regtest.py ${cp2k_BINARY_DIR}/bin ${__cp2k_ext}\n\n")
 
 # files needed for cmake
 

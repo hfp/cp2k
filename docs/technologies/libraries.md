@@ -60,10 +60,7 @@ FFTW is also provided by MKL. Pass `-DCP2K_USE_FFTW3_WITH_MKL=ON` to CMake.
 :warning: Note that FFTW must know the Fortran compiler you will use in order to install properly
 (e.g., `export F77=gfortran` before configure if you intend to use gfortran).
 
-:warning: Note that FFTW configured for SIMD vectorization, requires buffers aligned to SIMD width.
-If this cannot be ensured for the compiler used (e.g., NAG f95, Intel IA32/gfortran), one should
-either configure FFTW without SIMD support or otherwise set the define `-D__FFTW3_UNALIGNED`. Since
-CP2K is OpenMP parallelized, the FFTW3 threading library libfftw3_threads (or libfftw3_omp) is
+Since CP2K is OpenMP parallelized, the FFTW3 threading library libfftw3_threads (or libfftw3_omp) is
 required. Pass `-DCP2K_ENABLE_FFTW3_THREADS_SUPPORT=ON` or `-DCP2K_ENABLE_FFTW3_OPENMP_SUPPORT=ON`
 respectivly to CMake.
 
@@ -239,3 +236,12 @@ greenX - Open-source file format and library. Support for greenX can be enabled 
 - Pass `-DCP2K_USE_HDF5=ON` to CMake to enable HDF5 support.
 - HDF5 is a hard dependency for SIRIUS and TREXIO, but can also be used by itself to allow
   read/write functionalities of QCSchema files in the active space module.
+
+## MIMIC (multiscale simulations)
+
+MiMiC - Multiscale simulation framework
+
+- Interface realized through MCL library, which can be downloaded from
+  <https://https://mimic-project.org>
+- For more information about the framework and supported programs see <https://mimic-project.org>
+- Pass `-DCP2K_USE_MIMIC=ON` to CMake

@@ -107,9 +107,6 @@ CONTAINS
 #if defined(__LIBXC)
       flags = TRIM(flags)//" libxc"
 #endif
-#if defined(__LIBGRPP)
-      flags = TRIM(flags)//" libgrpp"
-#endif
 #if defined(__PEXSI)
       flags = TRIM(flags)//" pexsi"
 #endif
@@ -224,6 +221,9 @@ CONTAINS
 #endif
 #if defined(__LIBTORCH)
       flags = TRIM(flags)//" libtorch"
+#endif
+#if defined(__MIMIC)
+      flags = TRIM(flags)//" mimic"
 #endif
 #if defined(__OFFLOAD_CUDA)
       flags = TRIM(flags)//" offload_cuda"

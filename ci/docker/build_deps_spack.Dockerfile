@@ -40,19 +40,6 @@ RUN apt-get update -qq && apt-get install -qq --no-install-recommends \
     xz-utils \
     zstd && rm -rf /var/lib/apt/lists/*
 
-# Create dummy xpmem library for the MPICH build. At runtime the
-# container engine will inject the xpmem library from the host system
-RUN git clone https://github.com/hpc/xpmem \
-    && cd xpmem/lib \
-    && gcc -I../include -shared -o libxpmem.so.1 libxpmem.c \
-    && ln -s libxpmem.so.1 libxpmem.so \
-    && mkdir -p /opt/spack/lib /opt/spack/include \
-    && mv libxpmem.so* /opt/spack/lib \
-    && cp ../include/xpmem.h /opt/spack/include/ \
-    && ldconfig /opt/spack/lib \
-    && cd ../../ \
-    && rm -rf xpmem
-
 # Retrieve the number of available CPU cores
 ARG NUM_PROCS
 ENV NUM_PROCS=${NUM_PROCS:-32}
@@ -60,9 +47,9 @@ ENV NUM_PROCS=${NUM_PROCS:-32}
 # Install Spack and Spack packages
 WORKDIR /root/spack
 ARG SPACK_VERSION
-ENV SPACK_VERSION=${SPACK_VERSION:-1.0.0}
+ENV SPACK_VERSION=${SPACK_VERSION:-1.1.0}
 ARG SPACK_PACKAGES_VERSION
-ENV SPACK_PACKAGES_VERSION=${SPACK_PACKAGES_VERSION:-2025.07.0}
+ENV SPACK_PACKAGES_VERSION=${SPACK_PACKAGES_VERSION:-2025.11.0}
 ARG SPACK_REPO=https://github.com/spack/spack
 ENV SPACK_ROOT=/opt/spack-${SPACK_VERSION}
 ARG SPACK_PACKAGES_REPO=https://github.com/spack/spack-packages
@@ -97,9 +84,7 @@ RUN spack env create myenv cp2k_deps_${CP2K_VERSION}.yaml && \
 
 # Install CP2K dependencies via Spack
 RUN spack -e myenv concretize -f
-ENV SPACK_ENV_VIEW="${SPACK_ROOT}/var/spack/environments/myenv/spack-env/view"
-RUN spack -e myenv env depfile -o spack_makefile && \
-    make -j${NUM_PROCS} --file=spack_makefile SPACK_COLOR=never --output-sync=recurse && \
-    cp -ar ${SPACK_ENV_VIEW}/bin ${SPACK_ENV_VIEW}/include ${SPACK_ENV_VIEW}/lib /opt/spack
+RUN spack -e myenv env depfile -o spack_makefile
+RUN make -j${NUM_PROCS} --file=spack_makefile SPACK_COLOR=never --output-sync=recurse
 
 # EOF

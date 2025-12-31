@@ -314,9 +314,14 @@ class Config:
             env["CUDA_VISIBLE_DEVICES"] = ",".join(visible_gpu_devices)
             env["HIP_VISIBLE_DEVICES"] = ",".join(visible_gpu_devices)
         env["OMP_NUM_THREADS"] = str(self.ompthreads)
+        env["CP2K_DATA_DIR"] = str(self.cp2k_root / "data")
         env["PIKA_COMMANDLINE_OPTIONS"] = (
             f"--pika:bind=none --pika:threads={self.ompthreads}"
         )
+        if cwd is not None and "MIMIC" == cwd.parent.name:
+            env["MCL_COMM_MODE"] = "TEST_STUB"
+            env["MCL_PROGRAM"] = "1"
+            env["MCL_TEST_DATA"] = "MCL_LOG_1"
         exe_name = f"{exe_stem}.{self.version}"
         cmd = [str(self.binary_dir / exe_name)]
         if self.valgrind:
