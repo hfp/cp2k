@@ -150,8 +150,8 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
 #pragma omp critical(offload_mempool_modify)
   {
     // Find a possible chunk to reuse or reclaim in available list.
+    offload_memchunk_t **reuse = NULL, **reclaim = NULL, **reclaim0 = NULL;
     offload_memchunk_t **indirect = &pool->available_head;
-    offload_memchunk_t **reclaim = indirect, **reuse = NULL;
     while (*indirect != NULL) {
       const size_t s = (*indirect)->size;
 #if defined(OFFLOAD_MEMPOOL_COUNTER)
@@ -178,8 +178,7 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
         } else {
           reuse = indirect;
         }
-      } else {
-        assert(reclaim != NULL);
+      } else if (reclaim != NULL) {
 #if defined(OFFLOAD_MEMPOOL_COUNTER)
         if (counter != NULL &&
             *(OFFLOAD_MEMPOOL_COUNTER *)(*reclaim)->mem < *counter) {
@@ -189,19 +188,37 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
             if ((*reclaim)->size < s) {
           reclaim = indirect;
         }
+      } else {
+#if defined(OFFLOAD_MEMPOOL_COUNTER)
+        if (counter != NULL) {
+          reclaim0 = indirect;
+        }
+#endif
+        reclaim = indirect;
       }
       indirect = &(*indirect)->next;
     } // finished searching chunk for reuse/reclaim
 
-    // Prefer reuse (already large enough) over reclaim (only struct).
+    // Prefer reusing chunk/memory over reclaim (only struct).
     if (reuse != NULL) {
+#if defined(OFFLOAD_MEMPOOL_COUNTER) && 0
+      if (reclaim != reclaim0 && 0 == (*reclaim)->used && !on_device &&
+        sizeof(OFFLOAD_MEMPOOL_COUNTER) <= (*reclaim)->size &&
+        128 < *(OFFLOAD_MEMPOOL_COUNTER *)(*reclaim)->mem)
+      {
+        assert(reclaim != reuse);
+        actual_free((*reclaim)->mem, on_device);
+        (*reclaim)->mem = NULL;
+        (*reclaim)->size = 0;
+      }
+#endif
       chunk = *reuse;
-      assert(*reuse != NULL);
       *reuse = chunk->next; // remove chunk from list
     }
     // Reclaim a chunk (resize outside of crit. region).
-    else if (reclaim != NULL && *reclaim != NULL) {
+    else if (reclaim != reclaim0) {
       chunk = *reclaim;
+      assert(*reclaim != NULL);
       *reclaim = chunk->next; // remove chunk from list
     }
   } // end of critical section
