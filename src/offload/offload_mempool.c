@@ -201,17 +201,6 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
 
     // Prefer reusing chunk/memory over reclaim (only struct).
     if (reuse != NULL) {
-#if defined(OFFLOAD_MEMPOOL_COUNTER) && 0
-      if (reclaim != reclaim0 && 0 == (*reclaim)->used && !on_device &&
-        sizeof(OFFLOAD_MEMPOOL_COUNTER) <= (*reclaim)->size &&
-        128 < *(OFFLOAD_MEMPOOL_COUNTER *)(*reclaim)->mem)
-      {
-        assert(reclaim != reuse);
-        actual_free((*reclaim)->mem, on_device);
-        (*reclaim)->mem = NULL;
-        (*reclaim)->size = 0;
-      }
-#endif
       chunk = *reuse;
       *reuse = chunk->next; // remove chunk from list
     }
