@@ -30,8 +30,7 @@ case "${with_dbcsr}" in
       if [ -f dbcsr-${dbcsr_ver}.tar.gz ]; then
         echo "dbcsr-${dbcsr_ver}.tar.gz is found"
       else
-        download_pkg_from_urlpath "${dbcsr_sha256}" "dbcsr-${dbcsr_ver}.tar.gz" \
-          https://github.com/cp2k/dbcsr/releases/download/v${dbcsr_ver}
+        download_pkg_from_cp2k_org "${dbcsr_sha256}" "dbcsr-${dbcsr_ver}.tar.gz"
       fi
       echo "Installing from scratch into ${pkg_install_dir}"
       [ -d dbcsr-${dbcsr_ver} ] && rm -rf dbcsr-${dbcsr_ver}
@@ -40,7 +39,12 @@ case "${with_dbcsr}" in
       mkdir build-cpu
       cd build-cpu
       CMAKE_OPTIONS="-DBUILD_TESTING=NO -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_VERBOSE_MAKEFILE=ON"
-      CMAKE_OPTIONS="${CMAKE_OPTIONS} -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DUSE_OPENMP=ON -DUSE_SMM=blas -DWITH_EXAMPLES=NO"
+      CMAKE_OPTIONS="${CMAKE_OPTIONS} -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DUSE_OPENMP=ON -DWITH_EXAMPLES=NO"
+      if [ "${with_libxsmm}" == "__DONTUSE__" ]; then
+        CMAKE_OPTIONS="${CMAKE_OPTIONS} -DUSE_SMM=blas"
+      else
+        CMAKE_OPTIONS="${CMAKE_OPTIONS} -DUSE_SMM=libxsmm"
+      fi
       if [ "${MPI_MODE}" == "no" ]; then
         CMAKE_OPTIONS="${CMAKE_OPTIONS} -DUSE_MPI=OFF"
       else

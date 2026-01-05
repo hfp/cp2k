@@ -1,6 +1,6 @@
 #!-------------------------------------------------------------------------------------------------!
 #!   CP2K: A general program to perform molecular dynamics simulations                             !
-#!   Copyright 2000-2025 CP2K developers group <https://cp2k.org>                                  !
+#!   Copyright 2000-2026 CP2K developers group <https://cp2k.org>                                  !
 #!                                                                                                 !
 #!   SPDX-License-Identifier: GPL-2.0-or-later                                                     !
 #!-------------------------------------------------------------------------------------------------!
@@ -138,7 +138,6 @@ option(CP2K_USE_SPGLIB "Enable Spglib support" ${CP2K_USE_EVERYTHING})
 option(CP2K_USE_TREXIO "Enable TREXIO support" ${CP2K_USE_EVERYTHING})
 option(CP2K_USE_VORI "Enable Libvori support" ${CP2K_USE_EVERYTHING})
 option(CP2K_USE_CRAY_PM_ENERGY "Enable Cray PM energy framework" OFF)
-option(CP2K_USE_STATIC_BLAS "Link against static version of BLAS/LAPACK" OFF)
 option(BUILD_SHARED_LIBS "Build CP2K shared library" ON)
 option(
   CP2K_USE_FFTW3_WITH_MKL
