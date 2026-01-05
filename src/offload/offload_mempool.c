@@ -179,15 +179,15 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
           reuse = indirect;
         }
       } else if (reclaim != NULL) {
-#if defined(OFFLOAD_MEMPOOL_COUNTER)
-        if (counter != NULL &&
-            *(OFFLOAD_MEMPOOL_COUNTER *)(*reclaim)->mem < *counter) {
-          reclaim = indirect;
-        } else
-#endif
-            if ((*reclaim)->size < s) {
+        if ((*reclaim)->size < s) {
           reclaim = indirect;
         }
+#if defined(OFFLOAD_MEMPOOL_COUNTER)
+        else if (counter != NULL &&
+                 *(OFFLOAD_MEMPOOL_COUNTER *)(*reclaim)->mem < *counter) {
+          reclaim = indirect;
+        }
+#endif
       } else {
 #if defined(OFFLOAD_MEMPOOL_COUNTER)
         if (counter != NULL) {
