@@ -36,7 +36,7 @@ project(
   cp2k
   DESCRIPTION "CP2K"
   HOMEPAGE_URL "https://www.cp2k.org"
-  VERSION "2025.2"
+  VERSION "2026.1"
   LANGUAGES Fortran C CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
@@ -131,6 +131,7 @@ option(CP2K_USE_GREENX "Enable GreenX support" ${CP2K_USE_EVERYTHING})
 option(CP2K_USE_HDF5 "Enable HDF5 support" ${CP2K_USE_EVERYTHING})
 option(CP2K_USE_LIBINT2 "Enable Libint2 support" ${CP2K_USE_EVERYTHING})
 option(CP2K_USE_LIBTORCH "Enable LibTorch support" ${CP2K_USE_EVERYTHING})
+option(CP2K_USE_OPENPMD "Enable support for I/O via openPMD" OFF)
 option(CP2K_USE_LIBXC "Enable LibXC support" ${CP2K_USE_EVERYTHING})
 option(CP2K_USE_MPI "Enable MPI support" ${CP2K_USE_EVERYTHING})
 option(CP2K_USE_PEXSI "Enable PEXSI support" ${CP2K_USE_EVERYTHING})
@@ -821,6 +822,16 @@ if(CP2K_USE_MIMIC)
   find_package(MiMiC REQUIRED)
 endif()
 
+if(CP2K_USE_OPENPMD)
+  find_package(openPMD 0.16.1 REQUIRED)
+  if(NOT openPMD_HAVE_MPI)
+    message(
+      FATAL_ERROR
+        "Found serial build of openPMD at ${openPMD_DIR}. Provide either an MPI build or deactivate openPMD."
+    )
+  endif()
+endif()
+
 if(CP2K_USE_MPI_F08 AND NOT MPI_Fortran_HAVE_F08_MODULE)
   message(
     FATAL_ERROR
@@ -981,6 +992,10 @@ if(CP2K_USE_HDF5)
     "    - version: ${HDF5_VERSION}\n"
     "    - include directories: ${HDF5_INCLUDE_DIRS}\n"
     "    - libraries: ${HDF5_LIBRARIES}\n\n")
+endif()
+
+if(CP2K_USE_OPENPMD)
+  message("  - openPMD\n" "    - libraries : ${openPMD_DIR}\n\n")
 endif()
 
 if(CP2K_USE_FFTW3)
@@ -1156,6 +1171,10 @@ endif()
 
 if(NOT CP2K_USE_HDF5)
   message("   - HDF5")
+endif()
+
+if(NOT CP2K_USE_OPENPMD)
+  message("   - openPMD")
 endif()
 
 if(${CP2K_USE_ACCEL} MATCHES "NONE")

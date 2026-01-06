@@ -225,11 +225,8 @@ def process_file(fn: str, allow_modifications: bool) -> None:
         run_remote_tool("clangformat", fn)
 
     if re.match(r".*\.(cc|cpp|cxx|hcc|hpp|hxx)$", fn):
-        if fn.endswith("/torch_c_api.cpp"):
-            # Begrudgingly tolerated because PyTorch has no C API.
-            run_remote_tool("clangformat", fn)
-        elif fn.endswith("/ace_c_api.cpp"):
-            # same as PyTorch
+        if basename in ["torch_c_api.cpp", "ace_c_api.cpp", "openpmd_c_api.cpp"]:
+            # Begrudgingly tolerated because some libraries have no C API.
             run_remote_tool("clangformat", fn)
         else:
             raise Exception(f"C++ is not supported.")
@@ -302,7 +299,7 @@ def check_data_files() -> None:
 
 
 # ======================================================================================
-def run_local_tool(*cmd: str, timeout: int = 20) -> None:
+def run_local_tool(*cmd: str, timeout: int = 30) -> None:
     p = subprocess.run(cmd, timeout=timeout, stdout=PIPE, stderr=STDOUT)
     if p.returncode != 0:
         raise Exception(p.stdout.decode("utf8"))
