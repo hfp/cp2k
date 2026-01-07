@@ -1561,8 +1561,9 @@ endif()
 
 list(APPEND CP2K_SRCS_C ${CP2K_DBM_SRCS_C} ${CP2K_GRID_SRCS_C})
 
-list(APPEND CP2K_SRCS_F openpmd/openpmd_api.F input/cp_output_handling_openpmd.F
-     cp_realspace_grid_openpmd.F pw/realspace_grid_openpmd.F)
+list(APPEND CP2K_SRCS_F openpmd/openpmd_api.F
+     input/cp_output_handling_openpmd.F cp_realspace_grid_openpmd.F
+     pw/realspace_grid_openpmd.F)
 list(APPEND CP2K_SRCS_CPP openpmd/openpmd_c_api.cpp)
 
 # ##############################################################################
