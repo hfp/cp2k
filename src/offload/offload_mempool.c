@@ -180,14 +180,14 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
         }
       } else if (reclaim != NULL) {
         if ((*reclaim)->size < s) {
-          reclaim = indirect;
-        }
 #if defined(OFFLOAD_MEMPOOL_COUNTER)
-        else if (counter != NULL &&
-                 *(OFFLOAD_MEMPOOL_COUNTER *)(*reclaim)->mem < *counter) {
-          reclaim = indirect;
-        }
+          if (counter == NULL ||
+              *(OFFLOAD_MEMPOOL_COUNTER *)(*reclaim)->mem < *counter)
 #endif
+          {
+            reclaim = indirect;
+          }
+        }
       } else {
 #if defined(OFFLOAD_MEMPOOL_COUNTER)
         if (counter != NULL) {
