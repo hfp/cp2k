@@ -38,7 +38,7 @@ MODULE cp_fm_elpa
 
 #include "../base/base_uses.f90"
 
-#if defined (__ELPA)
+#if defined(__ELPA)
    USE elpa_constants, ONLY: ELPA_2STAGE_REAL_INVALID, &
                              ELPA_2STAGE_REAL_DEFAULT, &
                              ELPA_2STAGE_REAL_GENERIC, &
@@ -200,7 +200,7 @@ CONTAINS
    SUBROUTINE set_elpa_kernel(requested_kernel)
       INTEGER, INTENT(IN)                                :: requested_kernel
 
-#if defined (__ELPA)
+#if defined(__ELPA)
       INTEGER                                            :: cpuid
 
       elpa_kernel = requested_kernel
@@ -222,16 +222,17 @@ CONTAINS
          END IF
 
          ! Prefer GPU kernel if available.
-#if defined (__OFFLOAD_CUDA)
+#if !defined(__NO_OFFLOAD_ELPA)
+#if defined(__OFFLOAD_CUDA)
          elpa_kernel = ELPA_2STAGE_REAL_NVIDIA_GPU
 #endif
-#if defined (__OFFLOAD_HIP)
+#if defined(__OFFLOAD_HIP)
          elpa_kernel = ELPA_2STAGE_REAL_AMD_GPU
 #endif
-#if defined (__OFFLOAD_OPENCL)
+#if defined(__OFFLOAD_OPENCL)
          elpa_kernel = ELPA_2STAGE_REAL_INTEL_GPU_SYCL
 #endif
-
+#endif
          ! If we could not find a suitable kernel then use ELPA_2STAGE_REAL_DEFAULT.
          IF (elpa_kernel == ELPA_2STAGE_REAL_INVALID) THEN
             elpa_kernel = ELPA_2STAGE_REAL_DEFAULT
