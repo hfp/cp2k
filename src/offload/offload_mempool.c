@@ -24,7 +24,8 @@
 #define OFFLOAD_MEMPOOL_PRINT(FN, MSG, OUTPUT_UNIT)                            \
   ((FN)(MSG, (int)strlen(MSG), OUTPUT_UNIT))
 #define OFFLOAD_MEMPOOL_OMPALLOC 1
-#define OFFLOAD_MEMPOOL_COUNTER int
+// OFFLOAD_MEMPOOL_COUNTER: less mallocs on CPU but less perf.; same mem. usage
+/*#define OFFLOAD_MEMPOOL_COUNTER int*/
 #define OFFLOAD_MEMPOOL_UPSIZE (2 << 20) // permit slack size when reuse
 
 /*******************************************************************************
