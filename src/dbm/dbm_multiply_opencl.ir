@@ -7,17 +7,17 @@ func @dbm_multiply(%alpha: $dtype, %itask: i32,
                    %C: memref<$dtype x1>)
                    attributes{work_group_size=[16,1]} {
     %gid = group_id.x : index
-    %itask_idx = cast %itask : index
+    %idx = cast %gid : i32
     ; Compute task id
-    %tid = add %itask_idx, %gid : index
+    %tid = add %itask, %idx : i32
 
     ; Load task struct
-    %c0 = constant 0 : index
-    %c1 = constant 1 : index
-    %c2 = constant 2 : index
-    %c3 = constant 3 : index
-    %c4 = constant 4 : index
-    %c5 = constant 5 : index
+    %c0 = constant 0 : i32
+    %c1 = constant 1 : i32
+    %c2 = constant 2 : i32
+    %c3 = constant 3 : i32
+    %c4 = constant 4 : i32
+    %c5 = constant 5 : i32
     %iM = load %tasks[%c0, %tid] : i32
     %iN = load %tasks[%c1, %tid] : i32
     %iK = load %tasks[%c2, %tid] : i32
@@ -44,7 +44,6 @@ func @dbm_multiply(%alpha: $dtype, %itask: i32,
     %b = expand %bv[0->%N x %K] : memref<$dtype x?x?,strided<1,?>>
     %c = expand %cv[0->%M x %N] : memref<$dtype x?x?,strided<1,?>>
 
-    ; GEMM
     %one = constant 1.0 : $dtype
     gemm.atomic.n.t %alpha, %a, %b, %one, %c
 }
