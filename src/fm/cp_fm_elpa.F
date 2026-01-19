@@ -38,19 +38,6 @@ MODULE cp_fm_elpa
 #include "../base/base_uses.f90"
 
 #if defined(__ELPA)
-
-#if defined(__OFFLOAD_OPENCL)
-#define CPELPA_SOLVER_STAGES 1
-#else
-#define CPELPA_SOLVER_STAGES 2
-#endif
-
-#if 2 == CPELPA_SOLVER_STAGES
-#define CPELPA_SOLVER ELPA_SOLVER_2STAGE
-#else
-#define CPELPA_SOLVER ELPA_SOLVER_1STAGE
-#endif
-
    USE elpa_constants, ONLY: ELPA_SOLVER_1STAGE, ELPA_SOLVER_2STAGE, ELPA_OK, &
                              ELPA_2STAGE_REAL_INVALID, &
                              ELPA_2STAGE_REAL_DEFAULT, &
@@ -156,7 +143,6 @@ MODULE cp_fm_elpa
                                   "Kernel targeting Nvidia GPUs", &
                                   "Kernel targeting AMD GPUs", &
                                   "Kernel targeting Intel GPUs"]
-
 #else
    INTEGER, DIMENSION(1), PARAMETER :: elpa_kernel_ids = [-1]
    CHARACTER(len=14), DIMENSION(1), PARAMETER :: elpa_kernel_names = ["AUTO"]
@@ -166,14 +152,22 @@ MODULE cp_fm_elpa
 #if defined(__ELPA)
    INTEGER, SAVE :: elpa_kernel = elpa_kernel_ids(1) ! auto
 #endif
-   LOGICAL, SAVE :: elpa_qr = .FALSE., &
-                    elpa_qr_unsafe = .FALSE., &
+   LOGICAL, SAVE :: elpa_qr = .TRUE., &
+                    ! Disable block size limitations
+                    elpa_qr_unsafe = .TRUE., &
                     elpa_should_print = .FALSE.
+
+#if defined(__OFFLOAD_OPENCL)
+   LOGICAL, SAVE :: elpa_one_stage = .TRUE.
+#else
+   LOGICAL, SAVE :: elpa_one_stage = .FALSE.
+#endif
 
    PUBLIC :: cp_fm_diag_elpa, &
              set_elpa_kernel, &
              set_elpa_qr, &
              set_elpa_print, &
+             elpa_one_stage, &
              elpa_kernel_ids, &
              elpa_kernel_names, &
              elpa_kernel_descriptions, &
@@ -184,11 +178,15 @@ CONTAINS
 
 ! **************************************************************************************************
 !> \brief Initialize the ELPA library
+!> \param one_stage ...
 ! **************************************************************************************************
-   SUBROUTINE initialize_elpa_library()
+   SUBROUTINE initialize_elpa_library(one_stage)
+      LOGICAL, INTENT(IN), OPTIONAL                      :: one_stage
+
 #if defined(__ELPA)
       IF (elpa_init(20180525) /= ELPA_OK) &
          CPABORT("The linked ELPA library does not support the required API version")
+      IF (PRESENT(one_stage)) elpa_one_stage = one_stage
 #else
       CPABORT("Initialization of ELPA library requested but not enabled during build")
 #endif
@@ -264,10 +262,11 @@ CONTAINS
 !>                      ELPA versions, potentially leading to incorrect eigenvalues
 ! **************************************************************************************************
    SUBROUTINE set_elpa_qr(use_qr, use_qr_unsafe)
-      LOGICAL, INTENT(IN)                                :: use_qr, use_qr_unsafe
+      LOGICAL, INTENT(IN)                                :: use_qr
+      LOGICAL, INTENT(IN), OPTIONAL                      :: use_qr_unsafe
 
       elpa_qr = use_qr
-      elpa_qr_unsafe = use_qr_unsafe
+      IF (PRESENT(use_qr_unsafe)) elpa_qr_unsafe = use_qr_unsafe
    END SUBROUTINE set_elpa_qr
 
 ! **************************************************************************************************
@@ -404,7 +403,7 @@ CONTAINS
       IF (.NOT. elpa_qr_unsafe) &
          use_qr = use_qr .AND. (n >= 64) .AND. (nblk >= 64)
 
-      ! Check if eigenvalues computed with ELPA_QR_UNSAFE should be verified
+      ! Check if eigenvalues computed with elpa_qr_unsafe should be verified
       IF (use_qr .AND. elpa_qr_unsafe .AND. elpa_should_print) &
          check_eigenvalues = .TRUE.
 
@@ -449,13 +448,6 @@ CONTAINS
          END IF
 
          IF (elpa_qr) THEN
-            IF (elpa_qr_unsafe) THEN
-               WRITE (UNIT=io_unit, FMT="(T2,A,T78,A3)") &
-                  "ELPA| Use potentially unsafe QR ", "YES"
-            ELSE
-               WRITE (UNIT=io_unit, FMT="(T2,A,T79,A2)") &
-                  "ELPA| Use potentially unsafe QR ", "NO"
-            END IF
             IF (use_qr) THEN
                WRITE (UNIT=io_unit, FMT="(T2,A,T78,A3)") &
                   "ELPA| Matrix is suitable for QR ", "YES"
@@ -513,7 +505,9 @@ CONTAINS
       success = elpa_obj%setup()
       CPASSERT(success == ELPA_OK)
 
-      CALL elpa_obj%set("solver", CPELPA_SOLVER, success)
+      CALL elpa_obj%set("solver", &
+                        MERGE(ELPA_SOLVER_1STAGE, ELPA_SOLVER_2STAGE, elpa_one_stage), &
+                        success)
       CPASSERT(success == ELPA_OK)
 
       ! enabling the GPU must happen before setting the kernel
@@ -529,14 +523,14 @@ CONTAINS
          CPASSERT(success == ELPA_OK)
       END SELECT
 
-#if 2 == CPELPA_SOLVER_STAGES
-      CALL elpa_obj%set("real_kernel", elpa_kernel, success)
-      CPWARN_IF(success /= ELPA_OK, "Setting real_kernel for ELPA failed")
-#endif
+      IF (.NOT. elpa_one_stage) THEN
+         CALL elpa_obj%set("real_kernel", elpa_kernel, success)
+         CPWARN_IF(success /= ELPA_OK, "Setting real_kernel for ELPA failed")
 
-      IF (use_qr) THEN
-         CALL elpa_obj%set("qr", 1, success)
-         CPASSERT(success == ELPA_OK)
+         IF (use_qr) THEN
+            CALL elpa_obj%set("qr", 1, success)
+            CPASSERT(success == ELPA_OK)
+         END IF
       END IF
 
       ! Set number of threads only when ELPA was built with OpenMP support.
@@ -559,7 +553,7 @@ CONTAINS
             CPABORT("ELPA failed to diagonalize a matrix even without QR decomposition")
 
          IF (ANY(ABS(eval(1:neig) - eval_noqr(1:neig)) > th)) &
-            CPABORT("Eigenvalues calculated with QR decomp. in ELPA are wrong. Disable ELPA_QR_UNSAFE.")
+            CPABORT("Eigenvalues calculated with QR decomp. in ELPA are wrong.")
 
          DEALLOCATE (eval_noqr)
          CALL cp_fm_release(matrix_noqr)
