@@ -34,7 +34,11 @@ MODULE cp_fm_elpa
    USE kinds, ONLY: default_string_length, dp
    USE message_passing, ONLY: mp_comm_type
    USE OMP_LIB, ONLY: omp_get_max_threads
-
+#if defined(__HAS_IEEE_EXCEPTIONS)
+   USE ieee_exceptions, ONLY: ieee_get_halting_mode, &
+                              ieee_set_halting_mode, &
+                              IEEE_ALL
+#endif
 #include "../base/base_uses.f90"
 
 #if defined(__ELPA)
@@ -152,11 +156,14 @@ MODULE cp_fm_elpa
 #if defined(__ELPA)
    INTEGER, SAVE :: elpa_kernel = elpa_kernel_ids(1) ! auto
 #endif
-   LOGICAL, SAVE :: elpa_qr = .TRUE., &
-                    ! Disable block size limitations
-                    elpa_qr_unsafe = .TRUE., &
-                    elpa_should_print = .FALSE.
+   LOGICAL, SAVE :: elpa_should_print = .FALSE.
 
+   ! elpa_qr_unsafe: disable block size limitations
+#if defined(__HAS_IEEE_EXCEPTIONS)
+   LOGICAL, SAVE :: elpa_qr = .TRUE., elpa_qr_unsafe = .TRUE.
+#else
+   LOGICAL, SAVE :: elpa_qr = .FALSE., elpa_qr_unsafe = .FALSE.
+#endif
 #if defined(__OFFLOAD_OPENCL)
    LOGICAL, SAVE :: elpa_one_stage = .TRUE.
 #else
@@ -357,6 +364,9 @@ CONTAINS
       TYPE(cp_logger_type), POINTER            :: logger
       REAL(KIND=dp), PARAMETER                 :: th = 1.0E-14_dp
       INTEGER, DIMENSION(:), POINTER           :: ncol_locals
+#if defined(__HAS_IEEE_EXCEPTIONS)
+      LOGICAL, DIMENSION(5)                    :: halt
+#endif
 
       CALL timeset(routineN, handle)
       NULLIFY (logger)
@@ -539,7 +549,16 @@ CONTAINS
          CPASSERT(success == ELPA_OK)
       END IF
 
+      ! ELPA solver: calculate the Eigenvalues/vectors
+#if defined(__HAS_IEEE_EXCEPTIONS)
+      CALL ieee_get_halting_mode(IEEE_ALL, halt)
+      CALL ieee_set_halting_mode(IEEE_ALL, .FALSE.)
+#endif
       CALL elpa_obj%eigenvectors(matrix%local_data, eval, eigenvectors%local_data, success)
+#if defined(__HAS_IEEE_EXCEPTIONS)
+      CALL ieee_set_halting_mode(IEEE_ALL, halt)
+#endif
+
       IF (success /= ELPA_OK) &
          CPABORT("ELPA failed to diagonalize a matrix")
 
