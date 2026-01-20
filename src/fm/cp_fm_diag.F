@@ -137,7 +137,7 @@ CONTAINS
 !>                diagonalization procedure of suitably sized matrices
 !> \param elpa_print logical that determines if information about the ELPA diagonalization should
 !>                   be printed
-!> \param elpa_qr_unsafe logical that enables potentially unsafe ELPA options
+!> \param elpa_one_stage logical that enables the one-stage solver
 !> \param dlaf_neigvec_min_input ...
 !> \param eps_check_diag_input ...
 !> \par History
@@ -145,11 +145,11 @@ CONTAINS
 !> \author  MI 11.2013
 ! **************************************************************************************************
    SUBROUTINE diag_init(diag_lib, fallback_applied, elpa_kernel, elpa_neigvec_min_input, elpa_qr, &
-                        elpa_print, elpa_qr_unsafe, dlaf_neigvec_min_input, eps_check_diag_input)
+                        elpa_print, elpa_one_stage, dlaf_neigvec_min_input, eps_check_diag_input)
       CHARACTER(LEN=*), INTENT(IN)                       :: diag_lib
       LOGICAL, INTENT(OUT)                               :: fallback_applied
       INTEGER, INTENT(IN)                                :: elpa_kernel, elpa_neigvec_min_input
-      LOGICAL, INTENT(IN)                                :: elpa_qr, elpa_print, elpa_qr_unsafe
+      LOGICAL, INTENT(IN)                                :: elpa_qr, elpa_print, elpa_one_stage
       INTEGER, INTENT(IN)                                :: dlaf_neigvec_min_input
       REAL(KIND=dp), INTENT(IN)                          :: eps_check_diag_input
 
@@ -182,9 +182,9 @@ CONTAINS
 
       ! Initialization of requested diagonalization library
       IF (.NOT. initialized .AND. diag_type == FM_DIAG_TYPE_ELPA) THEN
-         CALL initialize_elpa_library()
+         CALL initialize_elpa_library(one_stage=elpa_one_stage)
          CALL set_elpa_kernel(elpa_kernel)
-         CALL set_elpa_qr(elpa_qr, elpa_qr_unsafe)
+         CALL set_elpa_qr(elpa_qr)
          CALL set_elpa_print(elpa_print)
          initialized = .TRUE.
       END IF
