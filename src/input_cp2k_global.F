@@ -32,7 +32,8 @@ MODULE input_cp2k_global
    USE cp_fm_elpa,                      ONLY: elpa_kernel_descriptions,&
                                               elpa_kernel_ids,&
                                               elpa_kernel_names,&
-                                              elpa_one_stage
+                                              elpa_one_stage,&
+                                              elpa_qr
    USE cp_fm_struct,                    ONLY: cp_fm_struct_get_ncol_block,&
                                               cp_fm_struct_get_nrow_block
    USE cp_output_handling,              ONLY: add_last_numeric,&
@@ -207,7 +208,7 @@ CONTAINS
                           "useful in determining which matrices are suitable for QR. Might accelerate the "// &
                           "diagonalization of suitable matrices.", &
                           usage="ELPA_QR", &
-                          default_l_val=.TRUE., lone_keyword_l_val=.TRUE.)
+                          default_l_val=elpa_qr, lone_keyword_l_val=.TRUE.)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 

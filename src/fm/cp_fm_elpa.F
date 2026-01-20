@@ -172,8 +172,8 @@ MODULE cp_fm_elpa
 
    PUBLIC :: cp_fm_diag_elpa, &
              set_elpa_kernel, &
-             set_elpa_qr, &
              set_elpa_print, &
+             elpa_qr, &
              elpa_one_stage, &
              elpa_kernel_ids, &
              elpa_kernel_names, &
@@ -187,13 +187,14 @@ CONTAINS
 !> \brief Initialize the ELPA library
 !> \param one_stage ...
 ! **************************************************************************************************
-   SUBROUTINE initialize_elpa_library(one_stage)
-      LOGICAL, INTENT(IN), OPTIONAL                      :: one_stage
+   SUBROUTINE initialize_elpa_library(one_stage, qr)
+      LOGICAL, INTENT(IN), OPTIONAL                      :: one_stage, qr
 
 #if defined(__ELPA)
       IF (elpa_init(20180525) /= ELPA_OK) &
          CPABORT("The linked ELPA library does not support the required API version")
       IF (PRESENT(one_stage)) elpa_one_stage = one_stage
+      IF (PRESENT(qr)) elpa_qr = qr
 #else
       CPABORT("Initialization of ELPA library requested but not enabled during build")
 #endif
@@ -259,22 +260,6 @@ CONTAINS
       MARK_USED(requested_kernel)
 #endif
    END SUBROUTINE set_elpa_kernel
-
-! **************************************************************************************************
-!> \brief Sets flags that determines if ELPA should try to use QR during diagonalization
-!>        If use_qr = .TRUE., the QR step is performed only if the size of the input matrix is
-!>        suitable. Check cp_fm_diag_elpa for further details.
-!> \param use_qr the logical flag
-!> \param use_qr_unsafe logical which determines if block size checks should be bypassed for some
-!>                      ELPA versions, potentially leading to incorrect eigenvalues
-! **************************************************************************************************
-   SUBROUTINE set_elpa_qr(use_qr, use_qr_unsafe)
-      LOGICAL, INTENT(IN)                                :: use_qr
-      LOGICAL, INTENT(IN), OPTIONAL                      :: use_qr_unsafe
-
-      elpa_qr = use_qr
-      IF (PRESENT(use_qr_unsafe)) elpa_qr_unsafe = use_qr_unsafe
-   END SUBROUTINE set_elpa_qr
 
 ! **************************************************************************************************
 !> \brief Sets a flag that determines if additional information about the ELPA diagonalization
