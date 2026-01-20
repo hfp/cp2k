@@ -186,6 +186,7 @@ CONTAINS
 ! **************************************************************************************************
 !> \brief Initialize the ELPA library
 !> \param one_stage ...
+!> \param qr ...
 ! **************************************************************************************************
    SUBROUTINE initialize_elpa_library(one_stage, qr)
       LOGICAL, INTENT(IN), OPTIONAL                      :: one_stage, qr
