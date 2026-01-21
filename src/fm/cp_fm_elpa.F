@@ -156,14 +156,12 @@ MODULE cp_fm_elpa
 #if defined(__ELPA)
    INTEGER, SAVE :: elpa_kernel = elpa_kernel_ids(1) ! auto
 #endif
-   LOGICAL, SAVE :: elpa_should_print = .FALSE.
 
    ! elpa_qr_unsafe: disable block size limitations
-#if defined(__HAS_IEEE_EXCEPTIONS)
-   LOGICAL, SAVE :: elpa_qr = .TRUE., elpa_qr_unsafe = .TRUE.
-#else
-   LOGICAL, SAVE :: elpa_qr = .FALSE., elpa_qr_unsafe = .FALSE.
-#endif
+   LOGICAL, SAVE :: elpa_should_print = .FALSE., &
+                    elpa_qr_unsafe = .TRUE., &
+                    elpa_qr = .FALSE.
+
 #if defined(__OFFLOAD_OPENCL)
    LOGICAL, SAVE :: elpa_one_stage = .TRUE.
 #else
