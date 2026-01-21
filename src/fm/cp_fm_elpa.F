@@ -556,7 +556,7 @@ CONTAINS
             CPABORT("ELPA failed to diagonalize a matrix even without QR decomposition")
 
          IF (ANY(ABS(eval(1:neig) - eval_noqr(1:neig)) > th)) &
-            CPABORT("Eigenvalues calculated with QR decomp. in ELPA are wrong.")
+            CPABORT("ELPA failed to calculate Eigenvalues with ELPA's QR decomposition")
 
          DEALLOCATE (eval_noqr)
          CALL cp_fm_release(matrix_noqr)
