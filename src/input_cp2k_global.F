@@ -195,7 +195,7 @@ CONTAINS
                           "the ELPA library. The eigensolver from the ScaLAPACK library is used as fallback "// &
                           "for all smaller cases", &
                           usage="ELPA_NEIGVEC_MIN 32", &
-                          default_i_val=16)
+                          default_i_val=MIN(cp_fm_struct_get_nrow_block(), cp_fm_struct_get_ncol_block()))
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
