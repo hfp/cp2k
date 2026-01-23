@@ -5,14 +5,13 @@
   PRINT_LEVEL MEDIUM
   PROJECT si128-elpa-qr
   RUN_TYPE ENERGY
-  ! To test if it is safe to use ELPA_QR on your system, turn on PRINT_ELPA
+  ! To test if it is safe to use ELPA_QR on your system, turn on ELPA_PRINT
   ! to verify the computed eigenvalues (should be disabled for production)
   &FM
     NCOL_BLOCKS 64
     NROW_BLOCKS 64
   &END FM
-  &PRINT_ELPA ON
-  &END PRINT_ELPA
+  ELPA_PRINT
 &END GLOBAL
 
 &FORCE_EVAL
