@@ -180,7 +180,7 @@ CONTAINS
 
       ! Initialization of requested diagonalization library
       IF (.NOT. initialized .AND. diag_type == FM_DIAG_TYPE_ELPA) THEN
-         CALL initialize_elpa_library(one_stage=elpa_one_stage, qr=elpa_qr, PRINT=elpa_print)
+         CALL initialize_elpa_library(one_stage=elpa_one_stage, qr=elpa_qr, should_print=elpa_print)
          CALL set_elpa_kernel(elpa_kernel)
          initialized = .TRUE.
       END IF

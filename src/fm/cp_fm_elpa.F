@@ -185,17 +185,17 @@ CONTAINS
 !> \brief Initialize the ELPA library
 !> \param one_stage ...
 !> \param qr ...
-!> \param print flag that determines if additional information is
-!>        printed when the diagonalization routine is called.
+!> \param should_print flag that determines if additional information
+!>        is printed when the diagonalization routine is called.
 ! **************************************************************************************************
-   SUBROUTINE initialize_elpa_library(one_stage, qr, PRINT)
-      LOGICAL, INTENT(IN), OPTIONAL                      :: one_stage, qr, PRINT
+   SUBROUTINE initialize_elpa_library(one_stage, qr, should_print)
+      LOGICAL, INTENT(IN), OPTIONAL                      :: one_stage, qr, should_print
 
 #if defined(__ELPA)
       IF (elpa_init(20180525) /= ELPA_OK) &
          CPABORT("The linked ELPA library does not support the required API version")
       IF (PRESENT(one_stage)) elpa_one_stage = one_stage
-      IF (PRESENT(PRINT)) elpa_print = PRINT
+      IF (PRESENT(should_print)) elpa_print = should_print
       IF (PRESENT(qr)) elpa_qr = qr
 #else
       CPABORT("Initialization of ELPA library requested but not enabled during build")
