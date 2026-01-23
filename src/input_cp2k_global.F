@@ -98,8 +98,8 @@ CONTAINS
       NULLIFY (print_key)
       CPASSERT(.NOT. ASSOCIATED(section))
       CALL section_create(section, __LOCATION__, name="GLOBAL", &
-                 description="Section with general information on which kind "// &
-                 "of simulation to perform and parameters for the whole PROGRAM", &
+                          description="Section with general information on which kind "// &
+                          "of simulation to perform and parameters for the whole PROGRAM", &
                           n_keywords=7, n_subsections=0, repeats=.FALSE.)
 
       NULLIFY (keyword)
@@ -200,11 +200,11 @@ CONTAINS
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="ELPA_QR", &
-                 description="For ELPA, enable a blocked QR step when reducing the input matrix "// &
-                 "to banded form before diagonalization. Requires ELPA version 201505 or newer and "// &
-                 "is automatically deactivated otherwise. QR is activated only when the matrix size "// &
-                 "is suitable. Keyword ELPA_PRINT helps identify suitable cases. Can accelerate "// &
-                 "diagonalization for suitable matrices.", &
+                          description="For ELPA, enable a blocked QR step when reducing the input matrix "// &
+                          "to banded form before diagonalization. Requires ELPA version 201505 or newer and "// &
+                          "is automatically deactivated otherwise. QR is activated only when the matrix size "// &
+                          "is suitable. Keyword ELPA_PRINT helps identify suitable cases. Can accelerate "// &
+                          "diagonalization for suitable matrices.", &
                           usage="ELPA_QR", &
                           default_l_val=elpa_qr, lone_keyword_l_val=.TRUE.)
       CALL section_add_keyword(section, keyword)
@@ -219,9 +219,9 @@ CONTAINS
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="ELPA_PRINT", &
-              description="Controls the printing of ELPA diagonalization information. "// &
-              "Useful for testing purposes, especially together with keyword ELPA_QR.", &
-              usage="ELPA_PRINT", default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+                          description="Controls the printing of ELPA diagonalization information. "// &
+                          "Useful for testing purposes, especially together with keyword ELPA_QR.", &
+                          usage="ELPA_PRINT", default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -665,8 +665,8 @@ CONTAINS
       NULLIFY (keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="NROW_BLOCKS", &
-                            description="Defines the number of rows per scalapack block in "// &
-                            "the creation of block cyclic dense matrices. "// &
+                          description="Defines the number of rows per scalapack block in "// &
+                          "the creation of block cyclic dense matrices. "// &
                           "Use an internal default if zero or negative.", &
                           default_i_val=cp_fm_struct_get_nrow_block())
       CALL section_add_keyword(section, keyword)
