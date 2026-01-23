@@ -33,6 +33,7 @@ MODULE input_cp2k_global
                                               elpa_kernel_ids,&
                                               elpa_kernel_names,&
                                               elpa_one_stage,&
+                                              elpa_print,&
                                               elpa_qr
    USE cp_fm_struct,                    ONLY: cp_fm_struct_get_ncol_block,&
                                               cp_fm_struct_get_nrow_block
@@ -221,7 +222,7 @@ CONTAINS
       CALL keyword_create(keyword, __LOCATION__, name="ELPA_PRINT", &
                           description="Controls the printing of ELPA diagonalization information. "// &
                           "Useful for testing purposes, especially together with keyword ELPA_QR.", &
-                          usage="ELPA_PRINT", default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+                          usage="ELPA_PRINT", default_l_val=elpa_print, lone_keyword_l_val=.TRUE.)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
