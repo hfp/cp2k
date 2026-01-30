@@ -14,6 +14,9 @@ cp2k_include_dirs(
   ACE "ace/ace_couplings.h;ace-evaluator/ace_types.h;yaml-cpp/yaml.h")
 cp2k_find_libraries(ACE "pace")
 cp2k_find_libraries(ACE_YAML "yaml-cpp-pace")
+if(NOT CP2K_ACE_YAML_FOUND)
+  cp2k_find_libraries(ACE_YAML "yaml-cpp")
+endif()
 cp2k_find_libraries(ACE_CNPY "cnpy")
 
 find_package_handle_standard_args(

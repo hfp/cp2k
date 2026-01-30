@@ -85,8 +85,8 @@ done
 
 # Check platform
 if [[ "$(uname -s)" == "Darwin" ]]; then
-  echo "ERROR: Apple (Darwin, Homebrew) is not supported yet"
-  echo "       Build CP2K within a container, e.g. using Ubuntu"
+  echo "ERROR: A build for Apple macOS (Darwin, Homebrew) is not supported yet,"
+  echo "       but CP2K can be built within a container, e.g. using Ubuntu"
   ${EXIT_CMD} 1
 fi
 
@@ -114,7 +114,7 @@ if ! python3 -c 'import sys; sys.exit(not(sys.version_info >= (3, 9)))'; then
 fi
 
 # Default values
-BUILD_DEPS="no"
+BUILD_DEPS="if_needed"
 BUILD_DEPS_ONLY="no"
 BUILD_TYPE="${BUILD_TYPE:-Release}"
 HAS_PODMAN="no"
@@ -144,11 +144,11 @@ export INSTALL_PREFIX="${INSTALL_PREFIX:-${CP2K_ROOT}/install}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -bd | --build_deps | --build_dependencies)
-      BUILD_DEPS="yes"
+      BUILD_DEPS="always"
       shift 1
       ;;
     -bd_only | --build_deps_only | --build_dependencies_only)
-      BUILD_DEPS="yes"
+      BUILD_DEPS="always"
       BUILD_DEPS_ONLY="yes"
       shift 1
       ;;
@@ -163,6 +163,8 @@ while [[ $# -gt 0 ]]; do
         echo "ERROR: No argument found for flag \"${1}\" (choose psmp or ssmp)"
         ${EXIT_CMD} 1
       fi
+      # Disable MPI for a serial CP2K binary
+      [[ "${CP2K_VERSION}" == "ssmp"* ]] && MPI_MODE="no"
       shift 2
       ;;
     -h | --help)
@@ -291,7 +293,8 @@ if [[ "${HELP}" == "yes" ]]; then
 fi
 
 echo ""
-echo "BUILD_DEPS       = ${BUILD_DEPS} (only: ${BUILD_DEPS_ONLY})"
+echo "BUILD_DEPS       = ${BUILD_DEPS}"
+echo "BUILD_DEPS_ONLY  = ${BUILD_DEPS_ONLY}"
 echo "CMAKE_BUILD_TYPE = ${BUILD_TYPE}"
 echo "CP2K_VERSION     = ${CP2K_VERSION}"
 echo "INSTALL_PREFIX   = ${INSTALL_PREFIX}"
@@ -362,7 +365,7 @@ export SPACK_BUILD_PATH="${CP2K_ROOT}/spack"
 export SPACK_ROOT="${SPACK_BUILD_PATH}/spack-${SPACK_VERSION}"
 
 # If requested, remove the spack folder for (re)building all CP2K dependencies
-[[ "${BUILD_DEPS}" == "yes" ]] && rm -rf "${SPACK_BUILD_PATH}"
+[[ "${BUILD_DEPS}" == "always" ]] && rm -rf "${SPACK_BUILD_PATH}"
 
 if [[ ! -d "${SPACK_BUILD_PATH}" ]]; then
 
@@ -539,11 +542,13 @@ if [[ ! -d "${SPACK_BUILD_PATH}" ]]; then
 
   # Concretize CP2K dependencies
   if ! spack -e "${CP2K_ENV}" --no-user-config --no-system-config concretize --fresh; then
-    echo ""
-    echo "HINT: The  --no_externals flag can help to resolve conflicts with outdated"
-    echo "      packages on the host system, e.g. old python or gcc versions"
-    echo ""
-    ${EXIT_CMD} 1
+    if [[ "${USE_EXTERNALS}" == "yes" ]]; then
+      echo ""
+      echo "HINT: The (-ue | --use_externals) flags can cause conflicts with outdated"
+      echo "      packages on the host system, e.g. old python or gcc versions"
+      echo ""
+      ${EXIT_CMD} 1
+    fi
   fi
 
   # Create spack makefile for all dependencies
