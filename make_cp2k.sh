@@ -24,14 +24,15 @@
 #
 #          A rebuild of all CP2K dependencies can be enforced simply by removing
 #          or renaming the folder cp2k/spack. The latter allows for keeping different
-#          software stacks.
+#          software stacks (see also -bd and -bd_only flags).
 #
-#          It is recommended to install podman to take advantage of a spack cache.
-#          This will accelerate the build of the CP2K dependencies with Spack
+#          It is recommended to install podman to take advantage of a local cache.
+#          This will accelerate the (re)build of the CP2K dependencies with Spack
 #          significantly.
 #
 #          After the CP2K dependencies are built with Spack, CP2K itself is built
-#          and installed using CMake in the subfolders cp2k/build and cp2k/install.
+#          and installed using CMake in the subfolders cp2k/build and cp2k/install,
+#          respectively.
 #
 #          Subsequent runs of the script will use the CMake configuration in the
 #          subfolder cp2k/build. A rebuild of CP2K from scratch can be enforced
@@ -47,7 +48,7 @@
 
 # Authors: Matthias Krack (MK)
 
-# Version: 0.8
+# Version: 1.0
 
 # History: - Creation (19.12.2025, MK)
 #          - Version 0.1: First working version (09.01.2026, MK)
@@ -58,9 +59,13 @@
 #          - Version 0.6: Add MPI flag and revise flag parsing (27.01.2026, MK)
 #          - Version 0.7: Fix container detection (28.01.2026, MK)
 #          - Version 0.8: Add --build_deps_only flag (29.01.2026, MK)
+#          - Version 0.9: Add --disable_local_cache flag (30.01.2026, MK)
+#          - Version 1.0: Add Cray specific configuration (01.02.2026, MK)
 
+# Facilitate the deugging of this script
 set -uo pipefail
 
+# Retrieve script name
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 
 # Check if the script is sourced or run in a subshell
@@ -117,6 +122,8 @@ fi
 BUILD_DEPS="if_needed"
 BUILD_DEPS_ONLY="no"
 BUILD_TYPE="${BUILD_TYPE:-Release}"
+CRAY="yes"
+DISABLE_LOCAL_CACHE="no"
 HAS_PODMAN="no"
 HELP="no"
 INSTALL_MESSAGE="NEVER"
@@ -156,6 +163,10 @@ while [[ $# -gt 0 ]]; do
       BUILD_TYPE="${2}"
       shift 2
       ;;
+    -cray)
+      CRAY="yes"
+      shift 1
+      ;;
     -cv | --cp2k_version)
       if (($# > 1)); then
         CP2K_VERSION="${2}"
@@ -166,6 +177,10 @@ while [[ $# -gt 0 ]]; do
       # Disable MPI for a serial CP2K binary
       [[ "${CP2K_VERSION}" == "ssmp"* ]] && MPI_MODE="no"
       shift 2
+      ;;
+    -dlc | --disable_local_cache)
+      DISABLE_LOCAL_CACHE="yes"
+      shift 1
       ;;
     -h | --help)
       HELP="yes"
@@ -251,8 +266,8 @@ NUM_PROCS=$(awk '{print $1+0}' <<< "${NUM_PROCS}")
 # Check if we are working within a docker or podman container
 [[ -f /.dockerenv || -f /run/.containerenv ]] && IN_CONTAINER="yes" || IN_CONTAINER="no"
 
-export BUILD_DEPS BUILD_DEPS_ONLY BUILD_TYPE HAS_PODMAN IN_CONTAINER INSTALL_MESSAGE
-export MPI_MODE NUM_PROCS RUN_TEST TESTOPTS VERBOSE VERBOSE_FLAG VERBOSE_MAKEFILE
+export BUILD_DEPS BUILD_DEPS_ONLY BUILD_TYPE CRAY DISABLE_LOCAL_CACHE HAS_PODMAN IN_CONTAINER
+export INSTALL_MESSAGE MPI_MODE NUM_PROCS RUN_TEST TESTOPTS VERBOSE VERBOSE_FLAG VERBOSE_MAKEFILE
 
 # Show help if requested
 if [[ "${HELP}" == "yes" ]]; then
@@ -260,7 +275,9 @@ if [[ "${HELP}" == "yes" ]]; then
   echo "Usage: ${SCRIPT_NAME} [-bd | --build_deps]"
   echo "                    [-bd_only | --build_deps_only]"
   echo "                    [-bt | --build_type (Debug | Release | RelWithDebInfo)]"
+  echo "                    [-cray]"
   echo "                    [-cv | --cp2k_version (psmp | ssmp)]"
+  echo "                    [-dlc | --disable_local_cache]"
   echo "                    [-h | --help]"
   echo "                    [-ip | --install_path PATH]"
   echo "                    [-j #PROCESSES]"
@@ -270,46 +287,49 @@ if [[ "${HELP}" == "yes" ]]; then
   echo "                    [-v | --verbose]"
   echo ""
   echo "Flags:"
-  echo " --build_deps     : Force a rebuild of all CP2K dependencies from scratch (removes the spack folder)"
-  echo " --build_deps_only: Rebuild ONLY the CP2K dependencies from scratch (removes the spack folder)"
-  echo " --build_type     : Set preferred CMake build type (default: \"Release\")"
-  echo " --cp2k_version   : CP2K version to be built (default: \"psmp\")"
-  echo " --help           : Print this help information"
-  echo " --install_path   : Define the CP2K installation path (default: ./install)"
-  echo " -j               : Number of processes used in parallel"
-  echo " --mpi_mode       : Set preferred MPI mode (default: \"mpich\")"
-  echo " --test           : Perform a regression test run after a successful build"
-  echo " --use_externals  : Use external packages installed on the host system. This can result in faster build times,"
-  echo "                    but it can also cause conflicts with outdated packages on the host system, e.g. old"
-  echo "                    python or gcc versions"
-  echo " --verbose        : Write verbose output"
+  echo " --build_deps         : Force a rebuild of all CP2K dependencies from scratch (removes the spack folder)"
+  echo " --build_deps_only    : Rebuild ONLY the CP2K dependencies from scratch (removes the spack folder)"
+  echo " --build_type         : Set preferred CMake build type (default: \"Release\")"
+  echo " -cray                : Use Cray specific spack configuration"
+  echo " --cp2k_version       : CP2K version to be built (default: \"psmp\")"
+  echo " --disable_local_cache: CP2K version to be built (default: \"psmp\")"
+  echo " --help               : Print this help information"
+  echo " --install_path       : Define the CP2K installation path (default: ./install)"
+  echo " -j                   : Number of processes used in parallel"
+  echo " --mpi_mode           : Set preferred MPI mode (default: \"mpich\")"
+  echo " --test               : Perform a regression test run after a successful build"
+  echo " --use_externals      : Use external packages installed on the host system. This can result in faster"
+  echo "                        build times, but it can also cause conflicts with outdated packages on the"
+  echo "                        host system, e.g. old python or gcc versions"
+  echo " --verbose            : Write verbose output"
   echo ""
   echo "Hints:"
   echo " - Remove the folder ${CP2K_ROOT}/build to (re)build CP2K from scratch"
-  echo " - Remove the folder ${CP2K_ROOT}/spack to (re)build CP2K and all its dependencies from scratch (takes a long time)"
+  echo " - Remove the folder ${CP2K_ROOT}/spack to (re)build CP2K and all its dependencies from scratch"
   echo " - The folder ${CP2K_ROOT}/install is updated after each successful run"
   echo ""
   ${EXIT_CMD}
 fi
 
 echo ""
-echo "BUILD_DEPS       = ${BUILD_DEPS}"
-echo "BUILD_DEPS_ONLY  = ${BUILD_DEPS_ONLY}"
-echo "CMAKE_BUILD_TYPE = ${BUILD_TYPE}"
-echo "CP2K_VERSION     = ${CP2K_VERSION}"
-echo "INSTALL_PREFIX   = ${INSTALL_PREFIX}"
-echo "INSTALL_MESSAGE  = ${INSTALL_MESSAGE}"
-echo "IN_CONTAINER     = ${IN_CONTAINER}"
-echo "MPI_MODE         = ${MPI_MODE}"
-echo "NUM_PROCS        = ${NUM_PROCS} (processes)"
-echo "RUN_TEST         = ${RUN_TEST}"
+echo "BUILD_DEPS          = ${BUILD_DEPS}"
+echo "BUILD_DEPS_ONLY     = ${BUILD_DEPS_ONLY}"
+echo "CMAKE_BUILD_TYPE    = ${BUILD_TYPE}"
+echo "CP2K_VERSION        = ${CP2K_VERSION}"
+echo "DISABLE_LOCAL_CACHE = ${DISABLE_LOCAL_CACHE}"
+echo "INSTALL_PREFIX      = ${INSTALL_PREFIX}"
+echo "INSTALL_MESSAGE     = ${INSTALL_MESSAGE}"
+echo "IN_CONTAINER        = ${IN_CONTAINER}"
+echo "MPI_MODE            = ${MPI_MODE}"
+echo "NUM_PROCS           = ${NUM_PROCS} (processes)"
+echo "RUN_TEST            = ${RUN_TEST}"
 if [[ "${RUN_TEST}" == "yes" ]]; then
-  echo "TESTOPTS         = \"${TESTOPTS}\""
+  echo "TESTOPTS            = \"${TESTOPTS}\""
 fi
-echo "USE_EXTERNALS    = ${USE_EXTERNALS}"
-echo "VERBOSE_FLAG     = ${VERBOSE_FLAG}"
-echo "VERBOSE_MAKEFILE = ${VERBOSE_MAKEFILE}"
-echo "VERBOSE          = ${VERBOSE}"
+echo "USE_EXTERNALS       = ${USE_EXTERNALS}"
+echo "VERBOSE_FLAG        = ${VERBOSE_FLAG}"
+echo "VERBOSE_MAKEFILE    = ${VERBOSE_MAKEFILE}"
+echo "VERBOSE             = ${VERBOSE}"
 if (($# > 0)); then
   echo "Remaining args   =" "$@" "(not used)"
 fi
@@ -392,27 +412,28 @@ if [[ ! -d "${SPACK_BUILD_PATH}" ]]; then
   export SPACK_USER_CACHE_PATH="${SPACK_BUILD_PATH}/cache"
   mkdir -p "${SPACK_USER_CACHE_PATH}"
 
-  # Create and activate a virtual environment (venv) for Python packages
-  if command -v python3 -m venv --help &> /dev/null; then
-    echo "Installing virtual environment for Python packages"
-    if ! python3 -m venv "${SPACK_BUILD_PATH}/venv"; then
-      echo "ERROR: The creation of a virtual environment (venv) for Python packages failed"
+  if [[ "${DISABLE_LOCAL_CACHE}" == "no" ]]; then
+    # Create and activate a virtual environment (venv) for Python packages
+    if command -v python3 -m venv --help &> /dev/null; then
+      echo "Installing virtual environment for Python packages"
+      if ! python3 -m venv "${SPACK_BUILD_PATH}/venv"; then
+        echo "ERROR: The creation of a virtual environment (venv) for Python packages failed"
+        ${EXIT_CMD} 1
+      fi
+      export PATH="${SPACK_BUILD_PATH}/venv/bin:${PATH}"
+    else
+      echo "ERROR: python3 -m venv was not found"
       ${EXIT_CMD} 1
     fi
-    export PATH="${SPACK_BUILD_PATH}/venv/bin:${PATH}"
-  else
-    echo "ERROR: python3 -m venv was not found"
-    ${EXIT_CMD} 1
-  fi
-
-  # Upgrade pip and install boto3
-  if command -v python3 -m pip --version &> /dev/null; then
-    python3 -m pip install "${VERBOSE_FLAG}" --upgrade pip
-    echo "Installing boto3 module"
-    python3 -m pip install "${VERBOSE_FLAG}" boto3==1.38.11 google-cloud-storage==3.1.0
-  else
-    echo "ERROR: python3 -m pip was not found"
-    ${EXIT_CMD} 1
+    # Upgrade pip and install boto3
+    if command -v python3 -m pip --version &> /dev/null; then
+      python3 -m pip install "${VERBOSE_FLAG}" --upgrade pip
+      echo "Installing boto3 module"
+      python3 -m pip install "${VERBOSE_FLAG}" boto3==1.38.11 google-cloud-storage==3.1.0
+    else
+      echo "ERROR: python3 -m pip was not found"
+      ${EXIT_CMD} 1
+    fi
   fi
 
   # Install Spack packages
@@ -427,7 +448,7 @@ if [[ ! -d "${SPACK_BUILD_PATH}" ]]; then
   # shellcheck source=/dev/null
   source "${SPACK_ROOT}/share/spack/setup-env.sh"
 
-  if [[ "${IN_CONTAINER}" == "no" ]]; then
+  if [[ "${IN_CONTAINER}" == "no" ]] && [[ "${DISABLE_LOCAL_CACHE}" == "no" ]]; then
     # The package podman is required for using a MinIO cache
     if command -v podman &> /dev/null; then
       # Check podman version
@@ -445,22 +466,26 @@ if [[ ! -d "${SPACK_BUILD_PATH}" ]]; then
   fi
 
   # Start Spack cache if we are not within a container and have podman available
-  if [[ "${IN_CONTAINER}" == "no" ]] && [[ "${HAS_PODMAN}" == "yes" ]]; then
-    if ! "${CP2K_ROOT}"/tools/docker/spack_cache_start.sh; then
-      echo "ERROR: Could not start (new) spack cache"
-      echo ""
-      echo "An error message starting with \"Error: initial journal cursor: ...\" indicates that the"
-      echo "journald logging does not work. Try to switch podman (3.x) to file-based logs by creating"
-      echo "the file \"~/.config/containers/containers.conf\" with the following two lines:"
-      echo "[containers]"
-      echo "log_driver = \"k8s-file\""
-      ${EXIT_CMD} 1
+  if [[ "${IN_CONTAINER}" == "no" ]] && [[ "${DISABLE_LOCAL_CACHE}" == "no" ]]; then
+    if [[ "${HAS_PODMAN}" == "yes" ]]; then
+      if ! "${CP2K_ROOT}"/tools/docker/spack_cache_start.sh; then
+        echo "ERROR: Could not start (new) spack cache"
+        echo ""
+        echo "An error message starting with \"Error: initial journal cursor: ...\" indicates that the"
+        echo "journald logging does not work. Try to switch podman (3.x) to file-based logs by creating"
+        echo "the file \"~/.config/containers/containers.conf\" with the following two lines:"
+        echo "[containers]"
+        echo "log_driver = \"k8s-file\""
+        ${EXIT_CMD} 1
+      fi
     fi
   fi
 
   # Add local spack cache if possible
-  export SPACK_CACHE=${SPACK_CACHE:-"s3://spack-cache --s3-endpoint-url=http://localhost:9000"}
-  echo "SPACK_CACHE = \"${SPACK_CACHE}\""
+  if [[ "${DISABLE_LOCAL_CACHE}" == "no" ]]; then
+    export SPACK_CACHE=${SPACK_CACHE:-"s3://spack-cache --s3-endpoint-url=http://localhost:9000"}
+    echo "SPACK_CACHE = \"${SPACK_CACHE}\""
+  fi
   spack mirror list
   if ! spack mirror list | grep -q "local-cache"; then
     echo "Setting up local spack cache"
@@ -482,6 +507,11 @@ if [[ ! -d "${SPACK_BUILD_PATH}" ]]; then
       -E -e '/\s*#\s*-\s+"openmpi@/ s/#/ /' \
       -E -e '/\s*-\s+mpich/ s/mpich$/openmpi/' \
       -i "${CP2K_CONFIG_FILE}"
+  fi
+
+  # Apply Cray specific adaptation of the spack configuration if requested
+  if [[ "${CRAY}" == "yes" ]]; then
+    sed -E -e 's/~xpmem/+xpmem/' -i "${CP2K_CONFIG_FILE}"
   fi
 
   # Create CP2K environment if needed
@@ -624,7 +654,6 @@ if [[ ! -d "${CMAKE_BUILD_PATH}" ]]; then
         -DCP2K_USE_LIBXSMM=ON \
         -DCP2K_USE_MPI=ON \
         -DCP2K_USE_OPENPMD=ON \
-        -DCP2K_USE_TBLITE=OFF \
         -Werror=dev |&
         tee "${CMAKE_BUILD_PATH}/cmake.log"
       EXIT_CODE=$?
@@ -642,7 +671,6 @@ if [[ ! -d "${CMAKE_BUILD_PATH}" ]]; then
         -DCP2K_USE_LIBXSMM=ON \
         -DCP2K_USE_MPI=OFF \
         -DCP2K_USE_OPENPMD=OFF \
-        -DCP2K_USE_TBLITE=OFF \
         -Werror=dev |&
         tee "${CMAKE_BUILD_PATH}/cmake.log"
       EXIT_CODE=$?
