@@ -48,7 +48,7 @@
 
 # Authors: Matthias Krack (MK)
 
-# Version: 1.0
+# Version: 1.1
 
 # History: - Creation (19.12.2025, MK)
 #          - Version 0.1: First working version (09.01.2026, MK)
@@ -61,6 +61,7 @@
 #          - Version 0.8: Add --build_deps_only flag (29.01.2026, MK)
 #          - Version 0.9: Add --disable_local_cache flag (30.01.2026, MK)
 #          - Version 1.0: Add Cray specific configuration (01.02.2026, MK)
+#          - Version 1.1: Allow for selecting the GCC version (02.02.2026, MK)
 
 # Facilitate the deugging of this script
 set -uo pipefail
@@ -124,6 +125,7 @@ BUILD_DEPS_ONLY="no"
 BUILD_TYPE="${BUILD_TYPE:-Release}"
 CRAY="yes"
 DISABLE_LOCAL_CACHE="no"
+GCC_VERSION="auto"
 HAS_PODMAN="no"
 HELP="no"
 INSTALL_MESSAGE="NEVER"
@@ -182,6 +184,23 @@ while [[ $# -gt 0 ]]; do
       DISABLE_LOCAL_CACHE="yes"
       shift 1
       ;;
+    -gv | --gcc_version)
+      if (($# > 1)); then
+        case "${2}" in
+          1[0-5])
+            GCC_VERSION="${2}"
+            ;;
+          *)
+            echo "ERROR: Invalid GCC version \"${2}\" specified (choose from 10 to 15)"
+            ${EXIT_CMD} 1
+            ;;
+        esac
+      else
+        echo "ERROR: No argument found for flag \"${1}\" (choose a GCC version)"
+        ${EXIT_CMD} 1
+      fi
+      shift 2
+      ;;
     -h | --help)
       HELP="yes"
       shift 1
@@ -196,19 +215,23 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -j)
-      case "${2}" in
-        -*)
-          true
-          ;;
-        [0-9]*)
-          NUM_PROCS="${2}"
-          shift 2
-          ;;
-        *)
-          echo "ERROR: The -j flag can only be followed by an integer number, found \"${2}\""
-          ${EXIT_CMD} 1
-          ;;
-      esac
+      if (($# > 1)); then
+        case "${2}" in
+          -*)
+            shift 1
+            ;;
+          [0-9]*)
+            NUM_PROCS="${2}"
+            shift 2
+            ;;
+          *)
+            echo "ERROR: The -j flag can only be followed by an integer number, found \"${2}\""
+            ${EXIT_CMD} 1
+            ;;
+        esac
+      else
+        shift 1
+      fi
       ;;
     -j[0-9]*)
       NUM_PROCS="${1#-j}"
@@ -266,7 +289,7 @@ NUM_PROCS=$(awk '{print $1+0}' <<< "${NUM_PROCS}")
 # Check if we are working within a docker or podman container
 [[ -f /.dockerenv || -f /run/.containerenv ]] && IN_CONTAINER="yes" || IN_CONTAINER="no"
 
-export BUILD_DEPS BUILD_DEPS_ONLY BUILD_TYPE CRAY DISABLE_LOCAL_CACHE HAS_PODMAN IN_CONTAINER
+export BUILD_DEPS BUILD_DEPS_ONLY BUILD_TYPE CRAY DISABLE_LOCAL_CACHE GCC_VERSION HAS_PODMAN IN_CONTAINER
 export INSTALL_MESSAGE MPI_MODE NUM_PROCS RUN_TEST TESTOPTS VERBOSE VERBOSE_FLAG VERBOSE_MAKEFILE
 
 # Show help if requested
@@ -278,6 +301,7 @@ if [[ "${HELP}" == "yes" ]]; then
   echo "                    [-cray]"
   echo "                    [-cv | --cp2k_version (psmp | ssmp)]"
   echo "                    [-dlc | --disable_local_cache]"
+  echo "                    [-gv | --gcc_version (10 | 11 | 12 | 13 | 14 | 15)]"
   echo "                    [-h | --help]"
   echo "                    [-ip | --install_path PATH]"
   echo "                    [-j #PROCESSES]"
@@ -290,10 +314,11 @@ if [[ "${HELP}" == "yes" ]]; then
   echo " --build_deps         : Force a rebuild of all CP2K dependencies from scratch (removes the spack folder)"
   echo " --build_deps_only    : Rebuild ONLY the CP2K dependencies from scratch (removes the spack folder)"
   echo " --build_type         : Set preferred CMake build type (default: \"Release\")"
-  echo " -cray                : Use Cray specific spack configuration"
   echo " --cp2k_version       : CP2K version to be built (default: \"psmp\")"
+  echo " -cray                : Use Cray specific spack configuration"
   echo " --disable_local_cache: CP2K version to be built (default: \"psmp\")"
   echo " --help               : Print this help information"
+  echo " --gcc_version        : Use the specified GCC version (default: automatically decided by spack)"
   echo " --install_path       : Define the CP2K installation path (default: ./install)"
   echo " -j                   : Number of processes used in parallel"
   echo " --mpi_mode           : Set preferred MPI mode (default: \"mpich\")"
@@ -317,6 +342,7 @@ echo "BUILD_DEPS_ONLY     = ${BUILD_DEPS_ONLY}"
 echo "CMAKE_BUILD_TYPE    = ${BUILD_TYPE}"
 echo "CP2K_VERSION        = ${CP2K_VERSION}"
 echo "DISABLE_LOCAL_CACHE = ${DISABLE_LOCAL_CACHE}"
+echo "GCC_VERSION         = ${GCC_VERSION}"
 echo "INSTALL_PREFIX      = ${INSTALL_PREFIX}"
 echo "INSTALL_MESSAGE     = ${INSTALL_MESSAGE}"
 echo "IN_CONTAINER        = ${IN_CONTAINER}"
@@ -384,8 +410,16 @@ export SPACK_PACKAGES_VERSION="${SPACK_PACKAGES_VERSION:-2025.11.0}"
 export SPACK_BUILD_PATH="${CP2K_ROOT}/spack"
 export SPACK_ROOT="${SPACK_BUILD_PATH}/spack-${SPACK_VERSION}"
 
-# If requested, remove the spack folder for (re)building all CP2K dependencies
-[[ "${BUILD_DEPS}" == "always" ]] && rm -rf "${SPACK_BUILD_PATH}"
+# If requested, remove the folders spack, build, and install for (re)building all CP2K dependencies
+if [[ "${BUILD_DEPS}" == "always" ]]; then
+  # Perform full clean-up
+  for folder in "${SPACK_BUILD_PATH}" "${CP2K_ROOT}"/build "${CP2K_ROOT}"/install; do
+    if [[ -d "${folder}" ]]; then
+      echo "Removing folder \"${folder}\""
+      rm -rf "${folder}"
+    fi
+  done
+fi
 
 if [[ ! -d "${SPACK_BUILD_PATH}" ]]; then
 
@@ -554,10 +588,37 @@ if [[ ! -d "${SPACK_BUILD_PATH}" ]]; then
 
   spack -e ${CP2K_ENV} repo list
 
+  if [[ "${GCC_VERSION}" != "auto" ]]; then
+    # Ask spack to add the requested GCC version
+    if spack install --add "gcc@${GCC_VERSION}"; then
+      echo "GCC version \"${GCC_VERSION}\" added for installation by spack"
+    else
+      echo "ERROR: Adding GCC version \"${GCC_VERSION}\" for installation failed"
+      ${EXIT_CMD} 1
+    fi
+  fi
+
   # Find all compilers
   if ! spack compiler find; then
     echo "ERROR: The compiler detection of spack failed"
     ${EXIT_CMD} 1
+  fi
+
+  # Retrieve the newest compiler version found by spack
+  GCC_VERSION_NEWEST="$(spack compilers | awk '/gcc/ {print $2}' | sort -V | tail -n 1)"
+  echo "The newest GCC compiler version found by spack is ${GCC_VERSION_NEWEST}"
+  GCC_VERSION_NEWEST="$(echo "${GCC_VERSION_NEWEST}" | sed -E 's/.*@([0-9]+).*/\1/' | cut -d. -f1)"
+
+  # Check if the newest compiler version found on the host system is new enough
+  GCC_VERSION_MINIMUM="10"
+  if ((GCC_VERSION_NEWEST < GCC_VERSION_MINIMUM)); then
+    echo "ERROR: The selected GCC compiler version ${GCC_VERSION_NEWEST} is too old,"
+    echo "       because at least version ${GCC_VERSION_MINIMUM} is required"
+    ${EXIT_CMD} 1
+  fi
+
+  if [[ "${GCC_VERSION}" == "auto" ]]; then
+    echo "Spack will automatically select the GCC version which is not necessarily the newest one found"
   fi
 
   spack find -c
@@ -572,13 +633,14 @@ if [[ ! -d "${SPACK_BUILD_PATH}" ]]; then
 
   # Concretize CP2K dependencies
   if ! spack -e "${CP2K_ENV}" --no-user-config --no-system-config concretize --fresh; then
+    echo -e "\nERROR: The spack concretize for environment \"${CP2K_ENV}\" failed"
     if [[ "${USE_EXTERNALS}" == "yes" ]]; then
       echo ""
       echo "HINT: The (-ue | --use_externals) flags can cause conflicts with outdated"
       echo "      packages on the host system, e.g. old python or gcc versions"
       echo ""
-      ${EXIT_CMD} 1
     fi
+    ${EXIT_CMD} 1
   fi
 
   # Create spack makefile for all dependencies
@@ -600,9 +662,20 @@ if [[ ! -d "${SPACK_BUILD_PATH}" ]]; then
   # Return from spack folder after all installations are done
   cd "${CP2K_ROOT}" || ${EXIT_CMD} 1
 
+  # Make a note of the successful build
+  touch "${SPACK_BUILD_PATH}/BUILD_DEPENDENCIES_COMPLETED"
+
   echo -e '\n*** Installation of CP2K dependencies completed ***\n'
 
 else
+
+  # Check if the CP2K dependencies have been built successfully
+  if [[ ! -f "${SPACK_BUILD_PATH}/BUILD_DEPENDENCIES_COMPLETED" ]]; then
+    echo "ERROR: The last build of the CP2K dependencies was not completed successfully"
+    echo "       Re-run the script with the \"--build_dependencies\" or \"-bd\" flag or"
+    echo "       remove the folder ${SPACK_BUILD_PATH}"
+    ${EXIT_CMD} 1
+  fi
 
   # Initialize Spack shell hooks
   # shellcheck source=/dev/null
@@ -682,7 +755,8 @@ if [[ ! -d "${CMAKE_BUILD_PATH}" ]]; then
   esac
   if ((EXIT_CODE != 0)); then
     echo "ERROR: The CMake configuration step failed with the error code ${EXIT_CODE}"
-    echo "       You can try to remove the build folder with 'rm -rf build' and re-run"
+    echo "       You can try to remove the build folder with 'rm -rf build' and re-runx"
+    echo "       or even start the whole CP2K installation from scratch with the \"-bd\" flag"
     ${EXIT_CMD} "${EXIT_CODE}"
   fi
 fi
