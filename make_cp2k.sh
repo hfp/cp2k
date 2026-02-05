@@ -523,7 +523,11 @@ if [[ ! -d "${SPACK_BUILD_PATH}" ]]; then
   spack mirror list
   if ! spack mirror list | grep -q "local-cache"; then
     echo "Setting up local spack cache"
-    "${CP2K_ROOT}"/tools/docker/scripts/setup_spack_cache.sh
+    if ((VERBOSE > 0)); then
+      "${CP2K_ROOT}"/tools/docker/scripts/setup_spack_cache.sh
+    else
+      "${CP2K_ROOT}"/tools/docker/scripts/setup_spack_cache.sh &> /dev/null
+    fi
   else
     echo "INFO: A local Spack cache is NOT used"
   fi
@@ -546,6 +550,33 @@ if [[ ! -d "${SPACK_BUILD_PATH}" ]]; then
   # Apply Cray specific adaptation of the spack configuration if requested
   if [[ "${CRAY}" == "yes" ]]; then
     sed -E -e 's/~xpmem/+xpmem/' -i "${CP2K_CONFIG_FILE}"
+  fi
+
+  # Find all compilers
+  if ! spack compiler find; then
+    echo "ERROR: The compiler detection of spack failed"
+    ${EXIT_CMD} 1
+  fi
+
+  # Retrieve the newest compiler version found by spack
+  GCC_VERSION_NEWEST="$(spack compilers | awk '/gcc/ {print $2}' | sort -V | tail -n 1)"
+  echo "The newest GCC compiler version found by spack is ${GCC_VERSION_NEWEST}"
+  GCC_VERSION_NEWEST="$(echo "${GCC_VERSION_NEWEST}" | sed -E 's/.*@([0-9]+).*/\1/' | cut -d. -f1)"
+
+  # Check if the newest compiler version found on the host system is new enough
+  GCC_VERSION_MINIMUM="10"
+  if ((GCC_VERSION_NEWEST < GCC_VERSION_MINIMUM)); then
+    echo "INFO: The newest GCC compiler version ${GCC_VERSION_NEWEST} is too old,"
+    echo "      because at least version ${GCC_VERSION_MINIMUM} is required"
+    GCC_VERSION="14"
+    echo "INFO: The lastest stable GCC version ${GCC_VERSION} will be built and used by spack"
+  fi
+
+  # Add a specific GCC version to the spack configuration if requested
+  if [[ "${GCC_VERSION}" == "auto" ]]; then
+    echo "Spack will automatically select the GCC version which is not necessarily the newest one found"
+  else
+    sed -E -e "s/gcc@10:/gcc@${GCC_VERSION}/" -i "${CP2K_CONFIG_FILE}"
   fi
 
   # Create CP2K environment if needed
@@ -588,60 +619,29 @@ if [[ ! -d "${SPACK_BUILD_PATH}" ]]; then
 
   spack -e ${CP2K_ENV} repo list
 
-  if [[ "${GCC_VERSION}" != "auto" ]]; then
-    # Ask spack to add the requested GCC version
-    if spack install --add "gcc@${GCC_VERSION}"; then
-      echo "GCC version \"${GCC_VERSION}\" added for installation by spack"
-    else
-      echo "ERROR: Adding GCC version \"${GCC_VERSION}\" for installation failed"
-      ${EXIT_CMD} 1
-    fi
-  fi
-
-  # Find all compilers
-  if ! spack compiler find; then
-    echo "ERROR: The compiler detection of spack failed"
-    ${EXIT_CMD} 1
-  fi
-
-  # Retrieve the newest compiler version found by spack
-  GCC_VERSION_NEWEST="$(spack compilers | awk '/gcc/ {print $2}' | sort -V | tail -n 1)"
-  echo "The newest GCC compiler version found by spack is ${GCC_VERSION_NEWEST}"
-  GCC_VERSION_NEWEST="$(echo "${GCC_VERSION_NEWEST}" | sed -E 's/.*@([0-9]+).*/\1/' | cut -d. -f1)"
-
-  # Check if the newest compiler version found on the host system is new enough
-  GCC_VERSION_MINIMUM="10"
-  if ((GCC_VERSION_NEWEST < GCC_VERSION_MINIMUM)); then
-    echo "ERROR: The selected GCC compiler version ${GCC_VERSION_NEWEST} is too old,"
-    echo "       because at least version ${GCC_VERSION_MINIMUM} is required"
-    ${EXIT_CMD} 1
-  fi
-
-  if [[ "${GCC_VERSION}" == "auto" ]]; then
-    echo "Spack will automatically select the GCC version which is not necessarily the newest one found"
-  fi
-
-  spack find -c
-
   # Find all external packages
   if [[ "${USE_EXTERNALS}" == "yes" ]]; then
     if ! spack -C "${SPACK_USER_CONFIG_PATH}" external find --not-buildable; then
       echo -e "\nERROR: The detection of externals by spack failed"
       ${EXIT_CMD} 1
     fi
-  fi
-
-  # Concretize CP2K dependencies
-  if ! spack -e "${CP2K_ENV}" --no-user-config --no-system-config concretize --fresh; then
-    echo -e "\nERROR: The spack concretize for environment \"${CP2K_ENV}\" failed"
-    if [[ "${USE_EXTERNALS}" == "yes" ]]; then
+    # Concretize CP2K dependencies
+    if ! spack -e "${CP2K_ENV}" concretize --fresh; then
+      echo -e "\nERROR: The spack concretize for environment \"${CP2K_ENV}\" failed"
       echo ""
       echo "HINT: The (-ue | --use_externals) flags can cause conflicts with outdated"
       echo "      packages on the host system, e.g. old python or gcc versions"
       echo ""
+      ${EXIT_CMD} 1
     fi
-    ${EXIT_CMD} 1
+  else
+    if ! spack -e "${CP2K_ENV}" --no-user-config --no-system-config concretize --fresh; then
+      echo -e "\nERROR: The spack concretize for environment \"${CP2K_ENV}\" failed"
+      ${EXIT_CMD} 1
+    fi
   fi
+
+  ((VERBOSE > 0)) && spack find -c
 
   # Create spack makefile for all dependencies
   if ! spack -e "${CP2K_ENV}" env depfile -o spack_makefile; then
@@ -656,6 +656,12 @@ if [[ ! -d "${SPACK_BUILD_PATH}" ]]; then
       echo "HINT:  Try to re-run the build with the --no_externals flag which avoids errors"
       echo "       or conflicts caused by externals from the host system"
     fi
+    ${EXIT_CMD} 1
+  fi
+
+  # Find all compilers
+  if ! spack compiler find; then
+    echo "ERROR: The compiler detection of spack failed"
     ${EXIT_CMD} 1
   fi
 
@@ -755,7 +761,7 @@ if [[ ! -d "${CMAKE_BUILD_PATH}" ]]; then
   esac
   if ((EXIT_CODE != 0)); then
     echo "ERROR: The CMake configuration step failed with the error code ${EXIT_CODE}"
-    echo "       You can try to remove the build folder with 'rm -rf build' and re-runx"
+    echo "       You can try to remove the build folder with 'rm -rf build' and re-run"
     echo "       or even start the whole CP2K installation from scratch with the \"-bd\" flag"
     ${EXIT_CMD} "${EXIT_CODE}"
   fi
@@ -894,14 +900,14 @@ else
   if [[ "${IN_CONTAINER}" == "yes" ]]; then
     echo ""
     echo "*** A regression test run can be launched with"
-    echo "    podman run -it --rm <image id> run_tests"
+    echo "    podman run -it --rm <IMAGE ID> run_tests"
     echo ""
     if [[ "${CP2K_VERSION}" == "ssmp"* ]]; then
       echo "*** A CP2K run using 8 OpenMP threads (default) can be launched with"
-      echo "    podman run -it --rm <image id> cp2k ${CP2K_ROOT}/benchmarks/CI/H2O-32_md.inp"
+      echo "    podman run -it --rm <IMAGE ID> cp2k ${CP2K_ROOT}/benchmarks/CI/H2O-32_md.inp"
     else
       echo "*** An MPI-parallel CP2K run using 2 OpenMP threads for each of the 4 MPI ranks can be launched with"
-      echo "    podman run -it --rm <image id> mpiexec -n 4 ${ENV_VAR_FLAG} OMP_NUM_THREADS=2 cp2k ${CP2K_ROOT}/benchmarks/CI/H2O-32_md.inp"
+      echo "    podman run -it --rm <IMAGE ID> mpiexec -n 4 ${ENV_VAR_FLAG} OMP_NUM_THREADS=2 cp2k ${CP2K_ROOT}/benchmarks/CI/H2O-32_md.inp"
     fi
     echo ""
   else
