@@ -6,9 +6,9 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")/.." && pwd -P)"
 
-plumed_ver="2.9.3"
+plumed_ver="2.10.0"
 plumed_pkg="plumed-src-${plumed_ver}.tgz"
-plumed_sha256="aa51602021c9e425848c0f05e04384b1ba7154a929738d9bcf7afc5152614788"
+plumed_sha256="a47791bb0178599743be55416679820bdf0afe7be565644ae98fc23749dee945"
 
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh
@@ -114,7 +114,7 @@ prepend_path LIBRARY_PATH "$pkg_install_dir/lib"
 prepend_path PKG_CONFIG_PATH "$pkg_install_dir/lib/pkgconfig"
 prepend_path CMAKE_PREFIX_PATH "$pkg_install_dir"
 EOF
-    cat "${BUILDDIR}/setup_plumed" >> $SETUPFILE
+    filter_setup "${BUILDDIR}/setup_plumed" "${SETUPFILE}"
   fi
   cat << EOF >> "${BUILDDIR}/setup_plumed"
 export PLUMED_LDFLAGS="${PLUMED_LDFLAGS}"

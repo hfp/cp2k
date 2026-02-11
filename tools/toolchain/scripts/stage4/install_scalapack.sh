@@ -72,12 +72,12 @@ case "$with_scalapack" in
   __SYSTEM__)
     echo "==================== Finding ScaLAPACK from system paths ===================="
     check_lib -lscalapack "ScaLAPACK"
-    pkg_install_dir=$(
-      result=$(find_in_paths "libscalapack.a" $LIB_PATHS)
-      [ "$result" = "__FALSE__" ] && result=$(find_in_paths "libscalapack.so" $LIB_PATHS)
-      [ "$result" != "__FALSE__" ] && dirname $(dirname "$result")
-    )
-    add_lib_from_paths SCALAPACK_LDFLAGS "libscalapack.*" $LIB_PATHS
+    pkg_install_dir="$(dirname $(dirname $(find_in_paths "libscalapack*" $LIB_PATHS)))"
+    # Deal with the condition that libscalapack is installed in "/usr/lib/x86_64-linux-gnu"
+    if [[ "${pkg_install_dir}" == "/usr/lib"* ]]; then
+      pkg_install_dir="/usr"
+    fi
+    add_lib_from_paths SCALAPACK_LDFLAGS "libscalapack*" $LIB_PATHS
     ;;
   __DONTUSE__) ;;
 
@@ -111,7 +111,7 @@ export CP_DFLAGS="\${CP_DFLAGS} IF_MPI(-D__parallel|)"
 export CP_LDFLAGS="\${CP_LDFLAGS} IF_MPI(${SCALAPACK_LDFLAGS}|)"
 export CP_LIBS="IF_MPI(-lscalapack|) \${CP_LIBS}"
 EOF
-  cat "${BUILDDIR}/setup_scalapack" >> $SETUPFILE
+  filter_setup "${BUILDDIR}/setup_scalapack" "${SETUPFILE}"
 fi
 cd "${ROOTDIR}"
 

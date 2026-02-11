@@ -70,12 +70,13 @@ case "$with_fftw" in
     check_lib -lfftw3 "FFTW"
     check_lib -lfftw3_omp "FFTW"
     [ "${MPI_MODE}" != "no" ] && check_lib -lfftw3_mpi "FFTW"
-    pkg_install_dir=$(
-      result=$(find_in_paths "libfftw3.a" $LIB_PATHS)
-      [ "$result" = "__FALSE__" ] && result=$(find_in_paths "libfftw3.so" $LIB_PATHS)
-      [ "$result" != "__FALSE__" ] && dirname $(dirname "$result")
-    )
-    INCLUDE_PATHS=${INCLUDE_PATHS}:"$pkg_install_dir/include"
+    pkg_install_dir="$(dirname $(dirname $(find_in_paths "libfftw3.*" $LIB_PATHS)))"
+    # Deal with the condition that libfftw3 is installed in "/usr/lib/x86_64-linux-gnu"
+    if [[ "${pkg_install_dir}" == "/usr/lib"* ]]; then
+      pkg_install_dir="/usr"
+    else
+      INCLUDE_PATHS=${INCLUDE_PATHS}:"$pkg_install_dir/include"
+    fi
     add_include_from_paths FFTW_CFLAGS "fftw3.h" FFTW_INC ${INCLUDE_PATHS}
     add_lib_from_paths FFTW_LDFLAGS "libfftw3.*" ${LIB_PATHS}
     ;;
@@ -119,7 +120,7 @@ export CP_LIBS="${FFTW_LIBS} \${CP_LIBS}"
 export FFTW_ROOT="${FFTW_ROOT:-${pkg_install_dir}}"
 export FFTW3_ROOT="${FFTW_ROOT:-${pkg_install_dir}}"
 EOF
-  cat "${BUILDDIR}/setup_fftw" >> $SETUPFILE
+  filter_setup "${BUILDDIR}/setup_fftw" "${SETUPFILE}"
 fi
 cd "${ROOTDIR}"
 

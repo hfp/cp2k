@@ -7,7 +7,7 @@
 # by sourcing this file inside other scripts.
 
 SYS_INCLUDE_PATH=${SYS_INCLUDE_PATH:-"/usr/local/include:/usr/include"}
-SYS_LIB_PATH=${SYS_LIB_PATH:-"/usr/local/lib64:/usr/local/lib:/usr/lib64:/usr/lib:/lib64:/lib"}
+SYS_LIB_PATH=${SYS_LIB_PATH:-"/usr/local/lib64:/usr/local/lib:/usr/lib64:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/lib/aarch-linux-gnu:/lib64:/lib"}
 INCLUDE_PATHS=${INCLUDE_PATHS:-"CPATH SYS_INCLUDE_PATH"}
 LIB_PATHS=${LIB_PATHS:-"LIBRARY_PATH LD_LIBRARY_PATH LD_RUN_PATH SYS_LIB_PATH"}
 time_start=$(date +%s)
@@ -702,4 +702,20 @@ write_toolchain_env() {
 
     export -p
   ) > "${__installdir}/toolchain.env"
+}
+
+# Write a setup file without containing flags unnecessay for building and running CP2K
+filter_setup() {
+  local source_file="$1"
+  local target_file="$2"
+
+  # Check if setup_xxx file exists
+  if [[ ! -f "$source_file" ]]; then
+    report_error "File '$source_file' does not exist."
+    return 1
+  fi
+
+  local filename=$(basename "$source_file")
+  echo "# ==================== Setup for ${filename#*_} ==================== #" >> "$target_file"
+  sed '/if[[:space:]]/,/^[[:space:]]*fi$/d' "$source_file" | grep -v -E '# For|# Other|CPATH|FLAGS|CP_LIBS' >> "$target_file"
 }

@@ -19,9 +19,6 @@ source "${INSTALLDIR}"/toolchain.env
 [ ${MPI_MODE} != "mpich" ] && exit 0
 [ -f "${BUILDDIR}/setup_mpich" ] && rm "${BUILDDIR}/setup_mpich"
 
-MPICH_CFLAGS=""
-MPICH_LDFLAGS=""
-MPICH_LIBS=""
 ! [ -d "${BUILDDIR}" ] && mkdir -p "${BUILDDIR}"
 cd "${BUILDDIR}"
 
@@ -136,6 +133,11 @@ export MPI_CFLAGS="${MPICH_CFLAGS}"
 export MPI_LDFLAGS="${MPICH_LDFLAGS}"
 export MPI_LIBS="${MPICH_LIBS}"
 export CP_DFLAGS="\${CP_DFLAGS} IF_MPI(-D__parallel|)"
+# For proper mpi_f08 support, we need at least GCC version 9 (asynchronous keyword)
+# Other compilers should work
+  if ! [ "\$(gfortran -dumpversion | cut -d. -f1)" -lt 9 ]; then
+    export CP_DFLAGS="\${CP_DFLAGS} IF_MPI(-D__MPI_F08|)"
+  fi
 export CP_CFLAGS="\${CP_CFLAGS} IF_MPI(${MPICH_CFLAGS}|)"
 export CP_LDFLAGS="\${CP_LDFLAGS} IF_MPI(${MPICH_LDFLAGS}|)"
 export CP_LIBS="\${CP_LIBS} IF_MPI(${MPICH_LIBS}|)"
@@ -152,7 +154,7 @@ append_path CPATH "${pkg_install_dir}/include"
 prepend_path PKG_CONFIG_PATH "${pkg_install_dir}/lib/pkgconfig"
 EOF
   fi
-  cat "${BUILDDIR}/setup_mpich" >> ${SETUPFILE}
+  filter_setup "${BUILDDIR}/setup_mpich" "${SETUPFILE}"
 fi
 
 # Update leak suppression file

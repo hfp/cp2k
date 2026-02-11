@@ -1,0 +1,82 @@
+#
+# This file was created by generate_dockerfiles.py.
+# Usage: ./spack_cache_start.sh; podman build --network=host --shm-size=1g -f ./Dockerfile.test_spack_ssmp-static ../../
+#
+
+ARG BASE_IMAGE="ubuntu:24.04"
+
+###### Stage 1: Build CP2K ######
+
+FROM "${BASE_IMAGE}" AS build_cp2k
+
+RUN apt-get update -qq && apt-get install -qq --no-install-recommends \
+    bzip2 \
+    ca-certificates \
+    cmake \
+    g++ gcc gfortran \
+    git \
+    gnupg \
+    libssh-dev \
+    libssl-dev \
+    libtool \
+    libtool-bin \
+    lsb-release \
+    make \
+    ninja-build \
+    patch \
+    pkgconf \
+    python3 \
+    python3-dev \
+    python3-pip \
+    python3-venv \
+    unzip \
+    wget \
+    xxd \
+    xz-utils \
+    zstd \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG SPACK_CACHE="s3://spack-cache --s3-endpoint-url=http://localhost:9000"
+
+# Copy CP2K repository into container
+WORKDIR /opt
+COPY . cp2k/
+
+# Build CP2K dependencies
+WORKDIR /opt/cp2k
+RUN /bin/bash -o pipefail -c "source ./make_cp2k.sh -bd_only -cv ssmp-static -gv 14 -mpi no "
+
+# Build and install CP2K
+RUN /bin/bash -o pipefail -c "source ./make_cp2k.sh -cv ssmp-static -gv 14 -mpi no"
+
+###### Stage 2: Install CP2K ######
+
+FROM "${BASE_IMAGE}" AS install_cp2k
+
+RUN apt-get update -qq && apt-get install -qq --no-install-recommends \
+    g++ gcc gfortran \
+    python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/cp2k
+
+# Install CP2K dependencies built with spack
+COPY --from=build_cp2k /opt/cp2k/spack/spack-1.1.0/opt/spack ./spack/spack-1.1.0/opt/spack
+
+# Install CP2K
+COPY --from=build_cp2k /opt/cp2k/install ./install
+
+# Install CP2K regression tests
+COPY --from=build_cp2k /opt/cp2k/tests ./tests
+COPY --from=build_cp2k /opt/cp2k/src/grid/sample_tasks ./src/grid/sample_tasks
+
+# Install CP2K/Quickstep CI benchmarks
+COPY --from=build_cp2k /opt/cp2k/benchmarks/CI ./benchmarks/CI
+
+# Run CP2K regression test
+RUN /bin/bash -o pipefail -c "/opt/cp2k/install/bin/launch /opt/cp2k/install/bin/run_tests "
+
+# Create entrypoint and finalise container build
+WORKDIR /mnt
+ENTRYPOINT ["/opt/cp2k/install/bin/launch"]
+CMD ["cp2k", "--help", "--version"]

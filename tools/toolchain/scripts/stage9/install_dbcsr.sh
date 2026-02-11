@@ -49,6 +49,9 @@ case "${with_dbcsr}" in
         CMAKE_OPTIONS="${CMAKE_OPTIONS} -DUSE_MPI=OFF"
       else
         CMAKE_OPTIONS="${CMAKE_OPTIONS} -DUSE_MPI=ON"
+        if [ -n "$(grep "MPI_F08" "${INSTALLDIR}"/toolchain.env)" ]; then
+          CMAKE_OPTIONS="${CMAKE_OPTIONS} -DCP2K_USE_MPI_F08=ON"
+        fi
       fi
       cmake \
         -DCMAKE_INSTALL_PREFIX=${pkg_install_dir} \
@@ -146,7 +149,7 @@ else
   touch "${BUILDDIR}/setup_dbcsr"
 fi
 
-cat "${BUILDDIR}/setup_dbcsr" >> ${SETUPFILE}
+filter_setup "${BUILDDIR}/setup_dbcsr" "${SETUPFILE}"
 
 load "${BUILDDIR}/setup_dbcsr"
 write_toolchain_env "${INSTALLDIR}"

@@ -5,8 +5,8 @@
 
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")/.." && pwd -P)"
-spglib_ver="2.5.0"
-spglib_sha256="b6026f5e85106c0c9ee57e54b9399890d0f29982e20e96ede0428b3efbe6b914"
+spglib_ver="2.7.0"
+spglib_sha256="b22fc9abae9716c574fbc6d55cfc53ed654a714fccc5657a26ff5d18114bd8bd"
 
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh
@@ -100,7 +100,7 @@ export CP_CFLAGS="\${CP_CFLAGS} ${SPGLIB_CFLAGS}"
 export CP_LDFLAGS="\${CP_LDFLAGS} ${SPGLIB_LDFLAGS}"
 export CP_LIBS="${SPGLIB_LIBS} \${CP_LIBS}"
 EOF
-  cat "${BUILDDIR}/setup_spglib" >> $SETUPFILE
+  filter_setup "${BUILDDIR}/setup_spglib" "${SETUPFILE}"
 fi
 
 load "${BUILDDIR}/setup_spglib"

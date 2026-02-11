@@ -6,8 +6,8 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")/.." && pwd -P)"
 
-openblas_ver="0.3.30" # Keep in sync with get_openblas_arch.sh
-openblas_sha256="27342cff518646afb4c2b976d809102e368957974c250a25ccc965e53063c95d"
+openblas_ver="0.3.31" # Keep in sync with get_openblas_arch.sh
+openblas_sha256="6dd2a63ac9d32643b7cc636eab57bf4e57d0ed1fff926dfbc5d3d97f2d2be3a6"
 openblas_pkg="OpenBLAS-${openblas_ver}.tar.gz"
 
 source "${SCRIPT_DIR}"/common_vars.sh
@@ -105,15 +105,16 @@ case "${with_openblas}" in
     echo "==================== Finding OpenBLAS from system paths ===================="
     # assume that system openblas is threaded
     check_lib -lopenblas "OpenBLAS"
-    pkg_install_dir=$(
-      result=$(find_in_paths "libopenblas.a" $LIB_PATHS)
-      [ "$result" = "__FALSE__" ] && result=$(find_in_paths "libopenblas.so" $LIB_PATHS)
-      [ "$result" != "__FALSE__" ] && dirname $(dirname "$result")
-    )
-    INCLUDE_PATHS=${INCLUDE_PATHS}:"$pkg_install_dir/include"
     # detect separate omp builds
     check_lib -lopenblas_openmp 2> /dev/null && OPENBLAS_LIBS="-lopenblas_openmp"
     check_lib -lopenblas_omp 2> /dev/null && OPENBLAS_LIBS="-lopenblas_omp"
+    pkg_install_dir="$(dirname $(dirname $(find_in_paths "libopenblas.*" $LIB_PATHS)))"
+    # Deal with the condition that libopenblas is installed in "/usr/lib/x86_64-linux-gnu"
+    if [[ "${pkg_install_dir}" == "/usr/lib"* ]]; then
+      pkg_install_dir="/usr"
+    else
+      INCLUDE_PATHS=${INCLUDE_PATHS}:"$pkg_install_dir/include"
+    fi
     add_include_from_paths OPENBLAS_CFLAGS "openblas_config.h" $INCLUDE_PATHS
     add_lib_from_paths OPENBLAS_LDFLAGS "libopenblas.*" $LIB_PATHS
     OPENBLAS_LIBS="-lopenblas"
@@ -159,7 +160,7 @@ export MATH_LIBS="\${MATH_LIBS} ${OPENBLAS_LIBS}"
 prepend_path PKG_CONFIG_PATH "${pkg_install_dir}/lib/pkgconfig"
 prepend_path CMAKE_PREFIX_PATH "${pkg_install_dir}"
 EOF
-  cat "${BUILDDIR}/setup_openblas" >> $SETUPFILE
+  filter_setup "${BUILDDIR}/setup_openblas" "${SETUPFILE}"
 fi
 
 load "${BUILDDIR}/setup_openblas"
