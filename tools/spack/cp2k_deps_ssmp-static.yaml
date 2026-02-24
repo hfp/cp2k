@@ -1,4 +1,6 @@
-# Spack environment file for a serial statically linked CP2K binary
+# Spack environment file for a serial statically linked CP2K binary with all available dependencies
+
+# Edit this file with care because it is automatically changed by the make_cp2k.sh script
 
 spack:
   concretizer:
@@ -11,9 +13,11 @@ spack:
 
   modules:
     prefix_inspections:
-      ./lib:
+      bin:
+        - PATH
+      lib:
         - LD_LIBRARY_PATH
-      ./lib64:
+      lib64:
         - LD_LIBRARY_PATH
 
   packages:
@@ -82,19 +86,23 @@ spack:
       require:
         - "~shared"
 
+  repos:
+    builtin:
+      commit: 89e70e65e55b27552f6ac07df2970e62adb9b3e2 # 2026-02-13
+
   specs:
     # Build tools
     - "cmake@3.27:"
     - "gcc@10:"
     - "gmake@4.2:"
-    - "ninja@1.10:"
+    - "ninja@1.13"
     - "python@3.11:"
     # CP2K
     - "dbcsr@2.9.1"
     - "dftd4@3.7.0"
     - "fftw@3.3.10"
 #   - "hdf5@1.14.6"
-    - "libint@2.11.1"
+    - "libint@2.11.2"
     - "libvori@220621"
     - "libxc@7.0.0"
     - "libxsmm@1.17-cp2k"

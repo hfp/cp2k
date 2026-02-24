@@ -1,9 +1,9 @@
 #
 # This file was created by generate_dockerfiles.py.
-# Usage: ./spack_cache_start.sh; podman build --network=host --shm-size=1g -f ./Dockerfile.test_spack_psmp-gcc11 ../../
+# Usage: ./spack_cache_start.sh; podman build --network=host --shm-size=1g -f ./Dockerfile.test_spack_ssmp-P100 ../../
 #
 
-ARG BASE_IMAGE="ubuntu:24.04"
+ARG BASE_IMAGE="docker.io/nvidia/cuda:12.9.1-devel-ubuntu24.04"
 
 ###### Stage 1: Build CP2K dependencies ######
 
@@ -13,7 +13,7 @@ RUN apt-get update -qq && apt-get install -qq --no-install-recommends \
     bzip2 \
     ca-certificates \
     cmake \
-    g++ g++-11 gcc gcc-11 gfortran gfortran-11 \
+    g++ g++-13 gcc gcc-13 gfortran gfortran-13 \
     git \
     gnupg \
     libssh-dev \
@@ -35,6 +35,13 @@ RUN apt-get update -qq && apt-get install -qq --no-install-recommends \
     zstd \
     && rm -rf /var/lib/apt/lists/*
 
+# Setup CUDA environment
+ENV LD_LIBRARY_PATH /usr/local/cuda/lib64
+
+# Disable JIT cache as there seems to be an issue with file locking on overlayfs
+# See also https://github.com/cp2k/cp2k/pull/2337
+ENV CUDA_CACHE_DISABLE 1
+
 ARG SPACK_CACHE="s3://spack-cache --s3-endpoint-url=http://localhost:9000"
 
 # Copy CP2K repository into container
@@ -43,22 +50,29 @@ COPY . cp2k/
 
 # Build CP2K dependencies
 WORKDIR /opt/cp2k
-RUN ./make_cp2k.sh -bd_only -cv psmp -gpu none -gv 11 -mpi mpich -ue -ef openpmd
+RUN ./make_cp2k.sh -bd_only -cv ssmp -gpu P100 -gv 13 -mpi no -ue 
 
 ###### Stage 2: Build CP2K ######
 
 FROM build_deps AS build_cp2k
 
-RUN ./make_cp2k.sh -cv psmp -gv 11 -gpu none -mpi mpich -ef openpmd
+RUN ./make_cp2k.sh -cv ssmp -gv 13 -gpu P100 -mpi no 
 
 ###### Stage 3: Install CP2K ######
 
 FROM "${BASE_IMAGE}" AS install_cp2k
 
 RUN apt-get update -qq && apt-get install -qq --no-install-recommends \
-    g++ g++-11 gcc gcc-11 gfortran gfortran-11 \
+    g++ g++-13 gcc gcc-13 gfortran gfortran-13 \
     python3 \
     && rm -rf /var/lib/apt/lists/*
+
+# Setup CUDA environment
+ENV LD_LIBRARY_PATH /usr/local/cuda/lib64
+
+# Disable JIT cache as there seems to be an issue with file locking on overlayfs
+# See also https://github.com/cp2k/cp2k/pull/2337
+ENV CUDA_CACHE_DISABLE 1
 
 WORKDIR /opt/cp2k
 
@@ -80,7 +94,7 @@ COPY --from=build_cp2k /etc/ld.so.conf.d/cp2k.conf /etc/ld.so.conf.d/cp2k.conf
 RUN ldconfig
 
 # Run CP2K regression test
-RUN /opt/cp2k/install/bin/launch /opt/cp2k/install/bin/run_tests 
+RUN /opt/cp2k/install/bin/launch /opt/cp2k/install/bin/run_tests --keepalive
 
 # Create entrypoint and finalise container build
 WORKDIR /mnt

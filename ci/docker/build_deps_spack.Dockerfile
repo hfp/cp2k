@@ -7,7 +7,7 @@
 #
 # Stage 1: Create a base image providing the dependencies for building a CP2K binary
 
-ARG BASE_IMAGE="ubuntu:24.04"
+ARG BASE_IMAGE=${BASE_IMAGE:-ubuntu:24.04}
 
 FROM "${BASE_IMAGE}" AS build_deps
 
@@ -19,15 +19,12 @@ RUN apt-get update -qq && apt-get install -qq --no-install-recommends \
     g++ gcc gfortran \
     git \
     gnupg \
-    hwloc \
-    libhwloc-dev \
     libssh-dev \
     libssl-dev \
     libtool \
     libtool-bin \
     lsb-release \
     make \
-    ninja-build \
     patch \
     pkgconf \
     python3 \
@@ -48,10 +45,13 @@ ENV NUM_PROCS=${NUM_PROCS:-32}
 ARG CP2K_VERSION
 ENV CP2K_VERSION=${CP2K_VERSION:-psmp}
 
+ARG FEATURE_FLAGS
+ENV FEATURE_FLAGS=${FEATURE_FLAGS:-}
+
 # Copy CP2K repository into container
 WORKDIR /opt
 COPY . cp2k/
 
 # Build CP2K dependencies
 WORKDIR /opt/cp2k
-RUN /bin/bash -o pipefail -c "source ./make_cp2k.sh -bd_only -cray -cv ${CP2K_VERSION} -dlc -j${NUM_PROCS}"
+RUN ./make_cp2k.sh -bd_only -cray -cv ${CP2K_VERSION} -dlc -j${NUM_PROCS} ${FEATURE_FLAGS}

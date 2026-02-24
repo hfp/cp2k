@@ -8,20 +8,20 @@ stages:
   - benchmark
 
 variables:
-  REPOSITORY: cp2k_eiger
+  REPOSITORY: cp2k_daint
   BUILDER: spack
   VERSION: psmp
-  TAG: "${BUILDER}_${VERSION}"
-  UBUNTU_IMAGE_NAME: "ubuntu:24.04"
+  TAG: "${BUILDER}_${VERSION}_h100"
+  UBUNTU_IMAGE_NAME: "docker.io/nvidia/cuda:12.4.1-devel-ubuntu22.04"
   CSCS_IMAGE_NAME: "${CSCS_REGISTRY_PATH}/${REPOSITORY}:${TAG}_${CI_COMMIT_SHORT_SHA}"
   DOCKERHUB_IMAGE_NAME: "docker.io/${DOCKERHUB_USERNAME}/${REPOSITORY}:${TAG}"
 
-build deps eiger:
-  extends: .container-builder-cscs-zen2
+build deps daint:
+  extends: .container-builder-cscs-gh200
   stage: deps
   timeout: 1h
   before_script:
-    - DEPS_IMAGE_TAG=`cat ci/cscs_eiger_${TAG}.yaml ci/docker/build_${CI_JOB_STAGE}_${BUILDER}.Dockerfile $(find tools/spack -type f) $(find cmake -type f) | sha256sum - | head -c 16`
+    - DEPS_IMAGE_TAG=`cat ci/cscs_daint_${TAG}.yaml ci/docker/build_${CI_JOB_STAGE}_${BUILDER}.Dockerfile $(find tools/spack -type f) $(find cmake -type f) | sha256sum - | head -c 16`
     - export PERSIST_IMAGE_NAME=${CSCS_REGISTRY_PATH}/base/${REPOSITORY}:${TAG}_${DEPS_IMAGE_TAG}
     - echo "DEPS_IMAGE_NAME=${PERSIST_IMAGE_NAME}" | tee build.env
   artifacts:
@@ -36,12 +36,12 @@ build deps eiger:
     DOCKERFILE: ci/docker/build_${CI_JOB_STAGE}_${BUILDER}.Dockerfile
     BASE_IMAGE: ${UBUNTU_IMAGE_NAME}
     CP2K_VERSION: ${VERSION}
-    FEATURE_FLAGS: "-ef openpmd"
+    FEATURE_FLAGS: "-gpu H100"
 
-build cp2k eiger:
-  extends: .container-builder-cscs-zen2
+build cp2k daint:
+  extends: .container-builder-cscs-gh200
   stage: cp2k
-  needs: ["build deps eiger"]
+  needs: ["build deps daint"]
   timeout: 1h
   before_script:
     - echo ${DOCKERHUB_TOKEN} | podman login docker.io --username ${DOCKERHUB_USERNAME} --password-stdin
@@ -57,18 +57,17 @@ build cp2k eiger:
     DOCKERFILE: ci/docker/build_${CI_JOB_STAGE}_${BUILDER}.Dockerfile
     BASE_IMAGE: ${UBUNTU_IMAGE_NAME}
     DEPS_IMAGE: ${DEPS_IMAGE_NAME}
-    FEATURE_FLAGS: "-ef openpmd"
+    FEATURE_FLAGS: "-gpu H100"
     PERSIST_IMAGE_NAME: ${CSCS_IMAGE_NAME}
 
-test cp2k eiger:
-  extends: .baremetal-runner-eiger-zen2
+test cp2k daint:
+  extends: .baremetal-runner-daint-gh200
   stage: test
-  needs: ["build cp2k eiger"]
+  needs: ["build cp2k daint"]
   timeout: 1h
   script:
-    - podman run --shm-size=1g -v ${PWD}:/mnt ${DOCKERHUB_IMAGE_NAME} mpiexec -genv OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK} -n ${SLURM_NTASKS} cp2k /opt/cp2k/benchmarks/CI/H2O-32_md.inp
+    - podman run --device nvidia.com/gpu=0 --shm-size=1g -v ${PWD}:/mnt ${DOCKERHUB_IMAGE_NAME} mpiexec -bind-to socket -genv OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK} -n ${SLURM_NTASKS} cp2k /opt/cp2k/benchmarks/CI/H2O-32_md.inp
   variables:
-    SLURM_CONSTRAINT: mc
     SLURM_CPUS_PER_TASK: 4
     SLURM_DEBUG: 1
     SLURM_HINT: nomultithread
@@ -78,63 +77,41 @@ test cp2k eiger:
     SLURM_TIMELIMIT: 10
     USE_MPI: YES
 
-regression test cp2k eiger:
-  extends: .baremetal-runner-eiger-zen2
+regression test cp2k daint:
+  extends: .baremetal-runner-daint-gh200
   stage: test
-  needs: ["build cp2k eiger","test cp2k eiger"]
+  needs: ["build cp2k daint","test cp2k daint"]
   timeout: 1h
   script:
     - git --no-pager log -1 --pretty="%nCommitSHA:%x20%H%nCommitTime:%x20%ci%nCommitAuthor:%x20%an%nCommitSubject:%x20%s%n"
-    - podman run --shm-size=1g -v ${PWD}:/mnt ${DOCKERHUB_IMAGE_NAME} /opt/cp2k/tests/do_regtest.py --cp2kdatadir /opt/cp2k/install/share/cp2k/data --maxtasks ${SLURM_NTASKS} --mpiexec "mpiexec -bind-to none" --keepalive /opt/cp2k/install/bin ${VERSION} 2>&1 || true
+    - podman run --device nvidia.com/gpu=all --shm-size=1g -v ${PWD}:/mnt ${DOCKERHUB_IMAGE_NAME} /opt/cp2k/tests/do_regtest.py --cp2kdatadir /opt/cp2k/install/share/cp2k/data --maxtasks ${SLURM_NTASKS} --mpiexec "mpiexec -bind-to none" --keepalive /opt/cp2k/install/bin ${VERSION} 2>&1 || true
   variables:
-    SLURM_CONSTRAINT: mc
     SLURM_DEBUG: 1
     SLURM_HINT: nomultithread
     SLURM_JOB_NUM_NODES: 1
-    SLURM_NTASKS: 128
+    SLURM_NTASKS: 224
     SLURM_TIMELIMIT: 40
     USE_MPI: YES
 
-benchmark cp2k 1 eiger node:
-  extends: .container-runner-eiger-zen2
+benchmark cp2k 1 daint node:
+  extends: .container-runner-daint-gh200
   stage: benchmark
-  needs: ["build cp2k eiger","test cp2k eiger","regression test cp2k eiger"]
+  needs: ["build cp2k daint","test cp2k daint"]
   timeout: 1h
   image: ${CSCS_IMAGE_NAME}
   before_script:
     - export CP2K_DATA_DIR=/opt/cp2k/install/share/cp2k/data
+    - export OMP_NUM_THREADS=3
   script:
-    - cp2k.popt /opt/cp2k/benchmarks/CI/H2O-128_md.inp
+    - cp2k /opt/cp2k/benchmarks/CI/H2O-512_md.inp
   variables:
-    SLURM_CONSTRAINT: mc
-    SLURM_CPUS_PER_TASK: 1
+    SLURM_CPU_BIND: cores
+    SLURM_CPUS_PER_TASK: 3
     SLURM_DEBUG: 1
     SLURM_HINT: nomultithread
     SLURM_JOB_NUM_NODES: 1
     SLURM_MPI_TYPE: pmi2
-    SLURM_NTASKS: 128
-    SLURM_NTASKS_PER_NODE: 128
-    SLURM_TIMELIMIT: 30
-    USE_MPI: YES
-
-benchmark cp2k 2 eiger nodes:
-  extends: .container-runner-eiger-zen2
-  stage: benchmark
-  needs: ["build cp2k eiger","test cp2k eiger","regression test cp2k eiger"]
-  timeout: 1h
-  image: ${CSCS_IMAGE_NAME}
-  before_script:
-    - export CP2K_DATA_DIR=/opt/cp2k/install/share/cp2k/data
-  script:
-    - cp2k.popt /opt/cp2k/benchmarks/CI/H2O-512_md.inp
-  variables:
-    SLURM_CONSTRAINT: mc
-    SLURM_CPUS_PER_TASK: 1
-    SLURM_DEBUG: 1
-    SLURM_HINT: nomultithread
-    SLURM_JOB_NUM_NODES: 2
-    SLURM_MPI_TYPE: pmi2
-    SLURM_NTASKS: 256
-    SLURM_NTASKS_PER_NODE: 128
+    SLURM_NTASKS: 72
+    SLURM_NTASKS_PER_NODE: 72
     SLURM_TIMELIMIT: 30
     USE_MPI: YES

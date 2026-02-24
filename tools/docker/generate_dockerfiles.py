@@ -56,14 +56,21 @@ def main() -> None:
     # Spack/CMake based testers
 
     with OutputFile(f"Dockerfile.test_spack_psmp", args.check) as f:
-        f.write(install_cp2k_spack("psmp", mpi_mode="mpich"))
+        f.write(
+            install_cp2k_spack("psmp", mpi_mode="mpich", feature_flags="-ef openpmd")
+        )
 
     for gcc_version in 10, 11, 12, 14, 15:
         with OutputFile(
             f"Dockerfile.test_spack_psmp-gcc{gcc_version}", args.check
         ) as f:
             f.write(
-                install_cp2k_spack("psmp", mpi_mode="mpich", gcc_version=gcc_version)
+                install_cp2k_spack(
+                    "psmp",
+                    mpi_mode="mpich",
+                    gcc_version=gcc_version,
+                    feature_flags="-ef openpmd",
+                )
             )
 
     with OutputFile(f"Dockerfile.test_spack_ssmp-rawhide", args.check) as f:
@@ -83,6 +90,7 @@ def main() -> None:
                 mpi_mode="mpich",
                 base_image="fedora:rawhide",
                 gcc_version=16,
+                feature_flags="-ef openpmd",
             )
         )
 
@@ -93,6 +101,7 @@ def main() -> None:
                 mpi_mode="mpich",
                 base_image="fedora:latest",
                 gcc_version=15,
+                feature_flags="-ef openpmd",
             )
         )
 
@@ -103,21 +112,64 @@ def main() -> None:
                 mpi_mode="mpich",
                 base_image="opensuse/leap:15.6",
                 gcc_version=14,
+                feature_flags="-ef openpmd",
+            )
+        )
+
+    with OutputFile(f"Dockerfile.test_spack_psmp-rockylinux", args.check) as f:
+        f.write(
+            install_cp2k_spack(
+                "psmp",
+                mpi_mode="mpich",
+                base_image="docker.io/rockylinux/rockylinux:10",
+                gcc_version=14,
+                feature_flags="-df libxsmm -ef openpmd",
             )
         )
 
     with OutputFile(f"Dockerfile.test_spack_psmp-4x2", args.check) as f:
         testopts = f"--mpiranks=4 --ompthreads=2"
-        f.write(install_cp2k_spack("psmp", mpi_mode="mpich", testopts=testopts))
+        f.write(
+            install_cp2k_spack(
+                "psmp", mpi_mode="mpich", testopts=testopts, feature_flags="-ef openpmd"
+            )
+        )
 
     with OutputFile(f"Dockerfile.test_spack_openmpi-psmp", args.check) as f:
-        f.write(install_cp2k_spack("psmp", mpi_mode="openmpi"))
+        f.write(
+            install_cp2k_spack("psmp", mpi_mode="openmpi", feature_flags="-ef openpmd")
+        )
 
     with OutputFile(f"Dockerfile.test_spack_ssmp", args.check) as f:
         f.write(install_cp2k_spack("ssmp", mpi_mode="no"))
 
     with OutputFile(f"Dockerfile.test_spack_ssmp-static", args.check) as f:
         f.write(install_cp2k_spack("ssmp-static", mpi_mode="no", gcc_version=14))
+
+    with OutputFile(f"Dockerfile.test_spack_ssmp-P100", args.check) as f:
+        f.write(
+            install_cp2k_spack(
+                "ssmp",
+                mpi_mode="no",
+                base_image="docker.io/nvidia/cuda:12.9.1-devel-ubuntu24.04",
+                gcc_version=13,
+                gpu_model="P100",
+                testopts="--keepalive",
+            )
+        )
+
+    with OutputFile(f"Dockerfile.test_spack_psmp-P100", args.check) as f:
+        f.write(
+            install_cp2k_spack(
+                "psmp",
+                mpi_mode="mpich",
+                base_image="docker.io/nvidia/cuda:12.9.1-devel-ubuntu24.04",
+                gcc_version=13,
+                gpu_model="P100",
+                feature_flags="-ef openpmd",
+                testopts="--keepalive",
+            )
+        )
 
     # End Spack/CMake based tester
 
@@ -611,13 +663,17 @@ def install_cp2k_spack(
     mpi_mode: str,
     base_image: str = "ubuntu:24.04",
     gcc_version: int = 13,
+    gpu_model: str = "none",
+    feature_flags: str = "",
     testopts: str = "",
 ) -> str:
     # Ubuntu 24.04 provides no gcc-15 package whereas GCC 15 is the default for fedora:43
-    if gcc_version == 15 or base_image.startswith("fedora:"):
+    if gcc_version == 15 or "fedora" in base_image:
         gcc_compilers = "g++ gcc gfortran"
-    elif base_image.startswith("opensuse/leap:"):
+    elif "opensuse/leap" in base_image:
         gcc_compilers = f"gcc gcc{gcc_version} gcc-c++ gcc{gcc_version}-c++ gcc-fortran gcc{gcc_version}-fortran"
+    elif "rockylinux" in base_image:
+        gcc_compilers = f"gcc gcc-c++ gcc-fortran"
     else:
         gcc_compilers = f"g++ g++-{gcc_version} gcc gcc-{gcc_version} gfortran gfortran-{gcc_version}"
     # Static CP2K builds use the GCC compiler built with spack
@@ -633,7 +689,7 @@ def install_cp2k_spack(
     # Assemble docker file
     output = (
         install_base_image(
-            base_image=f"{base_image}", gcc_compilers=gcc_compilers, stage="build"
+            base_image=rf"{base_image}", gcc_compilers=gcc_compilers, stage="build"
         )
         + rf"""
 ARG SPACK_CACHE="s3://spack-cache --s3-endpoint-url=http://localhost:9000"
@@ -644,21 +700,24 @@ COPY . cp2k/
 
 # Build CP2K dependencies
 WORKDIR /opt/cp2k
-RUN /bin/bash -o pipefail -c "source ./make_cp2k.sh -bd_only -cv {version} -gv {gcc_version} -mpi {mpi_mode} {use_externals}"
+RUN ./make_cp2k.sh -bd_only -cv {version} -gpu {gpu_model} -gv {gcc_version} -mpi {mpi_mode} {use_externals} {feature_flags}
 
-# Build and install CP2K
-RUN /bin/bash -o pipefail -c "source ./make_cp2k.sh -cv {version} -gv {gcc_version} -mpi {mpi_mode}"
+###### Stage 2: Build CP2K ######
+
+FROM build_deps AS build_cp2k
+
+RUN ./make_cp2k.sh -cv {version} -gv {gcc_version} -gpu {gpu_model} -mpi {mpi_mode} {feature_flags}
 """
     )
     output += (
         install_base_image(
-            base_image=f"{base_image}", gcc_compilers=gcc_compilers, stage="install"
+            base_image=rf"{base_image}", gcc_compilers=gcc_compilers, stage="install"
         )
         + rf"""
 WORKDIR /opt/cp2k
 
 # Install CP2K dependencies built with spack
-COPY --from=build_cp2k /opt/cp2k/spack/spack-1.1.0/opt/spack ./spack/spack-1.1.0/opt/spack
+COPY --from=build_cp2k /opt/cp2k/spack/spack/opt/spack ./spack/spack/opt/spack
 
 # Install CP2K
 COPY --from=build_cp2k /opt/cp2k/install ./install
@@ -670,8 +729,12 @@ COPY --from=build_cp2k /opt/cp2k/src/grid/sample_tasks ./src/grid/sample_tasks
 # Install CP2K/Quickstep CI benchmarks
 COPY --from=build_cp2k /opt/cp2k/benchmarks/CI ./benchmarks/CI
 
+# Do not rely only on LD_LIBRARY_PATH because it is fragile
+COPY --from=build_cp2k /etc/ld.so.conf.d/cp2k.conf /etc/ld.so.conf.d/cp2k.conf
+RUN ldconfig
+
 # Run CP2K regression test
-RUN /bin/bash -o pipefail -c "/opt/cp2k/install/bin/launch /opt/cp2k/install/bin/run_tests {testopts}"
+RUN /opt/cp2k/install/bin/launch /opt/cp2k/install/bin/run_tests {testopts}
 
 # Create entrypoint and finalise container build
 WORKDIR /mnt
@@ -692,11 +755,11 @@ def install_base_image(
         output = rf"""
 ARG BASE_IMAGE="{base_image}"
 
-###### Stage 1: Build CP2K ######
+###### Stage 1: Build CP2K dependencies ######
 
-FROM "${{BASE_IMAGE}}" AS build_cp2k
+FROM "${{BASE_IMAGE}}" AS build_deps
 """
-        if base_image.startswith("fedora:"):
+        if "fedora" in base_image:
             output += rf"""
 RUN dnf -qy install \
     cmake \
@@ -704,7 +767,6 @@ RUN dnf -qy install \
     git \
     libtool \
     make \
-    ninja-build \
     patch \
     perl-core \
     pkg-config \
@@ -716,7 +778,7 @@ RUN dnf -qy install \
     zlib-static \
     && dnf clean -q all
 """
-        elif base_image.startswith("opensuse/leap:"):
+        elif "opensuse/leap" in base_image:
             output += rf"""
 RUN zypper --non-interactive --quiet ref && \
     zypper --non-interactive --quiet in --no-recommends \
@@ -743,7 +805,28 @@ RUN zypper --non-interactive --quiet ref && \
 RUN ln -sf /usr/bin/python3.11 /usr/local/bin/python3 && \
     ln -sf /usr/bin/python3.11 /usr/local/bin/python
 """
-        elif base_image.startswith("ubuntu:"):
+        elif "rockylinux" in base_image:
+            output += rf"""
+RUN dnf -y install dnf-plugins-core && \
+    dnf --enablerepo=crb -qy install \
+    bzip2 \
+    cmake \
+    {gcc_compilers} \
+    git \
+    libtool \
+    openssl-devel \
+    patch \
+    python3 \
+    python3-devel \
+    python3-pip \
+    unzip \
+    wget \
+    xz \
+    zlib-devel \
+    zlib-static \
+    && dnf clean -q all
+"""
+        elif "ubuntu" in base_image:
             output += rf"""
 RUN apt-get update -qq && apt-get install -qq --no-install-recommends \
     bzip2 \
@@ -758,7 +841,6 @@ RUN apt-get update -qq && apt-get install -qq --no-install-recommends \
     libtool-bin \
     lsb-release \
     make \
-    ninja-build \
     patch \
     pkgconf \
     python3 \
@@ -773,21 +855,30 @@ RUN apt-get update -qq && apt-get install -qq --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 """
         else:
-            print(f"ERROR: Unknown base image {base_image} specified")
+            print(f"\nERROR: Unknown base image {base_image} specified\n")
+        if "nvidia" in base_image:
+            output += rf"""
+# Setup CUDA environment
+ENV LD_LIBRARY_PATH /usr/local/cuda/lib64
+
+# Disable JIT cache as there seems to be an issue with file locking on overlayfs
+# See also https://github.com/cp2k/cp2k/pull/2337
+ENV CUDA_CACHE_DISABLE 1
+"""
     elif stage == "install":
         output = rf"""
-###### Stage 2: Install CP2K ######
+###### Stage 3: Install CP2K ######
 
 FROM "${{BASE_IMAGE}}" AS install_cp2k
 """
-        if base_image.startswith("fedora:"):
+        if "fedora" in base_image:
             output += rf"""
 RUN dnf -qy install \
     {gcc_compilers} \
     python3 \
     && dnf clean -q all
 """
-        elif base_image.startswith("opensuse/leap:"):
+        elif "opensuse/leap" in base_image:
             output += rf"""
 RUN zypper --non-interactive --quiet ref && \
     zypper --non-interactive --quiet in --no-recommends \
@@ -798,7 +889,16 @@ RUN zypper --non-interactive --quiet ref && \
 RUN ln -sf /usr/bin/python3.11 /usr/local/bin/python3 && \
     ln -sf /usr/bin/python3.11 /usr/local/bin/python
 """
-        elif base_image.startswith("ubuntu:"):
+        elif "rockylinux" in base_image:
+            output += rf"""
+RUN dnf -y install dnf-plugins-core && \
+    dnf --enablerepo=crb -qy install \
+    {gcc_compilers} \
+    python3 \
+    python3-pip \
+    && dnf clean -q all
+"""
+        elif "ubuntu" in base_image:
             output += rf"""
 RUN apt-get update -qq && apt-get install -qq --no-install-recommends \
     {gcc_compilers} \
@@ -806,9 +906,18 @@ RUN apt-get update -qq && apt-get install -qq --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 """
         else:
-            print(f"ERROR: Unknown base image {base_image} specified")
+            print(f"\nERROR: Unknown base image {base_image} specified\n")
+        if "nvidia" in base_image:
+            output += rf"""
+# Setup CUDA environment
+ENV LD_LIBRARY_PATH /usr/local/cuda/lib64
+
+# Disable JIT cache as there seems to be an issue with file locking on overlayfs
+# See also https://github.com/cp2k/cp2k/pull/2337
+ENV CUDA_CACHE_DISABLE 1
+"""
     else:
-        print(f"ERROR: Unknown stage {stage} specified")
+        print(f"\nERROR: Unknown stage {stage} specified\n")
     return output
 
 
@@ -820,7 +929,7 @@ class OutputFile:
         self.content = io.StringIO()
         self.content.write(f"#\n")
         self.content.write(f"# This file was created by generate_dockerfiles.py.\n")
-        if "_spack_" in filename or "make_cp2k_" in filename:
+        if "_spack_" in filename:
             usage = f"./spack_cache_start.sh; podman build --network=host --shm-size=1g -f ./{filename} ../../"
         else:
             usage = f"podman build --shm-size=1g -f ./{filename} ../../"

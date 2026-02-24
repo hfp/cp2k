@@ -863,7 +863,7 @@ CONTAINS
             IF (do_kpoints) &
                CPABORT("No subspace diagonlization with kpoint calculation")
          END IF
-         ! OT: check if OT is used instead of diagonlization. Not possible with added MOS at the moment
+         ! OT: check if OT is used instead of diagonalization. Not possible with added MOS at the moment
       ELSEIF (scf_control%use_ot) THEN
          scf_env%method = ot_method_nr
          need_coeff_b = .TRUE.
@@ -944,6 +944,16 @@ CONTAINS
                       do_kpoints=do_kpoints, &
                       para_env=para_env, &
                       xas_env=xas_env)
+
+      !Check restricted optimizers available for tblite library
+      IF (dft_control%qs_control%xtb_control%do_tblite) THEN
+         IF (dft_control%lsd) THEN
+            CPABORT("LSD option not compatible with tblite library.")
+         END IF
+         IF (scf_env%method == ot_method_nr) THEN
+            CPABORT("OT SCF option not compatible with tblite library.")
+         END IF
+      END IF
 
       ! Calculate ortho matrix
       ndep = 0
