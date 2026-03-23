@@ -256,6 +256,13 @@ Specific options:
                           library. Installing is only supported on arch
                           x86_64 or arm64.
                           Default = install
+  --with-libxs            Enable libxs as a replacement for libxsmm.
+                          Library for specialized dense and sparse matrix
+                          operations.
+                          Default = install
+  --with-libxstream       Enable libxstream as an OpenCL-based accelerator
+                          backend (requires libxs).
+                          Default = install
   --with-scalapack        Enable ScaLAPACK for parallel linear algebra
                           calculations.
                           Default = install
@@ -412,7 +419,7 @@ EOF
 tool_list="gcc intel amd cmake ninja"
 mpi_list="mpich openmpi intelmpi"
 math_list="mkl acml openblas"
-lib_list="fftw libint libxc libxsmm cosma scalapack elpa dbcsr
+lib_list="fftw libint libxc libxsmm libxs libxstream cosma scalapack elpa dbcsr
           cusolvermp plumed spfft spla gsl spglib hdf5 libvdwxc sirius
           libvori libtorch deepmd ace dftd4 tblite pugixml libsmeagol
           trexio greenx gmp mcl"
@@ -436,6 +443,8 @@ with_dbcsr="__INSTALL__"
 with_fftw="__INSTALL__"
 with_libint="__INSTALL__"
 with_libxsmm="__INSTALL__"
+with_libxs="__INSTALL__"
+with_libxstream="__INSTALL__"
 with_libxc="__INSTALL__"
 with_scalapack="__INSTALL__"
 with_sirius="__INSTALL__"
@@ -783,6 +792,12 @@ Otherwise use option no."
     --with-libxsmm*)
       with_libxsmm=$(read_with "${1}")
       ;;
+    --with-libxs*)
+      with_libxs=$(read_with "${1}")
+      ;;
+    --with-libxstream*)
+      with_libxstream=$(read_with "${1}")
+      ;;
     --with-elpa*)
       with_elpa=$(read_with "${1}")
       ;;
@@ -1002,6 +1017,22 @@ if [ "${ENABLE_OPENCL}" = "__TRUE__" ]; then
   if [ "${with_libxsmm}" = "__DONTUSE__" ]; then
     report_warning ${LINENO} "When enabling OpenCL, libxsmm is needed."
     with_libxsmm="__INSTALL__"
+  fi
+  if [ "${with_libxs}" = "__DONTUSE__" ]; then
+    report_warning ${LINENO} "When enabling OpenCL, libxs is needed."
+    with_libxs="__INSTALL__"
+  fi
+  if [ "${with_libxstream}" = "__DONTUSE__" ]; then
+    report_warning ${LINENO} "When enabling OpenCL, libxstream is needed."
+    with_libxstream="__INSTALL__"
+  fi
+fi
+
+# libxstream depends on libxs
+if [ "${with_libxstream}" != "__DONTUSE__" ]; then
+  if [ "${with_libxs}" = "__DONTUSE__" ]; then
+    report_warning ${LINENO} "libxstream requires libxs, enabling libxs."
+    with_libxs="__INSTALL__"
   fi
 fi
 

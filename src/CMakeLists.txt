@@ -1620,6 +1620,7 @@ target_link_libraries(
   INTERFACE cp2k::LAPACK::lapack
             $<$<BOOL:${CP2K_USE_LIBXSMM}>:cp2k::LibXSMM::libxsmmf>
             $<$<BOOL:${CP2K_USE_LIBXSMM}>:cp2k::LibXSMM::libxsmmext>
+            $<$<BOOL:${CP2K_USE_LIBXS}>:cp2k::LibXS::libxs>
             cp2k::BLAS::blas
             $<$<BOOL:${CP2K_USE_CUDA}>:cp2k_cuda_libs>
             $<$<BOOL:${CP2K_USE_HIP}>:cp2k_hip_libs>
@@ -1810,6 +1811,7 @@ target_compile_definitions(
     $<$<BOOL:${CP2K_USE_LIBTORCH}>:__LIBTORCH>
     $<$<BOOL:${CP2K_USE_COSMA}>:__COSMA>
     $<$<BOOL:${CP2K_USE_LIBXSMM}>:__LIBXSMM>
+    $<$<BOOL:${CP2K_USE_LIBXS}>:__LIBXS>
     $<$<BOOL:${CCP2K_USE_SIRIUS_DFTD4}>:__SIRIUS_DFTD4>
     $<$<BOOL:${CCP2K_USE_SIRIUS_NLCG}>:__SIRIUS_NLCG>
     $<$<BOOL:${CP2K_USE_SIRIUS_VCSQNM}>:__SIRIUS_VCSQNM>
@@ -1920,6 +1922,7 @@ add_executable(
               ${CP2K_DBM_SRCS_GPU} ${CP2K_OFFLOAD_SRCS_C})
 target_compile_definitions(
   dbm_miniapp PRIVATE $<$<BOOL:${CP2K_USE_LIBXSMM}>:__LIBXSMM>
+                      $<$<BOOL:${CP2K_USE_LIBXS}>:__LIBXS>
                       $<$<STREQUAL:"${CP2K_BLAS_VENDOR}","MKL">:__MKL>)
 
 if(CP2K_DISABLE_DBM_GPU)
@@ -1939,6 +1942,7 @@ foreach(__app grid_miniapp grid_unittest)
     ${CP2K_OFFLOAD_SRCS_C})
   target_compile_definitions(
     ${__app} PRIVATE $<$<BOOL:${CP2K_USE_LIBXSMM}>:__LIBXSMM>
+                     $<$<BOOL:${CP2K_USE_LIBXS}>:__LIBXS>
                      $<$<STREQUAL:"${CP2K_BLAS_VENDOR}","MKL">:__MKL>)
 
   if(CP2K_DISABLE_GRID_GPU)

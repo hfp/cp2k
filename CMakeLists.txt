@@ -166,6 +166,7 @@ cmake_dependent_option(CP2K_USE_MIMIC "Enable MIMIC support"
 cmake_dependent_option(
   CP2K_USE_LIBXSMM "Enable libxsmm support" ${CP2K_USE_EVERYTHING}
   "NOT CP2K_USE_ACCEL MATCHES \"OPENCL\"" ON)
+option(CP2K_USE_LIBXS "Enable libxs support" ON)
 cmake_dependent_option(CP2K_USE_LIBVDWXC "Enable libvdwxc support with SIRIUS"
                        ${CP2K_USE_EVERYTHING} "CP2K_USE_SIRIUS" OFF)
 
@@ -441,6 +442,11 @@ find_package(Lapack REQUIRED) # also calls find_package(BLAS)
 if(CP2K_USE_LIBXSMM)
   find_package(LibXSMM REQUIRED)
   message(STATUS "Using LIBXSMM for Small Matrix Multiplication")
+endif()
+
+if(CP2K_USE_LIBXS)
+  find_package(LibXS REQUIRED)
+  message(STATUS "Using LibXS for specialized matrix operations")
 endif()
 
 # in practice it is always for any decent configuration. But I add a flags to
@@ -1031,6 +1037,14 @@ if(CP2K_USE_LIBXSMM)
   )
 endif()
 
+if(CP2K_USE_LIBXS)
+  message(
+    "  - LibXS\n"
+    "    - include directories: ${CP2K_LIBXS_INCLUDE_DIRS}\n"
+    "    - libraries: ${CP2K_LIBXS_LINK_LIBRARIES}\n\n"
+  )
+endif()
+
 if(CP2K_USE_SPLA)
   message(" - SpLA\n" # keep line break
           "   - include directories: ${CP2K_SPLA_INCLUDE_DIRS}\n"
@@ -1208,6 +1222,10 @@ endif()
 
 if(NOT CP2K_USE_LIBXSMM)
   message("   - LIBXSMM")
+endif()
+
+if(NOT CP2K_USE_LIBXS)
+  message("   - LibXS")
 endif()
 
 if(NOT CP2K_USE_LIBINT2)

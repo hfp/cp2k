@@ -138,8 +138,8 @@ CONTAINS
 #if defined(__PW_FPGA_SP)
       flags = TRIM(flags)//" pw_fpga_sp"
 #endif
-#if defined(__LIBXSMM)
-      flags = TRIM(flags)//" xsmm"
+#if defined(__LIBXS)
+      flags = TRIM(flags)//" libxs"
 #endif
 #if defined(__CRAY_PM_ACCEL_ENERGY)
       flags = TRIM(flags)//" cray_pm_accel_energy"

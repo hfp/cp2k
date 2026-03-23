@@ -410,7 +410,7 @@ CONTAINS
       SELECT CASE (ival)
       CASE (mm_driver_auto)
          CALL dbcsr_set_config(mm_driver="AUTO")
-#if defined(__LIBXSMM)
+#if defined(__LIBXS)
          CALL cite_reference(Heinecke2016)
 #endif
       CASE (mm_driver_blas)
