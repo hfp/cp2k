@@ -14,7 +14,9 @@
 #if defined(__LIBXSMM)
 #include <libxsmm.h>
 #endif
+#if defined(__LIBXS)
 #include <libxs_gemm.h>
+#endif
 
 /*******************************************************************************
  * \brief Prototype for BLAS dgemm.
@@ -90,9 +92,11 @@ void dbm_multiply_cpu_process_batch(int ntasks, const dbm_task_t batch[ntasks],
   }
 
   // Dispatch a JIT kernel for the current m,n,k.
+#if defined(__LIBXS)
   libxs_gemm_config_t gemm_config;
   int kernel_m = 0, kernel_n = 0, kernel_k = 0;
   memset(&gemm_config, 0, sizeof(gemm_config));
+#endif
 
   // Loop over tasks.
   dbm_task_t task_next = batch[batch_order[0]];
@@ -100,6 +104,7 @@ void dbm_multiply_cpu_process_batch(int ntasks, const dbm_task_t batch[ntasks],
     const dbm_task_t task = task_next;
     task_next = batch[batch_order[(itask + 1) < ntasks ? (itask + 1) : itask]];
 
+#if defined(__LIBXS)
     if (0 == (DBM_MULTIPLY_BLAS_LIBRARY & options) &&
         (task.m != kernel_m || task.n != kernel_n || task.k != kernel_k)) {
       libxs_release_gemm(&gemm_config);
@@ -115,11 +120,13 @@ void dbm_multiply_cpu_process_batch(int ntasks, const dbm_task_t batch[ntasks],
       kernel_n = task.n;
       kernel_k = task.k;
     }
+#endif
 
     double *const data_a = pack_a->data + task.offset_a;
     double *const data_b = pack_b->data + task.offset_b;
     double *const data_c = shard_c->data + task.offset_c;
 
+#if defined(__LIBXS)
     if (gemm_config.xgemm != NULL) {
       libxs_xgemm_param_t xparam;
       memset(&xparam, 0, sizeof(xparam));
@@ -129,12 +136,16 @@ void dbm_multiply_cpu_process_batch(int ntasks, const dbm_task_t batch[ntasks],
       gemm_config.xgemm(&xparam);
     } else if (gemm_config.dgemm_jit != NULL && gemm_config.jitter != NULL) {
       gemm_config.dgemm_jit(gemm_config.jitter, data_a, data_b, data_c);
-    } else {
+    } else
+#endif
+    {
       dbm_dgemm('N', 'T', task.m, task.n, task.k, alpha, data_a, task.m, data_b,
                 task.n, 1.0, data_c, task.m);
     }
   }
+#if defined(__LIBXS)
   libxs_release_gemm(&gemm_config);
+#endif
 }
 
 // EOF

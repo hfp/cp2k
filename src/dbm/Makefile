@@ -147,11 +147,13 @@ endif
 # Make LIBXS available (wraps BLAS, MKL JIT, and LIBXSMM behind a common API)
 LIBXSROOT ?= $(wildcard $(CP2KHOME)/../libxs)
 ifneq ($(LIBXSROOT),)
-CFLAGS += -I$(LIBXSROOT)/include
+CFLAGS += -D__LIBXS -I$(LIBXSROOT)/include
 endif
 
 # Make LIBXSTREAM available (OpenCL offload backend).
 # Auto-detect as sibling of CP2KHOME when OpenCL is confirmed.
+# Skipped entirely when OPENCL=0 (explicit or via CUDA/HIP detection).
+ifneq ($(OPENCL),0)
 LIBXSTREAMROOT ?= $(wildcard $(CP2KHOME)/../libxstream)
 ifneq ($(LIBXSTREAMROOT),)
 # Detect OpenCL: specific locations take precedence, then confirm implicit.
@@ -204,6 +206,7 @@ endif
 LIBS += $(LIBXSTREAMROOT)/lib/libxstream.a $(XSTREAM_OPENCL_LIB)
 endif
 endif
+endif # OPENCL!=0
 
 # LIBXS must be linked last (depended upon by LIBXSTREAM)
 ifneq ($(LIBXSROOT),)
