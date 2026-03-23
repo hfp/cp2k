@@ -107,14 +107,15 @@ void dbm_multiply_cpu_process_batch(int ntasks, const dbm_task_t batch[ntasks],
 #if defined(__LIBXS)
     if (0 == (DBM_MULTIPLY_BLAS_LIBRARY & options) &&
         (task.m != kernel_m || task.n != kernel_n || task.k != kernel_k)) {
-      libxs_release_gemm(&gemm_config);
+      libxs_gemm_release(&gemm_config);
       memset(&gemm_config, 0, sizeof(gemm_config));
       if (alpha == 1.0) {
         const double beta = 1.0;
         // transa='N', transb='T', lda=m, ldb=n, ldc=m
-        libxs_dispatch_gemm(&gemm_config, LIBXS_DATATYPE_F64,
+        libxs_gemm_dispatch(&gemm_config, LIBXS_DATATYPE_F64,
                             'N', 'T', task.m, task.n, task.k,
                             task.m, task.n, task.m, &alpha, &beta);
+        gemm_config.dgemm_blas = dgemm_; // BLAS fallback
       }
       kernel_m = task.m;
       kernel_n = task.n;
@@ -127,16 +128,7 @@ void dbm_multiply_cpu_process_batch(int ntasks, const dbm_task_t batch[ntasks],
     double *const data_c = shard_c->data + task.offset_c;
 
 #if defined(__LIBXS)
-    if (gemm_config.xgemm != NULL) {
-      libxs_xgemm_param_t xparam;
-      memset(&xparam, 0, sizeof(xparam));
-      xparam.a[0] = data_a;
-      xparam.b[0] = data_b;
-      xparam.c[0] = data_c;
-      gemm_config.xgemm(&xparam);
-    } else if (gemm_config.dgemm_jit != NULL && gemm_config.jitter != NULL) {
-      gemm_config.dgemm_jit(gemm_config.jitter, data_a, data_b, data_c);
-    } else
+    if (EXIT_SUCCESS != libxs_gemm_call(&gemm_config, data_a, data_b, data_c))
 #endif
     {
       dbm_dgemm('N', 'T', task.m, task.n, task.k, alpha, data_a, task.m, data_b,
@@ -144,7 +136,7 @@ void dbm_multiply_cpu_process_batch(int ntasks, const dbm_task_t batch[ntasks],
     }
   }
 #if defined(__LIBXS)
-  libxs_release_gemm(&gemm_config);
+  libxs_gemm_release(&gemm_config);
 #endif
 }
 
