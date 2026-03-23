@@ -13,14 +13,8 @@
 
 #if defined(__LIBXSMM)
 #include <libxsmm.h>
-#if !defined(DBM_LIBXSMM_PREFETCH)
-// #define DBM_LIBXSMM_PREFETCH LIBXSMM_GEMM_PREFETCH_AL2_AHEAD
-#define DBM_LIBXSMM_PREFETCH LIBXSMM_GEMM_PREFETCH_NONE
 #endif
-#if LIBXSMM_VERSION4(1, 17, 0, 3710) > LIBXSMM_VERSION_NUMBER
-#define libxsmm_dispatch_gemm libxsmm_dispatch_gemm_v2
-#endif
-#endif
+#include <libxs_gemm.h>
 
 /*******************************************************************************
  * \brief Prototype for BLAS dgemm.
@@ -95,21 +89,10 @@ void dbm_multiply_cpu_process_batch(int ntasks, const dbm_task_t batch[ntasks],
     }
   }
 
-#if defined(__LIBXSMM)
-  // Prepare arguments for libxsmm's kernel-dispatch.
-  const int flags = LIBXSMM_GEMM_FLAG_TRANS_B; // transa = "N", transb = "T"
-  const int prefetch = DBM_LIBXSMM_PREFETCH;
+  // Dispatch a JIT kernel for the current m,n,k.
+  libxs_gemm_config_t gemm_config;
   int kernel_m = 0, kernel_n = 0, kernel_k = 0;
-#if (LIBXSMM_GEMM_PREFETCH_NONE != DBM_LIBXSMM_PREFETCH)
-  double *data_a_next = NULL, *data_b_next = NULL, *data_c_next = NULL;
-#endif
-#if LIBXSMM_VERSION2(1, 17) < LIBXSMM_VERSION_NUMBER
-  libxsmm_gemmfunction kernel_func = NULL;
-#else
-  libxsmm_dmmfunction kernel_func = NULL;
-  const double beta = 1.0;
-#endif
-#endif
+  memset(&gemm_config, 0, sizeof(gemm_config));
 
   // Loop over tasks.
   dbm_task_t task_next = batch[batch_order[0]];
@@ -117,67 +100,41 @@ void dbm_multiply_cpu_process_batch(int ntasks, const dbm_task_t batch[ntasks],
     const dbm_task_t task = task_next;
     task_next = batch[batch_order[(itask + 1) < ntasks ? (itask + 1) : itask]];
 
-#if defined(__LIBXSMM)
     if (0 == (DBM_MULTIPLY_BLAS_LIBRARY & options) &&
         (task.m != kernel_m || task.n != kernel_n || task.k != kernel_k)) {
-      if (LIBXSMM_SMM(task.m, task.n, task.m, 1 /*assume in-$, no RFO*/,
-                      sizeof(double))) {
-#if LIBXSMM_VERSION2(1, 17) < LIBXSMM_VERSION_NUMBER
-        const libxsmm_gemm_shape shape = libxsmm_create_gemm_shape(
-            task.m, task.n, task.k, task.m /*lda*/, task.n /*ldb*/,
-            task.m /*ldc*/, LIBXSMM_DATATYPE_F64 /*aprec*/,
-            LIBXSMM_DATATYPE_F64 /*bprec*/, LIBXSMM_DATATYPE_F64 /*cprec*/,
-            LIBXSMM_DATATYPE_F64 /*calcp*/);
-        kernel_func =
-            (LIBXSMM_FEQ(1.0, alpha)
-                 ? libxsmm_dispatch_gemm(shape, (libxsmm_bitfield)flags,
-                                         (libxsmm_bitfield)prefetch)
-                 : NULL);
-#else
-        kernel_func = libxsmm_dmmdispatch(task.m, task.n, task.k, NULL /*lda*/,
-                                          NULL /*ldb*/, NULL /*ldc*/, &alpha,
-                                          &beta, &flags, &prefetch);
-#endif
-      } else {
-        kernel_func = NULL;
+      libxs_release_gemm(&gemm_config);
+      memset(&gemm_config, 0, sizeof(gemm_config));
+      if (alpha == 1.0) {
+        const double beta = 1.0;
+        // transa='N', transb='T', lda=m, ldb=n, ldc=m
+        libxs_dispatch_gemm(&gemm_config, LIBXS_DATATYPE_F64,
+                            'N', 'T', task.m, task.n, task.k,
+                            task.m, task.n, task.m, &alpha, &beta);
       }
       kernel_m = task.m;
       kernel_n = task.n;
       kernel_k = task.k;
     }
-#endif
-    // gemm_param wants non-const data even for A and B
+
     double *const data_a = pack_a->data + task.offset_a;
     double *const data_b = pack_b->data + task.offset_b;
     double *const data_c = shard_c->data + task.offset_c;
 
-#if defined(__LIBXSMM)
-    if (kernel_func != NULL) {
-#if LIBXSMM_VERSION2(1, 17) < LIBXSMM_VERSION_NUMBER
-      libxsmm_gemm_param gemm_param;
-      gemm_param.a.primary = data_a;
-      gemm_param.b.primary = data_b;
-      gemm_param.c.primary = data_c;
-#if (LIBXSMM_GEMM_PREFETCH_NONE != DBM_LIBXSMM_PREFETCH)
-      gemm_param.a.quaternary = pack_a->data + task_next.offset_a;
-      gemm_param.b.quaternary = pack_b->data + task_next.offset_b;
-      gemm_param.c.quaternary = shard_c->data + task_next.offset_c;
-#endif
-      kernel_func(&gemm_param);
-#elif (LIBXSMM_GEMM_PREFETCH_NONE != DBM_LIBXSMM_PREFETCH)
-      kernel_func(data_a, data_b, data_c, pack_a->data + task_next.offset_a,
-                  pack_b->data + task_next.offset_b,
-                  shard_c->data + task_next.offset_c);
-#else
-      kernel_func(data_a, data_b, data_c);
-#endif
-    } else
-#endif
-    { // Fallback to BLAS when libxsmm is not available.
+    if (gemm_config.xgemm != NULL) {
+      libxs_xgemm_param_t xparam;
+      memset(&xparam, 0, sizeof(xparam));
+      xparam.a[0] = data_a;
+      xparam.b[0] = data_b;
+      xparam.c[0] = data_c;
+      gemm_config.xgemm(&xparam);
+    } else if (gemm_config.dgemm_jit != NULL && gemm_config.jitter != NULL) {
+      gemm_config.dgemm_jit(gemm_config.jitter, data_a, data_b, data_c);
+    } else {
       dbm_dgemm('N', 'T', task.m, task.n, task.k, alpha, data_a, task.m, data_b,
                 task.n, 1.0, data_c, task.m);
     }
   }
+  libxs_release_gemm(&gemm_config);
 }
 
 // EOF

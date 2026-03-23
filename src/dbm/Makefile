@@ -79,13 +79,6 @@ CUDA_PATH := $(if $(CUDA_FILE),$(NVCC_PATH)/../cuda,$(NVCC_PATH))
 CUDA_LIBS := $(if $(wildcard $(CUDA_PATH)/lib64),lib64,lib)
 OPENCL := 0
 endif
-ifneq ($(OPENCL),0)
-OPENCL_OFFLOAD := $(firstword $(wildcard $(CP2KHOME)/lib/*/*/exts/dbcsr/libdbcsr.a))
-OPENCL_GENKRNL := $(PROJHOME)/dbm_multiply_opencl.cl.h
-ifneq ($(ICX),)
-LIBS += -lifcoremt -limf
-endif
-endif
 
 # Make foundational runtimes available
 LIBS += -ldl -lstdc++ -lc -lm
@@ -110,78 +103,17 @@ endif
 all: dbm_miniapp.x
 
 clean:
-	rm -fv $(ALL_OBJECTS) $(OPENCL_GENKRNL) \
+	rm -fv $(ALL_OBJECTS) \
         dbm_multiply_gpu.o \
         dbm_multiply_gpu_kernel.o \
-        dbm_multiply_opencl.o \
         dbm_miniapp.o
 
 realclean: clean
 	rm -fv dbm_miniapp.x
 
 
-# Enable OpenCL when DBCSR library was prebuilt (assume __DBCSR_ACC).
-ifneq ($(OPENCL_OFFLOAD),)
-OPENCL_SRC := $(PROJHOME)/dbm_multiply_opencl.cl
-OPENCL_CMN := $(wildcard $(CP2KHOME)/exts/dbcsr/src/acc/opencl/common/*.h)
-OPENCL_GEN := $(CP2KHOME)/exts/dbcsr/src/acc/opencl/acc_opencl.sh
-ALL_HEADERS += $(OPENCL_GENKRNL)
-
-ALL_OBJECTS += dbm_multiply_gpu.o dbm_multiply_opencl.o
-CFLAGS += -I$(CP2KHOME)/exts/dbcsr/src/acc/opencl -I$(CP2KHOME)/exts/dbcsr
-CFLAGS += -D__OFFLOAD_OPENCL -D__DBCSR_ACC
-LIBS += $(OPENCL_OFFLOAD) -lgfortran
-
-ifneq (Darwin,$(shell uname))
-OPENCL_LIB := $(shell ldconfig -p 2>/dev/null | grep -m1 OpenCL | rev | cut -d' ' -f1 | rev)
-ifeq (,$(OPENCL_LIB))
-OPENCL_LIB := /usr/lib/x86_64-linux-gnu/libOpenCL.so.1
-endif
-ifneq (,$(CUDA_PATH))
-ifeq (,$(wildcard $(OPENCL_INC)))
-CFLAGS += -I$(CUDA_PATH)/include
-endif
-ifeq (,$(wildcard $(OPENCL_LIB)))
-LIBS += -L$(CUDA_PATH)/$(CUDA_LIBS)
-LIBS += -Wl,-rpath=$(CUDA_PATH)/$(CUDA_LIBS)
-endif
-else ifneq (,$(wildcard $(OPENCL_ROOT)/include/CL/cl.h))
-ifeq (,$(wildcard $(OPENCL_INC)))
-CFLAGS += -I$(OPENCL_ROOT)/include
-endif
-LIBS += -L$(OPENCL_ROOT)/$(if $(wildcard $(OPENCL_ROOT)/lib64),lib64,lib)
-else ifneq (,$(ICX))
-OPENCL_ROOT := $(abspath $(dir $(ICX))/..)
-CLINC := $(wildcard $(OPENCL_ROOT)/include/sycl/CL/cl.h $(OPENCL_ROOT)/include/CL/cl.h)
-ifneq (,$(CLINC))
-LIBS += -L$(OPENCL_ROOT)/$(if $(wildcard $(OPENCL_ROOT)/lib64),lib64,lib)
-LIBS += -L$(OPENCL_ROOT)/compiler/lib/intel64 -lintlc
-ifeq (,$(wildcard $(OPENCL_INC)))
-CFLAGS += -I$(abspath $(dir $(firstword $(CLINC)))/..)
-endif
-endif
-endif
-# OPENCL_INC: directory containing CL/cl.h.
-ifneq (,$(wildcard $(OPENCL_INC)))
-CFLAGS += -I$(OPENCL_INC)
-endif
-# OPENCL_LIB: file/library to be linked
-ifneq (,$(wildcard $(OPENCL_LIB)))
-LIBS += $(OPENCL_LIB)
-else
-LIBS += -l:libOpenCL.so.1
-endif
-else # macOS
-LIBS += -framework OpenCL
-endif
-
-dbm_miniapp.x: $(OPENCL_OFFLOAD)
-$(OPENCL_GENKRNL): $(OPENCL_GEN) $(OPENCL_SRC) $(OPENCL_CMN)
-	$(OPENCL_GEN) -b 6 -p "" $(OPENCL_SRC) $@
-
-
 # Enable Cuda when nvcc compiler is present.
-else ifneq ($(NVCC),)
+ifneq ($(NVCC),)
 ALL_OBJECTS += dbm_multiply_gpu.o dbm_multiply_gpu_kernel.o
 CFLAGS += -I${CUDA_PATH}/include -D__OFFLOAD_CUDA
 LIBS += -lcudart -lcuda -lcublas -L${CUDA_PATH}/$(CUDA_LIBS)
@@ -204,11 +136,78 @@ LIBS += -L${ROCM_PATH}/lib -lamdhip64 -lhipfft -lhipblas -lrocblas
 endif
 
 # Make LIBXSMM available
+LIBXSMMROOT ?= $(wildcard $(CP2KHOME)/../libxsmm)
 ifneq ($(LIBXSMMROOT),)
 CFLAGS += -D__LIBXSMM -I$(LIBXSMMROOT)/include
 LIBS += $(LIBXSMMROOT)/lib/libxsmm.a \
         $(LIBXSMMROOT)/lib/libxsmmext.a \
         -lpthread -lrt
+endif
+
+# Make LIBXS available (wraps BLAS, MKL JIT, and LIBXSMM behind a common API)
+LIBXSROOT ?= $(wildcard $(CP2KHOME)/../libxs)
+ifneq ($(LIBXSROOT),)
+CFLAGS += -I$(LIBXSROOT)/include
+endif
+
+# Make LIBXSTREAM available (OpenCL offload backend).
+# Auto-detect as sibling of CP2KHOME when OpenCL is confirmed.
+LIBXSTREAMROOT ?= $(wildcard $(CP2KHOME)/../libxstream)
+ifneq ($(LIBXSTREAMROOT),)
+# Detect OpenCL: specific locations take precedence, then confirm implicit.
+XSTREAM_OPENCL_INC ?=
+XSTREAM_OPENCL_LIB ?=
+# 1. OPENCL_ROOT (explicit, takes precedence)
+ifeq (,$(XSTREAM_OPENCL_INC)$(XSTREAM_OPENCL_LIB))
+ifneq (,$(wildcard $(OPENCL_ROOT)/include/CL/cl.h))
+XSTREAM_OPENCL_INC := $(OPENCL_ROOT)/include
+XSTREAM_OPENCL_LIB := -L$(OPENCL_ROOT)/$(if $(wildcard \
+  $(OPENCL_ROOT)/lib64),lib64,lib) -lOpenCL
+endif
+endif
+# 2. ICX/SYCL tree (specific)
+ifeq (,$(XSTREAM_OPENCL_INC)$(XSTREAM_OPENCL_LIB))
+ifneq (,$(ICX))
+XSTREAM_OCL_ROOT := $(abspath $(dir $(ICX))/..)
+XSTREAM_OCL_CLINC := $(firstword $(wildcard \
+  $(XSTREAM_OCL_ROOT)/include/sycl/CL/cl.h \
+  $(XSTREAM_OCL_ROOT)/include/CL/cl.h))
+ifneq (,$(XSTREAM_OCL_CLINC))
+XSTREAM_OPENCL_INC := $(abspath $(dir $(XSTREAM_OCL_CLINC))/..)
+XSTREAM_OPENCL_LIB := -L$(XSTREAM_OCL_ROOT)/$(if $(wildcard \
+  $(XSTREAM_OCL_ROOT)/lib64),lib64,lib) -lOpenCL
+endif
+endif
+endif
+# 3. Implicit/OS-packaged: confirm CL/cl.h is reachable and library exists.
+ifeq (,$(XSTREAM_OPENCL_INC)$(XSTREAM_OPENCL_LIB))
+ifneq (,$(wildcard /usr/include/CL/cl.h))
+XSTREAM_OCL_SO := $(shell ldconfig -p 2>/dev/null | grep -m1 libOpenCL | \
+  rev | cut -d' ' -f1 | rev)
+ifeq (,$(XSTREAM_OCL_SO))
+XSTREAM_OCL_SO := $(firstword $(wildcard \
+  /usr/lib/x86_64-linux-gnu/libOpenCL.so* \
+  /usr/lib64/libOpenCL.so* \
+  /usr/lib/libOpenCL.so*))
+endif
+ifneq (,$(XSTREAM_OCL_SO))
+XSTREAM_OPENCL_LIB := $(XSTREAM_OCL_SO)
+endif
+endif
+endif
+# Proceed if OpenCL was confirmed.
+ifneq (,$(XSTREAM_OPENCL_LIB))
+CFLAGS += -D__LIBXSTREAM -I$(LIBXSTREAMROOT)/include
+ifneq (,$(XSTREAM_OPENCL_INC))
+CFLAGS += -I$(XSTREAM_OPENCL_INC)
+endif
+LIBS += $(LIBXSTREAMROOT)/lib/libxstream.a $(XSTREAM_OPENCL_LIB)
+endif
+endif
+
+# LIBXS must be linked last (depended upon by LIBXSTREAM)
+ifneq ($(LIBXSROOT),)
+LIBS += $(LIBXSROOT)/lib/libxs.a
 endif
 
 %.o: %.c $(OMP_TRACE) $(ALL_HEADERS)

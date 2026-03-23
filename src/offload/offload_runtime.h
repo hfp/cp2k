@@ -7,7 +7,10 @@
 #ifndef OFFLOAD_RUNTIME_H
 #define OFFLOAD_RUNTIME_H
 
-#if defined(__OFFLOAD_OPENCL) && !defined(__DBCSR_ACC)
+#if defined(__LIBXSTREAM) && !defined(__OFFLOAD_OPENCL)
+#define __OFFLOAD_OPENCL
+#endif
+#if defined(__OFFLOAD_OPENCL) && !defined(__DBCSR_ACC) && !defined(__LIBXSTREAM)
 #undef __OFFLOAD_OPENCL
 #endif
 /* TODO: implement support or missing features */
@@ -17,6 +20,9 @@
 #endif
 #if !defined(__NO_OFFLOAD_PW)
 #define __NO_OFFLOAD_PW
+#endif
+#if defined(__LIBXSTREAM) && !defined(__DBCSR_ACC) && !defined(__NO_OFFLOAD_DBM)
+#define __NO_OFFLOAD_DBM
 #endif
 #endif
 
@@ -36,15 +42,21 @@
 #include <hip/hip_runtime.h>
 #include <hip/hip_version.h>
 #elif defined(__OFFLOAD_OPENCL)
+#if defined(__LIBXSTREAM)
+#include <libxstream_cp2k.h>
+#else
 /* No relative path aka double-quote to avoid PACKAGE deps (-Iexts/dbcsr). */
 #include <acc_opencl.h>
+#endif
 #endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#if defined(__OFFLOAD_CUDA)
+#if defined(__LIBXSTREAM)
+/* Types, macros, and functions provided by libxstream_cp2k.h. */
+#elif defined(__OFFLOAD_CUDA)
 typedef cudaStream_t offloadStream_t;
 typedef cudaEvent_t offloadEvent_t;
 typedef cudaError_t offloadError_t;
@@ -58,7 +70,9 @@ typedef void *offloadEvent_t;
 typedef int offloadError_t;
 #endif
 
-#if defined(__OFFLOAD_CUDA)
+#if defined(__LIBXSTREAM)
+/* offloadSuccess provided by libxstream_cp2k.h. */
+#elif defined(__OFFLOAD_CUDA)
 #define offloadSuccess cudaSuccess
 #elif defined(__OFFLOAD_HIP)
 #define offloadSuccess hipSuccess
@@ -86,6 +100,7 @@ typedef int offloadError_t;
   } while (0)
 #endif
 
+#if !defined(__LIBXSTREAM)
 /*******************************************************************************
  * \brief Wrapper around cudaGetErrorName.
  ******************************************************************************/
@@ -485,6 +500,8 @@ static inline void offloadEnsureMallocHeapSize(const size_t required_size) {
   (void)required_size; /* mark used */
 #endif
 }
+
+#endif /* !defined(__LIBXSTREAM) */
 
 #ifdef __cplusplus
 }
