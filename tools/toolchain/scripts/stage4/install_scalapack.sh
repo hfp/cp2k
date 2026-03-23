@@ -30,14 +30,13 @@ case "$with_scalapack" in
       echo "scalapack-${scalapack_ver} is already installed, skipping it."
     else
       require_env MATH_LIBS
-      if [ -f ${scalapack_pkg} ]; then
-        echo "${scalapack_pkg} is found"
-      else
-        download_pkg_from_cp2k_org "${scalapack_sha256}" "${scalapack_pkg}"
-      fi
+      retrieve_package "${scalapack_sha256}" "${scalapack_pkg}"
       echo "Installing from scratch into ${pkg_install_dir}"
       [ -d scalapack-${scalapack_ver} ] && rm -rf scalapack-${scalapack_ver}
       tar -xzf ${scalapack_pkg}
+
+      # Change the CMake policy requirement to keep legacy compatibility for CMake version 4.x
+      sed -e 's/2.8/3.5/g' -i scalapack-${scalapack_ver}/BLACS/INSTALL/CMakeLists.txt
 
       mkdir -p "scalapack-${scalapack_ver}/build"
       pushd "scalapack-${scalapack_ver}/build" > /dev/null
@@ -100,7 +99,6 @@ prepend_path LD_RUN_PATH "${pkg_install_dir}/lib"
 prepend_path LIBRARY_PATH "${pkg_install_dir}/lib"
 prepend_path PKG_CONFIG_PATH "$pkg_install_dir/lib/pkgconfig"
 prepend_path CMAKE_PREFIX_PATH "$pkg_install_dir"
-export SCALAPACK_ROOT="${pkg_install_dir}"
 EOF
   fi
   cat << EOF >> "${BUILDDIR}/setup_scalapack"

@@ -7,8 +7,8 @@
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")/.." && pwd -P)"
 
 # From https://elpa.mpcdf.mpg.de/software/tarball-archive/ELPA_TARBALL_ARCHIVE.html
-elpa_ver="2025.06.002"
-elpa_sha256="de3180c06e2b0dbb56939e84ad1a5fd1684465bd38ad2196792d0f4028937fda"
+elpa_ver="2026.02.001"
+elpa_sha256="a379f27f4dbd27b2ee45017afec656d064301e97150c874649bdfd64957b75ed"
 
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh
@@ -49,17 +49,18 @@ case "${with_elpa}" in
       echo "elpa-${elpa_ver} is already installed, skipping it."
     else
       require_env MATH_LIBS
-      if [ -f elpa-${elpa_ver}.tar.gz ]; then
-        echo "elpa-${elpa_ver}.tar.gz is found"
-      else
-        download_pkg_from_cp2k_org "${elpa_sha256}" "elpa-${elpa_ver}.tar.gz"
-      fi
+      retrieve_package "${elpa_sha256}" "elpa-${elpa_ver}.tar.gz"
+      echo "Installing from scratch into ${pkg_install_dir}"
       [ -d elpa-${elpa_ver} ] && rm -rf elpa-${elpa_ver}
       tar -xzf elpa-${elpa_ver}.tar.gz
 
       # elpa expect FC to be an mpi fortran compiler that is happy
       # with long lines, and that a bunch of libs can be found
       cd elpa-${elpa_ver}
+
+      # Ensure a successful installation of nVidia version built with "-std=c++14" flag
+      sed -i 's/creal(/__real__(/g' src/GPU/CUDA/cudaFunctions_template.h
+      sed -i 's/cimag(/__imag__(/g' src/GPU/CUDA/cudaFunctions_template.h
 
       # ELPA-2017xxxx enables AVX2 by default, switch off if machine doesn't support it.
       AVX_flag=""
@@ -128,7 +129,8 @@ case "${with_elpa}" in
       write_checksums "${install_lock_file}" "${SCRIPT_DIR}/stage5/$(basename ${SCRIPT_NAME})"
     fi
     [ "$enable_openmp" != "yes" ] && elpa_dir_openmp=""
-    ELPA_CFLAGS="-I'${pkg_install_dir}/IF_CUDA(nvidia|cpu)/include/elpa${elpa_dir_openmp}-${elpa_ver}/modules' -I'${pkg_install_dir}/IF_CUDA(nvidia|cpu)/include/elpa${elpa_dir_openmp}-${elpa_ver}/elpa'"
+    elpa_include="${pkg_install_dir}/IF_CUDA(nvidia|cpu)/include/elpa${elpa_dir_openmp}-${elpa_ver}"
+    ELPA_CFLAGS="-I'$elpa_include/modules' -I'$elpa_include/elpa'"
     ELPA_LDFLAGS="-L'${pkg_install_dir}/IF_CUDA(nvidia|cpu)/lib' -Wl,-rpath,'${pkg_install_dir}/IF_CUDA(nvidia|cpu)/lib'"
     ;;
   __SYSTEM__)
@@ -170,7 +172,6 @@ if [ "$with_elpa" != "__DONTUSE__" ]; then
   ELPA_LIBS="-lelpa${elpa_dir_openmp}"
   if [ "$with_elpa" != "__SYSTEM__" ]; then
     cat << EOF >> "${BUILDDIR}/setup_elpa"
-export ELPA_ROOT="${pkg_install_dir}"
 prepend_path PATH "${pkg_install_dir}/cpu/bin"
 prepend_path LD_LIBRARY_PATH "${pkg_install_dir}/cpu/lib"
 prepend_path LD_RUN_PATH "${pkg_install_dir}/cpu/lib"
@@ -192,6 +193,7 @@ EOF
   fi
   cat << EOF >> "${BUILDDIR}/setup_elpa"
 export ELPA_VER="${elpa_ver}"
+export ELPA_ROOT="${pkg_install_dir}"
 export ELPA_CFLAGS="${ELPA_CFLAGS}"
 export ELPA_LDFLAGS="${ELPA_LDFLAGS}"
 export ELPA_LIBS="${ELPA_LIBS}"
@@ -199,7 +201,6 @@ export CP_DFLAGS="\${CP_DFLAGS} IF_MPI(-D__ELPA IF_CUDA(-D__ELPA_NVIDIA_GPU|)|)"
 export CP_CFLAGS="\${CP_CFLAGS} IF_MPI(${ELPA_CFLAGS}|)"
 export CP_LDFLAGS="\${CP_LDFLAGS} IF_MPI(${ELPA_LDFLAGS}|)"
 export CP_LIBS="IF_MPI(${ELPA_LIBS}|) \${CP_LIBS}"
-export ELPA_ROOT="${pkg_install_dir}"
 EOF
   filter_setup "${BUILDDIR}/setup_elpa" "${SETUPFILE}"
 fi

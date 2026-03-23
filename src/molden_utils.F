@@ -13,9 +13,12 @@ MODULE molden_utils
    USE atomic_kind_types,               ONLY: get_atomic_kind
    USE basis_set_types,                 ONLY: get_gto_basis_set,&
                                               gto_basis_set_type
+   USE cell_types,                      ONLY: cell_type
+   USE cp_array_utils,                  ONLY: cp_1d_r_p_type
    USE cp_dbcsr_operations,             ONLY: copy_dbcsr_to_fm
    USE cp_fm_types,                     ONLY: cp_fm_get_info,&
-                                              cp_fm_get_submatrix
+                                              cp_fm_get_submatrix,&
+                                              cp_fm_type
    USE cp_log_handling,                 ONLY: cp_get_default_logger,&
                                               cp_logger_type
    USE cp_output_handling,              ONLY: cp_p_file,&
@@ -33,7 +36,8 @@ MODULE molden_utils
    USE orbital_transformation_matrices, ONLY: orbtramat
    USE particle_types,                  ONLY: particle_type
    USE periodic_table,                  ONLY: get_ptable_info
-   USE physcon,                         ONLY: massunit
+   USE physcon,                         ONLY: angstrom,&
+                                              massunit
    USE qs_kind_types,                   ONLY: get_qs_kind,&
                                               get_qs_kind_set,&
                                               qs_kind_type
@@ -59,13 +63,22 @@ CONTAINS
 !> \param qs_kind_set for basis set info
 !> \param particle_set particles data structure, for positions and kinds
 !> \param print_section input section containing relevant print key
+!> \param cell ...
+!> \param unoccupied_orbs optional: unoccupied orbital coefficients from make_lumo_gpw
+!> \param unoccupied_evals optional: unoccupied orbital eigenvalues
 !> \author MattW, IainB
 ! **************************************************************************************************
-   SUBROUTINE write_mos_molden(mos, qs_kind_set, particle_set, print_section)
+   SUBROUTINE write_mos_molden(mos, qs_kind_set, particle_set, print_section, cell, &
+                               unoccupied_orbs, unoccupied_evals)
       TYPE(mo_set_type), DIMENSION(:), INTENT(IN)        :: mos
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(section_vals_type), POINTER                   :: print_section
+      TYPE(cell_type), OPTIONAL, POINTER                 :: cell
+      TYPE(cp_fm_type), DIMENSION(:), INTENT(IN), &
+         OPTIONAL                                        :: unoccupied_orbs
+      TYPE(cp_1d_r_p_type), DIMENSION(:), INTENT(IN), &
+         OPTIONAL                                        :: unoccupied_evals
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'write_mos_molden'
       CHARACTER(LEN=molden_lmax+1), PARAMETER            :: angmom = "spdfg"
@@ -73,12 +86,13 @@ CONTAINS
       CHARACTER(LEN=15)                                  :: fmtstr1, fmtstr2
       CHARACTER(LEN=2)                                   :: element_symbol
       INTEGER :: gto_kind, handle, i, iatom, icgf, icol, ikind, ipgf, irow, irow_in, iset, isgf, &
-         ishell, ispin, iw, lshell, ncgf, ncol_global, ndigits, nrow_global, nset, nsgf, z
+         ishell, ispin, iw, lshell, ncgf, ncol_global, ndigits, nrow_global, nset, nsgf, numos, &
+         unit_choice, z
       INTEGER, DIMENSION(:), POINTER                     :: npgf, nshell
       INTEGER, DIMENSION(:, :), POINTER                  :: l
       INTEGER, DIMENSION(molden_ncomax, 0:molden_lmax)   :: orbmap
-      LOGICAL                                            :: print_warn
-      REAL(KIND=dp)                                      :: expzet, prefac
+      LOGICAL                                            :: print_warn, write_cell, write_nval
+      REAL(KIND=dp)                                      :: expzet, prefac, scale_factor, zeff
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: cmatrix, smatrix
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: zet
       REAL(KIND=dp), DIMENSION(:, :, :), POINTER         :: gcc
@@ -95,12 +109,21 @@ CONTAINS
 
          print_warn = .TRUE.
 
+         CALL section_vals_val_get(print_section, "UNIT", i_val=unit_choice)
+         IF (unit_choice == 2) THEN
+            scale_factor = angstrom
+         ELSE
+            scale_factor = 1.0_dp
+         END IF
+
          CALL section_vals_val_get(print_section, "NDIGITS", i_val=ndigits)
          ndigits = MIN(MAX(3, ndigits), 30)
          WRITE (UNIT=fmtstr1, FMT='("(I6,1X,ES",I0,".",I0,")")') ndigits + 7, ndigits
          WRITE (UNIT=fmtstr2, FMT='("((T51,2F",I0,".",I0,"))")') ndigits + 10, ndigits
 
          CALL section_vals_val_get(print_section, "GTO_KIND", i_val=gto_kind)
+         CALL section_vals_val_get(print_section, "WRITE_CELL", l_val=write_cell)
+         CALL section_vals_val_get(print_section, "WRITE_NVAL", l_val=write_nval)
 
          IF (mos(1)%use_mo_coeff_b) THEN
             ! we are using the dbcsr mo_coeff
@@ -116,15 +139,40 @@ CONTAINS
 
          IF (iw > 0) THEN
             WRITE (iw, '(T2,A)') "[Molden Format]"
-            WRITE (iw, '(T2,A)') "[Atoms] AU"
+            IF (write_cell) THEN
+               IF (unit_choice == 2) THEN
+                  WRITE (iw, '(T2,A)') "[Cell] Angs"
+               ELSE
+                  WRITE (iw, '(T2,A)') "[Cell] AU"
+               END IF
+               WRITE (iw, '(T2,3(F12.6,3X))') &
+                  cell%hmat(1, 1)*scale_factor, cell%hmat(2, 1)*scale_factor, cell%hmat(3, 1)*scale_factor
+               WRITE (iw, '(T2,3(F12.6,3X))') &
+                  cell%hmat(1, 2)*scale_factor, cell%hmat(2, 2)*scale_factor, cell%hmat(3, 2)*scale_factor
+               WRITE (iw, '(T2,3(F12.6,3X))') &
+                  cell%hmat(1, 3)*scale_factor, cell%hmat(2, 3)*scale_factor, cell%hmat(3, 3)*scale_factor
+            END IF
+            IF (unit_choice == 2) THEN
+               WRITE (iw, '(T2,A)') "[Atoms] Angs"
+            ELSE
+               WRITE (iw, '(T2,A)') "[Atoms] AU"
+            END IF
             DO i = 1, SIZE(particle_set)
                CALL get_atomic_kind(atomic_kind=particle_set(i)%atomic_kind, &
                                     element_symbol=element_symbol)
                CALL get_ptable_info(element_symbol, number=z)
 
-               WRITE (iw, '(T2,A2,I8,I8,3X,3(F12.6,3X))') &
-                  element_symbol, i, z, particle_set(i)%r(:)
+               WRITE (iw, '(T2,A2,I6,I6,3X,3(F12.6,3X))') &
+                  element_symbol, i, z, particle_set(i)%r(:)*scale_factor
             END DO
+            IF (write_nval) THEN
+               WRITE (iw, '(T2,A)') "[Nval]"
+               DO i = 1, SIZE(qs_kind_set)
+                  CALL get_qs_kind(qs_kind_set(i), zeff=zeff)
+                  WRITE (iw, '(T2,A,1X,I6)') &
+                     TRIM(ADJUSTL(qs_kind_set(i)%element_symbol)), NINT(zeff)
+               END DO
+            END IF
 
             WRITE (iw, '(T2,A)') "[GTO]"
 
@@ -344,6 +392,103 @@ CONTAINS
             IF (ALLOCATED(cmatrix)) DEALLOCATE (cmatrix)
             IF (ALLOCATED(smatrix)) DEALLOCATE (smatrix)
          END DO
+
+         ! Write unoccupied (virtual) orbitals if provided; only used with OT
+         IF (PRESENT(unoccupied_orbs) .AND. PRESENT(unoccupied_evals)) THEN
+            DO ispin = 1, SIZE(unoccupied_orbs)
+               CALL cp_fm_get_info(unoccupied_orbs(ispin), &
+                                   nrow_global=nrow_global, &
+                                   ncol_global=numos)
+               ALLOCATE (smatrix(nrow_global, numos))
+               CALL cp_fm_get_submatrix(unoccupied_orbs(ispin), smatrix)
+
+               IF (iw > 0) THEN
+                  IF (gto_kind == gto_cartesian) THEN
+                     CALL get_qs_kind_set(qs_kind_set, ncgf=ncgf, nsgf=nsgf)
+                     ALLOCATE (cmatrix(ncgf, numos))
+                     cmatrix = 0.0_dp
+
+                     icgf = 1
+                     isgf = 1
+                     DO iatom = 1, SIZE(particle_set)
+                        NULLIFY (orb_basis_set)
+                        CALL get_atomic_kind(particle_set(iatom)%atomic_kind, kind_number=ikind)
+                        CALL get_qs_kind(qs_kind_set(ikind), basis_set=orb_basis_set)
+                        IF (ASSOCIATED(orb_basis_set)) THEN
+                           CALL get_gto_basis_set(gto_basis_set=orb_basis_set, &
+                                                  nset=nset, nshell=nshell, l=l)
+                           DO iset = 1, nset
+                              DO ishell = 1, nshell(iset)
+                                 lshell = l(ishell, iset)
+                                 CALL dgemm("T", "N", nco(lshell), numos, nso(lshell), 1.0_dp, &
+                                            orbtramat(lshell)%c2s, nso(lshell), &
+                                            smatrix(isgf, 1), nsgf, 0.0_dp, &
+                                            cmatrix(icgf, 1), ncgf)
+                                 icgf = icgf + nco(lshell)
+                                 isgf = isgf + nso(lshell)
+                              END DO
+                           END DO
+                        END IF
+                     END DO
+                  END IF
+
+                  DO icol = 1, numos
+                     irow = 1
+                     irow_in = 1
+
+                     WRITE (iw, '(A,ES20.10)') 'Ene=', unoccupied_evals(ispin)%array(icol)
+                     IF (ispin < 2) THEN
+                        WRITE (iw, '(A)') 'Spin= Alpha'
+                     ELSE
+                        WRITE (iw, '(A)') 'Spin= Beta'
+                     END IF
+                     WRITE (iw, '(A,F12.7)') 'Occup=', 0.0_dp
+
+                     DO iatom = 1, SIZE(particle_set)
+                        NULLIFY (orb_basis_set)
+                        CALL get_atomic_kind(particle_set(iatom)%atomic_kind, &
+                                             element_symbol=element_symbol, kind_number=ikind)
+                        CALL get_qs_kind(qs_kind_set(ikind), basis_set=orb_basis_set)
+                        IF (ASSOCIATED(orb_basis_set)) THEN
+                           CALL get_gto_basis_set(gto_basis_set=orb_basis_set, &
+                                                  nset=nset, nshell=nshell, l=l)
+
+                           IF (gto_kind == gto_cartesian) THEN
+                              icgf = 1
+                              DO iset = 1, nset
+                                 DO ishell = 1, nshell(iset)
+                                    lshell = l(ishell, iset)
+                                    IF (lshell <= molden_lmax) THEN
+                                       CALL print_coeffs(iw, fmtstr1, ndigits, irow_in, orbmap(:, lshell), &
+                                                         cmatrix(irow:irow + nco(lshell) - 1, icol))
+                                       irow_in = irow_in + nco(lshell)
+                                    END IF
+                                    irow = irow + nco(lshell)
+                                 END DO
+                              END DO
+                           ELSE IF (gto_kind == gto_spherical) THEN
+                              DO iset = 1, nset
+                                 DO ishell = 1, nshell(iset)
+                                    lshell = l(ishell, iset)
+                                    IF (lshell <= molden_lmax) THEN
+                                       CALL print_coeffs(iw, fmtstr1, ndigits, irow_in, orbmap(:, lshell), &
+                                                         smatrix(irow:irow + nso(lshell) - 1, icol))
+                                       irow_in = irow_in + nso(lshell)
+                                    END IF
+                                    irow = irow + nso(lshell)
+                                 END DO
+                              END DO
+                           END IF
+
+                        END IF
+                     END DO ! iatom
+                  END DO ! icol
+               END IF
+
+               IF (ALLOCATED(cmatrix)) DEALLOCATE (cmatrix)
+               IF (ALLOCATED(smatrix)) DEALLOCATE (smatrix)
+            END DO ! ispin
+         END IF
 
          CALL cp_print_key_finished_output(iw, logger, print_section, "")
 

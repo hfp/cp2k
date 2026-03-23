@@ -83,7 +83,9 @@ MODULE input_constants
 
    INTEGER, PARAMETER, PUBLIC               :: do_cell_cp2k = 1, &
                                                do_cell_cif = 2, &
-                                               do_cell_xsc = 3
+                                               do_cell_xsc = 3, &
+                                               do_cell_extxyz = 4, &
+                                               do_cell_pdb = 5
 
    INTEGER, PARAMETER, PUBLIC               :: rmsd_all = 0, &
                                                rmsd_list = 1, &
@@ -902,7 +904,10 @@ MODULE input_constants
    ! Define identifier codes for smearing method
    INTEGER, PARAMETER, PUBLIC               :: smear_energy_window = 1, &
                                                smear_fermi_dirac = 2, &
-                                               smear_list = 3
+                                               smear_list = 3, &
+                                               smear_gaussian = 4, &
+                                               smear_mp = 5, &
+                                               smear_mv = 6
 
    ! Define identifier codes for mixing method
 
@@ -951,10 +956,6 @@ MODULE input_constants
 
    INTEGER, PARAMETER, PUBLIC               :: rtp_bse_ham_ks = 1, &
                                                rtp_bse_ham_g0w0 = 2
-
-   ! type of reference for RTP%PRINT%PROJECTION_MO
-   INTEGER, PARAMETER, PUBLIC               :: proj_mo_ref_scf = 1, &
-                                               proj_mo_ref_xas_tdp = 2
 
    ! how to solve polarizable force fields
    INTEGER, PARAMETER, PUBLIC               :: do_fist_pol_none = 1, &

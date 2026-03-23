@@ -15,9 +15,12 @@
 MODULE kpoint_types
    USE cp_blacs_env,                    ONLY: cp_blacs_env_release,&
                                               cp_blacs_env_type
+   USE cp_cfm_types,                    ONLY: cp_cfm_release,&
+                                              cp_cfm_type
    USE cp_fm_types,                     ONLY: cp_fm_release,&
                                               cp_fm_type
    USE cp_log_handling,                 ONLY: cp_get_default_logger,&
+                                              cp_logger_get_default_unit_nr,&
                                               cp_logger_type
    USE cp_output_handling,              ONLY: cp_print_key_finished_output,&
                                               cp_print_key_unit_nr
@@ -68,6 +71,8 @@ MODULE kpoint_types
 !> \param wmat      associated energy weighted density matrix (r/i,spin)
 !> \param smat      associated overlap matrix (for ADMM) (r/i,spin)
 !> \param amat      associated ADMM basis projection matrix (r/i,spin)
+!> \param shalf     S(K)^(1/2) DFT+U Lowdin method (real wfn)
+!> \param cshalf    S(K)^(1/2) DFT+U Lowdin method (complex wfn)
 !> \author JGH
 ! **************************************************************************************************
    TYPE kpoint_env_type
@@ -75,11 +80,13 @@ MODULE kpoint_types
       REAL(KIND=dp)                                     :: wkp = 0.0_dp
       REAL(KIND=dp), DIMENSION(3)                       :: xkp = 0.0_dp
       LOGICAL                                           :: is_local = .FALSE.
-      TYPE(mo_set_type), DIMENSION(:, :), POINTER     :: mos => NULL()
-      TYPE(cp_fm_type), DIMENSION(:, :), POINTER      :: pmat => NULL()
-      TYPE(cp_fm_type), DIMENSION(:, :), POINTER      :: wmat => NULL()
-      TYPE(cp_fm_type), DIMENSION(:, :), POINTER      :: smat => NULL()
-      TYPE(cp_fm_type), DIMENSION(:, :), POINTER      :: amat => NULL()
+      TYPE(mo_set_type), DIMENSION(:, :), POINTER       :: mos => NULL()
+      TYPE(cp_fm_type), DIMENSION(:, :), POINTER        :: pmat => NULL()
+      TYPE(cp_fm_type), DIMENSION(:, :), POINTER        :: wmat => NULL()
+      TYPE(cp_fm_type), DIMENSION(:, :), POINTER        :: smat => NULL()
+      TYPE(cp_fm_type), DIMENSION(:, :), POINTER        :: amat => NULL()
+      TYPE(cp_fm_type)                                  :: shalf
+      TYPE(cp_cfm_type)                                 :: cshalf
    END TYPE kpoint_env_type
 
    TYPE kpoint_env_p_type
@@ -639,12 +646,14 @@ CONTAINS
 ! **************************************************************************************************
 !> \brief Write information on the kpoints to output
 !> \param kpoint  The kpoint environment
-!> \param dft_section  DFT section information
+!> \param iounit  output unit
+!> \param dft_section  DFT section information for output unit
 !> \author JGH
 ! **************************************************************************************************
-   SUBROUTINE write_kpoint_info(kpoint, dft_section)
+   SUBROUTINE write_kpoint_info(kpoint, iounit, dft_section)
       TYPE(kpoint_type), INTENT(IN)                      :: kpoint
-      TYPE(section_vals_type), INTENT(IN)                :: dft_section
+      INTEGER, INTENT(IN), OPTIONAL                      :: iounit
+      TYPE(section_vals_type), INTENT(IN), OPTIONAL      :: dft_section
 
       INTEGER                                            :: i, punit
       TYPE(cp_logger_type), POINTER                      :: logger
@@ -652,7 +661,14 @@ CONTAINS
       NULLIFY (logger)
       logger => cp_get_default_logger()
 
-      punit = cp_print_key_unit_nr(logger, dft_section, "PRINT%KPOINTS", extension=".Log")
+      IF (PRESENT(dft_section)) THEN
+         punit = cp_print_key_unit_nr(logger, dft_section, "PRINT%KPOINTS", extension=".Log")
+      ELSE IF (PRESENT(iounit)) THEN
+         punit = iounit
+      ELSE
+         punit = cp_logger_get_default_unit_nr(logger)
+      END IF
+
       IF (punit > 0) THEN
 
          IF (kpoint%kp_scheme /= "NONE") THEN
@@ -704,7 +720,10 @@ CONTAINS
          END IF
 
       END IF
-      CALL cp_print_key_finished_output(punit, logger, dft_section, "PRINT%KPOINTS")
+
+      IF (PRESENT(dft_section)) THEN
+         CALL cp_print_key_finished_output(punit, logger, dft_section, "PRINT%KPOINTS")
+      END IF
 
    END SUBROUTINE write_kpoint_info
 
@@ -758,6 +777,9 @@ CONTAINS
          CALL cp_fm_release(kp_env%wmat)
          CALL cp_fm_release(kp_env%smat)
          CALL cp_fm_release(kp_env%amat)
+
+         CALL cp_fm_release(kp_env%shalf)
+         CALL cp_cfm_release(kp_env%cshalf)
 
          DEALLOCATE (kp_env)
 

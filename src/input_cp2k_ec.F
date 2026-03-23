@@ -18,6 +18,7 @@ MODULE input_cp2k_ec
    USE cp_output_handling,              ONLY: cp_print_key_section_create,&
                                               debug_print_level,&
                                               high_print_level
+   USE cp_units,                        ONLY: cp_unit_to_cp2k
    USE input_constants,                 ONLY: &
         bqb_opt_exhaustive, bqb_opt_normal, bqb_opt_off, bqb_opt_patient, bqb_opt_quick, &
         ec_diagonalization, ec_functional_dc, ec_functional_ext, ec_functional_harris, &
@@ -28,6 +29,7 @@ MODULE input_cp2k_ec
         ls_scf_sign_ns, ls_scf_sign_proot, ot_precond_full_all, ot_precond_full_kinetic, &
         ot_precond_full_single, ot_precond_full_single_inverse, ot_precond_none, &
         ot_precond_s_inverse, precond_mlp
+   USE input_cp2k_kpoints,              ONLY: create_kpoints_section
    USE input_cp2k_mm,                   ONLY: create_dipoles_section
    USE input_cp2k_voronoi,              ONLY: create_print_voronoi_section
    USE input_cp2k_xc,                   ONLY: create_xc_section
@@ -40,7 +42,8 @@ MODULE input_cp2k_ec
                                               section_release,&
                                               section_type
    USE input_val_types,                 ONLY: char_t,&
-                                              integer_t
+                                              integer_t,&
+                                              real_t
    USE kinds,                           ONLY: dp
    USE string_utilities,                ONLY: s2a
 #include "./base/base_uses.f90"
@@ -83,6 +86,12 @@ CONTAINS
       ! add a special XC section
       NULLIFY (subsection)
       CALL create_xc_section(subsection)
+      CALL section_add_subsection(section, subsection)
+      CALL section_release(subsection)
+
+      ! add a special kpoint section
+      NULLIFY (subsection)
+      CALL create_kpoints_section(subsection)
       CALL section_add_subsection(section, subsection)
       CALL section_release(subsection)
 
@@ -170,6 +179,20 @@ CONTAINS
       CALL keyword_create(keyword, __LOCATION__, name="MAO_IOLEVEL", &
                           description="Verbosity of MAO output: (0) no output ... (3) fully verbose", &
                           usage="MAO_IOLEVEL 0 ", default_i_val=1)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, &
+                          name="ELECTRONIC_TEMPERATURE", &
+                          variants=s2a("ELEC_TEMP", "FD_TEMP"), &
+                          description="Electronic temperature for Harris functional with "// &
+                          "Fermi-Dirac smearing.", &
+                          repeats=.FALSE., &
+                          n_var=1, &
+                          type_of_var=real_t, &
+                          default_r_val=cp_unit_to_cp2k(value=0.0_dp, unit_str="K"), &
+                          unit_str="K", &
+                          usage="ELECTRONIC_TEMPERATURE [K] 300")
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 

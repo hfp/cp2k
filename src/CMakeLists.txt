@@ -183,7 +183,6 @@ list(
   f77_interface.F
   farming_methods.F
   farming_types.F
-  fermi_utils.F
   fist_efield_methods.F
   fist_efield_types.F
   fist_energy_types.F
@@ -322,6 +321,7 @@ list(
   kpoint_io.F
   kpoint_k_r_trafo_simple.F
   kpoint_methods.F
+  kpoint_mo_dump.F
   kpoint_transitional.F
   kpoint_types.F
   kpsym.F
@@ -345,7 +345,6 @@ list(
   manybody_deepmd.F
   manybody_gal21.F
   manybody_gal.F
-  manybody_allegro.F
   manybody_nequip.F
   manybody_potential.F
   manybody_siepmann.F
@@ -802,6 +801,7 @@ list(
   smeagol_emtoptions.F
   smeagol_interface.F
   smeagol_matrix_utils.F
+  smearing_utils.F
   spglib_f08.F
   splines_methods.F
   splines_types.F

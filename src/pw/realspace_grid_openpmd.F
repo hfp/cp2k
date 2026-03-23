@@ -167,6 +167,7 @@ CONTAINS
       WRITE (atom_type_as_string, '(I3)') atom_type
       species_name = TRIM(openpmd_data%name_prefix)//"-"//ADJUSTL(atom_type_as_string)
 
+      CALL openpmd_data%iteration%open()
       species = openpmd_data%iteration%get_particle_species(TRIM(species_name))
 
       position_offset = species%get_record("positionOffset")
@@ -176,31 +177,27 @@ CONTAINS
          CALL position_offset_component%make_constant_zero(openpmd_type_int, global_extent)
          position_component = position%get_component(dims(k))
          CALL position_component%reset_dataset(openpmd_type_double, global_extent)
-         IF (do_write_data) THEN
-            unresolved_write_buffers(k) = &
-               position_component%store_chunk_span_1d_double(global_offset, local_extent)
-            write_buffers(k)%buffer => unresolved_write_buffers(k)%resolve_double(DEALLOCATE=.FALSE.)
-         END IF
+         unresolved_write_buffers(k) = &
+            position_component%store_chunk_span_1d_double(global_offset, local_extent)
+         write_buffers(k)%buffer => unresolved_write_buffers(k)%resolve_double(DEALLOCATE=.FALSE.)
       END DO
 
       IF (PRESENT(particles_zeff)) THEN
          charge = species%get_record("charge")
          charge_component = charge%as_record_component()
          CALL charge_component%reset_dataset(openpmd_type_double, global_extent)
-         IF (do_write_data) THEN
-            unresolved_charge_write_buffer = charge_component%store_chunk_span_1d_double(global_offset, local_extent)
-            charge_write_buffer%buffer => unresolved_charge_write_buffer%resolve_double(DEALLOCATE=.FALSE.)
-         END IF
+         unresolved_charge_write_buffer = charge_component%store_chunk_span_1d_double(global_offset, local_extent)
+         charge_write_buffer%buffer => unresolved_charge_write_buffer%resolve_double(DEALLOCATE=.FALSE.)
       END IF
 
+      ! Resolve Spans for a second time to allow for internal reallocations in BP4 engine of ADIOS2
+      DO k = 1, SIZE(dims)
+         write_buffers(k)%buffer = unresolved_write_buffers(k)%resolve_double(DEALLOCATE=.TRUE.)
+      END DO
+      IF (PRESENT(particles_zeff)) THEN
+         charge_write_buffer%buffer = unresolved_charge_write_buffer%resolve_double(DEALLOCATE=.TRUE.)
+      END IF
       IF (do_write_data) THEN
-         ! Resolve Spans for a second time to allow for internal reallocations in BP4 engine of ADIOS2
-         DO k = 1, SIZE(dims)
-            write_buffers(k)%buffer = unresolved_write_buffers(k)%resolve_double(DEALLOCATE=.TRUE.)
-         END DO
-         IF (PRESENT(particles_zeff)) THEN
-            charge_write_buffer%buffer = unresolved_charge_write_buffer%resolve_double(DEALLOCATE=.TRUE.)
-         END IF
          j = 1
          DO i = 1, SIZE(particles_z)
             IF (particles_z(i) == atom_type) THEN
@@ -305,8 +302,8 @@ CONTAINS
       LOGICAL, INTENT(IN), OPTIONAL                      :: zero_tails, silent, mpi_io
 
       CHARACTER(len=*), PARAMETER                        :: routineN = 'pw_to_openpmd'
-      INTEGER, PARAMETER                                 :: entry_len = 13, num_entries_line = 6
 
+      CHARACTER(LEN=default_string_length)               :: my_title
       INTEGER                                            :: count1, count2, count3, handle, i, I1, &
                                                             I2, I3, iat, L1, L2, L3, my_rank, &
                                                             my_stride(3), np, num_atom_types, &
@@ -329,6 +326,7 @@ CONTAINS
       be_silent = .FALSE.
       parallel_write = .FALSE.
       gid = pw%pw_grid%para%group
+      IF (PRESENT(title)) my_title = TRIM(title)
       IF (PRESENT(zero_tails)) my_zero_tails = zero_tails
       IF (PRESENT(silent)) be_silent = silent
       IF (PRESENT(mpi_io)) parallel_write = mpi_io
@@ -394,8 +392,9 @@ CONTAINS
 
       DO iat = 1, 3
          global_extent(iat) = (pw%pw_grid%npts(iat) + my_stride(iat) - 1)/my_stride(iat)
-         ! '+ 1' because upper end is inclusive, '- 1' for upper gaussian bracket
+         ! '- 1' for upper gaussian bracket
          offset(iat) = ((pw%pw_grid%bounds_local(1, iat) - pw%pw_grid%bounds(1, iat) + my_stride(iat) - 1)/my_stride(iat))
+         ! '+ 1' because upper end is inclusive, '- 1' for upper gaussian bracket
          ! refer local_extent to the global offset first in order to have consistent rounding
          local_extent(iat) = ((pw%pw_grid%bounds_local(2, iat) + 1 - pw%pw_grid%bounds(1, iat) + my_stride(iat) - 1)/my_stride(iat))
       END DO
@@ -414,13 +413,12 @@ CONTAINS
       ! (when working with a stride, we might have to skip the first n values)
       ! so keep this consistent with the offset and local_extent computed above
       ! L1 = pw%pw_grid%bounds_local(1, 1)
-      L1 = offset(1)*my_stride(1)
+      L1 = pw%pw_grid%bounds(1, 1) + offset(1)*my_stride(1)
       L2 = pw%pw_grid%bounds_local(1, 2)
       L3 = pw%pw_grid%bounds_local(1, 3)
-      ! U1 = pw%pw_grid%bounds_local(2, 1)
       ! offset + local_extent is the start index for the next rank already
       ! since the indexes are inclusive, subtract 1 from the boundary index
-      U1 = (offset(1) + local_extent(1) - 1)*my_stride(1)
+      U1 = pw%pw_grid%bounds(1, 1) + (offset(1) + local_extent(1) - 1)*my_stride(1)
       U2 = pw%pw_grid%bounds_local(2, 2)
       U3 = pw%pw_grid%bounds_local(2, 3)
 

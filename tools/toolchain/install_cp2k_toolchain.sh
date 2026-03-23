@@ -65,6 +65,7 @@ source "${SCRIPTDIR}"/tool_kit.sh
 # ------------------------------------------------------------------------
 show_help() {
   cat << EOF
+
 This script will help you prepare the toolchain for compiling and using CP2K.
 There are a number of dependency packages for CP2K, which may be downloaded
 from internet and freshly installed, or detected from system path and linked.
@@ -78,13 +79,13 @@ $(basename "$SCRIPT_NAME") [options]
 
 OPTIONS:
 
--h, --help                Show this message and exit.
--j <n>                    Number of processors for parallel compiling.
+  -h, --help              Show this message and exit.
+  --help-hpc              Show additional hints for HPC users and exit.
+  -j <n>                  Number of processors for parallel compiling.
                           If omitted, the script will automatically try to
                           determine the number of available processors and use
-                          all of them by default. Set "-j 1" explicitly if this
-                          is not desired.
---no-check-certificate    Bypass verification of server's certificate while
+                          all of them by default.
+  --no-check-certificate  Bypass verification of server's certificate while
                           downloading anything from internet via wget command.
                           In case wget errors about "certificate verification"
                           or "common name doesn't match requested host name"
@@ -93,25 +94,28 @@ OPTIONS:
                           alternatively, this script can be rerun with this
                           option in command line.
                           Security wise this should still be okay as sha256
-                          checksums are checked after every tarball download.
-                          Nevertheless, use this option at your own risk.
---install-all             Set value of all --with-PKG options to "install"
+                          checksums are validated after every tarball
+                          download. Nevertheless, use this option at your own
+                          risk.
+  --install-all           Set value of all --with-PKG options to "install"
                           (except --with-intel, --with-intelmpi, --with-amd).
                           By default, GNU compiler and MPICH are installed.
                           AFTER this option on the command line, you can set
                           specific --with-PKG options to another value again
                           for selective fine controls (see below).
---mpi-mode                Select which MPI flavour to use. Available options
+  --mpi-mode              Select which MPI flavour to use. Available options
                           are: mpich, openmpi, intelmpi, and no.
                           If omitted, the script will automatically try to
                           determine the flavour based on the MPI library
                           available in system path; alternatively, if any of
                           --with-mpich, --with-openmpi or --with-intelmpi
-                          options (see below) is explicitly set to values other
-                          than no, the script will follow.
-                          For CRAY (CLE) systems, the default flavour is mpich.
-                          By selecting "no", MPI is not supported and disabled.
---math-mode               Select which core math library to use. Available
+                          options (see below) is explicitly set to values
+                          other than no, the script will follow.
+                          For CRAY (CLE) systems and the case that you use
+                          "--with-mpi" but no MPI installation is detected,
+                          the default flavour is mpich.
+                          By selecting "no", MPI is unsupported and disabled.
+  --math-mode             Select which core math library to use. Available
                           options are: acml, cray, mkl, and openblas.
                           If omitted, for non-CRAY systems, mkl is the default
                           when environment variable \$MKLROOT exists, otherwise
@@ -120,44 +124,50 @@ OPTIONS:
                           Alternatively, if any of --with-acml, --with-mkl,
                           or --with-openblas options (see below) is explicitly
                           set to values other than no, the script will follow.
---target-cpu              Select the target CPU architecture for compiling.
+  --target-cpu            Select the target CPU architecture for compiling.
                           This option determines the value of -mtune flag in
                           CFLAGS for compilers. If omitted or set to "native",
-                          compiling will be tuned/optimized for the native host
-                          system, and some instruction sets will be detected
-                          including AVX, AVX2, AVX512, SSE4, etc. Alternatively
-                          this option can be set depending on actual target
-                          CPU microarchitecture, e.g. "haswell", "skylake", or
-                          just "generic".
+                          compiling will be tuned/optimized for the native
+                          host system, and some instruction sets will be
+                          detected including AVX, AVX2, AVX512,etc.
+                          Alternatively this option can be set depending on
+                          actual target CPU microarchitecture, e.g. "haswell",
+                          "skylake", or just "generic".
                           Default = native
---gpu-ver                 Select the target GPU architecture for compiling.
+  --gpu-ver               Select the target GPU architecture for compiling.
                           Available options are: K20X, K40, K80, P100, V100,
                           A100, H100, A40, Mi50, Mi100, Mi250, and no.
                           This option determines the value of nvcc -arch flag.
                           Default = no
---libint-lmax             Maximum supported angular momentum by libint if the
-                          --with-libint option is set to "install" (see below).
-                          Available options are: 4, 5, 6, 7. Higher values will
-                          increase build time and library size.
+  --libint-lmax           Maximum supported angular momentum by libint if the
+                          "--with-libint" option is set to "install".
+                          Available options are: 4, 5, 6, 7. Higher value will
+                          result in more build time and larger library size.
                           Default = 5
---log-lines               In case a package build returns a non-zero exit code,
-                          the number of final lines from the log file in the
+  --log-lines             The number of final lines from the log file in the
                           corresponding directory that will be dumped to the
-                          command line. Due to limited length, this snippet may
-                          not contain the very first warning or error message.
+                          command line in case a package build returns a non-
+                          zero exit code. Due to limited length, this snippet
+                          may not contain the very first warning or error
+                          message.
                           Default = 200
---dry-run                 After writing toolchain config and env files to the
+  --dry-run               After writing toolchain config and env files to the
                           install directory, just print a list of effective
-                          settings after resolving known conflicts, then exit.
-                          Like --help, do not actually download tarballs or
-                          build packages.
+                          settings after resolving known conflicts, then exit
+                          without actually downloading tarballs or building
+                          packages.
+  --list-cmake-options    If yes, generate a list of CMake options for building
+                          CP2K with the toolchain configuration as well as some
+                          further instructions at the end of toolchain.
+                          Default = yes
 
 The --enable-FEATURE options follow the rules:
   --enable-FEATURE=yes    Enable this particular feature.
   --enable-FEATURE=no     Disable this particular feature.
   --enable-FEATURE        The option keyword alone is equivalent to
                           --enable-FEATURE=yes
-Specific options:
+
+Specific options of --enable-FEATURE:
   --enable-tsan           Turn on Thread Sanitizer (TSAN) for GNU compiler.
                           Default = no
   --enable-cuda           Turn on GPU (CUDA) support.
@@ -186,7 +196,8 @@ The --with-PKG options follow the rules:
                           the given <path>, and be linked accordingly.
   --with-PKG              The option keyword alone will be equivalent to
                           --with-PKG=install
-Specific options:
+
+Specific options of --with-PKG:
   --with-gcc              Use the GNU compilers (gcc, g++, gfortran) to build
                           newly installed dependencies and CP2K.
                           Only one of --with-gcc, --with-intel and --with-amd
@@ -340,74 +351,107 @@ Specific options:
 
 FURTHER INSTRUCTIONS
 
-An alternative way to prepare the dependencies and environment for CP2K is to
-use Spack along with podman, which is handled by make_cp2k.sh, another script
-that has nothing to do with the current toolchain script.
-
-This toolchain script does not use system-dependent package managers (e.g. apt,
-yum, dnf) for finding resource and configuring or installing packages. However,
-the script assumes that several prerequisites including (but not limited to)
-wget, bzip2 and make are present, which should be ready from package managers.
-Prior to executing the toolchain script, the install_requirements.sh script in
-the toolchain directory can help collecting them.
+Before running the script, please ensure that several prerequisites including
+(but not limited to) wget, bzip2 and make are present, which should be provided
+by the system package manager (such as dnf and apt). The install_requirements.sh
+script in the toolchain directory can help collect them.
 
 All packages to be installed locally will be downloaded and built inside
 ./build, and then installed into package specific directories inside ./install.
 
-Both ./build and ./install are safe to delete, as they contain only the files
-and directories that are generated by this script. However, once all the
-packages are installed and you compiled CP2K then you must keep ./install in
-exactly the same location as it was first created, as it contains tools and
-libraries your version of CP2K binary will depend on.
+The directory ./build is safe to delete, as it contains only the files and
+directories that are downloaded via this script to install these packages.
+However, once the packages are installed and you compiled CP2K then you must
+keep ./install in exactly the same location as it was first created, as it
+contains tools and libraries your version of CP2K binary will depend on.
 
-It should be safe to terminate running of this script in the middle of a
-build process. The script will know if a package has been successfully
-installed, and will just carry on and recompile and install the last
-package it is working on. This is true even if you lose the content of
-the entire ./build directory.
+It should be safe to terminate running of this script in the middle of a build
+process. The script will know if a package has been successfully installed and
+will just carry on and recompile and install the last package it is working on.
+This is true even if you lose the content of the entire ./build directory.
+
+Some packages are sensitive to the environment variables of their dependencies.
+Therefore, if you use --with-PKG_A=system but encounter an error indicating that
+PKG_A cannot be found when installing PKG_B, please first check whether the
+environment variables set for PKG_A are correctly and fully imported (especially
+LIBRARY_PATH and CPATH, which are often overlooked).
 
 For HPC users who wish to install toolchain dependencies and CP2K on public
-supercomputer clusters for oneself: as this is a complicated process, it is
-strongly advised to contact local system administrators or managers for timely,
-specific assistance. Nevertheless, some hints and observations may be useful:
-(1) Generally root or sudo power is not necessary, and a convenient directory
-with read and write permission as well as sufficient disk space should be okay
-when installing toolchain and CP2K for a single user.
-(2) The server is very likely to have multiple compilers, MPI libraries, math
-libraries and other packages that are managed by module systems, such as LMod
-and Environment Modules. Users can load or unload modules to control active
-environment variables and paths in runtime without conflicts. It is recommended
-to check for available modules (with "module avail", "module show" or similar
-commands) beforehand, and activate desired compatible packages when running the
-toolchain script with "--with-PKG=system" options to avoid repeated labour.
-(3) If no internet connection is available for downloading packages from public
-resources on the server, an offline installation of toolchain and CP2K may be
-carried out by downloading all packages elsewhere, transferring them to server
-and placing them under the ./build directory. The toolchain script will not
-attempt to download packages if they are already present in the build directory
-with filenames reflecting the correct versions.
-(4) An important common feature of clusters is the distinction of node types:
-"login node", where users log in and perform tasks with low workload; and
-"compute node", where resource-intensive computation jobs are carried out.
-They may be hosted on separate machines, and their hardware specifications
-(CPU, RAM, disk space, etc.) may be similar or different. Therefore, care must
-be taken especially for the latter case; for instance, running toolchain script
-on login node with the option of "--target-cpu=native" (which is default too if
-omitted) and executing CP2K on compute node afterwards may result in unknown
-behaviors due to discrepancies in CPU architectures and supported instruction
-sets. The option with best portability for compiling programs at the cost of
-reduced (non-optimal) performance is "--target-cpu=generic".
-(5) Again, be careful about the environment if CP2K is to be executed with job
-submission scripts to the job queue system handling resource allocation. Active
-environment variables and paths on the login node (by loading modules, sourcing
-scripts, editing ~/.bashrc or /etc/profile files, etc.) may NOT be active on
-the compute node where CP2K actually runs, unless all appropriate commands are
-explicitly written in the job submission script.
+supercomputer clusters for oneself, it would be helpful to use "--help-hpc"
+option to show some hints and observations.
 
   +----------------------------------------------------------------+
   |  YOU SHOULD ALWAYS SOURCE ./install/setup BEFORE YOU RUN CP2K  |
   |  COMPILED WITH THIS TOOLCHAIN                                  |
   +----------------------------------------------------------------+
+
+EOF
+}
+
+show_help_hpc() {
+  cat << EOF
+
+For HPC users who wish to install toolchain dependencies and CP2K on public
+supercomputer clusters for oneself:
+
+As this is a complicated process, it is strongly advised to contact local
+system administrators or managers for timely, specific assistance. Here are
+some hints and observations that may be useful:
+
+(1) Please don't forget to use "-h" or "--help" option to see detailed usage of
+    the toolchain script!
+
+(2) Generally root or sudo power is not necessary, and a convenient directory
+    with read and write permission as well as sufficient disk space should be
+    okay when installing toolchain and CP2K for a single user.
+
+(3) The server is very likely to have multiple compilers, MPI libraries, math
+    libraries and other packages that are managed by module systems, such as
+    LMod and Environment Modules. Users can load or unload modules to control
+    active environment variables and paths in runtime without conflicts. It is
+    recommended to check for available modules (with "module avail", "module
+    show" or similar commands) beforehand, and activate desired packages when
+    running the toolchain script with "--with-PKG=system" options so as to
+    avoid repeated labour. That said, actual compatibility between modules and
+    CP2K to be built may still take rounds of trial-and-error to confirm, and
+    resorting to "--with-PKG=install" can sometimes resolve problems if modules
+    turn out to be outdated, or compiled inconsistently, or not registering
+    complete variables and paths, or not built with GPU support on GPU machine,
+    etc. Please forward complaints about faulty modules to whoever responsible
+    for the server first before submitting any bug report to program developer.
+
+(4) If no internet connection is available for downloading packages from public
+    resources on the server, an offline installation of toolchain and CP2K may
+    be carried out by downloading all packages elsewhere, transferring them to
+    server and placing them under the ./build directory. The toolchain script
+    will not attempt to download packages if they are already present in the
+    build directory, with filenames and sha256sum strings matching the records.
+
+(5) An important common feature of clusters is the distinction of node types:
+    "login node", where users log in and perform tasks with low workload; and
+    "compute node", where resource-intensive computation jobs are carried out.
+    They may be hosted on separate machines, and their hardware specifications
+    (CPU, RAM, disk space, etc.) may be similar or different. Therefore, care
+    must be taken especially for the latter case. For instance, discrepancies
+    in CPU architectures and supported instruction sets may cause poor program
+    performance or illegal instruction errors if toolchain script is executed
+    on login node with "--target-cpu=native" (which is default too if omitted)
+    but CP2K is executed on compute node(s) afterwards. In this case, an option
+    "--target-cpu=generic" with best portability for compiling programs at the
+    cost of reduced (non-optimized) performance may be necessary.
+
+(6) Again, be careful about the environment if CP2K is to be executed with job
+    submission scripts to the job queue system handling resource allocation.
+    Active environment variables and paths on the login node seen by user (by
+    loading modules, sourcing scripts, editing ~/.bashrc or /etc/profile files,
+    or entering commands interactively in general) may NOT be effective on the
+    compute node where CP2K actually runs, unless all appropriate commands are
+    written explicitly in the batch job submission script. For example, a
+    frequently encountered scenario with corrupted, interleaved output messages
+    stems from incorrect MPI library configuration launching multiple instances
+    of CP2K simultaneously instead of multi-process parallel execution of one
+    single instance; some possible culprits are that the ./install/setup file
+    is not sourced or the wrong module for MPI library is loaded at runtime.
 
 EOF
 }
@@ -518,6 +562,7 @@ else
 fi
 
 # default enable options
+list_cmake_options="__TRUE__"
 dry_run="__FALSE__"
 enable_tsan="__FALSE__"
 enable_opencl="__FALSE__"
@@ -682,6 +727,13 @@ Otherwise use option no."
       ;;
     --dry-run)
       dry_run="__TRUE__"
+      ;;
+    --list-cmake-options*)
+      list_cmake_options=$(read_enable "${1}")
+      if [ "${list_cmake_options}" = "__INVALID__" ]; then
+        report_error "invalid value for --list-cmake-options, please use yes or no"
+        exit 1
+      fi
       ;;
     --enable-tsan*)
       enable_tsan=$(read_enable "${1}")
@@ -870,12 +922,16 @@ Otherwise use option no."
     --with-mcl*)
       with_mcl=$(read_with "${1}")
       ;;
-    --help*)
+    --help)
       show_help
       exit 0
       ;;
-    -h*)
+    -h)
       show_help
+      exit 0
+      ;;
+    --help-hpc)
+      show_help_hpc
       exit 0
       ;;
     *)
@@ -1279,17 +1335,19 @@ else
   echo "Options have been parsed successfully."
   echo "Compiling with ${NPROCS_OVERWRITE} processes for target ${TARGET_CPU}."
   echo "# Leak suppressions" > "${INSTALLDIR}"/lsan.supp
-  ./scripts/stage0/install_stage0.sh
-  ./scripts/stage1/install_stage1.sh
-  ./scripts/stage2/install_stage2.sh
-  ./scripts/stage3/install_stage3.sh
-  ./scripts/stage4/install_stage4.sh
-  ./scripts/stage5/install_stage5.sh
-  ./scripts/stage6/install_stage6.sh
-  ./scripts/stage7/install_stage7.sh
-  ./scripts/stage8/install_stage8.sh
-  ./scripts/stage9/install_stage9.sh
+  "${SCRIPTDIR}"/stage0/install_stage0.sh
+  "${SCRIPTDIR}"/stage1/install_stage1.sh
+  "${SCRIPTDIR}"/stage2/install_stage2.sh
+  "${SCRIPTDIR}"/stage3/install_stage3.sh
+  "${SCRIPTDIR}"/stage4/install_stage4.sh
+  "${SCRIPTDIR}"/stage5/install_stage5.sh
+  "${SCRIPTDIR}"/stage6/install_stage6.sh
+  "${SCRIPTDIR}"/stage7/install_stage7.sh
+  "${SCRIPTDIR}"/stage8/install_stage8.sh
+  "${SCRIPTDIR}"/stage9/install_stage9.sh
 fi
 
 # Generate CMake options
-./scripts/generate_cmake_options.sh
+if [ "${list_cmake_options}" = "__TRUE__" ]; then
+  "${SCRIPTDIR}"/generate_cmake_options.sh
+fi

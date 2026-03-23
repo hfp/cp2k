@@ -87,6 +87,7 @@ MODULE qs_scf_post_gpw
    USE kinds,                           ONLY: default_path_length,&
                                               default_string_length,&
                                               dp
+   USE kpoint_mo_dump,                  ONLY: write_kpoint_mo_data
    USE kpoint_types,                    ONLY: kpoint_type
    USE mao_wfn_analysis,                ONLY: mao_analysis
    USE mathconstants,                   ONLY: pi
@@ -520,7 +521,37 @@ CONTAINS
    END FUNCTION section_key_do_write
 
 ! **************************************************************************************************
-!> \brief collects possible post - scf calculations and prints info / computes properties.
+!> \brief Prints the output message for density file writing
+!> \param output_unit Unit number for output
+!> \param prefix The message prefix (e.g., "The total electron density")
+!> \param e_density_section Section key containing grid_output and format_name
+!> \param filename The actual filename or pattern used
+! **************************************************************************************************
+   SUBROUTINE print_density_output_message(output_unit, prefix, e_density_section, filename)
+      INTEGER, INTENT(IN)                                :: output_unit
+      CHARACTER(len=*), INTENT(IN)                       :: prefix
+      TYPE(cp_section_key), INTENT(IN)                   :: e_density_section
+      CHARACTER(len=*), INTENT(IN)                       :: filename
+
+      IF (e_density_section%grid_output == grid_output_openpmd) THEN
+         WRITE (UNIT=output_unit, FMT="(/,T2,A)") &
+            TRIM(prefix)//" is written in " &
+            //e_density_section%format_name &
+            //" file format to the file / file pattern:", &
+            TRIM(filename)
+      ELSE
+         WRITE (UNIT=output_unit, FMT="(/,T2,A,/,/,T2,A)") &
+            TRIM(prefix)//" is written in " &
+            //e_density_section%format_name &
+            //" file format to the file:", &
+            TRIM(filename)
+      END IF
+   END SUBROUTINE print_density_output_message
+
+   ! **************************************************************************************************
+   !> \brief collects possible post - scf calculations and prints info / computes properties.
+! **************************************************************************************************
+!> \brief ...
 !> \param qs_env the qs_env in which the qs_env lives
 !> \param wf_type ...
 !> \param do_mp2 ...
@@ -547,10 +578,8 @@ CONTAINS
          warning_cube_kpoint = "Print MO cubes not implemented for k-point calculations", &
          warning_openpmd_kpoint = "Writing to openPMD not implemented for k-point calculations"
 
-      INTEGER                                            :: handle, homo, ispin, min_lumos, n_rep, &
-                                                            nchk_nmoloc, nhomo, nlumo, nlumo_stm, &
-                                                            nlumos, nmo, nspins, output_unit, &
-                                                            unit_nr
+      INTEGER :: handle, homo, ispin, min_lumos, n_rep, nchk_nmoloc, nhomo, nlumo, nlumo_molden, &
+         nlumo_stm, nlumos, nmo, nspins, output_unit, unit_nr
       INTEGER, DIMENSION(:, :, :), POINTER               :: marked_states
       LOGICAL :: check_write, compute_lumos, do_homo, do_kpoints, do_mixed, do_stm, &
          do_wannier_cubes, has_homo, has_lumo, loc_explicit, loc_print_explicit, my_do_mp2, &
@@ -560,6 +589,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), POINTER               :: mo_eigenvalues
       TYPE(admm_type), POINTER                           :: admm_env
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
+      TYPE(cell_type), POINTER                           :: cell
       TYPE(cp_1d_r_p_type), DIMENSION(:), POINTER        :: mixed_evals, occupied_evals, &
                                                             unoccupied_evals, unoccupied_evals_stm
       TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:)        :: mixed_orbs, occupied_orbs
@@ -594,7 +624,7 @@ CONTAINS
       TYPE(scf_control_type), POINTER                    :: scf_control
       TYPE(section_vals_type), POINTER                   :: dft_section, input, loc_print_section, &
                                                             localize_section, print_key, &
-                                                            stm_section
+                                                            sprint_section, stm_section
 
       CALL timeset(routineN, handle)
 
@@ -1095,6 +1125,33 @@ CONTAINS
                DEALLOCATE (unoccupied_evals_stm)
                CALL cp_fm_release(unoccupied_orbs_stm)
             END IF
+         END IF
+      END IF
+
+      ! Write molden file including unoccupied orbitals for OT calculations
+      IF (.NOT. do_kpoints) THEN
+         sprint_section => section_vals_get_subs_vals(dft_section, "PRINT%MO_MOLDEN")
+         CALL section_vals_val_get(sprint_section, "OT_NLUMO", i_val=nlumo_molden)
+         IF (nlumo_molden /= 0 .AND. scf_env%method == ot_method_nr) THEN
+            CALL get_qs_env(qs_env, mos=mos, qs_kind_set=qs_kind_set, &
+                            particle_set=particle_set, cell=cell)
+            ALLOCATE (unoccupied_orbs(dft_control%nspins))
+            ALLOCATE (unoccupied_evals(dft_control%nspins))
+            CALL make_lumo_gpw(qs_env, scf_env, unoccupied_orbs, unoccupied_evals, &
+                               nlumo_molden, nlumos)
+            IF (output_unit > 0) THEN
+               WRITE (output_unit, '(/,T2,A,I6,A)') &
+                  "MO_MOLDEN| Writing ", nlumos, " unoccupied orbitals to molden file"
+            END IF
+            CALL write_mos_molden(mos, qs_kind_set, particle_set, sprint_section, cell=cell, &
+                                  unoccupied_orbs=unoccupied_orbs, &
+                                  unoccupied_evals=unoccupied_evals)
+            DO ispin = 1, dft_control%nspins
+               DEALLOCATE (unoccupied_evals(ispin)%array)
+               CALL cp_fm_release(unoccupied_orbs(ispin))
+            END DO
+            DEALLOCATE (unoccupied_evals)
+            DEALLOCATE (unoccupied_orbs)
          END IF
       END IF
 
@@ -2024,8 +2081,10 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'write_mo_dependent_results'
 
-      INTEGER                                            :: handle, homo, ispin, nmo, output_unit
-      LOGICAL                                            :: all_equal, do_kpoints, explicit
+      INTEGER                                            :: handle, homo, ispin, nlumo_molden, nmo, &
+                                                            output_unit
+      LOGICAL                                            :: all_equal, defer_molden, do_kpoints, &
+                                                            explicit
       REAL(KIND=dp)                                      :: maxocc, s_square, s_square_ideal, &
                                                             total_abs_spin_dens, total_spin_dens
       REAL(KIND=dp), DIMENSION(:), POINTER               :: mo_eigenvalues, occupation_numbers
@@ -2094,16 +2153,42 @@ CONTAINS
          IF (explicit) THEN
             CALL write_trexio(qs_env, trexio_section)
          END IF
+         sprint_section => section_vals_get_subs_vals(dft_section, "PRINT%MO_MOLDEN")
          IF (.NOT. do_kpoints) THEN
             CALL get_qs_env(qs_env, mos=mos, matrix_ks=ks_rmpv)
             CALL write_dm_binary_restart(mos, dft_section, ks_rmpv)
-            sprint_section => section_vals_get_subs_vals(dft_section, "PRINT%MO_MOLDEN")
-            CALL write_mos_molden(mos, qs_kind_set, particle_set, sprint_section)
+            ! Check if molden write should be deferred for OT unoccupied orbitals
+            defer_molden = .FALSE.
+            CALL section_vals_val_get(sprint_section, "OT_NLUMO", i_val=nlumo_molden)
+            IF (nlumo_molden /= 0 .AND. PRESENT(scf_env)) THEN
+               IF (scf_env%method == ot_method_nr) defer_molden = .TRUE.
+            END IF
+            IF (.NOT. defer_molden) THEN
+               CALL write_mos_molden(mos, qs_kind_set, particle_set, sprint_section, cell=cell)
+            END IF
             ! Write Chargemol .wfx
-            IF (BTEST(cp_print_key_should_output(logger%iter_info, &
-                                                 dft_section, "PRINT%CHARGEMOL"), &
+            IF (BTEST(cp_print_key_should_output(logger%iter_info, dft_section, "PRINT%CHARGEMOL"), &
                       cp_p_file)) THEN
                CALL write_wfx(qs_env, dft_section)
+            END IF
+         ELSE
+            IF (BTEST(cp_print_key_should_output(logger%iter_info, sprint_section, ""), cp_p_file)) THEN
+               CPWARN("Molden format output is not possible for k-point calculations.")
+            END IF
+            IF (BTEST(cp_print_key_should_output(logger%iter_info, dft_section, "PRINT%CHARGEMOL"), &
+                      cp_p_file)) THEN
+               CPWARN("Chargemol .wfx format output is not possible for k-point calculations.")
+            END IF
+         END IF
+
+         ! K-point MO wavefunction dump
+         IF (BTEST(cp_print_key_should_output(logger%iter_info, dft_section, "PRINT%MO_KP"), &
+                   cp_p_file)) THEN
+            IF (do_kpoints) THEN
+               CALL write_kpoint_mo_data(qs_env, &
+                                         section_vals_get_subs_vals(input, "DFT%PRINT%MO_KP"))
+            ELSE
+               CPWARN("MO_KP is only available for k-point calculations, ignored for Gamma-only")
             END IF
          END IF
 
@@ -2556,9 +2641,8 @@ CONTAINS
                ELSE
                   filename = mpi_filename
                END IF
-               WRITE (UNIT=output_unit, FMT="(/,T2,A,/,/,T2,A)") &
-                  "The total electron density is written in "//e_density_section%format_name//" file format to the file:", &
-                  TRIM(filename)
+               CALL print_density_output_message(output_unit, "The total electron density", &
+                                                 e_density_section, filename)
                WRITE (UNIT=output_unit, FMT="(/,(T2,A,F20.10))") &
                   "q(max) [1/Angstrom]              :", q_max/angstrom, &
                   "Soft electronic charge (G-space) :", rho_soft, &
@@ -2602,9 +2686,8 @@ CONTAINS
                   ELSE
                      filename = mpi_filename
                   END IF
-                  WRITE (UNIT=output_unit, FMT="(/,T2,A,/,/,T2,A)") &
-                     "The total spin density is written in "//e_density_section%format_name//" file format to the file:", &
-                     TRIM(filename)
+                  CALL print_density_output_message(output_unit, "The total spin density", &
+                                                    e_density_section, filename)
                   WRITE (UNIT=output_unit, FMT="(/,(T2,A,F20.10))") &
                      "q(max) [1/Angstrom]                    :", q_max/angstrom, &
                      "Soft part of the spin density (G-space):", rho_soft, &
@@ -2643,9 +2726,8 @@ CONTAINS
                   ELSE
                      filename = mpi_filename
                   END IF
-                  WRITE (UNIT=output_unit, FMT="(/,T2,A,/,/,T2,A)") &
-                   "The sum of alpha and beta density is written in "//e_density_section%format_name//" file format to the file:", &
-                     TRIM(filename)
+                  CALL print_density_output_message(output_unit, "The sum of alpha and beta density", &
+                                                    e_density_section, filename)
                END IF
                CALL e_density_section%write_pw(rho_elec_rspace, unit_nr, "SUM OF ALPHA AND BETA DENSITY", &
         particles=particles, zeff=zcharge, stride=section_get_ivals(dft_section, e_density_section%concat_to_relative("%STRIDE")), &
@@ -2666,9 +2748,8 @@ CONTAINS
                   ELSE
                      filename = mpi_filename
                   END IF
-                  WRITE (UNIT=output_unit, FMT="(/,T2,A,/,/,T2,A)") &
-                     "The spin density is written in "//e_density_section%format_name//" file format to the file:", &
-                     TRIM(filename)
+                  CALL print_density_output_message(output_unit, "The spin density", &
+                                                    e_density_section, filename)
                END IF
                CALL e_density_section%write_pw(rho_elec_rspace, unit_nr, "SPIN DENSITY", &
                                                particles=particles, zeff=zcharge, &
@@ -2689,9 +2770,8 @@ CONTAINS
                   ELSE
                      filename = mpi_filename
                   END IF
-                  WRITE (UNIT=output_unit, FMT="(/,T2,A,/,/,T2,A)") &
-                     "The electron density is written in "//e_density_section%format_name//" file format to the file:", &
-                     TRIM(filename)
+                  CALL print_density_output_message(output_unit, "The electron density", &
+                                                    e_density_section, filename)
                END IF
                CALL e_density_section%write_pw(rho_r(1), unit_nr, "ELECTRON DENSITY", &
                                                particles=particles, zeff=zcharge, &
@@ -2741,9 +2821,8 @@ CONTAINS
                ELSE
                   filename = mpi_filename
                END IF
-               WRITE (UNIT=output_unit, FMT="(/,T2,A,/,/,T2,A)") &
-                  "The electron density is written in "//e_density_section%format_name//" file format to the file:", &
-                  TRIM(filename)
+               CALL print_density_output_message(output_unit, "The electron density", &
+                                                 e_density_section, filename)
                WRITE (UNIT=output_unit, FMT="(/,(T2,A,F20.10))") &
                   "Soft electronic charge (R-space) :", rho_soft, &
                   "Hard electronic charge (R-space) :", rho_hard, &
@@ -2783,9 +2862,8 @@ CONTAINS
                ELSE
                   filename = mpi_filename
                END IF
-               WRITE (UNIT=output_unit, FMT="(/,T2,A,/,/,T2,A)") &
-                  "The spin density is written in "//e_density_section%format_name//" file format to the file:", &
-                  TRIM(filename)
+               CALL print_density_output_message(output_unit, "The spin density", &
+                                                 e_density_section, filename)
                WRITE (UNIT=output_unit, FMT="(/,(T2,A,F20.10))") &
                   "Soft part of the spin density          :", rho_soft, &
                   "Hard part of the spin density          :", rho_hard, &

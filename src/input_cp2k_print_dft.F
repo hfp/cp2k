@@ -150,6 +150,7 @@ MODULE input_cp2k_print_dft
                               logical_t, &
                               real_t
    USE kinds, ONLY: dp
+   USE kpoint_mo_dump, ONLY: mokp_overlap_gto, mokp_overlap_matrix
    USE pw_grids, ONLY: do_pw_grid_blocked_false, &
                        do_pw_grid_blocked_free, &
                        do_pw_grid_blocked_true
@@ -599,6 +600,27 @@ CONTAINS
       CALL cp_print_key_section_create(print_key, __LOCATION__, "MO_MOLDEN", &
                                        description="Write the molecular orbitals in Molden file format, for visualisation.", &
                                        print_level=debug_print_level + 1, add_last=add_last_numeric, filename="MOS")
+      CALL keyword_create(keyword, __LOCATION__, name="UNIT", &
+                          description="Unit for coordinates and cell in the MOLDEN file.", &
+                          usage="UNIT ANGSTROM", &
+                          enum_c_vals=s2a("BOHR", "ANGSTROM"), &
+                          enum_desc=s2a("Write in Bohr (AU)", "Write in Angstrom"), &
+                          enum_i_vals=[1, 2], &
+                          default_i_val=1)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="WRITE_CELL", &
+                          description="Controls whether the [Cell] block is written to the MOLDEN file.", &
+                          usage="WRITE_CELL T", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="WRITE_NVAL", &
+                          description="Controls whether the [Nval] block is written to the MOLDEN file.", &
+                          usage="WRITE_NVAL T", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
       CALL keyword_create(keyword, __LOCATION__, name="NDIGITS", &
                           description="Specifies the number of significant digits retained. 3 is OK for visualization.", &
                           usage="NDIGITS {int}", &
@@ -613,6 +635,53 @@ CONTAINS
                           "Cartesian Gaussian orbitals. Use with caution", &
                           "Spherical Gaussian orbitals. Incompatible with VMD"), &
                           enum_i_vals=[gto_cartesian, gto_spherical])
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="OT_NLUMO", &
+                          description="Number of unoccupied orbitals to include in the Molden file. "// &
+                          "Triggers a post-SCF eigensolver to obtain virtual orbital energies and "// &
+                          "coefficients. Only available with OT method, since diagonalization "// &
+                          "can already compute unoccupied orbitals via `ADDED_MOS` during "// &
+                          "SCF and output them to the Molden file after convergence. "// &
+                          "0 means no virtual orbitals, -1 means all available.", &
+                          usage="OT_NLUMO {int}", &
+                          default_i_val=0)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL section_add_subsection(section, print_key)
+      CALL section_release(print_key)
+
+      CALL cp_print_key_section_create(print_key, __LOCATION__, "MO_KP", &
+                                       description="Write k-point MO information to `.mokp` file. "// &
+                                       "The information of cell and k-points is given at first. Then, "// &
+                                       "the coefficients of molecular orbitals are always written, "// &
+                                       "while users can choose whether to write GTO basis information "// &
+                                       "or directly overlap matrices though `OVERLAP_EXPORT_TYPE` keyword.", &
+                                       print_level=debug_print_level + 1, add_last=add_last_numeric, filename="")
+      CALL keyword_create(keyword, __LOCATION__, name="UNIT", &
+                          description="Unit for coordinates and cell in the MOLDEN file.", &
+                          usage="UNIT ANGSTROM", &
+                          enum_c_vals=s2a("BOHR", "ANGSTROM"), &
+                          enum_desc=s2a("Write in Bohr (AU)", "Write in Angstrom"), &
+                          enum_i_vals=[1, 2], &
+                          default_i_val=1)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="NDIGITS", &
+                          description="Specifies the number of significant digits retained.", &
+                          usage="NDIGITS {int}", &
+                          default_i_val=9)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="OVERLAP_EXPORT_TYPE", &
+                          description="How detailed information is provided. "// &
+                          "GTO writes basis set exponents/coefficients (compact, post-processing reconstructs S(k)). "// &
+                          "MATRIX writes S(k) directly (larger file, ready to use).", &
+                          default_i_val=mokp_overlap_gto, &
+                          enum_c_vals=s2a("GTO", "MATRIX"), &
+                          enum_desc=s2a("Write GTO basis set definition (MOLDEN denormalization convention)", &
+                                        "Write explicit overlap matrices S(k) for all k-points"), &
+                          enum_i_vals=[mokp_overlap_gto, mokp_overlap_matrix])
       CALL section_add_keyword(print_key, keyword)
       CALL keyword_release(keyword)
       CALL section_add_subsection(section, print_key)
@@ -1391,6 +1460,27 @@ CONTAINS
       CALL cp_print_key_section_create(sub_print_key, __LOCATION__, "MINBAS_MOLDEN", &
                                        description="Write the minimal basis in Molden file format, for visualisation.", &
                                        print_level=debug_print_level + 1, add_last=add_last_numeric, filename="MINBAS")
+      CALL keyword_create(keyword, __LOCATION__, name="UNIT", &
+                          description="Unit for coordinates and cell in the MOLDEN file.", &
+                          usage="UNIT ANGSTROM", &
+                          enum_c_vals=s2a("BOHR", "ANGSTROM"), &
+                          enum_desc=s2a("Write in Bohr (AU)", "Write in Angstrom"), &
+                          enum_i_vals=[1, 2], &
+                          default_i_val=1)
+      CALL section_add_keyword(sub_print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="WRITE_CELL", &
+                          description="Controls whether the [Cell] block is written to the MOLDEN file.", &
+                          usage="WRITE_CELL T", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(sub_print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="WRITE_NVAL", &
+                          description="Controls whether the [Nval] block is written to the MOLDEN file.", &
+                          usage="WRITE_NVAL T", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(sub_print_key, keyword)
+      CALL keyword_release(keyword)
       CALL keyword_create(keyword, __LOCATION__, name="NDIGITS", &
                           description="Specifies the number of significant digits retained. 3 is OK for visualization.", &
                           usage="NDIGITS {int}", &
@@ -1477,6 +1567,27 @@ CONTAINS
       CALL cp_print_key_section_create(sub_print_key, __LOCATION__, "IAO_MOLDEN", &
                                        description="Write the IAO basis in Molden file format, for visualisation.", &
                                        print_level=debug_print_level + 1, add_last=add_last_numeric, filename="IAOBAS")
+      CALL keyword_create(keyword, __LOCATION__, name="UNIT", &
+                          description="Unit for coordinates and cell in the MOLDEN file.", &
+                          usage="UNIT ANGSTROM", &
+                          enum_c_vals=s2a("BOHR", "ANGSTROM"), &
+                          enum_desc=s2a("Write in Bohr (AU)", "Write in Angstrom"), &
+                          enum_i_vals=[1, 2], &
+                          default_i_val=1)
+      CALL section_add_keyword(sub_print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="WRITE_CELL", &
+                          description="Controls whether the [Cell] block is written to the MOLDEN file.", &
+                          usage="WRITE_CELL T", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(sub_print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="WRITE_NVAL", &
+                          description="Controls whether the [Nval] block is written to the MOLDEN file.", &
+                          usage="WRITE_NVAL T", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(sub_print_key, keyword)
+      CALL keyword_release(keyword)
       CALL keyword_create(keyword, __LOCATION__, name="NDIGITS", &
                           description="Specifies the number of significant digits retained. 3 is OK for visualization.", &
                           usage="NDIGITS {int}", &
@@ -1601,6 +1712,27 @@ CONTAINS
       CALL cp_print_key_section_create(subsection, __LOCATION__, "IBO_MOLDEN", &
                                        description="Write the IBO orbitals in Molden file format, for visualisation.", &
                                        print_level=debug_print_level + 1, add_last=add_last_numeric, filename="IBOBAS")
+      CALL keyword_create(keyword, __LOCATION__, name="UNIT", &
+                          description="Unit for coordinates and cell in the MOLDEN file.", &
+                          usage="UNIT ANGSTROM", &
+                          enum_c_vals=s2a("BOHR", "ANGSTROM"), &
+                          enum_desc=s2a("Write in Bohr (AU)", "Write in Angstrom"), &
+                          enum_i_vals=[1, 2], &
+                          default_i_val=1)
+      CALL section_add_keyword(subsection, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="WRITE_CELL", &
+                          description="Controls whether the [Cell] block is written to the MOLDEN file.", &
+                          usage="WRITE_CELL T", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(subsection, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="WRITE_NVAL", &
+                          description="Controls whether the [Nval] block is written to the MOLDEN file.", &
+                          usage="WRITE_NVAL T", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(subsection, keyword)
+      CALL keyword_release(keyword)
       CALL keyword_create(keyword, __LOCATION__, name="NDIGITS", &
                           description="Specifies the number of significant digits retained. 3 is OK for visualization.", &
                           usage="NDIGITS {int}", &

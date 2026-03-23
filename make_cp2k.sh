@@ -2,13 +2,15 @@
 
 # Purpose: Build CP2K using Spack and CMake locally within the folder CP2K_ROOT
 #          which defaults to the current working directory. This should be a
-#          "cp2k/" folder containing the CP2K source tree.
+#          "cp2k/" folder containing the CP2K source tree which can be download with
 #
-#          The script can either be sourced with
+#          > git clone https://github.com/cp2k/cp2k.git cp2k
 #
-#          > source ./make_cp2k.sh
+#          and after
 #
-#          or run in a subshell with
+#          > cd cp2k
+#
+#          this script can be run in subshell using the default options with
 #
 #          > ./make_cp2k.sh
 #
@@ -41,14 +43,14 @@
 #          A CP2K regression run can be launched automatically by adding the flag
 #          -t "" (or --test ""). This flag expects a string with the TESTOPTS, e.g.
 #
-#          > source ./make_cp2k.sh -t "--restrictdir QS/regtest-gpw-1"
+#          > ./make_cp2k.sh -t "--maxtasks 8 --restrictdir QS/regtest-gpw-1"
 #
-#          Alternatively, the script cp2k/install/run_tests can be launched after
-#          a successful CP2K build.
+#          Alternatively, the script cp2k/install/bin/run_tests can be launched
+#          after a successful CP2K build. Usage examples are printed at the end.
 
 # Authors: Matthias Krack (MK)
 
-# Version: 1.5
+# Version: 1.6
 
 # History: - Creation (19.12.2025, MK)
 #          - Version 0.1: First working version (09.01.2026, MK)
@@ -66,6 +68,7 @@
 #          - Version 1.3: Add CUDA GPU support (10.02.2026, MK)
 #          - Version 1.4: Drop download of spack-packages (12.02.2026, MK)
 #          - Version 1.5: Add flags to enable/disable features selectively (15.02.2026, MK)
+#          - Version 1.6: Enable dbg and smp builds (01.03.2026, MK)
 
 # Facilitate the deugging of this script
 set -uo pipefail
@@ -133,7 +136,8 @@ fi
 # Default values
 BUILD_DEPS="if_needed"
 BUILD_DEPS_ONLY="no"
-BUILD_TYPE="${BUILD_TYPE:-Release}"
+CP2K_BUILD_TYPE="${CP2K_BUILD_TYPE:-Release}"
+DEPS_BUILD_TYPE="${DEPS_BUILD_TYPE:-Release}"
 CMAKE_FEATURE_FLAG_ALL="-DCP2K_USE_EVERYTHING=ON" # all features are activated by default
 CMAKE_FEATURE_FLAGS="-DCP2K_BLAS_VENDOR=OpenBLAS" # LAPACK/BLAS from OpenBLAS by default
 CMAKE_FEATURE_FLAGS+=" -DCP2K_USE_FFTW3=ON"       # FFTW3 is always activated unless explicitly disabled
@@ -141,7 +145,7 @@ CMAKE_FEATURE_FLAGS+=" -DCP2K_USE_DLAF=OFF"       # DLAF is deactivated by defau
 CMAKE_FEATURE_FLAG_MPI="-DCP2K_USE_MPI=ON"        # MPI is switched on by default
 CMAKE_FEATURE_FLAGS_GPU="-DCP2K_USE_SPLA_GEMM_OFFLOADING=ON"
 CRAY="no"
-CUDA_ARCH=0
+CUDA_SM_CODE=0
 DISABLE_LOCAL_CACHE="no"
 GCC_VERSION="auto"
 GPU_MODEL="none"
@@ -156,6 +160,8 @@ else
   MAX_PROCS=-1
   NUM_PROCS=${NUM_PROCS:-8}
 fi
+NUM_PACKAGES=2
+NVCC_VERSION=0
 REBUILD_CP2K="no"
 RUN_TEST="no"
 SED_PATTERN_LIST=""
@@ -164,6 +170,7 @@ USE_EXTERNALS="no"
 VERBOSE=0
 VERBOSE_FLAG="--quiet"
 VERBOSE_MAKEFILE="OFF"
+VERBOSE_SPACK=""
 
 export CP2K_ENV="cp2k_env"
 export CP2K_ROOT=${CP2K_ROOT:-${PWD}}
@@ -183,7 +190,15 @@ while [[ $# -gt 0 ]]; do
       shift 1
       ;;
     -bt | --build_type)
-      BUILD_TYPE="${2}"
+      CP2K_BUILD_TYPE="${2}"
+      case "${CP2K_BUILD_TYPE}" in
+        Debug)
+          CP2K_VERSION="${CP2K_VERSION/smp/dbg}"
+          ;;
+        Release | RelWithDebInfo)
+          CP2K_VERSION="${CP2K_VERSION/dbg/smp}"
+          ;;
+      esac
       shift 2
       ;;
     -cray)
@@ -193,22 +208,47 @@ while [[ $# -gt 0 ]]; do
     -cv | --cp2k_version)
       if (($# > 1)); then
         case "${2,,}" in
-          psmp | ssmp | ssmp-static)
+          pdbg | psmp | sdbg | ssmp | ssmp-static)
             CP2K_VERSION="${2,,}"
+            # Set build type
+            case "${CP2K_VERSION}" in
+              pdbg | sdbg)
+                CP2K_BUILD_TYPE="Debug"
+                DEPS_BUILD_TYPE="RelWithDebInfo"
+                ;;
+              psmp | ssmp | ssmp-static)
+                CP2K_BUILD_TYPE="Release"
+                DEPS_BUILD_TYPE="Release"
+                ;;
+            esac
+            # Disable MPI for a serial CP2K binary
+            case "${CP2K_VERSION}" in
+              sdbg | ssmp | ssmp-static)
+                MPI_MODE="no"
+                CMAKE_FEATURE_FLAG_MPI="-DCP2K_USE_MPI=OFF"
+                ;;
+            esac
+            # Apply specific package selection for statically linked binaries
+            case "${CP2K_VERSION}" in
+              ssmp-static)
+                CMAKE_FEATURE_FLAG_ALL="-DCP2K_USE_EVERYTHING=ON"
+                for package in dftd4 libint2 libxc libxsmm spglib vori tblite; do
+                  CMAKE_FEATURE_FLAGS+=" -DCP2K_USE_${package^^}=ON"
+                done
+                for package in ace deepmd greenx hdf5 libtorch pexsi trexio; do
+                  CMAKE_FEATURE_FLAGS+=" -DCP2K_USE_${package^^}=OFF"
+                done
+                ;;
+            esac
             ;;
           *)
-            echo "ERROR: Invalid CP2K version \"${2}\" specified (choose psmp, ssmp, or ssmp-static)"
+            echo "ERROR: Invalid CP2K version \"${2}\" specified (choose pdbg, psmp, sdbg, ssmp, or ssmp-static)"
             ${EXIT_CMD} 1
             ;;
         esac
       else
-        echo "ERROR: No argument found for flag \"${1}\" (choose psmp, ssmp, or ssmp-static)"
+        echo "ERROR: No argument found for flag \"${1}\" (choose pdbg, psmp, sdbg, ssmp, or ssmp-static)"
         ${EXIT_CMD} 1
-      fi
-      # Disable MPI for a serial CP2K binary
-      if [[ "${CP2K_VERSION}" == "ssmp"* ]]; then
-        MPI_MODE="no"
-        CMAKE_FEATURE_FLAG_MPI="-DCP2K_USE_MPI=OFF"
       fi
       shift 2
       ;;
@@ -336,36 +376,42 @@ while [[ $# -gt 0 ]]; do
     -gm | -gpu | --gpu_model)
       if (($# > 1)); then
         case "${2^^}" in
-          P100 | V100 | A100 | H100)
+          P100 | V100 | T400 | A100 | A40 | H100 | H200 | GH200)
             GPU_MODEL="${2^^}"
             case "${GPU_MODEL}" in
               P100)
-                CUDA_ARCH=60
+                CUDA_SM_CODE=60
                 ;;
               V100)
-                CUDA_ARCH=70
+                CUDA_SM_CODE=70
+                ;;
+              T400)
+                CUDA_SM_CODE=75
                 ;;
               A100)
-                CUDA_ARCH=80
+                CUDA_SM_CODE=80
                 ;;
-              H100)
-                CUDA_ARCH=90
+              A40)
+                CUDA_SM_CODE=86
+                ;;
+              H100 | H200 | GH200)
+                CUDA_SM_CODE=90
                 ;;
             esac
-            # Currently needed
-            USE_EXTERNALS="yes"
-            echo "INFO: The use of externals (-ue flag) is currently enforced with CUDA"
+            ;;
+          60 | 70 | 75 | 80 | 86 | 87 | 89 | 90 | 120 | 121)
+            CUDA_SM_CODE=${2}
             ;;
           NONE)
             GPU_MODEL="${2,,}"
             ;;
           *)
-            echo "ERROR: Unknown GPU model \"${2}\" specified (choose P100, V100, A100, H100 or none)"
+            echo -e "\nERROR: Unknown GPU model \"${2}\" specified (choose <CUDA SM code>, P100, V100, T400, A100, A40, H100, H200, GH200 or none)\n"
             ${EXIT_CMD} 1
             ;;
         esac
       else
-        echo "ERROR: No argument found for flag \"${1}\" (choose P100, V100, A100, H100 or none)"
+        echo -e "\nERROR: No argument found for flag \"${1}\" (choose <CUDA SM code>, P100, V100, T400, A100, A40, H100, H200, GH200 or none)\n"
         ${EXIT_CMD} 1
       fi
       shift 2
@@ -429,6 +475,25 @@ while [[ $# -gt 0 ]]; do
       fi
       shift 2
       ;;
+    -np | --num_packages)
+      if (($# > 1)); then
+        case "${2}" in
+          -*)
+            shift 1
+            ;;
+          [0-9]*)
+            NUM_PACKAGES="${2}"
+            shift 2
+            ;;
+          *)
+            echo "ERROR: The -np flag can only be followed by an integer number, found \"${2}\""
+            ${EXIT_CMD} 1
+            ;;
+        esac
+      else
+        shift 1
+      fi
+      ;;
     -rc | --rebuild_cp2k)
       REBUILD_CP2K="yes"
       shift 1
@@ -453,6 +518,7 @@ while [[ $# -gt 0 ]]; do
       INSTALL_MESSAGE="LAZY"
       VERBOSE_FLAG="--verbose"
       VERBOSE_MAKEFILE="ON"
+      VERBOSE_SPACK="--verbose"
       shift 1
       ;;
     --)
@@ -469,7 +535,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Remove leading zeros from NUM_PROCS
+# Remove leading zeros from NUM_PACKAGES and NUM_PROCS
+NUM_PACKAGES=$(awk '{print $1+0}' <<< "${NUM_PACKAGES}")
 NUM_PROCS=$(awk '{print $1+0}' <<< "${NUM_PROCS}")
 
 # Check if we are working within a docker or podman container
@@ -489,9 +556,9 @@ for flag in ${CMAKE_FEATURE_FLAGS}; do
 done
 CMAKE_FEATURE_FLAGS="$(printf '%s\n' "${out[*]}")"
 
-export BUILD_DEPS BUILD_DEPS_ONLY BUILD_TYPE CMAKE_FEATURE_FLAGS CMAKE_FEATURE_FLAGS_GPU CRAY CUDA_ARCH \
-  DISABLE_LOCAL_CACHE GCC_VERSION GPU_MODEL HAS_PODMAN IN_CONTAINER INSTALL_MESSAGE MPI_MODE NUM_PROCS \
-  REBUILD_CP2K RUN_TEST TESTOPTS VERBOSE VERBOSE_FLAG VERBOSE_MAKEFILE
+export BUILD_DEPS BUILD_DEPS_ONLY CMAKE_FEATURE_FLAGS CMAKE_FEATURE_FLAGS_GPU CP2K_BUILD_TYPE CRAY CUDA_SM_CODE \
+  DEPS_BUILD_TYPE DISABLE_LOCAL_CACHE GCC_VERSION GPU_MODEL HAS_PODMAN IN_CONTAINER INSTALL_MESSAGE MPI_MODE \
+  NUM_PACKAGES NUM_PROCS REBUILD_CP2K RUN_TEST TESTOPTS VERBOSE VERBOSE_FLAG VERBOSE_MAKEFILE VERBOSE_SPACK
 
 # Show help if requested
 if [[ "${HELP}" == "yes" ]]; then
@@ -500,16 +567,17 @@ if [[ "${HELP}" == "yes" ]]; then
   echo "                    [-bd_only | --build_deps_only]"
   echo "                    [-bt | --build_type (Debug | Release | RelWithDebInfo)]"
   echo "                    [-cray]"
-  echo "                    [-cv | --cp2k_version (psmp | ssmp | ssmp-static)]"
+  echo "                    [-cv | --cp2k_version (pdbg | psmp | sdbg | ssmp | ssmp-static)]"
   echo "                    [-df | --disable | --disable_feature (all | FEATURE | PACKAGE | none)"
   echo "                    [-dlc | --disable_local_cache]"
   echo "                    [-ef | --enable | --enable_feature (all | FEATURE | PACKAGE | none)"
-  echo "                    [-gm | -gpu  | --gpu_model (P100 | V100 | A100 | H100 | none)]"
+  echo "                    [-gm | -gpu  | --gpu_model (<CUDA SM code> | P100 | V100 | T400 | A100 | H100 | H200 | GH200 | none)]"
   echo "                    [-gv | --gcc_version (10 | 11 | 12 | 13 | 14 | 15 | 16)]"
   echo "                    [-h | --help]"
   echo "                    [-ip | --install_path PATH]"
   echo "                    [-j #PROCESSES]"
   echo "                    [-mpi | --mpi_mode (mpich | no | openmpi)]"
+  echo "                    [-np | --num_packages #PACKAGES]"
   echo "                    [-rc | --rebuild_cp2k]"
   echo "                    [-t | -test \"TESTOPTS\"]"
   echo "                    [-ue | --use_externals]"
@@ -518,7 +586,7 @@ if [[ "${HELP}" == "yes" ]]; then
   echo "Flags:"
   echo " --build_deps         : Force a rebuild of all CP2K dependencies from scratch (removes the spack folder)"
   echo " --build_deps_only    : Rebuild ONLY the CP2K dependencies from scratch (removes the spack folder)"
-  echo " --build_type         : Set preferred CMake build type (default: \"Release\")"
+  echo " --build_type         : Set preferred CMake build type for CP2K (default: \"Release\")"
   echo " --cp2k_version       : CP2K version to be built (default: \"psmp\")"
   echo " -cray                : Use Cray specific spack configuration"
   echo " --disable_local_cache: Don't add local Spack cache"
@@ -528,8 +596,9 @@ if [[ "${HELP}" == "yes" ]]; then
   echo " --gcc_version        : Use the specified GCC version (default: automatically decided by spack)"
   echo " --gpu_model          : Select GPU model (default: none)"
   echo " --install_path       : Define the CP2K installation path (default: ./install)"
-  echo " -j                   : Number of processes used in parallel"
+  echo " -j                   : Maximum number of processes used in parallel"
   echo " --mpi_mode           : Set preferred MPI mode (default: \"mpich\")"
+  echo " --num_packages       : Maximum number of packages built by spack in parallel (default: 4)"
   echo " --rebuild_cp2k       : Rebuild CP2K: removes the build folder (default: no)"
   echo " --test               : Perform a regression test run after a successful build"
   echo " --use_externals      : Use external packages installed on the host system. This results in much"
@@ -557,13 +626,14 @@ fi
 echo ""
 echo "BUILD_DEPS          = ${BUILD_DEPS}"
 echo "BUILD_DEPS_ONLY     = ${BUILD_DEPS_ONLY}"
-echo "CMAKE_BUILD_TYPE    = ${BUILD_TYPE}"
+echo "CP2K_BUILD_TYPE     = ${CP2K_BUILD_TYPE}"
 echo "CP2K_VERSION        = ${CP2K_VERSION}"
 echo "CRAY                = ${CRAY}"
+echo "DEPS_BUILD_TYPE     = ${DEPS_BUILD_TYPE}"
 echo "DISABLE_LOCAL_CACHE = ${DISABLE_LOCAL_CACHE}"
 echo "GCC_VERSION         = ${GCC_VERSION}"
-if ((CUDA_ARCH > 0)); then
-  echo "GPU                 = ${GPU_MODEL} (CUDA arch: ${CUDA_ARCH})"
+if ((CUDA_SM_CODE > 0)); then
+  echo "GPU                 = ${GPU_MODEL} (CUDA SM code: ${CUDA_SM_CODE})"
 else
   echo "GPU                 = ${GPU_MODEL}"
 fi
@@ -571,6 +641,7 @@ echo "INSTALL_PREFIX      = ${INSTALL_PREFIX}"
 echo "INSTALL_MESSAGE     = ${INSTALL_MESSAGE}"
 echo "IN_CONTAINER        = ${IN_CONTAINER}"
 echo "MPI_MODE            = ${MPI_MODE}"
+echo "NUM_PACKAGES        = ${NUM_PACKAGES} (packages are built by spack concurrently)"
 echo "NUM_PROCS           = ${NUM_PROCS} (processes)"
 echo "Physical cores      = $(lscpu -p=Core,Socket | grep -v '#' | sort -u | wc -l) (host view)"
 echo "REBUILD_CP2K        = ${REBUILD_CP2K}"
@@ -595,6 +666,15 @@ echo ""
 
 ((VERBOSE > 0)) && echo "SED_PATTERN_LIST    = ${SED_PATTERN_LIST}"
 
+# Check if a valid number for the packages to be built by spack in parallel is given
+if ((NUM_PACKAGES < 1)); then
+  echo -e "\nERROR: The requested number of packages to be built by spack in parallel should be larger than 0, found \"${NUM_PACKAGES}\""
+  ${EXIT_CMD} 1
+elif ((NUM_PROCS > 0)) && ((NUM_PACKAGES > NUM_PROCS)); then
+  echo -e "\nERROR: The requested number of packages to be built in parallel by spack (${NUM_PACKAGES}) is larger than the requested number of processes (${NUM_PROCS})"
+  ${EXIT_CMD} 1
+fi
+
 # Check if a valid number of processes is requested
 if ((NUM_PROCS < 1)); then
   echo "ERROR: The requested number of processes should be larger than 0, found \"${NUM_PROCS}\""
@@ -603,13 +683,28 @@ elif ((MAX_PROCS > 0)) && ((NUM_PROCS > MAX_PROCS)); then
   echo "WARNING: The requested number of processes (${NUM_PROCS}) is larger than the detected number of CPU cores (${MAX_PROCS})"
 fi
 
-# Check if a valid CMake build type is selected
-case "${BUILD_TYPE}" in
+# Check if a valid CMake build type is selected for the dependencies
+case "${DEPS_BUILD_TYPE^}" in
+  Release | RelWithDebInfo)
+    true
+    ;;
+  Debug)
+    echo "ERROR: The CMake build type \"${DEPS_BUILD_TYPE}\" is not supported for building the dependencies"
+    ${EXIT_CMD} 1
+    ;;
+  *)
+    echo "ERROR: Invalid CMake build type \"${DEPS_BUILD_TYPE}\" selected for building the dependencies"
+    ${EXIT_CMD} 1
+    ;;
+esac
+
+# Check if a valid CMake build type is selected for CP2K
+case "${CP2K_BUILD_TYPE^}" in
   Debug | Release | RelWithDebInfo)
     true
     ;;
   *)
-    echo "ERROR: Invalid CMake build type \"${BUILD_TYPE}\" selected"
+    echo "ERROR: Invalid CMake build type \"${CP2K_BUILD_TYPE}\" selected for building CP2K"
     ${EXIT_CMD} 1
     ;;
 esac
@@ -635,22 +730,69 @@ case "${MPI_MODE}" in
     ;;
 esac
 
+# Check if CP2K_VERSION and the selected features are compatible
+case "${CP2K_VERSION}" in
+  ssmp | ssmp-static)
+    for package in cosma dlaf elpa libfabric libsmeagol mimic openpmd pexsi plumed sirius spla; do
+      if [[ "${CMAKE_FEATURE_FLAGS}" == *" -DCP2K_USE_${package^^}=ON"* ]]; then
+        echo -e "ERROR: The feature ${package^^} is not available for building serial CP2K binaries (${CP2K_VERSION})\n"
+        ${EXIT_CMD} 1
+      fi
+    done
+    # Further exclusions are needed for statically linked serial CP2K binaries
+    if [[ "${CP2K_VERSION}" == "ssmp-static" ]]; then
+      for package in ace deepmd greenx hdf5 libtorch trexio; do
+        if [[ "${CMAKE_FEATURE_FLAGS}" == *" -DCP2K_USE_${package^^}=ON"* ]]; then
+          echo -e "ERROR: The feature ${package^^} is not available for building statically linked serial CP2K binaries (${CP2K_VERSION})\n"
+          ${EXIT_CMD} 1
+        fi
+      done
+    fi
+    ;;
+esac
+
 # Perform CUDA GPU related settings
-if ((CUDA_ARCH > 0)); then
-  # Check if the selected CUDA arch is valid when the nvidia-smi command is available
+if ((CUDA_SM_CODE > 0)); then
+  if command -v nvcc &> /dev/null; then
+    CUDA_VERSION=$(nvcc -V | sed -n 's/.*release \([0-9.]*\).*/\1/p')
+    NVCC_VERSION=$(awk -v x="${CUDA_VERSION}" 'BEGIN{print 10*x}')
+  else
+    echo -e "\nERROR: No CUDA toolkit installation found (nvcc compiler not found)\n"
+    ${EXIT_CMD} 1
+  fi
+  # Check if the selected CUDA SM code is valid when the nvidia-smi command is available
   if command -v nvidia-smi &> /dev/null; then
+    echo -e "NVIDIA driver installation found:\n"
     nvidia-smi
-    CUDA_VERSION=$(nvidia-smi | grep "CUDA Version:" | awk '{print $9}')
-    HOST_CUDA_ARCH=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | tail -n 1 | awk '{print 10*$1}')
-    if ((CUDA_ARCH > HOST_CUDA_ARCH)); then
-      echo "ERROR: The requested CUDA arch (${CUDA_ARCH}) is larger than the maximum"
-      echo "       CUDA arch (${HOST_CUDA_ARCH}) supported by the host system"
+    HOST_CUDA_SM_CODE=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | tail -n 1 | awk '{print 10*$1}')
+    if ((CUDA_SM_CODE > HOST_CUDA_SM_CODE)); then
+      echo ""
+      echo "ERROR: The requested CUDA SM code (${CUDA_SM_CODE}) is larger than the maximum"
+      echo "       CUDA SM code (${HOST_CUDA_SM_CODE}) supported by the host system"
+      echo ""
       ${EXIT_CMD} 1
     fi
+  else
+    echo "INFO: No NVIDIA driver installation found (nvidia-smi not found)"
+  fi
+  # Check GPU support by the CUDA SDK
+  if ((NVCC_VERSION < 128)) && ((CUDA_SM_CODE > 90)); then
+    echo ""
+    echo "ERROR: The CUDA SDK version ${NVCC_VERSION} does not support GPUs with a"
+    echo "       CUDA SM code larger than 90 (found ${CUDA_SM_CODE})"
+    echo ""
+    ${EXIT_CMD} 1
+  fi
+  if ((NVCC_VERSION > 129)) && ((CUDA_SM_CODE < 75)); then
+    echo ""
+    echo "ERROR: The CUDA SDK version ${NVCC_VERSION} does not support GPUs with a"
+    echo "       CUDA SM code smaller than 75 (found ${CUDA_SM_CODE})"
+    echo ""
+    ${EXIT_CMD} 1
   fi
   CMAKE_CUDA_FLAGS="-DCP2K_USE_ACCEL=CUDA"
   CMAKE_CUDA_FLAGS+=" -DCP2K_WITH_GPU=${GPU_MODEL}"
-  CMAKE_CUDA_FLAGS+=" -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH}"
+  CMAKE_CUDA_FLAGS+=" -DCMAKE_CUDA_ARCHITECTURES=${CUDA_SM_CODE}"
   CMAKE_CUDA_FLAGS+=" ${CMAKE_FEATURE_FLAGS_GPU}"
   out=()
   for flag in ${CMAKE_CUDA_FLAGS}; do
@@ -660,14 +802,16 @@ if ((CUDA_ARCH > 0)); then
     }
   done
   CMAKE_CUDA_FLAGS="$(printf '%s\n' "${out[*]}")"
-  echo "CMAKE_CUDA_FLAGS    = ${CMAKE_CUDA_FLAGS}"
-  [[ -n "${CUDA_VERSION:-}" ]] && echo "CUDA_VERSION        = ${CUDA_VERSION}"
-  [[ -n "${CUDA_HOME:-}" ]] && echo "CUDA_HOME           = ${CUDA_HOME}"
+  echo -e "\nCMAKE_CUDA_FLAGS    = ${CMAKE_CUDA_FLAGS}"
+  [[ -n "${CUDA_VERSION:-}" ]] && echo -e "\nCUDA_VERSION        = ${CUDA_VERSION} (nvcc compiler)"
+  [[ -n "${CUDA_HOME:-}" ]] && echo -e "\nCUDA_HOME           = ${CUDA_HOME}"
   echo ""
 else
   CMAKE_CUDA_FLAGS="-DCP2K_USE_ACCEL=OFF"
 fi
 export CMAKE_CUDA_FLAGS
+
+((VERBOSE > 0)) && ulimit -a
 
 ### Build CP2K dependencies with Spack if needed or requested ###
 
@@ -677,11 +821,11 @@ export SPACK_BUILD_PATH="${CP2K_ROOT}/spack"
 export SPACK_ROOT="${SPACK_BUILD_PATH}/spack"
 
 # Define the CP2K spack configuration file
-export CP2K_CONFIG_FILE="${SPACK_BUILD_PATH}/cp2k_deps_${CP2K_VERSION}.yaml"
+export CP2K_CONFIG_FILE="${SPACK_BUILD_PATH}/cp2k_deps_${CP2K_VERSION:0:1}${CP2K_VERSION:4}.yaml"
 
 # If requested, remove the spack folder for (re)building all CP2K dependencies
 if [[ "${BUILD_DEPS}" == "always" ]]; then
-  for folder in ${SPACK_BUILD_PATH} ${CP2K_ROOT}/build; do
+  for folder in ${SPACK_BUILD_PATH} ${CP2K_ROOT}/build ${CP2K_ROOT}/install; do
     if [[ -d "${folder}" ]]; then
       echo "Removing folder \"${folder}\""
       rm -rf "${folder}"
@@ -691,7 +835,7 @@ fi
 
 # If requested, remove the build folder for (re)building CP2K
 if [[ "${REBUILD_CP2K}" == "yes" ]]; then
-  for folder in ${CP2K_ROOT}/build; do
+  for folder in ${CP2K_ROOT}/build ${CP2K_ROOT}/install; do
     if [[ -d "${folder}" ]]; then
       echo "Removing folder \"${folder}\""
       rm -rf "${folder}"
@@ -802,10 +946,16 @@ if [[ ! -d "${SPACK_BUILD_PATH}" ]]; then
   fi
 
   # Prepare the CP2K spack configuration file
-  sed -E \
-    -e "s|root: /opt/spack|root: ${SPACK_ROOT}/opt/spack|" \
-    -e "/\"build_type=/s|build_type=[^\"]*|build_type=${BUILD_TYPE}|" \
-    "${CP2K_ROOT}/tools/spack/cp2k_deps_${CP2K_VERSION}.yaml" > "${CP2K_CONFIG_FILE}"
+  CP2K_DEPS_FILE="${CP2K_ROOT}/tools/spack/cp2k_deps_${CP2K_VERSION:0:1}${CP2K_VERSION:4}.yaml"
+  if [[ -f "${CP2K_DEPS_FILE}" ]]; then
+    sed -E \
+      -e "s|root: /opt/spack|root: ${SPACK_ROOT}/opt/spack|" \
+      -e "/\"build_type=/s|build_type=[^\"]*|build_type=${DEPS_BUILD_TYPE}|" \
+      "${CP2K_DEPS_FILE}" > "${CP2K_CONFIG_FILE}"
+  else
+    echo -e "\nERROR: The spack configuration file ${CP2K_DEPS_FILE} was not found\n"
+    ${EXIT_CMD} 1
+  fi
 
   # Apply selected MPI type if needed
   # MPICH is selected by default for psmp and no change needed for ssmp
@@ -818,14 +968,24 @@ if [[ ! -d "${SPACK_BUILD_PATH}" ]]; then
   fi
 
   # Activate CUDA in the spack configuration file if requested
-  if ((CUDA_ARCH > 0)); then
-    sed -E -e "0,/~cuda/s//+cuda cuda_arch=${CUDA_ARCH}/" -i "${CP2K_CONFIG_FILE}"
+  if ((CUDA_SM_CODE > 0)); then
+    sed -E \
+      -e "0,/~cuda/s//+cuda cuda_arch=${CUDA_SM_CODE}/" \
+      -e 's/"~cuda\s+~gpu_direct"/"\+cuda \+gpu_direct"/' \
+      -e '/\s*#\s*-\s+"fabrics=efa,ucx"/ s/#/ /' \
+      -i "${CP2K_CONFIG_FILE}"
+    # Building libfabric with CUDA causes problems
+    # sed -E -e 's/"~cuda\s+~gdrcopy"/"\+cuda \+gdrcopy"/' -i "${CP2K_CONFIG_FILE}"
+    sed -E -e 's/"~cuda\s+~gdrcopy"/"\~cuda"/' -i "${CP2K_CONFIG_FILE}"
     if [[ -n "${CUDA_VERSION:-}" ]]; then
+      # Set CUDA SM code
       sed -E -e "s/spec:\s+cuda@[.0-9]*/spec: cuda@${CUDA_VERSION}/" -i "${CP2K_CONFIG_FILE}"
     fi
     if [[ -n "${CUDA_HOME:-}" ]]; then
       sed -E -e "s|prefix: /usr/local/cuda|prefix: ${CUDA_HOME}|" -i "${CP2K_CONFIG_FILE}"
     fi
+  else
+    sed -E -e 's/"~cuda\s+~gdrcopy"/"\~cuda"/' -i "${CP2K_CONFIG_FILE}"
   fi
 
   # Apply Cray specific adaptation of the spack configuration if requested (CSCS)
@@ -871,8 +1031,8 @@ if [[ ! -d "${SPACK_BUILD_PATH}" ]]; then
     sed -E -e "s/gcc@10:/gcc@${GCC_VERSION}/" -i "${CP2K_CONFIG_FILE}"
   fi
 
-  # Disable PEXSI because of an issue with SuperLU using recent GCC versions
-  if ((CUDA_ARCH > 0)) || ((GCC_VERSION_NEWEST > 14)); then
+  # Disable PEXSI because of an issue with SuperLU using GCC version 15
+  if ((CUDA_SM_CODE > 0)) || ((GCC_VERSION_NEWEST > 14)); then
     sed -E -e '/\s*-\s+"pexsi@/ s/^ /#/' -i "${CP2K_CONFIG_FILE}"
     echo "INFO: PEXSI has been disabled because CUDA or GCC 15 is used"
   fi
@@ -924,7 +1084,7 @@ if [[ ! -d "${SPACK_BUILD_PATH}" ]]; then
       ${EXIT_CMD} 1
     fi
     # Concretize CP2K dependencies
-    if ! spack -e "${CP2K_ENV}" concretize --fresh; then
+    if ! spack -e "${CP2K_ENV}" concretize --fresh --jobs $((NUM_PROCS)); then
       echo -e "\nERROR: The spack concretize for environment \"${CP2K_ENV}\" failed"
       echo ""
       echo "HINT: The (-ue | --use_externals) flags can cause conflicts with outdated"
@@ -948,7 +1108,7 @@ if [[ ! -d "${SPACK_BUILD_PATH}" ]]; then
         fi
       fi
     fi
-    if ! spack -e "${CP2K_ENV}" --no-user-config --no-system-config concretize --fresh; then
+    if ! spack -e "${CP2K_ENV}" --no-user-config --no-system-config concretize --fresh --jobs $((NUM_PROCS)); then
       echo -e "\nERROR: The spack concretize for environment \"${CP2K_ENV}\" failed"
       ${EXIT_CMD} 1
     fi
@@ -956,18 +1116,12 @@ if [[ ! -d "${SPACK_BUILD_PATH}" ]]; then
 
   ((VERBOSE > 0)) && spack find -c
 
-  # Create spack makefile for all dependencies
-  if ! spack -e "${CP2K_ENV}" env depfile -o spack_makefile; then
-    echo "ERROR: The creation of the spack makefile failed"
-    ${EXIT_CMD} 1
-  fi
-
   # Install CP2K dependencies via Spack
-  if ! make -j"${NUM_PROCS}" --file=spack_makefile SPACK_COLOR=never --output-sync=recurse; then
+  if ! spack -e "${CP2K_ENV}" install --jobs "$((NUM_PROCS / NUM_PACKAGES))" --concurrent-packages "${NUM_PACKAGES}" "${VERBOSE_SPACK}"; then
     echo "ERROR: Building the CP2K dependencies with spack failed"
     if [[ "${USE_EXTERNALS}" == "yes" ]]; then
-      echo "HINT:  Try to re-run the build with the --no_externals flag which avoids errors"
-      echo "       or conflicts caused by externals from the host system"
+      echo "HINT:  Try to re-run the build without the (-ue | --use_externals) flag which avoids"
+      echo "       errors or conflicts caused by externals from the host system"
     fi
     ${EXIT_CMD} 1
   fi
@@ -979,7 +1133,7 @@ if [[ ! -d "${SPACK_BUILD_PATH}" ]]; then
   fi
 
   # Fix Libs list in elpa pkg-config file when CUDA is used
-  if ((CUDA_ARCH > 0)); then
+  if ((CUDA_SM_CODE > 0)); then
     ELPA_PKG_CONFIG_FILE="$(find -L "${SPACK_ROOT}/opt/spack/view" -name "elpa*.pc")"
     if [[ -f "${ELPA_PKG_CONFIG_FILE}" ]]; then
       sed -E -e 's|Libs: |Libs: -L/usr/local/cuda/lib64 |' -i "${ELPA_PKG_CONFIG_FILE}"
@@ -1040,7 +1194,7 @@ export Torch_DIR
 
 # Check if PEXSI was built
 if [[ "${MPI_MODE}" != "no" ]]; then
-  CP2K_USE_PEXSI="$(grep -Eq '\s*#\s*-\s+"pexsi@' spack/cp2k_deps_psmp.yaml && echo OFF || echo ON)"
+  CP2K_USE_PEXSI="$(grep -Eq '\s*#\s*-\s+"pexsi@' "${CP2K_CONFIG_FILE}" && echo OFF || echo ON)"
 else
   CP2K_USE_PEXSI="ON"
 fi
@@ -1049,13 +1203,12 @@ export CP2K_USE_PEXSI
 if [[ ! -d "${CMAKE_BUILD_PATH}" ]]; then
   mkdir -p "${CMAKE_BUILD_PATH}"
   case "${CP2K_VERSION}" in
-    "psmp")
+    pdbg | psmp)
       # shellcheck disable=SC2086
       cmake -S "${CP2K_ROOT}" -B "${CMAKE_BUILD_PATH}" \
         -GNinja \
-        -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
+        -DCMAKE_BUILD_TYPE="${CP2K_BUILD_TYPE}" \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-        -DCMAKE_INSTALL_LIBDIR="lib" \
         -DCMAKE_INSTALL_MESSAGE="${INSTALL_MESSAGE}" \
         -DCMAKE_SKIP_RPATH=ON \
         -DCMAKE_VERBOSE_MAKEFILE="${VERBOSE_MAKEFILE}" \
@@ -1066,13 +1219,12 @@ if [[ ! -d "${CMAKE_BUILD_PATH}" ]]; then
         tee "${CMAKE_BUILD_PATH}/cmake.log"
       EXIT_CODE=$?
       ;;
-    "ssmp")
+    sdbg | ssmp)
       # shellcheck disable=SC2086
       cmake -S "${CP2K_ROOT}" -B "${CMAKE_BUILD_PATH}" \
         -GNinja \
-        -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
+        -DCMAKE_BUILD_TYPE="${CP2K_BUILD_TYPE}" \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-        -DCMAKE_INSTALL_LIBDIR="lib" \
         -DCMAKE_INSTALL_MESSAGE="${INSTALL_MESSAGE}" \
         -DCMAKE_SKIP_RPATH=ON \
         -DCMAKE_VERBOSE_MAKEFILE="${VERBOSE_MAKEFILE}" \
@@ -1082,39 +1234,24 @@ if [[ ! -d "${CMAKE_BUILD_PATH}" ]]; then
         tee "${CMAKE_BUILD_PATH}/cmake.log"
       EXIT_CODE=$?
       ;;
-    "ssmp-static")
+    ssmp-static)
       # Find some static libraries in advance
       LIBOPENBLAS=$(find -L "${SPACK_ROOT}"/opt/spack/view -name libopenblas.a)
       LIBM="$(find /usr -name libm.a 2> /dev/null)"
+      # shellcheck disable=SC2086
       cmake -S "${CP2K_ROOT}" -B "${CMAKE_BUILD_PATH}" \
         -GNinja \
         -DBUILD_SHARED_LIBS=OFF \
-        -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
+        -DCMAKE_BUILD_TYPE="${CP2K_BUILD_TYPE}" \
         -DCMAKE_EXE_LINKER_FLAGS="-static" \
         -DCMAKE_FIND_LIBRARY_SUFFIXES=".a" \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-        -DCMAKE_INSTALL_LIBDIR="lib" \
         -DCMAKE_INSTALL_MESSAGE="${INSTALL_MESSAGE}" \
         -DCMAKE_SKIP_RPATH=ON \
         -DCMAKE_VERBOSE_MAKEFILE="${VERBOSE_MAKEFILE}" \
         -DCP2K_BLAS_LINK_LIBRARIES="${LIBOPENBLAS};${LIBM}" \
         -DCP2K_LAPACK_LINK_LIBRARIES="${LIBOPENBLAS};${LIBM}" \
-        -DCP2K_USE_EVERYTHING=ON \
-        -DCP2K_USE_ACE=OFF \
-        -DCP2K_USE_DEEPMD=OFF \
-        -DCP2K_USE_DFTD4=ON \
-        -DCP2K_USE_GREENX=OFF \
-        -DCP2K_USE_HDF5=OFF \
-        -DCP2K_USE_LIBINT2=ON \
-        -DCP2K_USE_LIBTORCH=OFF \
-        -DCP2K_USE_LIBXC=ON \
-        -DCP2K_USE_LIBXSMM=ON \
-        -DCP2K_USE_MPI=OFF \
-        -DCP2K_USE_PEXSI=OFF \
-        -DCP2K_USE_SPGLIB=ON \
-        -DCP2K_USE_VORI=ON \
-        -DCP2K_USE_TBLITE=ON \
-        -DCP2K_USE_TREXIO=OFF \
+        ${CMAKE_FEATURE_FLAGS} \
         -Werror=dev |&
         tee "${CMAKE_BUILD_PATH}/cmake.log"
       EXIT_CODE=$?
@@ -1223,13 +1360,14 @@ for binary in *."${VERSION}"; do
     ${EXIT_CMD}
   fi
 done
-ln -sf cp2k."${VERSION}" cp2k."${VERSION/smp/opt}"
 ln -sf cp2k."${VERSION}" cp2k_shell
 cd "${CP2K_ROOT}" || ${EXIT_CMD} 1
 
-# Allow to run as root within a container with OpenMPI
+# Allow to run as root with OpenMPI
 if [[ "${MPI_MODE}" == "openmpi" ]]; then
   OMPI_VARS="export OMPI_ALLOW_RUN_AS_ROOT=1 OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1 OMPI_MCA_plm_rsh_agent=/bin/false"
+else
+  OMPI_VARS=""
 fi
 export OMPI_VARS
 
@@ -1241,6 +1379,9 @@ else
 fi
 export ENV_VAR_FLAG
 
+# Install LSAN suppressions (only needed for dbg binaries)
+cp "${CP2K_ROOT}"/tools/spack/lsan.supp "${INSTALL_PREFIX}"/bin
+
 # Assemble flags for running the regression tests
 TESTOPTS="--cp2kdatadir ${INSTALL_PREFIX}/share/cp2k/data  --maxtasks ${NUM_PROCS} --workbasedir ${INSTALL_PREFIX}/regtesting ${TESTOPTS}"
 export TESTOPTS
@@ -1251,6 +1392,7 @@ export LAUNCH_SCRIPT
 cat << *** > "${LAUNCH_SCRIPT}"
 #!/bin/bash
 ulimit -c 0 -s unlimited
+export LSAN_OPTIONS=suppressions=${INSTALL_PREFIX}/bin/lsan.supp
 export PATH=${INSTALL_PREFIX}/bin:${PATH}
 export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}
 export OMP_NUM_THREADS=\${OMP_NUM_THREADS:-2}
@@ -1278,7 +1420,7 @@ if [[ "${RUN_TEST}" == "yes" ]]; then
   fi
 else
   if [[ "${IN_CONTAINER}" == "yes" ]]; then
-    if ((CUDA_ARCH > 0)); then
+    if ((CUDA_SM_CODE > 0)); then
       DEVICE_FLAG=" --device nvidia.com/gpu=all"
     else
       DEVICE_FLAG=""
@@ -1308,7 +1450,7 @@ else
       echo "    export OMP_NUM_THREADS=4; ${LAUNCH_SCRIPT} cp2k ${CP2K_ROOT}/benchmarks/CI/H2O-32_md.inp"
     else
       echo "*** An MPI-parallel CP2K run using 2 OpenMP threads for each of the 4 MPI ranks can be launched with"
-      echo "    export OMP_NUM_THREADS=2; ${LAUNCH_SCRIPT} mpirun -n 4 cp2k ${CP2K_ROOT}/benchmarks/CI/H2O-32_md.inp"
+      echo "    export OMP_NUM_THREADS=2; ${LAUNCH_SCRIPT} mpiexec -n 4 cp2k ${CP2K_ROOT}/benchmarks/CI/H2O-32_md.inp"
     fi
     echo ""
   fi

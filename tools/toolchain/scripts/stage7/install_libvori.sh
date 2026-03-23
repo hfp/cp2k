@@ -30,12 +30,7 @@ case "${with_libvori:=__INSTALL__}" in
     if verify_checksums "${install_lock_file}"; then
       echo "libvori-${libvori_ver} is already installed, skipping it."
     else
-      if [ -f libvori-${libvori_ver}.tar.gz ]; then
-        echo "libvori-${libvori_ver}.tar.gz is found"
-      else
-        download_pkg_from_cp2k_org "${libvori_sha256}" "libvori-${libvori_ver}.tar.gz"
-      fi
-
+      retrieve_package "${libvori_sha256}" "libvori-${libvori_ver}.tar.gz"
       echo "Installing from scratch into ${pkg_install_dir}"
       [ -d libvori-${libvori_ver} ] && rm -rf libvori-${libvori_ver}
       tar -xzf libvori-${libvori_ver}.tar.gz
@@ -85,7 +80,6 @@ prepend_path LD_LIBRARY_PATH "${pkg_install_dir}/lib"
 prepend_path LD_RUN_PATH "${pkg_install_dir}/lib"
 prepend_path LIBRARY_PATH "${pkg_install_dir}/lib"
 export LIBVORI_LIBS="${LIBVORI_LIBS}"
-export LIBVORI_ROOT="${pkg_install_dir}"
 prepend_path PKG_CONFIG_PATH "$pkg_install_dir/lib/pkgconfig"
 prepend_path CMAKE_PREFIX_PATH "$pkg_install_dir"
 EOF

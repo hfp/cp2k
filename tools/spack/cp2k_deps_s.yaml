@@ -1,4 +1,4 @@
-# Spack environment file for a serial statically linked CP2K binary with all available dependencies
+# Spack environment file for a serial CP2K binary with all available dependencies
 
 # Edit this file with care because it is automatically changed by the make_cp2k.sh script
 
@@ -30,10 +30,14 @@ spack:
         - "+openmp"
         - "+pic"
         - "~rocm"
-    #   - "~shared" this does not work because of gettext
-        - "+static"
         - "build_system=cmake"
         - "build_type=Release"
+
+    cuda:
+      buildable: false
+      externals:
+        - spec: cuda@12.9
+          prefix: /usr/local/cuda
 
     # ScaLAPACK, LAPACK, BLAS
     blas:
@@ -58,37 +62,45 @@ spack:
       require:
         - "~examples"
         - "+openmp"
-        - "~shared"
         - "smm=libxsmm"
+
+    deepmdkit:
+      require:
+        - "+pytorch"
 
     fftw:
       require:
         - "+openmp"
-        - "~shared"
 
     hdf5:
       require:
         - "+fortran"
-        - "~shared"
 
     libint:
       require:
         - "+fortran"
-        - "~shared"
-        - "tune=cp2k-lmax-5"
 
     libxc:
       require:
+        - "~cuda"
         - "+kxc"
-        - "~shared"
 
-    spglib:
+    py-torch:
       require:
-        - "~shared"
+        - "~cuda"
+        - "~distributed"
+        - "~kineto"
+        - "~mkldnn"
+        - "~rocm"
+        - "~valgrind"
+
+    trexio:
+      require:
+        - "+hdf5"
 
   repos:
     builtin:
-      commit: 89e70e65e55b27552f6ac07df2970e62adb9b3e2 # 2026-02-13
+      commit: a716421dc600672926fb420ede4e9a45bdd0948e # 2026-03-19
 
   specs:
     # Build tools
@@ -99,17 +111,21 @@ spack:
     - "python@3.11:"
     # CP2K
     - "dbcsr@2.9.1"
+    - "deepmdkit@3.1.2"
     - "dftd4@3.7.0"
     - "fftw@3.3.10"
-#   - "hdf5@1.14.6"
-    - "libint@2.11.2"
+    - "greenx@2.2"
+    - "hdf5@2.1.0"
+    - "libint@2.13.1-cp2k-lmax-5"
     - "libvori@220621"
     - "libxc@7.0.0"
     - "libxsmm@1.17-cp2k"
     - "openblas@0.3.31"
     - "pace@2025.12.4"
+    - "py-torch@2.10.0"
     - "spglib@2.7.0"
     - "tblite@0.5.0"
+    - "trexio@2.5.0"
 
   view:
     default:

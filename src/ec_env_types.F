@@ -23,6 +23,8 @@ MODULE ec_env_types
    USE input_section_types,             ONLY: section_vals_release,&
                                               section_vals_type
    USE kinds,                           ONLY: dp
+   USE kpoint_types,                    ONLY: kpoint_release,&
+                                              kpoint_type
    USE pw_types,                        ONLY: pw_r3d_rs_type
    USE qs_dispersion_types,             ONLY: qs_dispersion_release,&
                                               qs_dispersion_type
@@ -38,6 +40,7 @@ MODULE ec_env_types
                                               qs_p_env_type
    USE qs_period_efield_types,          ONLY: efield_berry_release,&
                                               efield_berry_type
+   USE scf_control_types,               ONLY: smear_type
    USE task_list_types,                 ONLY: deallocate_task_list,&
                                               task_list_type
 #include "./base/base_uses.f90"
@@ -81,10 +84,13 @@ MODULE ec_env_types
       LOGICAL                                          :: mao = .FALSE.
       ! Skip EC calculation if ground-state didnt converge
       LOGICAL                                          :: do_skip = .FALSE., skip_ec = .FALSE.
+      ! MAO basis
       INTEGER                                          :: mao_max_iter = 0
       REAL(KIND=dp)                                    :: mao_eps_grad = 0.0_dp
       REAL(KIND=dp)                                    :: mao_eps1 = 0.0_dp
       INTEGER                                          :: mao_iolevel = 0
+      !
+      TYPE(smear_type)                                 :: smear
       ! energy components
       REAL(KIND=dp)                                    :: etotal = 0.0_dp, old_etotal = 0.0_dp
       REAL(KIND=dp)                                    :: eband = 0.0_dp, ecore = 0.0_dp, exc = 0.0_dp, &
@@ -92,18 +98,23 @@ MODULE ec_env_types
       REAL(KIND=dp)                                    :: edispersion = 0.0_dp, efield_elec = 0.0_dp, &
                                                           efield_nuclear = 0.0_dp, ex = 0.0_dp, exc_aux_fit = 0.0_dp
       REAL(KIND=dp)                                    :: exc1 = 0.0_dp, exc1_aux_fit = 0.0_dp, ehartree_1c = 0.0_dp
+      REAL(KIND=dp)                                    :: ekTS = 0.0_dp
       ! forces
       TYPE(qs_force_type), DIMENSION(:), POINTER       :: force => Null()
       ! full neighbor lists and corresponding task list
       TYPE(neighbor_list_set_p_type), &
          DIMENSION(:), POINTER                         :: sab_orb => Null(), sac_ppl => Null(), &
                                                           sac_ae => Null(), sap_ppnl => Null(), &
+                                                          sab_kp => Null(), sab_kp_nosym => Null(), &
                                                           sap_oce => Null()
       TYPE(task_list_type), POINTER                    :: task_list => Null()
       TYPE(task_list_type), POINTER                    :: task_list_soft => Null()
       ! the XC function to be used for the correction, dispersion info
       TYPE(section_vals_type), POINTER                 :: xc_section => Null()
       TYPE(qs_dispersion_type), POINTER                :: dispersion_env => Null()
+      ! kpoint information
+      LOGICAL                                          :: do_kpoints = .FALSE.
+      TYPE(kpoint_type), POINTER                       :: kpoints => Null()
       ! matrices in complete basis
       ! KS: Kohn-Sham; H: Core; S: overlap; T: kinetic energy;
       ! P: Harris density, W: Harris energy weighted density
@@ -177,6 +188,8 @@ CONTAINS
          CALL release_neighbor_list_sets(ec_env%sac_ppl)
          CALL release_neighbor_list_sets(ec_env%sac_ae)
          CALL release_neighbor_list_sets(ec_env%sap_ppnl)
+         CALL release_neighbor_list_sets(ec_env%sab_kp)
+         CALL release_neighbor_list_sets(ec_env%sab_kp_nosym)
          CALL release_neighbor_list_sets(ec_env%sap_oce)
          ! forces
          IF (ASSOCIATED(ec_env%force)) CALL deallocate_qs_force(ec_env%force)
@@ -204,6 +217,9 @@ CONTAINS
          END IF
 
          CALL ec_env_matrix_release(ec_env)
+
+         ! kpoints
+         CALL kpoint_release(ec_env%kpoints)
 
          IF (ASSOCIATED(ec_env%p_env)) THEN
             CALL p_env_release(ec_env%p_env)

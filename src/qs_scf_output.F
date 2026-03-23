@@ -33,7 +33,8 @@ MODULE qs_scf_output
         outer_scf_optimizer_broyden, outer_scf_optimizer_diis, outer_scf_optimizer_newton, &
         outer_scf_optimizer_newton_ls, outer_scf_optimizer_sd, outer_scf_optimizer_secant, &
         radius_covalent, radius_default, radius_single, radius_user, radius_vdw, &
-        shape_function_density, shape_function_gaussian
+        shape_function_density, shape_function_gaussian, smear_fermi_dirac, smear_gaussian, &
+        smear_mp, smear_mv
    USE input_section_types,             ONLY: section_get_ivals,&
                                               section_vals_get_subs_vals,&
                                               section_vals_type,&
@@ -211,7 +212,7 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                          :: mo_coeff, umo_coeff
       TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: ks, s
-      TYPE(dbcsr_type), POINTER                          :: matrix_ks, matrix_s
+      TYPE(dbcsr_type), POINTER                          :: matrix_ks, matrix_s, mo_coeff_deriv
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(kpoint_type), POINTER                         :: kpoints
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mos
@@ -265,6 +266,7 @@ CONTAINS
 
       NULLIFY (fm_struct_tmp)
       NULLIFY (mo_coeff)
+      NULLIFY (mo_coeff_deriv)
       NULLIFY (mo_eigenvalues)
       NULLIFY (mo_set)
       NULLIFY (umo_coeff)
@@ -332,10 +334,23 @@ CONTAINS
                                   nmo=nmo, &
                                   flexible_electron_count=flexible_electron_count)
 
+                  IF (ASSOCIATED(qs_env%mo_derivs)) THEN
+                     mo_coeff_deriv => qs_env%mo_derivs(ispin)%matrix
+                  ELSE
+                     mo_coeff_deriv => NULL()
+                  END IF
+
+                  ! Update the eigenvalues of the occupied orbitals
+                  CALL calculate_subspace_eigenvalues(orbitals=mo_coeff, &
+                                                      ks_matrix=matrix_ks, &
+                                                      evals_arg=mo_eigenvalues, &
+                                                      co_rotate_dbcsr=mo_coeff_deriv)
+                  CALL set_mo_occupation(mo_set=mo_set)
+
                   ! Retrieve the index of the last MO for which a printout is requested
                   mo_index_range => section_get_ivals(dft_section, "PRINT%MO%MO_INDEX_RANGE")
                   CPASSERT(ASSOCIATED(mo_index_range))
-                  IF (mo_index_range(2) == -1) THEN
+                  IF (mo_index_range(2) < 0) THEN
                      numo = nao - homo
                   ELSE
                      numo = MIN(mo_index_range(2) - homo, nao - homo)
@@ -390,16 +405,15 @@ CONTAINS
 
                      CALL calculate_subspace_eigenvalues(orbitals=umo_coeff, &
                                                          ks_matrix=matrix_ks, &
-                                                         evals_arg=umo_eigenvalues, &
-                                                         do_rotation=.TRUE.)
+                                                         evals_arg=umo_eigenvalues)
                      CALL set_mo_occupation(mo_set=umo_set)
 
-                     ! With ADMM, we have to undo the modification of the Kohn-Sham matrix
-                     IF (dft_control%do_admm) THEN
-                        CALL admm_uncorrect_for_eigenvalues(ispin, admm_env, matrix_ks)
-                     END IF
-
                   END IF ! numo > 0
+
+                  ! With ADMM, we have to undo the modification of the Kohn-Sham matrix
+                  IF (dft_control%do_admm) THEN
+                     CALL admm_uncorrect_for_eigenvalues(ispin, admm_env, matrix_ks)
+                  END IF
 
                ELSE
 
@@ -598,15 +612,16 @@ CONTAINS
       CHARACTER(LEN=*), PARAMETER :: routineN = 'qs_scf_print_scf_summary'
 
       INTEGER                                            :: bc, handle, ispin, psolver
-      REAL(kind=dp)                                      :: exc1_energy, exc_energy, &
+      REAL(kind=dp)                                      :: e_extrapolated, exc1_energy, exc_energy, &
                                                             implicit_ps_ehartree, tot1_h, tot1_s
       REAL(KIND=dp), DIMENSION(:), POINTER               :: tot_rho_r
       TYPE(pw_env_type), POINTER                         :: pw_env
+      TYPE(scf_control_type), POINTER                    :: scf_control
 
       NULLIFY (tot_rho_r, pw_env)
       CALL timeset(routineN, handle)
 
-      CALL get_qs_env(qs_env=qs_env, pw_env=pw_env)
+      CALL get_qs_env(qs_env=qs_env, pw_env=pw_env, scf_control=scf_control)
       psolver = pw_env%poisson_env%parameters%solver
 
       IF (output_unit > 0) THEN
@@ -808,8 +823,15 @@ CONTAINS
                "Fermi energy:", energy%efermi
          END IF
          IF (dft_control%smear) THEN
-            WRITE (UNIT=output_unit, FMT="((T3,A,T56,F25.14))") &
-               "Electronic entropic energy:", energy%kTS
+            SELECT CASE (scf_control%smear%method)
+            CASE (smear_gaussian, smear_mp, smear_mv)
+               ! kTS does not have physical meaning in these smearing methods
+               WRITE (UNIT=output_unit, FMT="((T3,A,T56,F25.14))") &
+                  "Smearing free energy correction:", energy%kTS
+            CASE DEFAULT
+               WRITE (UNIT=output_unit, FMT="((T3,A,T56,F25.14))") &
+                  "Electronic entropic energy:", energy%kTS
+            END SELECT
             WRITE (UNIT=output_unit, FMT="((T3,A,T56,F25.14))") &
                "Fermi energy:", energy%efermi
          END IF
@@ -843,6 +865,20 @@ CONTAINS
          ELSE
             WRITE (UNIT=output_unit, FMT="(/,(T3,A,T56,F25.14))") &
                "Total energy:                                  ", energy%total
+            IF (dft_control%smear) THEN
+               SELECT CASE (scf_control%smear%method)
+               CASE (smear_fermi_dirac)
+                  e_extrapolated = energy%total - 0.5_dp*energy%kTS
+                  WRITE (UNIT=output_unit, FMT="((T3,A,T56,F25.14))") &
+                     "Total energy (extrapolated to T->0):           ", e_extrapolated
+               CASE (smear_gaussian)
+                  e_extrapolated = energy%total - 0.5_dp*energy%kTS
+                  WRITE (UNIT=output_unit, FMT="((T3,A,T56,F25.14))") &
+                     "Total energy (extrapolated to sigma->0):       ", e_extrapolated
+               CASE (smear_mp, smear_mv)
+                  ! Sigma->0 extrapolation does not apply to MP or MV method.
+               END SELECT
+            END IF
          END IF
          IF (qmmm) THEN
             IF (qs_env%qmmm_env_qm%image_charge) THEN
