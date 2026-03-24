@@ -17,7 +17,7 @@
 #include <cuda.h>
 #elif defined(__OFFLOAD_HIP)
 #include <hip/hip_runtime_api.h>
-#elif defined(__LIBXSTREAM)
+#elif defined(__OFFLOAD_OPENCL)
 #include <libxstream.h>
 #endif
 
@@ -60,10 +60,8 @@ void offload_init(void) {
   }
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipInit(0));
-#elif defined(__LIBXSTREAM)
-  OFFLOAD_CHECK(libxstream_init());
 #elif defined(__OFFLOAD_OPENCL)
-  OFFLOAD_CHECK(c_dbcsr_acc_init());
+  OFFLOAD_CHECK(libxstream_init());
 #endif
 }
 
@@ -77,10 +75,8 @@ int offload_get_device_count(void) {
   OFFLOAD_CHECK(cudaGetDeviceCount(&count));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipGetDeviceCount(&count));
-#elif defined(__LIBXSTREAM)
-  OFFLOAD_CHECK(libxstream_device_count(&count));
 #elif defined(__OFFLOAD_OPENCL)
-  OFFLOAD_CHECK(c_dbcsr_acc_get_ndevices(&count));
+  OFFLOAD_CHECK(libxstream_device_count(&count));
 #endif
   return count;
 }
@@ -107,10 +103,8 @@ void offload_activate_chosen_device(void) {
   OFFLOAD_CHECK(cudaSetDevice(chosen_device_id));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipSetDevice(chosen_device_id));
-#elif defined(__LIBXSTREAM)
-  OFFLOAD_CHECK(libxstream_device_set_active(chosen_device_id));
 #elif defined(__OFFLOAD_OPENCL)
-  OFFLOAD_CHECK(c_dbcsr_acc_set_active_device(chosen_device_id));
+  OFFLOAD_CHECK(libxstream_device_set_active(chosen_device_id));
 #endif
 }
 
@@ -167,10 +161,8 @@ void offload_mem_info(size_t *free, size_t *total) {
   OFFLOAD_CHECK(cudaMemGetInfo(free, total));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipMemGetInfo(free, total));
-#elif defined(__LIBXSTREAM)
-  OFFLOAD_CHECK(libxstream_mem_info(free, total));
 #elif defined(__OFFLOAD_OPENCL)
-  OFFLOAD_CHECK(c_dbcsr_acc_dev_mem_info(free, total));
+  OFFLOAD_CHECK(libxstream_mem_info(free, total));
 #else
   *free = *total = 0;
 #endif

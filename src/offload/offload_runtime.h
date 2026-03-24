@@ -7,11 +7,10 @@
 #ifndef OFFLOAD_RUNTIME_H
 #define OFFLOAD_RUNTIME_H
 
-#if defined(__LIBXSTREAM) && !defined(__OFFLOAD_OPENCL)
-#define __OFFLOAD_OPENCL
-#endif
-#if defined(__OFFLOAD_OPENCL) && !defined(__DBCSR_ACC) && !defined(__LIBXSTREAM)
+#if !defined(__LIBXSTREAM)
 #undef __OFFLOAD_OPENCL
+#elif !defined(__OFFLOAD_OPENCL)
+#define __OFFLOAD_OPENCL
 #endif
 /* TODO: implement support or missing features */
 #if defined(__OFFLOAD_OPENCL)
@@ -20,9 +19,6 @@
 #endif
 #if !defined(__NO_OFFLOAD_PW)
 #define __NO_OFFLOAD_PW
-#endif
-#if defined(__LIBXSTREAM) && !defined(__DBCSR_ACC) && !defined(__NO_OFFLOAD_DBM)
-#define __NO_OFFLOAD_DBM
 #endif
 #endif
 
@@ -42,42 +38,24 @@
 #include <hip/hip_runtime.h>
 #include <hip/hip_version.h>
 #elif defined(__OFFLOAD_OPENCL)
-#if defined(__LIBXSTREAM)
+/* Types, macros, and functions provided by libxstream_cp2k.h. */
 #include <libxstream_cp2k.h>
-#else
-/* No relative path aka double-quote to avoid PACKAGE deps (-Iexts/dbcsr). */
-#include <acc_opencl.h>
-#endif
 #endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#if defined(__LIBXSTREAM)
-/* Types, macros, and functions provided by libxstream_cp2k.h. */
-#elif defined(__OFFLOAD_CUDA)
+#if defined(__OFFLOAD_CUDA)
 typedef cudaStream_t offloadStream_t;
 typedef cudaEvent_t offloadEvent_t;
 typedef cudaError_t offloadError_t;
+#define offloadSuccess cudaSuccess
 #elif defined(__OFFLOAD_HIP)
 typedef hipStream_t offloadStream_t;
 typedef hipEvent_t offloadEvent_t;
 typedef hipError_t offloadError_t;
-#elif defined(__OFFLOAD_OPENCL)
-typedef void *offloadStream_t;
-typedef void *offloadEvent_t;
-typedef int offloadError_t;
-#endif
-
-#if defined(__LIBXSTREAM)
-/* offloadSuccess provided by libxstream_cp2k.h. */
-#elif defined(__OFFLOAD_CUDA)
-#define offloadSuccess cudaSuccess
-#elif defined(__OFFLOAD_HIP)
 #define offloadSuccess hipSuccess
-#elif defined(__OFFLOAD_OPENCL)
-#define offloadSuccess EXIT_SUCCESS
 #endif
 
 /*******************************************************************************
@@ -100,7 +78,7 @@ typedef int offloadError_t;
   } while (0)
 #endif
 
-#if !defined(__LIBXSTREAM)
+#if !defined(__OFFLOAD_OPENCL)
 /*******************************************************************************
  * \brief Wrapper around cudaGetErrorName.
  ******************************************************************************/
@@ -109,13 +87,6 @@ static inline const char *offloadGetErrorName(offloadError_t error) {
   return cudaGetErrorName(error);
 #elif defined(__OFFLOAD_HIP)
   return hipGetErrorName(error);
-#elif defined(__OFFLOAD_OPENCL)
-#if defined(ACC_OPENCL_ERROR_NAME)
-  return ACC_OPENCL_ERROR_NAME(error);
-#else
-  (void)error; /* mark used */
-  return "";
-#endif
 #endif
 }
 
@@ -127,12 +98,6 @@ static inline offloadError_t offloadGetLastError(void) {
   return cudaGetLastError();
 #elif defined(__OFFLOAD_HIP)
   return hipGetLastError();
-#elif defined(__OFFLOAD_OPENCL)
-#if defined(ACC_OPENCL_ERROR)
-  return ACC_OPENCL_ERROR();
-#else
-  return offloadSuccess;
-#endif
 #endif
 }
 
@@ -146,9 +111,6 @@ static inline void offloadMemsetAsync(void *ptr, const int val,
   OFFLOAD_CHECK(cudaMemsetAsync(ptr, val, size, stream));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipMemsetAsync(ptr, val, size, stream));
-#elif defined(__OFFLOAD_OPENCL)
-  OFFLOAD_CHECK(
-      c_dbcsr_acc_opencl_memset(ptr, val, 0 /*offset*/, size, stream));
 #endif
 }
 
@@ -160,8 +122,6 @@ static inline void offloadMemset(void *ptr, const int val, size_t size) {
   OFFLOAD_CHECK(cudaMemset(ptr, val, size));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipMemset(ptr, val, size));
-#elif defined(__OFFLOAD_OPENCL)
-  offloadMemsetAsync(ptr, val, size, NULL /*stream*/);
 #endif
 }
 
@@ -182,8 +142,6 @@ static inline void offloadMemcpyAsyncHtoD(void *ptr_dev, const void *ptr_hst,
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(
       hipMemcpyAsync(ptr_dev, ptr_hst, size, hipMemcpyHostToDevice, stream));
-#elif defined(__OFFLOAD_OPENCL)
-  OFFLOAD_CHECK(c_dbcsr_acc_memcpy_h2d(ptr_hst, ptr_dev, size, stream));
 #endif
 }
 
@@ -204,8 +162,6 @@ static inline void offloadMemcpyAsyncDtoH(void *ptr_hst, const void *ptr_dev,
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(
       hipMemcpyAsync(ptr_hst, ptr_dev, size, hipMemcpyDeviceToHost, stream));
-#elif defined(__OFFLOAD_OPENCL)
-  OFFLOAD_CHECK(c_dbcsr_acc_memcpy_d2h(ptr_dev, ptr_hst, size, stream));
 #endif
 }
 
@@ -221,8 +177,6 @@ static inline void offloadMemcpyAsyncDtoD(void *dst, const void *src,
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(
       hipMemcpyAsync(dst, src, size, hipMemcpyDeviceToDevice, stream));
-#elif defined(__OFFLOAD_OPENCL)
-  OFFLOAD_CHECK(c_dbcsr_acc_memcpy_d2d(src, dst, size, stream));
 #endif
 }
 
@@ -240,8 +194,6 @@ static inline void offloadMemcpyHtoD(void *ptr_dev, const void *ptr_hst,
   OFFLOAD_CHECK(cudaMemcpy(ptr_dev, ptr_hst, size, cudaMemcpyHostToDevice));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipMemcpy(ptr_dev, ptr_hst, size, hipMemcpyHostToDevice));
-#elif defined(__OFFLOAD_OPENCL)
-  offloadMemcpyAsyncHtoD(ptr_dev, ptr_hst, size, NULL /*stream*/);
 #endif
 }
 
@@ -259,8 +211,6 @@ static inline void offloadMemcpyDtoH(void *ptr_dev, const void *ptr_hst,
   OFFLOAD_CHECK(cudaMemcpy(ptr_dev, ptr_hst, size, cudaMemcpyDeviceToHost));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipMemcpy(ptr_dev, ptr_hst, size, hipMemcpyDeviceToHost));
-#elif defined(__OFFLOAD_OPENCL)
-  offloadMemcpyAsyncDtoH(ptr_dev, ptr_hst, size, NULL /*stream*/);
 #endif
 }
 
@@ -275,8 +225,6 @@ static inline void offloadMemcpyToSymbol(const void *symbol, const void *src,
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(
       hipMemcpyToSymbol(symbol, src, count, 0, hipMemcpyHostToDevice));
-#elif defined(__OFFLOAD_OPENCL)
-  assert(NULL == symbol || NULL == src || 0 == count); /* TODO */
 #endif
 }
 
@@ -288,8 +236,6 @@ static inline void offloadEventCreate(offloadEvent_t *event) {
   OFFLOAD_CHECK(cudaEventCreate(event));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipEventCreate(event));
-#elif defined(__OFFLOAD_OPENCL)
-  OFFLOAD_CHECK(c_dbcsr_acc_event_create(event));
 #endif
 }
 
@@ -301,8 +247,6 @@ static inline void offloadEventDestroy(offloadEvent_t event) {
   OFFLOAD_CHECK(cudaEventDestroy(event));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipEventDestroy(event));
-#elif defined(__OFFLOAD_OPENCL)
-  OFFLOAD_CHECK(c_dbcsr_acc_event_destroy(event));
 #endif
 }
 
@@ -314,10 +258,6 @@ static inline void offloadStreamCreate(offloadStream_t *stream) {
   OFFLOAD_CHECK(cudaStreamCreate(stream));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipStreamCreate(stream));
-#elif defined(__OFFLOAD_OPENCL)
-  int least = 0;
-  OFFLOAD_CHECK(c_dbcsr_acc_stream_priority_range(&least, NULL /*greatest*/));
-  OFFLOAD_CHECK(c_dbcsr_acc_stream_create(stream, "Offload Stream", least));
 #endif
 }
 
@@ -329,8 +269,6 @@ static inline void offloadStreamDestroy(offloadStream_t stream) {
   OFFLOAD_CHECK(cudaStreamDestroy(stream));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipStreamDestroy(stream));
-#elif defined(__OFFLOAD_OPENCL)
-  OFFLOAD_CHECK(c_dbcsr_acc_stream_destroy(stream));
 #endif
 }
 
@@ -342,8 +280,6 @@ static inline void offloadEventSynchronize(offloadEvent_t event) {
   OFFLOAD_CHECK(cudaEventSynchronize(event));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipEventSynchronize(event));
-#elif defined(__OFFLOAD_OPENCL)
-  OFFLOAD_CHECK(c_dbcsr_acc_event_synchronize(event));
 #endif
 }
 
@@ -355,8 +291,6 @@ static inline void offloadStreamSynchronize(offloadStream_t stream) {
   OFFLOAD_CHECK(cudaStreamSynchronize(stream));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipStreamSynchronize(stream));
-#elif defined(__OFFLOAD_OPENCL)
-  OFFLOAD_CHECK(c_dbcsr_acc_stream_sync(stream));
 #endif
 }
 
@@ -369,8 +303,6 @@ static inline void offloadEventRecord(offloadEvent_t event,
   OFFLOAD_CHECK(cudaEventRecord(event, stream));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipEventRecord(event, stream));
-#elif defined(__OFFLOAD_OPENCL)
-  OFFLOAD_CHECK(c_dbcsr_acc_event_record(event, stream));
 #endif
 }
 
@@ -382,8 +314,6 @@ static inline void offloadMallocHost(void **ptr, size_t size) {
   OFFLOAD_CHECK(cudaMallocHost(ptr, size));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipHostMalloc(ptr, size, hipHostMallocDefault)); // inconsistent
-#elif defined(__OFFLOAD_OPENCL)
-  OFFLOAD_CHECK(c_dbcsr_acc_host_mem_allocate(ptr, size, NULL /*stream*/));
 #else
   assert(NULL != ptr);
   *ptr = malloc(size);
@@ -398,8 +328,6 @@ static inline void offloadMalloc(void **ptr, size_t size) {
   OFFLOAD_CHECK(cudaMalloc(ptr, size));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipMalloc(ptr, size));
-#elif defined(__OFFLOAD_OPENCL)
-  OFFLOAD_CHECK(c_dbcsr_acc_dev_mem_allocate(ptr, size));
 #else
   assert(NULL != ptr);
   *ptr = NULL;
@@ -414,8 +342,6 @@ static inline void offloadFree(void *ptr) {
   OFFLOAD_CHECK(cudaFree(ptr));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipFree(ptr));
-#elif defined(__OFFLOAD_OPENCL)
-  OFFLOAD_CHECK(c_dbcsr_acc_dev_mem_deallocate(ptr));
 #else
   assert(NULL == ptr);
 #endif
@@ -429,8 +355,6 @@ static inline void offloadFreeHost(void *ptr) {
   OFFLOAD_CHECK(cudaFreeHost(ptr));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipHostFree(ptr)); // inconsistent
-#elif defined(__OFFLOAD_OPENCL)
-  OFFLOAD_CHECK(c_dbcsr_acc_host_mem_deallocate(ptr, NULL /*stream*/));
 #else
   free(ptr);
 #endif
@@ -445,8 +369,6 @@ static inline void offloadStreamWaitEvent(offloadStream_t stream,
   OFFLOAD_CHECK(cudaStreamWaitEvent(stream, event, 0 /*flags*/));
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipStreamWaitEvent(stream, event, 0 /*flags*/));
-#elif defined(__OFFLOAD_OPENCL)
-  OFFLOAD_CHECK(c_dbcsr_acc_stream_wait_event(stream, event));
 #endif
 }
 
@@ -458,10 +380,6 @@ static inline bool offloadEventQuery(offloadEvent_t event) {
   return offloadSuccess == cudaEventQuery(event);
 #elif defined(__OFFLOAD_HIP)
   return offloadSuccess == hipEventQuery(event);
-#elif defined(__OFFLOAD_OPENCL)
-  c_dbcsr_acc_bool_t has_occurred;
-  OFFLOAD_CHECK(c_dbcsr_acc_event_query(event, &has_occurred));
-  return (bool)has_occurred;
 #endif
 }
 
@@ -473,8 +391,6 @@ static inline void offloadDeviceSynchronize(void) {
   OFFLOAD_CHECK(cudaDeviceSynchronize());
 #elif defined(__OFFLOAD_HIP)
   OFFLOAD_CHECK(hipDeviceSynchronize());
-#elif defined(__OFFLOAD_OPENCL)
-  OFFLOAD_CHECK(c_dbcsr_acc_device_synchronize());
 #endif
 }
 
@@ -494,14 +410,12 @@ static inline void offloadEnsureMallocHeapSize(const size_t required_size) {
   if (current_size < required_size) {
     OFFLOAD_CHECK(hipDeviceSetLimit(hipLimitMallocHeapSize, required_size));
   }
-#elif defined(__OFFLOAD_OPENCL)
-  assert(0 == required_size); /* TODO */
 #else
   (void)required_size; /* mark used */
 #endif
 }
 
-#endif /* !defined(__LIBXSTREAM) */
+#endif /* !defined(__OFFLOAD_OPENCL) */
 
 #ifdef __cplusplus
 }
