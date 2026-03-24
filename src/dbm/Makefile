@@ -92,7 +92,9 @@ LIBS += -L$(MKLROOT)/lib/intel64 \
         -lmkl_core \
         -lmkl_sequential \
         -Wl,--end-group
+ifneq ($(MKL),0)
 CFLAGS += -I$(MKLROOT)/include -D__MKL
+endif
 else ifneq ($(OPENBLAS),0)
 LIBS += -lopenblas
 else
