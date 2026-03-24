@@ -137,6 +137,7 @@ LIBS += -L${ROCM_PATH}/lib -lamdhip64 -lhipfft -lhipblas -lrocblas
 endif
 
 # Make LIBXSMM available
+ifneq ($(LIBXSMM),0)
 LIBXSMMROOT ?= $(wildcard $(CP2KHOME)/../libxsmm)
 ifneq ($(LIBXSMMROOT),)
 CFLAGS += -D__LIBXSMM -I$(LIBXSMMROOT)/include
@@ -144,11 +145,14 @@ LIBS += $(LIBXSMMROOT)/lib/libxsmm.a \
         $(LIBXSMMROOT)/lib/libxsmmext.a \
         -lpthread -lrt
 endif
+endif
 
 # Make LIBXS available (wraps BLAS, MKL JIT, and LIBXSMM behind a common API)
+ifneq ($(LIBXS),0)
 LIBXSROOT ?= $(wildcard $(CP2KHOME)/../libxs)
 ifneq ($(LIBXSROOT),)
 CFLAGS += -D__LIBXS -I$(LIBXSROOT)/include
+endif
 endif
 
 # Make LIBXSTREAM available (OpenCL offload backend).
