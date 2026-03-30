@@ -157,8 +157,8 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             "-cl-fast-relaxed-math -cl-denorms-are-zero";
         const char *const krn_env = getenv("DBM_MULTIPLY_KERNEL");
         const char *const wgpt_env = getenv("DBM_MULTIPLY_WGPT");
-        const char *const gen_env = getenv("DBM_MULTIPLY_GEN");
         const char *const lin_env = getenv("DBM_MULTIPLY_LIN");
+        const char *const gen_env = getenv("DBM_MULTIPLY_GEN");
         const char *const fp_env = getenv("DBM_MULTIPLY_FP");
         const char *const bn_env = getenv("DBM_MULTIPLY_BN");
         const char *const sm_env = getenv("DBM_MULTIPLY_SM");
@@ -178,8 +178,9 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         const int gpu = (CL_DEVICE_TYPE_GPU == devinfo->type);
         const int precision = (NULL == fp_env ? 0 /*default*/ : atoi(fp_env));
         const int gen0 = (NULL == fp_env && NULL == bn_env && NULL == sm_env &&
-                          NULL == wg_env && NULL == lu_env && NULL == lin_env &&
-                          NULL == ro_env && 0 == param_format);
+                          NULL == wg_env && NULL == lu_env && NULL == ro_env &&
+                          NULL == wgpt_env && NULL == lin_env &&
+                          0 == param_format);
         const int gen1 = devinfo->intel && 0x0bd0 <= uid && 0x0bdb >= uid;
         int gen = (0 != gen0 ? (NULL == gen_env ? gen1 : atoi(gen_env)) : 0);
         int bn = LIBXS_CLMP(NULL == bn_env ? bn1 : atoi(bn_env), 1, 32);
@@ -236,7 +237,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                     : 0);
           clinear = (NULL == lin_env ? 0 /*default*/ : atoi(lin_env));
           wgpt = (0 < wgsize[0] &&
-                  (NULL == wgpt_env ? 1 /*default*/ : (0 != atoi(wgpt_env))));
+                  (NULL == wgpt_env ? 0 /*default*/ : (0 != atoi(wgpt_env))));
           offset += (size_t)LIBXS_SNPRINTF(
               flags + offset, sizeof(flags) - offset,
               " %s %s %s -DCONSTANT=%s -DBN=%i -DSM=%i -DLU=%i -DWG=%i -DSG=%i",
