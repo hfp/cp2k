@@ -98,7 +98,8 @@ int offload_get_chosen_device(void) { return chosen_device_id; }
  * \author Ole Schuett
  ******************************************************************************/
 void offload_activate_chosen_device(void) {
-  if (chosen_device_id < 0) return;
+  if (chosen_device_id < 0)
+    return;
 #if defined(__OFFLOAD_CUDA)
   OFFLOAD_CHECK(cudaSetDevice(chosen_device_id));
 #elif defined(__OFFLOAD_HIP)

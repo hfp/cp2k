@@ -1042,11 +1042,9 @@ if(CP2K_USE_LIBXSMM)
 endif()
 
 if(CP2K_USE_LIBXS)
-  message(
-    "  - LibXS\n"
-    "    - include directories: ${CP2K_LIBXS_INCLUDE_DIRS}\n"
-    "    - libraries: ${CP2K_LIBXS_LINK_LIBRARIES}\n\n"
-  )
+  message("  - LibXS\n"
+          "    - include directories: ${CP2K_LIBXS_INCLUDE_DIRS}\n"
+          "    - libraries: ${CP2K_LIBXS_LINK_LIBRARIES}\n\n")
 endif()
 
 if(CP2K_USE_SPLA)

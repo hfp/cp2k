@@ -76,11 +76,10 @@ dbm_multiply(double alpha, int itask,
 #if !defined(WGPT)
              int ntasks, int size,
 #endif
-             int param_format,
-             CONSTANT const int *restrict params,
-             /* CLINEAR swaps a/b in the signature so that the host's
-                fixed arg order (adata=arg6, bdata=arg7) transposes
-                the access pattern for coalesced memory reads. */
+             int param_format, CONSTANT const int *restrict params,
+/* CLINEAR swaps a/b in the signature so that the host's
+   fixed arg order (adata=arg6, bdata=arg7) transposes
+   the access pattern for coalesced memory reads. */
 #if !defined(CLINEAR)
              CONSTANT const double *restrict a,
              CONSTANT const double *restrict b,
@@ -90,7 +89,8 @@ dbm_multiply(double alpha, int itask,
 #endif
              global double *restrict c
 #if defined(WGPT)
-             , local TYPE *restrict slm_b
+             ,
+             local TYPE *restrict slm_b
 #endif
 ) {
 #if defined(SM) && (0 < SM)
@@ -139,13 +139,17 @@ dbm_multiply(double alpha, int itask,
     barrier(CLK_LOCAL_MEM_FENCE);
     for (int row = m; row < XM(shape); row += WG) { /* stride WG */
       if (16 <= XK(shape)) {
-        DBM_MULTIPLY(alpha, ibase, params, shape, a, slm_b, c, cvec, row, BN, 16);
+        DBM_MULTIPLY(alpha, ibase, params, shape, a, slm_b, c, cvec, row, BN,
+                     16);
       } else if (8 <= XK(shape)) {
-        DBM_MULTIPLY(alpha, ibase, params, shape, a, slm_b, c, cvec, row, BN, 8);
+        DBM_MULTIPLY(alpha, ibase, params, shape, a, slm_b, c, cvec, row, BN,
+                     8);
       } else if (4 <= XK(shape)) {
-        DBM_MULTIPLY(alpha, ibase, params, shape, a, slm_b, c, cvec, row, BN, 4);
+        DBM_MULTIPLY(alpha, ibase, params, shape, a, slm_b, c, cvec, row, BN,
+                     4);
       } else {
-        DBM_MULTIPLY(alpha, ibase, params, shape, a, slm_b, c, cvec, row, BN, 1);
+        DBM_MULTIPLY(alpha, ibase, params, shape, a, slm_b, c, cvec, row, BN,
+                     1);
       }
     }
   }

@@ -112,9 +112,9 @@ void dbm_multiply_cpu_process_batch(int ntasks, const dbm_task_t batch[ntasks],
       if (alpha == 1.0) {
         const double beta = 1.0;
         // transa='N', transb='T', lda=m, ldb=n, ldc=m
-        libxs_gemm_dispatch(&gemm_config, LIBXS_DATATYPE_F64,
-                            'N', 'T', task.m, task.n, task.k,
-                            task.m, task.n, task.m, &alpha, &beta);
+        libxs_gemm_dispatch(&gemm_config, LIBXS_DATATYPE_F64, 'N', 'T', task.m,
+                            task.n, task.k, task.m, task.n, task.m, &alpha,
+                            &beta);
       }
       kernel_m = task.m;
       kernel_n = task.n;

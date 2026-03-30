@@ -1921,9 +1921,10 @@ add_executable(
   dbm_miniapp dbm/dbm_miniapp.c ${CP2K_DBM_SRCS_C} ${CP2K_MPIWRAP_SRCS_C}
               ${CP2K_DBM_SRCS_GPU} ${CP2K_OFFLOAD_SRCS_C})
 target_compile_definitions(
-  dbm_miniapp PRIVATE $<$<BOOL:${CP2K_USE_LIBXSMM}>:__LIBXSMM>
-                      $<$<BOOL:${CP2K_USE_LIBXS}>:__LIBXS>
-                      $<$<STREQUAL:"${CP2K_BLAS_VENDOR}","MKL">:__MKL>)
+  dbm_miniapp
+  PRIVATE $<$<BOOL:${CP2K_USE_LIBXSMM}>:__LIBXSMM>
+          $<$<BOOL:${CP2K_USE_LIBXS}>:__LIBXS>
+          $<$<STREQUAL:"${CP2K_BLAS_VENDOR}","MKL">:__MKL>)
 
 if(CP2K_DISABLE_DBM_GPU)
   target_compile_definitions(dbm_miniapp PRIVATE __NO_OFFLOAD_DBM)
@@ -1941,9 +1942,10 @@ foreach(__app grid_miniapp grid_unittest)
     ${CP2K_MPIWRAP_SRCS_C}
     ${CP2K_OFFLOAD_SRCS_C})
   target_compile_definitions(
-    ${__app} PRIVATE $<$<BOOL:${CP2K_USE_LIBXSMM}>:__LIBXSMM>
-                     $<$<BOOL:${CP2K_USE_LIBXS}>:__LIBXS>
-                     $<$<STREQUAL:"${CP2K_BLAS_VENDOR}","MKL">:__MKL>)
+    ${__app}
+    PRIVATE $<$<BOOL:${CP2K_USE_LIBXSMM}>:__LIBXSMM>
+            $<$<BOOL:${CP2K_USE_LIBXS}>:__LIBXS>
+            $<$<STREQUAL:"${CP2K_BLAS_VENDOR}","MKL">:__MKL>)
 
   if(CP2K_DISABLE_GRID_GPU)
     target_compile_definitions(${__app} PUBLIC __NO_OFFLOAD_GRID)
