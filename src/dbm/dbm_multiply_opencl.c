@@ -166,6 +166,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         const char *const lu_env = getenv("DBM_MULTIPLY_LU");
         const char *const ro_env = getenv("DBM_MULTIPLY_RO");
         const char *const xf_env = getenv("DBM_MULTIPLY_XF");
+        const char *const wgpt_env = getenv("DBM_MULTIPLY_WGPT");
         const char *exts[] = {NULL, NULL}, *options = NULL;
         const char *source = OPENCL_DBM_SOURCE_MULTIPLY;
         const int dd = (0 != config->debug && 0 != config->dump);
@@ -209,8 +210,9 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
           gen = 0; /* unknown */
         }
         if (0 == gen) { /* assemble preprocessor flags, etc */
-          wgsize[0] = (NULL == wg_env ? (unsigned long int)sm
-                                      : strtoul(wg_env, NULL, 10));
+          wgsize[0] = (NULL == wg_env
+                          ? LIBXS_MAX((unsigned long int)sm, devinfo->wgsize[1])
+                          : strtoul(wg_env, NULL, 10));
           if (1 < sgsize && 0 < wgsize[0]) { /* subgroups */
             if (LIBXS_DELTA(wgsize[0], devinfo->wgsize[1]) <=
                 LIBXS_DELTA(wgsize[0], sgsize)) { /* select SG-size */
@@ -226,7 +228,8 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                     ? (LIBXS_ISPOT(bn * sizeof(double)) + 1)
                     : 0);
           clinear = (NULL == lin_env ? 0 /*default*/ : atoi(lin_env));
-          wgpt = (0 < wgsize[0]) ? 1 : 0;
+          wgpt = (0 < wgsize[0] &&
+                  (NULL == wgpt_env ? 1 /*default*/ : (0 != atoi(wgpt_env))));
           offset += (size_t)LIBXS_SNPRINTF(
               flags + offset, sizeof(flags) - offset,
               " %s %s %s -DCONSTANT=%s -DBN=%i -DSM=%i -DLU=%i -DWG=%i -DSG=%i",
@@ -245,8 +248,14 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                                          " -DPRECISION=%i", precision);
           }
         }
-        if (0 != devinfo->intel && 0 < xf) {
-          options = "-cl-intel-256-GRF-per-thread";
+        { /* 256-GRF: DBM_MULTIPLY_XF overrides, then LIBXSTREAM_BIGGRF,
+             then auto-enable for Intel GPUs */
+          const int biggrf = (0 <= xf ? xf
+              : (NULL != getenv("LIBXSTREAM_BIGGRF") ? devinfo->biggrf
+              : (0 != devinfo->intel && 0 != gpu)));
+          if (0 != biggrf && 0 != devinfo->intel && 0 == devinfo->biggrf) {
+            options = "-cl-intel-256-GRF-per-thread";
+          }
         }
         if (sizeof(flags) > offset) {
           const cl_device_id device_id = config->devices[config->device_id];
