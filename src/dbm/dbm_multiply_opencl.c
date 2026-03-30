@@ -157,6 +157,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         char flags[LIBXSTREAM_BUFFERSIZE] =
             "-cl-fast-relaxed-math -cl-denorms-are-zero";
         const char *const krn_env = getenv("DBM_MULTIPLY_KERNEL");
+        const char *const wgpt_env = getenv("DBM_MULTIPLY_WGPT");
         const char *const gen_env = getenv("DBM_MULTIPLY_GEN");
         const char *const lin_env = getenv("DBM_MULTIPLY_LIN");
         const char *const fp_env = getenv("DBM_MULTIPLY_FP");
@@ -166,7 +167,6 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         const char *const lu_env = getenv("DBM_MULTIPLY_LU");
         const char *const ro_env = getenv("DBM_MULTIPLY_RO");
         const char *const xf_env = getenv("DBM_MULTIPLY_XF");
-        const char *const wgpt_env = getenv("DBM_MULTIPLY_WGPT");
         const char *exts[] = {NULL, NULL}, *options = NULL;
         const char *source = OPENCL_DBM_SOURCE_MULTIPLY;
         const int dd = (0 != config->debug && 0 != config->dump);
@@ -223,7 +223,15 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             wgsize[0] = LIBXS_UP(wgsize[0], devinfo->wgsize[1]);
             sgsize = 0;
           }
-          wgsize[0] = LIBXS_CLMP(wgsize[0], 0, devinfo->wgsize[0]);
+          { /* 256-GRF: DBM_MULTIPLY_XF overrides, then LIBXSTREAM_BIGGRF */
+            const int biggrf = (0 <= xf ? xf : devinfo->biggrf);
+            const size_t max_wgs = (0 != biggrf)
+                ? devinfo->wgsize[0] / 2 : devinfo->wgsize[0];
+            wgsize[0] = LIBXS_CLMP(wgsize[0], 0, max_wgs);
+            if (0 != biggrf && 0 != devinfo->intel && 0 == devinfo->biggrf) {
+              options = "-cl-intel-256-GRF-per-thread";
+            }
+          }
           sm = ((0 != sm && 0 != wgsize[0])
                     ? (LIBXS_ISPOT(bn * sizeof(double)) + 1)
                     : 0);
@@ -246,15 +254,6 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             offset +=
                 (size_t)LIBXS_SNPRINTF(flags + offset, sizeof(flags) - offset,
                                          " -DPRECISION=%i", precision);
-          }
-        }
-        { /* 256-GRF: DBM_MULTIPLY_XF overrides, then LIBXSTREAM_BIGGRF,
-             then auto-enable for Intel GPUs */
-          const int biggrf = (0 <= xf ? xf
-              : (NULL != getenv("LIBXSTREAM_BIGGRF") ? devinfo->biggrf
-              : (0 != devinfo->intel && 0 != gpu)));
-          if (0 != biggrf && 0 != devinfo->intel && 0 == devinfo->biggrf) {
-            options = "-cl-intel-256-GRF-per-thread";
           }
         }
         if (sizeof(flags) > offset) {
