@@ -45,7 +45,7 @@ LIBXS_ATTRIBUTE_CTOR static void dbm_multiply_opencl_initialize(void) {
   if (0 > dbm_multiply_opencl_smm) {
     opencl_libsmm_acc_set_dbm_launch_fn(dbm_multiply_opencl_launch_kernel);
   }
-  ++dbm_multiply_opencl_initialized;
+  LIBXS_ATOMIC_STORE(&dbm_multiply_opencl_initialized, 1, LIBXS_ATOMIC_SEQ_CST);
 }
 #endif
 
@@ -102,7 +102,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
   const DBM_TIMER_TICKINT start = DBM_TIMER_TICK();
   const libxstream_opencl_config_t *const config = &libxstream_opencl_config;
   const int verbosity = config->verbosity,
-            info = (0 > verbosity || 2 < verbosity);
+            trace = (0 > verbosity || 2 < verbosity);
   int result = EXIT_SUCCESS;
 #if defined(OPENCL_LIBSMM_PFORMAT) && (0 < OPENCL_LIBSMM_PFORMAT)
   int dbcsr = 0;
@@ -115,10 +115,11 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
     return result;
   }
 #if defined(OPENCL_LIBSMM_PFORMAT) && (0 < OPENCL_LIBSMM_PFORMAT)
-  if (0 == dbm_multiply_opencl_initialized) {
+  if (0 == LIBXS_ATOMIC_LOAD(&dbm_multiply_opencl_initialized,
+                               LIBXS_ATOMIC_SEQ_CST)) {
     dbm_multiply_opencl_initialize();
   }
-  if (0 != dbm_multiply_opencl_smm || 0 != info) {
+  if (0 != dbm_multiply_opencl_smm || 0 != trace) {
     dbm_multiply_gpu_launch_info(&task, params_host, ntasks, param_format);
   }
   if (0 > dbm_multiply_opencl_smm || 0 != task.mnk_changes ||
@@ -129,6 +130,10 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
   {
     /* creating/calling kernel must be consistent across threads */
     static cl_kernel kernel_global = NULL;
+    /* TLS clones are intentional controlled leaks: each thread keeps
+       its own cl_kernel clone for the process lifetime. There is no
+       portable thread-exit callback to release them, but the clones
+       are lightweight and persist across repeated kernel launches. */
     static LIBXS_TLS cl_kernel kernel = NULL;
     static int ndims = 1, clinear = 0;
     static size_t wgsize[] = {1, 1, 1};
@@ -144,9 +149,11 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
     size_t iadata = 0, ibdata = 0, icdata = 0;
     const size_t work_tasks = ntasks;
     assert(NULL != str && NULL != str->queue);
-    if (NULL == kernel_global) { /* initial check if kernel is present */
+    if (0 == LIBXS_ATOMIC(LIBXS_ATOMIC_LOAD, LIBXS_BITS)(
+                (const uintptr_t*)&kernel_global, LIBXS_ATOMIC_SEQ_CST)) {
       LIBXS_LOCK_ACQUIRE(LIBXS_LOCK, config->lock_main);
       if (NULL == kernel_global) {
+        cl_kernel kernel_tmp = NULL;
         char flags[LIBXSTREAM_BUFFERSIZE] =
             "-cl-fast-relaxed-math -cl-denorms-are-zero";
         const char *const krn_env = getenv("DBM_MULTIPLY_KERNEL");
@@ -244,10 +251,10 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
           size_t wgs[3];
           result |= libxstream_opencl_kernel(
               source_kind, source, "dbm_multiply", flags, options, NULL /*try*/,
-              NULL /*try_ok*/, exts, nexts, &kernel_global);
+              NULL /*try_ok*/, exts, nexts, &kernel_tmp);
           if (EXIT_SUCCESS == result &&
               EXIT_SUCCESS ==
-                  clGetKernelWorkGroupInfo(kernel_global, device_id,
+                  clGetKernelWorkGroupInfo(kernel_tmp, device_id,
                                            CL_KERNEL_COMPILE_WORK_GROUP_SIZE,
                                            sizeof(wgs), wgs, NULL) &&
               0 != wgs[0] && 0 != wgs[1]) {
@@ -272,8 +279,6 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
           dbm_multiply_opencl_print(stderr, "sg", (int)sgsize);
           dbm_multiply_opencl_print(stderr, "lu", lu);
           fprintf(stderr, " -> ");
-        }
-        if (2 <= verbosity || 0 > verbosity || EXIT_SUCCESS != result) {
           if (EXIT_SUCCESS == result) {
             const double ds = DBM_TIMER_DIFF(start, DBM_TIMER_TICK());
             fprintf(stderr, "%.1f ms\n", 1E3 * ds);
@@ -281,6 +286,11 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             fprintf(stderr, "FAILED!\n");
           }
         }
+        /* atomically publish kernel_global so that threads passing
+           the outer atomic load also see ndims, wgsize, clinear */
+        LIBXS_ATOMIC(LIBXS_ATOMIC_STORE, LIBXS_BITS)(
+            (uintptr_t*)&kernel_global, (uintptr_t)kernel_tmp,
+            LIBXS_ATOMIC_SEQ_CST);
       }
       kernel = clCloneKernel(kernel_global, &result); /* always clone */
       LIBXS_LOCK_RELEASE(LIBXS_LOCK, config->lock_main);
@@ -317,14 +327,14 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
       result |= libxstream_opencl_set_kernel_ptr(kernel, 4, bdata.memory);
       result |= libxstream_opencl_set_kernel_ptr(kernel, 5, cdata.memory);
 #if !(defined(OPENCL_LIBSMM_PFORMAT) && (0 < OPENCL_LIBSMM_PFORMAT))
-      if (0 != info) {
+      if (0 != trace) {
         dbm_multiply_gpu_launch_info(&task, params_host, ntasks, param_format);
       }
 #endif
     } else {
       size_t size = work_tasks;
 #if defined(OPENCL_LIBSMM_PFORMAT) && (0 < OPENCL_LIBSMM_PFORMAT)
-      if (0 == dbm_multiply_opencl_smm && 0 == info)
+      if (0 == dbm_multiply_opencl_smm && 0 == trace)
 #endif
       {
         dbm_multiply_gpu_launch_info(&task, params_host, ntasks, param_format);
@@ -356,7 +366,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
     dbcsr = 1;
   }
 #endif
-  if (0 != info && EXIT_SUCCESS == result) {
+  if (0 != trace && EXIT_SUCCESS == result) {
     static LIBXS_TLS DBM_TIMER_TICKINT start2 = 0;
     const DBM_TIMER_TICKINT stop = DBM_TIMER_TICK();
     const double dhost = DBM_TIMER_DIFF(start, stop);
