@@ -72,7 +72,11 @@ __attribute__((intel_reqd_sub_group_size(SG)))
 #endif
 #endif
 kernel void
-dbm_multiply(double alpha, int itask, int ntasks, int size, int param_format,
+dbm_multiply(double alpha, int itask,
+#if !defined(WGPT)
+             int ntasks, int size,
+#endif
+             int param_format,
              CONSTANT const int *restrict params,
              /* CLINEAR swaps a/b in the signature so that the host's
                 fixed arg order (adata=arg6, bdata=arg7) transposes
@@ -84,26 +88,22 @@ dbm_multiply(double alpha, int itask, int ntasks, int size, int param_format,
              CONSTANT const double *restrict b,
              CONSTANT const double *restrict a,
 #endif
-             global double *restrict c) {
-  const int i = (int)get_global_id(0);
+             global double *restrict c
+#if defined(WGPT)
+             , local TYPE *restrict slm_b
+#endif
+) {
 #if defined(SM) && (0 < SM)
   local TYPE tls[WG][BN + SM - 1];
   local TYPE *restrict const cvec = &tls[get_local_id(0)][0];
 #else
   TYPE cvec[BN];
 #endif
-#if defined(WG) && (0 < WG)
-  if (i < size)
-#endif
-  { /* valid task */
-    SINT shape[3], ibase = 0, m;
-    int tid = i;
-    shape[0] = (0 != param_format ? (SINT)(0xFF & param_format)
-                                  : (SINT)(size / ntasks));
-    shape[1] = 0xFF & (param_format >> 8);
-    shape[2] = 0xFF & (param_format >> 16);
-    tid /= shape[0];
-    m = i - tid * shape[0];
+#if defined(WGPT)
+  { /* workgroup-per-task: one workgroup processes one task */
+    const int tid = (int)get_group_id(0);
+    const int m = (int)get_local_id(0);
+    SINT shape[3], ibase = 0;
     if (0 == param_format) {
       const int task = (itask + tid) * 6;
       shape[0] = params[task + 0];
@@ -111,20 +111,82 @@ dbm_multiply(double alpha, int itask, int ntasks, int size, int param_format,
       shape[2] = params[task + 2];
       params += task + 3;
     } else {
+      shape[0] = (SINT)(0xFF & param_format);
+      shape[1] = 0xFF & (param_format >> 8);
+      shape[2] = 0xFF & (param_format >> 16);
       params += (itask + tid) * 3;
       ibase = 1;
     }
-    if (m < XM(shape)) { /* valid slice (subtask) */
-      b += XB(params, ibase);
+    { /* cooperative B loading into local memory */
+      const CONSTANT double *restrict b_task = b + XB(params, ibase);
+      const int b_size = XK(shape) * XN(shape);
+#if !defined(PRECISION) || (1 != PRECISION)
+      { /* vectorized load (TYPE == double, no conversion needed) */
+        const int b_vec4 = b_size >> 2;
+        for (int vi = m; vi < b_vec4; vi += WG) {
+          vstore4(vload4(vi, b_task), vi, slm_b);
+        }
+      }
+      for (int bi = (b_size & ~3) + m; bi < b_size; bi += WG) {
+        slm_b[bi] = b_task[bi];
+      }
+#else
+      for (int bi = m; bi < b_size; bi += WG) {
+        slm_b[bi] = CVT(b_task[bi]);
+      }
+#endif
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+    for (int row = m; row < XM(shape); row += WG) { /* stride WG */
       if (16 <= XK(shape)) {
-        DBM_MULTIPLY(alpha, ibase, params, shape, a, b, c, cvec, m, BN, 16);
+        DBM_MULTIPLY(alpha, ibase, params, shape, a, slm_b, c, cvec, row, BN, 16);
       } else if (8 <= XK(shape)) {
-        DBM_MULTIPLY(alpha, ibase, params, shape, a, b, c, cvec, m, BN, 8);
+        DBM_MULTIPLY(alpha, ibase, params, shape, a, slm_b, c, cvec, row, BN, 8);
       } else if (4 <= XK(shape)) {
-        DBM_MULTIPLY(alpha, ibase, params, shape, a, b, c, cvec, m, BN, 4);
+        DBM_MULTIPLY(alpha, ibase, params, shape, a, slm_b, c, cvec, row, BN, 4);
       } else {
-        DBM_MULTIPLY(alpha, ibase, params, shape, a, b, c, cvec, m, BN, 1);
+        DBM_MULTIPLY(alpha, ibase, params, shape, a, slm_b, c, cvec, row, BN, 1);
       }
     }
   }
+#else
+  { /* flat dispatch: global work-item maps to (task, row) */
+    const int i = (int)get_global_id(0);
+#if defined(WG) && (0 < WG)
+    if (i < size)
+#endif
+    { /* valid task */
+      SINT shape[3], ibase = 0, m;
+      int tid = i;
+      shape[0] = (0 != param_format ? (SINT)(0xFF & param_format)
+                                    : (SINT)(size / ntasks));
+      shape[1] = 0xFF & (param_format >> 8);
+      shape[2] = 0xFF & (param_format >> 16);
+      tid /= shape[0];
+      m = i - tid * shape[0];
+      if (0 == param_format) {
+        const int task = (itask + tid) * 6;
+        shape[0] = params[task + 0];
+        shape[1] = params[task + 1];
+        shape[2] = params[task + 2];
+        params += task + 3;
+      } else {
+        params += (itask + tid) * 3;
+        ibase = 1;
+      }
+      if (m < XM(shape)) { /* valid slice (subtask) */
+        b += XB(params, ibase);
+        if (16 <= XK(shape)) {
+          DBM_MULTIPLY(alpha, ibase, params, shape, a, b, c, cvec, m, BN, 16);
+        } else if (8 <= XK(shape)) {
+          DBM_MULTIPLY(alpha, ibase, params, shape, a, b, c, cvec, m, BN, 8);
+        } else if (4 <= XK(shape)) {
+          DBM_MULTIPLY(alpha, ibase, params, shape, a, b, c, cvec, m, BN, 4);
+        } else {
+          DBM_MULTIPLY(alpha, ibase, params, shape, a, b, c, cvec, m, BN, 1);
+        }
+      }
+    }
+  }
+#endif
 }
