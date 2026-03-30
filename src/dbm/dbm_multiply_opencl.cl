@@ -4,8 +4,7 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
-#include "../../exts/dbcsr/src/acc/opencl/common/opencl_atomics.h"
-#include "dbm_internal.h"
+#include <opencl/libxstream_atomics.h>
 
 #define SINT short
 
@@ -75,6 +74,9 @@ __attribute__((intel_reqd_sub_group_size(SG)))
 kernel void
 dbm_multiply(double alpha, int itask, int ntasks, int size, int param_format,
              CONSTANT const int *restrict params,
+             /* CLINEAR swaps a/b in the signature so that the host's
+                fixed arg order (adata=arg6, bdata=arg7) transposes
+                the access pattern for coalesced memory reads. */
 #if !defined(CLINEAR)
              CONSTANT const double *restrict a,
              CONSTANT const double *restrict b,
@@ -96,7 +98,8 @@ dbm_multiply(double alpha, int itask, int ntasks, int size, int param_format,
   { /* valid task */
     SINT shape[3], ibase = 0, m;
     int tid = i;
-    shape[0] = size / ntasks;
+    shape[0] = (0 != param_format ? (SINT)(0xFF & param_format)
+                                  : (SINT)(size / ntasks));
     shape[1] = 0xFF & (param_format >> 8);
     shape[2] = 0xFF & (param_format >> 16);
     tid /= shape[0];
