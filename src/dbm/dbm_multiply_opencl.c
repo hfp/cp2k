@@ -134,7 +134,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
        portable thread-exit callback to release them, but the clones
        are lightweight and persist across repeated kernel launches. */
     static LIBXS_TLS cl_kernel kernel = NULL;
-    static int ndims = 1, clinear = 0, wgpt = 0;
+    static int ndims = 1, clinear = 0, sgbcst = 0;
     static size_t wgsize[] = {1, 1, 1};
     const libxstream_opencl_stream_t *const str =
         (const libxstream_opencl_stream_t *)(stream);
@@ -156,7 +156,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         char flags[LIBXSTREAM_BUFFERSIZE] =
             "-cl-fast-relaxed-math -cl-denorms-are-zero";
         const char *const krn_env = getenv("DBM_MULTIPLY_KERNEL");
-        const char *const wgpt_env = getenv("DBM_MULTIPLY_WGPT");
+        const char *const sgb_env = getenv("DBM_MULTIPLY_SGB");
         const char *const lin_env = getenv("DBM_MULTIPLY_LIN");
         const char *const gen_env = getenv("DBM_MULTIPLY_GEN");
         const char *const fp_env = getenv("DBM_MULTIPLY_FP");
@@ -179,7 +179,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         const int precision = (NULL == fp_env ? 0 /*default*/ : atoi(fp_env));
         const int gen0 = (NULL == fp_env && NULL == bn_env && NULL == sm_env &&
                           NULL == wg_env && NULL == lu_env && NULL == ro_env &&
-                          NULL == wgpt_env && NULL == lin_env &&
+                          NULL == lin_env && NULL == sgb_env &&
                           0 == param_format);
         const int gen1 = devinfo->intel && 0x0bd0 <= uid && 0x0bdb >= uid;
         int gen = (0 != gen0 ? (NULL == gen_env ? gen1 : atoi(gen_env)) : 0);
@@ -236,13 +236,14 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                     ? (LIBXS_ISPOT(bn * sizeof(double)) + 1)
                     : 0);
           clinear = (NULL == lin_env ? 0 /*default*/ : atoi(lin_env));
-          wgpt = (0 < wgsize[0] &&
-                  (NULL == wgpt_env ? 0 /*default*/ : (0 != atoi(wgpt_env))));
+          sgbcst = (0 != gpu && 0 < sgsize && 0 < wgsize[0] &&
+                   2 <= devinfo->std_level[0] &&
+                   (NULL == sgb_env ? 0 /*default*/ : (0 != atoi(sgb_env))));
           offset += (size_t)LIBXS_SNPRINTF(
               flags + offset, sizeof(flags) - offset,
               " %s %s %s -DCONSTANT=%s -DBN=%i -DSM=%i -DLU=%i -DWG=%i -DSG=%i",
               0 != gpu ? "-DGPU" : "", 0 == clinear ? "" : "-DCLINEAR",
-              0 == wgpt ? "" : "-DWGPT",
+              0 == sgbcst ? "" : "-DSGBCST",
 #if defined(LIBXSTREAM_CMEM)
               (0 > ro && EXIT_SUCCESS == libxstream_opencl_use_cmem(devinfo))
                   ? "constant"
@@ -282,7 +283,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
           fprintf(stderr, "%s ACC/LIBDBM: DBM-kernel gpu=%i", kind, gpu);
           dbm_multiply_opencl_print(stderr, "gen", gen); /* generated */
           dbm_multiply_opencl_print(stderr, "lin", clinear);
-          dbm_multiply_opencl_print(stderr, "wgpt", wgpt);
+          dbm_multiply_opencl_print(stderr, "sgbcst", sgbcst);
           dbm_multiply_opencl_print(stderr, "fp", precision);
           dbm_multiply_opencl_print(stderr, "bn", bn);
           dbm_multiply_opencl_print(stderr, "sm", sm);
@@ -349,22 +350,13 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
       {
         dbm_multiply_gpu_launch_info(&task, params_host, ntasks, param_format);
       }
-      if (0 != wgpt) { /* workgroup-per-task: one WG per task */
-        const size_t slm_b_size =
-            (size_t)task.max_k *
-            (size_t)(0 == clinear ? task.max_n : task.max_m) * sizeof(double);
-        work_size[0] = work_tasks * wgsize[0];
-        result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &param_format);
-        result |= libxstream_opencl_set_kernel_ptr(kernel, 3, batch.memory);
-        result |= libxstream_opencl_set_kernel_ptr(kernel, 4, adata.memory);
-        result |= libxstream_opencl_set_kernel_ptr(kernel, 5, bdata.memory);
-        result |= libxstream_opencl_set_kernel_ptr(kernel, 6, cdata.memory);
-        result |= clSetKernelArg(kernel, 7, slm_b_size, NULL);
-      } else { /* flat dispatch: one work-item per (task, row) */
-        size_t size = work_tasks;
-        size *= (0 == clinear ? task.max_m : task.max_n);
-        /* fixup to be a multiple of the WG-size */
-        work_size[0] = (0 < wgsize[0] ? LIBXS_UP(size, wgsize[0]) : size);
+      { cl_int size = (cl_int)(work_tasks *
+            (0 == clinear ? task.max_m : task.max_n));
+        if (0 != sgbcst) { /* per-task dispatch for sub-group broadcast */
+          work_size[0] = work_tasks * wgsize[0];
+        } else { /* flat dispatch: one work-item per (task, row) */
+          work_size[0] = (0 < wgsize[0] ? LIBXS_UP(size, wgsize[0]) : size);
+        }
         result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &ntasks);
         result |= clSetKernelArg(kernel, 3, sizeof(cl_int), &size);
         result |= clSetKernelArg(kernel, 4, sizeof(cl_int), &param_format);
