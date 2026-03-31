@@ -34,8 +34,7 @@ if(CP2K_LIBXS_INCLUDE_DIRS)
   find_package_handle_standard_args(LibXS DEFAULT_MSG CP2K_LIBXS_INCLUDE_DIRS
                                     CP2K_LIBXS_LINK_LIBRARIES)
 else()
-  find_package_handle_standard_args(LibXS DEFAULT_MSG
-                                    CP2K_LIBXS_LINK_LIBRARIES)
+  find_package_handle_standard_args(LibXS DEFAULT_MSG CP2K_LIBXS_LINK_LIBRARIES)
 endif()
 
 if(NOT TARGET cp2k::LibXS::libxs)
@@ -46,14 +45,13 @@ if(NOT TARGET cp2k::LibXS::libxs)
                               ${CP2K_LIBXS_LIBRARY_DIRS})
     endif()
     set_target_properties(
-      cp2k::LibXS::libxs
-      PROPERTIES INTERFACE_LINK_LIBRARIES "${CP2K_LIBXS_LINK_LIBRARIES}")
+      cp2k::LibXS::libxs PROPERTIES INTERFACE_LINK_LIBRARIES
+                                    "${CP2K_LIBXS_LINK_LIBRARIES}")
     if(CP2K_LIBXS_INCLUDE_DIRS)
       set_target_properties(
         cp2k::LibXS::libxs
-        PROPERTIES
-          INTERFACE_INCLUDE_DIRECTORIES
-          "${CP2K_LIBXS_INCLUDE_DIRS};${CP2K_LIBXS_PREFIX}/include")
+        PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
+                   "${CP2K_LIBXS_INCLUDE_DIRS};${CP2K_LIBXS_PREFIX}/include")
     endif()
   endif()
 endif()
