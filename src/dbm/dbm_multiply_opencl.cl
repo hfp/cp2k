@@ -48,13 +48,23 @@
 #define BM BN
 #endif
 
+/* Skip zero contributions (NZ): avoids atomic overhead for zero values. */
+#if defined(NZ) && (0 != NZ)
+#define DBM_ACCUMULATE(PTR, VAL) do { \
+    const TYPE dbm_nz_v_ = (VAL); \
+    if ((TYPE)0 != dbm_nz_v_) ACCUMULATE(PTR, dbm_nz_v_); \
+  } while (0)
+#else
+#define DBM_ACCUMULATE(PTR, VAL) ACCUMULATE(PTR, VAL)
+#endif
+
 /* Row-oriented store: flush CVEC[0..N1-1] to C[M, N0..N0+N1-1] */
 #define DBM_MUL_STORE(ALPHA, IBASE, SHIFT, SHAPE, C, CVEC, M, N0, N1)          \
   do {                                                                         \
     UNROLL_AUTO for (SINT n = 0; n < (N1); ++n) {                              \
-      ACCUMULATE((C) + XC(SHIFT, IBASE) +                                      \
-                     XI(M, n + (N0), XM(SHAPE), XN(SHAPE)),                    \
-                 (ALPHA) * (CVEC)[n]);                                         \
+      DBM_ACCUMULATE((C) + XC(SHIFT, IBASE) +                                  \
+                         XI(M, n + (N0), XM(SHAPE), XN(SHAPE)),                \
+                     (ALPHA) * (CVEC)[n]);                                         \
     }                                                                          \
   } while (0)
 
@@ -91,9 +101,9 @@
 #define DBM_BCST_STORE(ALPHA, IBASE, SHIFT, SHAPE, C, CVEC, N, MB, ME)         \
   do {                                                                         \
     for (SINT m = 0; m < (ME); ++m) {                                          \
-      ACCUMULATE((C) + XC(SHIFT, IBASE) +                                      \
-                     XI(m + (MB), N, XM(SHAPE), XN(SHAPE)),                    \
-                 (ALPHA) * (CVEC)[m]);                                         \
+      DBM_ACCUMULATE((C) + XC(SHIFT, IBASE) +                                  \
+                         XI(m + (MB), N, XM(SHAPE), XN(SHAPE)),                \
+                     (ALPHA) * (CVEC)[m]);                                         \
     }                                                                          \
   } while (0)
 

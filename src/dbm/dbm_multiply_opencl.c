@@ -148,7 +148,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         dbm_multiply_opencl_smm < task.max_k || 0 == task.max_k || 1 != alpha)
 #endif
     { /* base init state: computed once, shared across all specializations */
-      static int ndims = 1, clinear = 0, sgbcst = 0, base_ready = 0;
+      static int ndims = 1, clinear = 0, sgbcst = 0, nz = 0, base_ready = 0;
       static size_t wgsize[] = {1, 1, 1};
       static char base_flags[LIBXSTREAM_BUFFERSIZE];
       static const char *base_options /*= NULL*/;
@@ -190,6 +190,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
           const char *const lu_env = getenv("DBM_MULTIPLY_LU");
           const char *const ro_env = getenv("DBM_MULTIPLY_RO");
           const char *const xf_env = getenv("DBM_MULTIPLY_XF");
+          const char *const nz_env = getenv("DBM_MULTIPLY_NZ");
           const char *options = NULL;
           const int dd = (0 != config->debug && 0 != config->dump);
           const int ro = (NULL == ro_env ? -1 /*default*/ : atoi(ro_env));
@@ -290,6 +291,12 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                                                sizeof(base_flags) - offset,
                                                " -DPRECISION=%i", precision);
             }
+            nz = (NULL == nz_env ? 0 /*default*/ : atoi(nz_env));
+            if (0 != nz) {
+              offset += (size_t)LIBXS_SNPRINTF(base_flags + offset,
+                                               sizeof(base_flags) - offset,
+                                               " -DNZ=%i", nz);
+            }
           }
           base_source = source;
           base_source_kind = source_kind;
@@ -306,6 +313,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             dbm_multiply_opencl_print(stderr, "wg", (int)wgsize[0]);
             dbm_multiply_opencl_print(stderr, "sg", (int)sgsize);
             dbm_multiply_opencl_print(stderr, "lu", lu);
+            dbm_multiply_opencl_print(stderr, "nz", nz);
             fprintf(stderr, " -> %.1f ms\n",
                     1E3 * DBM_TIMER_DIFF(start, DBM_TIMER_TICK()));
           }
