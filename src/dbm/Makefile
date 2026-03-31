@@ -25,7 +25,12 @@ endif
 OPTFLAG ?= -O$(patsubst O%,%,$(OPT))
 
 # Common compiler flags
-CFLAGS := -fPIC -g $(OPTFLAG) -march=native -Wall -Wextra -Wcast-qual
+CFLAGS := -fPIC -g $(OPTFLAG) -march=native -Wall -Wextra
+
+PEDANTIC ?= 0
+ifneq ($(PEDANTIC),0)
+CFLAGS += -Wcast-qual -pedantic -Wno-overlength-strings
+endif
 
 USM ?= 0
 ifneq ($(USM),0)

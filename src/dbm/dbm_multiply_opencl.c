@@ -262,19 +262,22 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             sgbcst = (0 != gpu && 0 < sgsize && 0 < wgsize[0] &&
                       2 <= devinfo->std_level[0] &&
                       (NULL == sgb_env ? 0 /*default*/ : (0 != atoi(sgb_env))));
-            offset += (size_t)LIBXS_SNPRINTF(
-                base_flags + offset, sizeof(base_flags) - offset,
-                " %s %s %s -DCONSTANT=%s"
-                " -DBN=%i -DSM=%i -DLU=%i -DWG=%i -DSG=%i",
-                0 != gpu ? "-DGPU" : "", 0 == clinear ? "" : "-DCLINEAR",
-                0 == sgbcst ? "" : "-DSGBCST",
+            { const char *const cmem =
 #if defined(LIBXSTREAM_CMEM)
-                (0 > ro && EXIT_SUCCESS == libxstream_opencl_use_cmem(devinfo))
-                    ? "constant"
-                    :
+                  (0 > ro &&
+                   EXIT_SUCCESS == libxstream_opencl_use_cmem(devinfo))
+                      ? "constant"
+                      :
 #endif
-                    (0 >= ro ? "global" : "constant"),
-                bn, sm, lu, (int)wgsize[0], (int)sgsize);
+                      (0 >= ro ? "global" : "constant");
+              offset += (size_t)LIBXS_SNPRINTF(
+                  base_flags + offset, sizeof(base_flags) - offset,
+                  " %s %s %s -DCONSTANT=%s"
+                  " -DBN=%i -DSM=%i -DLU=%i -DWG=%i -DSG=%i",
+                  0 != gpu ? "-DGPU" : "", 0 == clinear ? "" : "-DCLINEAR",
+                  0 == sgbcst ? "" : "-DSGBCST", cmem,
+                  bn, sm, lu, (int)wgsize[0], (int)sgsize);
+            }
             if (0 != precision) {
               offset += (size_t)LIBXS_SNPRINTF(base_flags + offset,
                                                sizeof(base_flags) - offset,
@@ -332,10 +335,14 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                                                sizeof(key), config->lock_main);
         if (NULL == kptr || NULL == *kptr) { /* compile specialization */
           char flags[LIBXSTREAM_BUFFERSIZE];
-          cl_kernel kernel_new = NULL;
           const cl_device_id device_id = config->devices[config->device_id];
+          cl_kernel kernel_new = NULL;
           size_t wgs[3];
-          LIBXS_SNPRINTF(flags, sizeof(flags), "%s -DBK=%i", base_flags, bk);
+          { const int n = LIBXS_SNPRINTF(flags, sizeof(flags), "%s -DBK=%i",
+                                           base_flags, bk);
+            assert(0 < n && (size_t)n < sizeof(flags));
+            LIBXS_UNUSED(n);
+          }
           result |= libxstream_opencl_kernel(
               base_source_kind, base_source, "dbm_multiply", flags,
               base_options, NULL /*try*/, NULL /*try_ok*/, base_exts,
@@ -415,7 +422,9 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         if (0 != sgbcst) { /* per-task dispatch */
           work_size[0] = work_tasks * wgsize[0];
         } else { /* flat dispatch */
-          work_size[0] = (0 < wgsize[0] ? LIBXS_UP(size, wgsize[0]) : size);
+          work_size[0] =
+              (0 < wgsize[0] ? LIBXS_UP((size_t)size, wgsize[0])
+                             : (size_t)size);
         }
         result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &ntasks);
         result |= clSetKernelArg(kernel, 3, sizeof(cl_int), &size);
