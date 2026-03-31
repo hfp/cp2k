@@ -26,10 +26,12 @@
 
 /* Dispatch key for specialized kernels (must be memset-initialized).
    For homogeneous batches: m,n,k hold the exact shape (bk=k).
-   For heterogeneous batches: m=n=k=0, bk holds the unroll threshold. */
+   For heterogeneous batches: m=n=k=0, bk holds the unroll threshold,
+   max_m enables compile-time division in the flat dispatch mapping. */
 typedef struct {
   int bk;
   int m, n, k;
+  int max_m;
 } dbm_multiply_opencl_key_t;
 
 typedef struct {
@@ -156,6 +158,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
       /* registry of BK-specialized kernels; dedicated lock serializes
          kernel arg setting + enqueue (avoids TLS clones) */
       static libxs_registry_t *kernel_registry /*= NULL*/;
+      /* serializes kernel arg setting + enqueue (no TLS clones needed) */
       static libxs_lock_t kernel_lock /*= LIBXS_LOCK_INITIALIZER*/;
       const libxstream_opencl_stream_t *const str =
           (const libxstream_opencl_stream_t *)(stream);
@@ -265,7 +268,8 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             sgbcst = (0 != gpu && 0 < sgsize && 0 < wgsize[0] &&
                       2 <= devinfo->std_level[0] &&
                       (NULL == sgb_env ? 0 /*default*/ : (0 != atoi(sgb_env))));
-            { const char *const cmem =
+            {
+              const char *const cmem =
 #if defined(LIBXSTREAM_CMEM)
                   (0 > ro &&
                    EXIT_SUCCESS == libxstream_opencl_use_cmem(devinfo))
@@ -278,8 +282,8 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                   " %s %s %s -DCONSTANT=%s"
                   " -DBN=%i -DSM=%i -DLU=%i -DWG=%i -DSG=%i",
                   0 != gpu ? "-DGPU" : "", 0 == clinear ? "" : "-DCLINEAR",
-                  0 == sgbcst ? "" : "-DSGBCST", cmem,
-                  bn, sm, lu, (int)wgsize[0], (int)sgsize);
+                  0 == sgbcst ? "" : "-DSGBCST", cmem, bn, sm, lu,
+                  (int)wgsize[0], (int)sgsize);
             }
             if (0 != precision) {
               offset += (size_t)LIBXS_SNPRINTF(base_flags + offset,
@@ -318,8 +322,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         }
 #endif
         bk = 0;
-      }
-      else {
+      } else {
 #if defined(OPENCL_LIBSMM_PFORMAT) && (0 < OPENCL_LIBSMM_PFORMAT)
         if (0 == dbm_multiply_opencl_smm && 0 == trace)
 #endif
@@ -340,24 +343,32 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
           key.n = task.max_n;
           key.k = task.max_k;
           key.bk = task.max_k; /* exact K for full unrolling */
+        } else { /* heterogeneous: max_m for compile-time division */
+          key.max_m = (0 == clinear ? task.max_m : task.max_n);
         }
         kptr = (cl_kernel *)libxs_registry_get(kernel_registry, &key,
-                                               sizeof(key), config->lock_main);
+                                               sizeof(key), NULL /*internal*/);
         if (NULL == kptr || NULL == *kptr) { /* compile specialization */
           char flags[LIBXSTREAM_BUFFERSIZE];
           const cl_device_id device_id = config->devices[config->device_id];
           cl_kernel kernel_new = NULL;
           size_t wgs[3];
           if (0 != key.m) { /* homogeneous: add shape defines */
-            const int n = LIBXS_SNPRINTF(flags, sizeof(flags),
-                "%s -DBK=%i -DDBM_M=%i -DDBM_N=%i -DDBM_K=%i",
-                base_flags, key.bk, key.m, key.n, key.k);
+            const int n =
+                LIBXS_SNPRINTF(flags, sizeof(flags),
+                               "%s -DBK=%i -DDBM_M=%i -DDBM_N=%i -DDBM_K=%i",
+                               base_flags, key.bk, key.m, key.n, key.k);
             assert(0 < n && (size_t)n < sizeof(flags));
             LIBXS_UNUSED(n);
-          }
-          else { /* heterogeneous: BK threshold only */
-            const int n = LIBXS_SNPRINTF(flags, sizeof(flags),
-                "%s -DBK=%i", base_flags, bk);
+          } else if (0 < key.max_m) { /* heterogeneous with known max_m */
+            const int n =
+                LIBXS_SNPRINTF(flags, sizeof(flags), "%s -DBK=%i -DMAX_M=%i",
+                               base_flags, bk, key.max_m);
+            assert(0 < n && (size_t)n < sizeof(flags));
+            LIBXS_UNUSED(n);
+          } else { /* heterogeneous: BK only */
+            const int n = LIBXS_SNPRINTF(flags, sizeof(flags), "%s -DBK=%i",
+                                         base_flags, bk);
             assert(0 < n && (size_t)n < sizeof(flags));
             LIBXS_UNUSED(n);
           }
@@ -376,7 +387,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
           }
           kptr = (cl_kernel *)libxs_registry_set(
               kernel_registry, &key, sizeof(key), &kernel_new,
-              sizeof(kernel_new), config->lock_main);
+              sizeof(kernel_new), NULL /*internal*/);
           if (2 <= verbosity || 0 > verbosity || EXIT_SUCCESS != result) {
             const char *const kind =
                 (EXIT_SUCCESS == result ? "INFO" : "ERROR");
@@ -407,10 +418,9 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             if (EXIT_SUCCESS == result &&
                 EXIT_SUCCESS ==
                     clGetKernelWorkGroupInfo(gen_kernel, device_id,
-                        CL_KERNEL_COMPILE_WORK_GROUP_SIZE,
-                        sizeof(wgs), wgs, NULL) &&
-                0 != wgs[0] && 0 != wgs[1])
-            {
+                                             CL_KERNEL_COMPILE_WORK_GROUP_SIZE,
+                                             sizeof(wgs), wgs, NULL) &&
+                0 != wgs[0] && 0 != wgs[1]) {
               wgsize[0] = wgs[0];
               wgsize[1] = wgs[1];
             }
@@ -419,7 +429,6 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         }
         kernel = gen_kernel;
       }
-      /* lock kernel through arg setting + enqueue */
       LIBXS_LOCK_ACQUIRE(LIBXS_LOCK, &kernel_lock);
       if (NULL != lock_memory) {
         LIBXS_LOCK_ACQUIRE(LIBXS_LOCK, lock_memory);
@@ -456,9 +465,8 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         if (0 != sgbcst) { /* per-task dispatch */
           work_size[0] = work_tasks * wgsize[0];
         } else { /* flat dispatch */
-          work_size[0] =
-              (0 < wgsize[0] ? LIBXS_UP((size_t)size, wgsize[0])
-                             : (size_t)size);
+          work_size[0] = (0 < wgsize[0] ? LIBXS_UP((size_t)size, wgsize[0])
+                                        : (size_t)size);
         }
         result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &ntasks);
         result |= clSetKernelArg(kernel, 3, sizeof(cl_int), &size);

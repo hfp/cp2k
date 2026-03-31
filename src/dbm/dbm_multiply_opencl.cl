@@ -227,6 +227,8 @@ dbm_multiply(double alpha, int itask, int ntasks, int size, int param_format,
       shape[0] = DBM_M;
       shape[1] = DBM_N;
       shape[2] = DBM_K;
+#elif defined(MAX_M)
+      shape[0] = MAX_M;
 #else
       shape[0] = (0 != param_format ? (SINT)(0xFF & param_format)
                                     : (SINT)(size / ntasks));
