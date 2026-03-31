@@ -31,8 +31,21 @@
 #define XB(T, IBASE) (XN(T) - IBASE)
 #define XC(T, IBASE) (XK(T) - IBASE)
 
-#if !defined(BK) || (0 >= BK)
+/* When exact shape is known (homogeneous batches), use K directly for
+   full unrolling; otherwise fall back to the BK threshold from the host. */
+#if defined(DBM_M) && defined(DBM_N) && defined(DBM_K)
+#undef BK
+#define BK DBM_K
+#elif !defined(BK) || (0 >= BK)
 #define BK 1
+#endif
+
+/* Broadcast tile size: use exact M when known and fits in one tile,
+   avoiding wasted broadcast iterations when M < BN. */
+#if defined(DBM_M) && (0 < DBM_M) && (DBM_M <= BN)
+#define BM DBM_M
+#else
+#define BM BN
 #endif
 
 /* Row-oriented store: flush CVEC[0..N1-1] to C[M, N0..N0+N1-1] */
@@ -135,6 +148,31 @@
     }                                                                          \
   } while (0)
 
+/* Override shape with compile-time constants (homogeneous batches).
+   Applied after DBM_TASK_DECODE to enable constant folding. */
+#if defined(DBM_M) && defined(DBM_N) && defined(DBM_K)
+#if !defined(CLINEAR)
+#define DBM_SHAPE_OVERRIDE(SHAPE)                                              \
+  do {                                                                         \
+    (SHAPE)[0] = DBM_M;                                                        \
+    (SHAPE)[1] = DBM_N;                                                        \
+    (SHAPE)[2] = DBM_K;                                                        \
+  } while (0)
+#else
+#define DBM_SHAPE_OVERRIDE(SHAPE)                                              \
+  do {                                                                         \
+    (SHAPE)[0] = DBM_N;                                                        \
+    (SHAPE)[1] = DBM_M;                                                        \
+    (SHAPE)[2] = DBM_K;                                                        \
+  } while (0)
+#endif
+#else
+#define DBM_SHAPE_OVERRIDE(SHAPE)                                              \
+  do {                                                                         \
+    (void)(SHAPE);                                                             \
+  } while (0)
+#endif
+
 #if defined(WG) && (0 < WG)
 __attribute__((reqd_work_group_size(WG, 1, 1)))
 #if defined(SG) && (0 < SG)
@@ -167,12 +205,13 @@ dbm_multiply(double alpha, int itask, int ntasks, int size, int param_format,
     const SINT sid = (SINT)get_local_id(0);
     SINT shape[3], ibase = 0;
     DBM_TASK_DECODE(itask, tid, param_format, params, shape, ibase);
+    DBM_SHAPE_OVERRIDE(shape);
     b += XB(params, ibase);
     for (SINT nb0 = 0; nb0 < XN(shape); nb0 += WG) { /* all lanes */
       const SINT nb = nb0 + sid;
       const int active = (nb < XN(shape));
       DBM_BCST(alpha, ibase, params, shape, a, b, c, cvec, sid, active ? nb : 0,
-               active, BN);
+               active, BM);
     }
   }
 #else
@@ -184,13 +223,20 @@ dbm_multiply(double alpha, int itask, int ntasks, int size, int param_format,
     {
       SINT shape[3], ibase = 0, m;
       int tid = i;
+#if defined(DBM_M) && defined(DBM_N) && defined(DBM_K)
+      shape[0] = DBM_M;
+      shape[1] = DBM_N;
+      shape[2] = DBM_K;
+#else
       shape[0] = (0 != param_format ? (SINT)(0xFF & param_format)
                                     : (SINT)(size / ntasks));
       shape[1] = 0xFF & (param_format >> 8);
       shape[2] = 0xFF & (param_format >> 16);
+#endif
       tid /= shape[0];
       m = i - tid * shape[0];
       DBM_TASK_DECODE(itask, tid, param_format, params, shape, ibase);
+      DBM_SHAPE_OVERRIDE(shape);
       if (m < XM(shape)) {
         b += XB(params, ibase);
         DBM_MUL(alpha, ibase, params, shape, a, b, c, cvec, m, BN);

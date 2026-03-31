@@ -24,9 +24,12 @@
 #define DBM_TIMER_TICK() libxs_timer_tick()
 #define DBM_TIMER_TICKINT libxs_timer_tick_t
 
-/* Dispatch key for specialized kernels (must be memset-initialized). */
+/* Dispatch key for specialized kernels (must be memset-initialized).
+   For homogeneous batches: m,n,k hold the exact shape (bk=k).
+   For heterogeneous batches: m=n=k=0, bk holds the unroll threshold. */
 typedef struct {
-  int bk; /* K-loop unroll factor: 1, 4, 8, or 16 */
+  int bk;
+  int m, n, k;
 } dbm_multiply_opencl_key_t;
 
 typedef struct {
@@ -205,7 +208,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
           size_t sgsize = devinfo->wgsize[2];
           size_t offset;
           const char *source = OPENCL_DBM_SOURCE_MULTIPLY;
-          LIBXS_MEMSET(base_flags, 0, sizeof(base_flags));
+          LIBXS_MEMZERO(base_flags);
           LIBXS_SNPRINTF(base_flags, sizeof(base_flags),
                          "-cl-fast-relaxed-math -cl-denorms-are-zero");
           offset = (0 == dd ? strlen(base_flags) : 0);
@@ -306,7 +309,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         }
         LIBXS_LOCK_RELEASE(LIBXS_LOCK, config->lock_main);
       }
-      /* per-launch: compute task info and BK */
+      /* per-launch: compute task info and dispatch key */
       if (1 < ndims) { /* DBM_MULTIPLY_GEN */
 #if !(defined(OPENCL_LIBSMM_PFORMAT) && (0 < OPENCL_LIBSMM_PFORMAT))
         if (0 != trace) {
@@ -315,7 +318,8 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         }
 #endif
         bk = 0;
-      } else {
+      }
+      else {
 #if defined(OPENCL_LIBSMM_PFORMAT) && (0 < OPENCL_LIBSMM_PFORMAT)
         if (0 == dbm_multiply_opencl_smm && 0 == trace)
 #endif
@@ -325,12 +329,18 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         }
         bk = dbm_multiply_opencl_bk(task.max_k);
       }
-      /* per-BK kernel lookup/compile */
+      /* per-shape kernel lookup/compile */
       if (1 >= ndims) { /* source kernel path */
         dbm_multiply_opencl_key_t key;
         cl_kernel *kptr;
-        LIBXS_MEMSET(&key, 0, sizeof(key));
+        LIBXS_MEMZERO(&key);
         key.bk = bk;
+        if (0 == task.mnk_changes) { /* homogeneous: exact shape */
+          key.m = task.max_m;
+          key.n = task.max_n;
+          key.k = task.max_k;
+          key.bk = task.max_k; /* exact K for full unrolling */
+        }
         kptr = (cl_kernel *)libxs_registry_get(kernel_registry, &key,
                                                sizeof(key), config->lock_main);
         if (NULL == kptr || NULL == *kptr) { /* compile specialization */
@@ -338,8 +348,16 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
           const cl_device_id device_id = config->devices[config->device_id];
           cl_kernel kernel_new = NULL;
           size_t wgs[3];
-          { const int n = LIBXS_SNPRINTF(flags, sizeof(flags), "%s -DBK=%i",
-                                           base_flags, bk);
+          if (0 != key.m) { /* homogeneous: add shape defines */
+            const int n = LIBXS_SNPRINTF(flags, sizeof(flags),
+                "%s -DBK=%i -DDBM_M=%i -DDBM_N=%i -DDBM_K=%i",
+                base_flags, key.bk, key.m, key.n, key.k);
+            assert(0 < n && (size_t)n < sizeof(flags));
+            LIBXS_UNUSED(n);
+          }
+          else { /* heterogeneous: BK threshold only */
+            const int n = LIBXS_SNPRINTF(flags, sizeof(flags),
+                "%s -DBK=%i", base_flags, bk);
             assert(0 < n && (size_t)n < sizeof(flags));
             LIBXS_UNUSED(n);
           }
@@ -362,7 +380,11 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
           if (2 <= verbosity || 0 > verbosity || EXIT_SUCCESS != result) {
             const char *const kind =
                 (EXIT_SUCCESS == result ? "INFO" : "ERROR");
-            fprintf(stderr, "%s ACC/LIBDBM: DBM-kernel bk=%i -> ", kind, bk);
+            fprintf(stderr, "%s ACC/LIBDBM: DBM-kernel bk=%i", kind, key.bk);
+            if (0 != key.m) {
+              fprintf(stderr, " mnk=%ix%ix%i", key.m, key.n, key.k);
+            }
+            fprintf(stderr, " -> ");
             if (EXIT_SUCCESS == result) {
               fprintf(stderr, "%.1f ms\n",
                       1E3 * DBM_TIMER_DIFF(start, DBM_TIMER_TICK()));
@@ -377,9 +399,21 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         if (NULL == gen_kernel) {
           LIBXS_LOCK_ACQUIRE(LIBXS_LOCK, config->lock_main);
           if (NULL == gen_kernel) {
+            const cl_device_id device_id = config->devices[config->device_id];
+            size_t wgs[3];
             result |= libxstream_opencl_kernel(
                 base_source_kind, base_source, "dbm_multiply", base_flags,
                 base_options, NULL, NULL, base_exts, base_nexts, &gen_kernel);
+            if (EXIT_SUCCESS == result &&
+                EXIT_SUCCESS ==
+                    clGetKernelWorkGroupInfo(gen_kernel, device_id,
+                        CL_KERNEL_COMPILE_WORK_GROUP_SIZE,
+                        sizeof(wgs), wgs, NULL) &&
+                0 != wgs[0] && 0 != wgs[1])
+            {
+              wgsize[0] = wgs[0];
+              wgsize[1] = wgs[1];
+            }
           }
           LIBXS_LOCK_RELEASE(LIBXS_LOCK, config->lock_main);
         }
