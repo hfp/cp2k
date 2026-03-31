@@ -50,9 +50,11 @@
 
 /* Skip zero contributions (NZ): avoids atomic overhead for zero values. */
 #if defined(NZ) && (0 != NZ)
-#define DBM_ACCUMULATE(PTR, VAL) do { \
-    const TYPE dbm_nz_v_ = (VAL); \
-    if ((TYPE)0 != dbm_nz_v_) ACCUMULATE(PTR, dbm_nz_v_); \
+#define DBM_ACCUMULATE(PTR, VAL)                                               \
+  do {                                                                         \
+    const TYPE dbm_nz_v_ = (VAL);                                              \
+    if ((TYPE)0 != dbm_nz_v_)                                                  \
+      ACCUMULATE(PTR, dbm_nz_v_);                                              \
   } while (0)
 #else
 #define DBM_ACCUMULATE(PTR, VAL) ACCUMULATE(PTR, VAL)
@@ -64,7 +66,7 @@
     UNROLL_AUTO for (SINT n = 0; n < (N1); ++n) {                              \
       DBM_ACCUMULATE((C) + XC(SHIFT, IBASE) +                                  \
                          XI(M, n + (N0), XM(SHAPE), XN(SHAPE)),                \
-                     (ALPHA) * (CVEC)[n]);                                         \
+                     (ALPHA) * (CVEC)[n]);                                     \
     }                                                                          \
   } while (0)
 
@@ -103,7 +105,7 @@
     for (SINT m = 0; m < (ME); ++m) {                                          \
       DBM_ACCUMULATE((C) + XC(SHIFT, IBASE) +                                  \
                          XI(m + (MB), N, XM(SHAPE), XN(SHAPE)),                \
-                     (ALPHA) * (CVEC)[m]);                                         \
+                     (ALPHA) * (CVEC)[m]);                                     \
     }                                                                          \
   } while (0)
 
@@ -209,8 +211,68 @@ dbm_multiply(double alpha, int itask, int ntasks, int size, int param_format,
 #else
   TYPE cvec[BN];
 #endif
-#if defined(SGBCST) && defined(BCST_SG)
-  { /* per-task dispatch: each work-item owns columns, broadcast shares A */
+#if defined(SLM_AB) && defined(WG) && (0 < WG)
+  local TYPE slm_tile[2 * WG];
+  { /* per-task dispatch: cooperative A+B tiling via SLM.
+       Tile dimensions TM/TN are capped to fit WG threads. */
+    const int tid = (int)get_group_id(0);
+    const int lid = (int)get_local_id(0);
+    SINT shape[3], ibase = 0;
+    DBM_TASK_DECODE(itask, tid, param_format, params, shape, ibase);
+    DBM_SHAPE_OVERRIDE(shape);
+    {
+      const SINT xm = XM(shape), xn = XN(shape), xk = XK(shape);
+      /* tile dimensions: TM*TN <= WG, TK = WG / max(TM,TN) */
+      const SINT tm = MIN(xm, (SINT)BN);
+      const SINT tn = MIN(xn, MIN((SINT)BN, (SINT)(WG / tm)));
+      const SINT mx = MAX(tm, tn);
+      const SINT tk = MAX(1, (SINT)(WG / mx));
+      /* thread-to-element mapping for A (x=row, y=k) */
+      const SINT y = (SINT)(lid / tm), x = (SINT)(lid - y * tm);
+      /* transposed mapping for B (xt=k, yt=col) for coalesced loads */
+      const SINT yt = (SINT)(lid / tn), xt = (SINT)(lid - yt * tn);
+      local TYPE *const tile_a = slm_tile;
+      local TYPE *const tile_b = slm_tile + tk * mx;
+      a += XA(params, ibase);
+      b += XB(params, ibase);
+      for (SINT it = 0; it < xm; it += tm) {
+        for (SINT jt = 0; jt < xn; jt += tn) {
+          TYPE res = 0;
+          for (SINT lt = 0; lt < xk; lt += tk) {
+            /* cooperative load of A-tile into SLM */
+            if (x < tm && y < tk) {
+              const SINT i = it + x, l = lt + y;
+              tile_a[y * mx + x] =
+                  (i < xm && l < xk) ? CVT(a[IDT(i, l, xm, xk)]) : 0;
+            }
+            /* cooperative load of B-tile (transposed mapping) */
+            if (xt < tn && yt < tk) {
+              const SINT j = jt + xt, l = lt + yt;
+              tile_b[yt * mx + xt] =
+                  (j < xn && l < xk) ? CVT(b[IDX(l, j, xk, xn)]) : 0;
+            }
+            barrier(CLK_LOCAL_MEM_FENCE);
+            if (x < tm && y < tn) {
+              const SINT lim = MIN(tk, xk - lt);
+              for (SINT z = 0; z < lim; ++z) {
+                res = MAD(tile_a[z * mx + x], tile_b[z * mx + y], res);
+              }
+            }
+            barrier(CLK_LOCAL_MEM_FENCE);
+          }
+          if (x < tm && y < tn) {
+            const SINT i = it + x, j = jt + y;
+            if (i < xm && j < xn) {
+              DBM_ACCUMULATE(c + XC(params, ibase) + XI(i, j, xm, xn),
+                             alpha * res);
+            }
+          }
+        }
+      }
+    }
+  }
+#elif defined(SGBCST) && defined(BCST_SG)
+  { /* per-task dispatch: broadcast shares A */
     const int tid = (int)get_group_id(0);
     const SINT sid = (SINT)get_local_id(0);
     SINT shape[3], ibase = 0;
