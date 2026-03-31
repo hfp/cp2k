@@ -4,26 +4,39 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
-
 #include "../offload/offload_runtime.h"
 #if defined(__OFFLOAD_OPENCL) && !defined(__NO_OFFLOAD_DBM)
 
 #include "dbm_multiply_gpu_kernel.h"
 #include "dbm_multiply_opencl.cl.h"
+#include <libxs_reg.h>
 #include <libxs_timer.h>
 #include <libxstream_opencl.h>
+#if defined(__DBCSR_ACC)
+#include <smm/opencl_libsmm.h>
+#endif
 
 #if !defined(OPENCL_DBM_SOURCE_MULTIPLY)
 #error "OpenCL kernel source code not found!"
 #endif
 
-#if defined(__DBCSR_ACC)
-#include <smm/opencl_libsmm.h>
-#endif
-
 #define DBM_TIMER_DIFF(A, B) libxs_timer_duration(A, B)
 #define DBM_TIMER_TICK() libxs_timer_tick()
 #define DBM_TIMER_TICKINT libxs_timer_tick_t
+
+/* Dispatch key for specialized kernels (must be memset-initialized). */
+typedef struct {
+  int bk; /* K-loop unroll factor: 1, 4, 8, or 16 */
+} dbm_multiply_opencl_key_t;
+
+typedef struct {
+  int max_m, max_n, max_k, mnk_changes;
+} dbm_multiply_gpu_launch_info_t;
+
+#if defined(OPENCL_LIBSMM_PFORMAT) && (0 < OPENCL_LIBSMM_PFORMAT)
+int dbm_multiply_opencl_initialized /*= 0*/;
+int dbm_multiply_opencl_smm /*= 0*/;
+#endif
 
 int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                                       int param_format, const int *params_host,
@@ -33,9 +46,6 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                                       double *shard_c_data);
 
 #if defined(OPENCL_LIBSMM_PFORMAT) && (0 < OPENCL_LIBSMM_PFORMAT)
-int dbm_multiply_opencl_initialized /*= 0*/;
-int dbm_multiply_opencl_smm /*= 0*/;
-
 LIBXS_ATTRIBUTE_CTOR static void dbm_multiply_opencl_initialize(void) {
   const char *const smm_env = getenv("DBM_MULTIPLY_SMM");
   const int smm = (NULL == smm_env ? 0 /*default*/ : atoi(smm_env));
@@ -47,10 +57,6 @@ LIBXS_ATTRIBUTE_CTOR static void dbm_multiply_opencl_initialize(void) {
   LIBXS_ATOMIC_STORE(&dbm_multiply_opencl_initialized, 1, LIBXS_ATOMIC_SEQ_CST);
 }
 #endif
-
-typedef struct {
-  int max_m, max_n, max_k, mnk_changes;
-} dbm_multiply_gpu_launch_info_t;
 
 static void dbm_multiply_gpu_launch_info(dbm_multiply_gpu_launch_info_t *info,
                                          const int *params, int ntasks,
@@ -92,6 +98,18 @@ static void dbm_multiply_opencl_print(FILE *stream, const char *name, int val) {
   }
 }
 
+static int dbm_multiply_opencl_bk(int max_k) {
+  int result = 1;
+  if (16 <= max_k) {
+    result = 16;
+  } else if (8 <= max_k) {
+    result = 8;
+  } else if (4 <= max_k) {
+    result = 4;
+  }
+  return result;
+}
+
 int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                                       int param_format, const int *params_host,
                                       const int *params,
@@ -110,251 +128,293 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
   assert(NULL != pack_a_data && NULL != pack_b_data && NULL != shard_c_data);
   assert(NULL != params_host || 0 == ntasks);
   assert(NULL != params || 0 == ntasks);
-  if (0 == ntasks) {
-    return result;
-  }
+  if (0 < ntasks) {
 #if defined(OPENCL_LIBSMM_PFORMAT) && (0 < OPENCL_LIBSMM_PFORMAT)
-  if (0 == LIBXS_ATOMIC_LOAD(&dbm_multiply_opencl_initialized,
-                             LIBXS_ATOMIC_SEQ_CST)) {
-    dbm_multiply_opencl_initialize();
-  }
-  if (0 != dbm_multiply_opencl_smm || 0 != trace) {
-    dbm_multiply_gpu_launch_info(&task, params_host, ntasks, param_format);
-  }
-  if (0 > dbm_multiply_opencl_smm || 0 != task.mnk_changes ||
-      dbm_multiply_opencl_smm < task.max_m ||
-      dbm_multiply_opencl_smm < task.max_n ||
-      dbm_multiply_opencl_smm < task.max_k || 0 == task.max_k || 1 != alpha)
+    if (0 == LIBXS_ATOMIC_LOAD(&dbm_multiply_opencl_initialized,
+                               LIBXS_ATOMIC_SEQ_CST)) {
+      dbm_multiply_opencl_initialize();
+    }
+    if (0 != dbm_multiply_opencl_smm || 0 != trace) {
+      dbm_multiply_gpu_launch_info(&task, params_host, ntasks, param_format);
+    }
+    if (0 > dbm_multiply_opencl_smm || 0 != task.mnk_changes ||
+        dbm_multiply_opencl_smm < task.max_m ||
+        dbm_multiply_opencl_smm < task.max_n ||
+        dbm_multiply_opencl_smm < task.max_k || 0 == task.max_k || 1 != alpha)
 #endif
-  {
-    /* creating/calling kernel must be consistent across threads */
-    static cl_kernel kernel_global = NULL;
-    /* TLS clones are intentional controlled leaks: each thread keeps
-       its own cl_kernel clone for the process lifetime. There is no
-       portable thread-exit callback to release them, but the clones
-       are lightweight and persist across repeated kernel launches. */
-    static LIBXS_TLS cl_kernel kernel = NULL;
-    static int ndims = 1, clinear = 0, sgbcst = 0;
-    static size_t wgsize[] = {1, 1, 1};
-    const libxstream_opencl_stream_t *const str =
-        (const libxstream_opencl_stream_t *)(stream);
-    const libxstream_opencl_device_t *const devinfo = &config->device;
-    libxs_lock_t *const lock_memory =
-        (NULL != devinfo->clSetKernelArgMemPointerINTEL ? NULL
-                                                        : config->lock_memory);
-    libxstream_opencl_info_memptr_t adata, bdata, cdata, batch;
-    const int stride = (0 == param_format ? 6 : 3);
-    size_t work_size[] = {1, 1, 1}, ibatch = 0;
-    size_t iadata = 0, ibdata = 0, icdata = 0;
-    const size_t work_tasks = ntasks;
-    assert(NULL != str && NULL != str->queue);
-    if (0 == LIBXS_ATOMIC(LIBXS_ATOMIC_LOAD, LIBXS_BITS)(
-                 (const uintptr_t *)&kernel_global, LIBXS_ATOMIC_SEQ_CST)) {
-      LIBXS_LOCK_ACQUIRE(LIBXS_LOCK, config->lock_main);
-      if (NULL == kernel_global) {
-        cl_kernel kernel_tmp = NULL;
-        char flags[LIBXSTREAM_BUFFERSIZE] =
-            "-cl-fast-relaxed-math -cl-denorms-are-zero";
-        const char *const krn_env = getenv("DBM_MULTIPLY_KERNEL");
-        const char *const sgb_env = getenv("DBM_MULTIPLY_SGB");
-        const char *const lin_env = getenv("DBM_MULTIPLY_LIN");
-        const char *const gen_env = getenv("DBM_MULTIPLY_GEN");
-        const char *const fp_env = getenv("DBM_MULTIPLY_FP");
-        const char *const bn_env = getenv("DBM_MULTIPLY_BN");
-        const char *const sm_env = getenv("DBM_MULTIPLY_SM");
-        const char *const wg_env = getenv("DBM_MULTIPLY_WG");
-        const char *const lu_env = getenv("DBM_MULTIPLY_LU");
-        const char *const ro_env = getenv("DBM_MULTIPLY_RO");
-        const char *const xf_env = getenv("DBM_MULTIPLY_XF");
-        const char *exts[] = {NULL, NULL}, *options = NULL;
-        const char *source = OPENCL_DBM_SOURCE_MULTIPLY;
-        const int dd = (0 != config->debug && 0 != config->dump);
-        const int ro = (NULL == ro_env ? -1 /*default*/ : atoi(ro_env));
-        const int xf = (NULL == xf_env ? -1 /*default*/ : atoi(xf_env));
-        const int sm0 = (NULL == sm_env ? 0 : atoi(sm_env));
-        int source_kind = 0, sm = LIBXS_ABS(sm0);
-        const int bn0 = (0 == devinfo->nv ? 8 : 2), uid = devinfo->uid;
-        const int bn1 = ((0 == sm && 0 == clinear) ? bn0 : (bn0 * sm * 2));
-        const int gpu = (CL_DEVICE_TYPE_GPU == devinfo->type);
-        const int precision = (NULL == fp_env ? 0 /*default*/ : atoi(fp_env));
-        const int gen0 = (NULL == fp_env && NULL == bn_env && NULL == sm_env &&
-                          NULL == wg_env && NULL == lu_env && NULL == ro_env &&
-                          NULL == lin_env && NULL == sgb_env &&
-                          0 == param_format);
-        const int gen1 = devinfo->intel && 0x0bd0 <= uid && 0x0bdb >= uid;
-        int gen = (0 != gen0 ? (NULL == gen_env ? gen1 : atoi(gen_env)) : 0);
-        int bn = LIBXS_CLMP(NULL == bn_env ? bn1 : atoi(bn_env), 1, 32);
-        int lu = LIBXS_CLMP(NULL == lu_env ? 0 : atoi(lu_env), -2, 1);
-        size_t nexts = sizeof(exts) / sizeof(*exts);
-        size_t sgsize = devinfo->wgsize[2];
-        size_t offset = (0 == dd ? strlen(flags) : 0);
-        offset += (size_t)libxstream_opencl_flags_atomics(
-            devinfo, libxstream_opencl_atomic_fp_64, exts, &nexts,
-            flags + offset, sizeof(flags) - offset);
-        if (NULL == krn_env) {
-          if (0 != gen && 1 < sgsize /*subgroups*/) {
-            LIBXS_INCBIN(dbm_binary_kernel, __FILE__ "lx", 16);
-            source_kind = dbm_binary_kernel_end - dbm_binary_kernel;
-            source = dbm_binary_kernel;
-            assert(1 < source_kind);
-            lu = bn = 0;
-            ndims = 3;
-          }
-        } else {
-          FILE *const krn_file = fopen(krn_env, "rb");
-          if (NULL != krn_file) {
-            fclose(krn_file);
-            source = krn_env;
-            source_kind = 1;
-          }
-          gen = 0; /* unknown */
-        }
-        if (0 == gen) { /* assemble preprocessor flags, etc */
-          wgsize[0] = (NULL == wg_env ? LIBXS_MAX((unsigned long int)sm,
-                                                  devinfo->wgsize[1])
-                                      : strtoul(wg_env, NULL, 10));
-          if (1 < sgsize && 0 < wgsize[0]) { /* subgroups */
-            if (LIBXS_DELTA(wgsize[0], devinfo->wgsize[1]) <=
-                LIBXS_DELTA(wgsize[0], sgsize)) { /* select SG-size */
-              sgsize = devinfo->wgsize[1];
+    { /* base init state: computed once, shared across all specializations */
+      static int ndims = 1, clinear = 0, sgbcst = 0, base_ready = 0;
+      static size_t wgsize[] = {1, 1, 1};
+      static char base_flags[LIBXSTREAM_BUFFERSIZE];
+      static const char *base_options /*= NULL*/;
+      static const char *base_source /*= NULL*/;
+      static const char *base_exts[2] /*= {NULL, NULL}*/;
+      static size_t base_nexts, base_source_kind;
+      /* registry of BK-specialized kernels; dedicated lock serializes
+         kernel arg setting + enqueue (avoids TLS clones) */
+      static libxs_registry_t *kernel_registry /*= NULL*/;
+      static libxs_lock_t kernel_lock /*= LIBXS_LOCK_INITIALIZER*/;
+      const libxstream_opencl_stream_t *const str =
+          (const libxstream_opencl_stream_t *)(stream);
+      const libxstream_opencl_device_t *const devinfo = &config->device;
+      libxs_lock_t *const lock_memory =
+          (NULL != devinfo->clSetKernelArgMemPointerINTEL
+               ? NULL
+               : config->lock_memory);
+      libxstream_opencl_info_memptr_t adata, bdata, cdata, batch;
+      const int stride = (0 == param_format ? 6 : 3);
+      size_t work_size[] = {1, 1, 1}, ibatch = 0;
+      size_t iadata = 0, ibdata = 0, icdata = 0;
+      const size_t work_tasks = ntasks;
+      cl_kernel kernel = NULL;
+      int bk;
+      assert(NULL != str && NULL != str->queue);
+      /* base init (once): env vars, flags, source, extensions */
+      if (0 == LIBXS_ATOMIC_LOAD(&base_ready, LIBXS_ATOMIC_SEQ_CST)) {
+        LIBXS_LOCK_ACQUIRE(LIBXS_LOCK, config->lock_main);
+        if (0 == base_ready) {
+          const char *const krn_env = getenv("DBM_MULTIPLY_KERNEL");
+          const char *const gen_env = getenv("DBM_MULTIPLY_GEN");
+          const char *const sgb_env = getenv("DBM_MULTIPLY_SGB");
+          const char *const lin_env = getenv("DBM_MULTIPLY_LIN");
+          const char *const fp_env = getenv("DBM_MULTIPLY_FP");
+          const char *const bn_env = getenv("DBM_MULTIPLY_BN");
+          const char *const sm_env = getenv("DBM_MULTIPLY_SM");
+          const char *const wg_env = getenv("DBM_MULTIPLY_WG");
+          const char *const lu_env = getenv("DBM_MULTIPLY_LU");
+          const char *const ro_env = getenv("DBM_MULTIPLY_RO");
+          const char *const xf_env = getenv("DBM_MULTIPLY_XF");
+          const char *options = NULL;
+          const int dd = (0 != config->debug && 0 != config->dump);
+          const int ro = (NULL == ro_env ? -1 /*default*/ : atoi(ro_env));
+          const int xf = (NULL == xf_env ? -1 /*default*/ : atoi(xf_env));
+          const int sm0 = (NULL == sm_env ? 0 : atoi(sm_env));
+          int source_kind = 0, sm = LIBXS_ABS(sm0);
+          const int bn0 = (0 == devinfo->nv ? 8 : 2), uid = devinfo->uid;
+          const int bn1 = ((0 == sm && 0 == clinear) ? bn0 : (bn0 * sm * 2));
+          const int gpu = (CL_DEVICE_TYPE_GPU == devinfo->type);
+          const int precision = (NULL == fp_env ? 0 /*default*/ : atoi(fp_env));
+          const int gen0 =
+              (NULL == sgb_env && NULL == lin_env && NULL == fp_env &&
+               NULL == bn_env && NULL == sm_env && NULL == wg_env &&
+               NULL == lu_env && NULL == ro_env && 0 == param_format);
+          const int gen1 = devinfo->intel && 0x0bd0 <= uid && 0x0bdb >= uid;
+          int gen = (0 != gen0 ? (NULL == gen_env ? gen1 : atoi(gen_env)) : 0);
+          int bn = LIBXS_CLMP(NULL == bn_env ? bn1 : atoi(bn_env), 1, 32);
+          int lu = LIBXS_CLMP(NULL == lu_env ? 0 : atoi(lu_env), -2, 1);
+          size_t sgsize = devinfo->wgsize[2];
+          size_t offset;
+          const char *source = OPENCL_DBM_SOURCE_MULTIPLY;
+          LIBXS_MEMSET(base_flags, 0, sizeof(base_flags));
+          LIBXS_SNPRINTF(base_flags, sizeof(base_flags),
+                         "-cl-fast-relaxed-math -cl-denorms-are-zero");
+          offset = (0 == dd ? strlen(base_flags) : 0);
+          base_exts[0] = base_exts[1] = NULL;
+          base_nexts = sizeof(base_exts) / sizeof(*base_exts);
+          offset += (size_t)libxstream_opencl_flags_atomics(
+              devinfo, libxstream_opencl_atomic_fp_64, base_exts, &base_nexts,
+              base_flags + offset, sizeof(base_flags) - offset);
+          if (NULL == krn_env) {
+            if (0 != gen && 1 < sgsize /*subgroups*/) {
+              LIBXS_INCBIN(dbm_binary_kernel, __FILE__ "lx", 16);
+              source_kind = dbm_binary_kernel_end - dbm_binary_kernel;
+              source = (const char *)dbm_binary_kernel;
+              assert(1 < source_kind);
+              lu = bn = 0;
+              ndims = 3;
             }
-            wgsize[0] = LIBXS_UP(wgsize[0], sgsize);
           } else {
-            wgsize[0] = LIBXS_UP(wgsize[0], devinfo->wgsize[1]);
-            sgsize = 0;
+            FILE *const krn_file = fopen(krn_env, "rb");
+            if (NULL != krn_file) {
+              fclose(krn_file);
+              source = krn_env;
+              source_kind = 1;
+            }
+            gen = 0; /* unknown */
           }
-          { /* 256-GRF: DBM_MULTIPLY_XF overrides, then LIBXSTREAM_BIGGRF */
-            const int biggrf = (0 <= xf ? xf : devinfo->biggrf);
-            const size_t max_wgs =
-                (0 != biggrf) ? devinfo->wgsize[0] / 2 : devinfo->wgsize[0];
-            wgsize[0] = LIBXS_CLMP(wgsize[0], 0, max_wgs);
-            if (0 != biggrf && 0 != devinfo->intel && 0 == devinfo->biggrf) {
-              options = "-cl-intel-256-GRF-per-thread";
+          if (0 == gen) { /* assemble preprocessor flags */
+            wgsize[0] = (NULL == wg_env ? LIBXS_MAX((unsigned long int)sm,
+                                                    devinfo->wgsize[1])
+                                        : strtoul(wg_env, NULL, 10));
+            if (1 < sgsize && 0 < wgsize[0]) { /* subgroups */
+              if (LIBXS_DELTA(wgsize[0], devinfo->wgsize[1]) <=
+                  LIBXS_DELTA(wgsize[0], sgsize)) {
+                sgsize = devinfo->wgsize[1];
+              }
+              wgsize[0] = LIBXS_UP(wgsize[0], sgsize);
+            } else {
+              wgsize[0] = LIBXS_UP(wgsize[0], devinfo->wgsize[1]);
+              sgsize = 0;
+            }
+            { /* 256-GRF */
+              const int biggrf = (0 <= xf ? xf : devinfo->biggrf);
+              const size_t max_wgs =
+                  (0 != biggrf) ? devinfo->wgsize[0] / 2 : devinfo->wgsize[0];
+              wgsize[0] = LIBXS_CLMP(wgsize[0], 0, max_wgs);
+              if (0 != biggrf && 0 != devinfo->intel && 0 == devinfo->biggrf) {
+                options = "-cl-intel-256-GRF-per-thread";
+              }
+            }
+            sm = ((0 != sm && 0 != wgsize[0])
+                      ? (LIBXS_ISPOT(bn * sizeof(double)) + 1)
+                      : 0);
+            clinear = (NULL == lin_env ? 0 /*default*/ : atoi(lin_env));
+            sgbcst = (0 != gpu && 0 < sgsize && 0 < wgsize[0] &&
+                      2 <= devinfo->std_level[0] &&
+                      (NULL == sgb_env ? 0 /*default*/ : (0 != atoi(sgb_env))));
+            offset += (size_t)LIBXS_SNPRINTF(
+                base_flags + offset, sizeof(base_flags) - offset,
+                " %s %s %s -DCONSTANT=%s"
+                " -DBN=%i -DSM=%i -DLU=%i -DWG=%i -DSG=%i",
+                0 != gpu ? "-DGPU" : "", 0 == clinear ? "" : "-DCLINEAR",
+                0 == sgbcst ? "" : "-DSGBCST",
+#if defined(LIBXSTREAM_CMEM)
+                (0 > ro && EXIT_SUCCESS == libxstream_opencl_use_cmem(devinfo))
+                    ? "constant"
+                    :
+#endif
+                    (0 >= ro ? "global" : "constant"),
+                bn, sm, lu, (int)wgsize[0], (int)sgsize);
+            if (0 != precision) {
+              offset += (size_t)LIBXS_SNPRINTF(base_flags + offset,
+                                               sizeof(base_flags) - offset,
+                                               " -DPRECISION=%i", precision);
             }
           }
-          sm = ((0 != sm && 0 != wgsize[0])
-                    ? (LIBXS_ISPOT(bn * sizeof(double)) + 1)
-                    : 0);
-          clinear = (NULL == lin_env ? 0 /*default*/ : atoi(lin_env));
-          sgbcst = (0 != gpu && 0 < sgsize && 0 < wgsize[0] &&
-                   2 <= devinfo->std_level[0] &&
-                   (NULL == sgb_env ? 0 /*default*/ : (0 != atoi(sgb_env))));
-          offset += (size_t)LIBXS_SNPRINTF(
-              flags + offset, sizeof(flags) - offset,
-              " %s %s %s -DCONSTANT=%s -DBN=%i -DSM=%i -DLU=%i -DWG=%i -DSG=%i",
-              0 != gpu ? "-DGPU" : "", 0 == clinear ? "" : "-DCLINEAR",
-              0 == sgbcst ? "" : "-DSGBCST",
-#if defined(LIBXSTREAM_CMEM)
-              (0 > ro && EXIT_SUCCESS == libxstream_opencl_use_cmem(devinfo))
-                  ? "constant"
-                  :
-#endif
-                  (0 >= ro ? "global" : "constant"),
-              bn, sm, lu, (int)wgsize[0], (int)sgsize);
-          if (0 != precision) {
-            offset +=
-                (size_t)LIBXS_SNPRINTF(flags + offset, sizeof(flags) - offset,
-                                       " -DPRECISION=%i", precision);
+          base_source = source;
+          base_source_kind = source_kind;
+          base_options = options;
+          kernel_registry = libxs_registry_create();
+          if (2 <= verbosity || 0 > verbosity) {
+            fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel gpu=%i", gpu);
+            dbm_multiply_opencl_print(stderr, "gen", gen);
+            dbm_multiply_opencl_print(stderr, "sgb", sgbcst);
+            dbm_multiply_opencl_print(stderr, "lin", clinear);
+            dbm_multiply_opencl_print(stderr, "fp", precision);
+            dbm_multiply_opencl_print(stderr, "bn", bn);
+            dbm_multiply_opencl_print(stderr, "sm", sm);
+            dbm_multiply_opencl_print(stderr, "wg", (int)wgsize[0]);
+            dbm_multiply_opencl_print(stderr, "sg", (int)sgsize);
+            dbm_multiply_opencl_print(stderr, "lu", lu);
+            fprintf(stderr, " -> %.1f ms\n",
+                    1E3 * DBM_TIMER_DIFF(start, DBM_TIMER_TICK()));
           }
+          LIBXS_ATOMIC_STORE(&base_ready, 1, LIBXS_ATOMIC_SEQ_CST);
         }
-        if (sizeof(flags) > offset) {
+        LIBXS_LOCK_RELEASE(LIBXS_LOCK, config->lock_main);
+      }
+      /* per-launch: compute task info and BK */
+      if (1 < ndims) { /* DBM_MULTIPLY_GEN */
+#if !(defined(OPENCL_LIBSMM_PFORMAT) && (0 < OPENCL_LIBSMM_PFORMAT))
+        if (0 != trace) {
+          dbm_multiply_gpu_launch_info(&task, params_host, ntasks,
+                                       param_format);
+        }
+#endif
+        bk = 0;
+      } else {
+#if defined(OPENCL_LIBSMM_PFORMAT) && (0 < OPENCL_LIBSMM_PFORMAT)
+        if (0 == dbm_multiply_opencl_smm && 0 == trace)
+#endif
+        {
+          dbm_multiply_gpu_launch_info(&task, params_host, ntasks,
+                                       param_format);
+        }
+        bk = dbm_multiply_opencl_bk(task.max_k);
+      }
+      /* per-BK kernel lookup/compile */
+      if (1 >= ndims) { /* source kernel path */
+        dbm_multiply_opencl_key_t key;
+        cl_kernel *kptr;
+        LIBXS_MEMSET(&key, 0, sizeof(key));
+        key.bk = bk;
+        kptr = (cl_kernel *)libxs_registry_get(kernel_registry, &key,
+                                               sizeof(key), config->lock_main);
+        if (NULL == kptr || NULL == *kptr) { /* compile specialization */
+          char flags[LIBXSTREAM_BUFFERSIZE];
+          cl_kernel kernel_new = NULL;
           const cl_device_id device_id = config->devices[config->device_id];
           size_t wgs[3];
+          LIBXS_SNPRINTF(flags, sizeof(flags), "%s -DBK=%i", base_flags, bk);
           result |= libxstream_opencl_kernel(
-              source_kind, source, "dbm_multiply", flags, options, NULL /*try*/,
-              NULL /*try_ok*/, exts, nexts, &kernel_tmp);
+              base_source_kind, base_source, "dbm_multiply", flags,
+              base_options, NULL /*try*/, NULL /*try_ok*/, base_exts,
+              base_nexts, &kernel_new);
           if (EXIT_SUCCESS == result &&
               EXIT_SUCCESS ==
-                  clGetKernelWorkGroupInfo(kernel_tmp, device_id,
+                  clGetKernelWorkGroupInfo(kernel_new, device_id,
                                            CL_KERNEL_COMPILE_WORK_GROUP_SIZE,
                                            sizeof(wgs), wgs, NULL) &&
               0 != wgs[0] && 0 != wgs[1]) {
-            if (wgs[0] < sgsize) {
-              sgsize = wgs[0];
-            }
             wgsize[0] = wgs[0];
             wgsize[1] = wgs[1];
           }
-        } else {
-          result |= EXIT_FAILURE;
-        }
-        if (2 <= verbosity || 0 > verbosity || EXIT_SUCCESS != result) {
-          const char *const kind = (EXIT_SUCCESS == result ? "INFO" : "ERROR");
-          fprintf(stderr, "%s ACC/LIBDBM: DBM-kernel gpu=%i", kind, gpu);
-          dbm_multiply_opencl_print(stderr, "gen", gen); /* generated */
-          dbm_multiply_opencl_print(stderr, "lin", clinear);
-          dbm_multiply_opencl_print(stderr, "sgbcst", sgbcst);
-          dbm_multiply_opencl_print(stderr, "fp", precision);
-          dbm_multiply_opencl_print(stderr, "bn", bn);
-          dbm_multiply_opencl_print(stderr, "sm", sm);
-          dbm_multiply_opencl_print(stderr, "wg", (int)wgsize[0]);
-          dbm_multiply_opencl_print(stderr, "sg", (int)sgsize);
-          dbm_multiply_opencl_print(stderr, "lu", lu);
-          fprintf(stderr, " -> ");
-          if (EXIT_SUCCESS == result) {
-            const double ds = DBM_TIMER_DIFF(start, DBM_TIMER_TICK());
-            fprintf(stderr, "%.1f ms\n", 1E3 * ds);
-          } else {
-            fprintf(stderr, "FAILED!\n");
+          kptr = (cl_kernel *)libxs_registry_set(
+              kernel_registry, &key, sizeof(key), &kernel_new,
+              sizeof(kernel_new), config->lock_main);
+          if (2 <= verbosity || 0 > verbosity || EXIT_SUCCESS != result) {
+            const char *const kind =
+                (EXIT_SUCCESS == result ? "INFO" : "ERROR");
+            fprintf(stderr, "%s ACC/LIBDBM: DBM-kernel bk=%i -> ", kind, bk);
+            if (EXIT_SUCCESS == result) {
+              fprintf(stderr, "%.1f ms\n",
+                      1E3 * DBM_TIMER_DIFF(start, DBM_TIMER_TICK()));
+            } else {
+              fprintf(stderr, "FAILED!\n");
+            }
           }
         }
-        /* atomically publish kernel_global so that threads passing
-           the outer atomic load also see ndims, wgsize, clinear */
-        LIBXS_ATOMIC(LIBXS_ATOMIC_STORE, LIBXS_BITS)
-        ((uintptr_t *)&kernel_global, (uintptr_t)kernel_tmp,
-         LIBXS_ATOMIC_SEQ_CST);
+        kernel = (NULL != kptr) ? *kptr : NULL;
+      } else { /* gen path: single kernel, no BK specialization */
+        static cl_kernel gen_kernel = NULL;
+        if (NULL == gen_kernel) {
+          LIBXS_LOCK_ACQUIRE(LIBXS_LOCK, config->lock_main);
+          if (NULL == gen_kernel) {
+            result |= libxstream_opencl_kernel(
+                base_source_kind, base_source, "dbm_multiply", base_flags,
+                base_options, NULL, NULL, base_exts, base_nexts, &gen_kernel);
+          }
+          LIBXS_LOCK_RELEASE(LIBXS_LOCK, config->lock_main);
+        }
+        kernel = gen_kernel;
       }
-      kernel = clCloneKernel(kernel_global, &result); /* always clone */
-      LIBXS_LOCK_RELEASE(LIBXS_LOCK, config->lock_main);
-    } else if (NULL == kernel) {
-      kernel = clCloneKernel(kernel_global, &result);
-    }
-    if (NULL != lock_memory) {
-      LIBXS_LOCK_ACQUIRE(LIBXS_LOCK, lock_memory);
-    }
-    result |= libxstream_opencl_info_devptr_lock(&adata, NULL /*lock*/,
-                                                 pack_a_data, 1 /*esize*/,
-                                                 NULL /*amount*/, &iadata);
-    result |= libxstream_opencl_info_devptr_lock(&bdata, NULL /*lock*/,
-                                                 pack_b_data, 1 /*esize*/,
-                                                 NULL /*amount*/, &ibdata);
-    result |= libxstream_opencl_info_devptr_lock(&cdata, NULL /*lock*/,
-                                                 shard_c_data, 1 /*esize*/,
-                                                 NULL /*amount*/, &icdata);
-    result |= libxstream_opencl_info_devptr_lock(
-        &batch, NULL /*lock*/, params /*batch*/, sizeof(int) * stride,
-        &work_tasks, &ibatch);
-    if (NULL != lock_memory) {
-      LIBXS_LOCK_RELEASE(LIBXS_LOCK, lock_memory);
-    }
-    assert(0 == iadata && 0 == ibdata && 0 == icdata);
-    result |= clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha);
-    result |= clSetKernelArg(kernel, 1, sizeof(cl_int), &ibatch);
-    if (1 < ndims) { /* DBM_MULTIPLY_GEN */
-      assert(0 != wgsize[0] && 0 != wgsize[1] && 0 != wgsize[2]);
-      assert(1 == work_size[1] && 1 == work_size[2]);
-      work_size[0] = work_tasks * wgsize[0];
-      result |= libxstream_opencl_set_kernel_ptr(kernel, 2, batch.memory);
-      result |= libxstream_opencl_set_kernel_ptr(kernel, 3, adata.memory);
-      result |= libxstream_opencl_set_kernel_ptr(kernel, 4, bdata.memory);
-      result |= libxstream_opencl_set_kernel_ptr(kernel, 5, cdata.memory);
-#if !(defined(OPENCL_LIBSMM_PFORMAT) && (0 < OPENCL_LIBSMM_PFORMAT))
-      if (0 != trace) {
-        dbm_multiply_gpu_launch_info(&task, params_host, ntasks, param_format);
+      /* lock kernel through arg setting + enqueue */
+      LIBXS_LOCK_ACQUIRE(LIBXS_LOCK, &kernel_lock);
+      if (NULL != lock_memory) {
+        LIBXS_LOCK_ACQUIRE(LIBXS_LOCK, lock_memory);
       }
-#endif
-    } else {
-#if defined(OPENCL_LIBSMM_PFORMAT) && (0 < OPENCL_LIBSMM_PFORMAT)
-      if (0 == dbm_multiply_opencl_smm && 0 == trace)
-#endif
-      {
-        dbm_multiply_gpu_launch_info(&task, params_host, ntasks, param_format);
+      result |= libxstream_opencl_info_devptr_lock(&adata, NULL /*lock*/,
+                                                   pack_a_data, 1 /*esize*/,
+                                                   NULL /*amount*/, &iadata);
+      result |= libxstream_opencl_info_devptr_lock(&bdata, NULL /*lock*/,
+                                                   pack_b_data, 1 /*esize*/,
+                                                   NULL /*amount*/, &ibdata);
+      result |= libxstream_opencl_info_devptr_lock(&cdata, NULL /*lock*/,
+                                                   shard_c_data, 1 /*esize*/,
+                                                   NULL /*amount*/, &icdata);
+      result |= libxstream_opencl_info_devptr_lock(
+          &batch, NULL /*lock*/, params /*batch*/, sizeof(int) * stride,
+          &work_tasks, &ibatch);
+      if (NULL != lock_memory) {
+        LIBXS_LOCK_RELEASE(LIBXS_LOCK, lock_memory);
       }
-      { cl_int size = (cl_int)(work_tasks *
-            (0 == clinear ? task.max_m : task.max_n));
-        if (0 != sgbcst) { /* per-task dispatch for sub-group broadcast */
+      assert(0 == iadata && 0 == ibdata && 0 == icdata);
+      result |= clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha);
+      result |= clSetKernelArg(kernel, 1, sizeof(cl_int), &ibatch);
+      if (1 < ndims) { /* DBM_MULTIPLY_GEN */
+        assert(0 != wgsize[0] && 0 != wgsize[1] && 0 != wgsize[2]);
+        assert(1 == work_size[1] && 1 == work_size[2]);
+        work_size[0] = work_tasks * wgsize[0];
+        result |= libxstream_opencl_set_kernel_ptr(kernel, 2, batch.memory);
+        result |= libxstream_opencl_set_kernel_ptr(kernel, 3, adata.memory);
+        result |= libxstream_opencl_set_kernel_ptr(kernel, 4, bdata.memory);
+        result |= libxstream_opencl_set_kernel_ptr(kernel, 5, cdata.memory);
+      } else {
+        const cl_int size =
+            (cl_int)(work_tasks * (0 == clinear ? task.max_m : task.max_n));
+        if (0 != sgbcst) { /* per-task dispatch */
           work_size[0] = work_tasks * wgsize[0];
-        } else { /* flat dispatch: one work-item per (task, row) */
+        } else { /* flat dispatch */
           work_size[0] = (0 < wgsize[0] ? LIBXS_UP(size, wgsize[0]) : size);
         }
         result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &ntasks);
@@ -365,41 +425,44 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         result |= libxstream_opencl_set_kernel_ptr(kernel, 7, bdata.memory);
         result |= libxstream_opencl_set_kernel_ptr(kernel, 8, cdata.memory);
       }
+      result |=
+          clEnqueueNDRangeKernel(str->queue, kernel, ndims, NULL, work_size,
+                                 0 < wgsize[0] ? wgsize : NULL, 0 /*num_wait*/,
+                                 NULL /*wait_list*/, NULL);
+      LIBXS_LOCK_RELEASE(LIBXS_LOCK, &kernel_lock);
     }
-    result |= clEnqueueNDRangeKernel(str->queue, kernel, ndims, NULL, work_size,
-                                     0 < wgsize[0] ? wgsize : NULL,
-                                     0 /*num_wait*/, NULL /*wait_list*/, NULL);
-  }
 #if defined(OPENCL_LIBSMM_PFORMAT) && (0 < OPENCL_LIBSMM_PFORMAT)
-  else { /* homogeneous */
-    result |= opencl_libsmm_acc_process(
-        params_host, params, ntasks, dbcsr_type_real_8, pack_a_data,
-        pack_b_data, shard_c_data, task.max_m, task.max_n, task.max_k,
-        dbm_multiply_opencl_smm, 1 /*homogeneous*/, stream, NULL /*c_stream*/,
-        task.max_m | task.max_n << OPENCL_LIBSMM_PFORMAT |
-            (task.max_k << (OPENCL_LIBSMM_PFORMAT * 2)),
-        NULL);
-    dbcsr = 1;
-  }
+    else { /* homogeneous */
+      result |= opencl_libsmm_acc_process(
+          params_host, params, ntasks, dbcsr_type_real_8, pack_a_data,
+          pack_b_data, shard_c_data, task.max_m, task.max_n, task.max_k,
+          dbm_multiply_opencl_smm, 1 /*homogeneous*/, stream, NULL /*c_stream*/,
+          task.max_m | task.max_n << OPENCL_LIBSMM_PFORMAT |
+              (task.max_k << (OPENCL_LIBSMM_PFORMAT * 2)),
+          NULL);
+      dbcsr = 1;
+    }
 #endif
-  if (0 != trace && EXIT_SUCCESS == result) {
-    static LIBXS_TLS DBM_TIMER_TICKINT start2 = 0;
-    const DBM_TIMER_TICKINT stop = DBM_TIMER_TICK();
-    const double dhost = DBM_TIMER_DIFF(start, stop);
-    const double diter = (0 < start2 ? DBM_TIMER_DIFF(start, start2) : dhost);
+    if (0 != trace && EXIT_SUCCESS == result) {
+      static LIBXS_TLS DBM_TIMER_TICKINT start2 = 0;
+      const DBM_TIMER_TICKINT stop = DBM_TIMER_TICK();
+      const double dhost = DBM_TIMER_DIFF(start, stop);
+      const double diter = (0 < start2 ? DBM_TIMER_DIFF(start, start2) : dhost);
 #if defined(OPENCL_LIBSMM_PFORMAT) && (0 < OPENCL_LIBSMM_PFORMAT)
-    const char *const kind = (0 == dbcsr ? "DBM" : "SMM");
+      const char *const kind = (0 == dbcsr ? "DBM" : "SMM");
 #else
-    const char *const kind = "DBM";
+      const char *const kind = "DBM";
 #endif
-    const int pure = (100 * (ntasks - task.mnk_changes) + ntasks - 1) / ntasks;
-    const double dtotl = LIBXS_MAX(diter, dhost);
-    start2 = stop;
-    fprintf(stderr,
-            "INFO ACC/LIBDBM: %s-kernel mnk=%ix%ix%i "
-            "pure=%i%% ntasks=%i ms=%.1f\n",
-            kind, task.max_m, task.max_n, task.max_k, pure, ntasks,
-            1E+3 * dtotl);
+      const int pure =
+          (100 * (ntasks - task.mnk_changes) + ntasks - 1) / ntasks;
+      const double dtotl = LIBXS_MAX(diter, dhost);
+      start2 = stop;
+      fprintf(stderr,
+              "INFO ACC/LIBDBM: %s-kernel mnk=%ix%ix%i "
+              "pure=%i%% ntasks=%i ms=%.1f\n",
+              kind, task.max_m, task.max_n, task.max_k, pure, ntasks,
+              1E+3 * dtotl);
+    }
   }
   return result;
 }
@@ -416,6 +479,6 @@ void dbm_multiply_gpu_launch_kernel(offloadStream_t stream, double alpha,
   OFFLOAD_CHECK(result);
 }
 
-#endif // defined(__OFFLOAD_OPENCL) && !defined(__NO_OFFLOAD_DBM)
+#endif /* defined(__OFFLOAD_OPENCL) && !defined(__NO_OFFLOAD_DBM) */
 
-// EOF
+/* EOF */
