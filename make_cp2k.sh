@@ -50,7 +50,7 @@
 
 # Authors: Matthias Krack (MK)
 
-# Version: 1.6
+# Version: 1.7
 
 # History: - Creation (19.12.2025, MK)
 #          - Version 0.1: First working version (09.01.2026, MK)
@@ -69,6 +69,7 @@
 #          - Version 1.4: Drop download of spack-packages (12.02.2026, MK)
 #          - Version 1.5: Add flags to enable/disable features selectively (15.02.2026, MK)
 #          - Version 1.6: Enable dbg and smp builds (01.03.2026, MK)
+#          - Version 1.7: Add flag for building a static CP2K library libcp2k.a (25.03.2026, MK)
 
 # Facilitate the deugging of this script
 set -uo pipefail
@@ -108,8 +109,15 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
   ${EXIT_CMD} 1
 fi
 
+# Print OS info if available
+if [[ -f /etc/os-release ]]; then
+  echo ""
+  cat /etc/os-release
+fi
+
 # Check bash version
 if ((BASH_VERSINFO < 4)); then
+  echo ""
   echo "ERROR: The employed bash version ${BASH_VERSION} is too old (from 2004)"
   echo "       Install a newer bash version"
   if [[ "$(uname -s)" == "Darwin" ]]; then
@@ -119,23 +127,25 @@ if ((BASH_VERSINFO < 4)); then
   fi
   ${EXIT_CMD} 1
 elif ((BASH_VERSINFO < 5)); then
-  echo "WARNING: The employed bash version ${BASH_VERSION} is quite old (from 2009)"
+  echo -e "\nWARNING: The employed bash version ${BASH_VERSION} is quite old (from 2009)"
 else
-  echo "INFO: Using bash version ${BASH_VERSION}"
+  echo -e "\nINFO: Using bash version ${BASH_VERSION}"
 fi
 
 # Check if the python3 version is new enough for spack
 if ! python3 -c 'import sys; sys.exit(not(sys.version_info >= (3, 10)))'; then
+  echo ""
   echo "ERROR: Python version is NOT >= 3.10 (needed for Spack)"
   echo "       Found only $(python3 -V)"
   ${EXIT_CMD} 1
 else
-  echo "INFO: Found $(python3 -V)"
+  echo -e "\nINFO: Found $(python3 -V)"
 fi
 
 # Default values
 BUILD_DEPS="if_needed"
 BUILD_DEPS_ONLY="no"
+BUILD_SHARED_LIBS="${BUILD_SHARED_LIBS:-ON}"
 CP2K_BUILD_TYPE="${CP2K_BUILD_TYPE:-Release}"
 DEPS_BUILD_TYPE="${DEPS_BUILD_TYPE:-Release}"
 CMAKE_FEATURE_FLAG_ALL="-DCP2K_USE_EVERYTHING=ON" # all features are activated by default
@@ -189,6 +199,10 @@ while [[ $# -gt 0 ]]; do
       BUILD_DEPS_ONLY="yes"
       shift 1
       ;;
+    -bsl | --build_static_libcp2k)
+      BUILD_SHARED_LIBS="OFF"
+      shift 1
+      ;;
     -bt | --build_type)
       CP2K_BUILD_TYPE="${2}"
       case "${CP2K_BUILD_TYPE}" in
@@ -232,7 +246,7 @@ while [[ $# -gt 0 ]]; do
             case "${CP2K_VERSION}" in
               ssmp-static)
                 CMAKE_FEATURE_FLAG_ALL="-DCP2K_USE_EVERYTHING=ON"
-                for package in dftd4 libint2 libxc libxsmm spglib vori tblite; do
+                for package in libint2 libxc libxsmm spglib vori tblite; do
                   CMAKE_FEATURE_FLAGS+=" -DCP2K_USE_${package^^}=ON"
                 done
                 for package in ace deepmd greenx hdf5 libtorch pexsi trexio; do
@@ -266,13 +280,15 @@ while [[ $# -gt 0 ]]; do
         esac
         case "${2,,}" in
           all)
+            # Enable or disable all features
             CMAKE_FEATURE_FLAG_ALL="-DCP2K_USE_EVERYTHING=${ON_OFF}"
-            for package in adios2 cosma deepmdkit dftd4 dla-future dla-future-fortran \
+            for package in adios2 cosma deepmdkit dla-future dla-future-fortran \
               elpa greenx hdf5 libfabric libint libvdwxc libsmeagol libvori libxc \
               libxsmm mimic-mcl openpmd-api pace pexsi plumed py-torch sirius spfft \
               spglib spla tblite trexio; do
               SED_PATTERN_LIST+=" -e '/\s*-\s+\"${package}@/ ${SUBST}"
             done
+            # dbcsr must use blas as fallback when libxsmm is disabled
             if [[ "${ON_OFF}" == "OFF" ]]; then
               SED_PATTERN_LIST+=" -e '/\s*-\s+\"smm=libxsmm\"/ s/libxsmm/blas/'"
             fi
@@ -286,14 +302,24 @@ while [[ $# -gt 0 ]]; do
               ace)
                 SED_PATTERN_LIST+=" -e '/\s*-\s+\"p${2,,}@/ ${SUBST}"
                 ;;
-              cosma | dftd4 | elpa | greenx | hdf5 | libsmeagol | libxc | pexsi | plumed | spglib | tblite | trexio)
+              cosma | elpa | greenx | hdf5 | libsmeagol | libxc | pexsi | plumed | spglib | trexio)
                 SED_PATTERN_LIST+=" -e '/\s*-\s+\"${2,,}@/ ${SUBST}"
                 ;;
-              deepmd | libtorch)
-                CMAKE_FEATURE_FLAGS+=" -DCP2K_USE_DEEPMD=${ON_OFF}"
-                CMAKE_FEATURE_FLAGS+=" -DCP2K_USE_LIBTORCH=${ON_OFF}"
+              deepmd)
                 SED_PATTERN_LIST+=" -e '/\s*-\s+\"${2,,}kit@/ ${SUBST}"
-                SED_PATTERN_LIST+=" -e '/\s*-\s+\"py-torch@/ ${SUBST}"
+                if [[ "${ON_OFF}" == "ON" ]]; then
+                  # DeePMD-kit requires libtorch
+                  CMAKE_FEATURE_FLAGS+=" -DCP2K_USE_LIBTORCH=${ON_OFF}"
+                  SED_PATTERN_LIST+=" -e '/\s*-\s+\"py-torch@/ ${SUBST}"
+                fi
+                ;;
+              dftd4)
+                SED_PATTERN_LIST+=" -e '/\s*-\s+\"${2,,}@/ ${SUBST}"
+                if [[ "${ON_OFF}" == "ON" ]]; then
+                  echo "INFO: tblite is disabled to avoid conflicts when dftd4 is used"
+                  CMAKE_FEATURE_FLAGS+=" -DCP2K_USE_TBLITE=OFF"
+                  SED_PATTERN_LIST+=" -e '/\s*-\s+\"tblite@/ s/^ /#/'"
+                fi
                 ;;
               dlaf)
                 SED_PATTERN_LIST+=" -e '/\s*-\s+\"dla-future.*@/ ${SUBST}"
@@ -303,6 +329,14 @@ while [[ $# -gt 0 ]]; do
                 ;;
               libint2)
                 SED_PATTERN_LIST+=" -e '/\s*-\s+\"libint@/ ${SUBST}"
+                ;;
+              libtorch)
+                SED_PATTERN_LIST+=" -e '/\s*-\s+\"py-torch@/ ${SUBST}"
+                if [[ "${ON_OFF}" == "OFF" ]]; then
+                  # DeePMD-kit requires libtorch
+                  CMAKE_FEATURE_FLAGS+=" -DCP2K_USE_DEEPMD=${ON_OFF}"
+                  SED_PATTERN_LIST+=" -e '/\s*-\s+\"deepmdkit@/ ${SUBST}"
+                fi
                 ;;
               libxsmm)
                 SED_PATTERN_LIST+=" -e '/\s*-\s+\"${2,,}@/ ${SUBST}"
@@ -316,6 +350,14 @@ while [[ $# -gt 0 ]]; do
               openpmd | adios2)
                 SED_PATTERN_LIST+=" -e '/\s*-\s+\"adios2@/ ${SUBST}"
                 SED_PATTERN_LIST+=" -e '/\s*-\s+\"openpmd-api@/ ${SUBST}"
+                ;;
+              tblite)
+                SED_PATTERN_LIST+=" -e '/\s*-\s+\"${2,,}@/ ${SUBST}"
+                if [[ "${ON_OFF}" == "ON" ]]; then
+                  echo "INFO: dftd4 is disabled to avoid conflicts when tblite is used"
+                  CMAKE_FEATURE_FLAGS+=" -DCP2K_USE_DFTD4=OFF"
+                  SED_PATTERN_LIST+=" -e '/\s*-\s+\"dftd4@/ s/^ /#/'"
+                fi
                 ;;
               vori)
                 SED_PATTERN_LIST+=" -e '/\s*-\s+\"lib${2,,}@/ ${SUBST}"
@@ -545,26 +587,37 @@ NUM_PROCS=$(awk '{print $1+0}' <<< "${NUM_PROCS}")
 # Assemble CMake feature flag list
 CMAKE_FEATURE_FLAGS="${CMAKE_FEATURE_FLAG_ALL} ${CMAKE_FEATURE_FLAG_MPI} ${CMAKE_FEATURE_FLAGS}"
 
-# Clean CMake feature flag list from repeated entries
+# Clean CMake feature flag list from repeated entries and keep only the last definition
+declare -A last=()
+order=()
+# First pass: record the last occurrence of each flag
+for flag in ${CMAKE_FEATURE_FLAGS}; do
+  name=${flag%=*}
+  last[${name}]=${flag}
+  order+=("${name}")
+done
+# Second pass: output only the last definition per flag
+# but respecting original order of last appearance
 declare -A seen=()
 out=()
-for flag in ${CMAKE_FEATURE_FLAGS}; do
-  [[ ${seen[${flag}]+_} ]] || {
-    seen[${flag}]=1
-    out+=("${flag}")
-  }
+for name in "${order[@]}"; do
+  if [[ -z ${seen[${name}]+_} ]]; then
+    seen[${name}]=1
+    out+=("${last[${name}]}")
+  fi
 done
 CMAKE_FEATURE_FLAGS="$(printf '%s\n' "${out[*]}")"
 
-export BUILD_DEPS BUILD_DEPS_ONLY CMAKE_FEATURE_FLAGS CMAKE_FEATURE_FLAGS_GPU CP2K_BUILD_TYPE CRAY CUDA_SM_CODE \
-  DEPS_BUILD_TYPE DISABLE_LOCAL_CACHE GCC_VERSION GPU_MODEL HAS_PODMAN IN_CONTAINER INSTALL_MESSAGE MPI_MODE \
-  NUM_PACKAGES NUM_PROCS REBUILD_CP2K RUN_TEST TESTOPTS VERBOSE VERBOSE_FLAG VERBOSE_MAKEFILE VERBOSE_SPACK
+export BUILD_DEPS BUILD_DEPS_ONLY BUILD_SHARED_LIBS CMAKE_FEATURE_FLAGS CMAKE_FEATURE_FLAGS_GPU CP2K_BUILD_TYPE \
+  CRAY CUDA_SM_CODE DEPS_BUILD_TYPE DISABLE_LOCAL_CACHE GCC_VERSION GPU_MODEL HAS_PODMAN IN_CONTAINER INSTALL_MESSAGE \
+  MPI_MODE NUM_PACKAGES NUM_PROCS REBUILD_CP2K RUN_TEST TESTOPTS VERBOSE VERBOSE_FLAG VERBOSE_MAKEFILE VERBOSE_SPACK
 
 # Show help if requested
 if [[ "${HELP}" == "yes" ]]; then
   echo ""
   echo "Usage: ${SCRIPT_NAME} [-bd | --build_deps]"
   echo "                    [-bd_only | --build_deps_only]"
+  echo "                    [-bsl | --build_static_libcp2k]"
   echo "                    [-bt | --build_type (Debug | Release | RelWithDebInfo)]"
   echo "                    [-cray]"
   echo "                    [-cv | --cp2k_version (pdbg | psmp | sdbg | ssmp | ssmp-static)]"
@@ -584,27 +637,28 @@ if [[ "${HELP}" == "yes" ]]; then
   echo "                    [-v | --verbose]"
   echo ""
   echo "Flags:"
-  echo " --build_deps         : Force a rebuild of all CP2K dependencies from scratch (removes the spack folder)"
-  echo " --build_deps_only    : Rebuild ONLY the CP2K dependencies from scratch (removes the spack folder)"
-  echo " --build_type         : Set preferred CMake build type for CP2K (default: \"Release\")"
-  echo " --cp2k_version       : CP2K version to be built (default: \"psmp\")"
-  echo " -cray                : Use Cray specific spack configuration"
-  echo " --disable_local_cache: Don't add local Spack cache"
-  echo " --enable_feature     : Enable feature or package (default: all)"
-  echo " --disable_feature    : Disable feature or package"
-  echo " --help               : Print this help information"
-  echo " --gcc_version        : Use the specified GCC version (default: automatically decided by spack)"
-  echo " --gpu_model          : Select GPU model (default: none)"
-  echo " --install_path       : Define the CP2K installation path (default: ./install)"
-  echo " -j                   : Maximum number of processes used in parallel"
-  echo " --mpi_mode           : Set preferred MPI mode (default: \"mpich\")"
-  echo " --num_packages       : Maximum number of packages built by spack in parallel (default: 4)"
-  echo " --rebuild_cp2k       : Rebuild CP2K: removes the build folder (default: no)"
-  echo " --test               : Perform a regression test run after a successful build"
-  echo " --use_externals      : Use external packages installed on the host system. This results in much"
-  echo "                        faster build times, but it can also cause conflicts with outdated packages"
-  echo "                        pulled in from the host system, e.g. old python or gcc versions"
-  echo " --verbose            : Write verbose output"
+  echo " --build_deps          : Force a rebuild of all CP2K dependencies from scratch (removes the spack folder)"
+  echo " --build_deps_only     : Rebuild ONLY the CP2K dependencies from scratch (removes the spack folder)"
+  echo " --build_static_libcp2k: Build a static CP2K library libcp2k.a instead of the default shared one libcp2k.so"
+  echo " --build_type          : Set preferred CMake build type for CP2K (default: \"Release\")"
+  echo " --cp2k_version        : CP2K version to be built (default: \"psmp\")"
+  echo " -cray                 : Use Cray specific spack configuration"
+  echo " --disable_local_cache : Don't add local Spack cache"
+  echo " --enable_feature      : Enable feature or package (default: all)"
+  echo " --disable_feature     : Disable feature or package"
+  echo " --help                : Print this help information"
+  echo " --gcc_version         : Use the specified GCC version (default: automatically decided by spack)"
+  echo " --gpu_model           : Select GPU model (default: none)"
+  echo " --install_path        : Define the CP2K installation path (default: ./install)"
+  echo " -j                    : Maximum number of processes used in parallel"
+  echo " --mpi_mode            : Set preferred MPI mode (default: \"mpich\")"
+  echo " --num_packages        : Maximum number of packages built by spack in parallel (default: 4)"
+  echo " --rebuild_cp2k        : Rebuild CP2K: removes the build folder (default: no)"
+  echo " --test                : Perform a regression test run after a successful build"
+  echo " --use_externals       : Use external packages installed on the host system. This results in much"
+  echo "                         faster build times, but it can also cause conflicts with outdated packages"
+  echo "                         pulled in from the host system, e.g. old python or gcc versions"
+  echo " --verbose             : Write verbose output"
   echo ""
   echo "Hints:"
   echo " - Remove the folder ${CP2K_ROOT}/build to (re)build CP2K from scratch"
@@ -626,6 +680,7 @@ fi
 echo ""
 echo "BUILD_DEPS          = ${BUILD_DEPS}"
 echo "BUILD_DEPS_ONLY     = ${BUILD_DEPS_ONLY}"
+echo "BUILD_SHARED_LIBS   = ${BUILD_SHARED_LIBS}"
 echo "CP2K_BUILD_TYPE     = ${CP2K_BUILD_TYPE}"
 echo "CP2K_VERSION        = ${CP2K_VERSION}"
 echo "CRAY                = ${CRAY}"
@@ -811,7 +866,12 @@ else
 fi
 export CMAKE_CUDA_FLAGS
 
-((VERBOSE > 0)) && ulimit -a
+# Retrieve and print available resources
+free -h
+echo ""
+ulimit -c 0 -s unlimited
+ulimit -a
+echo ""
 
 ### Build CP2K dependencies with Spack if needed or requested ###
 
@@ -1207,10 +1267,11 @@ if [[ ! -d "${CMAKE_BUILD_PATH}" ]]; then
       # shellcheck disable=SC2086
       cmake -S "${CP2K_ROOT}" -B "${CMAKE_BUILD_PATH}" \
         -GNinja \
+        -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} \
         -DCMAKE_BUILD_TYPE="${CP2K_BUILD_TYPE}" \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
         -DCMAKE_INSTALL_MESSAGE="${INSTALL_MESSAGE}" \
-        -DCMAKE_SKIP_RPATH=ON \
+        -DCMAKE_SKIP_RPATH="ON" \
         -DCMAKE_VERBOSE_MAKEFILE="${VERBOSE_MAKEFILE}" \
         ${CMAKE_FEATURE_FLAGS} \
         -DCP2K_USE_PEXSI="${CP2K_USE_PEXSI}" \
@@ -1223,10 +1284,11 @@ if [[ ! -d "${CMAKE_BUILD_PATH}" ]]; then
       # shellcheck disable=SC2086
       cmake -S "${CP2K_ROOT}" -B "${CMAKE_BUILD_PATH}" \
         -GNinja \
+        -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} \
         -DCMAKE_BUILD_TYPE="${CP2K_BUILD_TYPE}" \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
         -DCMAKE_INSTALL_MESSAGE="${INSTALL_MESSAGE}" \
-        -DCMAKE_SKIP_RPATH=ON \
+        -DCMAKE_SKIP_RPATH="ON" \
         -DCMAKE_VERBOSE_MAKEFILE="${VERBOSE_MAKEFILE}" \
         ${CMAKE_FEATURE_FLAGS} \
         ${CMAKE_CUDA_FLAGS} \
@@ -1241,13 +1303,13 @@ if [[ ! -d "${CMAKE_BUILD_PATH}" ]]; then
       # shellcheck disable=SC2086
       cmake -S "${CP2K_ROOT}" -B "${CMAKE_BUILD_PATH}" \
         -GNinja \
-        -DBUILD_SHARED_LIBS=OFF \
+        -DBUILD_SHARED_LIBS="OFF" \
         -DCMAKE_BUILD_TYPE="${CP2K_BUILD_TYPE}" \
         -DCMAKE_EXE_LINKER_FLAGS="-static" \
         -DCMAKE_FIND_LIBRARY_SUFFIXES=".a" \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
         -DCMAKE_INSTALL_MESSAGE="${INSTALL_MESSAGE}" \
-        -DCMAKE_SKIP_RPATH=ON \
+        -DCMAKE_SKIP_RPATH="ON" \
         -DCMAKE_VERBOSE_MAKEFILE="${VERBOSE_MAKEFILE}" \
         -DCP2K_BLAS_LINK_LIBRARIES="${LIBOPENBLAS};${LIBM}" \
         -DCP2K_LAPACK_LINK_LIBRARIES="${LIBOPENBLAS};${LIBM}" \
@@ -1366,6 +1428,9 @@ cd "${CP2K_ROOT}" || ${EXIT_CMD} 1
 # Allow to run as root with OpenMPI
 if [[ "${MPI_MODE}" == "openmpi" ]]; then
   OMPI_VARS="export OMPI_ALLOW_RUN_AS_ROOT=1 OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1 OMPI_MCA_plm_rsh_agent=/bin/false"
+  if [[ "${IN_CONTAINER}" == "yes" ]]; then
+    OMPI_VARS="${OMPI_VARS} OMPI_MCA_mpi_yield_when_idle=1 OMPI_MCA_btl=self,sm OMPI_MCA_pml=ob1"
+  fi
 else
   OMPI_VARS=""
 fi

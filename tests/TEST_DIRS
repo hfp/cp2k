@@ -91,7 +91,9 @@ QS/regtest-sym-5
 QS/regtest-cdft-diag
 QS/regtest-kp-hfx-ri-admm-2                                 libint !ifx
 QS/regtest-plus_u
-LIBTEST
+LIBTEST/dbcsr
+LIBTEST/dbm
+LIBTEST/misc
 QS/regtest-stda-force                                       libint !ifx
 QS/regtest-ls-rtp
 QS/regtest-ot-1
@@ -389,7 +391,6 @@ QS/regtest-harris
 TAMC/regtest
 QS/regtest-fftw-wisdom                                      fftw3
 FE/regtest-2
-QS
 QS/regtest-gw-ic-model                                      libint !ifx
 NEB/regtest-3
 QS/regtest-sto
@@ -409,6 +410,4 @@ QS/regtest-trexio                                           trexio
 QS/regtest-trexio-2                                         trexio
 QS/regtest-rtbse-gxac                                       libint greenx !ifx
 QS/regtest-cneo
-
-# TODO: Re-enable once problems with MPI are resolved (https://github.com/cp2k/cp2k/pull/4445)
-# QS/regtest-tddfpt-bse                                       libint libxc
+QS/regtest-tddfpt-bse                                       libint libxc

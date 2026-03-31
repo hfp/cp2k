@@ -87,7 +87,7 @@ spack:
 
   repos:
     builtin:
-      commit: a716421dc600672926fb420ede4e9a45bdd0948e # 2026-03-19
+      commit: c5de721edfc3312f42ea7b0847bc16d1481982c1 # 2026-03-26
 
   specs:
     # Build tools
@@ -98,14 +98,14 @@ spack:
     - "python@3.11:"
     # CP2K
     - "dbcsr@2.9.1"
-    - "dftd4@3.7.0"
+#   - "dftd4@4.0.2"
     - "fftw@3.3.10"
 #   - "hdf5@2.1.0"
     - "libint@2.13.1-cp2k-lmax-5"
     - "libvori@220621"
     - "libxc@7.0.0"
     - "libxsmm@1.17-cp2k"
-    - "openblas@0.3.31"
+    - "openblas@0.3.32"
     - "pace@2025.12.4"
     - "spglib@2.7.0"
     - "tblite@0.5.0"

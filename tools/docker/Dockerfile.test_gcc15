@@ -1,34 +1,47 @@
 #
 # This file was created by generate_dockerfiles.py.
-# Usage: podman build --shm-size=1g -f ./Dockerfile.build_hip_rocm_Mi50 ../../
+# Usage: podman build --shm-size=1g -f ./Dockerfile.test_gcc15 ../../
 #
 
-FROM rocm/dev-ubuntu-24.04:7.2-complete
+FROM ubuntu:26.04
 
-# Install some Ubuntu packages.
-RUN apt-get update -qq && apt-get install -qq --no-install-recommends \
-    hipblas                                                           \
-    gfortran                                                          \
-    mpich                                                             \
-    libmpich-dev                                                      \
+# Add Ubuntu universe repository.
+RUN apt-get update -qq && apt-get install -qq --no-install-recommends software-properties-common
+RUN add-apt-repository universe
+
+# Install Ubuntu packages.
+RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true && \
+    apt-get update -qq && apt-get install -qq --no-install-recommends \
+    cmake \
+    less \
+    nano \
+    make \
+    ninja-build \
+    wget \
+    python3 \
+    ca-certificates \
+    gcc-15 \
+    g++-15 \
+    gfortran-15 \
+    libfftw3-dev \
+    libopenblas-dev \
+    libint2-dev \
+    libxc-dev \
+    libhdf5-dev \
+    libxsmm-dev \
+    libspglib-f08-dev \
    && rm -rf /var/lib/apt/lists/*
 
-# Remove LTO from Ubuntu's MPICH
-RUN sed -i -e 's/-flto=auto//g' -e 's/-ffat-lto-objects//g' \
-    /usr/lib/x86_64-linux-gnu/pkgconfig/mpich.pc \
-    /usr/bin/*.mpich
+# Create links in /usr/local/bin to overrule links in /usr/bin.
+RUN ln -sf /usr/bin/gcc-15      /usr/local/bin/gcc  && \
+    ln -sf /usr/bin/g++-15      /usr/local/bin/g++  && \
+    ln -sf /usr/bin/gfortran-15 /usr/local/bin/gfortran
 
-# Setup HIP environment.
-ENV ROCM_PATH /opt/rocm
-ENV PATH ${PATH}:${ROCM_PATH}/bin
-ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:${ROCM_PATH}/lib
-ENV HIP_PLATFORM amd
-RUN hipconfig
-
+# Use toolchain to install DBCSR.
 # Install requirements for the toolchain.
 WORKDIR /opt/cp2k-toolchain
 COPY ./tools/toolchain/install_requirements*.sh ./
-RUN ./install_requirements.sh ubuntu
+RUN ./install_requirements.sh ubuntu:26.04
 
 # Install the toolchain.
 RUN mkdir scripts
@@ -42,10 +55,18 @@ COPY ./tools/toolchain/scripts/VERSION \
      ./scripts/
 COPY ./tools/toolchain/install_cp2k_toolchain.sh .
 RUN ./install_cp2k_toolchain.sh \
-    --mpi-mode=mpich \
-    --enable-hip=yes \
-    --gpu-ver=Mi50 \
+    --mpi-mode=no \
     --with-dbcsr \
+    --with-gcc=system \
+    --with-cmake=system \
+    --with-ninja=system \
+    --with-openblas=system \
+    --with-libxc=no \
+    --with-libint=no \
+    --with-fftw=no \
+    --with-libxsmm=no \
+    --with-spglib=no \
+    --with-libvori=no \
     --dry-run \
     --list-cmake-options=no
 
@@ -91,11 +112,16 @@ COPY ./CMakeLists.txt .
 
 # Compile CP2K.
 COPY ./tools/docker/scripts/build_cp2k.sh .
-RUN ./build_cp2k.sh toolchain_hip_Mi50 psmp
+RUN ./build_cp2k.sh ubuntu ssmp
 
-# Run build test.
-COPY ./tools/docker/scripts/test_build.sh .
-RUN ./test_build.sh "toolchain_hip_Mi50" "psmp" 2>&1 | tee report.log
+# Run regression tests.
+ARG TESTOPTS=""
+COPY ./tests ./tests
+COPY ./tools/docker/scripts/test_regtest.sh ./
+RUN /bin/bash -o pipefail -c " \
+    TESTOPTS='${TESTOPTS}' \
+    ./test_regtest.sh ubuntu ssmp |& tee report.log && \
+    rm -rf regtesting"
 
 # Output the report if the image is old and was therefore pulled from the build cache.
 CMD cat $(find ./report.log -mmin +10) | sed '/^Summary:/ s/$/ (cached)/'
