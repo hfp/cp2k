@@ -92,9 +92,14 @@ void dbm_multiply_cpu_process_batch(int ntasks, const dbm_task_t batch[ntasks],
   }
 
   // Dispatch a JIT kernel for the current m,n,k.
+  // Registry caches configs across calls -- no release needed.
 #if defined(__LIBXS)
+  static libxs_registry_t *registry = NULL;
   libxs_gemm_config_t gemm_config;
+  const int use_jit = (0 == (DBM_MULTIPLY_BLAS_LIBRARY & options)
+    && 1.0 == alpha);
   int kernel_m = 0, kernel_n = 0, kernel_k = 0;
+  if (use_jit && NULL == registry) registry = libxs_registry_create();
   memset(&gemm_config, 0, sizeof(gemm_config));
 #endif
 
@@ -105,17 +110,13 @@ void dbm_multiply_cpu_process_batch(int ntasks, const dbm_task_t batch[ntasks],
     task_next = batch[batch_order[(itask + 1) < ntasks ? (itask + 1) : itask]];
 
 #if defined(__LIBXS)
-    if (0 == (DBM_MULTIPLY_BLAS_LIBRARY & options) &&
+    if (use_jit &&
         (task.m != kernel_m || task.n != kernel_n || task.k != kernel_k)) {
-      libxs_gemm_release(&gemm_config);
-      memset(&gemm_config, 0, sizeof(gemm_config));
-      if (alpha == 1.0) {
-        const double beta = 1.0;
-        // transa='N', transb='T', lda=m, ldb=n, ldc=m
-        libxs_gemm_dispatch(&gemm_config, LIBXS_DATATYPE_F64, 'N', 'T', task.m,
-                            task.n, task.k, task.m, task.n, task.m, &alpha,
-                            &beta);
-      }
+      const double beta = 1.0;
+      // transa='N', transb='T', lda=m, ldb=n, ldc=m
+      libxs_gemm_dispatch(&gemm_config, LIBXS_DATATYPE_F64, 'N', 'T', task.m,
+                          task.n, task.k, task.m, task.n, task.m, &alpha,
+                          &beta, registry);
       kernel_m = task.m;
       kernel_n = task.n;
       kernel_k = task.k;
@@ -134,9 +135,6 @@ void dbm_multiply_cpu_process_batch(int ntasks, const dbm_task_t batch[ntasks],
                 task.n, 1.0, data_c, task.m);
     }
   }
-#if defined(__LIBXS)
-  libxs_gemm_release(&gemm_config);
-#endif
 }
 
 // EOF
