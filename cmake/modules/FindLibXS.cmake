@@ -7,7 +7,7 @@
 
 include(FindPackageHandleStandardArgs)
 include(cp2k_utils)
-find_package(PkgConfig REQUIRED)
+find_package(PkgConfig QUIET)
 
 cp2k_set_default_paths(LIBXS "LibXS")
 

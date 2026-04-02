@@ -169,7 +169,7 @@ cmake_dependent_option(CP2K_USE_MIMIC "Enable MIMIC support"
                        ${CP2K_USE_EVERYTHING} "CP2K_USE_MPI" OFF)
 cmake_dependent_option(
   CP2K_USE_LIBXSMM "Enable libxsmm support" ${CP2K_USE_EVERYTHING}
-  "NOT CP2K_USE_ACCEL MATCHES \"OPENCL\"" ON)
+  "NOT CP2K_USE_ACCEL MATCHES \"OPENCL\"" OFF)
 option(CP2K_USE_LIBXS "Enable libxs support" ON)
 cmake_dependent_option(CP2K_USE_LIBVDWXC "Enable libvdwxc support with SIRIUS"
                        ${CP2K_USE_EVERYTHING} "CP2K_USE_SIRIUS" OFF)
@@ -638,7 +638,7 @@ else()
   find_package(DBCSR 2.6 REQUIRED)
 endif()
 
-# Discover CP2K_OPENCL_BACKEND. DBCSR must be discovered prior (DBCSR_DIR).
+# Discover OpenCL backend via LIBXSTREAM. DBCSR must be discovered prior.
 if(CP2K_USE_ACCEL MATCHES "OPENCL")
   message("\n------------------------------------------------------------")
   message("-                          OPENCL                          -")
@@ -652,23 +652,40 @@ if(CP2K_USE_ACCEL MATCHES "OPENCL")
   endif()
   find_package(OpenCL REQUIRED)
 
-  set(CP2K_OPENCL_BACKEND "${DBCSR_DIR}/../../../include/acc/opencl")
-  if(NOT EXISTS ${CP2K_OPENCL_BACKEND})
-    get_target_property(CP2K_DBCSR_INCLUDE_DIRS DBCSR::dbcsr
-                        INTERFACE_INCLUDE_DIRECTORIES)
-    list(GET CP2K_DBCSR_INCLUDE_DIRS 0 CP2K_DBCSR_INCLUDE_DIR)
-    set(CP2K_OPENCL_BACKEND "${CP2K_DBCSR_INCLUDE_DIR}/acc/opencl")
+  # Locate LIBXSTREAM: user override > pkg-config > path probing
+  set(LIBXSTREAMROOT "" CACHE PATH "Root directory of LIBXSTREAM")
+  if(NOT LIBXSTREAMROOT AND PkgConfig_FOUND)
+    pkg_check_modules(_LIBXSTREAM QUIET libxstream)
+    if(_LIBXSTREAM_FOUND)
+      pkg_get_variable(LIBXSTREAMROOT libxstream prefix)
+    endif()
+  endif()
+  if(NOT LIBXSTREAMROOT)
+    foreach(_dir "${CMAKE_SOURCE_DIR}/../libxstream" "$ENV{HOME}/libxstream")
+      if(EXISTS "${_dir}/include/libxstream.h")
+        set(LIBXSTREAMROOT "${_dir}")
+        break()
+      endif()
+    endforeach()
+  endif()
+  if(NOT LIBXSTREAMROOT OR NOT EXISTS "${LIBXSTREAMROOT}/include/libxstream.h")
+    message(FATAL_ERROR
+      "LIBXSTREAMROOT not found. Set -DLIBXSTREAMROOT=/path/to/libxstream")
+  endif()
+  message(STATUS "Using LIBXSTREAM from ${LIBXSTREAMROOT}")
+  find_library(CP2K_LIBXSTREAM_LIBRARY xstream PATHS "${LIBXSTREAMROOT}/lib" NO_DEFAULT_PATH)
+  if(NOT CP2K_LIBXSTREAM_LIBRARY)
+    message(FATAL_ERROR "libxstream library not found in ${LIBXSTREAMROOT}/lib")
   endif()
 
-  set(CP2K_OPENCL_SCRIPT
-      "${CP2K_OPENCL_BACKEND}/../../../share/opencl/acc_opencl.sh")
+  set(CP2K_OPENCL_BACKEND "${LIBXSTREAMROOT}/include")
+  set(CP2K_OPENCL_SCRIPT "${LIBXSTREAMROOT}/scripts/tool_opencl.sh")
   if(EXISTS ${CP2K_OPENCL_SCRIPT})
-    set(CP2K_OPENCL_COMMON common/opencl_atomics.h common/opencl_common.h)
-    list(TRANSFORM CP2K_OPENCL_COMMON PREPEND ${CP2K_OPENCL_BACKEND}/)
+    set(CP2K_OPENCL_COMMON "${LIBXSTREAMROOT}/include/opencl/libxstream_atomics.h")
     set(CP2K_USE_OPENCL ON)
     message(STATUS "OpenCL backend found")
   else()
-    message(FATAL_ERROR "OpenCL backend not found")
+    message(FATAL_ERROR "OpenCL backend not found (${CP2K_OPENCL_SCRIPT})")
   endif()
 endif()
 
