@@ -9,10 +9,6 @@
 #include "offload_library.h"
 #include "offload_runtime.h"
 
-#if defined(__OFFLOAD_OPENCL)
-#include <libxstream_cp2k.h>
-#endif
-
 #include <assert.h>
 #include <inttypes.h>
 #include <omp.h>
@@ -27,9 +23,6 @@
 
 #define OFFLOAD_MEMPOOL_PRINT(FN, MSG, OUTPUT_UNIT)                            \
   ((FN)(MSG, (int)strlen(MSG), OUTPUT_UNIT))
-
-#if !defined(__OFFLOAD_OPENCL)
-
 #define OFFLOAD_MEMPOOL_OMPALLOC 1
 // OFFLOAD_MEMPOOL_COUNTER: less mallocs on CPU but less perf.; same mem. usage
 /*#define OFFLOAD_MEMPOOL_COUNTER int*/
@@ -405,8 +398,6 @@ void offload_mempool_stats_get(offload_mempool_stats_t *memstats) {
                                 : memstats->device_size;
   }
 }
-
-#endif /* !__OFFLOAD_OPENCL */
 
 /*******************************************************************************
  * \brief Print allocation statistics..
