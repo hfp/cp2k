@@ -9,7 +9,7 @@ include(FindPackageHandleStandardArgs)
 include(cp2k_utils)
 find_package(PkgConfig QUIET)
 
-cp2k_set_default_paths(LIBXS "LibXS")
+cp2k_set_default_paths(LIBXS "LIBXS")
 
 if(PKG_CONFIG_FOUND)
   if(BUILD_SHARED_LIBS)
@@ -31,34 +31,34 @@ if(NOT CP2K_LIBXS_INCLUDE_DIRS)
 endif()
 
 if(CP2K_LIBXS_INCLUDE_DIRS)
-  find_package_handle_standard_args(LibXS DEFAULT_MSG CP2K_LIBXS_INCLUDE_DIRS
+  find_package_handle_standard_args(LIBXS DEFAULT_MSG CP2K_LIBXS_INCLUDE_DIRS
                                     CP2K_LIBXS_LINK_LIBRARIES)
 else()
-  find_package_handle_standard_args(LibXS DEFAULT_MSG CP2K_LIBXS_LINK_LIBRARIES)
+  find_package_handle_standard_args(LIBXS DEFAULT_MSG CP2K_LIBXS_LINK_LIBRARIES)
 endif()
 
-if(NOT TARGET cp2k::LibXS::libxs)
-  add_library(cp2k::LibXS::libxs INTERFACE IMPORTED)
+if(NOT TARGET cp2k::LIBXS::libxs)
+  add_library(cp2k::LIBXS::libxs INTERFACE IMPORTED)
   if(CP2K_LIBXS_FOUND)
     if(CP2K_LIBXS_LIBRARY_DIRS)
-      target_link_directories(cp2k::LibXS::libxs INTERFACE
+      target_link_directories(cp2k::LIBXS::libxs INTERFACE
                               ${CP2K_LIBXS_LIBRARY_DIRS})
     endif()
     set_target_properties(
-      cp2k::LibXS::libxs PROPERTIES INTERFACE_LINK_LIBRARIES
+      cp2k::LIBXS::libxs PROPERTIES INTERFACE_LINK_LIBRARIES
                                     "${CP2K_LIBXS_LINK_LIBRARIES}")
     if(CP2K_LIBXS_INCLUDE_DIRS)
       set_target_properties(
-        cp2k::LibXS::libxs
+        cp2k::LIBXS::libxs
         PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
                    "${CP2K_LIBXS_INCLUDE_DIRS};${CP2K_LIBXS_PREFIX}/include")
     endif()
   endif()
 endif()
 
-if(NOT TARGET cp2k::LibXS)
-  add_library(cp2k::LibXS INTERFACE IMPORTED)
-  target_link_libraries(cp2k::LibXS INTERFACE cp2k::LibXS::libxs)
+if(NOT TARGET cp2k::LIBXS)
+  add_library(cp2k::LIBXS INTERFACE IMPORTED)
+  target_link_libraries(cp2k::LIBXS INTERFACE cp2k::LIBXS::libxs)
 endif()
 
 mark_as_advanced(CP2K_LIBXS_INCLUDE_DIRS CP2K_LIBXS_LIBRARY_DIRS

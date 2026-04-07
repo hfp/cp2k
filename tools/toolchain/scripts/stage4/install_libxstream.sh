@@ -21,7 +21,7 @@ cd "${BUILDDIR}"
 
 case "$with_libxstream" in
   __INSTALL__)
-    echo "==================== Installing LibXStream ===================="
+    echo "==================== Installing LIBXStream ===================="
     pkg_install_dir="${INSTALLDIR}/libxstream-${libxstream_ver}"
     install_lock_file="$pkg_install_dir/install_successful"
 
@@ -76,7 +76,7 @@ case "$with_libxstream" in
     LIBXSTREAM_LDFLAGS="-L'${pkg_install_dir}/lib' -Wl,-rpath,'${pkg_install_dir}/lib'"
     ;;
   __SYSTEM__)
-    echo "==================== Finding LibXStream from system paths ===================="
+    echo "==================== Finding LIBXStream from system paths ===================="
     check_lib -lxstream "libxstream"
     add_include_from_paths LIBXSTREAM_CFLAGS "libxstream.h" $INCLUDE_PATHS
     add_lib_from_paths LIBXSTREAM_LDFLAGS "libxstream.*" $LIB_PATHS
@@ -84,7 +84,7 @@ case "$with_libxstream" in
   __DONTUSE__) ;;
 
   *)
-    echo "==================== Linking LibXStream to user paths ===================="
+    echo "==================== Linking LIBXStream to user paths ===================="
     pkg_install_dir="$with_libxstream"
     check_dir "${pkg_install_dir}/include"
     check_dir "${pkg_install_dir}/lib"

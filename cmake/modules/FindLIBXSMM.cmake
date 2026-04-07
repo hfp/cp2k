@@ -9,7 +9,7 @@ include(FindPackageHandleStandardArgs)
 include(cp2k_utils)
 find_package(PkgConfig REQUIRED)
 
-cp2k_set_default_paths(LIBXSMM "LibXSMM")
+cp2k_set_default_paths(LIBXSMM "LIBXSMM")
 set(CP2K_LIBXSMMEXT_ROOT "${CP2K_LIBXSMM_PREFIX}")
 set(CP2K_LIBXSMMF_ROOT "${CP2K_LIBXSMM_PREFIX}")
 set(CP2K_LIBXSMMNOBLAS_ROOT "${CP2K_LIBXSMM_PREFIX}")
@@ -61,7 +61,7 @@ endif()
 
 if(CP2K_LIBXSMM_INCLUDE_DIRS)
   find_package_handle_standard_args(
-    LibXSMM
+    LIBXSMM
     DEFAULT_MSG
     CP2K_LIBXSMM_INCLUDE_DIRS
     CP2K_LIBXSMMNOBLAS_LINK_LIBRARIES
@@ -70,33 +70,33 @@ if(CP2K_LIBXSMM_INCLUDE_DIRS)
     CP2K_LIBXSMM_LINK_LIBRARIES)
 else()
   find_package_handle_standard_args(
-    LibXSMM DEFAULT_MSG CP2K_LIBXSMMNOBLAS_LINK_LIBRARIES
+    LIBXSMM DEFAULT_MSG CP2K_LIBXSMMNOBLAS_LINK_LIBRARIES
     CP2K_LIBXSMMEXT_LINK_LIBRARIES CP2K_LIBXSMMF_LINK_LIBRARIES
     CP2K_LIBXSMM_LINK_LIBRARIES)
 endif()
 
-if(NOT TARGET cp2k::LibXSMM)
-  add_library(cp2k::LibXSMM INTERFACE IMPORTED)
+if(NOT TARGET cp2k::LIBXSMM)
+  add_library(cp2k::LIBXSMM INTERFACE IMPORTED)
   foreach(__lib libxsmmf libxsmmext libxsmm libxsmmnoblas)
     string(TOUPPER "CP2K_${__lib}" __lib_search_up)
 
-    if(${__lib_search_up}_FOUND AND NOT TARGET cp2k::LibXSMM::${__lib})
-      add_library(cp2k::LibXSMM::${__lib} INTERFACE IMPORTED)
-      target_link_directories(cp2k::LibXSMM::${__lib} INTERFACE
+    if(${__lib_search_up}_FOUND AND NOT TARGET cp2k::LIBXSMM::${__lib})
+      add_library(cp2k::LIBXSMM::${__lib} INTERFACE IMPORTED)
+      target_link_directories(cp2k::LIBXSMM::${__lib} INTERFACE
                               ${${__lib_search_up}_LIBRARY_DIRS})
       set_target_properties(
-        cp2k::LibXSMM::${__lib}
+        cp2k::LIBXSMM::${__lib}
         PROPERTIES INTERFACE_LINK_LIBRARIES
                    "${${__lib_search_up}_LINK_LIBRARIES}")
 
       if(CP2K_LIBXSMM_INCLUDE_DIRS)
         set_target_properties(
-          cp2k::LibXSMM::${__lib}
+          cp2k::LIBXSMM::${__lib}
           PROPERTIES
             INTERFACE_INCLUDE_DIRECTORIES
             "${CP2K_LIBXSMM_INCLUDE_DIRS};${CP2K_LIBXSMM_PREFIX}/include")
       endif()
-      target_link_libraries(cp2k::LibXSMM INTERFACE cp2k::LibXSMM::${__lib})
+      target_link_libraries(cp2k::LIBXSMM INTERFACE cp2k::LIBXSMM::${__lib})
     endif()
   endforeach()
 endif()

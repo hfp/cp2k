@@ -1619,9 +1619,9 @@ add_library(cp2k_linalg_libs INTERFACE)
 target_link_libraries(
   cp2k_linalg_libs
   INTERFACE cp2k::LAPACK::lapack
-            $<$<BOOL:${CP2K_USE_LIBXSMM}>:cp2k::LibXSMM::libxsmmf>
-            $<$<BOOL:${CP2K_USE_LIBXSMM}>:cp2k::LibXSMM::libxsmmext>
-            $<$<BOOL:${CP2K_USE_LIBXS}>:cp2k::LibXS::libxs>
+            $<$<BOOL:${CP2K_USE_LIBXSMM}>:cp2k::LIBXSMM::libxsmmf>
+            $<$<BOOL:${CP2K_USE_LIBXSMM}>:cp2k::LIBXSMM::libxsmmext>
+            $<$<BOOL:${CP2K_USE_LIBXS}>:cp2k::LIBXS::libxs>
             $<$<BOOL:${CP2K_USE_OPENCL}>:${CP2K_LIBXSTREAM_LIBRARY}>
             cp2k::BLAS::blas
             $<$<BOOL:${CP2K_USE_CUDA}>:cp2k_cuda_libs>

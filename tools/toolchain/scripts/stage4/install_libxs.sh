@@ -21,7 +21,7 @@ cd "${BUILDDIR}"
 
 case "$with_libxs" in
   __INSTALL__)
-    echo "==================== Installing LibXS ===================="
+    echo "==================== Installing LIBXS ===================="
     pkg_install_dir="${INSTALLDIR}/libxs-${libxs_ver}"
     install_lock_file="$pkg_install_dir/install_successful"
     if verify_checksums "${install_lock_file}"; then
@@ -73,7 +73,7 @@ case "$with_libxs" in
     LIBXS_LDFLAGS="-L'${pkg_install_dir}/lib' -Wl,-rpath,'${pkg_install_dir}/lib'"
     ;;
   __SYSTEM__)
-    echo "==================== Finding LibXS from system paths ===================="
+    echo "==================== Finding LIBXS from system paths ===================="
     check_lib -lxs "libxs"
     add_include_from_paths LIBXS_CFLAGS "libxs.h" $INCLUDE_PATHS
     add_lib_from_paths LIBXS_LDFLAGS "libxs.*" $LIB_PATHS
@@ -81,7 +81,7 @@ case "$with_libxs" in
   __DONTUSE__) ;;
 
   *)
-    echo "==================== Linking LibXS to user paths ===================="
+    echo "==================== Linking LIBXS to user paths ===================="
     pkg_install_dir="$with_libxs"
     check_dir "${pkg_install_dir}/include"
     check_dir "${pkg_install_dir}/lib"

@@ -444,13 +444,13 @@ find_package(Lapack REQUIRED) # also calls find_package(BLAS)
 
 # SMM (Small Matrix-Matrix multiplication)
 if(CP2K_USE_LIBXSMM)
-  find_package(LibXSMM REQUIRED)
+  find_package(LIBXSMM REQUIRED)
   message(STATUS "Using LIBXSMM for Small Matrix Multiplication")
 endif()
 
 if(CP2K_USE_LIBXS)
-  find_package(LibXS REQUIRED)
-  message(STATUS "Using LibXS for specialized matrix operations")
+  find_package(LIBXS REQUIRED)
+  message(STATUS "Using LIBXS for specialized matrix operations")
 endif()
 
 # in practice it is always for any decent configuration. But I add a flags to
@@ -1081,7 +1081,7 @@ if(CP2K_USE_LIBXSMM)
 endif()
 
 if(CP2K_USE_LIBXS)
-  message("  - LibXS\n"
+  message("  - LIBXS\n"
           "    - include directories: ${CP2K_LIBXS_INCLUDE_DIRS}\n"
           "    - libraries: ${CP2K_LIBXS_LINK_LIBRARIES}\n\n")
 endif()
@@ -1266,7 +1266,7 @@ if(NOT CP2K_USE_LIBXSMM)
 endif()
 
 if(NOT CP2K_USE_LIBXS)
-  message("   - LibXS")
+  message("   - LIBXS")
 endif()
 
 if(NOT CP2K_USE_LIBINT2)
