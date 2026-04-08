@@ -366,7 +366,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         if (NULL == kptr || NULL == *kptr) { /* compile specialization */
           LIBXS_LOCK_ACQUIRE(LIBXS_LOCK, &compile_lock);
           kptr = (cl_kernel *)libxs_registry_get(kernel_registry, &key,
-                                                 sizeof(key), NULL /*lock*/);
+              sizeof(key), libxs_registry_lock(kernel_registry));
           if (NULL == kptr || NULL == *kptr) {
             char flags[LIBXSTREAM_BUFFERSIZE];
             const cl_device_id device_id = config->devices[config->device_id];
@@ -406,7 +406,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             }
             kptr = (cl_kernel *)libxs_registry_set(
                 kernel_registry, &key, sizeof(key), &kernel_new,
-                sizeof(kernel_new), NULL /*lock*/);
+                sizeof(kernel_new), libxs_registry_lock(kernel_registry));
             if (2 <= verbosity || 0 > verbosity || EXIT_SUCCESS != result) {
               const char *const kind =
                   (EXIT_SUCCESS == result ? "INFO" : "ERROR");
