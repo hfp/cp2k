@@ -96,10 +96,11 @@ void dbm_multiply_cpu_process_batch(int ntasks, const dbm_task_t batch[ntasks],
 #if defined(__LIBXS)
   static libxs_registry_t *registry = NULL;
   libxs_gemm_config_t gemm_config;
-  const int use_jit = (0 == (DBM_MULTIPLY_BLAS_LIBRARY & options)
-    && 1.0 == alpha);
+  const int use_jit =
+      (0 == (DBM_MULTIPLY_BLAS_LIBRARY & options) && 1.0 == alpha);
   int kernel_m = 0, kernel_n = 0, kernel_k = 0;
-  if (use_jit && NULL == registry) registry = libxs_registry_create();
+  if (use_jit && NULL == registry)
+    registry = libxs_registry_create();
   memset(&gemm_config, 0, sizeof(gemm_config));
 #endif
 
@@ -115,8 +116,8 @@ void dbm_multiply_cpu_process_batch(int ntasks, const dbm_task_t batch[ntasks],
       const double beta = 1.0;
       // transa='N', transb='T', lda=m, ldb=n, ldc=m
       libxs_gemm_dispatch(&gemm_config, LIBXS_DATATYPE_F64, 'N', 'T', task.m,
-                          task.n, task.k, task.m, task.n, task.m, &alpha,
-                          &beta, registry);
+                          task.n, task.k, task.m, task.n, task.m, &alpha, &beta,
+                          registry);
       kernel_m = task.m;
       kernel_n = task.n;
       kernel_k = task.k;

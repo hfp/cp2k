@@ -169,7 +169,7 @@ OPENCL_GEN := $(LIBXSTREAMROOT)/scripts/tool_opencl.sh
 OPENCL_ARG := -b 6 -p "" -I $(LIBXSTREAMROOT)/include
 
 ifneq (,$(filter-out 0,$(DBG)))
-  OPENCL_ARG += -d
+OPENCL_ARG += -d
 endif
 
 ALL_HEADERS += $(OPENCL_GENKRNL)

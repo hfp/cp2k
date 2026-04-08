@@ -653,7 +653,9 @@ if(CP2K_USE_ACCEL MATCHES "OPENCL")
   find_package(OpenCL REQUIRED)
 
   # Locate LIBXSTREAM: user override > pkg-config > path probing
-  set(LIBXSTREAMROOT "" CACHE PATH "Root directory of LIBXSTREAM")
+  set(LIBXSTREAMROOT
+      ""
+      CACHE PATH "Root directory of LIBXSTREAM")
   if(NOT LIBXSTREAMROOT AND PkgConfig_FOUND)
     pkg_check_modules(_LIBXSTREAM QUIET libxstream)
     if(_LIBXSTREAM_FOUND)
@@ -669,11 +671,15 @@ if(CP2K_USE_ACCEL MATCHES "OPENCL")
     endforeach()
   endif()
   if(NOT LIBXSTREAMROOT OR NOT EXISTS "${LIBXSTREAMROOT}/include/libxstream.h")
-    message(FATAL_ERROR
-      "LIBXSTREAMROOT not found. Set -DLIBXSTREAMROOT=/path/to/libxstream")
+    message(
+      FATAL_ERROR
+        "LIBXSTREAMROOT not found. Set -DLIBXSTREAMROOT=/path/to/libxstream")
   endif()
   message(STATUS "Using LIBXSTREAM from ${LIBXSTREAMROOT}")
-  find_library(CP2K_LIBXSTREAM_LIBRARY xstream PATHS "${LIBXSTREAMROOT}/lib" NO_DEFAULT_PATH)
+  find_library(
+    CP2K_LIBXSTREAM_LIBRARY xstream
+    PATHS "${LIBXSTREAMROOT}/lib"
+    NO_DEFAULT_PATH)
   if(NOT CP2K_LIBXSTREAM_LIBRARY)
     message(FATAL_ERROR "libxstream library not found in ${LIBXSTREAMROOT}/lib")
   endif()
@@ -681,7 +687,8 @@ if(CP2K_USE_ACCEL MATCHES "OPENCL")
   set(CP2K_OPENCL_BACKEND "${LIBXSTREAMROOT}/include")
   set(CP2K_OPENCL_SCRIPT "${LIBXSTREAMROOT}/scripts/tool_opencl.sh")
   if(EXISTS ${CP2K_OPENCL_SCRIPT})
-    set(CP2K_OPENCL_COMMON "${LIBXSTREAMROOT}/include/opencl/libxstream_atomics.h")
+    set(CP2K_OPENCL_COMMON
+        "${LIBXSTREAMROOT}/include/opencl/libxstream_atomics.h")
     set(CP2K_USE_OPENCL ON)
     message(STATUS "OpenCL backend found")
   else()
