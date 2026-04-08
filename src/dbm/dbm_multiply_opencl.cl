@@ -75,7 +75,7 @@
 
 /* Sub-group block read for A: each lane loads one row-element from a
    contiguous column of A. Requires DBM_M == SG (flat dispatch). */
-#if defined(BLKRD_A) && defined(SG) && (0 < SG)
+#if (defined(BLKRD_A) || defined(BLKRD_P)) && defined(SG) && (0 < SG)
 #if defined(PRECISION) && (1 == PRECISION)
 #define A_BLOCK_READ(PTR)                                                      \
   as_float(intel_sub_group_block_read((const global uint *)(PTR)))
@@ -251,7 +251,90 @@ dbm_multiply(double alpha, int itask, int ntasks, int size, int param_format,
 #else
   TYPE cvec[BN];
 #endif
-#if defined(SGBCST) && defined(BCST_SG)
+#if defined(BLKRD_P) && defined(A_BLOCK_READ) && defined(BCST_SG)
+  { /* per-task dispatch: block-read A, broadcast B */
+    const int tid = (int)get_group_id(0);
+    const SINT sid = (SINT)get_sub_group_local_id();
+    SINT shape[3], ibase = 0;
+    DBM_TASK_DECODE(itask, tid, param_format, params, shape, ibase);
+    DBM_SHAPE_OVERRIDE(shape);
+    {
+      CONSTANT const double *restrict al = a + XA(params, ibase);
+      CONSTANT const double *restrict bl = b + XB(params, ibase);
+      const int c0 = XC(params, ibase);
+      const SINT xm = XM(shape), xn = XN(shape), xk = XK(shape);
+      const SINT nsg = (SINT)get_num_sub_groups();
+      SINT mb = (SINT)get_sub_group_id() * SG;
+      /* full M-blocks: sub-group block reads */
+      for (; mb + SG <= xm; mb += nsg * SG) {
+        const SINT m = mb + sid;
+        SINT n0 = 0;
+        UNROLL_FORCE(BN) for (SINT i = 0; i < BN; ++i) cvec[i] = ZERO;
+        UNROLL_OUTER(1) for (; n0 + BN <= xn; n0 += BN) {
+          UNROLL(BK) for (SINT k = 0; k < xk; ++k) {
+            const TYPE ak = CVT(A_BLOCK_READ(al + k * xm + mb));
+            UNROLL_AUTO for (SINT n = 0; n < BN; ++n) {
+              cvec[n] = MAD(ak, BCST_SG(CVT(bl[IDX(k, n0 + n, xk, xn)]), 0),
+                            cvec[n]);
+            }
+          }
+          UNROLL_AUTO for (SINT n = 0; n < BN; ++n) {
+            DBM_ACCUMULATE(c + c0 + XI(m, n0 + n, xm, xn), alpha * cvec[n]);
+          }
+          UNROLL_FORCE(BN) for (SINT i = 0; i < BN; ++i) cvec[i] = ZERO;
+        }
+        { const SINT nr = xn - n0;
+          UNROLL(BK) for (SINT k = 0; k < xk; ++k) {
+            const TYPE ak = CVT(A_BLOCK_READ(al + k * xm + mb));
+            UNROLL_AUTO for (SINT n = 0; n < nr; ++n) {
+              cvec[n] = MAD(ak, BCST_SG(CVT(bl[IDX(k, n0 + n, xk, xn)]), 0),
+                            cvec[n]);
+            }
+          }
+          UNROLL_AUTO for (SINT n = 0; n < nr; ++n) {
+            DBM_ACCUMULATE(c + c0 + XI(m, n0 + n, xm, xn), alpha * cvec[n]);
+          }
+        }
+      }
+      /* partial M-block: scalar loads with masking */
+      if (mb < xm) {
+        const SINT m = mb + sid;
+        const int mactive = (m < xm);
+        SINT n0 = 0;
+        UNROLL_FORCE(BN) for (SINT i = 0; i < BN; ++i) cvec[i] = ZERO;
+        UNROLL_OUTER(1) for (; n0 + BN <= xn; n0 += BN) {
+          UNROLL(BK) for (SINT k = 0; k < xk; ++k) {
+            const TYPE ak = mactive ? CVT(al[IDT(m, k, xm, xk)]) : ZERO;
+            UNROLL_AUTO for (SINT n = 0; n < BN; ++n) {
+              cvec[n] = MAD(ak, BCST_SG(CVT(bl[IDX(k, n0 + n, xk, xn)]), 0),
+                            cvec[n]);
+            }
+          }
+          if (mactive) {
+            UNROLL_AUTO for (SINT n = 0; n < BN; ++n) {
+              DBM_ACCUMULATE(c + c0 + XI(m, n0 + n, xm, xn), alpha * cvec[n]);
+            }
+          }
+          UNROLL_FORCE(BN) for (SINT i = 0; i < BN; ++i) cvec[i] = ZERO;
+        }
+        { const SINT nr = xn - n0;
+          UNROLL(BK) for (SINT k = 0; k < xk; ++k) {
+            const TYPE ak = mactive ? CVT(al[IDT(m, k, xm, xk)]) : ZERO;
+            UNROLL_AUTO for (SINT n = 0; n < nr; ++n) {
+              cvec[n] = MAD(ak, BCST_SG(CVT(bl[IDX(k, n0 + n, xk, xn)]), 0),
+                            cvec[n]);
+            }
+          }
+          if (mactive) {
+            UNROLL_AUTO for (SINT n = 0; n < nr; ++n) {
+              DBM_ACCUMULATE(c + c0 + XI(m, n0 + n, xm, xn), alpha * cvec[n]);
+            }
+          }
+        }
+      }
+    }
+  }
+#elif defined(SGBCST) && defined(BCST_SG)
   { /* per-task dispatch: broadcast shares A */
     const int tid = (int)get_group_id(0);
     const SINT sid = (SINT)get_local_id(0);
