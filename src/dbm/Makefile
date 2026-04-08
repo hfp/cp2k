@@ -166,8 +166,13 @@ ifneq ($(OPENCL),0)
 OPENCL_SRC := $(PROJHOME)/dbm_multiply_opencl.cl
 OPENCL_CMN := $(wildcard $(LIBXSTREAMROOT)/include/opencl/*.h)
 OPENCL_GEN := $(LIBXSTREAMROOT)/scripts/tool_opencl.sh
-ALL_HEADERS += $(OPENCL_GENKRNL)
+OPENCL_ARG := -b 6 -p "" -I $(LIBXSTREAMROOT)/include
 
+ifneq (,$(filter-out 0,$(DBG)))
+  OPENCL_ARG += -d
+endif
+
+ALL_HEADERS += $(OPENCL_GENKRNL)
 ALL_OBJECTS += dbm_multiply_gpu.o dbm_multiply_opencl.o
 CFLAGS += -D__OFFLOAD_OPENCL -I$(CP2KHOME)/exts/dbcsr
 LIBS += -lgfortran
@@ -217,7 +222,7 @@ endif
 
 dbm_miniapp.x: $(OPENCL_OFFLOAD)
 $(OPENCL_GENKRNL): $(OPENCL_GEN) $(OPENCL_SRC) $(OPENCL_CMN)
-	$(OPENCL_GEN) -b 6 -p "" -I $(LIBXSTREAMROOT)/include $(OPENCL_SRC) $@
+	$(OPENCL_GEN) $(OPENCL_ARG) $(OPENCL_SRC) $@
 
 
 # Enable Cuda when nvcc compiler is present.
