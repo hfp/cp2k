@@ -87,11 +87,11 @@
 #define DBM_MUL(ALPHA, IBASE, SHIFT, SHAPE, A, B, C, CVEC, M, BN)              \
   do {                                                                         \
     SINT n0 = 0, n1 = XN(SHAPE) - (BN);                                        \
-    UNROLL_FORCE(BN) for (SINT n = 0; n < (BN); ++n) { (CVEC)[n] = 0; }        \
+    UNROLL_FORCE(BN) for (SINT n = 0; n < (BN); ++n) { (CVEC)[n] = ZERO; }     \
     UNROLL_OUTER(1) for (; n0 <= n1; n0 += (BN)) {                             \
       DBM_MUL_KERNEL(IBASE, SHIFT, SHAPE, A, B, CVEC, M, n0, BN);              \
       DBM_MUL_STORE(ALPHA, IBASE, SHIFT, SHAPE, C, CVEC, M, n0, BN);           \
-      UNROLL_FORCE(BN) for (SINT n = 0; n < (BN); ++n) { (CVEC)[n] = 0; }      \
+      UNROLL_FORCE(BN) for (SINT n = 0; n < (BN); ++n) { (CVEC)[n] = ZERO; }   \
     }                                                                          \
     n1 = XN(SHAPE) - n0;                                                       \
     DBM_MUL_KERNEL(IBASE, SHIFT, SHAPE, A, B, CVEC, M, n0, n1);                \
@@ -132,7 +132,7 @@
   do {                                                                         \
     const SINT xm_ = XM(SHAPE);                                                \
     for (SINT mb = 0; mb < xm_; mb += (BN)) {                                  \
-      UNROLL_FORCE(BN) for (SINT m = 0; m < (BN); ++m) { (CVEC)[m] = 0; }      \
+      UNROLL_FORCE(BN) for (SINT m = 0; m < (BN); ++m) { (CVEC)[m] = ZERO; }   \
       DBM_BCST_KERNEL(IBASE, SHIFT, SHAPE, A, B, CVEC, SID, N, mb, BN);        \
       if (ACTIVE) {                                                            \
         DBM_BCST_STORE(ALPHA, IBASE, SHIFT, SHAPE, C, CVEC, N, mb,             \
@@ -237,7 +237,7 @@ dbm_multiply(double alpha, int itask, int ntasks, int size, int param_format,
       b += XB(params, ibase);
       for (SINT it = 0; it < xm; it += tm) {
         for (SINT jt = 0; jt < xn; jt += tn) {
-          TYPE res = 0;
+          TYPE res = ZERO;
           for (SINT lt = 0; lt < xk; lt += tk) {
             /* cooperative load of A-tile into SLM */
             if (x < tm && y < tk) {
