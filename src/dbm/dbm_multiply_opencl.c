@@ -148,7 +148,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         dbm_multiply_opencl_smm < task.max_k || 0 == task.max_k || 1 != alpha)
 #endif
     { /* base init state: computed once, shared across all specializations */
-      static int ndims = 1, clinear = 0, sgbcst = 0, slm_ab = 0;
+      static int ndims = 1, clinear = 0, sgbcst = 0;
       static int nz = 0, blkrd = 0, base_ready = 0;
       static size_t wgsize[] = {1, 1, 1}, sgsize_s = 0;
       static char base_flags[LIBXSTREAM_BUFFERSIZE];
@@ -184,7 +184,6 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
           const char *const krn_env = getenv("DBM_MULTIPLY_KERNEL");
           const char *const gen_env = getenv("DBM_MULTIPLY_GEN");
           const char *const sgb_env = getenv("DBM_MULTIPLY_SGB");
-          const char *const tab_env = getenv("DBM_MULTIPLY_TAB");
           const char *const lin_env = getenv("DBM_MULTIPLY_LIN");
           const char *const fp_env = getenv("DBM_MULTIPLY_FP");
           const char *const bn_env = getenv("DBM_MULTIPLY_BN");
@@ -205,7 +204,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
           const int gpu = (CL_DEVICE_TYPE_GPU == devinfo->type);
           const int precision = (NULL == fp_env ? 0 /*default*/ : atoi(fp_env));
           const int gen0 =
-              (NULL == sgb_env && NULL == lin_env && NULL == tab_env &&
+              (NULL == sgb_env && NULL == lin_env &&
                NULL == fp_env && NULL == bn_env && NULL == sm_env &&
                NULL == wg_env && NULL == lu_env && NULL == ro_env &&
                NULL == nz_env && 0 == param_format);
@@ -274,8 +273,6 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             sgbcst = (0 != gpu && 0 < sgsize && 0 < wgsize[0] &&
                       2 <= devinfo->std_level[0] &&
                       (NULL == sgb_env ? 1 /*default*/ : (0 != atoi(sgb_env))));
-            slm_ab = (0 < wgsize[0] &&
-                      (NULL == tab_env ? 0 /*default*/ : (0 != atoi(tab_env))));
             cmem =
 #if defined(LIBXSTREAM_CMEM)
                 (0 > ro &&
@@ -289,9 +286,9 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                 " %s %s %s -DCONSTANT=%s"
                 " -DBN=%i -DSM=%i -DLU=%i -DWG=%i -DSG=%i",
                 0 != gpu ? "-DGPU" : "", 0 == clinear ? "" : "-DCLINEAR",
-                0 != slm_ab ? "-DSLM_AB" : (0 != sgbcst ? "-DSGBCST" : ""),
+                0 != sgbcst ? "-DSGBCST" : "",
                 cmem, bn, sm, lu, (int)wgsize[0], (int)sgsize);
-            blkrd = (0 == clinear && 0 == slm_ab &&
+            blkrd = (0 == clinear &&
                      0 != devinfo->intel && 0 < (int)sgsize &&
                      'g' == cmem[0]);
             if (0 != precision) {
@@ -315,7 +312,6 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             fprintf(stderr, "INFO ACC/LIBDBM: DBM-kernel gpu=%i", gpu);
             dbm_multiply_opencl_print(stderr, "gen", gen);
             dbm_multiply_opencl_print(stderr, "sgb", sgbcst);
-            dbm_multiply_opencl_print(stderr, "tab", slm_ab);
             dbm_multiply_opencl_print(stderr, "lin", clinear);
             dbm_multiply_opencl_print(stderr, "fp", precision);
             dbm_multiply_opencl_print(stderr, "bn", bn);
@@ -493,7 +489,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
       } else {
         const cl_int size =
             (cl_int)(work_tasks * (0 == clinear ? task.max_m : task.max_n));
-        if ((0 != slm_ab || 0 != sgbcst) && 0 == use_blkrd) {
+        if (0 != sgbcst && 0 == use_blkrd) {
           work_size[0] = work_tasks * wgsize[0]; /* per-task dispatch */
         } else { /* flat dispatch (or block-read override) */
           work_size[0] = (0 < wgsize[0] ? LIBXS_UP((size_t)size, wgsize[0])
