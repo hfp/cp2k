@@ -149,8 +149,8 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
 #endif
     { /* base init state: computed once, shared across all specializations */
       static int ndims = 1, clinear = 0, sgbcst = 0, slm_ab = 0;
-      static int nz = 0, base_ready = 0;
-      static size_t wgsize[] = {1, 1, 1};
+      static int nz = 0, blkrd = 0, base_ready = 0;
+      static size_t wgsize[] = {1, 1, 1}, sgsize_s = 0;
       static char base_flags[LIBXSTREAM_BUFFERSIZE];
       static const char *base_options /*= NULL*/;
       static const char *base_source /*= NULL*/;
@@ -175,7 +175,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
       size_t iadata = 0, ibdata = 0, icdata = 0;
       const size_t work_tasks = ntasks;
       cl_kernel kernel = NULL;
-      int bk;
+      int bk, use_blkrd = 0;
       assert(NULL != str && NULL != str->queue);
       /* base init (once): env vars, flags, source, extensions */
       if (0 == LIBXS_ATOMIC_LOAD(&base_ready, LIBXS_ATOMIC_SEQ_CST)) {
@@ -244,6 +244,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             gen = 0; /* unknown */
           }
           if (0 == gen) { /* assemble preprocessor flags */
+            const char *cmem = NULL;
             wgsize[0] = (NULL == wg_env ? LIBXS_MAX((unsigned long int)sm,
                                                     devinfo->wgsize[1])
                                         : strtoul(wg_env, NULL, 10));
@@ -275,23 +276,24 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                       (NULL == sgb_env ? 1 /*default*/ : (0 != atoi(sgb_env))));
             slm_ab = (0 < wgsize[0] &&
                       (NULL == tab_env ? 0 /*default*/ : (0 != atoi(tab_env))));
-            {
-              const char *const cmem =
+            cmem =
 #if defined(LIBXSTREAM_CMEM)
-                  (0 > ro &&
-                   EXIT_SUCCESS == libxstream_opencl_use_cmem(devinfo))
-                      ? "constant"
-                      :
+                (0 > ro &&
+                 EXIT_SUCCESS == libxstream_opencl_use_cmem(devinfo))
+                    ? "constant"
+                    :
 #endif
-                      (0 >= ro ? "global" : "constant");
-              offset += (size_t)LIBXS_SNPRINTF(
-                  base_flags + offset, sizeof(base_flags) - offset,
-                  " %s %s %s -DCONSTANT=%s"
-                  " -DBN=%i -DSM=%i -DLU=%i -DWG=%i -DSG=%i",
-                  0 != gpu ? "-DGPU" : "", 0 == clinear ? "" : "-DCLINEAR",
-                  0 != slm_ab ? "-DSLM_AB" : (0 != sgbcst ? "-DSGBCST" : ""),
-                  cmem, bn, sm, lu, (int)wgsize[0], (int)sgsize);
-            }
+                    (0 >= ro ? "global" : "constant");
+            offset += (size_t)LIBXS_SNPRINTF(
+                base_flags + offset, sizeof(base_flags) - offset,
+                " %s %s %s -DCONSTANT=%s"
+                " -DBN=%i -DSM=%i -DLU=%i -DWG=%i -DSG=%i",
+                0 != gpu ? "-DGPU" : "", 0 == clinear ? "" : "-DCLINEAR",
+                0 != slm_ab ? "-DSLM_AB" : (0 != sgbcst ? "-DSGBCST" : ""),
+                cmem, bn, sm, lu, (int)wgsize[0], (int)sgsize);
+            blkrd = (0 == clinear && 0 == slm_ab &&
+                     0 != devinfo->intel && 0 < (int)sgsize &&
+                     'g' == cmem[0]);
             if (0 != precision) {
               offset += (size_t)LIBXS_SNPRINTF(base_flags + offset,
                                                sizeof(base_flags) - offset,
@@ -303,6 +305,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                                                sizeof(base_flags) - offset,
                                                " -DNZ=%i", nz);
             }
+            sgsize_s = sgsize;
           }
           base_source = source;
           base_source_kind = source_kind;
@@ -321,6 +324,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             dbm_multiply_opencl_print(stderr, "sg", (int)sgsize);
             dbm_multiply_opencl_print(stderr, "lu", lu);
             dbm_multiply_opencl_print(stderr, "nz", nz);
+            dbm_multiply_opencl_print(stderr, "blk", blkrd);
             fprintf(stderr, " -> %.1f ms\n",
                     1E3 * DBM_TIMER_DIFF(start, DBM_TIMER_TICK()));
           }
@@ -361,6 +365,9 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         } else { /* heterogeneous: max_m for compile-time division */
           key.max_m = (0 == clinear ? task.max_m : task.max_n);
         }
+        use_blkrd = (0 != blkrd && 0 != key.m && 16 <= key.m &&
+                     key.m <= (int)sgsize_s &&
+                     0 == (key.m & (key.m - 1)));
         kptr = (cl_kernel *)libxs_registry_get(kernel_registry, &key,
             sizeof(key), libxs_registry_lock(kernel_registry));
         if (NULL == kptr || NULL == *kptr) { /* compile specialization */
@@ -373,12 +380,15 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             cl_kernel kernel_new = NULL;
             size_t wgs[3];
             if (0 != key.m) { /* homogeneous: add shape defines */
-              const int n =
+              { const int n =
                   LIBXS_SNPRINTF(flags, sizeof(flags),
-                                 "%s -DBK=%i -DDBM_M=%i -DDBM_N=%i -DDBM_K=%i",
-                                 base_flags, key.bk, key.m, key.n, key.k);
+                                 "%s -DBK=%i -DDBM_M=%i -DDBM_N=%i -DDBM_K=%i"
+                                 "%s",
+                                 base_flags, key.bk, key.m, key.n, key.k,
+                                 0 != use_blkrd ? " -DBLKRD_A -USGBCST" : "");
               assert(0 < n && (size_t)n < sizeof(flags));
               LIBXS_UNUSED(n);
+              }
             } else if (0 < key.max_m) { /* heterogeneous with known max_m */
               const int n =
                   LIBXS_SNPRINTF(flags, sizeof(flags), "%s -DBK=%i -DMAX_M=%i",
@@ -483,9 +493,9 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
       } else {
         const cl_int size =
             (cl_int)(work_tasks * (0 == clinear ? task.max_m : task.max_n));
-        if (0 != slm_ab || 0 != sgbcst) { /* per-task dispatch */
-          work_size[0] = work_tasks * wgsize[0];
-        } else { /* flat dispatch */
+        if ((0 != slm_ab || 0 != sgbcst) && 0 == use_blkrd) {
+          work_size[0] = work_tasks * wgsize[0]; /* per-task dispatch */
+        } else { /* flat dispatch (or block-read override) */
           work_size[0] = (0 < wgsize[0] ? LIBXS_UP((size_t)size, wgsize[0])
                                         : (size_t)size);
         }

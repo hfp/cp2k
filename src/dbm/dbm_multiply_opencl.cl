@@ -31,11 +31,16 @@
 #define XB(T, IBASE) (XN(T) - IBASE)
 #define XC(T, IBASE) (XK(T) - IBASE)
 
-/* When exact shape is known (homogeneous batches), use K directly for
-   full unrolling; otherwise fall back to the BK threshold from the host. */
+/* When exact shape is known (homogeneous batches), use K for unrolling
+   but cap at 8 to avoid instruction-cache pressure for larger K values.
+   Otherwise fall back to the BK threshold from the host. */
 #if defined(DBM_M) && defined(DBM_N) && defined(DBM_K)
 #undef BK
+#if (DBM_K <= 8)
 #define BK DBM_K
+#else
+#define BK 8
+#endif
 #elif !defined(BK) || (0 >= BK)
 #define BK 1
 #endif
@@ -60,6 +65,34 @@
 #define DBM_ACCUMULATE(PTR, VAL) ACCUMULATE(PTR, VAL)
 #endif
 
+/* When block reads are enabled and the exact M dimension is known,
+   override SG so each sub-group maps exactly to one task's M rows.
+   Must appear before intel_reqd_sub_group_size(SG) attribute below. */
+#if defined(BLKRD_A) && defined(DBM_M) && defined(SG) && (DBM_M != SG)
+#undef SG
+#define SG DBM_M
+#endif
+
+/* Sub-group block read for A: each lane loads one row-element from a
+   contiguous column of A. Requires DBM_M == SG (flat dispatch). */
+#if defined(BLKRD_A) && defined(SG) && (0 < SG)
+#if defined(PRECISION) && (1 == PRECISION)
+#define A_BLOCK_READ(PTR)                                                      \
+  as_float(intel_sub_group_block_read((const global uint *)(PTR)))
+#else
+#define A_BLOCK_READ(PTR)                                                      \
+  as_double(intel_sub_group_block_read_ul((const global ulong *)(PTR)))
+#endif
+#endif
+
+#if defined(A_BLOCK_READ)
+#define LOAD_A(A, IBASE, SHIFT, SHAPE, M, K)                                  \
+  CVT(A_BLOCK_READ((A) + XA(SHIFT, IBASE) + (K) * XM(SHAPE)))
+#else
+#define LOAD_A(A, IBASE, SHIFT, SHAPE, M, K)                                  \
+  CVT((A)[XA(SHIFT, IBASE) + IDT(M, K, XM(SHAPE), XK(SHAPE))])
+#endif
+
 /* Row-oriented store: flush CVEC[0..N1-1] to C[M, N0..N0+N1-1] */
 #define DBM_MUL_STORE(ALPHA, IBASE, SHIFT, SHAPE, C, CVEC, M, N0, N1)          \
   do {                                                                         \
@@ -75,8 +108,7 @@
   do {                                                                         \
     UNROLL(BK) for (SINT k = 0; k < XK(SHAPE); ++k) {                          \
       const int ik = IDX(k, N0, XK(SHAPE), XN(SHAPE));                         \
-      const TYPE ak =                                                          \
-          CVT((A)[XA(SHIFT, IBASE) + IDT(M, k, XM(SHAPE), XK(SHAPE))]);        \
+      const TYPE ak = LOAD_A(A, IBASE, SHIFT, SHAPE, M, k);                    \
       UNROLL_AUTO for (SINT n = 0; n < (BN); ++n) {                            \
         (CVEC)[n] = MAD(ak, CVT((B)[ik + n]), (CVEC)[n]);                      \
       }                                                                        \
