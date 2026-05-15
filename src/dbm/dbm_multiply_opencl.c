@@ -281,16 +281,18 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                     :
 #endif
                     (0 >= ro ? "global" : "constant");
+            blkrd = (0 == clinear &&
+                     0 != devinfo->intel && 0 < (int)sgsize);
+            if (0 != blkrd && 'g' != cmem[0]) {
+              cmem = "global"; /* block reads require global address space */
+            }
             offset += (size_t)LIBXS_SNPRINTF(
                 base_flags + offset, sizeof(base_flags) - offset,
                 " %s %s %s -DCONSTANT=%s"
-                " -DBN=%i -DSM=%i -DLU=%i -DWG=%i -DSG=%i",
+                " -DBN=%i -DSM=%i -DLU=%i -DWG=%i -DSG=%i -DINTEL=%i",
                 0 != gpu ? "-DGPU" : "", 0 == clinear ? "" : "-DCLINEAR",
                 0 != sgbcst ? "-DSGBCST" : "",
-                cmem, bn, sm, lu, (int)wgsize[0], (int)sgsize);
-            blkrd = (0 == clinear &&
-                     0 != devinfo->intel && 0 < (int)sgsize &&
-                     'g' == cmem[0]);
+                cmem, bn, sm, lu, (int)wgsize[0], (int)sgsize, (int)(0 != devinfo->intel));
             if (0 != precision) {
               offset += (size_t)LIBXS_SNPRINTF(base_flags + offset,
                                                sizeof(base_flags) - offset,
@@ -358,14 +360,16 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
           key.n = task.max_n;
           key.k = task.max_k;
           key.bk = task.max_k; /* exact K for full unrolling */
-        } else { /* heterogeneous: max_m for compile-time division */
-          key.max_m = (0 == clinear ? task.max_m : task.max_n);
+        } else { /* heterogeneous: max_m for compile-time division.
+                    With BLKRD_P (per-task dispatch), max_m is unused
+                    so omit it to consolidate into fewer kernels. */
+          if (0 == blkrd) {
+            key.max_m = (0 == clinear ? task.max_m : task.max_n);
+          }
         }
-        use_blkrd = (0 != blkrd &&
-                     ((0 != key.m && 16 <= key.m &&
-                       key.m <= (int)sgsize_s &&
-                       0 == (key.m & (key.m - 1))) ||
-                      (0 == key.m) /* heterogeneous */));
+        use_blkrd = (0 != blkrd && 0 != key.m && 16 <= key.m &&
+                     key.m <= (int)sgsize_s &&
+                     0 == (key.m & (key.m - 1)));
         kptr = (cl_kernel *)libxs_registry_get(kernel_registry, &key,
             sizeof(key), libxs_registry_lock(kernel_registry));
         if (NULL == kptr || NULL == *kptr) { /* compile specialization */
@@ -383,7 +387,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                                  "%s -DBK=%i -DDBM_M=%i -DDBM_N=%i -DDBM_K=%i"
                                  "%s",
                                  base_flags, key.bk, key.m, key.n, key.k,
-                                 0 != use_blkrd ? " -DBLKRD_A -USGBCST" : "");
+                                 0 != use_blkrd ? " -DBLKRD_A" : "");
               assert(0 < n && (size_t)n < sizeof(flags));
               LIBXS_UNUSED(n);
               }
@@ -392,14 +396,14 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                   LIBXS_SNPRINTF(flags, sizeof(flags),
                                  "%s -DBK=%i -DMAX_M=%i%s",
                                  base_flags, bk, key.max_m,
-                                 0 != use_blkrd ? " -DBLKRD_P -USGBCST" : "");
+                                 0 != blkrd ? " -DBLKRD_P" : "");
               assert(0 < n && (size_t)n < sizeof(flags));
               LIBXS_UNUSED(n);
             } else { /* heterogeneous: BK only */
               const int n =
                   LIBXS_SNPRINTF(flags, sizeof(flags), "%s -DBK=%i%s",
                                  base_flags, bk,
-                                 0 != use_blkrd ? " -DBLKRD_P -USGBCST" : "");
+                                 0 != blkrd ? " -DBLKRD_P" : "");
               assert(0 < n && (size_t)n < sizeof(flags));
               LIBXS_UNUSED(n);
             }

@@ -65,12 +65,17 @@
 #define DBM_ACCUMULATE(PTR, VAL) ACCUMULATE(PTR, VAL)
 #endif
 
-/* When block reads are enabled and the exact M dimension is known,
-   override SG so each sub-group maps exactly to one task's M rows.
+/* When block reads are enabled, override SG for optimal tile geometry.
+   For BLKRD_A (homogeneous): SG = DBM_M so each sub-group = one task.
+   For BLKRD_P (heterogeneous): SG = 16 to match the proven 16x16 tile
+   and reduce register pressure vs SG=32.
    Must appear before intel_reqd_sub_group_size(SG) attribute below. */
 #if defined(BLKRD_A) && defined(DBM_M) && defined(SG) && (DBM_M != SG)
 #undef SG
 #define SG DBM_M
+#elif defined(BLKRD_P) && defined(SG) && (16 < SG)
+#undef SG
+#define SG 16
 #endif
 
 /* Sub-group block read for A: each lane loads one row-element from a
@@ -227,7 +232,7 @@
 
 #if defined(WG) && (0 < WG)
 __attribute__((reqd_work_group_size(WG, 1, 1)))
-#if defined(SG) && (0 < SG)
+#if defined(SG) && (0 < SG) && defined(INTEL) && (0 != INTEL)
 __attribute__((intel_reqd_sub_group_size(SG)))
 #endif
 #endif
@@ -252,7 +257,10 @@ dbm_multiply(double alpha, int itask, int ntasks, int size, int param_format,
   TYPE cvec[BN];
 #endif
 #if defined(BLKRD_P) && defined(A_BLOCK_READ) && defined(BCST_SG)
-  { /* per-task dispatch: block-read A, broadcast B */
+  { /* per-task dispatch: block-read A, B distributed across lanes.
+       Each lane holds one M-row (via block read) and one B-column
+       (via lane distribution). sub_group_broadcast fans B out to
+       SG N-columns per K-step, matching the 2024 generated kernel. */
     const int tid = (int)get_group_id(0);
     const SINT sid = (SINT)get_sub_group_local_id();
     SINT shape[3], ibase = 0;
@@ -264,77 +272,54 @@ dbm_multiply(double alpha, int itask, int ntasks, int size, int param_format,
       const int c0 = XC(params, ibase);
       const SINT xm = XM(shape), xn = XN(shape), xk = XK(shape);
       const SINT nsg = (SINT)get_num_sub_groups();
-      SINT mb = (SINT)get_sub_group_id() * SG;
-      /* full M-blocks: sub-group block reads */
-      for (; mb + SG <= xm; mb += nsg * SG) {
+      TYPE c_acc[SG];
+      /* M-tiling: each sub-group handles SG consecutive rows */
+      for (SINT mb = (SINT)get_sub_group_id() * SG; mb < xm; mb += nsg * SG) {
         const SINT m = mb + sid;
-        SINT n0 = 0;
-        UNROLL_FORCE(BN) for (SINT i = 0; i < BN; ++i) cvec[i] = ZERO;
-        UNROLL_OUTER(1) for (; n0 + BN <= xn; n0 += BN) {
-          UNROLL(BK) for (SINT k = 0; k < xk; ++k) {
-            const TYPE ak = CVT(A_BLOCK_READ(al + k * xm + mb));
-            UNROLL_AUTO for (SINT n = 0; n < BN; ++n) {
-              cvec[n] = MAD(ak, BCST_SG(CVT(bl[IDX(k, n0 + n, xk, xn)]), 0),
-                            cvec[n]);
+        /* N-tiling by SG columns: lane sid holds B-column sid+n0 */
+        for (SINT n0 = 0; n0 < xn; n0 += SG) {
+          SINT k = 0;
+          UNROLL_FORCE(SG) for (SINT i = 0; i < SG; ++i) c_acc[i] = ZERO;
+          /* K-blocked by 8: batch A loads then compute */
+          UNROLL_OUTER(1) for (; k + 8 <= xk; k += 8) {
+            TYPE a_reg[8];
+            if (mb + SG <= xm) {
+              UNROLL_FORCE(8) for (SINT kb = 0; kb < 8; ++kb)
+                a_reg[kb] = CVT(A_BLOCK_READ(al + (k + kb) * xm + mb));
+            } else {
+              UNROLL_FORCE(8) for (SINT kb = 0; kb < 8; ++kb)
+                a_reg[kb] = (m < xm)
+                    ? CVT(al[IDT(m, k + kb, xm, xk)]) : ZERO;
+            }
+            UNROLL_FORCE(8) for (SINT kb = 0; kb < 8; ++kb) {
+              const TYPE bv = (sid + n0 < xn)
+                  ? CVT(bl[IDX(k + kb, sid + n0, xk, xn)]) : ZERO;
+              UNROLL_FORCE(SG) for (SINT n = 0; n < SG; ++n)
+                c_acc[n] = MAD(a_reg[kb], BCST_SG(bv, (uint)n), c_acc[n]);
             }
           }
-          UNROLL_AUTO for (SINT n = 0; n < BN; ++n) {
-            DBM_ACCUMULATE(c + c0 + XI(m, n0 + n, xm, xn), alpha * cvec[n]);
+          /* K remainder */
+          for (; k < xk; ++k) {
+            const TYPE ak = (mb + SG <= xm)
+                ? CVT(A_BLOCK_READ(al + k * xm + mb))
+                : ((m < xm) ? CVT(al[IDT(m, k, xm, xk)]) : ZERO);
+            const TYPE bv = (sid + n0 < xn)
+                ? CVT(bl[IDX(k, sid + n0, xk, xn)]) : ZERO;
+            UNROLL_FORCE(SG) for (SINT n = 0; n < SG; ++n)
+              c_acc[n] = MAD(ak, BCST_SG(bv, (uint)n), c_acc[n]);
           }
-          UNROLL_FORCE(BN) for (SINT i = 0; i < BN; ++i) cvec[i] = ZERO;
-        }
-        { const SINT nr = xn - n0;
-          UNROLL(BK) for (SINT k = 0; k < xk; ++k) {
-            const TYPE ak = CVT(A_BLOCK_READ(al + k * xm + mb));
-            UNROLL_AUTO for (SINT n = 0; n < nr; ++n) {
-              cvec[n] = MAD(ak, BCST_SG(CVT(bl[IDX(k, n0 + n, xk, xn)]), 0),
-                            cvec[n]);
-            }
-          }
-          UNROLL_AUTO for (SINT n = 0; n < nr; ++n) {
-            DBM_ACCUMULATE(c + c0 + XI(m, n0 + n, xm, xn), alpha * cvec[n]);
-          }
-        }
-      }
-      /* partial M-block: scalar loads with masking */
-      if (mb < xm) {
-        const SINT m = mb + sid;
-        const int mactive = (m < xm);
-        SINT n0 = 0;
-        UNROLL_FORCE(BN) for (SINT i = 0; i < BN; ++i) cvec[i] = ZERO;
-        UNROLL_OUTER(1) for (; n0 + BN <= xn; n0 += BN) {
-          UNROLL(BK) for (SINT k = 0; k < xk; ++k) {
-            const TYPE ak = mactive ? CVT(al[IDT(m, k, xm, xk)]) : ZERO;
-            UNROLL_AUTO for (SINT n = 0; n < BN; ++n) {
-              cvec[n] = MAD(ak, BCST_SG(CVT(bl[IDX(k, n0 + n, xk, xn)]), 0),
-                            cvec[n]);
-            }
-          }
-          if (mactive) {
-            UNROLL_AUTO for (SINT n = 0; n < BN; ++n) {
-              DBM_ACCUMULATE(c + c0 + XI(m, n0 + n, xm, xn), alpha * cvec[n]);
-            }
-          }
-          UNROLL_FORCE(BN) for (SINT i = 0; i < BN; ++i) cvec[i] = ZERO;
-        }
-        { const SINT nr = xn - n0;
-          UNROLL(BK) for (SINT k = 0; k < xk; ++k) {
-            const TYPE ak = mactive ? CVT(al[IDT(m, k, xm, xk)]) : ZERO;
-            UNROLL_AUTO for (SINT n = 0; n < nr; ++n) {
-              cvec[n] = MAD(ak, BCST_SG(CVT(bl[IDX(k, n0 + n, xk, xn)]), 0),
-                            cvec[n]);
-            }
-          }
-          if (mactive) {
-            UNROLL_AUTO for (SINT n = 0; n < nr; ++n) {
-              DBM_ACCUMULATE(c + c0 + XI(m, n0 + n, xm, xn), alpha * cvec[n]);
-            }
+          /* store: only active M-rows and valid N-columns */
+          if (m < xm) {
+            const SINT ncols = MIN((SINT)SG, xn - n0);
+            UNROLL_AUTO for (SINT n = 0; n < ncols; ++n)
+              DBM_ACCUMULATE(c + c0 + XI(m, n0 + n, xm, xn),
+                             alpha * c_acc[n]);
           }
         }
       }
     }
   }
-#elif defined(SGBCST) && defined(BCST_SG)
+#elif defined(SGBCST) && defined(BCST_SG) && !defined(BLKRD_A)
   { /* per-task dispatch: broadcast shares A */
     const int tid = (int)get_group_id(0);
     const SINT sid = (SINT)get_local_id(0);
