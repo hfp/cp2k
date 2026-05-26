@@ -48,7 +48,6 @@ MODULE input_cp2k_global
                                               GRID_BACKEND_CPU,&
                                               GRID_BACKEND_DGEMM,&
                                               GRID_BACKEND_GPU,&
-                                              GRID_BACKEND_HIP,&
                                               GRID_BACKEND_REF
    USE input_constants,                 ONLY: &
         bsse_run, callgraph_all, callgraph_master, callgraph_none, cell_opt_run, debug_run, &
@@ -141,10 +140,12 @@ CONTAINS
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
-      CALL keyword_create(keyword, __LOCATION__, name="CUSOLVER_GENERALIZED", &
-                          description="Use cuSOLVERMp to solve the generalized eigenvalue problem directly on the GPU", &
-                          usage="CUSOLVER_GENERALIZED", &
-                          default_l_val=.TRUE., lone_keyword_l_val=.TRUE.)
+      CALL keyword_create(keyword, __LOCATION__, name="DIRECT_GENERALIZED_DIAGONALIZATION", &
+                          description="Request direct generalized eigenvalue problem diagonalization "// &
+                          "without a CP2K-side Cholesky reduction in supported dense matrix paths. "// &
+                          "The eigensolver is still selected by PREFERRED_DIAG_LIBRARY.", &
+                          usage="DIRECT_GENERALIZED_DIAGONALIZATION", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -390,8 +391,8 @@ CONTAINS
 
       CALL keyword_create( &
          keyword, __LOCATION__, name="RUN_TYPE", &
-         description="Type of run that you want to perform Geometry "// &
-         "optimization, md, montecarlo,...", &
+         description="Selects the top-level task CP2K should run, such as an energy, "// &
+         "energy-and-force, molecular dynamics, geometry optimization, or response calculation.", &
          usage="RUN_TYPE MD", &
          default_i_val=energy_force_run, &
          citations=[Ceriotti2014, Schonherr2014], &
@@ -400,14 +401,14 @@ CONTAINS
                          "BAND", "CELL_OPT", "WFN_OPT", "WAVEFUNCTION_OPTIMIZATION", &
                          "MOLECULAR_DYNAMICS", "GEOMETRY_OPTIMIZATION", "MONTECARLO", &
                          "LINEAR_RESPONSE", "NORMAL_MODES", "RT_PROPAGATION", &
-                         "EHRENFEST_DYN", "TAMC", "TMC", "DRIVER", "NEGF", "MIMIC"), &
+                         "EHRENFEST_DYN", "TAMC", "TMC", "DRIVER", "NEGF", "MIMIC", "RTP"), &
          enum_i_vals=[none_run, energy_run, energy_force_run, mol_dyn_run, &
                       geo_opt_run, mon_car_run, debug_run, &
                       bsse_run, linear_response_run, pint_run, vib_anal, do_band, &
                       cell_opt_run, energy_run, energy_run, mol_dyn_run, geo_opt_run, &
                       mon_car_run, linear_response_run, &
                       vib_anal, real_time_propagation, ehrenfest, do_tamc, tree_mc_run, &
-                      driver_run, negf_run, mimic_run], &
+                      driver_run, negf_run, mimic_run, real_time_propagation], &
          enum_desc=s2a("Perform no tasks", "Computes energy", "Computes energy and forces", &
                        "Molecular Dynamics", "Geometry Optimization", "Monte Carlo", &
                        "Performs a Debug analysis", "Basis set superposition error", "Linear Response", &
@@ -421,7 +422,8 @@ CONTAINS
                        "Tree Monte Carlo (TMC), a pre-sampling MC algorithm", &
                        "i-PI driver mode", &
                        "Non-equilibrium Green's function method", &
-                       "Run as a client in a simulation through the MiMiC framework"))
+                       "Run as a client in a simulation through the MiMiC framework", &
+                       "Alias for RT_PROPAGATION"))
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -803,14 +805,13 @@ CONTAINS
                           description="Selects the backed used by the grid library.", &
                           default_i_val=GRID_BACKEND_AUTO, &
                           enum_i_vals=[GRID_BACKEND_AUTO, GRID_BACKEND_REF, GRID_BACKEND_CPU, &
-                                       GRID_BACKEND_DGEMM, GRID_BACKEND_GPU, GRID_BACKEND_HIP], &
-                          enum_c_vals=s2a("AUTO", "REFERENCE", "CPU", "DGEMM", "GPU", "HIP"), &
+                                       GRID_BACKEND_DGEMM, GRID_BACKEND_GPU], &
+                          enum_c_vals=s2a("AUTO", "REFERENCE", "CPU", "DGEMM", "GPU"), &
                           enum_desc=s2a("Let the grid library pick the backend automatically", &
                                         "Reference backend implementation", &
                                         "Optimized CPU backend", &
                                         "Alternative CPU backend based on DGEMM", &
-                                        "GPU backend optimized for CUDA that also supports HIP", &
-                                        "HIP backend optimized for ROCm"))
+                                        "GPU backend optimized for NVIDIA and AMD GPU"))
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 

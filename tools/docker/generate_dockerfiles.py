@@ -34,7 +34,11 @@ def main() -> None:
         f.write(regtest("toolchain", "psmp"))
 
     with OutputFile(f"Dockerfile.test_fedora-psmp", args.check) as f:
-        f.write(install_deps_toolchain(base_image="fedora:41"))
+        f.write(install_deps_toolchain(base_image="fedora:44"))
+        f.write(regtest("toolchain", "psmp"))
+
+    with OutputFile(f"Dockerfile.test_rawhide-psmp", args.check) as f:
+        f.write(install_deps_toolchain(base_image="fedora:rawhide"))
         f.write(regtest("toolchain", "psmp"))
 
     for version in "ssmp", "psmp":
@@ -55,129 +59,179 @@ def main() -> None:
 
     # Spack/CMake based testers
 
+    testopts = f"--keepalive"
+
     with OutputFile(f"Dockerfile.test_spack_pdbg", args.check) as f:
         f.write(
-            install_cp2k_spack("pdbg", mpi_mode="mpich", feature_flags="-ef openpmd")
+            install_cp2k_spack(
+                version="pdbg",
+                mpi_mode="mpich",
+                feature_flags="-ef openpmd",
+                testopts="",
+                image_tag=f.image_tag,
+            )
         )
 
-    with OutputFile(f"Dockerfile.test_spack_psmp", args.check) as f:
-        f.write(
-            install_cp2k_spack("psmp", mpi_mode="mpich", feature_flags="-ef openpmd")
-        )
-
-    for gcc_version in 10, 11, 12, 14, 15:
+    for gcc_version in 10, 11, 12, 13, 14, 15, 16:
         with OutputFile(
             f"Dockerfile.test_spack_psmp-gcc{gcc_version}", args.check
         ) as f:
-            base_image = "ubuntu:26.04" if gcc_version > 14 else "ubuntu:24.04"
+            base_image = "ubuntu:26.04" if gcc_version > 12 else "ubuntu:24.04"
             f.write(
                 install_cp2k_spack(
-                    "psmp",
+                    version="psmp",
                     mpi_mode="mpich",
                     gcc_version=gcc_version,
                     base_image=base_image,
                     feature_flags="-ef openpmd",
+                    testopts=testopts,
+                    image_tag=f.image_tag,
                 )
             )
 
     with OutputFile(f"Dockerfile.test_spack_ssmp-rawhide", args.check) as f:
         f.write(
             install_cp2k_spack(
-                "ssmp",
+                version="ssmp",
                 mpi_mode="no",
                 base_image="fedora:rawhide",
                 gcc_version=16,
+                testopts=testopts,
+                image_tag=f.image_tag,
             )
         )
 
     with OutputFile(f"Dockerfile.test_spack_psmp-rawhide", args.check) as f:
         f.write(
             install_cp2k_spack(
-                "psmp",
+                version="psmp",
                 mpi_mode="mpich",
                 base_image="fedora:rawhide",
                 gcc_version=16,
                 feature_flags="-ef openpmd",
+                testopts=testopts,
+                image_tag=f.image_tag,
             )
         )
 
     with OutputFile(f"Dockerfile.test_spack_psmp-fedora", args.check) as f:
         f.write(
             install_cp2k_spack(
-                "psmp",
+                version="psmp",
                 mpi_mode="mpich",
                 base_image="fedora:latest",
                 gcc_version=15,
                 feature_flags="-ef openpmd",
+                testopts=testopts,
+                image_tag=f.image_tag,
             )
         )
 
     with OutputFile(f"Dockerfile.test_spack_psmp-opensuse", args.check) as f:
         f.write(
             install_cp2k_spack(
-                "psmp",
+                version="psmp",
                 mpi_mode="mpich",
-                base_image="opensuse/leap:15.6",
-                gcc_version=14,
+                base_image="opensuse/leap:16.0",
+                gcc_version=15,
                 feature_flags="-ef openpmd",
+                testopts=testopts,
+                image_tag=f.image_tag,
             )
         )
 
     with OutputFile(f"Dockerfile.test_spack_psmp-rockylinux", args.check) as f:
         f.write(
             install_cp2k_spack(
-                "psmp",
+                version="psmp",
                 mpi_mode="mpich",
                 base_image="docker.io/rockylinux/rockylinux:10",
                 gcc_version=14,
                 feature_flags="-df libxsmm -ef openpmd",
+                testopts=testopts,
+                image_tag=f.image_tag,
             )
         )
 
     with OutputFile(f"Dockerfile.test_spack_psmp-4x2", args.check) as f:
-        testopts = f"--mpiranks=4 --ompthreads=2"
         f.write(
             install_cp2k_spack(
-                "psmp", mpi_mode="mpich", testopts=testopts, feature_flags="-ef openpmd"
+                version="psmp",
+                mpi_mode="mpich",
+                feature_flags="-ef openpmd",
+                testopts=f"--keepalive --mpiranks=4 --ompthreads=2",
+                image_tag=f.image_tag,
+            )
+        )
+
+    with OutputFile(f"Dockerfile.test_spack_openmpi-pdbg", args.check) as f:
+        f.write(
+            install_cp2k_spack(
+                version="pdbg",
+                mpi_mode="openmpi",
+                feature_flags="-ef openpmd",
+                testopts="",
+                image_tag=f.image_tag,
             )
         )
 
     with OutputFile(f"Dockerfile.test_spack_openmpi-psmp", args.check) as f:
         f.write(
-            install_cp2k_spack("psmp", mpi_mode="openmpi", feature_flags="-ef openpmd")
+            install_cp2k_spack(
+                version="psmp",
+                mpi_mode="openmpi",
+                feature_flags="-ef openpmd",
+                testopts=testopts,
+                image_tag=f.image_tag,
+            )
         )
 
     with OutputFile(f"Dockerfile.test_spack_sdbg", args.check) as f:
-        f.write(install_cp2k_spack("sdbg", mpi_mode="no"))
+        f.write(install_cp2k_spack(version="sdbg", mpi_mode="no", testopts=""))
 
     with OutputFile(f"Dockerfile.test_spack_ssmp", args.check) as f:
-        f.write(install_cp2k_spack("ssmp", mpi_mode="no"))
+        f.write(
+            install_cp2k_spack(
+                version="ssmp", mpi_mode="no", testopts=testopts, image_tag=f.image_tag
+            )
+        )
 
     with OutputFile(f"Dockerfile.test_spack_ssmp-static", args.check) as f:
-        f.write(install_cp2k_spack("ssmp-static", mpi_mode="no", gcc_version=14))
+        f.write(
+            install_cp2k_spack(
+                version="ssmp-static",
+                mpi_mode="no",
+                base_image="ubuntu:24.04",
+                gcc_version=14,
+                testopts=testopts,
+                image_tag=f.image_tag,
+            )
+        )
 
     with OutputFile(f"Dockerfile.test_spack_ssmp-P100", args.check) as f:
         f.write(
             install_cp2k_spack(
-                "ssmp",
+                version="ssmp",
                 mpi_mode="no",
                 base_image="docker.io/nvidia/cuda:12.9.1-devel-ubuntu24.04",
                 gcc_version=13,
                 gpu_model="P100",
-                testopts="--keepalive",
+                testopts=testopts,
+                image_tag=f.image_tag,
             )
         )
 
     with OutputFile(f"Dockerfile.test_spack_psmp-P100", args.check) as f:
         f.write(
             install_cp2k_spack(
-                "psmp",
+                version="psmp",
                 mpi_mode="mpich",
                 base_image="docker.io/nvidia/cuda:12.9.1-devel-ubuntu24.04",
                 gcc_version=13,
                 gpu_model="P100",
                 feature_flags="-ef openpmd",
-                testopts="--keepalive",
+                testopts=testopts,
+                image_tag=f.image_tag,
             )
         )
 
@@ -191,15 +245,13 @@ def main() -> None:
         f.write(install_deps_toolchain())
         f.write(coverage())
 
-    for gcc_version in 8, 9, 10, 11, 12, 13, 14, 15:
+    for gcc_version in 9, 10, 11, 12, 13, 14, 15, 16:
         with OutputFile(f"Dockerfile.test_gcc{gcc_version}", args.check) as f:
-            # Skip some tests due to bug in LDA_C_PMGB06 functional in libxc <5.2.0.
-            testopts = "--skipdir=QS/regtest-rs-dhft" if gcc_version == 8 else ""
             f.write(install_deps_ubuntu(gcc_version=gcc_version))
-            f.write(regtest("ubuntu", "ssmp", testopts=testopts))
+            f.write(regtest("ubuntu", "ssmp"))
 
     with OutputFile("Dockerfile.test_arm64-psmp", args.check) as f:
-        base_img = "arm64v8/ubuntu:24.04"
+        base_img = "arm64v8/ubuntu:26.04"
         f.write(install_deps_toolchain(base_img, with_libtorch="no", with_deepmd="no"))
         f.write(regtest("toolchain_arm64", "psmp"))
 
@@ -309,7 +361,7 @@ RUN /bin/bash -ec "./tools/conventions/test_conventions.sh |& tee report.log"
 
 # ======================================================================================
 def manual() -> str:
-    return install_cp2k(profile="toolchain", version="psmp", revision=True) + rf"""
+    return install_cp2k(profile="toolchain", version="pdbg", revision=True) + rf"""
 # Generate manual.
 COPY ./docs ./docs
 COPY ./tools/input_editing ./tools/input_editing
@@ -364,7 +416,6 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Install sources.
 ARG GIT_COMMIT_SHA
 COPY ./src ./src
-COPY ./exts ./exts
 COPY ./data ./data
 COPY ./docs ./docs
 COPY ./tools ./tools
@@ -416,7 +467,7 @@ RUN ./build_cp2k.sh {profile} {version}
 
 # ======================================================================================
 def install_deps_toolchain(
-    base_image: str = "ubuntu:24.04",
+    base_image: str = "ubuntu:26.04",
     mpi_mode: str = "mpich",
     with_dbcsr: str = "",  # enabled by default
     with_gcc: str = "system",
@@ -435,13 +486,9 @@ def install_deps_toolchain(
 
 
 # ======================================================================================
-def install_deps_ubuntu(gcc_version: int = 13) -> str:
-    if gcc_version > 14:
-        base_image = "ubuntu:26.04"
-    elif gcc_version > 8:
-        base_image = "ubuntu:24.04"
-    else:
-        base_image = "ubuntu:20.04"
+def install_deps_ubuntu(gcc_version: int = 15) -> str:
+    assert gcc_version > 8
+    base_image = "ubuntu:26.04" if gcc_version > 14 else "ubuntu:24.04"
     output = f"\nFROM {base_image}\n"
 
     if gcc_version > 13:
@@ -471,8 +518,8 @@ RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true && \
     libint2-dev \
     libxc-dev \
     libhdf5-dev \
-    {"libxsmm-dev" if gcc_version > 8 else ""} \
-    {"libspglib-f08-dev" if gcc_version > 8 else ""} \
+    libxsmm-dev \
+    libspglib-f08-dev \
    && rm -rf /var/lib/apt/lists/*
 
 # Create links in /usr/local/bin to overrule links in /usr/bin.
@@ -480,13 +527,13 @@ RUN ln -sf /usr/bin/gcc-{gcc_version}      /usr/local/bin/gcc  && \
     ln -sf /usr/bin/g++-{gcc_version}      /usr/local/bin/g++  && \
     ln -sf /usr/bin/gfortran-{gcc_version} /usr/local/bin/gfortran
 
-# Use toolchain to install DBCSR{"" if gcc_version > 8 else " and CMake"}.
+# Use toolchain to install DBCSR.
 """ + install_toolchain(
         base_image=base_image,
         mpi_mode="no",
         with_dbcsr="",
         with_gcc="system",
-        with_cmake="system" if gcc_version > 8 else "",
+        with_cmake="system",
         with_ninja="system",
         with_openblas="system",
         with_libxc="no",
@@ -605,13 +652,11 @@ COPY ./tools/toolchain/scripts/VERSION \
      ./tools/toolchain/scripts/common_vars.sh \
      ./tools/toolchain/scripts/signal_trap.sh \
      ./tools/toolchain/scripts/get_openblas_arch.sh \
-     ./tools/toolchain/scripts/generate_cmake_options.sh \
      ./scripts/
 COPY ./tools/toolchain/install_cp2k_toolchain.sh .
 RUN ./install_cp2k_toolchain.sh \
 {install_args_str}
-    --dry-run \
-    --list-cmake-options=no
+    --dry-run
 
 # Dry-run leaves behind config files for the followup install scripts.
 # This breaks up the lengthy installation into smaller build steps.
@@ -651,14 +696,14 @@ RUN  ./scripts/stage9/install_stage9.sh && rm -rf ./build
 def install_cp2k_spack(
     version: str,
     mpi_mode: str,
-    base_image: str = "ubuntu:24.04",
-    gcc_version: int = 13,
+    base_image: str = "ubuntu:26.04",
+    gcc_version: int = 14,
     gpu_model: str = "none",
     feature_flags: str = "",
     testopts: str = "",
+    image_tag: str = "",
 ) -> str:
-    # Ubuntu 24.04 provides no gcc-15 package whereas GCC 15 is the default for fedora:43
-    if gcc_version == 15 or "fedora" in base_image:
+    if "fedora" in base_image:
         gcc_compilers = "g++ gcc gfortran"
     elif "opensuse/leap" in base_image:
         gcc_compilers = f"gcc gcc{gcc_version} gcc-c++ gcc{gcc_version}-c++ gcc-fortran gcc{gcc_version}-fortran"
@@ -666,23 +711,32 @@ def install_cp2k_spack(
         gcc_compilers = f"gcc gcc-c++ gcc-fortran"
     else:
         gcc_compilers = f"g++ g++-{gcc_version} gcc gcc-{gcc_version} gfortran gfortran-{gcc_version}"
+    # Use external packages if possible
+    use_externals = "-ue"
     # Static CP2K builds use the GCC compiler built with spack
     if version.endswith("-static"):
         use_externals = ""
-        # The default GCC 13 compiler is used for static builds
-        # A spack build of the same GCC version as the default one
+        # A spack build of the same GCC version as the installed one
         # of the host system and ignoring all externals at the same
         # time is not supported
-        gcc_compilers = "g++ gcc gfortran"
-    else:
-        use_externals = "-ue"
+        if gcc_version == 13:
+            print(
+                f"\nERROR: GCC 13 is the default version of Ubuntu 24.04 and a spack build of the same version is not possible"
+            )
+        gcc_compilers = f"g++ gcc gfortran"
+    if mpi_mode == "openmpi":
+        use_externals = ""
     # Assemble docker file
     output = (
         install_base_image(
             base_image=rf"{base_image}", gcc_compilers=gcc_compilers, stage="build"
         )
         + rf"""
-ARG SPACK_CACHE="s3://spack-cache --s3-endpoint-url=http://localhost:9000"
+ARG IMAGE_TAG
+ENV IMAGE_TAG=${{IMAGE_TAG:-{image_tag}}}
+
+ARG SPACK_CACHE
+ENV SPACK_CACHE="${{SPACK_CACHE:-s3://spack-cache --s3-endpoint-url=http://host.containers.internal:9000}}"
 
 # Copy CP2K repository into container
 WORKDIR /opt
@@ -724,7 +778,7 @@ COPY --from=build_cp2k /etc/ld.so.conf.d/cp2k.conf /etc/ld.so.conf.d/cp2k.conf
 RUN ldconfig
 
 # Run CP2K regression test
-RUN /opt/cp2k/install/bin/launch /opt/cp2k/install/bin/run_tests {testopts}
+RUN /opt/cp2k/install/bin/launch /opt/cp2k/install/bin/run_tests {testopts} || echo "ERROR: Tests failed"
 
 # Create entrypoint and finalise container build
 WORKDIR /mnt
@@ -774,6 +828,8 @@ RUN zypper --non-interactive --quiet ref && \
     zypper --non-interactive --quiet in --no-recommends \
     bzip2 \
     cmake \
+    diffutils \
+    findutils \
     {gcc_compilers} \
     git \
     gzip \
@@ -784,16 +840,13 @@ RUN zypper --non-interactive --quiet ref && \
     make \
     patch \
     pkgconf \
-    python311 \
-    python311-devel \
+    python313 \
+    python313-devel \
     unzip \
     wget \
     xz \
     zstd \
     && zypper --non-interactive --quiet clean --all
-
-RUN ln -sf /usr/bin/python3.11 /usr/local/bin/python3 && \
-    ln -sf /usr/bin/python3.11 /usr/local/bin/python
 """
         elif "rockylinux" in base_image:
             output += rf"""
@@ -841,6 +894,8 @@ RUN apt-get update -qq && apt-get install -qq --no-install-recommends \
     wget \
     xxd \
     xz-utils \
+    zlib1g \
+    zlib1g-dev \
     zstd \
     && rm -rf /var/lib/apt/lists/*
 """
@@ -873,7 +928,7 @@ RUN dnf -qy install \
 RUN zypper --non-interactive --quiet ref && \
     zypper --non-interactive --quiet in --no-recommends \
     {gcc_compilers} \
-    python311 \
+    python313 \
     && zypper --non-interactive --quiet clean --all
 
 RUN ln -sf /usr/bin/python3.11 /usr/local/bin/python3 && \
@@ -920,13 +975,18 @@ class OutputFile:
         self.content.write(f"#\n")
         self.content.write(f"# This file was created by generate_dockerfiles.py.\n")
         if "_spack_" in filename:
-            usage = f"./spack_cache_start.sh; podman build --network=host --shm-size=1g -f ./{filename} ../../"
+            self.image_tag = filename.removeprefix("Dockerfile.test_")
+            usage = f"./spack_cache_start.sh; podman build --shm-size=1g -t {self.image_tag} -f ./{filename} ../../"
         else:
+            self.image_tag = ""
             usage = f"podman build --shm-size=1g -f ./{filename} ../../"
         self.content.write(f"# Usage: {usage}\n#\n")
 
-    def __enter__(self) -> io.StringIO:
-        return self.content
+    def __enter__(self) -> "OutputFile":
+        return self
+
+    def write(self, text: str) -> None:
+        self.content.write(text)
 
     def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> None:
         output_path = Path(__file__).parent / self.filename

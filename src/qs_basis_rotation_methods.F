@@ -19,6 +19,8 @@ MODULE qs_basis_rotation_methods
    USE orbital_transformation_matrices, ONLY: calculate_rotmat,&
                                               orbrotmat_type,&
                                               release_rotmat
+   USE qs_dftb_types,                   ONLY: qs_dftb_atom_type
+   USE qs_dftb_utils,                   ONLY: get_dftb_atom_param
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
    USE qs_kind_types,                   ONLY: get_qs_kind,&
@@ -44,12 +46,15 @@ CONTAINS
 !> \brief   Construct basis set rotation matrices
 !> \param qs_env ...
 !> \param kpoints ...
+!> \param basis_type ...
 ! **************************************************************************************************
-   SUBROUTINE qs_basis_rotation(qs_env, kpoints)
+   SUBROUTINE qs_basis_rotation(qs_env, kpoints, basis_type)
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(kpoint_type), POINTER                         :: kpoints
+      CHARACTER(LEN=*), INTENT(IN), OPTIONAL             :: basis_type
 
+      CHARACTER(LEN=12)                                  :: my_basis
       INTEGER                                            :: ik, ikind, ir, ira, irot, jr, lval, &
                                                             nkind, nrot
       REAL(KIND=dp), DIMENSION(3, 3)                     :: rotmat
@@ -58,10 +63,16 @@ CONTAINS
       TYPE(gto_basis_set_type), POINTER                  :: orb_basis
       TYPE(kpoint_sym_type), POINTER                     :: kpsym
       TYPE(orbrotmat_type), DIMENSION(:), POINTER        :: orbrot
+      TYPE(qs_dftb_atom_type), POINTER                   :: dftb_parameter
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
 
       CPASSERT(ASSOCIATED(qs_env))
       CPASSERT(ASSOCIATED(kpoints))
+      IF (PRESENT(basis_type)) THEN
+         my_basis = basis_type
+      ELSE
+         my_basis = "ORB"
+      END IF
       IF (ASSOCIATED(kpoints%kind_rotmat)) THEN
          CALL get_qs_env(qs_env, cell=cell)
          CALL get_qs_env(qs_env, qs_kind_set=qs_kind_set)
@@ -83,21 +94,25 @@ CONTAINS
             kpsym => kpoints%kp_sym(ik)%kpoint_sym
             IF (kpsym%apply_symmetry) THEN
                DO irot = 1, SIZE(kpsym%rotp)
-                  ir = kpsym%rotp(irot)
+                  ir = ABS(kpsym%rotp(irot))
                   ira = 0
                   DO jr = 1, SIZE(kpoints%ibrot)
                      IF (ir == kpoints%ibrot(jr)) ira = jr
                   END DO
                   IF (ira > 0) THEN
                      IF (.NOT. ASSOCIATED(kpoints%kind_rotmat(ira, 1)%rmat)) THEN
-                        rotmat(1:3, 1:3) = MATMUL(cell%h_inv, &
-                                                  MATMUL(kpsym%rot(:, :, irot), cell%hmat))
+                        rotmat(1:3, 1:3) = kpsym%rot(1:3, 1:3, irot)
                         CALL calculate_rotmat(orbrot, rotmat, lval)
                         IF (dft_control%qs_control%method_id == do_method_dftb) THEN
-                           CPABORT("ROTMAT")
+                           DO ikind = 1, nkind
+                              CALL get_qs_kind(qs_kind_set(ikind), dftb_parameter=dftb_parameter)
+                              NULLIFY (kpoints%kind_rotmat(ira, ikind)%rmat)
+                              CALL set_rotmat_dftb(kpoints%kind_rotmat(ira, ikind)%rmat, &
+                                                   orbrot, dftb_parameter)
+                           END DO
                         ELSE
                            DO ikind = 1, nkind
-                              CALL get_qs_kind(qs_kind_set(ikind), basis_set=orb_basis)
+                              CALL get_qs_kind(qs_kind_set(ikind), basis_set=orb_basis, basis_type=my_basis)
                               NULLIFY (kpoints%kind_rotmat(ira, ikind)%rmat)
                               CALL set_rotmat_basis(kpoints%kind_rotmat(ira, ikind)%rmat, orbrot, orb_basis)
                            END DO
@@ -111,6 +126,52 @@ CONTAINS
       END IF
 
    END SUBROUTINE qs_basis_rotation
+
+! **************************************************************************************************
+!> \brief Construct DFTB basis-set rotation matrices
+!> \param rmat ...
+!> \param orbrot ...
+!> \param dftb_parameter ...
+! **************************************************************************************************
+   SUBROUTINE set_rotmat_dftb(rmat, orbrot, dftb_parameter)
+      REAL(KIND=dp), DIMENSION(:, :), POINTER            :: rmat
+      TYPE(orbrotmat_type), DIMENSION(:), POINTER        :: orbrot
+      TYPE(qs_dftb_atom_type), POINTER                   :: dftb_parameter
+
+      INTEGER                                            :: first, i, j, l, lmax, n, natorb
+      INTEGER, DIMENSION(5)                              :: perm
+      LOGICAL                                            :: defined
+
+      CALL get_dftb_atom_param(dftb_parameter, defined=defined, lmax=lmax, natorb=natorb)
+      CPASSERT(defined)
+
+      ALLOCATE (rmat(natorb, natorb))
+      rmat = 0.0_dp
+
+      first = 1
+      DO l = 0, lmax
+         n = nso(l)
+         SELECT CASE (l)
+         CASE (0)
+            perm(1) = 1
+         CASE (1)
+            perm(1:3) = [3, 1, 2]
+         CASE (2)
+            perm(1:5) = [1, 2, 4, 5, 3]
+         CASE DEFAULT
+            CALL cp_abort(__LOCATION__, &
+                          "DFTB k-point symmetry is implemented for basis functions up to d orbitals")
+         END SELECT
+         DO i = 1, n
+            DO j = 1, n
+               rmat(first + i - 1, first + j - 1) = orbrot(l)%mat(perm(i), perm(j))
+            END DO
+         END DO
+         first = first + n
+      END DO
+      CPASSERT(first == natorb + 1)
+
+   END SUBROUTINE set_rotmat_dftb
 
 ! **************************************************************************************************
 !> \brief ...

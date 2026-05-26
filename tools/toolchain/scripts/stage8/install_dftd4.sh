@@ -6,8 +6,8 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")/.." && pwd -P)"
 
-dftd4_ver="4.0.2"
-dftd4_sha256="ed4a6a3ba0a89b8d6825bf11724dee647fd8ee6272e7822e0cbd9847994eb872"
+dftd4_ver="4.2.0"
+dftd4_sha256="467e024071510ad82b862c66c383c2ebc164fc1140e15dfc79f48d2f999fd184"
 
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh
@@ -34,10 +34,10 @@ case "$with_dftd4" in
     if verify_checksums "${install_lock_file}"; then
       echo "dftd4-${dftd4_ver} is already installed, skipping it."
     else
-      retrieve_package "${dftd4_sha256}" "dftd4-${dftd4_ver}-source.tar.xz"
+      retrieve_package "${dftd4_sha256}" dftd4-${dftd4_ver}.tar.xz
       echo "Installing from scratch into ${pkg_install_dir}"
       [ -d dftd4-${dftd4_ver} ] && rm -rf dftd4-${dftd4_ver}
-      tar -xJf dftd4-${dftd4_ver}-source.tar.xz
+      tar -xJf dftd4-${dftd4_ver}.tar.xz
       cd dftd4-${dftd4_ver}
 
       mkdir build && cd build
@@ -47,11 +47,10 @@ case "$with_dftd4" in
         -DCMAKE_VERBOSE_MAKEFILE=ON \
         .. \
         > cmake.log 2>&1 || tail_excerpt cmake.log
-      make install -j $(get_nprocs) >> make.log 2>&1 || tail_excerpt build.log
-
+      make install -j $(get_nprocs) > make.log 2>&1 || tail_excerpt make.log
       cd ..
+      write_checksums "${install_lock_file}" "${SCRIPT_DIR}/stage8/$(basename ${SCRIPT_NAME})"
     fi
-    write_checksums "${install_lock_file}" "${SCRIPT_DIR}/stage8/$(basename ${SCRIPT_NAME})"
     ;;
 
   __SYSTEM__)
@@ -77,7 +76,7 @@ esac
 
 if [ "$with_dftd4" != "__DONTUSE__" ]; then
 
-  DFTD4_DFLAGS="-D__DFTD4"
+  DFTD4_DFLAGS="-D__DFTD4 -D__DFTD4_V4_2"
   DFTD4_LIBS="-ldftd4 -lmstore -lmulticharge -lmctc-lib"
 
   cat << EOF > "${BUILDDIR}/setup_dftd4"

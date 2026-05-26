@@ -36,19 +36,15 @@ available and download all patches!).
 platform does not provide MPI, there are several freely available alternatives:
 
 - MPICH MPI: <https://www.mpich.org/> (may require `-fallow-argument-mismatch` when building with
-  GCC 10) (Note that latest version 5.0.0 has a bug, and if you want to use it you should manually
-  apply [this fix](https://github.com/pmodels/mpich/pull/7722))
+  GCC 10)
 - OpenMPI MPI: <http://www.open-mpi.org/>
-- ScaLAPACK:
-  - <http://www.netlib.org/scalapack/>
-  - <http://www.netlib.org/lapack-dev/>
-  - ScaLAPACK can be part of ACML (AMD) or cluster MKL (Intel). These libraries are recommended on
-    the corresponding machines if available.
-  - Recently a [ScaLAPACK installer](http://www.netlib.org/scalapack/scalapack_installer.tgz) has
-    been added that simplifies the installation.
+
+For more information of ScaLAPACK, see <http://www.netlib.org/scalapack/>. ScaLAPACK can be part of
+ACML (AMD) or cluster MKL (Intel); these libraries are recommended on the corresponding machines if
+available.
 
 CP2K assumes that the MPI library implements MPI version 3. Older versions of MPI (e.g., MPI 2.0)
-are not supported. CP2K can make use of the mpi_f08 module. If its use is requested, pass
+are not supported. CP2K can make use of the `mpi_f08` module. If its use is requested, pass
 `-DCP2K_USE_MPI_F08=ON` to CMake.
 
 ## FFTW (improved performance of FFTs)
@@ -98,6 +94,36 @@ respectivly to CMake.
   created.
 - Pass `-DCP2K_USE_LIBXC=ON` to CMake.
 
+## GauXC (xc integration library)
+
+GauXC can be used to evaluate selected exchange-correlation functionals through an external
+integrator.
+
+- Pass `--with-gauxc=install` to the toolchain installer. The toolchain build enables GauXC
+  OneDFT/SKALA support and therefore also installs libtorch.
+- Pass `-DCP2K_USE_GAUXC=ON` to CMake.
+- GauXC in CP2K is currently an energy, potential, and nuclear-gradient path for isolated QS
+  systems. OneDFT/SKALA gradients under MPI are evaluated with a replicated single-rank GauXC
+  runtime on each CP2K rank because GauXC does not yet provide distributed OneDFT gradients.
+- OneDFT/SKALA is selected in the `&GAUXC` subsection with a conventional base `FUNCTIONAL` and a
+  non-`NONE` `MODEL`, for example a `.fun` model file or a GauXC-installed model name.
+- `METHOD GAPW` with OneDFT/SKALA is limited to all-electron molecular inputs. In this mode GauXC
+  evaluates the full XC term directly on its molecular quadrature from the all-electron AO density;
+  CP2K's local/semi-local GAPW XC correction is not used for OneDFT/SKALA. Validation inputs should
+  use `GAPW_ACCURATE_XCINT T` to keep the GAPW setup explicit.
+- `METHOD GAPW_XC` with GauXC remains disabled pending a dedicated design for the smooth-density and
+  one-center XC terms. It must not be used for non-local OneDFT/SKALA models.
+- Molecular CDFT and mixed CDFT-CI energy calculations can be used with the GauXC matrix path. SKALA
+  CDFT coverage is currently limited to smoke tests of the energy and constraint-potential path.
+- Response/kernel properties requiring higher XC derivatives are not supported by the GauXC path and
+  abort explicitly.
+- OneDFT/SKALA force checks use `GRID SUPERFINE` and `PRUNING_SCHEME UNPRUNED` by default. Coarser
+  explicit GauXC grids are allowed, but should be treated as accuracy settings.
+- `MOLECULAR_VIRIAL` is a finite-system force diagnostic from GauXC nuclear gradients, not a
+  periodic stress tensor.
+- SKALA regression tests are technical smoke and force-consistency checks. They do not constitute
+  scientific validation of the SKALA model.
+
 ## PEXSI (low scaling SCF method)
 
 The Pole EXpansion and Selected Inversion (PEXSI) method requires the PEXSI library and two
@@ -132,12 +158,13 @@ A library for finding and handling crystal symmetries
 
 ## SIRIUS (plane wave calculations)
 
-SIRIUS is a domain specific library for electronic structure calculations.
+SIRIUS is a domain specific library for electronic structure calculations with plane wave method.
 
 - The code is available at <https://github.com/electronic-structure/SIRIUS>
 - For building CP2K with SIRIUS pass `-DCP2K_USE_SIRIUS=ON` to CMake.
 - Pass `-DCP2K_USE_LIBVDWXC=ON` if support is activated in SIRIUS.
-- Pass `-DCP2K_USE_SIRIUS_DFTD4=ON` when sirius is compiled with dftd3 and dftd4 support.
+- Pass `-DCP2K_USE_SIRIUS_DFTD3=ON` when sirius is compiled with dftd3 support.
+- Pass `-DCP2K_USE_SIRIUS_DFTD4=ON` when sirius is compiled with dftd4 support.
 - Pass `-DCP2K_USE_SIRIUS_NLCG=ON` when sirius is compiled with nlcg support.
 - Pass `-DCP2K_USE_SIRIUS_VCSQNM=ON` when sirius is compiled with variable cell relaxation support.
 - See <https://electronic-structure.github.io/SIRIUS-doc/> for more information.
@@ -160,19 +187,12 @@ SIRIUS is a domain specific library for electronic structure calculations.
   <https://brehm-research.de/bqb> for more information as well as the `bqbtool` to inspect BQB
   files.
 
-## SpFFT (Sparse 3D FFT)
-
-- SpFFT is a 3D FFT library for sparse frequency domain data written in C++ with support for MPI,
-  OpenMP, CUDA and ROCm.
-- Pass `-DCP2K_USE_SpFFT=ON` to CMake to enable support for SpFFT.
-- See <https://github.com/eth-cscs/SpFFT> for more information.
-
 ## Torch (Machine Learning Framework needed for NequIP)
 
 - The C++ API of PyTorch can be downloaded from https://pytorch.org/get-started/locally/.
 - Pass `-DCP2K_USE_LIBTORCH=ON` to CMake to enable support for libtorch.
 
-## matrix-matrix multiplication offloading on GPU using SPLA
+## SPLA (Matrix-matrix multiplication offloading on GPU)
 
 The SPLA library is a hard dependency of SIRIUS but can also be used as a standalone library. It
 provides a generic interface to the blas gemm family with offloading on GPU. Offloading supports
@@ -228,6 +248,13 @@ TREXIO - Open-source file format and library. Support for TREXIO can be enabled 
 
 - TREXIO library can be downloaded from <https://github.com/trex-coe/trexio>
 - For more information see <https://trex-coe.github.io/trexio/index.html>.
+
+## LibFCI (full-CI active-space solver)
+
+LibFCI is an external library providing a full-CI solver for CP2K active-space calculations. Support
+for LibFCI can be enabled by passing `-DCP2K_USE_LIBFCI=ON` to CMake.
+
+- LibFCI can be downloaded from <https://github.com/DCM-Uni-Paderborn/libfci>
 
 ## GREENX (basically functionality for GreenX methods (RPA, GW, Laplace-MP2 etc.)
 

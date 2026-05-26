@@ -13,7 +13,8 @@
 ! **************************************************************************************************
 MODULE input_cp2k_hfx
    USE bibliography, ONLY: Guidon2008, &
-                           Guidon2009
+                           Guidon2009, &
+                           Lin2016ACE
    USE cp_output_handling, ONLY: add_last_numeric, &
                                  cp_print_key_section_create, &
                                  high_print_level, &
@@ -60,14 +61,15 @@ CONTAINS
 
       CPASSERT(.NOT. ASSOCIATED(section))
       CALL section_create(section, __LOCATION__, name="HF", &
-                          description="Sets up the Hartree-Fock parameters if requested ", &
+                          description="Controls Hartree-Fock exchange for hybrid DFT, Hartree-Fock, "// &
+                          "and related post-Hartree-Fock workflows.", &
                           n_keywords=5, n_subsections=2, repeats=.TRUE., &
                           citations=[Guidon2008, Guidon2009])
 
       NULLIFY (keyword, print_key, subsection)
 
       CALL keyword_create(keyword, __LOCATION__, name="FRACTION", &
-                          description="The fraction of Hartree-Fock to add to the total energy. "// &
+                          description="Fraction of Hartree-Fock exchange to add to the total energy. "// &
                           "1.0 implies standard Hartree-Fock if used with XC_FUNCTIONAL NONE. "// &
                           "NOTE: In a mixed potential calculation this should be set to 1.0, otherwise "// &
                           "all parts are multiplied with this factor. ", &
@@ -125,6 +127,10 @@ CONTAINS
       CALL section_release(subsection)
 
       CALL create_hf_ri_section(subsection)
+      CALL section_add_subsection(section, subsection)
+      CALL section_release(subsection)
+
+      CALL create_hf_ace_section(subsection)
       CALL section_add_subsection(section, subsection)
       CALL section_release(subsection)
 
@@ -213,7 +219,8 @@ CONTAINS
 
       CPASSERT(.NOT. ASSOCIATED(section))
       CALL section_create(section, __LOCATION__, name="INTERACTION_POTENTIAL", &
-                          description="Sets up interaction potential if requested ", &
+                          description="Defines the Coulomb, range-separated, mixed, or truncated interaction "// &
+                          "operator used for Hartree-Fock exchange.", &
                           n_keywords=1, n_subsections=0, repeats=.FALSE., &
                           citations=[guidon2008, guidon2009])
 
@@ -221,8 +228,8 @@ CONTAINS
       CALL keyword_create( &
          keyword, __LOCATION__, &
          name="POTENTIAL_TYPE", &
-         description="Which interaction potential should be used "// &
-         "(Coulomb, longrange or shortrange).", &
+         description="Selects the interaction potential used for Hartree-Fock exchange. "// &
+         "Periodic hybrid calculations commonly use a short-range, truncated, or mixed potential.", &
          usage="POTENTIAL_TYPE SHORTRANGE", &
          enum_c_vals=s2a("COULOMB", "SHORTRANGE", "LONGRANGE", "MIX_CL", "GAUSSIAN", &
                          "MIX_LG", "IDENTITY", "TRUNCATED", "MIX_CL_TRUNC"), &
@@ -275,9 +282,10 @@ CONTAINS
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="CUTOFF_RADIUS", &
-                          description="Determines cutoff radius (in Angstroms) for the truncated $\frac{1}{r}$ "// &
-                          "potential or the shortrange $\frac{\mathrm{erfc}(\omega \cdot r)}{r}$ potential. Default value "// &
-                          "for shortrange potential when this keyword is omitted is solved from "// &
+                          description="Cutoff radius for the truncated $\frac{1}{r}$ potential or the short-range "// &
+                          "$\frac{\mathrm{erfc}(\omega \cdot r)}{r}$ potential. For truncated Coulomb in a "// &
+                          "periodic cell, choose a radius compatible with the cell dimensions. The default value "// &
+                          "for short-range potentials when this keyword is omitted is solved from "// &
                           "$\frac{\mathrm{erfc}(\omega \cdot r)}{r} = \epsilon_{\mathrm{schwarz}}$ "// &
                           "by Newton-Raphson method, with $\epsilon_{\mathrm{schwarz}}$ set by SCREENING/EPS_SCHWARZ", &
                           usage="CUTOFF_RADIUS 10.0", type_of_var=real_t, & ! default_r_val=10.0_dp,&
@@ -311,7 +319,7 @@ CONTAINS
 
       CPASSERT(.NOT. ASSOCIATED(section))
       CALL section_create(section, __LOCATION__, name="SCREENING", &
-                          description="Sets up screening parameters if requested ", &
+                          description="Controls screening thresholds for Hartree-Fock exchange integrals.", &
                           n_keywords=1, n_subsections=0, repeats=.FALSE., &
                           citations=[guidon2008, guidon2009])
 
@@ -319,9 +327,8 @@ CONTAINS
       CALL keyword_create( &
          keyword, __LOCATION__, &
          name="EPS_SCHWARZ", &
-         description="Screens the near field part of the electronic repulsion "// &
-         "integrals using the Schwarz inequality for the given "// &
-         "threshold.", &
+         description="Schwarz inequality threshold for screening near-field electronic repulsion integrals. "// &
+         "Tighter values reduce screening error but increase cost.", &
          usage="EPS_SCHWARZ 1.0E-6", &
          default_r_val=1.0E-10_dp)
       CALL section_add_keyword(section, keyword)
@@ -331,10 +338,9 @@ CONTAINS
       CALL keyword_create( &
          keyword, __LOCATION__, &
          name="EPS_SCHWARZ_FORCES", &
-         description="Screens the near field part of the electronic repulsion "// &
-         "integrals using the Schwarz inequality for the given "// &
-         "threshold. This will be approximately the accuracy of the forces, "// &
-         "and should normally be similar to EPS_SCF. Default value is 100*EPS_SCHWARZ.", &
+         description="Schwarz threshold used for force-related electronic repulsion integrals. "// &
+         "This is approximately the force accuracy and should normally be similar to EPS_SCF. "// &
+         "Default value is 100*EPS_SCHWARZ.", &
          usage="EPS_SCHWARZ_FORCES 1.0E-5", &
          default_r_val=1.0E-6_dp)
       CALL section_add_keyword(section, keyword)
@@ -820,5 +826,55 @@ CONTAINS
       CALL section_release(subsection)
 
    END SUBROUTINE create_hf_ri_section
+
+   ! ACE Keyword section
+
+   SUBROUTINE create_hf_ace_section(section)
+      TYPE(section_type), POINTER :: section
+
+      TYPE(keyword_type), POINTER :: keyword
+
+      CPASSERT(.NOT. ASSOCIATED(section))
+      CALL section_create(section, __LOCATION__, &
+                          name="ACE", &
+                          description="Parameters for the Adaptively Compressed Exchange (ACE) "// &
+                          "operator. ACE replaces the full exchange matrix with a "// &
+                          "low-rank projector K_ACE = -W*W^T after an initial "// &
+                          "full HFX build, reducing cost of subsequent SCF steps. "// &
+                          "NOTE: ACE requires diagonalization-based SCF. "// &
+                          "It is incompatible with orbital transformation (OT) methods "// &
+                          "because OT does not construct MO coefficients.", &
+                          n_keywords=2, &
+                          n_subsections=0, &
+                          repeats=.FALSE., &
+                          citations=[Lin2016ACE])
+
+      NULLIFY (keyword)
+
+      ! --- ACTIVE ---
+      CALL keyword_create(keyword, __LOCATION__, &
+                          name="ACTIVE", &
+                          description="Enable the ACE approximation for HFX. "// &
+                          "When .TRUE., the exchange matrix is replaced by "// &
+                          "the ACE projector after the first full build.", &
+                          usage="ACTIVE .TRUE.", &
+                          default_l_val=.FALSE., &
+                          lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      ! --- REBUILD_FREQUENCY ---
+      CALL keyword_create(keyword, __LOCATION__, &
+                          name="REBUILD_FREQUENCY", &
+                          description="Rebuild the ACE projectors W every N SCF steps. "// &
+                          "N=1 means rebuild every step (identical to full HFX, "// &
+                          "use for testing only). N=10-20 is typical for production. "// &
+                          "Projectors are always rebuilt when the structure changes.", &
+                          usage="REBUILD_FREQUENCY 20", &
+                          default_i_val=20)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+   END SUBROUTINE create_hf_ace_section
 
 END MODULE input_cp2k_hfx

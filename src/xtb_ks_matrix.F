@@ -355,15 +355,27 @@ CONTAINS
          ELSE
             CALL get_qs_env(qs_env=qs_env, scf_env=scf_env)
             CALL charge_mixing(scf_env%mixing_method, scf_env%mixing_store, &
-                               charges, para_env, scf_env%iter_count)
+                               charges, para_env, scf_env%iter_count, &
+                               scc_mixer=dft_control%qs_control%xtb_control%tblite_scc_mixer, &
+                               tblite_mixer_iterations= &
+                               dft_control%qs_control%xtb_control%tblite_mixer_iterations, &
+                               tblite_mixer_damping=dft_control%qs_control%xtb_control%tblite_mixer_damping, &
+                               tblite_mixer_memory=dft_control%qs_control%xtb_control%tblite_mixer_memory, &
+                               tblite_mixer_omega0=dft_control%qs_control%xtb_control%tblite_mixer_omega0, &
+                               tblite_mixer_min_weight= &
+                               dft_control%qs_control%xtb_control%tblite_mixer_min_weight, &
+                               tblite_mixer_max_weight= &
+                               dft_control%qs_control%xtb_control%tblite_mixer_max_weight, &
+                               tblite_mixer_weight_factor= &
+                               dft_control%qs_control%xtb_control%tblite_mixer_weight_factor)
          END IF
 
          DO iatom = 1, natom
             mcharge(iatom) = SUM(charges(iatom, :))
          END DO
       END IF
-
-      IF (dft_control%qs_control%xtb_control%coulomb_interaction) THEN
+      IF (dft_control%qs_control%xtb_control%coulomb_interaction .AND. &
+          (.NOT. dft_control%qs_control%xtb_control%do_tblite)) THEN
          CALL build_xtb_coulomb(qs_env, ks_matrix, rho, charges, mcharge, energy, &
                                 calculate_forces, just_energy)
       END IF
@@ -472,4 +484,3 @@ CONTAINS
    END SUBROUTINE build_gfn1_xtb_ks_matrix
 
 END MODULE xtb_ks_matrix
-

@@ -13,6 +13,9 @@
 "He2H-bloechl.inp"                      = [{matcher="E_total", tol=9e-12, ref=-0.33998448719952001}]
 "H2O-bloechl.inp"                       = [{matcher="E_total", tol=2e-13, ref=-17.15579833528768}]
 "H2O-bloechl-Spl.inp"                   = [{matcher="E_total", tol=3e-13, ref=-17.15578542650509}]
+"H2O-bloechl-force-ortho.inp"           = []
+"H2O-bloechl-force-nonortho.inp"        = []
+"H2O-bloechl-nonortho.inp"              = []
 "H2O-bloechl-restraint.inp"             = [{matcher="E_total", tol=3e-12, ref=-17.14839328266115}]
 # S**2
 "CN.inp"                                = [{matcher="M004", tol=1.0E-14, ref=0.751382}]
@@ -68,4 +71,6 @@
 "O2-UKS-OTdiag-relax_multip.inp"        = [{matcher="E_total", tol=5e-14, ref=-31.86509209577858}]
 # Test reading LnPP2 
 "CeO2.inp"                              = [{matcher="E_total", tol=1e-12, ref=-64.41562845141048}]
+# Spin-channel-specific mixing parameters
+"O2-UKS-mixing.inp"                     = [{matcher="E_total", tol=5.0E-14, ref=-31.86541677222950}]
 #EOF

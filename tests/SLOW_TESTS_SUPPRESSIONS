@@ -53,6 +53,7 @@ QS/regtest-rel/h2o-3.inp
 xTB/regtest-5/AdeThyvdW.inp
 xTB/regtest-5/ef_stress1.inp
 xTB/regtest-5/ef_stress3.inp
+xTB/regtest-tblite-gfn2/Si_gfn2_kp_stress.inp
 QS/regtest-admm-qps/CH4-ADMMS-stress-tensor-numerical.inp
 QS/regtest-xc/3H2_PBE.inp
 QS/regtest-xc/3H2_PBEsol.inp
@@ -94,7 +95,20 @@ QS/regtest-tddfpt-force-gapw/h2o_t08.inp
 QS/regtest-smeagol-1/au-2x2x3-bulk.inp
 QS/regtest-smeagol-2/au-1x1x4-bulk.inp
 
-# Workaround for https://github.com/cp2k/cp2k/issues/4319
-QS/regtest-gpw-4/H2O_wavelet_XZ.inp
+# GauXC tests include external GauXC/libtorch setup and selected finite-difference checks.
+QS/regtest-gauxc/1H2_ONEDFT_PBE_REFERENCE.inp
+QS/regtest-gauxc/1H2_ONEDFT_PBE.inp
+QS/regtest-gauxc/H2_SKALA_ENERGY.inp
+QS/regtest-gauxc/H2_GAPW_SKALA_ENERGY.inp
+QS/regtest-gauxc/H2_SKALA_CDFT.inp
+QS/regtest-gauxc/H2_GAPW_SKALA_CDFT.inp
+QS/regtest-gauxc/H2_SKALA_CDFT_CI.inp
+QS/regtest-gauxc/H2_PBE_CDFT_REFERENCE.inp
+QS/regtest-gauxc/H2_ONEDFT_PBE_CDFT.inp
+QS/regtest-gauxc/H2_PBE_CDFT_CI_REFERENCE.inp
+QS/regtest-gauxc/H2_ONEDFT_PBE_CDFT_CI_NGROUPS.inp
+QS/regtest-gauxc/O_ONEDFT_PBE_UKS_TZV2PX.inp
+QS/regtest-gauxc/H2_ONEDFT_PBE_FORCE_DEBUG.inp
+QS/regtest-gauxc/NH3_ONEDFT_PBE_FORCE_DEBUG.inp
 
 #EOF

@@ -40,14 +40,17 @@ MODULE gopt_f_methods
                               use_qmmmx
    USE gopt_f_types, ONLY: gopt_f_type
    USE gopt_param_types, ONLY: gopt_param_type
-   USE input_constants, ONLY: default_cell_direct_id, &
-                              default_cell_geo_opt_id, &
-                              default_cell_md_id, &
-                              default_cell_method_id, &
+   USE input_constants, ONLY: default_cell_method_id, &
                               default_minimization_method_id, &
                               default_shellcore_method_id, &
                               default_ts_method_id, &
-                              fix_none
+                              fix_none, &
+                              fix_x, &
+                              fix_xy, &
+                              fix_xz, &
+                              fix_y, &
+                              fix_yz, &
+                              fix_z
    USE input_cp2k_restarts, ONLY: write_restart
    USE input_section_types, ONLY: section_vals_type, &
                                   section_vals_val_get
@@ -61,7 +64,8 @@ MODULE gopt_f_methods
                            write_stress_tensor_to_file, &
                            write_trajectory
    USE particle_list_types, ONLY: particle_list_type
-   USE particle_methods, ONLY: write_structure_data
+   USE particle_methods, ONLY: write_final_structure, &
+                               write_structure_data
    USE particle_types, ONLY: particle_type
    USE qmmm_util, ONLY: apply_qmmm_translate
    USE qmmmx_util, ONLY: apply_qmmmx_translate
@@ -116,41 +120,26 @@ CONTAINS
          ALLOCATE (x0(3*nparticle))
          CALL pack_subsys_particles(subsys=subsys, r=x0)
       CASE (default_cell_method_id)
-         SELECT CASE (gopt_env%cell_method_id)
-         CASE (default_cell_direct_id)
-            CALL force_env_get(gopt_env%force_env, subsys=subsys, cell=cell)
-            ! Store reference cell
-            gopt_env%h_ref = cell%hmat
-            ! before starting we handle the case of translating coordinates (QM/MM)
-            IF (gopt_env%force_env%in_use == use_qmmm) &
-               CALL apply_qmmm_translate(gopt_env%force_env%qmmm_env)
-            IF (gopt_env%force_env%in_use == use_qmmmx) &
-               CALL apply_qmmmx_translate(gopt_env%force_env%qmmmx_env)
-            nparticle = force_env_get_nparticle(gopt_env%force_env)
-            ALLOCATE (x0(3*nparticle + 6))
-            CALL pack_subsys_particles(subsys=subsys, r=x0)
-            idg = 3*nparticle
-            DO i = 1, 3
-               DO j = 1, i
-                  idg = idg + 1
-                  x0(idg) = cell%hmat(j, i)
-               END DO
+         CALL force_env_get(gopt_env%force_env, subsys=subsys, cell=cell)
+         ! Store reference cell
+         gopt_env%h_ref = cell%hmat
+         ! before starting we handle the case of translating coordinates (QM/MM)
+         IF (gopt_env%force_env%in_use == use_qmmm) &
+            CALL apply_qmmm_translate(gopt_env%force_env%qmmm_env)
+         IF (gopt_env%force_env%in_use == use_qmmmx) &
+            CALL apply_qmmmx_translate(gopt_env%force_env%qmmmx_env)
+         nparticle = force_env_get_nparticle(gopt_env%force_env)
+         ALLOCATE (x0(3*nparticle + 6))
+         CALL pack_subsys_particles(subsys=subsys, r=x0)
+         idg = 3*nparticle
+         DO i = 1, 3
+            DO j = 1, i
+               idg = idg + 1
+               x0(idg) = cell%hmat(j, i)
             END DO
-         CASE (default_cell_geo_opt_id, default_cell_md_id)
-            CALL force_env_get(gopt_env%force_env, cell=cell)
-            ALLOCATE (x0(6))
-            idg = 0
-            DO i = 1, 3
-               DO j = 1, i
-                  idg = idg + 1
-                  x0(idg) = cell%hmat(j, i)
-               END DO
-            END DO
-         CASE DEFAULT
-            CPABORT("")
-         END SELECT
+         END DO
       CASE DEFAULT
-         CPABORT("")
+         CPABORT("Invalid or not yet implemented type of optimization")
       END SELECT
 
    END SUBROUTINE gopt_f_create_x0
@@ -857,6 +846,9 @@ CONTAINS
       TYPE(force_env_type), POINTER                      :: force_env
       TYPE(section_vals_type), POINTER                   :: motion_section, root_section
 
+      CHARACTER(LEN=4)                                   :: constraint_label
+      LOGICAL                                            :: keep_angles, keep_symmetry, &
+                                                            keep_volume
       REAL(KIND=dp)                                      :: etot
       TYPE(cell_type), POINTER                           :: cell
       TYPE(cp_subsys_type), POINTER                      :: subsys
@@ -866,6 +858,39 @@ CONTAINS
       CALL force_env_get(force_env, cell=cell, subsys=subsys)
       CALL cp_subsys_get(subsys=subsys, particles=particles)
       particle_set => particles%els
+
+      ! Passing gopt_f_type pointer gopt_env to particle_methods where
+      ! write_final_structure is defined causes a circular dependency, so it
+      ! is necessary to get some flags by preprocessing...
+      keep_angles = .TRUE.
+      keep_symmetry = .TRUE.
+      keep_volume = .TRUE.
+      constraint_label = "NONE"
+      IF (gopt_env%type_id == default_cell_method_id) THEN
+         keep_angles = gopt_env%cell_env%keep_angles
+         keep_symmetry = gopt_env%cell_env%keep_symmetry
+         keep_volume = gopt_env%cell_env%keep_volume
+         SELECT CASE (gopt_env%cell_env%constraint_id)
+         CASE (fix_x)
+            constraint_label = "   X"
+         CASE (fix_y)
+            constraint_label = "   Y"
+         CASE (fix_z)
+            constraint_label = "   Z"
+         CASE (fix_xy)
+            constraint_label = "  XY"
+         CASE (fix_xz)
+            constraint_label = "  XZ"
+         CASE (fix_yz)
+            constraint_label = "  YZ"
+         CASE (fix_none)
+            constraint_label = "NONE"
+         END SELECT
+      END IF
+      CALL write_final_structure(particle_set, cell, motion_section, conv, &
+                                 keep_angles, keep_symmetry, keep_volume, &
+                                 gopt_env%label, constraint_label)
+
       IF (conv) THEN
          it = it + 1
          CALL write_structure_data(particle_set, cell, motion_section)
@@ -1108,13 +1133,8 @@ CONTAINS
       CALL cell_copy(cell, cell_ref, tag="CELL_OPT_REF")
 
       ! Load the updated cell information
-      SELECT CASE (gopt_env%cell_method_id)
-      CASE (default_cell_direct_id)
-         idg = 3*nparticle
-         CALL init_cell(cell_ref, hmat=gopt_env%h_ref)
-      CASE (default_cell_geo_opt_id, default_cell_md_id)
-         idg = 0
-      END SELECT
+      idg = 3*nparticle
+      CALL init_cell(cell_ref, hmat=gopt_env%h_ref)
       CPASSERT((SIZE(x) == idg + 6))
 
       IF (update_forces) THEN
@@ -1140,50 +1160,26 @@ CONTAINS
          CALL cp_subsys_set(subsys, cell=cell)
 
          ! Retrieve particle coordinates for the current cell
-         SELECT CASE (gopt_env%cell_method_id)
-         CASE (default_cell_direct_id)
-            idg = 1
-            DO iatom = 1, natom
-               CALL real_to_scaled(s, x(idg:idg + 2), cell_ref)
-               shell_index = particles%els(iatom)%shell_index
-               IF (shell_index == 0) THEN
-                  CALL scaled_to_real(particles%els(iatom)%r, s, cell)
-               ELSE
-                  CALL scaled_to_real(core_particles%els(shell_index)%r, s, cell)
-                  i = 3*(natom + shell_index - 1) + 1
-                  CALL real_to_scaled(s, x(i:i + 2), cell_ref)
-                  CALL scaled_to_real(shell_particles%els(shell_index)%r, s, cell)
-                  ! Update atomic position due to core and shell motion
-                  mass = particles%els(iatom)%atomic_kind%mass
-                  fc = core_particles%els(shell_index)%atomic_kind%shell%mass_core/mass
-                  fs = shell_particles%els(shell_index)%atomic_kind%shell%mass_shell/mass
-                  particles%els(iatom)%r(1:3) = fc*core_particles%els(shell_index)%r(1:3) + &
-                                                fs*shell_particles%els(shell_index)%r(1:3)
-               END IF
-               idg = idg + 3
-            END DO
-         CASE (default_cell_geo_opt_id, default_cell_md_id)
-            DO iatom = 1, natom
-               shell_index = particles%els(iatom)%shell_index
-               IF (shell_index == 0) THEN
-                  CALL real_to_scaled(s, particles%els(iatom)%r, cell_ref)
-                  CALL scaled_to_real(particles%els(iatom)%r, s, cell)
-               ELSE
-                  CALL real_to_scaled(s, core_particles%els(shell_index)%r, cell_ref)
-                  CALL scaled_to_real(core_particles%els(shell_index)%r, s, cell)
-                  i = 3*(natom + shell_index - 1) + 1
-                  CALL real_to_scaled(s, shell_particles%els(shell_index)%r, cell_ref)
-                  CALL scaled_to_real(shell_particles%els(shell_index)%r, s, cell)
-                  ! Update atomic position due to core and shell motion
-                  mass = particles%els(iatom)%atomic_kind%mass
-                  fc = core_particles%els(shell_index)%atomic_kind%shell%mass_core/mass
-                  fs = shell_particles%els(shell_index)%atomic_kind%shell%mass_shell/mass
-                  particles%els(iatom)%r(1:3) = fc*core_particles%els(shell_index)%r(1:3) + &
-                                                fs*shell_particles%els(shell_index)%r(1:3)
-               END IF
-            END DO
-         END SELECT
-
+         idg = 1
+         DO iatom = 1, natom
+            CALL real_to_scaled(s, x(idg:idg + 2), cell_ref)
+            shell_index = particles%els(iatom)%shell_index
+            IF (shell_index == 0) THEN
+               CALL scaled_to_real(particles%els(iatom)%r, s, cell)
+            ELSE
+               CALL scaled_to_real(core_particles%els(shell_index)%r, s, cell)
+               i = 3*(natom + shell_index - 1) + 1
+               CALL real_to_scaled(s, x(i:i + 2), cell_ref)
+               CALL scaled_to_real(shell_particles%els(shell_index)%r, s, cell)
+               ! Update atomic position due to core and shell motion
+               mass = particles%els(iatom)%atomic_kind%mass
+               fc = core_particles%els(shell_index)%atomic_kind%shell%mass_core/mass
+               fs = shell_particles%els(shell_index)%atomic_kind%shell%mass_shell/mass
+               particles%els(iatom)%r(1:3) = fc*core_particles%els(shell_index)%r(1:3) + &
+                                             fs*shell_particles%els(shell_index)%r(1:3)
+            END IF
+            idg = idg + 3
+         END DO
       END IF
 
       CALL cell_release(cell_ref)

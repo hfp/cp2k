@@ -550,6 +550,10 @@ CONTAINS
       CALL section_add_subsection(section, subsection)
       CALL section_release(subsection)
 
+      CALL create_gauxc_section(subsection)
+      CALL section_add_subsection(section, subsection)
+      CALL section_release(subsection)
+
       CALL section_create(subsection, __LOCATION__, name="XWPBE", &
                           description="Uses the short range PBE functional", &
                           n_keywords=0, n_subsections=0, repeats=.FALSE., &
@@ -995,10 +999,11 @@ CONTAINS
       CALL keyword_release(keyword)
       CALL keyword_create(keyword, __LOCATION__, name="REFERENCE_FUNCTIONAL", &
                           description="Use parameters for this specific density functional. "// &
+                          "For available DFT-D4 functionals and parameters see: "// &
+                          "<https://github.com/dftd4/dftd4/blob/main/src/dftd4/param.f90>. "// &
                           "For available D3 and D3(BJ) parameters see: "// &
                           "<https://www.chemie.uni-bonn.de/grimme/de/software/dft-d3>. "// &
-                          "For the defintion of D4 parameters see: "// &
-                          "<https://github.com/dftd4/dftd4>.", &
+                          "For Skala with D3(BJ), SKALA selects the B3LYP D3(BJ) parameters.", &
                           usage="REFERENCE_FUNCTIONAL <functional>", &
                           type_of_var=char_t)
       CALL section_add_keyword(subsection, keyword)
@@ -1284,6 +1289,148 @@ CONTAINS
    END SUBROUTINE create_gcp_potential_section
 
 ! **************************************************************************************************
+!> \brief creates the structure of the GAUXC section
+!> \param section the section that will be created
+!> \author fawzi
+! **************************************************************************************************
+   SUBROUTINE create_gauxc_section(section)
+      TYPE(section_type), POINTER                        :: section
+
+      TYPE(keyword_type), POINTER                        :: keyword
+
+      CPASSERT(.NOT. ASSOCIATED(section))
+      CALL section_create(section, __LOCATION__, name="GAUXC", &
+                          description="Use exchange-correlation functionals provided by GauXC", &
+                          n_keywords=13, n_subsections=0, repeats=.FALSE.)
+
+      NULLIFY (keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="_SECTION_PARAMETERS_", &
+                          description="activates the functional", &
+                          lone_keyword_l_val=.TRUE., default_l_val=.FALSE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="FUNCTIONAL", &
+                          description="Functional name used to create the GauXC integrator. "// &
+                          "If MODEL is set, this is the base functional used by the OneDFT path.", &
+                          default_c_val="PBE")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="MODEL", &
+                          description="GauXC OneDFT model name or path. Use NONE for conventional GauXC. "// &
+                          "MODEL SKALA selects the installed Skala-1.1 model when available; "// &
+                          "other OneDFT models are supplied as .fun files or model names.", &
+                          usage="MODEL SKALA", &
+                          default_c_val="NONE")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="GRID", &
+                          description="Atomic grid size for GauXC. OneDFT/SKALA defaults to SUPERFINE "// &
+                          "unless this keyword is set explicitly.", &
+                          usage="GRID fine", &
+                          enum_c_vals=s2a("FINE", "ULTRAFINE", "SUPERFINE", "GM3", "GM5"), &
+                          enum_i_vals=[1, 2, 3, 4, 5], &
+                          enum_desc=s2a("Fine grid (default)", &
+                                        "Ultra fine grid", &
+                                        "Super fine grid", &
+                                        "GM3 grid", &
+                                        "GM5 grid"), &
+                          default_i_val=1)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="RADIAL_QUADRATURE", &
+                          description="Radial quadrature scheme for GauXC", &
+                          usage="RADIAL_QUADRATURE muraknowles", &
+                          enum_c_vals=s2a("MURAKNOWLES", "BECKE", "TREUTLERAHLRICHS", "MURRAYHANDYLAMING"), &
+                          enum_i_vals=[1, 2, 3, 4], &
+                          enum_desc=s2a("Mura-Knowles radial quadrature (default)", &
+                                        "Becke radial quadrature", &
+                                        "Treutler-Ahlrichs radial quadrature", &
+                                        "Murray-Handy-Laming radial quadrature"), &
+                          default_i_val=1)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="PRUNING_SCHEME", &
+                          description="Pruning scheme for GauXC. OneDFT/SKALA defaults to UNPRUNED "// &
+                          "unless this keyword is set explicitly.", &
+                          usage="PRUNING_SCHEME robust", &
+                          enum_c_vals=s2a("ROBUST", "TREUTLER", "UNPRUNED"), &
+                          enum_i_vals=[1, 2, 3], &
+                          enum_desc=s2a("Robust pruning (default)", &
+                                        "Treutler pruning", &
+                                        "Unpruned grid"), &
+                          default_i_val=1)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="BATCH_SIZE", &
+                          description="Batch size for GauXC evaluation", &
+                          usage="BATCH_SIZE 512", &
+                          default_i_val=512)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="MOLECULAR_VIRIAL", &
+                          description="Print a molecular XC virial diagnostic computed from GauXC "// &
+                          "nuclear gradients. This is not an analytical periodic stress tensor.", &
+                          usage="MOLECULAR_VIRIAL T", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="MOLECULAR_VIRIAL_DEBUG", &
+                          description="Check the GauXC molecular XC virial diagnostic against a "// &
+                          "finite-difference affine scaling of the molecular coordinates.", &
+                          usage="MOLECULAR_VIRIAL_DEBUG T", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="MOLECULAR_VIRIAL_DEBUG_DX", &
+                          description="Dimensionless finite-difference step for MOLECULAR_VIRIAL_DEBUG.", &
+                          usage="MOLECULAR_VIRIAL_DEBUG_DX 1.0E-4", &
+                          default_r_val=1.0E-4_dp)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="LB_EXECUTION_SPACE", &
+                          description="Execution space for load balancer in GauXC", &
+                          usage="LB_EXECUTION_SPACE host", &
+                          enum_c_vals=s2a("HOST", "DEVICE"), &
+                          enum_i_vals=[1, 2], &
+                          enum_desc=s2a("Run on host (default)", &
+                                        "Run on device"), &
+                          default_i_val=1)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="INT_EXECUTION_SPACE", &
+                          description="Execution space for integrator in GauXC", &
+                          usage="INT_EXECUTION_SPACE host", &
+                          enum_c_vals=s2a("HOST", "DEVICE"), &
+                          enum_i_vals=[1, 2], &
+                          enum_desc=s2a("Run on host (default)", &
+                                        "Run on device"), &
+                          default_i_val=1)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="OUTPUT_PATH", &
+                          description="Optional path to an existing directory for GauXC HDF5 debug output. "// &
+                          "If set, molecule and basis set data are written as separate HDF5 files.", &
+                          usage="OUTPUT_PATH /path/to/output", &
+                          default_c_val="")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+   END SUBROUTINE create_gauxc_section
+
+! **************************************************************************************************
 !> \brief creates the input section for the xc part
 !> \param section the section to create
 !> \author fawzi
@@ -1328,7 +1475,7 @@ CONTAINS
 
       CALL section_create(subsection, __LOCATION__, name="xc_grid", & !FM to do
                           description="The xc parameters used when calculating the xc on the grid", &
-                          n_keywords=5, n_subsections=0, repeats=.FALSE.)
+                          n_keywords=6, n_subsections=0, repeats=.FALSE.)
       CALL keyword_create(keyword, __LOCATION__, name="xc_smooth_rho", &
                           description="The density smoothing used for the xc calculation", &
                           usage="xc_smooth_rho nn10", default_i_val=xc_rho_no_smooth, &
@@ -1355,6 +1502,16 @@ CONTAINS
                           description="Uses a finer grid only to calculate the xc", &
                           usage="use_finer_grid", default_l_val=.FALSE., &
                           lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(subsection, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="fine_grid_factor", &
+                          description="Factor by which the XC grid cutoff is increased when USE_FINER_GRID is active. "// &
+                          "This setting has no effect unless USE_FINER_GRID is enabled. The default of 4.0 preserves "// &
+                          "the historical finer XC grid. Smaller factors can reduce the finer-grid cost, but should "// &
+                          "be checked together with the regular MGRID cutoff convergence.", &
+                          usage="FINE_GRID_FACTOR 4.0", default_r_val=4.0_dp, &
+                          variants=["FINE_XC_FACTOR"])
       CALL section_add_keyword(subsection, keyword)
       CALL keyword_release(keyword)
 

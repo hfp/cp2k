@@ -5,6 +5,10 @@
 !   SPDX-License-Identifier: GPL-2.0-or-later                                                      !
 !--------------------------------------------------------------------------------------------------!
 
+#ifdef __GAUXC
+#include "gauxc/gauxc_config.f"
+#endif
+
 ! **************************************************************************************************
 !> \brief some minimal info about CP2K, including its version and license
 !> \par History
@@ -107,6 +111,27 @@ CONTAINS
 #if defined(__LIBXC)
       flags = TRIM(flags)//" libxc"
 #endif
+#if defined(__GAUXC)
+      flags = TRIM(flags)//" gauxc"
+#endif
+#if defined(GAUXC_HAS_MPI)
+      flags = TRIM(flags)//" gauxc_mpi"
+#endif
+#if defined(GAUXC_HAS_ONEDFT)
+      flags = TRIM(flags)//" gauxc_onedft"
+#endif
+#if defined(GAUXC_HAS_HOST)
+      flags = TRIM(flags)//" gauxc_host"
+#endif
+#if defined(GAUXC_HAS_DEVICE)
+      flags = TRIM(flags)//" gauxc_device"
+#endif
+#if defined(GAUXC_HAS_CUDA)
+      flags = TRIM(flags)//" gauxc_cuda"
+#endif
+#if defined(GAUXC_HAS_HDF5)
+      flags = TRIM(flags)//" gauxc_hdf5"
+#endif
 #if defined(__PEXSI)
       flags = TRIM(flags)//" pexsi"
 #endif
@@ -196,15 +221,24 @@ CONTAINS
 #if defined(__DFTD4_V3)
       flags = TRIM(flags)//" dftd4_v3"
 #endif
+#if defined(__DFTD4_V4_2)
+      flags = TRIM(flags)//" dftd4_v4_2"
+#endif
 #if defined(__TBLITE)
       flags = TRIM(flags)//" mctc-lib"
       flags = TRIM(flags)//" tblite"
+#endif
+#if defined(__TBLITE_DEBUG_DIAGNOSTICS)
+      flags = TRIM(flags)//" tblite_debug_diagnostics"
 #endif
 #if defined(__SIRIUS)
       flags = TRIM(flags)//" sirius"
 #endif
 #if defined(__SIRIUS_NLCG)
       flags = TRIM(flags)//" sirius_nlcg"
+#endif
+#if defined(__SIRIUS_DFTD3)
+      flags = TRIM(flags)//" sirius_dftd3"
 #endif
 #if defined(__SIRIUS_DFTD4)
       flags = TRIM(flags)//" sirius_dftd4"
@@ -272,6 +306,9 @@ CONTAINS
 #endif
 #if defined(__TREXIO)
       flags = TRIM(flags)//" trexio"
+#endif
+#if defined(__LIBFCI)
+      flags = TRIM(flags)//" libfci"
 #endif
 #if defined(__OFFLOAD_UNIFIED_MEMORY)
       flags = TRIM(flags)//" offload_unified_memory"

@@ -17,12 +17,21 @@ MODULE tblite_types
    USE mctc_io, ONLY: structure_type, new
    USE tblite_xtb_calculator, ONLY: xtb_calculator
    USE tblite_container, ONLY: container_cache
+   USE tblite_scf_mixer, ONLY: mixer_type
    USE tblite_wavefunction_type, ONLY: wavefunction_type
    USE tblite_scf_potential, ONLY: potential_type
+   USE tblite_param, ONLY: param_record
 #endif
 
    USE cp_dbcsr_api, ONLY: dbcsr_p_type
    USE cp_dbcsr_operations, ONLY: dbcsr_deallocate_matrix_set
+   USE input_constants, ONLY: tblite_mixer_damping_default, &
+                              tblite_mixer_iterations_default, &
+                              tblite_mixer_max_weight_default, &
+                              tblite_mixer_min_weight_default, &
+                              tblite_mixer_omega0_default, &
+                              tblite_mixer_weight_factor_default, &
+                              tblite_solver_gvd
    USE kinds, ONLY: dp
 
 #include "./base/base_uses.f90"
@@ -39,12 +48,14 @@ MODULE tblite_types
       LOGICAL                                            :: use_virial = .FALSE.
       INTEGER, ALLOCATABLE                               :: el_num(:)
 
+      REAL(KIND=dp)                                      :: accuracy = 1.0_dp
       REAL(KIND=dp), DIMENSION(3, 3)                     :: sigma = -1.0_dp
       REAL(KIND=dp), ALLOCATABLE                         :: e_hal(:)
       REAL(KIND=dp), ALLOCATABLE                         :: e_rep(:)
       REAL(KIND=dp), ALLOCATABLE                         :: e_disp(:)
       REAL(KIND=dp), ALLOCATABLE                         :: e_scd(:)
       REAL(KIND=dp), ALLOCATABLE                         :: e_es(:)
+      REAL(KIND=dp), ALLOCATABLE                         :: e_int(:)
       REAL(KIND=dp), ALLOCATABLE                         :: selfenergy(:)
       REAL(KIND=dp), ALLOCATABLE                         :: cn(:)
 
@@ -58,14 +69,25 @@ MODULE tblite_types
                                                             dipket => Null()
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: quadbra => Null(), &
                                                             quadket => Null()
+      TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: rho_ao_kp_ref => Null()
+      INTEGER                                            :: mixer_memory = tblite_mixer_iterations_default
+      INTEGER                                            :: mixer_solver = tblite_solver_gvd
+      REAL(KIND=dp)                                      :: mixer_damping = tblite_mixer_damping_default
+      REAL(KIND=dp)                                      :: mixer_max_weight = tblite_mixer_max_weight_default
+      REAL(KIND=dp)                                      :: mixer_min_weight = tblite_mixer_min_weight_default
+      REAL(KIND=dp)                                      :: mixer_omega0 = tblite_mixer_omega0_default
+      REAL(KIND=dp)                                      :: mixer_weight_factor = tblite_mixer_weight_factor_default
 
 #if defined(__TBLITE)
       TYPE(structure_type)                               :: mol = structure_type()
       TYPE(xtb_calculator)                               :: calc = xtb_calculator()
       TYPE(container_cache)                              :: cache = container_cache()
       TYPE(container_cache)                              :: dcache = container_cache()
+      TYPE(container_cache)                              :: icache = container_cache()
       TYPE(wavefunction_type)                            :: wfn = wavefunction_type()
       TYPE(potential_type)                               :: pot = potential_type()
+      CLASS(mixer_type), ALLOCATABLE                     :: mixer
+      TYPE(param_record), ALLOCATABLE                    :: param
 #endif
 
    END TYPE tblite_type
@@ -102,6 +124,7 @@ CONTAINS
          IF (ALLOCATED(tb_tblite%e_disp)) DEALLOCATE (tb_tblite%e_disp)
          IF (ALLOCATED(tb_tblite%e_scd)) DEALLOCATE (tb_tblite%e_scd)
          IF (ALLOCATED(tb_tblite%e_es)) DEALLOCATE (tb_tblite%e_es)
+         IF (ALLOCATED(tb_tblite%e_int)) DEALLOCATE (tb_tblite%e_int)
          IF (ALLOCATED(tb_tblite%selfenergy)) DEALLOCATE (tb_tblite%selfenergy)
          IF (ALLOCATED(tb_tblite%cn)) DEALLOCATE (tb_tblite%cn)
 
@@ -118,6 +141,12 @@ CONTAINS
             CALL dbcsr_deallocate_matrix_set(tb_tblite%quadbra)
          IF (ASSOCIATED(tb_tblite%quadket)) &
             CALL dbcsr_deallocate_matrix_set(tb_tblite%quadket)
+         IF (ASSOCIATED(tb_tblite%rho_ao_kp_ref)) &
+            CALL dbcsr_deallocate_matrix_set(tb_tblite%rho_ao_kp_ref)
+#if defined(__TBLITE)
+         IF (ALLOCATED(tb_tblite%mixer)) DEALLOCATE (tb_tblite%mixer)
+         IF (ALLOCATED(tb_tblite%param)) DEALLOCATE (tb_tblite%param)
+#endif
 
          DEALLOCATE (tb_tblite)
       END IF

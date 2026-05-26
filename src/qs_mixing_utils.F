@@ -23,6 +23,7 @@ MODULE qs_mixing_utils
    USE qs_density_mixing_types,         ONLY: broyden_mixing_nr,&
                                               gspace_mixing_nr,&
                                               mixing_storage_type,&
+                                              modified_broyden_mixing_nr,&
                                               multisecant_mixing_nr,&
                                               pulay_mixing_nr
    USE qs_environment_types,            ONLY: get_qs_env,&
@@ -39,6 +40,8 @@ MODULE qs_mixing_utils
    PRIVATE
 
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'qs_mixing_utils'
+   INTEGER, PARAMETER, PRIVATE          :: max_dftb_scc_vars = 1, &
+                                           max_xtb_scc_vars = 28
 
    PUBLIC :: mixing_allocate, mixing_init, charge_mixing_init, &
              self_consistency_check
@@ -177,13 +180,13 @@ CONTAINS
       END IF
 
       IF (charge_mixing) THEN
-         !   *** allocate buffer for charge mixing ***
+         !   *** allocate buffer for TB SCC variable mixing ***
          IF (mixing_method >= gspace_mixing_nr) THEN
             CPASSERT(.NOT. mixing_store%gmix_p)
             IF (dft_control%qs_control%dftb) THEN
-               max_shell = 1
+               max_shell = max_dftb_scc_vars
             ELSEIF (dft_control%qs_control%xtb) THEN
-               max_shell = 5
+               max_shell = max_xtb_scc_vars
             ELSE
                CPABORT('UNKNOWN METHOD')
             END IF
@@ -308,7 +311,7 @@ CONTAINS
 
          END IF
          !   *** allocate broyden buffer ***
-         IF (mixing_method == broyden_mixing_nr) THEN
+         IF (mixing_method == broyden_mixing_nr .OR. mixing_method == modified_broyden_mixing_nr) THEN
             IF (.NOT. ASSOCIATED(mixing_store%rhoin_old)) THEN
                ALLOCATE (mixing_store%rhoin_old(nspins))
                DO ispin = 1, nspins
@@ -324,6 +327,12 @@ CONTAINS
                   END DO
                   NULLIFY (mixing_store%last_res(ispin)%cc)
                END DO
+            END IF
+            IF (mixing_method == modified_broyden_mixing_nr) THEN
+               IF (.NOT. ASSOCIATED(mixing_store%weight)) THEN
+                  ALLOCATE (mixing_store%weight(nbuffer, nspins))
+               END IF
+               mixing_store%weight = 0.0_dp
             END IF
             IF (mixing_store%gmix_p) THEN
 
@@ -403,10 +412,10 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER                        :: routineN = 'mixing_init'
 
-      INTEGER                                            :: handle, iat, ib, ig, ig1, ig_count, &
-                                                            iproc, ispin, n1, n2, natom, nbuffer, &
-                                                            ng, nimg, nspin
-      REAL(dp)                                           :: bconst, beta, fdamp, g2max, g2min, kmin
+      INTEGER :: handle, iat, ib, icoef1, icoef2, ig, ig1, ig_count, iproc, ispin, n1, n2, natom, &
+         nbuffer, ncoef_h1, ncoef_h2, ncoef_s1, ncoef_s2, ng, nimg, nspin
+      REAL(dp)                                           :: bconst, beta, cpc_h_tmp, cpc_s_tmp, &
+                                                            fdamp, g2max, g2min, kmin
       REAL(dp), DIMENSION(:), POINTER                    :: g2
       REAL(dp), DIMENSION(:, :), POINTER                 :: g_vec
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: rho_ao_kp
@@ -436,17 +445,27 @@ CONTAINS
       IF (.NOT. ASSOCIATED(mixing_store%kerker_factor)) THEN
          ALLOCATE (mixing_store%kerker_factor(ng))
       END IF
+      IF (.NOT. ASSOCIATED(mixing_store%kerker_factor_mag)) THEN
+         ALLOCATE (mixing_store%kerker_factor_mag(ng))
+      END IF
       IF (.NOT. ASSOCIATED(mixing_store%special_metric)) THEN
          ALLOCATE (mixing_store%special_metric(ng))
       END IF
       beta = mixing_store%beta
       kmin = 0.1_dp
       mixing_store%kerker_factor = 1.0_dp
+      mixing_store%kerker_factor_mag = 1.0_dp
       mixing_store%special_metric = 1.0_dp
       ig1 = 1
       IF (rho_g(1)%pw_grid%have_g0) ig1 = 2
       DO ig = ig1, mixing_store%ig_max
          mixing_store%kerker_factor(ig) = MAX(g2(ig)/(g2(ig) + beta*beta), kmin)
+         IF (mixing_store%beta_mag > 1.0E-10_dp) THEN
+            mixing_store%kerker_factor_mag(ig) = MAX(g2(ig)/(g2(ig) + mixing_store%beta_mag*mixing_store%beta_mag), kmin)
+         ELSE
+            ! beta_mag ~ 0 means no Kerker screening on the magnetization channel
+            mixing_store%kerker_factor_mag(ig) = 1.0_dp
+         END IF
          mixing_store%special_metric(ig) = &
             1.0_dp + 50.0_dp/8.0_dp*( &
             1.0_dp + COS(g_vec(1, ig)) + COS(g_vec(2, ig)) + COS(g_vec(3, ig)) + &
@@ -510,6 +529,45 @@ CONTAINS
                   END IF
                END DO
             END DO
+            IF (nspin == 2 .AND. ASSOCIATED(mixing_store%cpc_s_in)) THEN
+               DO iat = 1, natom
+                  IF (mixing_store%paw(iat)) THEN
+                     CPASSERT(ASSOCIATED(mixing_store%cpc_h_in(iat, 1)%r_coef))
+                     CPASSERT(ASSOCIATED(mixing_store%cpc_h_in(iat, 2)%r_coef))
+                     CPASSERT(ASSOCIATED(mixing_store%cpc_s_in(iat, 1)%r_coef))
+                     CPASSERT(ASSOCIATED(mixing_store%cpc_s_in(iat, 2)%r_coef))
+
+                     ncoef_h1 = SIZE(mixing_store%cpc_h_in(iat, 1)%r_coef, 1)
+                     ncoef_h2 = SIZE(mixing_store%cpc_h_in(iat, 1)%r_coef, 2)
+                     ncoef_s1 = SIZE(mixing_store%cpc_s_in(iat, 1)%r_coef, 1)
+                     ncoef_s2 = SIZE(mixing_store%cpc_s_in(iat, 1)%r_coef, 2)
+                     CPASSERT(ncoef_h1 == SIZE(mixing_store%cpc_h_in(iat, 2)%r_coef, 1))
+                     CPASSERT(ncoef_h2 == SIZE(mixing_store%cpc_h_in(iat, 2)%r_coef, 2))
+                     CPASSERT(ncoef_s1 == SIZE(mixing_store%cpc_s_in(iat, 2)%r_coef, 1))
+                     CPASSERT(ncoef_s2 == SIZE(mixing_store%cpc_s_in(iat, 2)%r_coef, 2))
+
+                     DO icoef2 = 1, ncoef_h2
+                        DO icoef1 = 1, ncoef_h1
+                           cpc_h_tmp = mixing_store%cpc_h_in(iat, 1)%r_coef(icoef1, icoef2)
+                           mixing_store%cpc_h_in(iat, 1)%r_coef(icoef1, icoef2) = &
+                              cpc_h_tmp + mixing_store%cpc_h_in(iat, 2)%r_coef(icoef1, icoef2)
+                           mixing_store%cpc_h_in(iat, 2)%r_coef(icoef1, icoef2) = &
+                              cpc_h_tmp - mixing_store%cpc_h_in(iat, 2)%r_coef(icoef1, icoef2)
+                        END DO
+                     END DO
+
+                     DO icoef2 = 1, ncoef_s2
+                        DO icoef1 = 1, ncoef_s1
+                           cpc_s_tmp = mixing_store%cpc_s_in(iat, 1)%r_coef(icoef1, icoef2)
+                           mixing_store%cpc_s_in(iat, 1)%r_coef(icoef1, icoef2) = &
+                              cpc_s_tmp + mixing_store%cpc_s_in(iat, 2)%r_coef(icoef1, icoef2)
+                           mixing_store%cpc_s_in(iat, 2)%r_coef(icoef1, icoef2) = &
+                              cpc_s_tmp - mixing_store%cpc_s_in(iat, 2)%r_coef(icoef1, icoef2)
+                        END DO
+                     END DO
+                  END IF
+               END DO
+            END IF
          END IF
       END IF
 
@@ -539,7 +597,7 @@ CONTAINS
                END DO
             END DO
          END IF
-      ELSEIF (mixing_method == broyden_mixing_nr) THEN
+      ELSEIF (mixing_method == broyden_mixing_nr .OR. mixing_method == modified_broyden_mixing_nr) THEN
          DO ispin = 1, nspin
             IF (.NOT. ASSOCIATED(mixing_store%rhoin_old(ispin)%cc)) THEN
                ALLOCATE (mixing_store%rhoin_old(ispin)%cc(ng))
@@ -642,7 +700,11 @@ CONTAINS
    ELEMENTAL SUBROUTINE charge_mixing_init(mixing_store)
       TYPE(mixing_storage_type), INTENT(INOUT)           :: mixing_store
 
-      mixing_store%acharge = 0.0_dp
+      mixing_store%ncall = 0
+      mixing_store%tb_scc_mixer_error = 0.0_dp
+      mixing_store%tb_scc_mixer_step = 0
+      IF (ASSOCIATED(mixing_store%acharge)) mixing_store%acharge = 0.0_dp
+      IF (ASSOCIATED(mixing_store%dacharge)) mixing_store%dacharge = 0.0_dp
 
    END SUBROUTINE charge_mixing_init
 

@@ -21,6 +21,7 @@ MODULE input_cp2k_kpoints
                                               section_create,&
                                               section_type
    USE input_val_types,                 ONLY: char_t,&
+                                              enum_t,&
                                               real_t
    USE kinds,                           ONLY: default_path_length,&
                                               dp
@@ -34,11 +35,17 @@ MODULE input_cp2k_kpoints
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'input_cp2k_kpoints'
 
    INTEGER, PARAMETER                      :: use_real_wfn = 101, &
-                                              use_complex_wfn = 100
+                                              use_complex_wfn = 100, &
+                                              use_k290_kpoint_symmetry = 200, &
+                                              use_spglib_kpoint_symmetry = 201, &
+                                              use_k290_kpoint_backend = 300, &
+                                              use_spglib_kpoint_backend = 301
 
    PUBLIC :: create_kpoints_section
    PUBLIC :: create_kpoint_set_section
    PUBLIC :: use_real_wfn, use_complex_wfn
+   PUBLIC :: use_k290_kpoint_symmetry, use_spglib_kpoint_symmetry
+   PUBLIC :: use_k290_kpoint_backend, use_spglib_kpoint_backend
 
 CONTAINS
 
@@ -52,8 +59,12 @@ CONTAINS
 !>      SYMMETRY         [on, off]
 !>      WAVEFUNCTION     [real, complex]
 !>      FULL_GRID        [on, off]
+!>      INVERSION_SYMMETRY_ONLY [on, off]
+!>      DEBUG_FULL_KPOINT_SYMMETRY [on, off]
+!>      SYMMETRY_BACKEND [K290, SPGLIB]
+!>      SYMMETRY_REDUCTION_METHOD [K290, SPGLIB]
 !>      VERBOSE          [on, off]
-!>      EPS_GEO          value
+!>      EPS_SYMMETRY     value
 !>      PARALLEL_GROUP_SIZE   [-1,0,n]
 !>
 !> \param section the section to create
@@ -66,12 +77,12 @@ CONTAINS
 
       CPASSERT(.NOT. ASSOCIATED(section))
       CALL section_create(section, __LOCATION__, name="KPOINTS", &
-                          description="Sets up the kpoints.", &
+                          description="Controls Brillouin-zone sampling with k-points.", &
                           n_keywords=1, n_subsections=0, repeats=.FALSE.)
 
       NULLIFY (keyword)
       CALL keyword_create(keyword, __LOCATION__, name="SCHEME", &
-                          description="Kpoint scheme to be used. Available options are:"//newline// &
+                          description="K-point generation scheme. Available options are:"//newline// &
                           "- `NONE`"//newline// &
                           "- `GAMMA`"//newline// &
                           "- `MONKHORST-PACK`"//newline// &
@@ -80,10 +91,23 @@ CONTAINS
                           newline// &
                           "For `MONKHORST-PACK` the number of k points in all 3 dimensions has to"// &
                           " be supplied along with the keyword. For `MACDONALD` also the list of shifts."// &
-                          " E.g. `MONKHORST-PACK 12 12 8`, `MACDONALD 4 4 4 0.25 0.25 0.25`", &
+                          " E.g. `MONKHORST-PACK 12 12 8`, `MACDONALD 4 4 4 0.25 0.25 0.25`."// &
+                          " `GENERAL` uses explicitly listed k-points. If symmetry reduction is requested,"// &
+                          " the explicit set must be equally weighted and closed under the selected operations.", &
                           usage="SCHEME {KPMETHOD} {integer} {integer} ..", &
                           citations=[Monkhorst1976, MacDonald1978], &
                           n_var=-1, type_of_var=char_t)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="GAMMA_CENTERED", &
+                          description="Generate a gamma-centered variant of the "// &
+                          "Monkhorst-Pack or MacDonald mesh. This shifts the original mesh so "// &
+                          "it can include the Gamma point, and makes sense only when an "// &
+                          "even number of subdivisions is used. For MacDonald meshes, the "// &
+                          "explicit shift is applied after the gamma-centering shift.", &
+                          usage="GAMMA_CENTERED <LOGICAL>", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -96,7 +120,7 @@ CONTAINS
 
       CALL keyword_create(keyword, __LOCATION__, name="UNITS", &
                           description="Special k-points are defined either in units"// &
-                          " of reciprocal lattice vectors or in Cartesian coordinates in uints of 2Pi/len."// &
+                          " of reciprocal lattice vectors or in Cartesian coordinates in units of 2Pi/len."// &
                           " B_VECTOR: in multiples of the reciprocal lattice vectors (b)."// &
                           " CART_ANGSTROM: In units of 2*Pi/Angstrom."// &
                           " CART_BOHR: In units of 2*Pi/Bohr.", &
@@ -112,9 +136,60 @@ CONTAINS
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="FULL_GRID", &
-                          description="Use full non-reduced kpoint grid.", &
+                          description="Use the full, non-symmetry-reduced k-point grid.", &
                           usage="FULL_GRID <LOGICAL>", &
                           default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="INVERSION_SYMMETRY_ONLY", &
+                          description="Restrict k-point reduction to k-space inversion "// &
+                          "(time-reversal) symmetry.", &
+                          usage="INVERSION_SYMMETRY_ONLY <LOGICAL>", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="DEBUG_FULL_KPOINT_SYMMETRY", &
+                          description="Use full atomic k-point symmetry also for DEBUG finite-difference "// &
+                          "points. This is an expert option: the default keeps finite-difference energies "// &
+                          "on inversion/time-reversal symmetry to avoid comparing slightly different "// &
+                          "irreducible k-point sets.", &
+                          usage="DEBUG_FULL_KPOINT_SYMMETRY <LOGICAL>", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="SYMMETRY_BACKEND", &
+                          description="Select the backend used to provide and apply atomic "// &
+                          "k-point symmetry operations. K290 is the established default. "// &
+                          "SPGLIB uses the symmetry operations returned by SPGLIB, including "// &
+                          "their fractional translations. This applies to Monkhorst-Pack, MacDonald, and "// &
+                          "closed GENERAL k-point sets. If "// &
+                          "SYMMETRY_REDUCTION_METHOD is not specified, it follows the selected backend.", &
+                          usage="SYMMETRY_BACKEND K290", type_of_var=enum_t, &
+                          enum_c_vals=s2a("K290", "SPGLIB"), &
+                          enum_i_vals=[use_k290_kpoint_backend, use_spglib_kpoint_backend], &
+                          enum_desc=s2a("Use the existing K290 k-point symmetry backend.", &
+                                        "Use SPGLIB symmetry operations as k-point symmetry backend."), &
+                          default_i_val=use_k290_kpoint_backend)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="SYMMETRY_REDUCTION_METHOD", &
+                          description="Select the method used to reduce Monkhorst-Pack and MacDonald "// &
+                          "k-point meshes when atomic symmetry is enabled. K290 is the established "// &
+                          "default. SPGLIB uses the symmetry operations returned by SPGLIB for the "// &
+                          "k-point reduction. GENERAL k-point lists can be reduced when the explicit set is "// &
+                          "equally weighted and closed under the selected operations. With "// &
+                          "SYMMETRY_BACKEND K290 this can be used as a comparison mode using K290 "// &
+                          "operations for SPGLIB-generated mappings.", &
+                          usage="SYMMETRY_REDUCTION_METHOD K290", type_of_var=enum_t, &
+                          enum_c_vals=s2a("K290", "SPGLIB"), &
+                          enum_i_vals=[use_k290_kpoint_symmetry, use_spglib_kpoint_symmetry], &
+                          enum_desc=s2a("Use the existing K290 k-point symmetry reduction method.", &
+                                        "Use SPGLIB symmetry operations for k-point reduction."), &
+                          default_i_val=use_k290_kpoint_symmetry)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -125,15 +200,16 @@ CONTAINS
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
-      CALL keyword_create(keyword, __LOCATION__, name="EPS_GEO", &
-                          description="Accuracy in symmetry determination.", &
-                          usage="EPS_GEO <real>", &
+      CALL keyword_create(keyword, __LOCATION__, name="EPS_SYMMETRY", variants=["EPS_GEO"], &
+                          description="Accuracy in k-point symmetry determination."//newline// &
+                          "EPS_GEO is accepted as an alias.", &
+                          usage="EPS_SYMMETRY <real>", &
                           default_r_val=1.0e-6_dp)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="PARALLEL_GROUP_SIZE", &
-                          description="Number of processors to be used for a single kpoint."// &
+                          description="Number of MPI processes to be used for a single k-point."// &
                           " This number must divide the total number of processes."// &
                           " The number of groups must divide the total number of kpoints."// &
                           " Value=-1 (smallest possible number of processes per group, satisfying the constraints)."// &
@@ -145,7 +221,10 @@ CONTAINS
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="WAVEFUNCTIONS", &
-                          description="Use real/complex wavefunctions if possible.", &
+                          description="Select whether real or complex wavefunctions should be used "// &
+                          "when allowed by the k-point set. REAL wavefunctions can only represent "// &
+                          "Gamma or special k-points and symmetry operations with real Bloch phases. "// &
+                          "Use COMPLEX for general atomic k-point symmetries with nontrivial phases.", &
                           usage="WAVEFUNCTIONS REAL", &
                           default_i_val=use_complex_wfn, &
                           enum_c_vals=s2a("REAL", "COMPLEX"), &
@@ -196,7 +275,7 @@ CONTAINS
       !
       CALL keyword_create(keyword, __LOCATION__, name="UNITS", &
                           description="Special k-points are defined either in units"// &
-                          " of reciprocal lattice vectors or in Cartesian coordinates in uints of 2Pi/len."// &
+                          " of reciprocal lattice vectors or in Cartesian coordinates in units of 2Pi/len."// &
                           " B_VECTOR: in multiples of the reciprocal lattice vectors (b)."// &
                           " CART_ANGSTROM: In units of 2*Pi/Angstrom."// &
                           " CART_BOHR: In units of 2*Pi/Bohr.", &

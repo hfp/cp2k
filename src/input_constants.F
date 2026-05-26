@@ -310,7 +310,8 @@ MODULE input_constants
    ! pint propagator mode
    INTEGER, PARAMETER, PUBLIC               :: propagator_pimd = 1, &
                                                propagator_rpmd = 2, &
-                                               propagator_cmd = 3
+                                               propagator_cmd = 3, &
+                                               propagator_bcmd = 4
    ! pint propagator mode
    INTEGER, PARAMETER, PUBLIC               :: integrate_numeric = 1, &
                                                integrate_exact = 2
@@ -463,7 +464,8 @@ MODULE input_constants
                                                do_loc_direct = 3, &
                                                do_loc_l1_norm_sd = 4, &
                                                do_loc_scdm = 5, &
-                                               do_loc_gapo = 6
+                                               do_loc_gapo = 6, &
+                                               do_loc_cs = 7
 
    INTEGER, PARAMETER, PUBLIC               :: do_loc_cpo_atomic = 0, &
                                                do_loc_cpo_restart = 1, &
@@ -553,9 +555,12 @@ MODULE input_constants
                                                do_second_rotation_step = 1, &
                                                do_third_rotation_step = 2
 
-   INTEGER, PARAMETER, PUBLIC               :: default_cell_geo_opt_id = 0, &
-                                               default_cell_md_id = 1, &
-                                               default_cell_direct_id = 2
+   ! See variable "iprint" in src/motion/cp_lbfgs.F for explanation
+   INTEGER, PARAMETER, PUBLIC               :: silent_lbfgs = 0, &
+                                               low_lbfgs = 1, &
+                                               medium_lbfgs = 99, &
+                                               high_lbfgs = 100, &
+                                               debug_lbfgs = 101
 
    INTEGER, PARAMETER, PUBLIC               :: xc_funct_no_shortcut = 0, &
                                                xc_funct_blyp = 1, &
@@ -710,7 +715,9 @@ MODULE input_constants
    ! Form of dipole operator for TDDFPT oscillator strength calculation
    INTEGER, PARAMETER, PUBLIC               :: tddfpt_dipole_berry = 1, &
                                                tddfpt_dipole_length = 2, &
-                                               tddfpt_dipole_velocity = 3
+                                               tddfpt_dipole_velocity = 3, &
+                                               tddfpt_dipole_velocity_old = 4, &
+                                               tddfpt_dipole_scf_moment = 5
 
    ! XC Kernel derivative methods for forces
    INTEGER, PARAMETER, PUBLIC               :: xc_kernel_method_best = 100, &
@@ -725,7 +732,9 @@ MODULE input_constants
 
    ! EIP models
    INTEGER, PARAMETER, PUBLIC               :: use_bazant_eip = 1, &
-                                               use_lenosky_eip = 2
+                                               use_lenosky_eip = 2, &
+                                               use_stillinger_weber_eip = 3, &
+                                               use_tersoff_eip = 4
 
    ! ddapc restraint forms
    INTEGER, PARAMETER, PUBLIC               :: do_ddapc_restraint = 773, &
@@ -919,7 +928,7 @@ MODULE input_constants
                                                kerker_mix = 2, &
                                                pulay_mix = 3, &
                                                broy_mix = 4, &
-                                               broy_mix_new = 5, &
+                                               modified_broy_mix = 5, &
                                                multisec_mix = 6
 
    ! FFT library
@@ -953,6 +962,10 @@ MODULE input_constants
                                                gaussian_env = 2, &
                                                ramp_env = 3, &
                                                custom_env = 4
+
+   INTEGER, PARAMETER, PUBLIC               :: rtp_localize_none = 0, &
+                                               rtp_localize_once = 1, &
+                                               rtp_localize_each = 2
 
    INTEGER, PARAMETER, PUBLIC               :: rtp_method_tddft = 1, &
                                                rtp_method_bse = 2
@@ -1112,7 +1125,8 @@ MODULE input_constants
                                                large_cell_Gamma = 32, &
                                                G0W0 = 35, &
                                                evGW0 = 36, &
-                                               evGW = 37
+                                               evGW = 37, &
+                                               large_cell_Gamma_ri_rs = 38
 
    ! periodic RESP parameters
    INTEGER, PARAMETER, PUBLIC               :: do_resp_x_dir = 0, &
@@ -1143,7 +1157,8 @@ MODULE input_constants
 
    ! Active space external solvers
    INTEGER, PARAMETER, PUBLIC               :: no_solver = 200, &
-                                               qiskit_solver = 201
+                                               qiskit_solver = 201, &
+                                               fci_solver = 202
 
    ! callgraph parameters
    INTEGER, PARAMETER, PUBLIC               :: callgraph_none = 0, &
@@ -1349,7 +1364,48 @@ MODULE input_constants
    ! tblite method selection
    INTEGER, PARAMETER, PUBLIC               :: gfn1xtb = 1, &
                                                gfn2xtb = 2, &
-                                               ipea1xtb = 3
+                                               ipea1xtb = 3, &
+                                               gfn_tblite = 4
+
+   ! tblite SCC mixer selection
+   INTEGER, PARAMETER, PUBLIC               :: tblite_scc_mixer_auto = 0, &
+                                               tblite_scc_mixer_tblite = 1, &
+                                               tblite_scc_mixer_cp2k = 2, &
+                                               tblite_scc_mixer_none = 3
+
+   ! tblite SCC mixer defaults matching the tblite library
+   INTEGER, PARAMETER, PUBLIC               :: tblite_mixer_iterations_default = 250, &
+                                               tblite_mixer_memory_inherit = 0
+   REAL(KIND=dp), PARAMETER, PUBLIC         :: tblite_mixer_damping_default = 0.4_dp, &
+                                               tblite_mixer_max_weight_default = 100000.0_dp, &
+                                               tblite_mixer_min_weight_default = 1.0_dp, &
+                                               tblite_mixer_omega0_default = 0.01_dp, &
+                                               tblite_mixer_weight_factor_default = 0.01_dp
+
+   ! tblite reference CLI initial guess selection
+   INTEGER, PARAMETER, PUBLIC               :: tblite_guess_sad = 0, &
+                                               tblite_guess_eeq = 1, &
+                                               tblite_guess_ceh = 2
+
+   ! tblite native electronic solver selection
+   INTEGER, PARAMETER, PUBLIC               :: tblite_solver_gvd = 0, &
+                                               tblite_solver_gvr = 1
+
+   ! tblite reference CLI implicit solvation selection
+   INTEGER, PARAMETER, PUBLIC               :: tblite_cli_solvation_none = 0, &
+                                               tblite_cli_solvation_alpb = 1, &
+                                               tblite_cli_solvation_gbsa = 2, &
+                                               tblite_cli_solvation_gbe = 3, &
+                                               tblite_cli_solvation_gb = 4, &
+                                               tblite_cli_solvation_cpcm = 5
+
+   INTEGER, PARAMETER, PUBLIC               :: tblite_cli_born_kernel_auto = 0, &
+                                               tblite_cli_born_kernel_p16 = 1, &
+                                               tblite_cli_born_kernel_still = 2
+
+   INTEGER, PARAMETER, PUBLIC               :: tblite_cli_solution_state_gsolv = 0, &
+                                               tblite_cli_solution_state_bar1mol = 1, &
+                                               tblite_cli_solution_state_reference = 2
 
    ! SMEAGOL interface
    INTEGER, PARAMETER, PUBLIC               :: smeagol_bulklead_leftright = 1, &

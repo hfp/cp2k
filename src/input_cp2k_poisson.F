@@ -108,7 +108,7 @@ CONTAINS
 
       CPASSERT(.NOT. ASSOCIATED(section))
       CALL section_create(section, __LOCATION__, name="poisson", &
-                          description="Sets up the poisson resolutor.", &
+                          description="Controls the Poisson solver and electrostatic boundary conditions used by DFT.", &
                           n_keywords=1, n_subsections=0, repeats=.FALSE.)
 
       NULLIFY (keyword, subsection)
@@ -127,7 +127,8 @@ CONTAINS
                                         "cluster size (with electronic density). Available for 0D and 2D systems.", &
                                         "MULTIPOLE uses a scheme that fits the total charge with one gaussian per atom. "// &
                                         "Available only for cluster (0D) systems.", &
-                                        "WAVELET allows for 0D, 2D (but only PERIODIC XZ) and 3D systems. It does not "// &
+                                        "WAVELET allows for 0D, 2D and 3D systems. For 2D systems all PERIODIC XY, XZ "// &
+                                        "and YZ combinations are accepted. It does not "// &
                                         "require very large unit cells, only that the density goes to zero on the faces of "// &
                                         "the cell. The use of PREFERRED_FFT_LIBRARY FFTSG is required.", &
                                         "IMPLICIT allows for 0D, 1D, 2D and 3D systems."), &
@@ -137,10 +138,9 @@ CONTAINS
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="PERIODIC", &
-                          description="Specify the directions in which PBC apply. Important notice,"// &
-                          " this only applies to the electrostatics."// &
-                          " See the CELL section to specify the periodicity used for e.g. the pair lists."// &
-                          " Typically the settings should be the same.", &
+                          description="Specifies the directions in which periodic boundary conditions apply to electrostatics. "// &
+                          "See the CELL section for the periodicity used by geometry and pair lists; "// &
+                          "the settings are usually the same.", &
                           usage="PERIODIC (x|y|z|xy|xz|yz|xyz|none)", &
                           enum_c_vals=s2a("x", "y", "z", "xy", "xz", "yz", "xyz", "none"), &
                           enum_i_vals=[use_perd_x, use_perd_y, use_perd_z, &
@@ -337,7 +337,6 @@ CONTAINS
       CALL keyword_create(keyword, __LOCATION__, name="alpha", &
                           description="alpha parameter associated with Ewald (EWALD|PME|SPME). "// &
                           "Recommended for small systems is alpha = 3.5 / r_cut. "// &
-                          "For Tight-binding application a recommended value is alpha = 1.0. "// &
                           "Tuning alpha, r_cut and gmax is needed to obtain O(N**1.5) scaling for ewald.", &
                           usage="alpha .30", &
                           default_r_val=cp_unit_to_cp2k(value=0.35_dp, unit_str="angstrom^-1"), &

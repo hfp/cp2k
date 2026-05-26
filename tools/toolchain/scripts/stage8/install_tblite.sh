@@ -6,8 +6,10 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")/.." && pwd -P)"
 
-tblite_ver="0.5.0"
-tblite_sha256="e8a70b72ed0a0db0621c7958c63667a9cd008c97c868a4a417ff1bc262052ea8"
+tblite_ver="0.6.0"
+tblite_sha256="372281aedb89234168d00eb691addb303197a9462a9c55d145c835f2cf5e8b42"
+tblite_sdftd3_ver="1.4.0"
+tblite_dftd4_ver="4.2.0"
 
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh
@@ -19,6 +21,22 @@ source "${INSTALLDIR}"/toolchain.env
 
 ! [ -d "${BUILDDIR}" ] && mkdir -p "${BUILDDIR}"
 cd "${BUILDDIR}"
+
+retrieve_github_archive() {
+  local __sha256="$1"
+  local __filename="$2"
+  local __urlpath="$3"
+  local __outfile="$4"
+  if ! [ -f "${__outfile}" ]; then
+    download_pkg_from_urlpath "${__sha256}" "${__filename}" "${__urlpath}" "${__outfile}"
+  elif ! checksum "${__sha256}" "${__outfile}"; then
+    echo "${__outfile} is found but checksum is wrong; delete and re-download"
+    rm -vf "${__outfile}"
+    download_pkg_from_urlpath "${__sha256}" "${__filename}" "${__urlpath}" "${__outfile}"
+  else
+    echo "${__outfile} is found and checksum is right"
+  fi
+}
 
 case "$with_tblite" in
   __DONTUSE__) ;;
@@ -34,20 +52,18 @@ case "$with_tblite" in
     if verify_checksums "${install_lock_file}"; then
       echo "tblite-${tblite_ver} is already installed, skipping it."
     else
-      retrieve_package "${tblite_sha256}" "tblite-${tblite_ver}.tar.xz"
-      echo "Installing from scratch into ${pkg_install_dir}"
+      #retrieve_package "${tblite_sha256}" "tblite-${tblite_ver}.tar.xz"
+      retrieve_github_archive "${tblite_sha256}" "tblite-${tblite_ver}.tar.xz" \
+        "https://github.com/tblite/tblite/releases/download/v${tblite_ver}" \
+        "tblite-${tblite_ver}.tar.xz"
       [ -d tblite-${tblite_ver} ] && rm -rf tblite-${tblite_ver}
       tar -xJf tblite-${tblite_ver}.tar.xz
       cd tblite-${tblite_ver}
-      # Interim fix for tblite-0.5.0.tar.xz: the subprojects are found in order
-      # specified by tblite-0.5.0/CMakeLists.txt as
-      # mctc-lib, mstore, toml-f (, test-drive), dft-d4 (, multicharge), s-dftd3.
-      # Despite all subprojects already included in the package, test-drive and
-      # multicharge cannot be located, necessitating separate downloads from
-      # github repositories. Two soft links are created to resolve this issue.
-      ln -s ${PWD}/subprojects/test-drive ${PWD}/subprojects/toml-f/subprojects/test-drive
-      ln -s ${PWD}/subprojects/multicharge ${PWD}/subprojects/dftd4/subprojects/multicharge
-      # See https://github.com/tblite/tblite/issues/313 for the full story.
+
+      patch -l -d subprojects/s-dftd3 -p1 < "${SCRIPT_DIR}/stage8/simple-dftd3-${tblite_sdftd3_ver}-gradient-fixes.patch" \
+        > simple_dftd3_gradient_fixes.patch.log 2>&1 || tail_excerpt simple_dftd3_gradient_fixes.patch.log
+      patch -l -d subprojects/dftd4 -p1 < "${SCRIPT_DIR}/stage8/dftd4-${tblite_dftd4_ver}-gradient-fixes.patch" \
+        > dftd4_gradient_fixes.patch.log 2>&1 || tail_excerpt dftd4_gradient_fixes.patch.log
 
       rm -Rf build
       mkdir build
@@ -57,13 +73,16 @@ case "$with_tblite" in
         -DCMAKE_INSTALL_PREFIX="${pkg_install_dir}" \
         -DCMAKE_INSTALL_LIBDIR=lib \
         -DCMAKE_VERBOSE_MAKEFILE=ON \
+        -DBUILD_TESTING=OFF \
+        -DWITH_TESTS=OFF \
         .. \
         > cmake.log 2>&1 || tail_excerpt cmake.log
       make install -j $(get_nprocs) > make.log 2>&1 || tail_excerpt make.log
-
+      write_checksums "${install_lock_file}" "${SCRIPT_DIR}/stage8/$(basename ${SCRIPT_NAME})" \
+        "${SCRIPT_DIR}/stage8/simple-dftd3-${tblite_sdftd3_ver}-gradient-fixes.patch" \
+        "${SCRIPT_DIR}/stage8/dftd4-${tblite_dftd4_ver}-gradient-fixes.patch"
       cd ..
     fi
-    write_checksums "${install_lock_file}" "${SCRIPT_DIR}/stage8/$(basename ${SCRIPT_NAME})"
     ;;
 
   __SYSTEM__)
@@ -95,6 +114,11 @@ if [ "$with_tblite" != "__DONTUSE__" ]; then
 
   cat << EOF > "${BUILDDIR}/setup_tblite"
 export TBLITE_VER="${tblite_ver}"
+export TBLITE_DFTD4_VER="${tblite_dftd4_ver}"
+export TBLITE_MULTICHARGE_VER="${tblite_multicharge_ver}"
+export TBLITE_SDFTD3_VER="${tblite_sdftd3_ver}"
+export TBLITE_MCTC_VER="${tblite_mctc_ver}"
+export TBLITE_TOMLF_VER="${tblite_tomlf_ver}"
 EOF
 
   TEMP_LOC=$(find ${pkg_install_dir}/include -name "tomlf.mod")

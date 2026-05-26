@@ -13,10 +13,13 @@ MODULE cp_control_types
    USE cp_fm_types,                     ONLY: cp_fm_release,&
                                               cp_fm_type
    USE eeq_input,                       ONLY: eeq_solver_type
-   USE input_constants,                 ONLY: do_full_density,&
-                                              rtp_bse_ham_G0W0,&
-                                              rtp_method_tddft,&
-                                              use_mom_ref_coac
+   USE input_constants,                 ONLY: &
+        do_full_density, rtp_bse_ham_G0W0, rtp_method_tddft, tblite_cli_born_kernel_auto, &
+        tblite_cli_solution_state_gsolv, tblite_cli_solvation_none, tblite_guess_ceh, &
+        tblite_guess_sad, tblite_mixer_damping_default, tblite_mixer_iterations_default, &
+        tblite_mixer_max_weight_default, tblite_mixer_min_weight_default, &
+        tblite_mixer_omega0_default, tblite_mixer_weight_factor_default, tblite_scc_mixer_auto, &
+        tblite_solver_gvd, use_mom_ref_coac
    USE kinds,                           ONLY: default_path_length,&
                                               default_string_length,&
                                               dp
@@ -149,10 +152,19 @@ MODULE cp_control_types
       LOGICAL                              :: self_consistent = .FALSE.
       LOGICAL                              :: orthogonal_basis = .FALSE.
       LOGICAL                              :: dispersion = .FALSE.
+      INTEGER                              :: tblite_scc_mixer = tblite_scc_mixer_auto
       INTEGER                              :: dispersion_type = 0
+      INTEGER                              :: tblite_mixer_iterations = tblite_mixer_iterations_default
+      INTEGER                              :: tblite_mixer_memory = tblite_mixer_iterations_default
+      INTEGER                              :: tblite_mixer_solver = tblite_solver_gvd
       LOGICAL                              :: dftb3_diagonal = .FALSE.
       LOGICAL                              :: hb_sr_damp = .FALSE.
       REAL(KIND=dp)                        :: hb_sr_para = 0.0_dp
+      REAL(KIND=dp)                        :: tblite_mixer_damping = tblite_mixer_damping_default
+      REAL(KIND=dp)                        :: tblite_mixer_max_weight = tblite_mixer_max_weight_default
+      REAL(KIND=dp)                        :: tblite_mixer_min_weight = tblite_mixer_min_weight_default
+      REAL(KIND=dp)                        :: tblite_mixer_omega0 = tblite_mixer_omega0_default
+      REAL(KIND=dp)                        :: tblite_mixer_weight_factor = tblite_mixer_weight_factor_default
       REAL(KIND=dp)                        :: eps_disp = 0.0_dp
       REAL(KIND=dp)                        :: epscn = 0.0_dp
       REAL(KIND=dp)                        :: exp_pre = 0.0_dp
@@ -172,16 +184,96 @@ MODULE cp_control_types
 ! **************************************************************************************************
 ! \brief Control parameters for xTB calculations
 ! **************************************************************************************************
+   TYPE xtb_reference_cli_guess_type
+      LOGICAL                              :: enabled = .FALSE.
+      LOGICAL                              :: efield_active = .FALSE.
+      LOGICAL                              :: grad = .FALSE.
+      INTEGER                              :: method = tblite_guess_ceh
+      INTEGER                              :: solver = tblite_solver_gvd
+      REAL(KIND=dp), DIMENSION(3)          :: efield = 0.0_dp
+      REAL(KIND=dp)                        :: electronic_temperature_guess = 0.0_dp
+      CHARACTER(LEN=default_path_length)   :: input_file = ""
+      CHARACTER(LEN=default_path_length)   :: json_file = ""
+      CHARACTER(LEN=default_string_length) :: input_format = "gen"
+   END TYPE xtb_reference_cli_guess_type
+
+   TYPE xtb_reference_cli_param_type
+      LOGICAL                              :: enabled = .FALSE.
+      LOGICAL                              :: method_explicit = .FALSE.
+      INTEGER                              :: method = 0
+      CHARACTER(LEN=default_path_length)   :: input_file = ""
+      CHARACTER(LEN=default_path_length)   :: output_file = ""
+   END TYPE xtb_reference_cli_param_type
+
+   TYPE xtb_reference_cli_fit_type
+      LOGICAL                              :: enabled = .FALSE.
+      LOGICAL                              :: dry_run = .FALSE.
+      CHARACTER(LEN=default_path_length)   :: copy_file = ""
+      CHARACTER(LEN=default_path_length)   :: input_file = ""
+      CHARACTER(LEN=default_path_length)   :: param_file = ""
+   END TYPE xtb_reference_cli_fit_type
+
+   TYPE xtb_reference_cli_tagdiff_type
+      LOGICAL                              :: enabled = .FALSE.
+      LOGICAL                              :: fit = .FALSE.
+      CHARACTER(LEN=default_path_length)   :: actual_file = ""
+      CHARACTER(LEN=default_path_length)   :: reference_file = ""
+   END TYPE xtb_reference_cli_tagdiff_type
+
+   TYPE xtb_reference_cli_type
+      LOGICAL                              :: enabled = .FALSE.
+      LOGICAL                              :: check_energy = .TRUE.
+      LOGICAL                              :: check_forces = .TRUE.
+      LOGICAL                              :: check_virial = .FALSE.
+      LOGICAL                              :: keep_files = .FALSE.
+      LOGICAL                              :: stop_on_error = .FALSE.
+      LOGICAL                              :: efield_active = .FALSE.
+      LOGICAL                              :: solvation_active = .FALSE.
+      INTEGER                              :: guess = tblite_guess_sad
+      INTEGER                              :: solvation_born_kernel = tblite_cli_born_kernel_auto
+      INTEGER                              :: solvation_model = tblite_cli_solvation_none
+      INTEGER                              :: solvation_state = tblite_cli_solution_state_gsolv
+      REAL(KIND=dp), DIMENSION(3)          :: efield = 0.0_dp
+      REAL(KIND=dp)                        :: electronic_temperature_guess = 0.0_dp
+      REAL(KIND=dp)                        :: error_limit = 1.0E-8_dp
+      CHARACTER(LEN=default_path_length)   :: program_name = "tblite"
+      CHARACTER(LEN=default_path_length)   :: grad_file = ""
+      CHARACTER(LEN=default_path_length)   :: json_file = ""
+      CHARACTER(LEN=default_path_length)   :: post_processing = ""
+      CHARACTER(LEN=default_path_length)   :: post_processing_output_file = ""
+      CHARACTER(LEN=default_path_length)   :: restart_file = ""
+      CHARACTER(LEN=default_path_length)   :: solvation_solvent = ""
+      CHARACTER(LEN=default_path_length)   :: work_directory = "."
+      CHARACTER(LEN=default_path_length)   :: prefix = "tblite-reference"
+      CHARACTER(LEN=default_string_length) :: input_format = "gen"
+      TYPE(xtb_reference_cli_guess_type)    :: guess_cli
+      TYPE(xtb_reference_cli_param_type)    :: param_cli
+      TYPE(xtb_reference_cli_fit_type)      :: fit_cli
+      TYPE(xtb_reference_cli_tagdiff_type)  :: tagdiff_cli
+   END TYPE xtb_reference_cli_type
+
    TYPE xtb_control_type
       !
       INTEGER                              :: gfn_type = 1
       !
       LOGICAL                              :: do_ewald = .FALSE.
       LOGICAL                              :: do_tblite = .FALSE.
+      LOGICAL                              :: tblite_mixer_damping_explicit = .FALSE.
       !
       INTEGER                              :: sto_ng = 0
       INTEGER                              :: h_sto_ng = 0
       INTEGER                              :: tblite_method = 0
+      INTEGER                              :: tblite_scc_mixer = tblite_scc_mixer_auto
+      INTEGER                              :: tblite_mixer_iterations = tblite_mixer_iterations_default
+      INTEGER                              :: tblite_mixer_memory = tblite_mixer_iterations_default
+      INTEGER                              :: tblite_mixer_solver = tblite_solver_gvd
+      REAL(KIND=dp)                        :: tblite_accuracy = 1.0_dp
+      REAL(KIND=dp)                        :: tblite_mixer_damping = tblite_mixer_damping_default
+      REAL(KIND=dp)                        :: tblite_mixer_max_weight = tblite_mixer_max_weight_default
+      REAL(KIND=dp)                        :: tblite_mixer_min_weight = tblite_mixer_min_weight_default
+      REAL(KIND=dp)                        :: tblite_mixer_omega0 = tblite_mixer_omega0_default
+      REAL(KIND=dp)                        :: tblite_mixer_weight_factor = tblite_mixer_weight_factor_default
+      CHARACTER(LEN=default_path_length)   :: tblite_param_file = ""
       !
       INTEGER                              :: vdw_type = -1
       CHARACTER(LEN=default_path_length)   :: parameter_file_path = ""
@@ -232,6 +324,7 @@ MODULE cp_control_types
       ! EN shift in EEQ (molecular=1 or crystaline=2)
       INTEGER                              :: enshift_type = 1
       TYPE(eeq_solver_type)                :: eeq_sparam ! parameters for EEQ solver
+      TYPE(xtb_reference_cli_type)          :: reference_cli
    END TYPE xtb_control_type
 
 ! **************************************************************************************************
@@ -660,7 +753,8 @@ MODULE cp_control_types
                                               auto_basis_p_lri_aux = 1, &
                                               auto_basis_ri_hxc = 1, &
                                               auto_basis_ri_xas = 1, &
-                                              auto_basis_ri_hfx = 1
+                                              auto_basis_ri_hfx = 1, &
+                                              localize_each = 1
       REAL(KIND=dp)                        :: relax_multiplicity = 0.0_dp, &
                                               sic_scaling_a = 0.0_dp, &
                                               sic_scaling_b = 0.0_dp, &
@@ -696,7 +790,9 @@ MODULE cp_control_types
                                               do_sccs = .FALSE., &
                                               apply_embed_pot = .FALSE., &
                                               apply_dmfet_pot = .FALSE., &
-                                              hairy_probes = .FALSE.
+                                              hairy_probes = .FALSE., &
+                                              ! If true, then no other XC functionals are allowed
+                                              use_gauxc = .FALSE.
    END TYPE dft_control_type
 
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'cp_control_types'
@@ -714,6 +810,7 @@ MODULE cp_control_types
              ddapc_restraint_type, &
              dftb_control_type, &
              xtb_control_type, &
+             xtb_reference_cli_type, &
              semi_empirical_control_type, &
              s2_restraint_type, &
              admm_control_type, &

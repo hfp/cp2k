@@ -22,8 +22,8 @@ MODULE input_cp2k_as
    USE input_constants,                 ONLY: &
         casci_canonical, eri_method_full_gpw, eri_method_gpw_ht, eri_operator_coulomb, &
         eri_operator_erf, eri_operator_erfc, eri_operator_gaussian, eri_operator_lr_trunc, &
-        eri_operator_trunc, eri_operator_yukawa, gaussian, manual_selection, mao_projection, &
-        no_solver, qiskit_solver, wannier_projection
+        eri_operator_trunc, eri_operator_yukawa, fci_solver, gaussian, manual_selection, &
+        mao_projection, no_solver, qiskit_solver, wannier_projection
    USE input_cp2k_loc,                  ONLY: create_localize_section
    USE input_cp2k_xc,                   ONLY: create_xc_section
    USE input_keyword_types,             ONLY: keyword_create,&
@@ -40,6 +40,7 @@ MODULE input_cp2k_as
                                               logical_t,&
                                               real_t
    USE kinds,                           ONLY: dp
+   USE qs_density_mixing_types,         ONLY: create_mixing_section
    USE string_utilities,                ONLY: s2a
 #include "./base/base_uses.f90"
 
@@ -153,13 +154,14 @@ CONTAINS
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="AS_SOLVER", &
-                          description="The external active space solver for the embedding approach", &
-                          usage="AS_SOLVER QISKIT", &
+                          description="The active space solver for the embedding approach", &
+                          usage="AS_SOLVER FCI", &
                           default_i_val=no_solver, &
-                          enum_c_vals=s2a("NONE", "QISKIT"), &
-                          enum_i_vals=[no_solver, qiskit_solver], &
+                          enum_c_vals=s2a("NONE", "QISKIT", "FCI"), &
+                          enum_i_vals=[no_solver, qiskit_solver, fci_solver], &
                           enum_desc=s2a("NO solver, used to produce FCIDUMP/QCSchema files", &
-                                        "QISKIT active space solver"))
+                                        "QISKIT active space solver", &
+                                        "LibFCI full-CI active space solver"))
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -171,7 +173,8 @@ CONTAINS
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="ALPHA", &
-                          description="Fraction of new density to be mixed with previous one in SCF embedding.", &
+                          description="Fraction of new density to be mixed with previous one in SCF embedding. "// &
+                          "Kept for backwards compatibility; prefer ACTIVE_SPACE%MIXING%ALPHA.", &
                           usage="ALPHA 0.25", type_of_var=real_t, &
                           default_r_val=0.8_dp)
       CALL section_add_keyword(section, keyword)
@@ -197,6 +200,10 @@ CONTAINS
       CALL section_release(subsection)
 
       CALL create_localize_section(subsection)
+      CALL section_add_subsection(section, subsection)
+      CALL section_release(subsection)
+
+      CALL create_mixing_section(subsection)
       CALL section_add_subsection(section, subsection)
       CALL section_release(subsection)
 

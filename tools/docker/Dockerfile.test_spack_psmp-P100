@@ -1,6 +1,6 @@
 #
 # This file was created by generate_dockerfiles.py.
-# Usage: ./spack_cache_start.sh; podman build --network=host --shm-size=1g -f ./Dockerfile.test_spack_psmp-P100 ../../
+# Usage: ./spack_cache_start.sh; podman build --shm-size=1g -t spack_psmp-P100 -f ./Dockerfile.test_spack_psmp-P100 ../../
 #
 
 ARG BASE_IMAGE="docker.io/nvidia/cuda:12.9.1-devel-ubuntu24.04"
@@ -32,6 +32,8 @@ RUN apt-get update -qq && apt-get install -qq --no-install-recommends \
     wget \
     xxd \
     xz-utils \
+    zlib1g \
+    zlib1g-dev \
     zstd \
     && rm -rf /var/lib/apt/lists/*
 
@@ -42,7 +44,11 @@ ENV LD_LIBRARY_PATH /usr/local/cuda/lib64
 # See also https://github.com/cp2k/cp2k/pull/2337
 ENV CUDA_CACHE_DISABLE 1
 
-ARG SPACK_CACHE="s3://spack-cache --s3-endpoint-url=http://localhost:9000"
+ARG IMAGE_TAG
+ENV IMAGE_TAG=${IMAGE_TAG:-spack_psmp-P100}
+
+ARG SPACK_CACHE
+ENV SPACK_CACHE="${SPACK_CACHE:-s3://spack-cache --s3-endpoint-url=http://host.containers.internal:9000}"
 
 # Copy CP2K repository into container
 WORKDIR /opt
@@ -94,7 +100,7 @@ COPY --from=build_cp2k /etc/ld.so.conf.d/cp2k.conf /etc/ld.so.conf.d/cp2k.conf
 RUN ldconfig
 
 # Run CP2K regression test
-RUN /opt/cp2k/install/bin/launch /opt/cp2k/install/bin/run_tests --keepalive
+RUN /opt/cp2k/install/bin/launch /opt/cp2k/install/bin/run_tests --keepalive || echo "ERROR: Tests failed"
 
 # Create entrypoint and finalise container build
 WORKDIR /mnt

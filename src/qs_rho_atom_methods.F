@@ -111,20 +111,21 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'calculate_rho_atom'
 
       INTEGER :: damax_iso_not0_local, handle, i, i1, i2, iat, iatom, icg, ipgf1, ipgf2, ir, &
-         iset1, iset2, iso, iso1, iso1_first, iso1_last, iso2, iso2_first, iso2_last, j, l, l1, &
-         l2, l_iso, l_sub, l_sum, lmax12, lmax_expansion, lmin12, m1s, m2s, max_iso_not0, &
-         max_iso_not0_local, max_s_harm, maxl, maxso, mepos, n1s, n2s, nr, nset, num_pe, size1, &
-         size2
+         iset1, iset2, iso, iso1, iso1_coeff, iso1_first, iso1_last, iso2, iso2_coeff, iso2_first, &
+         iso2_last, j, l, l_iso, l_sub, l_sum, lmax12, lmax_expansion, lmin12, m1s, m2s, &
+         max_iso_not0, max_iso_not0_local, max_npgf, max_s_harm, maxl, maxso, mepos, n1s, n2s, nr, &
+         nset, num_pe, size1, size2
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: cg_n_list, dacg_n_list
       INTEGER, ALLOCATABLE, DIMENSION(:, :, :)           :: cg_list, dacg_list
       INTEGER, DIMENSION(2)                              :: bo
       INTEGER, DIMENSION(:), POINTER                     :: lmax, lmin, npgf, o2nindex
       LOGICAL, ALLOCATABLE, DIMENSION(:, :)              :: done_vgg
-      REAL(dp)                                           :: c1, c2, rho_h, rho_s, root_zet12, zet12
+      REAL(dp)                                           :: c1, c2, cpc_h, cpc_s, rho_h, rho_s, &
+                                                            root_zet12, zet12
       REAL(dp), ALLOCATABLE, DIMENSION(:)                :: erf_zet12, g1, g2, gg0, int1, int2
-      REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: CPCH_sphere, CPCS_sphere, dgg, gg, gg_lm1
-      REAL(dp), ALLOCATABLE, DIMENSION(:, :, :)          :: vgg
-      REAL(dp), DIMENSION(:, :), POINTER                 :: coeff, zet
+      REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: dgg, gg, gg_lm1
+      REAL(dp), ALLOCATABLE, DIMENSION(:, :, :)          :: g_rad, vgg
+      REAL(dp), DIMENSION(:, :), POINTER                 :: coeff_h, coeff_s, zet
       REAL(dp), DIMENSION(:, :, :), POINTER              :: my_CG
       REAL(dp), DIMENSION(:, :, :, :), POINTER           :: my_CG_dxyz
       TYPE(grid_atom_type), POINTER                      :: grid_atom
@@ -137,7 +138,7 @@ CONTAINS
 
       NULLIFY (basis_1c)
       NULLIFY (harmonics, grid_atom)
-      NULLIFY (lmin, lmax, npgf, zet, my_CG, my_CG_dxyz, coeff)
+      NULLIFY (lmin, lmax, npgf, zet, my_CG, my_CG_dxyz, coeff_h, coeff_s)
 
       CALL get_qs_kind(qs_kind, grid_atom=grid_atom, harmonics=harmonics)
       CALL get_qs_kind(qs_kind, basis_set=basis_1c, basis_type="GAPW_1C")
@@ -152,6 +153,7 @@ CONTAINS
       max_s_harm = harmonics%max_s_harm
 
       nr = grid_atom%nr
+      max_npgf = MAXVAL(npgf(1:nset))
       lmax_expansion = indso(1, max_iso_not0)
       ! Distribute the atoms of this kind
       num_pe = para_env%num_pe
@@ -161,14 +163,19 @@ CONTAINS
       my_CG => harmonics%my_CG
       my_CG_dxyz => harmonics%my_CG_dxyz
 
-      ALLOCATE (CPCH_sphere(nsoset(maxl), nsoset(maxl)))
-      ALLOCATE (CPCS_sphere(nsoset(maxl), nsoset(maxl)))
       ALLOCATE (g1(nr), g2(nr), gg0(nr), gg(nr, 0:2*maxl), dgg(nr, 0:2*maxl), gg_lm1(nr, 0:2*maxl))
       ALLOCATE (erf_zet12(nr), vgg(nr, 0:2*maxl, 0:indso(1, max_iso_not0)))
       ALLOCATE (done_vgg(0:2*maxl, 0:indso(1, max_iso_not0)))
       ALLOCATE (int1(nr), int2(nr))
       ALLOCATE (cg_list(2, nsoset(maxl)**2, max_s_harm), cg_n_list(max_s_harm), &
                 dacg_list(2, nsoset(maxl)**2, max_s_harm), dacg_n_list(max_s_harm))
+      ALLOCATE (g_rad(nr, max_npgf, nset))
+
+      DO iset1 = 1, nset
+         DO ipgf1 = 1, npgf(iset1)
+            g_rad(1:nr, ipgf1, iset1) = EXP(-zet(ipgf1, iset1)*grid_atom%rad2(1:nr))
+         END DO
+      END DO
 
       DO iat = bo(1), bo(2)
          iatom = atom_list(iat)
@@ -203,7 +210,7 @@ CONTAINS
                CPASSERT(size1 == i1)
                i1 = nsoset(lmin(iset1) - 1) + 1
 
-               g1(1:nr) = EXP(-zet(ipgf1, iset1)*grid_atom%rad2(1:nr))
+               g1(1:nr) = g_rad(1:nr, ipgf1, iset1)
 
                n2s = nsoset(lmax(iset2))
                DO ipgf2 = 1, npgf(iset2)
@@ -216,7 +223,7 @@ CONTAINS
                   CPASSERT(size2 == i2)
                   i2 = nsoset(lmin(iset2) - 1) + 1
 
-                  g2(1:nr) = EXP(-zet(ipgf2, iset2)*grid_atom%rad2(1:nr))
+                  g2(1:nr) = g_rad(1:nr, ipgf2, iset2)
                   lmin12 = lmin(iset1) + lmin(iset2)
                   lmax12 = lmax(iset1) + lmax(iset2)
 
@@ -290,14 +297,8 @@ CONTAINS
                      iatom = atom_list(iat)
 
                      DO i = 1, nspins
-                        CPCH_sphere = 0.0_dp
-                        CPCS_sphere = 0.0_dp
-
-                        coeff => rho_atom_set(iatom)%cpc_h(i)%r_coef
-                        CPCH_sphere(i1:i1 + size1 - 1, i2:i2 + size2 - 1) = coeff(iso1_first:iso1_last, iso2_first:iso2_last)
-
-                        coeff => rho_atom_set(iatom)%cpc_s(i)%r_coef
-                        CPCS_sphere(i1:i1 + size1 - 1, i2:i2 + size2 - 1) = coeff(iso1_first:iso1_last, iso2_first:iso2_last)
+                        coeff_h => rho_atom_set(iatom)%cpc_h(i)%r_coef
+                        coeff_s => rho_atom_set(iatom)%cpc_s(i)%r_coef
 
                         DO iso = 1, max_iso_not0_local
                            l_iso = indso(1, iso)
@@ -305,35 +306,36 @@ CONTAINS
                               iso1 = cg_list(1, icg, iso)
                               iso2 = cg_list(2, icg, iso)
 
-                              l1 = indso(1, iso1)
-                              l2 = indso(1, iso2)
-
                               l = indso(1, iso1) + indso(1, iso2)
                               CPASSERT(l <= lmax_expansion)
+                              iso1_coeff = iso1_first + iso1 - i1
+                              iso2_coeff = iso2_first + iso2 - i2
+                              cpc_h = coeff_h(iso1_coeff, iso2_coeff)*my_CG(iso1, iso2, iso)
+                              cpc_s = coeff_s(iso1_coeff, iso2_coeff)*my_CG(iso1, iso2, iso)
 
                               rho_atom_set(iatom)%rho_rad_h(i)%r_coef(1:nr, iso) = &
                                  rho_atom_set(iatom)%rho_rad_h(i)%r_coef(1:nr, iso) + &
-                                 gg(1:nr, l)*CPCH_sphere(iso1, iso2)*my_CG(iso1, iso2, iso)
+                                 gg(1:nr, l)*cpc_h
 
                               rho_atom_set(iatom)%rho_rad_s(i)%r_coef(1:nr, iso) = &
                                  rho_atom_set(iatom)%rho_rad_s(i)%r_coef(1:nr, iso) + &
-                                 gg(1:nr, l)*CPCS_sphere(iso1, iso2)*my_CG(iso1, iso2, iso)
+                                 gg(1:nr, l)*cpc_s
 
                               rho_atom_set(iatom)%drho_rad_h(i)%r_coef(1:nr, iso) = &
                                  rho_atom_set(iatom)%drho_rad_h(i)%r_coef(1:nr, iso) + &
-                                 dgg(1:nr, l)*CPCH_sphere(iso1, iso2)*my_CG(iso1, iso2, iso)
+                                 dgg(1:nr, l)*cpc_h
 
                               rho_atom_set(iatom)%drho_rad_s(i)%r_coef(1:nr, iso) = &
                                  rho_atom_set(iatom)%drho_rad_s(i)%r_coef(1:nr, iso) + &
-                                 dgg(1:nr, l)*CPCS_sphere(iso1, iso2)*my_CG(iso1, iso2, iso)
+                                 dgg(1:nr, l)*cpc_s
 
                               rho_atom_set(iatom)%vrho_rad_h(i)%r_coef(1:nr, iso) = &
                                  rho_atom_set(iatom)%vrho_rad_h(i)%r_coef(1:nr, iso) + &
-                                 vgg(1:nr, l, l_iso)*CPCH_sphere(iso1, iso2)*my_CG(iso1, iso2, iso)
+                                 vgg(1:nr, l, l_iso)*cpc_h
 
                               rho_atom_set(iatom)%vrho_rad_s(i)%r_coef(1:nr, iso) = &
                                  rho_atom_set(iatom)%vrho_rad_s(i)%r_coef(1:nr, iso) + &
-                                 vgg(1:nr, l, l_iso)*CPCS_sphere(iso1, iso2)*my_CG(iso1, iso2, iso)
+                                 vgg(1:nr, l, l_iso)*cpc_s
 
                            END DO ! icg
 
@@ -346,14 +348,18 @@ CONTAINS
                               iso2 = dacg_list(2, icg, iso)
                               l = indso(1, iso1) + indso(1, iso2)
                               CPASSERT(l <= lmax_expansion)
+                              iso1_coeff = iso1_first + iso1 - i1
+                              iso2_coeff = iso2_first + iso2 - i2
+                              cpc_h = coeff_h(iso1_coeff, iso2_coeff)
+                              cpc_s = coeff_s(iso1_coeff, iso2_coeff)
                               DO j = 1, 3
                                  rho_atom_set(iatom)%rho_rad_h_d(j, i)%r_coef(1:nr, iso) = &
                                     rho_atom_set(iatom)%rho_rad_h_d(j, i)%r_coef(1:nr, iso) + &
-                                    gg_lm1(1:nr, l)*CPCH_sphere(iso1, iso2)*my_CG_dxyz(j, iso1, iso2, iso)
+                                    gg_lm1(1:nr, l)*cpc_h*my_CG_dxyz(j, iso1, iso2, iso)
 
                                  rho_atom_set(iatom)%rho_rad_s_d(j, i)%r_coef(1:nr, iso) = &
                                     rho_atom_set(iatom)%rho_rad_s_d(j, i)%r_coef(1:nr, iso) + &
-                                    gg_lm1(1:nr, l)*CPCS_sphere(iso1, iso2)*my_CG_dxyz(j, iso1, iso2, iso)
+                                    gg_lm1(1:nr, l)*cpc_s*my_CG_dxyz(j, iso1, iso2, iso)
                               END DO
                            END DO ! icg
 
@@ -389,8 +395,7 @@ CONTAINS
 
       END DO ! iat
 
-      DEALLOCATE (CPCH_sphere, CPCS_sphere)
-      DEALLOCATE (g1, g2, gg0, gg, gg_lm1, dgg, vgg, done_vgg, erf_zet12, int1, int2)
+      DEALLOCATE (g1, g2, gg0, gg, gg_lm1, dgg, vgg, done_vgg, erf_zet12, int1, int2, g_rad)
       DEALLOCATE (cg_list, cg_n_list, dacg_list, dacg_n_list)
       DEALLOCATE (o2nindex)
 
@@ -431,12 +436,14 @@ CONTAINS
 
       INTEGER :: bo(2), handle, i, iac, iatom, ibc, icol, ikind, img, irow, ispin, jatom, jkind, &
          kac, katom, kbc, kkind, len_CPC, len_PC1, max_gau, max_nsgf, mepos, n_cont_a, n_cont_b, &
-         nat_kind, natom, nimages, nkind, nsatbas, nsoctot, nspins, num_pe
-      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: kind_of
+         nat_kind, natom, nimages, nkind, nsoctot, nspins, num_pe
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: kind_of, nsatbas_kind
       INTEGER, DIMENSION(3)                              :: cell_b
       INTEGER, DIMENSION(:), POINTER                     :: a_list, list_a, list_b
       INTEGER, DIMENSION(:, :, :), POINTER               :: cell_to_index
       LOGICAL                                            :: dista, distab, distb, found, paw_atom
+      LOGICAL, ALLOCATABLE, DIMENSION(:)                 :: has_intac, paw_kind
+      REAL(dp), ALLOCATABLE, DIMENSION(:)                :: proj_work1, proj_work2
       REAL(dp), ALLOCATABLE, DIMENSION(:, :)             :: p_matrix
       REAL(KIND=dp)                                      :: eps_cpc, factor, pmax
       REAL(KIND=dp), DIMENSION(3)                        :: rab
@@ -509,6 +516,10 @@ CONTAINS
       END DO ! ikind
 
       ALLOCATE (basis_set_list(nkind))
+      ALLOCATE (paw_kind(nkind), nsatbas_kind(nkind), has_intac(nkind*nkind))
+      paw_kind(:) = .FALSE.
+      nsatbas_kind(:) = 0
+      has_intac(:) = .FALSE.
       DO ikind = 1, nkind
          CALL get_qs_kind(qs_kind_set(ikind), basis_set=basis_set_a)
          IF (ASSOCIATED(basis_set_a)) THEN
@@ -516,6 +527,12 @@ CONTAINS
          ELSE
             NULLIFY (basis_set_list(ikind)%gto_basis_set)
          END IF
+         CALL get_qs_kind(qs_kind_set(ikind), basis_set=basis_1c, basis_type="GAPW_1C", &
+                          paw_atom=paw_kind(ikind))
+         IF (paw_kind(ikind)) CALL get_paw_basis_info(basis_1c, nsatbas=nsatbas_kind(ikind))
+      END DO
+      DO ikind = 1, nkind*nkind
+         has_intac(ikind) = ASSOCIATED(oce%intac(ikind)%alist)
       END DO
 
       len_PC1 = max_nsgf*max_gau
@@ -535,16 +552,17 @@ CONTAINS
 !$OMP                 , oce, eps_cpc                      &
 !$OMP                 , rho_atom_set                      &
 !$OMP                 , natom, locks, number_of_locks     &
+!$OMP                 , paw_kind, nsatbas_kind, has_intac &
 !$OMP                 )                                   &
 !$OMP          PRIVATE( p_block_spin, ispin               &
-!$OMP                 , p_matrix, mepos                   &
+!$OMP                 , p_matrix, proj_work1, proj_work2  &
+!$OMP                 , mepos                             &
 !$OMP                 , ikind, jkind, iatom, jatom        &
-!$OMP                 , cell_b, rab, basis_1c             &
+!$OMP                 , cell_b, rab                       &
 !$OMP                 , basis_set_a, basis_set_b          &
 !$OMP                 , pmax, irow, icol, img             &
 !$OMP                 , found                             &
 !$OMP                 , kkind                             &
-!$OMP                 , paw_atom, nsatbas                 &
 !$OMP                 , nsoctot, katom                    &
 !$OMP                 , iac , alist_ac, kac, n_cont_a, list_a     &
 !$OMP                 , ibc , alist_bc, kbc, n_cont_b, list_b     &
@@ -556,6 +574,7 @@ CONTAINS
 
       ALLOCATE (p_block_spin(nspins))
       ALLOCATE (p_matrix(max_nsgf, max_nsgf))
+      ALLOCATE (proj_work1(len_PC1), proj_work2(len_CPC))
 
 !$OMP SINGLE
 !$    number_of_locks = nspins*natom
@@ -606,18 +625,14 @@ CONTAINS
          END DO
 
          DO kkind = 1, nkind
-            CALL get_qs_kind(qs_kind_set(kkind), basis_set=basis_1c, basis_type="GAPW_1C", &
-                             paw_atom=paw_atom)
+            IF (.NOT. paw_kind(kkind)) CYCLE
 
-            IF (.NOT. paw_atom) CYCLE
-
-            CALL get_paw_basis_info(basis_1c, nsatbas=nsatbas)
-            nsoctot = nsatbas
+            nsoctot = nsatbas_kind(kkind)
 
             iac = ikind + nkind*(kkind - 1)
             ibc = jkind + nkind*(kkind - 1)
-            IF (.NOT. ASSOCIATED(oce%intac(iac)%alist)) CYCLE
-            IF (.NOT. ASSOCIATED(oce%intac(ibc)%alist)) CYCLE
+            IF (.NOT. has_intac(iac)) CYCLE
+            IF (.NOT. has_intac(ibc)) CYCLE
 
             CALL get_alist(oce%intac(iac), alist_ac, iatom)
             CALL get_alist(oce%intac(ibc), alist_bc, jatom)
@@ -683,12 +698,12 @@ CONTAINS
                            CALL proj_blk(C_coeff_hh_a, C_coeff_ss_a, n_cont_a, &
                                          C_coeff_hh_b, C_coeff_ss_b, n_cont_b, &
                                          p_matrix, max_nsgf, r_coef_h, r_coef_s, nsoctot, &
-                                         len_PC1, len_CPC, factor, distab)
+                                         len_PC1, len_CPC, factor, distab, proj_work1, proj_work2)
                         ELSE
                            CALL proj_blk(C_coeff_hh_b, C_coeff_ss_b, n_cont_b, &
                                          C_coeff_hh_a, C_coeff_ss_a, n_cont_a, &
                                          p_matrix, max_nsgf, r_coef_h, r_coef_s, nsoctot, &
-                                         len_PC1, len_CPC, factor, distab)
+                                         len_PC1, len_CPC, factor, distab, proj_work1, proj_work2)
                         END IF
 !$                      CALL omp_unset_lock(locks((katom - 1)*nspins + ispin))
 
@@ -711,7 +726,7 @@ CONTAINS
 !$    DEALLOCATE (locks)
 !$OMP END SINGLE NOWAIT
 
-      DEALLOCATE (p_block_spin, p_matrix)
+      DEALLOCATE (p_block_spin, p_matrix, proj_work1, proj_work2)
 !$OMP END PARALLEL
 
       CALL neighbor_list_iterator_release(nl_iterator)
@@ -734,7 +749,7 @@ CONTAINS
 
       END DO
 
-      DEALLOCATE (kind_of, basis_set_list)
+      DEALLOCATE (kind_of, basis_set_list, paw_kind, nsatbas_kind, has_intac)
 
       CALL timestop(handle)
 

@@ -57,6 +57,7 @@ MODULE ec_environment
                                               molecule_type
    USE orbital_pointers,                ONLY: init_orbital_pointers
    USE particle_types,                  ONLY: particle_type
+   USE qs_basis_rotation_methods,       ONLY: qs_basis_rotation
    USE qs_dispersion_nonloc,            ONLY: qs_dispersion_nonloc_init
    USE qs_dispersion_pairpot,           ONLY: qs_dispersion_pairpot_init
    USE qs_dispersion_types,             ONLY: qs_dispersion_type
@@ -173,6 +174,7 @@ CONTAINS
       NULLIFY (ec_env%vxc_rspace)
       NULLIFY (ec_env%vtau_rspace)
       NULLIFY (ec_env%vadmm_rspace)
+      NULLIFY (ec_env%vadmm_tau_rspace)
       NULLIFY (ec_env%rhoout_r, ec_env%rhoz_r)
       NULLIFY (ec_env%x_data)
       ec_env%should_update = .TRUE.
@@ -480,6 +482,7 @@ CONTAINS
             END DO
             CALL kpoint_initialize_mos(ec_env%kpoints, mo_set)
             CALL kpoint_initialize_mo_set(ec_env%kpoints)
+            CALL qs_basis_rotation(qs_env, ec_env%kpoints, basis_type="HARRIS")
             DO ispin = 1, nspins
                CALL deallocate_mo_set(mo_set(ispin))
             END DO

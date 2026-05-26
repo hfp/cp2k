@@ -166,6 +166,7 @@ CONTAINS
             dispersion_env%s6 = 0._dp
             dispersion_env%sr6 = 0._dp
             dispersion_env%s8 = 0._dp
+            dispersion_env%s9 = 0._dp
             dispersion_env%a1 = 0._dp
             dispersion_env%a2 = 0._dp
             dispersion_env%eps_cn = 0._dp
@@ -175,7 +176,7 @@ CONTAINS
             IF (.NOT. explicit) THEN
                CALL section_vals_val_get(pp_section, "REFERENCE_FUNCTIONAL", explicit=exfun)
                IF (.NOT. exfun) THEN
-                  CPABORT("D4 vdW REFERENCE_FUNCTIONAL or D4_SCALING expected")
+                  CPABORT("Missing REFERENCE_FUNCTIONAL or D4_SCALING for D4")
                ELSE
                   CALL section_vals_val_get(vdw_section, &
                                             "PAIR_POTENTIAL%REFERENCE_FUNCTIONAL", &
@@ -189,6 +190,9 @@ CONTAINS
                dispersion_env%a2 = scal(4)
                dispersion_env%sr6 = 0.0_dp
                dispersion_env%ref_functional = "none"
+            END IF
+            IF (TRIM(ADJUSTL(dispersion_env%ref_functional)) == "none") THEN
+               CPABORT("Missing REFERENCE_FUNCTIONAL or D4_SCALING for D4")
             END IF
             CALL section_vals_val_get(pp_section, "EPS_CN", r_val=dispersion_env%eps_cn)
             CALL section_vals_val_get(pp_section, "D4_REFERENCE_CODE", &
@@ -958,7 +962,7 @@ CONTAINS
          a1 = 0.4724_dp
          s8 = 3.5681_dp
          a2 = 4.9858_dp
-      CASE ("B3LYP")
+      CASE ("B3LYP", "SKALA", "SKALA-1.1", "SKALA1.1")
          s6 = 1.0000_dp
          a1 = 0.3981_dp
          s8 = 1.9889_dp
@@ -1229,4 +1233,3 @@ CONTAINS
 ! **************************************************************************************************
 
 END MODULE qs_dispersion_utils
-

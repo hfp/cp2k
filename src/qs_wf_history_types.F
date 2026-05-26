@@ -37,7 +37,7 @@ MODULE qs_wf_history_types
 
    PUBLIC :: qs_wf_snapshot_type, &
              qs_wf_history_type, qs_wf_history_p_type
-   PUBLIC :: wfi_retain, wfi_release, wfi_get_snapshot
+   PUBLIC :: wfi_retain, wfi_release, wfi_clear, wfi_get_snapshot
 
 ! **************************************************************************************************
 !> \brief represent a past snapshot of the wavefunction.
@@ -66,6 +66,7 @@ MODULE qs_wf_history_types
       TYPE(dbcsr_type), POINTER :: overlap => NULL()
       TYPE(cp_fm_type), DIMENSION(:, :, :), POINTER :: wf_kp => NULL()
       TYPE(cp_cfm_type), DIMENSION(:), POINTER :: overlap_cfm_kp => NULL()
+      INTEGER, DIMENSION(:, :), POINTER :: kp_pbc_shift => NULL()
       TYPE(qs_rho_type), POINTER :: rho_frozen => NULL()
       REAL(KIND=dp) :: dt = 0.0_dp
    END TYPE qs_wf_snapshot_type
@@ -161,6 +162,9 @@ CONTAINS
          END DO
          DEALLOCATE (snapshot%overlap_cfm_kp)
       END IF
+      IF (ASSOCIATED(snapshot%kp_pbc_shift)) THEN
+         DEALLOCATE (snapshot%kp_pbc_shift)
+      END IF
       IF (ASSOCIATED(snapshot%rho_frozen)) THEN
          CALL qs_rho_release(snapshot%rho_frozen)
          DEALLOCATE (snapshot%rho_frozen)
@@ -214,6 +218,32 @@ CONTAINS
       END IF
       NULLIFY (wf_history)
    END SUBROUTINE wfi_release
+
+! **************************************************************************************************
+!> \brief Clear stored wavefunction snapshots while preserving history settings.
+!> \param wf_history the wf_history to clear
+! **************************************************************************************************
+   SUBROUTINE wfi_clear(wf_history)
+      TYPE(qs_wf_history_type), POINTER                  :: wf_history
+
+      INTEGER                                            :: i
+
+      IF (ASSOCIATED(wf_history)) THEN
+         CPASSERT(wf_history%ref_count > 0)
+         IF (ASSOCIATED(wf_history%past_states)) THEN
+            DO i = 1, SIZE(wf_history%past_states)
+               IF (ASSOCIATED(wf_history%past_states(i)%snapshot)) THEN
+                  CALL wfs_release(wf_history%past_states(i)%snapshot)
+                  DEALLOCATE (wf_history%past_states(i)%snapshot)
+                  NULLIFY (wf_history%past_states(i)%snapshot)
+               END IF
+            END DO
+         END IF
+         wf_history%snapshot_count = 0
+         wf_history%last_state_index = 1
+      END IF
+
+   END SUBROUTINE wfi_clear
 
 ! **************************************************************************************************
 !> \brief returns a snapshot, the first being the latest snapshot

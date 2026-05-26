@@ -202,6 +202,9 @@ CONTAINS
       kg = xtb_control%kg
       NULLIFY (n_list)
       CALL get_qs_env(qs_env=qs_env, sab_xtbe=n_list)
+      IF (.NOT. ASSOCIATED(n_list)) THEN
+         CPABORT("sab_xtbe neighbor list is not associated in build_xtb_coulomb")
+      END IF
       CALL neighbor_list_iterator_create(nl_iterator, n_list)
       DO WHILE (neighbor_list_iterate(nl_iterator) == 0)
          CALL get_iterator_info(nl_iterator, ikind=ikind, jkind=jkind, &
@@ -296,11 +299,16 @@ CONTAINS
                            gmcharge(iatom, i) = gmcharge(iatom, i) + rij(i - 1)*mcharge(jatom)/dr**3
                            gmcharge(jatom, i) = gmcharge(jatom, i) - rij(i - 1)*mcharge(iatom)/dr**3
                         END DO
+                        IF (use_virial) THEN
+                           DO i = 1, 3
+                              fij(i) = mcharge(iatom)*mcharge(jatom)*rij(i)/dr**3
+                           END DO
+                           CALL virial_pair_force(virial%pv_virial, 1.0_dp, fij, rij)
+                        END IF
                      END IF
                   END DO
                END DO
             END DO
-            CPASSERT(.NOT. use_virial)
          END IF
       END IF
 
@@ -964,4 +972,3 @@ CONTAINS
    END SUBROUTINE xtb_dsint_list
 
 END MODULE xtb_coulomb
-

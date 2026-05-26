@@ -5,11 +5,17 @@
 #      for details see cp2k/tools/do_regtest
 "bn1.inp"                               = [{matcher="M094", tol=1.0E-14, ref=27}]
 "ch1.inp"                               = [{matcher="E_total", tol=1.0E-12, ref=-12.18193777586973}]
+"ch2.inp"                               = [{matcher="E_total", tol=1.0E-12, ref=-12.18193777586973}]
+"ch3.inp"                               = [{matcher="E_total", tol=1.0E-12, ref=-12.18193777586973}]
 "cc1.inp"                               = [{matcher="M011", tol=5.0E-12, ref=-45.389916659345360}]
 "cc2.inp"                               = [{matcher="M011", tol=5.0E-10, ref=-45.389916849143461}]
 "cc3.inp"                               = [{matcher="M011", tol=5.0E-10, ref=-45.389916564497383}]
-"cc4.inp"                               = [{matcher="M011", tol=5.0E-10, ref=-45.389916850691804}]
-"cc5.inp"                               = [{matcher="M011", tol=5.0E-10, ref=-45.389916850587959}]
-"cc6.inp"                               = [{matcher="M011", tol=5.0E-10, ref=-45.389916850587959}]
-#cc7.inp                   1 1.0E-12 -45.38975726647867
+"cc4.inp"                               = [{matcher="M011", tol=5.0E-10, ref=-45.389916355782667}]
+"cc5.inp"                               = [{matcher="M011", tol=5.0E-10, ref=-45.389916356646268}]
+"cc6.inp"                               = [{matcher="M011", tol=5.0E-10, ref=-45.389916356646268}]
+"cc7.inp"                               = [{matcher="M011", tol=5.0E-10, ref=-45.389916355960565},
+                                           {matcher="gext", tol=5e-08, ref=0.0700127407}]
+"cc8.inp"                               = [{matcher="M011", tol=5.0E-10, ref=-45.389916356641265},
+                                           {matcher="gext", tol=5e-08, ref=0.7099959941}]
+"cc9.inp"                               = [{matcher="M011", tol=5.0E-10, ref=-45.270019242293365}]
 #EOF

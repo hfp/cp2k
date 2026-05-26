@@ -21,11 +21,12 @@ python3 -m venv /opt/venv
 export PATH="/opt/venv/bin:$PATH"
 
 echo -e "\n========== Installing Phonopy =========="
-git clone --quiet --depth=1 --single-branch -b develop https://github.com/phonopy/phonopy.git /opt/phonopy
+git clone --quiet --depth=1 --single-branch -b main https://github.com/phonopy/phonopy.git /opt/phonopy
 cd /opt/phonopy/
 pip3 install ".[cp2k]"
 
 # Workaround https://github.com/hgrecco/pint/issues/1974
+# See also https://github.com/cp2k/cp2k-input-tools/issues/110
 pip3 install Pint==0.24.4
 
 echo -e "\n========== Running Phonopy Test =========="
@@ -37,9 +38,9 @@ set +e # disable error trapping for remainder of script
 (
   set -e # abort on error
   # Following example/Si-CP2K/README.md
-  phonopy --cp2k -c Si.inp -d --dim="2 2 2"
+  phonopy-init --cp2k -c Si.inp -d --dim="2 2 2"
   OMP_NUM_THREADS=2 /opt/cp2k/build/bin/cp2k.ssmp Si-supercell-001.inp &> cp2k.out
-  phonopy --cp2k -f Si-supercell-001-forces-1_0.xyz
+  phonopy-init --cp2k -f Si-supercell-001-forces-1_0.xyz
 )
 EXIT_CODE=$?
 

@@ -17,6 +17,7 @@ MODULE input_cp2k_properties_dft
                            Hernandez2025, &
                            Iannuzzi2005, &
                            Kondov2007, &
+                           KuhneHeskeProdan2020, &
                            Luber2014, &
                            Putrino2000, &
                            Putrino2002, &
@@ -39,9 +40,10 @@ MODULE input_cp2k_properties_dft
       oe_lb, oe_none, oe_saop, oe_shift, ot_precond_full_all, ot_precond_full_kinetic, &
       ot_precond_full_single, ot_precond_full_single_inverse, ot_precond_none, &
       ot_precond_s_inverse, scan_x, scan_xy, scan_xyz, scan_xz, scan_y, scan_yz, scan_z, &
-      tddfpt_dipole_berry, tddfpt_dipole_length, tddfpt_dipole_velocity, tddfpt_kernel_full, &
-      tddfpt_kernel_none, tddfpt_kernel_stda, no_sf_tddfpt, tddfpt_sf_col, tddfpt_sf_noncol, &
-      use_mom_ref_coac, use_mom_ref_com, use_mom_ref_user, use_mom_ref_zero
+      tddfpt_dipole_berry, tddfpt_dipole_length, tddfpt_dipole_scf_moment, &
+      tddfpt_dipole_velocity, tddfpt_dipole_velocity_old, tddfpt_kernel_full, tddfpt_kernel_none, &
+      tddfpt_kernel_stda, no_sf_tddfpt, tddfpt_sf_col, tddfpt_sf_noncol, use_mom_ref_coac, &
+      use_mom_ref_com, use_mom_ref_user, use_mom_ref_zero
    USE input_cp2k_atprop, ONLY: create_atprop_section
    USE input_cp2k_dft, ONLY: create_interp_section, &
                              create_mgrid_section
@@ -137,6 +139,10 @@ CONTAINS
       CALL section_add_subsection(section, subsection)
       CALL section_release(subsection)
 
+      CALL create_kubo_transport_section(subsection)
+      CALL section_add_subsection(section, subsection)
+      CALL section_release(subsection)
+
       CALL create_bandstructure_section(subsection)
       CALL section_add_subsection(section, subsection)
       CALL section_release(subsection)
@@ -146,6 +152,92 @@ CONTAINS
       CALL section_release(subsection)
 
    END SUBROUTINE create_properties_section
+
+! **************************************************************************************************
+!> \brief creates the input structure used to activate finite-volume Kubo transport
+! **************************************************************************************************
+
+   SUBROUTINE create_kubo_transport_section(section)
+      TYPE(section_type), POINTER                        :: section
+      TYPE(keyword_type), POINTER                        :: keyword
+
+      CPASSERT(.NOT. ASSOCIATED(section))
+
+      NULLIFY (keyword)
+
+      CALL section_create(section, __LOCATION__, name="KUBO_TRANSPORT", &
+                          description="Finite-volume Kubo-Greenwood transport coefficients from the "// &
+                          "converged Quickstep Hamiltonian, overlap matrix, and atomic geometry. "// &
+                          "For one- and two-dimensional cells, transport is projected onto the "// &
+                          "periodic subspace and normalized by the periodic length or area.", &
+                          n_keywords=8, n_subsections=0, repeats=.FALSE., &
+                          citations=[KuhneHeskeProdan2020])
+
+      CALL keyword_create(keyword, __LOCATION__, name="_SECTION_PARAMETERS_", &
+                          description="Controls the activation of the Kubo transport calculation.", &
+                          default_l_val=.FALSE., &
+                          lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="METHOD", &
+                          description="Transport algorithm. DIAGONALIZATION evaluates the finite-volume "// &
+                          "Kubo-Greenwood expression from the explicit spectrum. TD and CHEBYSHEV are "// &
+                          "reserved for future diagonalization-free implementations.", &
+                          usage="METHOD DIAGONALIZATION", &
+                          n_var=1, type_of_var=char_t, default_c_val="DIAGONALIZATION")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="TEMPERATURE", &
+                          description="Electronic temperature used in the Fermi operator.", &
+                          usage="TEMPERATURE 1.0", &
+                          default_r_val=cp_unit_to_cp2k(value=1.0_dp, unit_str="K"), &
+                          n_var=1, type_of_var=real_t, unit_str="K")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="DISSIPATION", &
+                          description="Dissipation/broadening parameter in the finite-temperature "// &
+                          "Kubo formula.", &
+                          usage="DISSIPATION 300.0", &
+                          default_r_val=cp_unit_to_cp2k(value=300.0_dp, unit_str="K"), &
+                          n_var=1, type_of_var=real_t, unit_str="K")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="ENERGY_RANGE", &
+                          description="Absolute chemical-potential range. The default 0 0 uses the "// &
+                          "full eigenvalue range of the finite-volume Hamiltonian.", &
+                          usage="ENERGY_RANGE -0.5 0.5", &
+                          default_r_vals=[0.0_dp, 0.0_dp], n_var=2, type_of_var=real_t, &
+                          unit_str="hartree")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="NEUTRAL_MU", &
+                          description="Optional fixed neutral chemical potential. If omitted, the "// &
+                          "neutral point is found from the eigenvalue spectrum and total electron count.", &
+                          usage="NEUTRAL_MU 0.245467619658419", &
+                          n_var=1, type_of_var=real_t, unit_str="hartree")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="N_MU", &
+                          description="Number of chemical-potential grid points.", &
+                          usage="N_MU 200", &
+                          default_i_val=200, n_var=1, type_of_var=integer_t)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="NEUTRAL_GRID", &
+                          description="Number of grid points used to locate the neutral chemical potential.", &
+                          usage="NEUTRAL_GRID 10000", &
+                          default_i_val=10000, n_var=1, type_of_var=integer_t)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+   END SUBROUTINE create_kubo_transport_section
 
 ! **************************************************************************************************
 !> \brief creates the input structure used to activate
@@ -1533,9 +1625,8 @@ CONTAINS
 
       CPASSERT(.NOT. ASSOCIATED(section))
       CALL section_create(section, __LOCATION__, name="TDDFPT", &
-                          description="Parameters needed to set up the Time-Dependent "// &
-                          "Density Functional Perturbation Theory. "// &
-                          "Current implementation works for hybrid functionals. ", &
+                          description="Controls time-dependent density functional perturbation theory "// &
+                          "(TDDFPT) calculations for electronic excitations and related properties.", &
                           n_keywords=14, n_subsections=4, repeats=.FALSE., &
                           citations=[Iannuzzi2005, Hanasaki2025, Hernandez2025])
 
@@ -1543,7 +1634,7 @@ CONTAINS
 
       CALL keyword_create(keyword, __LOCATION__, &
                           name="_SECTION_PARAMETERS_", &
-                          description="Controls the activation of the TDDFPT procedure", &
+                          description="Activates the TDDFPT procedure.", &
                           default_l_val=.FALSE., &
                           lone_keyword_l_val=.TRUE.)
       CALL section_add_keyword(section, keyword)
@@ -1582,7 +1673,7 @@ CONTAINS
 
       CALL keyword_create(keyword, __LOCATION__, name="NPROC_STATE", &
                           description="Number of MPI processes to be used per excited state. "// &
-                          "Default is to use all processors (0).", &
+                          "Default is to use all MPI processes (0).", &
                           n_var=1, type_of_var=integer_t, &
                           default_i_val=0)
       CALL section_add_keyword(section, keyword)
@@ -1759,11 +1850,16 @@ CONTAINS
 
       CALL keyword_create(keyword, __LOCATION__, name="DIPOLE_FORM", &
                           description="Form of dipole transition integrals.", &
-                          enum_c_vals=s2a("BERRY", "LENGTH", "VELOCITY"), &
+                          enum_c_vals=s2a("BERRY", "LENGTH", "VELOCITY", "VELOCITY_OLD", &
+                                          "SCF_MOMENT"), &
                           enum_desc=s2a("Based on Berry phase formula (valid for fully periodic molecular systems only)", &
                                         "Length form &lang; i | r | j &rang; (valid for non-periodic molecular systems only)", &
-                                        "Velocity form &lang; i | d/dr | j &rang;"), &
-                          enum_i_vals=[tddfpt_dipole_berry, tddfpt_dipole_length, tddfpt_dipole_velocity], &
+                                        "Velocity form &lang; i | d/dr | j &rang;", &
+                                        "Old velocity form &lang; i | d/dr | j &rang;", &
+                                        "SCF molecular-orbital moment form for k-point TDDFPT"), &
+                          enum_i_vals=[tddfpt_dipole_berry, tddfpt_dipole_length, &
+                                       tddfpt_dipole_velocity, tddfpt_dipole_velocity_old, &
+                                       tddfpt_dipole_scf_moment], &
                           default_i_val=tddfpt_dipole_velocity)
       CALL section_add_keyword(subsection, keyword)
       CALL keyword_release(keyword)
@@ -1985,9 +2081,16 @@ CONTAINS
                           default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
       CALL section_add_keyword(print_key, keyword)
       CALL keyword_release(keyword)
-      CALL keyword_create(keyword, __LOCATION__, name="WRITE_NVAL", &
-                          description="Controls whether the [Nval] block is written to the MOLDEN file.", &
-                          usage="WRITE_NVAL TRUE", &
+      CALL keyword_create(keyword, __LOCATION__, name="WRITE_PSEUDO", &
+                          description="Controls whether the [Pseudo] block is written to the MOLDEN file.", &
+                          usage="WRITE_PSEUDO TRUE", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="MARK_GHOST", &
+                          description="Controls whether ghost atoms are marked in the [Atoms] block by "// &
+                          "setting their atomic number to zero.", &
+                          usage="MARK_GHOST T", &
                           default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
       CALL section_add_keyword(print_key, keyword)
       CALL keyword_release(keyword)
@@ -2259,6 +2362,10 @@ CONTAINS
       CALL section_add_subsection(section, subsection)
       CALL section_release(subsection)
 
+      CALL create_gw_ri_rs_section(subsection)
+      CALL section_add_subsection(section, subsection)
+      CALL section_release(subsection)
+
       CALL create_soc_section(subsection)
       CALL section_add_subsection(section, subsection)
       CALL section_release(subsection)
@@ -2480,6 +2587,64 @@ CONTAINS
       CALL section_release(subsection)
 
    END SUBROUTINE create_gw_section
+
+! **************************************************************************************************
+!> \brief creates an input section for Real-Space Resolution of Identity GW
+!> \param section section to create
+!> \par History
+!>    * 04.2026 created [Ritaj Tyagi]
+! **************************************************************************************************
+   SUBROUTINE create_gw_ri_rs_section(section)
+      TYPE(section_type), POINTER                        :: section
+
+      TYPE(keyword_type), POINTER                        :: keyword
+
+      CPASSERT(.NOT. ASSOCIATED(section))
+      CALL section_create(section, __LOCATION__, name="GW_RI_RS", &
+                          description="Parameters needed to set up a RI-RS based GW calculation", &
+                          n_keywords=1, n_subsections=1, repeats=.FALSE.)
+
+      NULLIFY (keyword)
+      CALL keyword_create(keyword, __LOCATION__, &
+                          name="_SECTION_PARAMETERS_", &
+                          description="Controls the activation of the GW RI-RS calculation.", &
+                          default_l_val=.FALSE., &
+                          lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="TIKHONOV", &
+                          description="Parameter for regularization used in RI-RS. "// &
+                          "See Equation (9) in 10.1063/1.5090605 for more details", &
+                          usage="TIKHONOV 1.0E-8", &
+                          default_r_val=1.0E-08_dp)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="GRID_SELECT", &
+                          description="Selection of grid type (1) def2-TZVPP (2) cc-pVTZ ", &
+                          usage="GRID_SELECT 1", &
+                          default_i_val=1)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="CHUNK_SIZE_DBCSR", &
+                          description="Chunk size for DBCSR matrices", &
+                          usage="CHUNK_SIZE_DBCSR 256", &
+                          default_i_val=256)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="CUTOFF_RADIUS_RI_RS", &
+                          description="The cutoff radius (in Angstrom) for the Resolution "// &
+                          "of Identity Real Space Approximation", &
+                          usage="CUTOFF_RADIUS_RI_RS 15.0", &
+                          default_r_val=cp_unit_to_cp2k(value=15.0_dp, unit_str="angstrom"), &
+                          type_of_var=real_t, unit_str="angstrom")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+   END SUBROUTINE create_gw_ri_rs_section
 
 ! **************************************************************************************************
 !> \brief creates an input section for calculation SOC for the electronic band structure

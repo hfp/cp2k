@@ -169,7 +169,9 @@ CONTAINS
 
       CALL keyword_create(keyword, __LOCATION__, name="EPSFIT", &
                           variants=["EPS_FIT"], &
-                          description="GAPW: precision to give the extension of a hard gaussian ", &
+                          description="GAPW: tolerance controlling the split of Gaussian basis functions "// &
+                          "into hard atom-centered and soft grid-expanded parts. Smaller values include "// &
+                          "harder Gaussians in the soft density and can require a larger MGRID cutoff.", &
                           usage="EPSFIT real", default_r_val=1.0E-4_dp)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
@@ -183,14 +185,16 @@ CONTAINS
 
       CALL keyword_create(keyword, __LOCATION__, name="EPSSVD", &
                           variants=["EPS_SVD"], &
-                          description="GAPW: tolerance used in the singular value decomposition of the projector matrix", &
+                          description="GAPW: tolerance used in the singular value decomposition of the "// &
+                          "projector matrix. Smaller values can improve numerical accuracy at increased cost.", &
                           usage="EPS_SVD real", default_r_val=1.0E-8_dp)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="EPSRHO0", &
                           variants=s2a("EPSVRHO0", "EPS_VRHO0"), &
-                          description="GAPW : precision to determine the range of V(rho0-rho0soft)", &
+                          description="GAPW: tolerance used to determine the range of the "// &
+                          "V(rho0-rho0_soft) compensation contribution.", &
                           usage="EPSRHO0 real", default_r_val=1.0E-6_dp)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
@@ -239,7 +243,15 @@ CONTAINS
 
       CALL keyword_create( &
          keyword, __LOCATION__, name="GAPW_ACCURATE_XCINT", &
-         description="Use a more accurate integration scheme for the soft XC energy in GAPW.", &
+         description="Use the accurate GAPW/GAPW_XC XC integration scheme for one-center hard/soft "// &
+         "density differences. This opt-in path covers regular GAPW/GAPW_XC XC energy, potential, "// &
+         "forces, mGGA/tau terms, NLCC, Fine-XC grids, local XC energy-density transfer, analytical "// &
+         "stress, TDDFPT/response forces, ADMM-GAPW force paths, an ADMM-GAPW diagonal stress "// &
+         "debug path, nonlocal vdW smoke coverage, representative k-point, XAS_TDP, and RTBSE "// &
+         "smoke cases, and KG GAPW/GAPW_XC EMBED, EMBED_RI, ATOMIC, and NONE cases. Regular-grid "// &
+         "local energy and stress cube print keys keep their existing soft-grid semantics and are "// &
+         "not changed by this keyword. The default remains off while this coverage is being prepared "// &
+         "for a future default change.", &
          usage="GAPW_ACCURATE_XCINT", &
          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
       CALL section_add_keyword(section, keyword)
@@ -500,7 +512,9 @@ CONTAINS
 
       CALL keyword_create(keyword, __LOCATION__, name="EMBED_CUBE_FILE_NAME", &
                           description="Root of the file name where to read the embedding "// &
-                          "potential (guess) as a cube.", &
+                          "potential (guess) as a cube. Whitespace-separated cube values are accepted. If "// &
+                          "adjacent values are written without whitespace, each value must occupy a "// &
+                          "13-character E13.5 field, as in CP2K-generated cube files.", &
                           usage="EMBED_CUBE_FILE_NAME <FILENAME>", &
                           type_of_var=lchar_t)
       CALL section_add_keyword(section, keyword)
@@ -508,7 +522,9 @@ CONTAINS
 
       CALL keyword_create(keyword, __LOCATION__, name="EMBED_SPIN_CUBE_FILE_NAME", &
                           description="Root of the file name where to read the spin part "// &
-                          "of the embedding potential (guess) as a cube.", &
+                          "of the embedding potential (guess) as a cube. Whitespace-separated cube values are "// &
+                          "accepted. If adjacent values are written without whitespace, each value must occupy "// &
+                          "a 13-character E13.5 field, as in CP2K-generated cube files.", &
                           usage="EMBED_SPIN_CUBE_FILE_NAME <FILENAME>", &
                           type_of_var=lchar_t)
       CALL section_add_keyword(section, keyword)

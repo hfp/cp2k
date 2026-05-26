@@ -1,8 +1,9 @@
 #!/bin/bash -e
 
 # Disabled shellcheck items: SC1091 for external scripts, SC2034 for unused
-# variables, SC2124 for concatenating toolchain options with $@
-# shellcheck disable=SC1091,SC2034,SC2124
+# variables, SC2124 for concatenating toolchain options with $@, SC2129 for
+# individual redirects ">>".
+# shellcheck disable=SC1091,SC2034,SC2124,SC2129
 
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")" && pwd -P)"
@@ -32,6 +33,7 @@ export SCRIPTDIR="${ROOTDIR}/scripts"
 export BUILDDIR="${ROOTDIR}/build"
 export INSTALLDIR="${ROOTDIR}/install"
 export SETUPFILE="${INSTALLDIR}/setup"
+export TOOLKIT_SCRIPT="${SCRIPTDIR}/tool_kit.sh"
 
 # ------------------------------------------------------------------------
 # Make a copy of all options for $SETUPFILE
@@ -85,6 +87,9 @@ OPTIONS:
                           If omitted, the script will automatically try to
                           determine the number of available processors and use
                           all of them by default.
+  --install-dir           Set the directory you want to installed toolchain
+                          dependencies to. Default is the "install" directory
+                          in current path.
   --no-check-certificate  Bypass verification of server's certificate while
                           downloading anything from internet via wget command.
                           In case wget errors about "certificate verification"
@@ -136,7 +141,7 @@ OPTIONS:
                           Default = native
   --gpu-ver               Select the target GPU architecture for compiling.
                           Available options are: K20X, K40, K80, P100, V100,
-                          A100, H100, A40, Mi50, Mi100, Mi250, and no.
+                          A100, H100, GB10, A40, Mi50, Mi100, Mi250, and no.
                           This option determines the value of nvcc -arch flag.
                           Default = no
   --libint-lmax           Maximum supported angular momentum by libint if the
@@ -156,10 +161,6 @@ OPTIONS:
                           settings after resolving known conflicts, then exit
                           without actually downloading tarballs or building
                           packages.
-  --list-cmake-options    If yes, generate a list of CMake options for building
-                          CP2K with the toolchain configuration as well as some
-                          further instructions at the end of toolchain.
-                          Default = yes
 
 The --enable-FEATURE options follow the rules:
   --enable-FEATURE=yes    Enable this particular feature.
@@ -251,6 +252,10 @@ Specific options of --with-PKG:
   --with-libxc            Enable libxc for exchange-correlation in QuickStep
                           DFT (pure and hybrid functionals) calculations.
                           Default = install
+  --with-gauxc            Enable GauXC for external exchange-correlation
+                          integration. Installing GauXC with OneDFT/SKALA
+                          support also enables libtorch and installs Skala-1.1.
+                          Default = no
   --with-libint           Enable libint for two-body molecular integrals in
                           Hartree-Fock and hybrid functional calculations.
                           Default = install
@@ -289,6 +294,8 @@ Specific options of --with-PKG:
   --with-gsl              Enable the GNU scientific library (GSL).
                           This package is required for PLUMED and SIRIUS.
                           Default = install
+  --with-fmt              Enable the formatting C/C++ library.
+                          This package is required for SIRIUS.
   --with-libtorch         Enable libtorch as a machine learning framework.
                           This package is required for NequIP and Allegro, and
                           also for installing DeePMD-kit.
@@ -340,6 +347,8 @@ Specific options of --with-PKG:
                           This library is required by SIRIUS.
                           Default = no
   --with-trexio           Enable the trexio library for TREXIO file format.
+                          Default = no
+  --with-libfci           Enable the libfci active-space solver library.
                           Default = no
   --with-mcl              Install MCL library for MiMiC with toolchain.
                           Default = no
@@ -463,10 +472,10 @@ EOF
 tool_list="gcc intel amd cmake ninja"
 mpi_list="mpich openmpi intelmpi"
 math_list="mkl acml openblas"
-lib_list="fftw libint libxc libxsmm libxs libxstream cosma scalapack elpa dbcsr
+lib_list="fftw libint libxc gauxc libxsmm libxs libxstream cosma scalapack elpa dbcsr
           cusolvermp plumed spfft spla gsl spglib hdf5 libvdwxc sirius
           libvori libtorch deepmd ace dftd4 tblite pugixml libsmeagol
-          trexio greenx gmp mcl"
+          fmt trexio libfci greenx gmp mcl"
 package_list="${tool_list} ${mpi_list} ${math_list} ${lib_list}"
 # ------------------------------------------------------------------------
 
@@ -490,12 +499,15 @@ with_libxsmm="__INSTALL__"
 with_libxs="__INSTALL__"
 with_libxstream="__INSTALL__"
 with_libxc="__INSTALL__"
+with_gauxc="__DONTUSE__"
 with_scalapack="__INSTALL__"
 with_sirius="__INSTALL__"
 with_gsl="__DONTUSE__"
+with_fmt="__DONTUSE__"
 with_spglib="__INSTALL__"
 with_hdf5="__DONTUSE__"
 with_trexio="__DONTUSE__"
+with_libfci="__DONTUSE__"
 with_elpa="__INSTALL__"
 with_cusolvermp="__DONTUSE__"
 with_libvdwxc="__DONTUSE__"
@@ -562,7 +574,6 @@ else
 fi
 
 # default enable options
-list_cmake_options="__TRUE__"
 dry_run="__FALSE__"
 enable_tsan="__FALSE__"
 enable_opencl="__FALSE__"
@@ -628,6 +639,16 @@ while [ $# -ge 1 ]; do
     -j[0-9]*)
       export NPROCS_OVERWRITE="${1#-j}"
       ;;
+    --install-dir=*)
+      if [[ "${1#--install-dir=}" != /* ]]; then
+        report_error "The path for --install-dir must be an absolute path."
+        exit 1
+      fi
+      export INSTALLDIR="${1#--install-dir=}"
+      export SETUPFILE="${INSTALLDIR}/setup"
+      cp "${SCRIPTDIR}"/tool_kit.sh "${INSTALLDIR}"/
+      export TOOLKIT_SCRIPT="${INSTALLDIR}/tool_kit.sh"
+      ;;
     --no-check-certificate)
       export DOWNLOADER_FLAGS="--no-check-certificate"
       ;;
@@ -636,7 +657,8 @@ while [ $# -ge 1 ]; do
       for ii in ${package_list}; do
         if [ "${ii}" != "intel" ] &&
           [ "${ii}" != "intelmpi" ] &&
-          [ "${ii}" != "amd" ]; then
+          [ "${ii}" != "amd" ] &&
+          [ "${ii}" != "cusolvermp" ]; then
           eval "with_${ii}=__INSTALL__"
         fi
       done
@@ -693,13 +715,13 @@ Otherwise use option no."
     --gpu-ver=*)
       user_input="${1#*=}"
       case "${user_input}" in
-        K20X | K40 | K80 | P100 | V100 | A100 | H100 | A40 | Mi50 | Mi100 | Mi250 | no)
+        K20X | K40 | K80 | P100 | V100 | A100 | H100 | GB10 | A40 | Mi50 | Mi100 | Mi250 | no)
           export GPUVER="${user_input}"
           ;;
         *)
           report_error ${LINENO} "Invalid value for --gpu-ver found."
           echo "Currently only one of the following options is supported:
-            K20X, K40, K80, P100, V100, A100, H100, A40, Mi50, Mi100, Mi250.
+            K20X, K40, K80, P100, V100, A100, H100, GB10, A40, Mi50, Mi100, Mi250.
 Otherwise use option no."
           exit 1
           ;;
@@ -727,13 +749,6 @@ Otherwise use option no."
       ;;
     --dry-run)
       dry_run="__TRUE__"
-      ;;
-    --list-cmake-options*)
-      list_cmake_options=$(read_enable "${1}")
-      if [ "${list_cmake_options}" = "__INVALID__" ]; then
-        report_error "invalid value for --list-cmake-options, please use yes or no"
-        exit 1
-      fi
       ;;
     --enable-tsan*)
       enable_tsan=$(read_enable "${1}")
@@ -817,6 +832,9 @@ Otherwise use option no."
     --with-libxc*)
       with_libxc=$(read_with "${1}")
       ;;
+    --with-gauxc*)
+      with_gauxc=$(read_with "${1}")
+      ;;
     --with-fftw*)
       with_fftw=$(read_with "${1}")
       ;;
@@ -854,7 +872,7 @@ Otherwise use option no."
       with_elpa=$(read_with "${1}")
       ;;
     --with-cusolvermp*)
-      with_cusolvermp=$(read_with "${1}")
+      with_cusolvermp=$(read_with "${1}" "__SYSTEM__")
       ;;
     --with-deepmd*)
       with_deepmd=$(read_with "${1}")
@@ -873,6 +891,9 @@ Otherwise use option no."
       ;;
     --with-gsl*)
       with_gsl=$(read_with "${1}")
+      ;;
+    --with-fmt*)
+      with_fmt=$(read_with "${1}")
       ;;
     --with-spglib*)
       with_spglib=$(read_with "${1}")
@@ -909,6 +930,9 @@ Otherwise use option no."
       ;;
     --with-trexio*)
       with_trexio=$(read_with "${1}")
+      ;;
+    --with-libfci*)
+      with_libfci=$(read_with "${1}")
       ;;
     --with-greenx*)
       with_greenx=$(read_with "${1}")
@@ -1092,6 +1116,12 @@ if [ "${with_libxstream}" != "__DONTUSE__" ]; then
   fi
 fi
 
+if [ "${with_gauxc}" != "__DONTUSE__" ] &&
+  [ "${with_libxc}" = "__DONTUSE__" ]; then
+  report_warning ${LINENO} "GauXC requires Libxc through ExchCXX, so Libxc is enabled."
+  with_libxc="__INSTALL__"
+fi
+
 # Since tblite includes dftd4, a separate dftd4 is not needed.
 if [ "${with_tblite}" != "__DONTUSE__" ]; then
   if [ "${with_dftd4}" != "__DONTUSE__" ]; then
@@ -1111,7 +1141,9 @@ if [ "${with_spglib}" = "__INSTALL__" ] ||
   [ "${with_spfft}" = "__INSTALL__" ] ||
   [ "${with_spla}" = "__INSTALL__" ] ||
   [ "${with_ninja}" = "__INSTALL__" ] ||
+  [ "${with_gauxc}" = "__INSTALL__" ] ||
   [ "${with_greenx}" = "__INSTALL__" ] ||
+  [ "${with_libfci}" = "__INSTALL__" ] ||
   [ "${with_dftd4}" = "__INSTALL__" ] ||
   [ "${with_mcl}" = "__INSTALL__" ] ||
   [ "${with_tblite}" = "__INSTALL__" ]; then
@@ -1127,6 +1159,7 @@ if [ "${with_sirius}" = "__INSTALL__" ]; then
   [ "${with_spfft}" = "__DONTUSE__" ] && with_spfft="__INSTALL__"
   [ "${with_spla}" = "__DONTUSE__" ] && with_spla="__INSTALL__"
   [ "${with_gsl}" = "__DONTUSE__" ] && with_gsl="__INSTALL__"
+  [ "${with_fmt}" = "__DONTUSE__" ] && with_fmt="__INSTALL__"
   [ "${with_libxc}" = "__DONTUSE__" ] && with_libxc="__INSTALL__"
   [ "${with_fftw}" = "__DONTUSE__" ] && with_fftw="__INSTALL__"
   [ "${with_spglib}" = "__DONTUSE__" ] && with_spglib="__INSTALL__"
@@ -1138,6 +1171,7 @@ elif [ "${with_sirius}" = "__DONTUSE__" ]; then
   with_pugixml="__DONTUSE__"
   with_spfft="__DONTUSE__"
   with_libvdwxc="__DONTUSE__"
+  with_fmt="__DONTUSE__"
   [ "${GPUVER}" = "no" ] && with_spla="__DONTUSE__"
 fi
 
@@ -1151,6 +1185,10 @@ if [ "${with_plumed}" = "__INSTALL__" ]; then
 fi
 
 if [ "${with_deepmd}" = "__INSTALL__" ]; then
+  [ "${with_libtorch}" = "__DONTUSE__" ] && with_libtorch="__INSTALL__"
+fi
+
+if [ "${with_gauxc}" = "__INSTALL__" ]; then
   [ "${with_libtorch}" = "__DONTUSE__" ] && with_libtorch="__INSTALL__"
 fi
 
@@ -1185,6 +1223,9 @@ case ${GPUVER} in
     ;;
   H100)
     export ARCH_NUM="90"
+    ;;
+  GB10)
+    export ARCH_NUM="121"
     ;;
   Mi50)
     # TODO: export ARCH_NUM=
@@ -1291,11 +1332,17 @@ fi
 # Installing tools required for building CP2K and associated libraries
 # ------------------------------------------------------------------------
 
+# Write toolchain configurations
+cat << EOF > "${ROOTDIR}/toolchain_settings"
+#!/bin/bash
+export TOOLCHAIN_INSTALL_DIR="${INSTALLDIR}"
+export CP2K_TOOLCHAIN_OPTIONS="${TOOLCHAIN_OPTIONS}"
+EOF
+
 # Write head of setup file
 cat << EOF > "$SETUPFILE"
 #!/bin/bash
-source "${SCRIPTDIR}/tool_kit.sh"
-export CP2K_TOOLCHAIN_OPTIONS="${TOOLCHAIN_OPTIONS}"
+source "${TOOLKIT_SCRIPT}"
 EOF
 
 # Write toolchain environment
@@ -1303,7 +1350,13 @@ write_toolchain_env "${INSTALLDIR}"
 
 # Write toolchain config
 echo "tool_list=\"${tool_list}\"" > "${INSTALLDIR}"/toolchain.conf
-echo "dry_run=\"${dry_run}\"" >> "${INSTALLDIR}"/toolchain.conf
+echo "mpi_mode=\"${MPI_MODE}\"" >> "${INSTALLDIR}"/toolchain.conf
+echo "ENABLE_CUDA=\"${ENABLE_CUDA}\"" >> "${INSTALLDIR}"/toolchain.conf
+echo "ENABLE_HIP=\"${ENABLE_HIP}\"" >> "${INSTALLDIR}"/toolchain.conf
+echo "ENABLE_OPENCL=\"${ENABLE_OPENCL}\"" >> "${INSTALLDIR}"/toolchain.conf
+if [ "${ENABLE_CUDA}" == "__TRUE__" ] || [ "${ENABLE_HIP}" == "__TRUE__" ]; then
+  echo "GPU_VER=\"${GPUVER}\"" >> "${INSTALLDIR}"/toolchain.conf
+fi
 for ii in ${package_list}; do
   install_mode=$(eval "echo \${with_${ii}}")
   echo "with_${ii}=\"${install_mode}\"" >> "${INSTALLDIR}"/toolchain.conf
@@ -1345,9 +1398,18 @@ else
   "${SCRIPTDIR}"/stage7/install_stage7.sh
   "${SCRIPTDIR}"/stage8/install_stage8.sh
   "${SCRIPTDIR}"/stage9/install_stage9.sh
+  echo
+  cat << EOF
+========================== Epilogue =========================
+Done! To build CP2K with dependencies you installed via toolchain, simply run
+this script:
+
+  ./build_cp2k.sh -j $(get_nprocs)
+
+It will source the file "install/setup", generate proper CMake flags based on
+toolchain options, and then build and install CP2K. For available options
+with the script, run "./build_cp2k.sh -h".
+EOF
 fi
 
-# Generate CMake options
-if [ "${list_cmake_options}" = "__TRUE__" ]; then
-  "${SCRIPTDIR}"/generate_cmake_options.sh
-fi
+#EOF

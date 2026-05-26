@@ -27,6 +27,17 @@ The `FindCuSolverMP.cmake` module tries to automatically deduce the [cuSOLVERmp]
 `cusolvermp.h` header file, and enables the `CP2K_CUSOLVERMP_USE_NCCL` CMake option in case it finds
 cuSOLVERmp >= 0.7.
 
+## Generalized diagonalization
+
+The `DIRECT_GENERALIZED_DIAGONALIZATION` global input keyword enables direct generalized
+diagonalization paths that avoid a CP2K-side Cholesky reduction where the selected eigensolver
+supports them. With [cuSOLVERMp], this currently covers real symmetric and complex Hermitian
+generalized eigenproblems through `cusolverMpSygvd`.
+
+When [cuSOLVERMp] uses the NCCL backend, CP2K relies on the launcher or scheduler to bind MPI ranks
+to GPUs. For example, assigning one GPU per rank with `CUDA_VISIBLE_DEVICES` is supported. CP2K only
+checks that the CUDA device selected for each MPI rank is visible to that rank.
+
 [cal]: https://developer.download.nvidia.com/compute/cublasmp/redist/libcal/
 [cusolvermp]: https://docs.nvidia.com/cuda/cusolvermp/
 [nccl]: https://developer.nvidia.com/nccl

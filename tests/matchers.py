@@ -35,10 +35,12 @@ class Matcher(Protocol):
 
 # ======================================================================================
 class GenericMatcher(Matcher):
-    def __init__(self, pattern: str, col: int):
+    def __init__(self, pattern: str, col: int, regex: bool = False):
         self.pattern = pattern
-        for c in r"[]()|+*?":
-            pattern = pattern.replace(c, f"\\{c}")  # escape special chars
+        self.regex_mode = regex
+        if not regex:
+            for c in r"[]()|+*?":
+                pattern = pattern.replace(c, f"\\{c}")  # escape special chars
         self.regex = re.compile(pattern)
         self.col = col
 
@@ -48,8 +50,12 @@ class GenericMatcher(Matcher):
         assert isinstance(ref, float) or isinstance(ref, int)
         # grep result
         for line in reversed(output.split("\n")):
-            if self.regex.search(line):
-                value_str = line.split()[self.col - 1]
+            match = self.regex.search(line)
+            if match:
+                if self.regex_mode and match.groups():
+                    value_str = match.group(1)
+                else:
+                    value_str = line.split()[self.col - 1]
                 break
         else:
             error = f"Result not found: '{self.pattern}'.\n"
@@ -57,7 +63,7 @@ class GenericMatcher(Matcher):
 
         # parse result
         try:
-            value = float(value_str)
+            value = float(value_str.replace("D", "E"))
         except:
             error = f"Could not parse result as float: '{value_str}'.\n"
             return MatchResult("WRONG RESULT", error, value=None)
@@ -70,6 +76,19 @@ class GenericMatcher(Matcher):
             return MatchResult("WRONG RESULT", error, value)
 
         return MatchResult("OK", error=None, value=value)  # passed
+
+
+# ======================================================================================
+class TextPresenceMatcher(Matcher):
+    def __init__(self, text: str):
+        self.text = text
+
+    def run(self, output: str, **kwargs: Any) -> MatchResult:
+        if self.text not in output:
+            return MatchResult(
+                "WRONG RESULT", f"Text not found: '{self.text}'.\n", value=None
+            )
+        return MatchResult("OK", error=None, value=None)
 
 
 # ======================================================================================
@@ -98,6 +117,36 @@ registry["Vib_frc_const"] = GenericMatcher(r"VIB|Frc consts", col=4)  # M128
 registry["M009"] = GenericMatcher(r"PINT| Total energy =", col=5)
 registry["M010"] = GenericMatcher(r"BAND TOTAL ENERGY [au]", col=6)
 registry["M011"] = GenericMatcher(r"ENERGY| Total FORCE_EVAL", col=9)
+registry["N_special_kpoints"] = GenericMatcher(r"Number of Special K-points:", col=5)
+registry["Kubo_sigma_iso"] = GenericMatcher(r"KUBO_TRANSPORT| sigma_iso[S/cm]", col=3)
+registry["Kubo_sigma_iso_2d"] = GenericMatcher(r"KUBO_TRANSPORT| sigma_iso[S]", col=3)
+registry["Kubo_sigma_iso_1d"] = GenericMatcher(r"KUBO_TRANSPORT| sigma_iso[S*m]", col=3)
+registry["Kubo_internal_diag"] = TextPresenceMatcher("internal diagonalization")
+registry["Kubo_reused_mos"] = TextPresenceMatcher("CP2K canonical MOs")
+registry["Kubo_reference"] = TextPresenceMatcher(
+    "https://doi.org/10.1016/j.aop.2020.168290"
+)
+registry["WANNIER90_SCF_MO_REUSE"] = TextPresenceMatcher(
+    "WANNIER90| Reused SCF MO coefficients for the Wannier90 full k-point mesh."
+)
+registry["WANNIER90_FULL_MESH_DIAG"] = TextPresenceMatcher(
+    "WANNIER90| Falling back to full-mesh diagonalization for the Wannier90 files."
+)
+registry["WANNIER90_DEGENERATE_GUARD"] = TextPresenceMatcher(
+    "degenerate atom/AO W90 reuse guarded"
+)
+registry["WANNIER90_DEGENERATE_SUBSPACE_ALIGN"] = TextPresenceMatcher(
+    "degenerate SCF MO subspace(s)"
+)
+registry["WANNIER90_USE_BLOCH_PHASES"] = TextPresenceMatcher(
+    "WANNIER90| Wrote identity projections for Bloch-phase complete band subspaces."
+)
+registry["WANNIER90_BLOCH_PHASE_GAUGE"] = TextPresenceMatcher(
+    "WANNIER90| Applied Bloch phase gauge to reused overlaps"
+)
+registry["WANNIER90_REUSE_VALIDATION"] = TextPresenceMatcher(
+    "WANNIER90| Reused MO validation: subspace deviation"
+)
 registry["M012"] = GenericMatcher(r"B2(T) =", col=4)
 registry["M013"] = GenericMatcher(r"sparseness function f2 =", col=5)
 registry["M014"] = GenericMatcher(r"CheckSum Shifts =", col=4)
@@ -127,7 +176,8 @@ registry["M033"] = GenericMatcher(r"Dispersion energy:", col=3)
 registry["M034"] = GenericMatcher(r"ISSC| all operator: CheckSum =", col=6)
 registry["M035"] = GenericMatcher(r"Energy components", col=7)
 registry["M036"] = GenericMatcher(r"ISSC| response: CheckSum =", col=5)
-registry["M037"] = GenericMatcher(r"TDDFPT : CheckSum  =", col=5)
+registry["TDDFPT_Check_Energy"] = GenericMatcher(r"TDDFPT : CheckSum E =", col=6)
+registry["TDDFPT_Check_Osc_Strength"] = GenericMatcher(r"TDDFPT : CheckSum F =", col=6)
 registry["M038"] = GenericMatcher(r"ISSC| CheckSum K =", col=5)
 registry["M039"] = GenericMatcher(r"X=", col=2)
 registry["M040"] = GenericMatcher(r"HELIUM| Total energy =", col=5)
@@ -138,6 +188,9 @@ registry["M044"] = GenericMatcher(r"FORCES| Total shell particle force", col=6)
 registry["M045"] = GenericMatcher(r"PRM01", col=2)
 registry["M046"] = GenericMatcher(r"Final value", col=6)
 registry["M047"] = GenericMatcher(r"SUMMARY:: Number of molecule kinds found:", col=7)
+registry["PDB_KIND_H_MASS"] = GenericMatcher(
+    r"NEW ATOMIC KIND\s+HW1\s+([-+0-9.EeDd]+)", col=5, regex=True
+)
 registry["M048"] = GenericMatcher(r"E(Fermi):", col=3)
 registry["M049"] = GenericMatcher(r"Total Multiplication", col=9)
 registry["M050"] = GenericMatcher(r"Direct MP2 Canonical Energy =", col=6)
@@ -157,7 +210,7 @@ registry["M064"] = GenericMatcher(r"^  C", col=3)
 registry["M065"] = GenericMatcher(r"^  C", col=4)
 registry["M066"] = GenericMatcher(r"HF Etotal", col=3)
 registry["M067"] = GenericMatcher(r"Energy Level:", col=9)
-registry["TDDFPT_excit_ener"] = GenericMatcher(r"TDDFPT|      1", col=3)
+
 registry["M069"] = GenericMatcher(r"Log(1-CN):", col=10)
 registry["M070"] = GenericMatcher(r"MD| Temperature [K]", col=4)
 registry["M071"] = GenericMatcher(r"Current value of constraint", col=6)
@@ -178,6 +231,31 @@ registry["IC_gap"] = GenericMatcher(r"IC HOMO-LUMO gap (eV)", col=5)
 
 registry["M081"] = GenericMatcher(r"HOMO SCF Cycle:     4", col=9)
 registry["M082"] = GenericMatcher(r"DEBUG| Sum of differences:", col=5)
+registry["DEBUG_stress_sum"] = GenericMatcher(
+    r"DEBUG\|\s+Sum of differences\s+([-+0-9.EeDd]+)$", col=5, regex=True
+)
+registry["DEBUG_periodic_stress_sum"] = GenericMatcher(
+    r"DEBUG\|\s+Periodic-subspace sum of differences\s+([-+0-9.EeDd]+)$",
+    col=5,
+    regex=True,
+)
+registry["DEBUG_force_sum"] = GenericMatcher(
+    r"DEBUG\|\s+Sum of differences:\s+([-+0-9.EeDd]+)", col=5, regex=True
+)
+registry["GAUXC_molecular_xc_virial_trace"] = GenericMatcher(
+    r"GAUXC\|\s+Molecular XC gradient virial 1/3 Trace\s+([-+0-9.EeDd]+)",
+    col=8,
+    regex=True,
+)
+registry["GAUXC_molecular_xc_virial_fd_diff"] = GenericMatcher(
+    r"GAUXC\|\s+Molecular XC virial FD 1/3 Trace\s+"
+    r"[-+0-9.EeDd]+\s+[-+0-9.EeDd]+\s+([-+0-9.EeDd]+)",
+    col=9,
+    regex=True,
+)
+registry["XTB_reference_cli_failed"] = TextPresenceMatcher(
+    "tblite reference CLI check failed to run."
+)
 registry["M083"] = GenericMatcher(r"1[   1] - 2[   1]", col=7)
 registry["M084"] = GenericMatcher(r"Ionization potential of the excited atom:", col=7)
 registry["M085"] = GenericMatcher(r"Total FORCE_EVAL ( SIRIUS ) energy", col=9)
@@ -188,6 +266,9 @@ registry["M089"] = GenericMatcher(r"Electronic density on regular grids:", col=7
 registry["M090"] = GenericMatcher(r"Final localization:", col=3)
 registry["M091"] = GenericMatcher(r"Ionization potentials for XPS", col=8)
 registry["M092"] = GenericMatcher(r"FCIDUMP| Checksum:", col=3)
+registry["FCIDUMP_MS2"] = GenericMatcher(
+    r"&FCI .*MS2=\s*([-+0-9]+),", col=1, regex=True
+)
 registry["M093"] = GenericMatcher(r"SPGR| SPACE GROUP NUMBER:", col=5)
 registry["M094"] = GenericMatcher(r"KS CSR write|", col=4)
 registry["M095"] = GenericMatcher(r"Fermi energy:", col=3)
@@ -206,7 +287,8 @@ registry["E_G0W0_beta_gap_old"] = GenericMatcher(r"Beta GW direct gap", col=9)
 # G0W0 + perturbative SOC bandgap of solid (old low-scaling GW implementation)
 registry["E_G0W0_SOC_gap_old"] = GenericMatcher(r"GW+SOC bandgap (eV)", col=4)
 
-registry["M099"] = GenericMatcher(r"Total Spread (Berry) :", col=6)
+registry["Spread_Berry"] = GenericMatcher(r"Total Spread (Berry) :", col=6)
+registry["Spread"] = GenericMatcher(r"   Iteration: ", col=4)
 registry["M100"] = GenericMatcher(r"NVP |   1  2", col=8)
 registry["M104"] = GenericMatcher(r"Ground state stabilisation:", col=4)
 registry["M105"] = GenericMatcher(r"TDDFT+SOC", col=5)
@@ -281,4 +363,12 @@ registry["BC_near_K_point"] = GenericMatcher(r"   1    4", col=5)
 
 # GEXT extrapolation
 registry["gext"] = GenericMatcher(r"GEXT overlap fitting error:", col=5)
+
+# RI-RS G0W0 calculation for molecules
+registry["RIRS_Grid"] = GenericMatcher(r"Total grid points used for RI-RS:", col=7)
+registry["RIRS_CUTOFF"] = GenericMatcher(
+    r"INPUT: Cutoff radius for grid points in RI-RS", col=9
+)
+registry["E_RIRS_HOMO"] = GenericMatcher(r"G0W0 valence band maximum", col=6)
+registry["E_RIRS_LUMO"] = GenericMatcher(r"G0W0 conduction band minimum", col=6)
 # EOF

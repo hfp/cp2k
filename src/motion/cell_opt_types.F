@@ -60,7 +60,8 @@ MODULE cell_opt_types
       ! Simulation cell optimization parameters
       INTEGER                                    :: constraint_id = fix_none
       LOGICAL                                    :: keep_angles = .FALSE., &
-                                                    keep_symmetry = .FALSE.
+                                                    keep_symmetry = .FALSE., &
+                                                    keep_volume = .FALSE.
       REAL(KIND=dp)                              :: pres_ext = 0.0_dp, pres_int = 0.0_dp, pres_tol = 0.0_dp, pres_constr = 0.0_dp
       REAL(KIND=dp), DIMENSION(3, 3)             :: mtrx = 0.0_dp
       REAL(KIND=dp), DIMENSION(3, 3)             :: rot_matrix = 0.0_dp
@@ -84,7 +85,8 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: geo_section
 
       CHARACTER(LEN=4)                                   :: label
-      INTEGER                                            :: ip, output_unit
+      INTEGER                                            :: ip, output_unit, required_constraint_id
+      LOGICAL                                            :: constraint_explicit, valid_constraint
       REAL(KIND=dp), DIMENSION(3)                        :: r
       TYPE(cell_type), POINTER                           :: cell
       TYPE(cp_logger_type), POINTER                      :: logger
@@ -95,10 +97,45 @@ CONTAINS
       CALL force_env_get(force_env, cell=cell, subsys=subsys)
       CALL cell_create(cell_env%ref_cell)
       CALL cell_clone(cell, cell_env%ref_cell, tag="REF_CELL_OPT")
+      CALL section_vals_val_get(geo_section, "KEEP_VOLUME", l_val=cell_env%keep_volume)
       CALL section_vals_val_get(geo_section, "KEEP_ANGLES", l_val=cell_env%keep_angles)
       CALL section_vals_val_get(geo_section, "KEEP_SYMMETRY", l_val=cell_env%keep_symmetry)
       CALL section_vals_val_get(geo_section, "PRESSURE_TOLERANCE", r_val=cell_env%pres_tol)
-      CALL section_vals_val_get(geo_section, "CONSTRAINT", i_val=cell_env%constraint_id)
+      CALL section_vals_val_get(geo_section, "CONSTRAINT", &
+                                i_val=cell_env%constraint_id, explicit=constraint_explicit)
+
+      IF (COUNT(cell%perd /= 0) == 2) THEN
+         required_constraint_id = fix_none
+         IF (cell%perd(1) == 0) required_constraint_id = fix_x
+         IF (cell%perd(2) == 0) required_constraint_id = fix_y
+         IF (cell%perd(3) == 0) required_constraint_id = fix_z
+
+         SELECT CASE (required_constraint_id)
+         CASE (fix_x)
+            valid_constraint = cell_env%constraint_id == fix_x .OR. &
+                               cell_env%constraint_id == fix_xy .OR. &
+                               cell_env%constraint_id == fix_xz
+         CASE (fix_y)
+            valid_constraint = cell_env%constraint_id == fix_y .OR. &
+                               cell_env%constraint_id == fix_xy .OR. &
+                               cell_env%constraint_id == fix_yz
+         CASE (fix_z)
+            valid_constraint = cell_env%constraint_id == fix_z .OR. &
+                               cell_env%constraint_id == fix_xz .OR. &
+                               cell_env%constraint_id == fix_yz
+         CASE DEFAULT
+            valid_constraint = .FALSE.
+         END SELECT
+
+         IF (cell_env%constraint_id == fix_none .AND. .NOT. constraint_explicit) THEN
+            cell_env%constraint_id = required_constraint_id
+            CALL cp_warn(__LOCATION__, &
+                         "2D CELL_OPT: constraining non-periodic cell direction.")
+         ELSE IF (.NOT. valid_constraint) THEN
+            CALL cp_abort(__LOCATION__, &
+                          "2D CELL_OPT needs constrained non-periodic cell direction.")
+         END IF
+      END IF
 
       ! Compute the rotation matrix that give the cell vectors in the "canonical" orientation
       cell_env%rot_matrix = MATMUL(cell_env%ref_cell%hmat, cell%h_inv)
@@ -121,6 +158,13 @@ CONTAINS
       IF (output_unit > 0) THEN
          WRITE (UNIT=output_unit, FMT="(/,T2,A,T61,F20.1)") &
             "CELL_OPT| Pressure tolerance [bar]: ", cp_unit_from_cp2k(cell_env%pres_tol, "bar")
+         IF (cell_env%keep_volume) THEN
+            WRITE (UNIT=output_unit, FMT="(T2,A,T78,A3)") &
+               "CELL_OPT| Keep volume of cell: ", "YES"
+         ELSE
+            WRITE (UNIT=output_unit, FMT="(T2,A,T78,A3)") &
+               "CELL_OPT| Keep volume of cell: ", " NO"
+         END IF
          IF (cell_env%keep_angles) THEN
             WRITE (UNIT=output_unit, FMT="(T2,A,T78,A3)") &
                "CELL_OPT| Keep angles between the cell vectors: ", "YES"

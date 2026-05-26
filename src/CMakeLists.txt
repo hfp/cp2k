@@ -222,6 +222,7 @@ list(
   gw_main.F
   gw_large_cell_gamma.F
   gw_small_cell_full_kp.F
+  gw_large_cell_gamma_ri_rs.F
   post_scf_bandstructure_types.F
   post_scf_bandstructure_utils.F
   gw_utils.F
@@ -231,6 +232,7 @@ list(
   hartree_local_types.F
   header.F
   hfx_admm_utils.F
+  hfx_ace_methods.F
   hfx_communication.F
   hfx_compression_methods.F
   hfx_derivatives.F
@@ -332,6 +334,7 @@ list(
   library_tests.F
   linesearch.F
   localization_tb.F
+  localized_moments.F
   lri_compression.F
   lri_environment_init.F
   lri_environment_methods.F
@@ -505,7 +508,9 @@ list(
   qmmmx_update.F
   qmmmx_util.F
   qs_2nd_kernel_ao.F
+  qs_active_space_fci.F
   qs_active_space_methods.F
+  qs_active_space_mixing.F
   qs_active_space_types.F
   qs_active_space_utils.F
   qcschema.F
@@ -559,6 +564,7 @@ list(
   qs_dispersion_utils.F
   qs_dispersion_cnum.F
   qs_dos.F
+  qs_dos_utils.F
   qs_efield_berry.F
   qs_efield_local.F
   qs_elec_field.F
@@ -623,6 +629,7 @@ list(
   qs_ks_types.F
   qs_ks_utils.F
   qs_ks_reference.F
+  qs_kubo_transport.F
   qs_linres_atom_current.F
   qs_linres_current.F
   qs_linres_current_utils.F
@@ -819,6 +826,7 @@ list(
   task_list_types.F
   tblite_interface.F
   tblite_ks_matrix.F
+  tblite_scc_mixer.F
   tblite_types.F
   tip_scan_methods.F
   tip_scan_types.F
@@ -1360,6 +1368,8 @@ list(
   xc/xc.F
   xc/xc_functionals_utilities.F
   xc/xc_fxc_kernel.F
+  xc/xc_gauxc_functional.F
+  xc/xc_gauxc_interface.F
   xc/xc_hcth.F
   xc/xc_input_constants.F
   xc/xc_ke_gga.F
@@ -1494,11 +1504,7 @@ set(CP2K_SRCS_GPU "")
 
 set(CP2K_GRID_SRCS_GPU
     grid/gpu/grid_gpu_collocate.cu grid/gpu/grid_gpu_integrate.cu
-    grid/gpu/grid_gpu_task_list.cu)
-
-set(CP2K_GRID_SRCS_HIP
-    grid/hip/grid_hip_collocate.cu grid/hip/grid_hip_integrate.cu
-    grid/hip/grid_hip_context.cu)
+    grid/gpu/grid_gpu_context.cu)
 
 set(CP2K_DBM_SRCS_GPU dbm/dbm_multiply_gpu_kernel.cu)
 set(CP2K_DBM_SRCS_GPU_C dbm/dbm_multiply_opencl.c dbm/dbm_multiply_gpu.c)
@@ -1515,6 +1521,7 @@ set(CP2K_PROGS_F
     common/gemm_square_unittest.F
     common/memory_utilities_unittest.F
     common/parallel_rng_types_unittest.F
+    pw/realspace_grid_cube_unittest.F
     metadyn_tools/graph.F
     motion/dumpdcd.F
     motion/xyz2dcd.F
@@ -1551,9 +1558,6 @@ if(CP2K_USE_CUDA
   endif()
 
   if(CP2K_ENABLE_GRID_GPU)
-    if(CP2K_USE_HIP)
-      list(APPEND CP2K_SRCS_GPU ${CP2K_GRID_SRCS_HIP})
-    endif()
     list(APPEND CP2K_SRCS_GPU ${CP2K_GRID_SRCS_GPU})
   endif()
   if(CP2K_USE_HIP)
@@ -1703,17 +1707,21 @@ set_target_properties(
 
 if(CP2K_USE_ACCEL MATCHES "CUDA")
   set_property(TARGET cp2k PROPERTY CUDA_ARCHITECTURES
-                                    ${CMAKE_CUDA_ARCHITECTURES})
+                                    "${CMAKE_CUDA_ARCHITECTURES}")
   include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 elseif(CP2K_USE_ACCEL MATCHES "HIP")
   set_property(TARGET cp2k PROPERTY HIP_ARCHITECTURES
-                                    ${CMAKE_HIP_ARCHITECTURES})
+                                    "${CMAKE_HIP_ARCHITECTURES}")
 elseif(CP2K_USE_ACCEL MATCHES "OPENCL")
   include_directories(${CP2K_OPENCL_BACKEND})
   include_directories(${OpenCL_INCLUDE_DIR})
 endif()
 
 # mix the target and variables pointing to the include directories.
+
+if(CP2K_USE_DLAF)
+  include_directories(${CP2K_DLAF_INCLUDE_DIRS})
+endif()
 
 include_directories(
   ${CMAKE_MPI_INCLUDE_DIRECTORIES}
@@ -1745,6 +1753,7 @@ target_link_libraries(
     $<$<BOOL:${CP2K_USE_SPGLIB}>:Spglib::symspg>
     $<$<BOOL:${CP2K_USE_LIBSMEAGOL}>:cp2k::libsmeagol::smeagol>
     $<$<BOOL:${CP2K_USE_LIBXC}>:Libxc::xcf03>
+    $<$<BOOL:${CP2K_USE_GAUXC}>:gauxc::gauxc>
     $<$<BOOL:${CP2K_USE_ELPA}>:cp2k::ELPA::elpa>
     $<$<BOOL:${CP2K_USE_PLUMED}>:cp2k::plumed::plumed>
     $<$<BOOL:${CP2K_USE_FFTW3_}>:cp2k::FFTW3::fftw3>
@@ -1754,8 +1763,9 @@ target_link_libraries(
     $<$<BOOL:${CP2K_USE_MIMIC}>:CP2K::MIMIC::mclf>
     $<$<BOOL:${CP2K_USE_MIMIC}>:CP2K::MIMIC::mcl>
     $<$<BOOL:${CP2K_USE_LIBINT2}>:cp2k::Libint2::int2>
+    $<$<BOOL:${CP2K_USE_LIBFCI}>:cp2k::libfci::fci>
     $<$<BOOL:${CP2K_USE_COSMA}>:cp2k::cosma>
-    $<$<BOOL:${CP2K_USE_DLAF}>:DLAF::Fortran>
+    $<$<BOOL:${CP2K_USE_DLAF}>:${CP2K_DLAF_FORTRAN_TARGET}>
     $<$<BOOL:${CP2K_USE_GREENX}>:cp2k::greenx>
     $<$<BOOL:${CP2K_USE_TREXIO}>:cp2k::trexio::trexio>
     $<$<BOOL:${CP2K_USE_HDF5}>:HDF5::HDF5
@@ -1791,16 +1801,21 @@ target_compile_definitions(
     $<$<BOOL:${CP2K_USE_SPGLIB}>:__SPGLIB>
     $<$<BOOL:${CP2K_USE_LIBSMEAGOL}>:__SMEAGOL>
     $<$<BOOL:${CP2K_USE_TBLITE}>:__TBLITE>
+    # Developer-only manual flag: __TBLITE_DEBUG_DIAGNOSTICS
     $<$<BOOL:${CP2K_USE_TBLITE}>:__DFTD4>
     $<$<BOOL:${CP2K_USE_DFTD4}>:__DFTD4>
     $<$<BOOL:${CP2K_USE_DFTD4_V3}>:__DFTD4_V3>
+    $<$<BOOL:${CP2K_USE_DFTD4_V4_2}>:__DFTD4_V4_2>
     $<$<BOOL:${CP2K_USE_DEEPMD}>:__DEEPMD>
     $<$<BOOL:${CP2K_USE_PEXSI}>:__PEXSI>
     $<$<BOOL:${CP2K_USE_ACE}>:__ACE>
     $<$<BOOL:${CP2K_USE_SIRIUS}>:__SIRIUS>
     $<$<BOOL:${CP2K_USE_LIBVDWXC}>:__LIBVDWXC>
+    $<$<BOOL:${CP2K_USE_GAUXC}>:__GAUXC>
+    # GauXC feature flags GAUXC_HAS_MPI, GAUXC_HAS_ONEDFT, GAUXC_HAS_HOST,
+    # GAUXC_HAS_DEVICE, GAUXC_HAS_CUDA, and GAUXC_HAS_HDF5 are provided by
+    # gauxc/gauxc_config.f in the Fortran sources.
     $<$<BOOL:${CP2K_USE_SPLA}>:__SPLA>
-    $<$<BOOL:${CP2K_USE_SpFFT}>:__SPFFT>
     $<$<BOOL:${CP2K_USE_SPLA_GEMM_OFFLOADING}>:__OFFLOAD_GEMM>
     $<$<BOOL:${CP2K_USE_ELPA}>:__ELPA>
     $<$<BOOL:${CP2K_USE_DLAF}>:__DLAF>
@@ -1811,12 +1826,14 @@ target_compile_definitions(
     $<$<BOOL:${CP2K_USE_GREENX}>:__GREENX>
     $<$<OR:$<BOOL:${CP2K_USE_FFTW3_}>,$<BOOL:${CP2K_USE_FFTW3_MKL_}>>:__FFTW3>
     $<$<BOOL:${CP2K_USE_LIBINT2}>:__LIBINT>
+    $<$<BOOL:${CP2K_USE_LIBFCI}>:__LIBFCI>
     $<$<BOOL:${CP2K_USE_LIBTORCH}>:__LIBTORCH>
     $<$<BOOL:${CP2K_USE_COSMA}>:__COSMA>
     $<$<BOOL:${CP2K_USE_LIBXSMM}>:__LIBXSMM>
     $<$<BOOL:${CP2K_USE_LIBXS}>:__LIBXS>
-    $<$<BOOL:${CCP2K_USE_SIRIUS_DFTD4}>:__SIRIUS_DFTD4>
-    $<$<BOOL:${CCP2K_USE_SIRIUS_NLCG}>:__SIRIUS_NLCG>
+    $<$<BOOL:${CP2K_USE_SIRIUS_DFTD3}>:__SIRIUS_DFTD3>
+    $<$<BOOL:${CP2K_USE_SIRIUS_DFTD4}>:__SIRIUS_DFTD4>
+    $<$<BOOL:${CP2K_USE_SIRIUS_NLCG}>:__SIRIUS_NLCG>
     $<$<BOOL:${CP2K_USE_SIRIUS_VCSQNM}>:__SIRIUS_VCSQNM>
     $<$<BOOL:${CP2K_USE_MIMIC}>:__MIMIC>
     $<$<STREQUAL:"${CP2K_BLAS_VENDOR}","MKL">:__MKL>
@@ -1855,6 +1872,7 @@ list(
   "gemm_square_unittest"
   "memory_utilities_unittest"
   "parallel_rng_types_unittest"
+  "realspace_grid_cube_unittest"
   "graph"
   "dumpdcd"
   "xyz2dcd"
@@ -1870,6 +1888,7 @@ add_executable(cp2k-bin start/cp2k.F)
 add_executable(gemm_square_unittest common/gemm_square_unittest.F)
 add_executable(memory_utilities_unittest common/memory_utilities_unittest.F)
 add_executable(parallel_rng_types_unittest common/parallel_rng_types_unittest.F)
+add_executable(realspace_grid_cube_unittest pw/realspace_grid_cube_unittest.F)
 add_executable(graph metadyn_tools/graph.F)
 add_executable(dumpdcd motion/dumpdcd.F)
 add_executable(xyz2dcd motion/xyz2dcd.F)
@@ -1910,7 +1929,7 @@ foreach(_app ${__CP2K_APPS})
 
   if(CP2K_USE_ACCEL MATCHES HIP)
     set_property(TARGET ${_app} PROPERTY HIP_ARCHITECTURES
-                                         ${CMAKE_HIP_ARCHITECTURES})
+                                         "${CMAKE_HIP_ARCHITECTURES}")
   endif()
 
   target_link_libraries(${_app} PUBLIC cp2k)
@@ -1968,18 +1987,18 @@ foreach(__app grid_miniapp grid_unittest dbm_miniapp)
   set_target_properties(
     ${__app}
     PROPERTIES POSITION_INDEPENDENT_CODE ON
-               LINKER_LANGUAGE C
+               LINKER_LANGUAGE CXX
                POSITION_INDEPENDENT_CODE ON
                OUTPUT_NAME "${__app}.${__cp2k_ext}")
 
   if(CP2K_USE_HIP)
     set_property(TARGET ${__app} PROPERTY HIP_ARCHITECTURES
-                                          ${CMAKE_HIP_ARCHITECTURES})
+                                          "${CMAKE_HIP_ARCHITECTURES}")
   endif()
 
   if(CP2K_USE_CUDA)
     set_target_properties(${__app} PROPERTIES CUDA_ARCHITECTURES
-                                              ${CMAKE_CUDA_ARCHITECTURES})
+                                              "${CMAKE_CUDA_ARCHITECTURES}")
   endif()
 
   target_compile_features(${__app} PUBLIC cuda_std_14 c_std_99 cxx_std_14)

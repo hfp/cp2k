@@ -90,17 +90,18 @@ MODULE qs_environment
    USE hfx_types,                       ONLY: compare_hfx_sections,&
                                               hfx_create
    USE input_constants,                 ONLY: &
-        dispersion_d2, dispersion_d3, dispersion_d3bj, do_et_ddapc, do_method_am1, do_method_dftb, &
-        do_method_gapw, do_method_gapw_xc, do_method_gpw, do_method_lrigpw, do_method_mndo, &
-        do_method_mndod, do_method_ofgpw, do_method_pdg, do_method_pm3, do_method_pm6, &
-        do_method_pm6fm, do_method_pnnl, do_method_rigpw, do_method_rm1, do_method_xtb, &
-        do_qmmm_gauss, do_qmmm_swave, general_roks, hden_atomic, kg_tnadd_embed_ri, rel_none, &
-        rel_trans_atom, smear_fermi_dirac, vdw_pairpot_dftd2, vdw_pairpot_dftd3, &
-        vdw_pairpot_dftd3bj, vdw_pairpot_dftd4, wfi_gext_proj_nr, wfi_gext_proj_qtr_nr, &
-        wfi_linear_ps_method_nr, wfi_linear_wf_method_nr, wfi_use_prev_wf_method_nr, &
-        xc_vdw_fun_none, xc_vdw_fun_nonloc, xc_vdw_fun_pairpot, xtb_vdw_type_d3, xtb_vdw_type_d4, &
-        xtb_vdw_type_none
-   USE input_section_types,             ONLY: section_get_ivals,&
+        debug_run, dispersion_d2, dispersion_d3, dispersion_d3bj, do_et_ddapc, do_method_am1, &
+        do_method_dftb, do_method_gapw, do_method_gapw_xc, do_method_gpw, do_method_lrigpw, &
+        do_method_mndo, do_method_mndod, do_method_ofgpw, do_method_pdg, do_method_pm3, &
+        do_method_pm6, do_method_pm6fm, do_method_pnnl, do_method_rigpw, do_method_rm1, &
+        do_method_xtb, do_qmmm_gauss, do_qmmm_swave, general_roks, gfn1xtb, hden_atomic, &
+        kg_tnadd_embed_ri, linear_response_run, rel_none, rel_trans_atom, smear_fermi_dirac, &
+        tblite_scc_mixer_tblite, tddfpt_kernel_none, vdw_pairpot_dftd2, vdw_pairpot_dftd3, &
+        vdw_pairpot_dftd3bj, vdw_pairpot_dftd4, wfi_linear_ps_method_nr, wfi_linear_wf_method_nr, &
+        wfi_use_prev_wf_method_nr, xc_vdw_fun_none, xc_vdw_fun_nonloc, xc_vdw_fun_pairpot, &
+        xtb_vdw_type_d3, xtb_vdw_type_d4, xtb_vdw_type_none
+   USE input_section_types,             ONLY: section_get_ival,&
+                                              section_get_ivals,&
                                               section_vals_get,&
                                               section_vals_get_subs_vals,&
                                               section_vals_type,&
@@ -113,8 +114,10 @@ MODULE qs_environment
                                               kpoint_initialize_mos
    USE kpoint_types,                    ONLY: get_kpoint_info,&
                                               kpoint_create,&
+                                              kpoint_reset_initialization,&
                                               kpoint_type,&
                                               read_kpoint_section,&
+                                              set_kpoint_info,&
                                               write_kpoint_info
    USE lri_environment_init,            ONLY: lri_env_basis,&
                                               lri_env_init
@@ -140,7 +143,9 @@ MODULE qs_environment
    USE qmmm_types_low,                  ONLY: qmmm_env_qm_type
    USE qs_basis_rotation_methods,       ONLY: qs_basis_rotation
    USE qs_dftb_parameters,              ONLY: qs_dftb_param_init
-   USE qs_dftb_types,                   ONLY: qs_dftb_pairpot_type
+   USE qs_dftb_types,                   ONLY: qs_dftb_atom_type,&
+                                              qs_dftb_pairpot_type
+   USE qs_dftb_utils,                   ONLY: get_dftb_atom_param
    USE qs_dispersion_nonloc,            ONLY: qs_dispersion_nonloc_init
    USE qs_dispersion_pairpot,           ONLY: qs_dispersion_pairpot_init
    USE qs_dispersion_types,             ONLY: qs_dispersion_type
@@ -240,8 +245,6 @@ CONTAINS
 !> \param globenv ...
 !> \param cp_subsys ...
 !> \param kpoint_env ...
-!> \param cell ...
-!> \param cell_ref ...
 !> \param qmmm ...
 !> \param qmmm_env_qm ...
 !> \param force_env_section ...
@@ -250,7 +253,7 @@ CONTAINS
 !> \param silent ...
 !> \author Creation (22.05.2000,MK)
 ! **************************************************************************************************
-   SUBROUTINE qs_init(qs_env, para_env, root_section, globenv, cp_subsys, kpoint_env, cell, cell_ref, &
+   SUBROUTINE qs_init(qs_env, para_env, root_section, globenv, cp_subsys, kpoint_env, &
                       qmmm, qmmm_env_qm, force_env_section, subsys_section, &
                       use_motion_section, silent)
 
@@ -260,7 +263,6 @@ CONTAINS
       TYPE(global_environment_type), OPTIONAL, POINTER   :: globenv
       TYPE(cp_subsys_type), OPTIONAL, POINTER            :: cp_subsys
       TYPE(kpoint_type), OPTIONAL, POINTER               :: kpoint_env
-      TYPE(cell_type), OPTIONAL, POINTER                 :: cell, cell_ref
       LOGICAL, INTENT(IN), OPTIONAL                      :: qmmm
       TYPE(qmmm_env_qm_type), OPTIONAL, POINTER          :: qmmm_env_qm
       TYPE(section_vals_type), POINTER                   :: force_env_section, subsys_section
@@ -269,9 +271,14 @@ CONTAINS
 
       CHARACTER(LEN=default_string_length)               :: basis_type
       INTEGER                                            :: ikind, method_id, nelectron_total, &
-                                                            nkind, nkp_grid(3)
-      LOGICAL :: do_admm_rpa, do_ec_hfx, do_et, do_exx, do_hfx, do_kpoints, is_identical, is_semi, &
-         mp2_present, my_qmmm, qmmm_decoupl, same_except_frac, use_ref_cell
+                                                            nkind, nkp_grid(3), tddfpt_kernel
+      LOGICAL :: dftb_kpoint_sym_restricted, do_active_space, do_admm, do_admm_rpa, do_bse, &
+         do_debug_fdiff, do_debug_forces, do_debug_stress_tensor, do_dftb_scc, do_dftb_scc_high_l, &
+         do_ec_hfx, do_et, do_exx, do_gw, do_hfx, do_kpoints, do_linear_response, do_mp2, &
+         do_ri_mp2, do_ri_rpa, do_ri_sos_mp2, do_tddfpt, do_tddfpt_unsupported_kpoints, &
+         do_wfc_low_scaling, do_wfc_low_scaling_kpoints, do_xtb_tblite, final_kpoint_reinit, &
+         is_identical, is_semi, kpoint_verbose, mp2_present, my_qmmm, owned_kpoints, qmmm_decoupl, &
+         same_except_frac, use_real_wfn, use_ref_cell
       REAL(KIND=dp), DIMENSION(:, :), POINTER            :: rtmat
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(cell_type), POINTER                           :: my_cell, my_cell_ref
@@ -290,9 +297,9 @@ CONTAINS
       TYPE(qs_wf_history_type), POINTER                  :: wf_history
       TYPE(rel_control_type), POINTER                    :: rel_control
       TYPE(scf_control_type), POINTER                    :: scf_control
-      TYPE(section_vals_type), POINTER :: dft_section, ec_hfx_section, ec_section, &
-         et_coupling_section, hfx_section, kpoint_section, mp2_section, rpa_hfx_section, &
-         transport_section
+      TYPE(section_vals_type), POINTER :: active_space_section, admm_section, dft_section, &
+         ec_hfx_section, ec_section, et_coupling_section, gw_section, hfx_section, kpoint_section, &
+         mp2_section, rpa_hfx_section, tddfpt_section, transport_section
 
       NULLIFY (my_cell, my_cell_ref, atomic_kind_set, particle_set, &
                qs_kind_set, kpoint_section, dft_section, ec_section, &
@@ -336,7 +343,7 @@ CONTAINS
                             subsys_section=subsys_section, &
                             use_motion_section=use_motion_section, &
                             root_section=root_section, &
-                            cp_subsys=cp_subsys, cell=cell, cell_ref=cell_ref, &
+                            cp_subsys=cp_subsys, &
                             elkind=is_semi, silent=silent)
 
       ALLOCATE (ks_env)
@@ -368,24 +375,142 @@ CONTAINS
 
       ! kpoints
       IF (PRESENT(kpoint_env)) THEN
+         owned_kpoints = .FALSE.
          kpoints => kpoint_env
          CALL set_qs_env(qs_env=qs_env, kpoints=kpoints)
          CALL kpoint_initialize(kpoints, particle_set, my_cell)
       ELSE
+         owned_kpoints = .TRUE.
          NULLIFY (kpoints)
          CALL kpoint_create(kpoints)
          CALL set_qs_env(qs_env=qs_env, kpoints=kpoints)
          kpoint_section => section_vals_get_subs_vals(qs_env%input, "DFT%KPOINTS")
          CALL read_kpoint_section(kpoints, kpoint_section, my_cell%hmat)
+         CALL get_kpoint_info(kpoints, verbose=kpoint_verbose)
+         IF (kpoint_verbose) CALL set_kpoint_info(kpoints, verbose=.FALSE.)
+         do_hfx = .FALSE.
+         hfx_section => section_vals_get_subs_vals(qs_env%input, "DFT%XC%HF")
+         CALL section_vals_get(hfx_section, explicit=do_hfx)
+         do_exx = .FALSE.
+         rpa_hfx_section => section_vals_get_subs_vals(qs_env%input, "DFT%XC%WF_CORRELATION%RI_RPA%HF")
+         CALL section_vals_get(rpa_hfx_section, explicit=do_exx)
+         do_admm = .FALSE.
+         admm_section => section_vals_get_subs_vals(qs_env%input, "DFT%AUXILIARY_DENSITY_MATRIX_METHOD")
+         CALL section_vals_get(admm_section, explicit=do_admm)
+         do_gw = .FALSE.
+         gw_section => section_vals_get_subs_vals(qs_env%input, "DFT%XC%WF_CORRELATION%RI_RPA%GW")
+         CALL section_vals_get(gw_section, explicit=do_gw)
+         IF (.NOT. do_gw) THEN
+            gw_section => section_vals_get_subs_vals(qs_env%input, "PROPERTIES%BANDSTRUCTURE%GW")
+            CALL section_vals_get(gw_section, explicit=do_gw)
+         END IF
+         do_tddfpt = .FALSE.
+         do_tddfpt_unsupported_kpoints = .FALSE.
+         do_bse = .FALSE.
+         tddfpt_section => section_vals_get_subs_vals(qs_env%input, "PROPERTIES%TDDFPT")
+         CALL section_vals_get(tddfpt_section, explicit=do_tddfpt)
+         IF (do_tddfpt) THEN
+            CALL section_vals_val_get(tddfpt_section, "KERNEL", i_val=tddfpt_kernel)
+            do_tddfpt_unsupported_kpoints = tddfpt_kernel /= tddfpt_kernel_none
+            IF (.NOT. do_tddfpt_unsupported_kpoints) THEN
+               CALL get_kpoint_info(kpoints, use_real_wfn=use_real_wfn)
+               IF (use_real_wfn) &
+                  CALL cp_abort(__LOCATION__, "K-point TDDFPT requires complex wavefunctions.")
+            END IF
+            CALL section_vals_val_get(tddfpt_section, "DO_BSE", l_val=do_bse)
+            IF (.NOT. do_bse) &
+               CALL section_vals_val_get(tddfpt_section, "DO_BSE_W_ONLY", l_val=do_bse)
+            IF (.NOT. do_bse) &
+               CALL section_vals_val_get(tddfpt_section, "DO_BSE_GW_ONLY", l_val=do_bse)
+         END IF
+         do_active_space = .FALSE.
+         active_space_section => section_vals_get_subs_vals(qs_env%input, "DFT%ACTIVE_SPACE")
+         CALL section_vals_get(active_space_section, explicit=do_active_space)
+         do_xtb_tblite = .FALSE.
+         IF (method_id == do_method_xtb) THEN
+            CALL section_vals_val_get(qs_env%input, "DFT%QS%XTB%TBLITE%_SECTION_PARAMETERS_", &
+                                      l_val=do_xtb_tblite)
+         END IF
+         do_dftb_scc = .FALSE.
+         IF (method_id == do_method_dftb) THEN
+            CALL section_vals_val_get(qs_env%input, "DFT%QS%DFTB%SELF_CONSISTENT", &
+                                      l_val=do_dftb_scc)
+         END IF
+         do_linear_response = .FALSE.
+         IF (PRESENT(globenv)) do_linear_response = globenv%run_type_id == linear_response_run
+         do_debug_fdiff = .FALSE.
+         IF (PRESENT(globenv)) do_debug_fdiff = globenv%run_type_id == debug_run
+         IF (do_debug_fdiff .AND. PRESENT(root_section)) THEN
+            CALL section_vals_val_get(root_section, "DEBUG%DEBUG_FORCES", &
+                                      l_val=do_debug_forces)
+            CALL section_vals_val_get(root_section, "DEBUG%DEBUG_STRESS_TENSOR", &
+                                      l_val=do_debug_stress_tensor)
+            do_debug_fdiff = do_debug_forces .OR. do_debug_stress_tensor
+         END IF
+         do_mp2 = .FALSE.
+         do_ri_mp2 = .FALSE.
+         do_ri_sos_mp2 = .FALSE.
+         do_ri_rpa = .FALSE.
+         do_wfc_low_scaling = .FALSE.
+         do_wfc_low_scaling_kpoints = .FALSE.
+         mp2_section => section_vals_get_subs_vals(qs_env%input, "DFT%XC%WF_CORRELATION")
+         CALL section_vals_get(mp2_section, explicit=mp2_present)
+         IF (mp2_present) THEN
+            CALL section_vals_val_get(qs_env%input, "DFT%XC%WF_CORRELATION%MP2%_SECTION_PARAMETERS_", &
+                                      l_val=do_mp2)
+            CALL section_vals_val_get(qs_env%input, "DFT%XC%WF_CORRELATION%RI_MP2%_SECTION_PARAMETERS_", &
+                                      l_val=do_ri_mp2)
+            CALL section_vals_val_get(qs_env%input, "DFT%XC%WF_CORRELATION%RI_SOS_MP2%_SECTION_PARAMETERS_", &
+                                      l_val=do_ri_sos_mp2)
+            CALL section_vals_val_get(qs_env%input, "DFT%XC%WF_CORRELATION%RI_RPA%_SECTION_PARAMETERS_", &
+                                      l_val=do_ri_rpa)
+            CALL section_vals_val_get(qs_env%input, "DFT%XC%WF_CORRELATION%LOW_SCALING%_SECTION_PARAMETERS_", &
+                                      l_val=do_wfc_low_scaling)
+            CALL section_vals_val_get(qs_env%input, "DFT%XC%WF_CORRELATION%LOW_SCALING%DO_KPOINTS", &
+                                      l_val=do_wfc_low_scaling_kpoints)
+            IF (.NOT. do_bse) &
+               CALL section_vals_val_get(qs_env%input, &
+                                         "DFT%XC%WF_CORRELATION%RI_RPA%GW%BSE%_SECTION_PARAMETERS_", &
+                                         l_val=do_bse)
+         END IF
+         CALL restrict_unsupported_atomic_kpoint_symmetry(kpoints, method_id, do_hfx, do_exx, do_gw, &
+                                                          do_tddfpt_unsupported_kpoints, &
+                                                          do_active_space, do_linear_response, &
+                                                          do_debug_fdiff, &
+                                                          do_mp2 .OR. do_ri_mp2 .OR. do_ri_sos_mp2, &
+                                                          do_ri_rpa .AND. .NOT. do_gw, do_bse, &
+                                                          do_wfc_low_scaling, do_wfc_low_scaling_kpoints, &
+                                                          do_xtb_tblite, do_admm, .FALSE.)
          CALL kpoint_initialize(kpoints, particle_set, my_cell)
-         dft_section => section_vals_get_subs_vals(qs_env%input, "DFT")
-         CALL write_kpoint_info(kpoints, dft_section=dft_section)
       END IF
 
       CALL qs_init_subsys(qs_env, para_env, subsys, my_cell, my_cell_ref, use_ref_cell, &
                           subsys_section, silent=silent)
 
       CALL get_qs_env(qs_env, dft_control=dft_control)
+      IF (owned_kpoints) THEN
+         do_dftb_scc_high_l = .FALSE.
+         IF (method_id == do_method_dftb .AND. do_dftb_scc) THEN
+            do_dftb_scc_high_l = dftb_kind_set_has_high_l(qs_kind_set)
+         END IF
+         CALL restrict_unsupported_atomic_kpoint_symmetry(kpoints, method_id, do_hfx, do_exx, do_gw, &
+                                                          do_tddfpt_unsupported_kpoints, &
+                                                          do_active_space, do_linear_response, &
+                                                          do_debug_fdiff, &
+                                                          do_mp2 .OR. do_ri_mp2 .OR. do_ri_sos_mp2, &
+                                                          do_ri_rpa .AND. .NOT. do_gw, do_bse, &
+                                                          do_wfc_low_scaling, do_wfc_low_scaling_kpoints, &
+                                                          do_xtb_tblite, do_admm, do_dftb_scc_high_l, &
+                                                          restricted=dftb_kpoint_sym_restricted)
+         final_kpoint_reinit = dftb_kpoint_sym_restricted .OR. kpoint_verbose
+         IF (final_kpoint_reinit) THEN
+            CALL kpoint_reset_initialization(kpoints)
+            CALL set_kpoint_info(kpoints, verbose=kpoint_verbose)
+            CALL kpoint_initialize(kpoints, particle_set, my_cell)
+         END IF
+         dft_section => section_vals_get_subs_vals(qs_env%input, "DFT")
+         CALL write_kpoint_info(kpoints, dft_section=dft_section)
+      END IF
       IF (method_id == do_method_lrigpw .OR. dft_control%qs_control%lri_optbas) THEN
          CALL get_qs_env(qs_env=qs_env, lri_env=lri_env)
          CALL lri_env_basis("LRI", qs_env, lri_env, qs_kind_set)
@@ -406,6 +531,8 @@ CONTAINS
       ! more kpoint stuff
       CALL get_qs_env(qs_env=qs_env, do_kpoints=do_kpoints, blacs_env=blacs_env)
       IF (do_kpoints) THEN
+         IF (dft_control%qs_control%do_ls_scf) &
+            CPABORT("DFT%KPOINTS are not implemented with QS/LS_SCF; use a real-space supercell instead.")
          CALL kpoint_env_initialize(kpoints, para_env, blacs_env, with_aux_fit=dft_control%do_admm)
          CALL kpoint_initialize_mos(kpoints, qs_env%mos)
          CALL get_qs_env(qs_env=qs_env, wf_history=wf_history)
@@ -584,6 +711,249 @@ CONTAINS
    END SUBROUTINE qs_init
 
 ! **************************************************************************************************
+!> \brief Restrict atomic k-point symmetry for methods not supporting it yet
+!> \param kpoints ...
+!> \param method_id ...
+!> \param do_hfx ...
+!> \param do_exx ...
+!> \param do_gw ...
+!> \param do_tddfpt ...
+!> \param do_active_space ...
+!> \param do_linear_response ...
+!> \param do_debug_fdiff ...
+!> \param do_mp2 ...
+!> \param do_rpa ...
+!> \param do_bse ...
+!> \param do_wfc_low_scaling ...
+!> \param do_wfc_low_scaling_kpoints ...
+!> \param do_xtb_tblite ...
+!> \param do_admm ...
+!> \param do_dftb_scc_high_l ...
+!> \param restricted ...
+! **************************************************************************************************
+   SUBROUTINE restrict_unsupported_atomic_kpoint_symmetry(kpoints, method_id, do_hfx, do_exx, do_gw, &
+                                                          do_tddfpt, do_active_space, do_linear_response, &
+                                                          do_debug_fdiff, &
+                                                          do_mp2, do_rpa, do_bse, do_wfc_low_scaling, &
+                                                          do_wfc_low_scaling_kpoints, do_xtb_tblite, &
+                                                          do_admm, do_dftb_scc_high_l, restricted)
+      TYPE(kpoint_type), POINTER                         :: kpoints
+      INTEGER, INTENT(IN)                                :: method_id
+      LOGICAL, INTENT(IN) :: do_hfx, do_exx, do_gw, do_tddfpt, do_active_space, &
+         do_linear_response, do_debug_fdiff, do_mp2, do_rpa, do_bse, do_wfc_low_scaling, &
+         do_wfc_low_scaling_kpoints, do_xtb_tblite, do_admm, do_dftb_scc_high_l
+      LOGICAL, INTENT(OUT), OPTIONAL                     :: restricted
+
+      CHARACTER(LEN=default_string_length)               :: kp_scheme, reason
+      LOGICAL                                            :: full_grid, inversion_symmetry_only, &
+                                                            kpoint_symmetry
+
+      IF (PRESENT(restricted)) restricted = .FALSE.
+
+      reason = unsupported_kpoint_method_reason(method_id, do_gw, do_tddfpt, do_linear_response, &
+                                                do_mp2, do_bse, do_xtb_tblite)
+      IF (LEN_TRIM(reason) > 0) THEN
+         CALL get_kpoint_info(kpoints, kp_scheme=kp_scheme)
+         IF (LEN_TRIM(kp_scheme) > 0 .AND. TRIM(kp_scheme) /= "NONE") THEN
+            IF (TRIM(reason) == "GW") THEN
+               CALL cp_abort(__LOCATION__, &
+                             "DFT%KPOINTS are not supported with GW; use "// &
+                             "WF_CORRELATION%LOW_SCALING%KPOINTS and RI_RPA%GW%KPOINTS_SELF_ENERGY "// &
+                             "for GW k-point sampling.")
+            ELSE
+               CALL cp_abort(__LOCATION__, &
+                             "DFT%KPOINTS are not supported with "//TRIM(reason)// &
+                             "; remove DFT%KPOINTS for these calculations.")
+            END IF
+         END IF
+      END IF
+      IF (do_active_space) THEN
+         CALL get_kpoint_info(kpoints, kp_scheme=kp_scheme)
+         IF (LEN_TRIM(kp_scheme) > 0 .AND. TRIM(kp_scheme) /= "NONE" .AND. &
+             TRIM(kp_scheme) /= "GAMMA") THEN
+            CALL cp_abort(__LOCATION__, &
+                          "Only Gamma-point DFT%KPOINTS are supported with ACTIVE_SPACE; "// &
+                          "use SCHEME GAMMA, SCHEME NONE, or remove DFT%KPOINTS.")
+         END IF
+      END IF
+
+      CALL get_kpoint_info(kpoints, symmetry=kpoint_symmetry, full_grid=full_grid, &
+                           inversion_symmetry_only=inversion_symmetry_only)
+      IF (.NOT. (kpoint_symmetry .AND. .NOT. full_grid .AND. .NOT. inversion_symmetry_only)) RETURN
+
+      reason = unsupported_atomic_kpoint_symmetry_reason(method_id, do_hfx, do_exx, do_gw, &
+                                                         do_tddfpt, do_active_space, do_linear_response, &
+                                                         do_debug_fdiff, &
+                                                         do_mp2, do_rpa, do_bse, do_wfc_low_scaling, &
+                                                         do_wfc_low_scaling_kpoints, do_xtb_tblite, &
+                                                         do_admm, do_dftb_scc_high_l)
+      IF (LEN_TRIM(reason) == 0) RETURN
+
+      CALL cp_warn(__LOCATION__, &
+                   "Atomic k-point symmetry is currently not implemented for "//TRIM(reason)// &
+                   "; restricting to inversion/time-reversal symmetry.")
+      CALL set_kpoint_info(kpoints, inversion_symmetry_only=.TRUE.)
+      IF (PRESENT(restricted)) restricted = .TRUE.
+
+   END SUBROUTINE restrict_unsupported_atomic_kpoint_symmetry
+
+! **************************************************************************************************
+!> \brief Return the reason why k-points are not enabled for a method
+!> \param method_id ...
+!> \param do_gw ...
+!> \param do_tddfpt ...
+!> \param do_linear_response ...
+!> \param do_mp2 ...
+!> \param do_bse ...
+!> \param do_xtb_tblite ...
+!> \return reason
+! **************************************************************************************************
+   FUNCTION unsupported_kpoint_method_reason(method_id, do_gw, do_tddfpt, do_linear_response, &
+                                             do_mp2, do_bse, do_xtb_tblite) RESULT(reason)
+      INTEGER, INTENT(IN)                                :: method_id
+      LOGICAL, INTENT(IN)                                :: do_gw, do_tddfpt, do_linear_response, &
+                                                            do_mp2, do_bse, do_xtb_tblite
+      CHARACTER(LEN=default_string_length)               :: reason
+
+      reason = ""
+      MARK_USED(do_gw)
+      MARK_USED(do_mp2)
+      MARK_USED(do_xtb_tblite)
+
+      IF (do_bse) THEN
+         reason = "BSE"
+         RETURN
+      END IF
+      IF (do_tddfpt) THEN
+         reason = "TDDFPT/TDDFT"
+         RETURN
+      END IF
+      IF (do_linear_response) THEN
+         reason = "LINEAR_RESPONSE/DFPT"
+         RETURN
+      END IF
+      SELECT CASE (method_id)
+      CASE (do_method_rigpw)
+         reason = "RIGPW"
+      CASE (do_method_ofgpw)
+         reason = "OFGPW"
+      CASE (do_method_mndo, do_method_mndod, do_method_am1, do_method_pm3, &
+            do_method_pm6, do_method_pm6fm, do_method_pdg, do_method_rm1, do_method_pnnl)
+         reason = "semiempirical methods"
+      CASE DEFAULT
+         reason = ""
+      END SELECT
+
+   END FUNCTION unsupported_kpoint_method_reason
+
+! **************************************************************************************************
+!> \brief Return the reason why atomic k-point symmetry is not enabled
+!> \param method_id ...
+!> \param do_hfx ...
+!> \param do_exx ...
+!> \param do_gw ...
+!> \param do_tddfpt ...
+!> \param do_active_space ...
+!> \param do_linear_response ...
+!> \param do_debug_fdiff ...
+!> \param do_mp2 ...
+!> \param do_rpa ...
+!> \param do_bse ...
+!> \param do_wfc_low_scaling ...
+!> \param do_wfc_low_scaling_kpoints ...
+!> \param do_xtb_tblite ...
+!> \param do_admm ...
+!> \param do_dftb_scc_high_l ...
+!> \return reason
+! **************************************************************************************************
+   FUNCTION unsupported_atomic_kpoint_symmetry_reason(method_id, do_hfx, do_exx, do_gw, do_tddfpt, &
+                                                      do_active_space, do_linear_response, do_debug_fdiff, &
+                                                      do_mp2, do_rpa, do_bse, do_wfc_low_scaling, &
+                                                      do_wfc_low_scaling_kpoints, do_xtb_tblite, &
+                                                      do_admm, do_dftb_scc_high_l) RESULT(reason)
+      INTEGER, INTENT(IN)                                :: method_id
+      LOGICAL, INTENT(IN) :: do_hfx, do_exx, do_gw, do_tddfpt, do_active_space, &
+         do_linear_response, do_debug_fdiff, do_mp2, do_rpa, do_bse, do_wfc_low_scaling, &
+         do_wfc_low_scaling_kpoints, do_xtb_tblite, do_admm, do_dftb_scc_high_l
+      CHARACTER(LEN=default_string_length)               :: reason
+
+      reason = ""
+      MARK_USED(do_debug_fdiff)
+      MARK_USED(do_xtb_tblite)
+
+      SELECT CASE (method_id)
+      CASE (do_method_dftb)
+         IF (do_dftb_scc_high_l) reason = "SCC-DFTB with d orbitals"
+      CASE (do_method_lrigpw)
+         reason = "LRIGPW"
+      CASE (do_method_rigpw)
+         reason = "RIGPW"
+      CASE (do_method_mndo, do_method_mndod, do_method_am1, do_method_pm3, &
+            do_method_pm6, do_method_pm6fm, do_method_pdg, do_method_rm1, do_method_pnnl)
+         reason = "semiempirical methods"
+      CASE DEFAULT
+         reason = ""
+      END SELECT
+
+      IF (LEN_TRIM(reason) > 0) RETURN
+      IF ((do_hfx .OR. do_exx) .AND. do_admm) THEN
+         reason = "HFX/HF with ADMM"
+      ELSE IF (do_bse) THEN
+         reason = "BSE"
+      ELSE IF (do_gw) THEN
+         reason = "GW"
+      ELSE IF (do_tddfpt) THEN
+         reason = "TDDFPT/TDDFT"
+      ELSE IF (do_active_space) THEN
+         reason = "ACTIVE_SPACE"
+      ELSE IF (do_linear_response) THEN
+         reason = "LINEAR_RESPONSE/DFPT"
+      ELSE IF (do_mp2) THEN
+         reason = "MP2"
+      ELSE IF (do_rpa .AND. do_wfc_low_scaling_kpoints) THEN
+         reason = "LOW_SCALING RPA"
+      ELSE IF (do_wfc_low_scaling) THEN
+         reason = "LOW_SCALING WF_CORRELATION"
+      ELSE IF (do_rpa) THEN
+         reason = "RPA"
+      END IF
+
+   END FUNCTION unsupported_atomic_kpoint_symmetry_reason
+
+! **************************************************************************************************
+!> \brief Return whether the DFTB kind set contains d orbitals
+!> \param qs_kind_set ...
+!> \return has_high_l
+! **************************************************************************************************
+   FUNCTION dftb_kind_set_has_high_l(qs_kind_set) RESULT(has_high_l)
+      TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
+      LOGICAL                                            :: has_high_l
+
+      INTEGER                                            :: ikind, lmax
+      LOGICAL                                            :: any_defined, defined
+      TYPE(qs_dftb_atom_type), POINTER                   :: dftb_parameter
+
+      has_high_l = .TRUE.
+      IF (.NOT. ASSOCIATED(qs_kind_set)) RETURN
+
+      any_defined = .FALSE.
+      DO ikind = 1, SIZE(qs_kind_set)
+         NULLIFY (dftb_parameter)
+         CALL get_qs_kind(qs_kind_set(ikind), dftb_parameter=dftb_parameter)
+         IF (.NOT. ASSOCIATED(dftb_parameter)) CYCLE
+         defined = .FALSE.
+         lmax = -1
+         CALL get_dftb_atom_param(dftb_parameter, defined=defined, lmax=lmax)
+         IF (.NOT. defined) CYCLE
+         any_defined = .TRUE.
+         IF (lmax > 1) RETURN
+      END DO
+
+      IF (any_defined) has_high_l = .FALSE.
+
+   END FUNCTION dftb_kind_set_has_high_l
+
+! **************************************************************************************************
 !> \brief Initialize the qs environment (subsys)
 !> \param qs_env ...
 !> \param para_env ...
@@ -611,7 +981,8 @@ CONTAINS
       CHARACTER(len=2)                                   :: element_symbol
       INTEGER :: gfn_type, handle, ikind, ispin, iw, lmax_sphere, maxl, maxlgto, maxlgto_lri, &
          maxlgto_nuc, maxlppl, maxlppnl, method_id, multiplicity, my_ival, n_ao, n_mo_add, natom, &
-         nelectron, ngauss, nkind, output_unit, sort_basis, tnadd_method
+         nelectron, ngauss, nkind, nlumo_dos, nlumo_molden, nlumo_pdos, nlumo_required, &
+         output_unit, sort_basis, tnadd_method
       INTEGER, DIMENSION(2)                              :: n_mo, nelectron_spin
       INTEGER, DIMENSION(5)                              :: occ
       INTEGER, DIMENSION(:), POINTER                     :: mo_index_range
@@ -740,10 +1111,20 @@ CONTAINS
       END IF
       CALL get_qs_env(qs_env=qs_env, do_kpoints=do_kpoints)
       IF (do_kpoints) THEN
+         IF (dft_control%nspins == 2 .AND. dft_control%qs_control%xtb .AND. &
+             .NOT. dft_control%qs_control%xtb_control%do_tblite .AND. &
+             dft_control%qs_control%xtb_control%gfn_type == gfn1xtb .AND. &
+             dft_control%qs_control%xtb_control%tblite_scc_mixer == tblite_scc_mixer_tblite .AND. &
+             .NOT. dft_control%qs_control%xtb_control%tblite_mixer_damping_explicit) THEN
+            CALL cp_warn(__LOCATION__, &
+                         "Reducing XTB/TBLITE_MIXER/DAMPING to 0.25 for CP2K-internal GFN1-xTB "// &
+                         "UKS k-point calculations with SCC_MIXER TBLITE. Set XTB/TBLITE_MIXER/DAMPING "// &
+                         "explicitly to override this conservative fallback.")
+            dft_control%qs_control%xtb_control%tblite_mixer_damping = 0.25_dp
+         END IF
          ! reset some of the settings for wfn extrapolation for kpoints
          SELECT CASE (dft_control%qs_control%wf_interpolation_method_nr)
-         CASE (wfi_linear_wf_method_nr, wfi_linear_ps_method_nr, &
-               wfi_gext_proj_nr, wfi_gext_proj_qtr_nr)
+         CASE (wfi_linear_wf_method_nr, wfi_linear_ps_method_nr)
             CALL cp_warn(__LOCATION__, "Linear WFN-based extrapolation methods are not "// &
                          "implemented for k-points. Switching to USE_PREV_WF.")
             dft_control%qs_control%wf_interpolation_method_nr = wfi_use_prev_wf_method_nr
@@ -796,7 +1177,8 @@ CONTAINS
             ewald_section => section_vals_get_subs_vals(poisson_section, "EWALD")
             print_section => section_vals_get_subs_vals(qs_env%input, "PRINT%GRID_INFORMATION")
             CALL get_qs_kind_set(qs_kind_set, basis_rcut=ewald_rcut)
-            CALL read_ewald_section_tb(ewald_env, ewald_section, cell_ref%hmat)
+            CALL read_ewald_section_tb(ewald_env, ewald_section, cell_ref%hmat, &
+                                       cell_periodic=cell%perd)
             ALLOCATE (ewald_pw)
             CALL ewald_pw_create(ewald_pw, ewald_env, cell, cell_ref, print_section=print_section)
             CALL set_qs_env(qs_env, ewald_env=ewald_env, ewald_pw=ewald_pw)
@@ -809,9 +1191,10 @@ CONTAINS
             ! put geometry to tblite
             CALL tb_init_geometry(qs_env, qs_env%tb_tblite)
             ! select tblite method
-            CALL tb_set_calculator(qs_env%tb_tblite, xtb_control%tblite_method)
+            CALL tb_set_calculator(qs_env%tb_tblite, xtb_control%tblite_method, &
+                                   xtb_control%tblite_accuracy, xtb_control%tblite_param_file)
             !set up wave function
-            CALL tb_init_wf(qs_env%tb_tblite)
+            CALL tb_init_wf(qs_env%tb_tblite, dft_control)
             !get basis set
             DO ikind = 1, nkind
                qs_kind => qs_kind_set(ikind)
@@ -890,10 +1273,10 @@ CONTAINS
                print_section => section_vals_get_subs_vals(qs_env%input, "PRINT%GRID_INFORMATION")
                IF (gfn_type == 0) THEN
                   CALL read_ewald_section_tb(ewald_env, ewald_section, cell_ref%hmat, &
-                                             silent=silent, pset="EEQ")
+                                             silent=silent, pset="EEQ", cell_periodic=cell%perd)
                ELSE
                   CALL read_ewald_section_tb(ewald_env, ewald_section, cell_ref%hmat, &
-                                             silent=silent)
+                                             silent=silent, cell_periodic=cell%perd)
                END IF
                ALLOCATE (ewald_pw)
                CALL ewald_pw_create(ewald_pw, ewald_env, cell, cell_ref, print_section=print_section)
@@ -1214,6 +1597,16 @@ CONTAINS
       END IF
       CALL scf_c_create(scf_control)
       CALL scf_c_read_parameters(scf_control, dft_section)
+      IF (.NOT. dft_control%qs_control%do_ls_scf) THEN
+         SELECT CASE (dft_control%qs_control%method_id)
+         CASE (do_method_dftb)
+            IF (dft_control%qs_control%dftb_control%tblite_scc_mixer == tblite_scc_mixer_tblite) &
+               scf_control%max_scf = dft_control%qs_control%dftb_control%tblite_mixer_iterations
+         CASE (do_method_xtb)
+            IF (dft_control%qs_control%xtb_control%tblite_scc_mixer == tblite_scc_mixer_tblite) &
+               scf_control%max_scf = dft_control%qs_control%xtb_control%tblite_mixer_iterations
+         END SELECT
+      END IF
 
       ! Allocate the data structure for Quickstep energies
       CALL allocate_qs_energy(energy)
@@ -1275,7 +1668,7 @@ CONTAINS
       END IF
 
       ! XXXXXXX this is backwards XXXXXXXX
-      IF (dft_control%qs_control%xtb_control%do_tblite) THEN
+      IF (dft_control%qs_control%xtb_control%do_tblite .AND. .NOT. scf_control%use_ot) THEN
          IF (.NOT. scf_control%smear%do_smear) THEN
             ! set tblite default smearing
             scf_control%smear%do_smear = .TRUE.
@@ -1725,6 +2118,38 @@ CONTAINS
          END IF
       END IF
 
+      nlumo_dos = section_get_ival(dft_section, "PRINT%DOS%NLUMO")
+      nlumo_pdos = section_get_ival(dft_section, "PRINT%PDOS%NLUMO")
+      nlumo_molden = section_get_ival(dft_section, "PRINT%MO_MOLDEN%NLUMO")
+      nlumo_required = MAX(nlumo_dos, nlumo_pdos, nlumo_molden)
+      IF (nlumo_dos == -1 .OR. nlumo_pdos == -1 .OR. nlumo_molden == -1) nlumo_required = -1
+      IF (.NOT. scf_control%use_ot .AND. nlumo_required /= 0) THEN
+         IF (nlumo_required == -1) THEN
+            IF (scf_control%added_mos(1) /= -1 .OR. &
+                (dft_control%nspins == 2 .AND. scf_control%added_mos(2) /= -1)) THEN
+               CALL cp_warn(__LOCATION__, &
+                            "NLUMO requested by DOS/PDOS/Molden exceeds SCF%ADDED_MOS. "// &
+                            "For diagonalization calculations, SCF%ADDED_MOS is "// &
+                            "increased to provide the requested unoccupied orbitals.")
+            END IF
+            scf_control%added_mos(1) = -1
+            IF (dft_control%nspins == 2) scf_control%added_mos(2) = -1
+         ELSE
+            IF (scf_control%added_mos(1) >= 0 .AND. &
+                nlumo_required > scf_control%added_mos(1)) THEN
+               CALL cp_warn(__LOCATION__, &
+                            "NLUMO requested by DOS/PDOS/Molden exceeds SCF%ADDED_MOS. "// &
+                            "For diagonalization calculations, SCF%ADDED_MOS is "// &
+                            "increased to provide the requested unoccupied orbitals.")
+               scf_control%added_mos(1) = nlumo_required
+            END IF
+            IF (dft_control%nspins == 2 .AND. scf_control%added_mos(2) > 0 .AND. &
+                nlumo_required > scf_control%added_mos(2)) THEN
+               scf_control%added_mos(2) = nlumo_required
+            END IF
+         END IF
+      END IF
+
       IF (dft_control%nspins == 2) THEN
          ! Check and set number of added (unoccupied) orbitals for beta spin
          IF (scf_control%added_mos(2) < 0) THEN
@@ -1749,7 +2174,7 @@ CONTAINS
       ! However, if we try to proceed alpha orbitals first, this leads us n_mo(1:2) = (10,8)
       ! due to the following assignment instruction above:
       !   IF (scf_control%added_mos(2) > 0) THEN ... ELSE; n_mo_add = scf_control%added_mos(1); END IF
-      IF (dft_control%qs_control%xtb_control%do_tblite) THEN
+      IF (dft_control%qs_control%xtb_control%do_tblite .AND. .NOT. scf_control%use_ot) THEN
          scf_control%added_mos(1) = n_ao - n_mo(1)  ! tblite needs all MO's
       ELSE IF (scf_control%added_mos(1) < 0) THEN
          scf_control%added_mos(1) = n_ao - n_mo(1)  ! use all available MOs
@@ -1788,6 +2213,9 @@ CONTAINS
 
       ! Compatibility checks for smearing
       IF (scf_control%smear%do_smear) THEN
+         IF (dft_control%qs_control%xtb_control%do_tblite .AND. scf_control%use_ot) THEN
+            CPABORT("CP2K/tblite with OT does not support smearing.")
+         END IF
          IF (scf_control%added_mos(1) == 0) THEN
             CPABORT("Extra MOs (ADDED_MOS) are required for smearing")
          END IF

@@ -1,0 +1,50 @@
+diff --git a/cmake/gauxc-config.cmake.in b/cmake/gauxc-config.cmake.in
+index c6c4c2d4..35e426af 100644
+--- a/cmake/gauxc-config.cmake.in
++++ b/cmake/gauxc-config.cmake.in
+@@ -8,0 +9,8 @@ include(CMakeFindDependencyMacro)
++if(POLICY CMP0144)
++  cmake_policy(PUSH)
++  cmake_policy(SET CMP0144 NEW)
++  if(DEFINED CMAKE_POLICY_DEFAULT_CMP0144)
++    set(_GAUXC_PREV_CMAKE_POLICY_DEFAULT_CMP0144 "${CMAKE_POLICY_DEFAULT_CMP0144}")
++  endif()
++  set(CMAKE_POLICY_DEFAULT_CMP0144 NEW)
++endif()
+@@ -93,0 +102,9 @@ endif()
++if(POLICY CMP0144)
++  if(DEFINED _GAUXC_PREV_CMAKE_POLICY_DEFAULT_CMP0144)
++    set(CMAKE_POLICY_DEFAULT_CMP0144 "${_GAUXC_PREV_CMAKE_POLICY_DEFAULT_CMP0144}")
++  else()
++    unset(CMAKE_POLICY_DEFAULT_CMP0144)
++  endif()
++  unset(_GAUXC_PREV_CMAKE_POLICY_DEFAULT_CMP0144)
++  cmake_policy(POP)
++endif()
+diff --git a/external/gau2grid/generated_source/gau2grid/gau2grid_pragma.h b/external/gau2grid/generated_source/gau2grid/gau2grid_pragma.h
+--- a/external/gau2grid/generated_source/gau2grid/gau2grid_pragma.h
++++ b/external/gau2grid/generated_source/gau2grid/gau2grid_pragma.h
+@@ -14,0 +15,8 @@
++#if (defined(__GNUC__) || defined(__GNUG__)) && \
++    !defined(__APPLE__) && !defined(__clang__)
++static inline void* gg_aligned_alloc(const size_t alignment, const size_t size) {
++    const size_t aligned_size =
++        ((size + alignment - 1) / alignment) * alignment;
++    return aligned_alloc(alignment, aligned_size);
++}
++#endif
+@@ -15,0 +24 @@
++
+@@ -70 +79 @@
+-    #define ALIGNED_MALLOC(alignment, size)                  aligned_alloc(alignment, size)
++    #define ALIGNED_MALLOC(alignment, size)                  gg_aligned_alloc(alignment, size)
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index a9e60fd8..29b0949d 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -122,1 +122,4 @@ if ( GAUXC_HAS_ONEDFT )
+-  target_link_libraries( gauxc PUBLIC "${TORCH_LIBRARIES}" nlohmann_json::nlohmann_json)
++  get_target_property(GAUXC_NLOHMANN_JSON_INCLUDE_DIRS
++    nlohmann_json::nlohmann_json INTERFACE_INCLUDE_DIRECTORIES)
++  target_include_directories(gauxc PRIVATE ${GAUXC_NLOHMANN_JSON_INCLUDE_DIRS})
++  target_link_libraries( gauxc PUBLIC "${TORCH_LIBRARIES}")
