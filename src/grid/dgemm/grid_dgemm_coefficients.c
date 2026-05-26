@@ -9,9 +9,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#if defined(__LIBXSMM)
-#include <libxsmm.h>
-#endif
 #include "../common/grid_common.h"
 #include "grid_dgemm_coefficients.h"
 #include "grid_dgemm_private_header.h"
