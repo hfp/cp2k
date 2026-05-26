@@ -63,21 +63,20 @@ CC := $(MPICC)
 endif
 endif
 
-# Make LIBXSMM available (auto-detect as sibling of CP2KHOME).
-ifneq ($(LIBXSMM),0)
-LIBXSMMROOT ?= $(wildcard $(CP2KHOME)/../libxsmm)
-ifneq ($(LIBXSMMROOT),)
-CFLAGS += -D__LIBXSMM -I$(LIBXSMMROOT)/include
-LIBS += $(LIBXSMMROOT)/lib/libxsmm.a \
-        -lpthread -lrt
-endif
-endif
-
 # Make LIBXS available (auto-detect as sibling of CP2KHOME).
 ifneq ($(LIBXS),0)
 LIBXSROOT ?= $(wildcard $(CP2KHOME)/../libxs)
 ifneq ($(LIBXSROOT),)
-CFLAGS += -D__LIBXS -I$(LIBXSROOT)/include
+CFLAGS += -D__LIBXS -D__BLAS -I$(LIBXSROOT)/include
+LIBS += $(LIBXSROOT)/lib/libxs.a
+# LIBXSMM headers enable JIT kernel dispatch inside LIBXS.
+LIBXSMMROOT ?= $(wildcard $(LIBXSROOT)/../libxsmm)
+ifneq ($(LIBXSMMROOT),)
+ifneq ($(wildcard $(LIBXSMMROOT)/lib/libxsmm.a),)
+CFLAGS += -D__LIBXSMM -I$(LIBXSMMROOT)/include
+LIBS += $(LIBXSMMROOT)/lib/libxsmm.a
+endif
+endif
 else
 OPENCL := 0
 endif

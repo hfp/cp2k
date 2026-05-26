@@ -77,7 +77,7 @@ typedef struct {
  ******************************************************************************/
 static backend_context_t *backend_start(const dbm_matrix_t *matrix_c) {
   backend_context_t *const ctx = calloc(1, sizeof(backend_context_t));
-  // BLAS and LIBXSMM benefit in general from DBM_MULTIPLY_TASK_REORDER.
+  // BLAS and LIBXS benefit in general from DBM_MULTIPLY_TASK_REORDER.
   ctx->cpu_options = DBM_MULTIPLY_TASK_REORDER;
 
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
