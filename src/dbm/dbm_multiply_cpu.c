@@ -107,7 +107,7 @@ void dbm_multiply_cpu_process_batch(int ntasks, const dbm_task_t batch[ntasks],
       const double beta = 1.0;
       gemm_config = libxs_gemm_dispatch(LIBXS_DATATYPE_F64, 'N', 'T', task.m,
                                         task.n, task.k, task.m, task.n, task.m,
-                                        &alpha, &beta);
+                                        &alpha, &beta, NULL);
       kernel_m = task.m;
       kernel_n = task.n;
       kernel_k = task.k;

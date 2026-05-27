@@ -48,7 +48,7 @@ void dgemm_simplified(dgemm_params *const m) {
     const char col_transb = (m->op1 == 'N') ? 'N' : 'T';
     const libxs_gemm_config_t *cfg = libxs_gemm_dispatch(
         LIBXS_DATATYPE_F64, col_transa, col_transb, m->n, m->m, m->k, m->ldb,
-        m->lda, m->ldc, &m->alpha, &m->beta);
+        m->lda, m->ldc, &m->alpha, &m->beta, NULL);
     if (NULL != cfg) {
       libxs_gemm_call(cfg, m->b, m->a, m->c);
       return;
