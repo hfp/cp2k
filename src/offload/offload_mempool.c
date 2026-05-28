@@ -265,7 +265,7 @@ static uint64_t sum_chunks_used(const offload_memchunk_t *head) {
  ******************************************************************************/
 void *offload_mempool_host_malloc(const size_t size) {
 #if defined(__LIBXSTREAM)
-  return libxs_malloc(libxstream_opencl_config.pool_hst, size, LIBXS_MALLOC_NATIVE);
+  return libxs_malloc(libxstream_opencl_config.pool_hst, size, LIBXS_MALLOC_AUTO);
 #elif defined(__LIBXS)
   return libxs_malloc(libxs_default_pool(), size, LIBXS_MALLOC_AUTO);
 #else
