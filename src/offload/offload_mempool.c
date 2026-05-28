@@ -66,10 +66,14 @@ static offload_mempool_t mempool_device = {0};
  * \author Hans Pabst
  ******************************************************************************/
 #if !defined(__LIBXS)
-static struct { uint64_t mallocs, mempeak; } host_stats = {0, 0};
+static struct {
+  uint64_t mallocs, mempeak;
+} host_stats = {0, 0};
 #endif
 #if !defined(__LIBXSTREAM)
-static struct { uint64_t mallocs, mempeak; } device_stats = {0, 0};
+static struct {
+  uint64_t mallocs, mempeak;
+} device_stats = {0, 0};
 #endif
 
 /*******************************************************************************
@@ -332,18 +336,29 @@ void offload_mempool_clear(void) {
 #if defined(__LIBXSTREAM)
   (void)0;
 #elif defined(__LIBXS)
-  { const uint64_t size = sum_chunks_size(mempool_device.available_head, offsetof(offload_memchunk_t, size)) +
-                          sum_chunks_size(mempool_device.allocated_head, offsetof(offload_memchunk_t, size));
-    if (device_stats.mempeak < size) device_stats.mempeak = size;
+  {
+    const uint64_t size = sum_chunks_size(mempool_device.available_head,
+                                          offsetof(offload_memchunk_t, size)) +
+                          sum_chunks_size(mempool_device.allocated_head,
+                                          offsetof(offload_memchunk_t, size));
+    if (device_stats.mempeak < size)
+      device_stats.mempeak = size;
   }
   internal_mempool_clear(&mempool_device, true);
 #else
-  { const uint64_t hsize = sum_chunks_size(mempool_host.available_head, offsetof(offload_memchunk_t, size)) +
-                           sum_chunks_size(mempool_host.allocated_head, offsetof(offload_memchunk_t, size));
-    const uint64_t dsize = sum_chunks_size(mempool_device.available_head, offsetof(offload_memchunk_t, size)) +
-                           sum_chunks_size(mempool_device.allocated_head, offsetof(offload_memchunk_t, size));
-    if (host_stats.mempeak < hsize) host_stats.mempeak = hsize;
-    if (device_stats.mempeak < dsize) device_stats.mempeak = dsize;
+  {
+    const uint64_t hsize = sum_chunks_size(mempool_host.available_head,
+                                           offsetof(offload_memchunk_t, size)) +
+                           sum_chunks_size(mempool_host.allocated_head,
+                                           offsetof(offload_memchunk_t, size));
+    const uint64_t dsize = sum_chunks_size(mempool_device.available_head,
+                                           offsetof(offload_memchunk_t, size)) +
+                           sum_chunks_size(mempool_device.allocated_head,
+                                           offsetof(offload_memchunk_t, size));
+    if (host_stats.mempeak < hsize)
+      host_stats.mempeak = hsize;
+    if (device_stats.mempeak < dsize)
+      device_stats.mempeak = dsize;
   }
   internal_mempool_clear(&mempool_host, false);
   internal_mempool_clear(&mempool_device, true);
@@ -386,7 +401,8 @@ void offload_mempool_stats_get(offload_mempool_stats_t *memstats) {
       memstats->device_peak = 0;
     }
 #elif defined(__LIBXS)
-    { libxs_malloc_pool_info_t info;
+    {
+      libxs_malloc_pool_info_t info;
       if (NULL != libxs_default_pool() &&
           EXIT_SUCCESS == libxs_malloc_pool_info(libxs_default_pool(), &info)) {
         memstats->host_mallocs = info.nmallocs;
@@ -401,27 +417,46 @@ void offload_mempool_stats_get(offload_mempool_stats_t *memstats) {
       }
     }
     memstats->device_mallocs = device_stats.mallocs;
-    memstats->device_used = sum_chunks_size(mempool_device.available_head, offsetof(offload_memchunk_t, used)) +
-                            sum_chunks_size(mempool_device.allocated_head, offsetof(offload_memchunk_t, used));
-    memstats->device_size = sum_chunks_size(mempool_device.available_head, offsetof(offload_memchunk_t, size)) +
-                            sum_chunks_size(mempool_device.allocated_head, offsetof(offload_memchunk_t, size));
+    memstats->device_used =
+        sum_chunks_size(mempool_device.available_head,
+                        offsetof(offload_memchunk_t, used)) +
+        sum_chunks_size(mempool_device.allocated_head,
+                        offsetof(offload_memchunk_t, used));
+    memstats->device_size =
+        sum_chunks_size(mempool_device.available_head,
+                        offsetof(offload_memchunk_t, size)) +
+        sum_chunks_size(mempool_device.allocated_head,
+                        offsetof(offload_memchunk_t, size));
     memstats->device_peak = memstats->device_size < device_stats.mempeak
-                                ? device_stats.mempeak : memstats->device_size;
+                                ? device_stats.mempeak
+                                : memstats->device_size;
 #else
     memstats->host_mallocs = host_stats.mallocs;
-    memstats->host_used = sum_chunks_size(mempool_host.available_head, offsetof(offload_memchunk_t, used)) +
-                          sum_chunks_size(mempool_host.allocated_head, offsetof(offload_memchunk_t, used));
-    memstats->host_size = sum_chunks_size(mempool_host.available_head, offsetof(offload_memchunk_t, size)) +
-                          sum_chunks_size(mempool_host.allocated_head, offsetof(offload_memchunk_t, size));
+    memstats->host_used = sum_chunks_size(mempool_host.available_head,
+                                          offsetof(offload_memchunk_t, used)) +
+                          sum_chunks_size(mempool_host.allocated_head,
+                                          offsetof(offload_memchunk_t, used));
+    memstats->host_size = sum_chunks_size(mempool_host.available_head,
+                                          offsetof(offload_memchunk_t, size)) +
+                          sum_chunks_size(mempool_host.allocated_head,
+                                          offsetof(offload_memchunk_t, size));
     memstats->host_peak = memstats->host_size < host_stats.mempeak
-                              ? host_stats.mempeak : memstats->host_size;
+                              ? host_stats.mempeak
+                              : memstats->host_size;
     memstats->device_mallocs = device_stats.mallocs;
-    memstats->device_used = sum_chunks_size(mempool_device.available_head, offsetof(offload_memchunk_t, used)) +
-                            sum_chunks_size(mempool_device.allocated_head, offsetof(offload_memchunk_t, used));
-    memstats->device_size = sum_chunks_size(mempool_device.available_head, offsetof(offload_memchunk_t, size)) +
-                            sum_chunks_size(mempool_device.allocated_head, offsetof(offload_memchunk_t, size));
+    memstats->device_used =
+        sum_chunks_size(mempool_device.available_head,
+                        offsetof(offload_memchunk_t, used)) +
+        sum_chunks_size(mempool_device.allocated_head,
+                        offsetof(offload_memchunk_t, used));
+    memstats->device_size =
+        sum_chunks_size(mempool_device.available_head,
+                        offsetof(offload_memchunk_t, size)) +
+        sum_chunks_size(mempool_device.allocated_head,
+                        offsetof(offload_memchunk_t, size));
     memstats->device_peak = memstats->device_size < device_stats.mempeak
-                                ? device_stats.mempeak : memstats->device_size;
+                                ? device_stats.mempeak
+                                : memstats->device_size;
 #endif
   }
 }
