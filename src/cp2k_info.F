@@ -166,6 +166,12 @@ CONTAINS
 #if defined(__LIBXS)
       flags = TRIM(flags)//" libxs"
 #endif
+#if defined(__LIBXSMM)
+      flags = TRIM(flags)//" libxsmm"
+#endif
+#if defined(__LIBXSTREAM)
+      flags = TRIM(flags)//" libxstream"
+#endif
 #if defined(__CRAY_PM_ACCEL_ENERGY)
       flags = TRIM(flags)//" cray_pm_accel_energy"
 #endif

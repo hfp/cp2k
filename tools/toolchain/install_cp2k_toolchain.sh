@@ -862,11 +862,11 @@ Otherwise use option no."
     --with-libxsmm*)
       with_libxsmm=$(read_with "${1}")
       ;;
-    --with-libxs*)
-      with_libxs=$(read_with "${1}")
-      ;;
     --with-libxstream*)
       with_libxstream=$(read_with "${1}")
+      ;;
+    --with-libxs*)
+      with_libxs=$(read_with "${1}")
       ;;
     --with-elpa*)
       with_elpa=$(read_with "${1}")

@@ -20,6 +20,7 @@
 #error "OpenCL kernel source code not found!"
 #endif
 
+#define DBM_OPENCL_CMEM LIBXSTREAM_CMEM
 #define DBM_TIMER_DIFF(A, B) libxs_timer_duration(A, B)
 #define DBM_TIMER_TICK() libxs_timer_tick()
 #define DBM_TIMER_TICKINT libxs_timer_tick_t
@@ -255,7 +256,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                     2 <= devinfo->std_level[0] &&
                     (NULL == sgb_env ? 1 /*default*/ : (0 != atoi(sgb_env))));
           cmem =
-#if defined(LIBXSTREAM_CMEM)
+#if defined(DBM_OPENCL_CMEM)
               (0 > ro && EXIT_SUCCESS == libxstream_opencl_use_cmem(devinfo))
                   ? "constant"
                   :
