@@ -22,7 +22,7 @@
 #endif
 
 #if defined(__LIBXSTREAM)
-#include <libxs_malloc.h>
+#include <libxstream_opencl.h>
 #endif
 
 #define OFFLOAD_MEMPOOL_PRINT(FN, MSG, OUTPUT_UNIT)                            \
@@ -61,26 +61,6 @@ static offload_mempool_t mempool_device = {0};
  * \author Hans Pabst
  ******************************************************************************/
 static uint64_t host_malloc_counter = 0, device_malloc_counter = 0;
-
-#if defined(__LIBXSTREAM)
-static libxs_malloc_pool_t *libxs_device_pool = NULL;
-
-static void *libxs_device_malloc_fn(size_t size, const void *extra) {
-  void *memory = NULL;
-  (void)extra;
-  offload_activate_chosen_device();
-  offloadMalloc(&memory, size);
-  return memory;
-}
-
-static void libxs_device_free_fn(void *pointer, const void *extra) {
-  (void)extra;
-  if (NULL != pointer) {
-    offload_activate_chosen_device();
-    offloadFree(pointer);
-  }
-}
-#endif
 
 /*******************************************************************************
  * \brief Private routine for actually allocating system memory.
@@ -239,14 +219,7 @@ void *offload_mempool_host_malloc(const size_t size) {
  ******************************************************************************/
 void *offload_mempool_device_malloc(const size_t size) {
 #if defined(__LIBXSTREAM)
-  if (NULL == libxs_device_pool) {
-#pragma omp critical(offload_mempool_modify)
-    if (NULL == libxs_device_pool) {
-      libxs_device_pool = libxs_malloc_xpool(
-          libxs_device_malloc_fn, libxs_device_free_fn, omp_get_max_threads());
-    }
-  }
-  return libxs_malloc(libxs_device_pool, size, LIBXS_MALLOC_NATIVE);
+  return libxs_malloc(libxstream_opencl_config.pool_dev, size, LIBXS_MALLOC_NATIVE);
 #else
   return internal_mempool_malloc(&mempool_device, size, true);
 #endif
@@ -327,12 +300,7 @@ static void internal_mempool_clear(offload_mempool_t *pool,
  ******************************************************************************/
 void offload_mempool_clear(void) {
   internal_mempool_clear(&mempool_host, false);
-#if defined(__LIBXSTREAM)
-  if (NULL != libxs_device_pool) {
-    libxs_free_pool(libxs_device_pool);
-    libxs_device_pool = NULL;
-  }
-#else
+#if !defined(__LIBXSTREAM)
   internal_mempool_clear(&mempool_device, true);
 #endif
 }
@@ -377,9 +345,9 @@ void offload_mempool_stats_get(offload_mempool_stats_t *memstats) {
     memstats->host_size = sum_chunks_size(mempool_host.available_head) +
                           sum_chunks_size(mempool_host.allocated_head);
 #if defined(__LIBXSTREAM)
-    if (NULL != libxs_device_pool) {
+    if (NULL != libxstream_opencl_config.pool_dev) {
       libxs_malloc_pool_info_t info;
-      libxs_malloc_pool_info(libxs_device_pool, &info);
+      libxs_malloc_pool_info(libxstream_opencl_config.pool_dev, &info);
       memstats->device_mallocs = info.nmallocs;
       memstats->device_used = info.used;
       memstats->device_size = info.size;
