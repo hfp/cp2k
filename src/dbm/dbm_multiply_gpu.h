@@ -27,21 +27,20 @@ typedef struct {
 
 /*******************************************************************************
  * \brief Internal struct for storing the gpu backend's context.
- * \author Ole Schuett and Hans Pabst
+ * \author Ole Schuett
  ******************************************************************************/
 typedef struct {
-  int nshards;
-  int max_batch_size;
-  dbm_task_t *batches_dev;
-  dbm_task_t *batches_host;
-  dbm_pack_t pack_a_dev;
-  dbm_pack_t pack_b_dev;
-  dbm_shard_gpu_t *shards_c_dev;
   offloadStream_t main_stream;
   offloadEvent_t upload_event;
-  offloadEvent_t *batch_events;
-  unsigned char *batch_slot_ready;
-  int *batch_slot_index;
+
+  int nshards;
+  dbm_shard_gpu_t *shards_c_dev;
+
+  dbm_pack_t pack_a_dev;
+  dbm_pack_t pack_b_dev;
+
+  int max_batch_size;
+  dbm_task_t *batches_dev;
 } dbm_multiply_gpu_context_t;
 
 /*******************************************************************************
@@ -64,7 +63,7 @@ bool dbm_multiply_gpu_upload_packs(const dbm_pack_t *pack_a,
  * \brief Internal routine for executing the tasks in given batch on the GPU.
  * \author Ole Schuett
  ******************************************************************************/
-void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *tasks,
+void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
                                     const double alpha, dbm_shard_t *shard_c,
                                     const int kshard, const bool finish,
                                     dbm_multiply_gpu_context_t *ctx);

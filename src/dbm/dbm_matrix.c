@@ -24,7 +24,7 @@ void dbm_create(dbm_matrix_t **matrix_out, dbm_distribution_t *dist,
                 const int row_sizes[nrows], const int col_sizes[ncols]) {
   assert(omp_get_num_threads() == 1);
 
-  dbm_matrix_t *const matrix = calloc(1, sizeof(dbm_matrix_t));
+  dbm_matrix_t *matrix = calloc(1, sizeof(dbm_matrix_t));
 
   assert(dist->rows.length == nrows);
   assert(dist->cols.length == ncols);
@@ -101,7 +101,7 @@ void dbm_copy(dbm_matrix_t *matrix_a, const dbm_matrix_t *matrix_b) {
 
   assert(matrix_a->dist == matrix_b->dist);
 
-#pragma omp parallel for
+#pragma omp parallel for DBM_OMP_SCHEDULE
   for (int ishard = 0; ishard < dbm_get_num_shards(matrix_a); ishard++) {
     dbm_shard_copy(&matrix_a->shards[ishard], &matrix_b->shards[ishard]);
   }
@@ -131,9 +131,9 @@ void dbm_redistribute(const dbm_matrix_t *matrix, dbm_matrix_t *redist) {
   int send_count[nranks];
   memset(send_count, 0, nranks * sizeof(int));
   for (int ishard = 0; ishard < dbm_get_num_shards(matrix); ishard++) {
-    const dbm_shard_t *const shard = &matrix->shards[ishard];
+    dbm_shard_t *shard = &matrix->shards[ishard];
     for (int iblock = 0; iblock < shard->nblocks; iblock++) {
-      const dbm_block_t *const blk = &shard->blocks[iblock];
+      const dbm_block_t *blk = &shard->blocks[iblock];
       const int row_size = matrix->row_sizes[blk->row];
       const int col_size = matrix->col_sizes[blk->col];
       const int block_size = row_size * col_size;
@@ -156,17 +156,17 @@ void dbm_redistribute(const dbm_matrix_t *matrix, dbm_matrix_t *redist) {
   }
   const int total_send_count = send_displ[nranks];
   const int total_recv_count = recv_displ[nranks];
-  double *const data_send = cp_mpi_alloc_mem(total_send_count * sizeof(double));
-  double *const data_recv = cp_mpi_alloc_mem(total_recv_count * sizeof(double));
+  double *data_send = cp_mpi_alloc_mem(total_send_count * sizeof(double));
+  double *data_recv = cp_mpi_alloc_mem(total_recv_count * sizeof(double));
 
   // 2nd pass: Fill send_data.
   int send_data_positions[nranks];
   memcpy(send_data_positions, send_displ, nranks * sizeof(int));
   for (int ishard = 0; ishard < dbm_get_num_shards(matrix); ishard++) {
-    const dbm_shard_t *const shard = &matrix->shards[ishard];
+    dbm_shard_t *shard = &matrix->shards[ishard];
     for (int iblock = 0; iblock < shard->nblocks; iblock++) {
-      const dbm_block_t *const blk = &shard->blocks[iblock];
-      const double *const blk_data = &shard->data[blk->offset];
+      const dbm_block_t *blk = &shard->blocks[iblock];
+      const double *blk_data = &shard->data[blk->offset];
       const int row_size = matrix->row_sizes[blk->row];
       const int col_size = matrix->col_sizes[blk->col];
       const int block_size = row_size * col_size;
@@ -193,8 +193,8 @@ void dbm_redistribute(const dbm_matrix_t *matrix, dbm_matrix_t *redist) {
   while (recv_data_pos < total_recv_count) {
     const int row = (int)data_recv[recv_data_pos + 0];
     const int col = (int)data_recv[recv_data_pos + 1];
-    assert(data_recv[recv_data_pos + 0] == (double)row);
-    assert(data_recv[recv_data_pos + 1] == (double)col);
+    assert(data_recv[recv_data_pos + 0] - (double)row == 0.0);
+    assert(data_recv[recv_data_pos + 1] - (double)col == 0.0);
     dbm_put_block(redist, row, col, false, &data_recv[recv_data_pos + 2]);
     const int row_size = matrix->row_sizes[row];
     const int col_size = matrix->col_sizes[col];
@@ -220,8 +220,8 @@ void dbm_get_block_p(dbm_matrix_t *matrix, const int row, const int col,
   *block = NULL;
 
   const int ishard = dbm_get_shard_index(matrix, row, col);
-  const dbm_shard_t *const shard = &matrix->shards[ishard];
-  const dbm_block_t *const blk = dbm_shard_lookup(shard, row, col);
+  const dbm_shard_t *shard = &matrix->shards[ishard];
+  dbm_block_t *blk = dbm_shard_lookup(shard, row, col);
   if (blk != NULL) {
     *block = &shard->data[blk->offset];
   }
@@ -242,11 +242,11 @@ void dbm_put_block(dbm_matrix_t *matrix, const int row, const int col,
   const int block_size = row_size * col_size;
 
   const int ishard = dbm_get_shard_index(matrix, row, col);
-  dbm_shard_t *const shard = &matrix->shards[ishard];
+  dbm_shard_t *shard = &matrix->shards[ishard];
   omp_set_lock(&shard->lock);
-  const dbm_block_t *const blk =
+  dbm_block_t *blk =
       dbm_shard_get_or_allocate_block(shard, row, col, block_size);
-  double *const blk_data = &shard->data[blk->offset];
+  double *blk_data = &shard->data[blk->offset];
   if (summation) {
     assert(blk_data != NULL || 0 == block_size);
     for (int i = 0; i < block_size; i++) {
@@ -265,10 +265,12 @@ void dbm_put_block(dbm_matrix_t *matrix, const int row, const int col,
 void dbm_clear(dbm_matrix_t *matrix) {
   assert(omp_get_num_threads() == 1);
 
-#pragma omp parallel for
+#pragma omp parallel for DBM_OMP_SCHEDULE
   for (int ishard = 0; ishard < dbm_get_num_shards(matrix); ishard++) {
-    dbm_shard_t *const shard = &matrix->shards[ishard];
-    shard->data_promised = shard->data_size = shard->nblocks = 0;
+    dbm_shard_t *shard = &matrix->shards[ishard];
+    shard->nblocks = 0;
+    shard->data_size = 0;
+    shard->data_promised = 0;
     // Does not deallocate memory, hence data_allocated remains unchanged.
     memset(shard->hashtable, 0, shard->hashtable_size * sizeof(int));
   }
@@ -287,11 +289,12 @@ void dbm_filter(dbm_matrix_t *matrix, const double eps) {
   }
   const double eps2 = eps * eps;
 
-#pragma omp parallel for
+#pragma omp parallel for DBM_OMP_SCHEDULE
   for (int ishard = 0; ishard < dbm_get_num_shards(matrix); ishard++) {
-    dbm_shard_t *const shard = &matrix->shards[ishard];
+    dbm_shard_t *shard = &matrix->shards[ishard];
     const int old_nblocks = shard->nblocks;
-    shard->nblocks = shard->data_promised = 0;
+    shard->nblocks = 0;
+    shard->data_promised = 0;
     memset(shard->hashtable, 0, shard->hashtable_size * sizeof(int));
 
     for (int iblock = 0; iblock < old_nblocks; iblock++) {
@@ -313,7 +316,7 @@ void dbm_filter(dbm_matrix_t *matrix, const double eps) {
         continue; // filter the block
       }
       // Re-create block.
-      dbm_block_t *const new_blk = dbm_shard_promise_new_block(
+      dbm_block_t *new_blk = dbm_shard_promise_new_block(
           shard, old_blk.row, old_blk.col, block_size);
       assert(new_blk->offset <= old_blk.offset);
       if (new_blk->offset != old_blk.offset) {
@@ -337,26 +340,24 @@ void dbm_reserve_blocks(dbm_matrix_t *matrix, const int nblocks,
   assert(omp_get_num_threads() == omp_get_max_threads() &&
          "Please call dbm_reserve_blocks within an OpenMP parallel region.");
   const int my_rank = matrix->dist->my_rank;
-
   for (int i = 0; i < nblocks; i++) {
-    const int row = rows[i], col = cols[i];
-    assert(0 <= row && row < matrix->nrows);
-    assert(0 <= col && col < matrix->ncols);
-    assert(dbm_get_stored_coordinates(matrix, row, col) == my_rank);
-    const int ishard = dbm_get_shard_index(matrix, row, col);
-    dbm_shard_t *const shard = &matrix->shards[ishard];
-    const int row_size = matrix->row_sizes[row];
-    const int col_size = matrix->col_sizes[col];
-    const int block_size = row_size * col_size;
+    const int ishard = dbm_get_shard_index(matrix, rows[i], cols[i]);
+    dbm_shard_t *shard = &matrix->shards[ishard];
     omp_set_lock(&shard->lock);
-    dbm_shard_get_or_promise_block(shard, row, col, block_size);
+    assert(0 <= rows[i] && rows[i] < matrix->nrows);
+    assert(0 <= cols[i] && cols[i] < matrix->ncols);
+    assert(dbm_get_stored_coordinates(matrix, rows[i], cols[i]) == my_rank);
+    const int row_size = matrix->row_sizes[rows[i]];
+    const int col_size = matrix->col_sizes[cols[i]];
+    const int block_size = row_size * col_size;
+    dbm_shard_get_or_promise_block(shard, rows[i], cols[i], block_size);
     omp_unset_lock(&shard->lock);
   }
 #pragma omp barrier
 
-#pragma omp for
+#pragma omp for DBM_OMP_SCHEDULE
   for (int ishard = 0; ishard < dbm_get_num_shards(matrix); ishard++) {
-    dbm_shard_t *const shard = &matrix->shards[ishard];
+    dbm_shard_t *shard = &matrix->shards[ishard];
     dbm_shard_allocate_promised_blocks(shard);
   }
 }
@@ -375,9 +376,9 @@ void dbm_scale(dbm_matrix_t *matrix, const double alpha) {
     return;
   }
 
-#pragma omp parallel for
+#pragma omp parallel for DBM_OMP_SCHEDULE
   for (int ishard = 0; ishard < dbm_get_num_shards(matrix); ishard++) {
-    dbm_shard_t *const shard = &matrix->shards[ishard];
+    dbm_shard_t *shard = &matrix->shards[ishard];
     for (int i = 0; i < shard->data_size; i++) {
       shard->data[i] *= alpha;
     }
@@ -391,9 +392,9 @@ void dbm_scale(dbm_matrix_t *matrix, const double alpha) {
 void dbm_zero(dbm_matrix_t *matrix) {
   assert(omp_get_num_threads() == 1);
 
-#pragma omp parallel for
+#pragma omp parallel for DBM_OMP_SCHEDULE
   for (int ishard = 0; ishard < dbm_get_num_shards(matrix); ishard++) {
-    dbm_shard_t *const shard = &matrix->shards[ishard];
+    dbm_shard_t *shard = &matrix->shards[ishard];
     if (shard->data != NULL) {
       memset(shard->data, 0, shard->data_size * sizeof(double));
     }
@@ -408,9 +409,9 @@ void dbm_add(dbm_matrix_t *matrix_a, const dbm_matrix_t *matrix_b) {
   assert(omp_get_num_threads() == 1);
   assert(matrix_a->dist == matrix_b->dist);
 
-#pragma omp parallel for
+#pragma omp parallel for DBM_OMP_SCHEDULE
   for (int ishard = 0; ishard < dbm_get_num_shards(matrix_b); ishard++) {
-    dbm_shard_t *const shard_a = &matrix_a->shards[ishard];
+    dbm_shard_t *shard_a = &matrix_a->shards[ishard];
     const dbm_shard_t *shard_b = &matrix_b->shards[ishard];
     for (int iblock = 0; iblock < shard_b->nblocks; iblock++) {
       const dbm_block_t blk_b = shard_b->blocks[iblock];
@@ -419,10 +420,10 @@ void dbm_add(dbm_matrix_t *matrix_a, const dbm_matrix_t *matrix_b) {
       assert(row_size == matrix_a->row_sizes[blk_b.row]);
       assert(col_size == matrix_a->col_sizes[blk_b.col]);
       const int block_size = row_size * col_size;
-      const dbm_block_t *const blk_a = dbm_shard_get_or_allocate_block(
+      dbm_block_t *blk_a = dbm_shard_get_or_allocate_block(
           shard_a, blk_b.row, blk_b.col, block_size);
-      double *const data_a = &shard_a->data[blk_a->offset];
-      const double *const data_b = &shard_b->data[blk_b.offset];
+      double *data_a = &shard_a->data[blk_a->offset];
+      const double *data_b = &shard_b->data[blk_b.offset];
       for (int i = 0; i < block_size; i++) {
         data_a[i] += data_b[i];
       }
@@ -439,7 +440,7 @@ void dbm_add(dbm_matrix_t *matrix_a, const dbm_matrix_t *matrix_b) {
 void dbm_iterator_start(dbm_iterator_t **iter_out, const dbm_matrix_t *matrix) {
   assert(omp_get_num_threads() == omp_get_max_threads() &&
          "Please call dbm_iterator_start within an OpenMP parallel region.");
-  dbm_iterator_t *const iter = malloc(sizeof(dbm_iterator_t));
+  dbm_iterator_t *iter = malloc(sizeof(dbm_iterator_t));
   assert(iter != NULL);
   iter->matrix = matrix;
   iter->next_block = 0;
@@ -480,11 +481,11 @@ bool dbm_iterator_blocks_left(const dbm_iterator_t *iter) {
  ******************************************************************************/
 void dbm_iterator_next_block(dbm_iterator_t *iter, int *row, int *col,
                              double **block, int *row_size, int *col_size) {
-  const dbm_matrix_t *const matrix = iter->matrix;
+  const dbm_matrix_t *matrix = iter->matrix;
   assert(iter->next_shard < dbm_get_num_shards(matrix));
-  const dbm_shard_t *const shard = &matrix->shards[iter->next_shard];
+  const dbm_shard_t *shard = &matrix->shards[iter->next_shard];
   assert(iter->next_block < shard->nblocks);
-  const dbm_block_t *const blk = &shard->blocks[iter->next_block];
+  dbm_block_t *blk = &shard->blocks[iter->next_block];
 
   *row = blk->row;
   *col = blk->col;
@@ -549,7 +550,7 @@ double dbm_checksum(const dbm_matrix_t *matrix) {
 double dbm_maxabs(const dbm_matrix_t *matrix) {
   double maxabs = 0.0;
   for (int ishard = 0; ishard < dbm_get_num_shards(matrix); ishard++) {
-    const dbm_shard_t *const shard = &matrix->shards[ishard];
+    const dbm_shard_t *shard = &matrix->shards[ishard];
     for (int i = 0; i < shard->data_size; i++) {
       maxabs = fmax(maxabs, fabs(shard->data[i]));
     }
@@ -570,31 +571,28 @@ double dbm_maxeps(const dbm_matrix_t *matrix_a, const dbm_matrix_t *matrix_b) {
   assert(matrix_a->dist == matrix_b->dist);
   assert(num_shards == dbm_get_num_shards(matrix_b));
 
-#pragma omp parallel for reduction(max : epsilon)
+#pragma omp parallel for DBM_OMP_SCHEDULE
   for (int ishard = 0; ishard < num_shards; ++ishard) {
     const dbm_shard_t *const shard_a = &matrix_a->shards[ishard];
     const dbm_shard_t *const shard_b = &matrix_b->shards[ishard];
+    assert(shard_a->nblocks == shard_b->nblocks);
     for (int iblock = 0; iblock < shard_a->nblocks; ++iblock) {
       const dbm_block_t *const blk_a = &shard_a->blocks[iblock];
       const dbm_block_t *const blk_b =
           dbm_shard_lookup(shard_b, blk_a->row, blk_a->col);
-      if (NULL != blk_b) {
-        const int row_size = matrix_a->row_sizes[blk_a->row];
-        const int col_size = matrix_a->col_sizes[blk_a->col];
-        assert(row_size == matrix_b->row_sizes[blk_b->row]);
-        assert(col_size == matrix_b->col_sizes[blk_b->col]);
-        const double *const data_a = &shard_a->data[blk_a->offset];
-        const double *const data_b = &shard_b->data[blk_b->offset];
-        const int block_size = row_size * col_size;
-        for (int i = 0; i < block_size; ++i) {
-          const double d = data_a[i] - data_b[i];
-          const double e = fabs(0 != data_a[i] ? (d / data_a[i]) : d);
-          if (epsilon < e) {
-            epsilon = e;
-          }
+      const int row_size = matrix_a->row_sizes[blk_a->row];
+      const int col_size = matrix_a->col_sizes[blk_a->col];
+      assert(row_size == matrix_b->row_sizes[blk_b->row]);
+      assert(col_size == matrix_b->col_sizes[blk_b->col]);
+      const double *const data_a = &shard_a->data[blk_a->offset];
+      const double *const data_b = &shard_b->data[blk_b->offset];
+      const int block_size = row_size * col_size;
+      for (int i = 0; i < block_size; ++i) {
+        const double d = data_a[i] - data_b[i];
+        const double e = fabs(0 != data_a[i] ? (d / data_a[i]) : d);
+        if (epsilon < e) {
+          epsilon = e;
         }
-      } else { /* block in A not found in B: treat as maximum difference */
-        epsilon = HUGE_VAL;
       }
     }
   }

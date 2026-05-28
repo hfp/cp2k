@@ -24,9 +24,6 @@
 #define OFFLOAD_MEMPOOL_PRINT(FN, MSG, OUTPUT_UNIT)                            \
   ((FN)(MSG, (int)strlen(MSG), OUTPUT_UNIT))
 #define OFFLOAD_MEMPOOL_OMPALLOC 1
-// OFFLOAD_MEMPOOL_COUNTER: less mallocs on CPU but less perf.; same mem. usage
-/*#define OFFLOAD_MEMPOOL_COUNTER int*/
-#define OFFLOAD_MEMPOOL_UPSIZE (2 << 20) // permit slack size when reuse
 
 /*******************************************************************************
  * \brief Private struct for storing a chunk of memory.
@@ -56,9 +53,7 @@ static offload_mempool_t mempool_host = {0}, mempool_device = {0};
  * \brief Private some counters for statistics.
  * \author Hans Pabst
  ******************************************************************************/
-static struct {
-  uint64_t mallocs, mempeak;
-} host_stats = {0, 0}, device_stats = {0, 0};
+static uint64_t host_malloc_counter = 0, device_malloc_counter = 0;
 
 /*******************************************************************************
  * \brief Private routine for actually allocating system memory.
@@ -70,6 +65,7 @@ static void *actual_malloc(const size_t size, const bool on_device) {
   }
 
   void *memory = NULL;
+
 #if defined(__OFFLOAD)
   if (on_device) {
     offload_activate_chosen_device();
@@ -93,10 +89,10 @@ static void *actual_malloc(const size_t size, const bool on_device) {
   // Update statistics.
   if (on_device) {
 #pragma omp atomic
-    ++device_stats.mallocs;
+    ++device_malloc_counter;
   } else {
 #pragma omp atomic
-    ++host_stats.mallocs;
+    ++host_malloc_counter;
   }
 
   assert(memory != NULL);
@@ -140,94 +136,57 @@ static void actual_free(void *memory, const bool on_device) {
  * \brief Private routine for allocating host or device memory from the pool.
  * \author Ole Schuett and Hans Pabst
  ******************************************************************************/
-static void *internal_mempool_malloc(offload_mempool_t *pool,
-                                     const size_t size) {
+static void *internal_mempool_malloc(offload_mempool_t *pool, const size_t size,
+                                     const bool on_device) {
   if (size == 0) {
     return NULL;
   }
-  offload_memchunk_t *chunk = NULL;
-  const bool on_device = (pool == &mempool_device);
-  assert(on_device || pool == &mempool_host);
+
+  offload_memchunk_t *chunk;
+
 #pragma omp critical(offload_mempool_modify)
   {
     // Find a possible chunk to reuse or reclaim in available list.
-    offload_memchunk_t **reuse = NULL, **reclaim = NULL, **reclaim0 = NULL;
+    offload_memchunk_t **reuse = NULL,
+                       **reclaim = NULL; // ** for easy list removal
     offload_memchunk_t **indirect = &pool->available_head;
     while (*indirect != NULL) {
       const size_t s = (*indirect)->size;
-#if defined(OFFLOAD_MEMPOOL_COUNTER)
-      OFFLOAD_MEMPOOL_COUNTER *counter = NULL;
-      if (!on_device && sizeof(OFFLOAD_MEMPOOL_COUNTER) <= s) {
-        counter = (OFFLOAD_MEMPOOL_COUNTER *)(*indirect)->mem;
-        assert(NULL != counter);
-        if (0 == (*indirect)->used) {
-          ++*counter;
-        } else {
-          (*indirect)->used = 0;
-          *counter = 0;
+      if (size <= s && (reuse == NULL || s < (*reuse)->size)) {
+        reuse = indirect; // reuse smallest suitable chunk
+        if (s == size) {
+          break; // perfect match, exit early
         }
-      }
-#endif
-      if (size <= s) {
-        if (s <= (size + OFFLOAD_MEMPOOL_UPSIZE)) {
-          reuse = indirect;
-          break; // almost perfect, exit early
-        } else if (reuse != NULL) {
-          if (s < (*reuse)->size) {
-            reuse = indirect;
-          }
-        } else {
-          reuse = indirect;
-        }
-      } else if (reclaim != NULL) {
-        if ((*reclaim)->size < s) {
-#if defined(OFFLOAD_MEMPOOL_COUNTER)
-          if (counter == NULL ||
-              *(OFFLOAD_MEMPOOL_COUNTER *)(*reclaim)->mem < *counter)
-#endif
-          {
-            reclaim = indirect;
-          }
-        }
-      } else {
-#if defined(OFFLOAD_MEMPOOL_COUNTER)
-        if (counter != NULL) {
-          reclaim0 = indirect;
-        }
-#endif
-        reclaim = indirect;
+      } else if (reclaim == NULL || (*reclaim)->size < s) {
+        reclaim = indirect; // reclaim largest unsuitable chunk
       }
       indirect = &(*indirect)->next;
-    } // finished searching chunk for reuse/reclaim
+    }
 
-    // Prefer reusing chunk/memory over reclaim (only struct).
+    // Select an existing chunk or allocate a new one.
     if (reuse != NULL) {
+      // Reusing an exising chunk that's already large enough.
       chunk = *reuse;
-      *reuse = chunk->next; // remove chunk from list
-    }
-    // Reclaim a chunk (resize outside of crit. region).
-    else if (reclaim != reclaim0) {
+      *reuse = chunk->next; // remove chunk from available list.
+    } else if (reclaim != NULL) {
+      // Reclaiming an existing chunk (resize will happen outside crit. region).
       chunk = *reclaim;
-      assert(*reclaim != NULL);
-      *reclaim = chunk->next; // remove chunk from list
+      *reclaim = chunk->next; // remove chunk from available list.
+    } else {
+      // Found no available chunk, allocate a new one.
+      chunk = calloc(1, sizeof(offload_memchunk_t));
+      assert(chunk != NULL);
     }
-  } // end of critical section
-
-  // Resize/allocate chunk outside of critical region.
-  if (chunk == NULL) {
-    chunk = malloc(sizeof(offload_memchunk_t));
-    assert(chunk != NULL);
-    chunk->mem = actual_malloc(size, on_device);
-    chunk->size = size;
   }
-  // Free memory and allocate with growth.
-  else if (chunk->size < size) {
+
+  // Resize chunk outside of critical region before adding it to allocated list.
+  if (chunk->size < size) {
     actual_free(chunk->mem, on_device);
     chunk->mem = actual_malloc(size, on_device);
     chunk->size = size;
   }
-  // For statistics.
-  chunk->used = size;
+
+  chunk->used = size; // for statistics
 
   // Insert chunk into allocated list.
 #pragma omp critical(offload_mempool_modify)
@@ -244,7 +203,7 @@ static void *internal_mempool_malloc(offload_mempool_t *pool,
  * \author Ole Schuett
  ******************************************************************************/
 void *offload_mempool_host_malloc(const size_t size) {
-  return internal_mempool_malloc(&mempool_host, size);
+  return internal_mempool_malloc(&mempool_host, size, false);
 }
 
 /*******************************************************************************
@@ -252,69 +211,7 @@ void *offload_mempool_host_malloc(const size_t size) {
  * \author Ole Schuett
  ******************************************************************************/
 void *offload_mempool_device_malloc(const size_t size) {
-  return internal_mempool_malloc(&mempool_device, size);
-}
-
-/*******************************************************************************
- * \brief Private routine for freeing all memory in the pool (not locked!).
- * \author Ole Schuett and Hans Pabst
- ******************************************************************************/
-static void internal_mempool_clear(offload_mempool_t *pool, uint64_t mempeak) {
-  const bool on_device = (pool == &mempool_device);
-  assert(on_device || pool == &mempool_host);
-  // Free all chunks in available list.
-  while (pool->available_head != NULL) {
-    offload_memchunk_t *chunk = pool->available_head;
-    pool->available_head = chunk->next; // remove chunk
-    actual_free(chunk->mem, on_device);
-    free(chunk);
-  }
-  // Record peak size
-  if (on_device) {
-    if (device_stats.mempeak < mempeak) {
-      device_stats.mempeak = mempeak;
-    }
-  } else {
-    if (host_stats.mempeak < mempeak) {
-      host_stats.mempeak = mempeak;
-    }
-  }
-}
-
-/*******************************************************************************
- * \brief Private routine for summing alloc sizes of all chunks in given list.
- * \author Ole Schuett and Hans Pabst
- ******************************************************************************/
-static uint64_t sum_chunks_size(const offload_memchunk_t *head, size_t offset) {
-  uint64_t result = 0;
-  for (const offload_memchunk_t *chunk = head; chunk != NULL;
-       chunk = chunk->next) {
-    result += *(const size_t *)((const char *)chunk + offset);
-  }
-  return result;
-}
-
-/*******************************************************************************
- * \brief Private routine to query statistics (not locked!).
- * \author Hans Pabst
- ******************************************************************************/
-void stats_sizes_get(const offload_mempool_t *pool, uint64_t *size,
-                     uint64_t *used) {
-  const size_t offset_size = offsetof(offload_memchunk_t, size);
-  if (NULL != size) {
-    *size = sum_chunks_size(pool->allocated_head, offset_size) +
-            sum_chunks_size(pool->available_head, offset_size);
-  }
-  if (NULL != used) {
-    const size_t offset_used = offsetof(offload_memchunk_t, used);
-    *used = sum_chunks_size(pool->allocated_head, offset_used) +
-#if defined(OFFLOAD_MEMPOOL_COUNTER)
-            sum_chunks_size(pool->available_head, offset_size);
-#else
-            sum_chunks_size(pool->available_head, offset_used);
-#endif
-    assert(NULL == size || *used <= *size); // sanity
-  }
+  return internal_mempool_malloc(&mempool_device, size, true);
 }
 
 /*******************************************************************************
@@ -362,19 +259,59 @@ void offload_mempool_device_free(const void *memory) {
 }
 
 /*******************************************************************************
+ * \brief Private routine for freeing all memory in the pool.
+ * \author Ole Schuett
+ ******************************************************************************/
+static void internal_mempool_clear(offload_mempool_t *pool,
+                                   const bool on_device) {
+#pragma omp critical(offload_mempool_modify)
+  {
+    // Check for leaks, i.e. that the allocated list is empty.
+    assert(pool->allocated_head == NULL);
+
+    // Free all chunks in available list.
+    while (pool->available_head != NULL) {
+      offload_memchunk_t *chunk = pool->available_head;
+      pool->available_head = chunk->next; // remove chunk
+      actual_free(chunk->mem, on_device);
+      free(chunk);
+    }
+  }
+}
+
+/*******************************************************************************
  * \brief Internal routine for freeing all memory in the pool.
  * \author Ole Schuett
  ******************************************************************************/
 void offload_mempool_clear(void) {
-  // TODO: check for leaks like assert(pool->allocated_head == NULL).
-#pragma omp critical(offload_mempool_modify)
-  {
-    uint64_t size = 0;
-    stats_sizes_get(&mempool_host, &size, NULL);
-    internal_mempool_clear(&mempool_host, size);
-    stats_sizes_get(&mempool_device, &size, NULL);
-    internal_mempool_clear(&mempool_device, size);
+  internal_mempool_clear(&mempool_host, false);
+  internal_mempool_clear(&mempool_device, true);
+}
+
+/*******************************************************************************
+ * \brief Private routine for summing alloc sizes of all chunks in given list.
+ * \author Ole Schuett
+ ******************************************************************************/
+static uint64_t sum_chunks_size(const offload_memchunk_t *head) {
+  uint64_t size_sum = 0;
+  for (const offload_memchunk_t *chunk = head; chunk != NULL;
+       chunk = chunk->next) {
+    size_sum += chunk->size;
   }
+  return size_sum;
+}
+
+/*******************************************************************************
+ * \brief Private routine for summing used sizes of all chunks in given list.
+ * \author Ole Schuett
+ ******************************************************************************/
+static uint64_t sum_chunks_used(const offload_memchunk_t *head) {
+  uint64_t used_sum = 0;
+  for (const offload_memchunk_t *chunk = head; chunk != NULL;
+       chunk = chunk->next) {
+    used_sum += chunk->used;
+  }
+  return used_sum;
 }
 
 /*******************************************************************************
@@ -385,17 +322,17 @@ void offload_mempool_stats_get(offload_mempool_stats_t *memstats) {
   assert(NULL != memstats);
 #pragma omp critical(offload_mempool_modify)
   {
-    memstats->host_mallocs = host_stats.mallocs;
-    stats_sizes_get(&mempool_host, &memstats->host_size, &memstats->host_used);
-    memstats->host_peak = memstats->host_size < host_stats.mempeak
-                              ? host_stats.mempeak
-                              : memstats->host_size;
-    memstats->device_mallocs = device_stats.mallocs;
-    stats_sizes_get(&mempool_device, &memstats->device_size,
-                    &memstats->device_used);
-    memstats->device_peak = memstats->device_size < device_stats.mempeak
-                                ? device_stats.mempeak
-                                : memstats->device_size;
+    memstats->host_mallocs = host_malloc_counter;
+    memstats->host_used = sum_chunks_used(mempool_host.available_head) +
+                          sum_chunks_used(mempool_host.allocated_head);
+    memstats->host_size = sum_chunks_size(mempool_host.available_head) +
+                          sum_chunks_size(mempool_host.allocated_head);
+
+    memstats->device_mallocs = device_malloc_counter;
+    memstats->device_used = sum_chunks_used(mempool_device.available_head) +
+                            sum_chunks_used(mempool_device.allocated_head);
+    memstats->device_size = sum_chunks_size(mempool_device.available_head) +
+                            sum_chunks_size(mempool_device.allocated_head);
   }
 }
 
@@ -449,23 +386,23 @@ void offload_mempool_stats_print(int fortran_comm,
                           output_unit);
   }
   if (0 < memstats.device_mallocs) {
-    cp_mpi_max_uint64(&memstats.device_peak, 1, comm);
+    cp_mpi_max_uint64(&memstats.device_size, 1, comm);
     snprintf(buffer, sizeof(buffer),
              " Device                            "
              " %20" PRIuPTR "  %10" PRIuPTR "  %10" PRIuPTR "\n",
              (uintptr_t)memstats.device_mallocs,
              (uintptr_t)((memstats.device_used + (512U << 10)) >> 20),
-             (uintptr_t)((memstats.device_peak + (512U << 10)) >> 20));
+             (uintptr_t)((memstats.device_size + (512U << 10)) >> 20));
     OFFLOAD_MEMPOOL_PRINT(print_func, buffer, output_unit);
   }
   if (0 < memstats.host_mallocs) {
-    cp_mpi_max_uint64(&memstats.host_peak, 1, comm);
+    cp_mpi_max_uint64(&memstats.host_size, 1, comm);
     snprintf(buffer, sizeof(buffer),
              " Host                              "
              " %20" PRIuPTR "  %10" PRIuPTR "  %10" PRIuPTR "\n",
              (uintptr_t)memstats.host_mallocs,
              (uintptr_t)((memstats.host_used + (512U << 10)) >> 20),
-             (uintptr_t)((memstats.host_peak + (512U << 10)) >> 20));
+             (uintptr_t)((memstats.host_size + (512U << 10)) >> 20));
     OFFLOAD_MEMPOOL_PRINT(print_func, buffer, output_unit);
   }
   if (0 < memstats.device_mallocs || 0 < memstats.host_mallocs) {
