@@ -21,6 +21,10 @@
 #include <mpi.h>
 #endif
 
+#if defined(__LIBXSTREAM)
+#include <libxs_malloc.h>
+#endif
+
 #define OFFLOAD_MEMPOOL_PRINT(FN, MSG, OUTPUT_UNIT)                            \
   ((FN)(MSG, (int)strlen(MSG), OUTPUT_UNIT))
 #define OFFLOAD_MEMPOOL_OMPALLOC 1
@@ -54,6 +58,36 @@ static offload_mempool_t mempool_host = {0}, mempool_device = {0};
  * \author Hans Pabst
  ******************************************************************************/
 static uint64_t host_malloc_counter = 0, device_malloc_counter = 0;
+
+#if defined(__LIBXSTREAM)
+static libxs_malloc_pool_t *libxs_device_pool = NULL;
+
+static void *libxs_device_malloc_fn(size_t size, const void *extra) {
+  void *memory = NULL;
+  (void)extra;
+#if defined(__OFFLOAD)
+  offload_activate_chosen_device();
+  offloadMalloc(&memory, size);
+#else
+  memory = malloc(size);
+#endif
+#pragma omp atomic
+  ++device_malloc_counter;
+  return memory;
+}
+
+static void libxs_device_free_fn(void *pointer, const void *extra) {
+  (void)extra;
+  if (NULL != pointer) {
+#if defined(__OFFLOAD)
+    offload_activate_chosen_device();
+    offloadFree(pointer);
+#else
+    free(pointer);
+#endif
+  }
+}
+#endif
 
 /*******************************************************************************
  * \brief Private routine for actually allocating system memory.
@@ -211,7 +245,15 @@ void *offload_mempool_host_malloc(const size_t size) {
  * \author Ole Schuett
  ******************************************************************************/
 void *offload_mempool_device_malloc(const size_t size) {
+#if defined(__LIBXSTREAM)
+  if (NULL == libxs_device_pool) {
+    libxs_device_pool = libxs_malloc_xpool(
+        libxs_device_malloc_fn, libxs_device_free_fn, omp_get_max_threads());
+  }
+  return libxs_malloc(libxs_device_pool, size, LIBXS_MALLOC_NATIVE);
+#else
   return internal_mempool_malloc(&mempool_device, size, true);
+#endif
 }
 
 /*******************************************************************************
@@ -255,7 +297,11 @@ void offload_mempool_host_free(const void *memory) {
  * \author Ole Schuett
  ******************************************************************************/
 void offload_mempool_device_free(const void *memory) {
+#if defined(__LIBXSTREAM)
+  libxs_free((void *)memory);
+#else
   internal_mempool_free(&mempool_device, memory);
+#endif
 }
 
 /*******************************************************************************
@@ -285,7 +331,14 @@ static void internal_mempool_clear(offload_mempool_t *pool,
  ******************************************************************************/
 void offload_mempool_clear(void) {
   internal_mempool_clear(&mempool_host, false);
+#if defined(__LIBXSTREAM)
+  if (NULL != libxs_device_pool) {
+    libxs_free_pool(libxs_device_pool);
+    libxs_device_pool = NULL;
+  }
+#else
   internal_mempool_clear(&mempool_device, true);
+#endif
 }
 
 /*******************************************************************************
@@ -329,10 +382,22 @@ void offload_mempool_stats_get(offload_mempool_stats_t *memstats) {
                           sum_chunks_size(mempool_host.allocated_head);
 
     memstats->device_mallocs = device_malloc_counter;
+#if defined(__LIBXSTREAM)
+    if (NULL != libxs_device_pool) {
+      libxs_malloc_pool_info_t info;
+      libxs_malloc_pool_info(libxs_device_pool, &info);
+      memstats->device_used = info.used;
+      memstats->device_size = info.size;
+    } else {
+      memstats->device_used = 0;
+      memstats->device_size = 0;
+    }
+#else
     memstats->device_used = sum_chunks_used(mempool_device.available_head) +
                             sum_chunks_used(mempool_device.allocated_head);
     memstats->device_size = sum_chunks_size(mempool_device.available_head) +
                             sum_chunks_size(mempool_device.allocated_head);
+#endif
   }
 }
 
