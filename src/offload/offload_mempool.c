@@ -56,10 +56,21 @@ typedef struct offload_mempool {
  ******************************************************************************/
 #if !defined(__LIBXS)
 static offload_mempool_t mempool_host = {0};
-static uint64_t host_malloc_counter = 0;
 #endif
+#if !defined(__LIBXSTREAM)
 static offload_mempool_t mempool_device = {0};
-static uint64_t device_malloc_counter = 0;
+#endif
+
+/*******************************************************************************
+ * \brief Private counters for statistics.
+ * \author Hans Pabst
+ ******************************************************************************/
+#if !defined(__LIBXS)
+static struct { uint64_t mallocs, mempeak; } host_stats = {0, 0};
+#endif
+#if !defined(__LIBXSTREAM)
+static struct { uint64_t mallocs, mempeak; } device_stats = {0, 0};
+#endif
 
 /*******************************************************************************
  * \brief Private routine for actually allocating system memory.
@@ -71,7 +82,6 @@ static void *actual_malloc(const size_t size, const bool on_device) {
   }
 
   void *memory = NULL;
-
 #if defined(__OFFLOAD)
   if (on_device) {
     offload_activate_chosen_device();
@@ -95,12 +105,12 @@ static void *actual_malloc(const size_t size, const bool on_device) {
   // Update statistics.
   if (on_device) {
 #pragma omp atomic
-    ++device_malloc_counter;
+    ++device_stats.mallocs;
   }
 #if !defined(__LIBXS)
   else {
 #pragma omp atomic
-    ++host_malloc_counter;
+    ++host_stats.mallocs;
   }
 #endif
 
@@ -207,6 +217,10 @@ static void *internal_mempool_malloc(offload_mempool_t *pool, const size_t size,
   return chunk->mem;
 }
 
+/*******************************************************************************
+ * \brief Private routine for releasing memory back to the pool.
+ * \author Ole Schuett
+ ******************************************************************************/
 static void internal_mempool_free(offload_mempool_t *pool, const void *mem) {
   if (mem == NULL) {
     return;
@@ -226,6 +240,10 @@ static void internal_mempool_free(offload_mempool_t *pool, const void *mem) {
   }
 }
 
+/*******************************************************************************
+ * \brief Private routine for freeing all memory in the pool.
+ * \author Ole Schuett and Hans Pabst
+ ******************************************************************************/
 static void internal_mempool_clear(offload_mempool_t *pool,
                                    const bool on_device) {
 #pragma omp critical(offload_mempool_modify)
@@ -240,22 +258,17 @@ static void internal_mempool_clear(offload_mempool_t *pool,
   }
 }
 
-static uint64_t sum_chunks_size(const offload_memchunk_t *head) {
-  uint64_t size_sum = 0;
+/*******************************************************************************
+ * \brief Private routine for summing alloc sizes of all chunks in given list.
+ * \author Ole Schuett and Hans Pabst
+ ******************************************************************************/
+static uint64_t sum_chunks_size(const offload_memchunk_t *head, size_t offset) {
+  uint64_t result = 0;
   for (const offload_memchunk_t *chunk = head; chunk != NULL;
        chunk = chunk->next) {
-    size_sum += chunk->size;
+    result += *(const size_t *)((const char *)chunk + offset);
   }
-  return size_sum;
-}
-
-static uint64_t sum_chunks_used(const offload_memchunk_t *head) {
-  uint64_t used_sum = 0;
-  for (const offload_memchunk_t *chunk = head; chunk != NULL;
-       chunk = chunk->next) {
-    used_sum += chunk->used;
-  }
-  return used_sum;
+  return result;
 }
 #endif /* !defined(__LIBXSTREAM) */
 
@@ -319,8 +332,19 @@ void offload_mempool_clear(void) {
 #if defined(__LIBXSTREAM)
   (void)0;
 #elif defined(__LIBXS)
+  { const uint64_t size = sum_chunks_size(mempool_device.available_head, offsetof(offload_memchunk_t, size)) +
+                          sum_chunks_size(mempool_device.allocated_head, offsetof(offload_memchunk_t, size));
+    if (device_stats.mempeak < size) device_stats.mempeak = size;
+  }
   internal_mempool_clear(&mempool_device, true);
 #else
+  { const uint64_t hsize = sum_chunks_size(mempool_host.available_head, offsetof(offload_memchunk_t, size)) +
+                           sum_chunks_size(mempool_host.allocated_head, offsetof(offload_memchunk_t, size));
+    const uint64_t dsize = sum_chunks_size(mempool_device.available_head, offsetof(offload_memchunk_t, size)) +
+                           sum_chunks_size(mempool_device.allocated_head, offsetof(offload_memchunk_t, size));
+    if (host_stats.mempeak < hsize) host_stats.mempeak = hsize;
+    if (device_stats.mempeak < dsize) device_stats.mempeak = dsize;
+  }
   internal_mempool_clear(&mempool_host, false);
   internal_mempool_clear(&mempool_device, true);
 #endif
@@ -341,10 +365,12 @@ void offload_mempool_stats_get(offload_mempool_stats_t *memstats) {
       memstats->host_mallocs = info.nmallocs;
       memstats->host_used = info.used;
       memstats->host_size = info.size;
+      memstats->host_peak = info.peak;
     } else {
       memstats->host_mallocs = 0;
       memstats->host_used = 0;
       memstats->host_size = 0;
+      memstats->host_peak = 0;
     }
     if (NULL != libxstream_opencl_config.pool_dev) {
       libxs_malloc_pool_info_t info;
@@ -352,41 +378,50 @@ void offload_mempool_stats_get(offload_mempool_stats_t *memstats) {
       memstats->device_mallocs = info.nmallocs;
       memstats->device_used = info.used;
       memstats->device_size = info.size;
+      memstats->device_peak = info.peak;
     } else {
       memstats->device_mallocs = 0;
       memstats->device_used = 0;
       memstats->device_size = 0;
+      memstats->device_peak = 0;
     }
 #elif defined(__LIBXS)
-    {
-      libxs_malloc_pool_info_t info;
+    { libxs_malloc_pool_info_t info;
       if (NULL != libxs_default_pool() &&
           EXIT_SUCCESS == libxs_malloc_pool_info(libxs_default_pool(), &info)) {
         memstats->host_mallocs = info.nmallocs;
         memstats->host_used = info.used;
         memstats->host_size = info.size;
+        memstats->host_peak = info.peak;
       } else {
         memstats->host_mallocs = 0;
         memstats->host_used = 0;
         memstats->host_size = 0;
+        memstats->host_peak = 0;
       }
     }
-    memstats->device_mallocs = device_malloc_counter;
-    memstats->device_used = sum_chunks_used(mempool_device.available_head) +
-                            sum_chunks_used(mempool_device.allocated_head);
-    memstats->device_size = sum_chunks_size(mempool_device.available_head) +
-                            sum_chunks_size(mempool_device.allocated_head);
+    memstats->device_mallocs = device_stats.mallocs;
+    memstats->device_used = sum_chunks_size(mempool_device.available_head, offsetof(offload_memchunk_t, used)) +
+                            sum_chunks_size(mempool_device.allocated_head, offsetof(offload_memchunk_t, used));
+    memstats->device_size = sum_chunks_size(mempool_device.available_head, offsetof(offload_memchunk_t, size)) +
+                            sum_chunks_size(mempool_device.allocated_head, offsetof(offload_memchunk_t, size));
+    memstats->device_peak = memstats->device_size < device_stats.mempeak
+                                ? device_stats.mempeak : memstats->device_size;
 #else
-    memstats->host_mallocs = host_malloc_counter;
-    memstats->host_used = sum_chunks_used(mempool_host.available_head) +
-                          sum_chunks_used(mempool_host.allocated_head);
-    memstats->host_size = sum_chunks_size(mempool_host.available_head) +
-                          sum_chunks_size(mempool_host.allocated_head);
-    memstats->device_mallocs = device_malloc_counter;
-    memstats->device_used = sum_chunks_used(mempool_device.available_head) +
-                            sum_chunks_used(mempool_device.allocated_head);
-    memstats->device_size = sum_chunks_size(mempool_device.available_head) +
-                            sum_chunks_size(mempool_device.allocated_head);
+    memstats->host_mallocs = host_stats.mallocs;
+    memstats->host_used = sum_chunks_size(mempool_host.available_head, offsetof(offload_memchunk_t, used)) +
+                          sum_chunks_size(mempool_host.allocated_head, offsetof(offload_memchunk_t, used));
+    memstats->host_size = sum_chunks_size(mempool_host.available_head, offsetof(offload_memchunk_t, size)) +
+                          sum_chunks_size(mempool_host.allocated_head, offsetof(offload_memchunk_t, size));
+    memstats->host_peak = memstats->host_size < host_stats.mempeak
+                              ? host_stats.mempeak : memstats->host_size;
+    memstats->device_mallocs = device_stats.mallocs;
+    memstats->device_used = sum_chunks_size(mempool_device.available_head, offsetof(offload_memchunk_t, used)) +
+                            sum_chunks_size(mempool_device.allocated_head, offsetof(offload_memchunk_t, used));
+    memstats->device_size = sum_chunks_size(mempool_device.available_head, offsetof(offload_memchunk_t, size)) +
+                            sum_chunks_size(mempool_device.allocated_head, offsetof(offload_memchunk_t, size));
+    memstats->device_peak = memstats->device_size < device_stats.mempeak
+                                ? device_stats.mempeak : memstats->device_size;
 #endif
   }
 }
@@ -441,23 +476,23 @@ void offload_mempool_stats_print(int fortran_comm,
                           output_unit);
   }
   if (0 < memstats.device_mallocs) {
-    cp_mpi_max_uint64(&memstats.device_size, 1, comm);
+    cp_mpi_max_uint64(&memstats.device_peak, 1, comm);
     snprintf(buffer, sizeof(buffer),
              " Device                            "
              " %20" PRIuPTR "  %10" PRIuPTR "  %10" PRIuPTR "\n",
              (uintptr_t)memstats.device_mallocs,
              (uintptr_t)((memstats.device_used + (512U << 10)) >> 20),
-             (uintptr_t)((memstats.device_size + (512U << 10)) >> 20));
+             (uintptr_t)((memstats.device_peak + (512U << 10)) >> 20));
     OFFLOAD_MEMPOOL_PRINT(print_func, buffer, output_unit);
   }
   if (0 < memstats.host_mallocs) {
-    cp_mpi_max_uint64(&memstats.host_size, 1, comm);
+    cp_mpi_max_uint64(&memstats.host_peak, 1, comm);
     snprintf(buffer, sizeof(buffer),
              " Host                              "
              " %20" PRIuPTR "  %10" PRIuPTR "  %10" PRIuPTR "\n",
              (uintptr_t)memstats.host_mallocs,
              (uintptr_t)((memstats.host_used + (512U << 10)) >> 20),
-             (uintptr_t)((memstats.host_size + (512U << 10)) >> 20));
+             (uintptr_t)((memstats.host_peak + (512U << 10)) >> 20));
     OFFLOAD_MEMPOOL_PRINT(print_func, buffer, output_unit);
   }
   if (0 < memstats.device_mallocs || 0 < memstats.host_mallocs) {
