@@ -21,7 +21,7 @@
 #include <mpi.h>
 #endif
 
-#if defined(__LIBXS)
+#if defined(__LIBXSTREAM)
 #include <libxs_malloc.h>
 #endif
 
@@ -29,7 +29,6 @@
   ((FN)(MSG, (int)strlen(MSG), OUTPUT_UNIT))
 #define OFFLOAD_MEMPOOL_OMPALLOC 1
 
-#if !defined(__LIBXS) || !defined(__LIBXSTREAM)
 /*******************************************************************************
  * \brief Private struct for storing a chunk of memory.
  * \author Ole Schuett
@@ -48,47 +47,20 @@ typedef struct offload_mempool {
   offload_memchunk_t *available_head, *allocated_head; // single-linked lists
 } offload_mempool_t;
 
-#if !defined(__LIBXS)
+/*******************************************************************************
+ * \brief Private pools for host and device memory.
+ * \author Ole Schuett
+ ******************************************************************************/
 static offload_mempool_t mempool_host = {0};
-#endif
 #if !defined(__LIBXSTREAM)
 static offload_mempool_t mempool_device = {0};
 #endif
 
+/*******************************************************************************
+ * \brief Private some counters for statistics.
+ * \author Hans Pabst
+ ******************************************************************************/
 static uint64_t host_malloc_counter = 0, device_malloc_counter = 0;
-#endif
-
-#if defined(__LIBXS)
-static libxs_malloc_pool_t *libxs_host_pool = NULL;
-
-static void *libxs_host_malloc_fn(size_t size, const void *extra) {
-  void *memory = NULL;
-  (void)extra;
-#if defined(__OFFLOAD)
-  offload_activate_chosen_device();
-  offloadMallocHost(&memory, size);
-#elif OFFLOAD_MEMPOOL_OMPALLOC && (201811 <= _OPENMP)
-  memory = omp_alloc(size, omp_null_allocator);
-#else
-  memory = malloc(size);
-#endif
-  return memory;
-}
-
-static void libxs_host_free_fn(void *pointer, const void *extra) {
-  (void)extra;
-  if (NULL != pointer) {
-#if defined(__OFFLOAD)
-    offload_activate_chosen_device();
-    offloadFreeHost(pointer);
-#elif OFFLOAD_MEMPOOL_OMPALLOC && (201811 <= _OPENMP)
-    omp_free(pointer, omp_null_allocator);
-#else
-    free(pointer);
-#endif
-  }
-}
-#endif
 
 #if defined(__LIBXSTREAM)
 static libxs_malloc_pool_t *libxs_device_pool = NULL;
@@ -96,29 +68,20 @@ static libxs_malloc_pool_t *libxs_device_pool = NULL;
 static void *libxs_device_malloc_fn(size_t size, const void *extra) {
   void *memory = NULL;
   (void)extra;
-#if defined(__OFFLOAD)
   offload_activate_chosen_device();
   offloadMalloc(&memory, size);
-#else
-  memory = malloc(size);
-#endif
   return memory;
 }
 
 static void libxs_device_free_fn(void *pointer, const void *extra) {
   (void)extra;
   if (NULL != pointer) {
-#if defined(__OFFLOAD)
     offload_activate_chosen_device();
     offloadFree(pointer);
-#else
-    free(pointer);
-#endif
   }
 }
 #endif
 
-#if !defined(__LIBXS) || !defined(__LIBXSTREAM)
 /*******************************************************************************
  * \brief Private routine for actually allocating system memory.
  * \author Ole Schuett
@@ -261,22 +224,13 @@ static void *internal_mempool_malloc(offload_mempool_t *pool, const size_t size,
 
   return chunk->mem;
 }
-#endif /* !defined(__LIBXS) || !defined(__LIBXSTREAM) */
 
 /*******************************************************************************
  * \brief Internal routine for allocating host memory from the pool.
  * \author Ole Schuett
  ******************************************************************************/
 void *offload_mempool_host_malloc(const size_t size) {
-#if defined(__LIBXS)
-  if (NULL == libxs_host_pool) {
-    libxs_host_pool = libxs_malloc_xpool(
-        libxs_host_malloc_fn, libxs_host_free_fn, omp_get_max_threads());
-  }
-  return libxs_malloc(libxs_host_pool, size, LIBXS_MALLOC_NATIVE);
-#else
   return internal_mempool_malloc(&mempool_host, size, false);
-#endif
 }
 
 /*******************************************************************************
@@ -286,8 +240,11 @@ void *offload_mempool_host_malloc(const size_t size) {
 void *offload_mempool_device_malloc(const size_t size) {
 #if defined(__LIBXSTREAM)
   if (NULL == libxs_device_pool) {
-    libxs_device_pool = libxs_malloc_xpool(
-        libxs_device_malloc_fn, libxs_device_free_fn, omp_get_max_threads());
+#pragma omp critical(offload_mempool_modify)
+    if (NULL == libxs_device_pool) {
+      libxs_device_pool = libxs_malloc_xpool(
+          libxs_device_malloc_fn, libxs_device_free_fn, omp_get_max_threads());
+    }
   }
   return libxs_malloc(libxs_device_pool, size, LIBXS_MALLOC_NATIVE);
 #else
@@ -295,7 +252,6 @@ void *offload_mempool_device_malloc(const size_t size) {
 #endif
 }
 
-#if !defined(__LIBXS) || !defined(__LIBXSTREAM)
 /*******************************************************************************
  * \brief Private routine for releasing memory back to the pool.
  * \author Ole Schuett
@@ -323,18 +279,13 @@ static void internal_mempool_free(offload_mempool_t *pool, const void *mem) {
     pool->available_head = chunk;
   }
 }
-#endif
 
 /*******************************************************************************
  * \brief Internal routine for releasing memory back to the pool.
  * \author Ole Schuett
  ******************************************************************************/
 void offload_mempool_host_free(const void *memory) {
-#if defined(__LIBXS)
-  libxs_free((void *)memory);
-#else
   internal_mempool_free(&mempool_host, memory);
-#endif
 }
 
 /*******************************************************************************
@@ -349,7 +300,6 @@ void offload_mempool_device_free(const void *memory) {
 #endif
 }
 
-#if !defined(__LIBXS) || !defined(__LIBXSTREAM)
 /*******************************************************************************
  * \brief Private routine for freeing all memory in the pool.
  * \author Ole Schuett
@@ -370,21 +320,13 @@ static void internal_mempool_clear(offload_mempool_t *pool,
     }
   }
 }
-#endif
 
 /*******************************************************************************
  * \brief Internal routine for freeing all memory in the pool.
  * \author Ole Schuett
  ******************************************************************************/
 void offload_mempool_clear(void) {
-#if defined(__LIBXS)
-  if (NULL != libxs_host_pool) {
-    libxs_free_pool(libxs_host_pool);
-    libxs_host_pool = NULL;
-  }
-#else
   internal_mempool_clear(&mempool_host, false);
-#endif
 #if defined(__LIBXSTREAM)
   if (NULL != libxs_device_pool) {
     libxs_free_pool(libxs_device_pool);
@@ -395,7 +337,6 @@ void offload_mempool_clear(void) {
 #endif
 }
 
-#if !defined(__LIBXS) || !defined(__LIBXSTREAM)
 /*******************************************************************************
  * \brief Private routine for summing alloc sizes of all chunks in given list.
  * \author Ole Schuett
@@ -421,7 +362,6 @@ static uint64_t sum_chunks_used(const offload_memchunk_t *head) {
   }
   return used_sum;
 }
-#endif
 
 /*******************************************************************************
  * \brief Internal routine to query statistics.
@@ -431,25 +371,11 @@ void offload_mempool_stats_get(offload_mempool_stats_t *memstats) {
   assert(NULL != memstats);
 #pragma omp critical(offload_mempool_modify)
   {
-#if defined(__LIBXS)
-    if (NULL != libxs_host_pool) {
-      libxs_malloc_pool_info_t info;
-      libxs_malloc_pool_info(libxs_host_pool, &info);
-      memstats->host_mallocs = info.nmallocs;
-      memstats->host_used = info.used;
-      memstats->host_size = info.size;
-    } else {
-      memstats->host_mallocs = 0;
-      memstats->host_used = 0;
-      memstats->host_size = 0;
-    }
-#else
     memstats->host_mallocs = host_malloc_counter;
     memstats->host_used = sum_chunks_used(mempool_host.available_head) +
                           sum_chunks_used(mempool_host.allocated_head);
     memstats->host_size = sum_chunks_size(mempool_host.available_head) +
                           sum_chunks_size(mempool_host.allocated_head);
-#endif
 #if defined(__LIBXSTREAM)
     if (NULL != libxs_device_pool) {
       libxs_malloc_pool_info_t info;
