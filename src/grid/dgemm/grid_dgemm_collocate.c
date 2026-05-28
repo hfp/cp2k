@@ -529,7 +529,7 @@ void tensor_reduction_for_collocate_integrate(
     m1.ldb = p_alpha_beta_reduced_->ld_;
     m1.c = T.data; // T_{\alpha, \gamma, j} = T(alpha, gamma, j)
     m1.ldc = T.ld_;
-  
+
     /*
      * the next step is a reduction along the alpha index.
      *
@@ -555,7 +555,7 @@ void tensor_reduction_for_collocate_integrate(
     m2.ldb = p_alpha_beta_reduced_->ld_;
     m2.c = W.data; // W_{\gamma, j, i}
     m2.ldc = W.ld_;
-  
+
     /* the final step is again a reduction along the gamma indice. It can
      * again be done with one dgemm. The operation is simply
      *
@@ -577,7 +577,7 @@ void tensor_reduction_for_collocate_integrate(
     m3.ldb = W.size[1] * W.ld_;
     m3.c = &idx3(cube[0], 0, 0, 0); // cube_{kji}
     m3.ldc = cube->ld_ * cube->size[1];
-  
+
     dgemm_simplified(&m1);
     dgemm_simplified(&m2);
 

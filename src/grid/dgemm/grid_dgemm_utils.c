@@ -94,7 +94,6 @@ void dgemm_simplified(dgemm_params *const m) {
 #endif
 }
 
-
 void extract_sub_grid(const int *lower_corner, const int *upper_corner,
                       const int *position, const tensor *const grid,
                       tensor *const subgrid) {

@@ -19,4 +19,3 @@ universal kernel for a general range of M, N, and K parameters.
 
 The OpenCL backend shares the same data structures (header files) and the same input format as used
 for other backends namely CUDA and HIP.
-

@@ -118,13 +118,9 @@ inline int return_linear_index_from_exponents(const int alpha, const int beta,
   return return_offset_l(l) + (l - alpha) * (l - alpha + 1) / 2 + gamma;
 }
 
-static inline void *grid_allocate_scratch(size_t size) {
-  return malloc(size);
-}
+static inline void *grid_allocate_scratch(size_t size) { return malloc(size); }
 
-static inline void grid_free_scratch(void *ptr) {
-  free(ptr);
-}
+static inline void grid_free_scratch(void *ptr) { free(ptr); }
 
 /* even openblas and lapack has cblas versions of lapack and blas. */
 #ifndef __MKL

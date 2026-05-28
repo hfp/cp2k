@@ -265,7 +265,8 @@ static uint64_t sum_chunks_used(const offload_memchunk_t *head) {
  ******************************************************************************/
 void *offload_mempool_host_malloc(const size_t size) {
 #if defined(__LIBXSTREAM)
-  return libxs_malloc(libxstream_opencl_config.pool_hst, size, LIBXS_MALLOC_AUTO);
+  return libxs_malloc(libxstream_opencl_config.pool_hst, size,
+                      LIBXS_MALLOC_AUTO);
 #elif defined(__LIBXS)
   return libxs_malloc(libxs_default_pool(), size, LIBXS_MALLOC_AUTO);
 #else
@@ -279,7 +280,8 @@ void *offload_mempool_host_malloc(const size_t size) {
  ******************************************************************************/
 void *offload_mempool_device_malloc(const size_t size) {
 #if defined(__LIBXSTREAM)
-  return libxs_malloc(libxstream_opencl_config.pool_dev, size, LIBXS_MALLOC_NATIVE);
+  return libxs_malloc(libxstream_opencl_config.pool_dev, size,
+                      LIBXS_MALLOC_NATIVE);
 #else
   return internal_mempool_malloc(&mempool_device, size, true);
 #endif
@@ -356,7 +358,8 @@ void offload_mempool_stats_get(offload_mempool_stats_t *memstats) {
       memstats->device_size = 0;
     }
 #elif defined(__LIBXS)
-    { libxs_malloc_pool_info_t info;
+    {
+      libxs_malloc_pool_info_t info;
       if (NULL != libxs_default_pool() &&
           EXIT_SUCCESS == libxs_malloc_pool_info(libxs_default_pool(), &info)) {
         memstats->host_mallocs = info.nmallocs;

@@ -402,21 +402,21 @@ CONTAINS
          END IF
       ELSE
 #endif
-      IF (ab_first) THEN ! (AB)C
-         DO i = 0, ncoc - 1
-            CALL dgemm("N", "N", nsgfa, ncob, ncoa, 1.0_dp, sphi_a, nsgfa, sabc(i*ncoa*ncob + 1), &
-                       ncoa, 0.0_dp, cpp_buffer, nsgfa)
-            CALL dgemm("N", "N", nsgfa, nsgfb, ncob, 1.0_dp, cpp_buffer, nsgfa, sphi_b, ncob, 0.0_dp, &
-                       ccp_buffer(i*nsgfa*nsgfb + 1), nsgfa)
-         END DO
-      ELSE ! A(BC)
-         DO i = 0, ncoc - 1
-            CALL dgemm("N", "N", ncoa, nsgfb, ncob, 1.0_dp, sabc(i*ncoa*ncob + 1), ncoa, sphi_b, &
-                       ncob, 0.0_dp, cpp_buffer, ncoa)
-            CALL dgemm("N", "N", nsgfa, nsgfb, ncoa, 1.0_dp, sphi_a, nsgfa, cpp_buffer, ncoa, 0.0_dp, &
-                       ccp_buffer(i*nsgfa*nsgfb + 1), nsgfa)
-         END DO
-      END IF
+         IF (ab_first) THEN ! (AB)C
+            DO i = 0, ncoc - 1
+               CALL dgemm("N", "N", nsgfa, ncob, ncoa, 1.0_dp, sphi_a, nsgfa, sabc(i*ncoa*ncob + 1), &
+                          ncoa, 0.0_dp, cpp_buffer, nsgfa)
+               CALL dgemm("N", "N", nsgfa, nsgfb, ncob, 1.0_dp, cpp_buffer, nsgfa, sphi_b, ncob, 0.0_dp, &
+                          ccp_buffer(i*nsgfa*nsgfb + 1), nsgfa)
+            END DO
+         ELSE ! A(BC)
+            DO i = 0, ncoc - 1
+               CALL dgemm("N", "N", ncoa, nsgfb, ncob, 1.0_dp, sabc(i*ncoa*ncob + 1), ncoa, sphi_b, &
+                          ncob, 0.0_dp, cpp_buffer, ncoa)
+               CALL dgemm("N", "N", nsgfa, nsgfb, ncoa, 1.0_dp, sphi_a, nsgfa, cpp_buffer, ncoa, 0.0_dp, &
+                          ccp_buffer(i*nsgfa*nsgfb + 1), nsgfa)
+            END DO
+         END IF
 #if defined(__LIBXS)
       END IF
 #endif

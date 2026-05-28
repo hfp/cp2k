@@ -91,10 +91,10 @@
 #endif
 
 #if defined(A_BLOCK_READ)
-#define LOAD_A(A, IBASE, SHIFT, SHAPE, M, K)                                  \
+#define LOAD_A(A, IBASE, SHIFT, SHAPE, M, K)                                   \
   CVT(A_BLOCK_READ((A) + XA(SHIFT, IBASE) + (K) * XM(SHAPE)))
 #else
-#define LOAD_A(A, IBASE, SHIFT, SHAPE, M, K)                                  \
+#define LOAD_A(A, IBASE, SHIFT, SHAPE, M, K)                                   \
   CVT((A)[XA(SHIFT, IBASE) + IDT(M, K, XM(SHAPE), XK(SHAPE))])
 #endif
 
@@ -124,7 +124,7 @@
       const int ik = IDX(k, N0, XK(SHAPE), XN(SHAPE));                         \
       const TYPE ak = LOAD_A(A, IBASE, SHIFT, SHAPE, M, k);                    \
       UNROLL_AUTO for (SINT n = 0; n < (BN); ++n) {                            \
-        (CVEC)[n] = MAD(ak, LOAD_B(CVT((B)[ik + n])), (CVEC)[n]);             \
+        (CVEC)[n] = MAD(ak, LOAD_B(CVT((B)[ik + n])), (CVEC)[n]);              \
       }                                                                        \
     }                                                                          \
   } while (0)
@@ -284,36 +284,40 @@ dbm_multiply(double alpha, int itask, int ntasks, int size, int param_format,
           UNROLL_OUTER(1) for (; k + 8 <= xk; k += 8) {
             TYPE a_reg[8];
             if (mb + SG <= xm) {
-              UNROLL_FORCE(8) for (SINT kb = 0; kb < 8; ++kb)
-                a_reg[kb] = CVT(A_BLOCK_READ(al + (k + kb) * xm + mb));
+              UNROLL_FORCE(8)
+              for (SINT kb = 0; kb < 8; ++kb) a_reg[kb] =
+                  CVT(A_BLOCK_READ(al + (k + kb) * xm + mb));
             } else {
-              UNROLL_FORCE(8) for (SINT kb = 0; kb < 8; ++kb)
-                a_reg[kb] = (m < xm)
-                    ? CVT(al[IDT(m, k + kb, xm, xk)]) : ZERO;
+              UNROLL_FORCE(8)
+              for (SINT kb = 0; kb < 8; ++kb) a_reg[kb] =
+                  (m < xm) ? CVT(al[IDT(m, k + kb, xm, xk)]) : ZERO;
             }
             UNROLL_FORCE(8) for (SINT kb = 0; kb < 8; ++kb) {
               const TYPE bv = (sid + n0 < xn)
-                  ? CVT(bl[IDX(k + kb, sid + n0, xk, xn)]) : ZERO;
-              UNROLL_FORCE(SG) for (SINT n = 0; n < SG; ++n)
-                c_acc[n] = MAD(a_reg[kb], BCST_SG(bv, (uint)n), c_acc[n]);
+                                  ? CVT(bl[IDX(k + kb, sid + n0, xk, xn)])
+                                  : ZERO;
+              UNROLL_FORCE(SG)
+              for (SINT n = 0; n < SG; ++n) c_acc[n] =
+                  MAD(a_reg[kb], BCST_SG(bv, (uint)n), c_acc[n]);
             }
           }
           /* K remainder */
           for (; k < xk; ++k) {
-            const TYPE ak = (mb + SG <= xm)
-                ? CVT(A_BLOCK_READ(al + k * xm + mb))
-                : ((m < xm) ? CVT(al[IDT(m, k, xm, xk)]) : ZERO);
-            const TYPE bv = (sid + n0 < xn)
-                ? CVT(bl[IDX(k, sid + n0, xk, xn)]) : ZERO;
-            UNROLL_FORCE(SG) for (SINT n = 0; n < SG; ++n)
-              c_acc[n] = MAD(ak, BCST_SG(bv, (uint)n), c_acc[n]);
+            const TYPE ak =
+                (mb + SG <= xm)
+                    ? CVT(A_BLOCK_READ(al + k * xm + mb))
+                    : ((m < xm) ? CVT(al[IDT(m, k, xm, xk)]) : ZERO);
+            const TYPE bv =
+                (sid + n0 < xn) ? CVT(bl[IDX(k, sid + n0, xk, xn)]) : ZERO;
+            UNROLL_FORCE(SG)
+            for (SINT n = 0; n < SG; ++n) c_acc[n] =
+                MAD(ak, BCST_SG(bv, (uint)n), c_acc[n]);
           }
           /* store: only active M-rows and valid N-columns */
           if (m < xm) {
             const SINT ncols = MIN((SINT)SG, xn - n0);
-            UNROLL_AUTO for (SINT n = 0; n < ncols; ++n)
-              DBM_ACCUMULATE(c + c0 + XI(m, n0 + n, xm, xn),
-                             alpha * c_acc[n]);
+            UNROLL_AUTO for (SINT n = 0; n < ncols; ++n) DBM_ACCUMULATE(
+                c + c0 + XI(m, n0 + n, xm, xn), alpha * c_acc[n]);
           }
         }
       }

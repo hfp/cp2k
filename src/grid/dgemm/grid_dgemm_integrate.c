@@ -332,9 +332,6 @@ static void rotate_and_store_coefficients(grid_context *const ctx,
       m2.beta = 1.0;
     }
 
-
-
-
     /* these dgemm are *row* major */
     dgemm_simplified(&m1);
     dgemm_simplified(&m2);
