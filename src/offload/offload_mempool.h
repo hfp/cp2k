@@ -8,12 +8,11 @@
 #define OFFLOAD_MEMPOOL_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include <stdint.h>
 
 /*******************************************************************************
  * \brief Internal routine for allocating host memory from the pool.

@@ -41,10 +41,10 @@ void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,
   assert(ctx->shards_c_dev != NULL || nshards == 0);
   for (int i = 0; i < nshards; i++) {
     const dbm_shard_t *const shard_c_host = &shards_c_host[i];
-    dbm_shard_gpu_t *shard_g = &ctx->shards_c_dev[i];
+    dbm_shard_gpu_t *const shard_g = &ctx->shards_c_dev[i];
+    shard_g->data_size = shard_c_host->data_size;
     offloadStreamCreate(&shard_g->stream);
     offloadEventCreate(&shard_g->event);
-    shard_g->data_size = shard_c_host->data_size;
     // only allocate data_size on device rather than data_allocated
     shard_g->data_allocated = shard_c_host->data_size;
     shard_g->data =
@@ -61,7 +61,6 @@ void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,
  ******************************************************************************/
 static void upload_pack(const dbm_pack_t *pack_host, dbm_pack_t *pack_dev,
                         const offloadStream_t stream) {
-
   const size_t size = pack_host->data_size * sizeof(double);
   if (pack_dev->data_size < pack_host->data_size) {
     offload_mempool_device_free(pack_dev->data);
