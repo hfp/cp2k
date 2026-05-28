@@ -6,6 +6,7 @@
 /*----------------------------------------------------------------------------*/
 #include "dbm_library.h"
 #include "../mpiwrap/cp_mpi.h"
+#include "../offload/offload_library.h"
 #include "../offload/offload_mempool.h"
 
 #include <assert.h>
@@ -38,6 +39,8 @@ void dbm_library_init(void) {
     fprintf(stderr, "DBM library was already initialized.\n");
     abort();
   }
+
+  offload_init();
 
   max_threads = omp_get_max_threads();
   per_thread_counters = malloc(max_threads * sizeof(int64_t *));
