@@ -173,7 +173,6 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
       libxstream_opencl_info_memptr_t adata, bdata, cdata, batch;
       const int stride = (0 == param_format ? 6 : 3);
       size_t work_size[] = {1, 1, 1}, ibatch = 0;
-      size_t iadata = 0, ibdata = 0, icdata = 0;
       const size_t work_tasks = ntasks;
       cl_kernel kernel = NULL;
       int bk, use_blkrd = 0;
@@ -418,22 +417,27 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
       if (NULL != lock_memory) {
         LIBXS_LOCK_ACQUIRE(LIBXS_LOCK, lock_memory);
       }
-      result |= libxstream_opencl_info_devptr_lock(&adata, NULL /*lock*/,
-                                                   pack_a_data, 1 /*esize*/,
-                                                   NULL /*amount*/, &iadata);
-      result |= libxstream_opencl_info_devptr_lock(&bdata, NULL /*lock*/,
-                                                   pack_b_data, 1 /*esize*/,
-                                                   NULL /*amount*/, &ibdata);
-      result |= libxstream_opencl_info_devptr_lock(&cdata, NULL /*lock*/,
-                                                   shard_c_data, 1 /*esize*/,
-                                                   NULL /*amount*/, &icdata);
+#if !defined(NDEBUG)
+      { /* assume A, B, and C do not carry an offset */
+        size_t iadata = 0, ibdata = 0, icdata = 0;
+        result |= libxstream_opencl_info_devptr_lock(&adata, NULL /*lock*/,
+                                                     pack_a_data, 1 /*esize*/,
+                                                     NULL /*amount*/, &iadata);
+        result |= libxstream_opencl_info_devptr_lock(&bdata, NULL /*lock*/,
+                                                     pack_b_data, 1 /*esize*/,
+                                                     NULL /*amount*/, &ibdata);
+        result |= libxstream_opencl_info_devptr_lock(&cdata, NULL /*lock*/,
+                                                     shard_c_data, 1 /*esize*/,
+                                                     NULL /*amount*/, &icdata);
+        assert(0 == iadata && 0 == ibdata && 0 == icdata);
+      }
+#endif
       result |= libxstream_opencl_info_devptr_lock(
           &batch, NULL /*lock*/, params /*batch*/, sizeof(int) * stride,
           &work_tasks, &ibatch);
       if (NULL != lock_memory) {
         LIBXS_LOCK_RELEASE(LIBXS_LOCK, lock_memory);
       }
-      assert(0 == iadata && 0 == ibdata && 0 == icdata);
       { /* determine dispatch mode: per-task vs flat */
         const int per_task = (0 != sgbcst && 0 == use_blkrd) ||
                              (0 != blkrd && 0 != task.mnk_changes);
