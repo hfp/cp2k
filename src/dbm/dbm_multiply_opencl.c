@@ -185,6 +185,7 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         if (0 == base_ready) {
           const char *const krn_env = getenv("DBM_MULTIPLY_KERNEL");
           const char *const sgb_env = getenv("DBM_MULTIPLY_SGB");
+          const char *const blk_env = getenv("DBM_MULTIPLY_BLK");
           const char *const lin_env = getenv("DBM_MULTIPLY_LIN");
           const char *const fp_env = getenv("DBM_MULTIPLY_FP");
           const char *const bn_env = getenv("DBM_MULTIPLY_BN");
@@ -263,7 +264,8 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                   :
 #endif
                   (0 >= ro ? "global" : "constant");
-          blkrd = (0 == clinear && 0 != devinfo->intel && 0 < (int)sgsize);
+          blkrd = (0 == clinear && 0 != devinfo->intel && 0 < (int)sgsize &&
+                   (NULL == blk_env ? 1 /*default*/ : (0 != atoi(blk_env))));
           if (0 != blkrd && 'g' != cmem[0]) {
             cmem = "global"; /* block reads require global address space */
           }
@@ -362,15 +364,17 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
               LIBXS_UNUSED(n);
             } else if (0 < key.max_m) { /* heterogeneous with known max_m */
               const int n = LIBXS_SNPRINTF(
-                  flags, sizeof(flags), "%s -DWG=%i -DBK=%i -DMAX_M=%i%s",
+                  flags, sizeof(flags), "%s -DWG=%i -DBK=%i -DMAX_M=%i%s%s",
                   base_flags, (int)wgsize[0], bk, key.max_m,
-                  0 != blkrd ? " -DBLKRD_P" : "");
+                  0 != blkrd ? " -DBLKRD_P" : "",
+                  (0 != sgbcst && 0 == blkrd) ? " -DSGBCST" : "");
               assert(0 < n && (size_t)n < sizeof(flags));
               LIBXS_UNUSED(n);
             } else { /* heterogeneous: BK only */
               const int n = LIBXS_SNPRINTF(
-                  flags, sizeof(flags), "%s -DWG=%i -DBK=%i%s", base_flags,
-                  (int)wgsize[0], bk, 0 != blkrd ? " -DBLKRD_P" : "");
+                  flags, sizeof(flags), "%s -DWG=%i -DBK=%i%s%s", base_flags,
+                  (int)wgsize[0], bk, 0 != blkrd ? " -DBLKRD_P" : "",
+                  (0 != sgbcst && 0 == blkrd) ? " -DSGBCST" : "");
               assert(0 < n && (size_t)n < sizeof(flags));
               LIBXS_UNUSED(n);
             }
@@ -431,9 +435,8 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
       }
       assert(0 == iadata && 0 == ibdata && 0 == icdata);
       { /* determine dispatch mode: per-task vs flat */
-        const int per_task =
-            (0 != sgbcst && 0 == use_blkrd && 0 == task.mnk_changes) ||
-            (0 != blkrd && 0 != task.mnk_changes);
+        const int per_task = (0 != sgbcst && 0 == use_blkrd) ||
+                             (0 != blkrd && 0 != task.mnk_changes);
         const int use_wg =
             (0 != task.mnk_changes || 0 != use_blkrd || 0 != sgbcst);
         size = (cl_int)(work_tasks * (0 == clinear ? task.max_m : task.max_n));
