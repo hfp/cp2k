@@ -1546,7 +1546,7 @@ if(CP2K_USE_CUDA
           "${CMAKE_CURRENT_BINARY_DIR}/${CP2K_DBM_OPENCL_KERNEL}.h")
       add_custom_command(
         COMMAND
-          ${CP2K_OPENCL_SCRIPT} -b 6 -p ""
+          ${CP2K_OPENCL_SCRIPT} -b 6 -p \"\"
           -I "${LIBXSTREAMROOT}/include"
           ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_OPENCL_KERNEL}
           "${CP2K_DBM_OPENCL_GENHDR}"
