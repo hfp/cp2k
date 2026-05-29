@@ -13,7 +13,7 @@
 #include <libxs_timer.h>
 #include <libxstream_opencl.h>
 #if defined(__DBCSR_ACC)
-#include <smm/opencl_libsmm.h>
+#include <smm/smm_acc_opencl.h>
 #endif
 
 #if !defined(OPENCL_DBM_SOURCE_MULTIPLY)

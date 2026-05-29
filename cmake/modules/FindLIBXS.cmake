@@ -48,10 +48,17 @@ if(NOT TARGET cp2k::LIBXS::libxs)
       cp2k::LIBXS::libxs PROPERTIES INTERFACE_LINK_LIBRARIES
                                     "${CP2K_LIBXS_LINK_LIBRARIES}")
     if(CP2K_LIBXS_INCLUDE_DIRS)
-      set_target_properties(
-        cp2k::LIBXS::libxs
-        PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
-                   "${CP2K_LIBXS_INCLUDE_DIRS};${CP2K_LIBXS_PREFIX}/include")
+      if(CP2K_LIBXS_PREFIX)
+        set_target_properties(
+          cp2k::LIBXS::libxs
+          PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
+                     "${CP2K_LIBXS_INCLUDE_DIRS};${CP2K_LIBXS_PREFIX}/include")
+      else()
+        set_target_properties(
+          cp2k::LIBXS::libxs
+          PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
+                     "${CP2K_LIBXS_INCLUDE_DIRS}")
+      endif()
     endif()
   endif()
 endif()
