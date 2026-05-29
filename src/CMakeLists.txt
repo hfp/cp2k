@@ -1631,6 +1631,7 @@ target_link_libraries(
   cp2k_linalg_libs
   INTERFACE cp2k::LAPACK::lapack
             $<$<BOOL:${CP2K_USE_LIBXS}>:cp2k::LIBXS::libxs>
+            $<$<BOOL:${LIBXSMM_FOUND}>:cp2k::LIBXSMM>
             $<$<BOOL:${CP2K_USE_OPENCL}>:${CP2K_LIBXSTREAM_LIBRARY}>
             $<$<BOOL:${CP2K_USE_OPENCL}>:OpenCL::OpenCL>
             cp2k::BLAS::blas
@@ -1842,6 +1843,7 @@ target_compile_definitions(
     $<$<BOOL:${CP2K_USE_COSMA}>:__COSMA>
     $<$<BOOL:${CP2K_USE_LIBXS}>:__LIBXS>
     $<$<BOOL:${CP2K_USE_LIBXS}>:__BLAS>
+    $<$<BOOL:${LIBXSMM_FOUND}>:__LIBXSMM>
     $<$<BOOL:${CP2K_USE_LIBXSMM}>:__LIBXSMM>
     $<$<BOOL:${CP2K_USE_OPENCL}>:__LIBXSTREAM>
     $<$<BOOL:${CP2K_USE_SIRIUS_DFTD3}>:__SIRIUS_DFTD3>
@@ -1962,8 +1964,7 @@ target_compile_definitions(
   dbm_miniapp
   PRIVATE $<$<BOOL:${CP2K_USE_LIBXS}>:__LIBXS>
           $<$<BOOL:${CP2K_USE_LIBXS}>:__BLAS>
-          $<$<BOOL:${CP2K_USE_LIBXSMM}>:__LIBXSMM>
-          $<$<BOOL:${CP2K_USE_OPENCL}>:__LIBXSTREAM>
+          $<$<BOOL:${LIBXSMM_FOUND}>:__LIBXSMM>
           $<$<STREQUAL:"${CP2K_BLAS_VENDOR}","MKL">:__MKL>)
 
 if(CP2K_DISABLE_DBM_GPU)
@@ -1985,8 +1986,7 @@ foreach(__app grid_miniapp grid_unittest)
     ${__app}
     PRIVATE $<$<BOOL:${CP2K_USE_LIBXS}>:__LIBXS>
             $<$<BOOL:${CP2K_USE_LIBXS}>:__BLAS>
-            $<$<BOOL:${CP2K_USE_LIBXSMM}>:__LIBXSMM>
-            $<$<BOOL:${CP2K_USE_OPENCL}>:__LIBXSTREAM>
+            $<$<BOOL:${LIBXSMM_FOUND}>:__LIBXSMM>
             $<$<STREQUAL:"${CP2K_BLAS_VENDOR}","MKL">:__MKL>)
 
   if(CP2K_DISABLE_GRID_GPU)

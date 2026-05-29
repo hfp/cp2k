@@ -455,7 +455,12 @@ find_package(Lapack REQUIRED) # also calls find_package(BLAS)
 # SMM (Small Matrix-Matrix multiplication)
 if(CP2K_USE_LIBXS)
   find_package(LIBXS REQUIRED)
-  message(STATUS "Using LIBXS for Small Matrix Multiplication")
+  find_package(LIBXSMM)
+  if(LIBXSMM_FOUND)
+    message(STATUS "Using LIBXS + LIBXSMM for Small Matrix Multiplication")
+  else()
+    message(STATUS "Using LIBXS for Small Matrix Multiplication")
+  endif()
 endif()
 
 # in practice it is always for any decent configuration. But I add a flags to
