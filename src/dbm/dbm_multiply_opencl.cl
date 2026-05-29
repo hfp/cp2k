@@ -124,7 +124,7 @@
     UNROLL_AUTO for (SINT k = 0; k < XK(SHAPE); ++k) {                         \
       const int ik = IDX(k, N0, XK(SHAPE), XN(SHAPE));                         \
       const TYPE ak = LOAD_A(A, IBASE, SHIFT, SHAPE, M, k);                    \
-      UNROLL_FORCE(BN) for (SINT n = 0; n < (BN); ++n) {                       \
+      UNROLL_AUTO for (SINT n = 0; n < (BN); ++n) {                            \
         (CVEC)[n] = MAD(ak, LOAD_B(CVT((B)[ik + n])), (CVEC)[n]);              \
       }                                                                        \
     }                                                                          \

@@ -428,9 +428,10 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
       size = (cl_int)(work_tasks * (0 == clinear ? task.max_m : task.max_n));
       result |= clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha);
       result |= clSetKernelArg(kernel, 1, sizeof(cl_int), &ibatch);
-      if (0 != sgbcst && 0 == use_blkrd) {
+      if ((0 != sgbcst && 0 == use_blkrd) ||
+          (0 != blkrd && 0 != task.mnk_changes)) {
         work_size[0] = work_tasks * wgsize[0]; /* per-task dispatch */
-      } else { /* flat dispatch (or block-read override) */
+      } else { /* flat dispatch (or BLKRD_A homogeneous override) */
         work_size[0] =
             (0 < wgsize[0] ? LIBXS_UP((size_t)size, wgsize[0]) : (size_t)size);
       }
