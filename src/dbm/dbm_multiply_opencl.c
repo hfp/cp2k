@@ -268,11 +268,10 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
           }
           offset += (size_t)LIBXS_SNPRINTF(
               base_flags + offset, sizeof(base_flags) - offset,
-              " %s %s %s -DCONSTANT=%s"
-              " -DBN=%i -DSM=%i -DLU=%i -DWG=%i -DSG=%i -DINTEL=%i",
+              " %s %s -DCONSTANT=%s"
+              " -DBN=%i -DSM=%i -DLU=%i -DSG=%i -DINTEL=%i",
               0 != gpu ? "-DGPU" : "", 0 == clinear ? "" : "-DCLINEAR",
-              0 != sgbcst ? "-DSGBCST" : "", cmem, bn, sm, lu, (int)wgsize[0],
-              (int)sgsize, (int)(0 != devinfo->intel));
+              cmem, bn, sm, lu, (int)sgsize, (int)(0 != devinfo->intel));
           if (0 != precision) {
             offset += (size_t)LIBXS_SNPRINTF(base_flags + offset,
                                              sizeof(base_flags) - offset,
@@ -349,23 +348,28 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
             cl_kernel kernel_new = NULL;
             size_t wgs[3];
             if (0 != key.m) { /* homogeneous: add shape defines */
+              const int use_wg = (0 != use_blkrd || 0 != sgbcst);
               const int n = LIBXS_SNPRINTF(
                   flags, sizeof(flags),
-                  "%s -DBK=%i -DDBM_M=%i -DDBM_N=%i -DDBM_K=%i%s", base_flags,
+                  "%s -DWG=%i -DBK=%i -DDBM_M=%i -DDBM_N=%i -DDBM_K=%i%s%s",
+                  base_flags, use_wg ? (int)wgsize[0] : 0,
                   key.bk, key.m, key.n, key.k,
-                  0 != use_blkrd ? " -DBLKRD_A" : "");
+                  0 != use_blkrd ? " -DBLKRD_A" : "",
+                  (0 != sgbcst && 0 == use_blkrd) ? " -DSGBCST" : "");
               assert(0 < n && (size_t)n < sizeof(flags));
               LIBXS_UNUSED(n);
             } else if (0 < key.max_m) { /* heterogeneous with known max_m */
               const int n = LIBXS_SNPRINTF(
-                  flags, sizeof(flags), "%s -DBK=%i -DMAX_M=%i%s", base_flags,
-                  bk, key.max_m, 0 != blkrd ? " -DBLKRD_P" : "");
+                  flags, sizeof(flags), "%s -DWG=%i -DBK=%i -DMAX_M=%i%s",
+                  base_flags, (int)wgsize[0], bk, key.max_m,
+                  0 != blkrd ? " -DBLKRD_P" : "");
               assert(0 < n && (size_t)n < sizeof(flags));
               LIBXS_UNUSED(n);
             } else { /* heterogeneous: BK only */
-              const int n = LIBXS_SNPRINTF(flags, sizeof(flags), "%s -DBK=%i%s",
-                                           base_flags, bk,
-                                           0 != blkrd ? " -DBLKRD_P" : "");
+              const int n = LIBXS_SNPRINTF(
+                  flags, sizeof(flags), "%s -DWG=%i -DBK=%i%s",
+                  base_flags, (int)wgsize[0], bk,
+                  0 != blkrd ? " -DBLKRD_P" : "");
               assert(0 < n && (size_t)n < sizeof(flags));
               LIBXS_UNUSED(n);
             }
@@ -425,26 +429,35 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
         LIBXS_LOCK_RELEASE(LIBXS_LOCK, lock_memory);
       }
       assert(0 == iadata && 0 == ibdata && 0 == icdata);
-      size = (cl_int)(work_tasks * (0 == clinear ? task.max_m : task.max_n));
-      result |= clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha);
-      result |= clSetKernelArg(kernel, 1, sizeof(cl_int), &ibatch);
-      if ((0 != sgbcst && 0 == use_blkrd) ||
-          (0 != blkrd && 0 != task.mnk_changes)) {
-        work_size[0] = work_tasks * wgsize[0]; /* per-task dispatch */
-      } else { /* flat dispatch (or BLKRD_A homogeneous override) */
-        work_size[0] =
-            (0 < wgsize[0] ? LIBXS_UP((size_t)size, wgsize[0]) : (size_t)size);
+      { /* determine dispatch mode: per-task vs flat */
+        const int per_task =
+            (0 != sgbcst && 0 == use_blkrd && 0 == task.mnk_changes) ||
+            (0 != blkrd && 0 != task.mnk_changes);
+        const int use_wg = (0 != task.mnk_changes ||
+                            0 != use_blkrd || 0 != sgbcst);
+        size = (cl_int)(work_tasks * mx);
+        if (per_task) {
+          work_size[0] = work_tasks * wgsize[0];
+        } else if (use_wg) {
+          work_size[0] = LIBXS_UP((size_t)size, wgsize[0]);
+        } else {
+          work_size[0] = (size_t)size;
+        }
+        result |= clSetKernelArg(kernel, 0, sizeof(cl_double), &alpha);
+        result |= clSetKernelArg(kernel, 1, sizeof(cl_int), &ibatch);
+        result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &ntasks);
+        result |= clSetKernelArg(kernel, 3, sizeof(cl_int), &size);
+        result |= clSetKernelArg(kernel, 4, sizeof(cl_int), &param_format);
+        result |= libxstream_opencl_set_kernel_ptr(kernel, 5, batch.memory);
+        result |= libxstream_opencl_set_kernel_ptr(kernel, 6, adata.memory);
+        result |= libxstream_opencl_set_kernel_ptr(kernel, 7, bdata.memory);
+        result |= libxstream_opencl_set_kernel_ptr(kernel, 8, cdata.memory);
+        result |= clEnqueueNDRangeKernel(str->queue, kernel, 1, NULL,
+                                          work_size,
+                                          0 != use_wg ? wgsize : NULL,
+                                          0 /*num_wait*/, NULL /*wait_list*/,
+                                          NULL);
       }
-      result |= clSetKernelArg(kernel, 2, sizeof(cl_int), &ntasks);
-      result |= clSetKernelArg(kernel, 3, sizeof(cl_int), &size);
-      result |= clSetKernelArg(kernel, 4, sizeof(cl_int), &param_format);
-      result |= libxstream_opencl_set_kernel_ptr(kernel, 5, batch.memory);
-      result |= libxstream_opencl_set_kernel_ptr(kernel, 6, adata.memory);
-      result |= libxstream_opencl_set_kernel_ptr(kernel, 7, bdata.memory);
-      result |= libxstream_opencl_set_kernel_ptr(kernel, 8, cdata.memory);
-      result |= clEnqueueNDRangeKernel(
-          str->queue, kernel, 1, NULL, work_size, 0 < wgsize[0] ? wgsize : NULL,
-          0 /*num_wait*/, NULL /*wait_list*/, NULL);
       LIBXS_LOCK_RELEASE(LIBXS_LOCK, &kernel_lock);
     }
 #if defined(OPENCL_LIBSMM_PFORMAT) && (0 < OPENCL_LIBSMM_PFORMAT)

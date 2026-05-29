@@ -68,9 +68,7 @@
 
 /* When block reads are enabled, override SG for optimal tile geometry.
    For BLKRD_A (homogeneous): SG = DBM_M so each sub-group = one task.
-   For BLKRD_P (heterogeneous): SG = 16 to match the proven 16x16 tile
-   and reduce register pressure vs SG=32.
-   Must appear before intel_reqd_sub_group_size(SG) attribute below. */
+   For BLKRD_P (heterogeneous): SG = 16 for efficient sub-group ops. */
 #if defined(BLKRD_A) && defined(DBM_M) && defined(SG) && (DBM_M != SG)
 #undef SG
 #define SG DBM_M
@@ -109,9 +107,10 @@
     }                                                                          \
   } while (0)
 
-/* Broadcast B values when all lanes in a sub-group handle the same task
-   (stride >= SG ensures sub-group/task alignment in flat dispatch). */
-#if defined(BCST_SG) &&                                                        \
+/* Broadcast B values when all lanes in a sub-group handle the same task.
+   Requires WG > 0 (guarantees intel_reqd_sub_group_size) and stride >= SG
+   so that sub-group boundaries align with task boundaries. */
+#if defined(WG) && (0 < WG) && defined(BCST_SG) &&                            \
     ((defined(DBM_M) && (DBM_M >= SG)) || (defined(MAX_M) && (MAX_M >= SG)))
 #define LOAD_B(V) BCST_SG(V, 0)
 #else
@@ -259,9 +258,8 @@ dbm_multiply(double alpha, int itask, int ntasks, int size, int param_format,
 #endif
 #if defined(BLKRD_P) && defined(A_BLOCK_READ) && defined(BCST_SG)
   /* per-task dispatch: block-read A, B distributed across lanes.
-     Each lane holds one M-row (via block read) and one B-column
-     (via lane distribution). sub_group_broadcast fans B out to
-     SG N-columns per K-step, matching the 2024 generated kernel. */
+     Each lane holds one M-row (via block read).  N is tiled by BN
+     with sub_group_broadcast fanning B out to BN columns per K-step. */
   const int tid = (int)get_group_id(0);
   const SINT sid = (SINT)get_sub_group_local_id();
   SINT shape[3], ibase = 0;
