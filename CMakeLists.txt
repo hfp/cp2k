@@ -722,8 +722,12 @@ if(CP2K_USE_LIBXC)
     if(NOT CP2K_LIBXCF03_FOUND)
       pkg_check_modules(CP2K_LIBXCF03 REQUIRED IMPORTED_TARGET GLOBAL libxc>=7)
     endif()
+    pkg_check_modules(CP2K_LIBXC QUIET IMPORTED_TARGET GLOBAL libxc>=7)
     if(NOT TARGET Libxc::xcf03)
-      add_library(Libxc::xcf03 ALIAS PkgConfig::CP2K_LIBXCF03)
+      add_library(Libxc::xcf03 INTERFACE IMPORTED)
+      target_link_libraries(Libxc::xcf03 INTERFACE
+        PkgConfig::CP2K_LIBXCF03
+        $<$<BOOL:${CP2K_LIBXC_FOUND}>:PkgConfig::CP2K_LIBXC>)
     endif()
   elseif(NOT Libxc_FOUND)
     message(FATAL_ERROR "LibXC >= 7 not found (tried CMake config and pkg-config)")
