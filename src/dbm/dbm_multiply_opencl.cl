@@ -110,7 +110,7 @@
 /* Broadcast B values when all lanes in a sub-group handle the same task.
    Requires WG > 0 (guarantees intel_reqd_sub_group_size) and stride >= SG
    so that sub-group boundaries align with task boundaries. */
-#if defined(WG) && (0 < WG) && defined(BCST_SG) &&                            \
+#if defined(WG) && (0 < WG) && defined(BCST_SG) &&                             \
     ((defined(DBM_M) && (DBM_M >= SG)) || (defined(MAX_M) && (MAX_M >= SG)))
 #define LOAD_B(V) BCST_SG(V, 0)
 #else
@@ -280,19 +280,18 @@ dbm_multiply(double alpha, int itask, int ntasks, int size, int param_format,
       UNROLL_AUTO for (SINT n0 = 0; n0 < xn; n0 += SG) {
         SINT k = 0;
         UNROLL_FORCE(SG) for (SINT i = 0; i < SG; ++i) c_acc[i] = ZERO;
-        /* K-blocked by 8: batch A loads then compute */
-        UNROLL_AUTO for (; k + 8 <= xk; k += 8) {
-          TYPE a_reg[8];
+        UNROLL_AUTO for (; k + BK <= xk; k += BK) {
+          TYPE a_reg[BK];
           if (mb + SG <= xm) {
-            UNROLL_FORCE(8) for (SINT kb = 0; kb < 8; ++kb) {
+            UNROLL_FORCE(BK) for (SINT kb = 0; kb < BK; ++kb) {
               a_reg[kb] = CVT(A_BLOCK_READ(al + (k + kb) * xm + mb));
             }
           } else {
-            UNROLL_FORCE(8) for (SINT kb = 0; kb < 8; ++kb) {
+            UNROLL_FORCE(BK) for (SINT kb = 0; kb < BK; ++kb) {
               a_reg[kb] = (m < xm) ? CVT(al[IDT(m, k + kb, xm, xk)]) : ZERO;
             }
           }
-          UNROLL_FORCE(8) for (SINT kb = 0; kb < 8; ++kb) {
+          UNROLL_FORCE(BK) for (SINT kb = 0; kb < BK; ++kb) {
             const TYPE bv =
                 (sid + n0 < xn) ? CVT(bl[IDX(k + kb, sid + n0, xk, xn)]) : ZERO;
             UNROLL_FORCE(SG) for (SINT n = 0; n < SG; ++n) {
