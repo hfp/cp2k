@@ -1547,15 +1547,15 @@ if(CP2K_USE_CUDA
           "${CMAKE_CURRENT_BINARY_DIR}/${CP2K_DBM_OPENCL_KERNEL}.h")
       add_custom_command(
         COMMAND
-          ${CP2K_OPENCL_SCRIPT} -b 6 -p \"\"
-          -I "${LIBXSTREAMROOT}/include"
+          ${CP2K_OPENCL_SCRIPT} -b 6 -p \"\" -I "${LIBXSTREAMROOT}/include"
           ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_OPENCL_KERNEL}
           "${CP2K_DBM_OPENCL_GENHDR}"
         DEPENDS ${CP2K_OPENCL_SCRIPT} ${CP2K_OPENCL_COMMON}
                 ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_OPENCL_KERNEL}
         OUTPUT "${CP2K_DBM_OPENCL_GENHDR}"
         COMMENT "Generating OpenCL kernel for DBM")
-      add_custom_target(cp2k_dbm_opencl_kernel DEPENDS "${CP2K_DBM_OPENCL_GENHDR}")
+      add_custom_target(cp2k_dbm_opencl_kernel
+                        DEPENDS "${CP2K_DBM_OPENCL_GENHDR}")
       include_directories(${CMAKE_CURRENT_BINARY_DIR}/dbm)
       include_directories(${LIBXSTREAMROOT}/include)
       include_directories(${LIBXSTREAMROOT}/samples)
