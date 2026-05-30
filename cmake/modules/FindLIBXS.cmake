@@ -55,9 +55,8 @@ if(NOT TARGET cp2k::LIBXS::libxs)
                      "${CP2K_LIBXS_INCLUDE_DIRS};${CP2K_LIBXS_PREFIX}/include")
       else()
         set_target_properties(
-          cp2k::LIBXS::libxs
-          PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
-                     "${CP2K_LIBXS_INCLUDE_DIRS}")
+          cp2k::LIBXS::libxs PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
+                                        "${CP2K_LIBXS_INCLUDE_DIRS}")
       endif()
     endif()
   endif()
