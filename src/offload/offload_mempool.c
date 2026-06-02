@@ -22,6 +22,7 @@
 #endif
 
 #if defined(__LIBXSTREAM)
+#include <libxstream.h>
 #include <libxstream_opencl.h>
 #elif defined(__LIBXS)
 #include <libxs_malloc.h>
@@ -297,8 +298,10 @@ void *offload_mempool_host_malloc(const size_t size) {
  ******************************************************************************/
 void *offload_mempool_device_malloc(const size_t size) {
 #if defined(__LIBXSTREAM)
-  return libxs_malloc(libxstream_opencl_config.pool_dev, size,
-                      LIBXS_MALLOC_NATIVE);
+  void *memory = NULL;
+  const int result = libxstream_mem_allocate(&memory, size);
+  assert(EXIT_SUCCESS == result);
+  return memory;
 #else
   return internal_mempool_malloc(&mempool_device, size, true);
 #endif
@@ -322,7 +325,8 @@ void offload_mempool_host_free(const void *memory) {
  ******************************************************************************/
 void offload_mempool_device_free(const void *memory) {
 #if defined(__LIBXSTREAM)
-  libxs_free((void *)memory);
+  const int result = libxstream_mem_deallocate((void *)memory);
+  assert(EXIT_SUCCESS == result);
 #else
   internal_mempool_free(&mempool_device, memory);
 #endif
