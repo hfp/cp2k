@@ -327,6 +327,7 @@ set_property(
 set(CP2K_USE_ACCEL
     "NONE"
     CACHE STRING "Set hardware acceleration support: CUDA, HIP, OPENCL")
+string(TOUPPER "${CP2K_USE_ACCEL}" CP2K_USE_ACCEL)
 
 set_property(CACHE CP2K_USE_ACCEL
              PROPERTY STRINGS ${CP2K_SUPPORTED_ACCELERATION_TARGETS})
