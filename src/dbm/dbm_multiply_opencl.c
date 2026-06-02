@@ -417,7 +417,6 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
       if (NULL != lock_memory) {
         LIBXS_LOCK_ACQUIRE(LIBXS_LOCK, lock_memory);
       }
-#if !defined(NDEBUG)
       { /* assume A, B, and C do not carry an offset */
         size_t iadata = 0, ibdata = 0, icdata = 0;
         result |= libxstream_opencl_info_devptr_lock(&adata, NULL /*lock*/,
@@ -431,14 +430,13 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
                                                      NULL /*amount*/, &icdata);
         assert(0 == iadata && 0 == ibdata && 0 == icdata);
       }
-#endif
       result |= libxstream_opencl_info_devptr_lock(
           &batch, NULL /*lock*/, params /*batch*/, sizeof(int) * stride,
           &work_tasks, &ibatch);
       if (NULL != lock_memory) {
         LIBXS_LOCK_RELEASE(LIBXS_LOCK, lock_memory);
       }
-      { /* determine dispatch mode: per-task vs flat */
+      if (EXIT_SUCCESS == result) { /* determine dispatch mode: per-task vs flat */
         const int per_task = (0 != sgbcst && 0 == use_blkrd) ||
                              (0 != blkrd && 0 != task.mnk_changes);
         const int use_wg =
