@@ -65,6 +65,7 @@ static void upload_pack(const dbm_pack_t *pack_host, dbm_pack_t *pack_dev,
   if (pack_dev->data_size < pack_host->data_size) {
     offload_mempool_device_free(pack_dev->data);
     pack_dev->data = offload_mempool_device_malloc(size);
+    pack_dev->data_size = pack_host->data_size;
   }
   offloadMemcpyAsyncHtoD(pack_dev->data, pack_host->data, size, stream);
 }
