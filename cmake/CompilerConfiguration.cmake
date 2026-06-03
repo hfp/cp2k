@@ -89,12 +89,14 @@ if(CP2K_USE_ASAN)
   add_compile_options(
     "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:Fortran,GNU>>:-O1;${_CP2K_GNU_NATIVE_TUNE}>"
     "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:CXX,GNU>>:-O1;${_CP2K_GNU_NATIVE_TUNE}>"
-    "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:C,GNU>>:-O1;${_CP2K_GNU_NATIVE_TUNE};-Wall;-Wextra;-Werror>")
+    "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:C,GNU>>:-O1;${_CP2K_GNU_NATIVE_TUNE};-Wall;-Wextra;-Werror>"
+  )
 else()
   add_compile_options(
     "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:Fortran,GNU>>:-O0;${_CP2K_GNU_NATIVE_TUNE}>"
     "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:CXX,GNU>>:-O0;${_CP2K_GNU_NATIVE_TUNE}>"
-    "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:C,GNU>>:-O0;${_CP2K_GNU_NATIVE_TUNE};-Wall;-Wextra;-Werror>")
+    "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:C,GNU>>:-O0;${_CP2K_GNU_NATIVE_TUNE};-Wall;-Wextra;-Werror>"
+  )
 endif()
 add_compile_options(
   "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:Fortran,GNU>,$<BOOL:${CP2K_USE_ASAN}>>:-fsanitize=leak>"
@@ -239,6 +241,7 @@ endif()
 
 # Suppress GFortran runtime warnings when LIBXS provides the wrapper
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU"
-   AND NOT CP2K_USE_ASAN AND CP2K_USE_LIBXS)
+   AND NOT CP2K_USE_ASAN
+   AND CP2K_USE_LIBXS)
   add_link_options("-Wl,--wrap=_gfortran_runtime_warning_at")
 endif()

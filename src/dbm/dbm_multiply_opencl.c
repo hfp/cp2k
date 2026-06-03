@@ -436,7 +436,8 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
       if (NULL != lock_memory) {
         LIBXS_LOCK_RELEASE(LIBXS_LOCK, lock_memory);
       }
-      if (EXIT_SUCCESS == result) { /* determine dispatch mode: per-task vs flat */
+      if (EXIT_SUCCESS ==
+          result) { /* determine dispatch mode: per-task vs flat */
         const int per_task = (0 != sgbcst && 0 == use_blkrd) ||
                              (0 != blkrd && 0 != task.mnk_changes);
         const int use_wg =
