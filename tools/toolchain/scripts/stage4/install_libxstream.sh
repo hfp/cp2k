@@ -37,7 +37,7 @@ case "$with_libxstream" in
       if [ -f libxstream-${libxstream_ver}.tar.gz ]; then
         echo "libxstream-${libxstream_ver}.tar.gz is found"
       else
-        if ! download_pkg_from_cp2k_org "${libxstream_sha256}" "libxstream-${libxstream_ver}.tar.gz" 2>/dev/null; then
+        if ! download_pkg_from_cp2k_org "${libxstream_sha256}" "libxstream-${libxstream_ver}.tar.gz" 2> /dev/null; then
           download_pkg_from_urlpath "${libxstream_sha256}" "${libxstream_ver}.tar.gz" \
             https://github.com/hfp/libxstream/archive \
             "libxstream-${libxstream_ver}.tar.gz"

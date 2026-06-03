@@ -30,7 +30,7 @@ case "${with_dbcsr}" in
       if [ -f dbcsr-${dbcsr_ver}.tar.gz ]; then
         echo "dbcsr-${dbcsr_ver}.tar.gz is found"
       else
-        if ! download_pkg_from_cp2k_org "${dbcsr_sha256}" "dbcsr-${dbcsr_ver}.tar.gz" 2>/dev/null; then
+        if ! download_pkg_from_cp2k_org "${dbcsr_sha256}" "dbcsr-${dbcsr_ver}.tar.gz" 2> /dev/null; then
           download_pkg_from_urlpath "${dbcsr_sha256}" "${dbcsr_ver}.tar.gz" \
             https://github.com/cp2k/dbcsr/archive \
             "dbcsr-${dbcsr_ver}.tar.gz"
@@ -47,7 +47,7 @@ case "${with_dbcsr}" in
           sed -i "s/    H100)/    H100\\n    GB10)/" CMakeLists.txt
           sed -i "/  set(GPU_ARCH_NUMBER_H100 90)/a\\  set(GPU_ARCH_NUMBER_GB10 121)" CMakeLists.txt
           cp src/acc/libsmm_acc/parameters/parameters_H100.json \
-            src/acc/libsmm_acc/parameters/parameters_GB10.json 2>/dev/null || true
+            src/acc/libsmm_acc/parameters/parameters_GB10.json 2> /dev/null || true
         fi
       fi
       mkdir build-cpu

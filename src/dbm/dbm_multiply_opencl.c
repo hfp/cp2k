@@ -88,8 +88,7 @@ LIBXS_ATTRIBUTE_CTOR static void dbm_multiply_opencl_initialize(void) {
 
 static int dbm_multiply_gpu_launch_info(dbm_multiply_gpu_launch_info_t *info,
                                         const int *params, int ntasks,
-                                        int param_format,
-                                        int stop_at_impure) {
+                                        int param_format, int stop_at_impure) {
   assert(0 < ntasks);
   if (0 == param_format) { /* native */
     const int stride = sizeof(dbm_task_t) / sizeof(int);
@@ -344,8 +343,8 @@ int dbm_multiply_opencl_launch_kernel(void *stream, double alpha, int ntasks,
       if (0 == task_complete)
 #endif
       {
-        task_complete = dbm_multiply_gpu_launch_info(
-            &task, params_host, ntasks, param_format, 0);
+        task_complete = dbm_multiply_gpu_launch_info(&task, params_host, ntasks,
+                                                     param_format, 0);
       }
       bk = (0 < bk_max ? LIBXS_MIN(dbm_multiply_opencl_bk(task.max_k), bk_max)
                        : dbm_multiply_opencl_bk(task.max_k));
