@@ -191,8 +191,8 @@ Along with some options with CP2K:
   `/path/to/installation/share/cp2k/data`.
 - `-DCP2K_ENABLE_CONSISTENCY_CHECKS` Only used for
   [testing](https://dashboard.cp2k.org/archive/misc/index.html).
-- `-DCP2K_USE_ASAN` Enables leak sanitizer in Debug builds (default ON). Set to OFF for
-  a standard debug configuration without sanitizers (`-O0` instead of `-O1`).
+- `-DCP2K_USE_ASAN` Enables leak sanitizer in Debug builds (default ON). Set to OFF for a standard
+  debug configuration without sanitizers (`-O0` instead of `-O1`).
 - `-DCP2K_USE_CRAY_PM_ENERGY` Enables power monitoring on Cray systems.
 - `-DCP2K_USE_CRAY_PM_ACCEL_ENERGY` Enables power monitoring of accelerators on Cray systems.
 - `-DCP2K_USE_DBCSR_CONFIG` Make dbcsr cmake options (`DBCSR_USE_BLA`) available.

@@ -73,17 +73,20 @@ static inline void icumsum(const int n, const int input[n], int output[n]) {
  * \brief Private routine computing received data counts from block metadata.
  * \author Hans Pabst
  ******************************************************************************/
-static void compute_data_recv_count(
-    const int nranks, const int blks_recv_count[nranks],
-    const int blks_recv_displ[nranks], const int free_index_sizes[],
-    const int sum_index_sizes[], const dbm_pack_block_t blks_recv[],
-    int data_recv_count[nranks]) {
+static void compute_data_recv_count(const int nranks,
+                                    const int blks_recv_count[nranks],
+                                    const int blks_recv_displ[nranks],
+                                    const int free_index_sizes[],
+                                    const int sum_index_sizes[],
+                                    const dbm_pack_block_t blks_recv[],
+                                    int data_recv_count[nranks]) {
   memset(data_recv_count, 0, nranks * sizeof(int));
   for (int irank = 0; irank < nranks; irank++) {
     for (int i = 0; i < blks_recv_count[irank]; i++) {
-      const dbm_pack_block_t *const blk = &blks_recv[blks_recv_displ[irank] + i];
-      const int block_size = free_index_sizes[blk->free_index] *
-                             sum_index_sizes[blk->sum_index];
+      const dbm_pack_block_t *const blk =
+          &blks_recv[blks_recv_displ[irank] + i];
+      const int block_size =
+          free_index_sizes[blk->free_index] * sum_index_sizes[blk->sum_index];
       assert(block_size >= 0);
       assert(data_recv_count[irank] <= INT_MAX - block_size);
       data_recv_count[irank] += block_size;
@@ -378,10 +381,10 @@ static dbm_packed_matrix_t pack_matrix(const bool trans_matrix,
   // ticks are distributed along the other cart dimension.
   const dbm_dist_1d_t *dist_indices = (trans_dist) ? &dist->cols : &dist->rows;
   const dbm_dist_1d_t *dist_ticks = (trans_dist) ? &dist->rows : &dist->cols;
-  const int *free_index_sizes = (trans_matrix) ? matrix->col_sizes :
-                                                matrix->row_sizes;
-  const int *sum_index_sizes = (trans_matrix) ? matrix->row_sizes :
-                                               matrix->col_sizes;
+  const int *free_index_sizes =
+      (trans_matrix) ? matrix->col_sizes : matrix->row_sizes;
+  const int *sum_index_sizes =
+      (trans_matrix) ? matrix->row_sizes : matrix->col_sizes;
 
   // Allocate packed matrix.
   const int nsend_packs = nticks / dist_ticks->nranks;
@@ -531,13 +534,13 @@ static dbm_pack_t *sendrecv_pack(const int itick, const int nticks,
     // Exchange blocks.
     const int nblocks_in_bytes = cp_mpi_sendrecv_byte(
         /*sendbuf=*/send_pack->blocks,
-        /*sendcound=*/checked_byte_count(send_pack->nblocks,
-                                         sizeof(dbm_pack_block_t)),
+        /*sendcound=*/
+        checked_byte_count(send_pack->nblocks, sizeof(dbm_pack_block_t)),
         /*dest=*/send_rank,
         /*sendtag=*/send_ipack,
         /*recvbuf=*/packed->recv_pack.blocks,
-        /*recvcount=*/checked_byte_count(packed->max_nblocks,
-                                         sizeof(dbm_pack_block_t)),
+        /*recvcount=*/
+        checked_byte_count(packed->max_nblocks, sizeof(dbm_pack_block_t)),
         /*source=*/recv_rank,
         /*recvtag=*/recv_ipack,
         /*comm=*/packed->dist_ticks->comm);

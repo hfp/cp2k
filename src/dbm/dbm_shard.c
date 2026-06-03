@@ -162,8 +162,8 @@ static void hashtable_insert(dbm_shard_t *shard, const int block_idx) {
   const unsigned int h = hash(blk->row, blk->col);
   int slot = (shard->hashtable_prime * h) & hashtable_mask(shard);
   for (int i = 0; i < shard->hashtable_size; ++i) { // linear probing
-    if (shard->hashtable[slot] == 0) {        // 0 means empty
-      shard->hashtable[slot] = block_idx + 1; // 1-based
+    if (shard->hashtable[slot] == 0) {              // 0 means empty
+      shard->hashtable[slot] = block_idx + 1;       // 1-based
       return;
     }
     slot = (slot + 1) & hashtable_mask(shard);

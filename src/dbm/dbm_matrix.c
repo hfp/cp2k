@@ -583,8 +583,8 @@ double dbm_maxeps(const dbm_matrix_t *matrix_a, const dbm_matrix_t *matrix_b) {
       assert(NULL == blk_b || row_size == matrix_b->row_sizes[blk_b->row]);
       assert(NULL == blk_b || col_size == matrix_b->col_sizes[blk_b->col]);
       const double *const data_a = &shard_a->data[blk_a->offset];
-      const double *const data_b = (NULL == blk_b) ? NULL :
-                                                    &shard_b->data[blk_b->offset];
+      const double *const data_b =
+          (NULL == blk_b) ? NULL : &shard_b->data[blk_b->offset];
       const int block_size = row_size * col_size;
       for (int i = 0; i < block_size; ++i) {
         const double d = data_a[i] - (NULL == data_b ? 0.0 : data_b[i]);
