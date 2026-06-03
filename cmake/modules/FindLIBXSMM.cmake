@@ -23,10 +23,24 @@ if(LIBXSMMROOT)
     CP2K_LIBXSMM_INCLUDE_DIR libxsmm.h
     PATHS "${LIBXSMMROOT}/include"
     NO_DEFAULT_PATH)
+  set(_libxsmm_suffixes_save ${CMAKE_FIND_LIBRARY_SUFFIXES})
+  if(BUILD_SHARED_LIBS)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES .so .dylib)
+  else()
+    set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+  endif()
   find_library(
     CP2K_LIBXSMM_LIBRARY xsmm
     PATHS "${LIBXSMMROOT}/lib"
     NO_DEFAULT_PATH)
+  if(NOT CP2K_LIBXSMM_LIBRARY)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ${_libxsmm_suffixes_save})
+    find_library(
+      CP2K_LIBXSMM_LIBRARY xsmm
+      PATHS "${LIBXSMMROOT}/lib"
+      NO_DEFAULT_PATH)
+  endif()
+  set(CMAKE_FIND_LIBRARY_SUFFIXES ${_libxsmm_suffixes_save})
 endif()
 
 find_package_handle_standard_args(LIBXSMM DEFAULT_MSG CP2K_LIBXSMM_INCLUDE_DIR

@@ -688,10 +688,24 @@ if(CP2K_USE_ACCEL MATCHES "OPENCL")
         "LIBXSTREAMROOT not found. Set -DLIBXSTREAMROOT=/path/to/libxstream")
   endif()
   message(STATUS "Using LIBXSTREAM from ${LIBXSTREAMROOT}")
+  set(_libxstream_suffixes_save ${CMAKE_FIND_LIBRARY_SUFFIXES})
+  if(BUILD_SHARED_LIBS)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES .so .dylib)
+  else()
+    set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+  endif()
   find_library(
     CP2K_LIBXSTREAM_LIBRARY xstream
     PATHS "${LIBXSTREAMROOT}/lib"
     NO_DEFAULT_PATH)
+  if(NOT CP2K_LIBXSTREAM_LIBRARY)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ${_libxstream_suffixes_save})
+    find_library(
+      CP2K_LIBXSTREAM_LIBRARY xstream
+      PATHS "${LIBXSTREAMROOT}/lib"
+      NO_DEFAULT_PATH)
+  endif()
+  set(CMAKE_FIND_LIBRARY_SUFFIXES ${_libxstream_suffixes_save})
   if(NOT CP2K_LIBXSTREAM_LIBRARY)
     message(FATAL_ERROR "libxstream library not found in ${LIBXSTREAMROOT}/lib")
   endif()
