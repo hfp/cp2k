@@ -5,6 +5,9 @@
 #!   SPDX-License-Identifier: GPL-2.0-or-later                                                     !
 #!-------------------------------------------------------------------------------------------------!
 
+# Leak sanitizer in Debug builds (default ON, disable with -DCP2K_USE_ASAN=OFF)
+option(CP2K_USE_ASAN "Enable leak sanitizer in Debug builds" ON)
+
 set(CP2K_C_COMPILER_LIST
     "GNU;Intel;IntelLLVM;NAG;Cray;PGI;NVHPC;Clang;AppleClang")
 set(CP2K_Fortran_COMPILER_LIST "GNU;Intel;IntelLLVM;NAG;Cray;PGI;NVHPC")
@@ -82,13 +85,22 @@ add_compile_options(
 )
 
 # Debug
+if(CP2K_USE_ASAN)
+  add_compile_options(
+    "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:Fortran,GNU>>:-O1;${_CP2K_GNU_NATIVE_TUNE}>"
+    "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:CXX,GNU>>:-O1;${_CP2K_GNU_NATIVE_TUNE}>"
+    "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:C,GNU>>:-O1;${_CP2K_GNU_NATIVE_TUNE};-Wall;-Wextra;-Werror>"
+  )
+else()
+  add_compile_options(
+    "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:Fortran,GNU>>:-O0;${_CP2K_GNU_NATIVE_TUNE}>"
+    "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:CXX,GNU>>:-O0;${_CP2K_GNU_NATIVE_TUNE}>"
+    "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:C,GNU>>:-O0;${_CP2K_GNU_NATIVE_TUNE};-Wall;-Wextra;-Werror>"
+  )
+endif()
 add_compile_options(
-  "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:Fortran,GNU>>:-O1;${_CP2K_GNU_NATIVE_TUNE}>"
-  "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:CXX,GNU>>:-O1;${_CP2K_GNU_NATIVE_TUNE}>"
-  "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:C,GNU>>:-O1;${_CP2K_GNU_NATIVE_TUNE};-Wall;-Wextra;-Werror>"
-)
-add_compile_options(
-  "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:Fortran,GNU>>:-fsanitize=leak;-Werror=realloc-lhs>"
+  "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:Fortran,GNU>,$<BOOL:${CP2K_USE_ASAN}>>:-fsanitize=leak>"
+  "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:Fortran,GNU>>:-Werror=realloc-lhs>"
   "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:Fortran,GNU>>:-fcheck=all,no-array-temps;-finline-matmul-limit=0>"
   "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:Fortran,GNU>>:-ffpe-trap=invalid,zero,overflow>"
   "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:Fortran,GNU>>:-finit-derived;-finit-real=snan;-finit-integer=-42>"
@@ -100,10 +112,12 @@ add_compile_options(
   "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:Fortran,GNU>>:-Werror=unused-label;-Werror=conversion;-Werror=zerotrip>"
 )
 add_compile_definitions("$<$<CONFIG:DEBUG>:__HAS_IEEE_EXCEPTIONS;__CHECK_DIAG>")
-add_link_options(
-  "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:Fortran,GNU>>:-fsanitize=leak>"
-  "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:CXX,GNU>>:-fsanitize=leak>"
-  "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:C,GNU>>:-fsanitize=leak>")
+if(CP2K_USE_ASAN)
+  add_link_options(
+    "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:Fortran,GNU>>:-fsanitize=leak>"
+    "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:CXX,GNU>>:-fsanitize=leak>"
+    "$<$<AND:$<CONFIG:DEBUG>,$<COMPILE_LANG_AND_ID:C,GNU>>:-fsanitize=leak>")
+endif()
 
 # Conventions
 add_compile_options(
@@ -223,4 +237,11 @@ if(CMAKE_C_COMPILER_ID STREQUAL "Cray" AND CMAKE_C_COMPILER_VERSION
   # intervene, filter them out again
   list(FILTER CMAKE_C_IMPLICIT_LINK_LIBRARIES EXCLUDE REGEX "tcmalloc")
   list(FILTER CMAKE_Fortran_IMPLICIT_LINK_LIBRARIES EXCLUDE REGEX "tcmalloc")
+endif()
+
+# Suppress GFortran runtime warnings when LIBXS provides the wrapper
+if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU"
+   AND NOT CP2K_USE_ASAN
+   AND CP2K_USE_LIBXS)
+  add_link_options("-Wl,--wrap=_gfortran_runtime_warning_at")
 endif()
