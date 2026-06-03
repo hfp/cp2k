@@ -6,8 +6,8 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")/.." && pwd -P)"
 
-libxs_ver="6642"
-libxs_sha256="0000000000000000000000000000000000000000000000000000000000000000"
+libxs_ver="db4bbb98754f467b4c3f7134ef6f8f65ea63af2e"
+libxs_sha256="e79fcbb22e65612fab14325ec7624c013e58bf6aa79c31e56573e98c2b8b49c9"
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh
 source "${SCRIPT_DIR}"/signal_trap.sh
@@ -30,7 +30,7 @@ case "$with_libxs" in
       if [ -f libxs-${libxs_ver}.tar.gz ]; then
         echo "libxs-${libxs_ver}.tar.gz is found"
       else
-        if ! download_pkg_from_cp2k_org "${libxs_sha256}" "libxs-${libxs_ver}.tar.gz"; then
+        if ! download_pkg_from_cp2k_org "${libxs_sha256}" "libxs-${libxs_ver}.tar.gz" 2>/dev/null; then
           download_pkg_from_urlpath "${libxs_sha256}" "${libxs_ver}.tar.gz" \
             https://github.com/hfp/libxs/archive \
             "libxs-${libxs_ver}.tar.gz"

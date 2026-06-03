@@ -6,8 +6,8 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")/.." && pwd -P)"
 
-libxstream_ver="0.9.1"
-libxstream_sha256="0000000000000000000000000000000000000000000000000000000000000000"
+libxstream_ver="100c639398d3ad78519e5ff6a7a03b4002898200"
+libxstream_sha256="487a3a24ca079340ff1c633b27b0aa272e478d63d049cb7b64283f76f5f1f1e6"
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh
 source "${SCRIPT_DIR}"/signal_trap.sh
@@ -37,7 +37,7 @@ case "$with_libxstream" in
       if [ -f libxstream-${libxstream_ver}.tar.gz ]; then
         echo "libxstream-${libxstream_ver}.tar.gz is found"
       else
-        if ! download_pkg_from_cp2k_org "${libxstream_sha256}" "libxstream-${libxstream_ver}.tar.gz"; then
+        if ! download_pkg_from_cp2k_org "${libxstream_sha256}" "libxstream-${libxstream_ver}.tar.gz" 2>/dev/null; then
           download_pkg_from_urlpath "${libxstream_sha256}" "${libxstream_ver}.tar.gz" \
             https://github.com/hfp/libxstream/archive \
             "libxstream-${libxstream_ver}.tar.gz"
@@ -48,14 +48,21 @@ case "$with_libxstream" in
 
       echo "Installing from scratch into ${pkg_install_dir}"
       cd libxstream-${libxstream_ver}
+      # Determine LIBXS install location
+      local libxs_prefix="${INSTALLDIR}/libxs-${LIBXS_VER:-${libxs_ver:-unknown}}"
+      if [ -z "${LIBXSROOT}" ] && [ -d "${libxs_prefix}" ]; then
+        LIBXSROOT="${libxs_prefix}"
+      fi
       make -j $(get_nprocs) \
         CXX=$CXX \
         CC=$CC \
+        LIBXSROOT="${LIBXSROOT}" \
         PREFIX=${pkg_install_dir} \
         > make.log 2>&1 || tail_excerpt make.log
       make -j $(get_nprocs) \
         CXX=$CXX \
         CC=$CC \
+        LIBXSROOT="${LIBXSROOT}" \
         PREFIX=${pkg_install_dir} \
         install > install.log 2>&1 || tail_excerpt install.log
       cd ..
