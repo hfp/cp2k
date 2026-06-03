@@ -9,6 +9,7 @@
 #include "../offload/offload_mempool.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -34,6 +35,17 @@ static int gcd(const int a, const int b) {
 static int lcm(const int a, const int b) { return (a * b) / gcd(a, b); }
 
 /*******************************************************************************
+ * \brief Private routine for converting element counts to byte counts.
+ * \author Hans Pabst
+ ******************************************************************************/
+static int checked_byte_count(const int nelements, const size_t element_size) {
+  assert(0 <= nelements);
+  assert(element_size <= INT_MAX);
+  assert(nelements <= INT_MAX / (int)element_size);
+  return nelements * (int)element_size;
+}
+
+/*******************************************************************************
  * \brief Private routine for computing the sum of the given integers.
  * \author Ole Schuett
  ******************************************************************************/
@@ -54,6 +66,28 @@ static inline void icumsum(const int n, const int input[n], int output[n]) {
   for (int i = 1; i < n; i++) {
     output[i] = (oval += ival);
     ival = input[i];
+  }
+}
+
+/*******************************************************************************
+ * \brief Private routine computing received data counts from block metadata.
+ * \author Hans Pabst
+ ******************************************************************************/
+static void compute_data_recv_count(
+    const int nranks, const int blks_recv_count[nranks],
+    const int blks_recv_displ[nranks], const int free_index_sizes[],
+    const int sum_index_sizes[], const dbm_pack_block_t blks_recv[],
+    int data_recv_count[nranks]) {
+  memset(data_recv_count, 0, nranks * sizeof(int));
+  for (int irank = 0; irank < nranks; irank++) {
+    for (int i = 0; i < blks_recv_count[irank]; i++) {
+      const dbm_pack_block_t *const blk = &blks_recv[blks_recv_displ[irank] + i];
+      const int block_size = free_index_sizes[blk->free_index] *
+                             sum_index_sizes[blk->sum_index];
+      assert(block_size >= 0);
+      assert(data_recv_count[irank] <= INT_MAX - block_size);
+      data_recv_count[irank] += block_size;
+    }
   }
 }
 
@@ -344,6 +378,10 @@ static dbm_packed_matrix_t pack_matrix(const bool trans_matrix,
   // ticks are distributed along the other cart dimension.
   const dbm_dist_1d_t *dist_indices = (trans_dist) ? &dist->cols : &dist->rows;
   const dbm_dist_1d_t *dist_ticks = (trans_dist) ? &dist->rows : &dist->cols;
+  const int *free_index_sizes = (trans_matrix) ? matrix->col_sizes :
+                                                matrix->row_sizes;
+  const int *sum_index_sizes = (trans_matrix) ? matrix->row_sizes :
+                                               matrix->col_sizes;
 
   // Allocate packed matrix.
   const int nsend_packs = nticks / dist_ticks->nranks;
@@ -396,19 +434,24 @@ static dbm_packed_matrix_t pack_matrix(const bool trans_matrix,
     int blks_send_count_byte[nranks], blks_send_displ_byte[nranks];
     int blks_recv_count_byte[nranks], blks_recv_displ_byte[nranks];
     for (int i = 0; i < nranks; i++) { // TODO: this is ugly!
-      blks_send_count_byte[i] = blks_send_count[i] * sizeof(dbm_pack_block_t);
-      blks_send_displ_byte[i] = blks_send_displ[i] * sizeof(dbm_pack_block_t);
-      blks_recv_count_byte[i] = blks_recv_count[i] * sizeof(dbm_pack_block_t);
-      blks_recv_displ_byte[i] = blks_recv_displ[i] * sizeof(dbm_pack_block_t);
+      blks_send_count_byte[i] =
+          checked_byte_count(blks_send_count[i], sizeof(dbm_pack_block_t));
+      blks_send_displ_byte[i] =
+          checked_byte_count(blks_send_displ[i], sizeof(dbm_pack_block_t));
+      blks_recv_count_byte[i] =
+          checked_byte_count(blks_recv_count[i], sizeof(dbm_pack_block_t));
+      blks_recv_displ_byte[i] =
+          checked_byte_count(blks_recv_displ[i], sizeof(dbm_pack_block_t));
     }
     cp_mpi_alltoallv_byte(blks_send, blks_send_count_byte, blks_send_displ_byte,
                           blks_recv, blks_recv_count_byte, blks_recv_displ_byte,
                           dist->comm);
 
-    // 3rd communication: Exchange data counts.
-    // TODO: could be computed from blks_recv.
+    // Compute data counts from the received block metadata.
     int data_recv_count[nranks], data_recv_displ[nranks];
-    cp_mpi_alltoall_int(data_send_count, 1, data_recv_count, 1, dist->comm);
+    compute_data_recv_count(nranks, blks_recv_count, blks_recv_displ,
+                            free_index_sizes, sum_index_sizes, blks_recv,
+                            data_recv_count);
     icumsum(nranks, data_recv_count, data_recv_displ);
     const int ndata_recv = isum(nranks, data_recv_count);
 
@@ -488,11 +531,13 @@ static dbm_pack_t *sendrecv_pack(const int itick, const int nticks,
     // Exchange blocks.
     const int nblocks_in_bytes = cp_mpi_sendrecv_byte(
         /*sendbuf=*/send_pack->blocks,
-        /*sendcound=*/send_pack->nblocks * sizeof(dbm_pack_block_t),
+        /*sendcound=*/checked_byte_count(send_pack->nblocks,
+                                         sizeof(dbm_pack_block_t)),
         /*dest=*/send_rank,
         /*sendtag=*/send_ipack,
         /*recvbuf=*/packed->recv_pack.blocks,
-        /*recvcount=*/packed->max_nblocks * sizeof(dbm_pack_block_t),
+        /*recvcount=*/checked_byte_count(packed->max_nblocks,
+                                         sizeof(dbm_pack_block_t)),
         /*source=*/recv_rank,
         /*recvtag=*/recv_ipack,
         /*comm=*/packed->dist_ticks->comm);
