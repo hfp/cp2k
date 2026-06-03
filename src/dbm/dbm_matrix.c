@@ -570,25 +570,41 @@ double dbm_maxeps(const dbm_matrix_t *matrix_a, const dbm_matrix_t *matrix_b) {
   assert(matrix_a->dist == matrix_b->dist);
   assert(num_shards == dbm_get_num_shards(matrix_b));
 
-#pragma omp parallel for DBM_OMP_SCHEDULE
+#pragma omp parallel for reduction(max : epsilon) DBM_OMP_SCHEDULE
   for (int ishard = 0; ishard < num_shards; ++ishard) {
     const dbm_shard_t *const shard_a = &matrix_a->shards[ishard];
     const dbm_shard_t *const shard_b = &matrix_b->shards[ishard];
-    assert(shard_a->nblocks == shard_b->nblocks);
     for (int iblock = 0; iblock < shard_a->nblocks; ++iblock) {
       const dbm_block_t *const blk_a = &shard_a->blocks[iblock];
       const dbm_block_t *const blk_b =
           dbm_shard_lookup(shard_b, blk_a->row, blk_a->col);
       const int row_size = matrix_a->row_sizes[blk_a->row];
       const int col_size = matrix_a->col_sizes[blk_a->col];
-      assert(row_size == matrix_b->row_sizes[blk_b->row]);
-      assert(col_size == matrix_b->col_sizes[blk_b->col]);
+      assert(NULL == blk_b || row_size == matrix_b->row_sizes[blk_b->row]);
+      assert(NULL == blk_b || col_size == matrix_b->col_sizes[blk_b->col]);
       const double *const data_a = &shard_a->data[blk_a->offset];
+      const double *const data_b = (NULL == blk_b) ? NULL :
+                                                    &shard_b->data[blk_b->offset];
+      const int block_size = row_size * col_size;
+      for (int i = 0; i < block_size; ++i) {
+        const double d = data_a[i] - (NULL == data_b ? 0.0 : data_b[i]);
+        const double e = fabs(0 != data_a[i] ? (d / data_a[i]) : d);
+        if (epsilon < e) {
+          epsilon = e;
+        }
+      }
+    }
+    for (int iblock = 0; iblock < shard_b->nblocks; ++iblock) {
+      const dbm_block_t *const blk_b = &shard_b->blocks[iblock];
+      if (NULL != dbm_shard_lookup(shard_a, blk_b->row, blk_b->col)) {
+        continue;
+      }
+      const int row_size = matrix_b->row_sizes[blk_b->row];
+      const int col_size = matrix_b->col_sizes[blk_b->col];
       const double *const data_b = &shard_b->data[blk_b->offset];
       const int block_size = row_size * col_size;
       for (int i = 0; i < block_size; ++i) {
-        const double d = data_a[i] - data_b[i];
-        const double e = fabs(0 != data_a[i] ? (d / data_a[i]) : d);
+        const double e = fabs(data_b[i]);
         if (epsilon < e) {
           epsilon = e;
         }
