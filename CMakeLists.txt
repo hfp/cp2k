@@ -453,6 +453,22 @@ endif()
 # BLAS & LAPACK, PkgConfig
 find_package(Lapack REQUIRED) # also calls find_package(BLAS)
 
+message("\n------------------------------------------------------------")
+message("-                          DBCSR                           -")
+message("------------------------------------------------------------\n")
+
+if(CP2K_USE_DBCSR_CONFIG)
+  find_package(DBCSR 2.9 REQUIRED CONFIG)
+  if(CP2K_USE_MPI AND NOT DBCSR_USE_MPI)
+    message(
+      FATAL_ERROR
+        "DBCSR needs to be compiled with MPI support when CP2K MPI support is enabled"
+    )
+  endif()
+else()
+  find_package(DBCSR 2.6 REQUIRED)
+endif()
+
 # SMM (Small Matrix-Matrix multiplication)
 if(CP2K_USE_LIBXS)
   find_package(LIBXS REQUIRED)
@@ -634,24 +650,11 @@ message("------------------------------------------------------------\n")
 # PACKAGE DISCOVERY (compiler configuration can impact package discovery)
 find_package(OpenMP REQUIRED COMPONENTS Fortran C CXX)
 
-message("\n------------------------------------------------------------")
-message("-                          DBCSR                           -")
-message("------------------------------------------------------------\n")
-
-if(CP2K_USE_DBCSR_CONFIG)
-  find_package(DBCSR 2.9 REQUIRED CONFIG)
-  if(CP2K_USE_MPI AND NOT DBCSR_USE_MPI)
-    message(
-      FATAL_ERROR
-        "DBCSR needs to be compiled with MPI support when CP2K MPI support is enabled"
-    )
-  endif()
-else()
-  find_package(DBCSR 2.6 REQUIRED)
-endif()
-
-# Discover OpenCL backend via LIBXSTREAM. DBCSR must be discovered prior.
+# Discover OpenCL backend via LIBXSTREAM.
 if(CP2K_USE_ACCEL MATCHES "OPENCL")
+  if(NOT CP2K_USE_LIBXS)
+    message(FATAL_ERROR "OpenCL backend requires LIBXS (CP2K_USE_LIBXS=ON).")
+  endif()
   message("\n------------------------------------------------------------")
   message("-                          OPENCL                          -")
   message("------------------------------------------------------------\n")
@@ -664,10 +667,13 @@ if(CP2K_USE_ACCEL MATCHES "OPENCL")
   endif()
   find_package(OpenCL REQUIRED)
 
-  # Locate LIBXSTREAM: user override > pkg-config > path probing
+  # Locate LIBXSTREAM: user override > DBCSR hint > pkg-config > path probing
   set(LIBXSTREAMROOT
       ""
       CACHE PATH "Root directory of LIBXSTREAM")
+  if(NOT LIBXSTREAMROOT AND DBCSR_LIBXSTREAMROOT)
+    set(LIBXSTREAMROOT "${DBCSR_LIBXSTREAMROOT}")
+  endif()
   if(NOT LIBXSTREAMROOT AND PkgConfig_FOUND)
     pkg_check_modules(_LIBXSTREAM QUIET libxstream)
     if(_LIBXSTREAM_FOUND)

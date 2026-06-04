@@ -7,10 +7,12 @@
 
 include(FindPackageHandleStandardArgs)
 
-# Probe: user override > sibling of LIBXS > environment > common paths
+# Probe: user override > DBCSR hint > sibling of LIBXS > environment > common
+# paths
 if(NOT LIBXSMMROOT)
-  foreach(_dir "$ENV{LIBXSMMROOT}" "${LIBXSROOT}/../libxsmm"
-               "${CMAKE_SOURCE_DIR}/../libxsmm" "$ENV{HOME}/libxsmm")
+  foreach(_dir
+          "${DBCSR_LIBXSMMROOT}" "$ENV{LIBXSMMROOT}" "${LIBXSROOT}/../libxsmm"
+          "${CMAKE_SOURCE_DIR}/../libxsmm" "$ENV{HOME}/libxsmm")
     if(EXISTS "${_dir}/include/libxsmm.h")
       set(LIBXSMMROOT "${_dir}")
       break()

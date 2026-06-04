@@ -11,6 +11,20 @@ find_package(PkgConfig QUIET)
 
 cp2k_set_default_paths(LIBXS "LIBXS")
 
+# Path probing: DBCSR hint > sibling of source > $HOME > /opt
+if(CP2K_LIBXS_ROOT STREQUAL "/usr")
+  if(DBCSR_LIBXSROOT AND EXISTS "${DBCSR_LIBXSROOT}/include/libxs.h")
+    set(CP2K_LIBXS_ROOT "${DBCSR_LIBXSROOT}")
+  else()
+    foreach(_dir "${CMAKE_SOURCE_DIR}/../libxs" "$ENV{HOME}/libxs" "/opt/libxs")
+      if(EXISTS "${_dir}/include/libxs.h")
+        set(CP2K_LIBXS_ROOT "${_dir}")
+        break()
+      endif()
+    endforeach()
+  endif()
+endif()
+
 if(PKG_CONFIG_FOUND)
   if(BUILD_SHARED_LIBS)
     pkg_check_modules(CP2K_LIBXS IMPORTED_TARGET GLOBAL libxs-shared)

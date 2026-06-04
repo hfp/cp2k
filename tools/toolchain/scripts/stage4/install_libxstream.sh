@@ -6,8 +6,8 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")/.." && pwd -P)"
 
-libxstream_ver="0c62224a33ae6290f709d5851eafc1707d1faa5d"
-libxstream_sha256="8e002b14bec96e0a4100a4663a236c280db7eca73680f1cdab500702fc688e65"
+libxstream_ver="eb9acbb55f83e65572add7569c2aa0a6f38a5a41"
+libxstream_sha256="b692d10dc0a5700a09b094544444d7b95a3ebb11820844629514f9de07cad6f3"
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh
 source "${SCRIPT_DIR}"/signal_trap.sh
@@ -67,10 +67,6 @@ case "$with_libxstream" in
         install > install.log 2>&1 || tail_excerpt install.log
       cd ..
       write_checksums "${install_lock_file}" "${SCRIPT_DIR}/stage4/$(basename ${SCRIPT_NAME})"
-      if [ ! -d ${pkg_install_dir}/lib/pkgconfig ]; then
-        mkdir -p ${pkg_install_dir}/lib/pkgconfig
-      fi
-      cp ${pkg_install_dir}/lib/*.pc ${pkg_install_dir}/lib/pkgconfig/
 
       # ---- macOS: pkg-config files must not use GNU ld's "-l:libfoo.a" syntax ----
       if [[ "$(uname -s)" == "Darwin" ]]; then

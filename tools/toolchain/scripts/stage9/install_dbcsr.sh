@@ -6,8 +6,8 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_NAME}")/.." && pwd -P)"
 
-dbcsr_ver="5218cd516877b88d9714cc1028f495b44e463a27"
-dbcsr_sha256="cb49bc1ef2c6bd58f91a33ef55f2a124016cad65eaa5f376190cd90ebf817008"
+dbcsr_ver="0df59460c6cb1e8069080f1ce9caf0d382b8d0ef"
+dbcsr_sha256="e87fc029197f7d139429e4961f79cba52797dbd8b35fee6c1f1ed9bc81484a9e"
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh
 source "${SCRIPT_DIR}"/signal_trap.sh

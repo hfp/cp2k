@@ -6,8 +6,8 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")/.." && pwd -P)"
 
-libxs_ver="db4bbb98754f467b4c3f7134ef6f8f65ea63af2e"
-libxs_sha256="e79fcbb22e65612fab14325ec7624c013e58bf6aa79c31e56573e98c2b8b49c9"
+libxs_ver="1a9fad72958a07f28e7514c19328162485c3c358"
+libxs_sha256="443a60d9e84c21bfd4f4cb91e4dbefe6d304fb2f2c39fe46439d5a69622c79c5"
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh
 source "${SCRIPT_DIR}"/signal_trap.sh
@@ -57,10 +57,6 @@ case "$with_libxs" in
         install > install.log 2>&1 || tail_excerpt install.log
       cd ..
       write_checksums "${install_lock_file}" "${SCRIPT_DIR}/stage4/$(basename ${SCRIPT_NAME})"
-      if [ ! -d ${pkg_install_dir}/lib/pkgconfig ]; then
-        mkdir -p ${pkg_install_dir}/lib/pkgconfig
-      fi
-      cp ${pkg_install_dir}/lib/*.pc ${pkg_install_dir}/lib/pkgconfig/
 
       # ---- macOS: pkg-config files must not use GNU ld's "-l:libfoo.a" syntax ----
       if [[ "$(uname -s)" == "Darwin" ]]; then

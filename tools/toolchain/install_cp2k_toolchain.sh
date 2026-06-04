@@ -268,16 +268,14 @@ Specific options of --with-PKG:
                           will also be installed; if CUDA and/or HIP support is
                           enabled too, respective versions will all be built.
                           Default = install
-  --with-libxsmm          Enable libxsmm as a small matrix multiplication
-                          library. Installing is only supported on arch
-                          x86_64 or arm64.
+  --with-libxsmm          Enable LIBXSMM to provide kernels for LIBXS.
+                          Installing is supported on arch x86_64 or arm64.
                           Default = install
-  --with-libxs            Enable libxs as a replacement for libxsmm.
-                          Library for specialized dense and sparse matrix
-                          operations.
+  --with-libxs            Enable LIBXS as a small matrix multiplication
+                          library and for other low-level operations.
                           Default = install
-  --with-libxstream       Enable libxstream as an OpenCL-based accelerator
-                          backend (requires libxs).
+  --with-libxstream       Enable LIBXSTREAM as an OpenCL-based accelerator
+                          backend (requires LIBXS).
                           Default = install
   --with-scalapack        Enable ScaLAPACK for parallel linear algebra
                           calculations.
@@ -497,7 +495,7 @@ with_fftw="__INSTALL__"
 with_libint="__INSTALL__"
 with_libxsmm="__INSTALL__"
 with_libxs="__INSTALL__"
-with_libxstream="__INSTALL__"
+with_libxstream="__DONTUSE__"
 with_libxc="__INSTALL__"
 with_gauxc="__DONTUSE__"
 with_scalapack="__INSTALL__"
@@ -1092,28 +1090,34 @@ by --help option for supported ones."
   fi
 fi
 
-# If OpenCL is enabled, make sure LIBXSMM is enabled as well.
+# If OpenCL is enabled, ensure LIBXS and LIBXSTREAM are available.
 if [ "${ENABLE_OPENCL}" = "__TRUE__" ]; then
-  if [ "${with_libxsmm}" = "__DONTUSE__" ]; then
-    report_warning ${LINENO} "When enabling OpenCL, libxsmm is needed."
-    with_libxsmm="__INSTALL__"
-  fi
   if [ "${with_libxs}" = "__DONTUSE__" ]; then
-    report_warning ${LINENO} "When enabling OpenCL, libxs is needed."
+    report_warning ${LINENO} "When enabling OpenCL, LIBXS is needed."
     with_libxs="__INSTALL__"
   fi
   if [ "${with_libxstream}" = "__DONTUSE__" ]; then
-    report_warning ${LINENO} "When enabling OpenCL, libxstream is needed."
+    report_warning ${LINENO} "When enabling OpenCL, LIBXSTREAM is needed."
     with_libxstream="__INSTALL__"
+  fi
+else
+  if [ "${with_libxstream}" != "__DONTUSE__" ]; then
+    with_libxstream="__DONTUSE__"
   fi
 fi
 
-# libxstream depends on libxs
+# LIBXSTREAM depends on LIBXS
 if [ "${with_libxstream}" != "__DONTUSE__" ]; then
   if [ "${with_libxs}" = "__DONTUSE__" ]; then
-    report_warning ${LINENO} "libxstream requires libxs, enabling libxs."
+    report_warning ${LINENO} "LIBXSTREAM requires LIBXS, enabling LIBXS."
     with_libxs="__INSTALL__"
   fi
+fi
+
+# LIBXSMM kernels are delivered through LIBXS
+if [ "${with_libxsmm}" != "__DONTUSE__" ] && [ "${with_libxs}" = "__DONTUSE__" ]; then
+  report_warning ${LINENO} "LIBXSMM requires LIBXS, disabling LIBXSMM."
+  with_libxsmm="__DONTUSE__"
 fi
 
 if [ "${with_gauxc}" != "__DONTUSE__" ] &&
