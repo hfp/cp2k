@@ -1,5 +1,0 @@
-{
-    "description": "OpenPMD for CP2K",
-    "archive": "libcp2kopenpmd",
-    "requires": ["../base", "../mpiwrap"],
-}

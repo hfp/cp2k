@@ -1,4 +1,0 @@
-[submodule "exts/dbcsr"]
-	path = exts/dbcsr
-	url = https://github.com/hfp/dbcsr
-	branch = develop
