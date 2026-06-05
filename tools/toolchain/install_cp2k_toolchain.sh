@@ -294,6 +294,7 @@ Specific options of --with-PKG:
                           Default = install
   --with-fmt              Enable the formatting C/C++ library.
                           This package is required for SIRIUS.
+                          Default = no
   --with-libtorch         Enable libtorch as a machine learning framework.
                           This package is required for NequIP and Allegro, and
                           also for installing DeePMD-kit.
@@ -304,7 +305,7 @@ Specific options of --with-PKG:
                           Default = no
   --with-hdf5             Enable the hdf5 library for file format support.
                           This package is used by sirius and trexio.
-                          Default = install
+                          Default = no
   --with-libsmeagol       Enable interface to SMEAGOL NEGF library.
                           This package requires MPI.
                           Default = no
@@ -328,11 +329,11 @@ Specific options of --with-PKG:
                           If tblite is used, standalone DFTD4 package specified
                           by --with-dftd4 will not be used.
                           This package requires CMake.
-                          Default = no
-  --with-sirius           Enable interface to the plane wave SIRIUS library.
-                          This package requires GSL, libspg, ELPA, ScaLAPACK,
-                          HDF5, Libxc and pugixml, and libvdwxc is optinal.
                           Default = install
+  --with-sirius           Enable interface to the plane wave SIRIUS library.
+                          This package requires Libxc, ScaLAPACK, ELPA, GSL,
+                          libspg, HDF5, pugixml, and libvdwxc.
+                          Default = no
   --with-pugixml          Enable pugixml library for XML parsing.
                           This library is required by SIRIUS.
                           Default = no
@@ -499,7 +500,7 @@ with_libxstream="__DONTUSE__"
 with_libxc="__INSTALL__"
 with_gauxc="__DONTUSE__"
 with_scalapack="__INSTALL__"
-with_sirius="__INSTALL__"
+with_sirius="__DONTUSE__"
 with_gsl="__DONTUSE__"
 with_fmt="__DONTUSE__"
 with_spglib="__INSTALL__"
@@ -516,7 +517,7 @@ with_libvori="__INSTALL__"
 with_libtorch="__DONTUSE__"
 with_ninja="__DONTUSE__"
 with_dftd4="__DONTUSE__"
-with_tblite="__DONTUSE__"
+with_tblite="__INSTALL__"
 with_libsmeagol="__DONTUSE__"
 with_mcl="__DONTUSE__"
 

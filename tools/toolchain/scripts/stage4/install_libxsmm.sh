@@ -108,6 +108,7 @@ if [ "$with_libxsmm" != "__DONTUSE__" ]; then
   LIBXSMM_LIBS="-lxsmmf -lxsmmext -lxsmm -ldl -lpthread"
   cat << EOF > "${BUILDDIR}/setup_libxsmm"
 export LIBXSMM_VER="${libxsmm_ver}"
+export LIBXSMMROOT="${pkg_install_dir:-}"
 EOF
   if [ "$with_libxsmm" != "__SYSTEM__" ]; then
     cat << EOF >> "${BUILDDIR}/setup_libxsmm"

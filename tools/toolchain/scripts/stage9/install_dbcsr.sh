@@ -50,10 +50,23 @@ case "${with_dbcsr}" in
             src/acc/libsmm_acc/parameters/parameters_GB10.json 2> /dev/null || true
         fi
       fi
+      # Locate fypp (GitHub tarballs lack submodules).
+      FYPP_EXE=""
+      if [ -x "${ROOTDIR}/../../tools/build_utils/fypp" ]; then
+        FYPP_EXE="${ROOTDIR}/../../tools/build_utils/fypp"
+      elif [ -x "${SCRIPT_DIR}/fypp" ]; then
+        FYPP_EXE="${SCRIPT_DIR}/fypp"
+      elif command -v fypp > /dev/null 2>&1; then
+        FYPP_EXE="$(command -v fypp)"
+      else
+        report_error $LINENO "Failed to find the FYPP preprocessor."
+        exit 1
+      fi
       mkdir build-cpu
       cd build-cpu
       CMAKE_OPTIONS="-DBUILD_TESTING=NO -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_VERBOSE_MAKEFILE=ON"
       CMAKE_OPTIONS="${CMAKE_OPTIONS} -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DUSE_OPENMP=ON -DWITH_EXAMPLES=NO"
+      CMAKE_OPTIONS="${CMAKE_OPTIONS} -DFYPP_EXECUTABLE=${FYPP_EXE}"
       if [ "${with_libxsmm}" == "__DONTUSE__" ]; then
         CMAKE_OPTIONS="${CMAKE_OPTIONS} -DUSE_LIBXSMM=OFF"
       fi
