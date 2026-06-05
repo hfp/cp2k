@@ -1546,23 +1546,18 @@ if(CP2K_USE_CUDA
     list(APPEND CP2K_DBM_SRCS_C dbm/dbm_multiply_gpu.c)
     if(CP2K_USE_OPENCL)
       set(CP2K_DBM_OPENCL_KERNEL dbm/dbm_multiply_opencl.cl)
-      set(CP2K_DBM_OPENCL_GENHDR
-          "${CMAKE_CURRENT_BINARY_DIR}/${CP2K_DBM_OPENCL_KERNEL}.h")
       add_custom_command(
         COMMAND
-          ${CP2K_OPENCL_SCRIPT} -b 6 -p \"\" -I "${LIBXSTREAMROOT}/include"
+          # generate header file with OpenCL code as string-literal
+          ${CP2K_OPENCL_SCRIPT} -b 6 -p \"\"
           ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_OPENCL_KERNEL}
-          "${CP2K_DBM_OPENCL_GENHDR}"
+          ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_OPENCL_KERNEL}.h
         DEPENDS ${CP2K_OPENCL_SCRIPT} ${CP2K_OPENCL_COMMON}
                 ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_OPENCL_KERNEL}
-        OUTPUT "${CP2K_DBM_OPENCL_GENHDR}"
+        OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_OPENCL_KERNEL}.h
         COMMENT "Generating OpenCL kernel for DBM")
-      add_custom_target(cp2k_dbm_opencl_kernel
-                        DEPENDS "${CP2K_DBM_OPENCL_GENHDR}")
-      include_directories(${CMAKE_CURRENT_BINARY_DIR}/dbm)
-      include_directories(${LIBXSTREAMROOT}/include)
-      include_directories(${LIBXSTREAMROOT}/samples)
-      list(APPEND CP2K_DBM_SRCS_C dbm/dbm_multiply_opencl.c)
+      list(APPEND CP2K_DBM_SRCS_C dbm/dbm_multiply_opencl.c
+           ${CP2K_DBM_OPENCL_KERNEL}.h)
     else()
       list(APPEND CP2K_SRCS_GPU ${CP2K_DBM_SRCS_GPU})
     endif()
@@ -1578,10 +1573,9 @@ endif()
 
 list(APPEND CP2K_SRCS_C ${CP2K_DBM_SRCS_C} ${CP2K_GRID_SRCS_C})
 
-list(APPEND CP2K_SRCS_F openpmd/openpmd_api.F
-     input/cp_output_handling_openpmd.F cp_realspace_grid_openpmd.F
-     pw/realspace_grid_openpmd.F)
-list(APPEND CP2K_SRCS_CPP openpmd/openpmd_c_api.cpp)
+list(APPEND CP2K_SRCS_F openpmd_api.F input/cp_output_handling_openpmd.F
+     cp_realspace_grid_openpmd.F pw/realspace_grid_openpmd.F)
+list(APPEND CP2K_SRCS_CPP openpmd_c_api.cpp)
 
 # ##############################################################################
 # check that the files registered in CMakeLists.txt are all present and return
@@ -1634,10 +1628,9 @@ add_library(cp2k_linalg_libs INTERFACE)
 target_link_libraries(
   cp2k_linalg_libs
   INTERFACE cp2k::LAPACK::lapack
-            $<$<BOOL:${CP2K_USE_LIBXS}>:cp2k::LIBXS::libxs>
-            $<$<BOOL:${LIBXSMM_FOUND}>:cp2k::LIBXSMM>
-            $<$<BOOL:${CP2K_USE_OPENCL}>:${CP2K_LIBXSTREAM_LIBRARY}>
-            $<$<BOOL:${CP2K_USE_OPENCL}>:OpenCL::OpenCL>
+            $<$<BOOL:${CP2K_USE_LIBXSMM}>:cp2k::LibXSMM::libxsmmf>
+            $<$<BOOL:${CP2K_USE_LIBXSMM}>:cp2k::LibXSMM::libxsmmext>
+            $<$<BOOL:${CP2K_USE_LIBXSMM}>:cp2k::LibXSMM::libxsmm>
             cp2k::BLAS::blas
             $<$<BOOL:${CP2K_USE_CUDA}>:cp2k_cuda_libs>
             $<$<BOOL:${CP2K_USE_HIP}>:cp2k_hip_libs>
@@ -1709,10 +1702,6 @@ endif()
 target_compile_features(cp2k PUBLIC cuda_std_11)
 target_include_directories(cp2k PUBLIC $<INSTALL_INTERFACE:include/cp2k>)
 
-if(TARGET cp2k_dbm_opencl_kernel)
-  add_dependencies(cp2k cp2k_dbm_opencl_kernel)
-endif()
-
 set_target_properties(
   cp2k
   PROPERTIES IMPORTED_LINK_INTERFACE_LANGUAGES "CXX"
@@ -1729,7 +1718,6 @@ elseif(CP2K_USE_ACCEL MATCHES "HIP")
                                     "${CMAKE_HIP_ARCHITECTURES}")
 elseif(CP2K_USE_ACCEL MATCHES "OPENCL")
   include_directories(${CP2K_OPENCL_BACKEND})
-  include_directories(${LIBXSTREAMROOT}/samples)
   include_directories(${OpenCL_INCLUDE_DIR})
 endif()
 
@@ -1845,11 +1833,7 @@ target_compile_definitions(
     $<$<BOOL:${CP2K_USE_LIBFCI}>:__LIBFCI>
     $<$<BOOL:${CP2K_USE_LIBTORCH}>:__LIBTORCH>
     $<$<BOOL:${CP2K_USE_COSMA}>:__COSMA>
-    $<$<BOOL:${CP2K_USE_LIBXS}>:__LIBXS>
-    $<$<BOOL:${CP2K_USE_LIBXS}>:__BLAS>
-    $<$<BOOL:${LIBXSMM_FOUND}>:__LIBXSMM>
     $<$<BOOL:${CP2K_USE_LIBXSMM}>:__LIBXSMM>
-    $<$<BOOL:${CP2K_USE_OPENCL}>:__LIBXSTREAM>
     $<$<BOOL:${CP2K_USE_SIRIUS_DFTD3}>:__SIRIUS_DFTD3>
     $<$<BOOL:${CP2K_USE_SIRIUS_DFTD4}>:__SIRIUS_DFTD4>
     $<$<BOOL:${CP2K_USE_SIRIUS_NLCG}>:__SIRIUS_NLCG>
@@ -1964,15 +1948,9 @@ endforeach()
 add_executable(
   dbm_miniapp dbm/dbm_miniapp.c ${CP2K_DBM_SRCS_C} ${CP2K_MPIWRAP_SRCS_C}
               ${CP2K_DBM_SRCS_GPU} ${CP2K_OFFLOAD_SRCS_C})
-if(TARGET cp2k_dbm_opencl_kernel)
-  add_dependencies(dbm_miniapp cp2k_dbm_opencl_kernel)
-endif()
 target_compile_definitions(
-  dbm_miniapp
-  PRIVATE $<$<BOOL:${CP2K_USE_LIBXS}>:__LIBXS>
-          $<$<BOOL:${CP2K_USE_LIBXS}>:__BLAS>
-          $<$<BOOL:${LIBXSMM_FOUND}>:__LIBXSMM>
-          $<$<STREQUAL:"${CP2K_BLAS_VENDOR}","MKL">:__MKL>)
+  dbm_miniapp PRIVATE $<$<BOOL:${CP2K_USE_LIBXSMM}>:__LIBXSMM>
+                      $<$<STREQUAL:"${CP2K_BLAS_VENDOR}","MKL">:__MKL>)
 
 if(CP2K_DISABLE_DBM_GPU)
   target_compile_definitions(dbm_miniapp PRIVATE __NO_OFFLOAD_DBM)
@@ -1990,11 +1968,8 @@ foreach(__app grid_miniapp grid_unittest)
     ${CP2K_MPIWRAP_SRCS_C}
     ${CP2K_OFFLOAD_SRCS_C})
   target_compile_definitions(
-    ${__app}
-    PRIVATE $<$<BOOL:${CP2K_USE_LIBXS}>:__LIBXS>
-            $<$<BOOL:${CP2K_USE_LIBXS}>:__BLAS>
-            $<$<BOOL:${LIBXSMM_FOUND}>:__LIBXSMM>
-            $<$<STREQUAL:"${CP2K_BLAS_VENDOR}","MKL">:__MKL>)
+    ${__app} PRIVATE $<$<BOOL:${CP2K_USE_LIBXSMM}>:__LIBXSMM>
+                     $<$<STREQUAL:"${CP2K_BLAS_VENDOR}","MKL">:__MKL>)
 
   if(CP2K_DISABLE_GRID_GPU)
     target_compile_definitions(${__app} PUBLIC __NO_OFFLOAD_GRID)
