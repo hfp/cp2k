@@ -13,11 +13,11 @@ cp2k_set_default_paths(LIBXS "LIBXS")
 
 # Path probing: DBCSR hint > sibling of source > $HOME > /opt
 if(CP2K_LIBXS_ROOT STREQUAL "/usr")
-  if(DBCSR_LIBXSROOT AND EXISTS "${DBCSR_LIBXSROOT}/include/libxs.h")
+  if(DBCSR_LIBXSROOT AND EXISTS "${DBCSR_LIBXSROOT}/libxs/libxs.h")
     set(CP2K_LIBXS_ROOT "${DBCSR_LIBXSROOT}")
   else()
     foreach(_dir "${CMAKE_SOURCE_DIR}/../libxs" "$ENV{HOME}/libxs" "/opt/libxs")
-      if(EXISTS "${_dir}/include/libxs.h")
+      if(EXISTS "${_dir}/libxs/libxs.h")
         set(CP2K_LIBXS_ROOT "${_dir}")
         break()
       endif()
@@ -52,7 +52,7 @@ if(NOT CP2K_LIBXS_FOUND)
 endif()
 
 if(NOT CP2K_LIBXS_INCLUDE_DIRS)
-  cp2k_include_dirs(LIBXS "libxs.h;include/libxs.h")
+  cp2k_include_dirs(LIBXS "libxs/libxs.h")
 endif()
 
 if(CP2K_LIBXS_INCLUDE_DIRS)
