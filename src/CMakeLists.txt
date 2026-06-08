@@ -1800,6 +1800,10 @@ if(CP2K_DATA_DIR STREQUAL "default")
 endif()
 
 target_link_libraries(cp2k PUBLIC cp2k_link_libs)
+if(CP2K_USE_LIBXS AND CP2K_LIBXS_INCLUDE_DIRS)
+  target_sources(cp2k PRIVATE
+    "${CP2K_LIBXS_INCLUDE_DIRS}/libxs/libxs_jit.F")
+endif()
 target_compile_definitions(
   cp2k
   PUBLIC
@@ -1845,7 +1849,6 @@ target_compile_definitions(
     $<$<BOOL:${CP2K_USE_LIBTORCH}>:__LIBTORCH>
     $<$<BOOL:${CP2K_USE_COSMA}>:__COSMA>
     $<$<BOOL:${CP2K_USE_LIBXS}>:__LIBXS>
-    $<$<BOOL:${CP2K_USE_LIBXS}>:__BLAS>
     $<$<BOOL:${LIBXSMM_FOUND}>:__LIBXSMM>
     $<$<BOOL:${CP2K_USE_LIBXSMM}>:__LIBXSMM>
     $<$<BOOL:${CP2K_USE_OPENCL}>:__LIBXSTREAM>
