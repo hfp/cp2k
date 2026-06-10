@@ -696,7 +696,25 @@ if(CP2K_USE_ELPA)
 endif()
 
 if(CP2K_USE_LIBXC)
-  find_package(Libxc 7 REQUIRED)
+  find_package(Libxc 7 QUIET)
+  if(NOT Libxc_FOUND AND PkgConfig_FOUND)
+    pkg_check_modules(CP2K_LIBXCF03 QUIET IMPORTED_TARGET GLOBAL libxcf03>=7)
+    if(NOT CP2K_LIBXCF03_FOUND)
+      pkg_check_modules(CP2K_LIBXCF03 QUIET IMPORTED_TARGET GLOBAL libxc>=7)
+    endif()
+    pkg_check_modules(CP2K_LIBXC QUIET IMPORTED_TARGET GLOBAL libxc>=7)
+    if(CP2K_LIBXCF03_FOUND AND NOT TARGET Libxc::xcf03)
+      add_library(Libxc::xcf03 INTERFACE IMPORTED)
+      target_link_libraries(
+        Libxc::xcf03
+        INTERFACE PkgConfig::CP2K_LIBXCF03
+                  $<$<BOOL:${CP2K_LIBXC_FOUND}>:PkgConfig::CP2K_LIBXC>)
+    endif()
+  endif()
+  if(NOT Libxc_FOUND AND NOT CP2K_LIBXCF03_FOUND)
+    message(
+      FATAL_ERROR "LibXC >= 7 not found (tried CMake config and pkg-config)")
+  endif()
 endif()
 
 if(CP2K_USE_GAUXC)
