@@ -1633,8 +1633,8 @@ add_library(cp2k_linalg_libs INTERFACE)
 target_link_libraries(
   cp2k_linalg_libs
   INTERFACE cp2k::LAPACK::lapack
-            $<$<BOOL:${CP2K_USE_LIBXS}>:cp2k::LIBXS::libxs>
-            $<$<BOOL:${LIBXSMM_FOUND}>:cp2k::LIBXSMM>
+            $<$<BOOL:${CP2K_USE_LIBXS}>:libxs::libxs>
+            $<$<BOOL:${CP2K_USE_LIBXSMM}>:cp2k::LIBXSMM>
             $<$<BOOL:${CP2K_USE_OPENCL}>:${CP2K_LIBXSTREAM_LIBRARY}>
             $<$<BOOL:${CP2K_USE_OPENCL}>:OpenCL::OpenCL>
             cp2k::BLAS::blas
@@ -1800,9 +1800,15 @@ if(CP2K_DATA_DIR STREQUAL "default")
 endif()
 
 target_link_libraries(cp2k PUBLIC cp2k_link_libs)
-if(CP2K_USE_LIBXS AND CP2K_LIBXS_INCLUDE_DIRS)
-  target_sources(cp2k PRIVATE
-    "${CP2K_LIBXS_INCLUDE_DIRS}/libxs/libxs_jit.F")
+if(CP2K_USE_LIBXS AND TARGET libxs::libxs)
+  get_target_property(_libxs_incdirs libxs::libxs INTERFACE_INCLUDE_DIRECTORIES)
+  list(GET _libxs_incdirs 0 _libxs_root)
+  find_file(CP2K_LIBXS_JIT_SOURCE NAMES libxs/libxs_jit.F libxs_jit.F
+    HINTS "${_libxs_root}" "${_libxs_root}/libxs"
+           "${_libxs_root}/include/libxs")
+  if(CP2K_LIBXS_JIT_SOURCE)
+    target_sources(cp2k PRIVATE "${CP2K_LIBXS_JIT_SOURCE}")
+  endif()
 endif()
 target_compile_definitions(
   cp2k
@@ -1849,7 +1855,6 @@ target_compile_definitions(
     $<$<BOOL:${CP2K_USE_LIBTORCH}>:__LIBTORCH>
     $<$<BOOL:${CP2K_USE_COSMA}>:__COSMA>
     $<$<BOOL:${CP2K_USE_LIBXS}>:__LIBXS>
-    $<$<BOOL:${LIBXSMM_FOUND}>:__LIBXSMM>
     $<$<BOOL:${CP2K_USE_LIBXSMM}>:__LIBXSMM>
     $<$<BOOL:${CP2K_USE_OPENCL}>:__LIBXSTREAM>
     $<$<BOOL:${CP2K_USE_SIRIUS_DFTD3}>:__SIRIUS_DFTD3>
@@ -1973,7 +1978,7 @@ target_compile_definitions(
   dbm_miniapp
   PRIVATE $<$<BOOL:${CP2K_USE_LIBXS}>:__LIBXS>
           $<$<BOOL:${CP2K_USE_LIBXS}>:__BLAS>
-          $<$<BOOL:${LIBXSMM_FOUND}>:__LIBXSMM>
+          $<$<BOOL:${CP2K_USE_LIBXSMM}>:__LIBXSMM>
           $<$<STREQUAL:"${CP2K_BLAS_VENDOR}","MKL">:__MKL>)
 
 if(CP2K_DISABLE_DBM_GPU)
@@ -1995,7 +2000,7 @@ foreach(__app grid_miniapp grid_unittest)
     ${__app}
     PRIVATE $<$<BOOL:${CP2K_USE_LIBXS}>:__LIBXS>
             $<$<BOOL:${CP2K_USE_LIBXS}>:__BLAS>
-            $<$<BOOL:${LIBXSMM_FOUND}>:__LIBXSMM>
+            $<$<BOOL:${CP2K_USE_LIBXSMM}>:__LIBXSMM>
             $<$<STREQUAL:"${CP2K_BLAS_VENDOR}","MKL">:__MKL>)
 
   if(CP2K_DISABLE_GRID_GPU)
