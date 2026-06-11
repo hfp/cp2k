@@ -174,6 +174,9 @@ cmake_dependent_option(CP2K_USE_MIMIC "Enable MIMIC support"
 
 cmake_dependent_option(CP2K_USE_LIBXSMM "Enable LIBXSMM JIT-kernel for LIBXS"
                        ${CP2K_USE_EVERYTHING} "CP2K_USE_LIBXS" OFF)
+if(CP2K_USE_LIBXSMM AND NOT CP2K_USE_LIBXS)
+  set(CP2K_USE_LIBXS ON CACHE BOOL "" FORCE)
+endif()
 
 cmake_dependent_option(CP2K_USE_LIBVDWXC "Enable libvdwxc support with SIRIUS"
                        ${CP2K_USE_EVERYTHING} "CP2K_USE_SIRIUS" OFF)
@@ -673,7 +676,7 @@ find_package(OpenMP REQUIRED COMPONENTS Fortran C CXX)
 # Discover OpenCL backend via LIBXSTREAM.
 if(CP2K_USE_ACCEL MATCHES "OPENCL")
   if(NOT CP2K_USE_LIBXS)
-    message(FATAL_ERROR "OpenCL backend requires LIBXS (CP2K_USE_LIBXS=ON).")
+    set(CP2K_USE_LIBXS ON CACHE BOOL "" FORCE)
   endif()
   message("\n------------------------------------------------------------")
   message("-                          OPENCL                          -")
