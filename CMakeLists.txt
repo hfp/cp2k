@@ -137,7 +137,9 @@ option(CP2K_USE_OPENPMD "Enable support for I/O via openPMD" OFF)
 option(CP2K_USE_LIBXC "Enable LibXC support" ${CP2K_USE_EVERYTHING})
 option(CP2K_USE_GAUXC "Enable GauXC support" ${CP2K_USE_EVERYTHING})
 option(CP2K_USE_MPI "Enable MPI support" ${CP2K_USE_EVERYTHING})
-option(CP2K_USE_LIBXS "Enable LIBXS support" ${CP2K_USE_EVERYTHING})
+option(CP2K_USE_LIBXS
+       "Enable LIBXS support; required if OpenCL backend enabled"
+       ${CP2K_USE_EVERYTHING})
 option(CP2K_USE_PEXSI "Enable PEXSI support" ${CP2K_USE_EVERYTHING})
 option(CP2K_USE_SPGLIB "Enable Spglib support" ${CP2K_USE_EVERYTHING})
 option(CP2K_USE_TREXIO "Enable TREXIO support" ${CP2K_USE_EVERYTHING})
@@ -174,9 +176,6 @@ cmake_dependent_option(CP2K_USE_MIMIC "Enable MIMIC support"
 
 cmake_dependent_option(CP2K_USE_LIBXSMM "Enable LIBXSMM JIT-kernel for LIBXS"
                        ${CP2K_USE_EVERYTHING} "CP2K_USE_LIBXS" OFF)
-if(CP2K_USE_LIBXSMM AND NOT CP2K_USE_LIBXS)
-  set(CP2K_USE_LIBXS ON CACHE BOOL "" FORCE)
-endif()
 
 cmake_dependent_option(CP2K_USE_LIBVDWXC "Enable libvdwxc support with SIRIUS"
                        ${CP2K_USE_EVERYTHING} "CP2K_USE_SIRIUS" OFF)
@@ -676,7 +675,11 @@ find_package(OpenMP REQUIRED COMPONENTS Fortran C CXX)
 # Discover OpenCL backend via LIBXSTREAM.
 if(CP2K_USE_ACCEL MATCHES "OPENCL")
   if(NOT CP2K_USE_LIBXS)
-    set(CP2K_USE_LIBXS ON CACHE BOOL "" FORCE)
+    message(
+      WARNING
+        "CP2K_USE_LIBXS is not set but LIBXS is required for OpenCL backend; "
+        "overriding CP2K_USE_LIBXS=OFF and enabling LIBXS")
+    find_package(libxs REQUIRED)
   endif()
   message("\n------------------------------------------------------------")
   message("-                          OPENCL                          -")
