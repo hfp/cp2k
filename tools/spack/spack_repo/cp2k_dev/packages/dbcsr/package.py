@@ -24,7 +24,7 @@ class Dbcsr(CMakePackage, CudaPackage, ROCmPackage):
     license("GPL-2.0-or-later")
 
     version("develop", branch="develop")
-    version("2.9.1-cmake-test", commit="1ba44db5eff2f9ac549fb84eba61acd9f24f2071")
+    version("2.9.1-cmake-test", commit="4d85b72e3427ec7f595ad0cf38a4d00f72f9ff60")
 
     variant("tests", default=False, description="Build DBCSR unit tests")
     variant("tests", default=True, description="Build DBCSR unit tests", when="@2.1:2.2")
