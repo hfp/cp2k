@@ -1370,6 +1370,10 @@ endif()
 
 if(NOT CP2K_USE_FFTW3)
   message("   - FFTW3")
+  message(
+    WARNING
+      "FFTW3 may become mandatory in future releases of CP2K. Calculations requiring large grid sizes may not work properly without FFTW3. Please consider installing and enabling it."
+  )
 endif()
 
 if(NOT CP2K_USE_LIBTORCH)
