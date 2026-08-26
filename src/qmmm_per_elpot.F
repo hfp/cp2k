@@ -132,8 +132,9 @@ CONTAINS
          ALLOCATE (per_potentials(K)%Pot)
          SELECT CASE (qmmm_coupl_type)
          CASE (do_qmmm_coulomb, do_qmmm_pcharge)
-            ! Not yet implemented for this case
-            CPABORT("")
+            CALL cp_abort(__LOCATION__, &
+                          "QM/MM coupling type Coulomb or Point_Charge not "// &
+                          "yet implemented for qmmm_per_potential_init")
          CASE (do_qmmm_gauss, do_qmmm_swave)
             ALLOCATE (Lg(Ndim))
             ALLOCATE (gx(Ndim))
@@ -148,8 +149,9 @@ CONTAINS
 
          SELECT CASE (qmmm_coupl_type)
          CASE (do_qmmm_coulomb, do_qmmm_pcharge)
-            ! Not yet implemented for this case
-            CPABORT("")
+            CALL cp_abort(__LOCATION__, &
+                          "QM/MM coupling type Coulomb or Point_Charge not "// &
+                          "yet implemented for qmmm_per_potential_init")
          CASE (do_qmmm_gauss, do_qmmm_swave)
             pgf => pgfs(K)%pgf
             idim = 0
@@ -171,7 +173,7 @@ CONTAINS
                         g = SQRT(g2)
                         IF (qmmm_coupl_type == do_qmmm_gauss) THEN
                            LG(idim) = 4.0_dp*Pi/g2*EXP(-(g2*rc2)/4.0_dp)
-                        ELSEIF (qmmm_coupl_type == do_qmmm_swave) THEN
+                        ELSE IF (qmmm_coupl_type == do_qmmm_swave) THEN
                            tmp = 4.0_dp/rc2
                            LG(idim) = 4.0_dp*Pi*tmp**2/(g2*(g2 + tmp)**2)
                         END IF
@@ -203,7 +205,7 @@ CONTAINS
                box(2) = (qm_cell_small%hmat(2, 2) - mm_cell%hmat(2, 2))/2.0_dp
                box(3) = (qm_cell_small%hmat(3, 3) - mm_cell%hmat(3, 3))/2.0_dp
                IF (ANY(box > 0.0_dp)) THEN
-                  CPABORT("")
+                  CPABORT("QM cell and MM cell differ in size")
                END IF
                n_rep_real(1) = CEILING((box(1) + mymaxradius)/mm_cell%hmat(1, 1))
                n_rep_real(2) = CEILING((box(2) + mymaxradius)/mm_cell%hmat(2, 2))
@@ -361,19 +363,20 @@ CONTAINS
 
       CALL ewald_env_get(ewald_env, ewald_type=ewald_type, do_multipoles=do_multipoles, &
                          gmax=gmax, o_spline=o_spline, alpha=alpha, rcut=rcut)
-      IF (do_multipoles) &
+      IF (do_multipoles) THEN
          CPABORT("No multipole force fields allowed in QM-QM Ewald long range correction")
+      END IF
 
       SELECT CASE (qmmm_coupl_type)
       CASE (do_qmmm_coulomb)
          CPABORT("QM-QM long range correction not possible with COULOMB coupling")
-      CASE (do_qmmm_pcharge)
+      CASE (do_qmmm_pcharge, do_qmmm_gauss)
          ! OK
-      CASE (do_qmmm_gauss, do_qmmm_swave)
-         CPABORT("QM-QM long range correction not possible with GAUSS/SWAVE coupling")
+      CASE (do_qmmm_swave)
+         CPABORT("QM-QM long range correction not possible with SWAVE coupling")
       CASE DEFAULT
          ! We should never get to this point
-         CPABORT("")
+         CPABORT("Unknown QM/MM coupling type")
       END SELECT
 
       iw = cp_print_key_unit_nr(logger, print_section, "PERIODIC_INFO", extension=".log")

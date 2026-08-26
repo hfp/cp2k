@@ -39,13 +39,17 @@ MODULE input_cp2k_kpoints
                                               use_k290_kpoint_symmetry = 200, &
                                               use_spglib_kpoint_symmetry = 201, &
                                               use_k290_kpoint_backend = 300, &
-                                              use_spglib_kpoint_backend = 301
+                                              use_spglib_kpoint_backend = 301, &
+                                              lattice_fft_auto = 400, &
+                                              lattice_fft_on = 401, &
+                                              lattice_fft_off = 402
 
    PUBLIC :: create_kpoints_section
    PUBLIC :: create_kpoint_set_section
    PUBLIC :: use_real_wfn, use_complex_wfn
    PUBLIC :: use_k290_kpoint_symmetry, use_spglib_kpoint_symmetry
    PUBLIC :: use_k290_kpoint_backend, use_spglib_kpoint_backend
+   PUBLIC :: lattice_fft_auto, lattice_fft_on, lattice_fft_off
 
 CONTAINS
 
@@ -59,6 +63,7 @@ CONTAINS
 !>      SYMMETRY         [on, off]
 !>      WAVEFUNCTION     [real, complex]
 !>      FULL_GRID        [on, off]
+!>      LATTICE_FFT      [auto, on, off]
 !>      INVERSION_SYMMETRY_ONLY [on, off]
 !>      DEBUG_FULL_KPOINT_SYMMETRY [on, off]
 !>      SYMMETRY_BACKEND [K290, SPGLIB]
@@ -142,6 +147,22 @@ CONTAINS
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
+      CALL keyword_create(keyword, __LOCATION__, name="LATTICE_FFT", &
+                          description="Control the FFT-based transformation of real-space matrices "// &
+                          "to complete regular k-point grids. AUTO uses the lattice FFT for at least "// &
+                          "27 k points when the grid and memory requirements are satisfied. ON bypasses "// &
+                          "this performance threshold. OFF always uses the established direct phase sum. "// &
+                          "Unsupported, incomplete, or oversized grids retain the direct fallback.", &
+                          usage="LATTICE_FFT AUTO", type_of_var=enum_t, &
+                          enum_c_vals=s2a("AUTO", "ON", "OFF"), &
+                          enum_i_vals=[lattice_fft_auto, lattice_fft_on, lattice_fft_off], &
+                          enum_desc=s2a("Select the FFT from a conservative cost threshold.", &
+                                        "Prefer the FFT whenever the grid and memory checks allow it.", &
+                                        "Always use the direct real-cell to k-point transform."), &
+                          default_i_val=lattice_fft_auto)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
       CALL keyword_create(keyword, __LOCATION__, name="INVERSION_SYMMETRY_ONLY", &
                           description="Restrict k-point reduction to k-space inversion "// &
                           "(time-reversal) symmetry.", &
@@ -152,11 +173,11 @@ CONTAINS
 
       CALL keyword_create(keyword, __LOCATION__, name="DEBUG_FULL_KPOINT_SYMMETRY", &
                           description="Use full atomic k-point symmetry also for DEBUG finite-difference "// &
-                          "points. This is an expert option: the default keeps finite-difference energies "// &
-                          "on inversion/time-reversal symmetry to avoid comparing slightly different "// &
-                          "irreducible k-point sets.", &
+                          "points. This is enabled by default so analytical and finite-difference "// &
+                          "evaluations use the symmetry of their current geometry. Disable it to restrict "// &
+                          "DEBUG finite-difference energies to inversion/time-reversal symmetry.", &
                           usage="DEBUG_FULL_KPOINT_SYMMETRY <LOGICAL>", &
-                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+                          default_l_val=.TRUE., lone_keyword_l_val=.TRUE.)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 

@@ -26,7 +26,7 @@ case "${with_openmpi}" in
   __INSTALL__)
     echo "==================== Installing OpenMPI ===================="
     pkg_install_dir="${INSTALLDIR}/openmpi-${openmpi_ver}"
-    install_lock_file="$pkg_install_dir/install_successful"
+    install_lock_file="${pkg_install_dir}/install_successful"
     if verify_checksums "${install_lock_file}"; then
       echo "openmpi-${openmpi_ver} is already installed, skipping it."
     else
@@ -35,6 +35,14 @@ case "${with_openmpi}" in
       [ -d openmpi-${openmpi_ver} ] && rm -rf openmpi-${openmpi_ver}
       tar -xjf ${openmpi_pkg}
       cd openmpi-${openmpi_ver}
+      # Backport module lifetime fixes requested in open-mpi/ompi#13783.
+      patch -l -p1 < "${SCRIPT_DIR}/stage1/openmpi-${openmpi_ver}-op-module-lifetime.patch" \
+        > openmpi_op_module_lifetime.patch.log 2>&1 ||
+        tail_excerpt openmpi_op_module_lifetime.patch.log
+      # Backport the OB1 progress fix scheduled for OpenMPI 5.0.11.
+      patch -l -p1 < "${SCRIPT_DIR}/stage1/openmpi-${openmpi_ver}-pml-ob1-pending.patch" \
+        > openmpi_pml_ob1_pending.patch.log 2>&1 ||
+        tail_excerpt openmpi_pml_ob1_pending.patch.log
       if [ "${OPENBLAS_ARCH}" = "x86_64" ]; then
         # can have issue with older glibc libraries, in which case
         # we need to add the -fgnu89-inline to CFLAGS. We can check
@@ -58,7 +66,10 @@ case "${with_openmpi}" in
       make -j $(get_nprocs) > make.log 2>&1 || tail_excerpt make.log
       make -j $(get_nprocs) install > install.log 2>&1 || tail_excerpt install.log
       cd ..
-      write_checksums "${install_lock_file}" "${SCRIPT_DIR}/stage1/$(basename ${SCRIPT_NAME})"
+      write_checksums "${install_lock_file}" \
+        "${SCRIPT_DIR}/stage1/$(basename ${SCRIPT_NAME})" \
+        "${SCRIPT_DIR}/stage1/openmpi-${openmpi_ver}-op-module-lifetime.patch" \
+        "${SCRIPT_DIR}/stage1/openmpi-${openmpi_ver}-pml-ob1-pending.patch"
     fi
     check_dir "${pkg_install_dir}/bin"
     check_dir "${pkg_install_dir}/lib"
@@ -72,7 +83,7 @@ case "${with_openmpi}" in
     ;;
   __SYSTEM__)
     echo "==================== Finding OpenMPI from system paths ===================="
-    check_command mpiexec "openmpi" && MPIEXEC="$(command -v mpiexec)"
+    check_command mpiexec "openmpi" && MPIEXEC="$(command -v mpiexec)" || exit 1
     check_command mpicc "openmpi" && MPICC="$(command -v mpicc)" || exit 1
     check_command mpic++ "openmpi" && MPICXX="$(command -v mpic++)" || exit 1
     check_command mpifort "openmpi" && MPIFC="$(command -v mpifort)" || exit 1
@@ -105,6 +116,7 @@ export MPICXX="${MPICXX}"
 export MPIFC="${MPIFC}"
 export MPIFORT="${MPIFORT}"
 export MPIF77="${MPIF77}"
+export PRTE_MCA_hwloc_default_binding_policy=none
 EOF
   if [ "${with_openmpi}" != "__SYSTEM__" ]; then
     cat << EOF >> "${BUILDDIR}/setup_openmpi"

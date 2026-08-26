@@ -108,6 +108,15 @@ CONTAINS
       CALL determine_energy_range(qs_env, para_env, homo, Eigenval, do_ri_sos_laplace_mp2, &
                                   do_kpoints_cubic_RPA, Emin, Emax, e_range, e_fermi)
 
+      ! Open-shell uses ONE minimax grid for the combined [min gap, max span] over both spins (the
+      ! superset covers each channel, so it is accurate; per-spin grids would only be more efficient).
+      IF (SIZE(homo) > 1) THEN
+         CALL cp_hint(__LOCATION__, &
+                      "Open-shell RPA/GW uses one minimax grid spanning [min gap, max span] across "// &
+                      "both spin channels; raise QUADRATURE_POINTS if QP convergence is marginal for "// &
+                      "strongly spin-asymmetric systems.")
+      END IF
+
       CALL greenx_get_minimax_grid(unit_nr, num_integ_points, emin, emax, &
                                    tau_tj, tau_wj, qs_env%mp2_env%ri_g0w0%regularization_minimax, &
                                    tj, wj, weights_cos_tf_t_to_w, &
@@ -133,12 +142,13 @@ CONTAINS
          my_regularization = regularization
 
          IF (num_integ_points > 20 .AND. e_range < 100.0_dp) THEN
-            IF (unit_nr > 0) &
+            IF (unit_nr > 0) THEN
                CALL cp_warn(__LOCATION__, &
                             "You requested a large minimax grid (> 20 points) for a small minimax range R (R < 100). "// &
                             "That may lead to numerical "// &
                             "instabilities when computing minimax grid weights. You can prevent small ranges by choosing "// &
                             "a larger basis set with higher angular momenta or alternatively using all-electron calculations.")
+            END IF
          END IF
 
          IF (.NOT. do_ri_sos_laplace_mp2) THEN

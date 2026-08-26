@@ -61,7 +61,11 @@ PROGRAM cp2k
    USE iso_fortran_env,                 ONLY: compiler_options,&
                                               compiler_version
    USE kinds,                           ONLY: default_path_length
-   USE machine,                         ONLY: default_output_unit
+   USE machine,                         ONLY: default_output_unit,&
+                                              m_cpuid,&
+                                              m_cpuid_name,&
+                                              m_cpuid_static,&
+                                              m_cpuid_vlen
 #include "../base/base_uses.f90"
 
    IMPLICIT NONE
@@ -71,7 +75,7 @@ PROGRAM cp2k
    CHARACTER(LEN=default_path_length), &
       DIMENSION(:, :), ALLOCATABLE      :: initial_variables, initial_variables_tmp
    CHARACTER(LEN=:), ALLOCATABLE        :: compiler_options_string
-   INTEGER                              :: output_unit, l, i, var_set_sep, inp_var_idx
+   INTEGER                              :: cpuid, cpuid_static, output_unit, l, i, var_set_sep, inp_var_idx
    INTEGER                              :: ierr, i_arg
    LOGICAL                              :: check, usage, echo_input, command_line_error
    LOGICAL                              :: run_it, force_run, has_input, xml, print_version, print_license, shell_mode
@@ -167,8 +171,9 @@ PROGRAM cp2k
          INTEGER :: veclib_max_threads, ierr
          CALL get_environment_variable("VECLIB_MAXIMUM_THREADS", env_var, status=ierr)
          veclib_max_threads = 0
-         IF (ierr == 0) &
+         IF (ierr == 0) THEN
             READ (env_var, *) veclib_max_threads
+         END IF
          IF (ierr == 1 .OR. (ierr == 0 .AND. veclib_max_threads > 1)) THEN
             CALL cp_warn(__LOCATION__, &
                          "macOS' Accelerate framework has its own threading enabled which may interfere"// &
@@ -236,8 +241,9 @@ PROGRAM cp2k
 
          DO inp_var_idx = 1, SIZE(initial_variables, 2)
             ! check whether the variable was already set, in this case, overwrite
-            IF (TRIM(initial_variables(1, inp_var_idx)) == arg_att(:var_set_sep - 1)) &
+            IF (TRIM(initial_variables(1, inp_var_idx)) == arg_att(:var_set_sep - 1)) THEN
                EXIT
+            END IF
          END DO
 
          IF (inp_var_idx > SIZE(initial_variables, 2)) THEN
@@ -332,6 +338,23 @@ PROGRAM cp2k
                   TRIM(cp2k_flags())
                compiler_options_string = compiler_options()
                WRITE (output_unit, "(T2,A,A)") "compiler: ", compiler_version()
+               cpuid = m_cpuid()
+               cpuid_static = m_cpuid_static()
+               IF ((cpuid > 0) .OR. (cpuid_static > 0)) THEN
+                  WRITE (output_unit, "(T2,A,1X,I6,1X,A)") &
+                     "compiler target: cpuid", cpuid_static, "("//TRIM(m_cpuid_name(cpuid_static))//")"
+                  IF (cpuid /= cpuid_static) THEN
+                     WRITE (output_unit, "(T2,A,1X,I6,1X,A)") &
+                        "current: cpuid", cpuid, "("//TRIM(m_cpuid_name(cpuid))//")"
+                  END IF
+               END IF
+               IF (m_cpuid_vlen(cpuid_static) < m_cpuid_vlen(cpuid)) THEN
+                  WRITE (output_unit, "(T2,A)") &
+                     "WARNING: The compiler target used to build this binary does not "// &
+                     "enable all instruction-set extensions available on this CPU. "// &
+                     "Consider reconfiguring and rebuilding CP2K for this target system "// &
+                     "to enable them."
+               END IF
                WRITE (output_unit, "(T2,A)") "compiler options:"
                DO i = 0, (LEN(compiler_options_string) - 1)/68
                   WRITE (output_unit, "(T4,A)") &

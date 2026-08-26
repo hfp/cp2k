@@ -125,7 +125,7 @@ CONTAINS
       CASE (do_uks_atom, do_uhf_atom, do_rohf_atom)
          CPABORT("Unrestricted methods not allowed for GRB generation")
       CASE DEFAULT
-         CPABORT("")
+         CPABORT("Unknown method for GRB generation")
       END SELECT
 
       ! input for basis optimization
@@ -152,8 +152,9 @@ CONTAINS
       CALL allocate_grid_atom(basis%grid)
       CALL section_vals_val_get(grb_section, "QUADRATURE", i_val=quadtype)
       CALL section_vals_val_get(grb_section, "GRID_POINTS", i_val=ngp)
-      IF (ngp <= 0) &
+      IF (ngp <= 0) THEN
          CPABORT("# point radial grid < 0")
+      END IF
       CALL create_grid_atom(basis%grid, ngp, 1, 1, 0, quadtype)
       basis%grid%nr = ngp
       !
@@ -292,7 +293,7 @@ CONTAINS
                rbasis(:, i + 3, l) = 0.125_dp*(wfn(:, i, l, 3) - 3._dp*wfn(:, i, l, 1) &
                                                + 3._dp*wfn(:, i, l, -1) - wfn(:, i, l, -3))/delta**3
             CASE DEFAULT
-               CPABORT("")
+               CPABORT("Only 1, 2, 3 are supported as the number of response derivatives")
             END SELECT
          END DO
 

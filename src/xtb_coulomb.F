@@ -73,6 +73,7 @@ MODULE xtb_coulomb
                                               sap_int_type
    USE virial_methods,                  ONLY: virial_pair_force
    USE virial_types,                    ONLY: virial_type
+   USE xtb_spinpol,                     ONLY: build_xtb_spinpol
    USE xtb_types,                       ONLY: get_xtb_atom_param,&
                                               xtb_atom_type
 #include "./base/base_uses.f90"
@@ -644,6 +645,12 @@ CONTAINS
          DEALLOCATE (zeffk, xgamma)
       END IF
 
+      IF (xtb_control%do_spinpol) THEN
+         CALL qs_rho_get(rho, rho_ao_kp=matrix_p)
+         CALL build_xtb_spinpol(qs_env, ks_matrix, matrix_p, energy, &
+                                sap_int, calculate_forces, just_energy)
+      END IF
+
       ! QMMM
       IF (qs_env%qmmm .AND. qs_env%qmmm_periodic) THEN
          CALL build_tb_coulomb_qmqm(qs_env, ks_matrix, rho, mcharge, energy, &
@@ -709,7 +716,7 @@ CONTAINS
       IF (rab < 1.e-6_dp) THEN
          ! on site terms
          gmat(:, :) = eta(:, :)
-      ELSEIF (rab > rcut) THEN
+      ELSE IF (rab > rcut) THEN
          ! do nothing
       ELSE
          rk = rab**kg
@@ -777,7 +784,7 @@ CONTAINS
       IF (rab < 1.e-6) THEN
          ! on site terms
          dgmat(:, :) = 0.0_dp
-      ELSEIF (rab > rcut) THEN
+      ELSE IF (rab > rcut) THEN
          dgmat(:, :) = 0.0_dp
       ELSE
          eta = eta**(-kg)

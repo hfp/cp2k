@@ -1024,8 +1024,9 @@ CONTAINS
             IF (do_igaim) CALL dbcsr_get_block_p(matrix=deltajp_d(1)%matrix, row=brow, col=bcol, &
                                                  block=jp_block_d, found=den_found)
 
-            IF (.NOT. ASSOCIATED(jp_block_a)) &
+            IF (.NOT. ASSOCIATED(jp_block_a)) THEN
                CPABORT("p_block not associated in deltap")
+            END IF
 
             iatom_old = iatom
             jatom_old = jatom
@@ -1363,7 +1364,7 @@ CONTAINS
             offset = MODULO(cubecenter(i) + lb_cube(i) + rsgrid%desc%lb(i) - rsgrid%lb_local(i), ng(i)) + 1 - lb_cube(i)
             ! check for out of bounds
             IF (ub_cube(i) + offset > UBOUND(grid, i) .OR. lb_cube(i) + offset < LBOUND(grid, i)) THEN
-               CPASSERT(.FALSE.)
+               CPABORT("Cube bound out of grid bounds")
             END IF
             DO ig = lb_cube(i), ub_cube(i)
                map(ig, i) = ig + offset
@@ -1925,7 +1926,7 @@ CONTAINS
                         WRITE (*, *) 'error too many atoms'
                         WRITE (*, *) 'dist=', ABS(r(:))
                         WRITE (*, *) 'large_dist=', (scale + 0.5_dp)*dbox
-                        CPABORT("")
+                        CPABORT("Some atoms are too far from box center")
                      END IF
                   END DO
                END IF
@@ -1958,7 +1959,7 @@ CONTAINS
                         WRITE (*, *) 'box_center', box_center
                         WRITE (*, *) 'ratom', ratom(:, iatom)
                         WRITE (*, *) 'gauge_atom_radius', gauge_atom_radius
-                        CPABORT("")
+                        CPABORT("Some atoms are too close within gauge_atom_radius")
                      END IF
                   END IF
                END DO
@@ -2433,7 +2434,6 @@ CONTAINS
       !
       ! recompute the linear momentum matrices
       CALL build_lin_mom_matrix(qs_env, op_p_ao)
-      !CALL p_xyz_ao(op_p_ao,qs_env,minimum_image=.FALSE.)
       !
       !
       ! get iiB and iiiB
@@ -2814,7 +2814,6 @@ CONTAINS
       !
       ! recompute the linear momentum matrices
       CALL build_lin_mom_matrix(qs_env, op_p_ao)
-      !CALL p_xyz_ao(op_p_ao,qs_env,minimum_image=.FALSE.)
       !
       !
       ! get iiB and iiiB

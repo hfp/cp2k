@@ -137,8 +137,9 @@ CONTAINS
       ! Thanks to the mess with the matrices we need to make sure in this case that the
       ! Previous inverse is properly stored as a sparse matrix, fm gets deallocated here
       ! if it wasn't anyway
-      IF (preconditioner_env%solver == ot_precond_solver_update) &
+      IF (preconditioner_env%solver == ot_precond_solver_update) THEN
          CALL transfer_fm_to_dbcsr(preconditioner_env%fm, preconditioner_env%dbcsr_matrix, matrix_h)
+      END IF
 
       needs_full_spectrum = .FALSE.
       needs_homo = .FALSE.
@@ -261,10 +262,11 @@ CONTAINS
                DEALLOCATE (preconditioner(ispin)%preconditioner)
             END DO
             DEALLOCATE (preconditioner)
-         CASE (ot_precond_none, ot_precond_full_kinetic, ot_precond_s_inverse, ot_precond_full_single_inverse) ! these are 'independent'
+         CASE (ot_precond_none, ot_precond_full_kinetic, ot_precond_s_inverse, &
+               ot_precond_full_single_inverse) ! these are 'independent'
             ! do nothing
          CASE DEFAULT
-            CPABORT("")
+            CPABORT("Unknown preconditioner type")
          END SELECT
       END IF
 
@@ -301,11 +303,12 @@ CONTAINS
 !> \param convert_to_dbcsr ...
 !> \param chol_type ...
 !> \param full_mo_set ...
+!> \param chebyshev_degree ...
 ! **************************************************************************************************
    SUBROUTINE prepare_preconditioner(qs_env, mos, matrix_ks, matrix_s, &
                                      ot_preconditioner, prec_type, solver_type, &
                                      energy_gap, nspins, has_unit_metric, &
-                                     convert_to_dbcsr, chol_type, full_mo_set)
+                                     convert_to_dbcsr, chol_type, full_mo_set, chebyshev_degree)
 
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(mo_set_type), DIMENSION(:), INTENT(INOUT)     :: mos
@@ -317,11 +320,13 @@ CONTAINS
       LOGICAL, INTENT(IN), OPTIONAL                      :: has_unit_metric, convert_to_dbcsr
       INTEGER, INTENT(IN), OPTIONAL                      :: chol_type
       LOGICAL, INTENT(IN), OPTIONAL                      :: full_mo_set
+      INTEGER, INTENT(IN), OPTIONAL                      :: chebyshev_degree
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'prepare_preconditioner'
 
       CHARACTER(LEN=default_string_length)               :: msg
-      INTEGER                                            :: handle, icall, ispin, n_loops
+      INTEGER                                            :: handle, icall, ispin, &
+                                                            my_chebyshev_degree, n_loops
       INTEGER, DIMENSION(5)                              :: nocc, norb
       LOGICAL                                            :: do_co_rotate, my_convert_to_dbcsr, &
                                                             my_full_mo_set, my_has_unit_metric, &
@@ -341,6 +346,8 @@ CONTAINS
       IF (PRESENT(convert_to_dbcsr)) my_convert_to_dbcsr = convert_to_dbcsr
       my_full_mo_set = .FALSE.
       IF (PRESENT(full_mo_set)) my_full_mo_set = full_mo_set
+      my_chebyshev_degree = 8
+      IF (PRESENT(chebyshev_degree)) my_chebyshev_degree = chebyshev_degree
 
       CALL get_qs_env(qs_env, &
                       dft_control=dft_control, &
@@ -388,7 +395,7 @@ CONTAINS
                                                    co_rotate=qs_env%mo_derivs(ispin)%matrix, &
                                                    para_env=para_env, &
                                                    blacs_env=blacs_env)
-            ELSEIF (use_mo_coeff_b) THEN
+            ELSE IF (use_mo_coeff_b) THEN
                CALL calculate_subspace_eigenvalues(mo_coeff_b, matrix_ks(ispin)%matrix, &
                                                    do_rotation=.TRUE., &
                                                    para_env=para_env, &
@@ -410,6 +417,7 @@ CONTAINS
          END DO
       CASE DEFAULT
          DO icall = 1, n_loops
+            ot_preconditioner(icall)%preconditioner%polynomial_degree = my_chebyshev_degree
             IF (my_has_unit_metric) THEN
                CALL make_preconditioner(ot_preconditioner(icall)%preconditioner, &
                                         prec_type, &
@@ -444,4 +452,3 @@ CONTAINS
    END SUBROUTINE prepare_preconditioner
 
 END MODULE preconditioner
-

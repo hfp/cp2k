@@ -224,7 +224,9 @@ CONTAINS
 !                           *  *  *
 
       wunit = default_output_unit
-      IF (PRESENT(iwunit) .AND. iwunit > 0) wunit = iwunit
+      IF (PRESENT(iwunit)) THEN
+         IF (iwunit > 0) wunit = iwunit
+      END IF
 
       IF (task == 'START') THEN
          CALL cite_reference(Byrd1995)
@@ -450,7 +452,9 @@ CONTAINS
 !                           *  *  *
 
       wunit = default_output_unit
-      IF (PRESENT(iwunit) .AND. iwunit > 0) wunit = iwunit
+      IF (PRESENT(iwunit)) THEN
+         IF (iwunit > 0) wunit = iwunit
+      END IF
 
       keep_space_group = .FALSE.
       IF (PRESENT(spgr)) THEN
@@ -1047,7 +1051,9 @@ CONTAINS
       INTEGER                                            :: i, nbdd, wunit
 
       wunit = default_output_unit
-      IF (PRESENT(iwunit) .AND. iwunit > 0) wunit = iwunit
+      IF (PRESENT(iwunit)) THEN
+         IF (iwunit > 0) wunit = iwunit
+      END IF
 
 !     ************
 !     Initialize nbdd, x_projected, constrained and boxed.
@@ -1307,7 +1313,9 @@ CONTAINS
                                                             tu, wmc, wmp, wmw, zibp
 
       wunit = default_output_unit
-      IF (PRESENT(iwunit) .AND. iwunit > 0) wunit = iwunit
+      IF (PRESENT(iwunit)) THEN
+         IF (iwunit > 0) wunit = iwunit
+      END IF
 
 !     References:
 !
@@ -1452,8 +1460,9 @@ CONTAINS
       dtm = -f1/f2
       tsum = zero
       nseg = 1
-      IF (iprint >= 99) &
+      IF (iprint >= 99) THEN
          WRITE (wunit, 1011) nbreak
+      END IF
 
       nleft = nbreak
       iter = 1
@@ -2155,7 +2164,9 @@ CONTAINS
       INTEGER                                            :: i, iact, k, wunit
 
       wunit = default_output_unit
-      IF (PRESENT(iwunit) .AND. iwunit > 0) wunit = iwunit
+      IF (PRESENT(iwunit)) THEN
+         IF (iwunit > 0) wunit = iwunit
+      END IF
 
       nenter = 0
       ileave = n + 1
@@ -2373,7 +2384,9 @@ CONTAINS
       REAL(KIND=dp)                                      :: a1, a2, ddot
 
       wunit = default_output_unit
-      IF (PRESENT(iwunit) .AND. iwunit > 0) wunit = iwunit
+      IF (PRESENT(iwunit)) THEN
+         IF (iwunit > 0) wunit = iwunit
+      END IF
 
       IF (.NOT. (task(1:5) == 'FG_LN')) THEN
 
@@ -2583,7 +2596,9 @@ CONTAINS
       INTEGER                                            :: i, wunit
 
       wunit = default_output_unit
-      IF (PRESENT(iwunit) .AND. iwunit > 0) wunit = iwunit
+      IF (PRESENT(iwunit)) THEN
+         IF (iwunit > 0) wunit = iwunit
+      END IF
 
       IF (iprint >= 0) THEN
          WRITE (wunit, 7001) epsmch
@@ -2670,7 +2685,9 @@ CONTAINS
       INTEGER                                            :: i, imod, wunit
 
       wunit = default_output_unit
-      IF (PRESENT(iwunit) .AND. iwunit > 0) wunit = iwunit
+      IF (PRESENT(iwunit)) THEN
+         IF (iwunit > 0) wunit = iwunit
+      END IF
 
 !           'word' records the status of subspace solutions.
 
@@ -2768,7 +2785,9 @@ CONTAINS
       INTEGER                                            :: i, wunit
 
       wunit = default_output_unit
-      IF (PRESENT(iwunit) .AND. iwunit > 0) wunit = iwunit
+      IF (PRESENT(iwunit)) THEN
+         IF (iwunit > 0) wunit = iwunit
+      END IF
 
       IF (iprint >= 0 .AND. .NOT. (task(1:5) == 'ERROR')) THEN
          WRITE (wunit, 3003)
@@ -3059,7 +3078,9 @@ CONTAINS
 !
 
       wunit = default_output_unit
-      IF (PRESENT(iwunit) .AND. iwunit > 0) wunit = iwunit
+      IF (PRESENT(iwunit)) THEN
+         IF (iwunit > 0) wunit = iwunit
+      END IF
 
       IF (nsub <= 0) RETURN
       IF (iprint >= 99) WRITE (wunit, 4001)
@@ -3409,24 +3430,30 @@ CONTAINS
 !        algorithm enters the second stage.
 
          ftest = finit + stp*gtest
-         IF (stage == 1 .AND. f <= ftest .AND. g >= zero) &
+         IF (stage == 1 .AND. f <= ftest .AND. g >= zero) THEN
             stage = 2
+         END IF
 
 !        Test for warnings.
 
-         IF (brackt .AND. (stp <= stmin .OR. stp >= stmax)) &
+         IF (brackt .AND. (stp <= stmin .OR. stp >= stmax)) THEN
             task = 'WARNING: ROUNDING ERRORS PREVENT PROGRESS'
-         IF (brackt .AND. stmax - stmin <= xtol*stmax) &
+         END IF
+         IF (brackt .AND. stmax - stmin <= xtol*stmax) THEN
             task = 'WARNING: XTOL TEST SATISFIED'
-         IF (stp == stpmax .AND. f <= ftest .AND. g <= gtest) &
+         END IF
+         IF (stp == stpmax .AND. f <= ftest .AND. g <= gtest) THEN
             task = 'WARNING: STP = STPMAX'
-         IF (stp == stpmin .AND. (f > ftest .OR. g >= gtest)) &
+         END IF
+         IF (stp == stpmin .AND. (f > ftest .OR. g >= gtest)) THEN
             task = 'WARNING: STP = STPMIN'
+         END IF
 
 !        Test for convergence.
 
-         IF (f <= ftest .AND. ABS(g) <= gtol*(-ginit)) &
+         IF (f <= ftest .AND. ABS(g) <= gtol*(-ginit)) THEN
             task = 'CONVERGENCE'
+         END IF
 
 !        Test for termination.
 

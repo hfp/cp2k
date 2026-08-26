@@ -126,15 +126,17 @@ CONTAINS
       TYPE(force_env_type), POINTER                      :: force_env
 
       INTEGER                                            :: aspc_order
-      LOGICAL                                            :: magnetic, vel_reprs
+      LOGICAL                                            :: magnetic, track_current, &
+                                                            track_current_int, vel_reprs
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(global_environment_type), POINTER             :: globenv
       TYPE(qs_energy_type), POINTER                      :: energy
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(rt_prop_type), POINTER                        :: rtp
       TYPE(rtp_control_type), POINTER                    :: rtp_control
-      TYPE(section_vals_type), POINTER :: hfx_sections, input, ls_scf_section, md_section, &
-         motion_section, print_moments_section, rtp_print_section, rtp_section
+      TYPE(section_vals_type), POINTER :: current_int_section, current_section, hfx_sections, &
+         input, ls_scf_section, md_section, motion_section, print_moments_section, &
+         rtp_print_section, rtp_section
 
       NULLIFY (qs_env, rtp_control, dft_control)
 
@@ -177,13 +179,25 @@ CONTAINS
       CALL section_vals_val_get(print_moments_section, "MAGNETIC", l_val=magnetic)
       CALL section_vals_val_get(print_moments_section, "VEL_REPRS", l_val=vel_reprs)
 
+      ! The imaginary part of the density matrix (needed for the current) is generically
+      ! nonzero whenever the propagated state is not stationary, independently of whether
+      ! an explicit time-dependent field/vector potential is applied: e.g. an excited
+      ! state prepared by occupation swap, from LR-TDDFT, or via a MOM-constrained SCF.
+      ! Rather than trying to detect every possible way of preparing such a state, track
+      ! the imaginary density whenever the user actually requests output that needs it.
+      rtp_print_section => section_vals_get_subs_vals(rtp_section, "PRINT")
+      current_section => section_vals_get_subs_vals(rtp_print_section, "CURRENT")
+      current_int_section => section_vals_get_subs_vals(rtp_print_section, "CURRENT_INT")
+      CALL section_vals_get(current_section, explicit=track_current)
+      CALL section_vals_get(current_int_section, explicit=track_current_int)
+
       rtp%track_imag_density = (magnetic) .OR. (vel_reprs) .OR. (rtp_control%velocity_gauge) &
-                               .OR. (rtp%do_hfx) .OR. (.NOT. rtp_control%fixed_ions)
+                               .OR. (rtp%do_hfx) .OR. (.NOT. rtp_control%fixed_ions) &
+                               .OR. (track_current) .OR. (track_current_int)
       rtp%propagate_complex_ks = rtp%do_hfx .OR. rtp_control%velocity_gauge
 
       ! Marek : In case some print sections that apply so far only to RTBSE are present,
       !         warn the user that the quantities will not be in fact printed out
-      rtp_print_section => section_vals_get_subs_vals(rtp_section, "PRINT")
       CALL warn_section_unused(rtp_print_section, "DENSITY_MATRIX", &
                                "DENSITY_MATRIX printing not implemented for non-RTBSE code.")
 
@@ -294,7 +308,8 @@ CONTAINS
                   CALL rt_initialize_rho_from_mos(rtp, mos)
                END IF
             ELSE
-               !The wavefunction was minimized using a linear scaling method. The density matrix is therefore taken from the ls_scf_env.
+               ! The wavefunction was minimized using a linear scaling method.
+               ! The density matrix is therefore taken from the ls_scf_env.
                CALL get_rtp(rtp=rtp, rho_old=rho_old, rho_new=rho_new)
                DO ispin = 1, SIZE(rho_old)/2
                   re = 2*ispin - 1
@@ -417,8 +432,9 @@ CONTAINS
          CALL cp_iterate(logger%iter_info, last=(i_step == max_steps), iter_nr=i_step)
          rtp%converged = .FALSE.
          DO i_iter = 1, max_iter
-            IF (i_step == rtp%i_start + 1 .AND. i_iter == 2 .AND. rtp_control%hfx_redistribute) &
+            IF (i_step == rtp%i_start + 1 .AND. i_iter == 2 .AND. rtp_control%hfx_redistribute) THEN
                CALL qs_ks_did_change(qs_env%ks_env, s_mstruct_changed=.TRUE.)
+            END IF
             rtp%iter = i_iter
             CALL propagation_step(qs_env, rtp, rtp_control)
             CALL qs_ks_update_qs_env(qs_env, calculate_forces=.FALSE.)
@@ -444,9 +460,10 @@ CONTAINS
       END DO
       CALL cp_rm_iter_level(logger%iter_info, "MD")
 
-      IF (.NOT. rtp%converged) &
+      IF (.NOT. rtp%converged) THEN
          CALL cp_abort(__LOCATION__, "propagation did not converge, "// &
                        "either increase MAX_ITER or use a smaller TIMESTEP")
+      END IF
 
       CALL timestop(handle)
 
@@ -617,8 +634,9 @@ CONTAINS
       CALL set_ks_env(ks_env, complex_ks=imag_ks)
       IF (imag_ks) THEN
          CALL qs_ks_allocate_basics(qs_env, is_complex=imag_ks)
-         IF (.NOT. dft_control%rtp_control%fixed_ions) &
+         IF (.NOT. dft_control%rtp_control%fixed_ions) THEN
             CALL rtp_create_SinvH_imag(rtp, dft_control%nspins)
+         END IF
       END IF
 
       ! h

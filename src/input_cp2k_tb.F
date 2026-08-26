@@ -223,6 +223,12 @@ CONTAINS
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
+      CALL keyword_create(keyword, __LOCATION__, name="STO_FLEX", &
+                          description="Use element- and shell-specific numbers of Gaussian primitives.", &
+                          usage="STO_FLEX T", default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
       CALL keyword_create(keyword, __LOCATION__, name="USE_HALOGEN_CORRECTION", &
                           description="Use XB interaction term", &
                           usage="USE_HALOGEN_CORRECTION T", default_l_val=.TRUE., lone_keyword_l_val=.TRUE.)
@@ -240,6 +246,12 @@ CONTAINS
                           description="vdW potential to be used: NONE, DFTD3, DFTD4. "// &
                           "Defaults: DFTD3(gfn1), DFTD4(gfn0, gfn2).", &
                           usage="VDW_POTENTIAL type", default_c_val="")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="SPIN_POLARISATION", &
+                          description="Use the spin polarisation Hamiltonian for gfn1/2", &
+                          usage="SPIN_POLARISATION T", default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -438,6 +450,14 @@ CONTAINS
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
+      CALL keyword_create(keyword, __LOCATION__, name="SPINPOL_PARAM_FILE_NAME", &
+                          description="Specify file that contains parameters for "// &
+                          "xTB spin polarisation Hamiltonian", &
+                          usage="SPINPOL_PARAM_FILE_NAME filename", &
+                          n_var=1, type_of_var=char_t, default_c_val="xTB_sp_param_060")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
       CALL keyword_create(keyword, __LOCATION__, name="DISPERSION_PARAMETER_FILE", &
                           description="Specify file that contains the atomic dispersion "// &
                           "parameters for the D3 method", &
@@ -521,6 +541,13 @@ CONTAINS
       CALL keyword_create(keyword, __LOCATION__, name="KAB_PARAM", &
                           description="Specifies the specific Kab value for types A and B.", &
                           usage="KAB_PARAM kind1 kind2 value ", repeats=.TRUE., &
+                          n_var=-1, type_of_var=char_t)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="SPIN_POL_PARAM", &
+                          description="Specifies the spin polarisation parameters for kind A.", &
+                          usage="SPIN_POL_PARAM atomtype Wss Wsp Wpp Wsd Wpd Wdd", repeats=.TRUE., &
                           n_var=-1, type_of_var=char_t)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)

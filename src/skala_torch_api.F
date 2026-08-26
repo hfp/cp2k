@@ -18,8 +18,9 @@ MODULE skala_torch_api
                     dp
    USE string_utilities, ONLY: uppercase
    USE torch_api, ONLY: &
-      torch_dict_type, torch_model_forward_mol_tensor, torch_model_load, &
-      torch_model_read_metadata, torch_model_release, torch_model_type, &
+      torch_dict_type, torch_model_disable_parameter_gradients, torch_model_forward_mol_tensor, &
+      torch_model_freeze_preserving_method, torch_model_load_with_metadata, torch_model_release, &
+      torch_model_remap_device_constants, torch_model_type, &
       torch_tensor_item_double, torch_tensor_release, torch_tensor_type, &
       torch_tensor_weighted_sum
 #include "./base/base_uses.f90"
@@ -56,9 +57,11 @@ CONTAINS
       CHARACTER(:), ALLOCATABLE                          :: features_json, protocol_string
       INTEGER                                            :: ios
 
-      CALL torch_model_load(model%torch_model, filename)
-      protocol_string = torch_model_read_metadata(filename, "protocol_version")
-      features_json = torch_model_read_metadata(filename, "features")
+      CALL torch_model_load_with_metadata(model%torch_model, filename, &
+                                          "protocol_version", protocol_string, &
+                                          "features", features_json)
+      CALL torch_model_remap_device_constants(model%torch_model)
+      CALL torch_model_disable_parameter_gradients(model%torch_model)
       READ (protocol_string, *, IOSTAT=ios) model%protocol_version
       IF (ios /= 0) CPABORT("Could not parse SKALA TorchScript protocol_version metadata")
       IF (model%protocol_version /= 2) THEN
@@ -66,6 +69,8 @@ CONTAINS
       END IF
 
       CALL parse_feature_list(features_json, model%features)
+      ! Preserve the exported SKALA entry point while folding constant model state.
+      CALL torch_model_freeze_preserving_method(model%torch_model, "get_exc_density")
 
    END SUBROUTINE skala_torch_model_load
 

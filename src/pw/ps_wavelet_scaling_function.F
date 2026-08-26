@@ -53,8 +53,7 @@ CONTAINS
       nrange = ni
       ALLOCATE (y(0:nd), stat=i_all)
       IF (i_all /= 0) THEN
-         WRITE (*, *) ' scaling_function: problem of memory allocation'
-         CPABORT("")
+         CPABORT("Scaling_function: problem of memory allocation")
       END IF
 
       ! plot scaling function
@@ -75,9 +74,7 @@ CONTAINS
       !open (unit=1,file='scfunction',status='unknown')
       DO i = 0, nd
          a(i) = 1._dp*i*ni/nd - (.5_dp*ni - 1._dp)
-         !write(1,*) 1._dp*i*ni/nd-(.5_dp*ni-1._dp),x(i)
       END DO
-      !close(1)
       DEALLOCATE (ch, cg, cgt, cht)
       DEALLOCATE (y)
    END SUBROUTINE scaling_function
@@ -108,8 +105,7 @@ CONTAINS
       CALL lazy_arrays(itype, m, ch, cg, cgt, cht)
       ALLOCATE (y(0:nd), stat=i_all)
       IF (i_all /= 0) THEN
-         WRITE (*, *) ' wavelet_function: problem of memory allocation'
-         CPABORT("")
+         CPABORT("Wavelet_function: problem of memory allocation")
       END IF
 
       ! plot wavelet
@@ -130,9 +126,7 @@ CONTAINS
       !open (unit=1,file='wavelet',status='unknown')
       DO i = 0, nd - 1
          a(i) = 1._dp*i*ni/nd - (.5_dp*ni - .5_dp)
-         !write(1,*) 1._dp*i*ni/nd-(.5_dp*ni-.5_dp),x(i)
       END DO
-      !close(1)
       DEALLOCATE (ch, cg, cgt, cht)
       DEALLOCATE (y)
 
@@ -168,7 +162,7 @@ CONTAINS
 !> \param n ...
 !> \param x ...
 ! **************************************************************************************************
-   SUBROUTINE zero(n, x)
+   PURE SUBROUTINE zero(n, x)
       INTEGER, INTENT(in)                                :: n
       REAL(KIND=dp), INTENT(out)                         :: x(n)
 

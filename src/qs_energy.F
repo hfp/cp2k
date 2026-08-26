@@ -32,7 +32,7 @@ MODULE qs_energy
    USE qs_environment_methods,          ONLY: qs_env_rebuild_pw_env
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
-   USE qs_harris_utils,                 ONLY: harris_energy_correction
+   USE qs_harris_methods,               ONLY: harris_energy_correction
    USE qs_ks_methods,                   ONLY: qs_ks_update_qs_env
    USE qs_matrix_w,                     ONLY: compute_matrix_w
    USE qs_nonscf,                       ONLY: nonscf
@@ -167,8 +167,9 @@ CONTAINS
          END IF
 
          IF (dft_control%tddfpt2_control%do_smearing) THEN
-            IF (.NOT. ASSOCIATED(dft_control%tddfpt2_control%smeared_occup)) &
+            IF (.NOT. ASSOCIATED(dft_control%tddfpt2_control%smeared_occup)) THEN
                CPABORT("Smearing occupation not associated.")
+            END IF
             CALL deallocate_fermi_params(dft_control%tddfpt2_control%smeared_occup)
          END IF
          IF (dft_control%qs_control%lrigpw) THEN

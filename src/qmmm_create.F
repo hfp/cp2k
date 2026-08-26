@@ -228,11 +228,12 @@ CONTAINS
       IF (explicit .AND. use_multipole == do_multipole_section_on) qmmm_env_qm%multipole = .TRUE.
       IF (qmmm_env_qm%periodic .AND. qmmm_env_qm%multipole) CALL cite_reference(Laino2006)
       IF (qmmm_coupl_type == do_qmmm_none) THEN
-         IF (qmmm_env_qm%periodic) &
+         IF (qmmm_env_qm%periodic) THEN
             CALL cp_warn(__LOCATION__, &
                          "QMMM periodic calculation with coupling NONE was requested! "// &
                          "Switching off the periodic keyword since periodic and non-periodic "// &
                          "calculation with coupling NONE represent the same method! ")
+         END IF
          qmmm_env_qm%periodic = .FALSE.
       END IF
 
@@ -298,8 +299,9 @@ CONTAINS
       CALL get_cell(mm_cell, abc=abc_mm)
 
       IF (qmmm_env_qm%image_charge) THEN
-         IF (ANY(ABS(abc_mm - abc_qm) > 1.0E-12)) &
+         IF (ANY(ABS(abc_mm - abc_qm) > 1.0E-12)) THEN
             CPABORT("QM and MM box need to have the same size when using image charges")
+         END IF
       END IF
 
       ! Assign charges and mm_el_pot_radius from fist_topology
@@ -330,7 +332,7 @@ CONTAINS
       qmmm_link_Imomm = .FALSE.
       IF (qmmm_link) THEN
          CALL setup_qmmm_links(qmmm_section, qmmm_links, mm_el_pot_radius, &
-                               mm_el_pot_radius_corr, mm_atom_index, iw)
+                               mm_el_pot_radius_corr, mm_atom_index)
          qmmm_env_qm%qmmm_links => qmmm_links
 
          CALL print_qmmm_links(qmmm_section, qmmm_links)

@@ -1004,9 +1004,7 @@ CONTAINS
       safe_calc = .FALSE.
       IF (PRESENT(safe_computation)) safe_calc = safe_computation
       ii = coarse_coeffs_pw%pw_grid%para%group%compare(fine_values_pw%pw_grid%para%group)
-      IF (ii > mp_comm_congruent) THEN
-         CPABORT("")
-      END IF
+      CPASSERT(ii <= mp_comm_congruent)
       my_coarse_bo = coarse_coeffs_pw%pw_grid%bounds_local
       coarse_gbo = coarse_coeffs_pw%pw_grid%bounds
       fine_bo = fine_values_pw%pw_grid%bounds_local
@@ -1345,7 +1343,7 @@ CONTAINS
                      CASE (-3)
                         wk = w_border1(3)
                      CASE default
-                        CPABORT("")
+                        CPABORT("Only 1, -1, -3 are supported as the value of ik")
                         CYCLE
                      END SELECT
                   ELSE
@@ -1357,7 +1355,7 @@ CONTAINS
                      CASE (-1)
                         wk = w_border1(1)
                      CASE default
-                        CPABORT("")
+                        CPABORT("Only 3, 1, -1 are supported as the value of ik")
                         CYCLE
                      END SELECT
                   END IF
@@ -1869,7 +1867,7 @@ CONTAINS
                      CASE (-3)
                         wk = w_border1(3)
                      CASE default
-                        CPABORT("")
+                        CPABORT("Only 1, -1, -3 are supported as the value of ik")
                         CYCLE
                      END SELECT
                   ELSE
@@ -1881,7 +1879,7 @@ CONTAINS
                      CASE (-1)
                         wk = w_border1(1)
                      CASE default
-                        CPABORT("")
+                        CPABORT("Only 3, 1, -1 are supported as the value of ik")
                         CYCLE
                      END SELECT
                   END IF
@@ -1911,7 +1909,7 @@ CONTAINS
                            CASE (-3)
                               wj = w_border1(3)*wk
                            CASE default
-                              CPABORT("")
+                              CPABORT("Only 1, -1, -3 are supported as the value of ij")
                               CYCLE
                            END SELECT
                         ELSE
@@ -1923,7 +1921,7 @@ CONTAINS
                            CASE (3)
                               wj = w_border1(3)*wk
                            CASE default
-                              CPABORT("")
+                              CPABORT("Only -1, 1, 3 are supported as the value of ij")
                               CYCLE
                            END SELECT
                         END IF
@@ -2118,7 +2116,7 @@ CONTAINS
                                                               + ww1(4)*vv4 + ww0(3)*vv5 + ww1(3)*vv6 + ww0(2)*vv7 + vv0*ww1(2)
                                  coarse_coeffs(i + 3, j, k) = coarse_coeffs(i + 3, j, k) &
                                                               + ww1(4)*vv6 + ww0(3)*vv7 + vv0*ww1(3)
-                              ELSEIF (pbc .AND. .NOT. is_split) THEN
+                              ELSE IF (pbc .AND. .NOT. is_split) THEN
                                  fi = fi + 1
                                  vv0 = fine_values(fi, fj, fk)
                                  vv1 = fine_values(fine_bo(1, 1), fj, fk)
@@ -2160,7 +2158,7 @@ CONTAINS
                                                               + ww1(3)*vv4 + ww0(2)*vv5 + ww1(2)*vv6
                                  coarse_coeffs(i + 2, j, k) = coarse_coeffs(i + 2, j, k) &
                                                               + ww1(4)*vv4 + ww0(3)*vv5 + ww1(3)*vv6
-                              ELSEIF (pbc .AND. .NOT. is_split) THEN
+                              ELSE IF (pbc .AND. .NOT. is_split) THEN
                                  fi = fi + 1
                                  vv6 = fine_values(fi, fj, fk)
                                  vv7 = fine_values(fine_bo(1, 1), fj, fk)
@@ -2204,7 +2202,7 @@ CONTAINS
                                                        + ww1(3)*vv2 + ww0(2)*vv3 + ww1(2)*vv4
                               coarse_coeffs(i + 1, j, k) = coarse_coeffs(i + 1, j, k) &
                                                            + ww1(4)*vv2 + ww0(3)*vv3 + ww1(3)*vv4
-                           ELSEIF (pbc .AND. .NOT. is_split) THEN
+                           ELSE IF (pbc .AND. .NOT. is_split) THEN
                               fi = fi + 1
                               vv4 = fine_values(fi, fj, fk)
                               vv5 = fine_values(fine_bo(1, 1), fj, fk)
@@ -2246,7 +2244,7 @@ CONTAINS
                                                         + ww1(3)*vv0 + ww0(2)*vv1 + ww1(2)*vv2
                            coarse_coeffs(i, j, k) = coarse_coeffs(i, j, k) &
                                                     + ww1(4)*vv0 + ww0(3)*vv1 + ww1(3)*vv2
-                        ELSEIF (pbc .AND. .NOT. is_split) THEN
+                        ELSE IF (pbc .AND. .NOT. is_split) THEN
                            fi = fi + 1
                            vv2 = fine_values(fi, fj, fk)
                            vv3 = fine_values(fine_bo(1, 1), fk, fk)
@@ -2350,8 +2348,9 @@ CONTAINS
             send_offset(ip) = send_tot_size
             send_tot_size = send_tot_size + send_size(ip)
          END DO
-         IF (send_tot_size /= (coarse_bo(2, 1) - coarse_bo(1, 1) + 1)*coarse_slice_size) &
+         IF (send_tot_size /= (coarse_bo(2, 1) - coarse_bo(1, 1) + 1)*coarse_slice_size) THEN
             CPABORT("Error calculating send_tot_size")
+         END IF
          ALLOCATE (send_buf(0:send_tot_size - 1))
 
          rcv_tot_size = 0
@@ -2376,10 +2375,12 @@ CONTAINS
             sent_size(p) = sent_size(p) + coarse_slice_size
          END DO
 
-         IF (ANY(sent_size(0:n_procs - 2) /= send_offset(1:n_procs - 1))) &
+         IF (ANY(sent_size(0:n_procs - 2) /= send_offset(1:n_procs - 1))) THEN
             CPABORT("error 1 filling send buffer")
-         IF (sent_size(n_procs - 1) /= send_tot_size) &
+         END IF
+         IF (sent_size(n_procs - 1) /= send_tot_size) THEN
             CPABORT("error 2 filling send buffer")
+         END IF
 
          IF (local_data) THEN
             DEALLOCATE (coarse_coeffs)
@@ -2443,10 +2444,12 @@ CONTAINS
 
          END DO
 
-         IF (ANY(sent_size(0:n_procs - 2) /= rcv_offset(1:n_procs - 1))) &
+         IF (ANY(sent_size(0:n_procs - 2) /= rcv_offset(1:n_procs - 1))) THEN
             CPABORT("error 1 handling the rcv buffer")
-         IF (sent_size(n_procs - 1) /= rcv_tot_size) &
+         END IF
+         IF (sent_size(n_procs - 1) /= rcv_tot_size) THEN
             CPABORT("error 2 handling the rcv buffer")
+         END IF
 
          ! dealloc
          DEALLOCATE (send_size, send_offset, rcv_size, rcv_offset)
@@ -2486,7 +2489,7 @@ CONTAINS
    END SUBROUTINE pw_spline_precond_create
 
 ! **************************************************************************************************
-!> \brief switches the types of precoditioner to use
+!> \brief switches the types of preconditioner to use
 !> \param preconditioner the preconditioner to be changed
 !> \param precond_kind the new kind of preconditioner to use
 !> \param pbc ...
@@ -2540,7 +2543,7 @@ CONTAINS
          preconditioner%normalize = .FALSE.
          do_3d_coeff = .TRUE.
       CASE default
-         CPABORT("")
+         CPABORT("Unknown preconditioner kind for pw_spline_precond_set_kind")
       END SELECT
       IF (do_3d_coeff) THEN
          s = 1._dp
@@ -2622,7 +2625,7 @@ CONTAINS
                                         transpose=preconditioner%transpose)
          END IF
       CASE default
-         CPABORT("")
+         CPABORT("Unknown preconditioner kind for pw_spline_do_precond")
       END SELECT
    END SUBROUTINE pw_spline_do_precond
 

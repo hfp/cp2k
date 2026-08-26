@@ -194,13 +194,14 @@ CONTAINS
 
       ndf = SIZE(x0)
       nfree = gopt_env%nfree
-      IF (ndf > 3000) &
+      IF (ndf > 3000) THEN
          CALL cp_warn(__LOCATION__, &
                       "The dimension of the Hessian matrix ("// &
                       TRIM(ADJUSTL(cp_to_string(ndf)))//") is greater than 3000. "// &
                       "The diagonalisation of the full Hessian  matrix needed for BFGS "// &
                       "is computationally expensive. You should consider to use the linear "// &
                       "scaling variant L-BFGS instead.")
+      END IF
 
       ! Initialize hessian (hes = unitary matrix or model hessian )
       CALL cp_blacs_env_create(blacs_env, para_env, globenv%blacs_grid_layout, &
@@ -239,8 +240,10 @@ CONTAINS
          ! In rare cases the diagonalization of hess_mat fails (bug in scalapack?)
          IF (info /= 0) THEN
             CALL cp_fm_set_all(hess_mat, alpha=zero, beta=one)
-            IF (output_unit > 0) WRITE (output_unit, *) &
-               "BFGS: Matrix diagonalization failed, using unity as model Hessian."
+            IF (output_unit > 0) THEN
+               WRITE (output_unit, *) &
+                  "BFGS: Matrix diagonalization failed, using unity as model Hessian."
+            END IF
          ELSE
             DO its = 1, SIZE(eigval)
                IF (eigval(its) < 0.1_dp) eigval(its) = 0.1_dp
@@ -373,8 +376,10 @@ CONTAINS
 
          ! In rare cases the diagonalization of hess_mat fails (bug in scalapack?)
          IF (info /= 0) THEN
-            IF (output_unit > 0) WRITE (output_unit, *) &
-               "BFGS: Matrix diagonalization failed, resetting Hessian to unity."
+            IF (output_unit > 0) THEN
+               WRITE (output_unit, *) &
+                  "BFGS: Matrix diagonalization failed, resetting Hessian to unity."
+            END IF
             CALL cp_fm_set_all(hess_mat, alpha=zero, beta=one)
             CALL cp_fm_to_fm(hess_mat, hess_tmp)
             CALL choose_eigv_solver(hess_tmp, eigvec_mat, eigval)
@@ -495,7 +500,7 @@ CONTAINS
       INTEGER                                            :: handle, i, indf, iref, iter, j, k, l, &
                                                             maxit, ncol_local, nrow_local
       INTEGER, DIMENSION(:), POINTER                     :: col_indices, row_indices
-      LOGICAL                                            :: bisec, fail, set
+      LOGICAL                                            :: bisec, fail, set, conv
       REAL(KIND=dp)                                      :: fun, fun1, fun2, fun3, fung, lam1, lam2, &
                                                             ln, lp, ssize, step, stol
       REAL(KIND=dp), CONTIGUOUS, DIMENSION(:, :), POINTER            :: local_data
@@ -533,6 +538,7 @@ CONTAINS
          ln = 0.0_dp
          IF (eigval(iref) < 0.0_dp) ln = eigval(iref) - 0.01_dp
 
+         conv = .FALSE.
          iter = 0
          DO
             iter = iter + 1
@@ -546,78 +552,85 @@ CONTAINS
             fung = fung - one
             step = fun/fung
             ln = ln - step
-            IF (ABS(step) < stol) GOTO 200
+            IF (ABS(step) < stol) THEN
+               conv = .TRUE.
+               EXIT
+            END IF
             IF (iter >= maxit) EXIT
          END DO
-100      CONTINUE
-         bisec = .TRUE.
-         iter = 0
-         maxit = 9999
-         lam1 = 0.0_dp
-         IF (eigval(iref) < 0.0_dp) lam1 = eigval(iref) - 0.01_dp
-         fun1 = 0.0_dp
-         DO indf = 1, ndf
-            fun1 = fun1 + dg(indf)**2/(lam1 - eigval(indf))
-         END DO
-         fun1 = fun1 - lam1
-         step = ABS(lam1)/1000.0_dp
-         IF (step < ssize) step = ssize
-         DO
-            iter = iter + 1
-            IF (iter > maxit) THEN
-               ln = 0.0_dp
-               lp = 0.0_dp
-               fail = .TRUE.
-               GOTO 300
-            END IF
-            fun2 = 0.0_dp
-            lam2 = lam1 - iter*step
-            DO indf = 1, ndf
-               fun2 = fun2 + eigval(indf)**2/(lam2 - eigval(indf))
-            END DO
-            fun2 = fun2 - lam2
-            IF (fun2*fun1 < 0.0_dp) THEN
+         outer: DO
+            IF (.NOT. conv) THEN
+               conv = .FALSE.
+               bisec = .TRUE.
                iter = 0
-               DO
+               maxit = 9999
+               lam1 = 0.0_dp
+               IF (eigval(iref) < 0.0_dp) lam1 = eigval(iref) - 0.01_dp
+               fun1 = 0.0_dp
+               DO indf = 1, ndf
+                  fun1 = fun1 + dg(indf)**2/(lam1 - eigval(indf))
+               END DO
+               fun1 = fun1 - lam1
+               step = ABS(lam1)/1000.0_dp
+               IF (step < ssize) step = ssize
+               inner: DO
                   iter = iter + 1
                   IF (iter > maxit) THEN
                      ln = 0.0_dp
                      lp = 0.0_dp
                      fail = .TRUE.
-                     GOTO 300
+                     EXIT outer
                   END IF
-                  step = (lam1 + lam2)/2
-                  fun3 = 0.0_dp
+                  fun2 = 0.0_dp
+                  lam2 = lam1 - iter*step
                   DO indf = 1, ndf
-                     fun3 = fun3 + dg(indf)**2/(step - eigval(indf))
+                     fun2 = fun2 + eigval(indf)**2/(lam2 - eigval(indf))
                   END DO
-                  fun3 = fun3 - step
+                  fun2 = fun2 - lam2
+                  IF (fun2*fun1 < 0.0_dp) THEN
+                     iter = 0
+                     DO
+                        iter = iter + 1
+                        IF (iter > maxit) THEN
+                           ln = 0.0_dp
+                           lp = 0.0_dp
+                           fail = .TRUE.
+                           EXIT outer
+                        END IF
+                        step = (lam1 + lam2)/2
+                        fun3 = 0.0_dp
+                        DO indf = 1, ndf
+                           fun3 = fun3 + dg(indf)**2/(step - eigval(indf))
+                        END DO
+                        fun3 = fun3 - step
 
-                  IF (ABS(step - lam2) < stol) THEN
-                     ln = step
-                     GOTO 200
-                  END IF
+                        IF (ABS(step - lam2) < stol) THEN
+                           ln = step
+                           EXIT inner
+                        END IF
 
-                  IF (fun3*fun1 < stol) THEN
-                     lam2 = step
-                  ELSE
-                     lam1 = step
+                        IF (fun3*fun1 < stol) THEN
+                           lam2 = step
+                        ELSE
+                           lam1 = step
+                        END IF
+                     END DO
                   END IF
-               END DO
+               END DO inner
             END IF
-         END DO
+            IF ((ln > eigval(iref)) .OR. ((ln > 0.0_dp) .AND. &
+                                          (eigval(iref) > 0.0_dp))) THEN
 
-200      CONTINUE
-         IF ((ln > eigval(iref)) .OR. ((ln > 0.0_dp) .AND. &
-                                       (eigval(iref) > 0.0_dp))) THEN
-
-            IF (.NOT. bisec) GOTO 100
-            ln = 0.0_dp
-            lp = 0.0_dp
-            fail = .TRUE.
-         END IF
-
-300      CONTINUE
+               IF (.NOT. bisec) THEN
+                  conv = .FALSE.
+                  CYCLE outer
+               END IF
+               ln = 0.0_dp
+               lp = 0.0_dp
+               fail = .TRUE.
+            END IF
+            EXIT outer
+         END DO outer
 
          IF (fail .AND. .NOT. set) THEN
             set = .TRUE.
@@ -1087,7 +1100,7 @@ CONTAINS
             !pbc for a distance vector
             r_ij(j, i, :) = pbc(particles%els(i)%r, particles%els(j)%r, cell)
             r_ij(i, j, :) = -r_ij(j, i, :)
-            d_ij(j, i) = SQRT(DOT_PRODUCT(r_ij(j, i, :), r_ij(j, i, :)))
+            d_ij(j, i) = NORM2(r_ij(j, i, :))
             d_ij(i, j) = d_ij(j, i)
             rho_ij(j, i) = EXP(alpha(jat_row, iat_row)*(r0(jat_row, iat_row)**2 - d_ij(j, i)**2))
             rho_ij(i, j) = rho_ij(j, i)
@@ -1104,25 +1117,28 @@ CONTAINS
             iat_row = (jglobal + 2)/3
             IF (iat_row > natom) CYCLE
             IF (iat_row /= iat_col) THEN
-               IF (d_ij(iat_row, iat_col) < 6.0_dp) &
+               IF (d_ij(iat_row, iat_col) < 6.0_dp) THEN
                   local_data(j, i) = local_data(j, i) + &
                                      angle_second_deriv(r_ij, d_ij, rho_ij, iind, jind, iat_col, iat_row, natom)
+               END IF
             ELSE
                local_data(j, i) = local_data(j, i) + &
                                   angle_second_deriv(r_ij, d_ij, rho_ij, iind, jind, iat_col, iat_row, natom)
             END IF
             IF (iat_col /= iat_row) THEN
-               IF (d_ij(iat_row, iat_col) < 6.0_dp) &
+               IF (d_ij(iat_row, iat_col) < 6.0_dp) THEN
                   local_data(j, i) = local_data(j, i) - &
                                      dist_second_deriv(r_ij(iat_col, iat_row, :), &
                                                        iind, jind, d_ij(iat_row, iat_col), rho_ij(iat_row, iat_col))
+               END IF
             ELSE
                DO k = 1, natom
                   IF (k == iat_col) CYCLE
-                  IF (d_ij(iat_row, k) < 6.0_dp) &
+                  IF (d_ij(iat_row, k) < 6.0_dp) THEN
                      local_data(j, i) = local_data(j, i) + &
                                         dist_second_deriv(r_ij(iat_col, k, :), &
                                                           iind, jind, d_ij(iat_row, k), rho_ij(iat_row, k))
+                  END IF
                END DO
             END IF
             IF (fixed(jind, iat_row) < 0.5_dp .OR. fixed(iind, iat_col) < 0.5_dp) THEN
@@ -1148,10 +1164,11 @@ CONTAINS
 !> \param rho ...
 !> \return ...
 ! **************************************************************************************************
-   FUNCTION dist_second_deriv(r1, i, j, d, rho) RESULT(deriv)
-      REAL(KIND=dp), DIMENSION(3)                        :: r1
-      INTEGER                                            :: i, j
-      REAL(KIND=dp)                                      :: d, rho, deriv
+   PURE FUNCTION dist_second_deriv(r1, i, j, d, rho) RESULT(deriv)
+      REAL(KIND=dp), DIMENSION(3), INTENT(IN)            :: r1
+      INTEGER, INTENT(IN)                                :: i, j
+      REAL(KIND=dp), INTENT(IN)                          :: d, rho
+      REAL(KIND=dp)                                      :: deriv
 
       deriv = 0.45_dp*rho*(r1(i)*r1(j))/d**2
    END FUNCTION dist_second_deriv

@@ -84,6 +84,7 @@ MODULE qs_diis
              qs_diis_b_create_sparse, &
              qs_diis_b_step_4lscf
    PUBLIC :: qs_diis_b_clear_kp, &
+             qs_diis_b_check_i_alloc_kp, &
              qs_diis_b_create_kp, &
              qs_diis_b_step_kp, &
              qs_diis_b_calc_err_kp, &
@@ -571,6 +572,9 @@ CONTAINS
       TYPE(mp_para_env_type), POINTER                    :: para_env
 
       CALL timeset(routineN, handle)
+      IF (ls_scf_env%do_pao) THEN
+         CPABORT("LS_SCF%LS_DIIS not compatible with PAO")
+      END IF
       nspin = ls_scf_env%nspins
       diis_step = .FALSE.
       my_nmixing = 2

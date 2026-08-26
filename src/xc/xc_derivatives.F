@@ -11,7 +11,9 @@ MODULE xc_derivatives
    USE input_section_types,             ONLY: section_vals_get_subs_vals2,&
                                               section_vals_type,&
                                               section_vals_val_get
-   USE kinds,                           ONLY: dp
+   USE kinds,                           ONLY: default_string_length,&
+                                              dp
+   USE string_utilities,                ONLY: uppercase
    USE xc_b97,                          ONLY: b97_lda_eval,&
                                               b97_lda_info,&
                                               b97_lsd_eval,&
@@ -29,10 +31,10 @@ MODULE xc_derivatives
    USE xc_ke_gga,                       ONLY: ke_gga_info,&
                                               ke_gga_lda_eval,&
                                               ke_gga_lsd_eval
-   USE xc_libxc,                        ONLY: libxc_lda_eval,&
-                                              libxc_lda_info,&
-                                              libxc_lsd_eval,&
-                                              libxc_lsd_info
+   USE xc_libxc,                        ONLY: libxc_spin_polarized_eval,&
+                                              libxc_spin_polarized_info,&
+                                              libxc_spin_unpolarized_eval,&
+                                              libxc_spin_unpolarized_info
    USE xc_lyp,                          ONLY: lyp_lda_eval,&
                                               lyp_lda_info,&
                                               lyp_lsd_eval,&
@@ -281,9 +283,14 @@ CONTAINS
             CALL pbe_lda_info(functional, reference, shortform, needs, max_deriv)
          END IF
       CASE ("GAUXC")
-         CALL skala_info(functional, lsd, reference, shortform, needs, max_deriv)
-         ! Note: SKALA functional routes through apply_gauxc in qs_ks_methods.F
-         ! when USE_GAUXC = .TRUE. (requires dft_control%use_gauxc to be set)
+         IF (gauxc_model_none_selected(functional)) THEN
+            CALL gauxc_model_none_xc_info(functional, lsd, reference, shortform, &
+                                          needs, max_deriv, print_warn)
+         ELSE
+            CALL skala_info(functional, lsd, reference, shortform, needs, max_deriv)
+            ! Note: SKALA functional routes through apply_gauxc in qs_ks_methods.F
+            ! when USE_GAUXC = .TRUE. (requires dft_control%use_gauxc to be set)
+         END IF
       CASE ("XWPBE")
          IF (lsd) THEN
             CALL xwpbe_lsd_info(reference, shortform, needs, max_deriv)
@@ -317,9 +324,9 @@ CONTAINS
       CASE default
          ! If the functional has not been implemented internally, it's from LibXC
          IF (lsd) THEN
-            CALL libxc_lsd_info(functional, reference, shortform, needs, max_deriv, print_warn)
+            CALL libxc_spin_polarized_info(functional, reference, shortform, needs, max_deriv, print_warn)
          ELSE
-            CALL libxc_lda_info(functional, reference, shortform, needs, max_deriv, print_warn)
+            CALL libxc_spin_unpolarized_info(functional, reference, shortform, needs, max_deriv, print_warn)
          END IF
       END SELECT
    END SUBROUTINE xc_functional_get_info
@@ -507,7 +514,11 @@ CONTAINS
             CALL pbe_lda_eval(rho_set, deriv_set, deriv_order, functional)
          END IF
       CASE ("GAUXC")
-         CPABORT(abort_message_skala)
+         IF (gauxc_model_none_selected(functional)) THEN
+            CALL gauxc_model_none_xc_eval(functional, lsd, rho_set, deriv_set, deriv_order)
+         ELSE
+            CPABORT(abort_message_skala)
+         END IF
       CASE ("XWPBE")
          IF (lsd) THEN
             CALL xwpbe_lsd_eval(rho_set, deriv_set, deriv_order, functional)
@@ -543,14 +554,163 @@ CONTAINS
       CASE default
          ! If functional not natively supported, ask LibXC
          IF (lsd) THEN
-            CALL libxc_lsd_eval(rho_set, deriv_set, deriv_order, functional)
+            CALL libxc_spin_polarized_eval(rho_set, deriv_set, deriv_order, functional)
          ELSE
-            CALL libxc_lda_eval(rho_set, deriv_set, deriv_order, functional)
+            CALL libxc_spin_unpolarized_eval(rho_set, deriv_set, deriv_order, functional)
          END IF
       END SELECT
 
       CALL timestop(handle)
    END SUBROUTINE xc_functional_eval
+
+! **************************************************************************************************
+!> \brief true for GAUXC sections that wrap a conventional LibXC functional
+!> \param functional the GAUXC section
+!> \return whether MODEL NONE is active
+! **************************************************************************************************
+   FUNCTION gauxc_model_none_selected(functional)
+      TYPE(section_vals_type), POINTER                   :: functional
+      LOGICAL                                            :: gauxc_model_none_selected
+
+      CHARACTER(LEN=default_string_length)               :: model_key, model_name, xc_fun_name, &
+                                                            xc_key
+
+      CALL section_vals_val_get(functional, "MODEL", c_val=model_name)
+      CALL section_vals_val_get(functional, "FUNCTIONAL", c_val=xc_fun_name)
+      model_key = ADJUSTL(model_name)
+      xc_key = ADJUSTL(xc_fun_name)
+      CALL uppercase(model_key)
+      CALL uppercase(xc_key)
+      gauxc_model_none_selected = (TRIM(model_key) == "" .OR. TRIM(model_key) == "NONE" .OR. &
+                                   TRIM(model_key) == TRIM(xc_key))
+   END FUNCTION gauxc_model_none_selected
+
+! **************************************************************************************************
+!> \brief map GAUXC MODEL NONE shorthand names to LibXC exchange/correlation components
+!> \param functional the GAUXC section
+!> \param xc_fun_name the GAUXC FUNCTIONAL value
+!> \param libxc_names LibXC section names to evaluate and add
+!> \param nfunc number of LibXC components
+! **************************************************************************************************
+   SUBROUTINE gauxc_model_none_libxc_names(functional, xc_fun_name, libxc_names, nfunc)
+      TYPE(section_vals_type), POINTER                   :: functional
+      CHARACTER(LEN=*), INTENT(OUT)                      :: xc_fun_name
+      CHARACTER(LEN=*), DIMENSION(:), INTENT(OUT)        :: libxc_names
+      INTEGER, INTENT(OUT)                               :: nfunc
+
+      CHARACTER(LEN=default_string_length)               :: xc_key
+
+      CALL section_vals_val_get(functional, "FUNCTIONAL", c_val=xc_fun_name)
+      xc_key = ADJUSTL(xc_fun_name)
+      CALL uppercase(xc_key)
+      libxc_names(:) = ""
+      SELECT CASE (TRIM(xc_key))
+      CASE ("LDA", "PADE")
+         nfunc = 2
+         libxc_names(1) = "LDA_X"
+         libxc_names(2) = "LDA_C_PW"
+      CASE ("VWN")
+         nfunc = 2
+         libxc_names(1) = "LDA_X"
+         libxc_names(2) = "LDA_C_VWN"
+      CASE ("PBE")
+         nfunc = 2
+         libxc_names(1) = "GGA_X_PBE"
+         libxc_names(2) = "GGA_C_PBE"
+      CASE ("BLYP")
+         nfunc = 2
+         libxc_names(1) = "GGA_X_B88"
+         libxc_names(2) = "GGA_C_LYP"
+      CASE ("BP")
+         nfunc = 2
+         libxc_names(1) = "GGA_X_B88"
+         libxc_names(2) = "GGA_C_P86"
+      CASE ("TPSS")
+         nfunc = 2
+         libxc_names(1) = "MGGA_X_TPSS"
+         libxc_names(2) = "MGGA_C_TPSS"
+      CASE ("R2SCAN")
+         nfunc = 2
+         libxc_names(1) = "MGGA_X_R2SCAN"
+         libxc_names(2) = "MGGA_C_R2SCAN"
+      CASE DEFAULT
+         nfunc = 1
+         libxc_names(1) = TRIM(xc_key)
+      END SELECT
+   END SUBROUTINE gauxc_model_none_libxc_names
+
+! **************************************************************************************************
+!> \brief needs information for GAUXC MODEL NONE one-center GAPW corrections
+!> \param functional the GAUXC section
+!> \param lsd whether spin-polarized derivatives are needed
+!> \param reference reference string for the wrapped functional
+!> \param shortform short name for printout
+!> \param needs density ingredients needed by the wrapped functional
+!> \param max_deriv maximum implemented derivative order
+!> \param print_warn whether LibXC should print development warnings
+! **************************************************************************************************
+   SUBROUTINE gauxc_model_none_xc_info(functional, lsd, reference, shortform, &
+                                       needs, max_deriv, print_warn)
+      TYPE(section_vals_type), POINTER                   :: functional
+      LOGICAL, INTENT(in)                                :: lsd
+      CHARACTER(LEN=*), INTENT(OUT), OPTIONAL            :: reference, shortform
+      TYPE(xc_rho_cflags_type), INTENT(inout), OPTIONAL  :: needs
+      INTEGER, INTENT(out), OPTIONAL                     :: max_deriv
+      LOGICAL, INTENT(IN), OPTIONAL                      :: print_warn
+
+      CHARACTER(LEN=default_string_length)               :: libxc_names(2), xc_fun_name
+      INTEGER                                            :: ifunc, max_deriv_i, max_deriv_min, nfunc
+
+      CALL gauxc_model_none_libxc_names(functional, xc_fun_name, libxc_names, nfunc)
+      max_deriv_min = HUGE(max_deriv_min)
+      DO ifunc = 1, nfunc
+         IF (lsd) THEN
+            CALL libxc_spin_polarized_info(functional, needs=needs, max_deriv=max_deriv_i, &
+                                           print_warn=print_warn, &
+                                           func_name_override=TRIM(libxc_names(ifunc)))
+         ELSE
+            CALL libxc_spin_unpolarized_info(functional, needs=needs, max_deriv=max_deriv_i, &
+                                             print_warn=print_warn, &
+                                             func_name_override=TRIM(libxc_names(ifunc)))
+         END IF
+         max_deriv_min = MIN(max_deriv_min, max_deriv_i)
+      END DO
+      IF (PRESENT(max_deriv)) max_deriv = max_deriv_min
+      IF (PRESENT(reference)) THEN
+         reference = "Functional computed by GauXC (underlying: "//TRIM(xc_fun_name)//")"
+      END IF
+      IF (PRESENT(shortform)) shortform = "GAUXC ("//TRIM(xc_fun_name)//")"
+   END SUBROUTINE gauxc_model_none_xc_info
+
+! **************************************************************************************************
+!> \brief one-center GAPW correction evaluation for GAUXC MODEL NONE
+!> \param functional the GAUXC section
+!> \param lsd whether spin-polarized derivatives are evaluated
+!> \param rho_set density ingredients
+!> \param deriv_set derivative accumulator
+!> \param deriv_order derivative order to evaluate
+! **************************************************************************************************
+   SUBROUTINE gauxc_model_none_xc_eval(functional, lsd, rho_set, deriv_set, deriv_order)
+      TYPE(section_vals_type), POINTER                   :: functional
+      LOGICAL, INTENT(in)                                :: lsd
+      TYPE(xc_rho_set_type), INTENT(IN)                  :: rho_set
+      TYPE(xc_derivative_set_type), INTENT(IN)           :: deriv_set
+      INTEGER, INTENT(IN)                                :: deriv_order
+
+      CHARACTER(LEN=default_string_length)               :: libxc_names(2), xc_fun_name
+      INTEGER                                            :: ifunc, nfunc
+
+      CALL gauxc_model_none_libxc_names(functional, xc_fun_name, libxc_names, nfunc)
+      DO ifunc = 1, nfunc
+         IF (lsd) THEN
+            CALL libxc_spin_polarized_eval(rho_set, deriv_set, deriv_order, functional, &
+                                           func_name_override=TRIM(libxc_names(ifunc)))
+         ELSE
+            CALL libxc_spin_unpolarized_eval(rho_set, deriv_set, deriv_order, functional, &
+                                             func_name_override=TRIM(libxc_names(ifunc)))
+         END IF
+      END DO
+   END SUBROUTINE gauxc_model_none_xc_eval
 
 ! **************************************************************************************************
 !> \brief ...

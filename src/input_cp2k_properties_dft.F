@@ -36,6 +36,7 @@ MODULE input_cp2k_properties_dft
       current_gauge_atom, current_gauge_r, current_gauge_r_and_step_func, &
       current_orb_center_atom, current_orb_center_box, current_orb_center_common, &
       current_orb_center_wannier, do_et_ddapc, do_full_density, do_no_et, do_spin_density, &
+      evGW0, G0W0, &
       gto_cartesian, gto_spherical, int_ldos_none, int_ldos_x, int_ldos_y, int_ldos_z, oe_gllb, &
       oe_lb, oe_none, oe_saop, oe_shift, ot_precond_full_all, ot_precond_full_kinetic, &
       ot_precond_full_single, ot_precond_full_single_inverse, ot_precond_none, &
@@ -519,7 +520,9 @@ CONTAINS
                              n_keywords=50, n_subsections=1, repeats=.FALSE.)
 
          CALL keyword_create(keyword, __LOCATION__, name="_SECTION_PARAMETERS_", &
-                             description="controls the activation of the APT calculation", &
+                             description="Controls the activation of the APT calculation. "// &
+                             "Analytical derivatives are not available for functionals that depend on "// &
+                             "the kinetic energy density; use APT_FD for these functionals.", &
                              usage="&DCDR T", &
                              default_l_val=.FALSE., &
                              lone_keyword_l_val=.TRUE.)
@@ -1803,8 +1806,13 @@ CONTAINS
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="AUTO_BASIS", &
-                          description="Specify size of automatically generated auxiliary basis sets: "// &
-                          "Options={small,medium,large,huge}", &
+                          description="Specify type and size of automatically generated auxiliary "// &
+                          "(RI) basis sets. Exactly two arguments are required for this option. "// &
+                          "The first argument of basis type should be one of the following: "// &
+                          "`P_LRI_AUX`. The second argument of basis size should be one of the "// &
+                          "following: `SMALL`, `MEDIUM`, `LARGE`, or `HUGE`. The default is not "// &
+                          "using any of these basis sets, requested by `AUTO_BASIS X X` (exactly "// &
+                          "as written here).", &
                           usage="AUTO_BASIS {basis_type} {basis_size}", &
                           type_of_var=char_t, repeats=.TRUE., n_var=-1, default_c_vals=["X", "X"])
       CALL section_add_keyword(section, keyword)
@@ -2399,7 +2407,7 @@ CONTAINS
                           "For the GW algorithm for molecules, see "// &
                           "<https://doi.org/10.1021/acs.jctc.0c01282>. "// &
                           "For 2D materials, see <https://doi.org/10.1021/acs.jctc.3c01230>.", &
-                          n_keywords=1, n_subsections=1, repeats=.FALSE.)
+                          n_keywords=1, n_subsections=2, repeats=.FALSE.)
 
       NULLIFY (keyword)
       CALL keyword_create(keyword, __LOCATION__, &
@@ -2479,7 +2487,9 @@ CONTAINS
                           "use slurm, the number behind '--ntasks-per-node' is the number "// &
                           "of MPI processes per node). Then calculate "// &
                           "`MEMORY_PER_PROC` = mem_per_node / n_MPI_proc_per_node "// &
-                          "(typically between 2 GB and 50 GB). Unit of keyword: Gigabyte (GB).", &
+                          "(typically between 2 GB and 50 GB). Unit of keyword: Gigabyte (GB). "// &
+                          "Note: This keyword is not used for GW calculations with RI-RS, "// &
+                          "where the available memory is detected automatically.", &
                           usage="MEMORY_PER_PROC 16", &
                           default_r_val=2.0_dp)
       CALL section_add_keyword(section, keyword)
@@ -2583,58 +2593,113 @@ CONTAINS
       CALL section_add_keyword(subsection, keyword)
       CALL keyword_release(keyword)
 
-      CALL keyword_create(keyword, __LOCATION__, name="RI_RS", &
+      CALL section_add_subsection(section, subsection)
+      CALL section_release(subsection)
+
+      NULLIFY (subsection)
+      CALL create_ri_rs_section(subsection)
+      CALL section_add_subsection(section, subsection)
+      CALL section_release(subsection)
+
+   END SUBROUTINE create_gw_section
+
+! **************************************************************************************************
+!> \brief creates the input section collecting all parameters of the real-space resolution of
+!>        the identity (RI-RS) used in GW
+!> \param section section to create
+! **************************************************************************************************
+   SUBROUTINE create_ri_rs_section(section)
+      TYPE(section_type), POINTER                        :: section
+
+      TYPE(keyword_type), POINTER                        :: keyword
+      TYPE(section_type), POINTER                        :: subsection
+
+      CPASSERT(.NOT. ASSOCIATED(section))
+      CALL section_create(section, __LOCATION__, name="RI_RS", &
                           description="Real-Space Resolution of Identity (RI-RS) method. This "// &
-                          "approximation replaces the conventional 3-center RI integrals (μν|P) "// &
-                          "by a factorized representation on an atom-centered real-space grid "// &
-                          "{r_ℓ}: (μν|P) ≈ ∑_ℓ φ_μ(r_ℓ) φ_ν(r_ℓ) Z_ℓP. "// &
-                          "The coefficients Z_ℓP combine the numerical integration weights and "// &
-                          "the Coulomb potential of the auxiliary basis function P evaluated "// &
-                          "at grid point r_ℓ. To reduce the computational cost, only grid points "// &
-                          "within the sphere B^P are included, where "// &
-                          "B^P = {r : |r - R_P| < Rc + r_P}. "// &
-                          "Here, r_P is the effective Gaussian basis radius for atom P at which "// &
-                          "the basis function magnitude falls below a threshold δ "// &
+                          "approximation replaces the conventional 3-center RI integrals "// &
+                          "$(\mu\nu|P)$ by a factorized representation on an atom-centered "// &
+                          "real-space grid with points $\mathbf{r}_\ell$: "// &
+                          "$(\mu\nu|P) \approx \sum_\ell \varphi_\mu(\mathbf{r}_\ell) "// &
+                          "\varphi_\nu(\mathbf{r}_\ell) Z_{\ell P}$. "// &
+                          "The coefficients $Z_{\ell P}$ combine the numerical integration "// &
+                          "weights and the Coulomb potential of the auxiliary basis function "// &
+                          "$P$ evaluated at grid point $\mathbf{r}_\ell$. To reduce the "// &
+                          "computational cost, only grid points within the sphere $B^P$ around "// &
+                          "atom $P$ are included, i.e. the points with "// &
+                          "$|\mathbf{r}_\ell - \mathbf{R}_P| < R_c + r_P$. "// &
+                          "Here, $r_P$ is the effective radius of the most diffuse RI "// &
+                          "auxiliary Gaussian on atom $P$, at which the basis function "// &
+                          "magnitude falls below a threshold $\delta$ "// &
                           "(currently controlled through EPS_FILTER). "// &
                           "This locality approximation yields a sparse representation of the "// &
-                          "3-center integrals enables reduced computational cost. "// &
+                          "3-center integrals and enables reduced computational cost. "// &
                           "See details in https://doi.org/10.1063/1.5090605.", &
-                          usage="RI_RS", &
+                          n_keywords=11, n_subsections=1, repeats=.FALSE.)
+
+      NULLIFY (keyword)
+      CALL keyword_create(keyword, __LOCATION__, &
+                          name="_SECTION_PARAMETERS_", &
+                          description="Controls the activation of RI-RS in the GW calculation. "// &
+                          "An empty section, &RI_RS ... &END RI_RS, switches RI-RS on with "// &
+                          "default parameters.", &
+                          usage="&RI_RS .TRUE.", &
                           default_l_val=.FALSE., &
                           lone_keyword_l_val=.TRUE.)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="TIKHONOV", &
-                          description="Regularization parameter (α) used to stabilize "// &
+                          description="Regularization parameter $\alpha$ used to stabilize "// &
                           "the inversion of the grid-overlap matrix "// &
-                          "D in the Real-Space RI (RI-RS) method. See Equation (9) in https://doi.org/10.1063/1.5090605.", &
+                          "$D$ in the RI-RS method. "// &
+                          "See Equation (9) in https://doi.org/10.1063/1.5090605.", &
                           usage="TIKHONOV 1.0E-8", &
                           default_r_val=1.0E-08_dp)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="GRID_SELECT", &
-                          description="Selection of the atom-centeredgrid type used "// &
+                          description="Selection of the atom-centered grid type used "// &
                           "in RI-RS optimized by Duchemin and Blase. "// &
-                          "(1) def2-TZVPP: Grid optimized by Duchemin and Blase, "// &
-                          "available for elements up to the fourth row "// &
+                          "(1) def2-TZVPP: Available for elements up to the fourth row "// &
                           "of the periodic table (see https://doi.org/10.1021/acs.jctc.1c00101). "// &
-                          "(2) cc-pVTZ: Optimized grids available for H, C, N, and O atoms "// &
-                          "(see https://doi.org/10.1063/1.5090605).", &
+                          "(2) cc-pVTZ: Available for H, C, N, and O atoms "// &
+                          "(see https://doi.org/10.1063/1.5090605). "// &
+                          "(3) User-provided grids: per-element grid files supplied by the "// &
+                          "user, read as ri_rs_grid/<Element><suffix> in the same format as "// &
+                          "the built-in sets; the suffix is _rirs.ion by default and can be "// &
+                          "changed with GRID_FILE_SUFFIX.", &
                           usage="GRID_SELECT 1", &
                           default_i_val=1)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
-      CALL keyword_create(keyword, __LOCATION__, name="CUTOFF_RADIUS_RI_RS", &
-                          description="Override (in Angstrom) of the truncated-Coulomb cutoff radius Rc used "// &
-                          "to size the per-atom RI-RS integration domain "// &
-                          "B^P = {r : |r - R_P| < Rc + r_AO(P)}, where r_AO(P) is the spatial extent of the "// &
-                          "most diffuse AO Gaussian on atom P. By default (-1.0) Rc falls back to "// &
-                          "CUTOFF_RADIUS_RI from the GW section (the same Rc used to build the RI metric "// &
-                          "integrals). Useful for convergence sweeps.", &
-                          usage="CUTOFF_RADIUS_RI_RS 15.0", &
+      CALL keyword_create(keyword, __LOCATION__, name="GRID_FILE_SUFFIX", &
+                          description="Overrides the per-element grid file suffix used by "// &
+                          "GRID_SELECT 3; grid files are read as ri_rs_grid/<Element><suffix>.", &
+                          usage="GRID_FILE_SUFFIX _my-grids.ion", &
+                          default_lc_val="")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="CUTOFF_RADIUS_RL_RI", &
+                          description="Real-space cutoff radius (in Angstrom) for evaluating "// &
+                          "the RI-RS integration domain $B^P$. Overrides the default "// &
+                          "$R_c + r_P$, where $R_c$ is the truncated-Coulomb cutoff of the "// &
+                          "RI metric and $r_P$ the radius of the most diffuse RI auxiliary "// &
+                          "Gaussian on atom $P$.", &
+                          usage="CUTOFF_RADIUS_RL_RI 15.0", &
+                          default_r_val=cp_unit_to_cp2k(value=-1.0_dp, unit_str="angstrom"), &
+                          type_of_var=real_t, unit_str="angstrom")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="CUTOFF_RADIUS_RL_AO", &
+                          description="Real-space cutoff radius (in Angstrom) for evaluating "// &
+                          "the AO basis functions on the RI-RS grid. Override the default radius "// &
+                          "derived automatically from the most diffuse AO Gaussian on each atom. ", &
+                          usage="CUTOFF_RADIUS_RL_AO 8.0", &
                           default_r_val=cp_unit_to_cp2k(value=-1.0_dp, unit_str="angstrom"), &
                           type_of_var=real_t, unit_str="angstrom")
       CALL section_add_keyword(section, keyword)
@@ -2642,25 +2707,120 @@ CONTAINS
 
       CALL keyword_create(keyword, __LOCATION__, name="N_PROCS_PER_ATOM_Z_LP", &
                           description="Number of MPI ranks that cooperate on one atom's "// &
-                          "Cholesky factorisation in compute_coeff_Z_lP. Default 1 keeps "// &
-                          "the single-rank LAPACK dpotrf path (BLAS, fastest when "// &
-                          "D_local fits per rank). Setting > 1 enables a ScaLAPACK "// &
-                          "pdpotrf path: ranks are split into atom-groups of this size, "// &
-                          "D_local is block-cyclic distributed across each group (per-rank "// &
-                          "memory ~1/G), the compute_d_lp build is also distributed across "// &
-                          "the subgroup, and multiple groups process different atoms in "// &
-                          "parallel. Use for systems where n_local_grid is large enough "// &
-                          "that the dense (n_local_grid)^2 D_local does not fit in a "// &
-                          "single rank's memory.", &
-                          usage="N_PROCS_PER_ATOM_Z_LP 16", &
+                          "Cholesky factorisation in computation of $Z_{\ell P}$ in RI-RS. "// &
+                          "Default -1 = AUTO: "// &
+                          "each atom is solved single-rank (fast BLAS) unless its dense "// &
+                          "grid-overlap matrix would exceed the available memory per process, "// &
+                          "in which case it is distributed across a rank subgroup sized "// &
+                          "automatically (ScaLAPACK). Set to 1 to force single-rank for all "// &
+                          "atoms, or > 1 to force that fixed subgroup size for all atoms.", &
+                          usage="N_PROCS_PER_ATOM_Z_LP 2", &
+                          default_i_val=-1)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="N_PANELS", &
+                          description="Number of grid panels (batches) the real-space grid is "// &
+                          "split into for the streaming chi/W/Sigma contractions in RI-RS. More "// &
+                          "panels means lower peak memory per step but more overhead. Default 1 = a "// &
+                          "single whole-grid panel. On large cells the number of panels is "// &
+                          "automatically increased beyond the request to keep per-rank DBCSR "// &
+                          "messages under the 32-bit length limit.", &
+                          usage="N_PANELS 4", &
                           default_i_val=1)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
+      CALL keyword_create(keyword, __LOCATION__, name="KEEP_SPARSITY_RL", &
+                          description="If `.TRUE.` (default), the W/V matrices in the "// &
+                          "grid-basis contractions of RI-RSwill used the sparsity pattern of the "// &
+                          "corresponding G/D matrices. "// &
+                          "Set `.FALSE.` to build W/V fully dense.", &
+                          usage="KEEP_SPARSITY_RL .FALSE.", &
+                          default_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="CUTOFF_RADIUS_RL_W", &
+                          description="Real-space truncation radius (Angstrom) for the grid-basis "// &
+                          "G operators in the RI-RS GW self-energy. "// &
+                          "Default -1.0 disables the truncation (exact grid-basis operators).", &
+                          usage="CUTOFF_RADIUS_RL_W 20.0", &
+                          default_r_val=cp_unit_to_cp2k(value=-1.0_dp, unit_str="angstrom"), &
+                          type_of_var=real_t, unit_str="angstrom")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="CUTOFF_RADIUS_G_W", &
+                          description="Atom-pair distance truncation radius (Angstrom) applied to "// &
+                          "the AO/RI-space operator matrices G, D, V and W themselves in the RI-RS "// &
+                          "GW contractions: matrix blocks between atoms further apart than this "// &
+                          "radius are dropped. Physically consistent with CUTOFF_RADIUS_RL_W, "// &
+                          "which truncates the grid-basis products at the same kind of range. "// &
+                          "Default -1.0 disables the truncation (exact operators).", &
+                          usage="CUTOFF_RADIUS_G_W 20.0", &
+                          default_r_val=cp_unit_to_cp2k(value=-1.0_dp, unit_str="angstrom"), &
+                          type_of_var=real_t, unit_str="angstrom")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      NULLIFY (subsection)
+      CALL create_evgw0_section(subsection)
       CALL section_add_subsection(section, subsection)
       CALL section_release(subsection)
 
-   END SUBROUTINE create_gw_section
+   END SUBROUTINE create_ri_rs_section
+
+! **************************************************************************************************
+!> \brief creates the input section for eigenvalue self-consistent GW0 (evGW0) in RI-RS
+!> \param section section to create
+! **************************************************************************************************
+   SUBROUTINE create_evgw0_section(section)
+      TYPE(section_type), POINTER                        :: section
+
+      TYPE(keyword_type), POINTER                        :: keyword
+
+      CPASSERT(.NOT. ASSOCIATED(section))
+      CALL section_create(section, __LOCATION__, name="EVGW0", &
+                          description="Eigenvalue self-consistent GW0. The quasiparticle "// &
+                          "energies replace the Kohn-Sham eigenvalues in the Green's function "// &
+                          "and the cycle is repeated, while the screened Coulomb interaction "// &
+                          "$W$ stays at its RPA@DFT value. Only the correlation self-energy "// &
+                          "and the quasiparticle equation are recomputed per cycle; $W$, the "// &
+                          "exchange self-energy and the RI-RS grid quantities are computed "// &
+                          "once. Without this section a single-shot G0W0 calculation is "// &
+                          "performed.", &
+                          n_keywords=3, n_subsections=0, repeats=.FALSE.)
+
+      NULLIFY (keyword)
+      CALL keyword_create(keyword, __LOCATION__, &
+                          name="_SECTION_PARAMETERS_", &
+                          description="Controls the activation of evGW0. An empty section, "// &
+                          "&EVGW0 ... &END EVGW0, switches evGW0 on with default parameters.", &
+                          usage="&EVGW0 .TRUE.", &
+                          default_l_val=.FALSE., &
+                          lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="MAX_ITER", &
+                          description="Maximum number of evGW0 cycles.", &
+                          usage="MAX_ITER 20", &
+                          default_i_val=20)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="EPS_ITER", &
+                          description="Target accuracy of the eigenvalue self-consistency. "// &
+                          "The cycle stops once the quasiparticle HOMO, the quasiparticle "// &
+                          "LUMO and the HOMO-LUMO gap all change by less than this value "// &
+                          "between two successive cycles. Unit: Hartree.", &
+                          usage="EPS_ITER 0.00005", &
+                          default_r_val=5.0E-5_dp)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+   END SUBROUTINE create_evgw0_section
 
 ! **************************************************************************************************
 !> \brief creates an input section for calculation SOC for the electronic band structure
@@ -2695,13 +2855,34 @@ CONTAINS
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
-      CALL keyword_create(keyword, __LOCATION__, name="ENERGY_WINDOW", &
-                          description="Apply SOC only for states with eigenvalues in the "// &
-                          "interval $[\varepsilon_\mathrm{VBM}-E_\mathrm{window}/2, "// &
-                          "\varepsilon_\mathrm{CBM}+E_\mathrm{window}/2]$. Might be necessary "// &
+      CALL keyword_create(keyword, __LOCATION__, name="SOC_WINDOW_OCC", &
+                          description="Apply SOC only for states with eigenvalues below VBM "// &
+                          "in the interval $[\varepsilon_\mathrm{VBM}-E_\mathrm{window\_occ}, \ "// &
+                          "\varepsilon_\mathrm{VBM}]$. "// &
                           "to use for large systems to prevent numerical instabilities.", &
-                          usage="ENERGY_WINDOW 5.0", &
-                          default_r_val=cp_unit_to_cp2k(value=40.0_dp, unit_str="eV"), &
+                          usage="SOC_WINDOW_OCC 5.0", &
+                          default_r_val=-1.0_dp, &
+                          unit_str="eV")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="SOC_WINDOW_VIRT", &
+                          description="Apply SOC only for states with eigenvalues above CBM "// &
+                          "in the interval $[\varepsilon_\mathrm{CBM},\ "// &
+                          "\varepsilon_\mathrm{CBM}+E_\mathrm{window\_virt}]$, "// &
+                          "to use for large systems to prevent numerical instabilities.", &
+                          usage="SOC_WINDOW_VIRT 5.0", &
+                          default_r_val=-1.0_dp, &
+                          unit_str="eV")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="SOC_WINDOW_SMEARING", &
+                          description="Width of the Fermi-like smoothing at the SOC energy-window edge. "// &
+                          "Default reproduces the value of 1 eV. "// &
+                          "only effective when at least one SOC window is active.", &
+                          usage="SOC_WINDOW_SMEARING 1.0", &
+                          default_r_val=cp_unit_to_cp2k(value=1.0_dp, unit_str="eV"), &
                           unit_str="eV")
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
@@ -3020,6 +3201,15 @@ CONTAINS
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
+      CALL keyword_create(keyword, __LOCATION__, name="TEMPERATURE", &
+                          description="Electronic temperature (in K) of the wide-band fermion "// &
+                          "bath used to weight the Floquet DOS by Fermi-Dirac occupations, adding "// &
+                          "an occupied spectral-weight column f(E)*A(E) to the DOS file. If "// &
+                          "negative (default), that column is not written.", &
+                          usage="TEMPERATURE 300.0", default_r_val=-1.0_dp)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
       CALL keyword_create(keyword, __LOCATION__, name="FLOQUET_DOS_FILE_NAME", &
                           description="File name used for the Floquet spectral function.", &
                           usage="FLOQUET_DOS_FILE_NAME FLOQUET_DOS", &
@@ -3031,6 +3221,21 @@ CONTAINS
                           description="File name used for the Floquet quasi-energies.", &
                           usage="QUASI_ENERGIES_FILE_NAME QUASI_ENERGIES", &
                           default_lc_val="QUASI_ENERGIES")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="FLOQUET_BS_FILE_NAME", &
+                          description="File name used for the Floquet m=0 (central-sector) "// &
+                          "band structure.", &
+                          usage="FLOQUET_BS_FILE_NAME FLOQUET_BANDSTRUCTURE", &
+                          default_lc_val="FLOQUET_BANDSTRUCTURE")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="MEM_FILL_FRACTION", &
+                          description="Fraction of the computation memory that may be filled "// &
+                          "by Floquet Hamiltonian matrices. Reduce if process gets OOMP killed.", &
+                          usage="MEM_FILL_FRACTION 0.5", default_r_val=0.8_dp)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 

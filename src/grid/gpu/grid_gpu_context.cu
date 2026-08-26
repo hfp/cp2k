@@ -35,6 +35,11 @@ extern "C" {
 #endif
 
 namespace rocm_backend {
+
+constexpr size_t align_up_elems(size_t n_elems, size_t elem_alignment) {
+  return (n_elems + elem_alignment - 1) & ~(elem_alignment - 1);
+}
+
 kernel_params
 context_info::set_kernel_parameters(const int level,
                                     const smem_parameters &smem_params) {
@@ -57,10 +62,10 @@ context_info::set_kernel_parameters(const int level,
   params.la_max_diff = smem_params.ldiffs().la_max_diff;
   params.lb_max_diff = smem_params.ldiffs().lb_max_diff;
 
-  params.ptr_dev[0] = pab_block_.data();
+  params.buffers_dev.pab_block = pab_block_.data();
 
   if (level >= 0) {
-    params.ptr_dev[1] = grid_[level].data();
+    params.buffers_dev.grid = grid_[level].data();
     memcpy(params.dh_, grid_[level].dh(), 9 * sizeof(double));
     memcpy(params.dh_inv_, grid_[level].dh_inv(), 9 * sizeof(double));
     params.first_task = first_task_per_level_[level];
@@ -71,11 +76,11 @@ context_info::set_kernel_parameters(const int level,
     params.grid_border_width_ = grid_[level].border_width();
   }
 
-  params.ptr_dev[2] = this->coef_dev_.data();
-  params.ptr_dev[3] = hab_block_.data();
-  params.ptr_dev[4] = forces_.data();
-  params.ptr_dev[5] = virial_.data();
-  params.ptr_dev[6] = this->cab_dev_.data();
+  params.buffers_dev.coef = this->coef_dev_.data();
+  params.buffers_dev.hab_block = hab_block_.data();
+  params.buffers_dev.forces = forces_.data();
+  params.buffers_dev.virial = virial_.data();
+  params.buffers_dev.cab = this->cab_dev_.data();
   params.cab_block_offset_dev = this->cab_block_offset_dev.data();
   params.sphi_dev = this->sphi_dev.data();
   return params;
@@ -235,8 +240,10 @@ extern "C" void grid_gpu_create_task_list(
     tasks_host[i].ncosetb = rocm_backend::ncoset(lb_max_basis);
     // it should lmax + 3 because calculating forces+stress+compute_tau requires
     // l + 3
-    tasks_host[i].max_cab_size = rocm_backend::ncoset(la_max_basis + 3) *
-                                 rocm_backend::ncoset(lb_max_basis + 3);
+    tasks_host[i].max_cab_size =
+        rocm_backend::align_up_elems(rocm_backend::ncoset(la_max_basis + 3) *
+                                         rocm_backend::ncoset(lb_max_basis + 3),
+                                     4);
 
     // size of entire spherical basis
     tasks_host[i].nsgfa = ibasis->nsgf;
@@ -274,9 +281,13 @@ extern "C" void grid_gpu_create_task_list(
     } else {
       tasks_host[i].coef_offset =
           tasks_host[i - 1].coef_offset +
-          rocm_backend::ncoset(tasks_host[i - 1].lp_max);
+          rocm_backend::align_up_elems(
+              rocm_backend::ncoset(tasks_host[i - 1].lp_max), 4);
     }
-    coef_size += rocm_backend::ncoset(tasks_host[i].lp_max);
+
+    // calculate the size such that the coef table is a multiple of 4.
+    coef_size += rocm_backend::align_up_elems(
+        rocm_backend::ncoset(tasks_host[i].lp_max), 4);
 
     auto &grid = ctx->grid_[tasks_host[i].level];
     // compute the cube properties

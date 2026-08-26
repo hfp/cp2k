@@ -29,9 +29,11 @@ MODULE qs_mo_occupation
                                               has_uniform_occupation,&
                                               mo_set_type,&
                                               set_mo_set
-   USE scf_control_types,               ONLY: smear_type
+   USE scf_control_types,               ONLY: gce_type,&
+                                              smear_type
    USE smearing_utils,                  ONLY: SmearFixed,&
-                                              SmearFixedDerivMV
+                                              SmearFixedDerivMV,&
+                                              SmearOcc
    USE util,                            ONLY: sort
    USE xas_env_types,                   ONLY: get_xas_env,&
                                               xas_environment_type
@@ -57,14 +59,16 @@ CONTAINS
 !>
 !> \param mo_array ...
 !> \param smear ...
+!> \param gce ...
 !> \date    10.03.2011 (MI)
 !> \author  MI
 !> \version 1.0
 ! **************************************************************************************************
-   SUBROUTINE set_mo_occupation_3(mo_array, smear)
+   SUBROUTINE set_mo_occupation_3(mo_array, smear, gce)
 
       TYPE(mo_set_type), DIMENSION(2), INTENT(INOUT)     :: mo_array
       TYPE(smear_type)                                   :: smear
+      TYPE(gce_type), OPTIONAL, POINTER                  :: gce
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'set_mo_occupation_3'
 
@@ -73,7 +77,7 @@ CONTAINS
                                                             lfomo_a, lfomo_b, nmo_a, nmo_b, &
                                                             xas_estate
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: all_index
-      LOGICAL                                            :: is_large
+      LOGICAL                                            :: do_gce, is_large
       REAL(KIND=dp)                                      :: all_nelec, kTS, mu, nelec_a, nelec_b, &
                                                             occ_estate, smear_width
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: all_eigval, all_occ
@@ -96,23 +100,11 @@ CONTAINS
 
       CALL sort(all_eigval, all_nmo, all_index)
 
-      xas_estate = -1
-      occ_estate = 0.0_dp
-
-      nelec_a = 0.0_dp
-      nelec_b = 0.0_dp
-      all_nelec = 0.0_dp
-      nelec_a = accurate_sum(occ_a(:))
-      nelec_b = accurate_sum(occ_b(:))
-      all_nelec = nelec_a + nelec_b
-
-      DO i = 1, all_nmo
-         IF (all_index(i) <= nmo_a) THEN
-            all_occ(i) = occ_a(all_index(i))
-         ELSE
-            all_occ(i) = occ_b(all_index(i) - nmo_a)
-         END IF
-      END DO
+      IF (PRESENT(gce)) THEN
+         do_gce = gce%do_gce
+      ELSE
+         do_gce = .FALSE.
+      END IF
 
       SELECT CASE (smear%method)
       CASE (smear_fermi_dirac)
@@ -131,22 +123,48 @@ CONTAINS
          CPABORT("set_mo_occupation_3: unsupported smearing method")
       END SELECT
 
-      CALL SmearFixed(all_occ, mu, kTS, all_eigval, all_nelec, &
-                      smear_width, 1._dp, smear%method, xas_estate, occ_estate)
+      IF (.NOT. do_gce) THEN
+         xas_estate = -1
+         occ_estate = 0.0_dp
+
+         nelec_a = 0.0_dp
+         nelec_b = 0.0_dp
+         all_nelec = 0.0_dp
+         nelec_a = accurate_sum(occ_a(:))
+         nelec_b = accurate_sum(occ_b(:))
+         all_nelec = nelec_a + nelec_b
+
+         DO i = 1, all_nmo
+            IF (all_index(i) <= nmo_a) THEN
+               all_occ(i) = occ_a(all_index(i))
+            ELSE
+               all_occ(i) = occ_b(all_index(i) - nmo_a)
+            END IF
+         END DO
+
+         CALL SmearFixed(all_occ, mu, kTS, all_eigval, all_nelec, &
+                         smear_width, 1._dp, smear%method, xas_estate, occ_estate)
+      ELSE
+         gce%prev_workfunction = gce%ref_esp - mo_array(1)%mu
+         mu = gce%ref_esp - ((1.0_dp - gce%mixing_coef)*gce%prev_workfunction + gce%mixing_coef*gce%target_workfunction)
+         CALL SmearOcc(all_occ, all_nelec, kTS, all_eigval, mu, smear_width, 1._dp, smear%method)
+      END IF
 
       is_large = ABS(all_occ(1) - 1.0_dp) > smear%eps_fermi_dirac
       ! this is not a real problem, but the smearing width might be a bit large
       CPWARN_IF(is_large, TRIM(method_label)//" smearing includes the first MO")
 
       is_large = ABS(all_occ(all_nmo)) > smear%eps_fermi_dirac
-      IF (is_large) &
+      IF (is_large) THEN
          CALL cp_warn(__LOCATION__, &
                       TRIM(method_label)//" smearing includes the last MO => "// &
                       "Add more MOs for proper smearing.")
-
-      ! check that the total electron count is accurate
-      is_large = (ABS(all_nelec - accurate_sum(all_occ(:))) > smear%eps_fermi_dirac*all_nelec)
-      CPWARN_IF(is_large, "Total number of electrons is not accurate")
+      END IF
+      IF (.NOT. do_gce) THEN
+         ! check that the total electron count is accurate
+         is_large = (ABS(all_nelec - accurate_sum(all_occ(:))) > smear%eps_fermi_dirac*all_nelec)
+         CPWARN_IF(is_large, "Total number of electrons is not accurate")
+      END IF
 
       DO i = 1, all_nmo
          IF (all_index(i) <= nmo_a) THEN
@@ -160,6 +178,11 @@ CONTAINS
 
       nelec_a = accurate_sum(occ_a(:))
       nelec_b = accurate_sum(occ_b(:))
+
+      lfomo_a = nmo_a + 1
+      lfomo_b = nmo_b + 1
+      homo_a = 0
+      homo_b = 0
 
       DO i = 1, nmo_a
          IF (occ_a(i) < 1.0_dp) THEN
@@ -205,6 +228,7 @@ CONTAINS
 !> \param eval_deriv ...
 !> \param tot_zeff_corr ...
 !> \param probe ...
+!> \param gce ...
 !> \date    25.01.2010 (MK)
 !> \par   History
 !>        10.2019 Added functionality to adjust mo occupation if the core
@@ -215,7 +239,7 @@ CONTAINS
 !> \author  Matthias Krack (MK)
 !> \version 1.0
 ! **************************************************************************************************
-   SUBROUTINE set_mo_occupation_2(mo_array, smear, eval_deriv, tot_zeff_corr, probe)
+   SUBROUTINE set_mo_occupation_2(mo_array, smear, eval_deriv, tot_zeff_corr, probe, gce)
 
       TYPE(mo_set_type), DIMENSION(:), INTENT(INOUT)     :: mo_array
       TYPE(smear_type)                                   :: smear
@@ -223,6 +247,7 @@ CONTAINS
       REAL(KIND=dp), OPTIONAL                            :: tot_zeff_corr
       TYPE(hairy_probes_type), DIMENSION(:), OPTIONAL, &
          POINTER                                         :: probe
+      TYPE(gce_type), OPTIONAL, POINTER                  :: gce
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'set_mo_occupation_2'
 
@@ -240,12 +265,20 @@ CONTAINS
             CALL set_mo_occupation_1(mo_array(1), smear=smear, probe=probe)
          ELSE IF (PRESENT(eval_deriv)) THEN
 ! Change of MO occupancy to account for CORE_CORRECTION is not yet implemented
-            CALL set_mo_occupation_1(mo_array(1), smear=smear, eval_deriv=eval_deriv)
+            IF (PRESENT(gce)) THEN
+               CALL set_mo_occupation_1(mo_array(1), smear=smear, eval_deriv=eval_deriv, gce=gce)
+            ELSE
+               CALL set_mo_occupation_1(mo_array(1), smear=smear, eval_deriv=eval_deriv)
+            END IF
          ELSE
             IF (PRESENT(tot_zeff_corr)) THEN
                CALL set_mo_occupation_1(mo_array(1), smear=smear, tot_zeff_corr=tot_zeff_corr)
             ELSE
-               CALL set_mo_occupation_1(mo_array(1), smear=smear)
+               IF (PRESENT(gce)) THEN
+                  CALL set_mo_occupation_1(mo_array(1), smear=smear, gce=gce)
+               ELSE
+                  CALL set_mo_occupation_1(mo_array(1), smear=smear)
+               END IF
             END IF
          END IF
          CALL timestop(handle)
@@ -269,7 +302,7 @@ CONTAINS
             END IF
             IF (smear%fixed_mag_mom /= -1.0_dp) THEN
                CPASSERT(.NOT. (PRESENT(eval_deriv)))
-               CALL set_mo_occupation_3(mo_array, smear=smear)
+               CALL set_mo_occupation_3(mo_array, smear=smear, gce=gce)
                CALL timestop(handle)
                RETURN
             END IF
@@ -315,13 +348,15 @@ CONTAINS
 
       multiplicity_old = mo_array(1)%nelectron - mo_array(2)%nelectron + 1
 
-      IF (mo_array(1)%nelectron >= mo_array(1)%nmo) &
+      IF (mo_array(1)%nelectron >= mo_array(1)%nmo) THEN
          CALL cp_warn(__LOCATION__, &
                       "All alpha MOs are occupied. Add more alpha MOs to "// &
                       "allow for a higher multiplicity")
-      IF ((mo_array(2)%nelectron >= mo_array(2)%nmo) .AND. (mo_array(2)%nelectron /= mo_array(1)%nelectron)) &
+      END IF
+      IF ((mo_array(2)%nelectron >= mo_array(2)%nmo) .AND. (mo_array(2)%nelectron /= mo_array(1)%nelectron)) THEN
          CALL cp_warn(__LOCATION__, "All beta MOs are occupied. Add more beta MOs to "// &
                       "allow for a lower multiplicity")
+      END IF
 
       eigval_a => mo_array(1)%eigenvalues
       eigval_b => mo_array(2)%eigenvalues
@@ -340,20 +375,22 @@ CONTAINS
             lumo_b = lumo_b + 1
          END IF
          IF (lumo_a > mo_array(1)%nmo) THEN
-            IF (i /= nelec) &
+            IF (i /= nelec) THEN
                CALL cp_warn(__LOCATION__, &
                             "All alpha MOs are occupied. Add more alpha MOs to "// &
                             "allow for a higher multiplicity")
+            END IF
             IF (i < nelec) THEN
                lumo_a = lumo_a - 1
                lumo_b = lumo_b + 1
             END IF
          END IF
          IF (lumo_b > mo_array(2)%nmo) THEN
-            IF (lumo_b < lumo_a) &
+            IF (lumo_b < lumo_a) THEN
                CALL cp_warn(__LOCATION__, &
                             "All beta MOs are occupied. Add more beta MOs to "// &
                             "allow for a lower multiplicity")
+            END IF
             IF (i < nelec) THEN
                lumo_a = lumo_a + 1
                lumo_b = lumo_b - 1
@@ -379,11 +416,12 @@ CONTAINS
       mo_array(2)%nelectron = mo_array(2)%homo
       multiplicity_new = mo_array(1)%nelectron - mo_array(2)%nelectron + 1
 
-      IF (multiplicity_new /= multiplicity_old) &
+      IF (multiplicity_new /= multiplicity_old) THEN
          CALL cp_warn(__LOCATION__, &
                       "Multiplicity changed from "// &
                       TRIM(ADJUSTL(cp_to_string(multiplicity_old)))//" to "// &
                       TRIM(ADJUSTL(cp_to_string(multiplicity_new))))
+      END IF
 
       IF (PRESENT(probe)) THEN
          CALL set_mo_occupation_1(mo_array(1), smear=smear, probe=probe)
@@ -414,6 +452,7 @@ CONTAINS
 !> \param xas_env ...
 !> \param tot_zeff_corr ...
 !> \param probe ...
+!> \param gce ...
 !> \date    17.04.2002 (v1.0), 26.08.2008 (v1.1)
 !> \par   History
 !>        10.2019 Added functionality to adjust mo occupation if the core
@@ -424,7 +463,7 @@ CONTAINS
 !> \author  Matthias Krack
 !> \version 1.1
 ! **************************************************************************************************
-   SUBROUTINE set_mo_occupation_1(mo_set, smear, eval_deriv, xas_env, tot_zeff_corr, probe)
+   SUBROUTINE set_mo_occupation_1(mo_set, smear, eval_deriv, xas_env, tot_zeff_corr, probe, gce)
 
       TYPE(mo_set_type), INTENT(INOUT)                   :: mo_set
       TYPE(smear_type), OPTIONAL                         :: smear
@@ -433,16 +472,18 @@ CONTAINS
       REAL(KIND=dp), OPTIONAL                            :: tot_zeff_corr
       TYPE(hairy_probes_type), DIMENSION(:), OPTIONAL, &
          POINTER                                         :: probe
+      TYPE(gce_type), OPTIONAL, POINTER                  :: gce
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'set_mo_occupation_1'
 
       CHARACTER(LEN=20)                                  :: method_label
-      INTEGER                                            :: handle, i_first, imo, ir, irmo, nmo, &
+      INTEGER                                            :: handle, i, i_first, imo, ir, irmo, nmo, &
                                                             nomo, xas_estate
-      LOGICAL                                            :: equal_size, is_large
+      LOGICAL                                            :: do_gce, equal_size, is_large
       REAL(KIND=dp)                                      :: delectron, e1, e2, edelta, edist, &
-                                                            el_count, nelec, occ_estate, &
-                                                            total_zeff_corr, xas_nelectron
+                                                            el_count, gce_mu, my_nelec, nelec, &
+                                                            occ_estate, total_zeff_corr, &
+                                                            xas_nelectron
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: tmp_v
 
       CALL timeset(routineN, handle)
@@ -466,12 +507,61 @@ CONTAINS
          mo_set%occupation_numbers(1:nomo) = mo_set%maxocc
          IF (xas_estate > 0) mo_set%occupation_numbers(xas_estate) = occ_estate
          el_count = SUM(mo_set%occupation_numbers(1:nomo))
-         IF (el_count > xas_nelectron) &
+         IF (el_count > xas_nelectron) THEN
             mo_set%occupation_numbers(nomo) = mo_set%occupation_numbers(nomo) - (el_count - xas_nelectron)
+         END IF
          el_count = SUM(mo_set%occupation_numbers(1:nomo))
          is_large = ABS(el_count - xas_nelectron) > xas_nelectron*EPSILON(el_count)
          CPASSERT(.NOT. is_large)
       ELSE
+         IF (PRESENT(gce)) THEN
+            do_gce = gce%do_gce
+         ELSE
+            do_gce = .FALSE.
+         END IF
+         ! GCE workfunction (Fermi energy) mixing
+         IF (do_gce) THEN
+            IF (smear%method /= smear_fermi_dirac) THEN
+               CPABORT("Grand canonical ensemble DFT SCF now only support Fermi Dirac smearing.")
+            END IF
+            IF (gce%prev_workfunction < -1000.0_dp) THEN
+               my_nelec = REAL(mo_set%nelectron, dp)
+               CALL SmearFixed(mo_set%occupation_numbers, mo_set%mu, mo_set%kTS, mo_set%eigenvalues, my_nelec, &
+                               smear%electronic_temperature, mo_set%maxocc, smear_fermi_dirac)
+               gce%prev_workfunction = -501.0_dp
+            ELSE IF (gce%prev_workfunction < -500.0_dp) THEN
+               my_nelec = REAL(mo_set%nelectron, dp)
+               CALL SmearFixed(mo_set%occupation_numbers, mo_set%mu, mo_set%kTS, mo_set%eigenvalues, my_nelec, &
+                               smear%electronic_temperature, mo_set%maxocc, smear_fermi_dirac)
+               gce%prev_workfunction = gce%ref_esp - mo_set%mu
+            ELSE
+               gce_mu = gce%ref_esp - ((1.0_dp - gce%mixing_coef)*gce%prev_workfunction &
+                                       + gce%mixing_coef*gce%target_workfunction)
+               CALL SmearOcc(mo_set%occupation_numbers, my_nelec, mo_set%kTS, mo_set%eigenvalues, gce_mu, &
+                             smear%electronic_temperature, mo_set%maxocc, smear_fermi_dirac)
+               mo_set%mu = gce_mu
+               gce%prev_workfunction = gce%ref_esp - mo_set%mu
+               is_large = ABS(MAXVAL(mo_set%occupation_numbers) - mo_set%maxocc) > smear%eps_fermi_dirac
+               CPWARN_IF(is_large, "Fermi-Dirac smearing includes the first MO")
+            END IF
+            DO i = 1, SIZE(mo_set%occupation_numbers)
+               IF (mo_set%occupation_numbers(i) < mo_set%maxocc) THEN
+                  mo_set%lfomo = i
+                  EXIT
+               END IF
+            END DO
+            DO i = SIZE(mo_set%occupation_numbers), 1, -1
+               IF (mo_set%occupation_numbers(i) > smear%eps_fermi_dirac) THEN
+                  mo_set%homo = i
+                  EXIT
+               END IF
+            END DO
+            mo_set%uniform_occupation = .FALSE.
+            mo_set%n_el_f = my_nelec
+            CALL timestop(handle)
+            RETURN
+         END IF
+
          IF (MODULO(mo_set%nelectron, INT(mo_set%maxocc)) == 0) THEN
             nomo = NINT(mo_set%nelectron/mo_set%maxocc)
             ! Initialize MO occupations
@@ -508,13 +598,13 @@ CONTAINS
                   END DO
                   nomo = nomo - irmo
                   IF (mo_set%occupation_numbers(nomo) == 0.0_dp) nomo = nomo - 1
-               ELSEIF (delectron < 0.0_dp) THEN
+               ELSE IF (delectron < 0.0_dp) THEN
                   mo_set%occupation_numbers(nomo) = -delectron
                ELSE
                   mo_set%occupation_numbers(nomo) = 0.0_dp
                   nomo = nomo - 1
                END IF
-            ELSEIF (total_zeff_corr > 0.0_dp) THEN
+            ELSE IF (total_zeff_corr > 0.0_dp) THEN
 ! add electron density to the mos
                delectron = total_zeff_corr - REAL(mo_set%maxocc, KIND=dp)
                IF (delectron > 0.0_dp) THEN
@@ -577,8 +667,9 @@ CONTAINS
          END DO
          is_large = ABS(MAXVAL(mo_set%occupation_numbers) - mo_set%maxocc) > probe(1)%eps_hp
          ! this is not a real problem, but the temperature might be a bit large
-         IF (is_large) &
+         IF (is_large) THEN
             CPWARN("Hair-probes occupancy distribution includes the first MO")
+         END IF
 
          ! Find the highest (fractional) occupied MO which will be now the HOMO
          DO imo = nmo, mo_set%lfomo, -1
@@ -588,15 +679,17 @@ CONTAINS
             END IF
          END DO
          is_large = ABS(MINVAL(mo_set%occupation_numbers)) > probe(1)%eps_hp
-         IF (is_large) &
+         IF (is_large) THEN
             CALL cp_warn(__LOCATION__, &
                          "Hair-probes occupancy distribution includes the last MO => "// &
                          "Add more MOs for proper smearing.")
+         END IF
 
          ! check that the total electron count is accurate
          is_large = (ABS(nelec - accurate_sum(mo_set%occupation_numbers(:))) > probe(1)%eps_hp*nelec)
-         IF (is_large) &
+         IF (is_large) THEN
             CPWARN("Total number of electrons is not accurate")
+         END IF
 
       END IF
 
@@ -672,10 +765,11 @@ CONTAINS
                END IF
             END DO
             is_large = ABS(MINVAL(mo_set%occupation_numbers)) > smear%eps_fermi_dirac
-            IF (is_large) &
+            IF (is_large) THEN
                CALL cp_warn(__LOCATION__, &
                             "Fermi-Dirac smearing includes the last MO => "// &
                             "Add more MOs for proper smearing.")
+            END IF
 
             ! check that the total electron count is accurate
             is_large = (ABS(nelec - accurate_sum(mo_set%occupation_numbers(:))) > smear%eps_fermi_dirac*nelec)
@@ -728,10 +822,11 @@ CONTAINS
                END IF
             END DO
             is_large = ABS(mo_set%occupation_numbers(nmo)) > smear%eps_fermi_dirac
-            IF (is_large) &
+            IF (is_large) THEN
                CALL cp_warn(__LOCATION__, &
                             TRIM(method_label)//" smearing includes the last MO => "// &
                             "Add more MOs for proper smearing.")
+            END IF
 
             ! Check that the total electron count is accurate
             is_large = (ABS(nelec - accurate_sum(mo_set%occupation_numbers(:))) > smear%eps_fermi_dirac*nelec)
@@ -748,10 +843,11 @@ CONTAINS
             END IF
 
             e2 = mo_set%eigenvalues(mo_set%homo) + 0.5_dp*smear%window_size
-            IF (e2 >= mo_set%eigenvalues(nmo)) &
+            IF (e2 >= mo_set%eigenvalues(nmo)) THEN
                CALL cp_warn(__LOCATION__, &
                             "Energy window for smearing includes the last MO => "// &
                             "Add more MOs for proper smearing.")
+            END IF
 
             ! Find the lowest fractional occupied MO (LFOMO)
             DO imo = i_first, nomo

@@ -64,8 +64,9 @@ CONTAINS
       CALL section_vals_val_get(topology_section, "CHARGE_BETA", l_val=topology%charge_beta)
       CALL section_vals_val_get(topology_section, "CHARGE_EXTENDED", l_val=topology%charge_extended)
       ival = COUNT([topology%charge_occup, topology%charge_beta, topology%charge_extended])
-      IF (ival > 1) &
+      IF (ival > 1) THEN
          CPABORT("Only one between <CHARGE_OCCUP,CHARGE_BETA,CHARGE_EXTENDED> can be defined! ")
+      END IF
       CALL section_vals_val_get(topology_section, "PARA_RES", l_val=topology%para_res)
       CALL section_vals_val_get(topology_section, "GENERATE%REORDER", l_val=topology%reorder_atom)
       CALL section_vals_val_get(topology_section, "GENERATE%CREATE_MOLECULES", l_val=topology%create_molecules)
@@ -193,11 +194,15 @@ CONTAINS
                                             c_val=cons_info%const_g33_molname(ig))
                END IF
                IF ((cons_info%const_g33_mol(ig) /= 0) .AND. (cons_info%const_g33_molname(ig) /= "UNDEF")) THEN
-                  CPABORT("")
+                  CALL cp_abort(__LOCATION__, &
+                                "Invalid G3X3 constraint section "//cp_to_string(ig)//": "// &
+                                "check MOLECULE and MOLNAME setup!")
                END IF
                IF ((cons_info%const_g33_mol(ig) == 0) .AND. (cons_info%const_g33_molname(ig) == "UNDEF") .AND. &
                    (.NOT. cons_info%g33_intermolecular(ig))) THEN
-                  CPABORT("")
+                  CALL cp_abort(__LOCATION__, &
+                                "Invalid G3X3 constraint section "//cp_to_string(ig)//": "// &
+                                "check MOLECULE and MOLNAME setup!")
                END IF
                CALL section_vals_val_get(g3x3_section, "ATOMS", i_rep_section=ig, &
                                          i_vals=ilist)
@@ -271,11 +276,15 @@ CONTAINS
                                             c_val=cons_info%const_g46_molname(ig))
                END IF
                IF ((cons_info%const_g46_mol(ig) /= 0) .AND. (cons_info%const_g46_molname(ig) /= "UNDEF")) THEN
-                  CPABORT("")
+                  CALL cp_abort(__LOCATION__, &
+                                "Invalid G4X6 constraint section "//cp_to_string(ig)//": "// &
+                                "check MOLECULE and MOLNAME setup!")
                END IF
                IF ((cons_info%const_g46_mol(ig) == 0) .AND. (cons_info%const_g46_molname(ig) == "UNDEF") .AND. &
                    (.NOT. cons_info%g46_intermolecular(ig))) THEN
-                  CPABORT("")
+                  CALL cp_abort(__LOCATION__, &
+                                "Invalid G4X6 constraint section "//cp_to_string(ig)//": "// &
+                                "check MOLECULE and MOLNAME setup!")
                END IF
                CALL section_vals_val_get(g4x6_section, "ATOMS", i_rep_section=ig, &
                                          i_vals=ilist)
@@ -348,11 +357,15 @@ CONTAINS
                                             c_val=cons_info%const_vsite_molname(ig))
                END IF
                IF ((cons_info%const_vsite_mol(ig) /= 0) .AND. (cons_info%const_vsite_molname(ig) /= "UNDEF")) THEN
-                  CPABORT("")
+                  CALL cp_abort(__LOCATION__, &
+                                "Invalid VIRTUAL_SITE constraint section "//cp_to_string(ig)//": "// &
+                                "check MOLECULE and MOLNAME setup!")
                END IF
                IF ((cons_info%const_vsite_mol(ig) == 0) .AND. (cons_info%const_vsite_molname(ig) == "UNDEF") .AND. &
                    (.NOT. cons_info%vsite_intermolecular(ig))) THEN
-                  CPABORT("")
+                  CALL cp_abort(__LOCATION__, &
+                                "Invalid VIRTUAL_SITE constraint section "//cp_to_string(ig)//": "// &
+                                "check MOLECULE and MOLNAME setup!")
                END IF
                CALL section_vals_val_get(vsite_section, "ATOMS", i_rep_section=ig, &
                                          i_vals=ilist)

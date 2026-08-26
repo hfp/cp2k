@@ -69,9 +69,11 @@ MODULE xtb_parameters
                                      0.98_dp, 1.57_dp, 2.04_dp, 2.55_dp, 3.04_dp, 3.44_dp, 3.98_dp, 4.50_dp, & ! 10
                                      0.93_dp, 1.31_dp, 1.61_dp, 1.90_dp, 2.19_dp, 2.58_dp, 3.16_dp, 3.50_dp, & ! 18
                                      0.82_dp, 1.00_dp, 1.36_dp, 1.54_dp, 1.63_dp, 1.66_dp, 1.55_dp, 1.83_dp, &
-                                     1.88_dp, 1.91_dp, 1.90_dp, 1.65_dp, 1.81_dp, 2.01_dp, 2.18_dp, 2.55_dp, 2.96_dp, 3.00_dp, & ! 36
+                                     1.88_dp, 1.91_dp, 1.90_dp, 1.65_dp, 1.81_dp, 2.01_dp, 2.18_dp, 2.55_dp, &
+                                     2.96_dp, 3.00_dp, & ! 36
                                      0.82_dp, 0.95_dp, 1.22_dp, 1.33_dp, 1.60_dp, 2.16_dp, 1.90_dp, 2.20_dp, &
-                                     2.28_dp, 2.20_dp, 1.93_dp, 1.69_dp, 1.78_dp, 1.96_dp, 2.05_dp, 2.10_dp, 2.66_dp, 2.60_dp, & ! 54
+                                     2.28_dp, 2.20_dp, 1.93_dp, 1.69_dp, 1.78_dp, 1.96_dp, 2.05_dp, 2.10_dp, &
+                                     2.66_dp, 2.60_dp, & ! 54
                                      0.79_dp, 0.89_dp, 1.10_dp, &
                                      1.12_dp, 1.13_dp, 1.14_dp, 1.15_dp, 1.17_dp, 1.18_dp, 1.20_dp, 1.21_dp, &
                                      1.22_dp, 1.23_dp, 1.24_dp, 1.25_dp, 1.26_dp, 1.27_dp, & ! Lanthanides
@@ -116,9 +118,11 @@ MODULE xtb_parameters
                                      1.30_dp, 0.99_dp, 0.84_dp, 0.75_dp, 0.71_dp, 0.64_dp, 0.60_dp, 0.62_dp, & ! 10
                                      1.60_dp, 1.40_dp, 1.24_dp, 1.14_dp, 1.09_dp, 1.04_dp, 1.00_dp, 1.01_dp, & ! 18
                                      2.00_dp, 1.74_dp, 1.59_dp, 1.48_dp, 1.44_dp, 1.30_dp, 1.29_dp, 1.24_dp, &
-                                     1.18_dp, 1.17_dp, 1.22_dp, 1.20_dp, 1.23_dp, 1.20_dp, 1.20_dp, 1.18_dp, 1.17_dp, 1.16_dp, & ! 36
+                                     1.18_dp, 1.17_dp, 1.22_dp, 1.20_dp, 1.23_dp, 1.20_dp, 1.20_dp, 1.18_dp, &
+                                     1.17_dp, 1.16_dp, & ! 36
                                      2.15_dp, 1.90_dp, 1.76_dp, 1.64_dp, 1.56_dp, 1.46_dp, 1.38_dp, 1.36_dp, &
-                                     1.34_dp, 1.30_dp, 1.36_dp, 1.40_dp, 1.42_dp, 1.40_dp, 1.40_dp, 1.37_dp, 1.36_dp, 1.36_dp, & ! 54
+                                     1.34_dp, 1.30_dp, 1.36_dp, 1.40_dp, 1.42_dp, 1.40_dp, 1.40_dp, 1.37_dp, &
+                                     1.36_dp, 1.36_dp, & ! 54
                                      2.38_dp, 2.06_dp, 1.94_dp, &
                                      1.84_dp, 1.90_dp, 1.88_dp, 1.86_dp, 1.85_dp, 1.83_dp, 1.82_dp, 1.81_dp, &
                                      1.80_dp, 1.79_dp, 1.77_dp, 1.77_dp, 1.78_dp, 1.74_dp, & ! Lanthanides
@@ -138,9 +142,11 @@ MODULE xtb_parameters
                                      1.05_dp, 2.05_dp, 3.00_dp, 4.00_dp, 3.00_dp, 2.00_dp, 1.25_dp, 1.00_dp, & ! 10
                                      1.05_dp, 2.05_dp, 3.00_dp, 4.00_dp, 3.00_dp, 2.00_dp, 1.25_dp, 1.00_dp, & ! 18
                                      1.05_dp, 2.05_dp, 3.50_dp, 3.50_dp, 3.50_dp, 3.50_dp, 3.50_dp, 3.50_dp, &
-                                     3.50_dp, 3.50_dp, 3.50_dp, 2.50_dp, 2.50_dp, 3.50_dp, 3.50_dp, 3.50_dp, 1.25_dp, 1.00_dp, & ! 36
+                                     3.50_dp, 3.50_dp, 3.50_dp, 2.50_dp, 2.50_dp, 3.50_dp, 3.50_dp, 3.50_dp, &
+                                     1.25_dp, 1.00_dp, & ! 36
                                      1.05_dp, 2.05_dp, 3.50_dp, 3.50_dp, 3.50_dp, 3.50_dp, 3.50_dp, 3.50_dp, &
-                                     3.50_dp, 3.50_dp, 3.50_dp, 2.50_dp, 2.50_dp, 3.50_dp, 3.50_dp, 3.50_dp, 1.25_dp, 1.00_dp, & ! 54
+                                     3.50_dp, 3.50_dp, 3.50_dp, 2.50_dp, 2.50_dp, 3.50_dp, 3.50_dp, 3.50_dp, &
+                                     1.25_dp, 1.00_dp, & ! 54
                                      1.05_dp, 2.05_dp, 3.00_dp, &
                                      3.00_dp, 3.00_dp, 3.00_dp, 3.00_dp, 3.00_dp, 3.00_dp, 3.00_dp, 3.00_dp, &
                                      3.00_dp, 3.00_dp, 3.00_dp, 3.00_dp, 3.00_dp, 3.00_dp, & ! Lanthanides
@@ -152,6 +158,28 @@ MODULE xtb_parameters
                                      3.00_dp, 3.00_dp, 3.00_dp]
 !&>
 
+!&<
+   ! number of primitive gaussians per shell
+   INTEGER, PARAMETER :: number_of_primitives(1:3, 1:nelem) = RESHAPE([&
+      & 4, 3, 0,  4, 0, 0,  6, 6, 0,  6, 6, 0,  6, 6, 0,  6, 6, 0,  6, 6, 0, &
+      & 6, 6, 0,  6, 6, 0,  6, 6, 4,  6, 6, 0,  6, 6, 0,  6, 6, 4,  6, 6, 4, &
+      & 6, 6, 4,  6, 6, 4,  6, 6, 4,  6, 6, 4,  6, 6, 0,  6, 6, 4,  4, 6, 6, &
+      & 4, 6, 6,  4, 6, 6,  4, 6, 6,  4, 6, 6,  4, 6, 6,  4, 6, 6,  4, 6, 6, &
+      & 4, 6, 6,  6, 6, 0,  6, 6, 4,  6, 6, 4,  6, 6, 4,  6, 6, 4,  6, 6, 4, &
+      & 6, 6, 4,  6, 6, 0,  6, 6, 4,  4, 6, 6,  4, 6, 6,  4, 6, 6,  4, 6, 6, &
+      & 4, 6, 6,  4, 6, 6,  4, 6, 6,  4, 6, 6,  4, 6, 6,  6, 6, 0,  6, 6, 4, &
+      & 6, 6, 4,  6, 6, 4,  6, 6, 4,  6, 6, 4,  6, 6, 4,  6, 6, 0,  6, 6, 4, &
+      & 4, 6, 6,  4, 6, 6,  4, 6, 6,  4, 6, 6,  4, 6, 6,  4, 6, 6,  4, 6, 6, &
+      & 4, 6, 6,  4, 6, 6,  4, 6, 6,  4, 6, 6,  4, 6, 6,  4, 6, 6,  4, 6, 6, &
+      & 4, 6, 6,  4, 6, 6,  4, 6, 6,  4, 6, 6,  4, 6, 6,  4, 6, 6,  4, 6, 6, &
+      & 4, 6, 6,  4, 6, 6,  6, 6, 0,  6, 6, 0,  6, 6, 0,  6, 6, 0,  6, 6, 4, &
+      & 6, 6, 4,  6, 6, 4,  6, 6, 6,  6, 6, 6,  6, 6, 6,  6, 6, 6,  6, 6, 6, &
+      & 6, 6, 6,  6, 6, 6,  6, 6, 6,  6, 6, 6,  6, 6, 6,  6, 6, 6,  6, 6, 6, &
+      & 6, 6, 6,  6, 6, 6,  6, 6, 6,  6, 6, 6,  6, 6, 6,  6, 6, 6,  6, 6, 6, &
+      & 0, 0, 0], &
+       [3, nelem])
+!&>
+
 ! *** Global parameters ***
 
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'xtb_parameters'
@@ -159,6 +187,7 @@ MODULE xtb_parameters
 ! *** Public data types ***
 
    PUBLIC :: xtb_parameters_init, xtb_parameters_set, init_xtb_basis, xtb_set_kab
+   PUBLIC :: xtb_spinpol_init, xtb_spinpol_ext
    PUBLIC :: metal, early3d, pp_gfn0
 
 CONTAINS
@@ -463,6 +492,112 @@ CONTAINS
    END SUBROUTINE xtb1_parameters_init
 
 ! **************************************************************************************************
+!> \brief ...
+!> \param param ...
+!> \param gfn_type ...
+!> \param element_symbol ...
+!> \param parameter_file_path ...
+!> \param spinpol_param_file_name ...
+!> \param para_env ...
+! **************************************************************************************************
+   SUBROUTINE xtb_spinpol_init(param, gfn_type, element_symbol, parameter_file_path, spinpol_param_file_name, &
+                               para_env)
+
+      TYPE(xtb_atom_type), POINTER                       :: param
+      INTEGER, INTENT(IN)                                :: gfn_type
+      CHARACTER(LEN=2), INTENT(IN)                       :: element_symbol
+      CHARACTER(LEN=*), INTENT(IN)                       :: parameter_file_path, &
+                                                            spinpol_param_file_name
+      TYPE(mp_para_env_type), POINTER                    :: para_env
+
+      CHARACTER(len=default_string_length)               :: filename
+      INTEGER                                            :: zin, znum
+      LOGICAL                                            :: at_end
+      TYPE(cp_parser_type)                               :: parser
+
+      SELECT CASE (gfn_type)
+      CASE (0)
+         CPABORT("gfn_type = 0: No spin polarisation possible!")
+      CASE (1)
+         ! OK
+      CASE (2)
+         CPABORT("gfn_type = 2 not yet supported")
+      CASE DEFAULT
+         CPABORT("Wrong gfn_type")
+      END SELECT
+
+      filename = ADJUSTL(TRIM(parameter_file_path))//ADJUSTL(TRIM(spinpol_param_file_name))
+      CALL parser_create(parser, filename, apply_preprocessing=.FALSE., para_env=para_env)
+      znum = 0
+      param%wall = 0.0_dp
+      CALL get_ptable_info(element_symbol, znum)
+      DO
+         at_end = .FALSE.
+         CALL parser_get_next_line(parser, 1, at_end)
+         IF (at_end) EXIT
+         CALL parser_get_object(parser, zin)
+         IF (zin == znum) THEN
+            CALL parser_get_object(parser, param%wall(1, 1))
+            CALL parser_get_object(parser, param%wall(1, 2))
+            CALL parser_get_object(parser, param%wall(2, 2))
+            CALL parser_get_object(parser, param%wall(1, 3))
+            CALL parser_get_object(parser, param%wall(2, 3))
+            CALL parser_get_object(parser, param%wall(3, 3))
+            param%wall(2, 1) = param%wall(1, 2)
+            param%wall(3, 1) = param%wall(1, 3)
+            param%wall(3, 2) = param%wall(2, 3)
+         END IF
+      END DO
+      CALL parser_release(parser)
+
+   END SUBROUTINE xtb_spinpol_init
+
+! **************************************************************************************************
+!> \brief ...
+!> \param param ...
+!> \param gfn_type ...
+!> \param xtb_control ...
+! **************************************************************************************************
+   SUBROUTINE xtb_spinpol_ext(param, gfn_type, xtb_control)
+      TYPE(xtb_atom_type), POINTER                       :: param
+      INTEGER, INTENT(IN)                                :: gfn_type
+      TYPE(xtb_control_type), INTENT(IN), POINTER        :: xtb_control
+
+      INTEGER                                            :: i
+
+      SELECT CASE (gfn_type)
+      CASE (0)
+         CPABORT("gfn_type = 0: No spin polarisation possible!")
+      CASE (1)
+         ! OK
+      CASE (2)
+         CPABORT("gfn_type = 2 not yet supported")
+      CASE DEFAULT
+         CPABORT("Wrong gfn_type")
+      END SELECT
+
+      IF (param%defined) THEN
+         IF (ASSOCIATED(xtb_control%spinpol_type)) THEN
+            DO i = 1, SIZE(xtb_control%spinpol_type)
+               IF (xtb_control%spinpol_type(i) == param%z) THEN
+                  param%wall(1, 1) = xtb_control%spinpol_vals(1, i)
+                  param%wall(1, 2) = xtb_control%spinpol_vals(2, i)
+                  param%wall(2, 2) = xtb_control%spinpol_vals(3, i)
+                  param%wall(1, 3) = xtb_control%spinpol_vals(4, i)
+                  param%wall(2, 3) = xtb_control%spinpol_vals(5, i)
+                  param%wall(3, 3) = xtb_control%spinpol_vals(6, i)
+                  param%wall(2, 1) = param%wall(1, 2)
+                  param%wall(3, 1) = param%wall(1, 3)
+                  param%wall(3, 2) = param%wall(2, 3)
+                  EXIT
+               END IF
+            END DO
+         END IF
+      END IF
+
+   END SUBROUTINE xtb_spinpol_ext
+
+! **************************************************************************************************
 !> \brief Read atom parameters for xTB Hamiltonian from input file
 !> \param param ...
 ! **************************************************************************************************
@@ -494,6 +629,9 @@ CONTAINS
          param%rcov = crad(i)*bohr
          ! shell occupances
          param%occupation(:) = occupation(:, i)
+         ! number of primitive Gaussians per shell
+         param%ngauss = 0
+         param%ngauss(1:3) = number_of_primitives(:, i)
          ! check for consistency
          IF (ABS(param%zeff - SUM(param%occupation)) > 1.E-10_dp) THEN
             CALL cp_abort(__LOCATION__, "Element <"//TRIM(param%aname)//"> has inconsistent shell occupations")
@@ -539,12 +677,14 @@ CONTAINS
 !> \param param ...
 !> \param gto_basis_set ...
 !> \param ngauss ...
+!> \param ngaussflex ...
 ! **************************************************************************************************
-   SUBROUTINE init_xtb_basis(param, gto_basis_set, ngauss)
+   SUBROUTINE init_xtb_basis(param, gto_basis_set, ngauss, ngaussflex)
 
       TYPE(xtb_atom_type), POINTER                       :: param
       TYPE(gto_basis_set_type), POINTER                  :: gto_basis_set
       INTEGER, INTENT(IN)                                :: ngauss
+      INTEGER, DIMENSION(:), INTENT(IN), OPTIONAL        :: ngaussflex
 
       CHARACTER(LEN=6), DIMENSION(:), POINTER            :: symbol
       INTEGER                                            :: i, nshell
@@ -582,7 +722,12 @@ CONTAINS
                zet(1:nshell) = param%zeta(1:nshell)
                CALL set_sto_basis_set(sto_basis_set, name=param%aname, nshell=nshell, symbol=symbol, &
                                       nq=nq, lq=lq, zet=zet)
-               CALL create_gto_from_sto_basis(sto_basis_set, gto_basis_set, ngauss=ngauss, ortho=.TRUE.)
+               IF (PRESENT(ngaussflex)) THEN
+                  CALL create_gto_from_sto_basis(sto_basis_set, gto_basis_set, ngauss=ngauss, ortho=.TRUE., &
+                                                 ngaussflex=ngaussflex)
+               ELSE
+                  CALL create_gto_from_sto_basis(sto_basis_set, gto_basis_set, ngauss=ngauss, ortho=.TRUE.)
+               END IF
             END IF
 
             ! this will remove the allocated arrays
@@ -646,14 +791,14 @@ CONTAINS
             CASE (78)
                kab = 0.80_dp
             END SELECT
-         ELSEIF (za == 5 .OR. zb == 5) THEN
+         ELSE IF (za == 5 .OR. zb == 5) THEN
             ! Boron
             z = za + zb - 5
             SELECT CASE (z)
             CASE (15)
                kab = 0.97_dp
             END SELECT
-         ELSEIF (za == 7 .OR. zb == 7) THEN
+         ELSE IF (za == 7 .OR. zb == 7) THEN
             ! Nitrogen
             z = za + zb - 7
             SELECT CASE (z)
@@ -662,21 +807,21 @@ CONTAINS
                ! in the paper this is Kab for B-Si
                kab = 1.01_dp
             END SELECT
-         ELSEIF (za > 20 .AND. za < 30) THEN
+         ELSE IF (za > 20 .AND. za < 30) THEN
             ! 3d
             IF (zb > 20 .AND. zb < 30) THEN
                ! 3d
                kab = 1.10_dp
-            ELSEIF ((zb > 38 .AND. zb < 48) .OR. (zb > 56 .AND. zb < 80)) THEN
+            ELSE IF ((zb > 38 .AND. zb < 48) .OR. (zb > 56 .AND. zb < 80)) THEN
                ! 4d/5d/4f
                kab = 0.50_dp*(1.20_dp + 1.10_dp)
             END IF
-         ELSEIF ((za > 38 .AND. za < 48) .OR. (za > 56 .AND. za < 80)) THEN
+         ELSE IF ((za > 38 .AND. za < 48) .OR. (za > 56 .AND. za < 80)) THEN
             ! 4d/5d/4f
             IF (zb > 20 .AND. zb < 30) THEN
                ! 3d
                kab = 0.50_dp*(1.20_dp + 1.10_dp)
-            ELSEIF ((zb > 38 .AND. zb < 48) .OR. (zb > 56 .AND. zb < 80)) THEN
+            ELSE IF ((zb > 38 .AND. zb < 48) .OR. (zb > 56 .AND. zb < 80)) THEN
                ! 4d/5d/4f
                kab = 1.20_dp
             END IF
@@ -779,4 +924,3 @@ CONTAINS
    END FUNCTION pp_gfn0
 
 END MODULE xtb_parameters
-

@@ -7,39 +7,52 @@ ignore = [
     "non-standard-file-extension",
     "implicit-external-procedures", # requires Fortran 2018
     "missing-intent",
+    "bad-quote-string",
+    "literal-kind",
     "assumed-size",
     "assumed-size-character-intent",
-    "external-procedure",
-    "literal-kind",
     "interface-implicit-typing",
-    "implicit-typing",
-    "missing-accessibility-statement",
+    "missing-default-case",
+    "external-procedure",
 ]
 
 # ==============================================================================
 # The following files can not be parsed by Fortitude.
 # Usually because Fortran statements are inter-leafed with pre-processor macros.
 exclude = [
-    "pw_methods.F",
     "local_gemm_api.F",
-    "cp_fm_diag.F",
-    "cp_fm_cholesky.F",
-    "cp_fm_basic_linalg.F",
-    "cp_cfm_diag.F",
-    "cp_cfm_cholesky.F",
-    "cp_cfm_basic_linalg.F",
-    "dbt_split.F",
-    "dbt_tas_util.F",
-    "dbt_array_list_methods.F",
-    "xc_libxc_wrap.F",
-    "ai_contraction_sphi.F",
     "smeagol_control_types.F",
+    "ai_contraction_sphi.F",
+    "qs_loc_states.F",
+    "dbt_array_list_methods.F",
+    "cp_cfm_basic_linalg.F",
+    "cp_cfm_diag.F",
+    "cp_fm_basic_linalg.F",
+    "cp_fm_cholesky.F",
+    "cp_fm_diag.F",
+    "message_passing.F",
+    "dbt_split.F",
+    "cp_cfm_cholesky.F",
+    "pw_methods.F",
+    "xc_libxc_wrap.F",
+    "dbt_tas_util.F",
 ]
 
 # ==============================================================================
 [check.per-file-ignores]
+"environment.F" = ["line-too-long"]
+"qs_local_properties.F" = ["unreachable-statement"]
+"semi_empirical_int_ana.F" = ["misleading-inline-if-semicolon"]
+"fftw3_lib.F" = ["misleading-inline-if-semicolon"]
+"eri_mme_lattice_summation.F" = ["trailing-whitespace"]
+"pilaenv_hack.F" = ["procedure-not-in-module"]
 "semi_empirical_int_debug.F" = ["procedure-not-in-module"]
 "gopt_f77_methods.F" = ["procedure-not-in-module"]
-"pilaenv_hack.F" = ["procedure-not-in-module"]
+"libgint_wrapper.F" = ["trailing-backslash"]
+"qs_tddfpt2_subgroups.F" = ["trailing-backslash"]
+"dft_plus_u.F" = ["trailing-backslash"]
+"tmc_tree_types.F" = ["trailing-backslash"]
+"tmc_types.F" = ["trailing-backslash"]
+"qs_linres_current.F" = ["trailing-backslash"]
 
 #EOF

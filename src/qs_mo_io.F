@@ -142,9 +142,7 @@ CONTAINS
             ! we are using the dbcsr mo_coeff
             ! we copy it to the fm for anycase
             DO ispin = 1, SIZE(mo_array)
-               IF (.NOT. ASSOCIATED(mo_array(ispin)%mo_coeff_b)) THEN
-                  CPASSERT(.FALSE.)
-               END IF
+               CPASSERT(ASSOCIATED(mo_array(ispin)%mo_coeff_b))
                CALL copy_dbcsr_to_fm(mo_array(ispin)%mo_coeff_b, &
                                      mo_array(ispin)%mo_coeff) !fm->dbcsr
             END DO
@@ -348,7 +346,7 @@ CONTAINS
                DO iset = 1, nset
                   nshell_max = MAX(nshell_max, nshell(iset))
                END DO
-            ELSEIF (ASSOCIATED(dftb_parameter)) THEN
+            ELSE IF (ASSOCIATED(dftb_parameter)) THEN
                CALL get_dftb_atom_param(dftb_parameter, lmax=lmax)
                nset_max = MAX(nset_max, 1)
                nshell_max = MAX(nshell_max, lmax + 1)
@@ -385,7 +383,7 @@ CONTAINS
                      nso_info(ishell, iset, iatom) = nso(lshell)
                   END DO
                END DO
-            ELSEIF (ASSOCIATED(dftb_parameter)) THEN
+            ELSE IF (ASSOCIATED(dftb_parameter)) THEN
                CALL get_dftb_atom_param(dftb_parameter, lmax=lmax)
                nset_info(iatom) = 1
                nshell_info(1, iatom) = lmax + 1
@@ -756,8 +754,9 @@ CONTAINS
             IF (nao_read /= nao) THEN
                WRITE (cp_logger_get_default_unit_nr(logger), *) &
                   " READ RESTART : WARNING : DIFFERENT # AOs ", nao, nao_read
-               IF (PRESENT(rt_mos)) &
+               IF (PRESENT(rt_mos)) THEN
                   CPABORT("To change basis is not possible. ")
+               END IF
             END IF
 
             READ (rst_unit) nset_info
@@ -812,14 +811,16 @@ CONTAINS
             occ_read = 0.0_dp
 
             nmo = MIN(nmo, nmo_read)
-            IF (nmo_read < nmo) &
+            IF (nmo_read < nmo) THEN
                CALL cp_warn(__LOCATION__, &
                             "The number of MOs on the restart unit is smaller than the number of "// &
                             "the allocated MOs. The MO set will be padded with zeros!")
-            IF (nmo_read > nmo) &
+            END IF
+            IF (nmo_read > nmo) THEN
                CALL cp_warn(__LOCATION__, &
                             "The number of MOs on the restart unit is greater than the number of "// &
                             "the allocated MOs. The read MO set will be truncated!")
+            END IF
 
             READ (rst_unit) eig_read(1:nmo_read), occ_read(1:nmo_read)
             mos(ispin)%eigenvalues(1:nmo) = eig_read(1:nmo)
@@ -880,7 +881,7 @@ CONTAINS
                                                nshell=nshell, &
                                                l=l)
                         minbas = .FALSE.
-                     ELSEIF (ASSOCIATED(dftb_parameter)) THEN
+                     ELSE IF (ASSOCIATED(dftb_parameter)) THEN
                         CALL get_dftb_atom_param(dftb_parameter, lmax=lmax)
                         nset = 1
                         minbas = .TRUE.
@@ -1328,14 +1329,16 @@ CONTAINS
             name = TRIM(energy_str)//", OCCUPATION NUMBERS, AND "// &
                    TRIM(orbital_str)//" "//TRIM(vector_str)
 
-            IF (.NOT. my_final) &
+            IF (.NOT. my_final) THEN
                WRITE (UNIT=name, FMT="(A,1X,I0)") TRIM(name)//step_string, scf_step
+            END IF
 
          ELSE IF (print_occup .OR. print_eigvals) THEN
             name = TRIM(energy_str)//" AND OCCUPATION NUMBERS"
 
-            IF (.NOT. my_final) &
+            IF (.NOT. my_final) THEN
                WRITE (UNIT=name, FMT="(A,1X,I0)") TRIM(name)//step_string, scf_step
+            END IF
          END IF ! print_eigvecs
 
          ! Print headline

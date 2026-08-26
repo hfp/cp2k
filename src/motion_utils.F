@@ -180,7 +180,7 @@ CONTAINS
       END DO
       ! Normalize Translations
       DO i = 1, 3
-         norm = SQRT(DOT_PRODUCT(Tr(:, i), Tr(:, i)))
+         norm = NORM2(Tr(:, i))
          Tr(:, i) = Tr(:, i)/norm
       END DO
       dof = 3
@@ -348,7 +348,12 @@ CONTAINS
          id_wpc = "FORCE_MIXING_LABELS"
          id_extxyz = "force_mixing_label" ! non-standard
       CASE DEFAULT
-         CPABORT("")
+         CALL cp_abort(__LOCATION__, &
+                       "<TRAJECTORY>, <VELOCITIES>, <FORCES>, "// &
+                       "<FORCE_MIXING_LABELS> are supported as "// &
+                       "the <my_pk_name> for write_trajectory, "// &
+                       "found unknown option "// &
+                       "<"//TRIM(my_pk_name)//">")
       END SELECT
 
       charge_occup = .FALSE.
@@ -440,8 +445,9 @@ CONTAINS
                CALL section_vals_val_get(root_section, "MOTION%PRINT%TRAJECTORY%CHARGE_EXTENDED", &
                                          l_val=charge_extended)
                i = COUNT([charge_occup, charge_beta, charge_extended])
-               IF (i > 1) &
+               IF (i > 1) THEN
                   CPABORT("Either only CHARGE_OCCUP, CHARGE_BETA, or CHARGE_EXTENDED can be selected, ")
+               END IF
             END IF
             IF (new_file) THEN
                CALL m_timestamp(timestamp)
@@ -463,7 +469,7 @@ CONTAINS
                   "Step ", it, ", E = ", etot
             END IF
          CASE DEFAULT
-            CPABORT("")
+            CPABORT("Unknown output format")
          END SELECT
          IF (TRIM(my_pk_name) == "FORCE_MIXING_LABELS") THEN
             ALLOCATE (fml_array(3*SIZE(particle_set)))

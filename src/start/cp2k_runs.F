@@ -77,8 +77,8 @@ MODULE cp2k_runs
         do_fist, do_ipi, do_mixed, do_nnp, do_opt_basis, do_optimize_input, do_qmmm, do_qs, &
         do_sirius, do_swarm, do_tamc, do_test, do_tree_mc, do_tree_mc_ana, driver_run, ehrenfest, &
         energy_force_run, energy_run, geo_opt_run, linear_response_run, mimic_run, mol_dyn_run, &
-        mon_car_run, negf_run, none_run, pint_run, real_time_propagation, rtp_method_bse, &
-        tree_mc_run, vib_anal
+        mon_car_run, mtlr_run, negf_run, none_run, pint_run, real_time_propagation, &
+        rtp_method_bse, rtp_method_bse_linearized, tree_mc_run, vib_anal
    USE input_cp2k,                      ONLY: create_cp2k_root_section
    USE input_cp2k_check,                ONLY: check_cp2k_input
    USE input_cp2k_global,               ONLY: create_global_section
@@ -111,6 +111,7 @@ MODULE cp2k_runs
    USE mimic_loop,                      ONLY: do_mimic_loop
    USE mscfg_methods,                   ONLY: do_mol_loop,&
                                               loop_over_molecules
+   USE mtlr_u_j_methods,                ONLY: do_mtlr_u_j
    USE neb_methods,                     ONLY: neb
    USE negf_methods,                    ONLY: do_negf
    USE offload_api,                     ONLY: offload_get_chosen_device,&
@@ -123,6 +124,7 @@ MODULE cp2k_runs
    USE qs_linres_module,                ONLY: linres_calculation
    USE reference_manager,               ONLY: export_references_as_xml
    USE rt_bse,                          ONLY: run_propagation_bse
+   USE rt_bse_linearized,               ONLY: run_propagation_linearized_bse
    USE rt_propagation,                  ONLY: rt_prop_setup
    USE swarm,                           ONLY: run_swarm
    USE tamc_run,                        ONLY: qs_tamc
@@ -295,7 +297,7 @@ CONTAINS
       CASE (do_tree_mc_ana)
          CALL do_analyze_files(input_declaration, root_section, para_env)
       CASE default
-         CPABORT("")
+         CPABORT("Unknown program")
       END SELECT
       CALL section_vals_release(input_file)
 
@@ -314,8 +316,9 @@ CONTAINS
              method_name_id /= do_nnp .AND. &
              method_name_id /= do_embed .AND. &
              method_name_id /= do_fist .AND. &
-             method_name_id /= do_ipi) &
+             method_name_id /= do_ipi) THEN
             CPABORT("Energy/Force run not available for all methods ")
+         END IF
 
          sublogger => cp_get_default_logger()
          CALL cp_add_iter_level(sublogger%iter_info, "JUST_ENERGY", &
@@ -324,8 +327,9 @@ CONTAINS
          ! loop over molecules to generate a molecular guess
          ! this procedure is initiated here to avoid passing globenv deep down
          ! the subroutine stack
-         IF (do_mol_loop(force_env=force_env)) &
+         IF (do_mol_loop(force_env=force_env)) THEN
             CALL loop_over_molecules(globenv, force_env)
+         END IF
 
          SELECT CASE (globenv%run_type_id)
          CASE (energy_run)
@@ -333,7 +337,7 @@ CONTAINS
          CASE (energy_force_run)
             CALL force_env_calc_energy_force(force_env, calc_force=.TRUE.)
          CASE default
-            CPABORT("")
+            CPABORT("Unknown run type")
          END SELECT
          CALL cp_rm_iter_level(sublogger%iter_info, level_name="JUST_ENERGY", n_rlevel_att=iter_level)
       CASE (mol_dyn_run)
@@ -347,21 +351,26 @@ CONTAINS
       CASE (do_tamc)
          CALL qs_tamc(force_env, globenv)
       CASE (real_time_propagation)
-         IF (method_name_id /= do_qs) &
+         IF (method_name_id /= do_qs) THEN
             CPABORT("Real time propagation needs METHOD QS. ")
+         END IF
          CALL get_qs_env(force_env%qs_env, dft_control=dft_control)
          dft_control%rtp_control%fixed_ions = .TRUE.
          SELECT CASE (dft_control%rtp_control%rtp_method)
+         CASE (rtp_method_bse_linearized)
+            ! Run the linearized TD-BSE method
+            CALL run_propagation_linearized_bse(force_env)
          CASE (rtp_method_bse)
             ! Run the TD-BSE method
-            CALL run_propagation_bse(force_env%qs_env, force_env)
+            CALL run_propagation_bse(force_env)
          CASE default
             ! Run the TDDFT method
             CALL rt_prop_setup(force_env)
          END SELECT
       CASE (ehrenfest)
-         IF (method_name_id /= do_qs) &
+         IF (method_name_id /= do_qs) THEN
             CPABORT("Ehrenfest dynamics needs METHOD QS ")
+         END IF
          CALL get_qs_env(force_env%qs_env, dft_control=dft_control)
          dft_control%rtp_control%fixed_ions = .FALSE.
          CALL qs_mol_dyn(force_env, globenv)
@@ -369,8 +378,9 @@ CONTAINS
          CALL do_bsse_calculation(force_env, globenv)
       CASE (linear_response_run)
          IF (method_name_id /= do_qs .AND. &
-             method_name_id /= do_qmmm) &
+             method_name_id /= do_qmmm) THEN
             CPABORT("Property calculations by Linear Response only within the QS or QMMM program ")
+         END IF
          ! The Ground State is needed, it can be read from Restart
          CALL force_env_calc_energy_force(force_env, calc_force=.FALSE., linres=.TRUE.)
          CALL linres_calculation(force_env)
@@ -389,8 +399,13 @@ CONTAINS
          CALL do_negf(force_env)
       CASE (mimic_run)
          CALL do_mimic_loop(force_env)
+      CASE (mtlr_run)
+         IF (method_name_id /= do_qs) THEN
+            CPABORT("RUN_TYPE MTLR is available only for METHOD QS.")
+         END IF
+         CALL do_mtlr_u_j(force_env)
       CASE default
-         CPABORT("")
+         CPABORT("Unknown run type")
       END SELECT
 
       ! Sample peak memory
@@ -800,8 +815,9 @@ CONTAINS
          ! change to the new working directory
 
          CALL m_chdir(TRIM(farming_env%Job(i)%cwd), ierr)
-         IF (ierr /= 0) &
+         IF (ierr /= 0) THEN
             CPABORT("Failed to change dir to: "//TRIM(farming_env%Job(i)%cwd))
+         END IF
 
          ! generate a fresh call to cp2k_run
          IF (new_rank == 0) THEN

@@ -595,7 +595,7 @@ CONTAINS
                rbasis(:, i + 3, l) = 0.125_dp*(wfn(:, i, l, 3) - 3._dp*wfn(:, i, l, 1) &
                                                + 3._dp*wfn(:, i, l, -1) - wfn(:, i, l, -3))/delta**3
             CASE DEFAULT
-               CPABORT("")
+               CPABORT("Only 1, 2, 3 are supported as the number of wavefunction derivatives")
             END SELECT
          END DO
 
@@ -1103,11 +1103,11 @@ CONTAINS
 
       IF (PRESENT(counter)) THEN
          WRITE (str, "(I12)") counter
-      ELSEIF (PRESENT(rval)) THEN
+      ELSE IF (PRESENT(rval)) THEN
          WRITE (str, "(G18.8)") rval
-      ELSEIF (PRESENT(ival)) THEN
+      ELSE IF (PRESENT(ival)) THEN
          WRITE (str, "(I12)") ival
-      ELSEIF (PRESENT(cval)) THEN
+      ELSE IF (PRESENT(cval)) THEN
          WRITE (str, "(A)") TRIM(ADJUSTL(cval))
       ELSE
          WRITE (str, "(A)") ""

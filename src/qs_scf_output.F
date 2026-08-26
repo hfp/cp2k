@@ -97,7 +97,8 @@ MODULE qs_scf_output
              qs_scf_write_mos, &
              qs_scf_cdft_info, &
              qs_scf_cdft_initial_info, &
-             qs_scf_cdft_constraint_info
+             qs_scf_cdft_constraint_info, &
+             qs_scf_gce_info
 
 CONTAINS
 
@@ -249,13 +250,10 @@ CONTAINS
 
       print_occup_stats = .FALSE.
       occup_stats_occ_threshold = 1e-6_dp
-      IF (SIZE(tmpstringlist) > 0) THEN  ! the lone_keyword_c_vals doesn't work as advertised, handle it manually
-         print_occup_stats = .TRUE.
-         IF (LEN_TRIM(tmpstringlist(1)) > 0) &
-            READ (tmpstringlist(1), *) print_occup_stats
-      END IF
-      IF (SIZE(tmpstringlist) > 1) &
+      IF (SIZE(tmpstringlist) > 0) READ (tmpstringlist(1), *) print_occup_stats
+      IF (SIZE(tmpstringlist) > 1) THEN
          READ (tmpstringlist(2), *) occup_stats_occ_threshold
+      END IF
 
       logger => cp_get_default_logger()
       print_mo_info = (cp_print_key_should_output(logger%iter_info, dft_section, "PRINT%MO") /= 0)
@@ -649,6 +647,14 @@ CONTAINS
                   "Total dipole moment perpendicular to ", &
                   "the slab [electrons-Angstroem]: ", &
                   qs_env%surface_dipole_moment
+               WRITE (UNIT=output_unit, FMT="((T3,A,/,T3,A,T41,F20.10))") &
+                  "Position of the dipole ", &
+                  "correction plane [Angstroem]: ", &
+                  qs_env%surface_dipole_ref_pos
+               WRITE (UNIT=output_unit, FMT="((T3,A,/,T3,A,T41,2F20.10))") &
+                  "Vacuum level below/above the ", &
+                  "dipole correction plane [eV]: ", &
+                  qs_env%vacuum_level_below, qs_env%vacuum_level_above
             END IF
 
             IF (gapw) THEN
@@ -700,22 +706,25 @@ CONTAINS
                "Two-electron integral energy [eV]:             ", energy%hartree*evolt, &
                "Electronic energy [eV]:                        ", &
                (energy%core + 0.5_dp*energy%hartree)*evolt
-            IF (energy%dispersion /= 0.0_dp) &
+            IF (energy%dispersion /= 0.0_dp) THEN
                WRITE (UNIT=output_unit, FMT="(T3,A,T56,F25.14)") &
-               "Dispersion energy [eV]:                     ", energy%dispersion*evolt
-         ELSEIF (dft_control%qs_control%dftb) THEN
+                  "Dispersion energy [eV]:                     ", energy%dispersion*evolt
+            END IF
+         ELSE IF (dft_control%qs_control%dftb) THEN
             WRITE (UNIT=output_unit, FMT="(/,(T3,A,T56,F25.14))") &
                "Core Hamiltonian energy:                       ", energy%core, &
                "Repulsive potential energy:                    ", energy%repulsive, &
                "Electronic energy:                             ", energy%hartree, &
                "Dispersion energy:                             ", energy%dispersion
-            IF (energy%dftb3 /= 0.0_dp) &
+            IF (energy%dftb3 /= 0.0_dp) THEN
                WRITE (UNIT=output_unit, FMT="(T3,A,T56,F25.14)") &
-               "DFTB3 3rd order energy:                     ", energy%dftb3
-            IF (energy%efield /= 0.0_dp) &
+                  "DFTB3 3rd order energy:                     ", energy%dftb3
+            END IF
+            IF (energy%efield /= 0.0_dp) THEN
                WRITE (UNIT=output_unit, FMT="(T3,A,T56,F25.14)") &
-               "Electric field interaction energy:          ", energy%efield
-         ELSEIF (dft_control%qs_control%xtb) THEN
+                  "Electric field interaction energy:          ", energy%efield
+            END IF
+         ELSE IF (dft_control%qs_control%xtb) THEN
             IF (dft_control%qs_control%xtb_control%do_tblite) THEN
                WRITE (UNIT=output_unit, FMT="(/,(T3,A,T56,F25.14))") &
                   "Core Hamiltonian energy:                       ", energy%core, &
@@ -732,28 +741,31 @@ CONTAINS
                      "SRB Correction energy:                         ", energy%srb, &
                      "Charge equilibration energy:                   ", energy%eeq, &
                      "Dispersion energy:                             ", energy%dispersion
-               ELSEIF (dft_control%qs_control%xtb_control%gfn_type == 1) THEN
+               ELSE IF (dft_control%qs_control%xtb_control%gfn_type == 1) THEN
                   WRITE (UNIT=output_unit, FMT="(/,(T3,A,T56,F25.14))") &
                      "Core Hamiltonian energy:                       ", energy%core, &
                      "Repulsive potential energy:                    ", energy%repulsive, &
                      "Electronic energy:                             ", energy%hartree, &
                      "DFTB3 3rd order energy:                        ", energy%dftb3, &
                      "Dispersion energy:                             ", energy%dispersion
-                  IF (dft_control%qs_control%xtb_control%xb_interaction) &
+                  IF (dft_control%qs_control%xtb_control%xb_interaction) THEN
                      WRITE (UNIT=output_unit, FMT="(T3,A,T56,F25.14)") &
-                     "Correction for halogen bonding:                ", energy%xtb_xb_inter
-               ELSEIF (dft_control%qs_control%xtb_control%gfn_type == 2) THEN
+                        "Correction for halogen bonding:                ", energy%xtb_xb_inter
+                  END IF
+               ELSE IF (dft_control%qs_control%xtb_control%gfn_type == 2) THEN
                   CPABORT("gfn_typ 2 NYA")
                ELSE
                   CPABORT("invalid gfn_typ")
                END IF
             END IF
-            IF (dft_control%qs_control%xtb_control%do_nonbonded) &
+            IF (dft_control%qs_control%xtb_control%do_nonbonded) THEN
                WRITE (UNIT=output_unit, FMT="(T3,A,T56,F25.14)") &
-               "Correction for nonbonded interactions:         ", energy%xtb_nonbonded
-            IF (energy%efield /= 0.0_dp) &
+                  "Correction for nonbonded interactions:         ", energy%xtb_nonbonded
+            END IF
+            IF (energy%efield /= 0.0_dp) THEN
                WRITE (UNIT=output_unit, FMT="(T3,A,T56,F25.14)") &
-               "Electric field interaction energy:          ", energy%efield
+                  "Electric field interaction energy:          ", energy%efield
+            END IF
          ELSE
             IF (dft_control%do_admm) THEN
                exc_energy = energy%exc + energy%exc_aux_fit
@@ -791,22 +803,27 @@ CONTAINS
                   "Hartree energy:                                ", energy%hartree, &
                   "Exchange-correlation energy:                   ", exc_energy
             END IF
-            IF (energy%e_hartree /= 0.0_dp) &
+            IF (energy%e_hartree /= 0.0_dp) THEN
                WRITE (UNIT=output_unit, FMT="(T3,A,/,T3,A,T56,F25.14)") &
-               "Coulomb Electron-Electron Interaction Energy ", &
-               "- Already included in the total Hartree term ", energy%e_hartree
-            IF (energy%ex /= 0.0_dp) &
+                  "Coulomb Electron-Electron Interaction Energy ", &
+                  "- Already included in the total Hartree term ", energy%e_hartree
+            END IF
+            IF (energy%ex /= 0.0_dp) THEN
                WRITE (UNIT=output_unit, FMT="(T3,A,T56,F25.14)") &
-               "Hartree-Fock Exchange energy:                  ", energy%ex
-            IF (energy%dispersion /= 0.0_dp) &
+                  "Hartree-Fock Exchange energy:                  ", energy%ex
+            END IF
+            IF (energy%dispersion /= 0.0_dp) THEN
                WRITE (UNIT=output_unit, FMT="(T3,A,T56,F25.14)") &
-               "Dispersion energy:                             ", energy%dispersion
-            IF (energy%gcp /= 0.0_dp) &
+                  "Dispersion energy:                             ", energy%dispersion
+            END IF
+            IF (energy%gcp /= 0.0_dp) THEN
                WRITE (UNIT=output_unit, FMT="(T3,A,T56,F25.14)") &
-               "gCP energy:                                    ", energy%gcp
-            IF (energy%efield /= 0.0_dp) &
+                  "gCP energy:                                    ", energy%gcp
+            END IF
+            IF (energy%efield /= 0.0_dp) THEN
                WRITE (UNIT=output_unit, FMT="(T3,A,T56,F25.14)") &
-               "Electric field interaction energy:          ", energy%efield
+                  "Electric field interaction energy:          ", energy%efield
+            END IF
             IF (gapw) THEN
                WRITE (UNIT=output_unit, FMT="(/,(T3,A,T56,F25.14))") &
                   "GAPW| Exc from hard and soft atomic rho1:      ", exc1_energy, &
@@ -876,6 +893,18 @@ CONTAINS
                   e_extrapolated = energy%total - 0.5_dp*energy%kTS
                   WRITE (UNIT=output_unit, FMT="((T3,A,T56,F25.14))") &
                      "Total energy (extrapolated to T->0):           ", e_extrapolated
+                  IF (scf_control%gce%do_gce) THEN
+                     WRITE (UNIT=output_unit, FMT="(/,(T3,A,T56,F25.14))") &
+                        "GCE work function [eV]: ", scf_control%gce%prev_workfunction*evolt
+                     WRITE (UNIT=output_unit, FMT="((T3,A,T56,ES25.10))") &
+                        "GCE WF-TWF [eV]: ", (scf_control%gce%prev_workfunction - &
+                                              scf_control%gce%target_workfunction)*evolt
+                     WRITE (UNIT=output_unit, FMT="((T3,A,T56,F25.14))") &
+                        "GCE charge [e]: ", dft_control%pcc_control%charge
+                     WRITE (UNIT=output_unit, FMT="((T3,A,T56,F25.14))") &
+                        "GCE free energy: ", (dft_control%pcc_control%charge + dft_control%charge) &
+                        *scf_control%gce%prev_workfunction*evolt
+                  END IF
                CASE (smear_gaussian)
                   e_extrapolated = energy%total - 0.5_dp*energy%kTS
                   WRITE (UNIT=output_unit, FMT="((T3,A,T56,F25.14))") &
@@ -1131,7 +1160,7 @@ CONTAINS
          CASE (outer_scf_optimizer_secant)
             WRITE (output_unit, '(A)') "  Minimizer               : Secant"
          CASE DEFAULT
-            CPABORT("")
+            CPABORT("Unknown CDFT outer_scf optimizer")
          END SELECT
          WRITE (output_unit, '(/,A,L7)') &
             "  Reusing OT preconditioner: ", cdft_control%reuse_precond
@@ -1187,9 +1216,10 @@ CONTAINS
             WRITE (output_unit, '(A,L7)') &
                "  Precompute gradients    : ", cdft_control%becke_control%in_memory
             WRITE (output_unit, '(A)') "  "
-            IF (cdft_control%becke_control%adjust) &
+            IF (cdft_control%becke_control%adjust) THEN
                WRITE (output_unit, '(A)') &
-               "  Using atomic radii to generate a heteronuclear charge partitioning"
+                  "  Using atomic radii to generate a heteronuclear charge partitioning"
+            END IF
             WRITE (output_unit, '(A)') "  "
             IF (.NOT. cdft_control%becke_control%cavity_confine) THEN
                WRITE (output_unit, '(A)') &
@@ -1299,5 +1329,44 @@ CONTAINS
       END IF
 
    END SUBROUTINE qs_scf_cdft_constraint_info
+
+! **************************************************************************************************
+!> \brief Print grand canonical SCF information for the current SCF iteration.
+!> \param output_unit output unit used for SCF program run information
+!> \param qs_env QS environment
+!> \param just_energy whether this is an energy-only step
+! **************************************************************************************************
+   SUBROUTINE qs_scf_gce_info(output_unit, qs_env, just_energy)
+
+      INTEGER, INTENT(IN)                                :: output_unit
+      TYPE(qs_environment_type), POINTER                 :: qs_env
+      LOGICAL, INTENT(IN)                                :: just_energy
+
+      REAL(KIND=dp)                                      :: charge, current_wf_ev, delta_wf_ev, &
+                                                            free_ener, target_wf_ev
+      TYPE(dft_control_type), POINTER                    :: dft_control
+
+      IF (output_unit <= 0) RETURN
+      IF (just_energy) RETURN
+
+      current_wf_ev = qs_env%scf_control%gce%prev_workfunction*evolt
+      target_wf_ev = qs_env%scf_control%gce%target_workfunction*evolt
+      delta_wf_ev = current_wf_ev - target_wf_ev
+
+      CALL get_qs_env(qs_env, dft_control=dft_control)
+      charge = dft_control%pcc_control%charge
+      free_ener = (charge + dft_control%charge)*qs_env%scf_control%gce%prev_workfunction
+
+      WRITE (UNIT=output_unit, &
+             FMT="(T8,A,T13,A,T24,A,T27,F6.1,A,T40,A,T56,A,T59,ES10.2,A)") &
+         "GCE", "WF", "=", current_wf_ev, " eV", &
+         "WF-TWF", "=", delta_wf_ev, " eV"
+
+      WRITE (UNIT=output_unit, &
+             FMT="(T13,A,T24,A,T27,F7.3,A,T40,A,T56,A,T59,F14.10,A)") &
+         "Charge", "=", charge, " e", &
+         "GCE free energy", "=", free_ener, " a.u."
+
+   END SUBROUTINE qs_scf_gce_info
 
 END MODULE qs_scf_output

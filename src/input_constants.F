@@ -13,6 +13,7 @@
 !>      10.2008 Teodoro Laino [tlaino] - University of Zurich
 !>              Cleaned this file of all arrays of strings. Here must be kept
 !>              only integer/real global constants
+!>      102025  M Puligheddu : added an enum for hfx_library
 ! **************************************************************************************************
 MODULE input_constants
 
@@ -41,6 +42,9 @@ MODULE input_constants
 
    INTEGER, PARAMETER, PUBLIC               :: do_full_density = 0, &
                                                do_spin_density = 1
+
+   INTEGER, PARAMETER, PUBLIC               :: moments_format_detailed = 1, &
+                                               moments_format_trajectory = 2
 
    INTEGER, PARAMETER, PUBLIC               :: do_no_et = 0, &
                                                do_et_ddapc = 1
@@ -143,7 +147,8 @@ MODULE input_constants
                                                tree_mc_run = 18, &
                                                driver_run = 19, &
                                                negf_run = 20, &
-                                               mimic_run = 21
+                                               mimic_run = 21, &
+                                               mtlr_run = 22
 
    ! Run Types of Atom Code
    INTEGER, PARAMETER, PUBLIC               :: atom_no_run = 1, &
@@ -245,16 +250,15 @@ MODULE input_constants
 
    INTEGER, PARAMETER, PUBLIC               :: wfi_use_guess_method_nr = 0, &
                                                wfi_use_prev_p_method_nr = 1, &
-                                               wfi_use_prev_rho_r_method_nr = 2, &
-                                               wfi_linear_wf_method_nr = 3, &
-                                               wfi_linear_p_method_nr = 4, &
-                                               wfi_linear_ps_method_nr = 5, &
-                                               wfi_use_prev_wf_method_nr = 6, &
-                                               wfi_ps_method_nr = 7, &
-                                               wfi_frozen_method_nr = 8, &
-                                               wfi_aspc_nr = 9, &
-                                               wfi_gext_proj_nr = 10, &
-                                               wfi_gext_proj_qtr_nr = 11
+                                               wfi_linear_wf_method_nr = 2, &
+                                               wfi_linear_p_method_nr = 3, &
+                                               wfi_linear_ps_method_nr = 4, &
+                                               wfi_use_prev_wf_method_nr = 5, &
+                                               wfi_ps_method_nr = 6, &
+                                               wfi_frozen_method_nr = 7, &
+                                               wfi_aspc_nr = 8, &
+                                               wfi_gext_proj_nr = 9, &
+                                               wfi_gext_proj_qtr_nr = 10
 
    INTEGER, PARAMETER, PUBLIC               :: do_method_undef = 0, &
                                                do_method_gapw = 1, &
@@ -519,7 +523,8 @@ MODULE input_constants
                                                current_orb_center_atom = 3, &
                                                current_orb_center_box = 4
 
-   INTEGER, PARAMETER, PUBLIC               :: ot_mini_sd = 1, ot_mini_cg = 2, ot_mini_diis = 3, ot_mini_broyden = 4
+   INTEGER, PARAMETER, PUBLIC               :: ot_mini_sd = 1, ot_mini_cg = 2, ot_mini_diis = 3, &
+                                               ot_mini_broyden = 4, ot_mini_lbfgs = 5
    INTEGER, PARAMETER, PUBLIC               :: ot_algo_taylor_or_diag = 1, ot_algo_irac = 2
    INTEGER, PARAMETER, PUBLIC               :: ot_chol_irac = 1, ot_poly_irac = 2, ot_lwdn_irac = 3
    INTEGER, PARAMETER, PUBLIC               :: ls_none = 1, ls_2pnt = 2, ls_3pnt = 3, ls_gold = 4, ls_fit = 5, &
@@ -534,7 +539,8 @@ MODULE input_constants
    INTEGER, PARAMETER, PUBLIC               :: ot_precond_solver_default = 1, &
                                                ot_precond_solver_inv_chol = 2, &
                                                ot_precond_solver_direct = 3, &
-                                               ot_precond_solver_update = 4
+                                               ot_precond_solver_update = 4, &
+                                               ot_precond_solver_chebyshev = 5
 
    INTEGER, PARAMETER, PUBLIC               :: diag_standard = 1, &
                                                diag_ot = 2, &
@@ -860,6 +866,10 @@ MODULE input_constants
                                                hfx_ri_do_2c_diag = 2, &
                                                hfx_ri_do_2c_cholesky = 3
 
+   INTEGER, PARAMETER, PUBLIC               :: hfx_library_is_libint = 1, &
+                                               hfx_library_is_libGint = 2, &
+                                               hfx_library_is_both = 12
+
    ! mode selctive vibrational analysis
    INTEGER, PARAMETER, PUBLIC               :: ms_guess_bfgs = 1, &
                                                ms_guess_atomic = 2, &
@@ -917,7 +927,8 @@ MODULE input_constants
    ! Define DFT+U method identifier codes
    INTEGER, PARAMETER, PUBLIC               :: plus_u_lowdin = 1, &
                                                plus_u_mulliken = 2, &
-                                               plus_u_mulliken_charges = 3
+                                               plus_u_mulliken_charges = 3, &
+                                               plus_u_tensorial = 4
 
    ! Define identifier codes for smearing method
    INTEGER, PARAMETER, PUBLIC               :: smear_energy_window = 1, &
@@ -937,6 +948,10 @@ MODULE input_constants
                                                modified_broy_mix = 5, &
                                                multisec_mix = 6, &
                                                new_pulay_mix = 7
+
+   ! Define identifier codes for diagonalization-based SCF update methods
+   INTEGER, PARAMETER, PUBLIC               :: diag_update_method_mixing = 1, &
+                                               diag_update_method_adiis = 2
 
    ! FFT library
    ! these might need sync with fft_lib.F
@@ -975,10 +990,15 @@ MODULE input_constants
                                                rtp_localize_each = 2
 
    INTEGER, PARAMETER, PUBLIC               :: rtp_method_tddft = 1, &
-                                               rtp_method_bse = 2
+                                               rtp_method_bse = 2, &
+                                               rtp_method_bse_linearized = 3
 
    INTEGER, PARAMETER, PUBLIC               :: rtp_bse_ham_ks = 1, &
                                                rtp_bse_ham_g0w0 = 2
+
+   INTEGER, PARAMETER, PUBLIC               :: rtp_bse_kernel_ri_default = 0, &
+                                               rtp_bse_kernel_ri_rs = 1, &
+                                               rtp_bse_kernel_ri_ao = 2
 
    ! how to solve polarizable force fields
    INTEGER, PARAMETER, PUBLIC               :: do_fist_pol_none = 1, &
@@ -1219,7 +1239,8 @@ MODULE input_constants
 
    ! Self-consistent continuum solvation (SCCS) models
    INTEGER, PARAMETER, PUBLIC               :: sccs_andreussi = 0, &
-                                               sccs_fattebert_gygi = 1
+                                               sccs_fattebert_gygi = 1, &
+                                               sccs_saa_andreussi = 2
 
    ! Derivative method used by the SCCS
    INTEGER, PARAMETER, PUBLIC               :: sccs_derivative_fft = 0, &

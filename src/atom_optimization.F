@@ -221,10 +221,10 @@ CONTAINS
             IF (nm < 1) nm = history%max_history
             fmat = a*history%hmat(nnow)%fmat + (1._dp - a)*history%hmat(nm)%fmat
          END IF
-      ELSEIF (history%hlen == 1) THEN
+      ELSE IF (history%hlen == 1) THEN
          fmat = history%hmat(nnow)%fmat
       ELSE
-         CPABORT("")
+         CPABORT("Length of matrix history hlen < 1")
       END IF
 
    END SUBROUTINE atom_opt_fmat

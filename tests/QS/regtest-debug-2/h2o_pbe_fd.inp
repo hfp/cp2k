@@ -5,7 +5,7 @@
 &END GLOBAL
 
 &DEBUG
-  DE 0.002
+  DE 0.0001
   DEBUG_DIPOLE .FALSE.
   DEBUG_FORCES .FALSE.
   DEBUG_POLARIZABILITY .TRUE.
@@ -18,6 +18,9 @@
   &DFT
     &EFIELD
     &END EFIELD
+    &MGRID
+      CUTOFF 100
+    &END MGRID
     &PRINT
       &MOMENTS ON
         PERIODIC .FALSE.
@@ -45,11 +48,12 @@
       &XC_FUNCTIONAL PBE
       &END XC_FUNCTIONAL
       2ND_DERIV_ANALYTICAL F
+      NSTEPS 4
     &END XC
   &END DFT
   &PROPERTIES
     &LINRES
-      EPS 1.e-09
+      EPS 1.e-10
       PRECONDITIONER FULL_ALL
       &POLAR
         DO_RAMAN T
@@ -59,7 +63,7 @@
   &END PROPERTIES
   &SUBSYS
     &CELL
-      ABC [angstrom] 6.0 6.0 6.0
+      ABC [angstrom] 5.0 5.0 5.0
       PERIODIC NONE
     &END CELL
     &COORD

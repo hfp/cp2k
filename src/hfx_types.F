@@ -10,6 +10,7 @@
 !> \par History
 !>      04.2008 created [Manuel Guidon]
 !>      05.2019 Moved erfc_cutoff to common/mathlib (A. Bussy)
+!>      10.2025 Added gcc from basis_parameter and hfx_library option
 !> \author Manuel Guidon
 ! **************************************************************************************************
 MODULE hfx_types
@@ -199,6 +200,7 @@ MODULE hfx_types
 ! **************************************************************************************************
    TYPE hfx_general_type
       REAL(dp)                                 :: fraction = 0.0_dp !! for hybrids
+      INTEGER                                  :: hfx_library = 0
       LOGICAL                                  :: treat_lsd_in_core = .FALSE.
    END TYPE hfx_general_type
 
@@ -277,6 +279,7 @@ MODULE hfx_types
       INTEGER, DIMENSION(:), POINTER           :: nshell => NULL()
       REAL(dp), DIMENSION(:, :, :, :), POINTER &
          :: sphi_ext => NULL()
+      REAL(dp), DIMENSION(:, :, :), POINTER   :: gcc => NULL()
       REAL(dp), DIMENSION(:), POINTER          :: set_radius => NULL()
       REAL(dp), DIMENSION(:, :), POINTER        :: pgf_radius => NULL()
       REAL(dp)                                 :: kind_radius = 0.0_dp
@@ -669,6 +672,9 @@ CONTAINS
             CALL section_vals_val_get(hfx_section, "TREAT_LSD_IN_CORE", l_val=logic_val, i_rep_section=irep)
             actual_x_data%general_parameter%treat_lsd_in_core = logic_val
 
+            CALL section_vals_val_get(hfx_section, "HFX_LIBRARY", i_val=int_val, i_rep_section=irep)
+            actual_x_data%general_parameter%hfx_library = int_val
+
             hfx_ri_section => section_vals_get_subs_vals(hfx_section, "RI")
             CALL section_vals_val_get(hfx_ri_section, "_SECTION_PARAMETERS_", l_val=actual_x_data%do_hfx_ri)
 
@@ -772,8 +778,9 @@ CONTAINS
             actual_x_data%load_balance_parameter%do_randomize = logic_val
 
             actual_x_data%load_balance_parameter%rtp_redistribute = .FALSE.
-            IF (ASSOCIATED(dft_control%rtp_control)) &
+            IF (ASSOCIATED(dft_control%rtp_control)) THEN
                actual_x_data%load_balance_parameter%rtp_redistribute = dft_control%rtp_control%hfx_redistribute
+            END IF
 
             CALL section_vals_val_get(hf_sub_section, "BLOCK_SIZE", i_val=int_val)
             ! negative values ask for a computed default
@@ -1038,11 +1045,13 @@ CONTAINS
                ! Sanity checks
                IF (actual_x_data%use_ace) THEN
                   ! ACE requires HFX to be meaningful
-                  IF (actual_x_data%general_parameter%fraction <= 0.0_dp) &
+                  IF (actual_x_data%general_parameter%fraction <= 0.0_dp) THEN
                      CPABORT("ACE requires FRACTION > 0.")
+                  END IF
                   ! If frequency is 1, it is full HFX
-                  IF (actual_x_data%ace_rebuild_freq < 1) &
+                  IF (actual_x_data%ace_rebuild_freq < 1) THEN
                      CPABORT("ACE: REBUILD_FREQUENCY must be >= 1")
+                  END IF
                END IF
             END IF
          END DO
@@ -1210,8 +1219,9 @@ CONTAINS
             ri_metric%scale_longrange = hfx_pot%scale_longrange
          END IF
 
-         IF (ri_metric%potential_type == do_potential_short) &
+         IF (ri_metric%potential_type == do_potential_short) THEN
             CALL erfc_cutoff(ri_data%eps_schwarz, ri_metric%omega, ri_metric%cutoff_radius)
+         END IF
          IF (ri_metric%potential_type == do_potential_id) ri_metric%cutoff_radius = 0.0_dp
       END ASSOCIATE
 
@@ -1426,7 +1436,7 @@ CONTAINS
          DEALLOCATE (dist1, dist2)
          CALL dbt_create(ri_data%ks_t(1, 1), ri_data%ks_t(2, 1))
 
-      ELSEIF (ri_data%flavor == ri_mo) THEN
+      ELSE IF (ri_data%flavor == ri_mo) THEN
          ALLOCATE (ri_data%t_2c_int(2, 1))
 
          CALL create_2c_tensor(ri_data%t_2c_int(1, 1), dist1, dist2, ri_data%pgrid_2d, &
@@ -1616,7 +1626,7 @@ CONTAINS
 
          DEALLOCATE (ri_data%blk_indices)
          DEALLOCATE (ri_data%store_3c)
-      ELSEIF (ri_data%flavor == ri_mo) THEN
+      ELSE IF (ri_data%flavor == ri_mo) THEN
          CALL dbt_destroy(ri_data%t_3c_int_ctr_1(1, 1))
          CALL dbt_destroy(ri_data%t_3c_int_ctr_2(1, 1))
          DEALLOCATE (ri_data%t_3c_int_ctr_1)
@@ -1747,6 +1757,7 @@ CONTAINS
                                 nsgf_set=basis_parameter(ikind)%nsgf, &
                                 first_sgf=basis_parameter(ikind)%first_sgf, &
                                 sphi=basis_parameter(ikind)%sphi, &
+                                gcc=basis_parameter(ikind)%gcc, &
                                 nsgf=basis_parameter(ikind)%nsgf_total, &
                                 l=basis_parameter(ikind)%nl, &
                                 nshell=basis_parameter(ikind)%nshell, &

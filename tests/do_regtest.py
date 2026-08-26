@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Coroutine, Dict, List, Optional, TextIO, Tuple, Union
 from statistics import mean, stdev
+import atexit
 import argparse
 import asyncio
 import math
@@ -16,6 +17,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from matchers import run_matcher
 
@@ -64,7 +66,7 @@ async def main() -> None:
     parser.add_argument("--ompthreads", type=int)
     parser.add_argument("--maxtasks", type=int, default=os.cpu_count())
     parser.add_argument("--num_gpus", type=int, default=0)
-    parser.add_argument("--timeout", type=int, default=400)
+    parser.add_argument("--timeout", type=int, default=150)
     parser.add_argument("--maxerrors", type=int, default=50)
     help = "Template for launching MPI jobs, {N} is replaced by number of processors."
     parser.add_argument("--mpiexec", default="mpiexec -n {N} --bind-to none", help=help)
@@ -209,7 +211,7 @@ async def main() -> None:
     print("\n".join(r.error for r in all_results if r.error))
 
     print("\n------------------------------- Timings --------------------------------")
-    timings = sorted(r.duration for r in all_results)
+    timings = sorted(r.duration for r in all_results if r.duration)
     print('Plot: name="timings", title="Timing Distribution", ylabel="time [s]"')
     for p in (100, 99, 98, 95, 90, 80):
         y = percentile(timings, p / 100.0)
@@ -219,7 +221,9 @@ async def main() -> None:
     if cfg.flag_slow:
         print("\n" + "-" * 15 + "--------------- Slow Tests ---------------" + "-" * 15)
         threshold = 2 * percentile(timings, 0.95)
-        outliers = [r for r in all_results if r.duration > threshold]
+        outliers = [
+            r for r in all_results if r.duration and r.duration > 0.95 * threshold
+        ]
         maybe_slow = [r for r in outliers if r.fullname not in cfg.slow_suppressions]
         num_suppressed = len(outliers) - len(maybe_slow)
         rerun_tasks: List[Task[BatchResult]] = []
@@ -228,8 +232,14 @@ async def main() -> None:
             rerun_tasks.append(asyncio.get_event_loop().create_task(run_batch(b, cfg)))
         rerun_times: Dict[str, float] = {}
         for t in await asyncio.gather(*rerun_tasks):
-            rerun_times.update({r.fullname: r.duration for r in t.results})
-        stats = {r.fullname: [r.duration, rerun_times[r.fullname]] for r in maybe_slow}
+            rerun_times.update(
+                {r.fullname: r.duration for r in t.results if r.duration}
+            )
+        stats = {
+            r.fullname: [r.duration, rerun_times[r.fullname]]
+            for r in maybe_slow
+            if r.duration
+        }
         slow_tests = {k: v for k, v in stats.items() if mean(v) - stdev(v) > threshold}
         print(f"Duration threshold (2x 95th %ile): {threshold:.2f} sec")
         print(f"Found {len(slow_tests)} slow tests ({num_suppressed} suppressed):")
@@ -263,8 +273,8 @@ async def main() -> None:
 
 
 # ======================================================================================
-def _is_intel_mpi(mpiexec_cmd: str = "mpiexec") -> bool:
-    """Check if the given mpiexec command belongs to Intel MPI."""
+def _mpi_version(mpiexec_cmd: str = "mpiexec") -> str:
+    """Return the version information reported by the MPI launcher."""
     try:
         result = subprocess.run(
             [mpiexec_cmd, "--version"],
@@ -272,9 +282,9 @@ def _is_intel_mpi(mpiexec_cmd: str = "mpiexec") -> bool:
             text=True,
             timeout=10,
         )
-        return "Intel" in result.stdout or "Intel" in result.stderr
+        return result.stdout + result.stderr
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-        return False
+        return ""
 
 
 # ======================================================================================
@@ -291,7 +301,9 @@ class Config:
         self.mpiexec = args.mpiexec
         if "{N}" not in self.mpiexec:  # backwards compatibility
             self.mpiexec = f"{self.mpiexec} ".replace(" ", " -n {N} ", 1).strip()
-        self.intel_mpi = _is_intel_mpi(self.mpiexec.split()[0])
+        mpi_version = _mpi_version(self.mpiexec.split()[0])
+        self.intel_mpi = "Intel" in mpi_version
+        self.openmpi = "Open MPI" in mpi_version
         if self.intel_mpi and "--bind-to" in self.mpiexec:
             self.mpiexec = self.mpiexec.replace(" --bind-to none", "")
         self.smoketest = args.smoketest
@@ -334,6 +346,29 @@ class Config:
             amd_gpus = int(run_with_capture_stdout(amd_cmd))
             self.num_gpus = nv_gpus + amd_gpus
         self.next_gpu = 0  # Used to assign devices round robin to processes.
+        self.openmpi_shm_root: Optional[Path] = None
+        self.next_mpi_launch = 0
+
+    def isolate_openmpi_shm(self, env: Dict[str, str]) -> None:
+        """Give each OpenMPI launch a private shared-memory backing directory."""
+        key = "OMPI_MCA_btl_sm_backing_directory"
+        shm_parent = Path("/dev/shm")
+        if not self.openmpi or key in env or not shm_parent.is_dir():
+            return
+        if self.openmpi_shm_root is None:
+            try:
+                root = tempfile.mkdtemp(prefix="cp2k-regtest-", dir=shm_parent)
+            except OSError:
+                return
+            self.openmpi_shm_root = Path(root)
+            atexit.register(shutil.rmtree, root, ignore_errors=True)
+        launch_dir = self.openmpi_shm_root / str(self.next_mpi_launch)
+        self.next_mpi_launch += 1
+        try:
+            launch_dir.mkdir()
+        except OSError:
+            return
+        env[key] = str(launch_dir)
 
     def launch_exe(
         self, exe_stem: str, *args: str, cwd: Optional[Path] = None
@@ -362,6 +397,7 @@ class Config:
         if self.valgrind:
             cmd = ["valgrind", "--error-exitcode=42", "--exit-on-first-error=yes"] + cmd
         if self.use_mpi:
+            self.isolate_openmpi_shm(env)
             cmd = self.mpiexec.format(N=self.mpiranks).split() + cmd
         if self.debug:
             print(f"Creating subprocess: {cmd} {args}")
@@ -424,7 +460,7 @@ class TestResult:
         batch: Batch,
         test: Union[Regtest, Unittest],
         spec: Optional[Dict[str, Any]],
-        duration: float,
+        duration: Optional[float],
         status: TestStatus,
         error: Optional[str] = None,
         value: Optional[float] = None,
@@ -443,7 +479,8 @@ class TestResult:
         if self.spec and len(self.test.matcher_specs) > 1:
             display_name += f":{self.spec.get('matcher', '???')}"
         value = f"{self.value:.10g}" if self.value else "-"
-        return f"    {display_name :<80s} {value :>17} {self.status :>12s} ( {self.duration:6.2f} sec)"
+        timing = f" ( {self.duration:6.2f} sec)" if self.duration else ""
+        return f"    {display_name :<80s} {value :>17} {self.status :>12s}{timing}"
 
 
 # ======================================================================================
@@ -451,7 +488,7 @@ class BatchResult:
     def __init__(self, batch: Batch, results: List[TestResult]):
         self.batch = batch
         self.results = results
-        self.duration = sum(float(r.duration) for r in results)
+        self.duration = sum(r.duration for r in results if r.duration)
 
 
 # ======================================================================================
@@ -461,12 +498,20 @@ class Cp2kShell:
         self.workdir = workdir
         self._child: Optional[Process] = None
 
-    async def stop(self) -> None:
+    async def stop(self, force: bool = False) -> None:
         assert self._child
-        try:
-            self._child.terminate()  # Give mpiexec a chance to shutdown
-        except ProcessLookupError:
-            pass
+        if self._child.returncode is None:
+            if force:
+                try:
+                    self._child.terminate()
+                except ProcessLookupError:
+                    pass
+            else:
+                # Let CP2K finalize MPI and release launcher resources.
+                try:
+                    await self.sendline("EXIT")
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
         await self._child.communicate()  # Read output to prevent a zombie process.
         self._child = None
 
@@ -598,7 +643,7 @@ async def run_regtests_keepalive(batch: Batch, cfg: Config) -> List[TestResult]:
                 returncode = -9
 
         if returncode != 0:
-            await shell.stop()
+            await shell.stop(force=timed_out)
             await shell.start()
         duration = time.perf_counter() - start_time
         output_size = dirsize(batch.workdir) - start_dirsize
@@ -667,9 +712,10 @@ def eval_regtest(
     if not test.matcher_specs:
         return [TestResult(batch, test, None, duration, "OK")]
 
-    # run the matchers
+    # Only the first matcher carries the duration of the single test execution.
     results = []
-    for spec in test.matcher_specs:
+    for i, spec in enumerate(test.matcher_specs):
+        matcher_duration = duration if i == 0 else None
         spec = dict(spec)  # shallow copy so we can pop without mutating the original
         alt_file = spec.pop("file", None)
         if alt_file:
@@ -677,7 +723,7 @@ def eval_regtest(
             if not alt_path.exists():
                 err = f"{error}Spec: {spec}\nExpected output file not found: {alt_path}"
                 results += [
-                    TestResult(batch, test, spec, duration, "WRONG RESULT", err)
+                    TestResult(batch, test, spec, matcher_duration, "WRONG RESULT", err)
                 ]
                 continue
             match_output = alt_path.read_bytes().decode("utf8", errors="replace")
@@ -686,7 +732,9 @@ def eval_regtest(
         m = run_matcher(match_output, **spec)
         if m.error:
             m.error = f"{error}Spec: {spec}\n{m.error}"
-        results += [TestResult(batch, test, spec, duration, m.status, m.error, m.value)]
+        results += [
+            TestResult(batch, test, spec, matcher_duration, m.status, m.error, m.value)
+        ]
 
     return results
 

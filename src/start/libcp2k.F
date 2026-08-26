@@ -49,6 +49,17 @@ MODULE libcp2k
 
    PRIVATE
 
+   PUBLIC :: cp2k_get_version, cp2k_init, cp2k_init_without_mpi, cp2k_init_without_mpi_comm, &
+             cp2k_finalize, cp2k_finalize_without_mpi, cp2k_create_force_env, &
+             cp2k_create_force_env_comm, cp2k_destroy_force_env, cp2k_set_positions, &
+             cp2k_set_velocities, cp2k_set_cell, cp2k_get_result, cp2k_get_natom, &
+             cp2k_get_nparticle, cp2k_get_positions, cp2k_get_forces, &
+             cp2k_get_potential_energy, cp2k_get_cell, cp2k_get_qmmm_cell, &
+             cp2k_calc_energy_force, cp2k_calc_energy, cp2k_run_input, cp2k_run_input_comm, &
+             cp2k_transport_set_callback, cp2k_active_space_get_mo_count, &
+             cp2k_active_space_get_fock_sub, cp2k_active_space_get_eri_nze_count, &
+             cp2k_active_space_get_eri
+
    TYPE, EXTENDS(eri_type_eri_element_func) :: eri2array
       INTEGER(C_INT), POINTER :: coords(:) => NULL()
       REAL(C_DOUBLE), POINTER :: values(:) => NULL()
@@ -504,8 +515,9 @@ CONTAINS
       try: BLOCK
          CALL get_qs_env(f_env%force_env%qs_env, active_space=active_space_env)
 
-         IF (.NOT. ASSOCIATED(active_space_env)) &
+         IF (.NOT. ASSOCIATED(active_space_env)) THEN
             EXIT try
+         END IF
 
          CALL get_mo_set(active_space_env%mos_active(1), nmo=nmo)
       END BLOCK try
@@ -544,13 +556,15 @@ CONTAINS
       try: BLOCK
          CALL get_qs_env(f_env%force_env%qs_env, active_space=active_space_env)
 
-         IF (.NOT. ASSOCIATED(active_space_env)) &
+         IF (.NOT. ASSOCIATED(active_space_env)) THEN
             EXIT try
+         END IF
 
          CALL get_mo_set(active_space_env%mos_active(1), nmo=norb)
 
-         IF (buf_len < norb*norb) &
+         IF (buf_len < norb*norb) THEN
             EXIT try
+         END IF
 
          DO i = 0, norb - 1
             DO j = 0, norb - 1
@@ -591,8 +605,9 @@ CONTAINS
       try: BLOCK
          CALL get_qs_env(f_env%force_env%qs_env, active_space=active_space_env)
 
-         IF (.NOT. ASSOCIATED(active_space_env)) &
+         IF (.NOT. ASSOCIATED(active_space_env)) THEN
             EXIT try
+         END IF
 
          nze_count = INT(active_space_env%eri%eri(1)%csr_mat%nze_total, KIND(nze_count))
       END BLOCK try
@@ -635,12 +650,14 @@ CONTAINS
       try: BLOCK
          CALL get_qs_env(f_env%force_env%qs_env, active_space=active_space_env)
 
-         IF (.NOT. ASSOCIATED(active_space_env)) &
+         IF (.NOT. ASSOCIATED(active_space_env)) THEN
             EXIT try
+         END IF
 
          ASSOCIATE (nze => active_space_env%eri%eri(1)%csr_mat%nze_total)
-            IF (buf_coords_len < 4*nze .OR. buf_values_len < nze) &
+            IF (buf_coords_len < 4*nze .OR. buf_values_len < nze) THEN
                EXIT try
+            END IF
 
             CALL active_space_env%eri%eri_foreach(1, active_space_env%active_orbitals, eri2array(buf_coords, buf_values))
 

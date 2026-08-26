@@ -604,7 +604,7 @@ CONTAINS
          DO imo = 1, mos(1)%homo
             IF (nspins == 1) THEN
                WRITE (iwfx, '(A15)') "Alpha and Beta"
-            ELSEIF (dft_control%uks) THEN
+            ELSE IF (dft_control%uks) THEN
                WRITE (iwfx, '(A6)') "Alpha"
             ELSE
                CALL cp_abort(__LOCATION__, "This wavefunction type is currently"// &
@@ -640,9 +640,7 @@ CONTAINS
 
          IF (mos(1)%use_mo_coeff_b) THEN
             DO ispin = 1, SIZE(mos)
-               IF (.NOT. ASSOCIATED(mos(ispin)%mo_coeff_b)) THEN
-                  CPASSERT(.FALSE.)
-               END IF
+               CPASSERT(ASSOCIATED(mos(ispin)%mo_coeff_b))
                CALL copy_dbcsr_to_fm(mos(ispin)%mo_coeff_b, &
                                      mos(ispin)%mo_coeff)
             END DO

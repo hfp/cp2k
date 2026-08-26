@@ -6,8 +6,8 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")/.." && pwd -P)"
 
-openblas_ver="0.3.33" # Keep in sync with get_openblas_arch.sh
-openblas_sha256="6761af1d9f5d353ab4f0b7497be2643313b36c8f31caec0144bfef198e71e6ab"
+openblas_ver="0.3.34" # Keep in sync with get_openblas_arch.sh
+openblas_sha256="cd7e129868320cc2d033afa920e31202dfe0b8066a5b66661900ccc0f197dfed"
 openblas_pkg="OpenBLAS-${openblas_ver}.tar.gz"
 
 source "${SCRIPT_DIR}"/common_vars.sh
@@ -102,6 +102,7 @@ case "${with_openblas}" in
     echo "==================== Finding OpenBLAS from system paths ===================="
     # assume that system openblas is threaded
     check_lib -lopenblas "OpenBLAS"
+    OPENBLAS_LIBS="-lopenblas"
     # detect separate omp builds
     check_lib -lopenblas_openmp 2> /dev/null && OPENBLAS_LIBS="-lopenblas_openmp"
     check_lib -lopenblas_omp 2> /dev/null && OPENBLAS_LIBS="-lopenblas_omp"
@@ -114,7 +115,6 @@ case "${with_openblas}" in
     fi
     add_include_from_paths OPENBLAS_CFLAGS "openblas_config.h" $INCLUDE_PATHS
     add_lib_from_paths OPENBLAS_LDFLAGS "libopenblas.*" $LIB_PATHS
-    OPENBLAS_LIBS="-lopenblas"
     ;;
   __DONTUSE__) ;;
 

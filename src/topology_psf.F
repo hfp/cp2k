@@ -114,10 +114,8 @@ CONTAINS
       label = 'PSF'
       CALL parser_search_string(parser, label, .TRUE., found, begin_line=.TRUE.)
       IF (.NOT. found) THEN
-         IF (output_unit > 0) THEN
-            WRITE (output_unit, '(A)') "ERROR| Missing PSF specification line"
-         END IF
-         CPABORT("")
+         CALL cp_abort(__LOCATION__, &
+                       "Missing PSF specification line in <"//TRIM(filename)//">")
       END IF
       DO WHILE (parser_test_next_token(parser) /= "EOL")
          CALL parser_get_object(parser, field)
@@ -150,11 +148,12 @@ CONTAINS
          natom = 0
       ELSE
          CALL parser_get_object(parser, natom)
-         IF (natom_prev + natom > topology%natoms) &
+         IF (natom_prev + natom > topology%natoms) THEN
             CALL cp_abort(__LOCATION__, &
                           "Number of atoms in connectivity control is larger than the "// &
                           "number of atoms in coordinate control. check coordinates and "// &
                           "connectivity. ")
+         END IF
          IF (iw > 0) WRITE (iw, '(T2,A,'//TRIM(c_int)//')') 'PSF_INFO| NATOM = ', natom
          !malloc the memory that we need
          CALL reallocate(atom_info%id_molname, 1, natom_prev + natom)
@@ -460,9 +459,7 @@ CONTAINS
                conn_info%c_bond_b(i) = jatom
             END IF
          ELSE
-            IF (atom_info%id_molname(iatom) /= atom_info%id_molname(jatom)) THEN
-               CPABORT("")
-            END IF
+            CPASSERT(atom_info%id_molname(iatom) == atom_info%id_molname(jatom))
          END IF
       END DO
       !

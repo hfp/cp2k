@@ -27,7 +27,7 @@ MODULE hdf5_wrapper
 #endif
 #endif
    USE iso_c_binding, ONLY: C_LOC, &
-                            c_ptr
+                            C_PTR
    USE cp_log_handling, ONLY: cp_logger_get_default_io_unit
    USE kinds, ONLY: dp
    USE message_passing, ONLY: mp_comm_world, mp_info_null
@@ -35,9 +35,16 @@ MODULE hdf5_wrapper
 
    IMPLICIT NONE
 
+   PRIVATE
+
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'hdf5_wrapper'
 #ifdef __HDF5
    INTEGER, PARAMETER, PUBLIC           :: hdf5_id = hid_t
+
+   PUBLIC :: h5aread_double_scalar, h5awrite_boolean, h5awrite_double_scalar, h5awrite_double_simple
+   PUBLIC :: h5awrite_fixlen_string, h5awrite_integer_scalar, h5awrite_integer_simple
+   PUBLIC :: h5awrite_string_simple, h5close, h5dread_double_simple, h5dwrite_double_simple, h5fclose
+   PUBLIC :: h5fcreate, h5fopen, h5gclose, h5gcreate, h5gopen, h5open
 #endif
 
 CONTAINS

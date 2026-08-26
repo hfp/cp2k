@@ -50,7 +50,7 @@ MODULE bibliography
                             Stewart1989, Thiel1992, Repasky2002, Stewart2007, Weber2008, &
                             Hunt2003, Guidon2008, Elber1987, Jonsson1998, Jonsson2000_1, &
                             Jonsson2000_2, Wales2004, Stewart1982, E2002, Laino2008, &
-                            Blochl1995, Tao2003, VandeVondele2006, VanVoorhis2015, Hu2007, Grimme2006, &
+                            Blochl1995, Tao2003, VandeVondele2006, VanVoorhis2015, Hu2007, Hu2010, Grimme2006, &
                             Branduardi2007, Schenter2008, BeckeRoussel1989, Proynov2007, &
                             VandenCic2006, Becke1997, Foiles1986, Ricci2003, Kolafa2004, &
                             Kuhne2007, Kunert2003, Ceriotti2009, ceriotti2009b, Guidon2009, &
@@ -66,7 +66,7 @@ MODULE bibliography
                             Kantorovich2008a, Wellendorff2012, Niklasson2014, Borstnik2014, &
                             Rayson2009, Grimme2011, Fattebert2002, Andreussi2012, &
                             Khaliullin2007, Khaliullin2008, Merlot2014, Lin2009, Lin2013, Lin2016ACE, &
-                            Batzner2022, DelBen2015, Souza2002, Umari2002, Stengel2009, &
+                            Batzner2022, Batatia2022, DelBen2015, Souza2002, Umari2002, Stengel2009, &
                             Luber2014, Berghold2011, DelBen2015b, Campana2009, &
                             Schiffmann2015, Bruck2014, Rappe1992, Ceriotti2012, &
                             Ceriotti2010, Walewski2014, Monkhorst1976, MacDonald1978, Worlton1972, &
@@ -93,10 +93,11 @@ MODULE bibliography
                             Sander2015, Schreiber2008, vanSetten2015, Setyawan2010, Ahart2024, Knysh2024, &
                             Schambeck2024, Mewes2018, Sertcan2024, Drautz2019, Lysogorskiy2021, Bochkarev2024, &
                             VazdaCruz2021, Chen2025, Hernandez2025, Marek2025, Hehn2022, Hehn2024, Pasquier2025, &
-                            Hanasaki2025, Tan2025, Broyden1965, Johnson1988, Kerker1981, &
+                            Hanasaki2025, Graml2026, Tan2025, Broyden1965, Johnson1988, Kerker1981, &
                             FuHo1983, MethfesselPaxton1989, Marzari1999, dosSantos2023, Mermin1965, &
                             KuhneHeskeProdan2020, Schreder2021, Schreder2024_1, Schreder2024_2, &
-                            Shiga2022, Lindh1995, Chai2024a, Rullan2026, Sundararaman2017
+                            Shiga2022, Lindh1995, Chai2024a, Rullan2026, Sundararaman2017, Andreussi2019, &
+                            Chai2025a, Neugebauer2023, Chai2024b, Moynihan2017, Cococcioni2005
 
 CONTAINS
 
@@ -163,6 +164,13 @@ CONTAINS
                          source="Nat. Commun.", volume="13", pages="2453", &
                          year=2022, doi="10.1038/s41467-022-29939-5")
 
+      CALL add_reference(key=Batatia2022, &
+                         authors=s2a("I. Batatia", "D. P. Kovacs", "G. N. C. Simm", "C. Ortner", "G. Csanyi"), &
+                         title="MACE: Higher order equivariant message passing neural networks "// &
+                         "for fast and accurate force fields", &
+                         source="Adv. Neural Inf. Process. Syst.", volume="35", pages="11423-11436", &
+                         year=2022, doi="10.48550/arXiv.2206.07697")
+
       CALL add_reference(key=VandenCic2006, &
                          authors=s2a("E. Vanden-Eijnden", "G. Ciccotti"), &
                          title="Second-order integrators for Langevin equations with holonomic constraints", &
@@ -175,6 +183,13 @@ CONTAINS
                          "density functional tight binding method: From molecular clusters to the liquid state", &
                          source="J. Phys. Chem. A", volume="111", pages="5685-5691", &
                          year=2007, doi="10.1021/jp070308d")
+
+      CALL add_reference(key=Hu2010, &
+                         authors=s2a("X. Hu", "W. Yang"), &
+                         title="Accelerating self-consistent field convergence "// &
+                         "with the augmented Roothaan-Hall energy function", &
+                         source="J. Chem. Phys.", volume="132", pages="054109", &
+                         year=2010, doi="10.1063/1.3304922")
 
       CALL add_reference(key=Zhao1994, &
                          authors=s2a("Q. S. Zhao", "R. C. Morrison", "R. G. Parr"), &
@@ -787,6 +802,13 @@ CONTAINS
                          "and Density-Dependent Dispersion Contributions", &
                          source="J. Chem. Theory Comput.", volume="15", pages="1652-1671", &
                          year=2019, doi="10.1021/acs.jctc.8b01176")
+
+      CALL add_reference(key=Neugebauer2023, &
+                         authors=s2a("H. Neugebauer", "B. Baedorf", "S. Ehlert", "A. Hansen", "S. Grimme"), &
+                         title="High-throughput screening of spin states for transition metal complexes "// &
+                         "with spin-polarized extended tight-binding methods", &
+                         source="J. Comput. Chem.", volume="44", pages="2120-2129", &
+                         year=2023, doi="10.1002/jcc.27185")
 
       CALL add_reference(key=Katbashev2025, &
                          authors=s2a("A. Katbashev", "M. Stahn", "T. Rose", "V. Alizadeh", &
@@ -2092,6 +2114,13 @@ CONTAINS
                          source="Phys. Rev. B", volume="112", pages="205130", &
                          year=2025, doi="10.1103/v4zv-1pf9")
 
+      CALL add_reference(key=Graml2026, &
+                         authors=s2a("M. Graml", "J. Wilhelm"), &
+                         title="Optical excitations in nanographenes from the Bethe-Salpeter equation "// &
+                         "and time-dependent density functional theory: Absorption spectra and spatial descriptors", &
+                         source="Phys. Rev. B", volume="113", pages="205152", &
+                         year=2026, doi="10.1103/38k2-d55h")
+
       CALL add_reference(key=Hanasaki2025, &
                          authors=s2a("K. Hanasaki", "T. Futaii de Jong", "K. Komarov", "R. Kumar", "M. Malis", &
                                      "J. Mattiat", "L. I. Hernandez-Segura", "L. Schreder", "A. Sinyavskiy", "S. Luber"), &
@@ -2196,6 +2225,40 @@ CONTAINS
                          "Algorithms and applications to electrochemistry", &
                          source="J. Chem. Phys.", volume="146", pages="114104", &
                          year=2017, doi="10.1063/1.4978411")
+
+      CALL add_reference(key=Andreussi2019, &
+                         authors=s2a("O. Andreussi", "N. G. Hormann", "F. Nattino", "G. Fisicaro", "S. Goedecker", "N. Marzari"), &
+                         title="Solvent-aware interfaces in continuum solvation", &
+                         source="J. Chem. Theory Comput.", volume="15", pages="1996-2009", &
+                         year=2019, doi="10.1021/acs.jctc.8b01174")
+
+      CALL add_reference(key=Chai2025a, &
+                         authors=s2a("Z. Chai", "S. Luber"), &
+                         title="Functional analytic derivation and CP2K implementation of the SCCS model based "// &
+                         "on the solvent-aware interface", &
+                         source="Comput. Phys. Commun.", volume="311", pages="109563", &
+                         year=2025, doi="10.1016/j.cpc.2025.109563")
+
+      CALL add_reference(key=Chai2024b, &
+                         authors=s2a("Z. Chai", "R. Si", "M. Chen", "G. Teobaldi", "D. O'Regan", "L. Liu"), &
+                         title="Minimum Tracking Linear Response Hubbard and Hund Corrected Density Functional Theory in CP2K", &
+                         source="J. Chem. Theory Comput.", volume="20", pages="8984-9002", &
+                         year=2024, doi="10.1021/acs.jctc.4c00964")
+
+      CALL add_reference(key=Moynihan2017, &
+                         authors=s2a("G. Moynihan", "G. Teobaldi", "D. D. O'Regan"), &
+                         title="A self-consistent ground-state formulation of the "// &
+                         "first-principles Hubbard U parameter validated on "// &
+                         "one-electron self-interaction error", &
+                         source="arXiv", pages="1704.08076", &
+                         year=2017, doi="10.48550/arXiv.1704.08076")
+
+      CALL add_reference(key=Cococcioni2005, &
+                         authors=s2a("M. Cococcioni", "S. de Gironcoli"), &
+                         title="Linear response approach to the calculation of the "// &
+                         "effective interaction parameters in the LDA+U method", &
+                         source="Phys. Rev. B", volume="71", pages="035105", &
+                         year=2005, doi="10.1103/PhysRevB.71.035105")
 
    END SUBROUTINE add_all_references
 

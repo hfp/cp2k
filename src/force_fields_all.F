@@ -64,10 +64,11 @@ MODULE force_fields_all
                                               spline_nonbond_control
    USE pair_potential_coulomb,          ONLY: potential_coulomb
    USE pair_potential_types,            ONLY: &
-        ace_type, allegro_type, deepmd_type, ea_type, lj_charmm_type, lj_type, nequip_type, &
-        nn_type, nosh_nosh, nosh_sh, pair_potential_lj_create, pair_potential_pp_create, &
-        pair_potential_pp_type, pair_potential_single_add, pair_potential_single_clean, &
-        pair_potential_single_copy, pair_potential_single_type, sh_sh, siepmann_type, tersoff_type
+        ace_type, allegro_type, deepmd_type, ea_type, lj_charmm_type, lj_type, mace_type, &
+        nequip_type, nn_type, nosh_nosh, nosh_sh, pair_potential_lj_create, &
+        pair_potential_pp_create, pair_potential_pp_type, pair_potential_single_add, &
+        pair_potential_single_clean, pair_potential_single_copy, pair_potential_single_type, &
+        sh_sh, siepmann_type, tersoff_type
    USE particle_types,                  ONLY: allocate_particle_set,&
                                               particle_type
    USE physcon,                         ONLY: bohr
@@ -2025,11 +2026,12 @@ CONTAINS
 
          only_qm = qmmm_ff_precond_only_qm(id1=atmname, is_link=is_link_atom)
          CALL uppercase(atmname)
-         IF (charge /= -HUGE(0.0_dp)) &
+         IF (charge /= -HUGE(0.0_dp)) THEN
             CALL cp_warn(__LOCATION__, &
                          "The charge for atom index ("//cp_to_string(iatom)//") and atom name ("// &
                          TRIM(atmname)//") was already defined. The charge associated to this kind"// &
                          " will be set to an uninitialized value and only the atom specific charge will be used! ")
+         END IF
          charge = -HUGE(0.0_dp)
 
          ! Check if the potential really requires the charge definition..
@@ -2171,10 +2173,11 @@ CONTAINS
                               inp_info%shell_list(j)%shell%charge_shell
                   charge = 0.0_dp
                   IF (found) THEN
-                     IF (found) &
+                     IF (found) THEN
                         CALL cp_warn(__LOCATION__, &
                                      "CORE-SHELL model defined for KIND ("//TRIM(atmname)//")"// &
                                      " ignoring charge definition! ")
+                     END IF
                   ELSE
                      found = .TRUE.
                   END IF
@@ -2192,7 +2195,7 @@ CONTAINS
                       atmname == inp_info%nonbonded%pot(j)%pot%at2) THEN
                      SELECT CASE (inp_info%nonbonded%pot(j)%pot%type(1))
                      CASE (ea_type, tersoff_type, siepmann_type, nequip_type, &
-                           allegro_type, deepmd_type, ace_type)
+                           allegro_type, deepmd_type, ace_type, mace_type)
                         ! Charge is zero for EAM, TERSOFF and SIEPMANN type potential
                         ! Do nothing..
                      CASE DEFAULT
@@ -2929,18 +2932,20 @@ CONTAINS
                        ((name_atm_a) == (inp_info%nonbonded14%pot(k)%pot%at2)))) THEN
                      IF (ff_type%multiple_potential) THEN
                         CALL pair_potential_single_add(inp_info%nonbonded14%pot(k)%pot, pot)
-                        IF (found) &
+                        IF (found) THEN
                            CALL cp_warn(__LOCATION__, &
                                         "Multiple ONFO declaration: "//TRIM(name_atm_a)// &
                                         " and "//TRIM(name_atm_b)//" ADDING! ")
+                        END IF
                         potparm_nonbond14%pot(i, j)%pot => pot
                         potparm_nonbond14%pot(j, i)%pot => pot
                      ELSE
                         CALL pair_potential_single_copy(inp_info%nonbonded14%pot(k)%pot, pot)
-                        IF (found) &
+                        IF (found) THEN
                            CALL cp_warn(__LOCATION__, &
                                         "Multiple ONFO declarations: "//TRIM(name_atm_a)// &
                                         " and "//TRIM(name_atm_b)//" OVERWRITING! ")
+                        END IF
                      END IF
                      IF (iw > 0) WRITE (iw, *) "    FOUND ", TRIM(name_atm_a), " ", TRIM(name_atm_b)
                      found = .TRUE.
@@ -2971,18 +2976,20 @@ CONTAINS
                              ((name_atm_a) == (qmmm_env%inp_info%nonbonded14%pot(k)%pot%at2)))) THEN
                            IF (qmmm_env%multiple_potential) THEN
                               CALL pair_potential_single_add(qmmm_env%inp_info%nonbonded14%pot(k)%pot, pot)
-                              IF (found) &
+                              IF (found) THEN
                                  CALL cp_warn(__LOCATION__, &
                                               "Multiple ONFO declaration: "//TRIM(name_atm_a)// &
                                               " and "//TRIM(name_atm_b)//" Adding QM/MM forcefield specifications")
+                              END IF
                               potparm_nonbond14%pot(i, j)%pot => pot
                               potparm_nonbond14%pot(j, i)%pot => pot
                            ELSE
                               CALL pair_potential_single_copy(qmmm_env%inp_info%nonbonded14%pot(k)%pot, pot)
-                              IF (found) &
+                              IF (found) THEN
                                  CALL cp_warn(__LOCATION__, &
                                               "Multiple ONFO declaration: "//TRIM(name_atm_a)// &
                                               " and "//TRIM(name_atm_b)//" OVERWRITING QM/MM forcefield specifications! ")
+                              END IF
                            END IF
                            IF (iw > 0) WRITE (iw, *) "    FOUND ", TRIM(name_atm_a), &
                               " ", TRIM(name_atm_b)
@@ -3227,18 +3234,20 @@ CONTAINS
                      END IF
                      IF (ff_type%multiple_potential) THEN
                         CALL pair_potential_single_add(inp_info%nonbonded%pot(k)%pot, pot)
-                        IF (found) &
+                        IF (found) THEN
                            CALL cp_warn(__LOCATION__, &
                                         "Multiple NONBONDED declarations for "//TRIM(name_atm_a)// &
                                         "-"//TRIM(name_atm_b)//" -> ADDING")
+                        END IF
                         potparm_nonbond%pot(i, j)%pot => pot
                         potparm_nonbond%pot(j, i)%pot => pot
                      ELSE
                         CALL pair_potential_single_copy(inp_info%nonbonded%pot(k)%pot, pot)
-                        IF (found) &
+                        IF (found) THEN
                            CALL cp_warn(__LOCATION__, &
                                         "Multiple NONBONDED declarations for "//TRIM(name_atm_a)// &
                                         "-"//TRIM(name_atm_b)//" -> OVERWRITING")
+                        END IF
                      END IF
                      found = .TRUE.
                   END IF
@@ -3268,18 +3277,20 @@ CONTAINS
                         END IF
                         IF (ff_type%multiple_potential) THEN
                            CALL pair_potential_single_add(inp_info%nonbonded%pot(k)%pot, pot)
-                           IF (found) &
+                           IF (found) THEN
                               CALL cp_warn(__LOCATION__, &
                                            "Multiple NONBONDED declarations "//TRIM(name_atm_a)// &
                                            "-"//TRIM(name_atm_b)//" -> ADDING")
+                           END IF
                            potparm_nonbond%pot(i, j)%pot => pot
                            potparm_nonbond%pot(j, i)%pot => pot
                         ELSE
                            CALL pair_potential_single_copy(inp_info%nonbonded%pot(k)%pot, pot)
-                           IF (found) &
+                           IF (found) THEN
                               CALL cp_warn(__LOCATION__, &
                                            "Multiple NONBONDED declarations "//TRIM(name_atm_a)// &
                                            "-"//TRIM(name_atm_b)//" -> OVERWRITING")
+                           END IF
                         END IF
                         found = .TRUE.
                      END IF
@@ -3306,18 +3317,20 @@ CONTAINS
                      END IF
                      IF (ff_type%multiple_potential) THEN
                         CALL pair_potential_single_add(inp_info%nonbonded%pot(k)%pot, pot)
-                        IF (found) &
+                        IF (found) THEN
                            CALL cp_warn(__LOCATION__, &
                                         "Multiple NONBONDED declarations "//TRIM(name_atm_a)// &
                                         " - "//TRIM(name_atm_b)//" -> ADDING")
+                        END IF
                         potparm_nonbond%pot(i, j)%pot => pot
                         potparm_nonbond%pot(j, i)%pot => pot
                      ELSE
                         CALL pair_potential_single_copy(inp_info%nonbonded%pot(k)%pot, pot)
-                        IF (found) &
+                        IF (found) THEN
                            CALL cp_warn(__LOCATION__, &
                                         "Multiple NONBONDED declarations "//TRIM(name_atm_a)// &
                                         " - "//TRIM(name_atm_b)//" -> OVERWRITING")
+                        END IF
                      END IF
                      found = .TRUE.
                   END DO
@@ -3351,18 +3364,20 @@ CONTAINS
                            END IF
                            IF (qmmm_env%multiple_potential) THEN
                               CALL pair_potential_single_add(qmmm_env%inp_info%nonbonded%pot(k)%pot, pot)
-                              IF (found) &
+                              IF (found) THEN
                                  CALL cp_warn(__LOCATION__, &
                                               "Multiple NONBONDED declarations for "//TRIM(name_atm_a)// &
                                               " and "//TRIM(name_atm_b)//" -> ADDING QM/MM forcefield specifications")
+                              END IF
                               potparm_nonbond%pot(i, j)%pot => pot
                               potparm_nonbond%pot(j, i)%pot => pot
                            ELSE
                               CALL pair_potential_single_copy(qmmm_env%inp_info%nonbonded%pot(k)%pot, pot)
-                              IF (found) &
+                              IF (found) THEN
                                  CALL cp_warn(__LOCATION__, &
                                               "Multiple NONBONDED declarations for "//TRIM(name_atm_a)// &
                                               " and "//TRIM(name_atm_b)//" -> OVERWRITING QM/MM forcefield specifications")
+                              END IF
                            END IF
                            found = .TRUE.
                         END IF
@@ -3633,9 +3648,10 @@ CONTAINS
       IF (PRESENT(atm3)) fmt = fmt + 1
       IF (PRESENT(atm4)) fmt = fmt + 1
       CALL integer_to_string(fmt - 1, sfmt)
-      IF (fmt > 1) &
+      IF (fmt > 1) THEN
          my_format = '(T2,"FORCEFIELD| Missing ","'//TRIM(type_name)// &
                      '",T40,"(",A9,'//TRIM(sfmt)//'(",",A9),")")'
+      END IF
       IF (PRESENT(fatal)) fatal = .TRUE.
       ! Check for previous already stored equal force fields
       IF (ASSOCIATED(array)) nsize = SIZE(array)
@@ -3660,8 +3676,9 @@ CONTAINS
                CALL compress(my_atm2, .TRUE.)
                CALL compress(my_atm3, .TRUE.)
                IF (((atm1 == my_atm1) .AND. (atm2 == my_atm2) .AND. (atm3 == my_atm3)) .OR. &
-                   ((atm1 == my_atm3) .AND. (atm2 == my_atm2) .AND. (atm3 == my_atm1))) &
+                   ((atm1 == my_atm3) .AND. (atm2 == my_atm2) .AND. (atm3 == my_atm1))) THEN
                   found = .TRUE.
+               END IF
             CASE ("Urey-Bradley")
                IF (INDEX(array(i) (21:39), "Urey-Bradley") == 0) CYCLE
                my_atm1 = array(i) (41:49)
@@ -3671,8 +3688,9 @@ CONTAINS
                CALL compress(my_atm2, .TRUE.)
                CALL compress(my_atm3, .TRUE.)
                IF (((atm1 == my_atm1) .AND. (atm2 == my_atm2) .AND. (atm3 == my_atm3)) .OR. &
-                   ((atm1 == my_atm3) .AND. (atm2 == my_atm2) .AND. (atm3 == my_atm1))) &
+                   ((atm1 == my_atm3) .AND. (atm2 == my_atm2) .AND. (atm3 == my_atm1))) THEN
                   found = .TRUE.
+               END IF
             CASE ("Torsion")
                IF (INDEX(array(i) (21:39), "Torsion") == 0) CYCLE
                my_atm1 = array(i) (41:49)
@@ -3684,8 +3702,9 @@ CONTAINS
                CALL compress(my_atm3, .TRUE.)
                CALL compress(my_atm4, .TRUE.)
                IF (((atm1 == my_atm1) .AND. (atm2 == my_atm2) .AND. (atm3 == my_atm3) .AND. (atm4 == my_atm4)) .OR. &
-                   ((atm1 == my_atm4) .AND. (atm2 == my_atm3) .AND. (atm3 == my_atm2) .AND. (atm4 == my_atm1))) &
+                   ((atm1 == my_atm4) .AND. (atm2 == my_atm3) .AND. (atm3 == my_atm2) .AND. (atm4 == my_atm1))) THEN
                   found = .TRUE.
+               END IF
             CASE ("Improper")
                IF (INDEX(array(i) (21:39), "Improper") == 0) CYCLE
                my_atm1 = array(i) (41:49)
@@ -3701,8 +3720,9 @@ CONTAINS
                    ((atm1 == my_atm1) .AND. (atm2 == my_atm3) .AND. (atm3 == my_atm4) .AND. (atm4 == my_atm3)) .OR. &
                    ((atm1 == my_atm1) .AND. (atm2 == my_atm4) .AND. (atm3 == my_atm3) .AND. (atm4 == my_atm2)) .OR. &
                    ((atm1 == my_atm1) .AND. (atm2 == my_atm4) .AND. (atm3 == my_atm2) .AND. (atm4 == my_atm3)) .OR. &
-                   ((atm1 == my_atm1) .AND. (atm2 == my_atm2) .AND. (atm3 == my_atm4) .AND. (atm4 == my_atm3))) &
+                   ((atm1 == my_atm1) .AND. (atm2 == my_atm2) .AND. (atm3 == my_atm4) .AND. (atm4 == my_atm3))) THEN
                   found = .TRUE.
+               END IF
 
             CASE ("Out of plane bend")
                IF (INDEX(array(i) (21:39), "Out of plane bend") == 0) CYCLE
@@ -3715,8 +3735,9 @@ CONTAINS
                CALL compress(my_atm3, .TRUE.)
                CALL compress(my_atm4, .TRUE.)
                IF (((atm1 == my_atm1) .AND. (atm2 == my_atm2) .AND. (atm3 == my_atm3) .AND. (atm4 == my_atm4)) .OR. &
-                   ((atm1 == my_atm1) .AND. (atm2 == my_atm3) .AND. (atm3 == my_atm2) .AND. (atm4 == my_atm4))) &
+                   ((atm1 == my_atm1) .AND. (atm2 == my_atm3) .AND. (atm3 == my_atm2) .AND. (atm4 == my_atm4))) THEN
                   found = .TRUE.
+               END IF
 
             CASE ("Charge")
                IF (INDEX(array(i) (21:39), "Charge") == 0) CYCLE
@@ -3734,7 +3755,13 @@ CONTAINS
                    ((atm1 == my_atm2) .AND. (atm2 == my_atm1))) found = .TRUE.
             CASE DEFAULT
                ! Should never reach this point
-               CPABORT("")
+               CALL cp_abort(__LOCATION__, &
+                             "<Bond>, <Angle>, <Urey-Bradley>, <Torsion>, "// &
+                             "<Improper>, <Out of plane bend>, <Charge>, "// &
+                             "<Spline_Bond_Env>, <Spline_Non_Bond_Env> are "// &
+                             "supported as the <type_name> for store_FF_missing_par, "// &
+                             "found unknown option "// &
+                             "<"//TRIM(type_name)//">")
             END SELECT
             IF (found) EXIT
          END DO

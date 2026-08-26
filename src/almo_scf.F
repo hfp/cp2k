@@ -460,22 +460,22 @@ CONTAINS
             IF (almo_scf_env%opt_block_diag_pcg%eps_error_early > 0.0_dp) THEN
                almo_scf_env%opt_block_diag_pcg%eps_error = almo_scf_env%opt_block_diag_pcg%eps_error_early
                almo_scf_env%opt_block_diag_pcg%early_stopping_on = .TRUE.
-               IF (unit_nr > 0) WRITE (*, *) "ALMO_OPTIMIZER_PCG: EPS_ERROR_EARLY is on"
+               IF (unit_nr > 0) WRITE (unit_nr, "(/,T2,A)") "ALMO_OPTIMIZER_PCG: EPS_ERROR_EARLY is on"
             END IF
             IF (almo_scf_env%opt_block_diag_diis%eps_error_early > 0.0_dp) THEN
                almo_scf_env%opt_block_diag_diis%eps_error = almo_scf_env%opt_block_diag_diis%eps_error_early
                almo_scf_env%opt_block_diag_diis%early_stopping_on = .TRUE.
-               IF (unit_nr > 0) WRITE (*, *) "ALMO_OPTIMIZER_DIIS: EPS_ERROR_EARLY is on"
+               IF (unit_nr > 0) WRITE (unit_nr, "(/,T2,A)") "ALMO_OPTIMIZER_DIIS: EPS_ERROR_EARLY is on"
             END IF
             IF (almo_scf_env%opt_block_diag_pcg%max_iter_early > 0) THEN
                almo_scf_env%opt_block_diag_pcg%max_iter = almo_scf_env%opt_block_diag_pcg%max_iter_early
                almo_scf_env%opt_block_diag_pcg%early_stopping_on = .TRUE.
-               IF (unit_nr > 0) WRITE (*, *) "ALMO_OPTIMIZER_PCG: MAX_ITER_EARLY is on"
+               IF (unit_nr > 0) WRITE (unit_nr, "(/,T2,A)") "ALMO_OPTIMIZER_PCG: MAX_ITER_EARLY is on"
             END IF
             IF (almo_scf_env%opt_block_diag_diis%max_iter_early > 0) THEN
                almo_scf_env%opt_block_diag_diis%max_iter = almo_scf_env%opt_block_diag_diis%max_iter_early
                almo_scf_env%opt_block_diag_diis%early_stopping_on = .TRUE.
-               IF (unit_nr > 0) WRITE (*, *) "ALMO_OPTIMIZER_DIIS: MAX_ITER_EARLY is on"
+               IF (unit_nr > 0) WRITE (unit_nr, "(/,T2,A)") "ALMO_OPTIMIZER_DIIS: MAX_ITER_EARLY is on"
             END IF
          ELSE
             almo_scf_env%opt_block_diag_diis%early_stopping_on = .FALSE.
@@ -485,12 +485,12 @@ CONTAINS
             IF (almo_scf_env%opt_xalmo_pcg%eps_error_early > 0.0_dp) THEN
                almo_scf_env%opt_xalmo_pcg%eps_error = almo_scf_env%opt_xalmo_pcg%eps_error_early
                almo_scf_env%opt_xalmo_pcg%early_stopping_on = .TRUE.
-               IF (unit_nr > 0) WRITE (*, *) "XALMO_OPTIMIZER_PCG: EPS_ERROR_EARLY is on"
+               IF (unit_nr > 0) WRITE (unit_nr, "(/,T2,A)") "XALMO_OPTIMIZER_PCG: EPS_ERROR_EARLY is on"
             END IF
             IF (almo_scf_env%opt_xalmo_pcg%max_iter_early > 0.0_dp) THEN
                almo_scf_env%opt_xalmo_pcg%max_iter = almo_scf_env%opt_xalmo_pcg%max_iter_early
                almo_scf_env%opt_xalmo_pcg%early_stopping_on = .TRUE.
-               IF (unit_nr > 0) WRITE (*, *) "XALMO_OPTIMIZER_PCG: MAX_ITER_EARLY is on"
+               IF (unit_nr > 0) WRITE (unit_nr, "(/,T2,A)") "XALMO_OPTIMIZER_PCG: MAX_ITER_EARLY is on"
             END IF
          ELSE
             almo_scf_env%opt_xalmo_pcg%early_stopping_on = .FALSE.
@@ -1400,7 +1400,6 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'almo_scf_delocalization'
 
       INTEGER                                            :: handle, ispin, unit_nr
-      LOGICAL                                            :: almo_experimental
       TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(dbcsr_type), ALLOCATABLE, DIMENSION(:)        :: no_quench
       TYPE(optimizer_options_type)                       :: arbitrary_optimizer
@@ -1461,25 +1460,6 @@ CONTAINS
          !!!! RZK-warning a whole class of delocalization methods
          !!!! are commented out at the moment because some of their
          !!!! routines have not been thoroughly tested.
-
-         !!!! if we have virtuals pre-optimize and truncate them
-         !!!IF (almo_scf_env%need_virtuals) THEN
-         !!!   SELECT CASE (almo_scf_env%deloc_truncate_virt)
-         !!!   CASE (virt_full)
-         !!!      ! simply copy virtual orbitals from matrix_v_full_blk to matrix_v_blk
-         !!!      DO ispin=1,almo_scf_env%nspins
-         !!!         CALL dbcsr_copy(almo_scf_env%matrix_v_blk(ispin),&
-         !!!                 almo_scf_env%matrix_v_full_blk(ispin))
-         !!!      ENDDO
-         !!!   CASE (virt_number,virt_occ_size)
-         !!!      CALL split_v_blk(almo_scf_env)
-         !!!      !CALL truncate_subspace_v_blk(qs_env,almo_scf_env)
-         !!!   CASE DEFAULT
-         !!!      CPErrorMessage(cp_failure_level,routineP,"illegal method for virtual space truncation")
-         !!!      CPPrecondition(.FALSE.,cp_failure_level,routineP,failure)
-         !!!   END SELECT
-         !!!ENDIF
-         !!!CALL harris_foulkes_correction(qs_env,almo_scf_env)
 
          IF (almo_scf_env%xalmo_update_algorithm == almo_scf_pcg) THEN
 
@@ -1584,18 +1564,6 @@ CONTAINS
                                     assume_t0_q0x=(almo_scf_env%xalmo_trial_wf == xalmo_trial_r0_out), &
                                     perturbation_only=.FALSE., &
                                     special_case=xalmo_case_normal)
-
-            ! RZK-warning THIS IS A HACK TO GET ORBITAL ENERGIES
-            almo_experimental = .FALSE.
-            IF (almo_experimental) THEN
-               almo_scf_env%perturbative_delocalization = .TRUE.
-               !DO ispin=1,almo_scf_env%nspins
-               !   CALL dbcsr_copy(almo_scf_env%matrix_t(ispin),&
-               !           almo_scf_env%matrix_t_blk(ispin))
-               !ENDDO
-               CALL almo_scf_xalmo_eigensolver(qs_env, almo_scf_env, &
-                                               arbitrary_optimizer)
-            END IF ! experimental
 
          ELSE IF (almo_scf_env%xalmo_update_algorithm == almo_scf_trustr) THEN
 
@@ -2622,8 +2590,9 @@ CONTAINS
       ALLOCATE (almo_scf_env%matrix_p_blk(nspins))
       ALLOCATE (almo_scf_env%matrix_ks(nspins))
       ALLOCATE (almo_scf_env%matrix_ks_blk(nspins))
-      IF (almo_scf_env%need_previous_ks) &
+      IF (almo_scf_env%need_previous_ks) THEN
          ALLOCATE (almo_scf_env%matrix_ks_0deloc(nspins))
+      END IF
       DO ispin = 1, nspins
          ! RZK-warning copy with symmery but remember that this might cause problems
          CALL dbcsr_create(almo_scf_env%matrix_p(ispin), &

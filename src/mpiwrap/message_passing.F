@@ -18,6 +18,8 @@
 !>      Wrapper routine for mpi_gatherv added (22.12.2005,MK)
 !>      JGH (13-Feb-2006): Flexible precision
 !>      JGH (15-Feb-2006): single precision mp_alltoall
+!> \note Concurrent calls must use thread-private buffers and requests. Concurrent collectives,
+!>       or point-to-point calls that do not use distinct tags, must use distinct communicators.
 !> \author JGH
 ! **************************************************************************************************
 MODULE message_passing
@@ -33,7 +35,8 @@ MODULE message_passing
 
 #include "../base/base_uses.f90"
 
-! To simplify the transition between the old MPI module and the F08-style module, we introduce these constants to switch between the required handle types
+! To simplify the transition between the old MPI module and the F08-style module,
+! we introduce these constants to switch between the required handle types
 ! Unfortunately, Fortran does not offer something like typedef in C++
 #if defined(__parallel) && defined(__MPI_F08)
 #define MPI_DATA_TYPE TYPE(MPI_Datatype)
@@ -60,15 +63,20 @@ MODULE message_passing
 #endif
 
 #if defined(__parallel)
-! subroutines: unfortunately, mpi implementations do not provide interfaces for all subroutines (problems with types and ranks explosion),
+! subroutines: unfortunately, mpi implementations do not provide interfaces for all subroutines
+!              (problems with types and ranks explosion),
 !              we do not quite know what is in the module, so we can not include any....
-!              to nevertheless get checking for what is included, we use the mpi module without use clause, getting all there is
+!              to nevertheless get checking for what is included, we use the mpi module
+!              without use clause, getting all there is
 #if defined(__MPI_F08)
    USE mpi_f08
 #else
    USE mpi
 #endif
 #endif
+
+!$ USE OMP_LIB, ONLY: omp_get_level, omp_get_thread_num, omp_in_parallel
+
    IMPLICIT NONE
    PRIVATE
 
@@ -85,6 +93,7 @@ MODULE message_passing
    MPI_FILE_TYPE, PARAMETER :: mp_file_null_handle = MPI_FILE_NULL
    MPI_INFO_TYPE, PARAMETER :: mp_info_null_handle = MPI_INFO_NULL
    MPI_DATA_TYPE, PARAMETER :: mp_datatype_null_handle = MPI_DATATYPE_NULL
+   INTEGER, PARAMETER, PRIVATE :: mp_comm_split_type_shared_id = MPI_COMM_TYPE_SHARED
    INTEGER, PARAMETER, PUBLIC :: mp_status_size = MPI_STATUS_SIZE
    INTEGER, PARAMETER, PUBLIC :: mp_proc_null = MPI_PROC_NULL
    ! Set max allocatable memory by MPI to 2 GiByte
@@ -112,6 +121,7 @@ MODULE message_passing
    MPI_FILE_TYPE, PARAMETER :: mp_file_null_handle = -6
    MPI_INFO_TYPE, PARAMETER :: mp_info_null_handle = -7
    MPI_DATA_TYPE, PARAMETER :: mp_datatype_null_handle = -8
+   INTEGER, PARAMETER, PRIVATE :: mp_comm_split_type_shared_id = -13
    INTEGER, PARAMETER, PUBLIC :: mp_status_size = -9
    INTEGER, PARAMETER, PUBLIC :: mp_proc_null = -10
    INTEGER, PARAMETER, PUBLIC :: mp_max_library_version_string = 1
@@ -136,11 +146,16 @@ MODULE message_passing
    ! internal reference counter used to debug communicator leaks
    INTEGER, PRIVATE, SAVE :: debug_comm_count
 
+   ! Thread-support level provided by MPI. A negative value means that MPI has
+   ! not been initialized by CP2K or queried from an embedding application yet.
+   INTEGER, PRIVATE, SAVE :: mp_thread_level_provided = -1
+
    PUBLIC :: mp_comm_type
    PUBLIC :: mp_request_type
    PUBLIC :: mp_win_type
    PUBLIC :: mp_file_type
    PUBLIC :: mp_info_type
+   PUBLIC :: mp_split_type
    PUBLIC :: mp_cart_type
 
    PUBLIC :: mp_para_env_type, mp_para_env_p_type, mp_para_cart_type
@@ -585,6 +600,7 @@ MODULE message_passing
       ! Creation routines
       PROCEDURE, PRIVATE, PASS(sub_comm), NON_OVERRIDABLE :: mp_comm_split, mp_comm_split_direct
       GENERIC, PUBLIC :: from_split => mp_comm_split, mp_comm_split_direct
+      PROCEDURE, PUBLIC, PASS(sub_comm), NON_OVERRIDABLE :: from_split_type => mp_comm_split_type
       PROCEDURE, PUBLIC, PASS(mp_new_comm), NON_OVERRIDABLE :: from_reordering => mp_reordering
       PROCEDURE, PUBLIC, PASS(comm_new), NON_OVERRIDABLE :: mp_comm_assign
       GENERIC, PUBLIC :: ASSIGNMENT(=) => mp_comm_assign
@@ -796,6 +812,17 @@ MODULE message_passing
    TYPE(mp_file_type), PARAMETER, PUBLIC :: mp_file_null = mp_file_type(mp_file_null_handle)
    TYPE(mp_info_type), PARAMETER, PUBLIC :: mp_info_null = mp_info_type(mp_info_null_handle)
 
+   ! Bundles an MPI communicator split type with the info hint it requires
+   TYPE mp_split_type
+      PRIVATE
+      INTEGER            :: split_type = mp_comm_split_type_shared_id
+      TYPE(mp_info_type) :: info = mp_info_null
+   END TYPE
+
+   ! Node-local (shared-memory) split; needs no info hint.
+   TYPE(mp_split_type), PARAMETER, PUBLIC :: mp_comm_split_type_shared = &
+                                             mp_split_type(mp_comm_split_type_shared_id, mp_info_null)
+
 #if !defined(__parallel)
    ! This communicator is to be used in serial mode to emulate a valid communicator which is not a compiler constant
    INTEGER, PARAMETER, PRIVATE :: mp_comm_default_handle = 1
@@ -810,7 +837,8 @@ MODULE message_passing
    INTEGER, PARAMETER, PUBLIC :: mp_comm_compare_default = -1
 
    ! init and error
-   PUBLIC :: mp_world_init, mp_world_finalize
+   PUBLIC :: mp_world_init, mp_world_finalize, mp_query_thread_level
+   PUBLIC :: mp_get_thread_level, mp_has_thread_multiple
    PUBLIC :: mp_abort
 
    ! informational / generation of sub comms
@@ -1092,6 +1120,95 @@ CONTAINS
       END FUNCTION mp_comm_get_wtime_is_global
 
 ! **************************************************************************************************
+!> \brief Abort if an MPI lifecycle operation is attempted from an OpenMP parallel region.
+!> \param routine_name name of the calling routine
+! **************************************************************************************************
+      SUBROUTINE mp_assert_outside_parallel(routine_name)
+         CHARACTER(LEN=*), INTENT(IN)                     :: routine_name
+
+!$       IF (omp_in_parallel()) &
+!$          CPABORT(TRIM(routine_name)//" must be called outside an OpenMP parallel region.")
+      END SUBROUTINE mp_assert_outside_parallel
+
+! **************************************************************************************************
+!> \brief Abort unless MPI provides MPI_THREAD_MULTIPLE support.
+! **************************************************************************************************
+      SUBROUTINE mp_assert_thread_multiple()
+#if defined(__parallel)
+         IF (mp_thread_level_provided < MPI_THREAD_MULTIPLE) THEN
+            CALL cp_abort(__LOCATION__, &
+                          "CP2K requires MPI_THREAD_MULTIPLE, but MPI provides "// &
+                          TRIM(mp_get_thread_level_name())//".")
+         END IF
+#endif
+      END SUBROUTINE mp_assert_thread_multiple
+
+! **************************************************************************************************
+!> \brief Query the MPI thread-support level when MPI is managed by an embedding application.
+! **************************************************************************************************
+      SUBROUTINE mp_query_thread_level()
+#if defined(__parallel)
+         INTEGER                                          :: ierr
+         LOGICAL                                          :: initialized
+
+         CALL mp_assert_outside_parallel("mp_query_thread_level")
+         CALL mpi_initialized(initialized, ierr)
+         IF (ierr /= 0) CALL mp_stop(ierr, "mpi_initialized @ mp_query_thread_level")
+         IF (.NOT. initialized) &
+            CPABORT("MPI must be initialized before calling mp_query_thread_level.")
+
+         CALL mpi_query_thread(mp_thread_level_provided, ierr)
+         IF (ierr /= 0) CALL mp_stop(ierr, "mpi_query_thread @ mp_query_thread_level")
+         CALL mp_assert_thread_multiple()
+#else
+         mp_thread_level_provided = -1
+#endif
+      END SUBROUTINE mp_query_thread_level
+
+! **************************************************************************************************
+!> \brief Return the MPI thread-support level observed during initialization.
+!> \return MPI thread-support level, or -1 if MPI is unavailable or has not been queried
+! **************************************************************************************************
+      INTEGER FUNCTION mp_get_thread_level()
+         mp_get_thread_level = mp_thread_level_provided
+      END FUNCTION mp_get_thread_level
+
+! **************************************************************************************************
+!> \brief Return a human-readable name for the observed MPI thread-support level.
+!> \return MPI thread-support level name
+! **************************************************************************************************
+      CHARACTER(LEN=32) FUNCTION mp_get_thread_level_name()
+#if defined(__parallel)
+         SELECT CASE (mp_thread_level_provided)
+         CASE (MPI_THREAD_SINGLE)
+            mp_get_thread_level_name = "MPI_THREAD_SINGLE"
+         CASE (MPI_THREAD_FUNNELED)
+            mp_get_thread_level_name = "MPI_THREAD_FUNNELED"
+         CASE (MPI_THREAD_SERIALIZED)
+            mp_get_thread_level_name = "MPI_THREAD_SERIALIZED"
+         CASE (MPI_THREAD_MULTIPLE)
+            mp_get_thread_level_name = "MPI_THREAD_MULTIPLE"
+         CASE DEFAULT
+            mp_get_thread_level_name = "not initialized"
+         END SELECT
+#else
+         mp_get_thread_level_name = "not applicable"
+#endif
+      END FUNCTION mp_get_thread_level_name
+
+! **************************************************************************************************
+!> \brief Return whether the active MPI environment supports MPI_THREAD_MULTIPLE.
+!> \return true when MPI_THREAD_MULTIPLE is available
+! **************************************************************************************************
+      LOGICAL FUNCTION mp_has_thread_multiple()
+#if defined(__parallel)
+         mp_has_thread_multiple = mp_thread_level_provided >= MPI_THREAD_MULTIPLE
+#else
+         mp_has_thread_multiple = .FALSE.
+#endif
+      END FUNCTION mp_has_thread_multiple
+
+! **************************************************************************************************
 !> \brief initializes the system default communicator
 !> \param mp_comm [output] : handle of the default communicator
 !> \par History
@@ -1102,29 +1219,17 @@ CONTAINS
       SUBROUTINE mp_world_init(mp_comm)
          CLASS(mp_comm_type), INTENT(OUT)                     :: mp_comm
 #if defined(__parallel)
-         INTEGER                                  :: ierr, provided_tsl
+         INTEGER                                  :: ierr
 #if defined(__MIMIC)
          INTEGER                                  :: mimic_handle
 #endif
-
-!$OMP MASTER
-#if defined(__DLAF) || defined(__OPENPMD)
-         ! Both DLA-Future and (some IO backends of) the openPMD-api require
-         ! that the MPI library supports THREAD_MULTIPLE mode
-         CALL mpi_init_thread(MPI_THREAD_MULTIPLE, provided_tsl, ierr)
-         IF (ierr /= 0) CALL mp_stop(ierr, "mpi_init_thread @ mp_world_init")
-         IF (provided_tsl < MPI_THREAD_MULTIPLE) THEN
-            CALL mp_stop(0, "MPI library does not support the requested level of threading (MPI_THREAD_MULTIPLE),"// &
-                         " required by DLA-Future/openPMD-api. Build CP2K without DLA-Future and openPMD-api.")
-         END IF
-#else
-         CALL mpi_init_thread(MPI_THREAD_SERIALIZED, provided_tsl, ierr)
-         IF (ierr /= 0) CALL mp_stop(ierr, "mpi_init_thread @ mp_world_init")
-         IF (provided_tsl < MPI_THREAD_SERIALIZED) THEN
-            CALL mp_stop(0, "MPI library does not support the requested level of threading (MPI_THREAD_SERIALIZED).")
-         END IF
 #endif
-!$OMP END MASTER
+
+         CALL mp_assert_outside_parallel("mp_world_init")
+#if defined(__parallel)
+         CALL mpi_init_thread(MPI_THREAD_MULTIPLE, mp_thread_level_provided, ierr)
+         IF (ierr /= 0) CALL mp_stop(ierr, "mpi_init_thread @ mp_world_init")
+         CALL mp_assert_thread_multiple()
          CALL mpi_comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_RETURN, ierr)
          IF (ierr /= 0) CALL mp_stop(ierr, "mpi_comm_set_errhandler @ mp_world_init")
 #endif
@@ -1205,6 +1310,10 @@ CONTAINS
          CHARACTER(LEN=default_string_length) :: debug_comm_count_char
 #if defined(__parallel)
          INTEGER                              :: ierr
+#endif
+
+         CALL mp_assert_outside_parallel("mp_world_finalize")
+#if defined(__parallel)
 #if defined(__MIMIC)
          CALL mpi_barrier(mimic_comm_world, ierr)
 #else
@@ -1228,6 +1337,7 @@ CONTAINS
          CALL mpi_finalize(ierr)
          IF (ierr /= 0) CALL mp_stop(ierr, "mpi_finalize @ mp_world_finalize")
 #endif
+         mp_thread_level_provided = -1
 
       END SUBROUTINE mp_world_finalize
 
@@ -2364,6 +2474,47 @@ CONTAINS
          CALL mp_timestop(handle)
 
       END SUBROUTINE mp_comm_split_direct
+! **************************************************************************************************
+!> \brief splits a communicator by a predefined MPI split type, e.g. mp_comm_split_type_shared
+!>        to obtain the node-local (shared-memory) sub-communicator each rank belongs to
+!> \param comm ...
+!> \param sub_comm ...
+!> \param split the split-type/info bundle (e.g. mp_comm_split_type_shared)
+!> \param key controls the rank ordering within each sub_comm (default 0)
+! **************************************************************************************************
+      SUBROUTINE mp_comm_split_type(comm, sub_comm, split, key)
+         CLASS(mp_comm_type), INTENT(in)                    :: comm
+         CLASS(mp_comm_type), INTENT(OUT)                   :: sub_comm
+         TYPE(mp_split_type), INTENT(in)                    :: split
+         INTEGER, INTENT(in), OPTIONAL                      :: key
+
+         CHARACTER(len=*), PARAMETER :: routineN = 'mp_comm_split_type'
+
+         INTEGER                                            :: handle
+#if defined(__parallel)
+         INTEGER :: ierr, my_key
+#endif
+
+         CALL mp_timeset(routineN, handle)
+
+#if defined(__parallel)
+         my_key = 0
+         IF (PRESENT(key)) my_key = key
+         CALL mpi_comm_split_type(comm%handle, split%split_type, my_key, split%info%handle, &
+                                  sub_comm%handle, ierr)
+         IF (ierr /= mpi_success) CALL mp_stop(ierr, routineN)
+         CALL add_perf(perf_id=10, count=1)
+#else
+         sub_comm%handle = mp_comm_default_handle
+         MARK_USED(comm)
+         MARK_USED(split)
+         MARK_USED(key)
+#endif
+         debug_comm_count = debug_comm_count + 1
+         CALL sub_comm%init()
+         CALL mp_timestop(handle)
+
+      END SUBROUTINE mp_comm_split_type
 ! **************************************************************************************************
 !> \brief splits the given communicator in group in subgroups trying to organize
 !>      them in a way that the communication within each subgroup is
@@ -4648,6 +4799,8 @@ CONTAINS
          CHARACTER(len=*), INTENT(IN)                       :: routineN
          INTEGER, INTENT(OUT)                               :: handle
 
+         handle = -1
+!$       IF (omp_get_thread_num() /= 0 .OR. omp_get_level() > 1) RETURN
          IF (mp_collect_timings) &
             CALL timeset(routineN, handle)
       END SUBROUTINE mp_timeset
@@ -4659,7 +4812,7 @@ CONTAINS
       SUBROUTINE mp_timestop(handle)
          INTEGER, INTENT(IN)                                :: handle
 
-         IF (mp_collect_timings) &
+         IF (mp_collect_timings .AND. handle >= 0) &
             CALL timestop(handle)
       END SUBROUTINE mp_timestop
 

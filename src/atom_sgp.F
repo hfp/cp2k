@@ -122,10 +122,10 @@ CONTAINS
       ! generate the transformed potentials
       IF (is_ecp) THEN
          CALL ecp_sgp_constr(ecp_pot, sgp_pot, basis)
-      ELSEIF (is_upf) THEN
+      ELSE IF (is_upf) THEN
          CALL upf_sgp_constr(upf_pot, sgp_pot, basis)
       ELSE
-         CPABORT("")
+         CPABORT("Either ecp_pot or upf_pot is needed for sgp_construction")
       END IF
 
       NULLIFY (core, hnl)
@@ -137,10 +137,10 @@ CONTAINS
       !
       IF (is_ecp) THEN
          CALL ecpints(hnl%op, basis, ecp_pot)
-      ELSEIF (is_upf) THEN
+      ELSE IF (is_upf) THEN
          CALL upfints(core%op, hnl%op, basis, upf_pot, cutpotu, sgp_pot%ac_local)
       ELSE
-         CPABORT("")
+         CPABORT("Either ecp_pot or upf_pot is needed for sgp_construction")
       END IF
       !
       CALL sgpints(score%op, shnl%op, basis, sgp_pot, cutpots)
@@ -170,7 +170,7 @@ CONTAINS
             errcc = SQRT(errcc/REAL(n, KIND=dp))
             DEALLOCATE (cgauss)
          ELSE
-            CPABORT("")
+            CPABORT("sgp_pot%has_nlcc requires is_upf")
          END IF
          error(3) = errcc
       END IF
@@ -239,17 +239,17 @@ CONTAINS
          IF (iw > 0) WRITE (iw, '(" No Pseudopotential available for transformation. ")')
          do_transform = .FALSE.
       CASE DEFAULT
-         CPABORT("")
+         CPABORT("Unknown ppot_type")
       END SELECT
 
       ! generate the transformed potentials
       IF (do_transform) THEN
          IF (is_ecp) THEN
             CALL ecp_sgp_constr(ecp_pot, sgp_pot, atom_ref%basis)
-         ELSEIF (is_upf) THEN
+         ELSE IF (is_upf) THEN
             CALL upf_sgp_constr(upf_pot, sgp_pot, atom_ref%basis)
          ELSE
-            CPABORT("")
+            CPABORT("Either ecp_pseudo or upf_pseudo is needed for atom_sgp_construction")
          END IF
       END IF
 
@@ -279,10 +279,10 @@ CONTAINS
          !
          IF (is_ecp) THEN
             CALL ecpints(hnl%op, atom_ref%basis, ecp_pot)
-         ELSEIF (is_upf) THEN
+         ELSE IF (is_upf) THEN
             CALL upfints(core%op, hnl%op, atom_ref%basis, upf_pot, cutpotu, sgp_pot%ac_local)
          ELSE
-            CPABORT("")
+            CPABORT("Either ecp_pseudo or upf_pseudo is needed for atom_sgp_construction")
          END IF
          !
          CALL sgpints(score%op, shnl%op, atom_ref%basis, sgp_pot, cutpots)
@@ -319,7 +319,7 @@ CONTAINS
                errcc = SQRT(errcc/REAL(n, KIND=dp))
                DEALLOCATE (cgauss)
             ELSE
-               CPABORT("")
+               CPABORT("sgp_pot%has_nlcc requires is_upf")
             END IF
             IF (iw > 0) THEN
                WRITE (iw, '(" Non-linear core correction: core density")')

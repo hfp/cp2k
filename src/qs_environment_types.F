@@ -163,6 +163,8 @@ MODULE qs_environment_types
    USE wannier_states_types,            ONLY: wannier_centres_type
    USE xas_env_types,                   ONLY: xas_env_release,&
                                               xas_environment_type
+   USE xc_gauxc_cache,                  ONLY: cp_gauxc_cache_type,&
+                                              gauxc_cache_release
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE
@@ -318,10 +320,16 @@ MODULE qs_environment_types
       ! Resp charges
       REAL(KIND=dp), DIMENSION(:), POINTER                  :: rhs => NULL()
       REAL(KIND=dp)                                         :: total_zeff_corr = -1.0_dp, surface_dipole_moment = -1.0_dp
+      ! Plane-averaged Hartree potential (incl. dipole correction) just below/above the dipole
+      ! correction reference plane, i.e. the vacuum level on either side of the slab
+      REAL(KIND=dp)                                         :: vacuum_level_below = 0.0_dp, vacuum_level_above = 0.0_dp
+      ! Position of the dipole correction reference plane [Angstrom]
+      REAL(KIND=dp)                                         :: surface_dipole_ref_pos = 0.0_dp
       LOGICAL                                               :: surface_dipole_switch_off = .FALSE.
       TYPE(mo_set_type), DIMENSION(:), POINTER              :: mos_last_converged => NULL()
       ! tblite
       TYPE(tblite_type), POINTER                            :: tb_tblite => Null()
+      TYPE(cp_gauxc_cache_type), POINTER                    :: gauxc_cache => NULL()
    END TYPE qs_environment_type
 
 CONTAINS
@@ -386,6 +394,7 @@ CONTAINS
 !> \param matrix_w ...
 !> \param matrix_p_mp2 ...
 !> \param matrix_p_mp2_admm ...
+!> \param matrix_vhxc ...
 !> \param rho ...
 !> \param rho_xc ...
 !> \param pw_env ...
@@ -506,7 +515,7 @@ CONTAINS
                          matrix_h, matrix_h_im, matrix_ks, matrix_ks_im, matrix_vxc, run_rtp, rtp, &
                          matrix_h_kp, matrix_h_im_kp, matrix_ks_kp, matrix_ks_im_kp, matrix_vxc_kp, kinetic_kp, matrix_s_kp, &
                          matrix_w_kp, matrix_s_RI_aux_kp, matrix_s, matrix_s_RI_aux, matrix_w, &
-                         matrix_p_mp2, matrix_p_mp2_admm, rho, &
+                         matrix_p_mp2, matrix_p_mp2_admm, matrix_vhxc, rho, &
                          rho_xc, pw_env, ewald_env, ewald_pw, active_space, &
                          mpools, input, para_env, blacs_env, scf_control, rel_control, kinetic, qs_charges, &
                          vppl, xcint_weights, rho_core, rho_nlcc, rho_nlcc_g, &
@@ -559,7 +568,8 @@ CONTAINS
          matrix_s_RI_aux_kp
       TYPE(dbcsr_p_type), DIMENSION(:), OPTIONAL, &
          POINTER                                         :: matrix_s, matrix_s_RI_aux, matrix_w, &
-                                                            matrix_p_mp2, matrix_p_mp2_admm
+                                                            matrix_p_mp2, matrix_p_mp2_admm, &
+                                                            matrix_vhxc
       TYPE(qs_rho_type), OPTIONAL, POINTER               :: rho, rho_xc
       TYPE(pw_env_type), OPTIONAL, POINTER               :: pw_env
       TYPE(ewald_environment_type), OPTIONAL, POINTER    :: ewald_env
@@ -741,20 +751,27 @@ CONTAINS
       ! Resp charges
       IF (PRESENT(rhs)) rhs => qs_env%rhs
 
-      IF (PRESENT(local_rho_set)) &
+      IF (PRESENT(local_rho_set)) THEN
          local_rho_set => qs_env%local_rho_set
-      IF (PRESENT(rho_atom_set)) &
+      END IF
+      IF (PRESENT(rho_atom_set)) THEN
          CALL get_local_rho(qs_env%local_rho_set, rho_atom_set=rho_atom_set)
-      IF (PRESENT(rho0_atom_set)) &
+      END IF
+      IF (PRESENT(rho0_atom_set)) THEN
          CALL get_local_rho(qs_env%local_rho_set, rho0_atom_set=rho0_atom_set)
-      IF (PRESENT(rho0_mpole)) &
+      END IF
+      IF (PRESENT(rho0_mpole)) THEN
          CALL get_local_rho(qs_env%local_rho_set, rho0_mpole=rho0_mpole)
-      IF (PRESENT(rhoz_set)) &
+      END IF
+      IF (PRESENT(rhoz_set)) THEN
          CALL get_local_rho(qs_env%local_rho_set, rhoz_set=rhoz_set)
-      IF (PRESENT(rhoz_cneo_set)) &
+      END IF
+      IF (PRESENT(rhoz_cneo_set)) THEN
          CALL get_local_rho(qs_env%local_rho_set, rhoz_cneo_set=rhoz_cneo_set)
-      IF (PRESENT(ecoul_1c)) &
+      END IF
+      IF (PRESENT(ecoul_1c)) THEN
          CALL get_hartree_local(qs_env%hartree_local, ecoul_1c=ecoul_1c)
+      END IF
       IF (PRESENT(rho0_s_rs)) THEN
          CALL get_local_rho(qs_env%local_rho_set, rho0_mpole=rho0_m)
          IF (ASSOCIATED(rho0_m)) THEN
@@ -808,6 +825,7 @@ CONTAINS
                       matrix_w=matrix_w, &
                       matrix_p_mp2=matrix_p_mp2, &
                       matrix_p_mp2_admm=matrix_p_mp2_admm, &
+                      matrix_vhxc=matrix_vhxc, &
                       matrix_h_kp=matrix_h_kp, &
                       matrix_h_im_kp=matrix_h_im_kp, &
                       matrix_ks_kp=matrix_ks_kp, &
@@ -992,6 +1010,9 @@ CONTAINS
 
       qs_env%total_zeff_corr = 0.0_dp
       qs_env%surface_dipole_moment = 0.0_dp
+      qs_env%vacuum_level_below = 0.0_dp
+      qs_env%vacuum_level_above = 0.0_dp
+      qs_env%surface_dipole_ref_pos = 0.0_dp
       qs_env%surface_dipole_switch_off = .FALSE.
 
       ! Zero all variables containing results
@@ -1001,6 +1022,7 @@ CONTAINS
       IF (.NOT. ASSOCIATED(qs_env%molecular_scf_guess_env)) ALLOCATE (qs_env%molecular_scf_guess_env)
 
       NULLIFY (qs_env%tb_tblite)
+      NULLIFY (qs_env%gauxc_cache)
 
    END SUBROUTINE init_qs_env
 
@@ -1485,10 +1507,12 @@ CONTAINS
          DEALLOCATE (qs_env%outer_scf_history)
          qs_env%outer_scf_ihistory = 0
       END IF
-      IF (ASSOCIATED(qs_env%gradient_history)) &
+      IF (ASSOCIATED(qs_env%gradient_history)) THEN
          DEALLOCATE (qs_env%gradient_history)
-      IF (ASSOCIATED(qs_env%variable_history)) &
+      END IF
+      IF (ASSOCIATED(qs_env%variable_history)) THEN
          DEALLOCATE (qs_env%variable_history)
+      END IF
       IF (ASSOCIATED(qs_env%oce)) CALL deallocate_oce_set(qs_env%oce)
       IF (ASSOCIATED(qs_env%local_rho_set)) THEN
          CALL local_rho_set_release(qs_env%local_rho_set)
@@ -1680,6 +1704,11 @@ CONTAINS
          CALL deallocate_tblite_type(qs_env%tb_tblite)
       END IF
 
+      IF (ASSOCIATED(qs_env%gauxc_cache)) THEN
+         CALL gauxc_cache_release(qs_env%gauxc_cache)
+         DEALLOCATE (qs_env%gauxc_cache)
+      END IF
+
    END SUBROUTINE qs_env_release
 
 ! **************************************************************************************************
@@ -1717,10 +1746,12 @@ CONTAINS
          DEALLOCATE (qs_env%outer_scf_history)
          qs_env%outer_scf_ihistory = 0
       END IF
-      IF (ASSOCIATED(qs_env%gradient_history)) &
+      IF (ASSOCIATED(qs_env%gradient_history)) THEN
          DEALLOCATE (qs_env%gradient_history)
-      IF (ASSOCIATED(qs_env%variable_history)) &
+      END IF
+      IF (ASSOCIATED(qs_env%variable_history)) THEN
          DEALLOCATE (qs_env%variable_history)
+      END IF
       IF (ASSOCIATED(qs_env%oce)) CALL deallocate_oce_set(qs_env%oce)
       IF (ASSOCIATED(qs_env%local_rho_set)) THEN
          CALL local_rho_set_release(qs_env%local_rho_set)
@@ -1902,6 +1933,11 @@ CONTAINS
       ! tblite
       IF (ASSOCIATED(qs_env%tb_tblite)) THEN
          CALL deallocate_tblite_type(qs_env%tb_tblite)
+      END IF
+
+      IF (ASSOCIATED(qs_env%gauxc_cache)) THEN
+         CALL gauxc_cache_release(qs_env%gauxc_cache)
+         DEALLOCATE (qs_env%gauxc_cache)
       END IF
 
    END SUBROUTINE qs_env_part_release

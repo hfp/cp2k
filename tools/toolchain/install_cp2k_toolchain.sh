@@ -81,7 +81,6 @@ $(basename "$SCRIPT_NAME") [options]
 OPTIONS:
 
   -h, --help              Show this message and exit.
-  --help-hpc              Show additional hints for HPC users and exit.
   -j <n>                  Number of processors for parallel compiling.
                           If omitted, the script will automatically try to
                           determine the number of available processors and use
@@ -133,14 +132,15 @@ OPTIONS:
                           CFLAGS for compilers. If omitted or set to "native",
                           compiling will be tuned/optimized for the native
                           host system, and some instruction sets will be
-                          detected including AVX, AVX2, AVX512,etc.
+                          detected including AVX, AVX2, AVX512, etc.
                           Alternatively this option can be set depending on
                           actual target CPU microarchitecture, e.g. "haswell",
-                          "skylake", or just "generic".
+                          "skylake", or just "generic"; "generic" is the most
+                          conservative portable option with least optimization.
                           Default = native
   --gpu-ver               Select the target GPU architecture for compiling.
                           Available options are: K20X, K40, K80, P100, V100,
-                          A100, H100, GB10, A40, Mi50, Mi100, Mi250, and no.
+                          A100, H100, B200, GB10, A40, Mi50, Mi100, Mi250, and no.
                           This option determines the value of nvcc -arch flag.
                           Default = no
   --libint-lmax           Maximum supported angular momentum by libint if the
@@ -256,7 +256,7 @@ Specific options of --with-PKG:
                           DFT (pure and hybrid functionals) calculations.
                           Default = install
   --with-gauxc            Enable GauXC for external exchange-correlation
-                          integration. Installing GauXC with OneDFT/SKALA
+                          integration. Installing GauXC with Skala
                           support also enables libtorch and installs Skala-1.1.
                           Default = no
   --with-eigen            Enable Eigen3; required by libint and SIRIUS.
@@ -361,6 +361,9 @@ Specific options of --with-PKG:
   --with-cusolvermp       NVIDIA cusolverMp: CUDA library for distributed dense
                           linear algebra.
                           Default = no
+  --with-libgint          Enable the use of libGint for the calculation of the 
+                          Hartree-Fock exchange on (nvidia) GPUs.
+                          Default = no
 
 FURTHER INSTRUCTIONS
 
@@ -370,12 +373,15 @@ by the system package manager (such as dnf and apt). The install_requirements.sh
 script in the toolchain directory can help collect them.
 
 All packages to be installed locally will be downloaded and built inside
-./build, and then installed into package specific directories inside ./install.
+./build. It is safe to delete afterwards, as it contains only the files and
+directories that are downloaded by this script to install these packages. This
+script will not attempt to download packages that are already present in the
+./build directory, with filenames and sha256sum strings matching the records in
+the corresponding individual scripts; this will be useful for an offline run.
 
-The directory ./build is safe to delete, as it contains only the files and
-directories that are downloaded via this script to install these packages.
-However, once the packages are installed and you compiled CP2K then you must
-keep ./install in exactly the same location as it was first created, as it
+All packages will be installed into package-specific directories inside
+./install after building. Once CP2K is compiled and linked against them, it
+must be kept in exactly the same location as it was first created, because it
 contains tools and libraries your version of CP2K binary will depend on.
 
 It should be safe to terminate running of this script in the middle of a build
@@ -390,81 +396,15 @@ environment variables set for PKG_A are correctly and fully imported (especially
 LIBRARY_PATH and CPATH, which are often overlooked).
 
 For HPC users who wish to install toolchain dependencies and CP2K on public
-supercomputer clusters for oneself, it would be helpful to use "--help-hpc"
-option to show some hints and observations.
+supercomputer clusters for oneself, it would be helpful to check out the section
+"Considerations" on docs/getting-started/installation.md which has some special
+hints. (This piece of information was available from the option "--help-hpc" of
+this script in 2026.2, but has since been migrated for better visibility.)
 
   +----------------------------------------------------------------+
   |  YOU SHOULD ALWAYS SOURCE ./install/setup BEFORE YOU RUN CP2K  |
   |  COMPILED WITH THIS TOOLCHAIN                                  |
   +----------------------------------------------------------------+
-
-EOF
-}
-
-show_help_hpc() {
-  cat << EOF
-
-For HPC users who wish to install toolchain dependencies and CP2K on public
-supercomputer clusters for oneself:
-
-As this is a complicated process, it is strongly advised to contact local
-system administrators or managers for timely, specific assistance. Here are
-some hints and observations that may be useful:
-
-(1) Please don't forget to use "-h" or "--help" option to see detailed usage of
-    the toolchain script!
-
-(2) Generally root or sudo power is not necessary, and a convenient directory
-    with read and write permission as well as sufficient disk space should be
-    okay when installing toolchain and CP2K for a single user.
-
-(3) The server is very likely to have multiple compilers, MPI libraries, math
-    libraries and other packages that are managed by module systems, such as
-    LMod and Environment Modules. Users can load or unload modules to control
-    active environment variables and paths in runtime without conflicts. It is
-    recommended to check for available modules (with "module avail", "module
-    show" or similar commands) beforehand, and activate desired packages when
-    running the toolchain script with "--with-PKG=system" options so as to
-    avoid repeated labour. That said, actual compatibility between modules and
-    CP2K to be built may still take rounds of trial-and-error to confirm, and
-    resorting to "--with-PKG=install" can sometimes resolve problems if modules
-    turn out to be outdated, or compiled inconsistently, or not registering
-    complete variables and paths, or not built with GPU support on GPU machine,
-    etc. Please forward complaints about faulty modules to whoever responsible
-    for the server first before submitting any bug report to program developer.
-
-(4) If no internet connection is available for downloading packages from public
-    resources on the server, an offline installation of toolchain and CP2K may
-    be carried out by downloading all packages elsewhere, transferring them to
-    server and placing them under the ./build directory. The toolchain script
-    will not attempt to download packages if they are already present in the
-    build directory, with filenames and sha256sum strings matching the records.
-
-(5) An important common feature of clusters is the distinction of node types:
-    "login node", where users log in and perform tasks with low workload; and
-    "compute node", where resource-intensive computation jobs are carried out.
-    They may be hosted on separate machines, and their hardware specifications
-    (CPU, RAM, disk space, etc.) may be similar or different. Therefore, care
-    must be taken especially for the latter case. For instance, discrepancies
-    in CPU architectures and supported instruction sets may cause poor program
-    performance or illegal instruction errors if toolchain script is executed
-    on login node with "--target-cpu=native" (which is default too if omitted)
-    but CP2K is executed on compute node(s) afterwards. In this case, an option
-    "--target-cpu=generic" with best portability for compiling programs at the
-    cost of reduced (non-optimized) performance may be necessary.
-
-(6) Again, be careful about the environment if CP2K is to be executed with job
-    submission scripts to the job queue system handling resource allocation.
-    Active environment variables and paths on the login node seen by user (by
-    loading modules, sourcing scripts, editing ~/.bashrc or /etc/profile files,
-    or entering commands interactively in general) may NOT be effective on the
-    compute node where CP2K actually runs, unless all appropriate commands are
-    written explicitly in the batch job submission script. For example, a
-    frequently encountered scenario with corrupted, interleaved output messages
-    stems from incorrect MPI library configuration launching multiple instances
-    of CP2K simultaneously instead of multi-process parallel execution of one
-    single instance; some possible culprits are that the ./install/setup file
-    is not sourced or the wrong module for MPI library is loaded at runtime.
 
 EOF
 }
@@ -479,7 +419,7 @@ math_list="mkl acml openblas"
 lib_list="fftw eigen libint libxc gauxc libxsmm libxs libxstream cosma scalapack
           elpa dbcsr cusolvermp plumed spfft spla gsl spglib hdf5 libvdwxc sirius
           libvori libtorch deepmd ace dftd4 tblite pugixml libsmeagol fmt trexio
-          libfci greenx gmp mcl"
+          libfci greenx gmp mcl libgint"
 package_list="${tool_list} ${mpi_list} ${math_list} ${lib_list}"
 # ------------------------------------------------------------------------
 
@@ -526,7 +466,7 @@ with_dftd4="__DONTUSE__"
 with_tblite="__INSTALL__"
 with_libsmeagol="__DONTUSE__"
 with_mcl="__DONTUSE__"
-
+with_libgint="__DONTUSE__"
 # the math and mpi libraries are chosen by their respective modes.
 # default math library settings, MATH_MODE picks the math library
 # to use, and with_* defines the default method of installation if it
@@ -718,13 +658,13 @@ Otherwise use option no."
     --gpu-ver=*)
       user_input="${1#*=}"
       case "${user_input}" in
-        K20X | K40 | K80 | P100 | V100 | A100 | H100 | GB10 | A40 | Mi50 | Mi100 | Mi250 | no)
+        K20X | K40 | K80 | P100 | V100 | A100 | H100 | B200 | GB10 | A40 | Mi50 | Mi100 | Mi250 | no)
           export GPUVER="${user_input}"
           ;;
         *)
           echo "ERROR: Invalid value for --gpu-ver found."
           echo "Currently only one of the following options is supported:
-            K20X, K40, K80, P100, V100, A100, H100, GB10, A40, Mi50, Mi100, Mi250.
+            K20X, K40, K80, P100, V100, A100, H100, B200, GB10, A40, Mi50, Mi100, Mi250.
 Otherwise use option no."
           exit 1
           ;;
@@ -898,6 +838,9 @@ Otherwise use option no."
     --with-gsl*)
       with_gsl=$(read_with "${1}")
       ;;
+    --with-libgint*)
+      with_libgint=$(read_with "${1}")
+      ;;
     --with-fmt*)
       with_fmt=$(read_with "${1}")
       ;;
@@ -958,10 +901,6 @@ Otherwise use option no."
       ;;
     -h)
       show_help
-      exit 0
-      ;;
-    --help-hpc)
-      show_help_hpc
       exit 0
       ;;
     *)
@@ -1099,7 +1038,7 @@ if [ "${ENABLE_GAUXC_CUTLASS}" = "__TRUE__" ]; then
     report_error ${LINENO} "--enable-gauxc-cutlass requires --enable-cuda=yes."
   fi
   case "${GPUVER}" in
-    A100 | A40 | H100 | GB10) ;;
+    A100 | A40 | H100 | B200 | GB10) ;;
     *)
       report_error ${LINENO} "--enable-gauxc-cutlass requires CUDA compute capability >= 8.0."
       ;;
@@ -1163,6 +1102,12 @@ if [ "${with_cmake}" = "__DONTUSE__" ]; then
   report_warning ${LINENO} "Installing dependencies and CP2K requires CMake but
 CMake is not enabled, so a new copy of CMake will be installed first."
   with_cmake="__INSTALL__"
+fi
+
+#libGint installation requires cuda enabled
+if [ "${with_libgint}" != "__DONTUSE__" ] && [ "${enable_cuda}" != "__TRUE__" ]; then
+  report_warning ${LINENO} "libGint requires the use of cuda. Disabling libGint"
+  with_libgint="__DONTUSE__"
 fi
 
 # SIRIUS dependencies
@@ -1233,7 +1178,8 @@ if [ "${MATH_MODE}" = "mkl" ]; then
   fi
   # Block libtorch installation bacause of compatibility issue
   if [ "${with_libtorch}" = "__INSTALL__" ]; then
-    report_error "Installing prebuilt libtorch is disabled for oneMKL builds because it is incompatible with CP2K's external oneMKL stack."
+    report_error ${LINENO} \
+      "Installing prebuilt libtorch is disabled for oneMKL builds due to known conflicts between bundled and externally linked oneMKL libraries. Please provide a compatible libtorch installation via --with-libtorch=system or --with-libtorch=<path>."
   fi
 fi
 
@@ -1275,6 +1221,9 @@ case ${GPUVER} in
   H100)
     export ARCH_NUM="90"
     ;;
+  B200)
+    export ARCH_NUM="100"
+    ;;
   GB10)
     export ARCH_NUM="121"
     ;;
@@ -1293,7 +1242,7 @@ case ${GPUVER} in
   *)
     echo "ERROR: Invalid value for --gpu-ver found."
     echo "Currently only one of the following options is supported:
-      K20X, K40, K80, P100, V100, A100, H100, A40, Mi50, Mi100, Mi250.
+      K20X, K40, K80, P100, V100, A100, H100, B200, GB10, A40, Mi50, Mi100, Mi250.
 Otherwise use option no."
     exit 1
     ;;

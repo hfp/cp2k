@@ -20,6 +20,9 @@ MODULE input_cp2k_global
    USE cp_blacs_env,                    ONLY: BLACS_GRID_COL,&
                                               BLACS_GRID_ROW,&
                                               BLACS_GRID_SQUARE
+   USE cp_cfm_elpa,                     ONLY: elpa_c_kernel_descriptions,&
+                                              elpa_c_kernel_ids,&
+                                              elpa_c_kernel_names
    USE cp_dbcsr_cp2k_link,              ONLY: create_dbcsr_section
    USE cp_fm_cholesky,                  ONLY: FM_CHOLESKY_TYPE_DEFAULT,&
                                               FM_CHOLESKY_TYPE_DLAF,&
@@ -55,8 +58,8 @@ MODULE input_cp2k_global
         do_fft_fftw3, do_fft_sg, do_opt_basis, do_optimize_input, do_scalapack, do_swarm, do_tamc, &
         do_test, do_tree_mc, do_tree_mc_ana, driver_run, ehrenfest, energy_force_run, energy_run, &
         fftw_plan_estimate, fftw_plan_exhaustive, fftw_plan_measure, fftw_plan_patient, gaussian, &
-        geo_opt_run, linear_response_run, mimic_run, mol_dyn_run, mon_car_run, negf_run, none_run, &
-        pint_run, real_time_propagation, tree_mc_run, vib_anal
+        geo_opt_run, linear_response_run, mimic_run, mol_dyn_run, mon_car_run, mtlr_run, negf_run, &
+        none_run, pint_run, real_time_propagation, tree_mc_run, vib_anal
    USE input_keyword_types,             ONLY: keyword_create,&
                                               keyword_release,&
                                               keyword_type
@@ -68,6 +71,8 @@ MODULE input_cp2k_global
    USE input_val_types,                 ONLY: char_t,&
                                               integer_t,&
                                               logical_t
+   USE integral_library_types,          ONLY: library_libint,&
+                                              library_native
    USE kinds,                           ONLY: dp
    USE string_utilities,                ONLY: s2a
    USE timings,                         ONLY: default_timings_level
@@ -100,7 +105,7 @@ CONTAINS
       CALL section_create(section, __LOCATION__, name="GLOBAL", &
                           description="Section with general information on which kind "// &
                           "of simulation to perform and parameters for the whole PROGRAM", &
-                          n_keywords=7, n_subsections=0, repeats=.FALSE.)
+                          n_keywords=7, n_subsections=1, repeats=.FALSE.)
 
       NULLIFY (keyword)
       CALL keyword_create(keyword, __LOCATION__, name="BLACS_GRID", &
@@ -123,7 +128,8 @@ CONTAINS
 
       CALL keyword_create(keyword, __LOCATION__, name="PREFERRED_DIAG_LIBRARY", &
                           description="Specifies the diagonalization library to be used. If not available, "// &
-                          "the ScaLAPACK library is used", &
+                          "the ScaLAPACK library is used. Complex (k-point) matrices use ELPA only when it is "// &
+                          "requested explicitly", &
                           usage="PREFERRED_DIAG_LIBRARY ELPA", &
                           enum_i_vals=[FM_DIAG_TYPE_ELPA, &
                                        FM_DIAG_TYPE_SCALAPACK, &
@@ -191,11 +197,22 @@ CONTAINS
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="ELPA_KERNEL", &
-                          description="Specifies the kernel to be used when ELPA is in use", &
+                          description="Specifies the kernel to be used when ELPA is in use for real "// &
+                          "symmetric matrices", &
                           default_i_val=elpa_kernel_ids(1), &
                           enum_i_vals=elpa_kernel_ids, &
                           enum_c_vals=elpa_kernel_names, &
                           enum_desc=elpa_kernel_descriptions)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="ELPA_COMPLEX_KERNEL", &
+                          description="Specifies the kernel to be used when ELPA is in use for complex "// &
+                          "Hermitian matrices (k-points)", &
+                          default_i_val=elpa_c_kernel_ids(1), &
+                          enum_i_vals=elpa_c_kernel_ids, &
+                          enum_c_vals=elpa_c_kernel_names, &
+                          enum_desc=elpa_c_kernel_descriptions)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -274,6 +291,36 @@ CONTAINS
                        "Same as FFTW3 (for compatibility with CP2K 2.3)"))
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
+
+      NULLIFY (sub_section)
+      CALL section_create(sub_section, __LOCATION__, name="preferred_integral_library", &
+                          description="Selects the implementation of individual Gaussian integral operations.", &
+                          n_keywords=2, n_subsections=0, repeats=.FALSE.)
+
+      CALL keyword_create(keyword, __LOCATION__, name="COULOMB_2C", &
+                          description="Library used for two-center Coulomb integrals (Coulomb_2c).", &
+                          usage="COULOMB_2C NATIVE", &
+                          enum_c_vals=s2a("NATIVE", "LIBINT"), &
+                          enum_i_vals=[library_native, library_libint], &
+                          enum_desc=s2a("Use CP2K's native implementation.", &
+                                        "Use the Libint implementation."), &
+                          default_i_val=library_native)
+      CALL section_add_keyword(sub_section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="COULOMB_3C", &
+                          description="Library used for three-center Coulomb integrals (Coulomb_3c).", &
+                          usage="COULOMB_3C NATIVE", &
+                          enum_c_vals=s2a("NATIVE", "LIBINT"), &
+                          enum_i_vals=[library_native, library_libint], &
+                          enum_desc=s2a("Use CP2K's native implementation.", &
+                                        "Use the Libint implementation."), &
+                          default_i_val=library_native)
+      CALL section_add_keyword(sub_section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL section_add_subsection(section, sub_section)
+      CALL section_release(sub_section)
 
       CALL keyword_create(keyword, __LOCATION__, name="FFTW_WISDOM_FILE_NAME", &
                           description="The name of the file that contains wisdom (pre-planned FFTs) for use with FFTW3. "// &
@@ -401,14 +448,15 @@ CONTAINS
                          "BAND", "CELL_OPT", "WFN_OPT", "WAVEFUNCTION_OPTIMIZATION", &
                          "MOLECULAR_DYNAMICS", "GEOMETRY_OPTIMIZATION", "MONTECARLO", &
                          "LINEAR_RESPONSE", "NORMAL_MODES", "RT_PROPAGATION", &
-                         "EHRENFEST_DYN", "TAMC", "TMC", "DRIVER", "NEGF", "MIMIC", "RTP"), &
+                         "EHRENFEST_DYN", "TAMC", "TMC", "DRIVER", "NEGF", "MIMIC", "RTP", &
+                         "MTLR"), &
          enum_i_vals=[none_run, energy_run, energy_force_run, mol_dyn_run, &
                       geo_opt_run, mon_car_run, debug_run, &
                       bsse_run, linear_response_run, pint_run, vib_anal, do_band, &
                       cell_opt_run, energy_run, energy_run, mol_dyn_run, geo_opt_run, &
                       mon_car_run, linear_response_run, &
                       vib_anal, real_time_propagation, ehrenfest, do_tamc, tree_mc_run, &
-                      driver_run, negf_run, mimic_run, real_time_propagation], &
+                      driver_run, negf_run, mimic_run, real_time_propagation, mtlr_run], &
          enum_desc=s2a("Perform no tasks", "Computes energy", "Computes energy and forces", &
                        "Molecular Dynamics", "Geometry Optimization", "Monte Carlo", &
                        "Performs a Debug analysis", "Basis set superposition error", "Linear Response", &
@@ -423,7 +471,8 @@ CONTAINS
                        "i-PI driver mode", &
                        "Non-equilibrium Green's function method", &
                        "Run as a client in a simulation through the MiMiC framework", &
-                       "Alias for RT_PROPAGATION"))
+                       "Alias for RT_PROPAGATION", &
+                       "Minimum tracking linear response calculation for Hubbard U and Hund's J"))
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 

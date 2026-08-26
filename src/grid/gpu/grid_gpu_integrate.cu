@@ -61,7 +61,7 @@ __device__ __inline__ T block_reduce_64(T *table, const T val_, const int tid) {
 }
 
 template <typename T, bool COMPUTE_TAU>
-__global__ __launch_bounds__(64) void compute_hab_v4(const kernel_params dev_) {
+__global__ __launch_bounds__(64) void compute_hab(const kernel_params dev_) {
   // Copy task from global to shared memory and precompute some stuff.
   extern __shared__ T shared_memory[];
   // T *smem_cab = &shared_memory[dev_.smem_cab_offset];
@@ -73,54 +73,59 @@ __global__ __launch_bounds__(64) void compute_hab_v4(const kernel_params dev_) {
   T *smem_alpha = &shared_memory[0];
   const int tid = thread_global_index();
   const int offset = dev_.sorted_blocks_offset_dev[block_index()];
-  T *smem_cab = allocate_workspace<T>(dev_);
+
+  T *__restrict__ smem_cab = nullptr;
+
+  smem_cab = allocate_workspace<T>(dev_);
 
   for (int tk = 0; tk < number_of_tasks; tk++) {
     __shared__ smem_task<T> task;
     const int task_id = dev_.task_sorted_by_blocks_dev[offset + tk];
     if (dev_.tasks[task_id].skip_task)
       continue;
-    fill_smem_task_coef(dev_, task_id, task);
 
-    T *coef_ = &dev_.ptr_dev[2][dev_.tasks[task_id].coef_offset];
-
-    compute_alpha(task, smem_alpha);
-    __syncthreads();
-
-    cxyz_to_cab(task, smem_alpha, coef_, smem_cab);
-    __syncthreads();
-
-    for (int jco = task.first_cosetb; jco < task.ncosetb; jco++) {
-      const auto &b = coset_inv[jco];
-      for (int ico = task.first_coseta; ico < task.ncoseta; ico++) {
-        const auto &a = coset_inv[ico];
-        const T hab = get_hab<COMPUTE_TAU, T>(a, b, task.zeta, task.zetb,
-                                              task.n1, smem_cab);
-        __syncthreads();
-        // Try to use as many contiguous threads as possible and limit the
-        // number of warps that do partial work
-        for (int ix = tid; ix < task.nsgf_setb * task.nsgf_seta;
-             ix += blockDim.x * blockDim.y * blockDim.z) {
-          const int i = ix / task.nsgf_seta;
-          const int j = ix % task.nsgf_seta;
-          const T sphia_times_sphib = task.sphia[j * task.maxcoa + ico] *
-                                      task.sphib[i * task.maxcob + jco];
-          if (task.block_transposed) {
-            task.hab_block[j * task.nsgfb + i] += hab * sphia_times_sphib;
-          } else {
-            task.hab_block[i * task.nsgfa + j] += hab * sphia_times_sphib;
-          }
-        }
-      }
-    }
     // all warps need to be synchronized here before modifying the task
     // information.
     __syncthreads();
+    fill_smem_task_coef(dev_, task_id, task);
+
+    T *__restrict__ coef_ = reinterpret_cast<T *>(__builtin_assume_aligned(
+        &dev_.buffers_dev.coef[dev_.tasks[task_id].coef_offset], 32));
+
+    __syncthreads();
+    compute_alpha(task, smem_alpha);
+    __syncthreads();
+    cxyz_to_cab(task, smem_alpha, coef_, smem_cab);
+    __syncthreads();
+
+    for (int i = tid / 8; i < task.nsgf_setb; i += 8) {
+      for (int j = tid % 8; j < task.nsgf_seta; j += 8) {
+        T tmp = 0.0;
+        for (int jco = task.first_cosetb; jco < task.ncosetb; jco++) {
+          const T sphib = task.sphib[i * task.maxcob + jco];
+          const auto &b = coset_inv[jco];
+          for (int ico = task.first_coseta; ico < task.ncoseta; ico++) {
+            const auto &a = coset_inv[ico];
+            const T hab = get_hab<COMPUTE_TAU, T>(a, b, task.zeta, task.zetb,
+                                                  task.n1, smem_cab);
+            const T sphia_times_sphib =
+                task.sphia[j * task.maxcoa + ico] * sphib;
+            tmp += hab * sphia_times_sphib;
+          }
+        }
+        if (task.block_transposed) {
+          task.hab_block[j * task.nsgfb + i] += tmp;
+        } else {
+          task.hab_block[i * task.nsgfa + j] += tmp;
+        }
+      }
+    }
   }
 }
 
-template <typename T, typename T3, bool COMPUTE_TAU, bool CALCULATE_FORCES>
-__global__ __launch_bounds__(64) void compute_hab_v2(const kernel_params dev_) {
+template <typename T, typename T3, bool COMPUTE_TAU>
+__global__
+__launch_bounds__(64) void compute_hab_forces(const kernel_params dev_) {
   // Copy task from global to shared memory and precompute some stuff.
   extern __shared__ T shared_memory[];
   const int number_of_tasks = dev_.num_tasks_per_block_dev[block_index()];
@@ -131,6 +136,8 @@ __global__ __launch_bounds__(64) void compute_hab_v2(const kernel_params dev_) {
   T *smem_alpha = &shared_memory[0];
   const int tid = thread_global_index();
   const int offset = dev_.sorted_blocks_offset_dev[block_index()];
+
+  T *__restrict__ smem_cab = allocate_workspace<T>(dev_);
 
   T fa[3], fb[3];
   T virial[9];
@@ -151,7 +158,6 @@ __global__ __launch_bounds__(64) void compute_hab_v2(const kernel_params dev_) {
   virial[6] = 0.0;
   virial[7] = 0.0;
   virial[8] = 0.0;
-  T *smem_cab = allocate_workspace<T>(dev_);
 
   for (int tk = 0; tk < number_of_tasks; tk++) {
     __shared__ smem_task<T> task;
@@ -160,81 +166,128 @@ __global__ __launch_bounds__(64) void compute_hab_v2(const kernel_params dev_) {
       continue;
     fill_smem_task_coef(dev_, task_id, task);
 
-    T *coef_ = &dev_.ptr_dev[2][dev_.tasks[task_id].coef_offset];
+    T *__restrict__ coef_ =
+        &dev_.buffers_dev.coef[dev_.tasks[task_id].coef_offset];
+    __syncthreads();
     compute_alpha(task, smem_alpha);
     __syncthreads();
     cxyz_to_cab(task, smem_alpha, coef_, smem_cab);
     __syncthreads();
 
-    for (int jco = task.first_cosetb; jco < task.ncosetb; jco++) {
-      const auto &b = coset_inv[jco];
-      for (int ico = task.first_coseta; ico < task.ncoseta; ico++) {
-        const auto &a = coset_inv[ico];
-        const T hab = get_hab<COMPUTE_TAU, T>(a, b, task.zeta, task.zetb,
-                                              task.n1, smem_cab);
-        T *shared_forces_a = &shared_memory[0];
-        T *shared_forces_b = &shared_memory[3];
-        T *shared_virial = &shared_memory[6];
-
-        if (CALCULATE_FORCES) {
-          // Important to synchronize the warps
-          __syncthreads();
-
-          if (tid < 3) {
-            shared_forces_a[tid] = get_force_a<COMPUTE_TAU, T>(
-                a, b, tid, task.zeta, task.zetb, task.n1, smem_cab);
-            shared_forces_b[tid] = get_force_b<COMPUTE_TAU, T>(
-                a, b, tid, task.zeta, task.zetb, task.rab, task.n1, smem_cab);
-          }
-          if ((tid < 9) && (dev_.ptr_dev[5] != nullptr)) {
-            shared_virial[tid] =
-                get_virial_a<COMPUTE_TAU, T>(a, b, tid / 3, tid % 3, task.zeta,
-                                             task.zetb, task.n1, smem_cab) +
-                get_virial_b<COMPUTE_TAU, T>(a, b, tid / 3, tid % 3, task.zeta,
-                                             task.zetb, task.rab, task.n1,
-                                             smem_cab);
-          }
-          __syncthreads();
+    for (int i = tid / 8; i < task.nsgf_setb; i += 8) {
+      for (int j = tid % 8; j < task.nsgf_seta; j += 8) {
+        T tmp = 0.0;
+        T block_value = 0.0;
+        if (task.block_transposed) {
+          block_value =
+              task.pab_block[j * task.nsgfb + i] * task.off_diag_twice;
+        } else {
+          block_value =
+              task.pab_block[i * task.nsgfa + j] * task.off_diag_twice;
         }
-
-        T block_val1 = 0.0;
-        // Try to use as many contiguous threads as possible and limit the
-        // number of warps that do partial work
-
-        for (int elem = tid; elem < task.nsgf_setb * task.nsgf_seta;
-             elem += blockDim.x * blockDim.y * blockDim.z) {
-          const int i = elem / task.nsgf_seta;
-          const int j = elem % task.nsgf_seta;
+        for (int jco = task.first_cosetb; jco < task.ncosetb; jco++) {
           const T sphib = task.sphib[i * task.maxcob + jco];
-          const T sphia_times_sphib = task.sphia[j * task.maxcoa + ico] * sphib;
-          if (CALCULATE_FORCES) {
-            if (task.block_transposed) {
-              block_val1 += task.pab_block[j * task.nsgfb + i] *
-                            task.off_diag_twice * sphia_times_sphib;
-            } else {
-              block_val1 += task.pab_block[i * task.nsgfa + j] *
-                            task.off_diag_twice * sphia_times_sphib;
+          const auto &b = coset_inv[jco];
+          for (int ico = task.first_coseta; ico < task.ncoseta; ico++) {
+            const auto &a = coset_inv[ico];
+            const T hab = get_hab<COMPUTE_TAU, T>(a, b, task.zeta, task.zetb,
+                                                  task.n1, smem_cab);
+            T sphia_times_sphib = task.sphia[j * task.maxcoa + ico] * sphib;
+            tmp += hab * sphia_times_sphib;
+
+            sphia_times_sphib *= block_value;
+            fa[0] += sphia_times_sphib *
+                     get_force_a<COMPUTE_TAU, T>(a, b, 0, task.zeta, task.zetb,
+                                                 task.n1, smem_cab);
+            fa[1] += sphia_times_sphib *
+                     get_force_a<COMPUTE_TAU, T>(a, b, 1, task.zeta, task.zetb,
+                                                 task.n1, smem_cab);
+            fa[2] += sphia_times_sphib *
+                     get_force_a<COMPUTE_TAU, T>(a, b, 2, task.zeta, task.zetb,
+                                                 task.n1, smem_cab);
+
+            fb[0] += sphia_times_sphib *
+                     get_force_b<COMPUTE_TAU, T>(a, b, 0, task.zeta, task.zetb,
+                                                 task.rab, task.n1, smem_cab);
+            fb[1] += sphia_times_sphib *
+                     get_force_b<COMPUTE_TAU, T>(a, b, 1, task.zeta, task.zetb,
+                                                 task.rab, task.n1, smem_cab);
+            fb[2] += sphia_times_sphib *
+                     get_force_b<COMPUTE_TAU, T>(a, b, 2, task.zeta, task.zetb,
+                                                 task.rab, task.n1, smem_cab);
+
+            if (dev_.buffers_dev.virial != nullptr) {
+              virial[0] +=
+                  sphia_times_sphib *
+                  (get_virial_a<COMPUTE_TAU, T>(a, b, 0, 0, task.zeta,
+                                                task.zetb, task.n1, smem_cab) +
+                   get_virial_b<COMPUTE_TAU, T>(a, b, 0, 0, task.zeta,
+                                                task.zetb, task.rab, task.n1,
+                                                smem_cab));
+              virial[1] +=
+                  sphia_times_sphib *
+                  (get_virial_a<COMPUTE_TAU, T>(a, b, 0, 1, task.zeta,
+                                                task.zetb, task.n1, smem_cab) +
+                   get_virial_b<COMPUTE_TAU, T>(a, b, 0, 1, task.zeta,
+                                                task.zetb, task.rab, task.n1,
+                                                smem_cab));
+              virial[2] +=
+                  sphia_times_sphib *
+                  (get_virial_a<COMPUTE_TAU, T>(a, b, 0, 2, task.zeta,
+                                                task.zetb, task.n1, smem_cab) +
+                   get_virial_b<COMPUTE_TAU, T>(a, b, 0, 2, task.zeta,
+                                                task.zetb, task.rab, task.n1,
+                                                smem_cab));
+              virial[3] +=
+                  sphia_times_sphib *
+                  (get_virial_a<COMPUTE_TAU, T>(a, b, 1, 0, task.zeta,
+                                                task.zetb, task.n1, smem_cab) +
+                   get_virial_b<COMPUTE_TAU, T>(a, b, 1, 0, task.zeta,
+                                                task.zetb, task.rab, task.n1,
+                                                smem_cab));
+              virial[4] +=
+                  sphia_times_sphib *
+                  (get_virial_a<COMPUTE_TAU, T>(a, b, 1, 1, task.zeta,
+                                                task.zetb, task.n1, smem_cab) +
+                   get_virial_b<COMPUTE_TAU, T>(a, b, 1, 1, task.zeta,
+                                                task.zetb, task.rab, task.n1,
+                                                smem_cab));
+              virial[5] +=
+                  sphia_times_sphib *
+                  (get_virial_a<COMPUTE_TAU, T>(a, b, 1, 2, task.zeta,
+                                                task.zetb, task.n1, smem_cab) +
+                   get_virial_b<COMPUTE_TAU, T>(a, b, 1, 2, task.zeta,
+                                                task.zetb, task.rab, task.n1,
+                                                smem_cab));
+              virial[6] +=
+                  sphia_times_sphib *
+                  (get_virial_a<COMPUTE_TAU, T>(a, b, 2, 0, task.zeta,
+                                                task.zetb, task.n1, smem_cab) +
+                   get_virial_b<COMPUTE_TAU, T>(a, b, 2, 0, task.zeta,
+                                                task.zetb, task.rab, task.n1,
+                                                smem_cab));
+              virial[7] +=
+                  sphia_times_sphib *
+                  (get_virial_a<COMPUTE_TAU, T>(a, b, 2, 1, task.zeta,
+                                                task.zetb, task.n1, smem_cab) +
+                   get_virial_b<COMPUTE_TAU, T>(a, b, 2, 1, task.zeta,
+                                                task.zetb, task.rab, task.n1,
+                                                smem_cab));
+              virial[8] +=
+                  sphia_times_sphib *
+                  (get_virial_a<COMPUTE_TAU, T>(a, b, 2, 2, task.zeta,
+                                                task.zetb, task.n1, smem_cab) +
+                   get_virial_b<COMPUTE_TAU, T>(a, b, 2, 2, task.zeta,
+                                                task.zetb, task.rab, task.n1,
+                                                smem_cab));
             }
-          }
-          if (task.block_transposed) {
-            task.hab_block[j * task.nsgfb + i] += hab * sphia_times_sphib;
-          } else {
-            task.hab_block[i * task.nsgfa + j] += hab * sphia_times_sphib;
           }
         }
 
-        if (CALCULATE_FORCES) {
-          for (int k = 0; k < 3; k++) {
-            fa[k] += block_val1 * shared_forces_a[k];
-            fb[k] += block_val1 * shared_forces_b[k];
-          }
-          if (dev_.ptr_dev[5] != nullptr) {
-            for (int k = 0; k < 3; k++) {
-              for (int l = 0; l < 3; l++) {
-                virial[3 * k + l] += shared_virial[3 * k + l] * block_val1;
-              }
-            }
-          }
+        if (task.block_transposed) {
+          task.hab_block[j * task.nsgfb + i] += tmp;
+        } else {
+          task.hab_block[i * task.nsgfa + j] += tmp;
         }
       }
     }
@@ -244,36 +297,34 @@ __global__ __launch_bounds__(64) void compute_hab_v2(const kernel_params dev_) {
   // theoretically not needed
   __syncthreads();
 
-  if (CALCULATE_FORCES) {
-    const int task_id = dev_.task_sorted_by_blocks_dev[offset];
-    const auto &glb_task = dev_.tasks[task_id];
-    const int iatom = glb_task.iatom;
-    const int jatom = glb_task.jatom;
-    T *forces_a = &dev_.ptr_dev[4][3 * iatom];
-    T *forces_b = &dev_.ptr_dev[4][3 * jatom];
+  const int task_id = dev_.task_sorted_by_blocks_dev[offset];
+  const auto &glb_task = dev_.tasks[task_id];
+  const int iatom = glb_task.iatom;
+  const int jatom = glb_task.jatom;
+  T *forces_a = &dev_.buffers_dev.forces[3 * iatom];
+  T *forces_b = &dev_.buffers_dev.forces[3 * jatom];
 
-    T *sum = (T *)shared_memory;
-    if (dev_.ptr_dev[5] != nullptr) {
+  T *sum = (T *)shared_memory;
+  if (dev_.buffers_dev.virial != nullptr) {
 
-      for (int i = 0; i < 9; i++) {
-        virial[i] = block_reduce_64<T>(sum, virial[i], tid);
-
-        if (tid == 0)
-          atomicAdd(dev_.ptr_dev[5] + i, virial[i]);
-      }
-    }
-
-    for (int i = 0; i < 3; i++) {
-      fa[i] = block_reduce_64<T>(sum, fa[i], tid);
+    for (int i = 0; i < 9; i++) {
+      virial[i] = block_reduce_64<T>(sum, virial[i], tid);
 
       if (tid == 0)
-        atomicAdd(forces_a + i, fa[i]);
-
-      fb[i] = block_reduce_64<T>(sum, fb[i], tid);
-
-      if (tid == 0)
-        atomicAdd(forces_b + i, fb[i]);
+        atomicAdd(dev_.buffers_dev.virial + i, virial[i]);
     }
+  }
+
+  for (int i = 0; i < 3; i++) {
+    fa[i] = block_reduce_64<T>(sum, fa[i], tid);
+
+    if (tid == 0)
+      atomicAdd(forces_a + i, fa[i]);
+
+    fb[i] = block_reduce_64<T>(sum, fb[i], tid);
+
+    if (tid == 0)
+      atomicAdd(forces_b + i, fb[i]);
   }
 }
 
@@ -304,7 +355,7 @@ specialized to the integration.
 
 ******************************************************************************/
 template <typename T, typename T3, bool distributed__, bool orthogonal_,
-          int lbatch = 10>
+          int lbatch = 20>
 __global__
 __launch_bounds__(64) void integrate_kernel(const kernel_params dev_) {
   if (dev_.tasks[dev_.first_task + block_index()].skip_task)
@@ -312,14 +363,14 @@ __launch_bounds__(64) void integrate_kernel(const kernel_params dev_) {
 
   const int tid = thread_global_index();
 
-  __shared__ T dh_inv_[9];
+  // __shared__ T dh_inv_[9];
   __shared__ T dh_[9];
 
-  for (int d = tid; d < 9; d += blockDim.x * blockDim.y * blockDim.z)
-    dh_inv_[d] = dev_.dh_inv_[d];
+  // for (int d = tid; d < 9; d += blockDim.x * blockDim.y * blockDim.z)
+  //   dh_inv_[d] = dev_.dh_inv_[d];
 
-  for (int d = tid; d < 9; d += blockDim.x * blockDim.y * blockDim.z)
-    dh_[d] = dev_.dh_[d];
+  if (tid < 9)
+    dh_[tid] = dev_.dh_[tid];
 
   __shared__ smem_task_reduced<T, T3> task;
   fill_smem_task_reduced(dev_, dev_.first_task + block_index(), task);
@@ -330,7 +381,6 @@ __launch_bounds__(64) void integrate_kernel(const kernel_params dev_) {
   __syncthreads();
 
   __shared__ T accumulator[lbatch][64];
-  __shared__ T sum[lbatch];
 
   // we use a multi pass algorithm here because shared memory usage (or
   // register) would become too high for high angular momentum
@@ -433,10 +483,10 @@ __launch_bounds__(64) void integrate_kernel(const kernel_params dev_) {
           // the register is actually needed for computation. This is true on
           // NVIDIA hardware
 
-          T grid_value =
-              __ldg(&dev_.ptr_dev[1][(z2 * dev_.grid_local_size_.y + y2) *
-                                         dev_.grid_local_size_.x +
-                                     x2]);
+          const int grid_index =
+              (z2 * dev_.grid_local_size_.y + y2) * dev_.grid_local_size_.x +
+              x2;
+          T grid_value = __ldg(&dev_.buffers_dev.grid[grid_index]);
 
           const T r3xy = r3.x * r3.y;
           const T r3xz = r3.x * r3.z;
@@ -462,101 +512,111 @@ __launch_bounds__(64) void integrate_kernel(const kernel_params dev_) {
               accumulator[8][tid] += grid_value * r3yz;
               accumulator[9][tid] += grid_value * r3z2;
             }
+            if (task.lp >= 3) {
+              T tmp = grid_value * r3x2;
+              accumulator[10][tid] += tmp * r3.x;
+              accumulator[11][tid] += tmp * r3.y;
+              accumulator[12][tid] += tmp * r3.z;
+              tmp = grid_value * r3.x;
+              accumulator[13][tid] += tmp * r3y2;
+              accumulator[14][tid] += tmp * r3yz;
+              accumulator[15][tid] += tmp * r3z2;
+              tmp = grid_value * r3y2;
+              accumulator[16][tid] += tmp * r3.y;
+              accumulator[17][tid] += tmp * r3.z;
+              tmp = grid_value * r3z2;
+              accumulator[18][tid] += tmp * r3.y;
+              accumulator[19][tid] += tmp * r3.z;
+            }
           } break;
           case 1: {
-            if (task.lp >= 3) {
-              accumulator[0][tid] += grid_value * r3x2 * r3.x;
-              accumulator[1][tid] += grid_value * r3x2 * r3.y;
-              accumulator[2][tid] += grid_value * r3x2 * r3.z;
-              accumulator[3][tid] += grid_value * r3.x * r3y2;
-              accumulator[4][tid] += grid_value * r3xy * r3.z;
-              accumulator[5][tid] += grid_value * r3.x * r3z2;
-              accumulator[6][tid] += grid_value * r3y2 * r3.y;
-              accumulator[7][tid] += grid_value * r3y2 * r3.z;
-              accumulator[8][tid] += grid_value * r3.y * r3z2;
-              accumulator[9][tid] += grid_value * r3z2 * r3.z;
+            if (task.lp >= 4) {
+              T tmp = grid_value * r3x2;
+              accumulator[0][tid] += tmp * r3x2;
+              accumulator[1][tid] += tmp * r3xy;
+              accumulator[2][tid] += tmp * r3xz;
+              accumulator[3][tid] += tmp * r3y2;
+              accumulator[4][tid] += tmp * r3yz;
+              accumulator[5][tid] += tmp * r3z2;
+              tmp = grid_value * r3y2;
+              accumulator[6][tid] += tmp * r3xy;
+              accumulator[7][tid] += tmp * r3xz;
+              tmp = grid_value * r3z2;
+              accumulator[8][tid] += tmp * r3xy;
+              accumulator[9][tid] += tmp * r3xz;
+            }
+            if (task.lp >= 4) {
+              T tmp = grid_value * r3y2;
+              accumulator[10][tid] += tmp * r3y2;
+              accumulator[11][tid] += tmp * r3yz;
+              accumulator[12][tid] += tmp * r3z2;
+              accumulator[13][tid] += grid_value * r3yz * r3z2;
+              accumulator[14][tid] += grid_value * r3z2 * r3z2;
+            }
+            if (task.lp >= 5) {
+              T tmp = grid_value * r3x2 * r3x2;
+              accumulator[15][tid] += tmp * r3.x;
+              accumulator[16][tid] += tmp * r3.y;
+              accumulator[17][tid] += tmp * r3.z;
+              tmp = grid_value * r3x2;
+              accumulator[18][tid] += tmp * r3.x * r3y2;
+              accumulator[19][tid] += tmp * r3xy * r3.z;
             }
           } break;
           case 2: {
-            if (task.lp >= 4) {
-              accumulator[0][tid] += grid_value * r3x2 * r3x2;
-              accumulator[1][tid] += grid_value * r3x2 * r3xy;
-              accumulator[2][tid] += grid_value * r3x2 * r3xz;
-              accumulator[3][tid] += grid_value * r3x2 * r3y2;
-              accumulator[4][tid] += grid_value * r3x2 * r3yz;
-              accumulator[5][tid] += grid_value * r3x2 * r3z2;
-              accumulator[6][tid] += grid_value * r3xy * r3y2;
-              accumulator[7][tid] += grid_value * r3xz * r3y2;
-              accumulator[8][tid] += grid_value * r3xy * r3z2;
-              accumulator[9][tid] += grid_value * r3xz * r3z2;
+            T tmp = grid_value * r3x2;
+            accumulator[0][tid] += tmp * r3.x * r3z2;
+            accumulator[1][tid] += tmp * r3y2 * r3.y;
+            accumulator[2][tid] += tmp * r3y2 * r3.z;
+            accumulator[3][tid] += tmp * r3.y * r3z2;
+            accumulator[4][tid] += tmp * r3z2 * r3.z;
+            tmp = grid_value * r3.x * r3y2;
+            accumulator[5][tid] += tmp * r3y2;
+            accumulator[6][tid] += tmp * r3yz;
+            accumulator[7][tid] += tmp * r3z2;
+            tmp = grid_value * r3.x * r3z2;
+            accumulator[8][tid] += tmp * r3yz;
+            accumulator[9][tid] += tmp * r3z2;
+            tmp = grid_value * r3y2 * r3.y;
+            accumulator[10][tid] += tmp * r3y2;
+            accumulator[11][tid] += tmp * r3yz;
+            accumulator[12][tid] += tmp * r3z2;
+            accumulator[13][tid] += grid_value * r3y2 * r3z2 * r3.z;
+            accumulator[14][tid] += grid_value * r3.y * r3z2 * r3z2;
+            accumulator[15][tid] += grid_value * r3z2 * r3z2 * r3.z;
+            if (task.lp >= 6) {
+              tmp = grid_value * r3x2 * r3x2;
+              accumulator[16][tid] += tmp * r3x2; // x^6
+              accumulator[17][tid] += tmp * r3xy; // x^5 y
+              accumulator[18][tid] += tmp * r3xz; // x^5 z
+              accumulator[19][tid] += tmp * r3y2; // x^4 y^2
             }
           } break;
           case 3: {
-            if (task.lp >= 4) {
-              accumulator[0][tid] += grid_value * r3y2 * r3y2;
-              accumulator[1][tid] += grid_value * r3y2 * r3yz;
-              accumulator[2][tid] += grid_value * r3y2 * r3z2;
-              accumulator[3][tid] += grid_value * r3yz * r3z2;
-              accumulator[4][tid] += grid_value * r3z2 * r3z2;
-            }
-            if (task.lp >= 5) {
-              accumulator[5][tid] += grid_value * r3x2 * r3x2 * r3.x;
-              accumulator[6][tid] += grid_value * r3x2 * r3x2 * r3.y;
-              accumulator[7][tid] += grid_value * r3x2 * r3x2 * r3.z;
-              accumulator[8][tid] += grid_value * r3x2 * r3.x * r3y2;
-              accumulator[9][tid] += grid_value * r3x2 * r3xy * r3.z;
-            }
-          } break;
-          case 4: {
-            accumulator[0][tid] += grid_value * r3x2 * r3.x * r3z2;
-            accumulator[1][tid] += grid_value * r3x2 * r3y2 * r3.y;
-            accumulator[2][tid] += grid_value * r3x2 * r3y2 * r3.z;
-            accumulator[3][tid] += grid_value * r3x2 * r3.y * r3z2;
-            accumulator[4][tid] += grid_value * r3x2 * r3z2 * r3.z;
-            accumulator[5][tid] += grid_value * r3.x * r3y2 * r3y2;
-            accumulator[6][tid] += grid_value * r3.x * r3y2 * r3yz;
-            accumulator[7][tid] += grid_value * r3.x * r3y2 * r3z2;
-            accumulator[8][tid] += grid_value * r3xy * r3z2 * r3.z;
-            accumulator[9][tid] += grid_value * r3.x * r3z2 * r3z2;
-          } break;
-          case 5: {
-            accumulator[0][tid] += grid_value * r3y2 * r3y2 * r3.y;
-            accumulator[1][tid] += grid_value * r3y2 * r3y2 * r3.z;
-            accumulator[2][tid] += grid_value * r3y2 * r3.y * r3z2;
-            accumulator[3][tid] += grid_value * r3y2 * r3z2 * r3.z;
-            accumulator[4][tid] += grid_value * r3.y * r3z2 * r3z2;
-            accumulator[5][tid] += grid_value * r3z2 * r3z2 * r3.z;
-            if (task.lp >= 6) {
-              accumulator[6][tid] += grid_value * r3x2 * r3x2 * r3x2; // x^6
-              accumulator[7][tid] += grid_value * r3x2 * r3x2 * r3xy; // x^5 y
-              accumulator[8][tid] += grid_value * r3x2 * r3x2 * r3xz; // x^5 z
-              accumulator[9][tid] += grid_value * r3x2 * r3x2 * r3y2; // x^4 y^2
-            }
-          } break;
-          case 6: {
-            accumulator[0][tid] += grid_value * r3x2 * r3x2 * r3yz; // x^4 y z
-            accumulator[1][tid] += grid_value * r3x2 * r3x2 * r3z2; // x^4 z^2
-            accumulator[2][tid] += grid_value * r3x2 * r3y2 * r3xy; // x^3 y^3
-            accumulator[3][tid] += grid_value * r3x2 * r3y2 * r3xz; // x^3 y^2 z
-            accumulator[4][tid] += grid_value * r3x2 * r3xy * r3z2; // x^3 y z^2
-            accumulator[5][tid] += grid_value * r3x2 * r3z2 * r3xz; // x^3 z^3
-            accumulator[6][tid] += grid_value * r3x2 * r3y2 * r3y2; // x^2 y^4
-            accumulator[7][tid] += grid_value * r3x2 * r3y2 * r3yz; // x^3 y^2 z
-            accumulator[8][tid] +=
-                grid_value * r3x2 * r3y2 * r3z2; // x^2 y^2 z^2
-            accumulator[9][tid] += grid_value * r3x2 * r3z2 * r3yz; // x^2 y z^3
-          } break;
-          case 7: {
-            accumulator[0][tid] += grid_value * r3x2 * r3z2 * r3z2; // x^2 z^4
-            accumulator[1][tid] += grid_value * r3y2 * r3y2 * r3xy; // x y^5
-            accumulator[2][tid] += grid_value * r3y2 * r3y2 * r3xz; // x y^4 z
-            accumulator[3][tid] += grid_value * r3y2 * r3xy * r3z2; // x y^3 z^2
-            accumulator[4][tid] += grid_value * r3y2 * r3z2 * r3xz; // x y^2 z^3
-            accumulator[5][tid] += grid_value * r3xy * r3z2 * r3z2; // x y z^4
-            accumulator[6][tid] += grid_value * r3z2 * r3z2 * r3xz; // x z^5
-            accumulator[7][tid] += grid_value * r3y2 * r3y2 * r3y2; // y^6
-            accumulator[8][tid] += grid_value * r3y2 * r3y2 * r3yz; // y^5 z
-            accumulator[9][tid] += grid_value * r3y2 * r3y2 * r3z2; // y^4 z^2
+            T tmp = grid_value * r3x2;
+            accumulator[0][tid] += tmp * r3x2 * r3yz;  // x^4 y z
+            accumulator[1][tid] += tmp * r3x2 * r3z2;  // x^4 z^2
+            accumulator[2][tid] += tmp * r3y2 * r3xy;  // x^3 y^3
+            accumulator[3][tid] += tmp * r3y2 * r3xz;  // x^3 y^2 z
+            accumulator[4][tid] += tmp * r3xy * r3z2;  // x^3 y z^2
+            accumulator[5][tid] += tmp * r3z2 * r3xz;  // x^3 z^3
+            accumulator[6][tid] += tmp * r3y2 * r3y2;  // x^2 y^4
+            accumulator[7][tid] += tmp * r3y2 * r3yz;  // x^3 y^2 z
+            accumulator[8][tid] += tmp * r3y2 * r3z2;  // x^2 y^2 z^2
+            accumulator[9][tid] += tmp * r3z2 * r3yz;  // x^2 y z^3
+            accumulator[10][tid] += tmp * r3z2 * r3z2; // x^2 z^4
+            tmp = grid_value * r3y2 * r3y2;
+            accumulator[11][tid] += tmp * r3xy; // x y^5
+            accumulator[12][tid] += tmp * r3xz; // x y^4 z
+            accumulator[13][tid] +=
+                grid_value * r3y2 * r3xy * r3z2; // x y^3 z^2
+            accumulator[14][tid] +=
+                grid_value * r3y2 * r3z2 * r3xz; // x y^2 z^3
+            accumulator[15][tid] += grid_value * r3xy * r3z2 * r3z2; // x y z^4
+            accumulator[16][tid] += grid_value * r3z2 * r3z2 * r3xz; // x z^5
+            accumulator[17][tid] += tmp * r3y2;                      // y^6
+            accumulator[18][tid] += tmp * r3yz;                      // y^5 z
+            accumulator[19][tid] += tmp * r3z2;                      // y^4 z^2
           } break;
           default:
             for (int ic = 0; (ic < lbatch) && ((ic + ico) < length); ic++) {
@@ -592,16 +652,8 @@ __launch_bounds__(64) void integrate_kernel(const kernel_params dev_) {
 
     if (tid < 32) {
       for (int i = 0; i < max_i; i++) {
-        accumulator[i][tid] += accumulator[i][tid + 32];
-      }
-    }
-
-    __syncthreads();
-
-    if (tid < 32) {
-      for (int i = 0; i < max_i; i++) {
         // Load local value
-        T val = accumulator[i][tid];
+        T val = accumulator[i][tid] + accumulator[i][tid + 32];
 
         // Warp-level reduction (32 lanes) After this loop, lane 0 of warp 0
         // holds the result All threads should execute this operation so
@@ -620,14 +672,22 @@ __launch_bounds__(64) void integrate_kernel(const kernel_params dev_) {
         }
 
         if (tid == 0)
-          sum[i] = val;
+          accumulator[i][0] = val;
       }
+#if defined(__CUDACC__)
+      __syncwarp();
+#endif
     }
-    __syncthreads();
 
-    if (tid < min(length - ico, lbatch))
-      dev_.ptr_dev[2][dev_.tasks[dev_.first_task + block_index()].coef_offset +
-                      tid + ico] = sum[tid];
+#if !defined(__CUDACC__)
+    __syncthreads();
+#endif
+
+    if (tid < min(length - ico, lbatch)) {
+      const size_t coef_offset =
+          dev_.tasks[dev_.first_task + block_index()].coef_offset;
+      dev_.buffers_dev.coef[coef_offset + tid + ico] = accumulator[tid][0];
+    }
     __syncthreads();
   }
 }
@@ -660,21 +720,21 @@ void context_info::integrate_one_grid_level(const int level, int *lp_diff) {
   const dim3 threads_per_block(4, 4, 4);
   if (grid_[level].is_distributed()) {
     if (grid_[level].is_orthogonal()) {
-      integrate_kernel<double, double3, true, true, 10>
+      integrate_kernel<double, double3, true, true, 20>
           <<<number_of_tasks_per_level_[level], threads_per_block, 0,
              level_streams[level]>>>(params);
     } else {
-      integrate_kernel<double, double3, true, false, 10>
+      integrate_kernel<double, double3, true, false, 20>
           <<<number_of_tasks_per_level_[level], threads_per_block, 0,
              level_streams[level]>>>(params);
     }
   } else {
     if (grid_[level].is_orthogonal()) {
-      integrate_kernel<double, double3, false, true, 10>
+      integrate_kernel<double, double3, false, true, 20>
           <<<number_of_tasks_per_level_[level], threads_per_block, 0,
              level_streams[level]>>>(params);
     } else {
-      integrate_kernel<double, double3, false, false, 10>
+      integrate_kernel<double, double3, false, false, 20>
           <<<number_of_tasks_per_level_[level], threads_per_block, 0,
              level_streams[level]>>>(params);
     }
@@ -701,27 +761,27 @@ void context_info::compute_hab_coefficients() {
   const dim3 threads_per_block(4, 4, 4);
 
   if (!compute_tau && !calculate_forces) {
-    compute_hab_v4<double, false>
+    compute_hab<double, false>
         <<<this->nblocks, threads_per_block, smem_params.smem_per_block(),
            this->main_stream>>>(params);
     return;
   }
 
+  if (compute_tau && !calculate_forces) {
+    compute_hab<double, true>
+        <<<this->nblocks, threads_per_block, smem_params.smem_per_block(),
+           this->main_stream>>>(params);
+  }
+
   if (!compute_tau && calculate_forces) {
-    compute_hab_v2<double, double3, false, true>
+    compute_hab_forces<double, double3, false>
         <<<this->nblocks, threads_per_block, smem_params.smem_per_block(),
            this->main_stream>>>(params);
     return;
   }
 
   if (compute_tau && calculate_forces) {
-    compute_hab_v2<double, double3, true, true>
-        <<<this->nblocks, threads_per_block, smem_params.smem_per_block(),
-           this->main_stream>>>(params);
-  }
-
-  if (compute_tau && !calculate_forces) {
-    compute_hab_v2<double, double3, true, false>
+    compute_hab_forces<double, double3, true>
         <<<this->nblocks, threads_per_block, smem_params.smem_per_block(),
            this->main_stream>>>(params);
   }

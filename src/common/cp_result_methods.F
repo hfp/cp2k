@@ -178,14 +178,16 @@ CONTAINS
          n_rep = nrep
       END IF
 
-      IF (nrep <= 0) &
+      IF (nrep <= 0) THEN
          CALL cp_abort(__LOCATION__, &
                        " Trying to access result ("//TRIM(description)//") which was never stored!")
+      END IF
 
       DO i = 1, nlist
          IF (TRIM(results%result_label(i)) == TRIM(description)) THEN
-            IF (results%result_value(i)%value%type_in_use /= result_type_real) &
+            IF (results%result_value(i)%value%type_in_use /= result_type_real) THEN
                CPABORT("Attempt to retrieve a RESULT which is not a REAL!")
+            END IF
 
             size_res = SIZE(results%result_value(i)%value%real_type)
             EXIT
@@ -251,14 +253,16 @@ CONTAINS
          n_rep = nrep
       END IF
 
-      IF (nrep <= 0) &
+      IF (nrep <= 0) THEN
          CALL cp_abort(__LOCATION__, &
                        " Trying to access result ("//TRIM(description)//") which was never stored!")
+      END IF
 
       DO i = 1, nlist
          IF (TRIM(results%result_label(i)) == TRIM(description)) THEN
-            IF (results%result_value(i)%value%type_in_use /= result_type_real) &
+            IF (results%result_value(i)%value%type_in_use /= result_type_real) THEN
                CPABORT("Attempt to retrieve a RESULT which is not a REAL!")
+            END IF
 
             size_res = SIZE(results%result_value(i)%value%real_type)
             EXIT
@@ -330,8 +334,7 @@ CONTAINS
                CASE (result_type_logical)
                   n_entries = n_entries + SIZE(results%result_value(i)%value%logical_type)
                CASE DEFAULT
-                  ! Type not implemented in cp_result_type
-                  CPABORT("")
+                  CPABORT("Type not implemented in cp_result_type")
                END SELECT
                EXIT
             END IF

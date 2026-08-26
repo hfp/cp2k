@@ -22,7 +22,9 @@ MODULE post_scf_bandstructure_types
                                               cp_fm_type
    USE dbt_api,                         ONLY: dbt_destroy,&
                                               dbt_type
-   USE input_constants,                 ONLY: rtp_method_bse,&
+   USE input_constants,                 ONLY: G0W0,&
+                                              rtp_method_bse,&
+                                              rtp_method_bse_linearized,&
                                               small_cell_full_kp
    USE kinds,                           ONLY: default_path_length,&
                                               default_string_length,&
@@ -32,6 +34,7 @@ MODULE post_scf_bandstructure_types
    USE libint_2c_3c,                    ONLY: libint_potential_type
    USE message_passing,                 ONLY: mp_para_env_release,&
                                               mp_para_env_type
+   USE physcon,                         ONLY: evolt
    USE qs_tensors_types,                ONLY: neighbor_list_3c_type
 #include "./base/base_uses.f90"
 
@@ -68,15 +71,27 @@ MODULE post_scf_bandstructure_types
       ! Input parameters for RI-RS
       INTEGER                                          :: grid_select = 1
       REAL(KIND=dp)                                    :: tikhonov = 1.0E-08_dp
-      REAL(KIND=dp)                                    :: cutoff_radius_ri_rs = 30.0_dp
+      REAL(KIND=dp)                                    :: cutoff_radius_ri_rs = -1.0_dp
+      REAL(KIND=dp)                                    :: cutoff_radius_ri_ao = -1.0_dp
+      INTEGER                                          :: n_procs_per_atom_z_lp = -1
+      INTEGER                                          :: n_panels = 1
+      LOGICAL                                          :: keep_sparsity_rirs = .TRUE.
+      REAL(KIND=dp)                                    :: cutoff_radius_v_w = -1.0_dp
+      REAL(KIND=dp)                                    :: cutoff_radius_g_w = -1.0_dp
+      CHARACTER(LEN=default_string_length)             :: grid_file_suffix = ""
 
-      ! Number of MPI ranks that cooperate on one atom's Cholesky solve via
-      ! distributed pdpotrf. Default 1 = single-rank dpotrf path (BLAS, fastest
-      ! when D_local fits per rank). > 1 enables ScaLAPACK: ranks are split into
-      ! atom-groups of this size, D_local is block-cyclic distributed across
-      ! each group (memory ~1/G per rank), and compute_d_lp is also split across
-      ! the subgroup so wall time matches the BLAS path.
-      INTEGER                                          :: n_procs_per_atom_z_lp = 1
+      ! Eigenvalue self-consistency (evGW0): G is rebuilt from the quasiparticle energies of
+      ! the previous cycle while W stays frozen at the RPA@DFT level.
+      INTEGER                                          :: evgw0_iter = 20
+      REAL(KIND=dp)                                    :: evgw0_eps_iter = 5.0E-5_dp
+      ! index of the running evGW0 cycle
+      INTEGER                                          :: evgw0_i_iter = 0
+
+      ! Data types for cutoffs based DBCSR matrices
+      REAL(KIND=dp), ALLOCATABLE                       :: chunk_centroids(:, :)
+      REAL(KIND=dp), ALLOCATABLE                       :: atom_centers(:, :)
+      INTEGER, ALLOCATABLE                             :: grid_atom_boundaries(:)
+      INTEGER, ALLOCATABLE                             :: pan_first(:), pan_last(:)
 
       ! Data types for building grid points
       TYPE(rirs_grid_type), ALLOCATABLE                :: grid_cache(:)
@@ -90,6 +105,20 @@ MODULE post_scf_bandstructure_types
       ! Per-atom spatial extent of the most diffuse Gaussian primitive in each basis
       REAL(KIND=dp), ALLOCATABLE                       :: radius_ao_per_atom(:)
       REAL(KIND=dp), ALLOCATABLE                       :: radius_ri_per_atom(:)
+
+      ! Precomputed grid-basis kernels for RT-BSE
+      ! mat_V_aux_rtbse(P, Q) = truncated-Coulomb V_PQ with M^-1 sandwich (RI x RI);
+      ! the Hartree grid kernel Z V Z^T is applied factorized, never materialized
+      ! mat_W0_grid_rtbse(l, l') = sum_PQ  Z_lP W^{w=0}_PQ Z_l'Q
+      TYPE(dbcsr_type)                                 :: mat_V_aux_rtbse
+      TYPE(dbcsr_type)                                 :: mat_W0_grid_rtbse
+      LOGICAL                                          :: rtbse_kernels_ready = .FALSE.
+      ! Set TRUE once mat_phi_mu_l and mat_Z_lP have been populated in memory (by GW RI-RS
+      ! or on-demand by the RT-BSE RI-RS kernel path).
+      LOGICAL                                          :: grid_built = .FALSE.
+      ! Independent toggles for V_grid / W0_grid availability
+      LOGICAL                                          :: V_grid_built = .FALSE.
+      LOGICAL                                          :: W0_grid_built = .FALSE.
 
    END TYPE ri_rs_env
 
@@ -105,25 +134,32 @@ MODULE post_scf_bandstructure_types
 
       ! various eigenvalues computed in GW code, some depend on k-points
       ! and have therefore three dimensions (band index, k-point, spin)
+      !
+      ! eigenval_GW carries the quasiparticle energies of the highest-level GW flavour requested
+      !   eigenval_G0W0  - the G0W0 result
+      !   eigenval_evGW0 - the evGW0 result
       REAL(KIND=dp), DIMENSION(:, :), ALLOCATABLE     :: eigenval_scf_Gamma
       REAL(KIND=dp), DIMENSION(:, :, :), ALLOCATABLE  :: eigenval_scf, &
+                                                         eigenval_GW, &
                                                          eigenval_G0W0, &
-                                                         eigenval_HF, &
-                                                         eigenval_scGW0
-      REAL(KIND=dp), DIMENSION(:, :), ALLOCATABLE     :: eigenval_scf_soc, &
-                                                         eigenval_G0W0_soc
+                                                         eigenval_evGW0, &
+                                                         eigenval_HF
       TYPE(band_edges_type), DIMENSION(2)             :: band_edges_scf_Gamma = band_edges_type()
       TYPE(band_edges_type)                           :: band_edges_scf = band_edges_type(), &
-                                                         band_edges_G0W0 = band_edges_type(), &
+                                                         band_edges_GW = band_edges_type(), &
                                                          band_edges_HF = band_edges_type()
 
       ! parameters that influence the GW flavor
       LOGICAL                                         :: do_hedin_shift = .FALSE.
+      ! which GW flavour was requested; constants from input_constants (G0W0, evGW0, ...)
+      INTEGER                                         :: gw_flavour = G0W0
 
       ! parameters for RI-RS implementation of GW
       TYPE(ri_rs_env)                                 :: ri_rs
 
       ! general parameters on molecular orbitals and basis sets
+      ! Number of real states; entries above it are linear-dependency placeholders, not states.
+      INTEGER                                      :: n_mo_retained = -1
       INTEGER                                      :: n_ao = -1, &
                                                       n_RI = -1, &
                                                       n_spin = -1, &
@@ -275,7 +311,7 @@ MODULE post_scf_bandstructure_types
                                                       skip_Sigma_vir, &
                                                       skip_chi
       ! Marek : rtbse_method
-      INTEGER                                      :: rtp_method = rtp_method_bse
+      INTEGER                                      :: rtp_method = -1
 
       ! check-arrays and names for restarting
       LOGICAL, DIMENSION(:), ALLOCATABLE           :: read_chi, &
@@ -303,14 +339,16 @@ MODULE post_scf_bandstructure_types
                                                       trunc_coulomb = libint_potential_type()
 
       ! parameters for SOC calculation
-      REAL(KIND=dp)                                :: energy_window_soc = -1.0_dp
+      REAL(KIND=dp)                                :: soc_window_occ = -1.0_dp
+      REAL(KIND=dp)                                :: soc_window_virt = -1.0_dp
+      REAL(KIND=dp)                                :: soc_window_smearing = 1.0_dp/evolt
       ! sizes: mat_V_SOC_xyz: xyz, img
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER :: mat_V_SOC_xyz => NULL()
       TYPE(cp_fm_type), DIMENSION(3)               :: fm_V_SOC_xyz_mo = cp_fm_type()
       ! small-cell GW: dimension = number of kpoints; large-cell GW: Gamma-point, dimension = 1
       TYPE(cp_cfm_type), DIMENSION(:), ALLOCATABLE :: cfm_SOC_spinor_ao
       TYPE(band_edges_type)                        :: band_edges_scf_SOC = band_edges_type(), &
-                                                      band_edges_G0W0_SOC = band_edges_type()
+                                                      band_edges_GW_SOC = band_edges_type()
 
       ! parameters for DOS and PDOS calculation
       REAL(KIND=dp)                                :: energy_window_DOS = -1.0_dp, &
@@ -332,9 +370,12 @@ MODULE post_scf_bandstructure_types
                                                       eps_floquet = -1.0_dp, &
                                                       broadening_floquet = -1.0_dp, &
                                                       energy_step_floquet = -1.0_dp, &
-                                                      energy_window_floquet = -1.0_dp
+                                                      energy_window_floquet = -1.0_dp, &
+                                                      floquet_mem_fill_fraction = -1.0_dp, &
+                                                      floquet_temperature = -1.0_dp
       CHARACTER(LEN=default_string_length)         :: floquet_dos_file = "", &
-                                                      floquet_qe_file = ""
+                                                      floquet_qe_file = "", &
+                                                      floquet_bs_file = ""
 
       ! quantities only needed for small cells and k-point sampling in DFT (small_cell_full_kp)
       INTEGER                                      :: nkp_scf_desymm = -1, &
@@ -382,6 +423,10 @@ MODULE post_scf_bandstructure_types
 
    END TYPE post_scf_bandstructure_type
 
+   ! Sanity bounds on a quasiparticle gap (Hartree): inverted below -eps_qp_gap, diverged above max_qp_gap
+   REAL(KIND=dp), PARAMETER, PUBLIC                   :: eps_qp_gap = 0.01_dp/evolt, &
+                                                         max_qp_gap = 200.0_dp/evolt
+
 CONTAINS
 
 ! **************************************************************************************************
@@ -413,11 +458,10 @@ CONTAINS
       IF (ALLOCATED(bs_env%imag_freq_points)) DEALLOCATE (bs_env%imag_freq_points)
       IF (ALLOCATED(bs_env%eigenval_scf_Gamma)) DEALLOCATE (bs_env%eigenval_scf_Gamma)
       IF (ALLOCATED(bs_env%eigenval_scf)) DEALLOCATE (bs_env%eigenval_scf)
+      IF (ALLOCATED(bs_env%eigenval_GW)) DEALLOCATE (bs_env%eigenval_GW)
       IF (ALLOCATED(bs_env%eigenval_G0W0)) DEALLOCATE (bs_env%eigenval_G0W0)
       IF (ALLOCATED(bs_env%eigenval_HF)) DEALLOCATE (bs_env%eigenval_HF)
-      IF (ALLOCATED(bs_env%eigenval_scGW0)) DEALLOCATE (bs_env%eigenval_scGW0)
-      IF (ALLOCATED(bs_env%eigenval_scf_soc)) DEALLOCATE (bs_env%eigenval_scf_soc)
-      IF (ALLOCATED(bs_env%eigenval_G0W0_soc)) DEALLOCATE (bs_env%eigenval_G0W0_soc)
+      IF (ALLOCATED(bs_env%eigenval_evGW0)) DEALLOCATE (bs_env%eigenval_evGW0)
       IF (ALLOCATED(bs_env%i_ao_start_from_atom)) DEALLOCATE (bs_env%i_ao_start_from_atom)
       IF (ALLOCATED(bs_env%i_ao_end_from_atom)) DEALLOCATE (bs_env%i_ao_end_from_atom)
       IF (ALLOCATED(bs_env%i_RI_start_from_atom)) DEALLOCATE (bs_env%i_RI_start_from_atom)
@@ -468,7 +512,9 @@ CONTAINS
       CALL cp_fm_release(bs_env%fm_RI_RI)
       CALL cp_fm_release(bs_env%fm_chi_Gamma_freq)
       CALL cp_fm_release(bs_env%fm_W_MIC_freq)
-      IF (bs_env%rtp_method == rtp_method_bse) CALL cp_fm_release(bs_env%fm_W_MIC_freq_zero)
+      IF (bs_env%rtp_method == rtp_method_bse .OR. bs_env%rtp_method == rtp_method_bse_linearized) THEN
+         CALL cp_fm_release(bs_env%fm_W_MIC_freq_zero)
+      END IF
       CALL cp_fm_release(bs_env%fm_W_MIC_freq_1_extra)
       CALL cp_fm_release(bs_env%fm_W_MIC_freq_1_no_extra)
       CALL cp_cfm_release(bs_env%cfm_work_mo)
@@ -515,12 +561,19 @@ CONTAINS
       CALL safe_cfm_destroy_1d(bs_env%cfm_SOC_spinor_ao)
 
       ! Deallocate RI-RS matrices
-      IF (bs_env%do_gw_ri_rs) CALL dbcsr_release(bs_env%ri_rs%mat_phi_mu_l)
-      IF (bs_env%do_gw_ri_rs) CALL dbcsr_release(bs_env%ri_rs%mat_Z_lP)
+      IF (bs_env%ri_rs%grid_built) CALL dbcsr_release(bs_env%ri_rs%mat_phi_mu_l)
+      IF (bs_env%ri_rs%grid_built) CALL dbcsr_release(bs_env%ri_rs%mat_Z_lP)
+      IF (bs_env%ri_rs%V_grid_built) CALL dbcsr_release(bs_env%ri_rs%mat_V_aux_rtbse)
+      IF (bs_env%ri_rs%W0_grid_built) CALL dbcsr_release(bs_env%ri_rs%mat_W0_grid_rtbse)
       IF (ALLOCATED(bs_env%ri_rs%grid_points)) DEALLOCATE (bs_env%ri_rs%grid_points)
       IF (ALLOCATED(bs_env%ri_rs%grid_cache)) DEALLOCATE (bs_env%ri_rs%grid_cache)
       IF (ALLOCATED(bs_env%ri_rs%radius_ao_per_atom)) DEALLOCATE (bs_env%ri_rs%radius_ao_per_atom)
       IF (ALLOCATED(bs_env%ri_rs%radius_ri_per_atom)) DEALLOCATE (bs_env%ri_rs%radius_ri_per_atom)
+      IF (ALLOCATED(bs_env%ri_rs%chunk_centroids)) DEALLOCATE (bs_env%ri_rs%chunk_centroids)
+      IF (ALLOCATED(bs_env%ri_rs%atom_centers)) DEALLOCATE (bs_env%ri_rs%atom_centers)
+      IF (ALLOCATED(bs_env%ri_rs%grid_atom_boundaries)) DEALLOCATE (bs_env%ri_rs%grid_atom_boundaries)
+      IF (ALLOCATED(bs_env%ri_rs%pan_first)) DEALLOCATE (bs_env%ri_rs%pan_first)
+      IF (ALLOCATED(bs_env%ri_rs%pan_last)) DEALLOCATE (bs_env%ri_rs%pan_last)
 
       DEALLOCATE (bs_env)
 

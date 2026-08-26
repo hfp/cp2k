@@ -5,9 +5,6 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")" && pwd -P)"
 
-# Load module environment if exists
-LOADEDMODULES_AT_BUILD="${LOADEDMODULES-}"
-
 TOOLCHAIN_ROOTDIR="${PWD}"
 # Exit this script if it is not called from the ./tools/toolchain directory
 if [ "${TOOLCHAIN_ROOTDIR}" != "${SCRIPT_DIR}" ]; then
@@ -23,19 +20,20 @@ EOF
   exit 1
 fi
 TOOLCHAIN_SCRIPTS_DIR="${TOOLCHAIN_ROOTDIR}/scripts"
-source "${TOOLCHAIN_ROOTDIR}/toolchain_settings"
 source "${TOOLCHAIN_SCRIPTS_DIR}/tool_kit.sh"
 
 # ====================== Parameter parsing ======================
 CP2K_ROOT=$(cd "${TOOLCHAIN_ROOTDIR}/../.." && pwd)
 CMAKE_INSTALL_PREFIX=${CP2K_ROOT}/install
-CLEAN_BUILD="__FALSE__"
 DEBUG_BUILD="__FALSE__"
 BUILD_JOBS="$(get_nprocs)"
 BUILD_SHARED_LIBS="ON"
 DRY_RUN="__FALSE__"
 REBUILD_ONLY="__FALSE__"
 PREFIX_SET="__FALSE__"
+PRESET_SET="__FALSE__"
+CMAKE_PRESET=""
+CMAKE_PRESET_ARGS=()
 DEBUG_SET="__FALSE__"
 BUILD_STATIC_SET="__FALSE__"
 
@@ -48,10 +46,11 @@ Generate CMake options from the toolchain configuration and build CP2K.
 Options:
   -h, --help            Show this help message and exit
   -j N, -jN             Number of parallel build jobs
-  --prefix              Set CMAKE_INSTALL_PREFIX (default is ${CP2K_ROOT}/install)
+  --prefix=<path>       Set CMAKE_INSTALL_PREFIX
+                        (default is ${CP2K_ROOT}/install)
   --dry-run             Show generated CMake options only and then exit
-  --clean               Remove the build directory before configuring, which means
-                        rebuilding CP2K entirely
+  --preset=<name>       Use a CMake configure preset
+                        See "cmake -S ${CP2K_ROOT} --list-presets"
   --debug               Build debug version of CP2K (-DCMAKE_BUILD_TYPE=Debug)
   --build-static        Set -DBUILD_SHARED_LIBS=OFF (default is ON)
   --rebuild-only        Skip CMake configuration and only rebuild/install CP2K
@@ -69,9 +68,6 @@ while [ $# -ge 1 ]; do
     --rebuild-only)
       REBUILD_ONLY="__TRUE__"
       ;;
-    --clean)
-      CLEAN_BUILD="__TRUE__"
-      ;;
     -j)
       BUILD_JOBS="$2"
       shift
@@ -79,13 +75,20 @@ while [ $# -ge 1 ]; do
     -j[0-9]*)
       BUILD_JOBS="${1#-j}"
       ;;
-    --prefix)
+    --prefix=*)
       PREFIX_SET="__TRUE__"
-      if [[ "${2}" != /* ]]; then
+      if [[ "${1#*=}" != /* ]]; then
         report_error "The path for --prefix must be an absolute path."
       fi
-      CMAKE_INSTALL_PREFIX="${2}"
-      shift
+      CMAKE_INSTALL_PREFIX="${1#*=}"
+      ;;
+    --preset=*)
+      PRESET_SET="__TRUE__"
+      CMAKE_PRESET="${1#*=}"
+      if [ -z "${CMAKE_PRESET}" ]; then
+        report_error "A preset name must be provided to --preset."
+      fi
+      CMAKE_PRESET_ARGS=(--preset "${CMAKE_PRESET}")
       ;;
     --debug)
       DEBUG_SET="__TRUE__"
@@ -110,8 +113,8 @@ done
 
 if [ "${REBUILD_ONLY}" = "__TRUE__" ]; then
   if [ "${DRY_RUN}" = "__TRUE__" ] ||
-    [ "${CLEAN_BUILD}" = "__TRUE__" ] ||
     [ "${PREFIX_SET}" = "__TRUE__" ] ||
+    [ "${PRESET_SET}" = "__TRUE__" ] ||
     [ "${DEBUG_SET}" = "__TRUE__" ] ||
     [ "${BUILD_STATIC_SET}" = "__TRUE__" ]; then
     cat << EOF
@@ -161,6 +164,7 @@ else
 fi
 
 # Require finished toolchain
+source "${TOOLCHAIN_ROOTDIR}/toolchain_settings"
 if [ ! -f "${TOOLCHAIN_INSTALL_DIR}/setup" ]; then
   echo "Error: Toolchain is not installed. Please run ./install_cp2k_toolchain.sh first."
   exit 1
@@ -179,12 +183,14 @@ EOF
   exit 1
 fi
 
+# ====================== Configure & Build ======================
 # Load toolchain environment (required for with_xxx variables)
 source "${TOOLCHAIN_INSTALL_DIR}/setup"
 source "${TOOLCHAIN_INSTALL_DIR}/toolchain.conf"
 
 # Generate cmake options for compiling cp2k
-CMAKE_OPTIONS="-DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}"
+CMAKE_OPTIONS="-DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX} -DCMAKE_INSTALL_LIBDIR=lib"
+CMAKE_OPTIONS+=" -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}"
 if [[ ${CMAKE_INSTALL_PREFIX} == ${CP2K_ROOT}/* ]]; then
   CMAKE_OPTIONS+=" -DCP2K_DATA_DIR=${CP2K_ROOT}/data"
 fi
@@ -192,17 +198,27 @@ if [ ${DEBUG_BUILD} == "__TRUE__" ]; then
   CMAKE_OPTIONS+=" -DCMAKE_BUILD_TYPE=Debug"
 fi
 if [ -n "$(grep -- "--install-all" "${TOOLCHAIN_ROOTDIR}/toolchain_settings")" ]; then
-  CMAKE_OPTIONS+=" -DCP2K_USE_EVERYTHING=ON -DCP2K_USE_DLAF=OFF -DCP2K_USE_PEXSI=OFF"
+  CMAKE_OPTIONS+=" -DCP2K_USE_EVERYTHING=ON -DCP2K_USE_DLAF=OFF -DCP2K_USE_PEXSI=OFF -DCP2K_USE_OPENPMD=OFF"
+  # If MPI is disabled, set "CP2K_USE_MPI" to "OFF"
+  if [ "${mpi_mode}" = "no" ]; then
+    CMAKE_OPTIONS+=" -DCP2K_USE_MPI=OFF"
+  fi
+  # Some options that should be specially considered:
+  # Intel MKL includes FFTW
+  if [ "${with_fftw}" = "__DONTUSE__" ] && [ "${math_mode}" != "mkl" ]; then
+    CMAKE_OPTIONS+=" -DCP2K_USE_FFTW3=OFF"
+  fi
+  # MiMic-MCL (MiMiC Communication Library)
+  if [ "${with_mcl}" = "__DONTUSE__" ]; then
+    CMAKE_OPTIONS+=" -DCP2K_USE_MIMIC=OFF"
+  fi
   for toolchain_option in $(grep -i "dontuse" "${TOOLCHAIN_INSTALL_DIR}/toolchain.conf" |
-    grep -Evi "gcc|amd|intel" | cut -d'_' -f2 | cut -d'=' -f1); do
-    var_name="with_${toolchain_option}"
-    if [ "${!var_name}" != "__DONTUSE__" ]; then
-      ADDED_CMAKE_OPTION=$(sed -n '/option(/,/)/p' "${CP2K_ROOT}/CMakeLists.txt" |
-        grep -i "${toolchain_option}" | awk '{print $1}' | cut -d'(' -f2 | head -n 1)
-      # Use "if-then" below can avoid generating empty "-D=OFF" options
-      if [ -n "${ADDED_CMAKE_OPTION}" ]; then
-        CMAKE_OPTIONS+=" -D${ADDED_CMAKE_OPTION}=OFF"
-      fi
+    grep -Evi "gcc|amd|intel|cmake|fftw|mkl|dbcsr" | cut -d'_' -f2 | cut -d'=' -f1); do
+    ADDED_CMAKE_OPTION=$(sed -n '/option(/,/)/p' "${CP2K_ROOT}/CMakeLists.txt" |
+      grep -i "${toolchain_option}" | awk '{print $1}' | cut -d'(' -f2 | head -n 1)
+    # Use "if-then" below can avoid generating empty "-D=OFF" options
+    if [ -n "${ADDED_CMAKE_OPTION}" ]; then
+      CMAKE_OPTIONS+=" -D${ADDED_CMAKE_OPTION}=OFF"
     fi
   done
 else
@@ -215,7 +231,7 @@ else
   if [ "${with_fftw}" != "__DONTUSE__" ] || [ "${math_mode}" = "mkl" ]; then
     CMAKE_OPTIONS+=" -DCP2K_USE_FFTW3=ON"
   fi
-  # Mimic-MCL (MiMiC Communication Library)
+  # MiMic-MCL (MiMiC Communication Library)
   if [ "${with_mcl}" != "__DONTUSE__" ]; then
     CMAKE_OPTIONS+=" -DCP2K_USE_MIMIC=ON"
   fi
@@ -233,19 +249,22 @@ else
       fi
     fi
   done
-  # Additional feature of SIRIUS
-  if [ "${with_sirius}" = "__INSTALL__" ]; then
-    CMAKE_OPTIONS+=" -DCP2K_USE_SIRIUS_VCSQNM=ON"
-    if [ "${with_tblite}" != "__DONTUSE__" ]; then
-      CMAKE_OPTIONS+=" -DCP2K_USE_SIRIUS_DFTD3=ON -DCP2K_USE_SIRIUS_DFTD4=ON"
-    elif [ "${with_dftd4}" != "__DONTUSE__" ]; then
-      CMAKE_OPTIONS+=" -DCP2K_USE_SIRIUS_DFTD4=ON"
-    fi
+fi
+# Additional feature of SIRIUS
+if [ "${with_sirius}" = "__INSTALL__" ]; then
+  CMAKE_OPTIONS+=" -DCP2K_USE_SIRIUS_VCSQNM=ON"
+  if [ "${with_tblite}" != "__DONTUSE__" ]; then
+    CMAKE_OPTIONS+=" -DCP2K_USE_SIRIUS_DFTD3=ON -DCP2K_USE_SIRIUS_DFTD4=ON"
+  elif [ "${with_dftd4}" != "__DONTUSE__" ]; then
+    CMAKE_OPTIONS+=" -DCP2K_USE_SIRIUS_DFTD4=ON"
   fi
 fi
 # If GPU acceleration is used, add the option about GPU acceleration
 if [ "${ENABLE_CUDA}" = "__TRUE__" ]; then
   CMAKE_OPTIONS+=" -DCP2K_USE_ACCEL=CUDA -DCP2K_WITH_GPU=${GPU_VER}"
+  if [ "${with_cusolvermp}" != "__DONTUSE__" ]; then
+    CMAKE_OPTIONS+=" -DCP2K_USE_CUSOLVER_MP=ON"
+  fi
 elif [ "${ENABLE_HIP}" = "__TRUE__" ]; then
   CMAKE_OPTIONS+=" -DCP2K_USE_ACCEL=HIP -DCP2K_WITH_GPU=${GPU_VER}"
 elif [ "${ENABLE_OPENCL}" = "__TRUE__" ]; then
@@ -273,12 +292,6 @@ fi
 
 if [ "${DRY_RUN}" != "__TRUE__" ]; then
   rm -f build.log
-
-  # ====================== Optional clean ======================
-  if [ "${CLEAN_BUILD}" = "__TRUE__" ] && [ -d "${BUILD_DIR}" ]; then
-    echo "Removing existing build directory: ${BUILD_DIR}"
-    rm -rf "${BUILD_DIR}"
-  fi
 
   if [ "${REBUILD_ONLY}" = "__TRUE__" ]; then
     # Check if cmake_install.cmake exists
@@ -321,20 +334,26 @@ EOF
     log_build "Using existing CP2K environment file:"
     log_build "  ${CMAKE_INSTALL_PREFIX}/cp2k_env"
   else
+    if [ -d "${BUILD_DIR}" ]; then
+      echo "Removing existing build directory before configuration: ${BUILD_DIR}"
+      rm -rf "${BUILD_DIR}"
+    fi
     mkdir -p "${BUILD_DIR}"
 
-    # ====================== Configure ======================
     log_cmake "================== CMake configuration ==================="
-    log_cmake "Source dir : ${CP2K_ROOT}"
-    log_cmake "Build  dir : ${BUILD_DIR}"
-    log_cmake "Install dir: ${CMAKE_INSTALL_PREFIX}"
-    log_cmake "Shared libs: ${BUILD_SHARED_LIBS}"
+    log_cmake "Source dir  : ${CP2K_ROOT}"
+    log_cmake "Build  dir  : ${BUILD_DIR}"
+    log_cmake "Install dir : ${CMAKE_INSTALL_PREFIX}"
+    log_cmake "Shared libs : ${BUILD_SHARED_LIBS}"
+    if [ "${PRESET_SET}" = "__TRUE__" ]; then
+      log_cmake "CMake preset: ${CMAKE_PRESET}"
+    fi
 
     set -o pipefail
-    cmake -S "${CP2K_ROOT}" -B "${BUILD_DIR}" ${CMAKE_OPTIONS} 2>&1 | tee -a cmake.log
+    cmake -S "${CP2K_ROOT}" -B "${BUILD_DIR}" "${CMAKE_PRESET_ARGS[@]}" \
+      ${CMAKE_OPTIONS} 2>&1 | tee -a cmake.log
   fi
 
-  # ====================== Build ======================
   log_build "==================== Building CP2K ======================="
   log_build "Parallel jobs: ${BUILD_JOBS}"
   set -o pipefail
@@ -344,6 +363,8 @@ EOF
   # Export variable for CMake options to cp2k_env file
   if [ "${REBUILD_ONLY}" != "__TRUE__" ]; then
     echo "#!/bin/bash" > "${CMAKE_INSTALL_PREFIX}/cp2k_env"
+    # Detect module environment and write it to cp2k_env if exists
+    LOADEDMODULES_AT_BUILD="${LOADEDMODULES-}"
     if [ -n "${LOADEDMODULES_AT_BUILD}" ]; then
       printf "Detected module environment; writing to cp2k_env.\n\n"
       printf 'module load %s\n' "${LOADEDMODULES_AT_BUILD//:/ }" \

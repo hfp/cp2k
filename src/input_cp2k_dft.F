@@ -15,9 +15,9 @@ MODULE input_cp2k_dft
    USE basis_set_types,                 ONLY: basis_sort_default,&
                                               basis_sort_zet
    USE bibliography,                    ONLY: &
-        Andermatt2016, Andreussi2012, Avezac2005, Bengtsson1999, Blochl1995, Brelaz1979, &
-        Chai2024a, Fattebert2002, Guidon2010, Iannuzzi2006, Kunert2003, Marek2025, Merlot2014, &
-        Perdew1981, VandeVondele2005b, Yin2017
+        Andermatt2016, Andreussi2012, Andreussi2019, Avezac2005, Bengtsson1999, Blochl1995, &
+        Brelaz1979, Chai2024a, Chai2025a, Fattebert2002, Guidon2010, Iannuzzi2006, Kunert2003, &
+        Marek2025, Merlot2014, Perdew1981, VandeVondele2005b, Yin2017
    USE cp_output_handling,              ONLY: add_last_numeric,&
                                               cp_print_key_section_create,&
                                               high_print_level,&
@@ -25,7 +25,6 @@ MODULE input_cp2k_dft
                                               medium_print_level,&
                                               silent_print_level
    USE cp_spline_utils,                 ONLY: pw_interp,&
-                                              spline3_nopbc_interp,&
                                               spline3_pbc_interp
    USE cp_units,                        ONLY: cp_unit_to_cp2k
    USE input_constants,                 ONLY: &
@@ -41,15 +40,16 @@ MODULE input_cp2k_dft
         do_admm_purify_none, do_admm_purify_none_dm, do_arnoldi, do_bch, do_cn, do_em, do_etrs, &
         do_exact, do_pade, do_taylor, ehrenfest, gaussian, kg_color_dsatur, kg_color_greedy, &
         kg_tnadd_atomic, kg_tnadd_embed, kg_tnadd_embed_ri, kg_tnadd_none, no_admm_type, &
-        numerical, plus_u_lowdin, plus_u_mulliken, plus_u_mulliken_charges, real_time_propagation, &
-        rel_dkh, rel_none, rel_pot_erfc, rel_pot_full, rel_sczora_mp, rel_trans_atom, &
-        rel_trans_full, rel_trans_molecule, rel_zora, rel_zora_full, rel_zora_mp, &
-        rtp_bse_ham_g0w0, rtp_bse_ham_ks, rtp_method_bse, rtp_method_tddft, sccs_andreussi, &
+        numerical, plus_u_lowdin, plus_u_mulliken, plus_u_mulliken_charges, plus_u_tensorial, &
+        real_time_propagation, rel_dkh, rel_none, rel_pot_erfc, rel_pot_full, rel_sczora_mp, &
+        rel_trans_atom, rel_trans_full, rel_trans_molecule, rel_zora, rel_zora_full, rel_zora_mp, &
+        rtp_bse_ham_g0w0, rtp_bse_ham_ks, rtp_bse_kernel_ri_ao, rtp_bse_kernel_ri_default, &
+        rtp_bse_kernel_ri_rs, rtp_method_bse, rtp_method_tddft, sccs_andreussi, &
         sccs_derivative_cd3, sccs_derivative_cd5, sccs_derivative_cd7, sccs_derivative_fft, &
-        sccs_fattebert_gygi, sic_ad, sic_eo, sic_list_all, sic_list_unpaired, sic_mauri_spz, &
-        sic_mauri_us, sic_none, slater, use_mom_ref_coac, use_mom_ref_com, use_mom_ref_user, &
-        use_mom_ref_zero, use_restart_wfn, use_rt_restart, use_scf_wfn, weight_type_mass, &
-        weight_type_unit
+        sccs_fattebert_gygi, sccs_saa_andreussi, sic_ad, sic_eo, sic_list_all, sic_list_unpaired, &
+        sic_mauri_spz, sic_mauri_us, sic_none, slater, use_mom_ref_coac, use_mom_ref_com, &
+        use_mom_ref_user, use_mom_ref_zero, use_restart_wfn, use_rt_restart, use_scf_wfn, &
+        weight_type_mass, weight_type_unit
    USE input_cp2k_almo,                 ONLY: create_almo_scf_section
    USE input_cp2k_as,                   ONLY: create_active_space_section
    USE input_cp2k_ec,                   ONLY: create_ec_section
@@ -142,9 +142,12 @@ CONTAINS
 
       CALL keyword_create(keyword, __LOCATION__, name="POTENTIAL_FILE_NAME", &
                           description="Name of the pseudopotential library file, optionally including a path. "// &
+                          "This keyword can be repeated to search several pseudopotential files. "// &
+                          "Files are searched in input order and the first matching potential is used. "// &
                           "The potential selected for each kind is set with KIND%POTENTIAL.", &
                           usage="POTENTIAL_FILE_NAME <FILENAME>", &
-                          default_lc_val="POTENTIAL")
+                          type_of_var=lchar_t, repeats=.TRUE., &
+                          default_lc_val="POTENTIAL", n_var=1)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -201,17 +204,40 @@ CONTAINS
                           name="PLUS_U_METHOD", &
                           description="Method employed for the calculation of the DFT+U contribution", &
                           repeats=.FALSE., &
-                          enum_c_vals=s2a("LOWDIN", "MULLIKEN", "MULLIKEN_CHARGES"), &
-                          enum_i_vals=[plus_u_lowdin, plus_u_mulliken, plus_u_mulliken_charges], &
+                          enum_c_vals=s2a("LOWDIN", "MULLIKEN", "MULLIKEN_CHARGES", "TENSORIAL"), &
+                          enum_i_vals=[plus_u_lowdin, plus_u_mulliken, plus_u_mulliken_charges, &
+                                       plus_u_tensorial], &
                           enum_desc=s2a("Method based on Lowdin population analysis "// &
                                         "(computationally expensive, since the diagonalization of the "// &
                                         "overlap matrix is required, but possibly more robust than Mulliken)", &
                                         "Method based on Mulliken population analysis using the net AO and "// &
                                         "overlap populations (computationally cheap method)", &
-                                        "Method based on Mulliken gross orbital populations (GOP)"), &
+                                        "Method based on Mulliken gross orbital populations (GOP)", &
+                                        "Method based on Tensorial population analysis approach"), &
                           n_var=1, &
                           default_i_val=plus_u_mulliken, &
                           usage="PLUS_U_METHOD Lowdin")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, &
+                          name="EPS_U_J_LOOP", &
+                          description="Convergence threshold for the self-consistent update of U and J parameters "// &
+                          "in the minimum tracking linear response calculation.", &
+                          repeats=.FALSE., &
+                          n_var=1, &
+                          unit_str="hartree", &
+                          default_r_val=1.0E-2_dp, &
+                          usage="EPS_U_J_LOOP [eV] 0.01")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, &
+                          name="MAX_MTLR_LOOP", &
+                          description="Max number of iterations for calculated self-consistent linear response U and J.", &
+                          repeats=.FALSE., &
+                          default_i_val=10, &
+                          usage="MAX_MTLR_LOOP 10")
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -250,8 +276,14 @@ CONTAINS
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="AUTO_BASIS", &
-                          description="Specify size of automatically generated auxiliary (RI) basis sets: "// &
-                          "Options={small,medium,large,huge}", &
+                          description="Specify type and size of automatically generated auxiliary "// &
+                          "(RI) basis sets. Exactly two arguments are required for this option. "// &
+                          "The first argument of basis type should be one of the following: "// &
+                          "`RI_AUX`, `AUX_FIT`, `LRI_AUX`, `P_LRI_AUX`, `RI_HXC`, `RI_XAS`, or "// &
+                          "`RI_HFX`. The second argument of basis size should be one of the "// &
+                          "following: `SMALL`, `MEDIUM`, `LARGE`, or `HUGE`. The default is not "// &
+                          "using any of these basis sets, requested by `AUTO_BASIS X X` (exactly "// &
+                          "as written here).", &
                           usage="AUTO_BASIS {basis_type} {basis_size}", &
                           type_of_var=char_t, repeats=.TRUE., n_var=-1, default_c_vals=["X", "X"])
       CALL section_add_keyword(section, keyword)
@@ -1363,12 +1395,11 @@ CONTAINS
       NULLIFY (keyword, print_key)
 
       CALL keyword_create(keyword, __LOCATION__, name="kind", &
-                          description="the interpolator to use", &
+                          description="The interpolator to use. SPLINE3 automatically enables commensurate grids.", &
                           usage="kind spline3", &
                           default_i_val=pw_interp, &
-                          enum_c_vals=s2a("pw", "spline3_nopbc", "spline3"), &
-                          enum_i_vals=[pw_interp, &
-                                       spline3_nopbc_interp, spline3_pbc_interp])
+                          enum_c_vals=s2a("pw", "spline3"), &
+                          enum_i_vals=[pw_interp, spline3_pbc_interp])
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -1974,6 +2005,21 @@ CONTAINS
       CALL keyword_release(keyword)
       CALL section_add_subsection(print_section, print_key)
       CALL section_release(print_key)
+      ! Liouvillian eigenvalue diagnostic (linearized RT-BSE, TDA only)
+      CALL cp_print_key_section_create(print_key, __LOCATION__, "LIOUVILLIAN_EIG", &
+                                       description="Prints the eigenvalues of the linearized RT-BSE "// &
+                                       "Liouvillian on the OV subspace, computed once at job init from a "// &
+                                       "matrix-free probe of the kernel (no time propagation). In TDA this "// &
+                                       "equals the Casida-A eigenvalue problem and gives a broadening-free, "// &
+                                       "finite-time-free correctness check against bse_full.F. "// &
+                                       "Activated by RTBSE%DIAGNOSE_LIOUVILLIAN_EIG. Output lists "// &
+                                       "eigenvalues in atomic units and eV.", &
+                                       print_level=medium_print_level, common_iter_levels=0, &
+                                       each_iter_names=s2a("MD"), &
+                                       each_iter_values=[1], &
+                                       filename="LIOUVILLIAN_EIG")
+      CALL section_add_subsection(print_section, print_key)
+      CALL section_release(print_key)
 
       CALL cp_print_key_section_create(print_key, __LOCATION__, "E_CONSTITUENTS", &
                                        description="Print the energy constituents (relevant to RTP) which make up "// &
@@ -2046,6 +2092,133 @@ CONTAINS
                           enum_i_vals=[rtp_bse_ham_ks, rtp_bse_ham_g0w0], &
                           enum_desc=s2a("Use Kohn-Sham Hamiltonian for Green's propagation.", &
                                         "Use G0W0 Hamiltonian for Green's function propagation"))
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      ! Switch for linearized rtbse propagation
+      CALL keyword_create(keyword, __LOCATION__, name="LINEARIZED_BSE_PROPAGATION", &
+                          variants=s2a("LRRTBSE"), &
+                          description="Linearizes the BSE propagation", &
+                          usage="LINEARIZED_BSE_PROPAGATION .T.", &
+                          default_l_val=.FALSE., &
+                          lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      ! Energy cutoff (occupied) for active MO window in linearized RT-BSE
+      CALL keyword_create(keyword, __LOCATION__, name="ENERGY_CUTOFF_OCC", &
+                          description="Energy cutoff (relative to HOMO) defining the lowest "// &
+                          "occupied molecular orbital included in the active MO window of the "// &
+                          "linearized RT-BSE propagation. Only used when "// &
+                          "LINEARIZED_BSE_PROPAGATION=.TRUE.. A non-positive value disables the "// &
+                          "occupied truncation.", &
+                          usage="ENERGY_CUTOFF_OCC 5.0", &
+                          unit_str="eV", &
+                          default_r_val=-1.0_dp/evolt)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      ! Energy cutoff (empty) for active MO window in linearized RT-BSE
+      CALL keyword_create(keyword, __LOCATION__, name="ENERGY_CUTOFF_EMPTY", &
+                          description="Energy cutoff (relative to LUMO) defining the highest "// &
+                          "virtual molecular orbital included in the active MO window of the "// &
+                          "linearized RT-BSE propagation. Only used when "// &
+                          "LINEARIZED_BSE_PROPAGATION=.TRUE.. A non-positive value disables the "// &
+                          "virtual truncation.", &
+                          usage="ENERGY_CUTOFF_EMPTY 5.0", &
+                          unit_str="eV", &
+                          default_r_val=-1.0_dp/evolt)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="ENFORCE_MAX_DT", &
+                          description="For linearized RT-BSE, recompute TIMESTEP and STEPS so the same total "// &
+                          "propagation time is covered with the largest timestep that does not exceed the "// &
+                          "estimated RK4 stability limit.", &
+                          usage="ENFORCE_MAX_DT", &
+                          default_l_val=.FALSE., &
+                          lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      ! Tamm-Dancoff approximation for the linearized RT-BSE kernel
+      CALL keyword_create(keyword, __LOCATION__, name="TDA", &
+                          description="Apply the Tamm-Dancoff approximation to the linearized RT-BSE kernel: "// &
+                          "the Hartree and screened-exchange contributions are restricted so that the OV and VO "// &
+                          "blocks of the density response remain decoupled (i.e. only A-block coupling is kept, "// &
+                          "B-block coupling is dropped). Only effective when "// &
+                          "LINEARIZED_BSE_PROPAGATION=.TRUE..", &
+                          usage="TDA", &
+                          default_l_val=.FALSE., &
+                          lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      ! First-peak shift for the TDA path
+      CALL keyword_create(keyword, __LOCATION__, name="TDA_SHIFT_TO_FIRST_PEAK", &
+                          description="For the linearized RT-BSE TDA path, shift the active-MO single-particle "// &
+                          "diagonals by +Omega_0/2 (occupied) and -Omega_0/2 (virtual) with "// &
+                          "Omega_0 = eps_min_ai, so the lowest active OV mode oscillates at zero frequency "// &
+                          "in the rotating frame (RK4-exact for peak 1). omega_max becomes the full active "// &
+                          "OV width Delta = eps_max_ai - eps_min_ai. The rotation is undone at I/O so "// &
+                          "observables remain in the lab frame. Only effective when TDA=.TRUE.. "// &
+                          "Use with caution, additional convergence checks w.r.t. dt needed.", &
+                          usage="TDA_SHIFT_TO_FIRST_PEAK", &
+                          default_l_val=.FALSE., &
+                          lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="DEBUG_DISABLE_HARTREE", &
+                          description="Debug option for linearized RT-BSE: disables the Hartree kernel in both "// &
+                          "the static reference initialization and the propagation. The Coulomb RI setup is "// &
+                          "still built so the run stays internally consistent.", &
+                          usage="DEBUG_DISABLE_HARTREE", &
+                          default_l_val=.FALSE., &
+                          lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="KERNEL_RI", &
+                          description="Select the RI framework used to evaluate the linearized RT-BSE "// &
+                          "Hartree and screened-exchange kernels (propagation and reference). "// &
+                          "DEFAULT infers from the GW flavor: RI-RS if the GW_RI_RS section was active, "// &
+                          "AO-RI otherwise. RS/AO force that framework regardless of how GW was run. The "// &
+                          "RI-RS grid (mat_phi_mu_l, mat_Z_lP) and the V_grid/W0_grid kernels are built on "// &
+                          "demand. RI-RS is implemented for linearized RT-BSE only; for full RT-BSE an "// &
+                          "explicit RS is overridden to AO with a warning.", &
+                          usage="KERNEL_RI RS", &
+                          enum_c_vals=s2a("DEFAULT", "RS", "AO"), &
+                          enum_i_vals=[rtp_bse_kernel_ri_default, rtp_bse_kernel_ri_rs, rtp_bse_kernel_ri_ao], &
+                          enum_desc=s2a("Infer from the GW flavor (GW_RI_RS active -> RS, else AO).", &
+                                        "Real-space RI grid kernels (linearized RT-BSE only).", &
+                                        "AO-RI kernels."), &
+                          default_i_val=rtp_bse_kernel_ri_default, n_var=1)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="DEBUG_DISABLE_SEX", &
+                          description="Debug option for linearized RT-BSE: disables the screened-exchange kernel "// &
+                          "in both the static reference initialization and the propagation.", &
+                          usage="DEBUG_DISABLE_SEX", &
+                          default_l_val=.FALSE., &
+                          lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      ! Liouvillian eigenvalue diagnostic (matrix-free probe at init; TDA + ABBA)
+      CALL keyword_create(keyword, __LOCATION__, name="DIAGNOSE_LIOUVILLIAN_EIG", &
+                          description="Diagnostic for linearized RT-BSE: at job initialization, build the "// &
+                          "Liouvillian on the OV subspace by probing the kernel routine with canonical OV basis "// &
+                          "vectors, then diagonalize. In TDA this equals the Casida-A eigenvalue problem, giving a "// &
+                          "broadening-free, finite-time-free correctness check against bse_full.F. "// &
+                          "In ABBA it builds and diagonalizes the full coupled (A, B) Liouvillian via the "// &
+                          "Furche reduction. "// &
+                          "Output is controlled by the LIOUVILLIAN_EIG print key in the parent "// &
+                          "&REAL_TIME_PROPAGATION%&PRINT section.", &
+                          usage="DIAGNOSE_LIOUVILLIAN_EIG", &
+                          default_l_val=.FALSE., &
+                          lone_keyword_l_val=.TRUE.)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -2192,7 +2365,7 @@ CONTAINS
                           description="Define the parameters for self-consistent continuum solvation (SCCS) model", &
                           citations=[Fattebert2002, Andreussi2012, Yin2017], &
                           n_keywords=8, &
-                          n_subsections=2, &
+                          n_subsections=3, &
                           repeats=.FALSE.)
 
       NULLIFY (keyword)
@@ -2330,10 +2503,11 @@ CONTAINS
                           description="Method used for the smoothing of the dielectric function", &
                           usage="METHOD Fattebert-Gygi", &
                           default_i_val=sccs_andreussi, &
-                          enum_c_vals=s2a("ANDREUSSI", "FATTEBERT-GYGI"), &
-                          enum_i_vals=[sccs_andreussi, sccs_fattebert_gygi], &
+                          enum_c_vals=s2a("ANDREUSSI", "FATTEBERT-GYGI", "SAA_ANDREUSSI"), &
+                          enum_i_vals=[sccs_andreussi, sccs_fattebert_gygi, sccs_saa_andreussi], &
                           enum_desc=s2a("Smoothing function proposed by Andreussi et al.", &
-                                        "Smoothing function proposed by Fattebert and Gygi"))
+                                        "Smoothing function proposed by Fattebert and Gygi", &
+                                        "Smoothing function of the solvent aware algorithm"))
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -2415,6 +2589,98 @@ CONTAINS
                           type_of_var=real_t, &
                           default_r_val=0.0006_dp, &
                           usage="RHO_ZERO 0.0004")
+      CALL section_add_keyword(subsection, keyword)
+      CALL keyword_release(keyword)
+
+      CALL section_add_subsection(section, subsection)
+      CALL section_release(subsection)
+
+      CALL section_create(subsection, __LOCATION__, &
+                          name="SAA_ANDREUSSI", &
+                          description="Define the parameters of the dielectric smoothing function of "// &
+                          "the solvent aware algorithm proposed by Andreussi et al.", &
+                          citations=[Andreussi2019, Chai2025a], &
+                          n_keywords=7, &
+                          n_subsections=0, &
+                          repeats=.FALSE.)
+
+      CALL keyword_create(keyword, __LOCATION__, &
+                          name="RHO_MAX", &
+                          description="Maximum density value used for the smoothing of the dielectric function", &
+                          repeats=.FALSE., &
+                          n_var=1, &
+                          type_of_var=real_t, &
+                          default_r_val=0.0035_dp, &
+                          usage="RHO_MAX 0.01")
+      CALL section_add_keyword(subsection, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, &
+                          name="RHO_MIN", &
+                          description="Minimum density value used for the smoothing of the dielectric function", &
+                          repeats=.FALSE., &
+                          n_var=1, &
+                          type_of_var=real_t, &
+                          default_r_val=0.0001_dp, &
+                          usage="RHO_MIN 0.0003")
+      CALL section_add_keyword(subsection, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, &
+                          name="F0", &
+                          description="The threshold of the filled fraction that controls whether a point in space "// &
+                          "needs to be removed from the continuum", &
+                          repeats=.FALSE., &
+                          n_var=1, &
+                          type_of_var=real_t, &
+                          default_r_val=0.65_dp, &
+                          usage="F0 0.65")
+      CALL section_add_keyword(subsection, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, &
+                          name="DELTA_ETA", &
+                          description="Controls the softness of function t(r)", &
+                          repeats=.FALSE., &
+                          n_var=1, &
+                          type_of_var=real_t, &
+                          default_r_val=0.02_dp, &
+                          usage="DELTA_ETA 0.02")
+      CALL section_add_keyword(subsection, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, &
+                          name="DELTA_ZETA", &
+                          description="Controls the softness of function u(r)", &
+                          repeats=.FALSE., &
+                          n_var=1, &
+                          type_of_var=real_t, &
+                          unit_str='bohr', &
+                          default_r_val=0.5_dp, &
+                          usage="DELTA_ZETA 0.5")
+      CALL section_add_keyword(subsection, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, &
+                          name="ALPHA_ZETA", &
+                          description="The scaling factor for R_SOLV", &
+                          repeats=.FALSE., &
+                          n_var=1, &
+                          type_of_var=real_t, &
+                          default_r_val=2.0_dp, &
+                          usage="ALPHA_ZETA 2.0")
+      CALL section_add_keyword(subsection, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, &
+                          name="R_SOLV", &
+                          description="The solvent radius", &
+                          repeats=.FALSE., &
+                          n_var=1, &
+                          type_of_var=real_t, &
+                          unit_str='bohr', &
+                          default_r_val=2.6_dp, &
+                          usage="R_SOLV 2.6")
       CALL section_add_keyword(subsection, keyword)
       CALL keyword_release(keyword)
 

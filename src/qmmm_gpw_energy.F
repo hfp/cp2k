@@ -52,6 +52,7 @@ MODULE qmmm_gpw_energy
                                               qmmm_gaussian_type
    USE qmmm_se_energy,                  ONLY: build_se_qmmm_matrix
    USE qmmm_tb_methods,                 ONLY: build_tb_qmmm_matrix,&
+                                              build_tb_qmmm_matrix_gauss,&
                                               build_tb_qmmm_matrix_pc,&
                                               build_tb_qmmm_matrix_zero
    USE qmmm_types_low,                  ONLY: qmmm_env_qm_type,&
@@ -126,8 +127,9 @@ CONTAINS
       print_section => section_vals_get_subs_vals(input_section, "QMMM%PRINT")
       iw = cp_print_key_unit_nr(logger, print_section, "PROGRAM_RUN_INFO", &
                                 extension=".qmmmLog")
-      IF (iw > 0) &
+      IF (iw > 0) THEN
          WRITE (iw, '(T2,"QMMM|",1X,A)') "Information on the QM/MM Electrostatic Potential:"
+      END IF
       !
       ! Initializing vectors:
       !        Zeroing v_qmmm_rspace
@@ -146,10 +148,9 @@ CONTAINS
          CASE (do_qmmm_gauss, do_qmmm_swave)
             CPABORT("GAUSS or SWAVE QM/MM electrostatic coupling not yet implemented for SE.")
          CASE DEFAULT
-            IF (iw > 0) WRITE (iw, '(T2,"QMMM|",1X,A)') "Unknown Coupling..."
-            CPABORT("")
+            CPABORT("Unknown QM/MM coupling")
          END SELECT
-      ELSEIF (dft_control%qs_control%dftb .OR. dft_control%qs_control%xtb) THEN
+      ELSE IF (dft_control%qs_control%dftb .OR. dft_control%qs_control%xtb) THEN
          ! DFTB
          SELECT CASE (qmmm_env%qmmm_coupl_type)
          CASE (do_qmmm_none)
@@ -160,11 +161,12 @@ CONTAINS
             CALL build_tb_qmmm_matrix(qs_env, qmmm_env, mm_particles, mm_cell, para_env)
          CASE (do_qmmm_pcharge)
             CALL build_tb_qmmm_matrix_pc(qs_env, qmmm_env, mm_particles, mm_cell, para_env)
-         CASE (do_qmmm_gauss, do_qmmm_swave)
-            CPABORT("GAUSS or SWAVE QM/MM electrostatic coupling not implemented for DFTB.")
+         CASE (do_qmmm_gauss)
+            CALL build_tb_qmmm_matrix_gauss(qs_env, qmmm_env, mm_particles, mm_cell, para_env)
+         CASE (do_qmmm_swave)
+            CPABORT("SWAVE QM/MM electrostatic coupling not implemented for tight-binding methods.")
          CASE DEFAULT
-            IF (iw > 0) WRITE (iw, '(T2,"QMMM|",1X,A)') "Unknown Coupling..."
-            CPABORT("")
+            CPABORT("Unknown QM/MM coupling")
          END SELECT
       ELSE
          ! QS
@@ -174,9 +176,10 @@ CONTAINS
          CASE (do_qmmm_pcharge)
             CPABORT("Point Charge QM/MM electrostatic coupling not implemented for GPW/GAPW.")
          CASE (do_qmmm_gauss, do_qmmm_swave)
-            IF (iw > 0) &
+            IF (iw > 0) THEN
                WRITE (iw, '(T2,"QMMM|",1X,A)') &
-               "QM/MM Coupling computed collocating the Gaussian Potential Functions."
+                  "QM/MM Coupling computed collocating the Gaussian Potential Functions."
+            END IF
             interp_section => section_vals_get_subs_vals(input_section, &
                                                          "QMMM%INTERPOLATOR")
             CALL qmmm_elec_with_gaussian(qmmm_env=qmmm_env, &
@@ -195,8 +198,7 @@ CONTAINS
             IF (iw > 0) WRITE (iw, '(T2,"QMMM|",1X,A)') &
                "No QM/MM Electrostatic coupling. Just Mechanical Coupling!"
          CASE DEFAULT
-            IF (iw > 0) WRITE (iw, '(T2,"QMMM|",1X,A)') "Unknown Coupling..."
-            CPABORT("")
+            CPABORT("Unknown QM/MM coupling")
          END SELECT
          ! Dump info on the electrostatic potential if requested
          IF (BTEST(cp_print_key_should_output(logger%iter_info, print_section, &
@@ -325,7 +327,7 @@ CONTAINS
          END DO
          CALL timestop(handle2)
       CASE DEFAULT
-         CPABORT("")
+         CPABORT("Unknown kind interpolation")
       END SELECT
       lb = v_qmmm%pw_grid%bounds_local(1, :)
       ub = v_qmmm%pw_grid%bounds_local(2, :)
@@ -810,8 +812,9 @@ CONTAINS
             IndMM = mm_atom_index(LIndMM)
             ra(:) = pbc(mm_particles(IndMM)%r - dOmmOqm, mm_cell) + dOmmOqm
             qt = mm_charges(LIndMM)
-            IF (shells) &
+            IF (shells) THEN
                ra(:) = pbc(mm_particles(LIndMM)%r - dOmmOqm, mm_cell) + dOmmOqm
+            END IF
             ! Possible Spherical Cutoff
             IF (qmmm_spherical_cutoff(1) > 0.0_dp) THEN
                CALL spherical_cutoff_factor(qmmm_spherical_cutoff, ra, sph_chrg_factor)

@@ -262,6 +262,7 @@ MODULE cp_control_types
       !
       INTEGER                              :: sto_ng = 0
       INTEGER                              :: h_sto_ng = 0
+      LOGICAL                              :: sto_flex = .FALSE.
       INTEGER                              :: tblite_method = 0
       INTEGER                              :: tblite_scc_mixer = tblite_scc_mixer_auto
       INTEGER                              :: tblite_mixer_iterations = tblite_mixer_iterations_default
@@ -278,6 +279,7 @@ MODULE cp_control_types
       INTEGER                              :: vdw_type = -1
       CHARACTER(LEN=default_path_length)   :: parameter_file_path = ""
       CHARACTER(LEN=default_path_length)   :: parameter_file_name = ""
+      CHARACTER(LEN=default_path_length)   :: spinpol_param_file_name = ""
       !
       CHARACTER(LEN=default_path_length)   :: dispersion_parameter_file = ""
       REAL(KIND=dp)                        :: epscn = 0.0_dp
@@ -296,6 +298,7 @@ MODULE cp_control_types
       !
       LOGICAL                              :: xb_interaction = .FALSE.
       LOGICAL                              :: do_nonbonded = .FALSE.
+      LOGICAL                              :: do_spinpol = .FALSE.
       LOGICAL                              :: coulomb_interaction = .FALSE.
       LOGICAL                              :: coulomb_lr = .FALSE.
       LOGICAL                              :: tb3_interaction = .FALSE.
@@ -310,7 +313,11 @@ MODULE cp_control_types
          DIMENSION(:, :), POINTER          :: kab_param => NULL()
       INTEGER, DIMENSION(:, :), POINTER    :: kab_types => NULL()
       INTEGER                              :: kab_nval = 0
-      REAL, DIMENSION(:), POINTER          :: kab_vals => NULL()
+      REAL(KIND=dp), DIMENSION(:), POINTER :: kab_vals => NULL()
+      !
+      INTEGER, DIMENSION(:), POINTER       :: spinpol_type => NULL()
+      REAL(KIND=dp), DIMENSION(:, :), &
+         POINTER                           :: spinpol_vals => NULL()
       !
       TYPE(pair_potential_p_type), POINTER :: nonbonded => NULL()
       REAL(KIND=dp)                        :: eps_pair = 0.0_dp
@@ -554,7 +561,8 @@ MODULE cp_control_types
 ! \brief Control parameters for the SCCS models
 ! **************************************************************************************************
    TYPE sccs_control_type
-      LOGICAL                              :: sccs_activated = .FALSE.
+      LOGICAL                              :: sccs_activated = .FALSE., &
+                                              saa_activated = .FALSE.
       INTEGER                              :: derivative_method = 0, &
                                               max_iter = 0, &
                                               method_id = 0
@@ -569,7 +577,12 @@ MODULE cp_control_types
                                               mixing = 0.0_dp, &
                                               rho_zero = 0.0_dp, &
                                               rho_max = 0.0_dp, &
-                                              rho_min = 0.0_dp
+                                              rho_min = 0.0_dp, &
+                                              f0 = 0.0_dp, &
+                                              delta_eta = 0.0_dp, &
+                                              alpha_zeta = 0.0_dp, &
+                                              delta_zeta = 0.0_dp, &
+                                              R_solv = 0.0_dp
    END TYPE sccs_control_type
 
 ! **************************************************************************************************
@@ -612,7 +625,8 @@ MODULE cp_control_types
       INTEGER                              :: surf_normal = 0
       REAL(KIND=dp)                        :: dist_edge = 0.0_dp, &
                                               gau_a = 0.0_dp, &
-                                              gau_c = 0.0_dp
+                                              gau_c = 0.0_dp, &
+                                              charge = 0.0_dp
    END TYPE pcc_control_type
 
 ! **************************************************************************************************
@@ -774,11 +788,17 @@ MODULE cp_control_types
                                               auto_basis_ri_hxc = 1, &
                                               auto_basis_ri_xas = 1, &
                                               auto_basis_ri_hfx = 1, &
-                                              localize_each = 1
-      REAL(KIND=dp)                        :: relax_multiplicity = 0.0_dp, &
+                                              localize_each = 1, &
+                                              mtlr_ikind = 1, &
+                                              max_mtlr_iter = 10
+      REAL(KIND=dp)                        :: eps_u_j_loop = 0.01_dp, &
+                                              relax_multiplicity = 0.0_dp, &
                                               sic_scaling_a = 0.0_dp, &
                                               sic_scaling_b = 0.0_dp, &
-                                              pos_dir_surf_dip = 0.0_dp
+                                              pos_dir_surf_dip = 0.0_dp, &
+                                              perturbation_strength = 0.0_dp, &
+                                              trq(2) = 0.0_dp, &
+                                              vhxc(2) = 0.0_dp
       LOGICAL                              :: do_xas_calculation = .FALSE., &
                                               do_xas_tdp_calculation = .FALSE., &
                                               drho_by_collocation = .FALSE., &
@@ -788,6 +808,7 @@ MODULE cp_control_types
                                               uks = .FALSE., &
                                               lsd = .FALSE., &
                                               dft_plus_u = .FALSE., &
+                                              mtlr_u_j = .FALSE., &
                                               apply_efield = .FALSE., &
                                               apply_efield_field = .FALSE., &
                                               apply_vector_potential = .FALSE., &
@@ -814,7 +835,8 @@ MODULE cp_control_types
                                               do_paep = .FALSE., &
                                               do_pcc = .FALSE., &
                                               ! If true, then no other XC functionals are allowed
-                                              use_gauxc = .FALSE.
+                                              use_gauxc = .FALSE., &
+                                              mtlr_dft_with_perturbation = .FALSE.
    END TYPE dft_control_type
 
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'cp_control_types'
@@ -884,8 +906,9 @@ CONTAINS
    SUBROUTINE mulliken_control_release(mulliken_restraint_control)
       TYPE(mulliken_restraint_type), INTENT(INOUT)       :: mulliken_restraint_control
 
-      IF (ASSOCIATED(mulliken_restraint_control%atoms)) &
+      IF (ASSOCIATED(mulliken_restraint_control%atoms)) THEN
          DEALLOCATE (mulliken_restraint_control%atoms)
+      END IF
       mulliken_restraint_control%strength = 0.0_dp
       mulliken_restraint_control%target = 0.0_dp
       mulliken_restraint_control%natoms = 0
@@ -920,10 +943,12 @@ CONTAINS
    SUBROUTINE ddapc_control_release(ddapc_restraint_control)
       TYPE(ddapc_restraint_type), INTENT(INOUT)          :: ddapc_restraint_control
 
-      IF (ASSOCIATED(ddapc_restraint_control%atoms)) &
+      IF (ASSOCIATED(ddapc_restraint_control%atoms)) THEN
          DEALLOCATE (ddapc_restraint_control%atoms)
-      IF (ASSOCIATED(ddapc_restraint_control%coeff)) &
+      END IF
+      IF (ASSOCIATED(ddapc_restraint_control%coeff)) THEN
          DEALLOCATE (ddapc_restraint_control%coeff)
+      END IF
       ddapc_restraint_control%strength = 0.0_dp
       ddapc_restraint_control%target = 0.0_dp
       ddapc_restraint_control%natoms = 0
@@ -1200,18 +1225,21 @@ CONTAINS
       IF (ASSOCIATED(proj_mo_list)) THEN
          DO i = 1, SIZE(proj_mo_list)
             IF (ASSOCIATED(proj_mo_list(i)%proj_mo)) THEN
-               IF (ALLOCATED(proj_mo_list(i)%proj_mo%ref_mo_index)) &
+               IF (ALLOCATED(proj_mo_list(i)%proj_mo%ref_mo_index)) THEN
                   DEALLOCATE (proj_mo_list(i)%proj_mo%ref_mo_index)
+               END IF
                IF (ALLOCATED(proj_mo_list(i)%proj_mo%mo_ref)) THEN
                   DO mo_ref_nbr = 1, SIZE(proj_mo_list(i)%proj_mo%mo_ref)
                      CALL cp_fm_release(proj_mo_list(i)%proj_mo%mo_ref(mo_ref_nbr))
                   END DO
                   DEALLOCATE (proj_mo_list(i)%proj_mo%mo_ref)
                END IF
-               IF (ALLOCATED(proj_mo_list(i)%proj_mo%td_mo_index)) &
+               IF (ALLOCATED(proj_mo_list(i)%proj_mo%td_mo_index)) THEN
                   DEALLOCATE (proj_mo_list(i)%proj_mo%td_mo_index)
-               IF (ALLOCATED(proj_mo_list(i)%proj_mo%td_mo_occ)) &
+               END IF
+               IF (ALLOCATED(proj_mo_list(i)%proj_mo%td_mo_occ)) THEN
                   DEALLOCATE (proj_mo_list(i)%proj_mo%td_mo_occ)
+               END IF
                DEALLOCATE (proj_mo_list(i)%proj_mo)
             END IF
          END DO
@@ -1237,8 +1265,9 @@ CONTAINS
                IF (ASSOCIATED(efield_fields(i)%efield%envelop_i_vars)) THEN
                   DEALLOCATE (efield_fields(i)%efield%envelop_i_vars)
                END IF
-               IF (ASSOCIATED(efield_fields(i)%efield%polarisation)) &
+               IF (ASSOCIATED(efield_fields(i)%efield%polarisation)) THEN
                   DEALLOCATE (efield_fields(i)%efield%polarisation)
+               END IF
                DEALLOCATE (efield_fields(i)%efield)
             END IF
          END DO
@@ -1289,6 +1318,8 @@ CONTAINS
       NULLIFY (xtb_control%kab_types)
       NULLIFY (xtb_control%nonbonded)
       NULLIFY (xtb_control%rcpair)
+      NULLIFY (xtb_control%spinpol_type)
+      NULLIFY (xtb_control%spinpol_vals)
 
    END SUBROUTINE xtb_control_create
 
@@ -1314,6 +1345,12 @@ CONTAINS
          END IF
          IF (ASSOCIATED(xtb_control%nonbonded)) THEN
             CALL pair_potential_p_release(xtb_control%nonbonded)
+         END IF
+         IF (ASSOCIATED(xtb_control%spinpol_type)) THEN
+            DEALLOCATE (xtb_control%spinpol_type)
+         END IF
+         IF (ASSOCIATED(xtb_control%spinpol_vals)) THEN
+            DEALLOCATE (xtb_control%spinpol_vals)
          END IF
          DEALLOCATE (xtb_control)
       END IF

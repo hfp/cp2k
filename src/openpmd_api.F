@@ -24,10 +24,13 @@ MODULE openpmd_api
    USE kinds, ONLY: default_string_length, dp, sp
    USE message_passing, ONLY: mp_comm_type
 #include "./base/base_uses.f90"
+#endif
 
    IMPLICIT NONE
 
    PRIVATE
+
+#ifdef __OPENPMD
 
    INTEGER, PARAMETER :: openpmd_access_create = 0
    INTEGER, PARAMETER :: openpmd_access_read_only = 1
@@ -185,7 +188,7 @@ MODULE openpmd_api
       #:for dim in dimensions
          TYPE openpmd_dynamic_memory_view_type_${dim}$d
             PRIVATE
-            INTEGER, DIMENSION(${dim}$) :: chunk_extent
+            INTEGER, DIMENSION(${dim}$) :: chunk_extent = 0
             TYPE(C_PTR) :: c_ptr = C_NULL_PTR
 
          CONTAINS
@@ -259,7 +262,6 @@ MODULE openpmd_api
       #:for dim in dimensions
          PUBLIC :: openpmd_dynamic_memory_view_type_${dim}$d
       #:endfor
-
 #endif
 
    CONTAINS
@@ -1214,8 +1216,5 @@ MODULE openpmd_api
 
             CALL openpmd_c_mesh_set_unit_dimension(this%c_ptr, unitDimension)
          END SUBROUTINE openpmd_mesh_set_unit_dimension
-
 #endif
-         ! In two lines of this file, `make pretty` applies a wrong indentation and keeps it for the rest of this file.
-         ! Hence, we end up a bit further to the right than we should.
       END MODULE openpmd_api

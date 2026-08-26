@@ -184,7 +184,11 @@ CONTAINS
          do_kp = (nimages > 1)
 
          IF (do_kp) THEN
-            CPASSERT(PRESENT(cell_to_index) .AND. ASSOCIATED(cell_to_index))
+            IF (PRESENT(cell_to_index)) THEN
+               CPASSERT(ASSOCIATED(cell_to_index))
+            ELSE
+               CPABORT("Missing cell_to_index for k-point calculation")
+            END IF
          END IF
 
          IF (calculate_forces .OR. doat) THEN
@@ -622,11 +626,11 @@ CONTAINS
                                                          MATMUL(alkint(1:na, 1:np, 3), TRANSPOSE(bcint(1:nb, 1:np, 1)))
 
                               ELSE
-                                 l_block_x(1:nb, 1:na) = l_block_x(1:nb, 1:na) - &
+                                 l_block_x(1:nb, 1:na) = l_block_x(1:nb, 1:na) + &
                                                          MATMUL(blkint(1:nb, 1:np, 1), TRANSPOSE(acint(1:na, 1:np, 1)))
-                                 l_block_y(1:nb, 1:na) = l_block_y(1:nb, 1:na) - &
+                                 l_block_y(1:nb, 1:na) = l_block_y(1:nb, 1:na) + &
                                                          MATMUL(blkint(1:nb, 1:np, 2), TRANSPOSE(acint(1:na, 1:np, 1)))
-                                 l_block_z(1:nb, 1:na) = l_block_z(1:nb, 1:na) - &
+                                 l_block_z(1:nb, 1:na) = l_block_z(1:nb, 1:na) + &
                                                          MATMUL(blkint(1:nb, 1:np, 3), TRANSPOSE(acint(1:na, 1:np, 1)))
                               END IF
                            END IF
@@ -663,7 +667,7 @@ CONTAINS
                            END IF
 
                            IF (do_dR) THEN
-                              i = 1; j = 2;
+                              i = 1; j = 2
                               katom = alist_ac%clist(kac)%catom
                               IF (iatom <= jatom) THEN
                                  h_block(1:na, 1:nb) = h_block(1:na, 1:nb) + &
@@ -682,7 +686,7 @@ CONTAINS
                                                        MATMUL(bcint(1:nb, 1:np, j), TRANSPOSE(achint(1:na, 1:np, 1)))
                               END IF
 
-                              i = 2; j = 3;
+                              i = 2; j = 3
                               katom = alist_ac%clist(kac)%catom
                               IF (iatom <= jatom) THEN
                                  r_2block(1:na, 1:nb) = r_2block(1:na, 1:nb) + &
@@ -701,7 +705,7 @@ CONTAINS
                                                         MATMUL(bcint(1:nb, 1:np, j), TRANSPOSE(achint(1:na, 1:np, 1)))
                               END IF
 
-                              i = 3; j = 4;
+                              i = 3; j = 4
                               katom = alist_ac%clist(kac)%catom
                               IF (iatom <= jatom) THEN
                                  r_3block(1:na, 1:nb) = r_3block(1:na, 1:nb) + &

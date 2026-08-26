@@ -204,7 +204,7 @@ CONTAINS
                                                             iparticle2, istart_g, s_dim
       REAL(KIND=dp)                                      :: g2, gcut2, tmp
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: my_Am, my_Amw
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: gfunc_sq(:, :, :)
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: gfunc_sq
 
 !NB precalculate as many things outside of the innermost loop as possible, in particular w(ig)*gfunc(ig,igauus1)*gfunc(ig,igauss2)
 
@@ -464,6 +464,9 @@ CONTAINS
 
          DEALLOCATE (rhs)
          DEALLOCATE (lhs)
+      ELSE
+         ! Some ranks may not own G-vectors below the cutoff.
+         dAm((iparticle0 - 1)*Nr + 1:(iparticle0 + nparticles - 1)*Nr, :, :) = 0.0_dp
       END IF
       CALL timestop(handle)
    END SUBROUTINE build_der_A_matrix_rows
@@ -519,6 +522,10 @@ CONTAINS
                g_dot_rvec_cos(ig - s_dim + 1, iparticle) = COS(g_dot_rvec)
             END DO
          END DO
+      ELSE
+         ! Pass valid zero-sized arrays to the downstream routines.
+         ALLOCATE (g_dot_rvec_sin(0, SIZE(particle_set)))
+         ALLOCATE (g_dot_rvec_cos(0, SIZE(particle_set)))
       END IF
 
    END SUBROUTINE prep_g_dot_rvec_sin_cos
@@ -766,7 +773,7 @@ CONTAINS
             !
             IF (iparticle1 /= iparticle2) THEN
                ra = rvec
-               r = SQRT(DOT_PRODUCT(ra, ra))
+               r = NORM2(ra)
                my_val = factor/r
             END IF
             EwM(idim) = my_val - factor*g_ewald
@@ -889,7 +896,7 @@ CONTAINS
                WRITE (output_unit, '(A,I6,A)') "Atom number :: ", i, " is out of the solvation sphere"
                WRITE (output_unit, '(2(A,F12.6))') "Distance from the center::", r1, " Radius of the sphere::", rs
             END IF
-            CPABORT("")
+            CPABORT("Unable to evaluate electrostatic potential in solution")
          END IF
          LocP(:, i) = 0.0_dp
          IF (r1 /= 0.0_dp) THEN

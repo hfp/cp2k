@@ -54,9 +54,10 @@ MODULE pair_potential_types
                                  gal21_type = 18, &
                                  tab_type = 19, &
                                  deepmd_type = 20, &
-                                 ace_type = 21
+                                 ace_type = 21, &
+                                 mace_type = 22
 
-   INTEGER, PUBLIC, PARAMETER, DIMENSION(21) :: list_pot = [nn_type, &
+   INTEGER, PUBLIC, PARAMETER, DIMENSION(22) :: list_pot = [nn_type, &
                                                             lj_type, &
                                                             lj_charmm_type, &
                                                             ft_type, &
@@ -76,7 +77,8 @@ MODULE pair_potential_types
                                                             gal21_type, &
                                                             tab_type, &
                                                             deepmd_type, &
-                                                            ace_type]
+                                                            ace_type, &
+                                                            mace_type]
 
    ! Shell model
    INTEGER, PUBLIC, PARAMETER :: nosh_nosh = 0, &
@@ -468,7 +470,7 @@ CONTAINS
          CASE (deepmd_type)
             IF ((pot1%set(i)%deepmd%deepmd_file_name == pot2%set(i)%deepmd%deepmd_file_name) .AND. &
                 (pot1%set(i)%deepmd%atom_deepmd_type == pot2%set(i)%deepmd%atom_deepmd_type)) mycompare = .TRUE.
-         CASE (nequip_type, allegro_type)
+         CASE (nequip_type, allegro_type, mace_type)
             IF ((pot1%set(i)%nequip%pot_file_name == pot2%set(i)%nequip%pot_file_name) .AND. &
                 (pot1%set(i)%nequip%unit_length == pot2%set(i)%nequip%unit_length) .AND. &
                 (pot1%set(i)%nequip%unit_forces == pot2%set(i)%nequip%unit_forces) .AND. &
@@ -641,10 +643,12 @@ CONTAINS
       potparm%at1 = 'NULL'
       potparm%at2 = 'NULL'
       potparm%rcutsq = 0.0_dp
-      IF (ASSOCIATED(potparm%pair_spline_data)) &
+      IF (ASSOCIATED(potparm%pair_spline_data)) THEN
          CALL spline_data_p_release(potparm%pair_spline_data)
-      IF (ASSOCIATED(potparm%spl_f)) &
+      END IF
+      IF (ASSOCIATED(potparm%spl_f)) THEN
          CALL spline_factor_release(potparm%spl_f)
+      END IF
 
       DO i = 1, SIZE(potparm%type)
          potparm%set(i)%rmin = not_initialized
@@ -976,22 +980,26 @@ CONTAINS
 
       CPASSERT(.NOT. ASSOCIATED(potparm))
       ALLOCATE (potparm)
+
+      IF (PRESENT(ndim) .AND. (PRESENT(ub) .OR. PRESENT(lb))) THEN
+         CALL cp_abort(__LOCATION__, &
+                       "pair_potential_p_create expects either 1 input parameter <ndim> "// &
+                       "or 2 input parameters <ub> and <lb> at each call; found <ndim> "// &
+                       "together with <ub> or <lb>")
+      END IF
+
       IF (PRESENT(ndim)) THEN
          loc_lb = 1
          loc_ub = ndim
          ALLOCATE (potparm%pot(loc_lb:loc_ub))
-         IF (PRESENT(lb) .OR. PRESENT(ub)) THEN
-            CPABORT("")
-         END IF
       ELSE IF (PRESENT(lb) .AND. PRESENT(ub)) THEN
          loc_lb = lb
          loc_ub = ub
          ALLOCATE (potparm%pot(loc_lb:loc_ub))
-         IF (PRESENT(ndim)) THEN
-            CPABORT("")
-         END IF
       ELSE
-         CPABORT("")
+         CALL cp_abort(__LOCATION__, &
+                       "pair_potential_p_create expects either 1 input parameter <ndim> "// &
+                       "or 2 input parameters <ub> and <lb> at each call; found none")
       END IF
       DO i = loc_lb, loc_ub
          NULLIFY (potparm%pot(i)%pot)
@@ -1045,8 +1053,9 @@ CONTAINS
       IF (PRESENT(istart)) l_start = istart
       IF (PRESENT(iend)) l_end = iend
       DO i = l_start, l_end
-         IF (.NOT. ASSOCIATED(source%pot(i)%pot)) &
+         IF (.NOT. ASSOCIATED(source%pot(i)%pot)) THEN
             CALL pair_potential_single_create(source%pot(i)%pot)
+         END IF
          CALL pair_potential_single_copy(source%pot(i)%pot, dest%pot(i)%pot)
       END DO
    END SUBROUTINE pair_potential_p_copy
@@ -1282,7 +1291,7 @@ CONTAINS
             CALL pair_potential_goodwin_create(p%pot(i)%pot%set(std_dim)%goodwin)
          CASE (ea_type)
             CALL pair_potential_eam_create(p%pot(i)%pot%set(std_dim)%eam)
-         CASE (nequip_type, allegro_type)
+         CASE (nequip_type, allegro_type, mace_type)
             CALL pair_potential_nequip_create(p%pot(i)%pot%set(std_dim)%nequip)
          CASE (ace_type)
             CALL pair_potential_ace_create(p%pot(i)%pot%set(std_dim)%ace)

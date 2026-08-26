@@ -30,8 +30,7 @@ MODULE tblite_ks_matrix
                                               mo_set_type
    USE qs_rho_types,                    ONLY: qs_rho_get,&
                                               qs_rho_type
-   USE tblite_interface,                ONLY: tb_derive_dH_diag,&
-                                              tb_derive_dH_off,&
+   USE tblite_interface,                ONLY: tb_derive_dH_off,&
                                               tb_ham_add_coulomb,&
                                               tb_update_charges
 #include "./base/base_uses.f90"
@@ -139,7 +138,6 @@ CONTAINS
       END IF
 
       IF (calculate_forces) THEN
-         CALL tb_derive_dH_diag(qs_env, force_use_rho, nimg)
          CALL tb_derive_dH_off(qs_env, force_use_rho, nimg)
       END IF
 
@@ -151,9 +149,7 @@ CONTAINS
             CALL get_qs_env(qs_env, mo_derivs=mo_derivs, mos=mo_array)
             DO ispin = 1, SIZE(mo_derivs)
                CALL get_mo_set(mo_set=mo_array(ispin), mo_coeff_b=mo_coeff)
-               IF (.NOT. mo_array(ispin)%use_mo_coeff_b) THEN
-                  CPABORT("")
-               END IF
+               CPASSERT(mo_array(ispin)%use_mo_coeff_b)
                CALL dbcsr_multiply('n', 'n', 1.0_dp, ks_matrix(ispin, 1)%matrix, mo_coeff, &
                                    0.0_dp, mo_derivs(ispin)%matrix)
             END DO

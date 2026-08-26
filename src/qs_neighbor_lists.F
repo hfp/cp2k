@@ -27,6 +27,7 @@ MODULE qs_neighbor_lists
    USE cell_types,                      ONLY: cell_type,&
                                               get_cell,&
                                               pbc,&
+                                              pbc_stable,&
                                               plane_distance,&
                                               real_to_scaled,&
                                               scaled_to_real
@@ -111,6 +112,10 @@ MODULE qs_neighbor_lists
                                                           list_b_mol => NULL()
    END TYPE local_atoms_type
 ! **************************************************************************************************
+
+   TYPE local_lists
+      INTEGER, DIMENSION(:), POINTER           :: list => NULL()
+   END TYPE local_lists
 
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'qs_neighbor_lists'
 
@@ -298,7 +303,7 @@ CONTAINS
                                                             maxatom, ngp, nkind, zat
       LOGICAL :: all_potential_present, almo, cneo_potential_present, dftb, do_hfx, dokp, &
          gth_potential_present, lri_optbas, lrigpw, mic, molecule_only, nddo, paw_atom, &
-         paw_atom_present, rigpw, sgp_potential_present, xtb
+         paw_atom_present, rigpw, sgp_potential_present, stable_images, xtb
       LOGICAL, ALLOCATABLE, DIMENSION(:) :: all_present, aux_fit_present, aux_present, &
          cneo_present, core_present, default_present, nonbond1_atom, nonbond2_atom, oce_present, &
          orb_present, ppl_present, ppnl_present, ri_present, xb1_atom, xb2_atom
@@ -414,6 +419,7 @@ CONTAINS
                       sab_cneo=sab_cneo)
 
       dokp = (kpoints%nkp > 0)
+      stable_images = dokp .AND. kpoints%symmetry
       nddo = dft_control%qs_control%semi_empirical
       dftb = dft_control%qs_control%dftb
       xtb = dft_control%qs_control%xtb
@@ -430,7 +436,7 @@ CONTAINS
       IF (dokp) THEN
          ! no MIC for kpoints
          mic = .FALSE.
-      ELSEIF (nddo) THEN
+      ELSE IF (nddo) THEN
          ! enforce MIC for interaction lists in SE
          mic = .TRUE.
       END IF
@@ -605,7 +611,8 @@ CONTAINS
       END IF
       CALL pair_radius_setup(orb_present, orb_present, orb_radius, orb_radius, pair_radius, pdist)
       CALL build_neighbor_lists(sab_orb, particle_set, atom2d, cell, pair_radius, &
-                                mic=mic, subcells=subcells, molecular=molecule_only, nlname="sab_orb")
+                                mic=mic, subcells=subcells, molecular=molecule_only, nlname="sab_orb", &
+                                stable_images=stable_images)
       CALL set_ks_env(ks_env=ks_env, sab_orb=sab_orb)
       CALL write_neighbor_lists(sab_orb, particle_set, cell, para_env, neighbor_list_section, &
                                 "/SAB_ORB", "sab_orb", "ORBITAL ORBITAL")
@@ -615,7 +622,8 @@ CONTAINS
       ! might not be optimal. It should be verified for each operator.
       IF (.NOT. (nddo .OR. dftb .OR. xtb)) THEN
          CALL build_neighbor_lists(sab_all, particle_set, atom2d, cell, pair_radius, &
-                                   mic=mic, symmetric=.FALSE., subcells=subcells, molecular=molecule_only, nlname="sab_all")
+                                   mic=mic, symmetric=.FALSE., subcells=subcells, molecular=molecule_only, &
+                                   nlname="sab_all", stable_images=stable_images)
          CALL set_ks_env(ks_env=ks_env, sab_all=sab_all)
       END IF
 
@@ -623,7 +631,7 @@ CONTAINS
       IF (.NOT. (nddo .OR. dftb .OR. xtb)) THEN
          CALL pair_radius_setup(core_present, core_present, core_radius, core_radius, pair_radius)
          CALL build_neighbor_lists(sab_core, particle_set, atom2d, cell, pair_radius, subcells=subcells, &
-                                   operator_type="PP", nlname="sab_core")
+                                   operator_type="PP", nlname="sab_core", stable_images=stable_images)
          CALL set_ks_env(ks_env=ks_env, sab_core=sab_core)
          CALL write_neighbor_lists(sab_core, particle_set, cell, para_env, neighbor_list_section, &
                                    "/SAB_CORE", "sab_core", "CORE CORE")
@@ -663,8 +671,9 @@ CONTAINS
                CALL pair_radius_setup(orb_present, orb_present, orb_radius, orb_radius, pair_radius_lb)
                DO jkind = 1, nkind
                   DO ikind = 1, nkind
-                     IF (pair_radius(ikind, jkind) + cutoff_screen_factor*roperator <= pair_radius_lb(ikind, jkind)) &
+                     IF (pair_radius(ikind, jkind) + cutoff_screen_factor*roperator <= pair_radius_lb(ikind, jkind)) THEN
                         pair_radius(ikind, jkind) = pair_radius_lb(ikind, jkind) - roperator
+                     END IF
                   END DO
                END DO
             ELSE
@@ -675,12 +684,13 @@ CONTAINS
             CALL pair_radius_setup(orb_present, orb_present, orb_radius, orb_radius, pair_radius)
          END IF
          CALL build_neighbor_lists(sab_kp, particle_set, atom2d, cell, pair_radius, &
-                                   subcells=subcells, nlname="sab_kp")
+                                   subcells=subcells, nlname="sab_kp", stable_images=stable_images)
          CALL set_ks_env(ks_env=ks_env, sab_kp=sab_kp)
 
          IF (do_hfx) THEN
             CALL build_neighbor_lists(sab_kp_nosym, particle_set, atom2d, cell, pair_radius, &
-                                      subcells=subcells, nlname="sab_kp_nosym", symmetric=.FALSE.)
+                                      subcells=subcells, nlname="sab_kp_nosym", symmetric=.FALSE., &
+                                      stable_images=stable_images)
             CALL set_ks_env(ks_env=ks_env, sab_kp_nosym=sab_kp_nosym)
          END IF
       END IF
@@ -690,14 +700,16 @@ CONTAINS
          IF (ANY(ppl_present)) THEN
             CALL pair_radius_setup(orb_present, ppl_present, orb_radius, ppl_radius, pair_radius)
             CALL build_neighbor_lists(sac_ppl, particle_set, atom2d, cell, pair_radius, &
-                                      subcells=subcells, operator_type="ABC", nlname="sac_ppl")
+                                      subcells=subcells, operator_type="ABC", nlname="sac_ppl", &
+                                      stable_images=stable_images)
             CALL set_ks_env(ks_env=ks_env, sac_ppl=sac_ppl)
             CALL write_neighbor_lists(sac_ppl, particle_set, cell, para_env, neighbor_list_section, &
                                       "/SAC_PPL", "sac_ppl", "ORBITAL GTH-PPL")
             IF (lrigpw) THEN
                IF (qs_env%lri_env%ppl_ri) THEN
                   CALL build_neighbor_lists(sac_lri, particle_set, atom2d, cell, pair_radius, &
-                                            subcells=subcells, symmetric=.FALSE., operator_type="PP", nlname="sac_lri")
+                                            subcells=subcells, symmetric=.FALSE., operator_type="PP", &
+                                            nlname="sac_lri", stable_images=stable_images)
                   CALL set_ks_env(ks_env=ks_env, sac_lri=sac_lri)
                END IF
             END IF
@@ -706,7 +718,8 @@ CONTAINS
          IF (ANY(ppnl_present)) THEN
             CALL pair_radius_setup(orb_present, ppnl_present, orb_radius, ppnl_radius, pair_radius)
             CALL build_neighbor_lists(sap_ppnl, particle_set, atom2d, cell, pair_radius, &
-                                      subcells=subcells, operator_type="ABBA", nlname="sap_ppnl")
+                                      subcells=subcells, operator_type="ABBA", nlname="sap_ppnl", &
+                                      stable_images=stable_images)
             CALL set_ks_env(ks_env=ks_env, sap_ppnl=sap_ppnl)
             CALL write_neighbor_lists(sap_ppnl, particle_set, cell, para_env, neighbor_list_section, &
                                       "/SAP_PPNL", "sap_ppnl", "ORBITAL GTH-PPNL")
@@ -718,7 +731,8 @@ CONTAINS
          IF (ANY(oce_present)) THEN
             CALL pair_radius_setup(orb_present, oce_present, orb_radius, oce_radius, pair_radius)
             CALL build_neighbor_lists(sap_oce, particle_set, atom2d, cell, pair_radius, &
-                                      subcells=subcells, operator_type="ABBA", nlname="sap_oce")
+                                      subcells=subcells, operator_type="ABBA", nlname="sap_oce", &
+                                      stable_images=stable_images)
             CALL set_ks_env(ks_env=ks_env, sap_oce=sap_oce)
             CALL write_neighbor_lists(sap_oce, particle_set, cell, para_env, neighbor_list_section, &
                                       "/SAP_OCE", "sap_oce", "ORBITAL(A) PAW-PRJ")
@@ -730,7 +744,8 @@ CONTAINS
          IF (all_potential_present .OR. sgp_potential_present) THEN
             CALL pair_radius_setup(orb_present, all_present, orb_radius, all_pot_rad, pair_radius)
             CALL build_neighbor_lists(sac_ae, particle_set, atom2d, cell, pair_radius, &
-                                      subcells=subcells, operator_type="ABC", nlname="sac_ae")
+                                      subcells=subcells, operator_type="ABC", nlname="sac_ae", &
+                                      stable_images=stable_images)
             CALL set_ks_env(ks_env=ks_env, sac_ae=sac_ae)
             CALL write_neighbor_lists(sac_ae, particle_set, cell, para_env, neighbor_list_section, &
                                       "/SAC_AE", "sac_ae", "ORBITAL ERFC POTENTIAL")
@@ -947,7 +962,7 @@ CONTAINS
          qs_env%lri_env%soo_list => soo_list
          CALL write_neighbor_lists(soo_list, particle_set, cell, para_env, neighbor_list_section, &
                                    "/SOO_LIST", "soo_list", "ORBITAL ORBITAL (RI)")
-      ELSEIF (rigpw) THEN
+      ELSE IF (rigpw) THEN
          ALLOCATE (ri_present(nkind), ri_radius(nkind))
          ri_present = .FALSE.
          ri_radius = 0.0_dp
@@ -1054,6 +1069,7 @@ CONTAINS
 !> \param operator_type ...
 !> \param nlname ...
 !> \param atomb_to_keep the list of atom indices to keep for pairs from the atom2d%b_list
+!> \param stable_images use a deterministic half-cell convention for atom images
 !> \date    20.03.2002
 !> \par History
 !>          - Major refactoring (25.07.2010,jhu)
@@ -1063,7 +1079,7 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE build_neighbor_lists(ab_list, particle_set, atom, cell, pair_radius, subcells, &
                                    mic, symmetric, molecular, subset_of_mol, current_subset, &
-                                   operator_type, nlname, atomb_to_keep)
+                                   operator_type, nlname, atomb_to_keep, stable_images)
 
       TYPE(neighbor_list_set_p_type), DIMENSION(:), &
          POINTER                                         :: ab_list
@@ -1078,34 +1094,33 @@ CONTAINS
       CHARACTER(LEN=*), INTENT(IN), OPTIONAL             :: operator_type
       CHARACTER(LEN=*), INTENT(IN)                       :: nlname
       INTEGER, DIMENSION(:), INTENT(IN), OPTIONAL        :: atomb_to_keep
+      LOGICAL, INTENT(IN), OPTIONAL                      :: stable_images
 
       CHARACTER(len=*), PARAMETER :: routineN = 'build_neighbor_lists'
 
-      TYPE local_lists
-         INTEGER, DIMENSION(:), POINTER           :: list
-      END TYPE local_lists
-
-      INTEGER :: atom_a, atom_b, handle, i, iab, iatom, iatom_local, &
-                 iatom_subcell, icell, ikind, j, jatom, jatom_local, jcell, jkind, k, &
-                 kcell, maxat, mol_a, mol_b, nkind, otype, natom, inode, nnode, nentry
+      INTEGER :: atom_a, atom_b, handle, i, iab, iatom, iatom_local, iatom_subcell, icell, ikind, &
+         inode, j, jatom, jatom_local, jcell, jkind, k, kcell, maxat, mol_a, mol_b, natom, nentry, &
+         nkind, nnode, otype
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: nlista, nlistb
       INTEGER, DIMENSION(3)                              :: cell_b, ncell, nsubcell, periodic
       INTEGER, DIMENSION(:), POINTER                     :: index_list
-      LOGICAL                                            :: include_ab, my_mic, &
-                                                            my_molecular, my_symmetric, my_sort_atomb
+      LOGICAL                                            :: include_ab, my_mic, my_molecular, &
+                                                            my_sort_atomb, my_stable_images, &
+                                                            my_symmetric
       LOGICAL, ALLOCATABLE, DIMENSION(:)                 :: pres_a, pres_b
-      REAL(dp)                                           :: rab2, rab2_max, rab_max, rabm, deth, subcell_scale
-      REAL(dp), DIMENSION(3)                             :: r, rab, ra, rb, sab_max, sb, &
-                                                            sb_pbc, sb_min, sb_max, rab_pbc, pd, sab_max_guard
-      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: nlista, nlistb
+      REAL(dp)                                           :: deth, rab2, rab2_max, rab_max, rabm, &
+                                                            subcell_scale
+      REAL(dp), DIMENSION(3)                             :: pd, r, ra, rab, rab_pbc, rb, sab_max, &
+                                                            sab_max_guard, sb, sb_max, sb_min, &
+                                                            sb_pbc
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: r_pbc
       TYPE(local_lists), DIMENSION(:), POINTER           :: lista, listb
-      TYPE(neighbor_list_p_type), &
-         ALLOCATABLE, DIMENSION(:)                       :: kind_a
-      TYPE(neighbor_list_set_type), POINTER              :: neighbor_list_set
-      TYPE(subcell_type), DIMENSION(:, :, :), &
-         POINTER                                         :: subcell
-      REAL(KIND=dp), DIMENSION(:, :), ALLOCATABLE        :: r_pbc
       TYPE(neighbor_list_iterator_p_type), &
          DIMENSION(:), POINTER                           :: nl_iterator
+      TYPE(neighbor_list_p_type), ALLOCATABLE, &
+         DIMENSION(:)                                    :: kind_a
+      TYPE(neighbor_list_set_type), POINTER              :: neighbor_list_set
+      TYPE(subcell_type), DIMENSION(:, :, :), POINTER    :: subcell
 
       CALL timeset(routineN//"_"//TRIM(nlname), handle)
 
@@ -1117,6 +1132,8 @@ CONTAINS
       my_molecular = .FALSE.
       ! if we have a molecular NL, MIC has to be used
       IF (PRESENT(molecular)) my_molecular = molecular
+      my_stable_images = .FALSE.
+      IF (PRESENT(stable_images)) my_stable_images = stable_images
       ! check for operator types
       IF (PRESENT(operator_type)) THEN
          SELECT CASE (operator_type)
@@ -1132,7 +1149,10 @@ CONTAINS
          CASE ("PP")
             otype = 4 ! simple atomic pair potential list
          CASE default
-            CPABORT("")
+            CALL cp_abort(__LOCATION__, &
+                          "<AB>, <ABC>, <ABBA>, <PP> are supported as the <operator_type> "// &
+                          "for build_neighbor_lists, found unknown option "// &
+                          "<"//TRIM(operator_type)//">")
          END SELECT
       ELSE
          ! default is a simple AB neighbor list
@@ -1167,7 +1187,11 @@ CONTAINS
       natom = SIZE(particle_set)
       ALLOCATE (r_pbc(3, natom))
       DO i = 1, natom
-         r_pbc(1:3, i) = pbc(particle_set(i)%r(1:3), cell)
+         IF (my_stable_images) THEN
+            r_pbc(1:3, i) = pbc_stable(particle_set(i)%r(1:3), cell)
+         ELSE
+            r_pbc(1:3, i) = pbc(particle_set(i)%r(1:3), cell)
+         END IF
       END DO
 
       ! setup the local lists of atoms
@@ -1211,7 +1235,7 @@ CONTAINS
             nlistb(ikind) = SIZE(atom(ikind)%list)
             listb(ikind)%list => index_list
          CASE default
-            CPABORT("")
+            CPABORT("Only 1, 2, 3, 4 are supported as otype for the operator")
          END SELECT
       END DO
 
@@ -1445,7 +1469,7 @@ CONTAINS
             DEALLOCATE (lista(ikind)%list)
          END DO
       CASE default
-         CPABORT("")
+         CPABORT("Only 1, 2, 3, 4 are supported as otype for the operator")
       END SELECT
       DEALLOCATE (kind_a, pres_a, pres_b, lista, listb, nlista, nlistb)
       DEALLOCATE (index_list)

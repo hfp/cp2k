@@ -365,6 +365,10 @@ CONTAINS
             CALL section_vals_val_get(pp_section, "D3_REFERENCE_CODE", &
                                       l_val=dispersion_env%d3_reference_code)
             CALL section_vals_val_get(pp_section, "D4_CUTOFF", r_val=dispersion_env%rc_d4)
+            CALL section_vals_val_get(pp_section, "D4_CUTOFF_WIDTH", &
+                                      r_val=dispersion_env%d4_cutoff_width)
+            CALL section_vals_val_get(pp_section, "D4_3B_CUTOFF_WIDTH", &
+                                      r_val=dispersion_env%d4_3b_cutoff_width)
             CALL section_vals_val_get(pp_section, "D4_CN_CUTOFF", r_val=dispersion_env%rc_cn)
             CALL section_vals_val_get(pp_section, "FACTOR_S9_TERM", r_val=dispersion_env%s9)
             !C9 term default=T for D4
@@ -481,11 +485,7 @@ CONTAINS
                   END DO
                END IF
             ELSE IF (dispersion_env%pp_type == vdw_pairpot_dftd4) THEN
-#if defined(__DFTD4_V3)
-               WRITE (output_unit, fmt="(' vdW POTENTIAL| ',T26,'DFT-D4(Version 3.7)')")
-#else
-               WRITE (output_unit, fmt="(' vdW POTENTIAL| ',T26,'DFT-D4(Version 4.0)')")
-#endif
+               WRITE (output_unit, fmt="(' vdW POTENTIAL| ',T26,'DFT-D4 (Version 4.2)')")
                WRITE (output_unit, fmt="(' vdW POTENTIAL| ',T26,'see https://github.com/dftd4/dftd4')")
                WRITE (output_unit, fmt="(' vdW POTENTIAL| ',T26,'E. Caldeweyher et al, PCCP 22: 8499 (2020)')")
                WRITE (output_unit, fmt="(' vdW POTENTIAL| ',T26,'E. Caldeweyher et al, JCP 150: 154122 (2019)')")
@@ -504,7 +504,7 @@ CONTAINS
             SELECT CASE (dispersion_env%nl_type)
             CASE DEFAULT
                ! unknown functional
-               CPABORT("")
+               CPABORT("Unknown vdW nonlocal functional")
             CASE (vdw_nl_DRSLL)
                WRITE (output_unit, &
                       fmt="(' vdW POTENTIAL| ','DRSLL Functional:           M. Dion et al, PRL 92: 246401 (2004)')")

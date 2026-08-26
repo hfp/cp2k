@@ -87,7 +87,7 @@ SUBROUTINE cp_eval_at(gopt_env, x, f, gradient, master, &
                                                nparticle, nsize, shell_index
    LOGICAL                                  :: my_final_evaluation
    REAL(KIND=dp)                            :: f_ts, potential_energy
-   REAL(KIND=dp), DIMENSION(3, 3)           :: av_ptens
+   REAL(KIND=dp), DIMENSION(3, 3)           :: av_ptens, av_ptens_opt
    REAL(KIND=dp), DIMENSION(:), POINTER     :: cell_gradient, gradient_ts
    TYPE(cell_type), POINTER                 :: cell
    TYPE(cp_subsys_type), POINTER            :: subsys
@@ -171,12 +171,13 @@ SUBROUTINE cp_eval_at(gopt_env, x, f, gradient, master, &
       CALL unpack_subsys_particles(subsys=subsys, r=x)
    CASE (default_cell_method_id)
       ! Check for VIRIAL
-      IF (.NOT. virial%pv_availability) &
+      IF (.NOT. virial%pv_availability) THEN
          CALL cp_abort(__LOCATION__, &
                        "For a cell optimization task with CELL_OPT/TYPE "// &
                        "DIRECT_CELL_OPT, the FORCE_EVAL/STRESS_TENSOR "// &
                        "keyword MUST be defined in the input file for the "// &
                        "evaluation of the stress tensor, but none is found!")
+      END IF
       IF (gopt_env%cell_env%keep_volume) THEN
          nparticle = force_env_get_nparticle(gopt_env%force_env)
          idg = 3*nparticle
@@ -218,7 +219,10 @@ SUBROUTINE cp_eval_at(gopt_env, x, f, gradient, master, &
                END IF
                cell_gradient => gradient(nsize + 1:nsize + 6)
                cell_gradient = 0.0_dp
-               CALL get_dg_dh(cell_gradient, av_ptens, gopt_env%cell_env%pres_ext, cell, gopt_env%cell_env%mtrx, &
+               av_ptens_opt = MATMUL(gopt_env%cell_env%input_to_opt, &
+                                     MATMUL(av_ptens, gopt_env%cell_env%opt_to_input))
+               CALL get_dg_dh(cell_gradient, av_ptens_opt, gopt_env%cell_env%pres_ext, &
+                              gopt_env%cell_env%opt_cell, gopt_env%cell_env%mtrx, &
                               keep_angles=gopt_env%cell_env%keep_angles, &
                               keep_symmetry=gopt_env%cell_env%keep_symmetry, &
                               pres_int=gopt_env%cell_env%pres_int, &
@@ -228,8 +232,9 @@ SUBROUTINE cp_eval_at(gopt_env, x, f, gradient, master, &
             ! some callers expect pres_int to be available on all ranks. Also, here master is not necessarily a single rank.
             ! Assume at least master==0
             CALL para_env%bcast(gopt_env%cell_env%pres_int, 0)
-            IF (gopt_env%cell_env%constraint_id /= fix_none) &
+            IF (gopt_env%cell_env%constraint_id /= fix_none) THEN
                CALL para_env%bcast(gopt_env%cell_env%pres_constr, 0)
+            END IF
          END IF
       END BLOCK
    CASE (default_shellcore_method_id)

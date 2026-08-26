@@ -6,8 +6,8 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")/.." && pwd -P)"
 
-hdf5_ver="2.1.1"
-hdf5_sha256="efff93b5a904d66e8f626d7da60b5eedc9faf544be27dbabbaa87967b8ad798b"
+hdf5_ver="2.2.0"
+hdf5_sha256="1a1ab8209b35586fbc1aa279ba76d102130b95badcb20ca329587219112d8c16"
 
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh
@@ -24,7 +24,7 @@ case "$with_hdf5" in
   __INSTALL__)
     echo "==================== Installing HDF5 ===================="
     pkg_install_dir="${INSTALLDIR}/hdf5-${hdf5_ver}"
-    install_lock_file="$pkg_install_dir/install_successful"
+    install_lock_file="${pkg_install_dir}/install_successful"
     if verify_checksums "${install_lock_file}"; then
       echo "hdf5-${hdf5_ver} is already installed, skipping it."
     else
@@ -57,7 +57,7 @@ case "$with_hdf5" in
     ;;
   __SYSTEM__)
     echo "==================== Finding HDF5 from system paths ===================="
-    check_command pkg-config --modversion hdf5
+    check_command h5cc "hdf5"
     pkg_install_dir=$(h5cc -showconfig | grep "Installation point" | awk '{print $3}')
     ;;
   __DONTUSE__)
@@ -66,8 +66,8 @@ case "$with_hdf5" in
   *)
     echo "==================== Linking HDF5 to user paths ===================="
     pkg_install_dir="${with_hdf5}"
-    HDF5_LIBDIR="${pkg_install_dir}/lib/MiMiC"
-    [ -d "${pkg_install_dir}/lib64" ] && HDF5_LIBDIR="${pkg_install_dir}/lib64/MiMiC"
+    HDF5_LIBDIR="${pkg_install_dir}/lib"
+    [ -d "${pkg_install_dir}/lib64" ] && HDF5_LIBDIR="${pkg_install_dir}/lib64"
     check_dir "${HDF5_LIBDIR}"
     check_dir "${pkg_install_dir}/include"
     ;;

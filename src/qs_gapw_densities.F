@@ -158,10 +158,11 @@ CONTAINS
          END IF
 
          !Calculate rho0_h and rho0_s on the radial grids centered on the atomic position
-         IF (my_do_rho0) &
+         IF (my_do_rho0) THEN
             CALL calculate_rho0_atom(gapw_control, rho_atom_set, rhoz_cneo_set, rho0_atom_set, &
                                      rho0_mpole, atom_list, natom, ikind, my_kind_set(ikind), &
                                      rho0_h_tot)
+         END IF
       END DO
 
       !Do not mess with charges if using a non-default kind_set
@@ -202,13 +203,13 @@ CONTAINS
             IF (ABS(rho0_h_tot) >= 1.0E-5_dp) THEN
                IF (ABS(1.0_dp - ABS(tot_rs_int/rho0_h_tot)) > 1.0E-3_dp) THEN
                   IF (output_unit > 0) THEN
-                     WRITE (output_unit, '(/,72("*"))')
-                     WRITE (output_unit, '(T2,A,T66,1E20.8)') &
+                     WRITE (output_unit, '(/,80("*"))')
+                     WRITE (output_unit, '(T2,A,T61,1E20.8)') &
                         "WARNING: rho0 calculated on the local grid is  :", -rho0_h_tot, &
                         "         rho0 calculated on the global grid is :", tot_rs_int
                      WRITE (output_unit, '(T2,A)') &
                         "         bad integration"
-                     WRITE (output_unit, '(72("*"),/)')
+                     WRITE (output_unit, '(80("*"),/)')
                   END IF
                END IF
             END IF
@@ -220,14 +221,14 @@ CONTAINS
                IF (ABS(rho0_mpole%tot_rhoz_cneo_s) >= 1.0E-5_dp) THEN
                   IF (ABS(1.0_dp - ABS(tot_rs_int/rho0_mpole%tot_rhoz_cneo_s)) > 1.0E-3_dp) THEN
                      IF (output_unit > 0) THEN
-                        WRITE (output_unit, '(/,72("*"))')
-                        WRITE (output_unit, '(T2,A,T66,1E20.8)') &
+                        WRITE (output_unit, '(/,80("*"))')
+                        WRITE (output_unit, '(T2,A,T61,1E20.8)') &
                            "WARNING: rhoz_cneo_s calculated on the local grid is  :", &
                            rho0_mpole%tot_rhoz_cneo_s, &
                            "         rhoz_cneo_s calculated on the global grid is :", tot_rs_int
                         WRITE (output_unit, '(T2,A)') &
                            "         bad integration"
-                        WRITE (output_unit, '(72("*"),/)')
+                        WRITE (output_unit, '(80("*"),/)')
                      END IF
                   END IF
                END IF

@@ -22,6 +22,7 @@ MODULE environment
    USE cp2k_info,                       ONLY: &
         compile_arch, compile_date, compile_host, compile_revision, cp2k_flags, cp2k_home, &
         cp2k_version, cp2k_year, get_runtime_info, r_host_name, r_pid, r_user_name
+   USE cp_cfm_elpa,                     ONLY: check_elpa_c_kernel_correctness
    USE cp_error_handling,               ONLY: warning_counter
    USE cp_files,                        ONLY: close_file,&
                                               get_data_dir,&
@@ -30,14 +31,10 @@ MODULE environment
                                               FM_CHOLESKY_TYPE_SCALAPACK,&
                                               cholesky_type,&
                                               dlaf_cholesky_n_min
-   USE cp_fm_diag,                      ONLY: FM_DIAG_TYPE_CUSOLVER,&
-                                              FM_DIAG_TYPE_DLAF,&
-                                              FM_DIAG_TYPE_ELPA,&
-                                              FM_DIAG_TYPE_SCALAPACK,&
-                                              cusolver_n_min,&
-                                              diag_finalize,&
-                                              diag_init,&
-                                              eps_check_diag_default
+   USE cp_fm_diag,                      ONLY: &
+        FM_DIAG_TYPE_CUSOLVER, FM_DIAG_TYPE_DLAF, FM_DIAG_TYPE_ELPA, FM_DIAG_TYPE_SCALAPACK, &
+        cusolver_n_min, diag_finalize, diag_init, diag_lib_explicit, diag_type, &
+        eps_check_diag_default
    USE cp_fm_diag_utils,                ONLY: cp_fm_redistribute_init
    USE cp_fm_struct,                    ONLY: cp_fm_struct_config
    USE cp_fm_types,                     ONLY: cp_fm_get_mm_type,&
@@ -81,6 +78,7 @@ MODULE environment
         section_get_ival, section_get_keyword, section_get_lval, section_get_rval, &
         section_release, section_type, section_vals_get, section_vals_get_subs_vals, &
         section_vals_get_subs_vals3, section_vals_type, section_vals_val_get, section_vals_val_set
+   USE integral_library_types,          ONLY: active_integral_library
    USE kinds,                           ONLY: default_path_length,&
                                               default_string_length,&
                                               dp,&
@@ -470,8 +468,9 @@ CONTAINS
 
       iw = cp_print_key_unit_nr(logger, root_section, "GLOBAL%PRINT/GLOBAL_GAUSSIAN_RNG", &
                                 extension=".Log")
-      IF (iw > 0) &
+      IF (iw > 0) THEN
          CALL globenv%gaussian_rng_stream%write(iw, write_all=.TRUE.)
+      END IF
 
       CALL cp_print_key_finished_output(iw, logger, root_section, &
                                         "GLOBAL%PRINT/GLOBAL_GAUSSIAN_RNG")
@@ -549,10 +548,15 @@ CONTAINS
                                 l_val=globenv%direct_generalized_diagonalization)
       CALL section_vals_val_get(global_section, "PREFERRED_CHOLESKY_LIBRARY", i_val=i_cholesky)
       CALL section_vals_val_get(global_section, "PREFERRED_DGEMM_LIBRARY", i_val=i_dgemm)
+      CALL section_vals_val_get(global_section, "PREFERRED_INTEGRAL_LIBRARY%COULOMB_2C", &
+                                i_val=active_integral_library%coulomb2_library)
+      CALL section_vals_val_get(global_section, "PREFERRED_INTEGRAL_LIBRARY%COULOMB_3C", &
+                                i_val=active_integral_library%coulomb3_library)
       CALL section_vals_val_get(global_section, "EPS_CHECK_DIAG", r_val=globenv%eps_check_diag)
       CALL section_vals_val_get(global_section, "ENABLE_MPI_IO", l_val=flag)
       CALL cp_mpi_io_set(flag)
       CALL section_vals_val_get(global_section, "ELPA_KERNEL", i_val=globenv%k_elpa)
+      CALL section_vals_val_get(global_section, "ELPA_COMPLEX_KERNEL", i_val=globenv%k_elpa_c)
       CALL section_vals_val_get(global_section, "ELPA_NEIGVEC_MIN", i_val=globenv%elpa_neigvec_min)
       CALL section_vals_val_get(global_section, "ELPA_QR", l_val=globenv%elpa_qr)
       CALL section_vals_val_get(global_section, "ELPA_ONE_STAGE", l_val=globenv%elpa_one_stage)
@@ -594,8 +598,9 @@ CONTAINS
 
       IF (trace .AND. (.NOT. trace_master .OR. para_env%mepos == 0)) THEN
          unit_nr = -1
-         IF (logger%para_env%is_source() .OR. .NOT. trace_master) &
+         IF (logger%para_env%is_source() .OR. .NOT. trace_master) THEN
             unit_nr = cp_logger_get_default_unit_nr(logger, local=.TRUE.)
+         END IF
          WRITE (tracing_string, "(I6.6,A1,I6.6)") para_env%mepos, ":", para_env%num_pe
          IF (ASSOCIATED(trace_routines)) THEN
             CALL timings_setup_tracing(trace_max, unit_nr, tracing_string, trace_routines)
@@ -682,8 +687,9 @@ CONTAINS
          CPABORT("FARMING program supports only NONE as run type")
       END IF
 
-      IF (globenv%prog_name_id == do_test .AND. globenv%run_type_id /= none_run) &
+      IF (globenv%prog_name_id == do_test .AND. globenv%run_type_id /= none_run) THEN
          CPABORT("TEST program supports only NONE as run type")
+      END IF
 
       CALL m_memory_details(MemTotal, MemFree, Buffers, Cached, Slab, SReclaimable, MemLikelyFree)
       MemTotal_avr = MemTotal
@@ -967,10 +973,11 @@ CONTAINS
          ! filter cpuids by vlen to show more relevant information
          IF (m_cpuid_vlen(cpuid_static) < m_cpuid_vlen(cpuid)) THEN
             ! base/machine_cpuid.c relies on the (same) target flags as the Fortran code
-            CALL cp_hint(__LOCATION__, "The compiler target flags ("// &
-                         TRIM(m_cpuid_name(cpuid_static))//") used to build this binary cannot exploit "// &
-                         "all extensions of this CPU model ("//TRIM(m_cpuid_name(cpuid))//"). "// &
-                         "Consider compiler target flags as part of FCFLAGS and CFLAGS (ARCH file).")
+            CALL cp_hint(__LOCATION__, "The compiler target ("// &
+                         TRIM(m_cpuid_name(cpuid_static))//") used to build this binary does not "// &
+                         "enable all instruction-set extensions available on this CPU ("// &
+                         TRIM(m_cpuid_name(cpuid))//"). Consider reconfiguring and rebuilding CP2K "// &
+                         "for this target system to enable them.")
          END IF
 
          WRITE (UNIT=output_unit, FMT="()")
@@ -1022,7 +1029,12 @@ CONTAINS
                                          extension=".log")
 
       CALL fft_setup_library(globenv, global_section)
-      CALL diag_setup_library(globenv)
+      CALL diag_setup_library(globenv, global_section)
+
+      ! Run a one-time correctness check of the ELPA complex kernels if they may be used.
+      IF (diag_type == FM_DIAG_TYPE_ELPA .AND. diag_lib_explicit) THEN
+         CALL check_elpa_c_kernel_correctness(para_env)
+      END IF
 
       CALL cp_print_key_finished_output(output_unit, logger, global_section, &
                                         "PROGRAM_RUN_INFO")
@@ -1113,17 +1125,23 @@ CONTAINS
 !> \brief availability diagonalizatioon library
 !>
 !> \param globenv ...
+!> \param global_section ...
 !> \author MI
 ! **************************************************************************************************
-   SUBROUTINE diag_setup_library(globenv)
+   SUBROUTINE diag_setup_library(globenv, global_section)
       TYPE(global_environment_type), POINTER             :: globenv
+      TYPE(section_vals_type), POINTER                   :: global_section
 
       CHARACTER(LEN=3*default_string_length)             :: message
-      LOGICAL                                            :: fallback_applied
+      LOGICAL                                            :: diag_lib_explicit, fallback_applied
+
+      CALL section_vals_val_get(global_section, "PREFERRED_DIAG_LIBRARY", explicit=diag_lib_explicit)
 
       CALL diag_init(diag_lib=TRIM(globenv%diag_library), &
                      fallback_applied=fallback_applied, &
+                     diag_lib_explicit_input=diag_lib_explicit, &
                      elpa_kernel=globenv%k_elpa, &
+                     elpa_c_kernel=globenv%k_elpa_c, &
                      elpa_neigvec_min_input=globenv%elpa_neigvec_min, &
                      elpa_qr=globenv%elpa_qr, &
                      elpa_print=globenv%elpa_print, &
@@ -1230,8 +1248,9 @@ CONTAINS
          IF (ierr /= 0) CPABORT('Could not parse WALLTIME: "'//txt(1:n)//'"')
       ELSE
          READ (txt(1:n), FMT="(I2,A1,I2,A1,I2)", IOSTAT=ierr) hours, c1, minutes, c2, seconds
-         IF (n /= 8 .OR. ierr /= 0 .OR. c1 /= ":" .OR. c2 /= ":") &
+         IF (n /= 8 .OR. ierr /= 0 .OR. c1 /= ":" .OR. c2 /= ":") THEN
             CPABORT('Could not parse WALLTIME: "'//txt(1:n)//'"')
+         END IF
          walltime = 3600.0_dp*REAL(hours, dp) + 60.0_dp*REAL(minutes, dp) + REAL(seconds, dp)
       END IF
    END SUBROUTINE cp2k_get_walltime
@@ -1330,15 +1349,18 @@ CONTAINS
       IF (cg_mode /= CALLGRAPH_NONE) THEN
          CALL section_vals_val_get(root_section, "GLOBAL%CALLGRAPH_FILE_NAME", c_val=cg_filename)
          IF (LEN_TRIM(cg_filename) == 0) cg_filename = TRIM(logger%iter_info%project_name)
-         IF (cg_mode == CALLGRAPH_ALL) & !incorporate mpi-rank into filename
+         IF (cg_mode == CALLGRAPH_ALL) THEN
+            !incorporate mpi-rank into filename
             cg_filename = TRIM(cg_filename)//"_"//TRIM(ADJUSTL(cp_to_string(para_env%mepos)))
+         END IF
          IF (iw > 0) THEN
             WRITE (UNIT=iw, FMT="(T2,3X,A)") "Writing callgraph to: "//TRIM(cg_filename)//".callgraph"
             WRITE (UNIT=iw, FMT="()")
             WRITE (UNIT=iw, FMT="(T2,A)") "-------------------------------------------------------------------------------"
          END IF
-         IF (cg_mode == CALLGRAPH_ALL .OR. para_env%is_source()) &
+         IF (cg_mode == CALLGRAPH_ALL .OR. para_env%is_source()) THEN
             CALL timings_report_callgraph(TRIM(cg_filename)//".callgraph")
+         END IF
       END IF
 
       CALL cp_print_key_finished_output(iw, logger, root_section, &

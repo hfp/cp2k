@@ -136,7 +136,7 @@ CONTAINS
       CASE (opt_force_matching)
          CALL force_matching(oi_env, input_declaration, root_section, para_env)
       CASE DEFAULT
-         CPABORT("")
+         CPABORT("Unknown optimize input method")
       END SELECT
 
       CALL timestop(handle)
@@ -525,8 +525,9 @@ CONTAINS
       n_frames_current = 0
       NULLIFY (pos_traj, energy_traj, force_traj)
       filename = oi_env%fm_env%ref_traj_file_name
-      IF (filename == "") &
+      IF (filename == "") THEN
          CPABORT("The reference trajectory file name is empty")
+      END IF
       CALL parser_create(local_parser, filename, para_env=para_env)
       DO
          CALL parser_read_line(local_parser, 1, at_end=at_end)
@@ -559,8 +560,9 @@ CONTAINS
 
       ! now force reference trajectory
       filename = oi_env%fm_env%ref_force_file_name
-      IF (filename == "") &
+      IF (filename == "") THEN
          CPABORT("The reference force file name is empty")
+      END IF
       CALL parser_create(local_parser, filename, para_env=para_env)
       DO iframe = 1, n_frames
          CALL parser_read_line(local_parser, 1)
@@ -668,7 +670,7 @@ CONTAINS
          CALL section_vals_val_get(fm_section, "SHIFT_QM", r_val=oi_env%fm_env%shift_qm)
          CALL section_vals_val_get(fm_section, "SHIFT_AVERAGE", l_val=oi_env%fm_env%shift_average)
       CASE DEFAULT
-         CPABORT("")
+         CPABORT("Unknown optimize input method")
       END SELECT
 
       CALL timestop(handle)

@@ -75,8 +75,7 @@ MODULE qs_p_env_methods
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
    USE qs_kind_types,                   ONLY: qs_kind_type
-   USE qs_kpp1_env_methods,             ONLY: kpp1_create,&
-                                              kpp1_did_change
+   USE qs_kpp1_env_methods,             ONLY: kpp1_create
    USE qs_ks_methods,                   ONLY: qs_ks_update_qs_env
    USE qs_ks_types,                     ONLY: qs_ks_did_change,&
                                               qs_ks_env_type
@@ -224,8 +223,9 @@ CONTAINS
       END DO
 
       p_env%orthogonal_orbitals = .FALSE.
-      IF (PRESENT(orthogonal_orbitals)) &
+      IF (PRESENT(orthogonal_orbitals)) THEN
          p_env%orthogonal_orbitals = orthogonal_orbitals
+      END IF
 
       CALL fm_pools_create_fm_vect(ao_mo_fm_pools, elements=p_env%S_psi0, &
                                    name="p_env%S_psi0")
@@ -265,7 +265,7 @@ CONTAINS
          CALL rho0_s_grid_create(pw_env, p_env%local_rho_set%rho0_mpole)
          CALL hartree_local_create(p_env%hartree_local)
          CALL init_coulomb_local(p_env%hartree_local, natom)
-      ELSEIF (dft_control%qs_control%gapw_xc) THEN
+      ELSE IF (dft_control%qs_control%gapw_xc) THEN
          CALL get_qs_env(qs_env, &
                          atomic_kind_set=atomic_kind_set, &
                          qs_kind_set=qs_kind_set)
@@ -655,9 +655,6 @@ CONTAINS
       ELSE
          CALL cp_fm_release(psi0)
       END IF
-
-      ! tells kpp1_env about the change of psi0
-      CALL kpp1_did_change(p_env%kpp1_env)
 
       CALL timestop(handle)
 

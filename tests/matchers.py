@@ -26,6 +26,15 @@ registry = MatcherRegistry()
 
 # Total energy in Hartree
 registry["E_total"] = GenericMatcher(r"Total energy:", col=3)
+registry["COMMUTATOR_HR_X"] = GenericMatcher(r"COMMUTATOR_HR| CheckSum X =", col=5)
+registry["COMMUTATOR_HR_Y"] = GenericMatcher(r"COMMUTATOR_HR| CheckSum Y =", col=5)
+registry["COMMUTATOR_HR_Z"] = GenericMatcher(r"COMMUTATOR_HR| CheckSum Z =", col=5)
+registry["Cube_Si_effective_charge"] = GenericMatcher(
+    r"^\s*14\s+([-+0-9.EeDd]+)\s+", col=1, regex=True, first=True
+)
+registry["Cube_O_effective_charge"] = GenericMatcher(
+    r"^\s*8\s+([-+0-9.EeDd]+)\s+", col=1, regex=True, first=True
+)
 
 registry["M002"] = GenericMatcher(r"MD| Potential energy", col=5)
 registry["M003"] = GenericMatcher(r"Total energy [eV]:", col=4)
@@ -33,6 +42,10 @@ registry["M004"] = GenericMatcher(r"Ideal and single determinant", col=8)
 registry["M005"] = GenericMatcher(r"BSSE-free interaction energy:", col=5)
 registry["M006"] = GenericMatcher(r"Average Energy", col=4)
 registry["M007"] = GenericMatcher(r"OPT| Total energy [hartree]", col=5)
+registry["Cell_vector_a_y"] = GenericMatcher(r"CELL| Vector a [angstrom]:", col=6)
+registry["Cell_angle_alpha"] = GenericMatcher(
+    r"CELL| Angle (b,c), alpha [degree]:", col=6
+)
 
 registry["Vib_freq"] = GenericMatcher(r"VIB|Frequency", col=3)  # M008
 registry["Vib_frc_const"] = GenericMatcher(r"VIB|Frc consts", col=4)  # M128
@@ -41,6 +54,11 @@ registry["M009"] = GenericMatcher(r"PINT| Total energy =", col=5)
 registry["M010"] = GenericMatcher(r"BAND TOTAL ENERGY [au]", col=6)
 registry["M011"] = GenericMatcher(r"ENERGY| Total FORCE_EVAL", col=9)
 registry["N_special_kpoints"] = GenericMatcher(r"Number of Special K-points:", col=5)
+registry["QS_number_of_molecular_orbitals"] = GenericMatcher(
+    r"Number of molecular orbitals:", col=5
+)
+registry["QS_cartesian_mo_output"] = TextPresenceMatcher("CARTESIAN EIGENVECTORS")
+registry["QS_MO_OCCUPATION_STATS"] = TextPresenceMatcher("MO| Total occupied (ALPHA):")
 registry["Kubo_sigma_iso"] = GenericMatcher(r"KUBO_TRANSPORT| sigma_iso[S/cm]", col=3)
 registry["Kubo_sigma_iso_2d"] = GenericMatcher(r"KUBO_TRANSPORT| sigma_iso[S]", col=3)
 registry["Kubo_sigma_iso_1d"] = GenericMatcher(r"KUBO_TRANSPORT| sigma_iso[S*m]", col=3)
@@ -57,6 +75,9 @@ registry["SKALA_GPW_feature_spin_moment"] = GenericMatcher(
 )
 registry["SKALA_GPW_feature_weight_sum"] = GenericMatcher(
     r"SKALA_GPW| Native grid feature weight sum", col=7
+)
+registry["SKALA_GAPW_composite_electrons"] = GenericMatcher(
+    r"SKALA_GPW| Active atom-composite electrons", col=5
 )
 registry["WANNIER90_SCF_MO_REUSE"] = TextPresenceMatcher(
     "WANNIER90| Reused SCF MO coefficients for the Wannier90 full k-point mesh."
@@ -85,6 +106,9 @@ registry["M014"] = GenericMatcher(r"CheckSum Shifts =", col=4)
 registry["M015"] = GenericMatcher(r"CheckSum NICS =", col=4)
 registry["M016"] = GenericMatcher(r"CheckSum Chi =", col=4)
 registry["M017"] = GenericMatcher(r"Total=", col=8)
+registry["Dipole_trajectory_norm"] = GenericMatcher("MOMENTS|", col=6)
+registry["Dipole_trajectory_cell_xx"] = GenericMatcher("MOMENTS|", col=7)
+registry["Molecular_moment_x"] = GenericMatcher(r"Order: 1", col=3)
 registry["M018"] = GenericMatcher(r"MS| TRACKED FREQUENCY", col=6)
 registry["M019"] = GenericMatcher(r"CheckSum splines =", col=4)
 registry["M020"] = GenericMatcher(r"epr|TOT:checksum", col=2)
@@ -256,6 +280,27 @@ registry["E_evGW_gap"] = GenericMatcher(
 
 registry["M113"] = GenericMatcher(r"BSE|             1     -TDA-", col=7)
 registry["M114"] = GenericMatcher(r"BSE|             1    -ABBA-", col=7)
+
+# Open-shell (UKS) BSE matchers: joint-spectrum energies and oscillator strength
+registry["BSE_1st_excit_ener_UKS"] = GenericMatcher(
+    r"BSE|                1       UKS              -TDA-", col=5
+)
+registry["BSE_2nd_excit_ener_UKS"] = GenericMatcher(
+    r"BSE|                2       UKS              -TDA-", col=5
+)
+registry["BSE_osc_str_n2_UKS"] = GenericMatcher(r"BSE|             2     -TDA-", col=7)
+registry["BSE_1st_excit_ener_UKS_ABBA"] = GenericMatcher(
+    r"BSE|                1       UKS             -ABBA-", col=5
+)
+registry["BSE_2nd_excit_ener_UKS_ABBA"] = GenericMatcher(
+    r"BSE|                2       UKS             -ABBA-", col=5
+)
+registry["BSE_osc_str_n2_UKS_ABBA"] = GenericMatcher(
+    r"BSE|             2    -ABBA-", col=7
+)
+registry["BSE_ampl_n2_UKS_ABBA"] = GenericMatcher(
+    r"BSE|            2   α      1    =>     2        -ABBA-", col=8
+)
 registry["M115"] = GenericMatcher(r"MOMENTS_TRACE_RE|     0.10000000E+000", col=3)
 registry["M116"] = GenericMatcher(r"MOMENTS_TRACE_IM|     0.10000000E+000", col=3)
 registry["M117"] = GenericMatcher(r"MOMENTS_TRACE_RE|     0.20000000E+000", col=3)
@@ -278,6 +323,31 @@ registry["M125"] = GenericMatcher(
 # Checking maximum polarizability reported by GX-AC@RTBSE
 registry["RTBSE_GXAC_H2_pol"] = GenericMatcher(
     r"POLARIZABILITY_PADE|     0.30450000E+002", col=4
+)
+
+# Lowest excitation energy from the linRTBSE Liouvillian diagnostic.
+# Tied to the F12.4 eV column of the n=1 row.
+registry["LinRTBSE_1st_excit_ener"] = GenericMatcher(
+    r" RTBSE\|\s+1\s+\d+\.\d+\s*$", col=3, regex=True
+)
+
+# 2nd and 3rd excitation energy on the same table; the "\s+N\s+" boundary
+# uniquely selects each row (e.g. "12" / "20" / "22" never matches "\s+2\s+").
+registry["LinRTBSE_2nd_excit_ener"] = GenericMatcher(
+    r" RTBSE\|\s+2\s+\d+\.\d+\s*$", col=3, regex=True
+)
+registry["LinRTBSE_3rd_excit_ener"] = GenericMatcher(
+    r" RTBSE\|\s+3\s+\d+\.\d+\s*$", col=3, regex=True
+)
+
+# Static polarizability alpha(0), Re part, spin=1, xx element.
+registry["LinRTBSE_static_pol_xx"] = GenericMatcher(
+    r" STATIC_POL\|\s+1\s+1,\s*1\s+", col=5, regex=True
+)
+
+# Spin-summed total static polarizability alpha(0), Re part, xx element (open shell).
+registry["LinRTBSE_static_pol_xx_total"] = GenericMatcher(
+    r" STATIC_POL\|\s+TOT\s+1,\s*1\s+", col=5, regex=True
 )
 
 registry["M126"] = GenericMatcher(r" # Total charge ", col=5)
@@ -304,7 +374,51 @@ registry["RIRS_CUTOFF"] = GenericMatcher(
 registry["E_RIRS_HOMO"] = GenericMatcher(r"G0W0 valence band maximum", col=6)
 registry["E_RIRS_LUMO"] = GenericMatcher(r"G0W0 conduction band minimum", col=6)
 
+# RI-RS evGW0 calculation for molecules; the band edges are labelled evGW0 rather than
+# G0W0 once SELF_CONSISTENCY EVGW0 is requested, so these need their own matchers
+registry["E_RIRS_evGW0_HOMO"] = GenericMatcher(r"evGW0 valence band maximum", col=6)
+registry["E_RIRS_evGW0_LUMO"] = GenericMatcher(r"evGW0 conduction band minimum", col=6)
+registry["E_evGW0_direct_gap"] = GenericMatcher(r"evGW0 direct band gap", col=6)
+
 # Floquet Calculations
-registry["Quasienergy"] = GenericMatcher(r"  4", col=2)
-registry["Floquet_DOS"] = GenericMatcher(r"-1.690", col=2)
+registry["Quasienergy"] = GenericMatcher(r"   3", col=2)
+registry["Floquet_BS"] = GenericMatcher(r"   5", col=2)
+registry["Floquet_DOS"] = GenericMatcher(r" 0.1200", col=2)
+registry["Floquet_OCC"] = GenericMatcher(r" 0.1200", col=3)
+
+# MTLR Calculations
+registry["MTLR_U_MINUS_J"] = GenericMatcher(r"U_MINUS_J [eV]", col=4)
+
+# NNP MD matchers. M_INIT_ENERGY passes first=True because ENERGY|Total
+# FORCE_EVAL is printed once per MD step, and the default (last-line)
+# strategy would return step N rather than the step-0 initial value.
+# M_CONS_QTY reads the final-step MD|Conserved quantity.
+registry["M_INIT_ENERGY"] = GenericMatcher(
+    r"ENERGY| Total FORCE_EVAL", col=9, first=True
+)
+registry["M_CONS_QTY"] = GenericMatcher(r"MD| Conserved quantity", col=5)
+
+# REFTRAJ output must retain the frame index read from the trajectory, including
+# in nested print-key filenames.
+registry["REFTRAJ_first_frame_index"] = GenericMatcher(
+    r"i\s*=\s*(\d+)", col=1, regex=True, first=True
+)
+registry["REFTRAJ_last_frame_index"] = GenericMatcher(
+    r"i\s*=\s*(\d+)", col=1, regex=True
+)
+registry["REFTRAJ_force_file"] = TextPresenceMatcher("ATOMIC FORCES")
+
+# STRUCTURE_DATA uses the same torsion sign convention as the TORSION COLVAR.
+registry["STRUCTURE_DATA_dihedral_angle"] = GenericMatcher(
+    r"d\(1,2,3,4\)\s*=\s*([-+0-9.]+)", col=1, regex=True
+)
+# Checksum of the integrated RTP current (paramagnetic + nonlocal-PP commutator terms)
+registry["RTP_current_checksum"] = GenericMatcher(
+    r"RTP_CURRENT| CheckSum j_int=", col=4
+)
+
+# Vacuum level (plane-averaged, dipole-corrected Hartree potential) just below/above the
+# surface dipole correction reference plane; both values are printed on the same line.
+registry["Vacuum_level_below"] = GenericMatcher(r"dipole correction plane [eV]:", col=5)
+registry["Vacuum_level_above"] = GenericMatcher(r"dipole correction plane [eV]:", col=6)
 # EOF

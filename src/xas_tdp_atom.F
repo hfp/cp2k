@@ -1186,7 +1186,7 @@ CONTAINS
 !  Point to the rho_set densities
       rhoa => rho_set%rhoa
       rhob => rho_set%rhob
-      rhoa = 0.0_dp; rhob = 0.0_dp;
+      rhoa = 0.0_dp; rhob = 0.0_dp
       IF (do_gga) THEN
          DO dir = 1, 3
             rho_set%drhoa(dir)%array = 0.0_dp
@@ -2132,14 +2132,14 @@ CONTAINS
       dga1 => xas_atom_env%dga1(ikind)%array
       dga2 => xas_atom_env%dga2(ikind)%array
 
-      !Before integration, wanna pre-divide all relevant derivastives by the nrom of the gradient
+      !Before integration, wanna pre-divide all relevant derivatives by the norm of the gradient
       CALL divide_by_norm_drho(deriv_set, rho_set, lsd=.TRUE.)
 
       !Wanna integrate <phi_i|fxc|phi_j>, start looping over phi_j and do the first integration, then
       !collect vxc and vxg and loop over phi_i for the second integration
       !Note: we do not use the CG coefficients because they are only useful when there is a product
       !      of Gaussians, which is not really the case here
-      !Note: the spherical orbitals for phi_i are distributed among the prcos of the current batch
+      !Note: the spherical orbitals for phi_i are distributed among the procs of the current batch
 
       ALLOCATE (so(na, nr))
       ALLOCATE (dso(na, nr, 3))

@@ -32,8 +32,10 @@ MODULE particle_methods
                                               cp_logger_get_default_io_unit,&
                                               cp_logger_type,&
                                               cp_to_string
-   USE cp_output_handling,              ONLY: cp_print_key_finished_output,&
+   USE cp_output_handling,              ONLY: cp_p_file,&
+                                              cp_print_key_finished_output,&
                                               cp_print_key_generate_filename,&
+                                              cp_print_key_should_output,&
                                               cp_print_key_unit_nr
    USE cp_units,                        ONLY: cp_unit_from_cp2k
    USE external_potential_types,        ONLY: fist_potential_type,&
@@ -1036,8 +1038,9 @@ CONTAINS
                                particle_set(atomic_indices(3))%r(:), cell)
                   rcd(:) = pbc(particle_set(atomic_indices(3))%r(:), &
                                particle_set(atomic_indices(4))%r(:), cell)
+                  ! Match the sign convention of the TORSION collective variable.
                   WRITE (UNIT=iw, FMT="(T3,A,T26,A,F9.3)") &
-                     "d"//TRIM(string), "=", dihedral_angle(rab, rbc, rcd)*degree
+                     "d"//TRIM(string), "=", -dihedral_angle(rab, rbc, rcd)*degree
                ELSE
                   WRITE (UNIT=iw, FMT="(T3,A)") &
                      "Invalid atomic indices "//TRIM(string)//" specified. Print request is ignored."
@@ -1106,7 +1109,8 @@ CONTAINS
          symmetry_id, w_cif_label, w_cif_type_symbol
       INTEGER, ALLOCATABLE                               :: count_list(:)
       LOGICAL                                            :: dummy, elem_in_list, orthorhombic, &
-                                                            print_kind, write_cif, write_xyz
+                                                            print_final_structure, print_kind, &
+                                                            write_cif, write_xyz
       REAL(KIND=dp)                                      :: angle_alpha, angle_beta, angle_gamma, &
                                                             deth, unit_conv
       REAL(KIND=dp), DIMENSION(3)                        :: abc, r, s
@@ -1123,6 +1127,8 @@ CONTAINS
       logger => cp_get_default_logger()
       output_unit = cp_logger_get_default_io_unit(logger)
       print_key => section_vals_get_subs_vals(input_section, "PRINT%FINAL_STRUCTURE")
+      print_final_structure = BTEST(cp_print_key_should_output(logger%iter_info, print_key), cp_p_file)
+      file_unit = -1
       conv_str = "F"
       IF (conv) conv_str(1:1) = "T"
 
@@ -1184,10 +1190,12 @@ CONTAINS
                count_list(elem_seen) = 1
             END IF
          END IF
-         IF (LEN_TRIM(cif_type_symbol(iatom)) > w_cif_type_symbol) &
+         IF (LEN_TRIM(cif_type_symbol(iatom)) > w_cif_type_symbol) THEN
             w_cif_type_symbol = LEN_TRIM(cif_type_symbol(iatom))
-         IF (LEN_TRIM(cif_label(iatom)) > w_cif_label) &
+         END IF
+         IF (LEN_TRIM(cif_label(iatom)) > w_cif_label) THEN
             w_cif_label = LEN_TRIM(cif_label(iatom))
+         END IF
       END DO atom_loop
 
       ! Determine the format of each line in cif considering width of cif_type_symbol and cif_label
@@ -1231,6 +1239,7 @@ CONTAINS
 
       ! Write XYZ
       CALL section_vals_val_get(print_key, "PRINT_XYZ", l_val=write_xyz)
+      write_xyz = write_xyz .AND. print_final_structure
       CALL section_vals_val_get(print_key, "PRINT_ATOM_KIND", l_val=print_kind)
       IF (write_xyz) THEN
          ! Print a message to log
@@ -1260,13 +1269,15 @@ CONTAINS
          file_unit = cp_print_key_unit_nr(logger, input_section, "PRINT%FINAL_STRUCTURE", &
                                           file_status="REPLACE", file_form="FORMATTED", &
                                           extension=".xyz")
-         IF (file_unit > 0) &
+         IF (file_unit > 0) THEN
             CALL write_particle_coordinates(particle_set, file_unit, dump_extxyz, "POS", title, &
                                             cell=cell, unit_conv=unit_conv, print_kind=print_kind)
+         END IF
       END IF
 
       ! Write CIF
       CALL section_vals_val_get(print_key, "PRINT_CIF", l_val=write_cif)
+      write_cif = write_cif .AND. print_final_structure
       IF (write_cif) THEN
          ! Print a message to log
          record = cp_print_key_generate_filename(logger, print_key, &
@@ -1306,6 +1317,20 @@ CONTAINS
                "submitted by "//TRIM(r_user_name)//"@"//TRIM(r_host_name), &
                "processed in "//TRIM(r_cwd), &
                "generated at "//TRIM(timestamp)
+            WRITE (UNIT=file_unit, FMT="(T2,A)") &
+               REPEAT(" -*WARNING*- ", 6)
+            WRITE (UNIT=file_unit, FMT="(T2,A)") &
+               "WARNING| the lines enclosed in between -*WARNING*- contain metadata"
+            WRITE (UNIT=file_unit, FMT="(T2,A)") &
+               "WARNING| provided in a tentative format for the newly implemented"
+            WRITE (UNIT=file_unit, FMT="(T2,A)") &
+               "WARNING| CIF output from CP2K version 2026.2, which may be unstable"
+            WRITE (UNIT=file_unit, FMT="(T2,A)") &
+               "WARNING| and subject to overhaul in a future release. Contact the"
+            WRITE (UNIT=file_unit, FMT="(T2,A)") &
+               "WARNING| developers in case a stabilized format is needed for some"
+            WRITE (UNIT=file_unit, FMT="(T2,A)") &
+               "WARNING| downstream CIF parser with text pattern matchers (regexp)."
             WRITE (UNIT=file_unit, FMT="(T2,A)") &
                "- Optimization type: "//TRIM(gopt_env_label)
             IF (conv) THEN
@@ -1364,6 +1389,8 @@ CONTAINS
                   cp_unit_from_cp2k(hmat(2, i), "angstrom"), &
                   cp_unit_from_cp2k(hmat(3, i), "angstrom")
             END DO
+            WRITE (UNIT=file_unit, FMT="(T2,A)") &
+               REPEAT("-*WARNING*- ", 6)
             WRITE (UNIT=file_unit, FMT="(A)") ";"
             ! Data of cell and geometry
             WRITE (UNIT=file_unit, FMT="(/,A,T44,A)") &
@@ -1414,9 +1441,10 @@ CONTAINS
       CALL section_release(tmp_cell_section)
       CALL cp_print_key_finished_output(file_unit, logger, input_section, &
                                         "PRINT%FINAL_STRUCTURE")
-      IF (output_unit > 0) &
+      IF (output_unit > 0 .AND. (write_xyz .OR. write_cif)) THEN
          WRITE (UNIT=output_unit, FMT='(/,T2,A)') &
-         routineN//": Done!"
+            routineN//": Done!"
+      END IF
 
       CALL timestop(handle)
 

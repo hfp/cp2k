@@ -548,11 +548,12 @@ CONTAINS
                              "connectivity type.")
             END SELECT
          END DO
-         IF (SIZE(topology%atom_info%id_molname) /= topology%natoms) &
+         IF (SIZE(topology%atom_info%id_molname) /= topology%natoms) THEN
             CALL cp_abort(__LOCATION__, &
                           "Number of atoms in connectivity control is larger than the "// &
                           "number of atoms in coordinate control. check coordinates and "// &
                           "connectivity. ")
+         END IF
 
          ! Merge defined structures
          section => section_vals_get_subs_vals(subsys_section, "TOPOLOGY%MOL_SET%MERGE_MOLECULES")
@@ -648,7 +649,7 @@ CONTAINS
          CALL read_coordinate_cp2k(topology, para_env, subsys_section)
       CASE DEFAULT
          ! We should never reach this point..
-         CPABORT("")
+         CPABORT("Option invalid or unavailable for reading coordinates")
       END SELECT
 
       ! Parse &COORD section and in case overwrite
@@ -660,8 +661,9 @@ CONTAINS
                                 i_val=topology%natoms)
       CALL timestop(handle2)
       ! Check on atom numbers
-      IF (topology%natoms <= 0) &
+      IF (topology%natoms <= 0) THEN
          CPABORT("No atomic coordinates have been found! ")
+      END IF
       CALL timestop(handle)
       CALL cp_print_key_finished_output(iw, logger, subsys_section, &
                                         "PRINT%TOPOLOGY_INFO")

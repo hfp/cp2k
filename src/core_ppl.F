@@ -189,7 +189,11 @@ CONTAINS
       dokp = (nimages > 1)
 
       IF (dokp) THEN
-         CPASSERT(PRESENT(cell_to_index) .AND. ASSOCIATED(cell_to_index))
+         IF (PRESENT(cell_to_index)) THEN
+            CPASSERT(ASSOCIATED(cell_to_index))
+         ELSE
+            CPABORT("Missing cell_to_index for k-point calculation")
+         END IF
       END IF
 
       IF (calculate_forces .OR. doat) THEN
@@ -444,7 +448,7 @@ CONTAINS
                IF (ecp_semi_local) THEN
                   CALL get_potential(potential=sgp_potential, sl_lmax=slmax, &
                                      npot=npot, nrpot=nrpot, apot=apot, bpot=bpot)
-               ELSEIF (ecp_local) THEN
+               ELSE IF (ecp_local) THEN
                   IF (SUM(ABS(aloc(1:nloc))) < 1.0e-12_dp) CYCLE
                END IF
             ELSE
@@ -494,7 +498,7 @@ CONTAINS
                               rab, dab, rac, dac, rbc, dbc, &
                               hab(:, :, iset, jset), ppl_work, pab(:, :, iset, jset), &
                               force_a, force_b, ppl_fwork)
-                        ELSEIF (libgrpp_local) THEN
+                        ELSE IF (libgrpp_local) THEN
 !$OMP CRITICAL(type1)
                            CALL libgrpp_local_forces_ref(la_max(iset), la_min(iset), npgfa(iset), &
                                                          rpgfa(:, iset), zeta(:, iset), &
@@ -552,7 +556,7 @@ CONTAINS
                            CALL virial_pair_force(pv_thread, f0, force_a, rac)
                            CALL virial_pair_force(pv_thread, f0, force_b, rbc)
                         END IF
-                     ELSEIF (do_dR) THEN
+                     ELSE IF (do_dR) THEN
                         hab2_w = 0._dp
                         CALL ppl_integral( &
                            la_max(iset), la_min(iset), npgfa(iset), &
@@ -580,7 +584,7 @@ CONTAINS
                               nexp_ppl, alpha_ppl, nct_ppl, cval_ppl, ppl_radius, &
                               rab, dab, rac, dac, rbc, dbc, hab(:, :, iset, jset), ppl_work)
 
-                        ELSEIF (libgrpp_local) THEN
+                        ELSE IF (libgrpp_local) THEN
                            !If the local part of the potential is more complex, we need libgrpp
 !$OMP CRITICAL(type1)
                            CALL libgrpp_local_integrals(la_max(iset), la_min(iset), npgfa(iset), &

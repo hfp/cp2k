@@ -98,7 +98,7 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'topology_coordinate_pack'
 
-      CHARACTER(LEN=default_string_length)               :: atmname
+      CHARACTER(LEN=default_string_length)               :: atmname, err
       INTEGER                                            :: atom_i, atom_j, counter, dim0, dim1, &
                                                             dim2, dim3, first, handle, handle2, i, &
                                                             iatom, ikind, iw, j, k, last, &
@@ -198,8 +198,9 @@ CONTAINS
       CALL reallocate(mass, 1, counter)
       CALL reallocate(id_element, 1, counter)
       CALL reallocate(charge, 1, counter)
-      IF (iw > 0) &
+      IF (iw > 0) THEN
          WRITE (iw, '(5X,A,I3)') "Total Number of Atomic Kinds = ", topology%natom_type
+      END IF
       CALL timestop(handle2)
 
       !-----------------------------------------------------------------------------
@@ -263,11 +264,12 @@ CONTAINS
       IF (ANY(kind_of == 0)) THEN
          DO i = 1, topology%natoms
             IF (kind_of(i) == 0) THEN
-               WRITE (*, *) i, kind_of(i)
-               WRITE (*, *) "Two molecules have been defined as identical molecules but atoms mismatch charges!"
+               WRITE (err, "(1X,I5)") i
             END IF
          END DO
-         CPABORT("")
+         CALL cp_abort(__LOCATION__, &
+                       "Two molecules have been defined as identical molecules but atoms "// &
+                       "mismatch charges! Check these atoms:"//TRIM(err))
       END IF
       CALL timestop(handle2)
 
@@ -337,10 +339,11 @@ CONTAINS
       END DO
       my_ignore_outside_box = .FALSE.
       IF (PRESENT(ignore_outside_box)) my_ignore_outside_box = ignore_outside_box
-      IF (.NOT. my_ignore_outside_box .AND. .NOT. check) &
+      IF (.NOT. my_ignore_outside_box .AND. .NOT. check) THEN
          CALL cp_abort(__LOCATION__, &
                        "A non-periodic calculation has been requested but the system size "// &
                        "exceeds the cell size in at least one of the non-periodic directions!")
+      END IF
       IF (do_center) THEN
          CALL section_vals_val_get(subsys_section, &
                                    "TOPOLOGY%CENTER_COORDINATES%CENTER_POINT", explicit=explicit)
@@ -635,20 +638,23 @@ CONTAINS
             ! copy of data, not copy of pointer
             exclusions(iatom)%list_onfo = ex_onfo_list(iatom)%array1
             IF (iw > 0) THEN
-               IF (ASSOCIATED(list)) &
+               IF (ASSOCIATED(list)) THEN
                   WRITE (iw, *) "exclusion list_vdw :: ", &
-                  "atom num :", iatom, "exclusion list ::", &
-                  list
-               IF (topology%exclude_vdw /= topology%exclude_ei) THEN
-                  IF (ASSOCIATED(list2)) &
-                     WRITE (iw, *) "exclusion list_ei :: ", &
                      "atom num :", iatom, "exclusion list ::", &
-                     list2
+                     list
                END IF
-               IF (ASSOCIATED(exclusions(iatom)%list_onfo)) &
+               IF (topology%exclude_vdw /= topology%exclude_ei) THEN
+                  IF (ASSOCIATED(list2)) THEN
+                     WRITE (iw, *) "exclusion list_ei :: ", &
+                        "atom num :", iatom, "exclusion list ::", &
+                        list2
+                  END IF
+               END IF
+               IF (ASSOCIATED(exclusions(iatom)%list_onfo)) THEN
                   WRITE (iw, *) "onfo list :: ", &
-                  "atom num :", iatom, "onfo list ::", &
-                  exclusions(iatom)%list_onfo
+                     "atom num :", iatom, "onfo list ::", &
+                     exclusions(iatom)%list_onfo
+               END IF
             END IF
          END DO
          ! deallocate onfo
@@ -798,7 +804,10 @@ CONTAINS
             CALL reallocate(ex_bond_list_w(j)%array1, 1, l)
          END DO
       CASE DEFAULT
-         CPABORT("")
+         CALL cp_abort(__LOCATION__, &
+                       "<BOND> is supported as the <keyword> for "// &
+                       "setup_exclusion_list, found unknown option "// &
+                       "<"//TRIM(keyword)//">")
       END SELECT
 
    END SUBROUTINE setup_exclusion_list

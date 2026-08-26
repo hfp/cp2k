@@ -8,8 +8,6 @@ class: no-scaled-link
 ---
 ```
 
-% TODO: `{toctree} % :caption: Get started % % get-started/installation % get-started/tutorials % `
-
 ```{toctree}
 ---
 caption: Getting Started
@@ -17,10 +15,9 @@ titlesonly:
 maxdepth: 1
 ---
 getting-started/foreword-and-faq
-getting-started/build-from-source
-getting-started/build-with-spack
-getting-started/distributions
+getting-started/installation
 getting-started/first-calculation
+getting-started/troubleshooting
 ```
 
 ```{toctree}
@@ -39,6 +36,7 @@ methods/sampling/index
 methods/optimization/index
 methods/electronic_structure/index
 methods/properties/index
+methods/restarting
 ```
 
 ```{toctree}
@@ -52,8 +50,6 @@ technologies/accelerators/index
 technologies/libraries
 ```
 
-% TODO: `{toctree} % :caption: How-to guides % % dummy % `
-
 ```{toctree}
 ---
 caption: References
@@ -66,15 +62,22 @@ acronyms
 units
 ```
 
-% TODO: `{toctree} % :caption: Explanations % % dummy % `
-
 ```{toctree}
 ---
-caption: Release Versions
+caption: Development
 titlesonly:
 maxdepth: 1
 ---
-2026.1 <https://manual.cp2k.org/cp2k-2026_1-branch/index.html>
-2025.2 <https://manual.cp2k.org/cp2k-2025_2-branch/index.html>
-All versions <versions>
+development/onboarding
+development/under-the-hood
+```
+
+```{toctree}
+---
+caption: Releases
+titlesonly:
+maxdepth: 1
+---
+changelog
+Older Manuals <versions>
 ```

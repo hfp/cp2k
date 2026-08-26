@@ -204,10 +204,11 @@ CONTAINS
                   CALL parser_release(parser)
                END BLOCK
             END IF
-            IF (.NOT. found) &
+            IF (.NOT. found) THEN
                CALL cp_abort(__LOCATION__, &
                              "Failure in assigning KINDS <"//TRIM(iname)//"> and <"//TRIM(jname)// &
                              "> to a DFTB interaction pair!")
+            END IF
          END DO
       END DO
       ! reading the files
@@ -306,7 +307,7 @@ CONTAINS
             DO l = 0, 3
                SELECT CASE (l)
                CASE DEFAULT
-                  CPABORT("")
+                  CPABORT("Only 0, 1, 2 are supported as the value of l")
                CASE (0)
                   lp = 10
                CASE (1)
@@ -700,7 +701,9 @@ CONTAINS
       RETURN
 
 1     CONTINUE
-      CPABORT("")
+      ! Many instances of READ (..., END=1, err=1) gets conflated here
+      ! TODO: overhaul the file parser to handle errors separately
+      CPABORT("Something went wrong while reading DFTB parameter file")
 
    END SUBROUTINE qs_dftb_param_init
 

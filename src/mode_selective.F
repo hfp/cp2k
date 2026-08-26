@@ -18,6 +18,7 @@
 !> \author Florian Schiffmann 08.2006
 ! **************************************************************************************************
 MODULE mode_selective
+   USE cell_types,                      ONLY: cell_type
    USE cp_files,                        ONLY: close_file,&
                                               open_file
    USE cp_log_handling,                 ONLY: cp_get_default_logger,&
@@ -96,10 +97,11 @@ CONTAINS
 !> \param dx ...
 !> \param output_unit ...
 !> \param logger ...
+!> \param cell simulation cell
 !> \author Teodoro Laino 08.2006
 ! **************************************************************************************************
    SUBROUTINE ms_vb_anal(input, rep_env, para_env, globenv, particles, &
-                         nrep, calc_intens, dx, output_unit, logger)
+                         nrep, calc_intens, dx, output_unit, logger, cell)
       TYPE(section_vals_type), POINTER                   :: input
       TYPE(replica_env_type), POINTER                    :: rep_env
       TYPE(mp_para_env_type), POINTER                    :: para_env
@@ -110,6 +112,7 @@ CONTAINS
       REAL(KIND=dp)                                      :: dx
       INTEGER                                            :: output_unit
       TYPE(cp_logger_type), POINTER                      :: logger
+      TYPE(cell_type), POINTER                           :: cell
 
       CHARACTER(len=*), PARAMETER                        :: routineN = 'ms_vb_anal'
 
@@ -203,7 +206,7 @@ CONTAINS
                                   mass, &
                                   converged, &
                                   dx, calc_intens, &
-                                  output_unit, logger)
+                                  output_unit, logger, cell)
          IF (converged) EXIT
          IF (calc_intens) THEN
             ALLOCATE (tmp_deriv(3, ms_vib%mat_size))
@@ -330,8 +333,9 @@ CONTAINS
             END IF
          END IF
       END IF
-      IF (ms_vib%select_id == 0) &
+      IF (ms_vib%select_id == 0) THEN
          CPABORT("no frequency, range or involved atoms specified ")
+      END IF
       ionode = para_env%is_source()
       SELECT CASE (guess)
       CASE (ms_guess_atomic)
@@ -374,7 +378,7 @@ CONTAINS
                   ms_vib%b_vec(jj, i) = ABS(globenv%gaussian_rng_stream%next())
                END DO
             END DO
-            norm = SQRT(DOT_PRODUCT(ms_vib%b_vec(:, i), ms_vib%b_vec(:, i)))
+            norm = NORM2(ms_vib%b_vec(:, i))
             ms_vib%b_vec(:, i) = ms_vib%b_vec(:, i)/norm
          END DO
 
@@ -386,7 +390,7 @@ CONTAINS
                         ms_vib%b_vec(:, j) = &
                            ms_vib%b_vec(:, j) - DOT_PRODUCT(ms_vib%b_vec(:, j), ms_vib%b_vec(:, i))*ms_vib%b_vec(:, i)
                         ms_vib%b_vec(:, j) = &
-                           ms_vib%b_vec(:, j)/SQRT(DOT_PRODUCT(ms_vib%b_vec(:, j), ms_vib%b_vec(:, j)))
+                           ms_vib%b_vec(:, j)/NORM2(ms_vib%b_vec(:, j))
                      END IF
                   END DO
                END DO
@@ -424,8 +428,8 @@ CONTAINS
       CALL para_env%bcast(ms_vib%b_vec)
       CALL para_env%bcast(ms_vib%delta_vec)
       DO i = 1, nrep
-         ms_vib%step_r(i) = dx/SQRT(DOT_PRODUCT(ms_vib%delta_vec(:, i), ms_vib%delta_vec(:, i)))
-         ms_vib%step_b(i) = SQRT(DOT_PRODUCT(ms_vib%step_r(i)*ms_vib%b_vec(:, i), ms_vib%step_r(i)*ms_vib%b_vec(:, i)))
+         ms_vib%step_r(i) = dx/NORM2(ms_vib%delta_vec(:, i))
+         ms_vib%step_b(i) = NORM2(ms_vib%step_r(i)*ms_vib%b_vec(:, i))
       END DO
       CALL timestop(handle)
 
@@ -451,8 +455,8 @@ CONTAINS
       INTEGER                                            :: nrep
 
       CHARACTER(LEN=default_path_length)                 :: hes_filename
-      INTEGER                                            :: hesunit, i, j, jj, k, natoms, ncoord, &
-                                                            output_unit, stat
+      INTEGER                                            :: hesunit, i, istat, j, jj, k, natoms, &
+                                                            ncoord, output_unit, stat
       INTEGER, DIMENSION(:), POINTER                     :: tmplist
       REAL(KIND=dp)                                      :: my_val, norm
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: tmp
@@ -476,12 +480,14 @@ CONTAINS
          ALLOCATE (tmplist(ncoord))
 
          ! should use the cp_fm_read_unformatted...
+         istat = 0
          DO i = 1, ncoord
             READ (UNIT=hesunit, IOSTAT=stat) ms_vib%hes_bfgs(:, i)
+            istat = istat + stat
          END DO
          CALL close_file(hesunit)
          IF (output_unit > 0) THEN
-            IF (stat /= 0) THEN
+            IF (istat /= 0) THEN
                WRITE (output_unit, FMT="(/,T2,A)") "**  Error while reading HESSIAN **"
             ELSE
                WRITE (output_unit, FMT="(/,T2,A)") &
@@ -517,7 +523,7 @@ CONTAINS
          CALL sort(tmp, ncoord, tmplist)
          DO i = 1, nrep
             ms_vib%b_vec(:, i) = ms_vib%hes_bfgs(:, tmplist(i))
-            norm = SQRT(DOT_PRODUCT(ms_vib%b_vec(:, i), ms_vib%b_vec(:, i)))
+            norm = NORM2(ms_vib%b_vec(:, i))
             ms_vib%b_vec(:, i) = ms_vib%b_vec(:, i)/norm
          END DO
          DO i = 1, SIZE(ms_vib%b_vec, 1)
@@ -597,18 +603,19 @@ CONTAINS
       END IF
       IF (ionode) THEN
          statint = 0
-         READ (UNIT=hesunit, IOSTAT=stat) ms_vib%b_mat
+         READ (UNIT=hesunit) ms_vib%b_mat
          READ (UNIT=hesunit, IOSTAT=stat) ms_vib%s_mat
-         IF (calc_intens) READ (UNIT=hesunit, IOSTAT=statint) ms_vib%dip_deriv(:, 1:ms_vib%mat_size)
-         IF (statint /= 0 .AND. output_unit > 0) WRITE (output_unit, FMT="(/,T2,A)") "**  Error while reading MS_RESTART,", &
-            "intensities are requested but not present in restart file **"
+         IF (stat /= 0 .AND. output_unit > 0) THEN
+            WRITE (output_unit, FMT="(/,T2,A)") "**  Error while reading MS_RESTART **"
+         END IF
+         IF (calc_intens) THEN
+            READ (UNIT=hesunit, IOSTAT=statint) ms_vib%dip_deriv(:, 1:ms_vib%mat_size)
+            IF (statint /= 0 .AND. output_unit > 0) WRITE (output_unit, FMT="(/,T2,A)") "**  Error while reading MS_RESTART,", &
+               "intensities are requested but not present in restart file **"
+         END IF
          CALL close_file(hesunit)
-         IF (output_unit > 0) THEN
-            IF (stat /= 0) THEN
-               WRITE (output_unit, FMT="(/,T2,A)") "**  Error while reading MS_RESTART **"
-            ELSE
-               WRITE (output_unit, FMT="(/,T2,A)") "*** RESTART has been read successfully ***"
-            END IF
+         IF (stat == 0 .AND. statint == 0 .AND. output_unit > 0) THEN
+            WRITE (output_unit, FMT="(/,T2,A)") "*** MS_RESTART has been read successfully ***"
          END IF
       END IF
       CALL para_env%bcast(ms_vib%b_mat)
@@ -630,7 +637,7 @@ CONTAINS
             DO j = 1, ms_vib%mat_size
                ms_vib%b_vec(:, i) = ms_vib%b_vec(:, i) + approx_H(j, ind(i))*ms_vib%b_mat(:, j)
             END DO
-            ms_vib%b_vec(:, i) = ms_vib%b_vec(:, i)/SQRT(DOT_PRODUCT(ms_vib%b_vec(:, i), ms_vib%b_vec(:, i)))
+            ms_vib%b_vec(:, i) = ms_vib%b_vec(:, i)/NORM2(ms_vib%b_vec(:, i))
          END DO
 
          DEALLOCATE (ms_vib%s_mat)
@@ -700,8 +707,8 @@ CONTAINS
                            unit_number=iw)
          END IF
          info = ""
-         READ (iw, *, IOSTAT=stat) info
-         READ (iw, *, IOSTAT=stat) info
+         READ (iw, *) info
+         READ (iw, *) info
          istat = 0
          nvibs = 0
          reading_vib = .FALSE.
@@ -784,7 +791,7 @@ CONTAINS
          CALL sort(tmp, nvibs, tmplist)
          DO i = 1, nrep
             ms_vib%b_vec(:, i) = modes(:, tmplist(i))*mass(:)
-            norm = SQRT(DOT_PRODUCT(ms_vib%b_vec(:, i), ms_vib%b_vec(:, i)))
+            norm = NORM2(ms_vib%b_vec(:, i))
             ms_vib%b_vec(:, i) = ms_vib%b_vec(:, i)/norm
          END DO
          DO i = 1, nrep
@@ -818,13 +825,14 @@ CONTAINS
 !> \param calc_intens ...
 !> \param output_unit_ms ...
 !> \param logger ...
+!> \param cell simulation cell
 !> \author Florian Schiffmann 11.2007
 ! **************************************************************************************************
    SUBROUTINE evaluate_H_update_b(rep_env, ms_vib, input, nrep, &
                                   particles, &
                                   mass, &
                                   converged, dx, &
-                                  calc_intens, output_unit_ms, logger)
+                                  calc_intens, output_unit_ms, logger, cell)
       TYPE(replica_env_type), POINTER                    :: rep_env
       TYPE(ms_vib_type)                                  :: ms_vib
       TYPE(section_vals_type), POINTER                   :: input
@@ -836,6 +844,7 @@ CONTAINS
       LOGICAL                                            :: calc_intens
       INTEGER                                            :: output_unit_ms
       TYPE(cp_logger_type), POINTER                      :: logger
+      TYPE(cell_type), POINTER                           :: cell
 
       INTEGER                                            :: i, j, jj, k, natoms, ncoord
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: ind
@@ -920,8 +929,8 @@ CONTAINS
       END DO
 
       DO i = 1, nrep
-         ms_vib%step_r(i) = dx/SQRT(DOT_PRODUCT(ms_vib%delta_vec(:, i), ms_vib%delta_vec(:, i)))
-         ms_vib%step_b(i) = SQRT(DOT_PRODUCT(ms_vib%step_r(i)*ms_vib%b_vec(:, i), ms_vib%step_r(i)*ms_vib%b_vec(:, i)))
+         ms_vib%step_r(i) = dx/NORM2(ms_vib%delta_vec(:, i))
+         ms_vib%step_b(i) = NORM2(ms_vib%step_r(i)*ms_vib%b_vec(:, i))
       END DO
       converged = .FALSE.
       IF (MAXVAL(criteria(1, :)) <= ms_vib%eps(1) .AND. MAXVAL(criteria(2, :)) &
@@ -946,14 +955,14 @@ CONTAINS
             DO j = 1, ms_vib%mat_size
                tmp_b(:, i) = tmp_b(:, i) + approx_H(j, i)*ms_vib%b_mat(:, j)/mass(:)
             END DO
-            tmp_b(:, i) = tmp_b(:, i)/SQRT(DOT_PRODUCT(tmp_b(:, i), tmp_b(:, i)))
+            tmp_b(:, i) = tmp_b(:, i)/NORM2(tmp_b(:, i))
          END DO
          IF (calc_intens) THEN
             DO i = 1, ms_vib%mat_size
                DO j = 1, ms_vib%mat_size
                   tmp_s(:, i) = tmp_s(:, i) + ms_vib%dip_deriv(:, j)*approx_H(j, i)
                END DO
-               IF (calc_intens) intensities(i) = SQRT(DOT_PRODUCT(tmp_s(:, i), tmp_s(:, i)))
+               IF (calc_intens) intensities(i) = NORM2(tmp_s(:, i))
             END DO
          END IF
          IF (calc_intens) THEN
@@ -966,7 +975,7 @@ CONTAINS
          END IF
          dump_only_positive = ms_vib%low_freq > 0.0_dp
          CALL write_vibrations_molden(input, particles, eigenval, tmp_b, intensities, calc_intens, &
-                                      dump_only_positive=dump_only_positive, logger=logger)
+                                      dump_only_positive=dump_only_positive, logger=logger, cell=cell)
          IF (calc_intens) THEN
             DEALLOCATE (intensities)
          END IF
@@ -1041,7 +1050,7 @@ CONTAINS
             DO j = 1, ms_vib%mat_size
                tmp_b(:, i) = tmp_b(:, i) + approx_H(j, i)*ms_vib%b_mat(:, j)/mass(:)
             END DO
-            tmp_b(:, i) = tmp_b(:, i)/SQRT(DOT_PRODUCT(tmp_b(:, i), tmp_b(:, i)))
+            tmp_b(:, i) = tmp_b(:, i)/NORM2(tmp_b(:, i))
          END DO
          tmp = 0._dp
          DO i = 1, ms_vib%mat_size
@@ -1078,12 +1087,12 @@ CONTAINS
       IF (PRESENT(criteria)) THEN
          DO i = 1, nrep
             criteria(1, i) = MAXVAL((residuum(:, i)))
-            criteria(2, i) = SQRT(DOT_PRODUCT(residuum(:, i), residuum(:, i)))
+            criteria(2, i) = NORM2(residuum(:, i))
          END DO
       END IF
 
       DO i = 1, nrep
-         norm = SQRT(DOT_PRODUCT(residuum(:, i), residuum(:, i)))
+         norm = NORM2(residuum(:, i))
          residuum(:, i) = residuum(:, i)/norm
       END DO
 
@@ -1091,13 +1100,13 @@ CONTAINS
          DO j = 1, nrep
             DO i = 1, ms_vib%mat_size
                residuum(:, j) = residuum(:, j) - DOT_PRODUCT(residuum(:, j), ms_vib%b_mat(:, i))*ms_vib%b_mat(:, i)
-               residuum(:, j) = residuum(:, j)/SQRT(DOT_PRODUCT(residuum(:, j), residuum(:, j)))
+               residuum(:, j) = residuum(:, j)/NORM2(residuum(:, j))
             END DO
             IF (nrep > 1) THEN
                DO i = 1, nrep
                   IF (i /= j) THEN
                      residuum(:, j) = residuum(:, j) - DOT_PRODUCT(residuum(:, j), residuum(:, i))*residuum(:, i)
-                     residuum(:, j) = residuum(:, j)/SQRT(DOT_PRODUCT(residuum(:, j), residuum(:, j)))
+                     residuum(:, j) = residuum(:, j)/NORM2(residuum(:, j))
                   END IF
                END DO
             END IF
@@ -1139,7 +1148,7 @@ CONTAINS
       REAL(KIND=dp), DIMENSION(:), OPTIONAL              :: intensities
       TYPE(cp_logger_type), POINTER                      :: logger
 
-      INTEGER                                            :: i, j, msunit, stat
+      INTEGER                                            :: i, j, msunit
       REAL(KIND=dp)                                      :: crit_a, crit_b, fint, gintval
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: residuum
       TYPE(section_vals_type), POINTER                   :: ms_vib_section
@@ -1172,7 +1181,7 @@ CONTAINS
                   residuum(:) = residuum(:) - DOT_PRODUCT(residuum(:), ms_vib%b_mat(:, j))*ms_vib%b_mat(:, j)
                END DO
                crit_a = MAXVAL(residuum(:))
-               crit_b = SQRT(DOT_PRODUCT(residuum, residuum))
+               crit_b = NORM2(residuum)
                IF (PRESENT(intensities)) THEN
                   gintval = fint*intensities(i)**2
                   IF (crit_a <= ms_vib%eps(1) .AND. crit_b <= ms_vib%eps(2)) THEN
@@ -1200,10 +1209,10 @@ CONTAINS
                                           file_action="WRITE")
 
             IF (msunit > 0) THEN
-               WRITE (UNIT=msunit, IOSTAT=stat) ms_vib%mat_size
-               WRITE (UNIT=msunit, IOSTAT=stat) ms_vib%b_mat
-               WRITE (UNIT=msunit, IOSTAT=stat) ms_vib%s_mat
-               IF (calc_intens) WRITE (UNIT=msunit, IOSTAT=stat) ms_vib%dip_deriv
+               WRITE (UNIT=msunit) ms_vib%mat_size
+               WRITE (UNIT=msunit) ms_vib%b_mat
+               WRITE (UNIT=msunit) ms_vib%s_mat
+               IF (calc_intens) WRITE (UNIT=msunit) ms_vib%dip_deriv
             END IF
 
             CALL cp_print_key_finished_output(msunit, logger, ms_vib_section, &
@@ -1217,10 +1226,10 @@ CONTAINS
                                           file_action="WRITE")
 
             IF (msunit > 0) THEN
-               WRITE (UNIT=msunit, IOSTAT=stat) ms_vib%mat_size
-               WRITE (UNIT=msunit, IOSTAT=stat) ms_vib%b_mat
-               WRITE (UNIT=msunit, IOSTAT=stat) ms_vib%s_mat
-               IF (calc_intens) WRITE (UNIT=msunit, IOSTAT=stat) ms_vib%dip_deriv
+               WRITE (UNIT=msunit) ms_vib%mat_size
+               WRITE (UNIT=msunit) ms_vib%b_mat
+               WRITE (UNIT=msunit) ms_vib%s_mat
+               IF (calc_intens) WRITE (UNIT=msunit) ms_vib%dip_deriv
             END IF
 
             CALL cp_print_key_finished_output(msunit, logger, ms_vib_section, &

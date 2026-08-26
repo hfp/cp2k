@@ -6,8 +6,8 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")/.." && pwd -P)"
 
-libxstream_ver="9b5d4ed"
-libxstream_sha256="77bd005aaf1d03556c32ea30b3f239d2ac09270c9adb219a82d585a82f1b6fea"
+libxstream_ver="1.0.0"
+libxstream_sha256="44a2823b12eb58b5eaf97649244b93dcf921597ceabc718053cd28e5f59260e3"
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh
 source "${SCRIPT_DIR}"/signal_trap.sh
@@ -23,7 +23,7 @@ case "$with_libxstream" in
   __INSTALL__)
     echo "==================== Installing LIBXStream ===================="
     pkg_install_dir="${INSTALLDIR}/libxstream-${libxstream_ver}"
-    install_lock_file="$pkg_install_dir/install_successful"
+    install_lock_file="${pkg_install_dir}/install_successful"
 
     # libxstream depends on libxs
     if [ "$with_libxs" = "__DONTUSE__" ]; then

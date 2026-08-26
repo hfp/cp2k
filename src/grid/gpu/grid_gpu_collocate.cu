@@ -89,7 +89,8 @@ __launch_bounds__(64) void calculate_coefficients(const kernel_params dev_) {
   T *smem_alpha = &shared_memory[0];
   const int tid = thread_global_index();
   const int offset = dev_.sorted_blocks_offset_dev[block_index()];
-  T *smem_cab = allocate_workspace<T>(dev_);
+  T *smem_cab = reinterpret_cast<double *>(
+      __builtin_assume_aligned(allocate_workspace<T>(dev_), 32));
 
   for (int tk = 0; tk < number_of_tasks; tk++) {
     __shared__ smem_task<T> task;
@@ -98,9 +99,11 @@ __launch_bounds__(64) void calculate_coefficients(const kernel_params dev_) {
       continue;
     fill_smem_task_coef(dev_, task_id, task);
 
-    T *coef_ = &dev_.ptr_dev[2][dev_.tasks[task_id].coef_offset];
+    T *__restrict__ coef_ =
+        &dev_.buffers_dev.coef[dev_.tasks[task_id].coef_offset];
 
     compute_alpha(task, smem_alpha);
+
     for (int z = tid; z < task.n1 * task.n2;
          z += blockDim.x * blockDim.y * blockDim.z)
       smem_cab[z] = 0.0;
@@ -158,15 +161,14 @@ __launch_bounds__(64) void collocate_kernel(const kernel_params dev_) {
   //  Alloc shared memory.
   extern __shared__ T coefs_[];
 
-  T *coef_ =
-      &dev_.ptr_dev[2][dev_.tasks[dev_.first_task + block_index()].coef_offset];
-  __shared__ T dh_[9], dh_inv_[9];
+  const size_t coef_offset =
+      dev_.tasks[dev_.first_task + block_index()].coef_offset;
+  T *coef_ = &dev_.buffers_dev.coef[coef_offset];
+  __shared__ T dh_[9];
 
   if (tid < 9) {
     // matrix from lattice coordinates to cartesian coordinates
     dh_[tid] = dev_.dh_[tid];
-    // matrix from  cartesian coordinates to lattice coordinates.
-    dh_inv_[tid] = dev_.dh_inv_[tid];
   }
 
   for (int i = tid; i < ncoset(6); i += blockDim.x * blockDim.y * blockDim.z)
@@ -387,7 +389,7 @@ __launch_bounds__(64) void collocate_kernel(const kernel_params dev_) {
         }
 
         res *= exp(-(r3x2 + r3y2 + r3z2) * task.zetp);
-        atomicAdd(dev_.ptr_dev[1] +
+        atomicAdd(dev_.buffers_dev.grid +
                       (z2 * dev_.grid_local_size_.y + y2) *
                           dev_.grid_local_size_.x +
                       x2,

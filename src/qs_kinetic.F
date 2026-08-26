@@ -220,7 +220,7 @@ CONTAINS
          dokp = .FALSE.
          use_cell_mapping = .FALSE.
          nimg = dft_control%nimages
-      ELSEIF (PRESENT(matrixkp_t)) THEN
+      ELSE IF (PRESENT(matrixkp_t)) THEN
          dokp = .TRUE.
          IF (PRESENT(ext_kpoints)) THEN
             IF (ASSOCIATED(ext_kpoints)) THEN
@@ -238,7 +238,7 @@ CONTAINS
             nimg = dft_control%nimages
          END IF
       ELSE
-         CPABORT("")
+         CPABORT("Either matrix_t or matrixkp_t is needed for build_kinetic_matrix_low")
       END IF
 
       nkind = SIZE(atomic_kind_set)
@@ -279,7 +279,7 @@ CONTAINS
          ELSE
             IF (PRESENT(matrix_p)) THEN
                matp => matrix_p
-            ELSEIF (PRESENT(matrixkp_p)) THEN
+            ELSE IF (PRESENT(matrixkp_p)) THEN
                matp => matrixkp_p(1, 1)%matrix
             ELSE
                CPABORT("Missing density matrix")
@@ -409,8 +409,6 @@ CONTAINS
                                       row=irow, col=icol, block=p_block, found=found)
                CPASSERT(found)
             ELSE
-!deb           CALL dbcsr_get_block_p(matrix=matrix_p, row=irow, col=icol, &
-!deb                                  block=p_block, found=found)
                CALL dbcsr_get_block_p(matrix=matp, row=irow, col=icol, &
                                       block=p_block, found=found)
                CPASSERT(found)

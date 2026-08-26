@@ -34,6 +34,8 @@ MODULE mp_perf_test
 #endif
 #endif
 
+   IMPLICIT NONE
+
    PRIVATE
 
    PUBLIC :: mpi_perf_test
@@ -122,7 +124,7 @@ CONTAINS
       DO i = 1, npow
          ncount = 10**i
          t2 = 0.0E0_dp
-         IF (ncount > nbufmax) CPABORT("")
+         CPASSERT(ncount <= nbufmax)
          DO j = 1, 3**(npow - i)
             CALL comm%sync()
             t1 = MPI_WTIME()
@@ -145,7 +147,7 @@ CONTAINS
       DO i = 1, npow
          ncount = 10**i
          t2 = 0.0E0_dp
-         IF (ncount > nbufmax) CPABORT("")
+         CPASSERT(ncount <= nbufmax)
          DO j = 1, 3**(npow - i)
             CALL comm%sync()
             t1 = MPI_WTIME()
@@ -167,7 +169,7 @@ CONTAINS
       END IF
       ncount = 10**npow
       IF (ionode .AND. output_unit > 0) WRITE (output_unit, *) "For messages of ", ncount*8, " bytes"
-      IF (ncount > nbufmax) CPABORT("")
+      CPASSERT(ncount <= nbufmax)
       DO itask = 0, nprocs - 1
          DO jtask = itask + 1, nprocs - 1
             CALL comm%sync()
@@ -202,7 +204,7 @@ CONTAINS
       DO i = 1, npow
          ncount = 10**i
          t2 = 0.0E0_dp
-         IF (ncount > nbufmax) CPABORT("")
+         CPASSERT(ncount <= nbufmax)
          DO j = 1, 3**(npow - i)
             CALL comm%sync()
             t1 = MPI_WTIME()
@@ -231,7 +233,7 @@ CONTAINS
       DO i = 1, npow
          ncount = 10**i
          t2 = 0.0E0_dp
-         IF (ncount > nbufmax) CPABORT("")
+         CPASSERT(ncount <= nbufmax)
          DO j = 1, 3**(npow - i)
             CALL comm%sync()
             t1 = MPI_WTIME()
@@ -261,7 +263,7 @@ CONTAINS
       DO i = 1, npow
          ncount = 10**i
          t2 = 0.0E0_dp
-         IF (ncount > nbufmax) CPABORT("")
+         CPASSERT(ncount <= nbufmax)
          DO j = 1, 3**(npow - i)
             CALL comm%sync()
             t1 = MPI_WTIME()
@@ -281,7 +283,7 @@ CONTAINS
       DO i = 1, npow
          ncount = 10**i
          t2 = 0.0E0_dp
-         IF (ncount > nbufmax) CPABORT("")
+         CPASSERT(ncount <= nbufmax)
          DO j = 1, 3**(npow - i)
             buffer2(:) = buffer1
             CALL comm%sync()
@@ -305,7 +307,7 @@ CONTAINS
       DO i = 1, npow
          ncount = 10**i
          t2 = 0.0E0_dp
-         IF (ncount > nbufmax) CPABORT("")
+         CPASSERT(ncount <= nbufmax)
          scount = ncount/nprocs
          rcount = ncount/nprocs
          DO j = 1, nprocs
@@ -334,8 +336,9 @@ CONTAINS
       END IF
       rcount = Nloc
       DO itests = 1, 3
-         IF (ionode .AND. output_unit > 0) &
+         IF (ionode .AND. output_unit > 0) THEN
             WRITE (output_unit, *) "------------------------------- test ", itests, " ------------------------"
+         END IF
          ! *** reference ***
          DO j = 1, Nprocs
             DO i = 1, Nloc
@@ -366,7 +369,7 @@ CONTAINS
          CALL comm%max(maxdiff)
          IF (ionode .AND. output_unit > 0) WRITE (output_unit, *) "MPI_SENDRECV_REPLACE  ", t4, maxdiff
          ! *** involved shift ****
-         IF (MODULO(nprocs, 2) /= 0) CPABORT("")
+         CPASSERT(MODULO(nprocs, 2) == 0)
          DO j = 1, Nprocs
             DO i = 1, Nloc
                grid3(i, j) = MODULO(i*j*taskid, itests)

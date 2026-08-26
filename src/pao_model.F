@@ -40,9 +40,9 @@ MODULE pao_model
                                               qs_kind_type
    USE torch_api,                       ONLY: &
         torch_dict_create, torch_dict_get, torch_dict_insert, torch_dict_release, torch_dict_type, &
-        torch_model_forward, torch_model_get_attr, torch_model_load, torch_tensor_backward, &
-        torch_tensor_data_ptr, torch_tensor_from_array, torch_tensor_grad, torch_tensor_release, &
-        torch_tensor_type
+        torch_model_forward, torch_model_get_attr, torch_model_load, &
+        torch_model_remap_device_constants, torch_tensor_backward, torch_tensor_data_ptr, &
+        torch_tensor_from_array, torch_tensor_grad, torch_tensor_release, torch_tensor_type
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE
@@ -84,6 +84,7 @@ CONTAINS
 
       IF (pao%iw > 0) WRITE (pao%iw, '(A)') " PAO| Loading PyTorch model from: "//TRIM(pao_model_file)
       CALL torch_model_load(model%torch_model, pao_model_file)
+      CALL torch_model_remap_device_constants(model%torch_model)
 
       ! Read model attributes.
       CALL torch_model_get_attr(model%torch_model, "pao_model_version", model%version)
@@ -120,18 +121,24 @@ CONTAINS
       ! Check compatibility
       CALL get_qs_kind(qs_kind_set(ikind), basis_set=basis_set, pao_basis_size=pao_basis_size)
       CALL get_atomic_kind(atomic_kind_set(ikind), name=kind_name, z=z)
-      IF (model%version /= 2) &
+      IF (model%version /= 2) THEN
          CPABORT("Model version not supported.")
-      IF (TRIM(model%kind_name) /= TRIM(kind_name)) &
+      END IF
+      IF (TRIM(model%kind_name) /= TRIM(kind_name)) THEN
          CPABORT("Kind name does not match.")
-      IF (model%atomic_number /= z) &
+      END IF
+      IF (model%atomic_number /= z) THEN
          CPABORT("Atomic number does not match.")
-      IF (TRIM(model%prim_basis_name) /= TRIM(basis_set%name)) &
+      END IF
+      IF (TRIM(model%prim_basis_name) /= TRIM(basis_set%name)) THEN
          CPABORT("Primary basis set name does not match.")
-      IF (model%prim_basis_size /= basis_set%nsgf) &
+      END IF
+      IF (model%prim_basis_size /= basis_set%nsgf) THEN
          CPABORT("Primary basis set size does not match.")
-      IF (model%pao_basis_size /= pao_basis_size) &
+      END IF
+      IF (model%pao_basis_size /= pao_basis_size) THEN
          CPABORT("PAO basis size does not match.")
+      END IF
 
       CALL omp_init_lock(model%lock)
       CALL timestop(handle)

@@ -25,7 +25,7 @@ case "$with_fftw" in
   __INSTALL__)
     echo "==================== Installing FFTW ===================="
     pkg_install_dir="${INSTALLDIR}/fftw-${fftw_ver}"
-    install_lock_file="$pkg_install_dir/install_successful"
+    install_lock_file="${pkg_install_dir}/install_successful"
 
     if verify_checksums "${install_lock_file}"; then
       echo "fftw-${fftw_ver} is already installed, skipping it."
@@ -80,15 +80,15 @@ case "$with_fftw" in
     ;;
 esac
 if [ "$with_fftw" != "__DONTUSE__" ]; then
-  [ "$MPI_MODE" != "no" ] && FFTW_LIBS="IF_MPI(-lfftw3_mpi|) "
+  [ "$MPI_MODE" != "no" ] && FFTW_LIBS="-lfftw3_mpi "
   FFTW_LIBS+="-lfftw3 -lfftw3_omp"
   if [ "$with_fftw" != "__SYSTEM__" ]; then
     cat << EOF > "${BUILDDIR}/setup_fftw"
-prepend_path LD_LIBRARY_PATH "$pkg_install_dir/lib"
-prepend_path LD_RUN_PATH "$pkg_install_dir/lib"
-prepend_path LIBRARY_PATH "$pkg_install_dir/lib"
-prepend_path PKG_CONFIG_PATH "$pkg_install_dir/lib/pkgconfig"
-prepend_path CMAKE_PREFIX_PATH "$pkg_install_dir"
+prepend_path LD_LIBRARY_PATH "${pkg_install_dir}/lib"
+prepend_path LD_RUN_PATH "${pkg_install_dir}/lib"
+prepend_path LIBRARY_PATH "${pkg_install_dir}/lib"
+prepend_path PKG_CONFIG_PATH "${pkg_install_dir}/lib/pkgconfig"
+prepend_path CMAKE_PREFIX_PATH "${pkg_install_dir}"
 EOF
   fi
   # we may also want to cover FFT_SG

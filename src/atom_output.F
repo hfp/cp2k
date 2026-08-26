@@ -192,16 +192,19 @@ CONTAINS
          WRITE (iw, '(T36,A,T61,F20.12)') "   Virial (-V/T) ::", -atom%energy%epot/atom%energy%ekin
       END IF
       WRITE (iw, '(T36,A,T61,F20.12)') "     Core Energy ::", atom%energy%ecore
-      IF (atom%energy%exc /= 0._dp) &
+      IF (atom%energy%exc /= 0._dp) THEN
          WRITE (iw, '(T36,A,T61,F20.12)') "       XC Energy ::", atom%energy%exc
+      END IF
       WRITE (iw, '(T36,A,T61,F20.12)') "  Coulomb Energy ::", atom%energy%ecoulomb
-      IF (atom%energy%eexchange /= 0._dp) &
+      IF (atom%energy%eexchange /= 0._dp) THEN
          WRITE (iw, '(T34,A,T61,F20.12)') "HF Exchange Energy ::", atom%energy%eexchange
+      END IF
       IF (atom%potential%ppot_type /= NO_PSEUDO) THEN
          WRITE (iw, '(T20,A,T61,F20.12)') "    Total Pseudopotential Energy ::", atom%energy%epseudo
          WRITE (iw, '(T20,A,T61,F20.12)') "    Local Pseudopotential Energy ::", atom%energy%eploc
-         IF (atom%energy%elsd /= 0._dp) &
+         IF (atom%energy%elsd /= 0._dp) THEN
             WRITE (iw, '(T20,A,T61,F20.12)') "     Local Spin-potential Energy ::", atom%energy%elsd
+         END IF
          WRITE (iw, '(T20,A,T61,F20.12)') " Nonlocal Pseudopotential Energy ::", atom%energy%epnl
       END IF
       IF (atom%potential%confinement) THEN
@@ -369,9 +372,9 @@ CONTAINS
          END DO
          WRITE (iw, '(" ",79("*"))')
       CASE (NUM_BASIS)
-         CPABORT("")
+         CPABORT("Numerical basis not yet implemented for atom_print_basis")
       CASE DEFAULT
-         CPABORT("")
+         CPABORT("Unknown basis type for atom_print_basis")
       END SELECT
 
    END SUBROUTINE atom_print_basis
@@ -426,7 +429,9 @@ CONTAINS
             END IF
          END DO
       CASE (CGTO_BASIS)
-         CPABORT("")
+         CALL cp_abort(__LOCATION__, &
+                       "Contracted Gaussian-type basis not yet implemented "// &
+                       "for atom_print_basis_file")
       CASE (STO_BASIS)
          WRITE (iw, '(T3,A)') "BASIS_TYPE SLATER"
          DO l = 0, lmat
@@ -461,9 +466,9 @@ CONTAINS
             END IF
          END DO
       CASE (NUM_BASIS)
-         CPABORT("")
+         CPABORT("Numerical basis not yet implemented for atom_print_basis_file")
       CASE DEFAULT
-         CPABORT("")
+         CPABORT("Unknown basis type for atom_print_basis_file")
       END SELECT
 
       IF (PRESENT(wfn)) THEN
@@ -523,7 +528,7 @@ CONTAINS
       xc_fun_section => section_vals_get_subs_vals(xc_section, "XC_FUNCTIONAL")
       SELECT CASE (meth)
       CASE DEFAULT
-         CPABORT("")
+         CPABORT("Unknown method for atom_print_method")
       CASE (do_rks_atom)
          CALL section_vals_val_get(xc_fun_section, "_SECTION_PARAMETERS_", i_val=myfun)
       CASE (do_uks_atom)
@@ -538,7 +543,7 @@ CONTAINS
 
       SELECT CASE (meth)
       CASE DEFAULT
-         CPABORT("")
+         CPABORT("Unknown method for atom_print_method")
       CASE (do_rks_atom)
          IF (iw > 0) WRITE (iw, fmt="(/,' METHOD    | Restricted Kohn-Sham Calculation')")
       CASE (do_uks_atom)
@@ -576,7 +581,7 @@ CONTAINS
 
          SELECT CASE (reltyp)
          CASE DEFAULT
-            CPABORT("")
+            CPABORT("Unknown relativistic type for atom_print_method")
          CASE (do_nonrel_atom)
             IF (iw > 0) WRITE (iw, fmt="(' METHOD    | Nonrelativistic Calculation')")
          CASE (do_zoramp_atom)
@@ -729,7 +734,7 @@ CONTAINS
             END DO
          END DO
       CASE DEFAULT
-         CPABORT("")
+         CPABORT("Unknown pseudopotential type for atom_print_potential")
       END SELECT
       IF (potential%confinement) THEN
          IF (potential%conf_type == poly_conf) THEN
@@ -741,7 +746,7 @@ CONTAINS
             WRITE (iw, '(T57,A,F12.6,A)') "w     =", potential%rcon, " Bohr"
             WRITE (iw, '(T57,A,F12.6,A)') "ron   =", potential%scon, " Bohr"
          ELSE
-            CPABORT("")
+            CPABORT("Unknown potential confinement type")
          END IF
       ELSE
          WRITE (iw, '(/,T10,A)') " No Confinement Potential is applied "
@@ -861,7 +866,7 @@ CONTAINS
 
       SELECT CASE (atom%method_type)
       CASE DEFAULT
-         CPABORT("")
+         CPABORT("Unknown method type for atom_print_orbitals")
       CASE (do_rks_atom)
          CALL atom_print_orbitals_helper(atom, atom%orbitals%wfn, "", iw)
       CASE (do_uks_atom)
@@ -873,7 +878,7 @@ CONTAINS
          CALL atom_print_orbitals_helper(atom, atom%orbitals%wfna, "Alpha", iw)
          CALL atom_print_orbitals_helper(atom, atom%orbitals%wfnb, "Beta", iw)
       CASE (do_rohf_atom)
-         CPABORT("")
+         CPABORT("ROHF not yet implemented for atom_print_orbitals")
       END SELECT
 
       graph = .FALSE.
@@ -883,7 +888,7 @@ CONTAINS
          fnbody = TRIM(ptable(z)%symbol)//"_PPorbital"
          SELECT CASE (atom%method_type)
          CASE DEFAULT
-            CPABORT("")
+            CPABORT("Unknown method type for atom_print_orbitals")
          CASE (do_rks_atom)
             CALL atom_orbitals_grace(atom, atom%orbitals%wfn, fnbody)
          CASE (do_uks_atom)
@@ -895,7 +900,7 @@ CONTAINS
             CALL atom_orbitals_grace(atom, atom%orbitals%wfna, TRIM(fnbody)//"alpha")
             CALL atom_orbitals_grace(atom, atom%orbitals%wfnb, TRIM(fnbody)//"beta")
          CASE (do_rohf_atom)
-            CPABORT("")
+            CPABORT("ROHF not yet implemented for atom_print_orbitals")
          END SELECT
       END IF
 

@@ -6,8 +6,8 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_NAME}")/.." && pwd -P)"
 
-dbcsr_ver="4d85b72"
-dbcsr_sha256="33461c7313e432b8902c9484ec327550d01b32b1b487020d3372d0ddd19265dc"
+dbcsr_ver="2.10.0"
+dbcsr_sha256="3d897220fbb4498215331efad6905eb7744881b4cf04eb5c5fb4db7c48a56ef9"
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh
 source "${SCRIPT_DIR}"/signal_trap.sh
@@ -27,48 +27,31 @@ case "${with_dbcsr}" in
     if verify_checksums "${install_lock_file}"; then
       echo "dbcsr-${dbcsr_ver} is already installed, skipping it."
     else
-      if [ -f dbcsr-${dbcsr_ver}.tar.gz ]; then
-        echo "dbcsr-${dbcsr_ver}.tar.gz is found"
-      else
-        download_pkg_from_urlpath "${dbcsr_sha256}" "${dbcsr_ver}" \
-          https://codeload.github.com/cp2k/dbcsr/tar.gz \
-          "dbcsr-${dbcsr_ver}.tar.gz"
-      fi
+      retrieve_package "${dbcsr_sha256}" "dbcsr-${dbcsr_ver}.tar.gz"
       echo "Installing from scratch into ${pkg_install_dir}"
       [ -d dbcsr-${dbcsr_ver} ] && rm -rf dbcsr-${dbcsr_ver}
       tar -xzf dbcsr-${dbcsr_ver}.tar.gz
       cd dbcsr-${dbcsr_ver}
-      # DBCSR may predate GB10. Build native sm_121 code while
+      # DBCSR 2.10 predates GB10 and B200. Build native device code while
       # reusing the closest available libsmm_acc parameters.
-      if [ "${ENABLE_CUDA}" == "__TRUE__" ] && [ "${GPUVER}" == "GB10" ]; then
-        if ! grep -q "GB10" CMakeLists.txt; then
-          sed -i "s/    H100)/    H100\\n    GB10)/" CMakeLists.txt
-          sed -i "/  set(GPU_ARCH_NUMBER_H100 90)/a\\  set(GPU_ARCH_NUMBER_GB10 121)" CMakeLists.txt
+      if [ "${ENABLE_CUDA}" == "__TRUE__" ] &&
+        { [ "${GPUVER}" == "GB10" ] || [ "${GPUVER}" == "B200" ]; }; then
+        if ! grep -q "${GPUVER}" CMakeLists.txt; then
+          sed -i "s/    H100)/    H100\\n    ${GPUVER})/" CMakeLists.txt
+          sed -i "/  set(GPU_ARCH_NUMBER_H100 90)/a\\  set(GPU_ARCH_NUMBER_${GPUVER} ${ARCH_NUM})" CMakeLists.txt
           cp src/acc/libsmm_acc/parameters/parameters_H100.json \
-            src/acc/libsmm_acc/parameters/parameters_GB10.json 2> /dev/null || true
+            "src/acc/libsmm_acc/parameters/parameters_${GPUVER}.json"
         fi
-      fi
-      # Locate fypp (GitHub tarballs lack submodules).
-      FYPP_EXE=""
-      if [ -x "${ROOTDIR}/../../tools/build_utils/fypp" ]; then
-        FYPP_EXE="${ROOTDIR}/../../tools/build_utils/fypp"
-      elif [ -x "${SCRIPT_DIR}/fypp" ]; then
-        FYPP_EXE="${SCRIPT_DIR}/fypp"
-      elif command -v fypp > /dev/null 2>&1; then
-        FYPP_EXE="$(command -v fypp)"
-      else
-        report_error $LINENO "Failed to find the FYPP preprocessor."
       fi
       mkdir build-cpu
       cd build-cpu
-      CMAKE_OPTIONS="-DBUILD_TESTING=NO -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=RelWithDebInfo"
-      CMAKE_OPTIONS="${CMAKE_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DUSE_OPENMP=ON"
-      CMAKE_OPTIONS="${CMAKE_OPTIONS} -DWITH_EXAMPLES=NO -DFYPP_EXECUTABLE=${FYPP_EXE}"
-      if [ "${with_libxsmm}" != "__DONTUSE__" ]; then
-        CMAKE_OPTIONS="${CMAKE_OPTIONS} -DUSE_LIBXSMM=ON"
-      fi
+      CMAKE_OPTIONS="-DBUILD_TESTING=NO -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_VERBOSE_MAKEFILE=ON"
+      CMAKE_OPTIONS="${CMAKE_OPTIONS} -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DUSE_OPENMP=ON -DWITH_EXAMPLES=NO"
       if [ "${with_libxs}" != "__DONTUSE__" ]; then
         CMAKE_OPTIONS="${CMAKE_OPTIONS} -DUSE_LIBXS=ON"
+        if [ "${with_libxsmm}" != "__DONTUSE__" ]; then
+          CMAKE_OPTIONS="${CMAKE_OPTIONS} -DUSE_LIBXSMM=ON"
+        fi
       fi
       if [ "${MPI_MODE}" == "no" ]; then
         CMAKE_OPTIONS="${CMAKE_OPTIONS} -DUSE_MPI=OFF"
@@ -82,6 +65,7 @@ case "${with_dbcsr}" in
       make -j $(get_nprocs) install > make.log 2>&1 || tail_excerpt make.log
       cd ..
       if [ "${ENABLE_CUDA}" == "__TRUE__" ]; then
+        echo "Installing from scratch into ${pkg_install_dir}-cuda"
         mkdir build-cuda
         cd build-cuda
         CMAKE_OPTIONS="${CMAKE_OPTIONS} -DUSE_ACCEL=cuda"
@@ -94,6 +78,7 @@ case "${with_dbcsr}" in
         cd ..
       fi
       if [ "${ENABLE_HIP}" == "__TRUE__" ]; then
+        echo "Installing from scratch into ${pkg_install_dir}-hip"
         mkdir build-hip
         cd build-hip
         CMAKE_OPTIONS="${CMAKE_OPTIONS} -DUSE_ACCEL=hip -DWITH_GPU=Mi250"
@@ -126,27 +111,25 @@ case "${with_dbcsr}" in
 esac
 
 if [ "${with_dbcsr}" != "__DONTUSE__" ]; then
+  cat << EOF > "${BUILDDIR}/setup_dbcsr"
+export DBCSR_VER="${dbcsr_ver}"
+EOF
   if [ "${with_dbcsr}" != "__SYSTEM__" ]; then
-    if [ "${ENABLE_CUDA}" == "__TRUE__" ]; then
-      pkg_install_dir1="${pkg_install_dir}-cuda"
-    else
-      if [ "${ENABLE_HIP}" == "__TRUE__" ]; then
+    pkg_install_dir1="${pkg_install_dir}"
+    if [ "${with_dbcsr}" = "__INSTALL__" ]; then
+      if [ "${ENABLE_CUDA}" = "__TRUE__" ]; then
+        pkg_install_dir1="${pkg_install_dir}-cuda"
+      elif [ "${ENABLE_HIP}" = "__TRUE__" ]; then
         pkg_install_dir1="${pkg_install_dir}-hip"
-      else
-        pkg_install_dir1="${pkg_install_dir}"
       fi
     fi
-  fi
-  cat << EOF > "${BUILDDIR}/setup_dbcsr"
+    cat << EOF >> "${BUILDDIR}/setup_dbcsr"
 prepend_path LD_LIBRARY_PATH "${pkg_install_dir1}/lib"
 prepend_path LD_RUN_PATH "${pkg_install_dir1}/lib"
 prepend_path LIBRARY_PATH "${pkg_install_dir1}/lib"
 prepend_path CMAKE_PREFIX_PATH "${pkg_install_dir1}"
-export DBCSR_ROOT="${pkg_install_dir}"
-export DBCSR_HIP_ROOT="${pkg_install_dir}-hip"
-export DBCSR_CUDA_ROOT="${pkg_install_dir}-cuda"
-export DBCSR_VER="${dbcsr_ver}"
 EOF
+  fi
 else
   touch "${BUILDDIR}/setup_dbcsr"
 fi

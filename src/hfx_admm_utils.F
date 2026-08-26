@@ -213,8 +213,9 @@ CONTAINS
       IF (PRESENT(ext_xc_section)) hfx_sections => section_vals_get_subs_vals(ext_xc_section, "HF")
 
       CALL section_vals_get(hfx_sections, n_repetition=n_rep_hf)
-      IF (n_rep_hf > 1) &
+      IF (n_rep_hf > 1) THEN
          CPABORT("ADMM can handle only one HF section.")
+      END IF
 
       IF (.NOT. ASSOCIATED(admm_env)) THEN
          ! setup admm environment
@@ -228,8 +229,9 @@ CONTAINS
                                      admm_env=admm_env)
 
          ! Initialize the GAPW data types
-         IF (dft_control%qs_control%gapw .OR. dft_control%qs_control%gapw_xc) &
+         IF (dft_control%qs_control%gapw .OR. dft_control%qs_control%gapw_xc) THEN
             CALL init_admm_gapw(qs_env)
+         END IF
 
          ! ADMM neighbor lists and overlap matrices
          CALL admm_init_hamiltonians(admm_env, qs_env, "AUX_FIT")
@@ -304,11 +306,13 @@ CONTAINS
                CALL get_kpoint_info(kpoints, use_real_wfn=use_real_wfn)
 
                !Test combinations of input values. So far, only ADMM2 is availavle
-               IF (.NOT. admm_env%purification_method == do_admm_purify_none) &
+               IF (.NOT. admm_env%purification_method == do_admm_purify_none) THEN
                   CPABORT("Only ADMM_PURIFICATION_METHOD NONE implemeted for ADMM K-points")
+               END IF
                IF (.NOT. (dft_control%admm_control%method == do_admm_basis_projection &
-                          .OR. dft_control%admm_control%method == do_admm_charge_constrained_projection)) &
+                          .OR. dft_control%admm_control%method == do_admm_charge_constrained_projection)) THEN
                   CPABORT("Only BASIS_PROJECTION and CHARGE_CONSTRAINED_PROJECTION implemented for KP")
+               END IF
                IF (admm_env%do_admms .OR. admm_env%do_admmp .OR. admm_env%do_admmq) THEN
                   IF (use_real_wfn) CPABORT("Only KP-HFX ADMM2 is implemented with REAL wavefunctions")
                END IF
@@ -637,7 +641,7 @@ CONTAINS
       mic = molecule_only
       IF (kpoints%nkp > 0) THEN
          mic = .FALSE.
-      ELSEIF (dft_control%qs_control%semi_empirical) THEN
+      ELSE IF (dft_control%qs_control%semi_empirical) THEN
          mic = .TRUE.
       END IF
 
@@ -700,14 +704,15 @@ CONTAINS
       CALL pair_radius_setup(aux_fit_present, aux_fit_present, aux_fit_radius, aux_fit_radius, pair_radius, pdist)
       pair_radius = pair_radius + cutoff_screen_factor*roperator
       CALL build_neighbor_lists(admm_env%sab_aux_fit, particle_set, atom2d, cell, pair_radius, &
-                                mic=mic, molecular=molecule_only, subcells=subcells, nlname="sab_aux_fit")
+                                mic=mic, molecular=molecule_only, subcells=subcells, nlname="sab_aux_fit", &
+                                stable_images=kpoints%symmetry)
       CALL build_neighbor_lists(admm_env%sab_aux_fit_asymm, particle_set, atom2d, cell, pair_radius, &
                                 mic=mic, symmetric=.FALSE., molecular=molecule_only, subcells=subcells, &
-                                nlname="sab_aux_fit_asymm")
+                                nlname="sab_aux_fit_asymm", stable_images=kpoints%symmetry)
       CALL pair_radius_setup(aux_fit_present, orb_present, aux_fit_radius, orb_radius, pair_radius)
       CALL build_neighbor_lists(admm_env%sab_aux_fit_vs_orb, particle_set, atom2d, cell, pair_radius, &
                                 mic=mic, symmetric=.FALSE., molecular=molecule_only, subcells=subcells, &
-                                nlname="sab_aux_fit_vs_orb")
+                                nlname="sab_aux_fit_vs_orb", stable_images=kpoints%symmetry)
 
       CALL write_neighbor_lists(admm_env%sab_aux_fit, particle_set, cell, para_env, neighbor_list_section, &
                                 "/SAB_AUX_FIT", "sab_aux_fit", "AUX_FIT_ORBITAL AUX_FIT_ORBITAL")
@@ -1239,8 +1244,9 @@ CONTAINS
          ! Remember: Vhfx is added, energy is calclulated from total Vhfx,
          ! so energy of last iteration is correct
 
-         IF (do_adiabatic_rescaling .AND. hfx_treat_lsd_in_core) &
+         IF (do_adiabatic_rescaling .AND. hfx_treat_lsd_in_core) THEN
             CPABORT("HFX_TREAT_LSD_IN_CORE not implemented for adiabatically rescaled hybrids")
+         END IF
          ! everything is calculated with adiabatic rescaling but the potential is not added in a first step
          distribute_fock_matrix = .NOT. do_adiabatic_rescaling
 

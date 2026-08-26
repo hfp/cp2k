@@ -6,9 +6,9 @@
 [ "${BASH_SOURCE[0]}" ] && SCRIPT_NAME="${BASH_SOURCE[0]}" || SCRIPT_NAME=$0
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_NAME")/.." && pwd -P)"
 
-plumed_ver="2.10.0"
+plumed_ver="2.10.1"
 plumed_pkg="plumed-src-${plumed_ver}.tgz"
-plumed_sha256="a47791bb0178599743be55416679820bdf0afe7be565644ae98fc23749dee945"
+plumed_sha256="3679652608cac7da083cfe3a5b164122d6869ac4fbd0e8983a1501b815b25fdf"
 
 source "${SCRIPT_DIR}"/common_vars.sh
 source "${SCRIPT_DIR}"/tool_kit.sh
@@ -46,7 +46,7 @@ case "$with_plumed" in
           libs=""
           ;;
       esac
-      [ -n "${MKL_LIBS}" ] && libs+="$(resolve_string "${MKL_LIBS}" "MPI")"
+      [ -n "${MKL_LIBS}" ] && libs+="${MKL_LIBS}"
 
       # Patch to include <limits> explicitly as required by gcc >= 11.
       sed -i'' -e '/^#include <algorithm>/a\'$'\n''#include <limits>' ./src/lepton/Operation.h
