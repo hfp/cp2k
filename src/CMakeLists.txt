@@ -1621,22 +1621,30 @@ if(CP2K_USE_CUDA
   if(CP2K_ENABLE_DBM_GPU)
     list(APPEND CP2K_DBM_SRCS_C dbm/dbm_multiply_gpu.c)
     if(CP2K_USE_OPENCL)
-      set(CP2K_DBM_OPENCL_KERNEL dbm/dbm_multiply_opencl.cl)
+      # The OpenCL backend is maintained in LIBXSTREAM (samples/dbm).
+      if(NOT EXISTS "${CP2K_OPENCL_DBM}/dbm_opencl.c")
+        message(
+          FATAL_ERROR
+            "LIBXSTREAM does not provide the DBM backend (LIBXSTREAM_DBM_DIR).")
+      endif()
+      set(CP2K_DBM_OPENCL_SRC "${CP2K_OPENCL_DBM}/dbm_opencl.c")
+      set(CP2K_DBM_OPENCL_KERNEL "${CP2K_OPENCL_DBM}/kernels/dbm_multiply.cl")
       set(CP2K_DBM_OPENCL_GENHDR
-          "${CMAKE_CURRENT_BINARY_DIR}/${CP2K_DBM_OPENCL_KERNEL}.h")
+          "${CMAKE_CURRENT_BINARY_DIR}/dbm/dbm_kernels.h")
       # cmake-lint: disable=E1126
       add_custom_command(
         COMMAND
-          ${CP2K_OPENCL_SCRIPT} -b 6 -p \"\" -I "${CP2K_OPENCL_BACKEND}"
-          ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_OPENCL_KERNEL}
-          "${CP2K_DBM_OPENCL_GENHDR}"
+          ${CP2K_OPENCL_SCRIPT} -p \"\" -I "${CP2K_OPENCL_BACKEND}"
+          "${CP2K_DBM_OPENCL_KERNEL}" "${CP2K_DBM_OPENCL_GENHDR}"
         DEPENDS ${CP2K_OPENCL_SCRIPT} ${CP2K_OPENCL_COMMON}
-                ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_OPENCL_KERNEL}
+                "${CP2K_DBM_OPENCL_KERNEL}"
         OUTPUT "${CP2K_DBM_OPENCL_GENHDR}"
         COMMENT "Generating OpenCL kernel for DBM")
       add_custom_target(cp2k_dbm_opencl_kernel
                         DEPENDS "${CP2K_DBM_OPENCL_GENHDR}")
+      # The generated header must precede the one installed with LIBXSTREAM.
       include_directories(${CMAKE_CURRENT_BINARY_DIR}/dbm)
+      include_directories(${CP2K_OPENCL_DBM})
       include_directories(${CP2K_OPENCL_BACKEND})
       if(CP2K_OPENCL_SAMPLES)
         include_directories(${CP2K_OPENCL_SAMPLES})
@@ -1680,6 +1688,12 @@ if(CP2K_ENABLE_CONSISTENCY_CHECKS)
     "")
   cp2k_compare_src_with_list("${CP2K_SRCS_CPP}" "*.cpp" "")
   return()
+endif()
+
+# Registered after the consistency checks since the source is outside of src.
+if(CP2K_DBM_OPENCL_SRC)
+  list(APPEND CP2K_DBM_SRCS_C "${CP2K_DBM_OPENCL_SRC}")
+  list(APPEND CP2K_SRCS_C "${CP2K_DBM_OPENCL_SRC}")
 endif()
 
 # ##############################################################################

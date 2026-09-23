@@ -68,7 +68,12 @@ ifneq ($(LIBXS),0)
 LIBXSROOT ?= $(wildcard $(CP2KHOME)/../libxs)
 ifneq ($(LIBXSROOT),)
 CFLAGS += -D__LIBXS -D__BLAS -I$(LIBXSROOT)
-LIBS += $(LIBXSROOT)/lib/libxs.a
+LIBXSLIB := $(wildcard $(LIBXSROOT)/lib/libxs.a)
+ifneq ($(LIBXSLIB),)
+LIBS += $(LIBXSLIB)
+else # header-only
+CFLAGS += -DLIBXS_SOURCE
+endif
 # LIBXSMM headers enable JIT kernel dispatch inside LIBXS.
 LIBXSMMROOT ?= $(wildcard $(LIBXSROOT)/../libxsmm)
 ifneq ($(LIBXSMMROOT),)
@@ -89,7 +94,13 @@ ifneq ($(LIBXS),0)
 LIBXSTREAMROOT ?= $(wildcard $(CP2KHOME)/../libxstream)
 ifneq ($(LIBXSTREAMROOT),)
 CFLAGS += -D__LIBXSTREAM -I$(LIBXSTREAMROOT)
-LIBS += $(LIBXSTREAMROOT)/lib/libxstream.a
+LIBXSTREAMLIB := $(wildcard $(LIBXSTREAMROOT)/lib/libxstream.a)
+# The library requires LIBXS as a library as well.
+ifneq ($(and $(LIBXSLIB),$(LIBXSTREAMLIB)),)
+LIBS += $(LIBXSTREAMLIB)
+else # header-only
+CFLAGS += -DLIBXSTREAM_SOURCE
+endif
 else
 OPENCL := 0
 endif
@@ -119,7 +130,7 @@ CUDA_LIBS := $(if $(wildcard $(CUDA_PATH)/lib64),lib64,lib)
 OPENCL := 0
 endif
 ifneq ($(OPENCL),0)
-OPENCL_GENKRNL := $(PROJHOME)/dbm_multiply_opencl.cl.h
+OPENCL_GENKRNL := $(PROJHOME)/dbm_kernels.h
 ifneq ($(ICX),)
 LIBS += -lifcoremt -limf
 endif
@@ -154,26 +165,29 @@ clean:
         dbm_multiply_gpu.o \
         dbm_multiply_gpu_kernel.o \
         dbm_multiply_opencl.o \
+        dbm_opencl.o \
         dbm_miniapp.o
 
 realclean: clean
 	rm -fv dbm_miniapp.x
 
 
-# Enable OpenCL offload backend.
+# Enable OpenCL offload backend (maintained in LIBXSTREAM/samples/dbm).
 ifneq ($(OPENCL),0)
-OPENCL_SRC := $(PROJHOME)/dbm_multiply_opencl.cl
+OPENCL_DBM := $(LIBXSTREAMROOT)/samples/dbm
+OPENCL_SRC := $(OPENCL_DBM)/kernels/dbm_multiply.cl
 OPENCL_CMN := $(wildcard $(LIBXSTREAMROOT)/libxstream/opencl/*.h)
 OPENCL_GEN := $(LIBXSTREAMROOT)/scripts/tool_opencl.sh
-OPENCL_ARG := -b 6 -p "" -I $(LIBXSTREAMROOT)/libxstream
+OPENCL_ARG := -p "" -I $(LIBXSTREAMROOT)/libxstream
 
 ifneq (,$(filter-out 0,$(DBG)))
 OPENCL_ARG += -d
 endif
 
-ALL_HEADERS += $(OPENCL_GENKRNL)
-ALL_OBJECTS += dbm_multiply_gpu.o dbm_multiply_opencl.o
-CFLAGS += -D__OFFLOAD_OPENCL -I$(CP2KHOME)/exts/dbcsr
+ALL_HEADERS += $(OPENCL_GENKRNL) $(OPENCL_DBM)/dbm_opencl.h
+ALL_OBJECTS += dbm_multiply_gpu.o dbm_multiply_opencl.o dbm_opencl.o
+# The generated header must precede a dbm_kernels.h in OPENCL_DBM.
+CFLAGS += -D__OFFLOAD_OPENCL -I$(CP2KHOME)/exts/dbcsr -I$(PROJHOME) -I$(OPENCL_DBM)
 LIBS += -lgfortran
 
 ifneq (Darwin,$(shell uname))
@@ -223,6 +237,10 @@ dbm_miniapp.x: $(OPENCL_OFFLOAD)
 $(OPENCL_GENKRNL): $(OPENCL_GEN) $(OPENCL_SRC) $(OPENCL_CMN)
 	$(OPENCL_GEN) $(OPENCL_ARG) $(OPENCL_SRC) $@
 
+# The object is kept here rather than next to its source.
+dbm_opencl.o: $(OPENCL_DBM)/dbm_opencl.c $(ALL_HEADERS)
+	$(CC) -c -std=c11 $(CFLAGS) $< -o $@
+
 
 # Enable Cuda when nvcc compiler is present.
 else ifneq ($(NVCC),)
@@ -248,8 +266,8 @@ LIBS += -L${ROCM_PATH}/lib -lamdhip64 -lhipfft -lhipblas -lrocblas
 endif
 
 # LIBXS must be linked last (depended upon by LIBXSTREAM)
-ifneq ($(LIBXSROOT),)
-LIBS += $(LIBXSROOT)/lib/libxs.a
+ifneq ($(LIBXSLIB),)
+LIBS += $(LIBXSLIB)
 endif
 
 %.o: %.c $(OMP_TRACE) $(ALL_HEADERS)
