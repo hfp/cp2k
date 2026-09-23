@@ -24,15 +24,22 @@ MODULE qs_scf_post_gpw
                                               gto_basis_set_type
    USE casino_utils,                    ONLY: write_casino
    USE cell_types,                      ONLY: cell_type
+   USE commutator_rpnl,                 ONLY: build_com_mom_nl
    USE cp_array_utils,                  ONLY: cp_1d_r_p_type
    USE cp_blacs_env,                    ONLY: cp_blacs_env_type
    USE cp_control_types,                ONLY: dft_control_type,&
                                               rtp_control_type
    USE cp_dbcsr_api,                    ONLY: dbcsr_add,&
+                                              dbcsr_create,&
                                               dbcsr_p_type,&
-                                              dbcsr_type
+                                              dbcsr_scale,&
+                                              dbcsr_set,&
+                                              dbcsr_type,&
+                                              dbcsr_type_antisymmetric
    USE cp_dbcsr_contrib,                ONLY: dbcsr_checksum
+   USE cp_dbcsr_cp2k_link,              ONLY: cp_dbcsr_alloc_block_from_nbl
    USE cp_dbcsr_operations,             ONLY: copy_dbcsr_to_fm,&
+                                              dbcsr_allocate_matrix_set,&
                                               dbcsr_deallocate_matrix_set
    USE cp_dbcsr_output,                 ONLY: cp_dbcsr_write_sparse_matrix
    USE cp_ddapc_util,                   ONLY: get_ddapc
@@ -82,8 +89,8 @@ MODULE qs_scf_post_gpw
                                               iao_read_input
    USE input_constants,                 ONLY: &
         do_loc_both, do_loc_homo, do_loc_jacobi, do_loc_lumo, do_loc_mixed, do_loc_none, &
-        moments_format_trajectory, ot_precond_full_all, radius_covalent, radius_user, &
-        ref_charge_atomic, ref_charge_mulliken
+        moments_format_trajectory, ot_precond_full_all, ot_precond_full_all_covariant, &
+        radius_covalent, radius_user, ref_charge_atomic, ref_charge_mulliken
    USE input_section_types,             ONLY: section_get_ival,&
                                               section_get_ivals,&
                                               section_get_lval,&
@@ -141,7 +148,6 @@ MODULE qs_scf_post_gpw
    USE qs_charges_types,                ONLY: qs_charges_type
    USE qs_collocate_density,            ONLY: calculate_rho_resp_all,&
                                               calculate_wavefunction
-   USE qs_commutators,                  ONLY: build_com_hr_matrix
    USE qs_core_energies,                ONLY: calculate_ptrace
    USE qs_dos,                          ONLY: calculate_dos,&
                                               calculate_dos_kp
@@ -154,6 +160,7 @@ MODULE qs_scf_post_gpw
                                               qs_environment_type,&
                                               set_qs_env
    USE qs_epr_hyp,                      ONLY: qs_epr_hyp_calc
+   USE qs_fod,                          ONLY: qs_scf_post_fod
    USE qs_grid_atom,                    ONLY: grid_atom_type
    USE qs_integral_utils,               ONLY: basis_set_list_setup
    USE qs_kind_types,                   ONLY: get_qs_kind,&
@@ -190,6 +197,7 @@ MODULE qs_scf_post_gpw
                                               neighbor_list_iterator_p_type,&
                                               neighbor_list_iterator_release,&
                                               neighbor_list_set_p_type
+   USE qs_operators_ao,                 ONLY: build_lin_mom_matrix
    USE qs_ot_eigensolver,               ONLY: ot_eigensolver
    USE qs_pdos,                         ONLY: calculate_projected_dos,&
                                               calculate_projected_dos_kp
@@ -803,6 +811,8 @@ CONTAINS
       ! Moments of charge distribution
       CALL qs_scf_post_moments(input, logger, qs_env, output_unit)
 
+      CALL qs_scf_post_fod(input, logger, qs_env, output_unit)
+
       ! Determine if we need to computer properties using the localized centers
       dft_section => section_vals_get_subs_vals(input, "DFT")
       localize_section => section_vals_get_subs_vals(dft_section, "LOCALIZE")
@@ -1317,13 +1327,13 @@ CONTAINS
          CALL cp_fm_struct_release(fm_struct_tmp)
          CALL cp_fm_init_random(unoccupied_orbs(ispin), nlumos)
 
-         ! the full_all preconditioner makes not much sense for lumos search
+         ! FULL_ALL has column-dependent occupied-state weights and cannot be reused here.
          NULLIFY (local_preconditioner)
          IF (ASSOCIATED(scf_env)) THEN
             IF (ASSOCIATED(scf_env%ot_preconditioner)) THEN
                local_preconditioner => scf_env%ot_preconditioner(1)%preconditioner
-               ! this one can for sure not be right (as it has to match a given C0)
-               IF (local_preconditioner%in_use == ot_precond_full_all) THEN
+               IF (local_preconditioner%in_use == ot_precond_full_all .OR. &
+                   local_preconditioner%in_use == ot_precond_full_all_covariant) THEN
                   NULLIFY (local_preconditioner)
                END IF
             END IF
@@ -2617,11 +2627,13 @@ CONTAINS
       TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(cp_section_key)                               :: e_density_section
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_hr
-      TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: ks_rmpv, matrix_vxc, rho_ao
+      TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: ks_rmpv, matrix_s, matrix_vxc, rho_ao
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(grid_atom_type), POINTER                      :: grid_atom
       TYPE(iao_env_type)                                 :: iao_env
       TYPE(mp_para_env_type), POINTER                    :: para_env
+      TYPE(neighbor_list_set_p_type), DIMENSION(:), &
+         POINTER                                         :: sab_orb, sap_ppnl
       TYPE(particle_list_type), POINTER                  :: particles
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
       TYPE(pw_c1d_gs_type)                               :: aux_g, rho_elec_gspace
@@ -2647,7 +2659,7 @@ CONTAINS
       NULLIFY (cell, dft_control, pw_env, auxbas_pw_pool, pw_pools, hfx_section, &
                atomic_kind_set, qs_kind_set, particle_set, rho, ks_rmpv, rho_ao, rho_r, &
                dft_section, xc_section, input, particles, subsys, matrix_vxc, v_hartree_rspace, &
-               vee)
+               vee, matrix_hr, matrix_s, sab_orb, sap_ppnl)
 
       logger => cp_get_default_logger()
       output_unit = cp_logger_get_default_io_unit(logger)
@@ -2664,7 +2676,10 @@ CONTAINS
                       dft_control=dft_control, &
                       input=input, &
                       do_kpoints=do_kpoints, &
-                      subsys=subsys)
+                      subsys=subsys, &
+                      matrix_s_kp=matrix_s, &
+                      sab_orb=sab_orb, &
+                      sap_ppnl=sap_ppnl)
       dft_section => section_vals_get_subs_vals(input, "DFT")
       CALL qs_subsys_get(subsys, particles=particles)
 
@@ -3437,8 +3452,20 @@ CONTAINS
                                    extension=".Log")
          CALL section_vals_val_get(input, "DFT%PRINT%AO_MATRICES%NDIGITS", i_val=after)
          NULLIFY (matrix_hr)
-         CALL build_com_hr_matrix(qs_env, matrix_hr)
+         CALL dbcsr_allocate_matrix_set(matrix_hr, 3)
          DO img = 1, 3
+            ALLOCATE (matrix_hr(img)%matrix)
+            CALL dbcsr_create(matrix_hr(img)%matrix, template=matrix_s(1, 1)%matrix, &
+                              name="COMMUTATOR", matrix_type=dbcsr_type_antisymmetric)
+            CALL cp_dbcsr_alloc_block_from_nbl(matrix_hr(img)%matrix, sab_orb)
+            CALL dbcsr_set(matrix_hr(img)%matrix, 0._dp)
+         END DO
+
+         CALL build_com_mom_nl(qs_kind_set, sab_orb, sap_ppnl, dft_control%qs_control%eps_ppnl, &
+                               particle_set, cell, matrix_rv=matrix_hr)
+         CALL build_lin_mom_matrix(qs_env, matrix_hr)
+         DO img = 1, 3
+            CALL dbcsr_scale(matrix_hr(img)%matrix, alpha_scalar=-1._dp)
             checksum_hr(img) = dbcsr_checksum(matrix_hr(img)%matrix)
          END DO
          IF (output_unit > 0) THEN

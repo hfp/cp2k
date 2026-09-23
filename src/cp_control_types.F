@@ -14,12 +14,13 @@ MODULE cp_control_types
                                               cp_fm_type
    USE eeq_input,                       ONLY: eeq_solver_type
    USE input_constants,                 ONLY: &
-        do_full_density, rtp_bse_ham_G0W0, rtp_method_tddft, tblite_cli_born_kernel_auto, &
-        tblite_cli_solution_state_gsolv, tblite_cli_solvation_none, tblite_guess_ceh, &
-        tblite_guess_sad, tblite_mixer_damping_default, tblite_mixer_iterations_default, &
-        tblite_mixer_max_weight_default, tblite_mixer_min_weight_default, &
-        tblite_mixer_omega0_default, tblite_mixer_weight_factor_default, tblite_scc_mixer_auto, &
-        tblite_solver_gvd, use_mom_ref_coac
+        do_full_density, mtlr_initialization_unresolved, rtp_bse_ham_gw, rtp_method_tddft, &
+        tblite_cli_born_kernel_auto, tblite_cli_solution_state_gsolv, tblite_cli_solvation_none, &
+        tblite_guess_ceh, tblite_guess_sad, tblite_mixer_damping_default, &
+        tblite_mixer_iterations_default, tblite_mixer_max_weight_default, &
+        tblite_mixer_min_weight_default, tblite_mixer_omega0_default, &
+        tblite_mixer_weight_factor_default, tblite_scc_mixer_auto, tblite_solver_gvd, &
+        use_mom_ref_coac
    USE kinds,                           ONLY: default_path_length,&
                                               default_string_length,&
                                               dp
@@ -99,7 +100,7 @@ MODULE cp_control_types
       INTEGER                              :: propagator = 0
       LOGICAL                              :: fixed_ions = .FALSE.
       INTEGER                              :: rtp_method = rtp_method_tddft
-      INTEGER                              :: rtbse_ham = rtp_bse_ham_G0W0
+      INTEGER                              :: rtbse_ham = rtp_bse_ham_gw
       INTEGER                              :: initial_wfn = 0
       REAL(dp)                             :: eps_exp = 0.0_dp
       LOGICAL                              :: initial_step = .FALSE.
@@ -374,8 +375,9 @@ MODULE cp_control_types
                                               lmax_sphere = 0, &
                                               quadrature = 0
       LOGICAL                              :: accurate_xcint = .FALSE.
+      INTEGER                              :: oweights = 0
       REAL(KIND=dp)                        :: aweights = 0.0_dp
-      REAL(KIND=dp), DIMENSION(:), POINTER  :: aw => NULL()
+      REAL(KIND=dp), DIMENSION(:), POINTER :: aw => NULL()
       LOGICAL                              :: alpha0_hard_from_input = .FALSE., &
                                               force_paw = .FALSE., &
                                               non_paw_atoms = .FALSE., &
@@ -695,6 +697,7 @@ MODULE cp_control_types
       ! Compute exciton descriptors
       LOGICAL                              :: do_exciton_descriptors = .FALSE.
       LOGICAL                              :: do_directional_exciton_descriptors = .FALSE.
+      LOGICAL                              :: do_directional_exciton_crosscorrelation = .FALSE.
       !
       ! DIPOLE_MOMENTS subsection
       !
@@ -790,6 +793,7 @@ MODULE cp_control_types
                                               auto_basis_ri_hfx = 1, &
                                               localize_each = 1, &
                                               mtlr_ikind = 1, &
+                                              mtlr_initialization_mode = mtlr_initialization_unresolved, &
                                               max_mtlr_iter = 10
       REAL(KIND=dp)                        :: eps_u_j_loop = 0.01_dp, &
                                               relax_multiplicity = 0.0_dp, &
@@ -809,6 +813,8 @@ MODULE cp_control_types
                                               lsd = .FALSE., &
                                               dft_plus_u = .FALSE., &
                                               mtlr_u_j = .FALSE., &
+                                              mtlr_reference_scf = .FALSE., &
+                                              mtlr_reference_scf_explicit = .FALSE., &
                                               apply_efield = .FALSE., &
                                               apply_efield_field = .FALSE., &
                                               apply_vector_potential = .FALSE., &

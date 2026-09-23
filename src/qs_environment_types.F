@@ -124,6 +124,8 @@ MODULE qs_environment_types
                                               qs_matrix_pools_type
    USE qs_mo_types,                     ONLY: deallocate_mo_set,&
                                               mo_set_type
+   USE qs_native_grid_cache,            ONLY: native_grid_cache_type,&
+                                              release_native_grid_cache
    USE qs_neighbor_list_types,          ONLY: neighbor_list_set_p_type
    USE qs_oce_types,                    ONLY: deallocate_oce_set,&
                                               oce_matrix_type
@@ -230,6 +232,8 @@ MODULE qs_environment_types
       LOGICAL :: calc_image_preconditioner = .FALSE.
       LOGICAL :: do_transport = .FALSE.
       LOGICAL :: single_point_run = .FALSE.
+      ! Set only by the standalone single-point driver, not by library callers.
+      LOGICAL :: skip_wf_history = .FALSE.
       LOGICAL :: given_embed_pot = .FALSE.
       LOGICAL :: energy_correction = .FALSE.
       LOGICAL :: harris_method = .FALSE.
@@ -259,6 +263,7 @@ MODULE qs_environment_types
       TYPE(qmmm_env_qm_type), POINTER                       :: qmmm_env_qm => NULL()
       TYPE(qs_wf_history_type), POINTER                     :: wf_history => NULL()
       TYPE(qs_scf_env_type), POINTER                        :: scf_env => NULL()
+      LOGICAL :: scf_convergence_available = .FALSE., scf_converged = .FALSE.
       TYPE(qs_matrix_pools_type), POINTER                   :: mpools => NULL()
       TYPE(oce_matrix_type), POINTER                        :: oce => NULL()
       TYPE(local_rho_type), POINTER                         :: local_rho_set => NULL()
@@ -330,6 +335,7 @@ MODULE qs_environment_types
       ! tblite
       TYPE(tblite_type), POINTER                            :: tb_tblite => Null()
       TYPE(cp_gauxc_cache_type), POINTER                    :: gauxc_cache => NULL()
+      TYPE(native_grid_cache_type)                         :: native_grid_cache
    END TYPE qs_environment_type
 
 CONTAINS
@@ -985,6 +991,7 @@ CONTAINS
       qs_env%run_rtp = .FALSE.
       qs_env%linres_run = .FALSE.
       qs_env%single_point_run = .FALSE.
+      qs_env%skip_wf_history = .FALSE.
       qs_env%qmmm = .FALSE.
       qs_env%qmmm_periodic = .FALSE.
       qs_env%mimic = .FALSE.
@@ -1709,6 +1716,8 @@ CONTAINS
          DEALLOCATE (qs_env%gauxc_cache)
       END IF
 
+      CALL release_native_grid_cache(qs_env%native_grid_cache)
+
    END SUBROUTINE qs_env_release
 
 ! **************************************************************************************************
@@ -1939,6 +1948,8 @@ CONTAINS
          CALL gauxc_cache_release(qs_env%gauxc_cache)
          DEALLOCATE (qs_env%gauxc_cache)
       END IF
+
+      CALL release_native_grid_cache(qs_env%native_grid_cache)
 
    END SUBROUTINE qs_env_part_release
 

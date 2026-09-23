@@ -117,8 +117,8 @@ MODULE xas_tdp_methods
                                               get_mo_set,&
                                               init_mo_set,&
                                               mo_set_type
-   USE qs_operators_ao,                 ONLY: build_lin_mom_matrix,&
-                                              rRc_xyz_ao
+   USE qs_moments,                      ONLY: build_local_moment_matrix
+   USE qs_operators_ao,                 ONLY: build_lin_mom_matrix
    USE qs_pdos,                         ONLY: calculate_projected_dos
    USE qs_scf_types,                    ONLY: ot_method_nr
    USE rixs_types,                      ONLY: rixs_env_type
@@ -1078,6 +1078,8 @@ CONTAINS
       TYPE(xas_tdp_control_type), POINTER                :: xas_tdp_control
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
+      REAL(KIND=dp), PARAMETER                           :: eps_screen_thre = 1.0E-16_dp
+
       INTEGER                                            :: i
       REAL(dp)                                           :: occ
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_s
@@ -1196,7 +1198,7 @@ CONTAINS
                "EXACT_EXCHANGE| Effective Range: ", xas_tdp_control%x_potential%cutoff_radius*angstrom, ", (Ang)", &
                "EXACT_EXCHANGE| EPS_RANGE: ", xas_tdp_control%eps_range
          END IF
-         IF (xas_tdp_control%eps_screen > 1.0E-16) THEN
+         IF (xas_tdp_control%eps_screen > eps_screen_thre) THEN
             WRITE (UNIT=ou, FMT="(T3,A,ES7.1)") &
                "EXACT_EXCHANGE| EPS_SCREENING: ", xas_tdp_control%eps_screen
          END IF
@@ -2049,7 +2051,7 @@ CONTAINS
       TYPE(xas_tdp_control_type), POINTER                :: xas_tdp_control
       TYPE(qs_environment_type), POINTER                 :: qs_env
 
-      INTEGER                                            :: i, order
+      INTEGER                                            :: i
       REAL(dp), DIMENSION(3)                             :: rc
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: work
       TYPE(particle_type), DIMENSION(:), POINTER         :: particle_set
@@ -2065,19 +2067,17 @@ CONTAINS
             CALL dbcsr_set(xas_tdp_env%dipmat(i)%matrix, 0.0_dp)
             work(i)%matrix => xas_tdp_env%dipmat(i)%matrix
          END DO
-         order = 1
+         CALL build_local_moment_matrix(qs_env, work, 1, ref_point=rc, &
+                                        all_images=.TRUE., minimum_image=.TRUE.)
       END IF
       IF (xas_tdp_control%do_quad) THEN
          DO i = 1, 6
             CALL dbcsr_set(xas_tdp_env%quadmat(i)%matrix, 0.0_dp)
             work(3 + i)%matrix => xas_tdp_env%quadmat(i)%matrix
          END DO
-         order = 2
-         IF (xas_tdp_control%dipole_form == xas_dip_vel) order = -2
+         CALL build_local_moment_matrix(qs_env, work, 2, ref_point=rc, &
+                                        all_images=.TRUE., minimum_image=.TRUE., first_component=4)
       END IF
-
-      !enforce minimum image to avoid PBCs related issues, ok because localized densities
-      CALL rRc_xyz_ao(work, qs_env, rc, order=order, minimum_image=.TRUE.)
       DEALLOCATE (work)
 
    END SUBROUTINE compute_lenrep_multipole

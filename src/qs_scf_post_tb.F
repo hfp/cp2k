@@ -49,7 +49,8 @@ MODULE qs_scf_post_tb
                                               put_results
    USE cp_result_types,                 ONLY: cp_result_type
    USE eeq_method,                      ONLY: eeq_print
-   USE input_constants,                 ONLY: ot_precond_full_all
+   USE input_constants,                 ONLY: ot_precond_full_all,&
+                                              ot_precond_full_all_covariant
    USE input_section_types,             ONLY: section_get_ival,&
                                               section_get_ivals,&
                                               section_get_lval,&
@@ -283,7 +284,7 @@ CONTAINS
                      CALL get_dftb_atom_param(dftb_kind, name=aname)
                   CASE ("xTB")
                      CALL get_qs_kind(qs_kind_set(ikind), xtb_parameter=xtb_kind)
-                     CALL get_xtb_atom_param(xtb_kind, symbol=aname)
+                     CALL get_xtb_atom_param(xtb_kind, symbol=aname(1:2))
                   CASE DEFAULT
                      CPABORT("unknown TB type")
                   END SELECT
@@ -310,7 +311,7 @@ CONTAINS
                      CALL get_dftb_atom_param(dftb_kind, name=aname)
                   CASE ("xTB")
                      CALL get_qs_kind(qs_kind_set(ikind), xtb_parameter=xtb_kind)
-                     CALL get_xtb_atom_param(xtb_kind, symbol=aname)
+                     CALL get_xtb_atom_param(xtb_kind, symbol=aname(1:2))
                   CASE DEFAULT
                      CPABORT("unknown TB type")
                   END SELECT
@@ -1013,12 +1014,12 @@ CONTAINS
          CALL cp_fm_struct_release(fm_struct_tmp)
          CALL cp_fm_init_random(unoccupied_orbs(ispin), nlumos)
 
-         ! the full_all preconditioner makes not much sense for lumos search
+         ! FULL_ALL has column-dependent occupied-state weights and cannot be reused here.
          NULLIFY (local_preconditioner)
          IF (ASSOCIATED(scf_env%ot_preconditioner)) THEN
             local_preconditioner => scf_env%ot_preconditioner(1)%preconditioner
-            ! this one can for sure not be right (as it has to match a given C0)
-            IF (local_preconditioner%in_use == ot_precond_full_all) THEN
+            IF (local_preconditioner%in_use == ot_precond_full_all .OR. &
+                local_preconditioner%in_use == ot_precond_full_all_covariant) THEN
                NULLIFY (local_preconditioner)
             END IF
          END IF

@@ -20,34 +20,33 @@
 !>      @version 2.2002
 ! **************************************************************************************************
 MODULE cp_lbfgs_optimizer_gopt
-   USE cp_lbfgs, ONLY: setulb
-   USE cp_log_handling, ONLY: cp_get_default_logger, &
-                              cp_logger_type, &
-                              cp_to_string
-   USE cp_output_handling, ONLY: cp_print_key_finished_output, &
-                                 cp_print_key_unit_nr
-   USE message_passing, ONLY: mp_para_env_release
-   USE message_passing, ONLY: mp_para_env_type
-   USE cp_subsys_types, ONLY: cp_subsys_type
-   USE force_env_types, ONLY: force_env_get, &
-                              force_env_type
-   USE gopt_f_methods, ONLY: gopt_f_io
-   USE gopt_f_types, ONLY: gopt_f_release, &
-                           gopt_f_retain, &
-                           gopt_f_type
-   USE gopt_param_types, ONLY: gopt_param_type
-   USE input_section_types, ONLY: section_vals_type
-   USE kinds, ONLY: dp
-   USE machine, ONLY: m_walltime
-   USE space_groups, ONLY: spgr_apply_rotations_coord, &
-                           spgr_apply_rotations_force
-   USE space_groups_types, ONLY: spgr_type
+   USE cp_lbfgs,                        ONLY: setulb
+   USE cp_log_handling,                 ONLY: cp_get_default_logger,&
+                                              cp_logger_type,&
+                                              cp_to_string
+   USE cp_output_handling,              ONLY: cp_print_key_finished_output,&
+                                              cp_print_key_unit_nr
+   USE cp_subsys_types,                 ONLY: cp_subsys_type
+   USE force_env_types,                 ONLY: force_env_get,&
+                                              force_env_type
+   USE gopt_f_methods,                  ONLY: cp_eval_at,&
+                                              gopt_f_io
+   USE gopt_f_types,                    ONLY: gopt_f_release,&
+                                              gopt_f_retain,&
+                                              gopt_f_type
+   USE gopt_param_types,                ONLY: gopt_param_type
+   USE input_section_types,             ONLY: section_vals_type
+   USE kinds,                           ONLY: dp
+   USE machine,                         ONLY: m_walltime
+   USE message_passing,                 ONLY: mp_para_env_release,&
+                                              mp_para_env_type
+   USE space_groups,                    ONLY: spgr_apply_rotations_coord,&
+                                              spgr_apply_rotations_force
+   USE space_groups_types,              ONLY: spgr_type
 #include "../base/base_uses.f90"
 
    IMPLICIT NONE
    PRIVATE
-
-   #:include "gopt_f77_methods.fypp"
 
    LOGICAL, PRIVATE, PARAMETER :: debug_this_module = .TRUE.
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'cp_lbfgs_optimizer_gopt'
@@ -143,6 +142,28 @@ MODULE cp_lbfgs_optimizer_gopt
    END TYPE cp_lbfgs_opt_gopt_type
 
 CONTAINS
+
+! **************************************************************************************************
+!> \brief calls the L-BFGS optimizer
+!> \param optimizer the optimizer state
+!> \param spgr optional space group information
+!> \param iwunit optional output unit
+! **************************************************************************************************
+   SUBROUTINE cp_opt_gopt_setulb(optimizer, spgr, iwunit)
+      TYPE(cp_lbfgs_opt_gopt_type), INTENT(INOUT)        :: optimizer
+      TYPE(spgr_type), OPTIONAL, POINTER                 :: spgr
+      INTEGER, OPTIONAL                                  :: iwunit
+
+      CALL setulb(SIZE(optimizer%x), optimizer%m, optimizer%x, &
+                  optimizer%lower_bound, optimizer%upper_bound, &
+                  optimizer%kind_of_bound, optimizer%f, optimizer%gradient, &
+                  optimizer%wanted_relative_f_delta, &
+                  optimizer%wanted_projected_gradient, optimizer%work_array, &
+                  optimizer%i_work_array, optimizer%task, optimizer%print_every, &
+                  optimizer%csave, optimizer%lsave, optimizer%isave, &
+                  optimizer%dsave, optimizer%trust_radius, spgr=spgr, iwunit=iwunit)
+
+   END SUBROUTINE cp_opt_gopt_setulb
 
 ! **************************************************************************************************
 !> \brief initializes the optimizer
@@ -246,14 +267,7 @@ CONTAINS
          IF (PRESENT(upper_bound)) optimizer%upper_bound = upper_bound
          IF (PRESENT(trust_radius)) optimizer%trust_radius = trust_radius
 
-         CALL setulb(SIZE(optimizer%x), optimizer%m, optimizer%x, &
-                     optimizer%lower_bound, optimizer%upper_bound, &
-                     optimizer%kind_of_bound, optimizer%f, optimizer%gradient, &
-                     optimizer%wanted_relative_f_delta, &
-                     optimizer%wanted_projected_gradient, optimizer%work_array, &
-                     optimizer%i_work_array, optimizer%task, optimizer%print_every, &
-                     optimizer%csave, optimizer%lsave, optimizer%isave, &
-                     optimizer%dsave, optimizer%trust_radius)
+         CALL cp_opt_gopt_setulb(optimizer)
       ELSE
          NULLIFY ( &
             optimizer%kind_of_bound, optimizer%i_work_array, optimizer%isave, &
@@ -487,14 +501,7 @@ CONTAINS
                                          "PRINT%PROGRAM_RUN_INFO", extension=".geoLog")
          IF (is_master) THEN
             optimizer%task = 'START'
-            CALL setulb(SIZE(optimizer%x), optimizer%m, optimizer%x, &
-                        optimizer%lower_bound, optimizer%upper_bound, &
-                        optimizer%kind_of_bound, optimizer%f, optimizer%gradient, &
-                        optimizer%wanted_relative_f_delta, &
-                        optimizer%wanted_projected_gradient, optimizer%work_array, &
-                        optimizer%i_work_array, optimizer%task, optimizer%print_every, &
-                        optimizer%csave, optimizer%lsave, optimizer%isave, &
-                        optimizer%dsave, optimizer%trust_radius, spgr=spgr, iwunit=dataunit)
+            CALL cp_opt_gopt_setulb(optimizer, spgr=spgr, iwunit=dataunit)
          END IF
          CALL cp_print_key_finished_output(dataunit, logger, geo_section, &
                                            "PRINT%PROGRAM_RUN_INFO")
@@ -513,14 +520,7 @@ CONTAINS
                   CALL spgr_apply_rotations_coord(spgr, optimizer%x)
                   CALL spgr_apply_rotations_force(spgr, optimizer%gradient)
                END IF
-               CALL setulb(SIZE(optimizer%x), optimizer%m, optimizer%x, &
-                           optimizer%lower_bound, optimizer%upper_bound, &
-                           optimizer%kind_of_bound, optimizer%f, optimizer%gradient, &
-                           optimizer%wanted_relative_f_delta, &
-                           optimizer%wanted_projected_gradient, optimizer%work_array, &
-                           optimizer%i_work_array, optimizer%task, optimizer%print_every, &
-                           optimizer%csave, optimizer%lsave, optimizer%isave, &
-                           optimizer%dsave, optimizer%trust_radius, spgr=spgr, iwunit=dataunit)
+               CALL cp_opt_gopt_setulb(optimizer, spgr=spgr, iwunit=dataunit)
                IF (keep_space_group) THEN
                   CALL spgr_apply_rotations_coord(spgr, optimizer%x)
                   CALL spgr_apply_rotations_force(spgr, optimizer%gradient)
@@ -530,14 +530,7 @@ CONTAINS
                IF (optimizer%isave(36) > optimizer%max_f_per_iter) THEN
                   optimizer%task = 'STOP: CPU, hit max f eval in iter'
                   optimizer%status = 5 ! anormal exit
-                  CALL setulb(SIZE(optimizer%x), optimizer%m, optimizer%x, &
-                              optimizer%lower_bound, optimizer%upper_bound, &
-                              optimizer%kind_of_bound, optimizer%f, optimizer%gradient, &
-                              optimizer%wanted_relative_f_delta, &
-                              optimizer%wanted_projected_gradient, optimizer%work_array, &
-                              optimizer%i_work_array, optimizer%task, optimizer%print_every, &
-                              optimizer%csave, optimizer%lsave, optimizer%isave, &
-                              optimizer%dsave, optimizer%trust_radius, spgr=spgr, iwunit=dataunit)
+                  CALL cp_opt_gopt_setulb(optimizer, spgr=spgr, iwunit=dataunit)
                ELSE
                   optimizer%status = 1
                END IF
@@ -549,14 +542,7 @@ CONTAINS
                      CALL spgr_apply_rotations_coord(spgr, optimizer%x)
                      CALL spgr_apply_rotations_force(spgr, optimizer%gradient)
                   END IF
-                  CALL setulb(SIZE(optimizer%x), optimizer%m, optimizer%x, &
-                              optimizer%lower_bound, optimizer%upper_bound, &
-                              optimizer%kind_of_bound, optimizer%f, optimizer%gradient, &
-                              optimizer%wanted_relative_f_delta, &
-                              optimizer%wanted_projected_gradient, optimizer%work_array, &
-                              optimizer%i_work_array, optimizer%task, optimizer%print_every, &
-                              optimizer%csave, optimizer%lsave, optimizer%isave, &
-                              optimizer%dsave, optimizer%trust_radius, spgr=spgr, iwunit=dataunit)
+                  CALL cp_opt_gopt_setulb(optimizer, spgr=spgr, iwunit=dataunit)
                   IF (keep_space_group) THEN
                      CALL spgr_apply_rotations_coord(spgr, optimizer%x)
                      CALL spgr_apply_rotations_force(spgr, optimizer%gradient)
@@ -598,7 +584,6 @@ CONTAINS
             CALL cp_eval_at(optimizer%obj_funct, x=optimizer%x, &
                             f=optimizer%f, &
                             gradient=optimizer%gradient, &
-                            final_evaluation=.FALSE., &
                             master=optimizer%master, para_env=optimizer%para_env)
             ! do not use keywords?
             dataunit = cp_print_key_unit_nr(logger, geo_section, &
@@ -609,14 +594,7 @@ CONTAINS
                   CALL spgr_apply_rotations_coord(spgr, optimizer%x)
                   CALL spgr_apply_rotations_force(spgr, optimizer%gradient)
                END IF
-               CALL setulb(SIZE(optimizer%x), optimizer%m, optimizer%x, &
-                           optimizer%lower_bound, optimizer%upper_bound, &
-                           optimizer%kind_of_bound, optimizer%f, optimizer%gradient, &
-                           optimizer%wanted_relative_f_delta, &
-                           optimizer%wanted_projected_gradient, optimizer%work_array, &
-                           optimizer%i_work_array, optimizer%task, optimizer%print_every, &
-                           optimizer%csave, optimizer%lsave, optimizer%isave, &
-                           optimizer%dsave, optimizer%trust_radius, spgr=spgr, iwunit=dataunit)
+               CALL cp_opt_gopt_setulb(optimizer, spgr=spgr, iwunit=dataunit)
                IF (keep_space_group) THEN
                   CALL spgr_apply_rotations_coord(spgr, optimizer%x)
                   CALL spgr_apply_rotations_force(spgr, optimizer%gradient)
@@ -677,8 +655,14 @@ CONTAINS
             IF (PRESENT(converged)) converged = .TRUE.
             EXIT
          CASE (5)
-            ! op=5 abnormal exit ()
+            ! Restore the last accepted point; a failed FG request may leave x at a trial point.
             CALL optimizer%para_env%bcast(optimizer%task, optimizer%master)
+            optimizer%x = xold
+            CALL cp_eval_at(optimizer%obj_funct, x=optimizer%x, &
+                            f=optimizer%f, gradient=optimizer%gradient, &
+                            master=optimizer%master, para_env=optimizer%para_env)
+            IF (PRESENT(converged)) converged = .FALSE.
+            EXIT
          CASE (6)
             ! deallocated
             CPABORT("step on a deallocated opt structure ")
@@ -783,7 +767,7 @@ CONTAINS
                             last_f=last_f, projected_gradient=projected_gradient, &
                             converged=converged, geo_section=geo_section, &
                             force_env=force_env, gopt_param=gopt_param, spgr=spgr)
-      res = (optimizer%status < 40) .AND. .NOT. converged
+      res = (optimizer%status < 4) .AND. .NOT. converged
 
    END FUNCTION cp_opt_gopt_next
 
@@ -796,19 +780,12 @@ CONTAINS
 !>      @version 2.2002
 ! **************************************************************************************************
    SUBROUTINE cp_opt_gopt_stop(optimizer)
-      TYPE(cp_lbfgs_opt_gopt_type), INTENT(INOUT)       :: optimizer
+      TYPE(cp_lbfgs_opt_gopt_type), INTENT(INOUT)        :: optimizer
 
       optimizer%task = 'STOPPED on user request'
       optimizer%status = 4 ! normal exit
       IF (optimizer%master == optimizer%para_env%mepos) THEN
-         CALL setulb(SIZE(optimizer%x), optimizer%m, optimizer%x, &
-                     optimizer%lower_bound, optimizer%upper_bound, &
-                     optimizer%kind_of_bound, optimizer%f, optimizer%gradient, &
-                     optimizer%wanted_relative_f_delta, &
-                     optimizer%wanted_projected_gradient, optimizer%work_array, &
-                     optimizer%i_work_array, optimizer%task, optimizer%print_every, &
-                     optimizer%csave, optimizer%lsave, optimizer%isave, &
-                     optimizer%dsave, optimizer%trust_radius)
+         CALL cp_opt_gopt_setulb(optimizer)
       END IF
 
    END SUBROUTINE cp_opt_gopt_stop

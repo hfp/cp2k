@@ -43,6 +43,7 @@ MODULE qs_scf_subspace_types
       REAL(KIND=dp)                                     :: last_objective = 0.0_dp
       ! Total coefficient weight assigned to all entries older than the current raw Fock.
       REAL(KIND=dp)                                     :: last_old_fock_weight = 0.0_dp
+      REAL(KIND=dp)                                     :: diis_weight = 0.0_dp
       TYPE(dbcsr_p_type), DIMENSION(:, :, :), POINTER   :: density => NULL()
       TYPE(dbcsr_p_type), DIMENSION(:, :, :), POINTER   :: fock => NULL()
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER      :: combined_fock => NULL()
@@ -71,6 +72,7 @@ CONTAINS
       buffer%use_combined_fock = .FALSE.
       buffer%last_objective = 0.0_dp
       buffer%last_old_fock_weight = 0.0_dp
+      buffer%diis_weight = 0.0_dp
       NULLIFY (buffer%density, buffer%fock, buffer%combined_fock)
 
    END SUBROUTINE qs_scf_subspace_buffer_create
@@ -90,6 +92,7 @@ CONTAINS
       buffer%use_combined_fock = .FALSE.
       buffer%last_objective = 0.0_dp
       buffer%last_old_fock_weight = 0.0_dp
+      buffer%diis_weight = 0.0_dp
       IF (ALLOCATED(buffer%generation)) buffer%generation = 0
       IF (ALLOCATED(buffer%pf_metric)) buffer%pf_metric = 0.0_dp
       IF (ALLOCATED(buffer%coefficients)) buffer%coefficients = 0.0_dp

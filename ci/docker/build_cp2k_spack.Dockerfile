@@ -5,7 +5,7 @@
 #
 # Stage 2: Build CP2K
 
-ARG BASE_IMAGE=${BASE_IMAGE:-ubuntu:26.04}
+ARG BASE_IMAGE=${BASE_IMAGE:-docker.io/ubuntu:26.04}
 ARG DEPS_IMAGE=${DEPS_IMAGE:-}
 
 FROM "${DEPS_IMAGE}" AS build_cp2k

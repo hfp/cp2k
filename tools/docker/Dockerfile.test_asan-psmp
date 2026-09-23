@@ -3,7 +3,7 @@
 # Usage: podman build --shm-size=1g -f ./Dockerfile.test_asan-psmp ../../
 #
 
-FROM ubuntu:26.04
+FROM docker.io/ubuntu:26.04
 
 # Install requirements for the toolchain.
 WORKDIR /opt/cp2k-toolchain
@@ -16,7 +16,6 @@ COPY ./tools/toolchain/scripts/VERSION \
      ./tools/toolchain/scripts/tool_kit.sh \
      ./tools/toolchain/scripts/common_vars.sh \
      ./tools/toolchain/scripts/signal_trap.sh \
-     ./tools/toolchain/scripts/get_openblas_arch.sh \
      ./scripts/
 COPY ./tools/toolchain/install_cp2k_toolchain.sh .
 RUN ./install_cp2k_toolchain.sh \

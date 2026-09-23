@@ -64,7 +64,7 @@ MODULE bibliography
                             Tozer1996, Goedecker2004, Rengaraj2020, &
                             Khaliullin2013, Kruse2012, Hutter2014, Bengtsson1999, Kantorovich2008, &
                             Kantorovich2008a, Wellendorff2012, Niklasson2014, Borstnik2014, &
-                            Rayson2009, Grimme2011, Fattebert2002, Andreussi2012, &
+                            Rayson2009, Grimme2011, Grimme2015FOD, Fattebert2002, Andreussi2012, &
                             Khaliullin2007, Khaliullin2008, Merlot2014, Lin2009, Lin2013, Lin2016ACE, &
                             Batzner2022, Batatia2022, DelBen2015, Souza2002, Umari2002, Stengel2009, &
                             Luber2014, Berghold2011, DelBen2015b, Campana2009, &
@@ -87,7 +87,7 @@ MODULE bibliography
                             Mattiat2022, Belleflamme2023, Knizia2013, Musaelian2023, Eriksen2020, &
                             Bussy2023, Bussy2024, Wang2018, Zeng2023, Graml2024, Solca2024, &
                             Caldeweyher2017, Caldeweyher2019, Caldeweyher2020, Wittmann2024, Freeman1977, &
-                            Gruneis2009, &
+                            Gruneis2009, Blaha2010, KresseFurthmueller1996, &
                             Stein2022, Stein2024, Pracht2019, &
                             Blase2018, Blase2020, Bruneval2015, Golze2019, Gui2018, Jacquemin2017, Liu2020, &
                             Sander2015, Schreiber2008, vanSetten2015, Setyawan2010, Ahart2024, Knysh2024, &
@@ -97,7 +97,8 @@ MODULE bibliography
                             FuHo1983, MethfesselPaxton1989, Marzari1999, dosSantos2023, Mermin1965, &
                             KuhneHeskeProdan2020, Schreder2021, Schreder2024_1, Schreder2024_2, &
                             Shiga2022, Lindh1995, Chai2024a, Rullan2026, Sundararaman2017, Andreussi2019, &
-                            Chai2025a, Neugebauer2023, Chai2024b, Moynihan2017, Cococcioni2005
+                            Chai2025a, Neugebauer2023, Chai2024b, Moynihan2017, Cococcioni2005, &
+                            Cances2000, Herbst2022, Zhang2025, Gresch2017, Soluyanov2011
 
 CONTAINS
 
@@ -765,6 +766,12 @@ CONTAINS
                          title="Effect of the damping function in dispersion corrected density functional theory", &
                          source="J. Comput. Chem.", volume="32", pages="1456", &
                          year=2011, doi="10.1002/jcc.21759")
+
+      CALL add_reference(key=Grimme2015FOD, &
+                         authors=s2a("S. Grimme", "A. Hansen"), &
+                         title="A Practicable Real-Space Measure and Visualization of Static Electron-Correlation Effects", &
+                         source="Angew. Chem. Int. Ed.", volume="54", pages="12308-12313", &
+                         year=2015, doi="10.1002/anie.201501887")
 
       CALL add_reference(key=Grimme2013, &
                          authors=s2a("S. Grimme"), &
@@ -1912,6 +1919,21 @@ CONTAINS
                          source="J. Chem. Phys.", volume="131", pages="154115", &
                          year=2009, doi="10.1063/1.3250347")
 
+      CALL add_reference(key=Blaha2010, &
+                         authors=s2a("P. Blaha", "H. Hofstaetter", "O. Koch", &
+                                     "R. Laskowski", "K. Schwarz"), &
+                         title="Iterative diagonalization in augmented plane wave based methods "// &
+                         "in electronic structure calculations", &
+                         source="J. Comput. Phys.", volume="229", pages="453-460", &
+                         year=2010, doi="10.1016/j.jcp.2009.09.036")
+
+      CALL add_reference(key=KresseFurthmueller1996, &
+                         authors=s2a("G. Kresse", "J. Furthmueller"), &
+                         title="Efficiency of ab-initio total energy calculations for metals and "// &
+                         "semiconductors using a plane-wave basis set", &
+                         source="Comput. Mater. Sci.", volume="6", pages="15-50", &
+                         year=1996, doi="10.1016/0927-0256(96)00008-0")
+
       CALL add_reference(key=Stein2022, &
                          authors=s2a("F. Stein", "J. Hutter"), &
                          title="Double-hybrid density functionals for the condensed phase: "// &
@@ -2141,6 +2163,18 @@ CONTAINS
                          source="Math. Comput.", volume="19", pages="577-593", &
                          year=1965, doi="10.1090/S0025-5718-1965-0198670-6")
 
+      CALL add_reference(key=Cances2000, &
+                         authors=s2a("E. Cancès", "C. Le Bris"), &
+                         title="Can we outperform the DIIS approach for electronic structure calculations?", &
+                         source="Int. J. Quantum Chem.", volume="79", pages="82-90", &
+                         year=2000, doi="10.1002/1097-461X(2000)79:2<82::AID-QUA3>3.0.CO;2-I")
+
+      CALL add_reference(key=Herbst2022, &
+                         authors=s2a("M. F. Herbst", "A. Levitt"), &
+                         title="A robust and efficient line search for self-consistent field iterations", &
+                         source="J. Comput. Phys.", volume="459", pages="111127", &
+                         year=2022, doi="10.1016/j.jcp.2022.111127")
+
       CALL add_reference(key=Kerker1981, &
                          authors=s2a("G. P. Kerker"), &
                          title="Efficient iteration scheme for self-consistent pseudopotential calculations", &
@@ -2259,6 +2293,27 @@ CONTAINS
                          "effective interaction parameters in the LDA+U method", &
                          source="Phys. Rev. B", volume="71", pages="035105", &
                          year=2005, doi="10.1103/PhysRevB.71.035105")
+
+      CALL add_reference(key=Zhang2025, &
+                         authors=s2a("P. Zhang", "X. Xu"), &
+                         title="Propensity of Water Self-Ions at Air(Oil)-Water Interfaces Revealed by "// &
+                         "Deep Potential Molecular Dynamics with Enhanced Sampling", &
+                         source="Langmuir", volume="41", pages="3675-3683", &
+                         year=2025, doi="10.1021/acs.langmuir.4c05004")
+
+      CALL add_reference(key=Gresch2017, &
+                         authors=s2a("D. Gresch", "G. Autes", "O. V. Yazyev", "M. Troyer", &
+                                     "D. Vanderbilt", "B. A. Bernevig", "A. A. Soluyanov"), &
+                         title="Z2Pack: Numerical implementation of hybrid Wannier centers "// &
+                         "for identifying topological materials", &
+                         source="Phys. Rev. B", volume="95", pages="075146", &
+                         year=2017, doi="10.1103/PhysRevB.95.075146")
+
+      CALL add_reference(key=Soluyanov2011, &
+                         authors=s2a("A. A. Soluyanov", "D. Vanderbilt"), &
+                         title="Computing topological invariants without inversion symmetry", &
+                         source="Phys. Rev. B", volume="83", pages="235401", &
+                         year=2011, doi="10.1103/PhysRevB.83.235401")
 
    END SUBROUTINE add_all_references
 

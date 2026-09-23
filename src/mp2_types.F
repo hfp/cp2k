@@ -34,6 +34,8 @@ MODULE mp2_types
    USE message_passing,                 ONLY: mp_request_type
    USE qs_force_types,                  ONLY: qs_force_type
    USE qs_p_env_types,                  ONLY: qs_p_env_type
+   USE time_frequency_grids,            ONLY: time_frequency_grid_release,&
+                                              time_frequency_grid_type
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE
@@ -165,12 +167,7 @@ MODULE mp2_types
                                                             eps_eigval_S = 0.0_dp, &
                                                             eps_eigval_S_Gamma = 0.0_dp, &
                                                             rel_cutoff_trunc_coulomb_ri_x = 0.0_dp
-      REAL(KIND=dp), DIMENSION(:), POINTER               :: tau_tj => NULL(), &
-                                                            tau_wj => NULL(), &
-                                                            tj => NULL(), &
-                                                            wj => NULL()
-      REAL(KIND=dp), DIMENSION(:, :), POINTER            :: weights_cos_tf_t_to_w => NULL(), &
-                                                            weights_cos_tf_w_to_t => NULL()
+      TYPE(time_frequency_grid_type)                     :: time_frequency_grid
       REAL(KIND=dp), DIMENSION(:), ALLOCATABLE           :: Eigenval_Gamma, &
                                                             wkp_V
       INTEGER                                            :: group_size_P = 0, &
@@ -324,6 +321,7 @@ MODULE mp2_types
       LOGICAL                                            :: do_bse = .FALSE., &
                                                             bse_debug_print = .FALSE., &
                                                             print_directional_exc_descr = .FALSE., &
+                                                            print_directional_crosscorrelation = .FALSE., &
                                                             use_ks_energies = .FALSE.
       !BSE optical spectrum
       REAL(KIND=dp)                                      :: bse_spectrum_freq_step_size = 0.0_dp, &
@@ -352,15 +350,24 @@ MODULE mp2_types
       TYPE(ri_rpa_type)                                  :: ri_rpa = ri_rpa_type()
       ! There is a bug with some older compilers preventing requiring an explicit initialization of allocatable components
 #if defined(FTN_NO_DEFAULT_INIT)
-      TYPE(ri_rpa_im_time_type)                          :: ri_rpa_im_time = ri_rpa_im_time_type(Eigenval_Gamma=NULL(), &
-                                                                                                 wkp_V=NULL(), &
-                                                                                                 starts_array_mc_RI=NULL(), &
-                                                                                                 ends_array_mc_RI=NULL(), &
-                                                                                                 starts_array_mc_block_RI=NULL(), &
-                                                                                                 ends_array_mc_block_RI=NULL(), &
-                                                                                     starts_array_mc=NULL(), ends_array_mc=NULL(), &
-                                                                                                 starts_array_mc_block=NULL(), &
-                                                                                                 ends_array_mc_block=NULL())
+      TYPE(ri_rpa_im_time_type)                          :: ri_rpa_im_time = ri_rpa_im_time_type( &
+                                                            time_frequency_grid=time_frequency_grid_type( &
+                                                            frequency=NULL(), &
+                                                            frequency_weights=NULL(), &
+                                                            imaginary_time=NULL(), &
+                                                            time_weights_at_zero_frequency=NULL(), &
+                                                            cosine_time_to_frequency_weights=NULL(), &
+                                                            cosine_frequency_to_time_weights=NULL(), &
+                                                            sine_time_to_frequency_weights=NULL()), &
+                                                            Eigenval_Gamma=NULL(), &
+                                                            wkp_V=NULL(), &
+                                                            starts_array_mc_RI=NULL(), &
+                                                            ends_array_mc_RI=NULL(), &
+                                                            starts_array_mc_block_RI=NULL(), &
+                                                            ends_array_mc_block_RI=NULL(), &
+                                                            starts_array_mc=NULL(), ends_array_mc=NULL(), &
+                                                            starts_array_mc_block=NULL(), &
+                                                            ends_array_mc_block=NULL())
       TYPE(ri_g0w0_type)                                 :: ri_g0w0 = ri_g0w0_type(vec_Sigma_x_minus_vxc_gw=NULL(), &
                                                                                    xkp_special_kp=NULL(), &
                                                                                    matrix_sigma_x_minus_vxc=NULL(), &
@@ -450,12 +457,7 @@ CONTAINS
 
       IF (mp2_env%eri_method == do_eri_mme) CALL cp_eri_mme_finalize(mp2_env%eri_mme_param)
       IF (ASSOCIATED(mp2_env%eri_mme_param)) DEALLOCATE (mp2_env%eri_mme_param)
-      IF (ASSOCIATED(mp2_env%ri_rpa_im_time%tau_tj)) DEALLOCATE (mp2_env%ri_rpa_im_time%tau_tj)
-      IF (ASSOCIATED(mp2_env%ri_rpa_im_time%tau_wj)) DEALLOCATE (mp2_env%ri_rpa_im_time%tau_wj)
-      IF (ASSOCIATED(mp2_env%ri_rpa_im_time%tj)) DEALLOCATE (mp2_env%ri_rpa_im_time%tj)
-      IF (ASSOCIATED(mp2_env%ri_rpa_im_time%wj)) DEALLOCATE (mp2_env%ri_rpa_im_time%wj)
-      IF (ASSOCIATED(mp2_env%ri_rpa_im_time%weights_cos_tf_t_to_w)) DEALLOCATE (mp2_env%ri_rpa_im_time%weights_cos_tf_t_to_w)
-      IF (ASSOCIATED(mp2_env%ri_rpa_im_time%weights_cos_tf_w_to_t)) DEALLOCATE (mp2_env%ri_rpa_im_time%weights_cos_tf_w_to_t)
+      CALL time_frequency_grid_release(mp2_env%ri_rpa_im_time%time_frequency_grid)
 
       CALL mp2_env%local_gemm_ctx%destroy()
 

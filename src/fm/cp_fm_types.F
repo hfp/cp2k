@@ -656,10 +656,10 @@ CONTAINS
 
       IF ((iprow == myprow) .AND. (ipcol == mypcol)) THEN
          alpha = a(irow_local, icol_local)
-         CALL context%dgebs2d('All', ' ', 1, 1, alpha, 1)
+         CALL context%dgebs2d('A', ' ', 1, 1, alpha, 1)
          IF (PRESENT(local)) local = .TRUE.
       ELSE
-         CALL context%dgebr2d('All', ' ', 1, 1, alpha, 1, iprow, ipcol)
+         CALL context%dgebr2d('A', ' ', 1, 1, alpha, 1, iprow, ipcol)
          IF (PRESENT(local)) local = .FALSE.
       END IF
 
@@ -787,7 +787,7 @@ CONTAINS
                           nrow_local=nrow_local, ncol_local=ncol_local, &
                           row_indices=row_indices, col_indices=col_indices)
 
-      IF (al == 1.0 .AND. be == 0.0) THEN
+      IF (al == 1.0_dp .AND. be == 0.0_dp) THEN
          DO j = 1, ncol_local
             this_col = col_indices(j) - j0 + 1
             IF (this_col >= 1 .AND. this_col <= ncol) THEN

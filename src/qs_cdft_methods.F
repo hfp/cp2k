@@ -139,6 +139,7 @@ CONTAINS
       LOGICAL, OPTIONAL                                  :: just_gradients
 
       CHARACTER(len=*), PARAMETER :: routineN = 'becke_constraint_low'
+      REAL(KIND=dp), PARAMETER :: eps_sum_cell_f_all = 1.0E-06_dp
 
       INTEGER                                            :: handle, i, iatom, igroup, ind(3), ip, j, &
                                                             jatom, jp, k, natom, np(3), nskipped
@@ -532,7 +533,7 @@ CONTAINS
                   END DO
                END IF
                ! Weight function(s) at (k,j,i)
-               IF (.NOT. my_just_gradients .AND. ABS(sum_cell_f_all) > 0.000001) THEN
+               IF (.NOT. my_just_gradients .AND. ABS(sum_cell_f_all) > eps_sum_cell_f_all) THEN
                   DO igroup = 1, SIZE(group)
                      group(igroup)%weight%array(k, j, i) = sum_cell_f_group(igroup)/sum_cell_f_all
                   END DO
@@ -1184,7 +1185,6 @@ CONTAINS
       ALLOCATE (target_val(nvar))
       ALLOCATE (dE(nvar))
       strength(:) = cdft_control%strength(:)
-      target_val(:) = cdft_control%target(:)
       sign = 1.0_dp
       dE = 0.0_dp
       dvol = group(1)%weight%pw_grid%dvol
@@ -1243,6 +1243,8 @@ CONTAINS
          CALL prepare_fragment_constraint(qs_env)
       END IF
       ! Update constraint value and energy
+      ! Fragment integration above can replace the input target.
+      target_val(:) = cdft_control%target(:)
       cdft_control%value(:) = dE(:)
       energy%cdft = 0.0_dp
       DO ivar = 1, nvar

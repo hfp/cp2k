@@ -14,8 +14,9 @@
 ! **************************************************************************************************
 MODULE input_cp2k_scf
    USE bibliography,                    ONLY: &
-        Becke1988b, Chai2024a, Holmberg2017, Holmberg2018, Hu2010, Schiffmann2015, Stewart1982, &
-        VandeVondele2003, VandeVondele2005a, Weber2008
+        Becke1988b, Blaha2010, Chai2024a, Holmberg2017, Holmberg2018, Hu2010, &
+        KresseFurthmueller1996, Schiffmann2015, Stewart1982, VandeVondele2003, VandeVondele2005a, &
+        Weber2008
    USE cp_output_handling,              ONLY: add_last_numeric,&
                                               cp_print_key_section_create,&
                                               high_print_level,&
@@ -29,12 +30,14 @@ MODULE input_cp2k_scf
         cdft_magnetization_constraint, cholesky_dbcsr, cholesky_inverse, cholesky_off, &
         cholesky_reduce, cholesky_restore, core_guess, diag_block_davidson, diag_block_krylov, &
         diag_filter_matrix, diag_ot, diag_standard, diag_update_method_adiis, &
-        diag_update_method_mixing, eht_guess, gaussian, general_roks, high_spin_roks, &
-        history_guess, jacobian_fd1, jacobian_fd1_backward, jacobian_fd1_central, jacobian_fd2, &
-        jacobian_fd2_backward, ls_2pnt, ls_3pnt, ls_adapt, ls_gold, ls_none, mopac_guess, &
-        no_guess, numerical, ot_algo_irac, ot_algo_taylor_or_diag, ot_chol_irac, ot_lwdn_irac, &
-        ot_mini_broyden, ot_mini_cg, ot_mini_diis, ot_mini_lbfgs, ot_mini_sd, ot_poly_irac, &
-        ot_precond_full_all, ot_precond_full_kinetic, ot_precond_full_single, &
+        diag_update_method_mixing, eht_guess, external_density_guess, gaussian, general_roks, &
+        high_spin_roks, history_guess, jacobian_fd1, jacobian_fd1_backward, jacobian_fd1_central, &
+        jacobian_fd2, jacobian_fd2_backward, ls_2pnt, ls_3pnt, ls_adapt, ls_gold, ls_none, &
+        mopac_guess, no_guess, numerical, ot_algo_irac, ot_algo_taylor_or_diag, ot_chol_irac, &
+        ot_lattice_fft_auto, ot_lattice_fft_off, ot_lattice_fft_on, ot_low_rank_base_lattice_fft, &
+        ot_low_rank_base_overlap, ot_lwdn_irac, ot_mini_broyden, ot_mini_cg, ot_mini_diis, &
+        ot_mini_lbfgs, ot_mini_sd, ot_poly_irac, ot_precond_fermi_low_rank, ot_precond_full_all, &
+        ot_precond_full_all_covariant, ot_precond_full_kinetic, ot_precond_full_single, &
         ot_precond_full_single_inverse, ot_precond_none, ot_precond_s_inverse, &
         ot_precond_solver_chebyshev, ot_precond_solver_default, ot_precond_solver_direct, &
         ot_precond_solver_inv_chol, ot_precond_solver_update, outer_scf_basis_center_opt, &
@@ -54,7 +57,8 @@ MODULE input_cp2k_scf
                                               section_create,&
                                               section_release,&
                                               section_type
-   USE input_val_types,                 ONLY: integer_t,&
+   USE input_val_types,                 ONLY: char_t,&
+                                              integer_t,&
                                               real_t
    USE kinds,                           ONLY: dp
    USE qs_density_mixing_types,         ONLY: create_mixing_section
@@ -89,7 +93,7 @@ CONTAINS
       CPASSERT(.NOT. ASSOCIATED(section))
       CALL section_create(section, __LOCATION__, name="scf", &
                           description="Parameters needed to perform an SCF run.", &
-                          n_keywords=20, n_subsections=8, repeats=.FALSE.)
+                          n_keywords=21, n_subsections=8, repeats=.FALSE.)
 
       NULLIFY (subsection)
 
@@ -156,7 +160,7 @@ CONTAINS
 
       CALL keyword_create(keyword, __LOCATION__, name="MAX_DIIS", &
                           variants=["MAX_DIIS_BUFFER_SIZE"], &
-                          description="Maximum number of DIIS subspace vectors to be used", &
+                          description="Maximum number of conventional DIIS subspace vectors to be used", &
                           usage="MAX_DIIS 3", default_i_val=4)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
@@ -213,7 +217,7 @@ CONTAINS
          description="Selects how the initial wavefunction or density matrix is generated.", &
          usage="SCF_GUESS RESTART", default_i_val=atomic_guess, &
          enum_c_vals=s2a("ATOMIC", "RESTART", "RANDOM", "CORE", &
-                         "HISTORY_RESTART", "MOPAC", "EHT", "SPARSE", "NONE"), &
+                         "HISTORY_RESTART", "MOPAC", "EHT", "SPARSE", "EXTERNAL_DENSITY", "NONE"), &
          enum_desc=s2a("Generate an atomic density using the atomic code and internal default values", &
                        "Use the RESTART file as an initial guess (and ATOMIC if not present).", &
                        "Use random wavefunction coefficients.", &
@@ -222,9 +226,20 @@ CONTAINS
                        "Use same guess as MOPAC for semi-empirical methods or a simple diagonal density matrix for other methods", &
                        "Use the EHT (gfn0-xTB) code to generate an initial wavefunction.", &
                        "Generate a sparse wavefunction using the atomic code (for OT based methods)", &
+                       "Read a scalar electron density from a cube file for the first SCF Hamiltonian", &
                        "Skip initial guess (only for non-self consistent methods)."), &
          enum_i_vals=[atomic_guess, restart_guess, random_guess, core_guess, &
-                      history_guess, mopac_guess, eht_guess, sparse_guess, no_guess])
+                      history_guess, mopac_guess, eht_guess, sparse_guess, external_density_guess, no_guess])
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="EXTERNAL_DENSITY_FILE_NAME", &
+                          description="Cube file containing the electron density used when SCF_GUESS is "// &
+                          "EXTERNAL_DENSITY. The density is consumed once to build the first KS Hamiltonian; "// &
+                          "all subsequent densities are generated by the regular SCF solver. The cube grid "// &
+                          "has to coincide with the finest CP2K real-space grid.", &
+                          usage="EXTERNAL_DENSITY_FILE_NAME <FILENAME>", &
+                          type_of_var=char_t, default_c_val="", n_var=1)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -243,8 +258,9 @@ CONTAINS
       CALL keyword_create(keyword, __LOCATION__, name="ADDED_MOS", &
                           description="Number of additional molecular orbitals added for each spin channel. "// &
                           "This is commonly needed for smearing, excited-state, or post-Hartree-Fock calculations. "// &
-                          "Use -1 to add all available orbitals.", &
-                          usage="ADDED_MOS", default_i_val=0, n_var=-1)
+                          "Use -1 to add all available orbitals. For k-point smearing, use AUTO "// &
+                          "to select and adapt the virtual-space buffer.", &
+                          usage="ADDED_MOS {integer|AUTO}", default_c_val="0", n_var=-1)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -551,29 +567,46 @@ CONTAINS
 ! **************************************************************************************************
 !> \brief makes the orbital transformation section
 !> \param section ...
+!> \param diagonalization ...
 !> \par History
 !>      11.2004 created [Joost VandeVondele]
 ! **************************************************************************************************
-   SUBROUTINE create_ot_section(section)
+   SUBROUTINE create_ot_section(section, diagonalization)
       TYPE(section_type), POINTER                        :: section
+      LOGICAL, INTENT(IN), OPTIONAL                      :: diagonalization
 
+      LOGICAL                                            :: is_diagonalization
       TYPE(keyword_type), POINTER                        :: keyword
 
       CPASSERT(.NOT. ASSOCIATED(section))
-      CALL section_create(section, __LOCATION__, name="OT", &
-                          description="Sets the various options for the orbital transformation (OT) method. "// &
-                          "Default settings already provide an efficient, yet robust method. "// &
-                          "Most systems benefit from using the FULL_ALL preconditioner "// &
-                          "combined with a small value (0.001) of ENERGY_GAP. "// &
-                          "Well-behaved systems might benefit from using a DIIS minimizer. "//newline//newline// &
-                          "**Advantages:** "// &
-                          "It's fast, because no expensive diagonalisation is performed. "// &
-                          "If preconditioned correctly, method guaranteed to find minimum. "//newline//newline// &
-                          "**Disadvantages:** "// &
-                          "Sensitive to preconditioning. A good preconditioner can be expensive. "// &
-                          "No smearing, or advanced SCF mixing possible: POOR convergence for metallic systems.", &
-                          n_keywords=28, n_subsections=0, repeats=.FALSE., &
-                          citations=[VandeVondele2003, Weber2008])
+      is_diagonalization = .FALSE.
+      IF (PRESENT(diagonalization)) is_diagonalization = diagonalization
+      IF (is_diagonalization) THEN
+         CALL section_create(section, __LOCATION__, name="OT", &
+                             description="Configures OT as the iterative eigensolver selected by "// &
+                             "SCF%DIAGONALIZATION%ALGORITHM OT. The solver minimizes the trace of the "// &
+                             "requested orbital subspace for a fixed Kohn-Sham matrix. Orbital energies, "// &
+                             "occupations, smearing, density construction, and density mixing are handled "// &
+                             "afterwards by the parent DIAGONALIZATION SCF path.", &
+                             n_keywords=28, n_subsections=0, repeats=.FALSE., &
+                             citations=[VandeVondele2003, Weber2008])
+      ELSE
+         CALL section_create(section, __LOCATION__, name="OT", &
+                             description="Sets the various options for the orbital transformation (OT) method. "// &
+                             "Default settings already provide an efficient, yet robust method. "// &
+                             "Most systems benefit from using the FULL_ALL preconditioner "// &
+                             "combined with a small value (0.001) of ENERGY_GAP. "// &
+                             "Well-behaved systems might benefit from using a DIIS minimizer. "//newline//newline// &
+                             "**Advantages:** "// &
+                             "It's fast, because no expensive diagonalisation is performed. "// &
+                             "If preconditioned correctly, method guaranteed to find minimum. "//newline//newline// &
+                             "**Disadvantages:** "// &
+                             "Sensitive to preconditioning. A good preconditioner can be expensive. "// &
+                             "Metallic systems require a sufficiently large virtual orbital space and "// &
+                             "the coupled ROTATION and ENERGIES variables.", &
+                             n_keywords=28, n_subsections=0, repeats=.FALSE., &
+                             citations=[VandeVondele2003, Weber2008])
+      END IF
 
       NULLIFY (keyword)
 
@@ -671,8 +704,9 @@ CONTAINS
                        "Direct inversion in the iterative subspace: less reliable than CG, but sometimes about 50% faster", &
                        "Broyden mixing approximating the inverse Hessian", &
                        "Limited-memory BFGS in the fixed OT product chart. The selected OT preconditioner is used"// &
-                       " as the initial inverse Hessian. Available with ALGORITHM STRICT and without"// &
-                       " OCCUPATION_PRECONDITIONER."), &
+                       " as the initial inverse Hessian. The secant history is reset after a tenfold increase in"// &
+                       " the raw fixed-chart gradient norm. With OUTER_SCF, an explicit EPS_DIIS can switch later"// &
+                       " outer iterations to OT/DIIS. Available with ALGORITHM STRICT or IRAC."), &
          enum_i_vals=[ot_mini_sd, ot_mini_cg, ot_mini_diis, ot_mini_broyden, ot_mini_lbfgs])
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
@@ -698,6 +732,26 @@ CONTAINS
                           description="Number of history vectors to be used with DIIS, BROYDEN, or LBFGS", &
                           usage="N_HISTORY_VEC 7", &
                           default_i_val=7)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create( &
+         keyword, __LOCATION__, name="LBFGS_CURVATURE_TOL", &
+         description="Minimum dimensionless relative curvature accepted for an LBFGS secant pair."// &
+         " Values are restricted to the interval [0,1).", &
+         usage="LBFGS_CURVATURE_TOL 1.0E-4", &
+         default_r_val=1.0E-4_dp)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create( &
+         keyword, __LOCATION__, name="LBFGS_DAMPING", &
+         description="Regularize weak or negative LBFGS curvature by the smallest shift of the"// &
+         " gradient difference along the step that satisfies LBFGS_CURVATURE_TOL."// &
+         " If disabled, such secant pairs are skipped.", &
+         usage="LBFGS_DAMPING ON", &
+         default_l_val=.TRUE., &
+         lone_keyword_l_val=.TRUE.)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -816,12 +870,23 @@ CONTAINS
          "Properly preconditioned minimization can be orders of magnitude faster than doing nothing.", &
          usage="PRECONDITIONER FULL_ALL", &
          default_i_val=ot_precond_full_kinetic, &
-         enum_c_vals=s2a("FULL_ALL", "FULL_SINGLE_INVERSE", "FULL_SINGLE", "FULL_KINETIC", "FULL_S_INVERSE", &
-                         "NONE"), &
+         enum_c_vals=s2a("FULL_ALL", "FERMI_LOW_RANK", "FULL_ALL_COVARIANT", &
+                         "FULL_SINGLE_INVERSE", "FULL_SINGLE", &
+                         "FULL_KINETIC", "FULL_S_INVERSE", "NONE"), &
          enum_desc=s2a("Most effective state selective preconditioner based on diagonalization, "// &
                        "requires the ENERGY_GAP parameter to be an underestimate of the HOMO-LUMO gap. "// &
                        "This preconditioner is recommended for almost all systems, except very large systems where "// &
                        "make_preconditioner would dominate the total computational cost.", &
+                       "Experimental rotationally covariant bounded spectral preconditioner. It applies an "// &
+                       "overlap-inverse base plus a configurable number of complementary-state corrections relative to a "// &
+                       "common occupied reference level. Construction currently retains a full diagonalization. "// &
+                       "Application can be cheaper when the complementary space is larger than the retained rank.", &
+                       "Experimental rotation-covariant form of FULL_ALL. It diagonalizes a private copy of the "// &
+                       "occupied projected Hamiltonian, applies the complete state-selective Sylvester spectrum "// &
+                       "in that canonical copy, and rotates every input and output consistently without changing "// &
+                       "the physical orbitals. Complex K-point ROKS canonicalization is restricted to orbital "// &
+                       "subspaces with equal alpha/beta occupation signatures. Real Gamma-point use still "// &
+                       "requires uniform occupations and excludes ROKS.", &
                        "Based on H-eS cholesky inversion, similar to FULL_SINGLE in preconditioning efficiency "// &
                        "but cheaper to construct, "// &
                        "might be somewhat less robust. Recommended for large systems.", &
@@ -830,9 +895,78 @@ CONTAINS
                        "use for very large systems.", &
                        "Cholesky inversion of S, not as good as FULL_KINETIC, yet equally expensive.", &
                        "skip preconditioning"), &
-         enum_i_vals=[ot_precond_full_all, ot_precond_full_single_inverse, ot_precond_full_single, &
-                      ot_precond_full_kinetic, ot_precond_s_inverse, ot_precond_none], &
+         enum_i_vals=[ot_precond_full_all, ot_precond_fermi_low_rank, &
+                      ot_precond_full_all_covariant, ot_precond_full_single_inverse, &
+                      ot_precond_full_single, ot_precond_full_kinetic, ot_precond_s_inverse, ot_precond_none], &
          citations=[VandeVondele2003, Weber2008, Schiffmann2015])
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create( &
+         keyword, __LOCATION__, name="FERMI_LOW_RANK_BASE", &
+         description="Base operator used only with PRECONDITIONER FERMI_LOW_RANK. OVERLAP_INVERSE "// &
+         "applies the exact dense inverse overlap. LATTICE_FFT projects the overlap onto translations "// &
+         "of an explicitly replicated SUBSYS multiple unit cell, inverts its small reciprocal-space "// &
+         "blocks, and applies the approximate inverse with lattice FFTs. This choice implies "// &
+         "LATTICE_FFT ON; use the general LATTICE_FFT keyword for AUTO selection. The experimental "// &
+         "FFT path is restricted to real Gamma-point OT calculations.", &
+         usage="FERMI_LOW_RANK_BASE LATTICE_FFT", &
+         default_i_val=ot_low_rank_base_overlap, &
+         enum_c_vals=s2a("OVERLAP_INVERSE", "LATTICE_FFT"), &
+         enum_desc=s2a("Exact dense inverse-overlap base", &
+                       "Approximate block-circulant inverse applied by lattice FFT"), &
+         enum_i_vals=[ot_low_rank_base_overlap, ot_low_rank_base_lattice_fft])
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create( &
+         keyword, __LOCATION__, name="FERMI_LOW_RANK_MAX_RANK", &
+         description="Maximum number of complementary eigenstates retained by PRECONDITIONER FERMI_LOW_RANK. "// &
+         "Larger values approach the complete common-reference spectral operator at higher application cost. "// &
+         "A value of -1 retains the entire complementary space. A finite cap never splits a numerically "// &
+         "degenerate boundary manifold.", &
+         usage="FERMI_LOW_RANK_MAX_RANK 64", &
+         default_i_val=48)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create( &
+         keyword, __LOCATION__, name="LATTICE_FFT", &
+         description="Apply the inverse of a block-circulant projection of the selected OT "// &
+         "preconditioner with FFTs over explicitly replicated cells. Supported by FULL_S_INVERSE, "// &
+         "FULL_KINETIC, FULL_SINGLE_INVERSE, FULL_ALL_COVARIANT, and FERMI_LOW_RANK in real "// &
+         "Gamma-point calculations. FULL_ALL_COVARIANT projects and inverts one gap-floored "// &
+         "state-dependent Hessian operator per canonical occupied state. "// &
+         "ON requires the projected reciprocal-space blocks to be positive definite. AUTO uses the "// &
+         "FFT operator only for at least eight replicated cells and a relative projection error no "// &
+         "larger than 1.0E-3. It also requires an estimated application-work ratio no larger than "// &
+         "0.8 and limits reciprocal-block storage to four times one dense real operator; otherwise "// &
+         "it retains the conventional solver. The estimates include reference-cell block size, "// &
+         "occupied-column batch size, state-operator count, and message-passing ranks. Construction "// &
+         "of state-independent operators accumulates only the projected reference-cell blocks across "// &
+         "ranks. FULL_ALL_COVARIANT and explicit local corrections still require dense construction "// &
+         "data. Application routes complete orbital columns across ranks and distributes the FFT "// &
+         "batches over those columns.", &
+         usage="LATTICE_FFT AUTO", &
+         default_i_val=ot_lattice_fft_off, &
+         enum_c_vals=s2a("OFF", "ON", "AUTO"), &
+         enum_desc=s2a("Use the conventional OT preconditioner solver", &
+                       "Always use the approximate lattice-FFT inverse", &
+                       "Use the lattice-FFT inverse only when conservative selection criteria pass"), &
+         enum_i_vals=[ot_lattice_fft_off, ot_lattice_fft_on, ot_lattice_fft_auto])
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create( &
+         keyword, __LOCATION__, name="LATTICE_FFT_LOCAL_CELLS", &
+         description="Number of replicated cell blocks retained in an optional balanced local"// &
+         " correction to LATTICE_FFT ON. Cells are selected from the largest block-row"// &
+         " contributions to the non-circulant residual. The two-level correction is symmetric"// &
+         " positive definite and exactly inverts the selected coordinate subspace. A value of"// &
+         " zero disables the correction. The correction is deliberately unavailable with AUTO,"// &
+         " which continues to reject defective or otherwise non-circulant operators.", &
+         usage="LATTICE_FFT_LOCAL_CELLS 1", &
+         default_i_val=0)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -915,29 +1049,35 @@ CONTAINS
                           description="Introduce additional variables so that rotations of the occupied"// &
                           " subspace are allowed as well, only needed for cases where the energy is not invariant under"// &
                           " a rotation of the occupied subspace such as non-singlet restricted calculations"// &
-                          " or fractional occupations.", &
+                          " or fractional occupations. This variable is not used by DIAGONALIZATION%OT, "// &
+                          "which canonicalizes the converged eigenspace explicitly.", &
                           usage="ROTATION", lone_keyword_l_val=.TRUE., &
                           default_l_val=.FALSE.)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="ENERGIES", &
-                          description="Optimize orbital energies for use in Fermi-Dirac smearing "// &
-                          "(requires ROTATION and FD smearing to be active).", &
+                          description="Optimize auxiliary orbital energies for Mermin smearing in direct SCF%OT "// &
+                          "(requires ROTATION and smearing to be active). DIAGONALIZATION%OT obtains "// &
+                          "orbital energies by canonicalizing its converged eigenspace instead.", &
                           usage="ENERGIES", lone_keyword_l_val=.TRUE., &
                           default_l_val=.FALSE.)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="OCCUPATION_PRECONDITIONER", &
-                          description="Preconditioner with the occupation numbers (FD smearing)", &
+                          description="Augment the direct SCF%OT orbital metric with coupled fixed-N "// &
+                          "occupation response. This augments the independently selected orbital "// &
+                          "preconditioner. It is not used by DIAGONALIZATION%OT, where occupations are "// &
+                          "assigned after the eigensolver has converged.", &
                           usage="OCCUPATION_PRECONDITIONER", lone_keyword_l_val=.TRUE., &
                           default_l_val=.FALSE.)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="NONDIAG_ENERGY", &
-                          description="Add a non-diagonal energy penalty (FD smearing)", &
+                          description="Add a non-diagonal auxiliary-energy penalty in direct SCF%OT. "// &
+                          "It is not used by DIAGONALIZATION%OT.", &
                           usage="NONDIAG_ENERGY", lone_keyword_l_val=.TRUE., &
                           default_l_val=.FALSE.)
       CALL section_add_keyword(section, keyword)
@@ -963,12 +1103,30 @@ CONTAINS
       CPASSERT(.NOT. ASSOCIATED(section))
       CALL section_create(section, __LOCATION__, name="ADIIS", &
                           description="Parameters for the ADIIS SCF update method.", &
-                          n_keywords=1, n_subsections=0, repeats=.FALSE.)
+                          n_keywords=3, n_subsections=0, repeats=.FALSE.)
 
       NULLIFY (keyword)
       CALL keyword_create(keyword, __LOCATION__, name="MAX_HISTORY", &
-                          description="Maximum number of paired density/Fock states retained by ADIIS.", &
+                          description="Maximum number of paired density/Fock states retained by ADIIS. "// &
+                          "Histories up to 12 use exact active-face enumeration; larger histories use "// &
+                          "deterministic pairwise simplex minimization.", &
                           usage="MAX_HISTORY 7", default_i_val=16)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="ADAPTIVE_LEVEL_SHIFT", &
+                          description="Initial occupied-space level shift for experimental ADIIS candidate stabilization. "// &
+                          "Positive values enable adaptation using the energy and gradient of successive "// &
+                          "SCF states, without additional KS builds. Zero disables the shift. "// &
+                          "The shift fades out during CDIIS handover and is omitted in raw-map checks. "// &
+                          "Requires MAX_HISTORY >= 2 and cannot be combined with SCF%LEVEL_SHIFT.", &
+                          unit_str="au_e", usage="ADAPTIVE_LEVEL_SHIFT 1.0", default_r_val=0.0_dp)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="VERBOSE", &
+                          description="Print per-iteration ADIIS and candidate shift diagnostic metrics.", &
+                          usage="VERBOSE", lone_keyword_l_val=.TRUE., default_l_val=.FALSE.)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -1053,7 +1211,10 @@ CONTAINS
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="EPS_ADAPT", &
-                          description="Required accuracy in iterative diagonalization as compared to current SCF convergence", &
+                          description="Tolerance of the iterative diagonalization relative to the current SCF convergence. "// &
+                          "A positive value makes the inner tolerance the looser of EPS_ITER and this factor "// &
+                          "times the SCF error: loose while the density is far from self-consistency, "// &
+                          "tightening as the SCF converges. The value 0 disables the tracking.", &
                           usage="EPS_ADAPT 0.01", &
                           default_r_val=0._dp)
       CALL section_add_keyword(section, keyword)
@@ -1074,7 +1235,7 @@ CONTAINS
       CALL keyword_release(keyword)
 
       NULLIFY (subsection)
-      CALL create_ot_section(subsection)
+      CALL create_ot_section(subsection, diagonalization=.TRUE.)
       CALL section_add_subsection(section, subsection)
       CALL section_release(subsection)
 
@@ -1111,22 +1272,29 @@ CONTAINS
 
       CPASSERT(.NOT. ASSOCIATED(section))
       CALL section_create(section, __LOCATION__, name="DAVIDSON", &
-                          description=" ", &
-                          n_keywords=2, n_subsections=0, repeats=.FALSE.)
+                          description="Settings of the blocked Davidson iterative diagonalization. "// &
+                          "Also available at symmetry-reduced complex k points.", &
+                          n_keywords=2, n_subsections=0, repeats=.FALSE., &
+                          citations=[Blaha2010, KresseFurthmueller1996])
 
       NULLIFY (keyword)
 
       CALL keyword_create( &
          keyword, __LOCATION__, name="PRECONDITIONER", &
-         description="Type of preconditioner to be used with all minimization schemes. ", &
+         description="Type of preconditioner to be used with all minimization schemes. "// &
+         "With k points, all preconditioners except NONE use the complex "// &
+         "k-point preconditioners.", &
          usage="PRECONDITIONER FULL_ALL", &
          default_i_val=ot_precond_full_all, &
-         enum_c_vals=s2a("FULL_ALL", "FULL_SINGLE_INVERSE", "NONE"), &
+         enum_c_vals=s2a("FULL_ALL", "FULL_SINGLE_INVERSE", "FULL_KINETIC", "FULL_S_INVERSE", "NONE"), &
          enum_desc=s2a("Most effective state selective preconditioner based on diagonalization ", &
                        "Based on H-eS cholesky inversion, similar to FULL_SINGLE in preconditioning efficiency "// &
                        "but cheaper to construct, might be somewhat less robust. Recommended for large systems.", &
+                       "Preconditioner based on the kinetic energy matrix", &
+                       "Preconditioner based on the overlap matrix", &
                        "skip preconditioning"), &
-         enum_i_vals=[ot_precond_full_all, ot_precond_full_single_inverse, ot_precond_none], &
+         enum_i_vals=[ot_precond_full_all, ot_precond_full_single_inverse, ot_precond_full_kinetic, &
+                      ot_precond_s_inverse, ot_precond_none], &
          citations=[VandeVondele2003])
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
@@ -1164,7 +1332,9 @@ CONTAINS
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="FIRST_PREC", &
-                          description="First SCF iteration at which a Preconditioner is employed", &
+                          description="First SCF iteration at which a Preconditioner is employed. "// &
+                          "With k points the first build waits until after the cold start, whatever lower value is set. "// &
+                          "The preconditioner makers read the MO coefficients, and only the cold start fills them.", &
                           usage="FIRST_PREC 1", default_i_val=1)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
@@ -1176,8 +1346,19 @@ CONTAINS
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
+      CALL keyword_create(keyword, __LOCATION__, name="NOISE_SCALE", &
+                          description="Divisor that maps the SCF mixing error onto the adaptive Davidson tolerance. "// &
+                          "The inner tolerance tracks EPS_ADAPT times the mixing error divided by this value. "// &
+                          "The value approximates how much the per-column residuals amplify the density mixing error. "// &
+                          "A measured amplification on a smeared slab is 20. Increase the value for looser tracking. "// &
+                          "Only used with EPS_ADAPT.", &
+                          usage="NOISE_SCALE 100", default_r_val=100.0_dp)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
       CALL keyword_create(keyword, __LOCATION__, name="SPARSE_MOS", &
-                          description="Use MOS as sparse matrix and avoid as much as possible multiplications with full matrices", &
+                       description="Use MOS as sparse matrix and avoid as much as possible multiplications with full matrices. "// &
+                          "Not used with k points.", &
                           usage="SPARSE_MOS", default_l_val=.TRUE., &
                           lone_keyword_l_val=.TRUE.)
       CALL section_add_keyword(section, keyword)

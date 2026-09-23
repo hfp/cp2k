@@ -21,7 +21,8 @@ MODULE qs_harris_methods
                                               cp_logger_get_default_io_unit,&
                                               cp_logger_type
    USE distribution_1d_types,           ONLY: distribution_1d_type
-   USE ec_methods,                      ONLY: create_kernel
+   USE input_constants,                 ONLY: hden_cube,&
+                                              hden_cube_fit
    USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                               section_vals_type
    USE kinds,                           ONLY: dp
@@ -31,6 +32,7 @@ MODULE qs_harris_methods
    USE pw_methods,                      ONLY: pw_axpy,&
                                               pw_copy,&
                                               pw_integral_ab,&
+                                              pw_integrate_function,&
                                               pw_scale,&
                                               pw_transfer
    USE pw_poisson_methods,              ONLY: pw_poisson_solve
@@ -39,19 +41,27 @@ MODULE qs_harris_methods
    USE pw_types,                        ONLY: pw_c1d_gs_type,&
                                               pw_r3d_rs_type
    USE qs_collocate_density,            ONLY: calculate_rho_elec
+   USE qs_density_fit,                  ONLY: fit_relative_entropy_density
    USE qs_energy_types,                 ONLY: qs_energy_type
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
    USE qs_force_types,                  ONLY: qs_force_type
+   USE qs_fxc,                          ONLY: qs_fxc_create
    USE qs_harris_types,                 ONLY: harris_energy_type,&
+                                              harris_print_direct_energy,&
                                               harris_print_energy,&
                                               harris_rhoin_type,&
                                               harris_type
    USE qs_integrate_potential,          ONLY: integrate_function,&
                                               integrate_v_core_rspace,&
                                               integrate_v_rspace
-   USE qs_ks_types,                     ONLY: qs_ks_env_type
-   USE qs_rho_types,                    ONLY: qs_rho_get,&
+   USE qs_ks_methods,                   ONLY: qs_ks_update_qs_env
+   USE qs_ks_types,                     ONLY: qs_ks_did_change,&
+                                              qs_ks_env_type
+   USE qs_rho_atom_types,               ONLY: rho_atom_type
+   USE qs_rho_types,                    ONLY: qs_rho_create,&
+                                              qs_rho_get,&
+                                              qs_rho_set,&
                                               qs_rho_type
 #include "./base/base_uses.f90"
 
@@ -61,7 +71,8 @@ MODULE qs_harris_methods
 
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'qs_harris_methods'
 
-   PUBLIC :: harris_energy_correction
+   PUBLIC :: harris_direct_density_matrix_energy, harris_energy_correction, &
+             harris_relative_entropy_reconstruction
 
 CONTAINS
 
@@ -95,6 +106,19 @@ CONTAINS
 
       CALL get_qs_env(qs_env, harris_env=harris_env, energy=ks_energy)
       energy => harris_env%energy
+      IF (harris_env%direct_density_matrix_energy) THEN
+         IF (calculate_forces) THEN
+            CPABORT("Forces are not available for the direct fitted-density-matrix energy")
+         END IF
+         ks_energy%nonscf_correction = energy%direct_harris - ks_energy%total
+         ks_energy%total = energy%direct_harris
+         CALL timestop(handle)
+         RETURN
+      END IF
+      IF (calculate_forces .AND. (harris_env%density_source == hden_cube .OR. &
+                                  harris_env%density_source == hden_cube_fit)) THEN
+         CPABORT("Forces are not available for a Harris energy based on an external cube density")
+      END IF
       energy%eband = ks_energy%band
       energy%ewald_correction = ks_energy%core_overlap + ks_energy%core_self
       energy%dispersion = ks_energy%dispersion
@@ -152,6 +176,130 @@ CONTAINS
    END SUBROUTINE harris_energy_correction
 
 ! **************************************************************************************************
+!> \brief Evaluates the fitted AO density matrix without solving a NONSCF eigenproblem.
+!>
+!> First, the fitted density matrix and its collocated density are used consistently. The second
+!> energy keeps all density-matrix-dependent terms from this evaluation and replaces only the
+!> Hartree and semilocal XC contributions by those obtained from the original cube density. For
+!> GPW this is algebraically equivalent to the Harris expression with P_fit in the band trace.
+!> \param qs_env Quickstep environment
+! **************************************************************************************************
+   SUBROUTINE harris_direct_density_matrix_energy(qs_env)
+      TYPE(qs_environment_type), POINTER                 :: qs_env
+
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'harris_direct_density_matrix_energy'
+
+      INTEGER                                            :: handle, iounit
+      REAL(KIND=dp)                                      :: target_density_energy, &
+                                                            trial_density_energy
+      REAL(KIND=dp), DIMENSION(:), POINTER               :: tot_rho_r
+      TYPE(cp_logger_type), POINTER                      :: logger
+      TYPE(harris_energy_type), POINTER                  :: energy
+      TYPE(harris_type), POINTER                         :: harris_env
+      TYPE(pw_c1d_gs_type), DIMENSION(:), POINTER        :: rho_g
+      TYPE(pw_r3d_rs_type), DIMENSION(:), POINTER        :: rho_r
+      TYPE(qs_energy_type), POINTER                      :: ks_energy
+      TYPE(qs_rho_type), POINTER                         :: rho
+
+      CALL timeset(routineN, handle)
+      NULLIFY (harris_env, ks_energy, rho, rho_g, rho_r, tot_rho_r)
+
+      CALL get_qs_env(qs_env, harris_env=harris_env, energy=ks_energy, rho=rho)
+      CPASSERT(harris_env%density_source == hden_cube_fit)
+      CPASSERT(harris_env%density_fit_ready)
+      CPASSERT(ASSOCIATED(harris_env%density_target_rspace%pw_grid))
+
+      energy => harris_env%energy
+
+      ! Consistent evaluation: P_fit and the density collocated from P_fit.
+      CALL qs_ks_update_qs_env(qs_env, calculate_forces=.FALSE., just_energy=.TRUE., &
+                               print_active=.FALSE.)
+      energy%trial_dm = ks_energy%total
+      trial_density_energy = ks_energy%hartree + ks_energy%hartree_1c + &
+                             ks_energy%exc + ks_energy%exc1 + &
+                             ks_energy%exc_aux_fit + ks_energy%exc1_aux_fit
+
+      ! Mixed Harris evaluation: retain P_fit but use the original cube density for E_H and E_xc.
+      CALL qs_rho_get(rho, rho_r=rho_r, rho_g=rho_g, tot_rho_r=tot_rho_r)
+      CPASSERT(SIZE(rho_r) == 1 .AND. SIZE(rho_g) == 1)
+      CALL pw_copy(harris_env%density_target_rspace, rho_r(1))
+      CALL pw_transfer(rho_r(1), rho_g(1))
+      tot_rho_r(1) = pw_integrate_function(rho_r(1), isign=-1)
+      CALL qs_rho_set(rho, rho_r_valid=.TRUE., rho_g_valid=.TRUE.)
+      CALL qs_ks_did_change(qs_env%ks_env, rho_changed=.TRUE., potential_changed=.TRUE.)
+      CALL qs_ks_update_qs_env(qs_env, calculate_forces=.FALSE., just_energy=.TRUE., &
+                               print_active=.FALSE.)
+      target_density_energy = ks_energy%hartree + ks_energy%hartree_1c + &
+                              ks_energy%exc + ks_energy%exc1 + &
+                              ks_energy%exc_aux_fit + ks_energy%exc1_aux_fit
+
+      energy%direct_harris = energy%trial_dm + target_density_energy - trial_density_energy
+      energy%direct_difference = energy%trial_dm - energy%direct_harris
+      energy%eharris = energy%direct_harris
+      ks_energy%nonscf_correction = energy%direct_harris - ks_energy%total
+      ks_energy%total = energy%direct_harris
+
+      logger => cp_get_default_logger()
+      iounit = cp_logger_get_default_io_unit(logger)
+      CALL harris_print_direct_energy(iounit, energy)
+
+      CALL timestop(handle)
+
+   END SUBROUTINE harris_direct_density_matrix_energy
+
+! **************************************************************************************************
+!> \brief Builds H[n_cube] once and reconstructs the AO density matrix by minimizing a
+!>        density residual regularized by fermionic relative entropy to its Fermi matrix.
+!> \param qs_env Quickstep environment with the target cube density active
+! **************************************************************************************************
+   SUBROUTINE harris_relative_entropy_reconstruction(qs_env)
+      TYPE(qs_environment_type), POINTER                 :: qs_env
+
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'harris_relative_entropy_reconstruction'
+
+      INTEGER                                            :: handle
+      REAL(KIND=dp), DIMENSION(:), POINTER               :: tot_rho_r
+      TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: matrix_ks
+      TYPE(harris_type), POINTER                         :: harris_env
+      TYPE(pw_c1d_gs_type), DIMENSION(:), POINTER        :: rho_g
+      TYPE(pw_r3d_rs_type), DIMENSION(:), POINTER        :: rho_r
+      TYPE(qs_rho_type), POINTER                         :: rho
+
+      CALL timeset(routineN, handle)
+      NULLIFY (harris_env, matrix_ks, rho, rho_g, rho_r, tot_rho_r)
+
+      CALL get_qs_env(qs_env, harris_env=harris_env, rho=rho)
+      CPASSERT(harris_env%density_source == hden_cube_fit)
+      CPASSERT(harris_env%density_target_ready)
+      CPASSERT(.NOT. harris_env%density_fit_ready)
+
+      ! The active real-space density is n_cube here.  Build and freeze its Kohn-Sham matrix
+      ! before changing the AO density matrix.
+      CALL qs_ks_did_change(qs_env%ks_env, rho_changed=.TRUE., potential_changed=.TRUE.)
+      CALL qs_ks_update_qs_env(qs_env, calculate_forces=.FALSE., just_energy=.TRUE., &
+                               print_active=.FALSE.)
+      CALL get_qs_env(qs_env, matrix_ks=matrix_ks)
+      CPASSERT(ASSOCIATED(matrix_ks) .AND. SIZE(matrix_ks) == 1)
+
+      CALL fit_relative_entropy_density(qs_env, rho, matrix_ks(1)%matrix, &
+                                        harris_env%fit_temperature, &
+                                        harris_env%fit_relative_entropy_weight, &
+                                        harris_env%fit_max_iter, harris_env%fit_eps, &
+                                        harris_env%fit_step_size, harris_env%fit_max_backtrack)
+
+      CALL qs_rho_get(rho, rho_r=rho_r, rho_g=rho_g, tot_rho_r=tot_rho_r)
+      CPASSERT(SIZE(rho_r) == 1 .AND. SIZE(rho_g) == 1)
+      CALL harris_env%density_fit_rspace%create(rho_r(1)%pw_grid)
+      CALL pw_copy(rho_r(1), harris_env%density_fit_rspace)
+      harris_env%density_fit_ready = .TRUE.
+      CALL qs_rho_set(rho, rho_r_valid=.TRUE., rho_g_valid=.TRUE.)
+      CALL qs_ks_did_change(qs_env%ks_env, rho_changed=.TRUE., potential_changed=.TRUE.)
+
+      CALL timestop(handle)
+
+   END SUBROUTINE harris_relative_entropy_reconstruction
+
+! **************************************************************************************************
 !> \brief ...
 !> \param qs_env ...
 !> \param iounit ...
@@ -181,7 +329,8 @@ CONTAINS
                                                             tauh_r
       TYPE(qs_force_type), DIMENSION(:), POINTER         :: force
       TYPE(qs_ks_env_type), POINTER                      :: ks_env
-      TYPE(qs_rho_type), POINTER                         :: rho
+      TYPE(qs_rho_type), POINTER                         :: rho, rhoh
+      TYPE(rho_atom_type), DIMENSION(:), POINTER         :: rho0_atom_set, rho1_atom_set
       TYPE(section_vals_type), POINTER                   :: xc_section
 
       CALL timeset(routineN, handle)
@@ -270,9 +419,23 @@ CONTAINS
       END DO
       xc_section => section_vals_get_subs_vals(qs_env%input, "DFT%XC")
       NULLIFY (fxc, ftau)
-      CALL create_kernel(qs_env, vxc=fxc, vxc_tau=ftau, &
-                         rho=rho, rho1_r=rhoh_r, rho1_g=rhoh_g, tau1_r=tauh_r, &
-                         xc_section=xc_section)
+      NULLIFY (rho0_atom_set, rho1_atom_set)
+      ALLOCATE (rhoh)
+      CALL qs_rho_create(rhoh)
+      IF (ASSOCIATED(rhoh_r)) THEN
+         CALL qs_rho_set(rhoh, rho_r=rhoh_r, rho_r_valid=.TRUE.)
+      END IF
+      IF (ASSOCIATED(rhoh_g)) THEN
+         CALL qs_rho_set(rhoh, rho_g=rhoh_g, rho_g_valid=.TRUE.)
+      END IF
+      IF (ASSOCIATED(tauh_r)) THEN
+         CALL qs_rho_set(rhoh, tau_r=tauh_r, tau_r_valid=.TRUE.)
+      END IF
+      !
+      CALL qs_fxc_create(qs_env, rho, rhoh, rho0_atom_set, xc_section, .FALSE., &
+                         fxc, ftau, rho1_atom_set)
+      !
+      DEALLOCATE (rhoh)
       CPASSERT(.NOT. ASSOCIATED(ftau))
 
       DO ispin = 1, nspins

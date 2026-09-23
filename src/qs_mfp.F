@@ -35,6 +35,7 @@ MODULE qs_mfp
    USE kinds,                           ONLY: dp
    USE parallel_gemm_api,               ONLY: parallel_gemm
    USE particle_types,                  ONLY: particle_type
+   USE qs_dcdr_ao,                      ONLY: hr_mult_by_delta_1d
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
    USE qs_integral_utils,               ONLY: basis_set_list_setup
@@ -52,7 +53,6 @@ MODULE qs_mfp
                                               neighbor_list_iterator_release,&
                                               neighbor_list_set_p_type
    USE qs_p_env_types,                  ONLY: qs_p_env_type
-   USE qs_vcd_ao,                       ONLY: hr_mult_by_delta_1d
    USE qs_vcd_utils,                    ONLY: vcd_read_restart,&
                                               vcd_write_restart
 
@@ -497,7 +497,7 @@ CONTAINS
                             *(particle_set(vcd_env%dcdr_env%lambda)%r(gamma) - vcd_env%magnetic_origin_atom(gamma))
 
                   aat_atom(vcd_env%dcdr_env%beta, alpha, vcd_env%dcdr_env%lambda) &
-                     = aat_atom(vcd_env%dcdr_env%beta, alpha, vcd_env%dcdr_env%lambda) + aat_tmp/4.
+                     = aat_atom(vcd_env%dcdr_env%beta, alpha, vcd_env%dcdr_env%lambda) + aat_tmp/4.0_dp
                END DO
             END DO
          END IF

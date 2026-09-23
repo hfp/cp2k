@@ -31,7 +31,6 @@ MODULE qs_dcdr_ao
                                               section_vals_type
    USE kinds,                           ONLY: default_string_length,&
                                               dp
-   USE orbital_pointers,                ONLY: ncoset
    USE parallel_gemm_api,               ONLY: parallel_gemm
    USE pw_env_types,                    ONLY: pw_env_get,&
                                               pw_env_type
@@ -53,8 +52,7 @@ MODULE qs_dcdr_ao
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
    USE qs_fxc,                          ONLY: qs_fxc_create
-   USE qs_integral_utils,               ONLY: basis_set_list_setup,&
-                                              get_memory_usage
+   USE qs_integral_utils,               ONLY: basis_set_list_setup
    USE qs_integrate_potential,          ONLY: integrate_v_dbasis,&
                                               integrate_v_rspace
    USE qs_kind_types,                   ONLY: qs_kind_type
@@ -68,6 +66,7 @@ MODULE qs_dcdr_ao
                                               neighbor_list_iterator_p_type,&
                                               neighbor_list_iterator_release,&
                                               neighbor_list_set_p_type
+   USE qs_rho_atom_types,               ONLY: rho_atom_type
    USE qs_rho_methods,                  ONLY: qs_rho_rebuild,&
                                               qs_rho_update_rho
    USE qs_rho_types,                    ONLY: qs_rho_create,&
@@ -125,6 +124,7 @@ CONTAINS
       TYPE(pw_r3d_rs_type)                               :: v_hartree_rspace
       TYPE(pw_r3d_rs_type), DIMENSION(:), POINTER        :: rho_r, v_rspace_new, v_xc, v_xc_tau
       TYPE(qs_rho_type), POINTER                         :: perturbed_density, rho
+      TYPE(rho_atom_type), DIMENSION(:), POINTER         :: rho0_atom_set, rho1_atom_set
       TYPE(section_vals_type), POINTER                   :: input, xc_section
 
       ! Build the perturbed density matrix correction depending on the overlap derivative
@@ -240,7 +240,8 @@ CONTAINS
       CALL auxbas_pw_pool%give_back_pw(rho1_tot_gspace)
 
       ! Calculate the second derivative of the exchange-correlation potential
-      CALL qs_fxc_create(qs_env, rho, perturbed_density, xc_section, v_xc, v_xc_tau)
+      CALL qs_fxc_create(qs_env, rho, perturbed_density, rho0_atom_set, xc_section, &
+                         .FALSE., v_xc, v_xc_tau, rho1_atom_set)
       !
 
       DO ispin = 1, dcdr_env%nspins
@@ -432,6 +433,7 @@ CONTAINS
       TYPE(pw_r3d_rs_type)                               :: drho_r_total, v_hartree_rspace
       TYPE(pw_r3d_rs_type), DIMENSION(:), POINTER        :: drho_r, dtau_r, rho_r, v_xc, v_xc_tau
       TYPE(qs_rho_type), POINTER                         :: drho, rho
+      TYPE(rho_atom_type), DIMENSION(:), POINTER         :: rho0_atom_set, rho1_atom_set
       TYPE(section_vals_type), POINTER                   :: input, xc_section
 
       CALL timeset(routineN, handle)
@@ -498,7 +500,8 @@ CONTAINS
          END IF
          !
          NULLIFY (v_xc, v_xc_tau)
-         CALL qs_fxc_create(qs_env, rho, drho, xc_section, v_xc, v_xc_tau)
+         CALL qs_fxc_create(qs_env, rho, drho, rho0_atom_set, xc_section, .FALSE., &
+                            v_xc, v_xc_tau, rho1_atom_set)
          !
          DEALLOCATE (drho)
 
@@ -633,17 +636,9 @@ CONTAINS
       CHARACTER(len=*), PARAMETER :: routineN = 'hr_mult_by_delta_1d'
 
       INTEGER                                            :: handle, iatom, icol, ikind, irow, jatom, &
-                                                            jkind, ldsab, mepos, nkind, nseta, &
-                                                            nsetb, nthread
-      INTEGER, DIMENSION(3)                              :: cell
-      INTEGER, DIMENSION(:), POINTER                     :: la_max, la_min, lb_max, lb_min, npgfa, &
-                                                            npgfb, nsgfa, nsgfb
-      INTEGER, DIMENSION(:, :), POINTER                  :: first_sgfa, first_sgfb
+                                                            jkind, mepos, nkind, nthread
       LOGICAL                                            :: do_symmetric, found
-      REAL(KIND=dp), DIMENSION(3)                        :: rab
-      REAL(KIND=dp), DIMENSION(:), POINTER               :: set_radius_a, set_radius_b
-      REAL(KIND=dp), DIMENSION(:, :), POINTER            :: k_block, rpgfa, rpgfb, scon_a, scon_b, &
-                                                            zeta, zetb
+      REAL(KIND=dp), DIMENSION(:, :), POINTER            :: k_block
       TYPE(gto_basis_set_p_type), DIMENSION(:), POINTER  :: basis_set_list
       TYPE(gto_basis_set_type), POINTER                  :: basis_set_a, basis_set_b
       TYPE(neighbor_list_iterator_p_type), &
@@ -661,57 +656,29 @@ CONTAINS
       ALLOCATE (basis_set_list(nkind))
       CALL basis_set_list_setup(basis_set_list, basis_type, qs_kind_set)
 
-      ! *** Allocate work storage ***
-      ldsab = get_memory_usage(qs_kind_set, basis_type)
-
       nthread = 1
 !$    nthread = omp_get_max_threads()
       ! Iterate of neighbor list
       CALL neighbor_list_iterator_create(nl_iterator, sab_nl, nthread=nthread)
 
 !$OMP PARALLEL DEFAULT(NONE) &
-!$OMP SHARED (nthread,ldsab,nl_iterator, do_symmetric) &
-!$OMP SHARED (ncoset,matrix,basis_set_list) &
+!$OMP SHARED (nl_iterator, do_symmetric) &
+!$OMP SHARED (matrix,basis_set_list) &
 !$OMP SHARED (direction_or, lambda) &
-!$OMP PRIVATE (k_block,mepos,ikind,jkind,iatom,jatom,rab,cell) &
+!$OMP PRIVATE (k_block,mepos,ikind,jkind,iatom,jatom) &
 !$OMP PRIVATE (basis_set_a,basis_set_b) &
-!$OMP PRIVATE (first_sgfa, la_max, la_min, npgfa, nsgfa, nseta, rpgfa, set_radius_a) &
-!$OMP PRIVATE (zeta, first_sgfb, lb_max, lb_min, npgfb, nsetb, rpgfb, set_radius_b, nsgfb) &
-!$OMP PRIVATE (zetb, scon_a, scon_b, irow, icol, found)
+!$OMP PRIVATE (irow, icol, found)
 
       mepos = 0
 !$    mepos = omp_get_thread_num()
 
       DO WHILE (neighbor_list_iterate(nl_iterator, mepos=mepos) == 0)
          CALL get_iterator_info(nl_iterator, mepos=mepos, ikind=ikind, jkind=jkind, &
-                                iatom=iatom, jatom=jatom, r=rab, cell=cell)
+                                iatom=iatom, jatom=jatom)
          basis_set_a => basis_set_list(ikind)%gto_basis_set
          IF (.NOT. ASSOCIATED(basis_set_a)) CYCLE
          basis_set_b => basis_set_list(jkind)%gto_basis_set
          IF (.NOT. ASSOCIATED(basis_set_b)) CYCLE
-         ! basis ikind
-         first_sgfa => basis_set_a%first_sgf
-         la_max => basis_set_a%lmax
-         la_min => basis_set_a%lmin
-         npgfa => basis_set_a%npgf
-         nseta = basis_set_a%nset
-         nsgfa => basis_set_a%nsgf_set
-         rpgfa => basis_set_a%pgf_radius
-         set_radius_a => basis_set_a%set_radius
-         scon_a => basis_set_a%scon
-         zeta => basis_set_a%zet
-         ! basis jkind
-         first_sgfb => basis_set_b%first_sgf
-         lb_max => basis_set_b%lmax
-         lb_min => basis_set_b%lmin
-         npgfb => basis_set_b%npgf
-         nsetb = basis_set_b%nset
-         nsgfb => basis_set_b%nsgf_set
-         rpgfb => basis_set_b%pgf_radius
-         set_radius_b => basis_set_b%set_radius
-         scon_b => basis_set_b%scon
-         zetb => basis_set_b%zet
-
          IF (do_symmetric) THEN
             IF (iatom <= jatom) THEN
                irow = iatom

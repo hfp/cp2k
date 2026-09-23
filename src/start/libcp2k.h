@@ -29,31 +29,33 @@ typedef int force_env_t;
 void cp2k_get_version(char *version_str, int str_length);
 
 /*******************************************************************************
- * \brief Initialize CP2K and MPI
+ * \brief Initialize CP2K, initializing or attaching to MPI as needed
  * \warning You are supposed to call cp2k_finalize() before exiting the program.
  ******************************************************************************/
 void cp2k_init(void);
 
 /*******************************************************************************
  * \brief Initialize CP2K without initializing MPI (on MPI_COMM_WORLD)
- * \warning You are supposed to call cp2k_finalize() before exiting the program.
+ * \warning You are supposed to call cp2k_finalize_without_mpi() before exiting
+ *          the program.
  ******************************************************************************/
 void cp2k_init_without_mpi(void);
 
 /*******************************************************************************
  * \brief Initialize CP2K without initializing MPI on the given comm
- * \warning You are supposed to call cp2k_finalize() before exiting the program.
+ * \warning You are supposed to call cp2k_finalize_without_mpi() before exiting
+ *          the program.
  * \param mpi_comm Fortran MPI communicator if MPI is not managed by CP2K
  ******************************************************************************/
 void cp2k_init_without_mpi_comm(int mpi_comm);
 
 /*******************************************************************************
- * \brief Finalize CP2K and MPI
+ * \brief Finalize CP2K and MPI if CP2K initialized it
  ******************************************************************************/
 void cp2k_finalize(void);
 
 /*******************************************************************************
- * \brief Finalize CP2K and without finalizing MPI
+ * \brief Finalize CP2K without finalizing MPI
  ******************************************************************************/
 void cp2k_finalize_without_mpi(void);
 
@@ -188,6 +190,20 @@ void cp2k_calc_energy_force(force_env_t force_env);
  * \param force_env the force environment
  ******************************************************************************/
 void cp2k_calc_energy(force_env_t force_env);
+
+/*******************************************************************************
+ * \brief Query convergence of the last Quickstep SCF, including outer/CDFT
+ * loops
+ * \param force_env the force environment
+ * \param status -1 if unavailable, 0 if not converged, 1 if converged
+ * \note Unavailable before calculation or after changing positions, cell or
+ *       velocities, for non-Quickstep methods, and for alternative solvers
+ *       (e.g. LS-SCF, ALMO, RTP, non-SCF or MAX_SCF 0). This is not a
+ * convergence certificate for post-SCF methods, geometry optimization or MD.
+ *       IGNORE_CONVERGENCE_FAILURE allows an unconverged SCF to return; this
+ *       query does not prevent native CP2K aborts when that keyword is absent.
+ ******************************************************************************/
+void cp2k_get_scf_convergence(force_env_t force_env, int *status);
 
 /*******************************************************************************
  * \brief Make a CP2K run with the given input file

@@ -13,6 +13,7 @@
 !> \author Fawzi Mohamed
 ! *****************************************************************************
 MODULE qs_update_s_mstruct
+   USE accint_weights_forces,           ONLY: weight_function_pwgrid
    USE cp_control_types,                ONLY: dft_control_type
    USE cp_ddapc_types,                  ONLY: cp_ddapc_release
    USE cp_ddapc_util,                   ONLY: cp_ddapc_init
@@ -32,13 +33,15 @@ MODULE qs_update_s_mstruct
                                               calculate_rho_core,&
                                               calculate_rho_nlcc
    USE qs_environment_types,            ONLY: get_qs_env,&
-                                              qs_environment_type
+                                              qs_environment_type,&
+                                              set_qs_env
    USE qs_ks_types,                     ONLY: get_ks_env,&
                                               qs_ks_did_change,&
                                               qs_ks_env_type,&
                                               set_ks_env
    USE qs_rho_methods,                  ONLY: qs_rho_rebuild
-   USE qs_rho_types,                    ONLY: qs_rho_type
+   USE qs_rho_types,                    ONLY: qs_rho_create,&
+                                              qs_rho_type
    USE qs_scf_types,                    ONLY: scf_env_did_change
    USE skala_gpw_functional,            ONLY: get_gauxc_section,&
                                               native_skala_gapw_composite_direct_ao,&
@@ -58,7 +61,9 @@ MODULE qs_update_s_mstruct
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'qs_update_s_mstruct'
 
    PUBLIC :: qs_env_update_s_mstruct
-!***
+
+! *****************************************************************************
+
 CONTAINS
 
 ! *****************************************************************************
@@ -78,7 +83,6 @@ CONTAINS
 
       INTEGER                                            :: handle, nk
       LOGICAL                                            :: do_ppl
-      REAL(KIND=dp)                                      :: wtot
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: cw
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(pw_c1d_gs_type), POINTER                      :: rho_core, rho_nlcc_g
@@ -147,8 +151,9 @@ CONTAINS
             CALL get_qs_env(qs_env, xcint_weights=xcint_weights, nkind=nk)
             ALLOCATE (cw(nk))
             cw = 1.0_dp
-            CALL calculate_rho_core(xcint_weights, wtot, qs_env, &
-                                    dft_control%qs_control%gapw_control%aw, cw)
+            CALL weight_function_pwgrid(xcint_weights, qs_env, &
+                                        dft_control%qs_control%gapw_control%oweights, &
+                                        dft_control%qs_control%gapw_control%aw, cw)
             xcint_weights%array = 1.0_dp + xcint_weights%array
             DEALLOCATE (cw)
          END IF
@@ -329,6 +334,11 @@ CONTAINS
 
 ! ZMP rebuilding external density
       IF (dft_control%apply_external_density) THEN
+         IF (.NOT. ASSOCIATED(rho_external)) THEN
+            ALLOCATE (rho_external)
+            CALL qs_rho_create(rho_external)
+            CALL set_qs_env(qs_env, rho_external=rho_external)
+         END IF
          CALL qs_rho_rebuild(rho_external, qs_env=qs_env, &
                              rebuild_grids=rebuild_grids)
          dft_control%read_external_density = .TRUE.

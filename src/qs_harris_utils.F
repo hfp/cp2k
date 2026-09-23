@@ -23,6 +23,10 @@ MODULE qs_harris_utils
                                               cp_logger_type
    USE distribution_1d_types,           ONLY: distribution_1d_type
    USE input_constants,                 ONLY: hden_atomic,&
+                                              hden_cube,&
+                                              hden_cube_fit,&
+                                              hfit_least_squares,&
+                                              hfit_relative_entropy,&
                                               hfun_harris,&
                                               horb_default
    USE input_section_types,             ONLY: section_vals_type,&
@@ -32,15 +36,18 @@ MODULE qs_harris_utils
    USE particle_types,                  ONLY: particle_type
    USE pw_env_types,                    ONLY: pw_env_type
    USE pw_grid_types,                   ONLY: pw_grid_type
-   USE pw_methods,                      ONLY: pw_integrate_function,&
+   USE pw_methods,                      ONLY: pw_copy,&
+                                              pw_integrate_function,&
                                               pw_scale,&
                                               pw_transfer,&
                                               pw_zero
    USE pw_types,                        ONLY: pw_c1d_gs_type,&
                                               pw_r3d_rs_type
    USE qs_collocate_density,            ONLY: collocate_function
+   USE qs_density_fit,                  ONLY: fit_constrained_density
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
+   USE qs_external_density,             ONLY: read_cube_density
    USE qs_harris_types,                 ONLY: harris_rhoin_type,&
                                               harris_type
    USE qs_integrate_potential,          ONLY: integrate_function
@@ -117,6 +124,24 @@ CONTAINS
                                    i_val=harris_env%energy_functional)
          CALL section_vals_val_get(harris_section, "DENSITY_SOURCE", &
                                    i_val=harris_env%density_source)
+         CALL section_vals_val_get(harris_section, "FILE_DENSITY", &
+                                   c_val=harris_env%density_filename)
+         CALL section_vals_val_get(harris_section, "FIT_MAX_ITER", &
+                                   i_val=harris_env%fit_max_iter)
+         CALL section_vals_val_get(harris_section, "FIT_METHOD", &
+                                   i_val=harris_env%fit_method)
+         CALL section_vals_val_get(harris_section, "FIT_EPS", &
+                                   r_val=harris_env%fit_eps)
+         CALL section_vals_val_get(harris_section, "FIT_STEP_SIZE", &
+                                   r_val=harris_env%fit_step_size)
+         CALL section_vals_val_get(harris_section, "FIT_MAX_BACKTRACK", &
+                                   i_val=harris_env%fit_max_backtrack)
+         CALL section_vals_val_get(harris_section, "FIT_TEMPERATURE", &
+                                   r_val=harris_env%fit_temperature)
+         CALL section_vals_val_get(harris_section, "FIT_RELATIVE_ENTROPY_WEIGHT", &
+                                   r_val=harris_env%fit_relative_entropy_weight)
+         CALL section_vals_val_get(harris_section, "DIRECT_DENSITY_MATRIX_ENERGY", &
+                                   l_val=harris_env%direct_density_matrix_energy)
          CALL section_vals_val_get(harris_section, "ORBITAL_BASIS", &
                                    i_val=harris_env%orbital_basis)
          !
@@ -170,11 +195,39 @@ CONTAINS
          SELECT CASE (harris_env%density_source)
          CASE (hden_atomic)
             WRITE (unit_nr, '(T2,A,T61,A20)') "Harris model density: Type", " Atomic kind density"
+         CASE (hden_cube)
+            WRITE (unit_nr, '(T2,A,T61,A20)') "Harris model density: Type", "Cube file"
+            WRITE (unit_nr, '(T2,A,T31,A)') "Harris model density: File", &
+               TRIM(harris_env%density_filename)
+         CASE (hden_cube_fit)
+            WRITE (unit_nr, '(T2,A,T61,A20)') "Harris model density: Type", "Constrained cube fit"
+            WRITE (unit_nr, '(T2,A,T31,A)') "Harris model density: File", &
+               TRIM(harris_env%density_filename)
+            WRITE (unit_nr, '(T2,A,T61,I20)') "Harris density fit: Maximum iterations", &
+               harris_env%fit_max_iter
+            WRITE (unit_nr, '(T2,A,T61,ES20.8)') "Harris density fit: RMS target", &
+               harris_env%fit_eps
+            WRITE (unit_nr, '(T2,A,T61,ES20.8)') "Harris density fit: Initial step size", &
+               harris_env%fit_step_size
+            SELECT CASE (harris_env%fit_method)
+            CASE (hfit_least_squares)
+               WRITE (unit_nr, '(T2,A,T61,A20)') "Harris density fit: Objective", "Least squares"
+            CASE (hfit_relative_entropy)
+               WRITE (unit_nr, '(T2,A,T61,A20)') "Harris density fit: Objective", "Relative entropy"
+               WRITE (unit_nr, '(T2,A,T61,ES20.8)') "Harris density fit: Temperature", &
+                  harris_env%fit_temperature
+               WRITE (unit_nr, '(T2,A,T61,ES20.8)') "Harris density fit: Entropy weight", &
+                  harris_env%fit_relative_entropy_weight
+            END SELECT
+            WRITE (unit_nr, '(T2,A,T61,L20)') "Direct fitted-DM energy evaluation", &
+               harris_env%direct_density_matrix_energy
          END SELECT
-         WRITE (unit_nr, '(T2,A,T71,A10)') "Harris model density: Basis type", &
-            ADJUSTR(TRIM(harris_env%rhoin%basis_type))
-         WRITE (unit_nr, '(T2,A,T71,I10)') "Harris model density: Number of basis functions", &
-            harris_env%rhoin%nbas
+         IF (harris_env%density_source == hden_atomic) THEN
+            WRITE (unit_nr, '(T2,A,T71,A10)') "Harris model density: Basis type", &
+               ADJUSTR(TRIM(harris_env%rhoin%basis_type))
+            WRITE (unit_nr, '(T2,A,T71,I10)') "Harris model density: Number of basis functions", &
+               harris_env%rhoin%nbas
+         END IF
          ! orbital basis
          SELECT CASE (harris_env%orbital_basis)
          CASE (horb_default)
@@ -261,9 +314,38 @@ CONTAINS
             END DO
             harris_env%rhoin%frozen = .TRUE.
          END IF
+      CASE (hden_cube, hden_cube_fit)
+         IF (harris_env%rhoin%nspin /= 1) THEN
+            CPABORT("Harris cube densities currently require a spin-restricted calculation")
+         END IF
+         IF (LEN_TRIM(harris_env%density_filename) == 0) THEN
+            CPABORT("HARRIS_METHOD%FILE_DENSITY is required for cube density sources")
+         END IF
+         IF (harris_env%density_source == hden_cube_fit) THEN
+            IF (harris_env%fit_max_iter < 1) CPABORT("HARRIS_METHOD%FIT_MAX_ITER has to be positive")
+            IF (harris_env%fit_eps <= 0.0_dp) CPABORT("HARRIS_METHOD%FIT_EPS has to be positive")
+            IF (harris_env%fit_step_size <= 0.0_dp) THEN
+               CPABORT("HARRIS_METHOD%FIT_STEP_SIZE has to be positive")
+            END IF
+            IF (harris_env%fit_max_backtrack < 0) THEN
+               CPABORT("HARRIS_METHOD%FIT_MAX_BACKTRACK cannot be negative")
+            END IF
+            IF (harris_env%fit_method == hfit_relative_entropy) THEN
+               IF (harris_env%fit_temperature <= 0.0_dp) THEN
+                  CPABORT("HARRIS_METHOD%FIT_TEMPERATURE has to be positive for RELATIVE_ENTROPY")
+               END IF
+               IF (harris_env%fit_relative_entropy_weight < 0.0_dp) THEN
+                  CPABORT("HARRIS_METHOD%FIT_RELATIVE_ENTROPY_WEIGHT cannot be negative")
+               END IF
+            END IF
+         END IF
       CASE DEFAULT
-         CPABORT("Illeagal value of harris_env%density_source")
+         CPABORT("Illegal value of harris_env%density_source")
       END SELECT
+      IF (harris_env%direct_density_matrix_energy .AND. &
+          harris_env%density_source /= hden_cube_fit) THEN
+         CPABORT("HARRIS_METHOD%DIRECT_DENSITY_MATRIX_ENERGY requires DENSITY_SOURCE CUBE_FIT")
+      END IF
 
       CALL timestop(handle)
 
@@ -272,15 +354,96 @@ CONTAINS
 ! **************************************************************************************************
 !> \brief ...
 !> \param qs_env ...
+!> \param harris_env ...
+!> \param rho_struct ...
+! **************************************************************************************************
+   SUBROUTINE calculate_harris_density(qs_env, harris_env, rho_struct)
+      TYPE(qs_environment_type), POINTER                 :: qs_env
+      TYPE(harris_type), POINTER                         :: harris_env
+      TYPE(qs_rho_type), INTENT(INOUT)                   :: rho_struct
+
+      REAL(KIND=dp), DIMENSION(:), POINTER               :: tot_rho_r
+      TYPE(pw_c1d_gs_type), DIMENSION(:), POINTER        :: rho_gspace
+      TYPE(pw_grid_type), POINTER                        :: pw_grid
+      TYPE(pw_r3d_rs_type), DIMENSION(:), POINTER        :: rho_rspace
+
+      NULLIFY (pw_grid, rho_gspace, rho_rspace, tot_rho_r)
+
+      SELECT CASE (harris_env%density_source)
+      CASE (hden_atomic)
+         CALL calculate_harris_atomic_density(qs_env, harris_env%rhoin, rho_struct)
+      CASE (hden_cube)
+         IF (harris_env%rhoin%nspin /= 1) THEN
+            CPABORT("Harris cube densities currently require a spin-restricted calculation")
+         END IF
+         IF (LEN_TRIM(harris_env%density_filename) == 0) THEN
+            CPABORT("HARRIS_METHOD%FILE_DENSITY is required for DENSITY_SOURCE CUBE")
+         END IF
+         CALL read_cube_density(qs_env, rho_struct, TRIM(harris_env%density_filename), &
+                                total_density_sign=-1, source_label="HARRIS")
+      CASE (hden_cube_fit)
+         IF (harris_env%fit_method == hfit_relative_entropy) THEN
+            IF (.NOT. harris_env%density_target_ready) THEN
+               CALL read_cube_density(qs_env, rho_struct, TRIM(harris_env%density_filename), &
+                                      total_density_sign=-1, source_label="HARRIS")
+               CALL qs_rho_get(rho_struct, rho_r=rho_rspace)
+               pw_grid => rho_rspace(1)%pw_grid
+               CALL harris_env%density_target_rspace%create(pw_grid)
+               CALL pw_copy(rho_rspace(1), harris_env%density_target_rspace)
+               harris_env%density_target_ready = .TRUE.
+            ELSE
+               CALL qs_rho_get(rho_struct, rho_r=rho_rspace, rho_g=rho_gspace, &
+                               tot_rho_r=tot_rho_r)
+               IF (harris_env%density_fit_ready) THEN
+                  CALL pw_copy(harris_env%density_fit_rspace, rho_rspace(1))
+               ELSE
+                  CALL pw_copy(harris_env%density_target_rspace, rho_rspace(1))
+               END IF
+               CALL pw_transfer(rho_rspace(1), rho_gspace(1))
+               tot_rho_r(1) = pw_integrate_function(rho_rspace(1), isign=-1)
+            END IF
+         ELSE IF (.NOT. harris_env%density_fit_ready) THEN
+            CALL read_cube_density(qs_env, rho_struct, TRIM(harris_env%density_filename), &
+                                   total_density_sign=-1, source_label="HARRIS")
+            IF (harris_env%direct_density_matrix_energy) THEN
+               CALL qs_rho_get(rho_struct, rho_r=rho_rspace)
+               pw_grid => rho_rspace(1)%pw_grid
+               CALL harris_env%density_target_rspace%create(pw_grid)
+               CALL pw_copy(rho_rspace(1), harris_env%density_target_rspace)
+            END IF
+            CALL fit_constrained_density(qs_env, rho_struct, harris_env%fit_max_iter, &
+                                         harris_env%fit_eps, harris_env%fit_step_size, &
+                                         harris_env%fit_max_backtrack)
+            CALL qs_rho_get(rho_struct, rho_r=rho_rspace)
+            pw_grid => rho_rspace(1)%pw_grid
+            CALL harris_env%density_fit_rspace%create(pw_grid)
+            CALL pw_copy(rho_rspace(1), harris_env%density_fit_rspace)
+            harris_env%density_fit_ready = .TRUE.
+         ELSE
+            CALL qs_rho_get(rho_struct, rho_r=rho_rspace, rho_g=rho_gspace, &
+                            tot_rho_r=tot_rho_r)
+            CALL pw_copy(harris_env%density_fit_rspace, rho_rspace(1))
+            CALL pw_transfer(rho_rspace(1), rho_gspace(1))
+            tot_rho_r(1) = pw_integrate_function(rho_rspace(1), isign=-1)
+         END IF
+      CASE DEFAULT
+         CPABORT("Illegal value of harris_env%density_source")
+      END SELECT
+
+   END SUBROUTINE calculate_harris_density
+
+! **************************************************************************************************
+!> \brief Collocates an atom-centered Harris input density
+!> \param qs_env ...
 !> \param rhoin ...
 !> \param rho_struct ...
 ! **************************************************************************************************
-   SUBROUTINE calculate_harris_density(qs_env, rhoin, rho_struct)
+   SUBROUTINE calculate_harris_atomic_density(qs_env, rhoin, rho_struct)
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(harris_rhoin_type), INTENT(IN)                :: rhoin
       TYPE(qs_rho_type), INTENT(INOUT)                   :: rho_struct
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_harris_density'
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'calculate_harris_atomic_density'
 
       INTEGER                                            :: handle, i1, i2, iatom, ikind, ilocal, &
                                                             ispin, n, nkind, nlocal, nspin
@@ -339,7 +502,7 @@ CONTAINS
 
       CALL timestop(handle)
 
-   END SUBROUTINE calculate_harris_density
+   END SUBROUTINE calculate_harris_atomic_density
 
 ! **************************************************************************************************
 !> \brief ...

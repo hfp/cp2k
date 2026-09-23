@@ -18,13 +18,13 @@ MODULE input_cp2k_print_dft
    USE bibliography, ONLY: &
       Andermatt2016, Andreussi2012, Avezac2005, BaniHashemian2016, Becke1988b, Bengtsson1999, &
       Blochl1995, Brehm2018, Brelaz1979, Dewar1977, Dewar1985, Dudarev1997, Dudarev1998, &
-      Ehrhardt1985, Eriksen2020, Fattebert2002, Golze2017a, Golze2017b, Guidon2010, &
+      Ehrhardt1985, Eriksen2020, Fattebert2002, Golze2017a, Golze2017b, Grimme2015FOD, Guidon2010, &
       Heinzmann1976, Holmberg2017, Holmberg2018, Iannuzzi2005, Iannuzzi2006, Iannuzzi2007, &
       Knizia2013, Kolafa2004, Krack2000, Krack2002, Kuhne2007, Kunert2003, Lippert1997, &
       Lippert1999, Lu2004, Merlot2014, Perdew1981, Repasky2002, Rocha2006, Schenter2008, Schiffmann2015, &
       Shigeta2001, Stewart1982, Stewart1989, Stewart2007, Thiel1992, VanVoorhis2015, &
       VandeVondele2003, VandeVondele2005a, VandeVondele2005b, VandeVondele2006, Weber2008, &
-      Yin2017, Pracht2019, Caldeweyher2019, Caldeweyher2020
+      Yin2017, Pracht2019, Caldeweyher2019, Caldeweyher2020, Gresch2017, Soluyanov2011
    USE cp_output_handling, ONLY: add_last_numeric, &
                                  cp_print_key_section_create, &
                                  debug_print_level, &
@@ -892,6 +892,28 @@ CONTAINS
       CALL section_add_keyword(print_key, keyword)
       CALL keyword_release(keyword)
 
+      CALL section_add_subsection(section, print_key)
+      CALL section_release(print_key)
+
+      CALL cp_print_key_section_create(print_key, __LOCATION__, "FOD", &
+                                       description="Fractional occupation number weighted density (FOD) of Grimme and Hansen "// &
+                                       "[doi:10.1002/anie.201501887]. Prints the orbital sum N_FOD. "// &
+                                       "Requires GPW at Gamma and positive-temperature Fermi-Dirac smearing. "// &
+                                       "FOD is a qualitative static-correlation diagnostic, not a proof of "// &
+                                       "multireference character. Results depend on the functional and electronic "// &
+                                       "temperature; metallic occupations need a different interpretation.", &
+                                       print_level=debug_print_level + 1, filename="", citations=[Grimme2015FOD])
+      CALL keyword_create(keyword, __LOCATION__, name="CUBE", &
+                          description="Also collocate the FOD density, print its grid integral and write a cube "// &
+                          "in electrons/bohr**3. Without this option only the inexpensive orbital sum is computed.", &
+                          default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="STRIDE", &
+                          description="Cube sampling stride. Supply one value for all directions or three values.", &
+                          usage="STRIDE 2 2 2", n_var=-1, default_i_vals=[2, 2, 2], type_of_var=integer_t)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
       CALL section_add_subsection(section, print_key)
       CALL section_release(print_key)
 
@@ -2913,13 +2935,162 @@ CONTAINS
                           "the full k-point mesh from DFT%KPOINTS for Monkhorst-Pack, MacDonald, Gamma, or "// &
                           "explicit GENERAL k-points. If the SCF calculation uses K290 or SPGLIB symmetry "// &
                           "reduction, the corresponding unreduced mesh is used for Wannier90 because "// &
-                          "Wannier90 requires a complete mesh.", &
+                          "Wannier90 requires a complete mesh. NNKP reads explicit k-points and directed "// &
+                          "overlap connections from NNKP_FILE, without a regular-mesh requirement. "// &
+                          "WILSON generates and refines a surface of closed loops at the SCF potential. "// &
+                          "TRIM generates four or eight time-reversal-invariant points for native parity analysis.", &
                           usage="KPOINTS_SOURCE MP_GRID", type_of_var=enum_t, &
-                          enum_c_vals=s2a("MP_GRID", "SCF"), &
-                          enum_i_vals=[0, 1], &
+                          enum_c_vals=s2a("MP_GRID", "SCF", "NNKP", "WILSON", "TRIM"), &
+                          enum_i_vals=[0, 1, 2, 3, 4], &
                           enum_desc=s2a("Build the Wannier90 k-point mesh from WANNIER90%MP_GRID.", &
-                                        "Use the full k-point mesh from DFT%KPOINTS."), &
+                                        "Use the full k-point mesh from DFT%KPOINTS.", &
+                                        "Read explicit k-points and connections from NNKP_FILE.", &
+                                        "Generate a family of closed Wilson loops.", &
+                                        "Generate TRIM and enable native inversion-parity analysis."), &
                           default_i_val=0)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="NNKP_FILE", &
+                          description="Wannier90 nnkp file for KPOINTS_SOURCE NNKP. Required literal block names: "// &
+                          "real_lattice (Angstrom), recip_lattice (2*pi/Angstrom), kpoints (fractional), "// &
+                          "and nnkpts (nearest-neighbour point indices and reciprocal lattice shifts). Nonzero exclusions "// &
+                          "in the file are unsupported; use EXCLUDE_BANDS in CP2K instead.", &
+                          usage="NNKP_FILE loop.nnkp", default_c_val="wannier90.nnkp", &
+                          n_var=1, type_of_var=char_t)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="SPIN_CHANNEL", &
+                          description="Collinear spin channel exported to the Wannier90 files (1 or 2). "// &
+                          "Each scalar export contains one channel. With SOC, use the restricted channel 1.", &
+                          usage="SPIN_CHANNEL 1", default_i_val=1)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="WILSON_LOOP", &
+                          description="Compute native SVD-unitarized Wilson loops for NNKP connections. "// &
+                          "Requires one directed neighbour per point and contiguous, closed loops. "// &
+                          "Automatically enabled by KPOINTS_SOURCE WILSON.", default_l_val=.FALSE., &
+                          citations=[Gresch2017])
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="WILSON_MESH", &
+                          description="Points per closed loop and number of transverse loops. "// &
+                          "Only for KPOINTS_SOURCE WILSON; loops include both transverse endpoints.", &
+                          n_var=2, default_i_vals=[16, 9], type_of_var=integer_t)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="WILSON_ORIGIN", &
+                          description="Origin of Wilson surface in fractional reciprocal coordinates.", &
+                          n_var=3, default_r_vals=[0.0_dp, 0.0_dp, 0.0_dp], type_of_var=real_t)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="WILSON_DIRECTION", &
+                          description="Integer reciprocal vector along each closed Wilson loop.", &
+                          n_var=3, default_i_vals=[1, 0, 0], type_of_var=integer_t)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="WILSON_TRANSVERSE", &
+                          description="Fractional reciprocal vector spanning the transverse surface. "// &
+                          "For Z2 choose a time-reversal half-plane, e.g. 0 0.5 0.", &
+                          n_var=3, default_r_vals=[0.0_dp, 0.5_dp, 0.0_dp], type_of_var=real_t)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="Z2", &
+                          description="Compute native largest-gap crossing parity on a WILSON half-surface. "// &
+                          "Requires SOC, a nonmagnetic time-reversal-invariant Hamiltonian, an isolated "// &
+                          "occupied subspace, and converged Wilson spectra. TIME_REVERSAL must be set.", &
+                          default_l_val=.FALSE., citations=[Soluyanov2011, Gresch2017])
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="CHERN", &
+                          description="Compute the native first Chern number from determinant Wilson winding. "// &
+                          "Requires KPOINTS_SOURCE WILSON and a closed full surface with integer transverse "// &
+                          "winding, e.g. WILSON_TRANSVERSE 0 1 0. Not compatible with Z2 half-surfaces. "// &
+                          "The selected bands must be isolated; SOC and time reversal are not required.", &
+                          default_l_val=.FALSE., citations=[Gresch2017])
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="PARITY", &
+                          description="Compute native even/odd inversion irreps at explicit TRIM. Uses the Gaussian "// &
+                          "AO metric, orbital parities, atom permutations and Bloch lattice phases. Validates the "// &
+                          "selected representation and its energy commutator. No Z2Pack or Wannier fit is needed.", &
+                          default_l_val=.FALSE.)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="INVERSION_TQC", &
+                          description="Enable PARITY and classify the inversion-subgroup symmetry signature of "// &
+                          "the occupied spinor bands. Requires SOC and TIME_REVERSAL and all four/eight TRIM. "// &
+                          "Reports Fu-Kane indices, 3D Z4, and an exact signed/nonnegative atomic EBR-signature test. "// &
+                          "Not a full-space-group TQC classifier or a certificate of a bulk gap/trivial topology.", &
+                          default_l_val=.FALSE.)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="TQC_DIMENSION", &
+                          description="Dimension of the inversion analysis: 2 uses the four kz=0 TRIM; "// &
+                          "3 uses all eight TRIM of the supplied reciprocal cell. All cell directions must be periodic.", &
+                          default_i_val=3)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="PARITY_ORIGIN", &
+                          description="Inversion center in fractional direct-cell coordinates. The operation is "// &
+                          "r -> 2*center-r. Atomic kinds, basis and the selected Hamiltonian subspace must be invariant.", &
+                          n_var=3, default_r_vals=[0.0_dp, 0.0_dp, 0.0_dp], type_of_var=real_t)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="PARITY_TOLERANCE", &
+                          description="Tolerance for parity metric, subspace and character checks. Also used "// &
+                          "as the inversion geometry tolerance in Bohr. Tighten with numerical convergence.", &
+                          default_r_val=1.e-6_dp)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="PARITY_ENERGY_TOL", &
+                          description="Maximum projected symmetry/eigenvalue commutator in Hartree.", &
+                          default_r_val=1.e-6_dp)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="REQUIRE_GLOBAL_GAP", &
+                          description="Require a positive sampled indirect gap above the lowest selected bands. "// &
+                          "Unlike the direct subspace gap this tests a common energy interval over all sampled "// &
+                          "points. A finite sampling does not prove a bulk gap. No per-point Fermi shifts are applied.", &
+                          default_l_val=.FALSE.)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="STATE_EXPORT", &
+                          description="Export selected complex AO states, all eigenvalues and full contracted "// &
+                          "Gaussian basis to SEED_NAME.topology for cross-geometry/phason overlaps. "// &
+                          "Requires NNKP, WILSON or TRIM, uses atomic units, and can generate large files. "// &
+                          "Spinor coefficients include second-variational SOC when enabled. "// &
+                          "No Wannier fit or Fermi-energy alignment is performed.", default_l_val=.FALSE.)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="TIME_REVERSAL", &
+                          description="User confirmation that the Hamiltonian is time-reversal invariant. "// &
+                          "Boundary Kramers degeneracy is additionally checked; it is not a proof of TR symmetry.", &
+                          default_l_val=.FALSE.)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="SOC", &
+                          description="Second-variational pseudopotential SOC for explicit-loop exports. "// &
+                          "Requires a restricted SCF and SOC-capable pseudopotentials. ADDED_MOS controls "// &
+                          "the scalar basis; EXCLUDE_BANDS then refers to spinor bands. Converge ADDED_MOS.", &
+                          default_l_val=.FALSE.)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="WILSON_MAX_REFINEMENT", &
+                          description="Maximum joint doublings of loop and transverse resolution; at least "// &
+                          "one doubling is required for generated WILSON surfaces.", default_i_val=3)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="WILSON_TOL", &
+                          description="Tolerance of Wilson centres between successive meshes (reduced units).", &
+                          default_r_val=1.e-3_dp)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="WILSON_GAP_TOL", &
+                          description="Minimum sampled separation from excluded bands in Hartree.", &
+                          default_r_val=1.e-7_dp)
       CALL section_add_keyword(print_key, keyword)
       CALL keyword_release(keyword)
 

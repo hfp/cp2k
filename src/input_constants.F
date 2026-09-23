@@ -219,7 +219,14 @@ MODULE input_constants
                                                sparse_guess = 8, &
                                                almo_scf_guess = 9, &
                                                molecular_guess = 10, &
-                                               eht_guess = 11
+                                               eht_guess = 11, &
+                                               external_density_guess = 12
+
+   ! Minimum tracking linear response SCF initialization modes
+   INTEGER, PARAMETER, PUBLIC               :: mtlr_initialization_unresolved = 0, &
+                                               mtlr_atomic_perturbations = 1, &
+                                               mtlr_reference_from_atomic = 2, &
+                                               mtlr_reference_from_restart = 3
 
    ! Projection formulas for the maximum overlap method
    INTEGER, PARAMETER, PUBLIC               :: momproj_norm = 0, &
@@ -535,7 +542,14 @@ MODULE input_constants
                                                ot_precond_s_inverse = 3, &
                                                ot_precond_full_all = 5, &
                                                ot_precond_full_single_inverse = 6, &
-                                               precond_mlp = 7
+                                               precond_mlp = 7, &
+                                               ot_precond_fermi_low_rank = 8, &
+                                               ot_precond_full_all_covariant = 9
+   INTEGER, PARAMETER, PUBLIC               :: ot_low_rank_base_overlap = 1, &
+                                               ot_low_rank_base_lattice_fft = 2
+   INTEGER, PARAMETER, PUBLIC               :: ot_lattice_fft_off = 0, &
+                                               ot_lattice_fft_on = 1, &
+                                               ot_lattice_fft_auto = 2
    INTEGER, PARAMETER, PUBLIC               :: ot_precond_solver_default = 1, &
                                                ot_precond_solver_inv_chol = 2, &
                                                ot_precond_solver_direct = 3, &
@@ -551,6 +565,8 @@ MODULE input_constants
    INTEGER, PARAMETER, PUBLIC               :: default_lbfgs_method_id = 1, &
                                                default_bfgs_method_id = 2, &
                                                default_cg_method_id = 3
+
+   INTEGER, PARAMETER, PUBLIC               :: bfgs_direct = 1, bfgs_inverse = 2
 
    INTEGER, PARAMETER, PUBLIC               :: default_minimization_method_id = 1, &
                                                default_ts_method_id = 2, &
@@ -994,7 +1010,7 @@ MODULE input_constants
                                                rtp_method_bse_linearized = 3
 
    INTEGER, PARAMETER, PUBLIC               :: rtp_bse_ham_ks = 1, &
-                                               rtp_bse_ham_g0w0 = 2
+                                               rtp_bse_ham_gw = 2
 
    INTEGER, PARAMETER, PUBLIC               :: rtp_bse_kernel_ri_default = 0, &
                                                rtp_bse_kernel_ri_rs = 1, &
@@ -1148,13 +1164,13 @@ MODULE input_constants
                                                int_ldos_y = 20, &
                                                int_ldos_z = 21, &
                                                int_ldos_none = 22, &
-                                               small_cell_full_kp = 31, &
-                                               large_cell_Gamma = 32, &
+                                               tensor_small_cell_full_kp = 31, &
+                                               tensor_large_cell_Gamma = 32, &
                                                G0W0 = 35, &
                                                evGW0 = 36, &
                                                evGW = 37, &
-                                               non_periodic_ri_rs = 38, &
-                                               large_cell_Gamma_ri_rs = 39
+                                               ri_rs_non_periodic = 38, &
+                                               ri_rs_large_cell_Gamma = 39
 
    ! periodic RESP parameters
    INTEGER, PARAMETER, PUBLIC               :: do_resp_x_dir = 0, &
@@ -1206,7 +1222,11 @@ MODULE input_constants
 
    ! Harris method
    INTEGER, PARAMETER, PUBLIC               :: hfun_harris = 1
-   INTEGER, PARAMETER, PUBLIC               :: hden_atomic = 10
+   INTEGER, PARAMETER, PUBLIC               :: hden_atomic = 10, &
+                                               hden_cube = 20, &
+                                               hden_cube_fit = 30
+   INTEGER, PARAMETER, PUBLIC               :: hfit_least_squares = 10, &
+                                               hfit_relative_entropy = 20
    INTEGER, PARAMETER, PUBLIC               :: horb_default = 100
 
    ! non-scf energy corrections

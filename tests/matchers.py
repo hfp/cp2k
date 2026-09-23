@@ -1,7 +1,13 @@
 import traceback
 from typing import Any, Dict
 
-from matcher_classes import Matcher, MatchResult, GenericMatcher, TextPresenceMatcher
+from matcher_classes import (
+    GenericMatcher,
+    Matcher,
+    MatchResult,
+    TextAbsenceMatcher,
+    TextPresenceMatcher,
+)
 
 
 # ======================================================================================
@@ -26,6 +32,21 @@ registry = MatcherRegistry()
 
 # Total energy in Hartree
 registry["E_total"] = GenericMatcher(r"Total energy:", col=3)
+registry["OT_SCF_convergence"] = GenericMatcher(
+    r"^\s*\d+\s+OT\s+\S+\s+\S+\s+\S+\s+([-+0-9.EeDd]+)", col=1, regex=True
+)
+registry["OT_SCF_initial_energy"] = GenericMatcher(
+    r"^\s*1\s+OT\s+\S+\s+\S+\s+\S+\s+\S+\s+([-+0-9.EeDd]+)",
+    col=1,
+    regex=True,
+    first=True,
+)
+registry["Electronic_entropic_energy"] = GenericMatcher(
+    r"Electronic entropic energy:", col=4
+)
+registry["Integrated_spin_density"] = GenericMatcher(r"Integrated spin density:", col=4)
+registry["FOD_orbital_sum"] = GenericMatcher(r"FOD| N_FOD (orbital sum)", col=5)
+registry["FOD_grid_integral"] = GenericMatcher(r"FOD| Grid integral", col=4)
 registry["COMMUTATOR_HR_X"] = GenericMatcher(r"COMMUTATOR_HR| CheckSum X =", col=5)
 registry["COMMUTATOR_HR_Y"] = GenericMatcher(r"COMMUTATOR_HR| CheckSum Y =", col=5)
 registry["COMMUTATOR_HR_Z"] = GenericMatcher(r"COMMUTATOR_HR| CheckSum Z =", col=5)
@@ -53,12 +74,38 @@ registry["Vib_frc_const"] = GenericMatcher(r"VIB|Frc consts", col=4)  # M128
 registry["M009"] = GenericMatcher(r"PINT| Total energy =", col=5)
 registry["M010"] = GenericMatcher(r"BAND TOTAL ENERGY [au]", col=6)
 registry["M011"] = GenericMatcher(r"ENERGY| Total FORCE_EVAL", col=9)
+registry["FIST_periodic_dipole_x"] = GenericMatcher(
+    r"MM_DIPOLE| Moment [a.u.]", col=4, first=True
+)
+registry["FIST_periodic_dipole_derivative_x"] = GenericMatcher(
+    r"MM_DIPOLE| Derivative [a.u.]", col=4, first=True
+)
+registry["FIST_atom_1_force_x"] = GenericMatcher(
+    r"^\s*FORCES\|\s+1\s+([-+0-9.EeDd]+)", col=1, regex=True, first=True
+)
 registry["N_special_kpoints"] = GenericMatcher(r"Number of Special K-points:", col=5)
 registry["QS_number_of_molecular_orbitals"] = GenericMatcher(
     r"Number of molecular orbitals:", col=5
 )
 registry["QS_cartesian_mo_output"] = TextPresenceMatcher("CARTESIAN EIGENVECTORS")
 registry["QS_MO_OCCUPATION_STATS"] = TextPresenceMatcher("MO| Total occupied (ALPHA):")
+registry["OT_lbfgs_skipped_update"] = TextPresenceMatcher("OT LSKIP")
+registry["OT_lbfgs_update"] = TextPresenceMatcher("OT LBFGS")
+registry["OT_diis_update"] = TextPresenceMatcher("OT DIIS")
+registry["OT_mermin_response_update"] = TextPresenceMatcher("OT CG-R")
+registry["OT_mermin_exact_hxc"] = TextPresenceMatcher("apply_hxc_kernel_kp")
+registry["OT_mermin_lbfgs_response_update"] = TextPresenceMatcher("OT L-R")
+registry["OT_kpoint_ref_refresh"] = TextPresenceMatcher(
+    "K-point OT: rebuilding physical virtual subspace"
+)
+registry["OT_added_mos_auto_grow"] = TextPresenceMatcher(
+    "K-point ADDED_MOS AUTO: growing virtual-space buffer"
+)
+registry["OT_lattice_fft_selected"] = TextPresenceMatcher("selected: T")
+registry["OT_lattice_fft_fallback"] = TextPresenceMatcher("selected: F")
+registry["OT_lattice_local_correction"] = TextPresenceMatcher(
+    "Balanced local correction cells:"
+)
 registry["Kubo_sigma_iso"] = GenericMatcher(r"KUBO_TRANSPORT| sigma_iso[S/cm]", col=3)
 registry["Kubo_sigma_iso_2d"] = GenericMatcher(r"KUBO_TRANSPORT| sigma_iso[S]", col=3)
 registry["Kubo_sigma_iso_1d"] = GenericMatcher(r"KUBO_TRANSPORT| sigma_iso[S*m]", col=3)
@@ -84,6 +131,25 @@ registry["WANNIER90_SCF_MO_REUSE"] = TextPresenceMatcher(
 )
 registry["WANNIER90_FULL_MESH_DIAG"] = TextPresenceMatcher(
     "WANNIER90| Falling back to full-mesh diagonalization for the Wannier90 files."
+)
+registry["TOPOLOGY_SURFACE_CONVERGED"] = TextPresenceMatcher(
+    "TOPOLOGY| Wilson surface sampling converged."
+)
+registry["TOPOLOGY_Z2_TRIVIAL"] = TextPresenceMatcher(
+    "TOPOLOGY| Converged Z2 invariant: 0"
+)
+registry["TOPOLOGY_CHERN_TRIVIAL"] = TextPresenceMatcher(
+    "TOPOLOGY| Converged first Chern number: 0"
+)
+registry["TQC_PARITY_INDEX"] = GenericMatcher("TQC| Fu-Kane parity index:", col=5)
+registry["TQC_INVERSION_Z4"] = GenericMatcher(
+    "TQC| Inversion Z4 (sum odd pairs mod 4):", col=9
+)
+registry["TQC_ATOMIC_SIGNATURE"] = TextPresenceMatcher(
+    "TQC| Nonnegative atomic signature: T"
+)
+registry["TOPOLOGY_BERRY_PHASE"] = GenericMatcher(
+    "Berry phase [rad]:", col=7, abs_value=True
 )
 registry["WANNIER90_DEGENERATE_GUARD"] = TextPresenceMatcher(
     "degenerate atom/AO W90 reuse guarded"
@@ -125,6 +191,14 @@ registry["M029"] = GenericMatcher(r"Heat of formation [kcal/mol]:", col=5)
 # HOMO-LUMO gap / bandgap at Gamma-point of a DFT calculation
 registry["E_gap_DFT"] = GenericMatcher(r"HOMO - LUMO gap [eV]", col=7)
 registry["E_gap_DFT_2"] = GenericMatcher(r"Band gap:", col=4)  # TODO merge with prev.
+
+# HOMO-LUMO gaps reported by frontier-orbital basis optimization.
+registry["BASOPT_frontier_optimized_gap"] = GenericMatcher(
+    r"^\s*Opt\. small basis.*\s([-+0-9.EeDd]+)\s*$", col=9, regex=True
+)
+registry["BASOPT_frontier_screened_gap"] = GenericMatcher(
+    r"^\s*Basis 1\s+([-+0-9.EeDd]+)\s+", col=3, regex=True
+)
 
 registry["M031"] = GenericMatcher(r"STRESS| 1/3 Trace", col=4)
 registry["M032"] = GenericMatcher(r"MD| Potential energy", col=6)
@@ -171,6 +245,9 @@ registry["M069"] = GenericMatcher(r"Log(1-CN):", col=10)
 registry["M070"] = GenericMatcher(r"MD| Temperature [K]", col=4)
 registry["M071"] = GenericMatcher(r"Current value of constraint", col=6)
 registry["M072"] = GenericMatcher(r"FORCES| Total atomic force", col=5)
+registry["Atomic_force_1_z"] = GenericMatcher(r"^\s*FORCES\|\s+1\s+", col=5, regex=True)
+registry["Atomic_force_2_y"] = GenericMatcher(r"^\s*FORCES\|\s+2\s+", col=4, regex=True)
+registry["Atomic_force_2_z"] = GenericMatcher(r"^\s*FORCES\|\s+2\s+", col=5, regex=True)
 registry["M073"] = GenericMatcher(r"Diabatic electronic coupling (rotation", col=6)
 registry["M074"] = GenericMatcher(r"Diabatic electronic coupling (wfn", col=7)
 registry["M075"] = GenericMatcher(r"Charge transfer energy", col=6)
@@ -212,6 +289,7 @@ registry["GAUXC_molecular_xc_virial_fd_diff"] = GenericMatcher(
 registry["XTB_reference_cli_failed"] = TextPresenceMatcher(
     "tblite reference CLI check failed to run."
 )
+registry["NO_TEXT"] = TextAbsenceMatcher()
 registry["M083"] = GenericMatcher(r"1[   1] - 2[   1]", col=7)
 registry["M084"] = GenericMatcher(r"Ionization potential of the excited atom:", col=7)
 registry["M085"] = GenericMatcher(r"Total FORCE_EVAL ( SIRIUS ) energy", col=9)
@@ -367,9 +445,16 @@ registry["BC_near_K_point"] = GenericMatcher(r"   1    4", col=5)
 registry["gext"] = GenericMatcher(r"GEXT overlap fitting error:", col=5)
 
 # RI-RS G0W0 calculation for molecules
+registry["E_HF_SCF_direct_gap"] = GenericMatcher(
+    r"Hartree-Fock with SCF orbitals direct band gap (eV):", col=9
+)
+registry["Auto_RI_Size"] = GenericMatcher(r"Number of automatic RI functions", col=11)
 registry["RIRS_Grid"] = GenericMatcher(r"Total grid points used for RI-RS:", col=7)
 registry["RIRS_CUTOFF"] = GenericMatcher(
     r"INPUT: Cutoff radius for grid points in RI-RS", col=9
+)
+registry["RIRS_Grid_Optimization_Error"] = GenericMatcher(
+    r"Normalized 3C error:", col=4
 )
 registry["E_RIRS_HOMO"] = GenericMatcher(r"G0W0 valence band maximum", col=6)
 registry["E_RIRS_LUMO"] = GenericMatcher(r"G0W0 conduction band minimum", col=6)
@@ -388,6 +473,10 @@ registry["Floquet_OCC"] = GenericMatcher(r" 0.1200", col=3)
 
 # MTLR Calculations
 registry["MTLR_U_MINUS_J"] = GenericMatcher(r"U_MINUS_J [eV]", col=4)
+registry["MTLR_REFERENCE_MOS"] = TextPresenceMatcher(
+    " MTLR| Perturbation initial guess:                               REFERENCE MOs"
+)
+registry["WFN_RESTART_READ"] = TextPresenceMatcher("WFN_RESTART| Restart file")
 
 # NNP MD matchers. M_INIT_ENERGY passes first=True because ENERGY|Total
 # FORCE_EVAL is printed once per MD step, and the default (last-line)
@@ -421,4 +510,24 @@ registry["RTP_current_checksum"] = GenericMatcher(
 # surface dipole correction reference plane; both values are printed on the same line.
 registry["Vacuum_level_below"] = GenericMatcher(r"dipole correction plane [eV]:", col=5)
 registry["Vacuum_level_above"] = GenericMatcher(r"dipole correction plane [eV]:", col=6)
+
+# Electron count imposed on a cube density fitted in the nonorthogonal AO basis.
+registry["Harris_fit_electron_count"] = GenericMatcher(
+    r"HARRIS\| AO density-matrix electron count:", col=6
+)
+registry["Harris_fit_relative_entropy"] = GenericMatcher(
+    r"HARRIS\| Final fermionic relative entropy:", col=6
+)
+registry["Harris_fit_prior_commutator"] = GenericMatcher(
+    r"HARRIS\| Prior-Hamiltonian commutator norm:", col=5
+)
+registry["Harris_fit_idempotency_error"] = GenericMatcher(
+    r"HARRIS\| Occupation idempotency error:", col=5
+)
+registry["Harris_direct_trial_energy"] = GenericMatcher(
+    r"Consistent trial-DM energy:", col=4
+)
+registry["Harris_direct_energy_difference"] = GenericMatcher(
+    r"Trial-DM minus Harris-like energy:", col=5
+)
 # EOF

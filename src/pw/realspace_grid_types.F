@@ -319,7 +319,7 @@ CONTAINS
                ! with prefactodesc to promote less cuts in Z dimension
                ratio = PRODUCT(REAL(desc%npts, KIND=dp)/n_slices_tmp)/ &
                        PRODUCT(REAL(desc%npts, KIND=dp)/n_slices_tmp + &
-                               MERGE([0.0, 0.0, 0.0], 2*[1.06*nmin, 1.05*nmin, 1.03*nmin], n_slices_tmp == [1, 1, 1]))
+                           MERGE([0.0_dp, 0.0_dp, 0.0_dp], 2*[1.06_dp*nmin, 1.05_dp*nmin, 1.03_dp*nmin], n_slices_tmp == [1, 1, 1]))
                IF (ratio > ratio_best) THEN
                   ratio_best = ratio
                   n_slices = n_slices_tmp
@@ -768,9 +768,12 @@ CONTAINS
                                                             source
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: rcount
       INTEGER, DIMENSION(3)                              :: lb, ub
+      INTEGER, DIMENSION(:, :, :, :), POINTER            :: bounds_by_rank
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: recvbuf, sendbuf, swaparray
 
-      ASSOCIATE (np => pw%pw_grid%para%group%num_pe, bo => pw%pw_grid%para%bo(1:2, 1:3, 0:pw%pw_grid%para%group%num_pe - 1, 1), &
+      ! Avoid nested component array sections: GCC 16 can generate invalid bounds checks.
+      bounds_by_rank => pw%pw_grid%para%bo
+      ASSOCIATE (np => pw%pw_grid%para%group%num_pe, bo => bounds_by_rank(:, :, :, 1), &
                  pbo => pw%pw_grid%bounds, group => pw%pw_grid%para%group, mepos => pw%pw_grid%para%group%mepos, &
                  grid => rs%r)
          ALLOCATE (rcount(0:np - 1))
@@ -837,10 +840,13 @@ CONTAINS
                                                             k, km, nma, nn, source
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: rcount
       INTEGER, DIMENSION(3)                              :: lb, ub
+      INTEGER, DIMENSION(:, :, :, :), POINTER            :: bounds_by_rank
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: recvbuf, sendbuf, swaparray
       TYPE(mp_request_type), DIMENSION(2)                :: req
 
-      ASSOCIATE (np => pw%pw_grid%para%group%num_pe, bo => pw%pw_grid%para%bo(1:2, 1:3, 0:pw%pw_grid%para%group%num_pe - 1, 1), &
+      ! Keep the reverse transfer on the same compiler-safe array-section path.
+      bounds_by_rank => pw%pw_grid%para%bo
+      ASSOCIATE (np => pw%pw_grid%para%group%num_pe, bo => bounds_by_rank(:, :, :, 1), &
                  pbo => pw%pw_grid%bounds, group => pw%pw_grid%para%group, mepos => pw%pw_grid%para%group%mepos, &
                  grid => rs%r)
          ALLOCATE (rcount(0:np - 1))

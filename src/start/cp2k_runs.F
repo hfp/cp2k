@@ -20,13 +20,13 @@ MODULE cp2k_runs
                                               cp2k_year
    USE cp_control_types,                ONLY: dft_control_type
    USE cp_dbcsr_api,                    ONLY: dbcsr_finalize_lib,&
-                                              dbcsr_init_lib,&
                                               dbcsr_print_config,&
                                               dbcsr_print_statistics
    USE cp_dbcsr_cp2k_link,              ONLY: cp_dbcsr_config
    USE cp_files,                        ONLY: close_file,&
                                               open_file
    USE cp_log_handling,                 ONLY: cp_get_default_logger,&
+                                              cp_logger_get_default_io_unit,&
                                               cp_logger_type,&
                                               cp_logger_would_log,&
                                               cp_note_level
@@ -47,7 +47,8 @@ MODULE cp2k_runs
                                               cp2k_init,&
                                               cp2k_read,&
                                               cp2k_setup
-   USE f77_interface,                   ONLY: create_force_env,&
+   USE f77_interface,                   ONLY: configure_dbcsr,&
+                                              create_force_env,&
                                               destroy_force_env,&
                                               f77_default_para_env => default_para_env,&
                                               f_env_add_defaults,&
@@ -76,8 +77,8 @@ MODULE cp2k_runs
         bsse_run, cell_opt_run, debug_run, do_atom, do_band, do_cp2k, do_embed, do_farming, &
         do_fist, do_ipi, do_mixed, do_nnp, do_opt_basis, do_optimize_input, do_qmmm, do_qs, &
         do_sirius, do_swarm, do_tamc, do_test, do_tree_mc, do_tree_mc_ana, driver_run, ehrenfest, &
-        energy_force_run, energy_run, geo_opt_run, linear_response_run, mimic_run, mol_dyn_run, &
-        mon_car_run, mtlr_run, negf_run, none_run, pint_run, real_time_propagation, &
+        energy_force_run, energy_run, geo_opt_run, history_guess, linear_response_run, mimic_run, &
+        mol_dyn_run, mon_car_run, mtlr_run, negf_run, none_run, pint_run, real_time_propagation, &
         rtp_method_bse, rtp_method_bse_linearized, tree_mc_run, vib_anal
    USE input_cp2k,                      ONLY: create_cp2k_root_section
    USE input_cp2k_check,                ONLY: check_cp2k_input
@@ -86,9 +87,9 @@ MODULE cp2k_runs
    USE input_keyword_types,             ONLY: keyword_release
    USE input_parsing,                   ONLY: section_vals_parse
    USE input_section_types,             ONLY: &
-        section_release, section_type, section_vals_create, section_vals_get_subs_vals, &
-        section_vals_release, section_vals_retain, section_vals_type, section_vals_val_get, &
-        section_vals_write, write_section_xml
+        section_release, section_type, section_vals_create, section_vals_get, &
+        section_vals_get_subs_vals, section_vals_release, section_vals_retain, section_vals_type, &
+        section_vals_val_get, section_vals_write, write_section_xml
    USE ipi_driver,                      ONLY: run_driver
    USE kinds,                           ONLY: default_path_length,&
                                               default_string_length,&
@@ -114,9 +115,7 @@ MODULE cp2k_runs
    USE mtlr_u_j_methods,                ONLY: do_mtlr_u_j
    USE neb_methods,                     ONLY: neb
    USE negf_methods,                    ONLY: do_negf
-   USE offload_api,                     ONLY: offload_get_chosen_device,&
-                                              offload_get_device_count,&
-                                              offload_mempool_stats_print
+   USE offload_api,                     ONLY: offload_mempool_stats_print
    USE optimize_basis,                  ONLY: run_optimize_basis
    USE optimize_input,                  ONLY: run_optimize_input
    USE pint_methods,                    ONLY: do_pint_run
@@ -178,33 +177,26 @@ CONTAINS
       INTEGER                                            :: f_env_handle, grid_backend, ierr, &
                                                             iter_level, method_name_id, &
                                                             new_env_id, prog_name_id, run_type_id
-#if defined(__DBCSR_ACC)
-      INTEGER, TARGET                                    :: offload_chosen_device
-#endif
-      INTEGER, POINTER                                   :: active_device_id
       INTEGER(KIND=int_8)                                :: m_memory_max_mpi
       LOGICAL                                            :: echo_input, grid_apply_cutoff, &
-                                                            grid_validate, I_was_ionode
+                                                            grid_validate, has_excited_states, &
+                                                            has_properties, I_was_ionode
       TYPE(cp_logger_type), POINTER                      :: logger, sublogger
       TYPE(mp_para_env_type), POINTER                    :: para_env
       TYPE(dft_control_type), POINTER                    :: dft_control
       TYPE(f_env_type), POINTER                          :: f_env
       TYPE(force_env_type), POINTER                      :: force_env
       TYPE(global_environment_type), POINTER             :: globenv
-      TYPE(section_vals_type), POINTER                   :: glob_section, input_file, root_section
+      TYPE(section_vals_type), POINTER                   :: glob_section, input_file, root_section, &
+                                                            section
 
-      NULLIFY (para_env, f_env, dft_control, active_device_id)
+      NULLIFY (para_env, f_env, dft_control)
       ALLOCATE (para_env)
       para_env = mpi_comm
 
-#if defined(__DBCSR_ACC)
-      IF (offload_get_device_count() > 0) THEN
-         offload_chosen_device = offload_get_chosen_device()
-         active_device_id => offload_chosen_device
-      END IF
-#endif
-      CALL dbcsr_init_lib(mpi_comm%get_handle(), io_unit=output_unit, &
-                          accdrv_active_device_id=active_device_id)
+      ! The surrounding CP2K runtime owns DBCSR. Only redirect its diagnostics
+      ! to this run's output; the DBCSR API leaves an active library initialized.
+      CALL configure_dbcsr(mpi_comm, output_unit)
 
       NULLIFY (globenv, force_env)
 
@@ -238,7 +230,7 @@ CONTAINS
       CALL section_vals_val_get(root_section, "FORCE_EVAL%METHOD", i_val=method_name_id)
 
       IF (prog_name_id /= do_cp2k) THEN
-         ! initial setup (cp2k does in in the creation of the force_env)
+         ! initial setup (cp2k does it in the creation of the force_env)
          CALL globenv_create(globenv)
          CALL section_vals_retain(input_file)
          CALL cp2k_init(para_env, output_unit, globenv, input_file_name=input_file_name)
@@ -270,13 +262,14 @@ CONTAINS
          CALL run_optimize_input(input_declaration, root_section, para_env)
       CASE (do_swarm)
          CALL run_swarm(input_declaration, root_section, para_env, globenv, input_file_name)
-      CASE (do_farming) ! TODO: refactor cp2k's startup code
+      CASE (do_farming)
+         ! FARMING temporarily replaces the runtime communicator with disjoint
+         ! job communicators. Each job owns DBCSR until its communicator is freed.
          CALL dbcsr_finalize_lib()
          CALL farming_run(input_declaration, root_section, para_env, initial_variables)
-         CALL dbcsr_init_lib(mpi_comm%get_handle(), io_unit=output_unit, &
-                             accdrv_active_device_id=active_device_id)
+         CALL configure_dbcsr(mpi_comm, output_unit)
       CASE (do_opt_basis)
-         CALL run_optimize_basis(input_declaration, root_section, para_env)
+         CALL run_optimize_basis(input_declaration, root_section, para_env, globenv)
          globenv%run_type_id = none_run
       CASE (do_cp2k)
          CALL create_force_env(new_env_id, &
@@ -331,6 +324,22 @@ CONTAINS
             CALL loop_over_molecules(globenv, force_env)
          END IF
 
+         ! Only this driver knows that no later geometry step will be requested.
+         ! Keep history for nested/repeated SCF consumers and for library/shell use.
+         IF (method_name_id == do_qs) THEN
+            CALL get_qs_env(force_env%qs_env, dft_control=dft_control)
+            section => section_vals_get_subs_vals(force_env%qs_env%input, "PROPERTIES")
+            CALL section_vals_get(section, explicit=has_properties)
+            section => section_vals_get_subs_vals(force_env%qs_env%input, "DFT%EXCITED_STATES")
+            CALL section_vals_get(section, explicit=has_excited_states)
+            force_env%qs_env%skip_wf_history = .NOT. (has_properties .OR. has_excited_states .OR. &
+                                                      dft_control%qs_control%cdft .OR. &
+                                                      dft_control%qs_control%et_coupling_calc .OR. &
+                                                      dft_control%do_xas_calculation .OR. &
+                                                      dft_control%do_xas_tdp_calculation .OR. &
+                                                      force_env%qs_env%scf_control%density_guess == history_guess)
+         END IF
+
          SELECT CASE (globenv%run_type_id)
          CASE (energy_run)
             CALL force_env_calc_energy_force(force_env, calc_force=.FALSE.)
@@ -339,6 +348,7 @@ CONTAINS
          CASE default
             CPABORT("Unknown run type")
          END SELECT
+         IF (method_name_id == do_qs) force_env%qs_env%skip_wf_history = .FALSE.
          CALL cp_rm_iter_level(sublogger%iter_info, level_name="JUST_ENERGY", n_rlevel_att=iter_level)
       CASE (mol_dyn_run)
          CALL qs_mol_dyn(force_env, globenv)
@@ -444,8 +454,6 @@ CONTAINS
          CALL section_vals_release(root_section)
          CALL globenv_release(globenv)
       END IF
-
-      CALL dbcsr_finalize_lib()
 
       CALL mp_para_env_release(para_env)
 
@@ -863,6 +871,7 @@ CONTAINS
          END IF
 
          CALL cp2k_run(input_declaration, TRIM(farming_env%Job(i)%input), new_output_unit, new_group, initial_variables)
+         CALL dbcsr_finalize_lib()
 
          IF (new_rank == 0) CALL close_file(unit_number=new_output_unit)
 
@@ -952,6 +961,8 @@ CONTAINS
          unit_nr = -1
       END IF
       CALL cp2k_run(input_declaration, input_file_path, unit_nr, para_env, initial_variables)
+      ! Restore DBCSR diagnostics before the caller closes its output unit.
+      CALL configure_dbcsr(f77_default_para_env, cp_logger_get_default_io_unit())
       CALL mp_para_env_release(para_env)
    END SUBROUTINE run_input
 

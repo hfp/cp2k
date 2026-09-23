@@ -1840,6 +1840,15 @@ CONTAINS
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
+      CALL keyword_create(keyword, __LOCATION__, name="DIRECTIONAL_EXCITON_CROSSCORRELATION", &
+                          description="Print the electron-hole crosscorrelation matrix as part of the "// &
+                          "cartesian components of exciton descriptors. Only active together with "// &
+                          "DIRECTIONAL_EXCITON_DESCRIPTORS.", &
+                          n_var=1, type_of_var=logical_t, &
+                          default_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
       ! Strings
       CALL keyword_create(keyword, __LOCATION__, name="WFN_RESTART_FILE_NAME", &
                           variants=["RESTART_FILE_NAME"], &
@@ -2338,18 +2347,8 @@ CONTAINS
                           description="Parameters needed to set up a calculation for "// &
                           "electronic level energies of molecules and the electronic band "// &
                           "structure of materials from post-SCF schemes (GW, perturbative "// &
-                          "spin-orbit coupling). Also, the density of states (DOS), "// &
-                          "projected density of states (PDOS), local density of states (LDOS), "// &
-                          "local valence band maximum (LVBM), local conduction band minimum "// &
-                          "(LCBM) and local band gap can be calculated. Please note that "// &
-                          "all methods in this section start from a Gamma-only DFT SCF. "// &
-                          "You need to make sure that the cell chosen in the DFT SCF is "// &
-                          "converged in the cell size. Band structures are computed "// &
-                          "for the primitive cell (i.e. the smallest possible unit cell of "// &
-                          "the input structure which is detected automatically). Moreover, "// &
-                          "spin-orbit coupling (SOC) on eigenvalues and band structures is "// &
-                          "available using Hartwigsen-Goedecker-Hutter "// &
-                          "pseudopotentials.", &
+                          "spin-orbit coupling from GTH pseudopotentials), and Floquet "// &
+                          "band structures as response to continuous driving with light.", &
                           n_keywords=1, n_subsections=1, repeats=.FALSE.)
 
       NULLIFY (keyword, subsection)
@@ -2407,7 +2406,7 @@ CONTAINS
                           "For the GW algorithm for molecules, see "// &
                           "<https://doi.org/10.1021/acs.jctc.0c01282>. "// &
                           "For 2D materials, see <https://doi.org/10.1021/acs.jctc.3c01230>.", &
-                          n_keywords=1, n_subsections=2, repeats=.FALSE.)
+                          n_keywords=1, n_subsections=4, repeats=.FALSE.)
 
       NULLIFY (keyword)
       CALL keyword_create(keyword, __LOCATION__, &
@@ -2451,9 +2450,9 @@ CONTAINS
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="REGULARIZATION_RI", &
-                          description="Parameter for RI regularization, setting a negative "// &
-                          "value triggers the default value. Affects RI basis set convergence "// &
-                          "but in any case large RI basis will give RI basis set convergence.", &
+                          description="Regularization applied to the GW RI fitting matrix "// &
+                          "$M_{PQ}$. A negative value selects the context-dependent default: "// &
+                          "zero for molecules and 1.0E-2 for periodic systems.", &
                           usage="REGULARIZATION_RI 1.0E-4", &
                           default_r_val=-1.0_dp)
       CALL section_add_keyword(section, keyword)
@@ -2472,26 +2471,14 @@ CONTAINS
       CALL keyword_release(keyword)
 
       CALL keyword_create(keyword, __LOCATION__, name="MEMORY_PER_PROC", &
-                          description="Specify the available memory per MPI process. Set "// &
-                          "`MEMORY_PER_PROC` as accurately as possible for good performance. If "// &
-                          "`MEMORY_PER_PROC` is set lower as the actually available "// &
-                          "memory per MPI process, the performance will be "// &
-                          "bad; if `MEMORY_PER_PROC` is set higher as the actually "// &
-                          "available memory per MPI process, the program might run out of "// &
-                          "memory. You can calculate `MEMORY_PER_PROC` as follows: "// &
-                          "Get the memory per node on your machine, mem_per_node "// &
-                          "(for example, from a supercomputer website, typically between "// &
-                          "100 GB and 2 TB), get the number of "// &
-                          "MPI processes per node, n_MPI_proc_per_node"// &
-                          " (for example from your run-script; if you "// &
-                          "use slurm, the number behind '--ntasks-per-node' is the number "// &
-                          "of MPI processes per node). Then calculate "// &
-                          "`MEMORY_PER_PROC` = mem_per_node / n_MPI_proc_per_node "// &
-                          "(typically between 2 GB and 50 GB). Unit of keyword: Gigabyte (GB). "// &
+                          description="Specify the available memory per MPI process (in GB). The "// &
+                          "default value -1 means that the available memory per MPI process is detected "// &
+                          "automatically from the free memory of the node divided by the number "// &
+                          "of MPI processes running on that node; this is the recommended setting. "// &
                           "Note: This keyword is not used for GW calculations with RI-RS, "// &
-                          "where the available memory is detected automatically.", &
+                          "where the available memory is always detected automatically.", &
                           usage="MEMORY_PER_PROC 16", &
-                          default_r_val=2.0_dp)
+                          default_r_val=-1.0_dp)
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
@@ -2577,22 +2564,6 @@ CONTAINS
       CALL section_add_subsection(subsection, print_key)
       CALL section_release(print_key)
 
-      CALL keyword_create(keyword, __LOCATION__, name="PRINT_DBT_CONTRACT", &
-                          description="Prints information of contraction routines.", &
-                          usage="PRINT_DBT_CONTRACT", &
-                          default_l_val=.FALSE., &
-                          lone_keyword_l_val=.TRUE.)
-      CALL section_add_keyword(subsection, keyword)
-      CALL keyword_release(keyword)
-
-      CALL keyword_create(keyword, __LOCATION__, name="PRINT_DBT_CONTRACT_VERBOSE", &
-                          description="Prints verbose information of contraction routines.", &
-                          usage="PRINT_DBT_CONTRACT_VERBOSE", &
-                          default_l_val=.FALSE., &
-                          lone_keyword_l_val=.TRUE.)
-      CALL section_add_keyword(subsection, keyword)
-      CALL keyword_release(keyword)
-
       CALL section_add_subsection(section, subsection)
       CALL section_release(subsection)
 
@@ -2601,7 +2572,72 @@ CONTAINS
       CALL section_add_subsection(section, subsection)
       CALL section_release(subsection)
 
+      NULLIFY (subsection)
+      CALL create_auto_ri_section(subsection)
+      CALL section_add_subsection(section, subsection)
+      CALL section_release(subsection)
+
+      NULLIFY (subsection)
+      CALL create_evgw0_section(subsection)
+      CALL section_add_subsection(section, subsection)
+      CALL section_release(subsection)
+
    END SUBROUTINE create_gw_section
+
+! **************************************************************************************************
+!> \brief Creates the automatic RI basis set optimization section.
+!> \param section AUTO_RI input section
+! **************************************************************************************************
+   SUBROUTINE create_auto_ri_section(section)
+      TYPE(section_type), POINTER                        :: section
+
+      TYPE(keyword_type), POINTER                        :: keyword
+
+      CPASSERT(.NOT. ASSOCIATED(section))
+      CALL section_create(section, __LOCATION__, name="AUTO_RI", &
+                          description="Optimizes the RI basis for non-periodic RI-RS GW "// &
+                          "calculations. The fitting target combines occupied-empty "// &
+                          "transitions and exchange products. Atom-local (AA) functions are "// &
+                          "selected first. Neighbor-pair (AB) functions are also used to fit "// &
+                          "occupied-empty transitions and exchange products. Currently only "// &
+                          "non-periodic molecules are supported.", &
+                          n_keywords=3, n_subsections=0, repeats=.FALSE.)
+      NULLIFY (keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="RI_AO_RATIO", &
+                          description="Ratio between the numbers of optimized RI and AO basis "// &
+                          "functions. For example, RI_AO_RATIO 3 requires an RI basis with "// &
+                          "three times as many functions as the AO basis. Compare values such "// &
+                          "as 1, 1.5, 2, 3 and 4 until the GW energies are converged. "// &
+                          "Larger values increase time and memory, but also increase the "// &
+                          "numerical accuracy.", &
+                          default_r_val=2.0_dp, usage="RI_AO_RATIO 2")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="OCC_EMPTY_FRONTIER_ORBITAL_WINDOW", &
+                          description="The exchange contribution to the RI optimization "// &
+                          "objective includes GW levels within the energy window "// &
+                          "$[\epsilon_{\mathrm{HOMO}}-w,\epsilon_{\mathrm{LUMO}}+w]$. "// &
+                          "The default of 5 eV is usually sufficient, for example for "// &
+                          "GW-BSE excitations up to 10 eV.", &
+                          default_r_val=cp_unit_to_cp2k(value=5.0_dp, unit_str="eV"), &
+                          unit_str="eV", usage="OCC_EMPTY_FRONTIER_ORBITAL_WINDOW [eV] 5.0")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create(keyword, __LOCATION__, name="NEIGHBOR_RADIUS", &
+                          description="The RI basis also contains contractions of Gaussian "// &
+                          "functions centered on different atoms. An atom pair A-B is "// &
+                          "included for these contractions when its distance is smaller than "// &
+                          "NEIGHBOR_RADIUS. Larger radii increase the computational cost. "// &
+                          "Three angstrom is a reasonable value and usually does not need to "// &
+                          "be changed.", &
+                          default_r_val=cp_unit_to_cp2k(value=3.0_dp, unit_str="angstrom"), &
+                          unit_str="angstrom", usage="NEIGHBOR_RADIUS [angstrom] 3.0")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+   END SUBROUTINE create_auto_ri_section
 
 ! **************************************************************************************************
 !> \brief creates the input section collecting all parameters of the real-space resolution of
@@ -2765,14 +2801,76 @@ CONTAINS
       CALL keyword_release(keyword)
 
       NULLIFY (subsection)
-      CALL create_evgw0_section(subsection)
+      CALL create_ri_rs_grid_optimization_section(subsection)
       CALL section_add_subsection(section, subsection)
       CALL section_release(subsection)
 
    END SUBROUTINE create_ri_rs_section
 
 ! **************************************************************************************************
-!> \brief creates the input section for eigenvalue self-consistent GW0 (evGW0) in RI-RS
+!> \brief Creates the GW RI-RS in-memory grid optimizer section.
+!> \param section ...
+! **************************************************************************************************
+   SUBROUTINE create_ri_rs_grid_optimization_section(section)
+      TYPE(section_type), POINTER                        :: section
+
+      TYPE(keyword_type), POINTER                        :: keyword
+      NULLIFY (keyword)
+      CPASSERT(.NOT. ASSOCIATED(section))
+      CALL section_create( &
+         section, __LOCATION__, name="GRID_OPTIMIZATION", repeats=.FALSE., &
+         description="Optimizes RI-RS grid using small local atomic environments. For every atom "// &
+         "in the structure, a cluster is formed from all atoms whose distance from the centre atom "// &
+         "is smaller than CUTOFF_ATOMIC_CLUSTER. The grid points are optimized such that the "// &
+         "corresponding RI-RS three-centre integrals reproduce the analytic integrals: "// &
+         "For a cluster $C_I$, the normalized squared RI-RS error is "// &
+         "$E_I = \frac{1}{N_I} \sum_{P\mu\nu \in C_I} \left|(\mu\nu|P) - "// &
+         "\sum_{\mathbf{r}_{A\ell} \in C_I} \phi_\mu(\mathbf{r}_{A\ell}) "// &
+         "\phi_\nu(\mathbf{r}_{A\ell}) Z_{A\ell P}\right|^2$. The total objective is "// &
+         "the average over all local clusters, $E_\mathrm{loc} = \frac{1}{N_\mathrm{at}} "// &
+         "\sum_{I=1}^{N_\mathrm{at}} E_I$. Starting points are generated on radial-Lebedev grids "// &
+         "and selected by diagonal Cholesky decomposition in independent atomic clusters. "// &
+         "If the selection reaches numerical rank before the requested grid size, unused points "// &
+         "in the central atom's Voronoi cell are added by geometric maximin distance. "// &
+         "Before Voronoi filtering, the candidate grid contains at least "// &
+         "max(30, 2 RS_AO_RATIO) times the number of AO functions. RS_AO_RATIO is the sole "// &
+         "control of the retained points per atom. "// &
+         "The optimization adapts the grid to the chemical environment and composition of the "// &
+         "structure and can permit substantially smaller grids. Compact grids often work well for "// &
+         "small basis sets, but RS_AO_RATIO "// &
+         "should be tuned and converged for the chosen basis sets and chemical system.")
+
+      CALL keyword_create( &
+         keyword, __LOCATION__, name="RS_AO_RATIO", &
+         description="Number of retained real-space points per atomic-orbital (AO) basis function. "// &
+         "For every atom A, the count is $N_R^A=\lceil\alpha N_{\mathrm{AO}}^A\rceil$, where "// &
+         "$\alpha$ is RS_AO_RATIO and $N_{\mathrm{AO}}^A$ is that atom's number of AO functions. ", &
+         usage="RS_AO_RATIO 7", default_r_val=7.0_dp)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create( &
+         keyword, __LOCATION__, name="CUTOFF_ATOMIC_CLUSTER", &
+         description="Radius of the atom-centred cluster used to optimize the grid points. "// &
+         "All atoms within this distance of the centre atom are included.", &
+         usage="CUTOFF_ATOMIC_CLUSTER [angstrom] 3.0", type_of_var=real_t, &
+         default_r_val=cp_unit_to_cp2k(value=3.0_dp, unit_str="angstrom"), &
+         unit_str="angstrom")
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+      CALL keyword_create( &
+         keyword, __LOCATION__, name="MAX_ITER", &
+         description="Maximum number of objective-and-gradient evaluations in the single "// &
+         "cooperative Cartesian grid optimization.", &
+         usage="MAX_ITER 300", default_i_val=300)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
+   END SUBROUTINE create_ri_rs_grid_optimization_section
+
+! **************************************************************************************************
+!> \brief creates the input section for eigenvalue self-consistent GW0 (evGW0)
 !> \param section section to create
 ! **************************************************************************************************
    SUBROUTINE create_evgw0_section(section)
@@ -2788,8 +2886,8 @@ CONTAINS
                           "$W$ stays at its RPA@DFT value. Only the correlation self-energy "// &
                           "and the quasiparticle equation are recomputed per cycle; $W$, the "// &
                           "exchange self-energy and the RI-RS grid quantities are computed "// &
-                          "once. Without this section a single-shot G0W0 calculation is "// &
-                          "performed.", &
+                          "once. This implementation requires RI-RS. Without this section a "// &
+                          "single-shot G0W0 calculation is performed.", &
                           n_keywords=3, n_subsections=0, repeats=.FALSE.)
 
       NULLIFY (keyword)

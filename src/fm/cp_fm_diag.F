@@ -100,11 +100,9 @@ MODULE cp_fm_diag
    ! Minimum matrix size for the use of the cuSOLVERMp eigensolver.
    ! Smaller matrices use the ScaLAPACK fallback to avoid GPU launch overheads.
    INTEGER, PARAMETER, PUBLIC :: cusolver_n_min = 64
-#if defined(__DLAF)
    ! Minimum number of eigenvectors for the use of the DLAF eigensolver.
    ! The ScaLAPACK eigensolver is used as fallback for all smaller cases.
    INTEGER, SAVE, PUBLIC    :: dlaf_neigvec_min = 0
-#endif
    LOGICAL, SAVE, PUBLIC :: direct_generalized_diagonalization = .FALSE.
    ! Threshold value for the orthonormality check of the eigenvectors obtained
    ! after a diagonalization. A negative value disables the check.
@@ -1371,7 +1369,7 @@ CONTAINS
       mype = matrix%matrix_struct%para_env%mepos
       npe = matrix%matrix_struct%para_env%num_pe
       ! Get a new context
-      CALL ictxt_loc%gridinit(matrix%matrix_struct%para_env, 'Row-major', nprow*npcol, 1)
+      CALL ictxt_loc%gridinit(matrix%matrix_struct%para_env, 'R', nprow*npcol, 1)
 
       CALL descinit(desc_a_block, block_dim_row, block_dim_col, block_dim_row, &
                     block_dim_col, 0, 0, ictxt_loc%get_handle(), block_dim_row, info)

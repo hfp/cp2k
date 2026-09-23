@@ -25,6 +25,7 @@ extensions = [
 ]
 
 myst_heading_anchors = 3
+myst_links_external_new_tab = True
 
 myst_enable_extensions = [
     "attrs_inline",
@@ -33,6 +34,7 @@ myst_enable_extensions = [
     "strikethrough",
 ]
 
+myst_dmath_double_inline = True
 myst_fence_as_directive = ["mermaid"]
 
 templates_path = ["_templates"]
@@ -45,6 +47,7 @@ suppress_warnings = ["ref"]
 
 html_theme = "sphinx_rtd_theme"
 html_static_path = ["_static"]
+html_css_files = ["input-reference.css", "search.css"]
 html_favicon = "_static/favicon.png"
 html_copy_source = False
 html_last_updated_fmt = "%a, %d %b %Y %H:%M:%S +0000"
@@ -66,6 +69,8 @@ html_context = {
 
 html_theme_options = {
     "collapse_navigation": False,
+    "prev_next_buttons_location": "both",
+    "style_external_links": True,
 }
 
 redirects = {

@@ -52,6 +52,7 @@ BENCHMARKS=(
   "QS/H2O-64_nonortho.inp"
   "QS_reference/w64PBE.inp"
   "QS_reference/w64SCAN.inp"
+  "QS_kp/ZnO.inp"
   "QS_single_node/H2O-hyb.inp"
   "QS_single_node/GW_PBE_4benzene.inp"
   "QS_single_node/RI-HFX_H2O-32.inp"
@@ -59,7 +60,7 @@ BENCHMARKS=(
   "QS_single_node/diag_cu144_broy.inp"
   "QS_single_node/bench_dftb.inp"
   "QS_single_node/dbcsr.inp"
-  "QMMM_MQAE/MQAE_single_node.inp"
+  "QMMM/MQAE/MQAE_single_node.inp"
 )
 
 if [[ "${PROFILE}" == "toolchain" ]]; then

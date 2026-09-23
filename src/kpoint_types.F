@@ -60,6 +60,7 @@ MODULE kpoint_types
    PUBLIC :: kpoint_type
    PUBLIC :: kpoint_create, kpoint_release, kpoint_reset_initialization, get_kpoint_info, set_kpoint_info
    PUBLIC :: read_kpoint_section, write_kpoint_info
+   PUBLIC :: kpoint_clear_scf_smat
    PUBLIC :: kpoint_env_type, kpoint_env_p_type
    PUBLIC :: kpoint_env_create, get_kpoint_env
    PUBLIC :: kind_rotmat_type
@@ -73,10 +74,16 @@ MODULE kpoint_types
 !> \param xkp       kpoint coordinates in units of b-vector
 !> \param is_local  if this kpoint is calculated on a single thread
 !> \param mos       associated MOs (r/i,spin)
+!> \param mos_prefilled the MOS hold meaningful coefficients (refilled and
+!>                     reorthogonalized by wavefunction extrapolation for the
+!>                     current geometry) rather than being only allocated
 !> \param pmat      associated density matrix (r/i,spin)
 !> \param wmat      associated energy weighted density matrix (r/i,spin)
 !> \param smat      associated overlap matrix (for ADMM) (r/i,spin)
 !> \param amat      associated ADMM basis projection matrix (r/i,spin)
+!> \param ot_hmat   channel-local Kohn-Sham matrix for k-point OT (r/i,spin)
+!> \param ot_smat   channel-local overlap matrix for k-point OT (r/i)
+!> \param ot_tmat   channel-local kinetic-energy matrix for k-point OT (r/i)
 !> \param shalf     S(K)^(1/2) DFT+U Lowdin method (real wfn)
 !> \param cshalf    S(K)^(1/2) DFT+U Lowdin method (complex wfn)
 !> \author JGH
@@ -87,10 +94,14 @@ MODULE kpoint_types
       REAL(KIND=dp), DIMENSION(3)                       :: xkp = 0.0_dp
       LOGICAL                                           :: is_local = .FALSE.
       TYPE(mo_set_type), DIMENSION(:, :), POINTER       :: mos => NULL()
+      LOGICAL                                           :: mos_prefilled = .FALSE.
       TYPE(cp_fm_type), DIMENSION(:, :), POINTER        :: pmat => NULL()
       TYPE(cp_fm_type), DIMENSION(:, :), POINTER        :: wmat => NULL()
       TYPE(cp_fm_type), DIMENSION(:, :), POINTER        :: smat => NULL()
       TYPE(cp_fm_type), DIMENSION(:, :), POINTER        :: amat => NULL()
+      TYPE(cp_fm_type), DIMENSION(:, :), POINTER        :: ot_hmat => NULL()
+      TYPE(cp_fm_type), DIMENSION(:), POINTER            :: ot_smat => NULL()
+      TYPE(cp_fm_type), DIMENSION(:), POINTER            :: ot_tmat => NULL()
       TYPE(cp_fm_type)                                  :: shalf
       TYPE(cp_cfm_type)                                 :: cshalf
    END TYPE kpoint_env_type
@@ -224,6 +235,8 @@ MODULE kpoint_types
       ! pools
       TYPE(qs_matrix_pools_type), POINTER     :: mpools => Null()
       TYPE(qs_diis_buffer_type_kp), POINTER   :: scf_diis_buffer => Null()
+      ! Unmodified complex overlaps for the current SCF run, indexed by local k-point.
+      TYPE(cp_cfm_type), ALLOCATABLE, DIMENSION(:) :: scf_smat
       TYPE(qs_matrix_pools_type), POINTER     :: mpools_aux_fit => Null()
    END TYPE kpoint_type
 
@@ -294,6 +307,7 @@ CONTAINS
       INTEGER                                            :: i, ik, j
 
       IF (ASSOCIATED(kpoint)) THEN
+         CALL kpoint_clear_scf_smat(kpoint)
 
          IF (ASSOCIATED(kpoint%xkp)) THEN
             DEALLOCATE (kpoint%xkp)
@@ -371,6 +385,24 @@ CONTAINS
    END SUBROUTINE kpoint_release
 
 ! **************************************************************************************************
+!> \brief Release overlap matrices cached for a single SCF run.
+!> \param kpoint The kpoint environment
+! **************************************************************************************************
+   SUBROUTINE kpoint_clear_scf_smat(kpoint)
+      TYPE(kpoint_type), INTENT(INOUT)                   :: kpoint
+
+      INTEGER                                            :: ikp
+
+      IF (ALLOCATED(kpoint%scf_smat)) THEN
+         DO ikp = 1, SIZE(kpoint%scf_smat)
+            CALL cp_cfm_release(kpoint%scf_smat(ikp))
+         END DO
+         DEALLOCATE (kpoint%scf_smat)
+      END IF
+
+   END SUBROUTINE kpoint_clear_scf_smat
+
+! **************************************************************************************************
 !> \brief Reset all data derived from a concrete k-point initialization.
 !>        Input options such as the scheme, grid, shifts and symmetry settings are kept.
 !> \param kpoint  The kpoint environment
@@ -379,6 +411,8 @@ CONTAINS
       TYPE(kpoint_type), INTENT(INOUT)                   :: kpoint
 
       INTEGER                                            :: i, ik, j
+
+      CALL kpoint_clear_scf_smat(kpoint)
 
       IF (ASSOCIATED(kpoint%xkp)) THEN
          DEALLOCATE (kpoint%xkp)
@@ -1061,6 +1095,9 @@ CONTAINS
       NULLIFY (kp_env%wmat)
       NULLIFY (kp_env%smat)
       NULLIFY (kp_env%amat)
+      NULLIFY (kp_env%ot_hmat)
+      NULLIFY (kp_env%ot_smat)
+      NULLIFY (kp_env%ot_tmat)
 
    END SUBROUTINE kpoint_env_create
 
@@ -1089,6 +1126,9 @@ CONTAINS
          CALL cp_fm_release(kp_env%wmat)
          CALL cp_fm_release(kp_env%smat)
          CALL cp_fm_release(kp_env%amat)
+         CALL cp_fm_release(kp_env%ot_hmat)
+         CALL cp_fm_release(kp_env%ot_smat)
+         CALL cp_fm_release(kp_env%ot_tmat)
 
          CALL cp_fm_release(kp_env%shalf)
          CALL cp_cfm_release(kp_env%cshalf)

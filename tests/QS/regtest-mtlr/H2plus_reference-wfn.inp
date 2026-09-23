@@ -1,0 +1,55 @@
+&GLOBAL
+  PRINT_LEVEL LOW
+  PROJECT H2plus_reference
+  RUN_TYPE ENERGY
+&END GLOBAL
+
+&FORCE_EVAL
+  METHOD Quickstep
+  &DFT
+    BASIS_SET_FILE_NAME BASIS_SET
+    CHARGE +1
+    LSD
+    PLUS_U_METHOD LOWDIN
+    POTENTIAL_FILE_NAME POTENTIAL
+    &MGRID
+      CUTOFF 100
+      REL_CUTOFF 40
+    &END MGRID
+    &QS
+      EPS_DEFAULT 1.0E-10
+    &END QS
+    &SCF
+      EPS_SCF 1.0E-6
+      MAX_SCF 100
+      SCF_GUESS ATOMIC
+      &OT
+        MINIMIZER DIIS
+        N_HISTORY_VEC 2
+        PRECONDITIONER FULL_SINGLE_INVERSE
+      &END OT
+    &END SCF
+    &XC
+      &XC_FUNCTIONAL PADE
+      &END XC_FUNCTIONAL
+    &END XC
+  &END DFT
+  &SUBSYS
+    &CELL
+      ABC 8.0 8.0 8.0
+    &END CELL
+    &COORD
+      H  3.00  4.00  4.00
+      H  5.00  4.00  4.00
+    &END COORD
+    &KIND H
+      BASIS_SET DZV-GTH-PADE
+      POTENTIAL GTH-PADE-q1
+      &DFT_PLUS_U ON
+        J [eV] 0.001
+        L 0
+        U_MINUS_J [eV] 5.0
+      &END DFT_PLUS_U
+    &END KIND
+  &END SUBSYS
+&END FORCE_EVAL

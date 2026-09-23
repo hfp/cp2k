@@ -12,47 +12,45 @@
 ! **************************************************************************************************
 MODULE cg_optimizer
 
-   USE cell_types, ONLY: cell_type
-   USE cg_utils, ONLY: cg_linmin, &
-                       get_conjugate_direction
-   USE cp_external_control, ONLY: external_control
-   USE cp_log_handling, ONLY: cp_get_default_logger, &
-                              cp_logger_type
-   USE cp_output_handling, ONLY: cp_iterate, &
-                                 cp_print_key_finished_output, &
-                                 cp_print_key_unit_nr
-   USE cp_subsys_types, ONLY: cp_subsys_type
-   USE force_env_types, ONLY: force_env_get, &
-                              force_env_type
-   USE global_types, ONLY: global_environment_type
-   USE gopt_f_methods, ONLY: gopt_f_ii, &
-                             gopt_f_io, &
-                             gopt_f_io_finalize, &
-                             gopt_f_io_init, &
-                             print_geo_opt_header, &
-                             print_geo_opt_nc
-   USE gopt_f_types, ONLY: gopt_f_type
-   USE gopt_param_types, ONLY: gopt_param_type
-   USE input_constants, ONLY: default_cell_method_id, &
-                              default_minimization_method_id, &
-                              default_ts_method_id
-   USE input_section_types, ONLY: section_vals_type, &
-                                  section_vals_val_get, &
-                                  section_vals_val_set
-   USE kinds, ONLY: dp
-   USE machine, ONLY: m_walltime
-   USE message_passing, ONLY: mp_para_env_type
-   USE space_groups, ONLY: identify_space_group, &
-                           print_spgr, &
-                           spgr_apply_rotations_coord, &
-                           spgr_apply_rotations_force
-   USE space_groups_types, ONLY: spgr_type
+   USE cell_types,                      ONLY: cell_type
+   USE cg_utils,                        ONLY: cg_linmin,&
+                                              get_conjugate_direction
+   USE cp_external_control,             ONLY: external_control
+   USE cp_log_handling,                 ONLY: cp_get_default_logger,&
+                                              cp_logger_type
+   USE cp_output_handling,              ONLY: cp_iterate,&
+                                              cp_print_key_finished_output,&
+                                              cp_print_key_unit_nr
+   USE cp_subsys_types,                 ONLY: cp_subsys_type
+   USE force_env_types,                 ONLY: force_env_get,&
+                                              force_env_type
+   USE global_types,                    ONLY: global_environment_type
+   USE gopt_f_methods,                  ONLY: cp_eval_at,&
+                                              gopt_f_ii,&
+                                              gopt_f_io,&
+                                              gopt_f_io_finalize,&
+                                              gopt_f_io_init,&
+                                              print_geo_opt_header,&
+                                              print_geo_opt_nc
+   USE gopt_f_types,                    ONLY: gopt_f_type
+   USE gopt_param_types,                ONLY: gopt_param_type
+   USE input_constants,                 ONLY: default_cell_method_id,&
+                                              default_minimization_method_id,&
+                                              default_ts_method_id
+   USE input_section_types,             ONLY: section_vals_type,&
+                                              section_vals_val_get,&
+                                              section_vals_val_set
+   USE kinds,                           ONLY: dp
+   USE machine,                         ONLY: m_walltime
+   USE space_groups,                    ONLY: identify_space_group,&
+                                              print_spgr,&
+                                              spgr_apply_rotations_coord,&
+                                              spgr_apply_rotations_force
+   USE space_groups_types,              ONLY: spgr_type
 #include "../base/base_uses.f90"
 
    IMPLICIT NONE
    PRIVATE
-
-   #:include "gopt_f77_methods.fypp"
 
    PUBLIC :: geoopt_cg
    LOGICAL, PRIVATE, PARAMETER :: debug_this_module = .TRUE.
@@ -107,12 +105,7 @@ CONTAINS
       CALL section_vals_val_get(geo_section, "KEEP_SPACE_GROUP", l_val=spgr%keep_space_group)
       IF (spgr%keep_space_group) THEN
          SELECT CASE (gopt_env%type_id)
-         CASE (default_minimization_method_id, default_ts_method_id)
-            CALL force_env_get(force_env, subsys=subsys)
-            CALL identify_space_group(subsys, geo_section, gopt_env, output_unit)
-            CALL spgr_apply_rotations_coord(spgr, x0)
-            CALL print_spgr(spgr)
-         CASE (default_cell_method_id)
+         CASE (default_minimization_method_id, default_ts_method_id, default_cell_method_id)
             CALL force_env_get(force_env, subsys=subsys)
             CALL identify_space_group(subsys, geo_section, gopt_env, output_unit)
             CALL spgr_apply_rotations_coord(spgr, x0)
@@ -171,7 +164,8 @@ CONTAINS
       CHARACTER(LEN=5)                                   :: wildcard
       INTEGER                                            :: handle, iter_nr, its, max_steep_steps, &
                                                             maxiter
-      LOGICAL                                            :: conv, Fletcher_Reeves, &
+      LOGICAL                                            :: conv, evaluate_before_io, &
+                                                            Fletcher_Reeves, &
                                                             save_consistent_energy_force, &
                                                             should_stop
       REAL(KIND=dp)                                      :: emin, eold, opt_energy, res_lim, t_diff, &
@@ -193,6 +187,8 @@ CONTAINS
       maxiter = gopt_param%max_iter
       max_steep_steps = gopt_param%max_steep_steps
       Fletcher_Reeves = gopt_param%Fletcher_Reeves
+      ! Dimer evaluations update the rotational state, so retain their original timing.
+      evaluate_before_io = gopt_env%type_id /= default_ts_method_id
       res_lim = gopt_param%restart_limit
       ALLOCATE (g(SIZE(x0)))
       ALLOCATE (h(SIZE(x0)))
@@ -211,8 +207,8 @@ CONTAINS
       save_consistent_energy_force = gopt_env%require_consistent_energy_force
       gopt_env%require_consistent_energy_force = .FALSE.
 
-      CALL cp_eval_at(gopt_env, x0, opt_energy, xi, gopt_env%force_env%para_env%mepos, &
-                      .FALSE., gopt_env%force_env%para_env)
+      CALL cp_eval_at(gopt_env, x0, opt_energy, xi, master=gopt_env%force_env%para_env%mepos, &
+                      para_env=gopt_env%force_env%para_env)
 
       gopt_env%require_consistent_energy_force = save_consistent_energy_force
 
@@ -256,6 +252,11 @@ CONTAINS
             CALL spgr_apply_rotations_coord(spgr, x0)
          END IF
 
+         IF (evaluate_before_io) THEN
+            ! Keep the accepted point and the physical state consistent even on external stop.
+            CALL cg_eval_current(gopt_env, x0, opt_energy, xi, spgr)
+         END IF
+
          ! Check for an external exit command
          CALL external_control(should_stop, "GEO", globenv=globenv)
          IF (should_stop) EXIT
@@ -271,18 +272,8 @@ CONTAINS
          emin = MIN(emin, opt_energy)
 
          IF (conv .OR. (its == maxiter)) EXIT
-         ![NB] consistent energies and forces not required for CG, but some line minimizers might set it
-         save_consistent_energy_force = gopt_env%require_consistent_energy_force
-         gopt_env%require_consistent_energy_force = .FALSE.
-
-         CALL cp_eval_at(gopt_env, x0, opt_energy, xi, gopt_env%force_env%para_env%mepos, &
-                         .FALSE., gopt_env%force_env%para_env)
-
-         gopt_env%require_consistent_energy_force = save_consistent_energy_force
-
-         ! Symmetrize coordinates and forces
-         IF (spgr%keep_space_group) THEN
-            CALL spgr_apply_rotations_force(spgr, xi)
+         IF (.NOT. evaluate_before_io) THEN
+            CALL cg_eval_current(gopt_env, x0, opt_energy, xi, spgr)
          END IF
 
          ! Get Conjugate Directions:  updates the searching direction (h)
@@ -325,5 +316,31 @@ CONTAINS
       CALL timestop(handle)
 
    END SUBROUTINE cp_cg_main
+
+! **************************************************************************************************
+!> \brief Evaluate the current CG point with the force-consistency setting used by CG.
+!> \param gopt_env Optimization environment
+!> \param x Current coordinates, possibly projected by cp_eval_at
+!> \param energy Energy at the evaluated coordinates
+!> \param gradient Gradient at the evaluated coordinates
+!> \param spgr Space-group data
+! **************************************************************************************************
+   SUBROUTINE cg_eval_current(gopt_env, x, energy, gradient, spgr)
+      TYPE(gopt_f_type), POINTER                         :: gopt_env
+      REAL(KIND=dp), DIMENSION(:), POINTER               :: x
+      REAL(KIND=dp), INTENT(OUT)                         :: energy
+      REAL(KIND=dp), DIMENSION(:), POINTER               :: gradient
+      TYPE(spgr_type), POINTER                           :: spgr
+
+      LOGICAL                                            :: save_consistent_energy_force
+
+      save_consistent_energy_force = gopt_env%require_consistent_energy_force
+      gopt_env%require_consistent_energy_force = .FALSE.
+      CALL cp_eval_at(gopt_env, x, energy, gradient, master=gopt_env%force_env%para_env%mepos, &
+                      para_env=gopt_env%force_env%para_env)
+      gopt_env%require_consistent_energy_force = save_consistent_energy_force
+
+      IF (spgr%keep_space_group) CALL spgr_apply_rotations_force(spgr, gradient)
+   END SUBROUTINE cg_eval_current
 
 END MODULE cg_optimizer

@@ -483,6 +483,12 @@ CONTAINS
       ! Minimum tracking linear response U and J
       CALL section_vals_val_get(dft_section, "EPS_U_J_LOOP", r_val=dft_control%eps_u_j_loop)
       CALL section_vals_val_get(dft_section, "MAX_MTLR_LOOP", i_val=dft_control%max_mtlr_iter)
+      CALL section_vals_val_get(dft_section, "MTLR_REFERENCE_SCF", &
+                                explicit=dft_control%mtlr_reference_scf_explicit)
+      IF (dft_control%mtlr_reference_scf_explicit) THEN
+         CALL section_vals_val_get(dft_section, "MTLR_REFERENCE_SCF", &
+                                   l_val=dft_control%mtlr_reference_scf)
+      END IF
 
       ! Smearing in use
       dft_control%smear = .FALSE.
@@ -1150,6 +1156,7 @@ CONTAINS
       ! GAPW accurate integration
       CALL section_vals_val_get(qs_section, "GAPW_ACCURATE_XCINT", l_val=qs_control%gapw_control%accurate_xcint)
       CALL section_vals_val_get(qs_section, "ALPHA_WEIGHTS", r_val=qs_control%gapw_control%aweights)
+      CALL section_vals_val_get(qs_section, "ORDER_WEIGHTS", i_val=qs_control%gapw_control%oweights)
 
       ! Integers grids
       CALL section_vals_val_get(qs_section, "PW_GRID", i_val=itmp)
@@ -1873,10 +1880,10 @@ CONTAINS
             DO j = 1, n_rep
                CALL section_vals_val_get(xtb_parameter, "KAB_PARAM", i_rep_val=j, c_vals=clist)
                qs_control%xtb_control%kab_param(1, j) = clist(1)
-               CALL get_ptable_info(clist(1), &
+               CALL get_ptable_info(clist(1) (1:2), &
                                     ielement=qs_control%xtb_control%kab_types(1, j))
                qs_control%xtb_control%kab_param(2, j) = clist(2)
-               CALL get_ptable_info(clist(2), &
+               CALL get_ptable_info(clist(2) (1:2), &
                                     ielement=qs_control%xtb_control%kab_types(2, j))
                qs_control%xtb_control%kab_param(3, j) = clist(3)
                READ (clist(3), '(F10.0)') qs_control%xtb_control%kab_vals(j)
@@ -2212,6 +2219,13 @@ CONTAINS
       CALL section_vals_val_get(t_section, "ADMM_KERNEL_XC_CORRECTION", l_val=t_control%admm_xc_correction)
       CALL section_vals_val_get(t_section, "EXCITON_DESCRIPTORS", l_val=t_control%do_exciton_descriptors)
       CALL section_vals_val_get(t_section, "DIRECTIONAL_EXCITON_DESCRIPTORS", l_val=t_control%do_directional_exciton_descriptors)
+      CALL section_vals_val_get(t_section, "DIRECTIONAL_EXCITON_CROSSCORRELATION", &
+                                l_val=t_control%do_directional_exciton_crosscorrelation, explicit=explicit)
+      IF (explicit .AND. t_control%do_directional_exciton_crosscorrelation .AND. &
+          .NOT. t_control%do_directional_exciton_descriptors) THEN
+         CALL cp_warn(__LOCATION__, &
+                      "DIRECTIONAL_EXCITON_CROSSCORRELATION has no effect without DIRECTIONAL_EXCITON_DESCRIPTORS.")
+      END IF
 
       ! read automatically generated auxiliary basis for LRI
       CALL section_vals_val_get(t_section, "AUTO_BASIS", n_rep_val=nrep)
@@ -3032,8 +3046,11 @@ CONTAINS
             qs_control%eps_ppnl
          IF (qs_control%gapw) THEN
             IF (qs_control%gapw_control%accurate_xcint) THEN
+               WRITE (UNIT=output_unit, FMT="(T2,A,T79,I2)") &
+                  "QS| GAPW|      XC integration using accurate scheme: Polynomial order (2n) =", &
+                  qs_control%gapw_control%oweights
                WRITE (UNIT=output_unit, FMT="(T2,A,T69,F12.6)") &
-                  "QS| GAPW|      XC integration using accurate scheme: Ref. exponent =", &
+                  "QS| GAPW|                                            Ref. exponent =", &
                   qs_control%gapw_control%aweights
             END IF
             !

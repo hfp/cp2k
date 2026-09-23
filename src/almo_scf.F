@@ -263,8 +263,10 @@ CONTAINS
          almo_scf_env%ndomains = almo_scf_env%natoms
       END IF
 
-      IF (ALLOCATED(almo_scf_env%activate) .AND. almo_scf_env%activate(1) > 1) THEN
-         DEALLOCATE (almo_scf_env%activate)
+      IF (ALLOCATED(almo_scf_env%activate)) THEN
+         IF (almo_scf_env%activate(1) > 1) THEN
+            DEALLOCATE (almo_scf_env%activate)
+         END IF
       END IF
 
       IF (.NOT. ALLOCATED(almo_scf_env%activate)) THEN
@@ -1702,7 +1704,7 @@ CONTAINS
 
       REAL(KIND=dp)                                      :: det_diff, prev_determinant
 
-      almo_scf_env%overlap_determinant = 1.0
+      almo_scf_env%overlap_determinant = 1.0_dp
       ! KEEP: initial_vol_coeff = almo_scf_env%opt_nlmo_pcg%opt_penalty%penalty_strength
       almo_scf_env%opt_nlmo_pcg%opt_penalty%penalty_strength = &
          -1.0_dp*almo_scf_env%opt_nlmo_pcg%opt_penalty%penalty_strength !NEW1
