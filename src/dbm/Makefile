@@ -130,7 +130,6 @@ CUDA_LIBS := $(if $(wildcard $(CUDA_PATH)/lib64),lib64,lib)
 OPENCL := 0
 endif
 ifneq ($(OPENCL),0)
-OPENCL_GENKRNL := $(PROJHOME)/dbm_kernels.h
 ifneq ($(ICX),)
 LIBS += -lifcoremt -limf
 endif
@@ -161,33 +160,29 @@ LIBS += -ldl -lstdc++ -lc -lm
 all: dbm_miniapp.x
 
 clean:
-	rm -fv $(ALL_OBJECTS) $(OPENCL_GENKRNL) \
+	rm -fv $(ALL_OBJECTS) $(LIBXSTREAM_DBM_GENHDR) $(LIBXSTREAM_DBM_OBJS) \
         dbm_multiply_gpu.o \
         dbm_multiply_gpu_kernel.o \
         dbm_multiply_opencl.o \
-        dbm_opencl.o \
         dbm_miniapp.o
 
 realclean: clean
 	rm -fv dbm_miniapp.x
 
 
-# Enable OpenCL offload backend (maintained in LIBXSTREAM/samples/dbm).
+# Enable OpenCL offload backend (maintained in LIBXSTREAM/samples/dbm, whose
+# fragment enumerates the files and generates the kernel header).
 ifneq ($(OPENCL),0)
-OPENCL_DBM := $(LIBXSTREAMROOT)/samples/dbm
-OPENCL_SRC := $(OPENCL_DBM)/kernels/dbm_multiply.cl
-OPENCL_CMN := $(wildcard $(LIBXSTREAMROOT)/libxstream/opencl/*.h)
-OPENCL_GEN := $(LIBXSTREAMROOT)/scripts/tool_opencl.sh
-OPENCL_ARG := -p "" -I $(LIBXSTREAMROOT)/libxstream
+LIBXSTREAM_DBM_GENDIR := $(PROJHOME)
+include $(LIBXSTREAMROOT)/samples/dbm/dbm.mk
 
 ifneq (,$(filter-out 0,$(DBG)))
-OPENCL_ARG += -d
+LIBXSTREAM_DBM_GENARG += -d
 endif
 
-ALL_HEADERS += $(OPENCL_GENKRNL) $(OPENCL_DBM)/dbm_opencl.h
-ALL_OBJECTS += dbm_multiply_gpu.o dbm_multiply_opencl.o dbm_opencl.o
-# The generated header must precede a dbm_kernels.h in OPENCL_DBM.
-CFLAGS += -D__OFFLOAD_OPENCL -I$(CP2KHOME)/exts/dbcsr -I$(PROJHOME) -I$(OPENCL_DBM)
+ALL_HEADERS += $(LIBXSTREAM_DBM_HEADERS)
+ALL_OBJECTS += dbm_multiply_gpu.o dbm_multiply_opencl.o $(LIBXSTREAM_DBM_OBJS)
+CFLAGS += -D__OFFLOAD_OPENCL -I$(CP2KHOME)/exts/dbcsr $(LIBXSTREAM_DBM_IFLAGS)
 LIBS += -lgfortran
 
 ifneq (Darwin,$(shell uname))
@@ -234,11 +229,9 @@ LIBS += -framework OpenCL
 endif
 
 dbm_miniapp.x: $(OPENCL_OFFLOAD)
-$(OPENCL_GENKRNL): $(OPENCL_GEN) $(OPENCL_SRC) $(OPENCL_CMN)
-	$(OPENCL_GEN) $(OPENCL_ARG) $(OPENCL_SRC) $@
 
-# The object is kept here rather than next to its source.
-dbm_opencl.o: $(OPENCL_DBM)/dbm_opencl.c $(ALL_HEADERS)
+# The objects are kept here rather than next to their sources.
+$(LIBXSTREAM_DBM_OBJS): %.o: $(LIBXSTREAM_DBM_DIR)/%.c $(ALL_HEADERS)
 	$(CC) -c -std=c11 $(CFLAGS) $< -o $@
 
 
