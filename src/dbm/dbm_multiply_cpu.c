@@ -9,6 +9,7 @@
 
 #include <assert.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #if defined(__LIBXSMM)
 #include <libxsmm.h>
@@ -55,6 +56,48 @@ static inline unsigned int hash(const dbm_task_t task) {
 }
 
 /*******************************************************************************
+ * \brief Private routine for mapping a task to its bucket.
+ * \author Hans Pabst
+ ******************************************************************************/
+static inline int task_bucket(const dbm_task_t task, const int order_kind,
+                              const int max_c) {
+  // By C, a bucket covers a contiguous range of the C-shard: tasks that share
+  // a bucket without sharing their C-block still write neighboring memory.
+  return (DBM_TASK_ORDER_C == order_kind)
+             ? (int)((int64_t)task.offset_c * DBM_BATCH_NUM_BUCKETS /
+                     ((int64_t)max_c + 1))
+             : (int)(hash(task) % DBM_BATCH_NUM_BUCKETS);
+}
+
+/*******************************************************************************
+ * \brief Internal routine for ordering the tasks of a batch approximately.
+ * \author Hans Pabst
+ ******************************************************************************/
+void dbm_multiply_cpu_task_order(const int ntasks,
+                                 const dbm_task_t batch[ntasks],
+                                 const int order_kind, int order[ntasks]) {
+  int buckets[DBM_BATCH_NUM_BUCKETS] = {0};
+  int max_c = 0;
+  if (DBM_TASK_ORDER_C == order_kind) {
+    for (int itask = 0; itask < ntasks; ++itask) {
+      max_c = imax(max_c, batch[itask].offset_c);
+    }
+  }
+  for (int itask = 0; itask < ntasks; ++itask) {
+    ++buckets[task_bucket(batch[itask], order_kind, max_c)];
+  }
+  for (int i = 1; i < DBM_BATCH_NUM_BUCKETS; ++i) {
+    buckets[i] += buckets[i - 1];
+  }
+  assert(0 >= ntasks || buckets[DBM_BATCH_NUM_BUCKETS - 1] == ntasks);
+  for (int itask = 0; itask < ntasks; ++itask) {
+    const int i = task_bucket(batch[itask], order_kind, max_c);
+    --buckets[i];
+    order[buckets[i]] = itask;
+  }
+}
+
+/*******************************************************************************
  * \brief Internal routine for executing the tasks in given batch on the CPU.
  * \author Ole Schuett
  ******************************************************************************/
@@ -69,21 +112,8 @@ void dbm_multiply_cpu_process_batch(int ntasks, const dbm_task_t batch[ntasks],
 
   int batch_order[ntasks];
   if (DBM_MULTIPLY_TASK_REORDER & options) {
-    // Sort tasks approximately by m,n,k via bucket sort.
-    int buckets[DBM_BATCH_NUM_BUCKETS] = {0};
-    for (int itask = 0; itask < ntasks; ++itask) {
-      const int i = hash(batch[itask]) % DBM_BATCH_NUM_BUCKETS;
-      ++buckets[i];
-    }
-    for (int i = 1; i < DBM_BATCH_NUM_BUCKETS; ++i) {
-      buckets[i] += buckets[i - 1];
-    }
-    assert(buckets[DBM_BATCH_NUM_BUCKETS - 1] == ntasks);
-    for (int itask = 0; itask < ntasks; ++itask) {
-      const int i = hash(batch[itask]) % DBM_BATCH_NUM_BUCKETS;
-      --buckets[i];
-      batch_order[buckets[i]] = itask;
-    }
+    dbm_multiply_cpu_task_order(ntasks, batch, DBM_TASK_ORDER_SHAPE,
+                                batch_order);
   } else {
     for (int itask = 0; itask < ntasks; ++itask) {
       batch_order[itask] = itask;

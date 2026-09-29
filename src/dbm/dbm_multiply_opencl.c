@@ -27,6 +27,10 @@ void dbm_multiply_gpu_launch_kernel(offloadStream_t stream, double alpha,
   OFFLOAD_CHECK(result);
 }
 
+int dbm_multiply_gpu_task_order(void) {
+  return dbm_multiply_opencl_task_order();
+}
+
 #endif /* defined(__OFFLOAD_OPENCL) && !defined(__NO_OFFLOAD_DBM) */
 
 /* EOF */

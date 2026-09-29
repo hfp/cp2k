@@ -13,6 +13,7 @@
 #include "dbm_multiply_comm.h"
 #include "dbm_multiply_cpu.h"
 #include "dbm_multiply_gpu.h"
+#include "dbm_multiply_gpu_kernel.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -107,12 +108,35 @@ static bool backend_upload_packs(const dbm_pack_t *pack_a,
 #endif
 }
 
+#if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
+/*******************************************************************************
+ * \brief Private routine for ordering a batch in place as the GPU backend asks.
+ *        The batch is the page-locked array that is uploaded subsequently.
+ * \author Hans Pabst
+ ******************************************************************************/
+static void backend_order_batch(const int ntasks, dbm_task_t batch[ntasks]) {
+  const int order_kind = dbm_multiply_gpu_task_order();
+  if (DBM_TASK_ORDER_NONE != order_kind && 1 < ntasks) {
+    dbm_task_t *const copy =
+        offload_mempool_host_malloc(sizeof(dbm_task_t) * ntasks);
+    int *const order = malloc(sizeof(int) * ntasks);
+    assert(NULL != copy && NULL != order);
+    memcpy(copy, batch, sizeof(dbm_task_t) * ntasks);
+    dbm_multiply_cpu_task_order(ntasks, copy, order_kind, order);
+    for (int itask = 0; itask < ntasks; ++itask) {
+      batch[itask] = copy[order[itask]];
+    }
+    free(order);
+    offload_mempool_host_free(copy);
+  }
+}
+#endif
+
 /*******************************************************************************
  * \brief Private routine for sending a batch to the multiplication backend.
  * \author Ole Schuett
  ******************************************************************************/
-static void backend_process_batch(const int ntasks,
-                                  const dbm_task_t batch[ntasks],
+static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
                                   const double alpha, const dbm_pack_t *pack_a,
                                   const dbm_pack_t *pack_b, const int kshard,
                                   dbm_shard_t *shard_c, const bool finish,
@@ -121,6 +145,7 @@ static void backend_process_batch(const int ntasks,
   if (NULL != ctx) {
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
     if (!force_cpu) {
+      backend_order_batch(ntasks, batch);
       dbm_multiply_gpu_process_batch(ntasks, batch, alpha, shard_c, kshard,
                                      finish, &ctx->gpu);
     } else

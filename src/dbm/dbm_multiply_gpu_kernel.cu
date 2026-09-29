@@ -204,6 +204,15 @@ void dbm_multiply_gpu_launch_kernel(offloadStream_t stream, double alpha,
       alpha, tasks, pack_a_data, pack_b_data, shard_c_data);
 }
 
+/*******************************************************************************
+ * \brief Internal routine returning the order in which the backend wants the
+ *        tasks of a batch (enum dbm_multiply_task_order).
+ * \author Hans Pabst
+ ******************************************************************************/
+int dbm_multiply_gpu_task_order(void) {
+  return 0; // DBM_TASK_ORDER_NONE: tasks as generated
+}
+
 #endif // defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
 
 // EOF
