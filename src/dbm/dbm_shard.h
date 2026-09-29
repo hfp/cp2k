@@ -63,6 +63,54 @@ void dbm_shard_copy(dbm_shard_t *shard_a, const dbm_shard_t *shard_b);
 void dbm_shard_release(dbm_shard_t *shard);
 
 /*******************************************************************************
+ * \brief Internal hash function based on Cantor pairing function.
+ *        https://en.wikipedia.org/wiki/Pairing_function#Cantor_pairing_function
+ *        Szudzik's elegant pairing proved to be too asymmetric wrt. row / col.
+ *        Using unsigned int to return a positive number even after overflow.
+ * \author Ole Schuett
+ ******************************************************************************/
+static inline unsigned int dbm_shard_hash(const unsigned int row,
+                                          const unsigned int col) {
+  return (row + col) * (row + col + 1) / 2 + row; // Division by 2 is cheap.
+}
+
+/*******************************************************************************
+ * \brief Internal routine for the slot of a block in the shard's hashtable.
+ * \author Hans Pabst
+ ******************************************************************************/
+static inline int dbm_shard_slot(const dbm_shard_t *shard, const int row,
+                                 const int col) {
+  return (shard->hashtable_prime * dbm_shard_hash(row, col)) &
+         (shard->hashtable_size - 1);
+}
+
+/*******************************************************************************
+ * \brief Internal routines for prefetching an upcoming lookup in two stages:
+ *        the hashtable slot first, then (once cached) the block it refers to.
+ *        A lookup otherwise waits for two dependent cache misses.
+ * \author Hans Pabst
+ ******************************************************************************/
+static inline void dbm_shard_prefetch_slot(const dbm_shard_t *shard,
+                                           const int row, const int col) {
+#if defined(__GNUC__)
+  __builtin_prefetch(&shard->hashtable[dbm_shard_slot(shard, row, col)]);
+#else
+  (void)shard, (void)row, (void)col;
+#endif
+}
+static inline void dbm_shard_prefetch_block(const dbm_shard_t *shard,
+                                            const int row, const int col) {
+#if defined(__GNUC__)
+  const int block_idx = shard->hashtable[dbm_shard_slot(shard, row, col)];
+  if (0 < block_idx) { // first probe only, 1-based, 0 means empty
+    __builtin_prefetch(&shard->blocks[block_idx - 1]);
+  }
+#else
+  (void)shard, (void)row, (void)col;
+#endif
+}
+
+/*******************************************************************************
  * \brief Internal routine for looking up a block from a shard.
  * \author Ole Schuett
  ******************************************************************************/

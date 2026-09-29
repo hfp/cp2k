@@ -133,18 +133,6 @@ void dbm_shard_release(dbm_shard_t *shard) {
 }
 
 /*******************************************************************************
- * \brief Private hash function based on Cantor pairing function.
- *        https://en.wikipedia.org/wiki/Pairing_function#Cantor_pairing_function
- *        Szudzik's elegant pairing proved to be too asymmetric wrt. row / col.
- *        Using unsigned int to return a positive number even after overflow.
- * \author Ole Schuett
- ******************************************************************************/
-static inline unsigned int hash(const unsigned int row,
-                                const unsigned int col) {
-  return (row + col) * (row + col + 1) / 2 + row; // Division by 2 is cheap.
-}
-
-/*******************************************************************************
  * \brief Internal routine for masking a slot in the hash-table.
  * \author Hans Pabst
  ******************************************************************************/
@@ -159,11 +147,10 @@ static inline int hashtable_mask(const dbm_shard_t *shard) {
 static void hashtable_insert(dbm_shard_t *shard, const int block_idx) {
   assert(0 <= block_idx && block_idx < shard->nblocks);
   const dbm_block_t *blk = &shard->blocks[block_idx];
-  const unsigned int h = hash(blk->row, blk->col);
   // Bounded probe: at most hashtable_size steps (load factor < 1 guarantees
   // termination). Avoids unbounded scans when the slot variable wrapped around
   // via the mask but the inner iteration continued past the table end.
-  int slot = (shard->hashtable_prime * h) & hashtable_mask(shard);
+  int slot = dbm_shard_slot(shard, blk->row, blk->col);
   for (int i = 0; i < shard->hashtable_size; ++i) { // linear probing
     if (shard->hashtable[slot] == 0) {              // 0 means empty
       shard->hashtable[slot] = block_idx + 1;       // 1-based
@@ -182,7 +169,7 @@ dbm_block_t *dbm_shard_lookup(const dbm_shard_t *shard, const int row,
                               const int col) {
   // Bounded probe count prevents scanning the entire table on a miss when
   // clusters exist (previous code could re-enter via slot wrap and re-scan).
-  int slot = (shard->hashtable_prime * hash(row, col)) & hashtable_mask(shard);
+  int slot = dbm_shard_slot(shard, row, col);
   for (int i = 0; i < shard->hashtable_size; ++i) { // linear probing
     const int block_idx = shard->hashtable[slot];
     if (block_idx == 0) { // 1-based, 0 means empty

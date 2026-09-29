@@ -18,7 +18,6 @@
 
 #define DBM_LIBRARY_PRINT(FN, MSG, OUTPUT_UNIT)                                \
   ((FN)(MSG, (int)strlen(MSG), OUTPUT_UNIT))
-#define DBM_NUM_COUNTERS 64
 
 static int64_t **per_thread_counters = NULL;
 static bool library_initialized = false;
@@ -86,19 +85,18 @@ void dbm_library_finalize(void) {
  * \brief Computes min(3, floor(log10(x))).
  * \author Ole Schuett
  ******************************************************************************/
-static int floorlog10(const int x) {
-  return (100 <= x ? (1000 <= x ? 3 : 2) : (10 <= x ? 1 : 0));
-}
 
 /*******************************************************************************
- * \brief Add given block multiplication to stats. This routine is thread-safe.
- * \author Ole Schuett
+ * \brief Add the calling thread's counts to the stats. This routine is
+ *        thread-safe.
+ * \author Hans Pabst
  ******************************************************************************/
-void dbm_library_counter_increment(const int m, const int n, const int k) {
+void dbm_library_counters_add(const int64_t counters[DBM_NUM_COUNTERS]) {
   const int ithread = omp_get_thread_num();
   assert(ithread < max_threads);
-  const int idx = 16 * floorlog10(m) + 4 * floorlog10(n) + floorlog10(k);
-  per_thread_counters[ithread][idx]++;
+  for (int i = 0; i < DBM_NUM_COUNTERS; i++) {
+    per_thread_counters[ithread][i] += counters[i];
+  }
 }
 
 /*******************************************************************************

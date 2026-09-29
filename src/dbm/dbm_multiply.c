@@ -225,6 +225,8 @@ static void multiply_packs(const bool transa, const bool transb,
     // Thread-private array covering given work in piece-wise fashion.
     dbm_task_t *batch =
         offload_mempool_host_malloc(sizeof(dbm_task_t) * DBM_MAX_BATCH_SIZE);
+    // Thread-local stats, added to the library's counters once at the end.
+    int64_t counters[DBM_NUM_COUNTERS] = {0};
 
     // Blocks are ordered first by shard. Creating lookup tables of boundaries.
 #pragma omp for nowait
@@ -317,6 +319,18 @@ static void multiply_packs(const bool transa, const bool transb,
           for (int jb = b_range_start; jb < b_range_end; ++jb) {
             const dbm_pack_block_t *const blk_b = &pack_b->blocks[jb];
 
+            // Overlap the two dependent cache misses of upcoming lookups.
+            if (jb + DBM_PREFETCH_SLOT < b_range_end) {
+              dbm_shard_prefetch_slot(
+                  shard_c, blk_a->free_index,
+                  pack_b->blocks[jb + DBM_PREFETCH_SLOT].free_index);
+            }
+            if (jb + DBM_PREFETCH_BLOCK < b_range_end) {
+              dbm_shard_prefetch_block(
+                  shard_c, blk_a->free_index,
+                  pack_b->blocks[jb + DBM_PREFETCH_BLOCK].free_index);
+            }
+
             // Norm filter first (early reject).
             const float result_norm = alpha2 * blk_a->norm * blk_b->norm;
             if (result_norm < rows_max_eps[blk_a->free_index]) {
@@ -351,7 +365,7 @@ static void multiply_packs(const bool transa, const bool transb,
             // Count flops.
             const int64_t task_flops = 2LL * m * n * k;
             flop_sum += task_flops;
-            dbm_library_counter_increment(m, n, k);
+            ++counters[dbm_library_counter_index(m, n, k)];
 
             // Add block multiplication to batch.
             dbm_task_t *const tptr = &batch[ntasks];
@@ -378,6 +392,7 @@ static void multiply_packs(const bool transa, const bool transb,
       }
     }
 
+    dbm_library_counters_add(counters);
     offload_mempool_host_free(batch);
   }
 
