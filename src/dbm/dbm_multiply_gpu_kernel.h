@@ -22,7 +22,8 @@ extern "C" {
  * \author Ole Schuett
  ******************************************************************************/
 void dbm_multiply_gpu_launch_kernel(offloadStream_t stream, double alpha,
-                                    int ntasks, const dbm_task_t *tasks_host,
+                                    int ntasks, const dbm_batch_shape_t *shape,
+                                    const dbm_task_t *tasks_host,
                                     const dbm_task_t *tasks,
                                     const double *pack_a_data,
                                     const double *pack_b_data,

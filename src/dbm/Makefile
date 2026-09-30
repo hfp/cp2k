@@ -161,6 +161,7 @@ all: dbm_miniapp.x
 
 clean:
 	rm -fv $(ALL_OBJECTS) $(LIBXSTREAM_DBM_GENHDR) $(LIBXSTREAM_DBM_OBJS) \
+        $(LIBXSTREAM_SMM_GENHDR) $(LIBXSTREAM_SMM_OBJS) \
         dbm_multiply_gpu.o \
         dbm_multiply_gpu_kernel.o \
         dbm_multiply_opencl.o \
@@ -183,6 +184,20 @@ endif
 ALL_HEADERS += $(LIBXSTREAM_DBM_HEADERS)
 ALL_OBJECTS += dbm_multiply_gpu.o dbm_multiply_opencl.o $(LIBXSTREAM_DBM_OBJS)
 CFLAGS += -D__OFFLOAD_OPENCL -I$(CP2KHOME)/exts/dbcsr $(LIBXSTREAM_DBM_IFLAGS)
+
+# Optionally link LIBSMM (LIBXSTREAM/samples/smm), whose kernels homogeneous
+# batches can use (DBM_MULTIPLY_SMM), e.g., to compare both implementations.
+SMM ?= 0
+ifneq ($(SMM),0)
+LIBXSTREAM_SMM_GENDIR := $(PROJHOME)
+include $(LIBXSTREAMROOT)/samples/smm/smm.mk
+ifneq (,$(filter-out 0,$(DBG)))
+LIBXSTREAM_SMM_GENARG += -d
+endif
+ALL_HEADERS += $(LIBXSTREAM_SMM_HEADERS)
+ALL_OBJECTS += $(LIBXSTREAM_SMM_OBJS)
+CFLAGS += $(LIBXSTREAM_SMM_IFLAGS)
+endif
 LIBS += -lgfortran
 
 ifneq (Darwin,$(shell uname))
@@ -233,6 +248,10 @@ dbm_miniapp.x: $(OPENCL_OFFLOAD)
 # The objects are kept here rather than next to their sources.
 $(LIBXSTREAM_DBM_OBJS): %.o: $(LIBXSTREAM_DBM_DIR)/%.c $(ALL_HEADERS)
 	$(CC) -c -std=c11 $(CFLAGS) $< -o $@
+ifneq ($(SMM),0)
+$(LIBXSTREAM_SMM_OBJS): %.o: $(LIBXSTREAM_SMM_DIR)/%.c $(ALL_HEADERS)
+	$(CC) -c -std=c11 $(CFLAGS) $< -o $@
+endif
 
 
 # Enable Cuda when nvcc compiler is present.

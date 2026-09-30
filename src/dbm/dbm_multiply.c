@@ -137,6 +137,7 @@ static void backend_order_batch(const int ntasks, dbm_task_t batch[ntasks]) {
  * \author Ole Schuett
  ******************************************************************************/
 static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
+                                  const dbm_batch_shape_t *shape,
                                   const double alpha, const dbm_pack_t *pack_a,
                                   const dbm_pack_t *pack_b, const int kshard,
                                   dbm_shard_t *shard_c, const bool finish,
@@ -146,11 +147,12 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
     if (!force_cpu) {
       backend_order_batch(ntasks, batch);
-      dbm_multiply_gpu_process_batch(ntasks, batch, alpha, shard_c, kshard,
-                                     finish, &ctx->gpu);
+      dbm_multiply_gpu_process_batch(ntasks, batch, shape, alpha, shard_c,
+                                     kshard, finish, &ctx->gpu);
     } else
 #endif
     {
+      (void)shape;
       (void)kshard;
       (void)finish;
       (void)force_cpu;
@@ -253,6 +255,7 @@ static void multiply_packs(const bool transa, const bool transb,
       for (int shard_col = 0; shard_col < nshard_cols; shard_col++) {
         const int ishard = shard_row * nshard_cols + shard_col;
         dbm_shard_t *const shard_c = &matrix_c->shards[ishard];
+        dbm_batch_shape_t shape = {0};
         int ntasks = 0;
 
         // Determine contiguous block ranges for this shard in A and B.
@@ -275,8 +278,8 @@ static void multiply_packs(const bool transa, const bool transb,
           }
         }
         if (iblock_start >= iblock_end || jblock_start >= jblock_end) {
-          backend_process_batch(ntasks, batch, alpha, pack_a, pack_b, ishard,
-                                shard_c, true, force_cpu, context);
+          backend_process_batch(ntasks, batch, &shape, alpha, pack_a, pack_b,
+                                ishard, shard_c, true, force_cpu, context);
           continue;
         }
 
@@ -367,6 +370,12 @@ static void multiply_packs(const bool transa, const bool transb,
             flop_sum += task_flops;
             ++counters[dbm_library_counter_index(m, n, k)];
 
+            // Track the shape of the batch.
+            shape.max_m = imax(shape.max_m, m);
+            shape.max_n = imax(shape.max_n, n);
+            shape.max_k = imax(shape.max_k, k);
+            shape.flops += task_flops;
+
             // Add block multiplication to batch.
             dbm_task_t *const tptr = &batch[ntasks];
             tptr->offset_a = blk_a->offset;
@@ -378,8 +387,10 @@ static void multiply_packs(const bool transa, const bool transb,
             ++ntasks;
 
             if (ntasks == DBM_MAX_BATCH_SIZE) {
-              backend_process_batch(ntasks, batch, alpha, pack_a, pack_b,
-                                    ishard, shard_c, false, force_cpu, context);
+              backend_process_batch(ntasks, batch, &shape, alpha, pack_a,
+                                    pack_b, ishard, shard_c, false, force_cpu,
+                                    context);
+              memset(&shape, 0, sizeof(shape));
               ntasks = 0;
             }
           }
@@ -387,8 +398,8 @@ static void multiply_packs(const bool transa, const bool transb,
           // Advance i; if next A block has same sum_index, B range is reused.
           ++i;
         }
-        backend_process_batch(ntasks, batch, alpha, pack_a, pack_b, ishard,
-                              shard_c, true, force_cpu, context);
+        backend_process_batch(ntasks, batch, &shape, alpha, pack_a, pack_b,
+                              ishard, shard_c, true, force_cpu, context);
       }
     }
 
