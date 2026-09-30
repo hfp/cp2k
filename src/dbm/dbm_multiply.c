@@ -146,9 +146,13 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
   if (NULL != ctx) {
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
     if (!force_cpu) {
-      backend_order_batch(ntasks, batch);
-      dbm_multiply_gpu_process_batch(ntasks, batch, shape, alpha, shard_c,
-                                     kshard, finish, &ctx->gpu);
+      if (!dbm_multiply_gpu_process_batch_host(
+              ntasks, batch, shape, alpha, pack_a, pack_b, shard_c, kshard,
+              finish, ctx->cpu_options, &ctx->gpu)) {
+        backend_order_batch(ntasks, batch);
+        dbm_multiply_gpu_process_batch(ntasks, batch, shape, alpha, shard_c,
+                                       kshard, finish, &ctx->gpu);
+      }
     } else
 #endif
     {

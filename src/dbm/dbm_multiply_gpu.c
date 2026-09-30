@@ -11,11 +11,14 @@
 #include "../offload/offload_library.h"
 #include "../offload/offload_mempool.h"
 #include "dbm_hyperparams.h"
+#include "dbm_multiply_cpu.h"
 #include "dbm_multiply_gpu.h"
 #include "dbm_multiply_gpu_kernel.h"
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 /*******************************************************************************
  * \brief Internal routine for initializing the gpu backend.
@@ -29,6 +32,20 @@ void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,
 
   ctx->nshards = nshards;
   ctx->max_batch_size = max_batch_size;
+  ctx->shards_c_host = shards_c_host;
+
+  // Up to |DBM_MULTIPLY_HYBRID| threads compute on the host while the GPU is
+  // busy, and a negative value reports the share of the host.
+  const char *const hybrid_env = getenv("DBM_MULTIPLY_HYBRID");
+  ctx->hybrid = (NULL == hybrid_env ? 0 : atoi(hybrid_env));
+  static bool hybrid_reported = false; // once per process
+  if (0 > ctx->hybrid && !hybrid_reported &&
+      !dbm_multiply_cpu_generated(0, 0, 0, 1.0, 0)) {
+    fprintf(stderr, "INFO DBM: no generated host kernels, hence no hybrid\n");
+    hybrid_reported = true;
+  }
+  ctx->hybrid_active = 0;
+  ctx->flops[0] = ctx->flops[1] = 0;
   offloadStreamCreate(&ctx->main_stream);
   offloadEventCreate(&ctx->upload_event);
 
@@ -45,6 +62,9 @@ void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,
     shard_g->data_size = shard_c_host->data_size;
     offloadStreamCreate(&shard_g->stream);
     offloadEventCreate(&shard_g->event);
+    offloadEventCreate(&shard_g->done);
+    shard_g->host_data = NULL;
+    shard_g->host_size = shard_g->host_allocated = 0;
     // only allocate data_size on device rather than data_allocated
     shard_g->data_allocated = shard_c_host->data_size;
     shard_g->data =
@@ -117,16 +137,19 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
                                     dbm_multiply_gpu_context_t *ctx) {
   // Assume GPU device was activated earlier.
   dbm_shard_gpu_t *const shard_g = &ctx->shards_c_dev[kshard];
+  dbm_task_t *const batch_dev = &ctx->batches_dev[kshard * ctx->max_batch_size];
   double *old_data_dev = NULL;
 
   if (0 < ntasks) {
     assert(NULL != shard_c && NULL != shard_g);
 
     // Upload new batch.
-    dbm_task_t *batch_dev = &ctx->batches_dev[kshard * ctx->max_batch_size];
     const size_t size = ntasks * sizeof(dbm_task_t);
     offloadMemcpyAsyncHtoD(batch_dev, batch, size, shard_g->stream);
+  }
 
+  // Blocks promised by batches computed on the host grow the shard at finish.
+  if (0 < ntasks || finish) {
     // Reallocate shard_g->data if necessary.
     if (shard_c->data_promised > shard_g->data_allocated) {
       shard_g->data_allocated = DBM_ALLOCATION_FACTOR * shard_c->data_promised;
@@ -139,7 +162,9 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
                              shard_g->data_size * sizeof(double),
                              shard_g->stream);
     }
-    offloadEventRecord(shard_g->event, shard_g->stream);
+    if (0 < ntasks || NULL != old_data_dev) {
+      offloadEventRecord(shard_g->event, shard_g->stream);
+    }
 
     // Zero new blocks if necessary.
     if (shard_c->data_promised > shard_g->data_size) {
@@ -148,7 +173,9 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
                          tail * sizeof(double), shard_g->stream);
       shard_g->data_size = shard_c->data_promised;
     }
+  }
 
+  if (0 < ntasks) {
     OFFLOAD_CHECK(offloadGetLastError());
     assert(0 != shard_g->data_size);
 
@@ -157,6 +184,11 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
                                    batch_dev, ctx->pack_a_dev.data,
                                    ctx->pack_b_dev.data, shard_g->data);
     OFFLOAD_CHECK(offloadGetLastError());
+    offloadEventRecord(shard_g->done, shard_g->stream);
+    if (0 > ctx->hybrid) {
+#pragma omp atomic
+      ctx->flops[0] += shape->flops;
+    }
   }
 
   if (finish) { // Start downloading the current shard of matrix_c.
@@ -169,7 +201,7 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
                            shard_g->stream);
   }
 
-  if (0 < ntasks) {
+  if (0 < ntasks || NULL != old_data_dev) {
     // Wait for:
     // - Batch to be uploaded (before refilling it).
     // - Safely freeing device buffer (if resized).
@@ -179,6 +211,60 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
       offload_mempool_device_free(old_data_dev);
     }
   }
+}
+
+/*******************************************************************************
+ * \brief Internal routine for executing the tasks in given batch on the host
+ *        while the GPU is busy with the shard's previous batch (hybrid).
+ *        Returns false if the GPU shall process the batch instead.
+ * \author Hans Pabst
+ ******************************************************************************/
+bool dbm_multiply_gpu_process_batch_host(
+    const int ntasks, const dbm_task_t *batch, const dbm_batch_shape_t *shape,
+    const double alpha, const dbm_pack_t *pack_a, const dbm_pack_t *pack_b,
+    dbm_shard_t *shard_c, const int kshard, const bool finish,
+    const int cpu_options, dbm_multiply_gpu_context_t *ctx) {
+  dbm_shard_gpu_t *const shard_g = &ctx->shards_c_dev[kshard];
+  bool result = false;
+
+  // Only generated kernels let the host rival the GPU.
+  if (0 != ctx->hybrid && 0 < ntasks && !offloadEventQuery(shard_g->done) &&
+      dbm_multiply_cpu_generated(shape->max_m, shape->max_n, shape->max_k,
+                                 alpha, cpu_options)) {
+    int active;
+#pragma omp atomic capture
+    active = ctx->hybrid_active++;
+    result = (active < abs(ctx->hybrid));
+    if (result) {
+      // The contributions start from zero and are added to C at the end.
+      if (shard_g->host_size < shard_c->data_promised) {
+        if (shard_g->host_allocated < shard_c->data_promised) {
+          shard_g->host_allocated =
+              DBM_ALLOCATION_FACTOR * shard_c->data_promised;
+          shard_g->host_data = realloc(
+              shard_g->host_data, shard_g->host_allocated * sizeof(double));
+          assert(NULL != shard_g->host_data);
+        }
+        memset(&shard_g->host_data[shard_g->host_size], 0,
+               (shard_c->data_promised - shard_g->host_size) * sizeof(double));
+        shard_g->host_size = shard_c->data_promised;
+      }
+      dbm_multiply_cpu_process_tasks(ntasks, batch, alpha, pack_a, pack_b,
+                                     shard_g->host_data, cpu_options);
+      if (0 > ctx->hybrid) {
+#pragma omp atomic
+        ctx->flops[1] += shape->flops;
+      }
+    }
+#pragma omp atomic
+    --ctx->hybrid_active;
+    if (result && finish) { // download as if the GPU processed the batch
+      dbm_multiply_gpu_process_batch(0, NULL, shape, alpha, shard_c, kshard,
+                                     true, ctx);
+    }
+  }
+
+  return result;
 }
 
 /*******************************************************************************
@@ -192,11 +278,26 @@ void dbm_multiply_gpu_stop(dbm_multiply_gpu_context_t *ctx) {
   for (int i = 0; i < ctx->nshards; i++) {
     dbm_shard_gpu_t *const shard_g = &ctx->shards_c_dev[i];
     offloadStreamSynchronize(shard_g->stream);
+    if (NULL != shard_g->host_data) { // add contributions computed on the host
+      double *const data = ctx->shards_c_host[i].data;
+      assert(shard_g->host_size <= ctx->shards_c_host[i].data_size);
+      for (int j = 0; j < shard_g->host_size; j++) {
+        data[j] += shard_g->host_data[j];
+      }
+      free(shard_g->host_data);
+    }
     offloadStreamDestroy(shard_g->stream);
     offloadEventDestroy(shard_g->event);
+    offloadEventDestroy(shard_g->done);
     offload_mempool_device_free(shard_g->data);
   }
   free(ctx->shards_c_dev);
+
+  const int64_t flops = ctx->flops[0] + ctx->flops[1];
+  if (0 > ctx->hybrid && 0 < flops) {
+    fprintf(stderr, "INFO DBM: %.0f%% of %.1f GFLOP computed on the host\n",
+            100.0 * ctx->flops[1] / flops, 1E-9 * flops);
+  }
 
   offload_mempool_device_free(ctx->pack_a_dev.data);
   offload_mempool_device_free(ctx->pack_b_dev.data);
