@@ -79,6 +79,8 @@ list(
   bse_print.F
   bse_properties.F
   bse_util.F
+  bse_types.F
+  bse_input.F
   bsse.F
   casino_utils.F
   cell_methods.F
@@ -186,6 +188,8 @@ list(
   f77_interface.F
   farming_methods.F
   farming_types.F
+  fde_main.F
+  fde_methods.F
   fist_efield_methods.F
   fist_efield_types.F
   fist_energy_types.F
@@ -290,6 +294,7 @@ list(
   input_cp2k_embed.F
   input_cp2k_exstate.F
   input_cp2k_external.F
+  input_cp2k_fde.F
   input_cp2k_field.F
   input_cp2k_force_eval.F
   input_cp2k_free_energy.F
@@ -1892,6 +1897,12 @@ if(CP2K_DATA_DIR STREQUAL "default")
 endif()
 
 target_link_libraries(cp2k PUBLIC cp2k_link_libs)
+
+if(CP2K_USE_ACCEL MATCHES "CUDA"
+   AND CP2K_LIBXC_CUDA_SUPPORT
+   AND NOT CP2K_ENABLE_LIBXC_GPU)
+  target_compile_definitions(cp2k PUBLIC __NO_OFFLOAD_LIBXC)
+endif()
 target_compile_definitions(
   cp2k
   PUBLIC
@@ -2100,6 +2111,12 @@ foreach(_app ${__CP2K_APPS})
   if(CP2K_USE_ACCEL MATCHES HIP)
     set_property(TARGET ${_app} PROPERTY HIP_ARCHITECTURES
                                          "${CMAKE_HIP_ARCHITECTURES}")
+  endif()
+
+  if(CP2K_USE_ACCEL MATCHES "CUDA"
+     AND CP2K_LIBXC_CUDA_SUPPORT
+     AND NOT CP2K_ENABLE_LIBXC_GPU)
+    target_compile_definitions(${_app} PUBLIC __NO_OFFLOAD_LIBXC)
   endif()
 
   target_link_libraries(${_app} PUBLIC cp2k)

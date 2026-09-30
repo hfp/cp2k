@@ -37,6 +37,7 @@ MODULE kpoint_types
                                               section_vals_val_get
    USE kinds,                           ONLY: default_string_length,&
                                               dp
+   USE local_gemm_api,                  ONLY: local_gemm_ctxt_type
    USE mathconstants,                   ONLY: twopi
    USE message_passing,                 ONLY: mp_para_env_release,&
                                               mp_para_env_type
@@ -65,7 +66,7 @@ MODULE kpoint_types
    PUBLIC :: kpoint_env_create, get_kpoint_env
    PUBLIC :: kind_rotmat_type
    PUBLIC :: kpoint_sym_type
-   PUBLIC :: kpoint_sym_create
+   PUBLIC :: kpoint_sym_create, find_kpoint_rotation_slot
 
 ! **************************************************************************************************
 !> \brief Keeps information about a specific k-point
@@ -104,6 +105,13 @@ MODULE kpoint_types
       TYPE(cp_fm_type), DIMENSION(:), POINTER            :: ot_tmat => NULL()
       TYPE(cp_fm_type)                                  :: shalf
       TYPE(cp_cfm_type)                                 :: cshalf
+      ! Selected columns of S(k)**(1/2), with one reusable product workspace.
+      TYPE(cp_fm_type)                                  :: lowdin_b, lowdin_work
+      TYPE(cp_cfm_type)                                 :: lowdin_cb, lowdin_cwork
+      ! Spectrum of S for analytic Lowdin derivatives, retained only for force runs.
+      TYPE(cp_cfm_type)                                 :: lowdin_evec
+      REAL(dp), ALLOCATABLE                             :: lowdin_sqrt(:)
+      TYPE(local_gemm_ctxt_type)                        :: lowdin_gemm
    END TYPE kpoint_env_type
 
    TYPE kpoint_env_p_type
@@ -237,6 +245,10 @@ MODULE kpoint_types
       TYPE(qs_diis_buffer_type_kp), POINTER   :: scf_diis_buffer => Null()
       ! Unmodified complex overlaps for the current SCF run, indexed by local k-point.
       TYPE(cp_cfm_type), ALLOCATABLE, DIMENSION(:) :: scf_smat
+      ! Selected AO indices, accepted density/potential, and a separate cached trial density.
+      INTEGER, ALLOCATABLE :: lowdin_orbitals(:)
+      REAL(dp), ALLOCATABLE :: lowdin_q(:, :), lowdin_v(:, :), lowdin_q_new(:, :)
+      LOGICAL :: lowdin_density_ready = .FALSE., lowdin_population_ready = .FALSE.
       TYPE(qs_matrix_pools_type), POINTER     :: mpools_aux_fit => Null()
    END TYPE kpoint_type
 
@@ -413,6 +425,11 @@ CONTAINS
       INTEGER                                            :: i, ik, j
 
       CALL kpoint_clear_scf_smat(kpoint)
+      IF (ALLOCATED(kpoint%lowdin_orbitals)) THEN
+         DEALLOCATE (kpoint%lowdin_orbitals, kpoint%lowdin_q, kpoint%lowdin_q_new, kpoint%lowdin_v)
+      END IF
+      kpoint%lowdin_density_ready = .FALSE.
+      kpoint%lowdin_population_ready = .FALSE.
 
       IF (ASSOCIATED(kpoint%xkp)) THEN
          DEALLOCATE (kpoint%xkp)
@@ -1132,6 +1149,12 @@ CONTAINS
 
          CALL cp_fm_release(kp_env%shalf)
          CALL cp_cfm_release(kp_env%cshalf)
+         CALL cp_fm_release(kp_env%lowdin_b)
+         CALL cp_fm_release(kp_env%lowdin_work)
+         CALL cp_cfm_release(kp_env%lowdin_cb)
+         CALL cp_cfm_release(kp_env%lowdin_cwork)
+         CALL cp_cfm_release(kp_env%lowdin_evec)
+         CALL kp_env%lowdin_gemm%destroy()
 
          DEALLOCATE (kp_env)
 
@@ -1235,5 +1258,27 @@ CONTAINS
    END SUBROUTINE kpoint_sym_release
 
 ! **************************************************************************************************
+!> \brief Locate the basis-rotation slot corresponding to a signed k-point symmetry operation.
+!> \param qs_kpoint SCF k-point object
+!> \param rotp signed operation identifier
+!> \return rotation slot, or zero when no slot matches
+! **************************************************************************************************
+   INTEGER FUNCTION find_kpoint_rotation_slot(qs_kpoint, rotp) RESULT(rot_slot)
+      TYPE(kpoint_type), POINTER                         :: qs_kpoint
+      INTEGER, INTENT(IN)                                :: rotp
+
+      INTEGER                                            :: irot, rot_abs
+
+      rot_slot = 0
+      rot_abs = ABS(rotp)
+      IF (.NOT. ASSOCIATED(qs_kpoint%ibrot)) RETURN
+      DO irot = 1, SIZE(qs_kpoint%ibrot)
+         IF (rot_abs == qs_kpoint%ibrot(irot)) THEN
+            rot_slot = irot
+            RETURN
+         END IF
+      END DO
+
+   END FUNCTION find_kpoint_rotation_slot
 
 END MODULE kpoint_types

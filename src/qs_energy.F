@@ -18,6 +18,7 @@ MODULE qs_energy
    USE dm_ls_scf,                       ONLY: ls_scf
    USE energy_corrections,              ONLY: energy_correction
    USE excited_states,                  ONLY: excited_state_energy
+   USE fde_main,                        ONLY: fde_run
    USE input_constants,                 ONLY: smeagol_runtype_emtransport
    USE input_section_types,             ONLY: section_vals_get,&
                                               section_vals_get_subs_vals,&
@@ -152,7 +153,7 @@ CONTAINS
                IF (.NOT. (dft_control%smeagol_control%smeagol_enabled .AND. &
                           dft_control%smeagol_control%run_type == smeagol_runtype_emtransport)) THEN
                   ! if calculate forces, time to compute the w matrix
-                  CALL compute_matrix_w(qs_env, my_calc_forces)
+                  CALL compute_matrix_w(qs_env, my_calc_forces, include_lowdin_forces=my_calc_forces)
                END IF
             END IF
          END IF
@@ -164,6 +165,9 @@ CONTAINS
 
          ! Do active space calculation
          CALL active_space_main(qs_env)
+
+         ! frozen-density embedding driver (spawns a subsystem solver)
+         IF (dft_control%do_fde) CALL fde_run(qs_env)
 
          ! Check for energy correction
          IF (qs_env%energy_correction) THEN

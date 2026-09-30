@@ -18,7 +18,9 @@ MODULE rpa_main
    USE bibliography,                    ONLY: &
         Bates2013, DelBen2013, DelBen2015, Freeman1977, Gruneis2009, Ren2011, Ren2013, &
         Wilhelm2016a, Wilhelm2016b, Wilhelm2017, Wilhelm2018, cite_reference
-   USE bse_main,                        ONLY: start_bse_calculation
+   USE bse_main,                        ONLY: bse_solve,&
+                                              prepare_bse_env
+   USE bse_types,                       ONLY: bse_env_release
    USE cp_blacs_env,                    ONLY: cp_blacs_env_create,&
                                               cp_blacs_env_release,&
                                               cp_blacs_env_type
@@ -98,8 +100,7 @@ MODULE rpa_main
    USE rpa_gw_ic,                       ONLY: calculate_ic_correction
    USE rpa_gw_kpoints_util,             ONLY: get_bandstruc_and_k_dependent_MOs,&
                                               invert_eps_compute_W_and_Erpa_kp
-   USE rpa_im_time,                     ONLY: compute_mat_P_omega,&
-                                              zero_mat_P_omega
+   USE rpa_im_time,                     ONLY: compute_mat_P_omega
    USE rpa_im_time_force_methods,       ONLY: calc_laplace_loop_forces,&
                                               calc_post_loop_forces,&
                                               calc_rpa_loop_forces,&
@@ -154,8 +155,9 @@ CONTAINS
 !> \param gd_B_virt_bse ...
 !> \param mo_coeff ...
 !> \param fm_matrix_PQ ...
-!> \param fm_matrix_L_kpoints ...
-!> \param fm_matrix_Minv_L_kpoints ...
+!> \param cfm_matrix_L_kpoints ...
+!> \param cfm_matrix_Minv_L_kpoints ...
+!> \param fm_matrix_Minv_L_gamma ...
 !> \param fm_matrix_Minv ...
 !> \param fm_matrix_Minv_Vtrunc_Minv ...
 !> \param kpoints ...
@@ -188,7 +190,8 @@ CONTAINS
    SUBROUTINE rpa_ri_compute_en(qs_env, Erpa, mp2_env, BIb_C, BIb_C_gw, BIb_C_bse_ij, BIb_C_bse_ab, &
                                 para_env, para_env_sub, color_sub, &
                                 gd_array, gd_B_virtual, gd_B_all, gd_B_occ_bse, gd_B_virt_bse, &
-                                mo_coeff, fm_matrix_PQ, fm_matrix_L_kpoints, fm_matrix_Minv_L_kpoints, &
+                                mo_coeff, fm_matrix_PQ, cfm_matrix_L_kpoints, cfm_matrix_Minv_L_kpoints, &
+                                fm_matrix_Minv_L_gamma, &
                                 fm_matrix_Minv, fm_matrix_Minv_Vtrunc_Minv, kpoints, &
                                 Eigenval, nmo, homo, dimen_RI, dimen_RI_red, gw_corr_lev_occ, gw_corr_lev_virt, &
                                 bse_lev_virt, &
@@ -213,9 +216,9 @@ CONTAINS
          INTENT(INOUT)                                   :: gd_B_occ_bse, gd_B_virt_bse
       TYPE(cp_fm_type), DIMENSION(:), INTENT(IN)         :: mo_coeff
       TYPE(cp_fm_type), INTENT(IN)                       :: fm_matrix_PQ
-      TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:, :)     :: fm_matrix_L_kpoints, &
-                                                            fm_matrix_Minv_L_kpoints, &
-                                                            fm_matrix_Minv, &
+      TYPE(cp_cfm_type), ALLOCATABLE, DIMENSION(:)       :: cfm_matrix_L_kpoints, &
+                                                            cfm_matrix_Minv_L_kpoints
+      TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:, :)     :: fm_matrix_Minv_L_gamma, fm_matrix_Minv, &
                                                             fm_matrix_Minv_Vtrunc_Minv
       TYPE(kpoint_type), POINTER                         :: kpoints
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :), &
@@ -653,7 +656,8 @@ CONTAINS
                        bse_lev_virt, &
                        do_minimax_quad, &
                        do_im_time, mo_coeff, &
-                       fm_matrix_L_kpoints, fm_matrix_Minv_L_kpoints, &
+                       cfm_matrix_L_kpoints, cfm_matrix_Minv_L_kpoints, &
+                       fm_matrix_Minv_L_gamma, &
                        fm_matrix_Minv, fm_matrix_Minv_Vtrunc_Minv, mat_munu, mat_P_global, &
                        t_3c_M, t_3c_O, t_3c_O_compressed, t_3c_O_ind, &
                        starts_array_mc, ends_array_mc, &
@@ -1049,8 +1053,9 @@ CONTAINS
 !> \param do_minimax_quad ...
 !> \param do_im_time ...
 !> \param mo_coeff ...
-!> \param fm_matrix_L_kpoints ...
-!> \param fm_matrix_Minv_L_kpoints ...
+!> \param cfm_matrix_L_kpoints ...
+!> \param cfm_matrix_Minv_L_kpoints ...
+!> \param fm_matrix_Minv_L_gamma ...
 !> \param fm_matrix_Minv ...
 !> \param fm_matrix_Minv_Vtrunc_Minv ...
 !> \param mat_munu ...
@@ -1079,7 +1084,8 @@ CONTAINS
                           my_do_gw, do_bse, gw_corr_lev_occ, gw_corr_lev_virt, &
                           bse_lev_virt, &
                           do_minimax_quad, do_im_time, mo_coeff, &
-                          fm_matrix_L_kpoints, fm_matrix_Minv_L_kpoints, &
+                          cfm_matrix_L_kpoints, cfm_matrix_Minv_L_kpoints, &
+                          fm_matrix_Minv_L_gamma, &
                           fm_matrix_Minv, fm_matrix_Minv_Vtrunc_Minv, mat_munu, mat_P_global, &
                           t_3c_M, t_3c_O, t_3c_O_compressed, t_3c_O_ind, &
                           starts_array_mc, ends_array_mc, &
@@ -1110,9 +1116,9 @@ CONTAINS
                                                             bse_lev_virt
       LOGICAL, INTENT(IN)                                :: do_minimax_quad, do_im_time
       TYPE(cp_fm_type), DIMENSION(:), INTENT(IN)         :: mo_coeff
-      TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:, :)     :: fm_matrix_L_kpoints, &
-                                                            fm_matrix_Minv_L_kpoints, &
-                                                            fm_matrix_Minv, &
+      TYPE(cp_cfm_type), ALLOCATABLE, DIMENSION(:)       :: cfm_matrix_L_kpoints, &
+                                                            cfm_matrix_Minv_L_kpoints
+      TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:, :)     :: fm_matrix_Minv_L_gamma, fm_matrix_Minv, &
                                                             fm_matrix_Minv_Vtrunc_Minv
       TYPE(dbcsr_p_type), INTENT(IN)                     :: mat_munu
       TYPE(dbcsr_p_type), INTENT(INOUT)                  :: mat_P_global
@@ -1158,13 +1164,13 @@ CONTAINS
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: vec_W_gw
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: Eigenval_last, Eigenval_scf, &
                                                             vec_Sigma_x_gw
-      TYPE(cp_cfm_type)                                  :: cfm_mat_Q
-      TYPE(cp_cfm_type), ALLOCATABLE, DIMENSION(:)       :: cfm_mo_coeff
-      TYPE(cp_fm_type)                                   :: fm_mat_Q_static_bse_gemm, &
-                                                            fm_mat_RI_global_work, fm_mat_work
+      TYPE(cp_cfm_type)                                  :: cfm_mat_Q, cfm_mat_RI_global_work
+      TYPE(cp_cfm_type), ALLOCATABLE, DIMENSION(:)       :: cfm_mat_L_kpoints, &
+                                                            cfm_mat_Minv_L_kpoints, cfm_mo_coeff
+      TYPE(cp_fm_type)                                   :: fm_mat_Minv_L_gamma, &
+                                                            fm_mat_Q_static_bse_gemm, fm_mat_work
       TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:)        :: fm_mat_S_gw_work, fm_mat_S_ia_bse, &
                                                             fm_mat_W
-      TYPE(cp_fm_type), ALLOCATABLE, DIMENSION(:, :)     :: fm_mat_L_kpoints, fm_mat_Minv_L_kpoints
       TYPE(dbcsr_p_type)                                 :: mat_dm, mat_L, mat_M_P_munu_occ, &
                                                             mat_M_P_munu_virt, mat_MinvVMinv
       TYPE(dbcsr_p_type), ALLOCATABLE, &
@@ -1242,8 +1248,8 @@ CONTAINS
          min_bsize = mp2_env%ri_rpa_im_time%min_bsize
 
          CALL alloc_im_time(qs_env, para_env, dimen_RI, dimen_RI_red, &
-                            num_integ_points, nspins, fm_mat_Q(1), cfm_mo_coeff, &
-                            fm_matrix_Minv_L_kpoints, fm_matrix_L_kpoints, mat_P_global, &
+                            num_integ_points, nspins, calc_forces, fm_mat_Q(1), cfm_mo_coeff, &
+                            cfm_matrix_Minv_L_kpoints, cfm_matrix_L_kpoints, fm_matrix_Minv_L_gamma, mat_P_global, &
                             t_3c_O, matrix_s, kpoints, eps_filter_im_time, &
                             cut_memory, nkp, num_cells_dm, num_3c_repl, &
                             size_P, ikp_local, &
@@ -1253,8 +1259,8 @@ CONTAINS
                             do_ic_model, do_kpoints_cubic_RPA, &
                             do_kpoints_from_Gamma, do_ri_Sigma_x, my_open_shell, &
                             has_mat_P_blocks, wkp_W, &
-                            cfm_mat_Q, fm_mat_Minv_L_kpoints, fm_mat_L_kpoints, &
-                            fm_mat_RI_global_work, fm_mat_work, mat_dm, mat_L, mat_M_P_munu_occ, mat_M_P_munu_virt, &
+                            cfm_mat_Q, cfm_mat_Minv_L_kpoints, cfm_mat_L_kpoints, fm_mat_Minv_L_gamma, &
+                            cfm_mat_RI_global_work, fm_mat_work, mat_dm, mat_L, mat_M_P_munu_occ, mat_M_P_munu_virt, &
                             mat_MinvVMinv, mat_P_omega, mat_P_omega_kp, mat_work, mo_coeff)
 
          IF (calc_forces) CALL init_im_time_forces(force_data, fm_matrix_PQ, t_3c_M, unit_nr, mp2_env, qs_env)
@@ -1392,11 +1398,8 @@ CONTAINS
             IF (unit_nr > 0) WRITE (UNIT=unit_nr, FMT="(T3,A,T66,i15)") &
                "SPARSITY_INFO| Minimum tensor block size:", min_bsize
 
-            ! for evGW, we have to ensure that mat_P_omega is zero
-            CALL zero_mat_P_omega(mat_P_omega(:, :, 1))
-
             ! compute the matrix Q(it) and Fourier transform it directly to mat_P_omega(iw)
-            CALL compute_mat_P_omega(mat_P_omega(:, :, 1), cfm_mo_coeff(1), homo(1), &
+            CALL compute_mat_P_omega(mat_P_omega(:, :, 1), mo_coeff(1), homo(1), &
                                      mat_P_global, matrix_s, 1, &
                                      t_3c_M, t_3c_O, t_3c_O_compressed, t_3c_O_ind, &
                                      starts_array_mc, ends_array_mc, &
@@ -1412,8 +1415,7 @@ CONTAINS
 
             ! the same for open shell, use the beta-spin MO coefficients
             IF (my_open_shell) THEN
-               CALL zero_mat_P_omega(mat_P_omega(:, :, 2))
-               CALL compute_mat_P_omega(mat_P_omega(:, :, 2), cfm_mo_coeff(2), homo(2), &
+               CALL compute_mat_P_omega(mat_P_omega(:, :, 2), mo_coeff(2), homo(2), &
                                         mat_P_global, matrix_s, 2, &
                                         t_3c_M, t_3c_O, t_3c_O_compressed, t_3c_O_ind, &
                                         starts_array_mc, ends_array_mc, &
@@ -1463,7 +1465,7 @@ CONTAINS
                   DO ispin = 1, SIZE(mat_P_omega, 3)
                      CALL contract_P_omega_with_mat_L(mat_P_omega(jquad, 1, ispin)%matrix, mat_L%matrix, mat_work, &
                                                       eps_filter_im_time, fm_mat_work, dimen_RI, dimen_RI_red, &
-                                                      fm_mat_Minv_L_kpoints(1, 1), fm_mat_Q(ispin))
+                                                      fm_mat_Minv_L_gamma, fm_mat_Q(ispin))
                   END DO
                END IF
 
@@ -1566,8 +1568,8 @@ CONTAINS
                                                         wkp_W, do_gw_im_time, do_ri_Sigma_x, do_kpoints_from_Gamma, &
                                                         cfm_mat_Q, ikp_local, &
                                                         mat_P_omega(:, :, 1), mat_P_omega_kp, qs_env, eps_filter_im_time, unit_nr, &
-                                                        kpoints, fm_mat_Minv_L_kpoints, fm_mat_L_kpoints, &
-                                                        fm_mat_W, fm_mat_RI_global_work, mat_MinvVMinv, &
+                                                        kpoints, cfm_mat_Minv_L_kpoints, cfm_mat_L_kpoints, &
+                                                        fm_mat_W, cfm_mat_RI_global_work, mat_MinvVMinv, &
                                                         fm_matrix_Minv, fm_matrix_Minv_Vtrunc_Minv)
                ELSE
                   CALL compute_Erpa_by_freq_int(dimen_RI_red, trace_Qomega, fm_mat_Q(1), para_env_RPA, Erpa, &
@@ -1595,7 +1597,7 @@ CONTAINS
                IF (do_im_time) THEN
                   ! only for molecules
                   IF (.NOT. (do_kpoints_cubic_RPA .OR. do_kpoints_from_Gamma)) THEN
-                     CALL compute_W_cubic_GW(fm_mat_W, fm_mat_Q(1), fm_mat_work, dimen_RI, fm_mat_Minv_L_kpoints, &
+                     CALL compute_W_cubic_GW(fm_mat_W, fm_mat_Q(1), fm_mat_work, dimen_RI, fm_mat_Minv_L_gamma, &
                                              time_frequency_grid, jquad, omega)
                   END IF
                ELSE
@@ -1642,7 +1644,7 @@ CONTAINS
                Pspin = 1
                Qspin = 2
                CALL calc_laplace_loop_forces(force_data, mat_P_omega(:, 1, :), t_3c_M, t_3c_O(1, 1), &
-                                             t_3c_O_compressed(1, 1, :), t_3c_O_ind(1, 1, :), cfm_mo_coeff, homo, &
+                                             t_3c_O_compressed(1, 1, :), t_3c_O_ind(1, 1, :), mo_coeff, homo, &
                                              starts_array_mc, ends_array_mc, starts_array_mc_block, &
                                              ends_array_mc_block, nmo, Eigenval(:, 1, :), &
                                              time_frequency_grid, &
@@ -1651,7 +1653,7 @@ CONTAINS
                Pspin = 2
                Qspin = 1
                CALL calc_laplace_loop_forces(force_data, mat_P_omega(:, 1, :), t_3c_M, t_3c_O(1, 1), &
-                                             t_3c_O_compressed(1, 1, :), t_3c_O_ind(1, 1, :), cfm_mo_coeff, homo, &
+                                             t_3c_O_compressed(1, 1, :), t_3c_O_ind(1, 1, :), mo_coeff, homo, &
                                              starts_array_mc, ends_array_mc, starts_array_mc_block, &
                                              ends_array_mc_block, nmo, Eigenval(:, 1, :), &
                                              time_frequency_grid, &
@@ -1662,7 +1664,7 @@ CONTAINS
                Pspin = 1
                Qspin = 1
                CALL calc_laplace_loop_forces(force_data, mat_P_omega(:, 1, :), t_3c_M, t_3c_O(1, 1), &
-                                             t_3c_O_compressed(1, 1, :), t_3c_O_ind(1, 1, :), cfm_mo_coeff, homo, &
+                                             t_3c_O_compressed(1, 1, :), t_3c_O_ind(1, 1, :), mo_coeff, homo, &
                                              starts_array_mc, ends_array_mc, starts_array_mc_block, &
                                              ends_array_mc_block, nmo, Eigenval(:, 1, :), &
                                              time_frequency_grid, &
@@ -1675,7 +1677,7 @@ CONTAINS
          IF (calc_forces .AND. do_im_time .AND. .NOT. do_ri_sos_laplace_mp2) THEN
             DO ispin = 1, nspins
                CALL calc_rpa_loop_forces(force_data, mat_P_omega(:, 1, :), t_3c_M, t_3c_O(1, 1), &
-                                         t_3c_O_compressed(1, 1, :), t_3c_O_ind(1, 1, :), cfm_mo_coeff, homo, &
+                                         t_3c_O_compressed(1, 1, :), t_3c_O_ind(1, 1, :), mo_coeff, homo, &
                                          starts_array_mc, ends_array_mc, starts_array_mc_block, &
                                          ends_array_mc_block, nmo, Eigenval(:, 1, :), &
                                          e_fermi(ispin), time_frequency_grid, cut_memory, ispin, my_open_shell, &
@@ -1716,7 +1718,7 @@ CONTAINS
                                      Eigenval_last, Eigenval_scf, iter_sc_GW0, exit_ev_gw, &
                                      time_frequency_grid, vec_omega_fit_gw, vec_Sigma_x_gw, &
                                      mp2_env%ri_g0w0%ic_corr_list, &
-                                     cfm_mo_coeff, mo_coeff(1), fm_mat_W, para_env, &
+                                     mo_coeff, fm_mat_W, para_env, &
                                      para_env_RPA, mat_dm, mat_MinvVMinv, &
                                      t_3c_O, t_3c_M, t_3c_overl_int_ao_mo, t_3c_O_compressed, t_3c_O_mo_compressed, &
                                      t_3c_O_ind, t_3c_O_mo_ind, &
@@ -1784,12 +1786,14 @@ CONTAINS
                                               Eigenval_scf(:, 1, ispin), homo(ispin), omega)
             END IF
          END DO
-         ! Main routine for all BSE postprocessing
-         CALL start_bse_calculation(fm_mat_S_ia_bse, fm_mat_S_ij_bse, fm_mat_S_ab_bse, &
-                                    fm_mat_Q_static_bse_gemm, &
-                                    Eigenval, Eigenval_scf, &
-                                    homo, virtual, dimen_RI, dimen_RI_red, bse_lev_virt, &
-                                    mp2_env, qs_env, mo_coeff, unit_nr)
+         ! the solver keeps [1+Q(0)]^-1 and the window-sized slabs; Q(0) and the full slabs stay the GW's
+         CALL prepare_bse_env(mp2_env%bse, fm_mat_S_ia_bse, fm_mat_S_ij_bse, fm_mat_S_ab_bse, &
+                              fm_mat_Q_static_bse_gemm, Eigenval, Eigenval_scf, &
+                              homo, virtual, dimen_RI, dimen_RI_red, mp2_env%ri_g0w0%corr_mos_occ, &
+                              bse_lev_virt, qs_env, unit_nr)
+         CALL cp_fm_release(fm_mat_Q_static_bse_gemm)
+         CALL bse_solve(mp2_env%bse, mo_coeff, unit_nr)
+         CALL bse_env_release(mp2_env%bse)
          ! Release per-spin BSE-copy of fm_mat_S
          DO ispin = 1, nspins
             CALL cp_fm_release(fm_mat_S_ia_bse(ispin))
@@ -1810,8 +1814,9 @@ CONTAINS
                               cell_to_index_3c, do_ic_model, &
                               do_kpoints_cubic_RPA, do_kpoints_from_Gamma, do_ri_Sigma_x, &
                               has_mat_P_blocks, &
-                              wkp_W, cfm_mat_Q, fm_mat_Minv_L_kpoints, fm_mat_L_kpoints, &
-                              fm_matrix_Minv, fm_matrix_Minv_Vtrunc_Minv, fm_mat_RI_global_work, fm_mat_work, &
+                              wkp_W, cfm_mat_Q, cfm_mat_Minv_L_kpoints, cfm_mat_L_kpoints, &
+                              fm_mat_Minv_L_gamma, &
+                              fm_matrix_Minv, fm_matrix_Minv_Vtrunc_Minv, cfm_mat_RI_global_work, fm_mat_work, &
                               mat_dm, mat_L, &
                               mat_MinvVMinv, mat_P_omega, mat_P_omega_kp, &
                               t_3c_M, t_3c_O, t_3c_O_compressed, t_3c_O_ind, mat_work, qs_env)

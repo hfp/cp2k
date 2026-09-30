@@ -28,7 +28,7 @@ MODULE floquet_main
                                               floquet_env_type
    USE floquet_utils,                   ONLY: &
         build_floquet_matrix, calculate_floquet_observables, check_floquet_convergence, &
-        compute_e_k_de_dk_dipole, distribute_floquet_kp_data, floquet_sector_weights, &
+        compute_e_k_p_k, distribute_floquet_kp_data, floquet_sector_weights, &
         make_floquet_subgroups, write_floquet_header, write_floquet_results
    USE kinds,                           ONLY: dp
    USE mathconstants,                   ONLY: z_zero
@@ -61,14 +61,13 @@ CONTAINS
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'floquet'
 
       COMPLEX(KIND=dp), ALLOCATABLE, &
-         DIMENSION(:, :, :, :, :)                        :: dipole
+         DIMENSION(:, :, :, :, :)                        :: p_k
       INTEGER                                            :: handle, ikp, ispin, my_group, &
                                                             n_est_done, n_source_done, ngroups
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: group_distribution
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :)     :: e_k
-      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :, :, :)  :: de_dk
       TYPE(cp_blacs_env_type), POINTER                   :: blacs_env_sub
-      TYPE(cp_cfm_type)                                  :: cfm_eigenvectors, floquet_matrix
+      TYPE(cp_cfm_type)                                  :: floquet_eigenvectors, floquet_matrix
       TYPE(cp_fm_struct_type), POINTER                   :: floquet_struct
       TYPE(floquet_env_type)                             :: floquet_env
       TYPE(mp_para_env_type), POINTER                    :: para_env, para_env_sub
@@ -87,19 +86,19 @@ CONTAINS
       ! Taking the Fourier transform, the solutions are obtained by diagonalizing the matrix H_F(k)
       !   H_F(k) F_αk = λ_αk F_αk,
       ! where H_F(k) is block-tridiagonal in the sector index m = -M..M (M = MAX_FLOQUET_INDEX)
-      ! and each block is nao×nao. We build and diagonalise H_F(k) per DOS k-point k and spin.
-      ! The matrix H_F(k) has size (nao*(2*MAX_FLOQUET_INDEX+1) x nao*(2*MAX_FLOQUET_INDEX+1)).
+      ! and each block is n_mo×n_mo. We build and diagonalise H_F(k) per DOS k-point k and spin.
+      ! The matrix H_F(k) has size (n_mo*(2*MAX_FLOQUET_INDEX+1) x n_mo*(2*MAX_FLOQUET_INDEX+1)).
 
       CALL write_floquet_header(bs_env)
 
       CALL floquet_env_create(floquet_env, bs_env)
 
       ! Equilibrium band data at every band-structure k-point k from H(k)C(k) = S(k)C(k)ε(k):
-      !   band energies    ε_nk
-      !   k-derivatives    ∇_k ε_nk = C_n(k)^† ∇_k H(k) C_n(k) - ε_nk C_n(k)^† ∇_k S(k) C_n(k)
-      !   dipoles          d_nm(k) = <ψ_nk| r |ψ_mk>
+      !   band energies:   ε_nk
+      !   momentum matrix elements:
+      !                    p_nm = <ψ_n|-iħ∇_r|ψ_m> = <u_n|(ħk - iħ∇_r)|u_m>
       ! Results are distributed across ranks (k-point ikp stored on rank MOD(ikp-1,num_pe)).
-      CALL compute_e_k_de_dk_dipole(qs_env, bs_env, e_k, de_dk, dipole)
+      CALL compute_e_k_p_k(qs_env, bs_env, e_k, p_k)
 
       ! Split the global communicator into Floquet subgroups (Hamiltonian distributed within each
       ! subgroup, k-points distributed across subgroups) and create the subgroup BLACS context.
@@ -112,7 +111,7 @@ CONTAINS
       CALL cp_fm_struct_create(floquet_struct, context=blacs_env_sub, para_env=para_env_sub, &
                                nrow_global=floquet_env%n_f_size, ncol_global=floquet_env%n_f_size)
       CALL cp_cfm_create(floquet_matrix, floquet_struct, set_zero=.TRUE.)
-      CALL cp_cfm_create(cfm_eigenvectors, floquet_struct, set_zero=.TRUE.)
+      CALL cp_cfm_create(floquet_eigenvectors, floquet_struct, set_zero=.TRUE.)
 
       n_source_done = 0
 
@@ -123,10 +122,10 @@ CONTAINS
          DO ispin = 1, floquet_env%n_spin
             ! Broadcast this k-point/spin's ε_nk, ∇_k ε_nk and d_nm(k) to every rank of the
             ! owning subgroup (its owner rank holds them from the distributed precompute above).
-            CALL distribute_floquet_kp_data(para_env, para_env_sub, ispin, ikp, e_k, de_dk, &
-                                            dipole, floquet_env)
+            CALL distribute_floquet_kp_data(para_env, para_env_sub, ispin, ikp, e_k, &
+                                            p_k, floquet_env)
 
-            ! Assemble H_F(k) in Sambe space (blocks m,m' = -M..M, each nao×nao)
+            ! Assemble H_F(k) in Sambe space (blocks m,m' = -M..M, each n_mo×n_mo)
             !  diagonal      (H_F)^{m,m}_{nn'}   = (ε_nk + m ħΩ) δ_{nn'}
             !  off diagonal  (H_F)^{m,m±1}_{nn'} = Σ_a p^a_{nn'}(k) (i E_a e^{±iφ_a})/(2Ω),  a=x,y,z
             ! with momentum   p^a_{nn'}(k) = i d^a_{nn'}(k)(ε_nk - ε_n'k) + ∇_{k_a} ε_nk δ_{nn'}
@@ -135,14 +134,14 @@ CONTAINS
 
             ! Diagonalise H_F(k) F_αk = λ_αk F_αk -> quasi-energies λ_αk and eigenvector components
             ! F^{n,m}_αk = <n,m|αk> (band index n, sector m).
-            CALL cp_cfm_set_all(cfm_eigenvectors, z_zero)
-            CALL cp_cfm_heevd(floquet_matrix, cfm_eigenvectors, floquet_env%eigenvalues)
+            CALL cp_cfm_set_all(floquet_eigenvectors, z_zero)
+            CALL cp_cfm_heevd(floquet_matrix, floquet_eigenvectors, floquet_env%eigenvalues)
 
             ! Calculate sector weights,
-            ! w_αk^(m) = Σ_{n=1}^{nao} |<n,m|αk>|^2 (with Σ_m w_αk^(m) = 1).
+            ! w_αk^(m) = Σ_{n=1}^{n_mo} |<n,m|αk>|^2 (with Σ_m w_αk^(m) = 1).
             ! Keep only the central weight w0_αk = w_αk^(0) and the outermost-rung weight
             ! wE_αk = w_αk^(-M) + w_αk^(+M)
-            CALL floquet_sector_weights(floquet_env, cfm_eigenvectors)
+            CALL floquet_sector_weights(floquet_env, floquet_eigenvectors)
 
             ! Truncation check: the m=0-dominated states (w0_αk > 1/2) must leak negligibly onto the
             ! outermost rungs, max_{α: w0_αk > 1/2} wE_αk ≤ EPS_FLOQUET, else M is too small.
@@ -159,7 +158,7 @@ CONTAINS
             !   m=0 bands:
             !      ε^{0}_ik = λ_{α(i)}k, with band i placed at the eigenvalue where the cumulative
             !      m=0 weight Σ_{λ_αk<E} w0_αk first crosses i - 1/2.
-            !      We know that: Σ_α w0_αk = nao. So we choose the matrix eigenvalue such that:
+            !      We know that: Σ_α w0_αk = n_mo. So we choose the matrix eigenvalue such that:
             !      N(ε) = Σ_{α : λ_αk ≤ ε} w0_αk first crosses i - 1/2 to find the m=0 band.
             !   Quasi-energy:
             !      ε̃_ik = ε^{0}_ik - mħΩ (choose m such that ε̃_ik is folded to (-ħΩ/2, ħΩ/2]).
@@ -180,11 +179,11 @@ CONTAINS
       ! respective files
       CALL write_floquet_results(bs_env, floquet_env)
 
-      DEALLOCATE (e_k, de_dk, dipole)
+      DEALLOCATE (e_k, p_k)
       DEALLOCATE (group_distribution)
       CALL floquet_env_release(floquet_env)
       CALL cp_cfm_release(floquet_matrix)
-      CALL cp_cfm_release(cfm_eigenvectors)
+      CALL cp_cfm_release(floquet_eigenvectors)
       CALL cp_fm_struct_release(floquet_struct)
       CALL cp_blacs_env_release(blacs_env_sub)
       CALL mp_para_env_release(para_env_sub)
