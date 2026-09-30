@@ -74,14 +74,16 @@ MODULE kpoint_types
 !> \param wkp       weight of this kpoint
 !> \param xkp       kpoint coordinates in units of b-vector
 !> \param is_local  if this kpoint is calculated on a single thread
-!> \param mos       associated MOs (r/i,spin)
+!> \param mos       associated MOs (spin); complex coefficients use native CFM storage
 !> \param mos_prefilled the MOS hold meaningful coefficients (refilled and
 !>                     reorthogonalized by wavefunction extrapolation for the
 !>                     current geometry) rather than being only allocated
 !> \param pmat      associated density matrix (r/i,spin)
 !> \param wmat      associated energy weighted density matrix (r/i,spin)
-!> \param smat      associated overlap matrix (for ADMM) (r/i,spin)
-!> \param amat      associated ADMM basis projection matrix (r/i,spin)
+!> \param smat      real ADMM auxiliary overlap matrix
+!> \param amat      real ADMM basis projection matrix
+!> \param csmat     complex ADMM auxiliary overlap matrix
+!> \param camat     complex ADMM basis projection matrix
 !> \param ot_hmat   channel-local Kohn-Sham matrix for k-point OT (r/i,spin)
 !> \param ot_smat   channel-local overlap matrix for k-point OT (r/i)
 !> \param ot_tmat   channel-local kinetic-energy matrix for k-point OT (r/i)
@@ -94,12 +96,12 @@ MODULE kpoint_types
       REAL(KIND=dp)                                     :: wkp = 0.0_dp
       REAL(KIND=dp), DIMENSION(3)                       :: xkp = 0.0_dp
       LOGICAL                                           :: is_local = .FALSE.
-      TYPE(mo_set_type), DIMENSION(:, :), POINTER       :: mos => NULL()
+      TYPE(mo_set_type), DIMENSION(:), POINTER          :: mos => NULL()
       LOGICAL                                           :: mos_prefilled = .FALSE.
       TYPE(cp_fm_type), DIMENSION(:, :), POINTER        :: pmat => NULL()
       TYPE(cp_fm_type), DIMENSION(:, :), POINTER        :: wmat => NULL()
-      TYPE(cp_fm_type), DIMENSION(:, :), POINTER        :: smat => NULL()
-      TYPE(cp_fm_type), DIMENSION(:, :), POINTER        :: amat => NULL()
+      TYPE(cp_fm_type)                                  :: smat, amat
+      TYPE(cp_cfm_type)                                 :: csmat, camat
       TYPE(cp_fm_type), DIMENSION(:, :), POINTER        :: ot_hmat => NULL()
       TYPE(cp_fm_type), DIMENSION(:), POINTER            :: ot_smat => NULL()
       TYPE(cp_fm_type), DIMENSION(:), POINTER            :: ot_tmat => NULL()
@@ -1110,8 +1112,6 @@ CONTAINS
       NULLIFY (kp_env%mos)
       NULLIFY (kp_env%pmat)
       NULLIFY (kp_env%wmat)
-      NULLIFY (kp_env%smat)
-      NULLIFY (kp_env%amat)
       NULLIFY (kp_env%ot_hmat)
       NULLIFY (kp_env%ot_smat)
       NULLIFY (kp_env%ot_tmat)
@@ -1126,15 +1126,13 @@ CONTAINS
    SUBROUTINE kpoint_env_release(kp_env)
       TYPE(kpoint_env_type), POINTER                     :: kp_env
 
-      INTEGER                                            :: ic, is
+      INTEGER                                            :: is
 
       IF (ASSOCIATED(kp_env)) THEN
 
          IF (ASSOCIATED(kp_env%mos)) THEN
-            DO is = 1, SIZE(kp_env%mos, 2)
-               DO ic = 1, SIZE(kp_env%mos, 1)
-                  CALL deallocate_mo_set(kp_env%mos(ic, is))
-               END DO
+            DO is = 1, SIZE(kp_env%mos)
+               CALL deallocate_mo_set(kp_env%mos(is))
             END DO
             DEALLOCATE (kp_env%mos)
          END IF
@@ -1143,6 +1141,8 @@ CONTAINS
          CALL cp_fm_release(kp_env%wmat)
          CALL cp_fm_release(kp_env%smat)
          CALL cp_fm_release(kp_env%amat)
+         CALL cp_cfm_release(kp_env%csmat)
+         CALL cp_cfm_release(kp_env%camat)
          CALL cp_fm_release(kp_env%ot_hmat)
          CALL cp_fm_release(kp_env%ot_smat)
          CALL cp_fm_release(kp_env%ot_tmat)
@@ -1178,8 +1178,7 @@ CONTAINS
       REAL(KIND=dp), OPTIONAL                            :: wkp
       REAL(KIND=dp), DIMENSION(3), OPTIONAL              :: xkp
       LOGICAL, OPTIONAL                                  :: is_local
-      TYPE(mo_set_type), DIMENSION(:, :), OPTIONAL, &
-         POINTER                                         :: mos
+      TYPE(mo_set_type), DIMENSION(:), OPTIONAL, POINTER :: mos
 
       IF (PRESENT(nkpoint)) nkpoint = kpoint_env%nkpoint
       IF (PRESENT(wkp)) wkp = kpoint_env%wkp
