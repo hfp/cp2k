@@ -85,14 +85,8 @@ MODULE post_scf_bandstructure_types
       ! Input parameters for RI-RS
       INTEGER                                          :: grid_select = 1
       REAL(KIND=dp)                                    :: tikhonov = 1.0E-08_dp
-      REAL(KIND=dp)                                    :: cutoff_radius_ri_rs = -1.0_dp
       REAL(KIND=dp)                                    :: cutoff_radius_ri_ao = -1.0_dp
-      INTEGER                                          :: n_procs_per_atom_z_lp = -1
-      INTEGER                                          :: n_panels = 1
-      LOGICAL                                          :: keep_sparsity_rirs = .TRUE.
       REAL(KIND=dp)                                    :: cutoff_radius_v_w = -1.0_dp
-      REAL(KIND=dp)                                    :: cutoff_radius_g_w = -1.0_dp
-      CHARACTER(LEN=default_string_length)             :: grid_file_suffix = ""
       TYPE(ri_rs_grid_opt_type)                        :: grid_opt
 
       ! Geometry references used by RI-RS grid setup and optimization.
@@ -110,8 +104,6 @@ MODULE post_scf_bandstructure_types
 
       ! Data types for cutoffs based DBCSR matrices
       REAL(KIND=dp), ALLOCATABLE                       :: chunk_centroids(:, :)
-      ! Centers of atom-blocked AO/RI matrices for CUTOFF_RADIUS_G_W.
-      REAL(KIND=dp), ALLOCATABLE                       :: atom_centers(:, :)
       INTEGER, ALLOCATABLE                             :: grid_atom_boundaries(:)
       INTEGER, ALLOCATABLE                             :: pan_first(:), pan_last(:)
 
@@ -347,6 +339,10 @@ MODULE post_scf_bandstructure_types
                                                       skip_chi
       ! rtbse_method (Stepan Marek)
       INTEGER                                      :: rtp_method = -1
+      ! what PROPERTIES%BSE needs the GW to keep for it; set at init, read at the W(0) and de-init
+      ! sites; the consumer frees both itself once read
+      LOGICAL                                      :: keep_W_freq_zero = .FALSE., &
+                                                      keep_3c_nl = .FALSE.
 
       ! check-arrays and names for restarting
       LOGICAL, DIMENSION(:), ALLOCATABLE           :: read_chi, &
@@ -592,7 +588,6 @@ CONTAINS
       IF (ALLOCATED(bs_env%ri_rs%radius_ao_per_atom)) DEALLOCATE (bs_env%ri_rs%radius_ao_per_atom)
       IF (ALLOCATED(bs_env%ri_rs%radius_ri_per_atom)) DEALLOCATE (bs_env%ri_rs%radius_ri_per_atom)
       IF (ALLOCATED(bs_env%ri_rs%chunk_centroids)) DEALLOCATE (bs_env%ri_rs%chunk_centroids)
-      IF (ALLOCATED(bs_env%ri_rs%atom_centers)) DEALLOCATE (bs_env%ri_rs%atom_centers)
       IF (ALLOCATED(bs_env%ri_rs%grid_atom_boundaries)) DEALLOCATE (bs_env%ri_rs%grid_atom_boundaries)
       NULLIFY (bs_env%ri_rs%atomic_kind_set, bs_env%ri_rs%cell, bs_env%ri_rs%particle_set)
       IF (ALLOCATED(bs_env%ri_rs%pan_first)) DEALLOCATE (bs_env%ri_rs%pan_first)

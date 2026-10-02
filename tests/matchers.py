@@ -260,6 +260,14 @@ registry["E_G0W0_gap"] = GenericMatcher(r"G0W0 HOMO-LUMO gap (eV)", col=5)
 # G0W0 HOMO-LUMO gap of second spin channel of molecule
 registry["E_G0W0_gap_beta"] = GenericMatcher(r"Beta GW HOMO-LUMO gap (eV)", col=6)
 
+# static COHSEX HOMO-LUMO gap of molecule in the O(N^4) GW code, diagonal (DG) and canonical (CN)
+registry["E_static_COHSEX_gap_DG"] = GenericMatcher(
+    r"static COHSEX HOMO-LUMO gap (eV), DG and CN", col=9
+)
+registry["E_static_COHSEX_gap_CN"] = GenericMatcher(
+    r"static COHSEX HOMO-LUMO gap (eV), DG and CN", col=10
+)
+
 registry["IC_gap"] = GenericMatcher(r"IC HOMO-LUMO gap (eV)", col=5)
 
 registry["M081"] = GenericMatcher(r"HOMO SCF Cycle:     4", col=9)
@@ -305,6 +313,13 @@ registry["M085"] = GenericMatcher(r"Total FORCE_EVAL ( SIRIUS ) energy", col=9)
 registry["M086"] = GenericMatcher(r"DIPOLE : CheckSum  =", col=5)
 registry["M087"] = GenericMatcher(r"POLAR : CheckSum  =", col=5)
 registry["XAS_excit_ener"] = GenericMatcher(r"XAS excitation energy (eV):", col=7)
+# Squared dipoles for the first RIXS absorption and emission.
+registry["RIXS_absorption_dipole_squared"] = GenericMatcher(
+    r"^\s*[-+0-9.EeDd]+(?:\s+[-+0-9.EeDd]+){4}\s*$", col=5, regex=True, first=True
+)
+registry["RIXS_emission_dipole_squared"] = GenericMatcher(
+    r"^\s*[-+0-9.EeDd]+(?:\s+[-+0-9.EeDd]+){5}\s*$", col=6, regex=True, first=True
+)
 registry["M089"] = GenericMatcher(r"Electronic density on regular grids:", col=7)
 registry["M090"] = GenericMatcher(r"Final localization:", col=3)
 registry["M091"] = GenericMatcher(r"Ionization potentials for XPS", col=8)
@@ -376,6 +391,7 @@ registry["BSE_2nd_excit_ener_UKS"] = GenericMatcher(
     r"BSE|                2       UKS              -TDA-", col=5
 )
 registry["BSE_osc_str_n2_UKS"] = GenericMatcher(r"BSE|             2     -TDA-", col=7)
+registry["BSE_osc_str_n11_UKS"] = GenericMatcher(r"BSE|            11     -TDA-", col=7)
 registry["BSE_1st_excit_ener_UKS_ABBA"] = GenericMatcher(
     r"BSE|                1       UKS             -ABBA-", col=5
 )
