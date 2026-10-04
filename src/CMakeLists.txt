@@ -240,6 +240,7 @@ list(
   gw_utils_communication.F
   gw.F
   gw_tensor_large_cell_gamma.F
+  gw_tensor_large_cell_gamma_static_cohsex.F
   gw_tensor_small_cell_full_kp.F
   gw_ri_rs_non_periodic.F
   gw_ri_rs_large_cell_gamma.F
@@ -1605,6 +1606,7 @@ set(CP2K_PROGS_F
     common/memory_utilities_unittest.F
     common/parallel_rng_types_unittest.F
     atom_upf_unittest.F
+    xc/xc_semilocal_unittest.F
     upf_projector_integrals_unittest.F
     upf_local_integrals_unittest.F
     gapw_background_unittest.F
@@ -2035,6 +2037,7 @@ list(
   "memory_utilities_unittest"
   "parallel_rng_types_unittest"
   "atom_upf_unittest"
+  "xc_semilocal_unittest"
   "upf_projector_integrals_unittest"
   "upf_local_integrals_unittest"
   "gapw_background_unittest"
@@ -2080,6 +2083,7 @@ add_executable(gemm_square_unittest common/gemm_square_unittest.F)
 add_executable(memory_utilities_unittest common/memory_utilities_unittest.F)
 add_executable(parallel_rng_types_unittest common/parallel_rng_types_unittest.F)
 add_executable(atom_upf_unittest atom_upf_unittest.F)
+add_executable(xc_semilocal_unittest xc/xc_semilocal_unittest.F)
 add_executable(upf_projector_integrals_unittest
                upf_projector_integrals_unittest.F)
 add_executable(upf_local_integrals_unittest upf_local_integrals_unittest.F)
