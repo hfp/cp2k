@@ -150,6 +150,7 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
 
   // Blocks promised by batches computed on the host grow the shard at finish.
   if (0 < ntasks || finish) {
+    bool grown = false;
     // Reallocate shard_g->data if necessary.
     if (shard_c->data_promised > shard_g->data_allocated) {
       shard_g->data_allocated = DBM_ALLOCATION_FACTOR * shard_c->data_promised;
@@ -161,17 +162,21 @@ void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
       offloadMemcpyAsyncDtoD(shard_g->data, old_data_dev,
                              shard_g->data_size * sizeof(double),
                              shard_g->stream);
+      grown = true;
     }
-    if (0 < ntasks || NULL != old_data_dev) {
+    if (0 < ntasks || grown) {
       offloadEventRecord(shard_g->event, shard_g->stream);
     }
 
-    // Zero new blocks if necessary.
-    if (shard_c->data_promised > shard_g->data_size) {
-      const int tail = shard_c->data_promised - shard_g->data_size;
+    // Zero the headroom once per allocation rather than new blocks per batch:
+    // a memset is mostly launch latency, and kernels write promised blocks.
+    if (grown) {
+      const size_t headroom = shard_g->data_allocated - shard_g->data_size;
       offloadMemsetAsync(&shard_g->data[shard_g->data_size], 0,
-                         tail * sizeof(double), shard_g->stream);
-      shard_g->data_size = shard_c->data_promised;
+                         headroom * sizeof(double), shard_g->stream);
+    }
+    if (shard_c->data_promised > shard_g->data_size) {
+      shard_g->data_size = shard_c->data_promised; // within zeroed headroom
     }
   }
 

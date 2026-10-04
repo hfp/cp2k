@@ -20,7 +20,7 @@
 typedef struct {
   double *data; // on the device
   int data_size;
-  int data_allocated;
+  int data_allocated; // beyond data_size, the device data is zero
   offloadStream_t stream;
   offloadEvent_t event;
   offloadEvent_t done; // recorded after each kernel
