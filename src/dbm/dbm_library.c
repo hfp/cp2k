@@ -233,8 +233,8 @@ void dbm_library_print_stats(const int fortran_comm,
 
   // Print phases, i.e., where a rank spends the time of dbm_multiply.
   if (0.0 < phase_max[DBM_NUM_PHASES]) {
-    const char *const phases[] = {"setup",    "exchange", "upload",
-                                  "multiply", "finish",   "total"};
+    const char *const phases[] = {"setup",    "redistribute", "shift", "upload",
+                                  "multiply", "finish",       "total"};
     DBM_LIBRARY_PRINT(
         print_func,
         " ----------------------------------------------------------------"

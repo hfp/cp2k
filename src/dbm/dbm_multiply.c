@@ -527,6 +527,7 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   // Redistribute matrix_a and matrix_b across MPI ranks.
   dbm_comm_iterator_t *iter =
       dbm_comm_iterator_start(transa, transb, matrix_a, matrix_b, matrix_c);
+  phase[DBM_PHASE_REDISTRIBUTE] += phase_lap(&tick);
 
   // Count flops if requested.
   if (NULL != flop) {
@@ -536,7 +537,7 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   // Main loop.
   dbm_pack_t *pack_a, *pack_b;
   while (dbm_comm_iterator_next(iter, &pack_a, &pack_b)) {
-    phase[DBM_PHASE_EXCHANGE] += phase_lap(&tick);
+    phase[DBM_PHASE_SHIFT] += phase_lap(&tick);
     const bool uploaded = backend_upload_packs(pack_a, pack_b, ctx);
     (void)uploaded; // mark used
     phase[DBM_PHASE_UPLOAD] += phase_lap(&tick);
@@ -548,7 +549,7 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
 
   // Wait for all other MPI ranks to complete, then release ressources.
   dbm_comm_iterator_stop(iter);
-  phase[DBM_PHASE_EXCHANGE] += phase_lap(&tick);
+  phase[DBM_PHASE_SHIFT] += phase_lap(&tick);
   backend_stop(ctx);
   phase[DBM_PHASE_FINISH] += phase_lap(&tick);
 

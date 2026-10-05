@@ -50,12 +50,13 @@ void dbm_library_counters_add(const int64_t counters[DBM_NUM_COUNTERS]);
  * \author Hans Pabst
  ******************************************************************************/
 enum dbm_library_phase {
-  DBM_PHASE_SETUP = 0,    // scaling, filter thresholds, backend start, filter
-  DBM_PHASE_EXCHANGE = 1, // packing and MPI communication incl. waiting
-  DBM_PHASE_UPLOAD = 2,   // handing packs to the backend
-  DBM_PHASE_MULTIPLY = 3, // generating and processing batches
-  DBM_PHASE_FINISH = 4,   // backend stop, i.e., waiting for the results
-  DBM_NUM_PHASES = 5
+  DBM_PHASE_SETUP = 0,        // scaling, filter thresholds, backend, filter
+  DBM_PHASE_REDISTRIBUTE = 1, // packing A and B, all-to-all exchange
+  DBM_PHASE_SHIFT = 2,        // exchanging packs per tick (sendrecv)
+  DBM_PHASE_UPLOAD = 3,       // handing packs to the backend
+  DBM_PHASE_MULTIPLY = 4,     // generating and processing batches
+  DBM_PHASE_FINISH = 5,       // backend stop, i.e., waiting for the results
+  DBM_NUM_PHASES = 6
 };
 
 /*******************************************************************************
