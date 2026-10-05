@@ -133,16 +133,56 @@ static void backend_order_batch(const int ntasks, dbm_task_t batch[ntasks]) {
 #endif
 
 /*******************************************************************************
+ * \brief Private routine for obtaining the calling thread's batch.
+ * \author Hans Pabst
+ ******************************************************************************/
+static dbm_task_t *backend_batch_acquire(const bool force_cpu,
+                                         backend_context_t *ctx) {
+  dbm_task_t *result = NULL;
+#if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
+  if (NULL != ctx && !force_cpu) {
+    result = dbm_multiply_gpu_batch_acquire(&ctx->gpu);
+  } else
+#endif
+  {
+    (void)force_cpu; // mark used
+    (void)ctx;
+    result =
+        offload_mempool_host_malloc(sizeof(dbm_task_t) * DBM_MAX_BATCH_SIZE);
+  }
+  return result;
+}
+
+/*******************************************************************************
+ * \brief Private routine for returning the calling thread's batch.
+ * \author Hans Pabst
+ ******************************************************************************/
+static void backend_batch_release(dbm_task_t *batch, const bool force_cpu,
+                                  backend_context_t *ctx) {
+#if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
+  if (NULL != ctx && !force_cpu) {
+    dbm_multiply_gpu_batch_release(batch, &ctx->gpu);
+  } else
+#endif
+  {
+    (void)force_cpu; // mark used
+    (void)ctx;
+    offload_mempool_host_free(batch);
+  }
+}
+
+/*******************************************************************************
  * \brief Private routine for sending a batch to the multiplication backend.
+ *        Returns the batch to be filled next.
  * \author Ole Schuett
  ******************************************************************************/
-static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
-                                  const dbm_batch_shape_t *shape,
-                                  const double alpha, const dbm_pack_t *pack_a,
-                                  const dbm_pack_t *pack_b, const int kshard,
-                                  dbm_shard_t *shard_c, const bool finish,
-                                  const bool force_cpu,
-                                  backend_context_t *ctx) {
+static dbm_task_t *
+backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
+                      const dbm_batch_shape_t *shape, const double alpha,
+                      const dbm_pack_t *pack_a, const dbm_pack_t *pack_b,
+                      const int kshard, dbm_shard_t *shard_c, const bool finish,
+                      const bool force_cpu, backend_context_t *ctx) {
+  dbm_task_t *result = batch;
   if (NULL != ctx) {
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
     if (!force_cpu) {
@@ -150,8 +190,8 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
               ntasks, batch, shape, alpha, pack_a, pack_b, shard_c, kshard,
               finish, ctx->cpu_options, &ctx->gpu)) {
         backend_order_batch(ntasks, batch);
-        dbm_multiply_gpu_process_batch(ntasks, batch, shape, alpha, shard_c,
-                                       kshard, finish, &ctx->gpu);
+        result = dbm_multiply_gpu_process_batch(
+            ntasks, batch, shape, alpha, shard_c, kshard, finish, &ctx->gpu);
       }
     } else
 #endif
@@ -167,6 +207,7 @@ static void backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
     dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b,
                                    shard_c, DBM_MULTIPLY_BLAS_LIBRARY);
   }
+  return result;
 }
 
 /*******************************************************************************
@@ -229,8 +270,7 @@ static void multiply_packs(const bool transa, const bool transb,
 #pragma omp parallel reduction(+ : flop_sum)
   {
     // Thread-private array covering given work in piece-wise fashion.
-    dbm_task_t *batch =
-        offload_mempool_host_malloc(sizeof(dbm_task_t) * DBM_MAX_BATCH_SIZE);
+    dbm_task_t *batch = backend_batch_acquire(force_cpu, context);
     // Thread-local stats, added to the library's counters once at the end.
     int64_t counters[DBM_NUM_COUNTERS] = {0};
 
@@ -282,8 +322,9 @@ static void multiply_packs(const bool transa, const bool transb,
           }
         }
         if (iblock_start >= iblock_end || jblock_start >= jblock_end) {
-          backend_process_batch(ntasks, batch, &shape, alpha, pack_a, pack_b,
-                                ishard, shard_c, true, force_cpu, context);
+          batch = backend_process_batch(ntasks, batch, &shape, alpha, pack_a,
+                                        pack_b, ishard, shard_c, true,
+                                        force_cpu, context);
           continue;
         }
 
@@ -391,9 +432,9 @@ static void multiply_packs(const bool transa, const bool transb,
             ++ntasks;
 
             if (ntasks == DBM_MAX_BATCH_SIZE) {
-              backend_process_batch(ntasks, batch, &shape, alpha, pack_a,
-                                    pack_b, ishard, shard_c, false, force_cpu,
-                                    context);
+              batch = backend_process_batch(ntasks, batch, &shape, alpha,
+                                            pack_a, pack_b, ishard, shard_c,
+                                            false, force_cpu, context);
               memset(&shape, 0, sizeof(shape));
               ntasks = 0;
             }
@@ -402,13 +443,14 @@ static void multiply_packs(const bool transa, const bool transb,
           // Advance i; if next A block has same sum_index, B range is reused.
           ++i;
         }
-        backend_process_batch(ntasks, batch, &shape, alpha, pack_a, pack_b,
-                              ishard, shard_c, true, force_cpu, context);
+        batch =
+            backend_process_batch(ntasks, batch, &shape, alpha, pack_a, pack_b,
+                                  ishard, shard_c, true, force_cpu, context);
       }
     }
 
     dbm_library_counters_add(counters);
-    offload_mempool_host_free(batch);
+    backend_batch_release(batch, force_cpu, context);
   }
 
   free(shard_row_start);

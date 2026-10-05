@@ -321,6 +321,18 @@ static inline void offloadMallocHost(void **ptr, size_t size) {
 }
 
 /*******************************************************************************
+ * \brief Whether a kernel may read memory from offloadMallocHost directly,
+ *        i.e., instead of a copy. Assumed for unified memory only (so far).
+ ******************************************************************************/
+static inline bool offloadHostMemoryDeviceAccessible(void) {
+#if defined(__OFFLOAD_UNIFIED_MEMORY)
+  return true;
+#else
+  return false;
+#endif
+}
+
+/*******************************************************************************
  * \brief Wrapper around cudaMalloc.
  ******************************************************************************/
 static inline void offloadMalloc(void **ptr, size_t size) {
