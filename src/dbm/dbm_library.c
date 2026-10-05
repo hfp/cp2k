@@ -21,6 +21,7 @@
 
 static int64_t **per_thread_counters = NULL;
 static double phase_seconds[DBM_NUM_PHASES] = {0};
+static int64_t phase_bytes[DBM_NUM_PHASES] = {0};
 static bool library_initialized = false;
 static int max_threads = 0;
 
@@ -44,6 +45,7 @@ void dbm_library_init(void) {
 
   max_threads = omp_get_max_threads();
   memset(phase_seconds, 0, sizeof(phase_seconds));
+  memset(phase_bytes, 0, sizeof(phase_bytes));
   per_thread_counters = malloc(max_threads * sizeof(int64_t *));
   assert(per_thread_counters != NULL);
 
@@ -106,10 +108,12 @@ void dbm_library_counters_add(const int64_t counters[DBM_NUM_COUNTERS]) {
  *        stats. Called once per dbm_multiply outside of parallel regions.
  * \author Hans Pabst
  ******************************************************************************/
-void dbm_library_phases_add(const double seconds[DBM_NUM_PHASES]) {
+void dbm_library_phases_add(const double seconds[DBM_NUM_PHASES],
+                            const int64_t bytes[DBM_NUM_PHASES]) {
   assert(omp_get_num_threads() == 1);
   for (int i = 0; i < DBM_NUM_PHASES; i++) {
     phase_seconds[i] += seconds[i];
+    phase_bytes[i] += bytes[i];
   }
 }
 
@@ -165,6 +169,9 @@ void dbm_library_print_stats(const int fortran_comm,
   cp_mpi_max_double(phase_max, DBM_NUM_PHASES + 1, comm);
   cp_mpi_max_double(phase_min, DBM_NUM_PHASES + 1, comm);
   cp_mpi_sum_double(phase_avg, DBM_NUM_PHASES + 1, comm);
+  int64_t bytes[DBM_NUM_PHASES];
+  memcpy(bytes, phase_bytes, sizeof(bytes));
+  cp_mpi_sum_int64(bytes, DBM_NUM_PHASES, comm);
   const int nranks = cp_mpi_comm_size(comm);
 
   // Sort counters.
@@ -241,12 +248,22 @@ void dbm_library_print_stats(const int fortran_comm,
         " ----------------------------------------------------------------"
         "---------------\n",
         output_unit);
-    snprintf(buffer, sizeof(buffer), "    %-37s %12s %12s %12s\n",
-             "PHASE PER RANK", "MIN [s]", "AVG [s]", "MAX [s]");
+    snprintf(buffer, sizeof(buffer), "    %-24s %12s %12s %12s %12s\n",
+             "PHASE PER RANK", "MIN [s]", "AVG [s]", "MAX [s]", "GB/s");
     DBM_LIBRARY_PRINT(print_func, buffer, output_unit);
     for (int i = 0; i <= DBM_NUM_PHASES; i++) {
-      snprintf(buffer, sizeof(buffer), "    %-37s %12.3f %12.3f %12.3f\n",
-               phases[i], -phase_min[i], phase_avg[i] / nranks, phase_max[i]);
+      // Bytes sent over the time all ranks spent in the phase.
+      const bool rate =
+          (i < DBM_NUM_PHASES && 0 < bytes[i] && 0.0 < phase_avg[i]);
+      const int n = snprintf(
+          buffer, sizeof(buffer), "    %-24s %12.3f %12.3f %12.3f", phases[i],
+          -phase_min[i], phase_avg[i] / nranks, phase_max[i]);
+      if (rate) {
+        snprintf(buffer + n, sizeof(buffer) - n, " %12.1f\n",
+                 1E-9 * bytes[i] / phase_avg[i]);
+      } else {
+        snprintf(buffer + n, sizeof(buffer) - n, "\n");
+      }
       DBM_LIBRARY_PRINT(print_func, buffer, output_unit);
     }
   }

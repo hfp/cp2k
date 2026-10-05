@@ -62,11 +62,13 @@ enum dbm_library_phase {
 };
 
 /*******************************************************************************
- * \brief Add the durations (seconds) of a multiplication's phases to the
- *        stats. Called once per dbm_multiply outside of parallel regions.
+ * \brief Add the durations (seconds) of a multiplication's phases and the
+ *        bytes sent by them to the stats. Called once per dbm_multiply
+ *        outside of parallel regions.
  * \author Hans Pabst
  ******************************************************************************/
-void dbm_library_phases_add(const double seconds[DBM_NUM_PHASES]);
+void dbm_library_phases_add(const double seconds[DBM_NUM_PHASES],
+                            const int64_t bytes[DBM_NUM_PHASES]);
 
 /*******************************************************************************
  * \brief Prints statistics gathered by the DBM library.

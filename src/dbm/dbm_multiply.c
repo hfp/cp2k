@@ -485,6 +485,7 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   assert(omp_get_num_threads() == 1);
   assert(matrix_a != NULL && matrix_b != NULL && matrix_c != NULL);
   double phase[DBM_NUM_PHASES] = {0}, tick = omp_get_wtime();
+  int64_t phase_bytes[DBM_NUM_PHASES] = {0};
 
   // Throughout the matrix multiplication code the "sum_index" and "free_index"
   // denote the summation (aka dummy) and free index from the Einstein notation.
@@ -530,6 +531,7 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   const double redistribute = phase_lap(&tick);
   phase[DBM_PHASE_ALLTOALL] += iter->seconds_alltoall;
   phase[DBM_PHASE_SORT] += iter->seconds_sort;
+  phase_bytes[DBM_PHASE_ALLTOALL] += iter->bytes_alltoall;
   phase[DBM_PHASE_PACK] +=
       redistribute - iter->seconds_alltoall - iter->seconds_sort;
 
@@ -552,6 +554,7 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   }
 
   // Wait for all other MPI ranks to complete, then release ressources.
+  phase_bytes[DBM_PHASE_SHIFT] += iter->bytes_shift;
   dbm_comm_iterator_stop(iter);
   phase[DBM_PHASE_SHIFT] += phase_lap(&tick);
   backend_stop(ctx);
@@ -586,7 +589,7 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   // Final filter pass.
   dbm_filter(matrix_c, filter_eps);
   phase[DBM_PHASE_SETUP] += phase_lap(&tick);
-  dbm_library_phases_add(phase);
+  dbm_library_phases_add(phase, phase_bytes);
 }
 
 // EOF
