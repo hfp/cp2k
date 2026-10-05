@@ -527,7 +527,11 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   // Redistribute matrix_a and matrix_b across MPI ranks.
   dbm_comm_iterator_t *iter =
       dbm_comm_iterator_start(transa, transb, matrix_a, matrix_b, matrix_c);
-  phase[DBM_PHASE_REDISTRIBUTE] += phase_lap(&tick);
+  const double redistribute = phase_lap(&tick);
+  phase[DBM_PHASE_ALLTOALL] += iter->seconds_alltoall;
+  phase[DBM_PHASE_SORT] += iter->seconds_sort;
+  phase[DBM_PHASE_PACK] +=
+      redistribute - iter->seconds_alltoall - iter->seconds_sort;
 
   // Count flops if requested.
   if (NULL != flop) {

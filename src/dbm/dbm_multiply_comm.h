@@ -37,6 +37,8 @@ typedef struct {
   dbm_distribution_t *dist;
   dbm_packed_matrix_t packed_a;
   dbm_packed_matrix_t packed_b;
+  double seconds_alltoall; // redistribution's communication (stats)
+  double seconds_sort;     // redistribution's sorting of received blocks
 } dbm_comm_iterator_t;
 
 /*******************************************************************************
