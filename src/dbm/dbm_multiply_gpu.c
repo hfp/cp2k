@@ -86,6 +86,8 @@ void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,
     offloadStreamCreate(&shard_g->stream);
     offloadEventCreate(&shard_g->event);
     offloadEventCreate(&shard_g->done);
+    offloadEventCreate(&shard_g->download);
+    shard_g->downloading = false;
     shard_g->host_data = NULL;
     shard_g->host_size = shard_g->host_allocated = 0;
     // only allocate data_size on device rather than data_allocated
@@ -284,6 +286,13 @@ dbm_task_t *dbm_multiply_gpu_process_batch(const int ntasks, dbm_task_t *batch,
   }
 
   if (finish) { // Start downloading the current shard of matrix_c.
+    // Growing the host buffer frees the old one, into which the previous
+    // download may still write: batches computed on the host never wait.
+    if (shard_g->downloading &&
+        shard_c->data_allocated < shard_c->data_promised) {
+      offloadEventSynchronize(shard_g->download);
+      shard_g->downloading = false;
+    }
     // Grow host buffer if necessary.
     dbm_shard_allocate_promised_blocks(shard_c);
     // Download results from device.
@@ -291,6 +300,8 @@ dbm_task_t *dbm_multiply_gpu_process_batch(const int ntasks, dbm_task_t *batch,
     offloadMemcpyAsyncDtoH(shard_c->data, shard_g->data,
                            shard_g->data_size * sizeof(double),
                            shard_g->stream);
+    offloadEventRecord(shard_g->download, shard_g->stream);
+    shard_g->downloading = true;
   }
 
   if ((0 < ntasks && !ctx->unified) || grown) {
@@ -383,6 +394,7 @@ void dbm_multiply_gpu_stop(dbm_multiply_gpu_context_t *ctx) {
     offloadStreamDestroy(shard_g->stream);
     offloadEventDestroy(shard_g->event);
     offloadEventDestroy(shard_g->done);
+    offloadEventDestroy(shard_g->download);
     offload_mempool_device_free(shard_g->data);
   }
   free(ctx->shards_c_dev);

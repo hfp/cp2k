@@ -23,8 +23,10 @@ typedef struct {
   int data_allocated; // beyond data_size, the device data is zero
   offloadStream_t stream;
   offloadEvent_t event;
-  offloadEvent_t done; // recorded after each kernel
-  double *host_data;   // contributions computed on the host (hybrid)
+  offloadEvent_t done;     // recorded after each kernel
+  offloadEvent_t download; // recorded after downloading into the host shard
+  bool downloading;        // download recorded (and not waited for)
+  double *host_data;       // contributions computed on the host (hybrid)
   int host_size;
   int host_allocated;
 } dbm_shard_gpu_t;
