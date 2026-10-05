@@ -46,6 +46,26 @@ static inline int dbm_library_counter_index(const int m, const int n,
 void dbm_library_counters_add(const int64_t counters[DBM_NUM_COUNTERS]);
 
 /*******************************************************************************
+ * \brief Phases of dbm_multiply whose duration the stats report per rank.
+ * \author Hans Pabst
+ ******************************************************************************/
+enum dbm_library_phase {
+  DBM_PHASE_SETUP = 0,    // scaling, filter thresholds, backend start, filter
+  DBM_PHASE_EXCHANGE = 1, // packing and MPI communication incl. waiting
+  DBM_PHASE_UPLOAD = 2,   // handing packs to the backend
+  DBM_PHASE_MULTIPLY = 3, // generating and processing batches
+  DBM_PHASE_FINISH = 4,   // backend stop, i.e., waiting for the results
+  DBM_NUM_PHASES = 5
+};
+
+/*******************************************************************************
+ * \brief Add the durations (seconds) of a multiplication's phases to the
+ *        stats. Called once per dbm_multiply outside of parallel regions.
+ * \author Hans Pabst
+ ******************************************************************************/
+void dbm_library_phases_add(const double seconds[DBM_NUM_PHASES]);
+
+/*******************************************************************************
  * \brief Prints statistics gathered by the DBM library.
  * \author Ole Schuett
  ******************************************************************************/

@@ -20,6 +20,7 @@
   ((FN)(MSG, (int)strlen(MSG), OUTPUT_UNIT))
 
 static int64_t **per_thread_counters = NULL;
+static double phase_seconds[DBM_NUM_PHASES] = {0};
 static bool library_initialized = false;
 static int max_threads = 0;
 
@@ -42,6 +43,7 @@ void dbm_library_init(void) {
   offload_init();
 
   max_threads = omp_get_max_threads();
+  memset(phase_seconds, 0, sizeof(phase_seconds));
   per_thread_counters = malloc(max_threads * sizeof(int64_t *));
   assert(per_thread_counters != NULL);
 
@@ -100,6 +102,18 @@ void dbm_library_counters_add(const int64_t counters[DBM_NUM_COUNTERS]) {
 }
 
 /*******************************************************************************
+ * \brief Add the durations (seconds) of a multiplication's phases to the
+ *        stats. Called once per dbm_multiply outside of parallel regions.
+ * \author Hans Pabst
+ ******************************************************************************/
+void dbm_library_phases_add(const double seconds[DBM_NUM_PHASES]) {
+  assert(omp_get_num_threads() == 1);
+  for (int i = 0; i < DBM_NUM_PHASES; i++) {
+    phase_seconds[i] += seconds[i];
+  }
+}
+
+/*******************************************************************************
  * \brief Comperator passed to qsort to compare two counters.
  * \author Ole Schuett
  ******************************************************************************/
@@ -133,6 +147,23 @@ void dbm_library_print_stats(const int fortran_comm,
     cp_mpi_sum_int64(&counters[i][0], 1, comm);
     total += counters[i][0];
   }
+
+  // Phases per rank: minimum, average, and maximum over ranks (last: total).
+  double phase_min[DBM_NUM_PHASES + 1], phase_avg[DBM_NUM_PHASES + 1];
+  double phase_max[DBM_NUM_PHASES + 1];
+  phase_max[DBM_NUM_PHASES] = 0.0;
+  for (int i = 0; i < DBM_NUM_PHASES; i++) {
+    phase_max[i] = phase_seconds[i];
+    phase_max[DBM_NUM_PHASES] += phase_seconds[i];
+  }
+  for (int i = 0; i <= DBM_NUM_PHASES; i++) {
+    phase_min[i] = -phase_max[i]; // minimum as maximum of the negated values
+    phase_avg[i] = phase_max[i];
+  }
+  cp_mpi_max_double(phase_max, DBM_NUM_PHASES + 1, comm);
+  cp_mpi_max_double(phase_min, DBM_NUM_PHASES + 1, comm);
+  cp_mpi_sum_double(phase_avg, DBM_NUM_PHASES + 1, comm);
+  const int nranks = cp_mpi_comm_size(comm);
 
   // Sort counters.
   qsort(counters, DBM_NUM_COUNTERS, 2 * sizeof(int64_t), &compare_counters);
@@ -196,6 +227,25 @@ void dbm_library_print_stats(const int fortran_comm,
              " %4s  x %4s  x %4s %46" PRId64 " %10.2f%%\n", labels[m],
              labels[n], labels[k], counters[i][0], percent);
     DBM_LIBRARY_PRINT(print_func, buffer, output_unit);
+  }
+
+  // Print phases, i.e., where a rank spends the time of dbm_multiply.
+  if (0.0 < phase_max[DBM_NUM_PHASES]) {
+    const char *const phases[] = {"setup",    "exchange", "upload",
+                                  "multiply", "finish",   "total"};
+    DBM_LIBRARY_PRINT(
+        print_func,
+        " ----------------------------------------------------------------"
+        "---------------\n",
+        output_unit);
+    snprintf(buffer, sizeof(buffer), "    %-37s %12s %12s %12s\n",
+             "PHASE PER RANK", "MIN [s]", "AVG [s]", "MAX [s]");
+    DBM_LIBRARY_PRINT(print_func, buffer, output_unit);
+    for (int i = 0; i <= DBM_NUM_PHASES; i++) {
+      snprintf(buffer, sizeof(buffer), "    %-37s %12.3f %12.3f %12.3f\n",
+               phases[i], -phase_min[i], phase_avg[i] / nranks, phase_max[i]);
+      DBM_LIBRARY_PRINT(print_func, buffer, output_unit);
+    }
   }
 
   DBM_LIBRARY_PRINT(

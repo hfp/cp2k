@@ -222,6 +222,17 @@ static void backend_stop(backend_context_t *ctx) {
 }
 
 /*******************************************************************************
+ * \brief Private routine returning the seconds since tick, which it resets.
+ * \author Hans Pabst
+ ******************************************************************************/
+static double phase_lap(double *tick) {
+  const double now = omp_get_wtime();
+  const double result = now - *tick;
+  *tick = now;
+  return result;
+}
+
+/*******************************************************************************
  * \brief Private routine for multiplying two packs (C += alpha * A * B).
  *
  * Blocks in each pack are grouped by shard (free_index % nshards) and sorted
@@ -473,6 +484,7 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
                   int64_t *flop) {
   assert(omp_get_num_threads() == 1);
   assert(matrix_a != NULL && matrix_b != NULL && matrix_c != NULL);
+  double phase[DBM_NUM_PHASES] = {0}, tick = omp_get_wtime();
 
   // Throughout the matrix multiplication code the "sum_index" and "free_index"
   // denote the summation (aka dummy) and free index from the Einstein notation.
@@ -496,11 +508,13 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   const int verify =
       (NULL == verify_env ? (NULL == maxeps_env ? 0 : 1) : atoi(verify_env));
   dbm_matrix_t *matrix_d = NULL;
+  phase[DBM_PHASE_SETUP] += phase_lap(&tick);
   if (0 != verify) {
     dbm_distribution_t *const dist_shared = matrix_c->dist;
     dbm_create(&matrix_d, dist_shared, matrix_c->name, matrix_c->nrows,
                matrix_c->ncols, matrix_c->row_sizes, matrix_c->col_sizes);
     dbm_copy(matrix_d, matrix_c);
+    tick = omp_get_wtime(); // validation is not a phase
   }
 
   // Compute filter thresholds for each row.
@@ -508,6 +522,7 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
 
   // Start uploading matrix_c to the GPU.
   backend_context_t *ctx = backend_start(matrix_c);
+  phase[DBM_PHASE_SETUP] += phase_lap(&tick);
 
   // Redistribute matrix_a and matrix_b across MPI ranks.
   dbm_comm_iterator_t *iter =
@@ -521,16 +536,21 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   // Main loop.
   dbm_pack_t *pack_a, *pack_b;
   while (dbm_comm_iterator_next(iter, &pack_a, &pack_b)) {
+    phase[DBM_PHASE_EXCHANGE] += phase_lap(&tick);
     const bool uploaded = backend_upload_packs(pack_a, pack_b, ctx);
     (void)uploaded; // mark used
+    phase[DBM_PHASE_UPLOAD] += phase_lap(&tick);
     multiply_packs(transa, transb, alpha, pack_a, pack_b, matrix_a, matrix_b,
                    matrix_c, rows_max_eps, retain_sparsity, false /*!uploaded*/,
                    flop, ctx);
+    phase[DBM_PHASE_MULTIPLY] += phase_lap(&tick);
   }
 
   // Wait for all other MPI ranks to complete, then release ressources.
   dbm_comm_iterator_stop(iter);
+  phase[DBM_PHASE_EXCHANGE] += phase_lap(&tick);
   backend_stop(ctx);
+  phase[DBM_PHASE_FINISH] += phase_lap(&tick);
 
   if (NULL != matrix_d) {
     ctx = backend_start(matrix_d);
@@ -552,6 +572,7 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
       }
     }
     dbm_release(matrix_d);
+    tick = omp_get_wtime(); // validation is not a phase
   }
 
   // Release filter thresholds.
@@ -559,6 +580,8 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
 
   // Final filter pass.
   dbm_filter(matrix_c, filter_eps);
+  phase[DBM_PHASE_SETUP] += phase_lap(&tick);
+  dbm_library_phases_add(phase);
 }
 
 // EOF
