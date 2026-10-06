@@ -59,7 +59,7 @@ MODULE dbt_methods
    USE util, ONLY: &
       sort
    USE dbt_reshape_ops, ONLY: &
-      dbt_reshape
+      dbt_reshape, dbt_reshape_release
    USE dbt_tas_split, ONLY: &
       dbt_tas_mp_comm, rowsplit, colsplit, dbt_tas_info_hold, dbt_tas_release_info, default_nsplit_accept_ratio, &
       default_pdims_accept_ratio, dbt_tas_create_split
@@ -91,9 +91,26 @@ MODULE dbt_methods
       dbt_copy_matrix_to_tensor, &
       dbt_copy_tensor_to_matrix, &
       dbt_batched_contract_init, &
-      dbt_batched_contract_finalize
+      dbt_batched_contract_finalize, &
+      dbt_library_init, &
+      dbt_library_finalize
 
 CONTAINS
+
+! **************************************************************************************************
+!> \brief Initialize the DBT library (after dbm_library_init).
+!> \author Hans Pabst
+! **************************************************************************************************
+   SUBROUTINE dbt_library_init()
+   END SUBROUTINE dbt_library_init
+
+! **************************************************************************************************
+!> \brief Finalize the DBT library (before dbm_library_finalize), which releases its buffers.
+!> \author Hans Pabst
+! **************************************************************************************************
+   SUBROUTINE dbt_library_finalize()
+      CALL dbt_reshape_release()
+   END SUBROUTINE dbt_library_finalize
 
 ! **************************************************************************************************
 !> \brief Copy tensor data.

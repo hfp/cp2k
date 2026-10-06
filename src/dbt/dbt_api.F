@@ -30,7 +30,8 @@ MODULE dbt_api
    USE dbt_methods,                     ONLY: &
         dbt_batched_contract_finalize, dbt_batched_contract_init, dbt_contract, dbt_copy, &
         dbt_copy_matrix_to_tensor, dbt_copy_tensor_to_matrix, dbt_get_block, &
-        dbt_get_stored_coordinates, dbt_put_block, dbt_reserve_blocks
+        dbt_get_stored_coordinates, dbt_library_finalize, dbt_library_init, dbt_put_block, &
+        dbt_reserve_blocks
    USE dbt_split,                       ONLY: dbt_split_blocks
    USE dbt_test,                        ONLY: dbt_checksum,&
                                               dbt_contract_test
@@ -96,6 +97,8 @@ MODULE dbt_api
    PUBLIC :: dbt_mp_dims_create
    PUBLIC :: dbt_batched_contract_init
    PUBLIC :: dbt_batched_contract_finalize
+   PUBLIC :: dbt_library_init
+   PUBLIC :: dbt_library_finalize
    PUBLIC :: dbt_ndims
    PUBLIC :: dbt_dims
    PUBLIC :: dbt_pgrid_change_dims
