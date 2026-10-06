@@ -17,9 +17,8 @@ MODULE dbt_reshape_ops
    USE dbt_allocate_wrap, ONLY: allocate_any
    USE dbt_tas_base, ONLY: dbt_tas_copy, dbt_tas_get_info, dbt_tas_info
    USE dbt_block, ONLY: &
-      block_nd, create_block, destroy_block, dbt_iterator_type, dbt_iterator_next_block, &
-      dbt_iterator_blocks_left, dbt_iterator_start, dbt_iterator_stop, dbt_get_block, &
-      dbt_reserve_blocks, dbt_put_block
+      dbt_iterator_type, dbt_iterator_next_block, dbt_iterator_blocks_left, dbt_iterator_start, &
+      dbt_iterator_stop, dbt_get_block_data, dbt_put_block_data, dbt_reserve_blocks
    USE dbt_types, ONLY: dbt_blk_sizes, &
                         dbt_create, &
                         dbt_type, &
@@ -65,7 +64,7 @@ CONTAINS
       INTEGER(KIND=int_8)                                :: ibase, idata
       INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: blks_to_allocate
       TYPE(dbt_iterator_type)                            :: iter
-      TYPE(block_nd)                                     :: blk_data
+      CHARACTER(LEN=32)                                  :: name_pack, name_unpack
       INTEGER, DIMENSION(ndims_tensor(tensor_in))        :: blk_size, ind_nd
       LOGICAL :: found, summation_prv, move_prv
 
@@ -101,18 +100,23 @@ CONTAINS
       mp_comm = tensor_in%pgrid%mp_comm_2d
       numnodes = mp_comm%num_pe
       nindex = ndims_tensor(tensor_in) + 1
+      ! separate timers for blocks that need a reshape (index order differs from matrix layout)
+      name_pack = routineN//"_pack"
+      IF (permuted(tensor_in)) name_pack = routineN//"_pack_perm"
+      name_unpack = routineN//"_unpack"
+      IF (permuted(tensor_out)) name_unpack = routineN//"_unpack_perm"
       ALLOCATE (nblks_send_total(0:numnodes - 1), ndata_send_total(0:numnodes - 1), source=0)
       ALLOCATE (nblks_recv_total(0:numnodes - 1), ndata_recv_total(0:numnodes - 1), source=0)
       ALLOCATE (nblks_send_displ(0:numnodes - 1), ndata_send_displ(0:numnodes - 1))
       ALLOCATE (nblks_recv_displ(0:numnodes - 1), ndata_recv_displ(0:numnodes - 1))
 
 !$OMP PARALLEL DEFAULT(OMP_DEFAULT_NONE_WITH_OOP) &
-!$OMP SHARED(tensor_in,tensor_out,summation,mp_comm,numnodes,nindex) &
+!$OMP SHARED(tensor_in,tensor_out,summation,mp_comm,numnodes,nindex,name_pack,name_unpack) &
 !$OMP SHARED(data_send,data_recv,index_send,index_recv) &
 !$OMP SHARED(nblks_send_total,ndata_send_total,nblks_recv_total,ndata_recv_total) &
 !$OMP SHARED(nblks_send_displ,ndata_send_displ,nblks_recv_displ,ndata_recv_displ) &
 !$OMP PRIVATE(nblks_send_mythread,ndata_send_mythread,nblks_recv_mythread) &
-!$OMP PRIVATE(iter,ind_nd,blk_size,blk_data,found,iproc,handle2) &
+!$OMP PRIVATE(iter,ind_nd,blk_size,found,iproc,handle2) &
 !$OMP PRIVATE(blks_to_allocate,offset,ndata,iblk,jblk,ibase,idata)
       CALL timeset(routineN//"_count", handle2)
       ALLOCATE (nblks_send_mythread(0:numnodes - 1), ndata_send_mythread(0:numnodes - 1), source=0)
@@ -144,7 +148,7 @@ CONTAINS
 !$OMP BARRIER
       CALL timestop(handle2)
 
-      CALL timeset(routineN//"_pack", handle2)
+      CALL timeset(TRIM(name_pack), handle2)
 !$OMP MASTER
       CALL grow_index(index_send, nindex*(nblks_send_displ(numnodes - 1) + nblks_send_total(numnodes - 1)))
       CALL grow_index(index_recv, nindex*(nblks_recv_displ(numnodes - 1) + nblks_recv_total(numnodes - 1)))
@@ -157,20 +161,18 @@ CONTAINS
       DO WHILE (dbt_iterator_blocks_left(iter))
          CALL dbt_iterator_next_block(iter, ind_nd, blk_size=blk_size)
          CALL dbt_get_stored_coordinates(tensor_out, ind_nd, iproc)
-         CALL dbt_get_block(tensor_in, ind_nd, blk_data, found)
-         CPASSERT(found)
          ! insert block data
          ndata = PRODUCT(blk_size)
          ndata_send_mythread(iproc) = ndata_send_mythread(iproc) - ndata
          offset = ndata_send_mythread(iproc)
          idata = ndata_send_displ(iproc) + offset
-         data_send(idata + 1:idata + ndata) = blk_data%blk(:)
+         CALL dbt_get_block_data(tensor_in, ind_nd, blk_size, data_send(idata + 1:idata + ndata), found)
+         CPASSERT(found)
          ! insert block index
          nblks_send_mythread(iproc) = nblks_send_mythread(iproc) - 1
          ibase = nindex*(nblks_send_displ(iproc) + nblks_send_mythread(iproc))
          index_send(ibase + 1) = offset
          index_send(ibase + 2:ibase + nindex) = ind_nd(:)
-         CALL destroy_block(blk_data)
       END DO
       CALL dbt_iterator_stop(iter)
       DEALLOCATE (nblks_send_mythread, ndata_send_mythread)
@@ -209,7 +211,7 @@ CONTAINS
 !$OMP BARRIER
       CALL timestop(handle2)
 
-      CALL timeset(routineN//"_unpack", handle2)
+      CALL timeset(TRIM(name_unpack), handle2)
       DO iproc = 0, numnodes - 1
 !$OMP DO
          DO iblk = 1, nblks_recv_total(iproc)
@@ -218,9 +220,8 @@ CONTAINS
             CALL dbt_blk_sizes(tensor_out, ind_nd, blk_size)
             idata = ndata_recv_displ(iproc) + index_recv(ibase + 1)
             ndata = PRODUCT(blk_size)
-            CALL create_block(blk_data, blk_size, array=data_recv(idata + 1:idata + ndata))
-            CALL dbt_put_block(tensor_out, ind_nd, blk_data, summation=summation)
-            CALL destroy_block(blk_data)
+            CALL dbt_put_block_data(tensor_out, ind_nd, blk_size, data_recv(idata + 1:idata + ndata), &
+                                    summation=summation)
          END DO
 !$OMP END DO
       END DO
@@ -249,6 +250,21 @@ CONTAINS
       IF (ALLOCATED(index_send)) DEALLOCATE (index_send)
       IF (ALLOCATED(index_recv)) DEALLOCATE (index_recv)
    END SUBROUTINE dbt_reshape_release
+
+! **************************************************************************************************
+!> \brief Whether the tensor's index order differs from its matrix layout (blocks need a reshape).
+!> \author Hans Pabst
+! **************************************************************************************************
+   FUNCTION permuted(tensor)
+      TYPE(dbt_type), INTENT(IN)                            :: tensor
+      LOGICAL                                               :: permuted
+
+      INTEGER                                               :: i
+
+      ASSOCIATE (map1_2d => tensor%nd_index_blk%map1_2d, map2_2d => tensor%nd_index_blk%map2_2d)
+         permuted = .NOT. ALL([map1_2d, map2_2d] == [(i, i=1, SIZE(map1_2d) + SIZE(map2_2d))])
+      END ASSOCIATE
+   END FUNCTION permuted
 
 ! **************************************************************************************************
 !> \brief Exclusive prefix sum of per-peer counts.
