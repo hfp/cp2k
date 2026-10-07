@@ -48,13 +48,15 @@ CONTAINS
 !> \brief copy data (involves reshape)
 !>        tensor_out = tensor_out + tensor_in move_data memory optimization:
 !>        transfer data from tensor_in to tensor_out s.t. tensor_in is empty on return
+!> \param bounds crop tensor data while copying (as dbt_crop): start and end index per dimension
 !> \author Ole Schuett
 ! **************************************************************************************************
-   SUBROUTINE dbt_reshape(tensor_in, tensor_out, summation, move_data)
+   SUBROUTINE dbt_reshape(tensor_in, tensor_out, summation, move_data, bounds)
 
       TYPE(dbt_type), INTENT(INOUT)               :: tensor_in, tensor_out
       LOGICAL, INTENT(IN), OPTIONAL                    :: summation
       LOGICAL, INTENT(IN), OPTIONAL                    :: move_data
+      INTEGER, DIMENSION(2, ndims_tensor(tensor_in)), INTENT(IN), OPTIONAL :: bounds
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'dbt_reshape'
 
@@ -65,8 +67,9 @@ CONTAINS
       INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: blks_to_allocate
       TYPE(dbt_iterator_type)                            :: iter
       CHARACTER(LEN=32)                                  :: name_pack, name_unpack
-      INTEGER, DIMENSION(ndims_tensor(tensor_in))        :: blk_size, ind_nd
-      LOGICAL :: found, summation_prv, move_prv
+      INTEGER, DIMENSION(ndims_tensor(tensor_in))        :: blk_size, blk_offset, ind_nd
+      INTEGER, DIMENSION(2, ndims_tensor(tensor_in))     :: bounds_prv
+      LOGICAL :: found, summation_prv, move_prv, do_bounds, overlap, inside
 
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: nblks_send_total, ndata_send_total, &
                                                             nblks_recv_total, ndata_recv_total, &
@@ -87,6 +90,13 @@ CONTAINS
          move_prv = move_data
       ELSE
          move_prv = .FALSE.
+      END IF
+
+      do_bounds = PRESENT(bounds)
+      IF (do_bounds) THEN
+         bounds_prv(:, :) = bounds(:, :)
+      ELSE
+         bounds_prv(:, :) = 0
       END IF
 
       CPASSERT(tensor_out%valid)
@@ -112,18 +122,23 @@ CONTAINS
 
 !$OMP PARALLEL DEFAULT(OMP_DEFAULT_NONE_WITH_OOP) &
 !$OMP SHARED(tensor_in,tensor_out,summation,mp_comm,numnodes,nindex,name_pack,name_unpack) &
+!$OMP SHARED(do_bounds,bounds_prv) &
 !$OMP SHARED(data_send,data_recv,index_send,index_recv) &
 !$OMP SHARED(nblks_send_total,ndata_send_total,nblks_recv_total,ndata_recv_total) &
 !$OMP SHARED(nblks_send_displ,ndata_send_displ,nblks_recv_displ,ndata_recv_displ) &
 !$OMP PRIVATE(nblks_send_mythread,ndata_send_mythread,nblks_recv_mythread) &
-!$OMP PRIVATE(iter,ind_nd,blk_size,found,iproc,handle2) &
+!$OMP PRIVATE(iter,ind_nd,blk_size,blk_offset,found,overlap,inside,iproc,handle2) &
 !$OMP PRIVATE(blks_to_allocate,offset,ndata,iblk,jblk,ibase,idata)
       CALL timeset(routineN//"_count", handle2)
       ALLOCATE (nblks_send_mythread(0:numnodes - 1), ndata_send_mythread(0:numnodes - 1), source=0)
 
       CALL dbt_iterator_start(iter, tensor_in)
       DO WHILE (dbt_iterator_blocks_left(iter))
-         CALL dbt_iterator_next_block(iter, ind_nd, blk_size=blk_size)
+         CALL dbt_iterator_next_block(iter, ind_nd, blk_size=blk_size, blk_offset=blk_offset)
+         IF (do_bounds) THEN
+            CALL block_bounds(bounds_prv, blk_offset, blk_size, overlap, inside)
+            IF (.NOT. overlap) CYCLE
+         END IF
          CALL dbt_get_stored_coordinates(tensor_out, ind_nd, iproc)
          nblks_send_mythread(iproc) = nblks_send_mythread(iproc) + 1
          ndata_send_mythread(iproc) = ndata_send_mythread(iproc) + PRODUCT(blk_size)
@@ -159,7 +174,12 @@ CONTAINS
 
       CALL dbt_iterator_start(iter, tensor_in)
       DO WHILE (dbt_iterator_blocks_left(iter))
-         CALL dbt_iterator_next_block(iter, ind_nd, blk_size=blk_size)
+         CALL dbt_iterator_next_block(iter, ind_nd, blk_size=blk_size, blk_offset=blk_offset)
+         inside = .TRUE.
+         IF (do_bounds) THEN
+            CALL block_bounds(bounds_prv, blk_offset, blk_size, overlap, inside)
+            IF (.NOT. overlap) CYCLE
+         END IF
          CALL dbt_get_stored_coordinates(tensor_out, ind_nd, iproc)
          ! insert block data
          ndata = PRODUCT(blk_size)
@@ -168,6 +188,7 @@ CONTAINS
          idata = ndata_send_displ(iproc) + offset
          CALL dbt_get_block_data(tensor_in, ind_nd, blk_size, data_send(idata + 1:idata + ndata), found)
          CPASSERT(found)
+         IF (.NOT. inside) CALL block_crop(bounds_prv, blk_offset, blk_size, data_send(idata + 1:idata + ndata))
          ! insert block index
          nblks_send_mythread(iproc) = nblks_send_mythread(iproc) - 1
          ibase = nindex*(nblks_send_displ(iproc) + nblks_send_mythread(iproc))
@@ -265,6 +286,45 @@ CONTAINS
          permuted = .NOT. ALL([map1_2d, map2_2d] == [(i, i=1, SIZE(map1_2d) + SIZE(map2_2d))])
       END ASSOCIATE
    END FUNCTION permuted
+
+! **************************************************************************************************
+!> \brief Whether a block (element offset and size per dimension) overlaps the bounds, and whether
+!>        it lies entirely inside them.
+!> \author Hans Pabst
+! **************************************************************************************************
+   PURE SUBROUTINE block_bounds(bounds, blk_offset, blk_size, overlap, inside)
+      INTEGER, DIMENSION(:, :), INTENT(IN)                  :: bounds
+      INTEGER, DIMENSION(:), INTENT(IN)                     :: blk_offset, blk_size
+      LOGICAL, INTENT(OUT)                                  :: overlap, inside
+
+      overlap = ALL(blk_offset <= bounds(2, :) .AND. bounds(1, :) <= blk_offset + blk_size - 1)
+      inside = ALL(bounds(1, :) <= blk_offset .AND. blk_offset + blk_size - 1 <= bounds(2, :))
+   END SUBROUTINE block_bounds
+
+! **************************************************************************************************
+!> \brief Zero the elements of a block (column-major data) outside the bounds (as dbt_crop).
+!> \author Hans Pabst
+! **************************************************************************************************
+   PURE SUBROUTINE block_crop(bounds, blk_offset, blk_size, data)
+      INTEGER, DIMENSION(:, :), INTENT(IN)                  :: bounds
+      INTEGER, DIMENSION(:), INTENT(IN)                     :: blk_offset, blk_size
+      REAL(dp), DIMENSION(:), INTENT(INOUT)                 :: data
+
+      INTEGER                                               :: d, i
+      INTEGER, DIMENSION(SIZE(blk_size))                    :: hi, idx, lo
+
+      lo(:) = MAX(bounds(1, :) - blk_offset + 1, 1)
+      hi(:) = MIN(bounds(2, :) - blk_offset + 1, blk_size)
+      idx(:) = 1
+      DO i = 1, SIZE(data)
+         IF (ANY(idx < lo .OR. hi < idx)) data(i) = 0.0_dp
+         DO d = 1, SIZE(idx) ! next column-major index
+            idx(d) = idx(d) + 1
+            IF (idx(d) <= blk_size(d)) EXIT
+            idx(d) = 1
+         END DO
+      END DO
+   END SUBROUTINE block_crop
 
 ! **************************************************************************************************
 !> \brief Exclusive prefix sum of per-peer counts.
