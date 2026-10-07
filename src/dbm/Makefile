@@ -69,9 +69,7 @@ LIBXSROOT ?= $(wildcard $(CP2KHOME)/../libxs)
 ifneq ($(LIBXSROOT),)
 CFLAGS += -D__LIBXS -D__BLAS -I$(LIBXSROOT)
 LIBXSLIB := $(wildcard $(LIBXSROOT)/lib/libxs.a)
-ifneq ($(LIBXSLIB),)
-LIBS += $(LIBXSLIB)
-else # header-only
+ifeq ($(LIBXSLIB),) # header-only
 CFLAGS += -DLIBXS_SOURCE
 endif
 # LIBXSMM headers enable JIT kernel dispatch inside LIBXS.
@@ -201,9 +199,8 @@ endif
 LIBS += -lgfortran
 
 ifneq (Darwin,$(shell uname))
-OPENCL_LIB := $(shell ldconfig -p 2>/dev/null | grep -m1 OpenCL | rev | cut -d' ' -f1 | rev)
 ifeq (,$(OPENCL_LIB))
-OPENCL_LIB := /usr/lib/x86_64-linux-gnu/libOpenCL.so.1
+OPENCL_LIB := $(shell ldconfig -p 2>/dev/null | grep -m1 OpenCL | rev | cut -d' ' -f1 | rev)
 endif
 ifneq (,$(CUDA_PATH))
 ifeq (,$(wildcard $(OPENCL_INC)))
