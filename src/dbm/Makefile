@@ -85,6 +85,30 @@ OPENCL := 0
 endif
 endif
 
+ifeq ($(filter-out 0,$(OPENCL)),)
+NVCC := $(shell which nvcc 2>/dev/null)
+# Probe the build host's GPU, else nvcc's default architecture (no -arch).
+NVARCH ?= $(if $(NVCC),$(shell $(NVCC) -arch=native -c -x cu /dev/null \
+  -o /dev/null >/dev/null 2>&1 && echo native))
+NVARCHX := $(if $(NVARCH),-arch $(NVARCH))
+NVFLAGS := -g $(OPTFLAG) -lineinfo $(NVARCHX) -Wno-deprecated-gpu-targets -Xcompiler "$(CFLAGS)" -D__OFFLOAD_CUDA
+
+HIPCC := $(shell which hipcc 2>/dev/null)
+HIPARCH := gfx90a
+ROCM_PATH_ENV := $(shell echo "$${ROCM_PATH}")
+ROCM_PATH := $(if $(ROCM_PATH_ENV),$(ROCM_PATH_ENV),/opt/rocm)
+HIPFLAGS := -fPIE -g $(OPTFLAG) --offload-arch=$(HIPARCH) -Wall -Wextra -Werror -I${ROCM_PATH}/include -D__OFFLOAD_HIP -D__HIP_PLATFORM_AMD__
+endif
+
+# prefer NVCC or HIPCC over OpenCL
+ifneq ($(NVCC)$(HIPCC),)
+NVCC_PATH := $(if $(NVCC),$(wildcard $(dir $(NVCC))/..))
+CUDA_FILE := $(wildcard $(NVCC_PATH)/../cuda/include/cuda.h)
+CUDA_PATH := $(if $(CUDA_FILE),$(NVCC_PATH)/../cuda,$(NVCC_PATH))
+CUDA_LIBS := $(if $(wildcard $(CUDA_PATH)/lib64),lib64,lib)
+OPENCL := 0
+endif
+
 # Make LIBXSTREAM available (auto-detect as sibling of CP2KHOME).
 ifneq ($(LIBXSTREAM),0)
 ifneq ($(OPENCL),0)
@@ -106,27 +130,6 @@ endif
 endif
 endif
 
-ifeq ($(filter-out 0,$(OPENCL)),)
-NVCC := $(shell which nvcc 2>/dev/null)
-NVARCH := sm_70
-NVARCHX := $(if $(NVARCH),-arch $(NVARCH))
-NVFLAGS := -g $(OPTFLAG) -lineinfo $(NVARCHX) -Wno-deprecated-gpu-targets -Xcompiler "$(CFLAGS)" -D__OFFLOAD_CUDA
-
-HIPCC := $(shell which hipcc 2>/dev/null)
-HIPARCH := gfx90a
-ROCM_PATH_ENV := $(shell echo "$${ROCM_PATH}")
-ROCM_PATH := $(if $(ROCM_PATH_ENV),$(ROCM_PATH_ENV),/opt/rocm)
-HIPFLAGS := -fPIE -g $(OPTFLAG) --offload-arch=$(HIPARCH) -Wall -Wextra -Werror -I${ROCM_PATH}/include -D__OFFLOAD_HIP -D__HIP_PLATFORM_AMD__
-endif
-
-# prefer NVCC or HIPCC over OpenCL
-ifneq ($(NVCC)$(HIPCC),)
-NVCC_PATH := $(if $(NVCC),$(wildcard $(dir $(NVCC))/..))
-CUDA_FILE := $(wildcard $(NVCC_PATH)/../cuda/include/cuda.h)
-CUDA_PATH := $(if $(CUDA_FILE),$(NVCC_PATH)/../cuda,$(NVCC_PATH))
-CUDA_LIBS := $(if $(wildcard $(CUDA_PATH)/lib64),lib64,lib)
-OPENCL := 0
-endif
 ifneq ($(OPENCL),0)
 ifneq ($(ICX),)
 LIBS += -lifcoremt -limf
