@@ -9,7 +9,8 @@
 !> \brief Utility methods to build 3-center integral tensors of various types.
 ! **************************************************************************************************
 MODULE qs_tensors
-   USE OMP_LIB,                         ONLY: omp_get_num_threads,&
+   USE OMP_LIB,                         ONLY: omp_get_max_threads,&
+                                              omp_get_num_threads,&
                                               omp_get_thread_num
    USE ai_contraction,                  ONLY: block_add
    USE ai_contraction_sphi,             ONLY: ab_contract,&
@@ -3453,9 +3454,12 @@ CONTAINS
       REAL(dp), INTENT(IN)                               :: eps
       REAL(dp), INTENT(INOUT)                            :: memory
 
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'compress_tensor'
+
       INTEGER                                            :: buffer_left, buffer_size, buffer_start, &
-                                                            i, iblk, memory_usage, nbits, nblk, &
-                                                            nints, offset, shared_offset
+                                                            handle, i, iblk, ibin, memory_usage, &
+                                                            nbins, nbits, nblk, nints, offset, &
+                                                            shared_offset
       INTEGER(int_8)                                     :: estimate_to_store_int, &
                                                             storage_counter_integrals
       INTEGER, DIMENSION(3)                              :: ind
@@ -3469,19 +3473,12 @@ CONTAINS
       TYPE(hfx_container_type), DIMENSION(:), POINTER    :: integral_containers
       TYPE(hfx_container_type), POINTER                  :: maxval_container
 
+      CALL timeset(routineN, handle)
+
       CALL dealloc_containers(compressed, memory_usage)
-      CALL alloc_containers(compressed, 1)
-
-      maxval_container => compressed%maxval_container(1)
-      integral_containers => compressed%integral_containers(:, 1)
-
-      CALL hfx_init_container(maxval_container, memory_usage, .FALSE.)
-      DO i = 1, 64
-         CALL hfx_init_container(integral_containers(i), memory_usage, .FALSE.)
-      END DO
-
-      maxval_cache => compressed%maxval_cache(1)
-      integral_caches => compressed%integral_caches(:, 1)
+      ! one bin (independent stream) per thread lets decompress_tensor run in parallel
+      nbins = omp_get_max_threads()
+      CALL alloc_containers(compressed, nbins)
 
       IF (ALLOCATED(blk_indices)) DEALLOCATE (blk_indices)
       ALLOCATE (blk_indices(dbt_get_num_blocks(tensor), 3))
@@ -3502,67 +3499,91 @@ CONTAINS
 !$OMP END PARALLEL
 
       ! Can not use the tensor iterator here because the order of the blocks is not guaranteed.
-      DO i = 1, SIZE(blk_indices, 1)
-         ind = blk_indices(i, :)
-         CALL dbt_get_block(tensor, ind, blk_data, found)
-         CPASSERT(found)
-         nints = SIZE(blk_data)
-         blk_data_1d(1:nints) => blk_data
-         spherical_estimate = MAXVAL(ABS(blk_data_1d))
-         IF (spherical_estimate == 0.0_dp) spherical_estimate = TINY(spherical_estimate)
-         estimate_to_store_int = EXPONENT(spherical_estimate)
-         estimate_to_store_int = MAX(estimate_to_store_int, -15_int_8)
+      nblk = SIZE(blk_indices, 1)
+      storage_counter_integrals = 0
+!$OMP PARALLEL DO DEFAULT(NONE) SHARED(tensor,blk_indices,compressed,eps,nbins,nblk) &
+!$OMP PRIVATE(ibin,i,ind,blk_data,blk_data_1d,found,nints,spherical_estimate,nbits) &
+!$OMP PRIVATE(estimate_to_store_int,buffer_left,buffer_size,buffer_start,memory_usage) &
+!$OMP PRIVATE(maxval_cache,maxval_container,integral_caches,integral_containers) &
+!$OMP REDUCTION(+:storage_counter_integrals) SCHEDULE(STATIC,1)
+      DO ibin = 1, nbins
+         maxval_container => compressed%maxval_container(ibin)
+         integral_containers => compressed%integral_containers(:, ibin)
 
-         CALL hfx_add_single_cache_element(estimate_to_store_int, 6, &
-                                           maxval_cache, maxval_container, memory_usage, &
-                                           .FALSE.)
-
-         spherical_estimate = SET_EXPONENT(1.0_dp, estimate_to_store_int + 1)
-
-         nbits = EXPONENT(ANINT(spherical_estimate/eps)) + 1
-         IF (nbits > 64) THEN
-            CALL cp_abort(__LOCATION__, &
-                          "Overflow during tensor compression. Please use a larger EPS_FILTER or EPS_STORAGE_SCALING")
-         END IF
-
-         buffer_left = nints
-         buffer_start = 1
-
-         DO WHILE (buffer_left > 0)
-            buffer_size = MIN(buffer_left, cache_size)
-            CALL hfx_add_mult_cache_elements(blk_data_1d(buffer_start:), &
-                                             buffer_size, nbits, &
-                                             integral_caches(nbits), &
-                                             integral_containers(nbits), &
-                                             eps, 1.0_dp, &
-                                             memory_usage, &
-                                             .FALSE.)
-            buffer_left = buffer_left - buffer_size
-            buffer_start = buffer_start + buffer_size
+         CALL hfx_init_container(maxval_container, memory_usage, .FALSE.)
+         DO i = 1, 64
+            CALL hfx_init_container(integral_containers(i), memory_usage, .FALSE.)
          END DO
 
-         NULLIFY (blk_data_1d); DEALLOCATE (blk_data)
+         maxval_cache => compressed%maxval_cache(ibin)
+         integral_caches => compressed%integral_caches(:, ibin)
+
+         DO i = (ibin - 1)*nblk/nbins + 1, ibin*nblk/nbins
+            ind = blk_indices(i, :)
+            CALL dbt_get_block(tensor, ind, blk_data, found)
+            CPASSERT(found)
+            nints = SIZE(blk_data)
+            blk_data_1d(1:nints) => blk_data
+            spherical_estimate = MAXVAL(ABS(blk_data_1d))
+            IF (spherical_estimate == 0.0_dp) spherical_estimate = TINY(spherical_estimate)
+            estimate_to_store_int = EXPONENT(spherical_estimate)
+            estimate_to_store_int = MAX(estimate_to_store_int, -15_int_8)
+
+            CALL hfx_add_single_cache_element(estimate_to_store_int, 6, &
+                                              maxval_cache, maxval_container, memory_usage, &
+                                              .FALSE.)
+
+            spherical_estimate = SET_EXPONENT(1.0_dp, estimate_to_store_int + 1)
+
+            nbits = EXPONENT(ANINT(spherical_estimate/eps)) + 1
+            IF (nbits > 64) THEN
+               CALL cp_abort(__LOCATION__, &
+                             "Overflow during tensor compression. Please use a larger EPS_FILTER or EPS_STORAGE_SCALING")
+            END IF
+
+            buffer_left = nints
+            buffer_start = 1
+
+            DO WHILE (buffer_left > 0)
+               buffer_size = MIN(buffer_left, cache_size)
+               CALL hfx_add_mult_cache_elements(blk_data_1d(buffer_start:), &
+                                                buffer_size, nbits, &
+                                                integral_caches(nbits), &
+                                                integral_containers(nbits), &
+                                                eps, 1.0_dp, &
+                                                memory_usage, &
+                                                .FALSE.)
+               buffer_left = buffer_left - buffer_size
+               buffer_start = buffer_start + buffer_size
+            END DO
+
+            NULLIFY (blk_data_1d); DEALLOCATE (blk_data)
+         END DO
+
+         storage_counter_integrals = storage_counter_integrals + INT(memory_usage, int_8)*cache_size
+
+         CALL hfx_flush_last_cache(6, maxval_cache, maxval_container, memory_usage, &
+                                   .FALSE.)
+         DO i = 1, 64
+            CALL hfx_flush_last_cache(i, integral_caches(i), integral_containers(i), &
+                                      memory_usage, .FALSE.)
+         END DO
+
+         CALL hfx_reset_cache_and_container(maxval_cache, maxval_container, memory_usage, .FALSE.)
+         DO i = 1, 64
+            CALL hfx_reset_cache_and_container(integral_caches(i), integral_containers(i), &
+                                               memory_usage, .FALSE.)
+         END DO
       END DO
+!$OMP END PARALLEL DO
 
       CALL dbt_clear(tensor)
 
-      storage_counter_integrals = memory_usage*cache_size
       memory = memory + REAL(storage_counter_integrals, dp)/1024/128
       !WRITE (UNIT=iw, FMT="((T3,A,T60,I21))") &
       !   "HFX_MEM_INFO| Total memory consumption ERI's RAM [MiB]:            ", memory
 
-      CALL hfx_flush_last_cache(6, maxval_cache, maxval_container, memory_usage, &
-                                .FALSE.)
-      DO i = 1, 64
-         CALL hfx_flush_last_cache(i, integral_caches(i), integral_containers(i), &
-                                   memory_usage, .FALSE.)
-      END DO
-
-      CALL hfx_reset_cache_and_container(maxval_cache, maxval_container, memory_usage, .FALSE.)
-      DO i = 1, 64
-         CALL hfx_reset_cache_and_container(integral_caches(i), integral_containers(i), &
-                                            memory_usage, .FALSE.)
-      END DO
+      CALL timestop(handle)
 
    END SUBROUTINE compress_tensor
 
@@ -3580,8 +3601,11 @@ CONTAINS
       TYPE(hfx_compression_type), INTENT(INOUT)          :: compressed
       REAL(dp), INTENT(IN)                               :: eps
 
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'decompress_tensor'
+
       INTEGER                                            :: A, b, buffer_left, buffer_size, &
-                                                            buffer_start, i, memory_usage, nbits, &
+                                                            buffer_start, handle, i, ibin, &
+                                                            memory_usage, nbins, nbits, nblk, &
                                                             nblk_per_thread, nints
       INTEGER(int_8)                                     :: estimate_to_store_int
       INTEGER, DIMENSION(3)                              :: blk_size, ind
@@ -3593,19 +3617,7 @@ CONTAINS
       TYPE(hfx_container_type), DIMENSION(:), POINTER    :: integral_containers
       TYPE(hfx_container_type), POINTER                  :: maxval_container
 
-      maxval_cache => compressed%maxval_cache(1)
-      maxval_container => compressed%maxval_container(1)
-      integral_caches => compressed%integral_caches(:, 1)
-      integral_containers => compressed%integral_containers(:, 1)
-
-      memory_usage = 0
-
-      CALL hfx_decompress_first_cache(6, maxval_cache, maxval_container, memory_usage, .FALSE.)
-
-      DO i = 1, 64
-         CALL hfx_decompress_first_cache(i, integral_caches(i), integral_containers(i), &
-                                         memory_usage, .FALSE.)
-      END DO
+      CALL timeset(routineN, handle)
 
 !TODO: Parallelize creation of block list.
 !$OMP PARALLEL DEFAULT(NONE) SHARED(tensor,blk_indices) PRIVATE(nblk_per_thread,A,b)
@@ -3615,47 +3627,74 @@ CONTAINS
       CALL dbt_reserve_blocks(tensor, blk_indices(a:b, :))
 !$OMP END PARALLEL
 
-      ! Can not use the tensor iterator here because the order of the blocks is not guaranteed.
-      DO i = 1, SIZE(blk_indices, 1)
-         ind = blk_indices(i, :)
-         CALL dbt_blk_sizes(tensor, ind, blk_size)
-         nints = PRODUCT(blk_size)
-         CALL hfx_get_single_cache_element( &
-            estimate_to_store_int, 6, &
-            maxval_cache, maxval_container, memory_usage, &
-            .FALSE.)
+      ! bins are independent streams, each holding a contiguous range of blk_indices
+      nbins = SIZE(compressed%integral_containers, 2)
+      nblk = SIZE(blk_indices, 1)
+!$OMP PARALLEL DO DEFAULT(NONE) SHARED(tensor,blk_indices,compressed,eps,nbins,nblk) &
+!$OMP PRIVATE(ibin,i,ind,blk_size,nints,estimate_to_store_int,spherical_estimate,nbits) &
+!$OMP PRIVATE(buffer_left,buffer_size,buffer_start,blk_data,blk_data_3d,memory_usage) &
+!$OMP PRIVATE(maxval_cache,maxval_container,integral_caches,integral_containers) &
+!$OMP SCHEDULE(STATIC,1)
+      DO ibin = 1, nbins
+         maxval_cache => compressed%maxval_cache(ibin)
+         maxval_container => compressed%maxval_container(ibin)
+         integral_caches => compressed%integral_caches(:, ibin)
+         integral_containers => compressed%integral_containers(:, ibin)
 
-         spherical_estimate = SET_EXPONENT(1.0_dp, estimate_to_store_int + 1)
+         memory_usage = 0
 
-         nbits = EXPONENT(ANINT(spherical_estimate/eps)) + 1
+         CALL hfx_decompress_first_cache(6, maxval_cache, maxval_container, memory_usage, .FALSE.)
 
-         buffer_left = nints
-         buffer_start = 1
-
-         ALLOCATE (blk_data(nints))
-         DO WHILE (buffer_left > 0)
-            buffer_size = MIN(buffer_left, cache_size)
-            CALL hfx_get_mult_cache_elements(blk_data(buffer_start), &
-                                             buffer_size, nbits, &
-                                             integral_caches(nbits), &
-                                             integral_containers(nbits), &
-                                             eps, 1.0_dp, &
-                                             memory_usage, &
-                                             .FALSE.)
-            buffer_left = buffer_left - buffer_size
-            buffer_start = buffer_start + buffer_size
+         DO i = 1, 64
+            CALL hfx_decompress_first_cache(i, integral_caches(i), integral_containers(i), &
+                                            memory_usage, .FALSE.)
          END DO
 
-         blk_data_3d(1:blk_size(1), 1:blk_size(2), 1:blk_size(3)) => blk_data
-         CALL dbt_put_block(tensor, ind, blk_size, blk_data_3d)
-         NULLIFY (blk_data_3d); DEALLOCATE (blk_data)
-      END DO
+         ! Can not use the tensor iterator here because the order of the blocks is not guaranteed.
+         DO i = (ibin - 1)*nblk/nbins + 1, ibin*nblk/nbins
+            ind = blk_indices(i, :)
+            CALL dbt_blk_sizes(tensor, ind, blk_size)
+            nints = PRODUCT(blk_size)
+            CALL hfx_get_single_cache_element( &
+               estimate_to_store_int, 6, &
+               maxval_cache, maxval_container, memory_usage, &
+               .FALSE.)
 
-      CALL hfx_reset_cache_and_container(maxval_cache, maxval_container, memory_usage, .FALSE.)
-      DO i = 1, 64
-         CALL hfx_reset_cache_and_container(integral_caches(i), integral_containers(i), &
-                                            memory_usage, .FALSE.)
+            spherical_estimate = SET_EXPONENT(1.0_dp, estimate_to_store_int + 1)
+
+            nbits = EXPONENT(ANINT(spherical_estimate/eps)) + 1
+
+            buffer_left = nints
+            buffer_start = 1
+
+            ALLOCATE (blk_data(nints))
+            DO WHILE (buffer_left > 0)
+               buffer_size = MIN(buffer_left, cache_size)
+               CALL hfx_get_mult_cache_elements(blk_data(buffer_start), &
+                                                buffer_size, nbits, &
+                                                integral_caches(nbits), &
+                                                integral_containers(nbits), &
+                                                eps, 1.0_dp, &
+                                                memory_usage, &
+                                                .FALSE.)
+               buffer_left = buffer_left - buffer_size
+               buffer_start = buffer_start + buffer_size
+            END DO
+
+            blk_data_3d(1:blk_size(1), 1:blk_size(2), 1:blk_size(3)) => blk_data
+            CALL dbt_put_block(tensor, ind, blk_size, blk_data_3d)
+            NULLIFY (blk_data_3d); DEALLOCATE (blk_data)
+         END DO
+
+         CALL hfx_reset_cache_and_container(maxval_cache, maxval_container, memory_usage, .FALSE.)
+         DO i = 1, 64
+            CALL hfx_reset_cache_and_container(integral_caches(i), integral_containers(i), &
+                                               memory_usage, .FALSE.)
+         END DO
       END DO
+!$OMP END PARALLEL DO
+
+      CALL timestop(handle)
    END SUBROUTINE decompress_tensor
 
 ! **************************************************************************************************
