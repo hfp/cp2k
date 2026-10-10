@@ -15,6 +15,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(__LIBXS)
+#include <libxs/libxs_math.h>
+#endif
+
 /*******************************************************************************
  * \brief Internal routine for finding a power of two greater than given number.
  * \author Ole Schuett
@@ -28,17 +32,27 @@ static int next_power2(const int start) {
 }
 
 /*******************************************************************************
+ * \brief Internal routine for the largest divisor to test for a prime.
+ * \author Hans Pabst
+ ******************************************************************************/
+static inline int prime_divisor_max(const int candidate) {
+#if defined(__LIBXS)
+  return (int)libxs_isqrt_u32((unsigned int)candidate);
+#else
+  return candidate - 1;
+#endif
+}
+
+/*******************************************************************************
  * \brief Internal routine for finding a prime greater equal than given number.
  * \author Ole Schuett
  ******************************************************************************/
 static int next_prime(const int start) {
-  int candidate = start, divisor = 0;
-  while (divisor < candidate) {
-    for (divisor = 2; divisor < candidate; divisor++) {
-      if (candidate % divisor == 0) {
-        candidate++;
-        break;
-      }
+  int candidate = start, divisor_max = prime_divisor_max(start);
+  for (int divisor = 2; divisor <= divisor_max; divisor++) {
+    if (candidate % divisor == 0) { // try the next candidate
+      divisor_max = prime_divisor_max(++candidate);
+      divisor = 1;
     }
   }
   return candidate;
@@ -186,15 +200,15 @@ dbm_block_t *dbm_shard_lookup(const dbm_shard_t *shard, const int row,
 }
 
 /*******************************************************************************
- * \brief Internal routine for allocating the metadata of a new block.
- * \author Ole Schuett
+ * \brief Internal routine for growing the block metadata of a shard such that
+ *        it holds nblocks blocks in total without growing again.
+ * \author Ole Schuett and Hans Pabst
  ******************************************************************************/
-dbm_block_t *dbm_shard_promise_new_block(dbm_shard_t *shard, const int row,
-                                         const int col, const int block_size) {
+void dbm_shard_reserve(dbm_shard_t *shard, const int nblocks) {
   // Grow blocks array if necessary.
-  if (shard->nblocks_allocated < shard->nblocks + 1) {
-    shard->nblocks_allocated = DBM_ALLOCATION_FACTOR * (shard->nblocks + 1);
-    assert((shard->nblocks + 1) <= shard->nblocks_allocated);
+  if (shard->nblocks_allocated < nblocks) {
+    shard->nblocks_allocated = DBM_ALLOCATION_FACTOR * nblocks;
+    assert(nblocks <= shard->nblocks_allocated);
     shard->blocks =
         realloc(shard->blocks, shard->nblocks_allocated * sizeof(dbm_block_t));
     assert(shard->blocks != NULL);
@@ -206,6 +220,15 @@ dbm_block_t *dbm_shard_promise_new_block(dbm_shard_t *shard, const int row,
       hashtable_insert(shard, i);
     }
   }
+}
+
+/*******************************************************************************
+ * \brief Internal routine for allocating the metadata of a new block.
+ * \author Ole Schuett
+ ******************************************************************************/
+dbm_block_t *dbm_shard_promise_new_block(dbm_shard_t *shard, const int row,
+                                         const int col, const int block_size) {
+  dbm_shard_reserve(shard, shard->nblocks + 1);
 
   const int new_block_idx = shard->nblocks;
   shard->nblocks++;

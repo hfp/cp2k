@@ -393,6 +393,9 @@ void dbm_reserve_blocks(dbm_matrix_t *matrix, const int nblocks,
 #pragma omp for DBM_OMP_SCHEDULE
   for (int ishard = 0; ishard < nshards; ishard++) {
     dbm_shard_t *const shard = &matrix->shards[ishard];
+    // one rebuild of the hashtable rather than one per growth
+    dbm_shard_reserve(shard, shard->nblocks + reserve_start[ishard + 1] -
+                                 reserve_start[ishard]);
     for (int j = reserve_start[ishard]; j < reserve_start[ishard + 1]; j++) {
       const int row = reserve_rowcol[2 * j + 0];
       const int col = reserve_rowcol[2 * j + 1];

@@ -118,6 +118,13 @@ dbm_block_t *dbm_shard_lookup(const dbm_shard_t *shard, const int row,
                               const int col);
 
 /*******************************************************************************
+ * \brief Internal routine for growing the block metadata of a shard such that
+ *        it holds nblocks blocks in total without growing again.
+ * \author Ole Schuett and Hans Pabst
+ ******************************************************************************/
+void dbm_shard_reserve(dbm_shard_t *shard, int nblocks);
+
+/*******************************************************************************
  * \brief Internal routine for allocating the metadata of a new block.
  * \author Ole Schuett
  ******************************************************************************/
