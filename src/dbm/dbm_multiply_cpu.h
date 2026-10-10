@@ -17,18 +17,17 @@ enum dbm_multiply_cpu_options {
 
 // Approximate order of the tasks within a batch (bucket sort).
 enum dbm_multiply_task_order {
-  DBM_TASK_ORDER_NONE = 0,  // as generated
-  DBM_TASK_ORDER_SHAPE = 1, // by m,n,k
-  DBM_TASK_ORDER_C = 2      // by address of the C-block
+  DBM_TASK_ORDER_NONE = 0, // as generated
+  DBM_TASK_ORDER_SHAPE = 1 // by m,n,k
 };
 
 /*******************************************************************************
- * rief Internal routine for ordering the tasks of a batch approximately.
- *        The order is returned as permutation of the task indexes.
- * uthor Hans Pabst
+ * \brief Internal routine for ordering the tasks of a batch approximately by
+ *        shape. The order is returned as permutation of the task indexes.
+ * \author Hans Pabst
  ******************************************************************************/
 void dbm_multiply_cpu_task_order(int ntasks, const dbm_task_t batch[ntasks],
-                                 int order_kind, int order[ntasks]);
+                                 int order[ntasks]);
 
 /*******************************************************************************
  * \brief Internal routine for executing the tasks in given batch on the CPU.

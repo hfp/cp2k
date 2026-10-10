@@ -31,7 +31,7 @@ void dbm_multiply_gpu_launch_kernel(offloadStream_t stream, double alpha,
 
 /*******************************************************************************
  * \brief Internal routine returning the order in which the backend wants the
- *        tasks of a batch (enum dbm_multiply_task_order, e.g., by C-block).
+ *        tasks of a batch (enum dbm_multiply_task_order, e.g., by shape).
  * \author Hans Pabst
  ******************************************************************************/
 int dbm_multiply_gpu_task_order(void);

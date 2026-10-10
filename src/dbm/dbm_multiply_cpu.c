@@ -10,14 +10,12 @@
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
 
 #if defined(__LIBXSMM)
 #include <libxsmm.h>
 #endif
 #if defined(__LIBXS)
 #include <libxs/libxs_gemm.h>
-#include <libxs/libxs_perm.h>
 #endif
 
 /*******************************************************************************
@@ -66,40 +64,25 @@ static inline int task_bucket(const dbm_task_t task) {
 }
 
 /*******************************************************************************
- * \brief Internal routine for ordering the tasks of a batch (exactly by C,
- *        approximately by shape).
+ * \brief Internal routine for ordering the tasks of a batch approximately by
+ *        shape (bucket counting).
  * \author Hans Pabst
  ******************************************************************************/
 void dbm_multiply_cpu_task_order(const int ntasks,
                                  const dbm_task_t batch[ntasks],
-                                 const int order_kind, int order[ntasks]) {
-  if (DBM_TASK_ORDER_C == order_kind) {
-    // Exact grouping of tasks sharing a C-block, which lets a kernel
-    // accumulate such tasks before writing the C-block once.
-    int *const keys = malloc(ntasks * sizeof(int));
-    assert(NULL != keys || 0 >= ntasks);
-    for (int itask = 0; itask < ntasks; ++itask) {
-      order[itask] = itask;
-      keys[itask] = batch[itask].offset_c;
-    }
-#if defined(__LIBXS)
-    libxs_sort(order, ntasks, sizeof(int), libxs_cmp_i32_idx, keys);
-#endif // order as generated otherwise (only requested along with LIBXS)
-    free(keys);
-  } else { // approximate grouping by shape
-    int buckets[DBM_BATCH_NUM_BUCKETS] = {0};
-    for (int itask = 0; itask < ntasks; ++itask) {
-      ++buckets[task_bucket(batch[itask])];
-    }
-    for (int i = 1; i < DBM_BATCH_NUM_BUCKETS; ++i) {
-      buckets[i] += buckets[i - 1];
-    }
-    assert(0 >= ntasks || buckets[DBM_BATCH_NUM_BUCKETS - 1] == ntasks);
-    for (int itask = 0; itask < ntasks; ++itask) {
-      const int i = task_bucket(batch[itask]);
-      --buckets[i];
-      order[buckets[i]] = itask;
-    }
+                                 int order[ntasks]) {
+  int buckets[DBM_BATCH_NUM_BUCKETS] = {0};
+  for (int itask = 0; itask < ntasks; ++itask) {
+    ++buckets[task_bucket(batch[itask])];
+  }
+  for (int i = 1; i < DBM_BATCH_NUM_BUCKETS; ++i) {
+    buckets[i] += buckets[i - 1];
+  }
+  assert(0 >= ntasks || buckets[DBM_BATCH_NUM_BUCKETS - 1] == ntasks);
+  for (int itask = 0; itask < ntasks; ++itask) {
+    const int i = task_bucket(batch[itask]);
+    --buckets[i];
+    order[buckets[i]] = itask;
   }
 }
 
@@ -175,8 +158,7 @@ void dbm_multiply_cpu_process_tasks(int ntasks, const dbm_task_t batch[ntasks],
 
   int batch_order[ntasks];
   if (DBM_MULTIPLY_TASK_REORDER & options) {
-    dbm_multiply_cpu_task_order(ntasks, batch, DBM_TASK_ORDER_SHAPE,
-                                batch_order);
+    dbm_multiply_cpu_task_order(ntasks, batch, batch_order);
   } else {
     for (int itask = 0; itask < ntasks; ++itask) {
       batch_order[itask] = itask;

@@ -144,7 +144,7 @@ static void backend_order_batch(const int ntasks, dbm_task_t batch[ntasks]) {
     int *const order = malloc(sizeof(int) * ntasks);
     assert(NULL != copy && NULL != order);
     memcpy(copy, batch, sizeof(dbm_task_t) * ntasks);
-    dbm_multiply_cpu_task_order(ntasks, copy, order_kind, order);
+    dbm_multiply_cpu_task_order(ntasks, copy, order);
     for (int itask = 0; itask < ntasks; ++itask) {
       batch[itask] = copy[order[itask]];
     }
