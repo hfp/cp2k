@@ -10,12 +10,14 @@
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #if defined(__LIBXSMM)
 #include <libxsmm.h>
 #endif
 #if defined(__LIBXS)
 #include <libxs/libxs_gemm.h>
+#include <libxs/libxs_perm.h>
 #endif
 
 /*******************************************************************************
@@ -56,44 +58,48 @@ static inline unsigned int hash(const dbm_task_t task) {
 }
 
 /*******************************************************************************
- * \brief Private routine for mapping a task to its bucket.
+ * \brief Private routine for mapping a task to its bucket (by shape).
  * \author Hans Pabst
  ******************************************************************************/
-static inline int task_bucket(const dbm_task_t task, const int order_kind,
-                              const int max_c) {
-  // By C, a bucket covers a contiguous range of the C-shard: tasks that share
-  // a bucket without sharing their C-block still write neighboring memory.
-  return (DBM_TASK_ORDER_C == order_kind)
-             ? (int)((int64_t)task.offset_c * DBM_BATCH_NUM_BUCKETS /
-                     ((int64_t)max_c + 1))
-             : (int)(hash(task) % DBM_BATCH_NUM_BUCKETS);
+static inline int task_bucket(const dbm_task_t task) {
+  return (int)(hash(task) % DBM_BATCH_NUM_BUCKETS);
 }
 
 /*******************************************************************************
- * \brief Internal routine for ordering the tasks of a batch approximately.
+ * \brief Internal routine for ordering the tasks of a batch (exactly by C,
+ *        approximately by shape).
  * \author Hans Pabst
  ******************************************************************************/
 void dbm_multiply_cpu_task_order(const int ntasks,
                                  const dbm_task_t batch[ntasks],
                                  const int order_kind, int order[ntasks]) {
-  int buckets[DBM_BATCH_NUM_BUCKETS] = {0};
-  int max_c = 0;
   if (DBM_TASK_ORDER_C == order_kind) {
+    // Exact grouping of tasks sharing a C-block, which lets a kernel
+    // accumulate such tasks before writing the C-block once.
+    int *const keys = malloc(ntasks * sizeof(int));
+    assert(NULL != keys || 0 >= ntasks);
     for (int itask = 0; itask < ntasks; ++itask) {
-      max_c = imax(max_c, batch[itask].offset_c);
+      order[itask] = itask;
+      keys[itask] = batch[itask].offset_c;
     }
-  }
-  for (int itask = 0; itask < ntasks; ++itask) {
-    ++buckets[task_bucket(batch[itask], order_kind, max_c)];
-  }
-  for (int i = 1; i < DBM_BATCH_NUM_BUCKETS; ++i) {
-    buckets[i] += buckets[i - 1];
-  }
-  assert(0 >= ntasks || buckets[DBM_BATCH_NUM_BUCKETS - 1] == ntasks);
-  for (int itask = 0; itask < ntasks; ++itask) {
-    const int i = task_bucket(batch[itask], order_kind, max_c);
-    --buckets[i];
-    order[buckets[i]] = itask;
+#if defined(__LIBXS)
+    libxs_sort(order, ntasks, sizeof(int), libxs_cmp_i32_idx, keys);
+#endif // order as generated otherwise (only requested along with LIBXS)
+    free(keys);
+  } else { // approximate grouping by shape
+    int buckets[DBM_BATCH_NUM_BUCKETS] = {0};
+    for (int itask = 0; itask < ntasks; ++itask) {
+      ++buckets[task_bucket(batch[itask])];
+    }
+    for (int i = 1; i < DBM_BATCH_NUM_BUCKETS; ++i) {
+      buckets[i] += buckets[i - 1];
+    }
+    assert(0 >= ntasks || buckets[DBM_BATCH_NUM_BUCKETS - 1] == ntasks);
+    for (int itask = 0; itask < ntasks; ++itask) {
+      const int i = task_bucket(batch[itask]);
+      --buckets[i];
+      order[buckets[i]] = itask;
+    }
   }
 }
 
