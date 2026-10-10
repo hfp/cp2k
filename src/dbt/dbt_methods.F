@@ -759,7 +759,7 @@ CONTAINS
       LOGICAL                                        :: trans_1, trans_2, trans_3
       LOGICAL                                        :: new_1, new_2, new_3, move_data_1, move_data_2
       INTEGER                                        :: ndims1, ndims2, ndims3
-      INTEGER                                        :: occ_1, occ_2
+      INTEGER, DIMENSION(2)                          :: occ_1, occ_2 ! blocks in bounds, sticking out
       INTEGER, DIMENSION(:), ALLOCATABLE             :: dims1, dims2, dims3
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'dbt_contract'
@@ -842,8 +842,6 @@ CONTAINS
       istat = contract_stats_index(tensor_1%name, tensor_2%name, tensor_3%name)
       ASSOCIATE (s => contract_stats(istat))
          s%ncalls = s%ncalls + 1
-         IF (do_crop_1) s%ncrop(1) = s%ncrop(1) + 1
-         IF (do_crop_2) s%ncrop(2) = s%ncrop(2) + 1
       END ASSOCIATE
 
       ! shortcut for empty tensors
@@ -853,18 +851,18 @@ CONTAINS
          IF (do_crop_1) THEN
             occ_1 = num_blocks_in_bounds(tensor_1, bounds_t1)
          ELSE
-            occ_1 = dbt_get_num_blocks(tensor_1)
+            occ_1 = [dbt_get_num_blocks(tensor_1), 0]
          END IF
          CALL mp_comm%max(occ_1)
          IF (do_crop_2) THEN
             occ_2 = num_blocks_in_bounds(tensor_2, bounds_t2)
          ELSE
-            occ_2 = dbt_get_num_blocks(tensor_2)
+            occ_2 = [dbt_get_num_blocks(tensor_2), 0]
          END IF
          CALL mp_comm%max(occ_2)
       END ASSOCIATE
 
-      IF (occ_1 == 0 .OR. occ_2 == 0) THEN
+      IF (occ_1(1) == 0 .OR. occ_2(1) == 0) THEN
          contract_stats(istat)%nempty = contract_stats(istat)%nempty + 1
          CALL dbt_scale(tensor_3, beta)
          ! as if cropped with move_data (tensor data was transferred into the crop)
@@ -874,6 +872,14 @@ CONTAINS
          CALL timestop(handle)
          RETURN
       END IF
+
+      ! no block sticks out on any rank: a crop would copy the tensor as is
+      do_crop_1 = do_crop_1 .AND. occ_1(2) > 0
+      do_crop_2 = do_crop_2 .AND. occ_2(2) > 0
+      ASSOCIATE (s => contract_stats(istat))
+         IF (do_crop_1) s%ncrop(1) = s%ncrop(1) + 1
+         IF (do_crop_2) s%ncrop(2) = s%ncrop(2) + 1
+      END ASSOCIATE
 
       IF (unit_nr_prv /= 0) THEN
          IF (unit_nr_prv > 0) THEN
@@ -1689,29 +1695,36 @@ CONTAINS
    END SUBROUTINE crop_or_point
 
 ! **************************************************************************************************
-!> \brief Number of local blocks overlapping the bounds (blocks dbt_crop would keep).
+!> \brief Number of local blocks overlapping the bounds (blocks dbt_crop would keep), and number
+!>        of local blocks not entirely within the bounds (none: dbt_crop would copy as is).
 !> \author Hans Pabst
 ! **************************************************************************************************
    FUNCTION num_blocks_in_bounds(tensor, bounds) RESULT(nblocks)
       TYPE(dbt_type), INTENT(INOUT)                      :: tensor
       INTEGER, DIMENSION(2, ndims_tensor(tensor)), INTENT(IN) :: bounds
-      INTEGER                                            :: nblocks
+      INTEGER, DIMENSION(2)                              :: nblocks
 
       TYPE(dbt_iterator_type)                            :: iter
       INTEGER, DIMENSION(ndims_tensor(tensor))           :: blk_index, blk_offset, blk_size
+      INTEGER                                            :: nin, nout
 
-      nblocks = 0
+      nin = 0
+      nout = 0
 !$OMP PARALLEL DEFAULT(NONE) SHARED(tensor,bounds) PRIVATE(iter,blk_index,blk_size,blk_offset) &
-!$OMP REDUCTION(+:nblocks)
+!$OMP REDUCTION(+:nin,nout)
       CALL dbt_iterator_start(iter, tensor)
       DO WHILE (dbt_iterator_blocks_left(iter))
          CALL dbt_iterator_next_block(iter, blk_index, blk_size=blk_size, blk_offset=blk_offset)
          IF (ALL(blk_offset <= bounds(2, :) .AND. bounds(1, :) <= blk_offset + blk_size - 1)) THEN
-            nblocks = nblocks + 1
+            nin = nin + 1
+         END IF
+         IF (ANY(blk_offset < bounds(1, :) .OR. bounds(2, :) < blk_offset + blk_size - 1)) THEN
+            nout = nout + 1
          END IF
       END DO
       CALL dbt_iterator_stop(iter)
 !$OMP END PARALLEL
+      nblocks = [nin, nout]
    END FUNCTION num_blocks_in_bounds
 
 ! **************************************************************************************************
