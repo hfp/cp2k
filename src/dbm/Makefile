@@ -89,7 +89,7 @@ ifeq ($(filter-out 0,$(OPENCL)),)
 NVCC := $(shell which nvcc 2>/dev/null)
 # Probe the build host's GPU, else nvcc's default architecture (no -arch).
 NVARCH ?= $(if $(NVCC),$(shell $(NVCC) -arch=native -c -x cu /dev/null \
-  -o /dev/null >/dev/null 2>&1 && echo native))
+        -o /dev/null >/dev/null 2>&1 && echo native))
 NVARCHX := $(if $(NVARCH),-arch $(NVARCH))
 NVFLAGS := -g $(OPTFLAG) -lineinfo $(NVARCHX) -Wno-deprecated-gpu-targets -Xcompiler "$(CFLAGS)" -D__OFFLOAD_CUDA
 

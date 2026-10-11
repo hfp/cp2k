@@ -36,8 +36,8 @@ MODULE rpa_gw_im_time_util
                                               cp_fm_type
    USE dbt_api,                         ONLY: &
         dbt_contract, dbt_copy, dbt_copy_matrix_to_tensor, dbt_create, dbt_default_distvec, &
-        dbt_destroy, dbt_filter, dbt_get_info, dbt_pgrid_create, dbt_pgrid_destroy, dbt_pgrid_type, &
-        dbt_type
+        dbt_destroy, dbt_filter, dbt_get_info, dbt_pgrid_create, dbt_pgrid_destroy, &
+        dbt_pgrid_type, dbt_type
    USE hfx_types,                       ONLY: alloc_containers,&
                                               block_ind_type,&
                                               hfx_compression_type
@@ -139,7 +139,8 @@ CONTAINS
       INTEGER(int_8)                                     :: nze
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: dist1, dist2, dist3, sizes_AO, &
                                                             sizes_AO_split, sizes_MO, sizes_MO_1, &
-                                                            sizes_MO_t, sizes_RI, sizes_RI_split, tmp
+                                                            sizes_MO_t, sizes_RI, sizes_RI_split, &
+                                                            tmp
       INTEGER, DIMENSION(2)                              :: pdims_2d
       INTEGER, DIMENSION(2, 1)                           :: bounds
       INTEGER, DIMENSION(2, 3)                           :: ibounds

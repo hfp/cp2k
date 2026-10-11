@@ -31,8 +31,7 @@ MODULE dbt_api
         dbt_batched_contract_finalize, dbt_batched_contract_init, dbt_contract, dbt_copy, &
         dbt_copy_matrix_to_tensor, dbt_copy_tensor_to_matrix, dbt_get_block, &
         dbt_get_stored_coordinates, dbt_library_finalize, dbt_library_init, &
-        dbt_library_print_stats, dbt_put_block, &
-        dbt_reserve_blocks
+        dbt_library_print_stats, dbt_put_block, dbt_reserve_blocks
    USE dbt_split,                       ONLY: dbt_split_blocks
    USE dbt_test,                        ONLY: dbt_checksum,&
                                               dbt_contract_test

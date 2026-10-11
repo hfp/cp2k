@@ -3456,10 +3456,8 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'compress_tensor'
 
-      INTEGER                                            :: buffer_left, buffer_size, buffer_start, &
-                                                            handle, i, iblk, ibin, memory_usage, &
-                                                            nbins, nbits, nblk, nints, offset, &
-                                                            shared_offset
+      INTEGER :: buffer_left, buffer_size, buffer_start, handle, i, ibin, iblk, memory_usage, &
+         nbins, nbits, nblk, nints, offset, shared_offset
       INTEGER(int_8)                                     :: estimate_to_store_int, &
                                                             storage_counter_integrals
       INTEGER, DIMENSION(3)                              :: ind

@@ -1466,7 +1466,7 @@ CONTAINS
                ALLOCATE (tensor2_out)
                CALL dbt_remap(tensor2, ind2_linked, ind2_free, tensor2_out, comm_2d=dist_in%pgrid%mp_comm_2d, &
                               dist1=dist_list, mp_dims_1=mp_dims, nodata=nodata2, move_data=move_data_2, &
-                           bounds=bounds2)
+                              bounds=bounds2)
             ELSE IF (compat1 == 2) THEN ! linked index is second 2d dimension
                ! get distribution of linked index, tensor 2 must adopt this distribution
                ! get grid dimensions of linked index
@@ -1475,7 +1475,7 @@ CONTAINS
                ALLOCATE (tensor2_out)
                CALL dbt_remap(tensor2, ind2_free, ind2_linked, tensor2_out, comm_2d=dist_in%pgrid%mp_comm_2d, &
                               dist2=dist_list, mp_dims_2=mp_dims, nodata=nodata2, move_data=move_data_2, &
-                           bounds=bounds2)
+                              bounds=bounds2)
             ELSE
                CPABORT("should not happen")
             END IF
@@ -1510,14 +1510,14 @@ CONTAINS
                ALLOCATE (tensor1_out)
                CALL dbt_remap(tensor1, ind1_linked, ind1_free, tensor1_out, comm_2d=dist_in%pgrid%mp_comm_2d, &
                               dist1=dist_list, mp_dims_1=mp_dims, nodata=nodata1, move_data=move_data_1, &
-                           bounds=bounds1)
+                              bounds=bounds1)
             ELSE IF (compat2 == 2) THEN
                ALLOCATE (mp_dims(ndims_mapping_column(dist_in%pgrid%nd_index_grid)))
                CALL dbt_get_mapping_info(dist_in%pgrid%nd_index_grid, dims2_2d=mp_dims)
                ALLOCATE (tensor1_out)
                CALL dbt_remap(tensor1, ind1_free, ind1_linked, tensor1_out, comm_2d=dist_in%pgrid%mp_comm_2d, &
                               dist2=dist_list, mp_dims_2=mp_dims, nodata=nodata1, move_data=move_data_1, &
-                           bounds=bounds1)
+                              bounds=bounds1)
             ELSE
                CPABORT("should not happen")
             END IF

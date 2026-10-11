@@ -1668,8 +1668,7 @@ if(CP2K_USE_CUDA
       if(NOT COMMAND libxstream_add_dbm)
         message(
           FATAL_ERROR
-            "LIBXSTREAM does not provide the DBM backend (libxstream_add_dbm)."
-        )
+            "LIBXSTREAM does not provide the DBM backend (libxstream_add_dbm).")
       endif()
       set(CP2K_DBM_OPENCL ON)
       include_directories(${CP2K_OPENCL_BACKEND})
