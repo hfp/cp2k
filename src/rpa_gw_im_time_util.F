@@ -36,8 +36,7 @@ MODULE rpa_gw_im_time_util
                                               cp_fm_type
    USE dbt_api,                         ONLY: &
         dbt_contract, dbt_copy, dbt_copy_matrix_to_tensor, dbt_create, dbt_default_distvec, &
-        dbt_destroy, dbt_filter, dbt_get_info, dbt_pgrid_create, dbt_pgrid_destroy, &
-        dbt_pgrid_type, dbt_type
+        dbt_destroy, dbt_get_info, dbt_pgrid_create, dbt_pgrid_destroy, dbt_pgrid_type, dbt_type
    USE hfx_types,                       ONLY: alloc_containers,&
                                               block_ind_type,&
                                               hfx_compression_type
@@ -139,8 +138,7 @@ CONTAINS
       INTEGER(int_8)                                     :: nze
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: dist1, dist2, dist3, sizes_AO, &
                                                             sizes_AO_split, sizes_MO, sizes_MO_1, &
-                                                            sizes_MO_t, sizes_RI, sizes_RI_split, &
-                                                            tmp
+                                                            sizes_RI, sizes_RI_split, tmp
       INTEGER, DIMENSION(2)                              :: pdims_2d
       INTEGER, DIMENSION(2, 1)                           :: bounds
       INTEGER, DIMENSION(2, 3)                           :: ibounds
@@ -220,14 +218,6 @@ CONTAINS
       sizes_MO(2:SIZE(tmp) + 1) = tmp(:)
       sizes_MO(SIZE(tmp) + 2) = nmo - (homo + gw_corr_lev_virt)
 
-      ! MO blocks of the transformation: the IC model contracts per MO, otherwise the GW blocks
-      ! avoid degenerate tasks (n = 1) and are block-compatible with the GW tensors
-      IF (do_ic_model) THEN
-         sizes_MO_t = sizes_MO_1
-      ELSE
-         sizes_MO_t = sizes_MO
-      END IF
-
       ALLOCATE (basis_set_ri_aux(nkind), basis_set_ao(nkind))
       CALL basis_set_list_setup(basis_set_ri_aux, "RI_AUX", qs_kind_set)
       CALL get_particle_set(particle_set, qs_kind_set, nsgf=sizes_RI, basis=basis_set_ri_aux)
@@ -253,7 +243,7 @@ CONTAINS
 
       pdims_2d = 0
       CALL dbt_pgrid_create(para_env, pdims_2d, pgrid_2d, &
-                            tensor_dims=[SIZE(sizes_AO_split), SIZE(sizes_MO_t)])
+                            tensor_dims=[SIZE(sizes_AO_split), nmo])
 
       CALL create_3c_tensor(t_3c_overl_int_ao_ao, dist1, dist2, dist3, pgrid_AO, &
                             sizes_RI_split, sizes_AO_split, sizes_AO_split, [1, 2], [3], name="(RI AO | AO)")
@@ -261,7 +251,7 @@ CONTAINS
 
       IF (.NOT. qs_env%mp2_env%ri_g0w0%do_kpoints_Sigma) THEN
          CALL create_3c_tensor(t_3c_overl_int_ao_mo, dist1, dist2, dist3, pgrid_AO, &
-                               sizes_RI_split, sizes_AO_split, sizes_MO_t, [1, 2], [3], name="(RI AO | MO)")
+                               sizes_RI_split, sizes_AO_split, sizes_MO_1, [1, 2], [3], name="(RI AO | MO)")
          DEALLOCATE (dist1, dist2, dist3)
       END IF
 
@@ -276,7 +266,7 @@ CONTAINS
       CALL dbt_pgrid_destroy(pgrid_AO)
       CALL dbt_pgrid_destroy(pgrid_MO)
 
-      CALL create_2c_tensor(mo_coeff_gw_t, dist1, dist2, pgrid_2d, sizes_AO_split, sizes_MO_t, name="(AO|MO)")
+      CALL create_2c_tensor(mo_coeff_gw_t, dist1, dist2, pgrid_2d, sizes_AO_split, sizes_MO_1, name="(AO|MO)")
       DEALLOCATE (dist1, dist2)
       CALL dbt_pgrid_destroy(pgrid_2d)
 
@@ -284,8 +274,6 @@ CONTAINS
       CALL dbt_copy_matrix_to_tensor(mat_mo_coeff_gw, mo_coeff_gw_t_tmp)
 
       CALL dbt_copy(mo_coeff_gw_t_tmp, mo_coeff_gw_t)
-      ! drop the blocks of MOs that have been set to zero
-      CALL dbt_filter(mo_coeff_gw_t, 1.0E-20_dp)
 
       bounds(1, 1) = homo - gw_corr_lev_occ + 1
       bounds(2, 1) = homo + gw_corr_lev_virt
