@@ -62,7 +62,8 @@ MODULE qs_tensors
                                               do_potential_short,&
                                               do_potential_truncated
    USE input_section_types,             ONLY: section_vals_val_get
-   USE kinds,                           ONLY: dp,&
+   USE kinds,                           ONLY: default_path_length,&
+                                              dp,&
                                               int_8
    USE kpoint_types,                    ONLY: get_kpoint_info,&
                                               kpoint_type
@@ -103,6 +104,10 @@ MODULE qs_tensors
 
 !$ USE OMP_LIB, ONLY: omp_get_max_threads, omp_get_thread_num
 #include "./base/base_uses.f90"
+#if defined(__LIBXS)
+   USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_INT8_T
+   USE libxs, ONLY: libxs_mhd_write ! TEMPORARY (not for committing)
+#endif
 
    IMPLICIT NONE
 
@@ -124,7 +129,92 @@ MODULE qs_tensors
    ! cache size for integral compression
    INTEGER, PARAMETER, PRIVATE :: cache_size = 1024
 
+   ! TEMPORARY (not for committing): dump of the blocks given to compress_tensor
+   CHARACTER(LEN=default_path_length), SAVE, PRIVATE :: dump_prefix = ""
+   INTEGER, SAVE, PRIVATE :: dump_state = -2, dump_call = 0
+   INTEGER(KIND=int_8), SAVE, PRIVATE :: dump_bytes = 0, dump_limit = 0
+
 CONTAINS
+
+! **************************************************************************************************
+!> \brief TEMPORARY (not for committing): writes the blocks of a tensor about to be compressed.
+!>        CP2K_COMPRESS_DUMP=prefix enables it (requires LIBXS), CP2K_COMPRESS_DUMP_MB limits the
+!>        size per rank (default 64), and CP2K_COMPRESS_DUMP_RANK selects the rank (default 0,
+!>        negative: all). Every call writes prefix.RANK.CALL.mhd: the blocks concatenated as
+!>        REAL(8) values, and as MHD extension REAL(8) eps, INT32 number of blocks, and per
+!>        block INT32 shape(3).
+!> \param tensor tensor with data
+!> \param blk_indices indices of the blocks
+!> \param eps compression threshold
+! **************************************************************************************************
+   SUBROUTINE compress_dump(tensor, blk_indices, eps)
+      TYPE(dbt_type), INTENT(INOUT)                      :: tensor
+      INTEGER, DIMENSION(:, :), INTENT(IN)               :: blk_indices
+      REAL(dp), INTENT(IN)                               :: eps
+
+#if defined(__LIBXS)
+      CHARACTER(LEN=default_path_length)                 :: fname
+      CHARACTER(LEN=32)                                  :: value
+      INTEGER                                            :: i, istat, nblk, rank, rank_dump
+      INTEGER(C_INT8_T), ALLOCATABLE, DIMENSION(:)       :: ext
+      INTEGER(C_INT8_T), DIMENSION(1)                    :: byte
+      INTEGER(KIND=int_8)                                :: n, ntotal, offset
+      INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: shapes
+      INTEGER, DIMENSION(3)                              :: ind
+      LOGICAL                                            :: found
+      REAL(dp), ALLOCATABLE, DIMENSION(:)                :: values
+      REAL(dp), ALLOCATABLE, DIMENSION(:, :, :)          :: blk_data
+
+      rank = tensor%pgrid%mp_comm_2d%mepos
+      IF (-2 == dump_state) THEN ! first call: decide whether to dump
+         dump_state = -1
+         CALL GET_ENVIRONMENT_VARIABLE("CP2K_COMPRESS_DUMP", dump_prefix, STATUS=istat)
+         IF (0 == istat .AND. 0 < LEN_TRIM(dump_prefix)) THEN
+            rank_dump = 0
+            CALL GET_ENVIRONMENT_VARIABLE("CP2K_COMPRESS_DUMP_RANK", value, STATUS=istat)
+            IF (0 == istat .AND. 0 < LEN_TRIM(value)) READ (value, *) rank_dump
+            dump_limit = 64
+            CALL GET_ENVIRONMENT_VARIABLE("CP2K_COMPRESS_DUMP_MB", value, STATUS=istat)
+            IF (0 == istat .AND. 0 < LEN_TRIM(value)) READ (value, *) dump_limit
+            dump_limit = dump_limit*1024_int_8*1024_int_8
+            IF (0 > rank_dump .OR. rank == rank_dump) dump_state = 1
+         END IF
+      END IF
+      IF (1 == dump_state .AND. dump_bytes < dump_limit) THEN
+         dump_call = dump_call + 1
+         nblk = SIZE(blk_indices, 1)
+         ALLOCATE (shapes(3, nblk))
+         ntotal = 0
+         DO i = 1, nblk
+            CALL dbt_blk_sizes(tensor, blk_indices(i, :), shapes(:, i))
+            ntotal = ntotal + PRODUCT(INT(shapes(:, i), KIND=int_8))
+         END DO
+         ALLOCATE (values(ntotal))
+         offset = 0
+         DO i = 1, nblk
+            ind = blk_indices(i, :)
+            n = PRODUCT(INT(shapes(:, i), KIND=int_8))
+            CALL dbt_get_block(tensor, ind, blk_data, found)
+            IF (found) THEN
+               values(offset + 1:offset + n) = RESHAPE(blk_data, [n])
+               DEALLOCATE (blk_data)
+            ELSE
+               values(offset + 1:offset + n) = 0.0_dp
+            END IF
+            offset = offset + n
+         END DO
+         ext = [TRANSFER(eps, byte), TRANSFER(nblk, byte), TRANSFER(shapes, byte)]
+         WRITE (fname, '(A,".",I0,".",I0,".mhd")') TRIM(dump_prefix), rank, dump_call
+         istat = libxs_mhd_write(TRIM(fname), values, [INT(ntotal)], ext)
+         dump_bytes = dump_bytes + 8*ntotal
+         DEALLOCATE (values, shapes, ext)
+      END IF
+#else
+      MARK_USED(tensor)
+      MARK_USED(blk_indices)
+      MARK_USED(eps)
+#endif
+   END SUBROUTINE compress_dump
 
 ! **************************************************************************************************
 !> \brief Build 2-center neighborlists adapted to different operators
@@ -3495,6 +3585,8 @@ CONTAINS
       END DO
       CALL dbt_iterator_stop(iter)
 !$OMP END PARALLEL
+
+      CALL compress_dump(tensor, blk_indices, eps) ! TEMPORARY (not for committing)
 
       ! Can not use the tensor iterator here because the order of the blocks is not guaranteed.
       nblk = SIZE(blk_indices, 1)
