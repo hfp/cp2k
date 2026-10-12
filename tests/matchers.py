@@ -134,6 +134,9 @@ registry["SKALA_GAPW_composite_electrons"] = GenericMatcher(
 registry["WANNIER90_SCF_MO_REUSE"] = TextPresenceMatcher(
     "WANNIER90| Reused SCF MO coefficients for the Wannier90 full k-point mesh."
 )
+registry["WANNIER90_PROJECTION_MIN_SVALUE"] = GenericMatcher(
+    "WANNIER90| Minimum projection singular value", col=6
+)
 registry["WANNIER90_FULL_MESH_DIAG"] = TextPresenceMatcher(
     "WANNIER90| Falling back to full-mesh diagonalization for the Wannier90 files."
 )
@@ -170,6 +173,11 @@ registry["WANNIER90_BLOCH_PHASE_GAUGE"] = TextPresenceMatcher(
 )
 registry["WANNIER90_REUSE_VALIDATION"] = TextPresenceMatcher(
     "WANNIER90| Reused MO validation: subspace deviation"
+)
+registry["WANNIER90_CANDIDATE_METRIC_DEVIATION"] = GenericMatcher(
+    r"WANNIER90\| Best atom/AO candidate.*max metric deviation\s+([^,\s]+)",
+    col=1,
+    regex=True,
 )
 registry["M012"] = GenericMatcher(r"B2(T) =", col=4)
 registry["M013"] = GenericMatcher(r"sparseness function f2 =", col=5)
@@ -329,6 +337,7 @@ registry["M089"] = GenericMatcher(r"Electronic density on regular grids:", col=7
 registry["M090"] = GenericMatcher(r"Final localization:", col=3)
 registry["M091"] = GenericMatcher(r"Ionization potentials for XPS", col=8)
 registry["M092"] = GenericMatcher(r"FCIDUMP| Checksum:", col=3)
+registry["AS_NMIXING_deprecated"] = TextPresenceMatcher("NMIXING has no effect")
 registry["FCIDUMP_MS2"] = GenericMatcher(
     r"&FCI .*MS2=\s*([-+0-9]+),", col=1, regex=True
 )

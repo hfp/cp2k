@@ -915,6 +915,7 @@ list(
   topology_snapshot.F
   topology_curvature.F
   topology_phason_analysis.F
+  wannier90_projections.F
   wannier_states.F
   wannier_states_types.F
   xas_control.F
@@ -1618,8 +1619,7 @@ set(CP2K_PROGS_F
     xc/xc_semilocal_unittest.F
     pseudopotentials/upf_projector_integrals_unittest.F
     pseudopotentials/upf_local_integrals_unittest.F
-    gapw_background_unittest.F
-    gapw_1c_basis_unittest.F
+    gapw_unittest.F
     kpoint_lattice_fft_unittest.F
     kpoint_smearing_unittest.F
     motion/cell_opt_utils_unittest.F
@@ -1638,7 +1638,9 @@ set(CP2K_PROGS_F
     ot_covariant_preconditioner_unittest.F
     qs_charge_mixing_unittest.F
     qs_fod_unittest.F
+    qs_active_space_utils_unittest.F
     qs_ot_complex_ref_unittest.F
+    wannier90_projections_unittest.F
     subsys/cell_types_unittest.F
     metadyn_tools/graph.F
     motion/dumpdcd.F
@@ -2050,8 +2052,7 @@ list(
   "xc_semilocal_unittest"
   "upf_projector_integrals_unittest"
   "upf_local_integrals_unittest"
-  "gapw_background_unittest"
-  "gapw_1c_basis_unittest"
+  "gapw_unittest"
   "kpoint_lattice_fft_unittest"
   "kpoint_smearing_unittest"
   "topology_wilson_unittest"
@@ -2069,7 +2070,9 @@ list(
   "ot_covariant_preconditioner_unittest"
   "qs_charge_mixing_unittest"
   "qs_fod_unittest"
+  "qs_active_space_utils_unittest"
   "qs_ot_complex_ref_unittest"
+  "wannier90_projections_unittest"
   "cell_types_unittest"
   "graph"
   "dumpdcd"
@@ -2098,8 +2101,7 @@ add_executable(upf_projector_integrals_unittest
                pseudopotentials/upf_projector_integrals_unittest.F)
 add_executable(upf_local_integrals_unittest
                pseudopotentials/upf_local_integrals_unittest.F)
-add_executable(gapw_background_unittest gapw_background_unittest.F)
-add_executable(gapw_1c_basis_unittest gapw_1c_basis_unittest.F)
+add_executable(gapw_unittest gapw_unittest.F)
 add_executable(kpoint_lattice_fft_unittest kpoint_lattice_fft_unittest.F)
 add_executable(kpoint_smearing_unittest kpoint_smearing_unittest.F)
 add_executable(topology_wilson_unittest topology_wilson_unittest.F)
@@ -2121,7 +2123,9 @@ add_executable(ot_covariant_preconditioner_unittest
                ot_covariant_preconditioner_unittest.F)
 add_executable(qs_charge_mixing_unittest qs_charge_mixing_unittest.F)
 add_executable(qs_fod_unittest qs_fod_unittest.F)
+add_executable(qs_active_space_utils_unittest qs_active_space_utils_unittest.F)
 add_executable(qs_ot_complex_ref_unittest qs_ot_complex_ref_unittest.F)
+add_executable(wannier90_projections_unittest wannier90_projections_unittest.F)
 add_executable(cell_types_unittest subsys/cell_types_unittest.F)
 add_executable(cell_opt_utils_unittest motion/cell_opt_utils_unittest.F)
 add_executable(graph metadyn_tools/graph.F)
