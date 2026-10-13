@@ -14,20 +14,19 @@ MODULE dbt_reshape_ops
    #:set maxdim = maxrank
    #:set ndims = range(2,maxdim+1)
 
-   USE dbt_allocate_wrap, ONLY: allocate_any
-   USE dbt_tas_base, ONLY: dbt_tas_copy, dbt_tas_get_info, dbt_tas_info
+   USE OMP_LIB, ONLY: omp_get_num_threads, omp_get_thread_num
    USE dbt_block, ONLY: &
       dbt_iterator_type, dbt_iterator_next_block, dbt_iterator_blocks_left, dbt_iterator_start, &
       dbt_iterator_stop, dbt_get_block_data, dbt_put_block_data, dbt_reserve_blocks
    USE dbt_types, ONLY: dbt_blk_sizes, &
-                        dbt_create, &
                         dbt_type, &
                         ndims_tensor, &
                         dbt_get_stored_coordinates, &
                         dbt_clear
-   USE kinds, ONLY: default_string_length, dp, int_8
-   USE message_passing, ONLY: &
-      mp_waitall, mp_comm_type, mp_request_type
+   USE kinds, ONLY: dp
+   USE matrix_communication, ONLY: exchange_matrix_buffers, matrix_buffer_type
+   USE message_passing, ONLY: mp_comm_type
+   USE util, ONLY: get_limit
 
 #include "../base/base_uses.f90"
 
@@ -39,8 +38,7 @@ MODULE dbt_reshape_ops
 
    ! Communication buffers persist across calls such that pages are faulted in once rather than per
    ! call; per block, the index holds the data offset (relative to the peer's data) and nd-index.
-   REAL(dp), DIMENSION(:), ALLOCATABLE, SAVE :: data_send, data_recv
-   INTEGER, DIMENSION(:), ALLOCATABLE, SAVE  :: index_send, index_recv
+   TYPE(matrix_buffer_type), SAVE :: buffer_send, buffer_recv
 
 CONTAINS
 
@@ -61,10 +59,8 @@ CONTAINS
       CHARACTER(LEN=*), PARAMETER :: routineN = 'dbt_reshape'
 
       INTEGER                                            :: iproc, numnodes, nindex, &
-                                                            handle, handle2, iblk, jblk, offset, ndata, &
-                                                            nblks_recv_mythread
-      INTEGER(KIND=int_8)                                :: ibase, idata
-      INTEGER, ALLOCATABLE, DIMENSION(:, :)              :: blks_to_allocate
+                                                            handle, handle2, iblk, offset, ndata
+      INTEGER, DIMENSION(2)                              :: block_range
       TYPE(dbt_iterator_type)                            :: iter
       CHARACTER(LEN=32)                                  :: name_pack, name_unpack
       INTEGER, DIMENSION(ndims_tensor(tensor_in))        :: blk_size, blk_offset, ind_nd
@@ -74,8 +70,6 @@ CONTAINS
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: nblks_send_total, ndata_send_total, &
                                                             nblks_recv_total, ndata_recv_total, &
                                                             nblks_send_mythread, ndata_send_mythread
-      INTEGER(KIND=int_8), ALLOCATABLE, DIMENSION(:)     :: nblks_send_displ, ndata_send_displ, &
-                                                            nblks_recv_displ, ndata_recv_displ
       TYPE(mp_comm_type) :: mp_comm
 
       CALL timeset(routineN, handle)
@@ -117,18 +111,14 @@ CONTAINS
       IF (permuted(tensor_out)) name_unpack = routineN//"_unpack_perm"
       ALLOCATE (nblks_send_total(0:numnodes - 1), ndata_send_total(0:numnodes - 1), source=0)
       ALLOCATE (nblks_recv_total(0:numnodes - 1), ndata_recv_total(0:numnodes - 1), source=0)
-      ALLOCATE (nblks_send_displ(0:numnodes - 1), ndata_send_displ(0:numnodes - 1))
-      ALLOCATE (nblks_recv_displ(0:numnodes - 1), ndata_recv_displ(0:numnodes - 1))
 
 !$OMP PARALLEL DEFAULT(OMP_DEFAULT_NONE_WITH_OOP) &
 !$OMP SHARED(tensor_in,tensor_out,summation,mp_comm,numnodes,nindex,name_pack,name_unpack) &
-!$OMP SHARED(do_bounds,bounds_prv) &
-!$OMP SHARED(data_send,data_recv,index_send,index_recv) &
+!$OMP SHARED(do_bounds,bounds_prv,buffer_send,buffer_recv) &
 !$OMP SHARED(nblks_send_total,ndata_send_total,nblks_recv_total,ndata_recv_total) &
-!$OMP SHARED(nblks_send_displ,ndata_send_displ,nblks_recv_displ,ndata_recv_displ) &
-!$OMP PRIVATE(nblks_send_mythread,ndata_send_mythread,nblks_recv_mythread) &
+!$OMP PRIVATE(nblks_send_mythread,ndata_send_mythread) &
 !$OMP PRIVATE(iter,ind_nd,blk_size,blk_offset,found,overlap,inside,iproc,handle2) &
-!$OMP PRIVATE(blks_to_allocate,offset,ndata,iblk,jblk,ibase,idata)
+!$OMP PRIVATE(block_range,offset,ndata,iblk)
       CALL timeset(routineN//"_count", handle2)
       ALLOCATE (nblks_send_mythread(0:numnodes - 1), ndata_send_mythread(0:numnodes - 1), source=0)
 
@@ -155,20 +145,14 @@ CONTAINS
 !$OMP MASTER
       CALL mp_comm%alltoall(nblks_send_total, nblks_recv_total, 1)
       CALL mp_comm%alltoall(ndata_send_total, ndata_recv_total, 1)
-      CALL displacements(nblks_send_total, nblks_send_displ)
-      CALL displacements(ndata_send_total, ndata_send_displ)
-      CALL displacements(nblks_recv_total, nblks_recv_displ)
-      CALL displacements(ndata_recv_total, ndata_recv_displ)
 !$OMP END MASTER
 !$OMP BARRIER
       CALL timestop(handle2)
 
       CALL timeset(TRIM(name_pack), handle2)
 !$OMP MASTER
-      CALL grow_index(index_send, nindex*(nblks_send_displ(numnodes - 1) + nblks_send_total(numnodes - 1)))
-      CALL grow_index(index_recv, nindex*(nblks_recv_displ(numnodes - 1) + nblks_recv_total(numnodes - 1)))
-      CALL grow_data(data_send, ndata_send_displ(numnodes - 1) + ndata_send_total(numnodes - 1))
-      CALL grow_data(data_recv, ndata_recv_displ(numnodes - 1) + ndata_recv_total(numnodes - 1))
+      CALL grow_buffer(buffer_send, ndata_send_total, nblks_send_total, nindex)
+      CALL grow_buffer(buffer_recv, ndata_recv_total, nblks_recv_total, nindex)
 !$OMP END MASTER
 !$OMP BARRIER
 
@@ -184,64 +168,47 @@ CONTAINS
          ! insert block data
          ndata = PRODUCT(blk_size)
          ndata_send_mythread(iproc) = ndata_send_mythread(iproc) - ndata
-         offset = ndata_send_mythread(iproc)
-         idata = ndata_send_displ(iproc) + offset
-         CALL dbt_get_block_data(tensor_in, ind_nd, blk_size, data_send(idata + 1:idata + ndata), found)
+         offset = buffer_send%msg_offset(iproc) + ndata_send_mythread(iproc)
+         CALL dbt_get_block_data(tensor_in, ind_nd, blk_size, buffer_send%msg(offset + 1:offset + ndata), found)
          CPASSERT(found)
-         IF (.NOT. inside) CALL block_crop(bounds_prv, blk_offset, blk_size, data_send(idata + 1:idata + ndata))
+         IF (.NOT. inside) CALL block_crop(bounds_prv, blk_offset, blk_size, buffer_send%msg(offset + 1:offset + ndata))
          ! insert block index
          nblks_send_mythread(iproc) = nblks_send_mythread(iproc) - 1
-         ibase = nindex*(nblks_send_displ(iproc) + nblks_send_mythread(iproc))
-         index_send(ibase + 1) = offset
-         index_send(ibase + 2:ibase + nindex) = ind_nd(:)
+         iblk = buffer_send%indx_offset(iproc) + nblks_send_mythread(iproc) + 1
+         buffer_send%indx(2:, iblk) = ind_nd(:)
+         ! Payload offsets in the metadata are relative to the peer's segment.
+         buffer_send%indx(1, iblk) = ndata_send_mythread(iproc)
       END DO
       CALL dbt_iterator_stop(iter)
       DEALLOCATE (nblks_send_mythread, ndata_send_mythread)
 !$OMP BARRIER
       CALL timestop(handle2)
 
-      CALL dbt_communicate_buffer(mp_comm, nindex, nblks_send_total, ndata_send_total, &
-                                  nblks_send_displ, ndata_send_displ, nblks_recv_total, &
-                                  ndata_recv_total, nblks_recv_displ, ndata_recv_displ)
+!$OMP MASTER
+      IF (numnodes > 1) THEN
+         CALL exchange_matrix_buffers(mp_comm, buffer_recv, buffer_send)
+      ELSE
+         ! A single rank receives what it sends: the buffers trade places.
+         CALL swap_buffers(buffer_send, buffer_recv)
+      END IF
+!$OMP END MASTER
 !$OMP BARRIER
 
       CALL timeset(routineN//"_reserve", handle2)
-      nblks_recv_mythread = 0
-      DO iproc = 0, numnodes - 1
-!$OMP DO
-         DO iblk = 1, nblks_recv_total(iproc)
-            nblks_recv_mythread = nblks_recv_mythread + 1
-         END DO
-!$OMP END DO
-      END DO
-      ALLOCATE (blks_to_allocate(nblks_recv_mythread, ndims_tensor(tensor_in)))
-
-      jblk = 0
-      DO iproc = 0, numnodes - 1
-!$OMP DO
-         DO iblk = 1, nblks_recv_total(iproc)
-            jblk = jblk + 1
-            ibase = nindex*(nblks_recv_displ(iproc) + iblk - 1)
-            blks_to_allocate(jblk, :) = index_recv(ibase + 2:ibase + nindex)
-         END DO
-!$OMP END DO
-      END DO
-      CPASSERT(jblk == nblks_recv_mythread)
-      CALL dbt_reserve_blocks(tensor_out, blks_to_allocate)
-      DEALLOCATE (blks_to_allocate)
+      block_range = get_limit(buffer_recv%indx_offset(numnodes), omp_get_num_threads(), omp_get_thread_num())
+      CALL dbt_reserve_blocks(tensor_out, TRANSPOSE(buffer_recv%indx(2:, block_range(1):block_range(2))))
 !$OMP BARRIER
       CALL timestop(handle2)
 
       CALL timeset(TRIM(name_unpack), handle2)
       DO iproc = 0, numnodes - 1
 !$OMP DO
-         DO iblk = 1, nblks_recv_total(iproc)
-            ibase = nindex*(nblks_recv_displ(iproc) + iblk - 1)
-            ind_nd(:) = index_recv(ibase + 2:ibase + nindex)
+         DO iblk = buffer_recv%indx_offset(iproc) + 1, buffer_recv%indx_offset(iproc + 1)
+            ind_nd(:) = buffer_recv%indx(2:, iblk)
             CALL dbt_blk_sizes(tensor_out, ind_nd, blk_size)
-            idata = ndata_recv_displ(iproc) + index_recv(ibase + 1)
+            offset = buffer_recv%msg_offset(iproc) + buffer_recv%indx(1, iblk)
             ndata = PRODUCT(blk_size)
-            CALL dbt_put_block_data(tensor_out, ind_nd, blk_size, data_recv(idata + 1:idata + ndata), &
+            CALL dbt_put_block_data(tensor_out, ind_nd, blk_size, buffer_recv%msg(offset + 1:offset + ndata), &
                                     summation=summation)
          END DO
 !$OMP END DO
@@ -249,8 +216,8 @@ CONTAINS
       CALL timestop(handle2)
 !$OMP END PARALLEL
 
-      DEALLOCATE (nblks_recv_total, ndata_recv_total, nblks_recv_displ, ndata_recv_displ)
-      DEALLOCATE (nblks_send_total, ndata_send_total, nblks_send_displ, ndata_send_displ)
+      DEALLOCATE (nblks_recv_total, ndata_recv_total)
+      DEALLOCATE (nblks_send_total, ndata_send_total)
 
       IF (move_prv) THEN
          CALL timeset(routineN//"_clear", handle2)
@@ -266,10 +233,8 @@ CONTAINS
 !> \author Hans Pabst
 ! **************************************************************************************************
    SUBROUTINE dbt_reshape_release()
-      IF (ALLOCATED(data_send)) DEALLOCATE (data_send)
-      IF (ALLOCATED(data_recv)) DEALLOCATE (data_recv)
-      IF (ALLOCATED(index_send)) DEALLOCATE (index_send)
-      IF (ALLOCATED(index_recv)) DEALLOCATE (index_recv)
+      CALL release_buffer(buffer_send)
+      CALL release_buffer(buffer_recv)
    END SUBROUTINE dbt_reshape_release
 
 ! **************************************************************************************************
@@ -326,130 +291,82 @@ CONTAINS
       END DO
    END SUBROUTINE block_crop
 
+
 ! **************************************************************************************************
-!> \brief Exclusive prefix sum of per-peer counts.
+!> \brief Lay out a persistent buffer for the given per-peer counts (as allocate_matrix_buffers),
+!>        growing its arrays only when they are too small.
 !> \author Hans Pabst
 ! **************************************************************************************************
-   SUBROUTINE displacements(counts, displs)
-      INTEGER, DIMENSION(0:), INTENT(IN)                    :: counts
-      INTEGER(KIND=int_8), DIMENSION(0:), INTENT(OUT)       :: displs
-
-      INTEGER                                               :: iproc
-
-      displs(0) = 0
-      DO iproc = 1, SIZE(counts) - 1
-         displs(iproc) = displs(iproc - 1) + counts(iproc - 1)
-      END DO
-   END SUBROUTINE displacements
-
-! **************************************************************************************************
-!> \brief Grow a persistent buffer to hold at least the given number of elements.
-!> \author Hans Pabst
-! **************************************************************************************************
-   SUBROUTINE grow_data(buffer, nelements)
-      REAL(dp), DIMENSION(:), ALLOCATABLE, INTENT(INOUT)    :: buffer
-      INTEGER(KIND=int_8), INTENT(IN)                       :: nelements
-
-      IF (ALLOCATED(buffer)) THEN
-         IF (SIZE(buffer, KIND=int_8) < nelements) DEALLOCATE (buffer)
-      END IF
-      IF (.NOT. ALLOCATED(buffer)) ALLOCATE (buffer(MAX(nelements + nelements/4, 1_int_8)))
-   END SUBROUTINE grow_data
-
-! **************************************************************************************************
-!> \brief Grow a persistent buffer to hold at least the given number of elements.
-!> \author Hans Pabst
-! **************************************************************************************************
-   SUBROUTINE grow_index(buffer, nelements)
-      INTEGER, DIMENSION(:), ALLOCATABLE, INTENT(INOUT)     :: buffer
-      INTEGER(KIND=int_8), INTENT(IN)                       :: nelements
-
-      IF (ALLOCATED(buffer)) THEN
-         IF (SIZE(buffer, KIND=int_8) < nelements) DEALLOCATE (buffer)
-      END IF
-      IF (.NOT. ALLOCATED(buffer)) ALLOCATE (buffer(MAX(nelements + nelements/4, 1_int_8)))
-   END SUBROUTINE grow_index
-
-! **************************************************************************************************
-!> \brief communicate buffer
-!> \author Patrick Seewald
-! **************************************************************************************************
-   SUBROUTINE dbt_communicate_buffer(mp_comm, nindex, nblks_send, ndata_send, nblks_send_displ, &
-                                     ndata_send_displ, nblks_recv, ndata_recv, nblks_recv_displ, &
-                                     ndata_recv_displ)
-      TYPE(mp_comm_type), INTENT(IN)                        :: mp_comm
+   SUBROUTINE grow_buffer(buffer, ndata, nblks, nindex)
+      TYPE(matrix_buffer_type), INTENT(INOUT)               :: buffer
+      INTEGER, DIMENSION(0:), INTENT(IN)                    :: ndata, nblks
       INTEGER, INTENT(IN)                                   :: nindex
-      INTEGER, DIMENSION(0:), INTENT(IN)                    :: nblks_send, ndata_send, &
-                                                               nblks_recv, ndata_recv
-      INTEGER(KIND=int_8), DIMENSION(0:), INTENT(IN)        :: nblks_send_displ, ndata_send_displ, &
-                                                               nblks_recv_displ, ndata_recv_displ
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'dbt_communicate_buffer'
+      INTEGER                                               :: iproc, nprocs
 
-      INTEGER                                               :: iproc, numnodes, &
-                                                               rec_counter, send_counter
-      INTEGER(KIND=int_8)                                   :: i, i0, i1, d0, d1
-      TYPE(mp_request_type), ALLOCATABLE, DIMENSION(:, :)   :: req_array
-      INTEGER                                               :: handle
-
-      CALL timeset(routineN, handle)
-      numnodes = mp_comm%num_pe
-
-      IF (numnodes > 1) THEN
-!$OMP MASTER
-         send_counter = 0
-         rec_counter = 0
-
-         ALLOCATE (req_array(1:numnodes, 4))
-
-         DO iproc = 0, numnodes - 1
-            IF (nblks_recv(iproc) > 0) THEN
-               rec_counter = rec_counter + 1
-               i0 = nindex*nblks_recv_displ(iproc) + 1
-               i1 = nindex*(nblks_recv_displ(iproc) + nblks_recv(iproc))
-               d0 = ndata_recv_displ(iproc) + 1
-               d1 = ndata_recv_displ(iproc) + ndata_recv(iproc)
-               CALL mp_comm%irecv(index_recv(i0:i1), iproc, req_array(rec_counter, 3), tag=4)
-               CALL mp_comm%irecv(data_recv(d0:d1), iproc, req_array(rec_counter, 4), tag=7)
-            END IF
-         END DO
-
-         DO iproc = 0, numnodes - 1
-            IF (nblks_send(iproc) > 0) THEN
-               send_counter = send_counter + 1
-               i0 = nindex*nblks_send_displ(iproc) + 1
-               i1 = nindex*(nblks_send_displ(iproc) + nblks_send(iproc))
-               d0 = ndata_send_displ(iproc) + 1
-               d1 = ndata_send_displ(iproc) + ndata_send(iproc)
-               CALL mp_comm%isend(index_send(i0:i1), iproc, req_array(send_counter, 1), tag=4)
-               CALL mp_comm%isend(data_send(d0:d1), iproc, req_array(send_counter, 2), tag=7)
-            END IF
-         END DO
-
-         IF (send_counter > 0) THEN
-            CALL mp_waitall(req_array(1:send_counter, 1:2))
-         END IF
-         IF (rec_counter > 0) THEN
-            CALL mp_waitall(req_array(1:rec_counter, 3:4))
-         END IF
-!$OMP END MASTER
-
-      ELSE
-         i1 = nindex*INT(nblks_send(0), int_8)
-         d1 = INT(ndata_send(0), int_8)
-!$OMP DO SCHEDULE(static)
-         DO i = 1, i1
-            index_recv(i) = index_send(i)
-         END DO
-!$OMP END DO NOWAIT
-!$OMP DO SCHEDULE(static)
-         DO i = 1, d1
-            data_recv(i) = data_send(i)
-         END DO
-!$OMP END DO
+      nprocs = SIZE(ndata)
+      IF (ALLOCATED(buffer%msg_offset)) THEN
+         IF (SIZE(buffer%msg_offset) /= nprocs + 1) DEALLOCATE (buffer%msg_offset, buffer%indx_offset)
       END IF
-      CALL timestop(handle)
+      IF (.NOT. ALLOCATED(buffer%msg_offset)) ALLOCATE (buffer%msg_offset(0:nprocs), buffer%indx_offset(0:nprocs))
+      buffer%msg_offset(0) = 0
+      buffer%indx_offset(0) = 0
+      DO iproc = 0, nprocs - 1
+         buffer%msg_offset(iproc + 1) = buffer%msg_offset(iproc) + ndata(iproc)
+         buffer%indx_offset(iproc + 1) = buffer%indx_offset(iproc) + nblks(iproc)
+      END DO
 
-   END SUBROUTINE dbt_communicate_buffer
+      IF (ALLOCATED(buffer%msg)) THEN
+         IF (SIZE(buffer%msg) < buffer%msg_offset(nprocs)) DEALLOCATE (buffer%msg)
+      END IF
+      IF (.NOT. ALLOCATED(buffer%msg)) THEN
+         ALLOCATE (buffer%msg(MAX(buffer%msg_offset(nprocs) + buffer%msg_offset(nprocs)/4, 1)))
+      END IF
+      ! records are exchanged as whole columns: the leading dimension must match
+      IF (ALLOCATED(buffer%indx)) THEN
+         IF (SIZE(buffer%indx, 1) /= nindex .OR. SIZE(buffer%indx, 2) < buffer%indx_offset(nprocs)) THEN
+            DEALLOCATE (buffer%indx)
+         END IF
+      END IF
+      IF (.NOT. ALLOCATED(buffer%indx)) THEN
+         ALLOCATE (buffer%indx(nindex, MAX(buffer%indx_offset(nprocs) + buffer%indx_offset(nprocs)/4, 1)))
+      END IF
+   END SUBROUTINE grow_buffer
+
+! **************************************************************************************************
+!> \brief Exchange the contents of two buffers without copying.
+!> \author Hans Pabst
+! **************************************************************************************************
+   SUBROUTINE swap_buffers(a, b)
+      TYPE(matrix_buffer_type), INTENT(INOUT)               :: a, b
+
+      TYPE(matrix_buffer_type)                              :: t
+
+      CALL MOVE_ALLOC(a%msg, t%msg)
+      CALL MOVE_ALLOC(b%msg, a%msg)
+      CALL MOVE_ALLOC(t%msg, b%msg)
+      CALL MOVE_ALLOC(a%indx, t%indx)
+      CALL MOVE_ALLOC(b%indx, a%indx)
+      CALL MOVE_ALLOC(t%indx, b%indx)
+      CALL MOVE_ALLOC(a%msg_offset, t%msg_offset)
+      CALL MOVE_ALLOC(b%msg_offset, a%msg_offset)
+      CALL MOVE_ALLOC(t%msg_offset, b%msg_offset)
+      CALL MOVE_ALLOC(a%indx_offset, t%indx_offset)
+      CALL MOVE_ALLOC(b%indx_offset, a%indx_offset)
+      CALL MOVE_ALLOC(t%indx_offset, b%indx_offset)
+   END SUBROUTINE swap_buffers
+
+! **************************************************************************************************
+!> \brief Deallocate the arrays of a buffer.
+!> \author Hans Pabst
+! **************************************************************************************************
+   SUBROUTINE release_buffer(buffer)
+      TYPE(matrix_buffer_type), INTENT(INOUT)               :: buffer
+
+      IF (ALLOCATED(buffer%msg)) DEALLOCATE (buffer%msg)
+      IF (ALLOCATED(buffer%indx)) DEALLOCATE (buffer%indx)
+      IF (ALLOCATED(buffer%msg_offset)) DEALLOCATE (buffer%msg_offset)
+      IF (ALLOCATED(buffer%indx_offset)) DEALLOCATE (buffer%indx_offset)
+   END SUBROUTINE release_buffer
 
 END MODULE dbt_reshape_ops
