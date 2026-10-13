@@ -424,6 +424,7 @@ CONTAINS
 
       INTEGER                                            :: a_mysize(1), i, j, k, l, m, m_max, &
                                                             mysize, n, p1, p2, p3, p4, perm_case
+      LOGICAL                                            :: direct_contract
       REAL(dp)                                           :: A(3), AB(3), B(3), C(3), CD(3), D(3), &
                                                             P(3), Q(3), Rho, RhoInv, scoord(12), &
                                                             tmp_max, tmp_max_virial, W(3), &
@@ -1218,52 +1219,85 @@ CONTAINS
          IF (tmp_max_all < eps_schwarz) RETURN
       END IF
 
+      direct_contract = (s_offset_a == 0 .AND. s_offset_b == 0 .AND. &
+                         s_offset_c == 0 .AND. s_offset_d == 0 .AND. &
+                         nsgfa == nsoa*nl_a .AND. nsgfb == nsob*nl_b .AND. &
+                         nsgfc == nsoc*nl_c .AND. nsgfd == nsod*nl_d)
+
       IF (tmp_max_all >= eps_schwarz) THEN
-         DO i = 1, 12
-            primitives_tmp(:, :, :, :) = 0.0_dp
-            CALL contract(ncoa, ncob, ncoc, ncod, nsoa, nsob, nsoc, nsod, &
-                          n_a, n_b, n_c, n_d, nl_a, nl_b, nl_c, nl_d, work2(1, 1, 1, 1, i), &
-                          sphi_a, &
-                          sphi_b, &
-                          sphi_c, &
-                          sphi_d, &
-                          primitives_tmp(1, 1, 1, 1), &
-                          buffer1, buffer2)
-
-            primitives(s_offset_a + 1:s_offset_a + nsoa*nl_a, &
-                       s_offset_b + 1:s_offset_b + nsob*nl_b, &
-                       s_offset_c + 1:s_offset_c + nsoc*nl_c, &
-                       s_offset_d + 1:s_offset_d + nsod*nl_d, i) = &
-               primitives(s_offset_a + 1:s_offset_a + nsoa*nl_a, &
-                          s_offset_b + 1:s_offset_b + nsob*nl_b, &
-                          s_offset_c + 1:s_offset_c + nsoc*nl_c, &
-                          s_offset_d + 1:s_offset_d + nsod*nl_d, i) + primitives_tmp(:, :, :, :)
-         END DO
-      END IF
-
-      IF (use_virial .AND. tmp_max_all_virial >= eps_schwarz) THEN
-         DO i = 1, 12
-            DO m = 1, 3
-               primitives_tmp_virial(:, :, :, :) = 0.0_dp
+         IF (direct_contract) THEN
+            DO i = 1, 12
                CALL contract(ncoa, ncob, ncoc, ncod, nsoa, nsob, nsoc, nsod, &
-                             n_a, n_b, n_c, n_d, nl_a, nl_b, nl_c, nl_d, work2_virial(1, 1, 1, 1, i, m), &
+                             n_a, n_b, n_c, n_d, nl_a, nl_b, nl_c, nl_d, work2(1, 1, 1, 1, i), &
                              sphi_a, &
                              sphi_b, &
                              sphi_c, &
                              sphi_d, &
-                             primitives_tmp_virial(1, 1, 1, 1), &
+                             primitives(1, 1, 1, 1, i), &
+                             buffer1, buffer2)
+            END DO
+         ELSE
+            DO i = 1, 12
+               primitives_tmp(:, :, :, :) = 0.0_dp
+               CALL contract(ncoa, ncob, ncoc, ncod, nsoa, nsob, nsoc, nsod, &
+                             n_a, n_b, n_c, n_d, nl_a, nl_b, nl_c, nl_d, work2(1, 1, 1, 1, i), &
+                             sphi_a, &
+                             sphi_b, &
+                             sphi_c, &
+                             sphi_d, &
+                             primitives_tmp(1, 1, 1, 1), &
                              buffer1, buffer2)
 
-               primitives_virial(s_offset_a + 1:s_offset_a + nsoa*nl_a, &
-                                 s_offset_b + 1:s_offset_b + nsob*nl_b, &
-                                 s_offset_c + 1:s_offset_c + nsoc*nl_c, &
-                                 s_offset_d + 1:s_offset_d + nsod*nl_d, i, m) = &
+               primitives(s_offset_a + 1:s_offset_a + nsoa*nl_a, &
+                          s_offset_b + 1:s_offset_b + nsob*nl_b, &
+                          s_offset_c + 1:s_offset_c + nsoc*nl_c, &
+                          s_offset_d + 1:s_offset_d + nsod*nl_d, i) = &
+                  primitives(s_offset_a + 1:s_offset_a + nsoa*nl_a, &
+                             s_offset_b + 1:s_offset_b + nsob*nl_b, &
+                             s_offset_c + 1:s_offset_c + nsoc*nl_c, &
+                             s_offset_d + 1:s_offset_d + nsod*nl_d, i) + primitives_tmp(:, :, :, :)
+            END DO
+         END IF
+      END IF
+
+      IF (use_virial .AND. tmp_max_all_virial >= eps_schwarz) THEN
+         IF (direct_contract) THEN
+            DO i = 1, 12
+               DO m = 1, 3
+                  CALL contract(ncoa, ncob, ncoc, ncod, nsoa, nsob, nsoc, nsod, &
+                                n_a, n_b, n_c, n_d, nl_a, nl_b, nl_c, nl_d, work2_virial(1, 1, 1, 1, i, m), &
+                                sphi_a, &
+                                sphi_b, &
+                                sphi_c, &
+                                sphi_d, &
+                                primitives_virial(1, 1, 1, 1, i, m), &
+                                buffer1, buffer2)
+               END DO
+            END DO
+         ELSE
+            DO i = 1, 12
+               DO m = 1, 3
+                  primitives_tmp_virial(:, :, :, :) = 0.0_dp
+                  CALL contract(ncoa, ncob, ncoc, ncod, nsoa, nsob, nsoc, nsod, &
+                                n_a, n_b, n_c, n_d, nl_a, nl_b, nl_c, nl_d, work2_virial(1, 1, 1, 1, i, m), &
+                                sphi_a, &
+                                sphi_b, &
+                                sphi_c, &
+                                sphi_d, &
+                                primitives_tmp_virial(1, 1, 1, 1), &
+                                buffer1, buffer2)
+
                   primitives_virial(s_offset_a + 1:s_offset_a + nsoa*nl_a, &
                                     s_offset_b + 1:s_offset_b + nsob*nl_b, &
                                     s_offset_c + 1:s_offset_c + nsoc*nl_c, &
-                                    s_offset_d + 1:s_offset_d + nsod*nl_d, i, m) + primitives_tmp_virial(:, :, :, :)
+                                    s_offset_d + 1:s_offset_d + nsod*nl_d, i, m) = &
+                     primitives_virial(s_offset_a + 1:s_offset_a + nsoa*nl_a, &
+                                       s_offset_b + 1:s_offset_b + nsob*nl_b, &
+                                       s_offset_c + 1:s_offset_c + nsoc*nl_c, &
+                                       s_offset_d + 1:s_offset_d + nsod*nl_d, i, m) + primitives_tmp_virial(:, :, :, :)
+               END DO
             END DO
-         END DO
+         END IF
       END IF
 
    END SUBROUTINE evaluate_deriv_eri
@@ -1478,8 +1512,8 @@ CONTAINS
       REAL(dp), DIMENSION(ncob, nsob*nl_b), INTENT(IN)   :: sphi_b
       REAL(dp), DIMENSION(ncoc, nsoc*nl_c), INTENT(IN)   :: sphi_c
       REAL(dp), DIMENSION(ncod, nsod*nl_d), INTENT(IN)   :: sphi_d
-      REAL(dp)                                           :: work(ncoa*ncob*ncoc*ncod), &
-                                                            work2(ncoa, ncob, ncoc, ncod)
+      REAL(dp), TARGET                                   :: work(ncoa*ncob*ncoc*ncod)
+      REAL(dp)                                           :: work2(ncoa, ncob, ncoc, ncod)
       REAL(dp), DIMENSION(ncoa*ncob*ncoc*ncod)           :: buffer1, buffer2
       REAL(dp), DIMENSION(nsoa*nl_a, nsob*nl_b, nsoc*&
          nl_c, nsod*nl_d)                                :: primitives_tmp
@@ -1487,17 +1521,21 @@ CONTAINS
 
       INTEGER                                            :: a_mysize(1), i, j, k, l, m_max, mysize, &
                                                             p1, p2, p3, p4, perm_case
+      LOGICAL                                            :: direct_contract
       REAL(dp)                                           :: A(3), AB(3), B(3), C(3), CD(3), D(3), &
                                                             P(3), Q(3), Rho, RhoInv, W(3), &
                                                             ZetapEtaInv
+      REAL(dp), DIMENSION(:), POINTER                    :: eri_src
       REAL(KIND=dp), DIMENSION(prim_data_f_size)         :: F
+
+      IF (nproducts == 0) RETURN
 
       m_max = n_a + n_b + n_c + n_d
       mysize = ncoa*ncob*ncoc*ncod
       a_mysize = mysize
 
-      work = 0.0_dp
       IF (m_max /= 0) THEN
+         IF (nproducts > 1) work(1:mysize) = 0.0_dp
          perm_case = 1
          IF (n_a < n_b) THEN
             perm_case = perm_case + 1
@@ -1528,11 +1566,16 @@ CONTAINS
                CALL build_quartet_data(libint, A, B, C, D, ZetaInv, EtaInv, ZetapEtaInv, Rho, &
                                        P, Q, W, m_max, F)
                CALL cp_libint_get_eris(n_d, n_c, n_b, n_a, libint, p_work, a_mysize)
-               work(1:mysize) = work(1:mysize) + p_work(1:mysize)
+               IF (nproducts > 1) work(1:mysize) = work(1:mysize) + p_work(1:mysize)
                neris = neris + mysize
             END DO
+            IF (nproducts == 1) THEN
+               eri_src => p_work
+            ELSE
+               eri_src => work
+            END IF
             DO i = 1, mysize
-               tmp_max = MAX(tmp_max, ABS(work(i)))
+               tmp_max = MAX(tmp_max, ABS(eri_src(i)))
             END DO
             tmp_max = tmp_max*max_contraction
             IF (tmp_max < eps_schwarz) THEN
@@ -1547,7 +1590,7 @@ CONTAINS
                      p3 = (p2 + k - 1)*ncod
                      DO l = 1, ncod
                         p4 = p3 + l
-                        work2(i, j, k, l) = work(p4)
+                        work2(i, j, k, l) = eri_src(p4)
                      END DO
                   END DO
                END DO
@@ -1573,11 +1616,16 @@ CONTAINS
                                        P, Q, W, m_max, F)
 
                CALL cp_libint_get_eris(n_d, n_c, n_a, n_b, libint, p_work, a_mysize)
-               work(1:mysize) = work(1:mysize) + p_work(1:mysize)
+               IF (nproducts > 1) work(1:mysize) = work(1:mysize) + p_work(1:mysize)
                neris = neris + mysize
             END DO
+            IF (nproducts == 1) THEN
+               eri_src => p_work
+            ELSE
+               eri_src => work
+            END IF
             DO i = 1, mysize
-               tmp_max = MAX(tmp_max, ABS(work(i)))
+               tmp_max = MAX(tmp_max, ABS(eri_src(i)))
             END DO
             tmp_max = tmp_max*max_contraction
             IF (tmp_max < eps_schwarz) THEN
@@ -1592,7 +1640,7 @@ CONTAINS
                      p3 = (p2 + k - 1)*ncod
                      DO l = 1, ncod
                         p4 = p3 + l
-                        work2(i, j, k, l) = work(p4)
+                        work2(i, j, k, l) = eri_src(p4)
                      END DO
                   END DO
                END DO
@@ -1618,11 +1666,16 @@ CONTAINS
                                        P, Q, W, m_max, F)
 
                CALL cp_libint_get_eris(n_c, n_d, n_b, n_a, libint, p_work, a_mysize)
-               work(1:mysize) = work(1:mysize) + p_work(1:mysize)
+               IF (nproducts > 1) work(1:mysize) = work(1:mysize) + p_work(1:mysize)
                neris = neris + mysize
             END DO
+            IF (nproducts == 1) THEN
+               eri_src => p_work
+            ELSE
+               eri_src => work
+            END IF
             DO i = 1, mysize
-               tmp_max = MAX(tmp_max, ABS(work(i)))
+               tmp_max = MAX(tmp_max, ABS(eri_src(i)))
             END DO
             tmp_max = tmp_max*max_contraction
             IF (tmp_max < eps_schwarz) THEN
@@ -1637,7 +1690,7 @@ CONTAINS
                      p3 = (p2 + l - 1)*ncoc
                      DO k = 1, ncoc
                         p4 = p3 + k
-                        work2(i, j, k, l) = work(p4)
+                        work2(i, j, k, l) = eri_src(p4)
                      END DO
                   END DO
                END DO
@@ -1663,11 +1716,16 @@ CONTAINS
                                        P, Q, W, m_max, F)
 
                CALL cp_libint_get_eris(n_c, n_d, n_a, n_b, libint, p_work, a_mysize)
-               work(1:mysize) = work(1:mysize) + p_work(1:mysize)
+               IF (nproducts > 1) work(1:mysize) = work(1:mysize) + p_work(1:mysize)
                neris = neris + mysize
             END DO
+            IF (nproducts == 1) THEN
+               eri_src => p_work
+            ELSE
+               eri_src => work
+            END IF
             DO i = 1, mysize
-               tmp_max = MAX(tmp_max, ABS(work(i)))
+               tmp_max = MAX(tmp_max, ABS(eri_src(i)))
             END DO
             tmp_max = tmp_max*max_contraction
             IF (tmp_max < eps_schwarz) THEN
@@ -1682,7 +1740,7 @@ CONTAINS
                      p3 = (p2 + l - 1)*ncoc
                      DO k = 1, ncoc
                         p4 = p3 + k
-                        work2(i, j, k, l) = work(p4)
+                        work2(i, j, k, l) = eri_src(p4)
                      END DO
                   END DO
                END DO
@@ -1708,11 +1766,16 @@ CONTAINS
                                        Q, P, W, m_max, F)
 
                CALL cp_libint_get_eris(n_b, n_a, n_d, n_c, libint, p_work, a_mysize)
-               work(1:mysize) = work(1:mysize) + p_work(1:mysize)
+               IF (nproducts > 1) work(1:mysize) = work(1:mysize) + p_work(1:mysize)
                neris = neris + mysize
             END DO
+            IF (nproducts == 1) THEN
+               eri_src => p_work
+            ELSE
+               eri_src => work
+            END IF
             DO i = 1, mysize
-               tmp_max = MAX(tmp_max, ABS(work(i)))
+               tmp_max = MAX(tmp_max, ABS(eri_src(i)))
             END DO
             tmp_max = tmp_max*max_contraction
             IF (tmp_max < eps_schwarz) THEN
@@ -1727,7 +1790,7 @@ CONTAINS
                      p3 = (p2 + i - 1)*ncob
                      DO j = 1, ncob
                         p4 = p3 + j
-                        work2(i, j, k, l) = work(p4)
+                        work2(i, j, k, l) = eri_src(p4)
                      END DO
                   END DO
                END DO
@@ -1753,11 +1816,16 @@ CONTAINS
                                        Q, P, W, m_max, F)
 
                CALL cp_libint_get_eris(n_a, n_b, n_d, n_c, libint, p_work, a_mysize)
-               work(1:mysize) = work(1:mysize) + p_work(1:mysize)
+               IF (nproducts > 1) work(1:mysize) = work(1:mysize) + p_work(1:mysize)
                neris = neris + mysize
             END DO
+            IF (nproducts == 1) THEN
+               eri_src => p_work
+            ELSE
+               eri_src => work
+            END IF
             DO i = 1, mysize
-               tmp_max = MAX(tmp_max, ABS(work(i)))
+               tmp_max = MAX(tmp_max, ABS(eri_src(i)))
             END DO
             tmp_max = tmp_max*max_contraction
             IF (tmp_max < eps_schwarz) THEN
@@ -1772,7 +1840,7 @@ CONTAINS
                      p3 = (p2 + j - 1)*ncoa
                      DO i = 1, ncoa
                         p4 = p3 + i
-                        work2(i, j, k, l) = work(p4)
+                        work2(i, j, k, l) = eri_src(p4)
                      END DO
                   END DO
                END DO
@@ -1798,11 +1866,16 @@ CONTAINS
                                        Q, P, W, m_max, F)
 
                CALL cp_libint_get_eris(n_b, n_a, n_c, n_d, libint, p_work, a_mysize)
-               work(1:mysize) = work(1:mysize) + p_work(1:mysize)
+               IF (nproducts > 1) work(1:mysize) = work(1:mysize) + p_work(1:mysize)
                neris = neris + mysize
             END DO
+            IF (nproducts == 1) THEN
+               eri_src => p_work
+            ELSE
+               eri_src => work
+            END IF
             DO i = 1, mysize
-               tmp_max = MAX(tmp_max, ABS(work(i)))
+               tmp_max = MAX(tmp_max, ABS(eri_src(i)))
             END DO
             tmp_max = tmp_max*max_contraction
             IF (tmp_max < eps_schwarz) THEN
@@ -1817,7 +1890,7 @@ CONTAINS
                      p3 = (p2 + i - 1)*ncob
                      DO j = 1, ncob
                         p4 = p3 + j
-                        work2(i, j, k, l) = work(p4)
+                        work2(i, j, k, l) = eri_src(p4)
                      END DO
                   END DO
                END DO
@@ -1843,11 +1916,16 @@ CONTAINS
                                        Q, P, W, m_max, F)
 
                CALL cp_libint_get_eris(n_a, n_b, n_c, n_d, libint, p_work, a_mysize)
-               work(1:mysize) = work(1:mysize) + p_work(1:mysize)
+               IF (nproducts > 1) work(1:mysize) = work(1:mysize) + p_work(1:mysize)
                neris = neris + mysize
             END DO
+            IF (nproducts == 1) THEN
+               eri_src => p_work
+            ELSE
+               eri_src => work
+            END IF
             DO i = 1, mysize
-               tmp_max = MAX(tmp_max, ABS(work(i)))
+               tmp_max = MAX(tmp_max, ABS(eri_src(i)))
             END DO
             tmp_max = tmp_max*max_contraction
             IF (tmp_max < eps_schwarz) THEN
@@ -1862,13 +1940,14 @@ CONTAINS
                      p3 = (p2 + j - 1)*ncoa
                      DO i = 1, ncoa
                         p4 = p3 + i
-                        work2(i, j, k, l) = work(p4)
+                        work2(i, j, k, l) = eri_src(p4)
                      END DO
                   END DO
                END DO
             END DO
          END SELECT
       ELSE
+         work(1) = 0.0_dp
          DO i = 1, nproducts
             A = pgf_product_list(i)%ra
             B = pgf_product_list(i)%rb
@@ -1894,25 +1973,40 @@ CONTAINS
       END IF
 
       IF (tmp_max < eps_schwarz) RETURN
-      primitives_tmp = 0.0_dp
+      direct_contract = (s_offset_a == 0 .AND. s_offset_b == 0 .AND. &
+                         s_offset_c == 0 .AND. s_offset_d == 0 .AND. &
+                         nsgfa == nsoa*nl_a .AND. nsgfb == nsob*nl_b .AND. &
+                         nsgfc == nsoc*nl_c .AND. nsgfd == nsod*nl_d)
+      IF (direct_contract) THEN
+         CALL contract(ncoa, ncob, ncoc, ncod, nsoa, nsob, nsoc, nsod, &
+                       n_a, n_b, n_c, n_d, nl_a, nl_b, nl_c, nl_d, work2, &
+                       sphi_a, &
+                       sphi_b, &
+                       sphi_c, &
+                       sphi_d, &
+                       primitives, &
+                       buffer1, buffer2)
+      ELSE
+         primitives_tmp = 0.0_dp
 
-      CALL contract(ncoa, ncob, ncoc, ncod, nsoa, nsob, nsoc, nsod, &
-                    n_a, n_b, n_c, n_d, nl_a, nl_b, nl_c, nl_d, work2, &
-                    sphi_a, &
-                    sphi_b, &
-                    sphi_c, &
-                    sphi_d, &
-                    primitives_tmp, &
-                    buffer1, buffer2)
+         CALL contract(ncoa, ncob, ncoc, ncod, nsoa, nsob, nsoc, nsod, &
+                       n_a, n_b, n_c, n_d, nl_a, nl_b, nl_c, nl_d, work2, &
+                       sphi_a, &
+                       sphi_b, &
+                       sphi_c, &
+                       sphi_d, &
+                       primitives_tmp, &
+                       buffer1, buffer2)
 
-      primitives(s_offset_a + 1:s_offset_a + nsoa*nl_a, &
-                 s_offset_b + 1:s_offset_b + nsob*nl_b, &
-                 s_offset_c + 1:s_offset_c + nsoc*nl_c, &
-                 s_offset_d + 1:s_offset_d + nsod*nl_d) = &
          primitives(s_offset_a + 1:s_offset_a + nsoa*nl_a, &
                     s_offset_b + 1:s_offset_b + nsob*nl_b, &
                     s_offset_c + 1:s_offset_c + nsoc*nl_c, &
-                    s_offset_d + 1:s_offset_d + nsod*nl_d) + primitives_tmp(:, :, :, :)
+                    s_offset_d + 1:s_offset_d + nsod*nl_d) = &
+            primitives(s_offset_a + 1:s_offset_a + nsoa*nl_a, &
+                       s_offset_b + 1:s_offset_b + nsob*nl_b, &
+                       s_offset_c + 1:s_offset_c + nsoc*nl_c, &
+                       s_offset_d + 1:s_offset_d + nsod*nl_d) + primitives_tmp(:, :, :, :)
+      END IF
 
    END SUBROUTINE evaluate_eri
 
