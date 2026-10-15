@@ -112,7 +112,7 @@ CONTAINS
       ALLOCATE (nblks_send_total(0:numnodes - 1), ndata_send_total(0:numnodes - 1), source=0)
       ALLOCATE (nblks_recv_total(0:numnodes - 1), ndata_recv_total(0:numnodes - 1), source=0)
 
-!$OMP PARALLEL DEFAULT(OMP_DEFAULT_NONE_WITH_OOP) &
+!$OMP PARALLEL DEFAULT(NONE) &
 !$OMP SHARED(tensor_in,tensor_out,summation,mp_comm,numnodes,nindex,name_pack,name_unpack) &
 !$OMP SHARED(do_bounds,bounds_prv,buffer_send,buffer_recv) &
 !$OMP SHARED(nblks_send_total,ndata_send_total,nblks_recv_total,ndata_recv_total) &
