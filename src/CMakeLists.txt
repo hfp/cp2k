@@ -2041,6 +2041,10 @@ if(CP2K_USE_LIBXS)
   find_path(CP2K_LIBXS_JIT_DIR "libxs_jit.F" HINTS ${_libxs_incdirs})
   if(CP2K_LIBXS_JIT_DIR)
     target_sources(cp2k PRIVATE "${CP2K_LIBXS_JIT_DIR}/libxs_jit.F")
+  else()
+    message(
+      FATAL_ERROR
+        "libxs_jit.F not found in the include directories of libxs::libxs")
   endif()
   unset(_libxs_incdirs)
 endif()
