@@ -198,7 +198,7 @@ spack:
 
   repos:
     builtin:
-      commit: 13bb171032cedfbc9739b1f23772e0f197df308a # 2026-09-30
+      commit: dc7929641af94e9f219e0cb5ea00274480701c87 # 2026-10-16
 
   specs:
     # Build tools
@@ -243,9 +243,9 @@ spack:
     - "pexsi@2.0.0"
     - "plumed@2.10.1"
     - "py-torch@2.13.0"
-    - "sirius@7.11.1"
+    - "sirius@7.12.0"
     - "spfft@1.1.1"
-    - "spglib@2.7.0"
+    - "spglib@2.8.0"
     - "spla@1.6.1"
     - "tblite@0.7.0"
     - "trexio@2.6.1"
