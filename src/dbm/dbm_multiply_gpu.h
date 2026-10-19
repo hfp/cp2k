@@ -20,9 +20,15 @@
 typedef struct {
   double *data; // on the device
   int data_size;
-  int data_allocated;
+  int data_allocated; // beyond data_size, the device data is zero
   offloadStream_t stream;
   offloadEvent_t event;
+  offloadEvent_t done;     // recorded after each kernel
+  offloadEvent_t download; // recorded after downloading into the host shard
+  bool downloading;        // download recorded (and not waited for)
+  double *host_data;       // contributions computed on the host (hybrid)
+  int host_size;
+  int host_allocated;
 } dbm_shard_gpu_t;
 
 // Separate from dbm_pack_t because device allocation lifetime differs from the
@@ -32,6 +38,18 @@ typedef struct {
   double *data; // on the device
   int data_allocated;
 } dbm_pack_gpu_t;
+
+/*******************************************************************************
+ * \brief Internal struct for storing a thread's pair of host batches, which
+ *        kernels read directly (unified): one is filled while the other is
+ *read.
+ * \author Hans Pabst
+ ******************************************************************************/
+typedef struct {
+  dbm_task_t *batch[2];
+  offloadEvent_t done[2]; // recorded after the kernel reading the batch
+  bool pending[2];
+} dbm_batch_gpu_t;
 
 /*******************************************************************************
  * \brief Internal struct for storing the gpu backend's context.
@@ -49,6 +67,14 @@ typedef struct {
 
   int max_batch_size;
   dbm_task_t *batches_dev;
+
+  dbm_shard_t *shards_c_host;
+  bool unified; // kernels read host batches (DBM_MULTIPLY_UNIFIED)
+  int nthreads; // number of batches_host
+  dbm_batch_gpu_t *batches_host;
+  int hybrid;        // max. number of threads computing on the host
+  int hybrid_active; // number of threads computing on the host
+  int64_t flops[2];  // computed on the GPU and on the host
 } dbm_multiply_gpu_context_t;
 
 /*******************************************************************************
@@ -68,13 +94,43 @@ bool dbm_multiply_gpu_upload_packs(const dbm_pack_t *pack_a,
                                    dbm_multiply_gpu_context_t *ctx);
 
 /*******************************************************************************
+ * \brief Internal routine for obtaining the calling thread's host batch.
+ * \author Hans Pabst
+ ******************************************************************************/
+dbm_task_t *dbm_multiply_gpu_batch_acquire(dbm_multiply_gpu_context_t *ctx);
+
+/*******************************************************************************
+ * \brief Internal routine for returning the calling thread's host batch once
+ *        no kernel reads it anymore.
+ * \author Hans Pabst
+ ******************************************************************************/
+void dbm_multiply_gpu_batch_release(dbm_task_t *batch,
+                                    dbm_multiply_gpu_context_t *ctx);
+
+/*******************************************************************************
  * \brief Internal routine for executing the tasks in given batch on the GPU.
+ *        Returns the batch to be filled next, i.e., the given one unless a
+ *        kernel reads it directly (unified).
  * \author Ole Schuett
  ******************************************************************************/
-void dbm_multiply_gpu_process_batch(const int ntasks, const dbm_task_t *batch,
-                                    const double alpha, dbm_shard_t *shard_c,
-                                    const int kshard, const bool finish,
-                                    dbm_multiply_gpu_context_t *ctx);
+dbm_task_t *dbm_multiply_gpu_process_batch(const int ntasks, dbm_task_t *batch,
+                                           const dbm_batch_shape_t *shape,
+                                           const double alpha,
+                                           dbm_shard_t *shard_c,
+                                           const int kshard, const bool finish,
+                                           dbm_multiply_gpu_context_t *ctx);
+
+/*******************************************************************************
+ * \brief Internal routine for executing the tasks in given batch on the host
+ *        while the GPU is busy with the shard's previous batch (hybrid).
+ *        Returns false if the GPU shall process the batch instead.
+ * \author Hans Pabst
+ ******************************************************************************/
+bool dbm_multiply_gpu_process_batch_host(
+    const int ntasks, const dbm_task_t *batch, const dbm_batch_shape_t *shape,
+    const double alpha, const dbm_pack_t *pack_a, const dbm_pack_t *pack_b,
+    dbm_shard_t *shard_c, const int kshard, const bool finish,
+    const int cpu_options, dbm_multiply_gpu_context_t *ctx);
 
 /*******************************************************************************
  * \brief Internal routine for shutting down the gpu backend.

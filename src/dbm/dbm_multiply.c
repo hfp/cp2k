@@ -13,6 +13,7 @@
 #include "dbm_multiply_comm.h"
 #include "dbm_multiply_cpu.h"
 #include "dbm_multiply_gpu.h"
+#include "dbm_multiply_gpu_kernel.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -72,6 +73,28 @@ typedef struct {
 } backend_context_t;
 
 /*******************************************************************************
+ * \brief Private routine for the CPU options of the validating (host) multiply:
+ *        results of the GPU are checked against any CPU kernel (LIBXS), but
+ *        results of the CPU kernels (incl. hybrid) are checked against BLAS.
+ * \author Hans Pabst
+ ******************************************************************************/
+static int validation_cpu_options(void) {
+  static int options = -1; // racing threads store the same value
+  if (0 > options) {
+#if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
+    const char *const hybrid_env = getenv("DBM_MULTIPLY_HYBRID");
+    const int hybrid = (NULL == hybrid_env ? 0 : atoi(hybrid_env));
+    // BLAS per small task serializes on the BLAS library's buffer management
+    options =
+        (0 == hybrid ? DBM_MULTIPLY_TASK_REORDER : DBM_MULTIPLY_BLAS_LIBRARY);
+#else
+    options = DBM_MULTIPLY_BLAS_LIBRARY;
+#endif
+  }
+  return options;
+}
+
+/*******************************************************************************
  * \brief Private routine for initializing the multiplication backend.
  * \author Ole Schuett
  ******************************************************************************/
@@ -107,25 +130,95 @@ static bool backend_upload_packs(const dbm_pack_t *pack_a,
 #endif
 }
 
+#if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
+/*******************************************************************************
+ * \brief Private routine for ordering a batch in place as the GPU backend asks.
+ *        The batch is the page-locked array that is uploaded subsequently.
+ * \author Hans Pabst
+ ******************************************************************************/
+static void backend_order_batch(const int ntasks, dbm_task_t batch[ntasks]) {
+  const int order_kind = dbm_multiply_gpu_task_order();
+  if (DBM_TASK_ORDER_NONE != order_kind && 1 < ntasks) {
+    dbm_task_t *const copy =
+        offload_mempool_host_malloc(sizeof(dbm_task_t) * ntasks);
+    int *const order = malloc(sizeof(int) * ntasks);
+    assert(NULL != copy && NULL != order);
+    memcpy(copy, batch, sizeof(dbm_task_t) * ntasks);
+    dbm_multiply_cpu_task_order(ntasks, copy, order);
+    for (int itask = 0; itask < ntasks; ++itask) {
+      batch[itask] = copy[order[itask]];
+    }
+    free(order);
+    offload_mempool_host_free(copy);
+  }
+}
+#endif
+
+/*******************************************************************************
+ * \brief Private routine for obtaining the calling thread's batch.
+ * \author Hans Pabst
+ ******************************************************************************/
+static dbm_task_t *backend_batch_acquire(const bool force_cpu,
+                                         backend_context_t *ctx) {
+  dbm_task_t *result = NULL;
+#if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
+  if (NULL != ctx && !force_cpu) {
+    result = dbm_multiply_gpu_batch_acquire(&ctx->gpu);
+  } else
+#endif
+  {
+    (void)force_cpu; // mark used
+    (void)ctx;
+    result =
+        offload_mempool_host_malloc(sizeof(dbm_task_t) * DBM_MAX_BATCH_SIZE);
+  }
+  return result;
+}
+
+/*******************************************************************************
+ * \brief Private routine for returning the calling thread's batch.
+ * \author Hans Pabst
+ ******************************************************************************/
+static void backend_batch_release(dbm_task_t *batch, const bool force_cpu,
+                                  backend_context_t *ctx) {
+#if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
+  if (NULL != ctx && !force_cpu) {
+    dbm_multiply_gpu_batch_release(batch, &ctx->gpu);
+  } else
+#endif
+  {
+    (void)force_cpu; // mark used
+    (void)ctx;
+    offload_mempool_host_free(batch);
+  }
+}
+
 /*******************************************************************************
  * \brief Private routine for sending a batch to the multiplication backend.
+ *        Returns the batch to be filled next.
  * \author Ole Schuett
  ******************************************************************************/
-static void backend_process_batch(const int ntasks,
-                                  const dbm_task_t batch[ntasks],
-                                  const double alpha, const dbm_pack_t *pack_a,
-                                  const dbm_pack_t *pack_b, const int kshard,
-                                  dbm_shard_t *shard_c, const bool finish,
-                                  const bool force_cpu,
-                                  backend_context_t *ctx) {
+static dbm_task_t *
+backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
+                      const dbm_batch_shape_t *shape, const double alpha,
+                      const dbm_pack_t *pack_a, const dbm_pack_t *pack_b,
+                      const int kshard, dbm_shard_t *shard_c, const bool finish,
+                      const bool force_cpu, backend_context_t *ctx) {
+  dbm_task_t *result = batch;
   if (NULL != ctx) {
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
     if (!force_cpu) {
-      dbm_multiply_gpu_process_batch(ntasks, batch, alpha, shard_c, kshard,
-                                     finish, &ctx->gpu);
+      if (!dbm_multiply_gpu_process_batch_host(
+              ntasks, batch, shape, alpha, pack_a, pack_b, shard_c, kshard,
+              finish, ctx->cpu_options, &ctx->gpu)) {
+        backend_order_batch(ntasks, batch);
+        result = dbm_multiply_gpu_process_batch(
+            ntasks, batch, shape, alpha, shard_c, kshard, finish, &ctx->gpu);
+      }
     } else
 #endif
     {
+      (void)shape;
       (void)kshard;
       (void)finish;
       (void)force_cpu;
@@ -134,8 +227,9 @@ static void backend_process_batch(const int ntasks,
     }
   } else { // Validate against host (aka CPU).
     dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b,
-                                   shard_c, DBM_MULTIPLY_BLAS_LIBRARY);
+                                   shard_c, validation_cpu_options());
   }
+  return result;
 }
 
 /*******************************************************************************
@@ -147,6 +241,17 @@ static void backend_stop(backend_context_t *ctx) {
   dbm_multiply_gpu_stop(&ctx->gpu);
 #endif
   free(ctx);
+}
+
+/*******************************************************************************
+ * \brief Private routine returning the seconds since tick, which it resets.
+ * \author Hans Pabst
+ ******************************************************************************/
+static double phase_lap(double *tick) {
+  const double now = omp_get_wtime();
+  const double result = now - *tick;
+  *tick = now;
+  return result;
 }
 
 /*******************************************************************************
@@ -198,8 +303,9 @@ static void multiply_packs(const bool transa, const bool transb,
 #pragma omp parallel reduction(+ : flop_sum)
   {
     // Thread-private array covering given work in piece-wise fashion.
-    dbm_task_t *batch =
-        offload_mempool_host_malloc(sizeof(dbm_task_t) * DBM_MAX_BATCH_SIZE);
+    dbm_task_t *batch = backend_batch_acquire(force_cpu, context);
+    // Thread-local stats, added to the library's counters once at the end.
+    int64_t counters[DBM_NUM_COUNTERS] = {0};
 
     // Blocks are ordered first by shard. Creating lookup tables of boundaries.
 #pragma omp for nowait
@@ -226,6 +332,7 @@ static void multiply_packs(const bool transa, const bool transb,
       for (int shard_col = 0; shard_col < nshard_cols; shard_col++) {
         const int ishard = shard_row * nshard_cols + shard_col;
         dbm_shard_t *const shard_c = &matrix_c->shards[ishard];
+        dbm_batch_shape_t shape = {0};
         int ntasks = 0;
 
         // Determine contiguous block ranges for this shard in A and B.
@@ -248,8 +355,9 @@ static void multiply_packs(const bool transa, const bool transb,
           }
         }
         if (iblock_start >= iblock_end || jblock_start >= jblock_end) {
-          backend_process_batch(ntasks, batch, alpha, pack_a, pack_b, ishard,
-                                shard_c, true, force_cpu, context);
+          batch = backend_process_batch(ntasks, batch, &shape, alpha, pack_a,
+                                        pack_b, ishard, shard_c, true,
+                                        force_cpu, context);
           continue;
         }
 
@@ -292,6 +400,18 @@ static void multiply_packs(const bool transa, const bool transb,
           for (int jb = b_range_start; jb < b_range_end; ++jb) {
             const dbm_pack_block_t *const blk_b = &pack_b->blocks[jb];
 
+            // Overlap the two dependent cache misses of upcoming lookups.
+            if (jb + DBM_PREFETCH_SLOT < b_range_end) {
+              dbm_shard_prefetch_slot(
+                  shard_c, blk_a->free_index,
+                  pack_b->blocks[jb + DBM_PREFETCH_SLOT].free_index);
+            }
+            if (jb + DBM_PREFETCH_BLOCK < b_range_end) {
+              dbm_shard_prefetch_block(
+                  shard_c, blk_a->free_index,
+                  pack_b->blocks[jb + DBM_PREFETCH_BLOCK].free_index);
+            }
+
             // Norm filter first (early reject).
             const float result_norm = alpha2 * blk_a->norm * blk_b->norm;
             if (result_norm < rows_max_eps[blk_a->free_index]) {
@@ -326,7 +446,13 @@ static void multiply_packs(const bool transa, const bool transb,
             // Count flops.
             const int64_t task_flops = 2LL * m * n * k;
             flop_sum += task_flops;
-            dbm_library_counter_increment(m, n, k);
+            ++counters[dbm_library_counter_index(m, n, k)];
+
+            // Track the shape of the batch.
+            shape.max_m = imax(shape.max_m, m);
+            shape.max_n = imax(shape.max_n, n);
+            shape.max_k = imax(shape.max_k, k);
+            shape.flops += task_flops;
 
             // Add block multiplication to batch.
             dbm_task_t *const tptr = &batch[ntasks];
@@ -339,8 +465,10 @@ static void multiply_packs(const bool transa, const bool transb,
             ++ntasks;
 
             if (ntasks == DBM_MAX_BATCH_SIZE) {
-              backend_process_batch(ntasks, batch, alpha, pack_a, pack_b,
-                                    ishard, shard_c, false, force_cpu, context);
+              batch = backend_process_batch(ntasks, batch, &shape, alpha,
+                                            pack_a, pack_b, ishard, shard_c,
+                                            false, force_cpu, context);
+              memset(&shape, 0, sizeof(shape));
               ntasks = 0;
             }
           }
@@ -348,12 +476,14 @@ static void multiply_packs(const bool transa, const bool transb,
           // Advance i; if next A block has same sum_index, B range is reused.
           ++i;
         }
-        backend_process_batch(ntasks, batch, alpha, pack_a, pack_b, ishard,
-                              shard_c, true, force_cpu, context);
+        batch =
+            backend_process_batch(ntasks, batch, &shape, alpha, pack_a, pack_b,
+                                  ishard, shard_c, true, force_cpu, context);
       }
     }
 
-    offload_mempool_host_free(batch);
+    dbm_library_counters_add(counters);
+    backend_batch_release(batch, force_cpu, context);
   }
 
   free(shard_row_start);
@@ -376,6 +506,8 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
                   int64_t *flop) {
   assert(omp_get_num_threads() == 1);
   assert(matrix_a != NULL && matrix_b != NULL && matrix_c != NULL);
+  double phase[DBM_NUM_PHASES] = {0}, tick = omp_get_wtime();
+  int64_t phase_bytes[DBM_NUM_PHASES] = {0};
 
   // Throughout the matrix multiplication code the "sum_index" and "free_index"
   // denote the summation (aka dummy) and free index from the Einstein notation.
@@ -399,11 +531,13 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   const int verify =
       (NULL == verify_env ? (NULL == maxeps_env ? 0 : 1) : atoi(verify_env));
   dbm_matrix_t *matrix_d = NULL;
+  phase[DBM_PHASE_SETUP] += phase_lap(&tick);
   if (0 != verify) {
     dbm_distribution_t *const dist_shared = matrix_c->dist;
     dbm_create(&matrix_d, dist_shared, matrix_c->name, matrix_c->nrows,
                matrix_c->ncols, matrix_c->row_sizes, matrix_c->col_sizes);
     dbm_copy(matrix_d, matrix_c);
+    tick = omp_get_wtime(); // validation is not a phase
   }
 
   // Compute filter thresholds for each row.
@@ -411,10 +545,17 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
 
   // Start uploading matrix_c to the GPU.
   backend_context_t *ctx = backend_start(matrix_c);
+  phase[DBM_PHASE_SETUP] += phase_lap(&tick);
 
   // Redistribute matrix_a and matrix_b across MPI ranks.
   dbm_comm_iterator_t *iter =
       dbm_comm_iterator_start(transa, transb, matrix_a, matrix_b, matrix_c);
+  const double redistribute = phase_lap(&tick);
+  phase[DBM_PHASE_ALLTOALL] += iter->seconds_alltoall;
+  phase[DBM_PHASE_SORT] += iter->seconds_sort;
+  phase_bytes[DBM_PHASE_ALLTOALL] += iter->bytes_alltoall;
+  phase[DBM_PHASE_PACK] +=
+      redistribute - iter->seconds_alltoall - iter->seconds_sort;
 
   // Count flops if requested.
   if (NULL != flop) {
@@ -424,16 +565,22 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
   // Main loop.
   dbm_pack_t *pack_a, *pack_b;
   while (dbm_comm_iterator_next(iter, &pack_a, &pack_b)) {
+    phase[DBM_PHASE_SHIFT] += phase_lap(&tick);
     const bool uploaded = backend_upload_packs(pack_a, pack_b, ctx);
     (void)uploaded; // mark used
+    phase[DBM_PHASE_UPLOAD] += phase_lap(&tick);
     multiply_packs(transa, transb, alpha, pack_a, pack_b, matrix_a, matrix_b,
                    matrix_c, rows_max_eps, retain_sparsity, false /*!uploaded*/,
                    flop, ctx);
+    phase[DBM_PHASE_MULTIPLY] += phase_lap(&tick);
   }
 
   // Wait for all other MPI ranks to complete, then release ressources.
+  phase_bytes[DBM_PHASE_SHIFT] += iter->bytes_shift;
   dbm_comm_iterator_stop(iter);
+  phase[DBM_PHASE_SHIFT] += phase_lap(&tick);
   backend_stop(ctx);
+  phase[DBM_PHASE_FINISH] += phase_lap(&tick);
 
   if (NULL != matrix_d) {
     ctx = backend_start(matrix_d);
@@ -455,6 +602,7 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
       }
     }
     dbm_release(matrix_d);
+    tick = omp_get_wtime(); // validation is not a phase
   }
 
   // Release filter thresholds.
@@ -462,6 +610,8 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
 
   // Final filter pass.
   dbm_filter(matrix_c, filter_eps);
+  phase[DBM_PHASE_SETUP] += phase_lap(&tick);
+  dbm_library_phases_add(phase, phase_bytes);
 }
 
 // EOF
