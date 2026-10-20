@@ -12,14 +12,15 @@
 !> \author Manuel Guidon
 ! **************************************************************************************************
 MODULE hfx_compression_methods
-   USE cp_files,                        ONLY: close_file,&
-                                              open_file
-   USE hfx_types,                       ONLY: hfx_cache_type,&
-                                              hfx_container_type
-   USE kinds,                           ONLY: dp,&
-                                              int_8
+   USE cp_files, ONLY: close_file, &
+                       open_file
+   USE hfx_types, ONLY: hfx_cache_type, &
+                        hfx_container_type
+   USE kinds, ONLY: dp, &
+                    int_8
 #include "./base/base_uses.f90"
 #if defined(__LIBXS)
+   USE iso_fortran_env, ONLY: iostat_end
    USE libxs, ONLY: libxs_vpack, libxs_vunpack
 #else
    USE hfx_compression_core_methods, ONLY: bits2ints_specific, ints2bits_specific
@@ -228,10 +229,17 @@ CONTAINS
       CPASSERT(ASSOCIATED(container%current))
       CALL hfx_container_get(container, record, 1, memory_usage, use_disk_storage)
       nwords = INT(record(1))
-      CALL hfx_container_get(container, record(2:), nwords, memory_usage, use_disk_storage)
-      nread = INT(libxs_vunpack(values, record(2:nwords + 1)), KIND=int_8)
-      CPASSERT(nread == nwords)
-      full_array(1:CACHE_SIZE) = values + shifts(nbits - 1)
+      ! a zero word is no record (nothing stored), which decodes as zeros like the fixed-width format
+      IF (0 < nwords) THEN
+         CPASSERT(nwords < SIZE(record))
+         CALL hfx_container_get(container, record(2:), nwords, memory_usage, use_disk_storage)
+         nread = INT(libxs_vunpack(values, record(2:nwords + 1)), KIND=int_8)
+         CPASSERT(nread == nwords)
+         full_array(1:CACHE_SIZE) = values + shifts(nbits - 1)
+      ELSE
+         CPASSERT(0 == nwords)
+         full_array(1:CACHE_SIZE) = 0
+      END IF
 #else
       INTEGER                                            :: end_idx, increment_counter, start_idx, &
                                                             stat, tmp_elements, tmp_nints
@@ -343,7 +351,7 @@ CONTAINS
             IF (use_disk_storage) THEN
                ! a full last entry is followed by none: the end of the file is fine
                READ (container%unit, IOSTAT=stat) container%current%data
-               MARK_USED(stat)
+               IF (stat /= 0 .AND. stat /= iostat_end) CPABORT("Failed to read HFX container")
                memory_usage = memory_usage + 1
                container%file_counter = container%file_counter + 1
             ELSE

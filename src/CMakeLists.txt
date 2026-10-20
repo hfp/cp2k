@@ -231,8 +231,6 @@ list(
   group_dist_types.F
   grrm_utils.F
   gapw_1c_basis_set.F
-  gw_ri_rs_compute_Z_lP.F
-  gw_ri_rs_compute_Z_lP_utils.F
   gw_auto_ri_generate_RI_basis.F
   gw_auto_ri_types.F
   gw_utils_dbcsr.F
@@ -243,11 +241,15 @@ list(
   gw_tensor_small_cell_full_kp.F
   gw_ri_rs_non_periodic.F
   gw_ri_rs_large_cell_gamma.F
-  gw_ri_rs_grid_from_file.F
-  gw_ri_rs_grid_initialization.F
-  gw_ri_rs_grid_optimization.F
-  gw_ri_rs_grid_setup_main.F
-  gw_ri_rs_utils.F
+  ri_rs_grid_from_file.F
+  ri_rs_grid_initialization.F
+  ri_rs_grid_optimization.F
+  ri_rs_grid_setup.F
+  ri_rs_setup.F
+  ri_rs_types.F
+  ri_rs_utils.F
+  ri_rs_fitting.F
+  ri_rs_matrices.F
   post_scf_bandstructure_types.F
   post_scf_bandstructure_utils.F
   gw_utils.F
@@ -1674,14 +1676,22 @@ if(CP2K_USE_CUDA
   if(CP2K_ENABLE_DBM_GPU)
     list(APPEND CP2K_DBM_SRCS_C dbm/dbm_multiply_gpu.c)
     if(CP2K_USE_OPENCL)
-      # The OpenCL backend is maintained in LIBXSTREAM (samples/dbm), which
-      # enumerates its files and generates the kernel header per target.
-      if(NOT COMMAND libxstream_add_dbm)
-        message(
-          FATAL_ERROR
-            "LIBXSTREAM does not provide the DBM backend (libxstream_add_dbm).")
-      endif()
-      set(CP2K_DBM_OPENCL ON)
+      set(CP2K_DBM_OPENCL_KERNEL dbm/dbm_multiply_opencl.cl)
+      set(CP2K_DBM_OPENCL_GENHDR
+          "${CMAKE_CURRENT_BINARY_DIR}/${CP2K_DBM_OPENCL_KERNEL}.h")
+      # cmake-lint: disable=E1126
+      add_custom_command(
+        COMMAND
+          ${CP2K_OPENCL_SCRIPT} -b 6 -p \"\" -I "${CP2K_OPENCL_BACKEND}"
+          ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_OPENCL_KERNEL}
+          "${CP2K_DBM_OPENCL_GENHDR}"
+        DEPENDS ${CP2K_OPENCL_SCRIPT} ${CP2K_OPENCL_COMMON}
+                ${CMAKE_CURRENT_SOURCE_DIR}/${CP2K_DBM_OPENCL_KERNEL}
+        OUTPUT "${CP2K_DBM_OPENCL_GENHDR}"
+        COMMENT "Generating OpenCL kernel for DBM")
+      add_custom_target(cp2k_dbm_opencl_kernel
+                        DEPENDS "${CP2K_DBM_OPENCL_GENHDR}")
+      include_directories(${CMAKE_CURRENT_BINARY_DIR}/dbm)
       include_directories(${CP2K_OPENCL_BACKEND})
       if(CP2K_OPENCL_SAMPLES)
         include_directories(${CP2K_OPENCL_SAMPLES})
@@ -1832,8 +1842,8 @@ endif()
 target_compile_features(cp2k PUBLIC cuda_std_11)
 target_include_directories(cp2k PUBLIC $<INSTALL_INTERFACE:include/cp2k>)
 
-if(CP2K_DBM_OPENCL)
-  libxstream_add_dbm(cp2k)
+if(TARGET cp2k_dbm_opencl_kernel)
+  add_dependencies(cp2k cp2k_dbm_opencl_kernel)
 endif()
 
 set_target_properties(
@@ -2038,14 +2048,8 @@ add_library(cp2k::cp2k ALIAS cp2k)
 if(CP2K_USE_LIBXS)
   message(STATUS "Adding libxs_jit.F from dependency libxs for compilation")
   get_target_property(_libxs_incdirs libxs::libxs INTERFACE_INCLUDE_DIRECTORIES)
-  find_path(CP2K_LIBXS_JIT_DIR "libxs_jit.F" HINTS ${_libxs_incdirs})
-  if(CP2K_LIBXS_JIT_DIR)
-    target_sources(cp2k PRIVATE "${CP2K_LIBXS_JIT_DIR}/libxs_jit.F")
-  else()
-    message(
-      FATAL_ERROR
-        "libxs_jit.F not found in the include directories of libxs::libxs")
-  endif()
+  find_path(CP2K_LIBXS_JIT_DIR "libxs_jit.F" HINTS ${_libxs_incdirs} REQUIRED)
+  target_sources(cp2k PRIVATE "${CP2K_LIBXS_JIT_DIR}/libxs_jit.F")
   unset(_libxs_incdirs)
 endif()
 
@@ -2208,8 +2212,8 @@ endforeach()
 add_executable(
   dbm_miniapp dbm/dbm_miniapp.c ${CP2K_DBM_SRCS_C} ${CP2K_MPIWRAP_SRCS_C}
               ${CP2K_DBM_SRCS_GPU} ${CP2K_OFFLOAD_SRCS_C})
-if(CP2K_DBM_OPENCL)
-  libxstream_add_dbm(dbm_miniapp)
+if(TARGET cp2k_dbm_opencl_kernel)
+  add_dependencies(dbm_miniapp cp2k_dbm_opencl_kernel)
 endif()
 target_compile_definitions(
   dbm_miniapp
