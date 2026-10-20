@@ -144,7 +144,7 @@ spack:
     - "libvori@220621"
     - "libwignernj@0.8.0"
     - "libxc@7.1.2"
-    - "libxs@git.28458a6d034c883d6fd544207ffb4a5a19ec793b=main"
+    - "libxs@git.930a2c4f5d7d4ee82142302e1a17812557c02dae=main"
     - "libxsmm@git.3057b239c16994d307589e40e45f40857ad5f5b8=main"
 #   - "libxstream@git.f4511a4b72a8e19e2cd0b5e399679a9c50091a6f=main"
     - "openblas@0.3.34"
