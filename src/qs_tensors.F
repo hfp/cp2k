@@ -3513,8 +3513,10 @@ CONTAINS
          nbins, nbits, nblk, nints, offset, shared_offset
       INTEGER(int_8)                                     :: estimate_to_store_int, &
                                                             storage_counter_integrals
+      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: bin_widths
       INTEGER, DIMENSION(3)                              :: ind
       LOGICAL                                            :: found
+      LOGICAL, DIMENSION(64)                             :: used
       REAL(dp)                                           :: spherical_estimate, t0, t_loop
       REAL(dp), ALLOCATABLE, DIMENSION(:)                :: bin_seconds
       REAL(dp), ALLOCATABLE, DIMENSION(:, :, :), TARGET  :: blk_data
@@ -3534,6 +3536,7 @@ CONTAINS
       IF (0 < sensor_bins) nbins = MIN(nbins, sensor_bins)
       CALL alloc_containers(compressed, nbins)
       ALLOCATE (bin_seconds(nbins), SOURCE=0.0_dp)
+      ALLOCATE (bin_widths(nbins), SOURCE=0)
 
       IF (ALLOCATED(blk_indices)) DEALLOCATE (blk_indices)
       ALLOCATE (blk_indices(dbt_get_num_blocks(tensor), 3))
@@ -3558,12 +3561,14 @@ CONTAINS
       storage_counter_integrals = 0
       t_loop = omp_get_wtime()
 !$OMP PARALLEL DO DEFAULT(NONE) SHARED(tensor,blk_indices,compressed,eps,nbins,nblk,bin_seconds) &
+!$OMP SHARED(bin_widths) &
 !$OMP PRIVATE(ibin,i,ind,blk_data,blk_data_1d,found,nints,spherical_estimate,nbits) &
-!$OMP PRIVATE(estimate_to_store_int,buffer_left,buffer_size,buffer_start,memory_usage,t0) &
+!$OMP PRIVATE(estimate_to_store_int,buffer_left,buffer_size,buffer_start,memory_usage,t0,used) &
 !$OMP PRIVATE(maxval_cache,maxval_container,integral_caches,integral_containers) &
 !$OMP REDUCTION(+:storage_counter_integrals) SCHEDULE(STATIC,1)
       DO ibin = 1, nbins
          t0 = omp_get_wtime()
+         used(:) = .FALSE.
          maxval_container => compressed%maxval_container(ibin)
          integral_containers => compressed%integral_containers(:, ibin)
 
@@ -3597,6 +3602,7 @@ CONTAINS
                CALL cp_abort(__LOCATION__, &
                              "Overflow during tensor compression. Please use a larger EPS_FILTER or EPS_STORAGE_SCALING")
             END IF
+            used(nbits) = .TRUE.
 
             buffer_left = nints
             buffer_start = 1
@@ -3633,6 +3639,7 @@ CONTAINS
             CALL hfx_reset_cache_and_container(integral_caches(i), integral_containers(i), &
                                                memory_usage, .FALSE.)
          END DO
+         bin_widths(ibin) = COUNT(used)
          bin_seconds(ibin) = omp_get_wtime() - t0
       END DO
 !$OMP END PARALLEL DO
@@ -3642,12 +3649,16 @@ CONTAINS
 
       memory = memory + REAL(storage_counter_integrals, dp)/1024/128
       IF (sensor_stats) THEN
+         ! widths: bit widths (integral containers) that received data per bin; lazy_fixed_MiB: the
+         ! fixed part if only those and the maxval container held a cache and a first node
          iw = cp_logger_get_default_io_unit()
-         IF (iw > 0) WRITE (iw, '(T2,A,I0,A,I0,A,F0.2,A,F0.2,A,F0.4,A,F0.2)') &
+         IF (iw > 0) WRITE (iw, '(T2,A,I0,A,I0,A,F0.2,A,F0.2,A,F0.4,A,F0.2,A,F0.1,A,I0,A,F0.2)') &
             "COMPRESS| blocks=", nblk, " bins=", nbins, &
             " MiB=", REAL(storage_counter_integrals, dp)/1024/128, &
             " fixed_MiB=", REAL(2*65*nbins, dp)*cache_size/1024/128, &
-            " s=", t_loop, " imbalance=", imbalance(bin_seconds)
+            " s=", t_loop, " imbalance=", imbalance(bin_seconds), &
+            " widths_avg=", REAL(SUM(bin_widths), dp)/nbins, " widths_max=", MAXVAL(bin_widths), &
+            " lazy_fixed_MiB=", REAL(2*(nbins + SUM(bin_widths)), dp)*cache_size/1024/128
       END IF
       !WRITE (UNIT=iw, FMT="((T3,A,T60,I21))") &
       !   "HFX_MEM_INFO| Total memory consumption ERI's RAM [MiB]:            ", memory
