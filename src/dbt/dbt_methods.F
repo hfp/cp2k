@@ -94,7 +94,8 @@ MODULE dbt_methods
       dbt_batched_contract_finalize, &
       dbt_library_init, &
       dbt_library_finalize, &
-      dbt_library_print_stats
+      dbt_library_print_stats, &
+      dbt_clear_mempools
 
    ! Per contraction (tensor names): remapped and cropped tensors, i.e., data copied
    ! before the multiplication (local to the rank)
@@ -122,10 +123,19 @@ CONTAINS
 !> \author Hans Pabst
 ! **************************************************************************************************
    SUBROUTINE dbt_library_finalize()
-      CALL dbt_reshape_release()
+      CALL dbt_clear_mempools()
       IF (ALLOCATED(contract_stats)) DEALLOCATE (contract_stats)
       ncontract_stats = 0
    END SUBROUTINE dbt_library_finalize
+
+! **************************************************************************************************
+!> \brief Release the buffers that persist across calls (as dbcsr_clear_mempools), e.g., once a
+!>        phase with large tensor operations ends. They are allocated again when needed.
+!> \author Hans Pabst
+! **************************************************************************************************
+   SUBROUTINE dbt_clear_mempools()
+      CALL dbt_reshape_release()
+   END SUBROUTINE dbt_clear_mempools
 
 ! **************************************************************************************************
 !> \brief Print per-contraction statistics (rank-local table, totals over all ranks).

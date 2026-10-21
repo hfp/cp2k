@@ -291,7 +291,6 @@ CONTAINS
       END DO
    END SUBROUTINE block_crop
 
-
 ! **************************************************************************************************
 !> \brief Lay out a persistent buffer for the given per-peer counts (as allocate_matrix_buffers),
 !>        growing its arrays only when they are too small.
