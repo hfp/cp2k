@@ -651,8 +651,8 @@ if(CP2K_USE_ACCEL MATCHES "OPENCL")
   message("\n------------------------------------------------------------")
   message("-                          OPENCL                          -")
   message("------------------------------------------------------------\n")
-  # Hint additional OpenCL locations (CUDA toolkit, Intel oneAPI); CUDA's
-  # OpenCL loader takes precedence (oneAPI's depends on Intel runtimes)
+  # Hint additional OpenCL locations (CUDA toolkit, Intel oneAPI); CUDA's OpenCL
+  # loader takes precedence (oneAPI's depends on Intel runtimes)
   if(DEFINED ENV{CUDA_PATH})
     list(APPEND CMAKE_PREFIX_PATH "$ENV{CUDA_PATH}")
   else()
