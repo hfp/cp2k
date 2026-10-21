@@ -11,8 +11,7 @@
 MODULE qs_tensors
    USE OMP_LIB,                         ONLY: omp_get_max_threads,&
                                               omp_get_num_threads,&
-                                              omp_get_thread_num,&
-                                              omp_get_wtime
+                                              omp_get_thread_num
    USE ai_contraction,                  ONLY: block_add
    USE ai_contraction_sphi,             ONLY: ab_contract,&
                                               abc_contract_xsmm
@@ -36,7 +35,6 @@ MODULE qs_tensors
    USE cp_dbcsr_cp2k_link,              ONLY: cp_dbcsr_alloc_block_from_nbl
    USE cp_files,                        ONLY: close_file,&
                                               open_file
-   USE cp_log_handling,                 ONLY: cp_logger_get_default_io_unit
    USE dbt_api,                         ONLY: &
         dbt_blk_sizes, dbt_clear, dbt_copy, dbt_create, dbt_destroy, dbt_filter, dbt_get_block, &
         dbt_get_info, dbt_get_num_blocks, dbt_get_nze_total, dbt_iterator_next_block, &
@@ -125,31 +123,20 @@ MODULE qs_tensors
    ! cache size for integral compression
    INTEGER, PARAMETER, PRIVATE :: cache_size = 1024
 
-   ! temporary sensors, read once from the environment (sensors_read):
-   ! CP2K_COMPRESS_BINS=N caps the bins of compress_tensor (0: one bin per thread),
-   ! CP2K_COMPRESS_STATS=1 prints a line per (de)compression on the source rank (rank-local),
+   ! temporary sensor, read once from the environment (sensors_read):
    ! CP2K_3C_PRECOMPUTE=0 computes the sphi norms per atom triple (build_3c_integrals as before)
-   LOGICAL, SAVE, PRIVATE :: sensors_ready = .FALSE., sensor_stats = .FALSE., &
-                             sensor_precompute = .TRUE.
-   INTEGER, SAVE, PRIVATE :: sensor_bins = 0
+   LOGICAL, SAVE, PRIVATE :: sensors_ready = .FALSE., sensor_precompute = .TRUE.
 
 CONTAINS
 
 ! **************************************************************************************************
-!> \brief Reads the temporary sensors from the environment (once).
+!> \brief Reads the temporary sensor from the environment (once).
 ! **************************************************************************************************
    SUBROUTINE sensors_read()
       CHARACTER(LEN=16)                                  :: value
       INTEGER                                            :: stat
 
       IF (.NOT. sensors_ready) THEN
-         CALL GET_ENVIRONMENT_VARIABLE("CP2K_COMPRESS_BINS", value, STATUS=stat)
-         IF (stat == 0) THEN
-            READ (value, *, IOSTAT=stat) sensor_bins
-            IF (stat /= 0) sensor_bins = 0
-         END IF
-         CALL GET_ENVIRONMENT_VARIABLE("CP2K_COMPRESS_STATS", value, STATUS=stat)
-         IF (stat == 0) sensor_stats = (LEN_TRIM(value) > 0 .AND. TRIM(value) /= "0")
          CALL GET_ENVIRONMENT_VARIABLE("CP2K_3C_PRECOMPUTE", value, STATUS=stat)
          IF (stat == 0) sensor_precompute = (TRIM(value) /= "0")
          sensors_ready = .TRUE.
@@ -3508,16 +3495,14 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'compress_tensor'
 
-      INTEGER :: buffer_left, buffer_size, buffer_start, handle, i, ibin, iblk, init_usage, iw, &
+      INTEGER :: buffer_left, buffer_size, buffer_start, handle, i, ibin, iblk, init_usage, &
          memory_usage, nbins, nbits, nblk, nints, offset, shared_offset
       INTEGER(int_8)                                     :: estimate_to_store_int, &
                                                             storage_counter_integrals
-      INTEGER, ALLOCATABLE, DIMENSION(:)                 :: bin_widths
       INTEGER, DIMENSION(3)                              :: ind
       LOGICAL                                            :: found
       LOGICAL, DIMENSION(64)                             :: used
-      REAL(dp)                                           :: spherical_estimate, t0, t_loop
-      REAL(dp), ALLOCATABLE, DIMENSION(:)                :: bin_seconds
+      REAL(dp)                                           :: spherical_estimate
       REAL(dp), ALLOCATABLE, DIMENSION(:, :, :), TARGET  :: blk_data
       REAL(dp), DIMENSION(:), POINTER                    :: blk_data_1d
       TYPE(dbt_iterator_type)                            :: iter
@@ -3530,16 +3515,12 @@ CONTAINS
 
       CALL timeset(routineN, handle)
 
-      CALL sensors_read()
       CALL dealloc_containers(compressed, memory_usage)
       ! one bin (independent stream) per thread lets decompress_tensor run in parallel
       nbins = omp_get_max_threads()
-      IF (0 < sensor_bins) nbins = MIN(nbins, sensor_bins)
       ! Only containers: a container receives its first node once its bit width is used, and the
       ! caches exist per bin while a (de)compression runs, which keeps the fixed cost per bin low.
       ALLOCATE (compressed%maxval_container(nbins), compressed%integral_containers(64, nbins))
-      ALLOCATE (bin_seconds(nbins), SOURCE=0.0_dp)
-      ALLOCATE (bin_widths(nbins), SOURCE=0)
 
       IF (ALLOCATED(blk_indices)) DEALLOCATE (blk_indices)
       ALLOCATE (blk_indices(dbt_get_num_blocks(tensor), 3))
@@ -3562,15 +3543,12 @@ CONTAINS
       ! Can not use the tensor iterator here because the order of the blocks is not guaranteed.
       nblk = SIZE(blk_indices, 1)
       storage_counter_integrals = 0
-      t_loop = omp_get_wtime()
-!$OMP PARALLEL DO DEFAULT(NONE) SHARED(tensor,blk_indices,compressed,eps,nbins,nblk,bin_seconds) &
-!$OMP SHARED(bin_widths) &
+!$OMP PARALLEL DO DEFAULT(NONE) SHARED(tensor,blk_indices,compressed,eps,nbins,nblk) &
 !$OMP PRIVATE(ibin,i,ind,blk_data,blk_data_1d,found,nints,spherical_estimate,nbits) &
-!$OMP PRIVATE(estimate_to_store_int,buffer_left,buffer_size,buffer_start,memory_usage,t0,used) &
+!$OMP PRIVATE(estimate_to_store_int,buffer_left,buffer_size,buffer_start,memory_usage,used) &
 !$OMP PRIVATE(maxval_cache,maxval_container,integral_caches,integral_containers,caches,init_usage) &
 !$OMP REDUCTION(+:storage_counter_integrals) SCHEDULE(STATIC,1)
       DO ibin = 1, nbins
-         t0 = omp_get_wtime()
          used(:) = .FALSE.
          maxval_container => compressed%maxval_container(ibin)
          integral_containers => compressed%integral_containers(:, ibin)
@@ -3645,26 +3623,12 @@ CONTAINS
                                                             memory_usage, .FALSE.)
          END DO
          DEALLOCATE (caches)
-         bin_widths(ibin) = COUNT(used)
-         bin_seconds(ibin) = omp_get_wtime() - t0
       END DO
 !$OMP END PARALLEL DO
-      t_loop = omp_get_wtime() - t_loop
 
       CALL dbt_clear(tensor)
 
       memory = memory + REAL(storage_counter_integrals, dp)/1024/128
-      IF (sensor_stats) THEN
-         ! widths: bit widths (integral containers) that received data per bin; fixed_MiB: their
-         ! first nodes and the maxval containers' (the caches exist only while compressing)
-         iw = cp_logger_get_default_io_unit()
-         IF (iw > 0) WRITE (iw, '(T2,A,I0,A,I0,A,F0.2,A,F0.2,A,F0.4,A,F0.2,A,F0.1,A,I0)') &
-            "COMPRESS| blocks=", nblk, " bins=", nbins, &
-            " MiB=", REAL(storage_counter_integrals, dp)/1024/128, &
-            " fixed_MiB=", REAL(nbins + SUM(bin_widths), dp)*cache_size/1024/128, &
-            " s=", t_loop, " imbalance=", imbalance(bin_seconds), &
-            " widths_avg=", REAL(SUM(bin_widths), dp)/nbins, " widths_max=", MAXVAL(bin_widths)
-      END IF
       !WRITE (UNIT=iw, FMT="((T3,A,T60,I21))") &
       !   "HFX_MEM_INFO| Total memory consumption ERI's RAM [MiB]:            ", memory
 
@@ -3689,13 +3653,12 @@ CONTAINS
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'decompress_tensor'
 
       INTEGER                                            :: A, b, buffer_left, buffer_size, &
-                                                            buffer_start, handle, i, ibin, iw, &
+                                                            buffer_start, handle, i, ibin, &
                                                             memory_usage, nbins, nbits, nblk, &
                                                             nblk_per_thread, nints
       INTEGER(int_8)                                     :: estimate_to_store_int
       INTEGER, DIMENSION(3)                              :: blk_size, ind
-      REAL(dp)                                           :: spherical_estimate, t0, t_loop
-      REAL(dp), ALLOCATABLE, DIMENSION(:)                :: bin_seconds
+      REAL(dp)                                           :: spherical_estimate
       REAL(dp), ALLOCATABLE, DIMENSION(:), TARGET        :: blk_data
       REAL(dp), DIMENSION(:, :, :), POINTER              :: blk_data_3d
       TYPE(hfx_cache_type), ALLOCATABLE, DIMENSION(:), &
@@ -3718,15 +3681,12 @@ CONTAINS
       ! bins are independent streams, each holding a contiguous range of blk_indices
       nbins = SIZE(compressed%integral_containers, 2)
       nblk = SIZE(blk_indices, 1)
-      ALLOCATE (bin_seconds(nbins), SOURCE=0.0_dp)
-      t_loop = omp_get_wtime()
-!$OMP PARALLEL DO DEFAULT(NONE) SHARED(tensor,blk_indices,compressed,eps,nbins,nblk,bin_seconds) &
+!$OMP PARALLEL DO DEFAULT(NONE) SHARED(tensor,blk_indices,compressed,eps,nbins,nblk) &
 !$OMP PRIVATE(ibin,i,ind,blk_size,nints,estimate_to_store_int,spherical_estimate,nbits) &
-!$OMP PRIVATE(buffer_left,buffer_size,buffer_start,blk_data,blk_data_3d,memory_usage,t0) &
+!$OMP PRIVATE(buffer_left,buffer_size,buffer_start,blk_data,blk_data_3d,memory_usage) &
 !$OMP PRIVATE(maxval_cache,maxval_container,integral_caches,integral_containers,caches) &
 !$OMP SCHEDULE(STATIC,1)
       DO ibin = 1, nbins
-         t0 = omp_get_wtime()
          maxval_container => compressed%maxval_container(ibin)
          integral_containers => compressed%integral_containers(:, ibin)
 
@@ -3791,32 +3751,11 @@ CONTAINS
             END IF
          END DO
          DEALLOCATE (caches)
-         bin_seconds(ibin) = omp_get_wtime() - t0
       END DO
 !$OMP END PARALLEL DO
-      t_loop = omp_get_wtime() - t_loop
-
-      IF (sensor_stats) THEN
-         iw = cp_logger_get_default_io_unit()
-         IF (iw > 0) WRITE (iw, '(T2,A,I0,A,I0,A,F0.4,A,F0.2)') &
-            "DECOMPRESS| blocks=", nblk, " bins=", nbins, " s=", t_loop, " imbalance=", imbalance(bin_seconds)
-      END IF
 
       CALL timestop(handle)
    END SUBROUTINE decompress_tensor
-
-! **************************************************************************************************
-!> \brief Ratio of the slowest bin to the average bin (one: balanced), a temporary sensor.
-!> \param seconds time per bin
-!> \return ...
-! **************************************************************************************************
-   PURE FUNCTION imbalance(seconds) RESULT(ratio)
-      REAL(dp), DIMENSION(:), INTENT(IN)                 :: seconds
-      REAL(dp)                                           :: ratio
-
-      ratio = 1.0_dp
-      IF (0.0_dp < SUM(seconds)) ratio = MAXVAL(seconds)*SIZE(seconds)/SUM(seconds)
-   END FUNCTION imbalance
 
 ! **************************************************************************************************
 !> \brief ...
