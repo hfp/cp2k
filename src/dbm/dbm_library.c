@@ -86,11 +86,6 @@ void dbm_library_finalize(void) {
 }
 
 /*******************************************************************************
- * \brief Computes min(3, floor(log10(x))).
- * \author Ole Schuett
- ******************************************************************************/
-
-/*******************************************************************************
  * \brief Add the calling thread's counts to the stats. This routine is
  *        thread-safe.
  * \author Hans Pabst

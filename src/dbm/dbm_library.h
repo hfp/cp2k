@@ -26,7 +26,8 @@ void dbm_library_finalize(void);
 #define DBM_NUM_COUNTERS 64
 
 /*******************************************************************************
- * \brief Internal routine for the stats counter of a block multiplication.
+ * \brief Internal routine for the stats counter of a block multiplication,
+ *        i.e., min(3, floor(log10(x))) per m, n, and k.
  * \author Ole Schuett
  ******************************************************************************/
 static inline int dbm_library_counter_index(const int m, const int n,
