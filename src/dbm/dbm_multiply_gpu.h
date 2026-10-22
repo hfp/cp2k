@@ -41,8 +41,7 @@ typedef struct {
 
 /*******************************************************************************
  * \brief Internal struct for storing a thread's pair of host batches, which
- *        kernels read directly (unified): one is filled while the other is
- *read.
+ *        kernels read directly (unified): one is filled, the other is read.
  * \author Hans Pabst
  ******************************************************************************/
 typedef struct {

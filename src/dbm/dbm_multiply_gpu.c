@@ -220,7 +220,6 @@ dbm_task_t *dbm_multiply_gpu_process_batch(const int ntasks, dbm_task_t *batch,
   dbm_task_t *const batch_dev =
       (ctx->unified ? batch : &ctx->batches_dev[kshard * ctx->max_batch_size]);
   double *old_data_dev = NULL;
-
   dbm_task_t *result = batch;
   bool grown = false;
 
