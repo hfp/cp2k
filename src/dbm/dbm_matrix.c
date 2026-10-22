@@ -16,15 +16,6 @@
 #include <string.h>
 
 /*******************************************************************************
- * \brief Private state shared by the threads of dbm_reserve_blocks: blocks are
- *        binned by shard such that a single thread owns a shard (no locks).
- * \author Hans Pabst
- ******************************************************************************/
-static int *reserve_offset = NULL; // per thread and shard
-static int *reserve_start = NULL;  // per shard (and end)
-static int *reserve_rowcol = NULL; // row/col pairs grouped by shard
-
-/*******************************************************************************
  * \brief Creates a new matrix.
  * \author Ole Schuett
  ******************************************************************************/
@@ -349,6 +340,11 @@ void dbm_reserve_blocks(dbm_matrix_t *matrix, const int nblocks,
   const int nshards = dbm_get_num_shards(matrix);
   const int nthreads = omp_get_num_threads();
   const int ithread = omp_get_thread_num();
+  // Shared by the threads: blocks are binned by shard such that a single
+  // thread owns a shard (no locks).
+  static int *reserve_offset = NULL; // per thread and shard
+  static int *reserve_start = NULL;  // per shard (and end)
+  static int *reserve_rowcol = NULL; // row/col pairs grouped by shard
 
 #pragma omp single
   {

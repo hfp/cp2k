@@ -15,10 +15,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(__LIBXS)
-#include <libxs/libxs_math.h>
-#endif
-
 /*******************************************************************************
  * \brief Internal routine for finding a power of two greater than given number.
  * \author Ole Schuett
@@ -32,26 +28,15 @@ static int next_power2(const int start) {
 }
 
 /*******************************************************************************
- * \brief Internal routine for the largest divisor to test for a prime.
- * \author Hans Pabst
- ******************************************************************************/
-static inline int prime_divisor_max(const int candidate) {
-#if defined(__LIBXS)
-  return (int)libxs_isqrt_u32((unsigned int)candidate);
-#else
-  return candidate - 1;
-#endif
-}
-
-/*******************************************************************************
  * \brief Internal routine for finding a prime greater equal than given number.
  * \author Ole Schuett
  ******************************************************************************/
 static int next_prime(const int start) {
-  int candidate = start, divisor_max = prime_divisor_max(start);
-  for (int divisor = 2; divisor <= divisor_max; divisor++) {
+  int candidate = start;
+  // Divisors up to the square root suffice (division avoids an overflow).
+  for (int divisor = 2; divisor <= candidate / divisor; divisor++) {
     if (candidate % divisor == 0) { // try the next candidate
-      divisor_max = prime_divisor_max(++candidate);
+      ++candidate;
       divisor = 1;
     }
   }
