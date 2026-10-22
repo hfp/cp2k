@@ -54,8 +54,8 @@ typedef struct {
 /*******************************************************************************
  * \brief Internal struct for the shape of a batch, which is tracked while the
  *        batch is generated such that a backend needs no pass over the tasks.
- *        The batch is homogeneous if flops == 2 * ntasks * max_m * max_n *
- *max_k and otherwise their ratio is the fill of a kernel padded to the maxima.
+ *        The batch is homogeneous if flops == 2*ntasks*max_m*max_n*max_k,
+ *        otherwise their ratio is the fill of a kernel padded to the maxima.
  * \author Hans Pabst
  ******************************************************************************/
 typedef struct {
