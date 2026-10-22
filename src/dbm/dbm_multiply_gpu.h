@@ -77,6 +77,13 @@ typedef struct {
 } dbm_multiply_gpu_context_t;
 
 /*******************************************************************************
+ * \brief Internal routine returning the maximum number of threads computing
+ *        on the host while the GPU is busy (DBM_MULTIPLY_HYBRID, default: 0).
+ * \author Hans Pabst
+ ******************************************************************************/
+int dbm_multiply_gpu_hybrid(void);
+
+/*******************************************************************************
  * \brief Internal routine for initializing the gpu backend.
  * \author Ole Schuett
  ******************************************************************************/

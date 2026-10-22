@@ -22,6 +22,16 @@
 #include <string.h>
 
 /*******************************************************************************
+ * \brief Internal routine returning the maximum number of threads computing
+ *        on the host while the GPU is busy (DBM_MULTIPLY_HYBRID, default: 0).
+ * \author Hans Pabst
+ ******************************************************************************/
+int dbm_multiply_gpu_hybrid(void) {
+  const char *const hybrid_env = getenv("DBM_MULTIPLY_HYBRID");
+  return (NULL == hybrid_env ? 0 : atoi(hybrid_env));
+}
+
+/*******************************************************************************
  * \brief Internal routine for initializing the gpu backend.
  * \author Ole Schuett
  ******************************************************************************/
@@ -37,8 +47,7 @@ void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,
 
   // Up to |DBM_MULTIPLY_HYBRID| threads compute on the host while the GPU is
   // busy, and a negative value reports the share of the host.
-  const char *const hybrid_env = getenv("DBM_MULTIPLY_HYBRID");
-  ctx->hybrid = (NULL == hybrid_env ? 0 : atoi(hybrid_env));
+  ctx->hybrid = dbm_multiply_gpu_hybrid();
   static bool hybrid_reported = false; // once per process
   if (0 > ctx->hybrid && !hybrid_reported &&
       !dbm_multiply_cpu_generated(0, 0, 0, 1.0, 0)) {

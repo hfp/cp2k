@@ -82,11 +82,9 @@ static int validation_cpu_options(void) {
   static int options = -1; // racing threads store the same value
   if (0 > options) {
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
-    const char *const hybrid_env = getenv("DBM_MULTIPLY_HYBRID");
-    const int hybrid = (NULL == hybrid_env ? 0 : atoi(hybrid_env));
     // BLAS per small task serializes on the BLAS library's buffer management
-    options =
-        (0 == hybrid ? DBM_MULTIPLY_TASK_REORDER : DBM_MULTIPLY_BLAS_LIBRARY);
+    options = (0 == dbm_multiply_gpu_hybrid() ? DBM_MULTIPLY_TASK_REORDER
+                                              : DBM_MULTIPLY_BLAS_LIBRARY);
 #else
     options = DBM_MULTIPLY_BLAS_LIBRARY;
 #endif
