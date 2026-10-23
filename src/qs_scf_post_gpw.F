@@ -222,7 +222,8 @@ MODULE qs_scf_post_gpw
    USE qs_subsys_types,                 ONLY: qs_subsys_get,&
                                               qs_subsys_type
    USE qs_wannier90,                    ONLY: wannier90_interface
-   USE s_square_methods,                ONLY: compute_s_square
+   USE s_square_methods,                ONLY: compute_s_square,&
+                                              compute_s_square_kp
    USE scf_control_types,               ONLY: scf_control_type
    USE stm_images,                      ONLY: th_stm_image
    USE transport,                       ONLY: qs_scf_post_transport
@@ -1680,12 +1681,13 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'qs_scf_post_moments'
 
-      CHARACTER(LEN=default_path_length)                 :: filename
+      CHARACTER(LEN=default_path_length)                 :: bc_file, dip_file, filename
+      CHARACTER(LEN=default_string_length)               :: moment_unit
       INTEGER                                            :: handle, max_nmo, maxmom, moments_format, &
                                                             moments_unit_nr, reference, unit_nr
-      LOGICAL                                            :: com_nl, do_kg, do_kpoints, magnetic, &
-                                                            new_file, periodic, second_ref_point, &
-                                                            vel_reprs
+      LOGICAL                                            :: com_nl, do_kg, do_kpoints, do_soc, &
+                                                            magnetic, new_file, periodic, &
+                                                            second_ref_point, vel_reprs
       REAL(KIND=dp), DIMENSION(:), POINTER               :: ref_point
       TYPE(section_vals_type), POINTER                   :: print_key
 
@@ -1716,6 +1718,13 @@ CONTAINS
                                   keyword_name="DFT%PRINT%MOMENTS%KG")
          max_nmo = section_get_ival(section_vals=input, &
                                     keyword_name="DFT%PRINT%MOMENTS%MAX_NMO")
+         do_soc = section_get_lval(section_vals=input, &
+                                   keyword_name="DFT%PRINT%MOMENTS%SOC")
+
+         CALL section_vals_val_get(input, "DFT%PRINT%MOMENTS%UNIT", c_val=moment_unit)
+         ! optional extra files for the k-point dipoles / Berry curvature ("" = no file)
+         CALL section_vals_val_get(input, "DFT%PRINT%MOMENTS%KPOINT_DIPOLE_FILE", c_val=dip_file)
+         CALL section_vals_val_get(input, "DFT%PRINT%MOMENTS%BERRY_CURVATURE_FILE", c_val=bc_file)
 
          NULLIFY (ref_point)
          CALL section_vals_val_get(input, "DFT%PRINT%MOMENTS%REF_POINT", r_vals=ref_point)
@@ -1751,15 +1760,19 @@ CONTAINS
          END IF
 
          IF (do_kpoints) THEN
-            CALL qs_moment_kpoints(qs_env, maxmom, reference, ref_point, max_nmo, moments_unit_nr)
+            CALL qs_moment_kpoints(qs_env, maxmom, reference, ref_point, max_nmo, moments_unit_nr, &
+                                   do_soc, unit_str=moment_unit, dip_file=dip_file, bc_file=bc_file)
          ELSE
             IF (periodic) THEN
-               CALL qs_moment_berry_phase(qs_env, magnetic, maxmom, reference, ref_point, moments_unit_nr)
+               CALL qs_moment_berry_phase(qs_env, magnetic, maxmom, reference, ref_point, moments_unit_nr, &
+                                          unit_str=moment_unit)
             ELSE
-               CALL qs_moment_locop(qs_env, magnetic, maxmom, reference, ref_point, moments_unit_nr, vel_reprs, com_nl)
+               CALL qs_moment_locop(qs_env, magnetic, maxmom, reference, ref_point, moments_unit_nr, vel_reprs, com_nl, &
+                                    unit_str=moment_unit)
             END IF
             IF (do_kg) THEN
-               CALL calculate_kg_moments(qs_env, moments_unit_nr, maxmom, magnetic, vel_reprs, com_nl)
+               CALL calculate_kg_moments(qs_env, moments_unit_nr, maxmom, magnetic, vel_reprs, com_nl, &
+                                         unit_str=moment_unit)
             END IF
          END IF
          IF (moments_format == moments_format_trajectory) THEN
@@ -1792,13 +1805,15 @@ CONTAINS
             END IF
             IF (moments_format /= moments_format_trajectory) moments_unit_nr = unit_nr
             IF (do_kpoints) THEN
-               CALL qs_moment_kpoints(qs_env, maxmom, reference, ref_point, max_nmo, moments_unit_nr)
+               CALL qs_moment_kpoints(qs_env, maxmom, reference, ref_point, max_nmo, moments_unit_nr, &
+                                      do_soc, unit_str=moment_unit, dip_file=dip_file, bc_file=bc_file)
             ELSE
                IF (periodic) THEN
-                  CALL qs_moment_berry_phase(qs_env, magnetic, maxmom, reference, ref_point, moments_unit_nr)
+                  CALL qs_moment_berry_phase(qs_env, magnetic, maxmom, reference, ref_point, moments_unit_nr, &
+                                             unit_str=moment_unit)
                ELSE
                   CALL qs_moment_locop(qs_env, magnetic, maxmom, reference, ref_point, &
-                                       moments_unit_nr, vel_reprs, com_nl)
+                                       moments_unit_nr, vel_reprs, com_nl, unit_str=moment_unit)
                END IF
             END IF
             IF (moments_format == moments_format_trajectory) THEN
@@ -2271,15 +2286,14 @@ CONTAINS
 
       CHARACTER(len=*), PARAMETER :: routineN = 'write_mo_dependent_results'
 
-      INTEGER                                            :: handle, homo, ispin, nlumo_dos, &
-                                                            nlumo_molden, nlumo_required, nlumos, &
-                                                            nmo, output_unit
-      LOGICAL                                            :: all_equal, defer_molden, do_curve, &
-                                                            do_dos, do_kpoints, do_pdos, &
-                                                            do_projected_dos, explicit
-      REAL(KIND=dp)                                      :: maxocc, s_square, s_square_ideal, &
+      INTEGER                                            :: handle, ispin, nlumo_dos, nlumo_molden, &
+                                                            nlumo_required, nlumos, output_unit
+      LOGICAL                                            :: defer_molden, do_curve, do_dos, &
+                                                            do_kpoints, do_pdos, do_projected_dos, &
+                                                            explicit
+      REAL(KIND=dp)                                      :: s_square, s_square_ideal, &
                                                             total_abs_spin_dens, total_spin_dens
-      REAL(KIND=dp), DIMENSION(:), POINTER               :: mo_eigenvalues, occupation_numbers
+      REAL(KIND=dp), DIMENSION(:), POINTER               :: mo_eigenvalues
       TYPE(admm_type), POINTER                           :: admm_env
       TYPE(atomic_kind_type), DIMENSION(:), POINTER      :: atomic_kind_set
       TYPE(cell_type), POINTER                           :: cell
@@ -2288,8 +2302,10 @@ CONTAINS
       TYPE(cp_fm_type), POINTER                          :: mo_coeff
       TYPE(cp_logger_type), POINTER                      :: logger
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: ks_rmpv, matrix_s
+      TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: matrix_s_kp
       TYPE(dbcsr_type), POINTER                          :: mo_coeff_deriv
       TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(kpoint_type), POINTER                         :: kpoints
       TYPE(mo_set_type), DIMENSION(:), POINTER           :: mos
       TYPE(molecule_type), POINTER                       :: molecule_set(:)
       TYPE(particle_list_type), POINTER                  :: particles
@@ -2300,7 +2316,6 @@ CONTAINS
       TYPE(pw_r3d_rs_type)                               :: wf_r
       TYPE(pw_r3d_rs_type), DIMENSION(:), POINTER        :: rho_r
       TYPE(qs_charges_type), POINTER                     :: qs_charges
-      TYPE(qs_energy_type), POINTER                      :: energy
       TYPE(qs_kind_type), DIMENSION(:), POINTER          :: qs_kind_set
       TYPE(qs_rho_type), POINTER                         :: rho
       TYPE(qs_subsys_type), POINTER                      :: subsys
@@ -2308,8 +2323,6 @@ CONTAINS
       TYPE(section_vals_type), POINTER                   :: casino_section, dft_section, &
                                                             dos_section, input, sprint_section, &
                                                             trexio_section
-
-! TYPE(kpoint_type), POINTER                         :: kpoints
 
       CALL timeset(routineN, handle)
 
@@ -2560,34 +2573,20 @@ CONTAINS
             "Integrated absolute spin density: ", total_abs_spin_dens
          CALL auxbas_pw_pool%give_back_pw(wf_r)
          !
-         ! XXX Fix Me XXX
-         ! should be extended to the case where added MOs are present
-         ! should be extended to the k-point case
-         !
-         IF (.NOT. do_kpoints) THEN
-            all_equal = .TRUE.
-            DO ispin = 1, dft_control%nspins
-               CALL get_mo_set(mo_set=mos(ispin), &
-                               occupation_numbers=occupation_numbers, &
-                               homo=homo, &
-                               nmo=nmo, &
-                               maxocc=maxocc)
-               IF (nmo > 0) THEN
-                  all_equal = all_equal .AND. &
-                              (ALL(occupation_numbers(1:homo) == maxocc) .AND. &
-                               ALL(occupation_numbers(homo + 1:nmo) == 0.0_dp))
-               END IF
-            END DO
-            IF (all_equal) THEN
-               CALL get_qs_env(qs_env=qs_env, &
-                               matrix_s=matrix_s, &
-                               energy=energy)
-               CALL compute_s_square(mos=mos, matrix_s=matrix_s, s_square=s_square, &
-                                     s_square_ideal=s_square_ideal)
-               IF (output_unit > 0) WRITE (UNIT=output_unit, FMT='(T3,A,T51,2F15.6)') &
-                  "Ideal and single determinant S**2 : ", s_square_ideal, s_square
-               energy%s_square = s_square
-            END IF
+         ! S**2 estimation
+         IF (do_kpoints) THEN
+            CALL get_qs_env(qs_env=qs_env, matrix_s_kp=matrix_s_kp, kpoints=kpoints)
+            CALL compute_s_square_kp(mos, kpoints, matrix_s_kp, s_square, s_square_ideal)
+         ELSE
+            CALL get_qs_env(qs_env=qs_env, matrix_s=matrix_s)
+            CALL compute_s_square(mos, matrix_s, s_square, s_square_ideal)
+         END IF
+         IF (dft_control%relax_multiplicity > 0.0_dp) THEN
+            IF (output_unit > 0) WRITE (UNIT=output_unit, FMT='(T3,A,T66,F15.6)') &
+               "Relaxed multiplicity: Single determinant S**2 : ", s_square
+         ELSE
+            IF (output_unit > 0) WRITE (UNIT=output_unit, FMT='(T3,A,T51,2F15.6)') &
+               "Ideal and single determinant S**2 : ", s_square_ideal, s_square
          END IF
       END IF
 

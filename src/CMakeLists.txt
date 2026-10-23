@@ -224,6 +224,7 @@ list(
   free_energy_types.F
   gce_methods.F
   generic_os_integrals.F
+  generic_function_input.F
   gle_system_types.F
   global_types.F
   graphcon.F
@@ -231,6 +232,7 @@ list(
   group_dist_types.F
   grrm_utils.F
   gapw_1c_basis_set.F
+  gw_ri_rs_chi_sigma_kernels.F
   gw_auto_ri_generate_RI_basis.F
   gw_auto_ri_types.F
   gw_compute_V_and_W.F
@@ -304,7 +306,6 @@ list(
   input_cp2k_field.F
   input_cp2k_force_eval.F
   input_cp2k_free_energy.F
-  input_cp2k_function.F
   input_cp2k_global.F
   input_cp2k_hfx.F
   input_cp2k_kpoints.F
