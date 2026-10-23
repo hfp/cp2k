@@ -208,27 +208,29 @@ CONTAINS
 !>        are signed, of Nbits bits (sign folded).
 !> \param Nbits number of bits per integer (1 to 64); bits beyond them are ignored
 !> \param Ngroup number of integers per group, a multiple of 8 (8 to 248)
-!> \param Ndata number of integers
-!> \param packed_data the stream: words for 1+CEILING(Ndata/Ngroup) header bytes, then at most
-!>        8*CEILING(((Ndata+7)/8)*Nbits/64) words
+!> \param packed_data the stream: words for 1+CEILING(n/Ngroup) header bytes, then at most
+!>        8*CEILING(((n+7)/8)*Nbits/64) words (n integers)
 !> \param full_data the integers
 !> \return number of words written
 ! **************************************************************************************************
-   FUNCTION ints2groups(Nbits, Ngroup, Ndata, packed_data, full_data) RESULT(nwords)
-      INTEGER, INTENT(IN)                                :: Nbits, Ngroup, Ndata
-      INTEGER(KIND=int_8), INTENT(OUT)                   :: packed_data(*)
-      INTEGER(KIND=int_8), INTENT(IN)                    :: full_data(*)
+   FUNCTION ints2groups(Nbits, Ngroup, packed_data, full_data) RESULT(nwords)
+      INTEGER, INTENT(IN)                                :: Nbits, Ngroup
+      INTEGER(KIND=int_8), CONTIGUOUS, INTENT(OUT)       :: packed_data(:)
+      INTEGER(KIND=int_8), CONTIGUOUS, INTENT(IN)        :: full_data(:)
       INTEGER                                            :: nwords
 
-      INTEGER                                            :: b, c, i, j, lo, m, ncols, ngroups, nhead, &
-                                                            off, s, w
+      INTEGER                                            :: b, c, i, j, lo, m, ncols, Ndata, &
+                                                            ngroups, nhead, nmax, off, s, w
       INTEGER(KIND=int_8)                                :: z(256)
 
       CPASSERT(0 < Ngroup .AND. Ngroup <= 248 .AND. 0 == MOD(Ngroup, 8))
+      Ndata = SIZE(full_data)
       ngroups = (Ndata + Ngroup - 1)/Ngroup
       nhead = (1 + ngroups + 7)/8
+      nmax = nhead + 8*((((Ndata + 7)/8)*Nbits + 63)/64) ! words at most
+      CPASSERT(nmax <= SIZE(packed_data))
       packed_data(1:nhead) = 0
-      packed_data(1) = Ngroup ! group size
+      packed_data(1) = INT(Ngroup, KIND=int_8) ! group size
       s = 64 - Nbits
       j = 0
       off = 0
@@ -268,23 +270,22 @@ CONTAINS
 ! **************************************************************************************************
 !> \brief Unpacks integers that ints2groups packed (signed, the sign unfolded); the group size
 !>        is read from the stream.
-!> \param Ndata number of integers
 !> \param packed_data the stream
 !> \param full_data the integers
 !> \return number of words read
 ! **************************************************************************************************
-   FUNCTION groups2ints(Ndata, packed_data, full_data) RESULT(nwords)
-      INTEGER, INTENT(IN)                                :: Ndata
-      INTEGER(KIND=int_8), INTENT(IN)                    :: packed_data(*)
-      INTEGER(KIND=int_8), INTENT(OUT)                   :: full_data(*)
+   FUNCTION groups2ints(packed_data, full_data) RESULT(nwords)
+      INTEGER(KIND=int_8), CONTIGUOUS, INTENT(IN)        :: packed_data(:)
+      INTEGER(KIND=int_8), CONTIGUOUS, INTENT(OUT)       :: full_data(:)
       INTEGER                                            :: nwords
 
-      INTEGER                                            :: b, base, c, i, j, lo, m, mc, ngroup, &
-                                                            ngroups, nhead, off, w
+      INTEGER                                            :: b, base, c, i, j, lo, m, mc, Ndata, &
+                                                            ngroup, ngroups, nhead, off, w
       INTEGER(KIND=int_8)                                :: mask, z(8)
 
       ngroup = INT(IAND(packed_data(1), 255_int_8))
       CPASSERT(0 < ngroup .AND. 0 == MOD(ngroup, 8))
+      Ndata = SIZE(full_data)
       ngroups = (Ndata + ngroup - 1)/ngroup
       nhead = (1 + ngroups + 7)/8
       j = 0

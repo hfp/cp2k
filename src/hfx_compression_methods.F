@@ -135,7 +135,7 @@ CONTAINS
 #if defined(__LIBXS)
          nwords = INT(libxs_vpack(record(2:), values, nbits, group_size))
 #else
-         nwords = ints2groups(nbits, group_size, CACHE_SIZE, record(2:), values)
+         nwords = ints2groups(nbits, group_size, record(2:), values)
 #endif
          record(1) = nwords
          CALL hfx_container_put(container, record, nwords + 1, memory_usage, use_disk_storage, max_val_memory)
@@ -246,7 +246,7 @@ CONTAINS
 #if defined(__LIBXS)
             nread = INT(libxs_vunpack(values, record(2:nwords + 1)), KIND=int_8)
 #else
-            nread = INT(groups2ints(CACHE_SIZE, record(2:nwords + 1), values), KIND=int_8)
+            nread = INT(groups2ints(record(2:nwords + 1), values), KIND=int_8)
 #endif
             CPASSERT(nread == nwords)
             full_array(1:CACHE_SIZE) = values + shifts(nbits - 1)
