@@ -414,6 +414,9 @@ CONTAINS
       iterator%bounds_j = 0
       iterator%bounds_k = 0
 
+      iterator%ipair = -1
+      iterator%my_pair = -1
+
       CALL timestop(handle)
    END SUBROUTINE neighbor_list_3c_iterator_create
 
@@ -459,11 +462,14 @@ CONTAINS
 ! **************************************************************************************************
 !> \brief Iterate 3c-nl iterator
 !> \param iterator ...
+!> \param next_pair counter shared by the threads that iterate the same list: each takes the next
+!>        untaken (i,j) pair (within the bounds) and only then iterates its k
 !> \return 0 if successful; 1 if end was reached
 ! **************************************************************************************************
-   RECURSIVE FUNCTION neighbor_list_3c_iterate(iterator) RESULT(iter_stat)
+   RECURSIVE FUNCTION neighbor_list_3c_iterate(iterator, next_pair) RESULT(iter_stat)
       TYPE(neighbor_list_3c_iterator_type), &
          INTENT(INOUT)                                   :: iterator
+      INTEGER, INTENT(INOUT), OPTIONAL                   :: next_pair
       INTEGER                                            :: iter_stat
 
       INTEGER                                            :: iatom, iter_level, jatom, jatom_1, &
@@ -486,8 +492,26 @@ CONTAINS
          IF ((iterator%bounds_j(1) > 0 .AND. jatom < iterator%bounds_j(1)) &
              .OR. (iterator%bounds_j(2) > 0 .AND. jatom > iterator%bounds_j(2))) skip_this = .TRUE.
 
+         IF (PRESENT(next_pair) .AND. .NOT. skip_this) THEN
+            IF (iterator%my_pair < 0) THEN ! first ticket
+!$OMP ATOMIC CAPTURE
+               iterator%my_pair = next_pair
+               next_pair = next_pair + 1
+!$OMP END ATOMIC
+            END IF
+            iterator%ipair = iterator%ipair + 1
+            IF (iterator%ipair == iterator%my_pair) THEN ! take this pair, and a ticket for later
+!$OMP ATOMIC CAPTURE
+               iterator%my_pair = next_pair
+               next_pair = next_pair + 1
+!$OMP END ATOMIC
+            ELSE
+               skip_this = .TRUE.
+            END IF
+         END IF
+
          IF (skip_this) THEN
-            iter_stat = neighbor_list_3c_iterate(iterator)
+            iter_stat = neighbor_list_3c_iterate(iterator, next_pair)
             RETURN
          END IF
       END IF
@@ -495,7 +519,7 @@ CONTAINS
       iter_stat = nl_sub_iterate(iterator%iter_jk, iterator%iter_ij)
       IF (iter_stat /= 0) THEN
          iterator%iter_level = 0
-         iter_stat = neighbor_list_3c_iterate(iterator)
+         iter_stat = neighbor_list_3c_iterate(iterator, next_pair)
          RETURN
       ELSE
          iterator%iter_level = 1
@@ -514,7 +538,7 @@ CONTAINS
           .OR. (iterator%bounds_k(2) > 0 .AND. katom > iterator%bounds_k(2))) skip_this = .TRUE.
 
       IF (skip_this) THEN
-         iter_stat = neighbor_list_3c_iterate(iterator)
+         iter_stat = neighbor_list_3c_iterate(iterator, next_pair)
          RETURN
       END IF
 
@@ -534,7 +558,7 @@ CONTAINS
       END SELECT
 
       IF (skip_this) THEN
-         iter_stat = neighbor_list_3c_iterate(iterator)
+         iter_stat = neighbor_list_3c_iterate(iterator, next_pair)
          RETURN
       END IF
 
@@ -2140,11 +2164,10 @@ CONTAINS
       INTEGER :: block_end_i, block_end_j, block_end_k, block_start_i, block_start_j, &
          block_start_k, eg_local, handle, handle2, i, iatom, ibasis, ikind, ilist, imax, iset, &
          jatom, jcell, jkind, jset, katom, kcell, kkind, kset, m_max, max_ncoj, max_nset, &
-         max_nsgfi, maxli, maxlj, maxlk, mepos, natom, nbasis, ncell_RI, ncoi, ncoj, ncok, nimg, &
-         nseti, nsetj, nsetk, nsgf, nthread, op_ij, op_jk, op_pos_prv, sg_local, sgfi, sgfj, sgfk, &
+         max_nsgfi, maxli, maxlj, maxlk, natom, nbasis, ncell_RI, ncoi, ncoj, ncok, next_pair, &
+         nimg, nseti, nsetj, nsetk, nsgf, op_ij, op_jk, op_pos_prv, sg_local, sgfi, sgfj, sgfk, &
          unit_id
       INTEGER, ALLOCATABLE, DIMENSION(:)                 :: img_to_RI_cell_prv
-      INTEGER, DIMENSION(2)                              :: bo
       INTEGER, DIMENSION(3)                              :: blk_idx, blk_size, cell_j, cell_k, &
                                                             kp_index_lbounds, kp_index_ubounds, sp
       INTEGER, DIMENSION(:), POINTER                     :: lmax_i, lmax_j, lmax_k, lmin_i, lmin_j, &
@@ -2154,7 +2177,7 @@ CONTAINS
       INTEGER, DIMENSION(:, :, :), POINTER               :: cell_to_index
       LOGICAL                                            :: block_not_zero, cell_sym_prv, debug, &
                                                             desymmetrize_prv, do_hfx_kpoints_prv, &
-                                                            do_kpoints_prv, found, skip
+                                                            do_kpoints_prv, found
       REAL(KIND=dp) :: dij, dik, djk, dr_ij, dr_ik, dr_jk, kind_radius_i, kind_radius_j, &
          kind_radius_k, max_contraction_i, max_contraction_j, max_contraction_k, prefac, sijk_ext
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: ccp_buffer, cpp_buffer
@@ -2437,12 +2460,10 @@ CONTAINS
       END IF
 
       counter = 1.0_dp
-
-      nthread = 1
-!$    nthread = omp_get_max_threads()
+      next_pair = 0
 
 !$OMP PARALLEL DEFAULT(NONE) &
-!$OMP SHARED (nthread,do_kpoints_prv,kp_index_lbounds,kp_index_ubounds,maxli,maxlk,maxlj,bounds_i,&
+!$OMP SHARED (next_pair,do_kpoints_prv,kp_index_lbounds,kp_index_ubounds,maxli,maxlk,maxlj,bounds_i,&
 !$OMP         bounds_j,bounds_k,nimg,basis_i,basis_j,basis_k,dr_ij,dr_jk,dr_ik,ncoset,&
 !$OMP         potential_parameter,int_eps,t3c,tspj,spi,spk,debug,cell_to_index,&
 !$OMP         natom,nl_3c,cell,op_pos_prv,do_hfx_kpoints_prv,RI_range,ncell_RI, &
@@ -2455,43 +2476,21 @@ CONTAINS
 !$OMP          sgfk,sijk,ri,rj,rk,sijk_ext,block_not_zero,max_contraction_i,max_contraction_j,&
 !$OMP          max_contraction_k,iset,jset,kset,block_t,blk_size,sijk_contr,cpp_buffer,ccp_buffer,&
 !$OMP          block_start_j,block_end_j,block_start_k,block_end_k,block_start_i,block_end_i,found,&
-!$OMP          dummy_block_t,sp,handle2,mepos,bo,skip,tmp_ijk,i,blk_idx,&
+!$OMP          dummy_block_t,sp,handle2,tmp_ijk,i,blk_idx,&
 !$OMP          max_contr_i_ptr, max_contr_j_ptr, max_contr_k_ptr)
-
-      mepos = 0
-!$    mepos = omp_get_thread_num()
 
       CALL cp_libint_init_3eri(lib, MAX(maxli, maxlj, maxlk))
       CALL cp_libint_set_contrdepth(lib, 1)
       CALL neighbor_list_3c_iterator_create(nl_3c_iter, nl_3c)
 
-      !We split the provided bounds among the threads such that each threads works on a different set of atoms
-      IF (PRESENT(bounds_i)) THEN
-         bo = get_limit(bounds_i(2) - bounds_i(1) + 1, nthread, mepos)
-         bo(:) = bo(:) + bounds_i(1) - 1
-         CALL nl_3c_iter_set_bounds(nl_3c_iter, bo, bounds_j, bounds_k)
-      ELSE IF (PRESENT(bounds_j)) THEN
+      ! the threads take the (i,j) pairs in turn (dynamic): a static split of the atoms leaves
+      ! threads idle when the triples per atom vary or are not local
+      CALL nl_3c_iter_set_bounds(nl_3c_iter, bounds_i, bounds_j, bounds_k)
 
-         bo = get_limit(bounds_j(2) - bounds_j(1) + 1, nthread, mepos)
-         bo(:) = bo(:) + bounds_j(1) - 1
-         CALL nl_3c_iter_set_bounds(nl_3c_iter, bounds_i, bo, bounds_k)
-      ELSE IF (PRESENT(bounds_k)) THEN
-         bo = get_limit(bounds_k(2) - bounds_k(1) + 1, nthread, mepos)
-         bo(:) = bo(:) + bounds_k(1) - 1
-         CALL nl_3c_iter_set_bounds(nl_3c_iter, bounds_i, bounds_j, bo)
-      ELSE
-         bo = get_limit(natom, nthread, mepos)
-         CALL nl_3c_iter_set_bounds(nl_3c_iter, bo, bounds_j, bounds_k)
-      END IF
-
-      skip = .FALSE.
-      IF (bo(1) > bo(2)) skip = .TRUE.
-
-      DO WHILE (neighbor_list_3c_iterate(nl_3c_iter) == 0)
+      DO WHILE (neighbor_list_3c_iterate(nl_3c_iter, next_pair) == 0)
          CALL get_3c_iterator_info(nl_3c_iter, ikind=ikind, jkind=jkind, kkind=kkind, &
                                    iatom=iatom, jatom=jatom, katom=katom, &
                                    rij=rij, rjk=rjk, rik=rik, cell_j=cell_j, cell_k=cell_k)
-         IF (skip) EXIT
 
          djk = NORM2(rjk)
          dij = NORM2(rij)
