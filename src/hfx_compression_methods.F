@@ -127,7 +127,7 @@ CONTAINS
       INTEGER                                            :: end_idx, increment_counter, nwords, &
                                                             start_idx, tmp_elements, tmp_nints
       INTEGER(int_8), DIMENSION(CACHE_SIZE)              :: values
-      INTEGER(int_8), DIMENSION(CACHE_SIZE + 32)         :: record
+      INTEGER(int_8), DIMENSION(CACHE_SIZE+32)           :: record
 
       IF (group_size > 0) THEN
          ! a record is its length in words followed by the values at a width per group
@@ -229,10 +229,11 @@ CONTAINS
       LOGICAL                                            :: use_disk_storage
 
       INTEGER                                            :: end_idx, increment_counter, nwords, &
-                                                            start_idx, stat, tmp_elements, tmp_nints
+                                                            start_idx, stat, tmp_elements, &
+                                                            tmp_nints
       INTEGER(int_8)                                     :: nread
       INTEGER(int_8), DIMENSION(CACHE_SIZE)              :: values
-      INTEGER(int_8), DIMENSION(CACHE_SIZE + 32)         :: record
+      INTEGER(int_8), DIMENSION(CACHE_SIZE+32)           :: record
 
       CPASSERT(ASSOCIATED(container%current))
 
