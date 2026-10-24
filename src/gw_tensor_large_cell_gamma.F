@@ -81,6 +81,9 @@ MODULE gw_tensor_large_cell_Gamma
 
    ! share of MEMORY_PER_PROC that the kept 3-center integrals may take (estimated uncompressed)
    REAL(KIND=dp), PARAMETER, PRIVATE :: store_3c_memory_share = 0.5_dp
+   ! compression stores multiples of EPS_FILTER times this (and drops smaller entries), as the
+   ! default EPS_STORAGE_SCALING of low-scaling RPA/GW
+   REAL(KIND=dp), PARAMETER, PRIVATE :: store_3c_eps_scaling = 1.0E-3_dp
 
    PUBLIC :: gw_calc_tensor_large_cell_Gamma, &
              compute_3c_integrals, &
@@ -506,14 +509,14 @@ CONTAINS
             store%sets(iset)%atoms = atoms
             CALL alloc_containers(store%sets(iset)%compressed, 1)
             CALL compress_tensor(t_3c, store%sets(iset)%blk_indices, store%sets(iset)%compressed, &
-                                 bs_env%eps_filter, store%memory)
+                                 store_3c_eps_scaling*bs_env%eps_filter, store%memory)
          END IF
       END IF
 
       IF (iset > 0) THEN
          CALL dbt_clear(t_3c)
          CALL decompress_tensor(t_3c, store%sets(iset)%blk_indices, store%sets(iset)%compressed, &
-                                bs_env%eps_filter)
+                                store_3c_eps_scaling*bs_env%eps_filter)
       ELSE
          CALL compute_3c_integrals(qs_env, bs_env, t_3c, atoms_AO_1, atoms_AO_2, atoms_RI)
       END IF
