@@ -23,6 +23,8 @@ MODULE post_scf_bandstructure_types
                                               dbt_type
    USE gw_auto_ri_types,                ONLY: auto_ri_release,&
                                               auto_ri_type
+   USE hfx_types,                       ONLY: dealloc_containers,&
+                                              hfx_compression_type
    USE input_constants,                 ONLY: G0W0,&
                                               cohsex_off,&
                                               tensor_small_cell_full_kp
@@ -50,7 +52,8 @@ MODULE post_scf_bandstructure_types
 
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'post_scf_bandstructure_types'
 
-   PUBLIC :: post_scf_bandstructure_type, band_edges_type, bs_env_release
+   PUBLIC :: post_scf_bandstructure_type, band_edges_type, bs_env_release, store_3c_release, &
+             store_3c_type
 
    ! valence band maximum (VBM), conduction band minimum (CBM), direct band gap (DBG),
    ! indirect band gap (IDBG)
@@ -61,6 +64,21 @@ MODULE post_scf_bandstructure_types
                                                          IDBG = -1.0_dp, &
                                                          E_fermi = -1.0_dp
    END TYPE band_edges_type
+
+   ! 3-center integrals of one set of atom ranges (RI, AO_1, AO_2; zero: all atoms), compressed
+   TYPE store_3c_set_type
+      INTEGER, DIMENSION(2, 3)                        :: atoms = 0
+      INTEGER, DIMENSION(:, :), ALLOCATABLE           :: blk_indices
+      TYPE(hfx_compression_type)                      :: compressed
+   END TYPE store_3c_set_type
+
+   ! 3-center integrals kept for the time points of a phase (in use if sets is allocated);
+   ! memory is the compressed size on this process [MiB]
+   TYPE store_3c_type
+      INTEGER                                         :: nsets = 0
+      REAL(KIND=dp)                                   :: memory = 0.0_dp
+      TYPE(store_3c_set_type), DIMENSION(:), ALLOCATABLE :: sets
+   END TYPE store_3c_type
 
    TYPE post_scf_bandstructure_type
 
@@ -274,6 +292,10 @@ MODULE post_scf_bandstructure_types
       LOGICAL, DIMENSION(:, :), ALLOCATABLE        :: skip_Sigma_occ, &
                                                       skip_Sigma_vir, &
                                                       skip_chi
+      ! 3-center integrals kept for χ, and for Σ^x and Σ^c (W and G side)
+      TYPE(store_3c_type)                          :: store_3c_chi, &
+                                                      store_3c_W, &
+                                                      store_3c_Sigma
       ! rtbse_method (Stepan Marek)
       INTEGER                                      :: rtp_method = -1
       ! what PROPERTIES%BSE needs the GW to keep for it; set at init, read at the W(0) and de-init
@@ -512,6 +534,10 @@ CONTAINS
       CALL safe_dbt_destroy(bs_env%t_RI_AO__AO)
       CALL safe_dbt_destroy(bs_env%t_RI__AO_AO)
 
+      CALL store_3c_release(bs_env%store_3c_chi)
+      CALL store_3c_release(bs_env%store_3c_W)
+      CALL store_3c_release(bs_env%store_3c_Sigma)
+
       IF (ALLOCATED(bs_env%basis_set_AO)) DEALLOCATE (bs_env%basis_set_AO)
       IF (ALLOCATED(bs_env%basis_set_RI)) DEALLOCATE (bs_env%basis_set_RI)
 
@@ -551,6 +577,26 @@ CONTAINS
       END IF
 
    END SUBROUTINE release_dbcsr_p_type
+
+! **************************************************************************************************
+!> \brief Releases the kept 3-center integrals (the store is no longer in use).
+!> \param store ...
+! **************************************************************************************************
+   SUBROUTINE store_3c_release(store)
+      TYPE(store_3c_type), INTENT(INOUT)                 :: store
+
+      INTEGER                                            :: i, unused
+
+      IF (ALLOCATED(store%sets)) THEN
+         DO i = 1, store%nsets
+            CALL dealloc_containers(store%sets(i)%compressed, unused)
+         END DO
+         DEALLOCATE (store%sets)
+      END IF
+      store%nsets = 0
+      store%memory = 0.0_dp
+
+   END SUBROUTINE store_3c_release
 
 ! **************************************************************************************************
 !> \brief ...
