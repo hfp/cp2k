@@ -466,101 +466,89 @@ CONTAINS
 !>        untaken (i,j) pair (within the bounds) and only then iterates its k
 !> \return 0 if successful; 1 if end was reached
 ! **************************************************************************************************
-   RECURSIVE FUNCTION neighbor_list_3c_iterate(iterator, next_pair) RESULT(iter_stat)
+   FUNCTION neighbor_list_3c_iterate(iterator, next_pair) RESULT(iter_stat)
       TYPE(neighbor_list_3c_iterator_type), &
          INTENT(INOUT)                                   :: iterator
       INTEGER, INTENT(INOUT), OPTIONAL                   :: next_pair
       INTEGER                                            :: iter_stat
 
-      INTEGER                                            :: iatom, iter_level, jatom, jatom_1, &
-                                                            jatom_2, katom
-      LOGICAL                                            :: skip_this
+      INTEGER                                            :: iatom, jatom, jatom_1, jatom_2, katom
+      LOGICAL                                            :: found, skip_this
 
-      iter_level = iterator%iter_level
+      ! skipped entries are a loop (not a recursion): the stack does not grow with their number
+      found = .FALSE.
+      iter_stat = 0
+      DO WHILE (.NOT. found .AND. iter_stat == 0)
+         skip_this = .FALSE.
 
-      IF (iter_level == 0) THEN
-         iter_stat = neighbor_list_iterate(iterator%iter_ij)
+         IF (iterator%iter_level == 0) THEN
+            iter_stat = neighbor_list_iterate(iterator%iter_ij)
 
-         IF (iter_stat /= 0) THEN
-            RETURN
+            IF (iter_stat == 0) THEN
+               CALL get_iterator_info(iterator%iter_ij, iatom=iatom, jatom=jatom)
+               IF ((iterator%bounds_i(1) > 0 .AND. iatom < iterator%bounds_i(1)) &
+                   .OR. (iterator%bounds_i(2) > 0 .AND. iatom > iterator%bounds_i(2))) skip_this = .TRUE.
+               IF ((iterator%bounds_j(1) > 0 .AND. jatom < iterator%bounds_j(1)) &
+                   .OR. (iterator%bounds_j(2) > 0 .AND. jatom > iterator%bounds_j(2))) skip_this = .TRUE.
+
+               IF (PRESENT(next_pair) .AND. .NOT. skip_this) THEN
+                  IF (iterator%my_pair < 0) THEN ! first ticket
+!$OMP ATOMIC CAPTURE
+                     iterator%my_pair = next_pair
+                     next_pair = next_pair + 1
+!$OMP END ATOMIC
+                  END IF
+                  iterator%ipair = iterator%ipair + 1
+                  IF (iterator%ipair == iterator%my_pair) THEN ! take this pair, and a ticket for later
+!$OMP ATOMIC CAPTURE
+                     iterator%my_pair = next_pair
+                     next_pair = next_pair + 1
+!$OMP END ATOMIC
+                  ELSE
+                     skip_this = .TRUE.
+                  END IF
+               END IF
+            END IF
          END IF
 
-         CALL get_iterator_info(iterator%iter_ij, iatom=iatom, jatom=jatom)
-         skip_this = .FALSE.
-         IF ((iterator%bounds_i(1) > 0 .AND. iatom < iterator%bounds_i(1)) &
-             .OR. (iterator%bounds_i(2) > 0 .AND. iatom > iterator%bounds_i(2))) skip_this = .TRUE.
-         IF ((iterator%bounds_j(1) > 0 .AND. jatom < iterator%bounds_j(1)) &
-             .OR. (iterator%bounds_j(2) > 0 .AND. jatom > iterator%bounds_j(2))) skip_this = .TRUE.
-
-         IF (PRESENT(next_pair) .AND. .NOT. skip_this) THEN
-            IF (iterator%my_pair < 0) THEN ! first ticket
-!$OMP ATOMIC CAPTURE
-               iterator%my_pair = next_pair
-               next_pair = next_pair + 1
-!$OMP END ATOMIC
-            END IF
-            iterator%ipair = iterator%ipair + 1
-            IF (iterator%ipair == iterator%my_pair) THEN ! take this pair, and a ticket for later
-!$OMP ATOMIC CAPTURE
-               iterator%my_pair = next_pair
-               next_pair = next_pair + 1
-!$OMP END ATOMIC
+         IF (iter_stat == 0 .AND. .NOT. skip_this) THEN
+            iter_stat = nl_sub_iterate(iterator%iter_jk, iterator%iter_ij)
+            IF (iter_stat /= 0) THEN ! no further k for this pair: next pair
+               iterator%iter_level = 0
+               iter_stat = 0
             ELSE
-               skip_this = .TRUE.
+               iterator%iter_level = 1
+
+               CALL get_iterator_info(iterator%iter_ij, iatom=iatom, jatom=jatom_1)
+               CALL get_iterator_info(iterator%iter_jk, iatom=jatom_2, jatom=katom)
+
+               CPASSERT(jatom_1 == jatom_2)
+               jatom = jatom_1
+
+               IF ((iterator%bounds_k(1) > 0 .AND. katom < iterator%bounds_k(1)) &
+                   .OR. (iterator%bounds_k(2) > 0 .AND. katom > iterator%bounds_k(2))) skip_this = .TRUE.
+
+               IF (.NOT. skip_this) THEN
+                  SELECT CASE (iterator%ijk_nl%sym)
+                  CASE (symmetric_none)
+                     skip_this = .FALSE.
+                  CASE (symmetric_ij)
+                     skip_this = .NOT. include_symmetric(iatom, jatom)
+                  CASE (symmetric_jk)
+                     skip_this = .NOT. include_symmetric(jatom, katom)
+                  CASE (symmetrik_ik)
+                     skip_this = .NOT. include_symmetric(iatom, katom)
+                  CASE (symmetric_ijk)
+                     skip_this = .NOT. include_symmetric(iatom, jatom) .OR. .NOT. include_symmetric(jatom, katom)
+                  CASE DEFAULT
+                     CPABORT("should not happen")
+                  END SELECT
+               END IF
+
+               found = .NOT. skip_this
             END IF
          END IF
-
-         IF (skip_this) THEN
-            iter_stat = neighbor_list_3c_iterate(iterator, next_pair)
-            RETURN
-         END IF
-      END IF
-
-      iter_stat = nl_sub_iterate(iterator%iter_jk, iterator%iter_ij)
-      IF (iter_stat /= 0) THEN
-         iterator%iter_level = 0
-         iter_stat = neighbor_list_3c_iterate(iterator, next_pair)
-         RETURN
-      ELSE
-         iterator%iter_level = 1
-      END IF
-
-      CPASSERT(iter_stat == 0)
-      CPASSERT(iterator%iter_level == 1)
-      CALL get_iterator_info(iterator%iter_ij, iatom=iatom, jatom=jatom_1)
-      CALL get_iterator_info(iterator%iter_jk, iatom=jatom_2, jatom=katom)
-
-      CPASSERT(jatom_1 == jatom_2)
-      jatom = jatom_1
-
-      skip_this = .FALSE.
-      IF ((iterator%bounds_k(1) > 0 .AND. katom < iterator%bounds_k(1)) &
-          .OR. (iterator%bounds_k(2) > 0 .AND. katom > iterator%bounds_k(2))) skip_this = .TRUE.
-
-      IF (skip_this) THEN
-         iter_stat = neighbor_list_3c_iterate(iterator, next_pair)
-         RETURN
-      END IF
-
-      SELECT CASE (iterator%ijk_nl%sym)
-      CASE (symmetric_none)
-         skip_this = .FALSE.
-      CASE (symmetric_ij)
-         skip_this = .NOT. include_symmetric(iatom, jatom)
-      CASE (symmetric_jk)
-         skip_this = .NOT. include_symmetric(jatom, katom)
-      CASE (symmetrik_ik)
-         skip_this = .NOT. include_symmetric(iatom, katom)
-      CASE (symmetric_ijk)
-         skip_this = .NOT. include_symmetric(iatom, jatom) .OR. .NOT. include_symmetric(jatom, katom)
-      CASE DEFAULT
-         CPABORT("should not happen")
-      END SELECT
-
-      IF (skip_this) THEN
-         iter_stat = neighbor_list_3c_iterate(iterator, next_pair)
-         RETURN
-      END IF
+      END DO
 
    END FUNCTION neighbor_list_3c_iterate
 
