@@ -123,25 +123,7 @@ MODULE qs_tensors
    ! cache size for integral compression
    INTEGER, PARAMETER, PRIVATE :: cache_size = 1024
 
-   ! temporary sensor, read once from the environment (sensors_read):
-   ! CP2K_3C_PRECOMPUTE=0 computes the sphi norms per atom triple (build_3c_integrals as before)
-   LOGICAL, SAVE, PRIVATE :: sensors_ready = .FALSE., sensor_precompute = .TRUE.
-
 CONTAINS
-
-! **************************************************************************************************
-!> \brief Reads the temporary sensor from the environment (once).
-! **************************************************************************************************
-   SUBROUTINE sensors_read()
-      CHARACTER(LEN=16)                                  :: value
-      INTEGER                                            :: stat
-
-      IF (.NOT. sensors_ready) THEN
-         CALL GET_ENVIRONMENT_VARIABLE("CP2K_3C_PRECOMPUTE", value, STATUS=stat)
-         IF (stat == 0) sensor_precompute = (TRIM(value) /= "0")
-         sensors_ready = .TRUE.
-      END IF
-   END SUBROUTINE sensors_read
 
 ! **************************************************************************************************
 !> \brief Build 2-center neighborlists adapted to different operators
@@ -2170,8 +2152,9 @@ CONTAINS
                                                             nsgfj, nsgfk
       INTEGER, DIMENSION(:, :), POINTER                  :: first_sgf_i, first_sgf_j, first_sgf_k
       INTEGER, DIMENSION(:, :, :), POINTER               :: cell_to_index
-      LOGICAL :: block_not_zero, cell_sym_prv, debug, desymmetrize_prv, do_hfx_kpoints_prv, &
-         do_kpoints_prv, found, precompute, skip
+      LOGICAL                                            :: block_not_zero, cell_sym_prv, debug, &
+                                                            desymmetrize_prv, do_hfx_kpoints_prv, &
+                                                            do_kpoints_prv, found, skip
       REAL(KIND=dp) :: dij, dik, djk, dr_ij, dr_ik, dr_jk, kind_radius_i, kind_radius_j, &
          kind_radius_k, max_contraction_i, max_contraction_j, max_contraction_k, prefac, sijk_ext
       REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: ccp_buffer, cpp_buffer
@@ -2201,8 +2184,6 @@ CONTAINS
 
       CALL timeset(routineN, handle)
 
-      CALL sensors_read()
-      precompute = sensor_precompute
       debug = .FALSE.
 
       IF (PRESENT(do_kpoints)) THEN
@@ -2465,8 +2446,7 @@ CONTAINS
 !$OMP         bounds_j,bounds_k,nimg,basis_i,basis_j,basis_k,dr_ij,dr_jk,dr_ik,ncoset,&
 !$OMP         potential_parameter,int_eps,t3c,tspj,spi,spk,debug,cell_to_index,&
 !$OMP         natom,nl_3c,cell,op_pos_prv,do_hfx_kpoints_prv,RI_range,ncell_RI, &
-!$OMP         img_to_RI_cell_prv, cell_sym_prv, max_sphi_norm_i, max_sphi_norm_j, max_sphi_norm_k, &
-!$OMP         precompute) &
+!$OMP         img_to_RI_cell_prv, cell_sym_prv, max_sphi_norm_i, max_sphi_norm_j, max_sphi_norm_k) &
 !$OMP PRIVATE (lib,nl_3c_iter,ikind,jkind,kkind,iatom,jatom,katom,rij,rjk,rik,cell_j,cell_k,&
 !$OMP          prefac,jcell,kcell,first_sgf_i,lmax_i,lmin_i,npgfi,nseti,nsgfi,rpgf_i,set_radius_i,&
 !$OMP          sphi_i,zeti,kind_radius_i,first_sgf_j,lmax_j,lmin_j,npgfj,nsetj,nsgfj,rpgf_j,&
@@ -2583,25 +2563,9 @@ CONTAINS
 
          IF (PRESENT(int_eps)) THEN
             NULLIFY (max_contr_i_ptr, max_contr_j_ptr, max_contr_k_ptr)
-            IF (precompute) THEN
-               IF (nseti > 0) max_contr_i_ptr => max_sphi_norm_i(1:nseti, ikind)
-               IF (nsetj > 0) max_contr_j_ptr => max_sphi_norm_j(1:nsetj, jkind)
-               IF (nsetk > 0) max_contr_k_ptr => max_sphi_norm_k(1:nsetk, kkind)
-            ELSE ! per atom triple as before the precomputation (temporary sensor)
-               ALLOCATE (max_contr_i_ptr(nseti), max_contr_j_ptr(nsetj), max_contr_k_ptr(nsetk))
-               DO iset = 1, nseti
-                  sgfi = first_sgf_i(1, iset)
-                  max_contr_i_ptr(iset) = MAXVAL([(SUM(ABS(sphi_i(:, i))), i=sgfi, sgfi + nsgfi(iset) - 1)])
-               END DO
-               DO jset = 1, nsetj
-                  sgfj = first_sgf_j(1, jset)
-                  max_contr_j_ptr(jset) = MAXVAL([(SUM(ABS(sphi_j(:, i))), i=sgfj, sgfj + nsgfj(jset) - 1)])
-               END DO
-               DO kset = 1, nsetk
-                  sgfk = first_sgf_k(1, kset)
-                  max_contr_k_ptr(kset) = MAXVAL([(SUM(ABS(sphi_k(:, i))), i=sgfk, sgfk + nsgfk(kset) - 1)])
-               END DO
-            END IF
+            IF (nseti > 0) max_contr_i_ptr => max_sphi_norm_i(1:nseti, ikind)
+            IF (nsetj > 0) max_contr_j_ptr => max_sphi_norm_j(1:nsetj, jkind)
+            IF (nsetk > 0) max_contr_k_ptr => max_sphi_norm_k(1:nsetk, kkind)
          END IF
 
          CALL dbt_blk_sizes(t3c(jcell, kcell), blk_idx, blk_size)
@@ -2719,9 +2683,6 @@ CONTAINS
          END IF
 
          DEALLOCATE (block_t)
-         IF (PRESENT(int_eps) .AND. .NOT. precompute) THEN
-            DEALLOCATE (max_contr_i_ptr, max_contr_j_ptr, max_contr_k_ptr)
-         END IF
       END DO
 
       IF (ALLOCATED(ccp_buffer)) DEALLOCATE (ccp_buffer)
