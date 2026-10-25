@@ -81,8 +81,9 @@ MODULE gw_tensor_large_cell_Gamma
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'gw_tensor_large_cell_Gamma'
 
    ! shares of MEMORY_PER_PROC that the kept 3-center integrals may take (estimated uncompressed):
-   ! kept as tensors (used in place) below the first share, compressed below the second
-   REAL(KIND=dp), PARAMETER, PRIVATE :: store_3c_share_uncompressed = 0.25_dp, &
+   ! kept as tensors (used in place) below the first share, compressed below the second; kept
+   ! tensors grew the memory far beyond the estimate (offload memory pool), hence zero
+   REAL(KIND=dp), PARAMETER, PRIVATE :: store_3c_share_uncompressed = 0.0_dp, &
                                         store_3c_share_compressed = 0.5_dp
    ! compression stores multiples of EPS_FILTER times this (and drops smaller entries), as the
    ! default EPS_STORAGE_SCALING of low-scaling RPA/GW
