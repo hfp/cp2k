@@ -22,7 +22,7 @@
 #endif
 
 // Private toggle: LIBXS pools on top of the same system allocations.
-#if !defined(OFFLOAD_MEMPOOL_LIBXS) && defined(__LIBXS) && 0
+#if !defined(OFFLOAD_MEMPOOL_LIBXS) && defined(__LIBXS) && 1
 #define OFFLOAD_MEMPOOL_LIBXS
 #endif
 #if defined(OFFLOAD_MEMPOOL_LIBXS)
@@ -33,7 +33,8 @@
   ((FN)(MSG, (int)strlen(MSG), OUTPUT_UNIT))
 #define OFFLOAD_MEMPOOL_OMPALLOC 1
 // A chunk is reused for at most this multiple of its size (larger ones are
-// resized), and the available chunks are released down to the size in use.
+// resized). Available chunks are released once they exceed this multiple of
+// the size in use (hysteresis), and then down to the size in use.
 #define OFFLOAD_MEMPOOL_FIT 2
 
 /*******************************************************************************
@@ -339,7 +340,9 @@ static void internal_mempool_free(offload_mempool_t *pool, const void *mem,
     pool->available_size += chunk->size;
 
     // Release the largest available chunks while they exceed what is in use.
-    while (pool->allocated_size < pool->available_size) {
+    const bool trim =
+        (OFFLOAD_MEMPOOL_FIT * pool->allocated_size < pool->available_size);
+    while (trim && pool->allocated_size < pool->available_size) {
       offload_memchunk_t **largest = &pool->available_head;
       for (indirect = &(*largest)->next; *indirect != NULL;
            indirect = &(*indirect)->next) {
