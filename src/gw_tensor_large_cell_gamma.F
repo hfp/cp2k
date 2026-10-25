@@ -38,6 +38,7 @@ MODULE gw_tensor_large_cell_Gamma
                                               dbt_create,&
                                               dbt_destroy,&
                                               dbt_filter,&
+                                              dbt_get_nze,&
                                               dbt_type
    USE dbt_matrix_redistribution,       ONLY: cp_dbt_to_dbcsr,&
                                               cp_fm_to_dbt
@@ -79,8 +80,10 @@ MODULE gw_tensor_large_cell_Gamma
 
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'gw_tensor_large_cell_Gamma'
 
-   ! share of MEMORY_PER_PROC that the kept 3-center integrals may take (estimated uncompressed)
-   REAL(KIND=dp), PARAMETER, PRIVATE :: store_3c_memory_share = 0.5_dp
+   ! shares of MEMORY_PER_PROC that the kept 3-center integrals may take (estimated uncompressed):
+   ! kept as tensors (used in place) below the first share, compressed below the second
+   REAL(KIND=dp), PARAMETER, PRIVATE :: store_3c_share_uncompressed = 0.25_dp, &
+                                        store_3c_share_compressed = 0.5_dp
    ! compression stores multiples of EPS_FILTER times this (and drops smaller entries), as the
    ! default EPS_STORAGE_SCALING of low-scaling RPA/GW
    REAL(KIND=dp), PARAMETER, PRIVATE :: store_3c_eps_scaling = 1.0E-3_dp
@@ -173,10 +176,11 @@ CONTAINS
       INTEGER, DIMENSION(2, 2)                           :: bounds_comb
       LOGICAL                                            :: dist_too_long_i, dist_too_long_j
       REAL(KIND=dp)                                      :: t1, tau
-      TYPE(dbt_type)                                     :: t_2c_Gocc, t_2c_Gvir, t_3c_for_Gocc, &
-                                                            t_3c_for_Gvir, t_3c_x_Gocc, &
+      TYPE(dbt_type)                                     :: t_2c_Gocc, t_2c_Gvir, t_3c_x_Gocc, &
                                                             t_3c_x_Gocc_2, t_3c_x_Gvir, &
                                                             t_3c_x_Gvir_2
+      TYPE(dbt_type), POINTER                            :: t_3c_use
+      TYPE(dbt_type), TARGET                             :: t_3c_for_Gocc, t_3c_for_Gvir
 
       CALL timeset(routineN, handle)
 
@@ -253,18 +257,20 @@ CONTAINS
                      IF (.NOT. dist_too_long_i) THEN
                         ! 2. compute 3-center integrals (Pν|µ) ("|": truncated Coulomb operator)
                         CALL get_3c_integrals(qs_env, bs_env, bs_env%store_3c_chi, t_3c_for_Gocc, &
-                                              atoms_AO_1=i_atoms, atoms_AO_2=IL_atoms)
+                                              t_3c_use, atoms_AO_1=i_atoms, atoms_AO_2=IL_atoms)
                         ! 3. tensor operation M_Pνλ(iτ) = sum_µ (Pν|µ) G^occ_λµ(i|τ|,k=0)
-                        CALL G_times_3c(t_3c_for_Gocc, t_2c_Gocc, t_3c_x_Gocc, bs_env, &
+                        CALL G_times_3c(t_3c_use, t_2c_Gocc, t_3c_x_Gocc, bs_env, &
                                         j_atoms, i_atoms, IL_atoms)
+                        CALL dbt_clear(t_3c_for_Gocc)
                      END IF
                      IF (.NOT. dist_too_long_j) THEN
                         ! 4. compute 3-center integrals (Qλ|σ) ("|": truncated Coulomb operator)
                         CALL get_3c_integrals(qs_env, bs_env, bs_env%store_3c_chi, t_3c_for_Gvir, &
-                                              atoms_AO_1=j_atoms, atoms_AO_2=IL_atoms)
+                                              t_3c_use, atoms_AO_1=j_atoms, atoms_AO_2=IL_atoms)
                         ! 5. tensor operation N_Qλν(iτ) = sum_σ (Qλ|σ) G^vir_νσ(i|τ|,k=0)
-                        CALL G_times_3c(t_3c_for_Gvir, t_2c_Gvir, t_3c_x_Gvir, bs_env, &
+                        CALL G_times_3c(t_3c_use, t_2c_Gvir, t_3c_x_Gvir, bs_env, &
                                         i_atoms, j_atoms, IL_atoms)
+                        CALL dbt_clear(t_3c_for_Gvir)
                      END IF
                   END DO ! IL_atoms
 
@@ -467,22 +473,26 @@ CONTAINS
    END SUBROUTINE compute_3c_integrals
 
 ! **************************************************************************************************
-!> \brief Puts the 3-center integrals of the given atom ranges into t_3c: computed and kept
-!>        (compressed) at the first use if the store is in use, and decompressed at every use
-!>        (also the first), so that all uses see the same integrals.
+!> \brief Provides the 3-center integrals of the given atom ranges. If the store is in use, a set
+!>        is computed at its first use and kept: as a tensor that every use takes in place, or
+!>        compressed and decompressed into t_3c at every use (also the first), so that all uses
+!>        see the same integrals. Otherwise, the integrals are computed into t_3c.
 !> \param qs_env ...
 !> \param bs_env ...
 !> \param store integrals kept for the phase (store_3c_init)
-!> \param t_3c ...
+!> \param t_3c work tensor
+!> \param t_3c_use the integrals: t_3c or a kept tensor (to be read only)
 !> \param atoms_AO_1 ...
 !> \param atoms_AO_2 ...
 !> \param atoms_RI ...
 ! **************************************************************************************************
-   SUBROUTINE get_3c_integrals(qs_env, bs_env, store, t_3c, atoms_AO_1, atoms_AO_2, atoms_RI)
+   SUBROUTINE get_3c_integrals(qs_env, bs_env, store, t_3c, t_3c_use, atoms_AO_1, atoms_AO_2, &
+                               atoms_RI)
       TYPE(qs_environment_type), POINTER                 :: qs_env
       TYPE(post_scf_bandstructure_type), POINTER         :: bs_env
-      TYPE(store_3c_type), INTENT(INOUT)                 :: store
-      TYPE(dbt_type)                                     :: t_3c
+      TYPE(store_3c_type), INTENT(INOUT), TARGET         :: store
+      TYPE(dbt_type), TARGET                             :: t_3c
+      TYPE(dbt_type), POINTER                            :: t_3c_use
       INTEGER, DIMENSION(2), OPTIONAL                    :: atoms_AO_1, atoms_AO_2, atoms_RI
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'get_3c_integrals'
@@ -497,26 +507,39 @@ CONTAINS
       IF (PRESENT(atoms_AO_1)) atoms(:, 2) = atoms_AO_1
       IF (PRESENT(atoms_AO_2)) atoms(:, 3) = atoms_AO_2
 
+      t_3c_use => t_3c
       iset = 0
       IF (ALLOCATED(store%sets)) THEN
          DO i = 1, store%nsets
             IF (ALL(store%sets(i)%atoms == atoms)) iset = i
          END DO
          IF (iset == 0 .AND. store%nsets < SIZE(store%sets)) THEN
-            CALL compute_3c_integrals(qs_env, bs_env, t_3c, atoms_AO_1, atoms_AO_2, atoms_RI)
             iset = store%nsets + 1
             store%nsets = iset
             store%sets(iset)%atoms = atoms
-            CALL alloc_containers(store%sets(iset)%compressed, 1)
-            CALL compress_tensor(t_3c, store%sets(iset)%blk_indices, store%sets(iset)%compressed, &
-                                 store_3c_eps_scaling*bs_env%eps_filter, store%memory)
+            IF (store%uncompressed) THEN
+               CALL dbt_create(t_3c, store%sets(iset)%t_3c)
+               CALL compute_3c_integrals(qs_env, bs_env, store%sets(iset)%t_3c, atoms_AO_1, &
+                                         atoms_AO_2, atoms_RI)
+               store%memory = store%memory + &
+                              REAL(dbt_get_nze(store%sets(iset)%t_3c), KIND=dp)*8.0_dp/1024.0_dp**2
+            ELSE
+               CALL compute_3c_integrals(qs_env, bs_env, t_3c, atoms_AO_1, atoms_AO_2, atoms_RI)
+               CALL alloc_containers(store%sets(iset)%compressed, 1)
+               CALL compress_tensor(t_3c, store%sets(iset)%blk_indices, store%sets(iset)%compressed, &
+                                    store_3c_eps_scaling*bs_env%eps_filter, store%memory)
+            END IF
          END IF
       END IF
 
       IF (iset > 0) THEN
-         CALL dbt_clear(t_3c)
-         CALL decompress_tensor(t_3c, store%sets(iset)%blk_indices, store%sets(iset)%compressed, &
-                                store_3c_eps_scaling*bs_env%eps_filter)
+         IF (store%uncompressed) THEN
+            t_3c_use => store%sets(iset)%t_3c
+         ELSE
+            CALL dbt_clear(t_3c)
+            CALL decompress_tensor(t_3c, store%sets(iset)%blk_indices, store%sets(iset)%compressed, &
+                                   store_3c_eps_scaling*bs_env%eps_filter)
+         END IF
       ELSE
          CALL compute_3c_integrals(qs_env, bs_env, t_3c, atoms_AO_1, atoms_AO_2, atoms_RI)
       END IF
@@ -527,7 +550,8 @@ CONTAINS
 
 ! **************************************************************************************************
 !> \brief Puts a store of 3-center integrals in use if the integrals of the group's i and j atoms
-!>        fit (estimated uncompressed) into the share store_3c_memory_share of MEMORY_PER_PROC.
+!>        (estimated uncompressed) fit into a share of MEMORY_PER_PROC: uncompressed into
+!>        store_3c_share_uncompressed, compressed into store_3c_share_compressed.
 !> \param bs_env ...
 !> \param store ...
 !> \param n_intervals number of atom intervals the integral sets are keyed by (besides the
@@ -553,8 +577,9 @@ CONTAINS
                   REAL(bs_env%n_atom, KIND=dp)/REAL(bs_env%para_env_tensor%num_pe, KIND=dp)
 
       ! a negative estimate is an unknown occupation (not kept)
-      IF (0.0_dp <= memory_GB .AND. memory_GB <= store_3c_memory_share*bs_env%input_memory_per_proc_GB) THEN
+      IF (0.0_dp <= memory_GB .AND. memory_GB <= store_3c_share_compressed*bs_env%input_memory_per_proc_GB) THEN
          ALLOCATE (store%sets(n_intervals*bs_env%n_intervals_inner_loop_atoms))
+         store%uncompressed = (memory_GB <= store_3c_share_uncompressed*bs_env%input_memory_per_proc_GB)
       END IF
 
       CALL timestop(handle)
@@ -575,18 +600,22 @@ CONTAINS
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'store_3c_finish'
 
       INTEGER                                            :: handle
-      LOGICAL                                            :: kept
+      LOGICAL                                            :: kept, uncompressed
       REAL(KIND=dp)                                      :: memory
 
       CALL timeset(routineN, handle)
 
       kept = ALLOCATED(store%sets)
+      uncompressed = store%uncompressed
       memory = store%memory
       IF (PRESENT(store_2)) memory = memory + store_2%memory
       CALL bs_env%para_env%max(memory)
 
       IF (bs_env%unit_nr > 0) THEN
-         IF (kept) THEN
+         IF (kept .AND. uncompressed) THEN
+            WRITE (bs_env%unit_nr, '(T2,A,F19.1,A)') &
+               'Kept 3-center integrals (µν|P), uncompressed, per process', memory/1024.0_dp, ' GB'
+         ELSE IF (kept) THEN
             WRITE (bs_env%unit_nr, '(T2,A,F21.1,A)') &
                'Kept 3-center integrals (µν|P), compressed, per process', memory/1024.0_dp, ' GB'
          ELSE
@@ -675,8 +704,6 @@ CONTAINS
                            flop=flop, &
                            filter_eps=bs_env%eps_filter)
       END IF
-
-      CALL dbt_clear(t_3c_for_G)
 
       CALL timestop(handle)
 
@@ -1126,7 +1153,9 @@ CONTAINS
       INTEGER(KIND=int_8)                                :: flop
       INTEGER, DIMENSION(2)                              :: bounds_P, bounds_Q, RI_atoms
       INTEGER, DIMENSION(2, 2)                           :: bounds_ao
-      TYPE(dbt_type)                                     :: t_3c_for_W, t_3c_x_W_tmp
+      TYPE(dbt_type)                                     :: t_3c_x_W_tmp
+      TYPE(dbt_type), POINTER                            :: t_3c_use
+      TYPE(dbt_type), TARGET                             :: t_3c_for_W
 
       CALL timeset(routineN, handle)
 
@@ -1171,13 +1200,13 @@ CONTAINS
          END IF
 
          ! 1. compute 3-center integrals (P|µν) ("|": truncated Coulomb operator)
-         CALL get_3c_integrals(qs_env, bs_env, bs_env%store_3c_W, t_3c_for_W, &
+         CALL get_3c_integrals(qs_env, bs_env, bs_env%store_3c_W, t_3c_for_W, t_3c_use, &
                                atoms_AO_1=i_atoms, atoms_RI=RI_atoms)
 
          ! 2. tensor operation M_Qνσ(iτ) = sum_P  W^MIC_QP(iτ) (P|νσ)
          CALL dbt_contract(alpha=1.0_dp, &
                            tensor_1=t_2c_W, &
-                           tensor_2=t_3c_for_W, &
+                           tensor_2=t_3c_use, &
                            beta=1.0_dp, &
                            tensor_3=t_3c_x_W_tmp, &
                            contract_1=[2], notcontract_1=[1], map_1=[1], &
@@ -1231,7 +1260,9 @@ CONTAINS
                                                             bounds_sigma, IL_atoms
       INTEGER, DIMENSION(2, 2)                           :: bounds_comb
       REAL(KIND=dp)                                      :: sign_Sigma
-      TYPE(dbt_type)                                     :: t_3c_for_G, t_3c_x_G, t_3c_x_G_2
+      TYPE(dbt_type)                                     :: t_3c_x_G, t_3c_x_G_2
+      TYPE(dbt_type), POINTER                            :: t_3c_use
+      TYPE(dbt_type), TARGET                             :: t_3c_for_G
 
       CALL timeset(routineN, handle)
 
@@ -1286,12 +1317,12 @@ CONTAINS
             CYCLE
          END IF
 
-         CALL get_3c_integrals(qs_env, bs_env, bs_env%store_3c_Sigma, t_3c_for_G, &
+         CALL get_3c_integrals(qs_env, bs_env, bs_env%store_3c_Sigma, t_3c_for_G, t_3c_use, &
                                atoms_RI=j_atoms, atoms_AO_2=IL_atoms)
 
          CALL dbt_contract(alpha=1.0_dp, &
                            tensor_1=t_2c_G, &
-                           tensor_2=t_3c_for_G, &
+                           tensor_2=t_3c_use, &
                            beta=1.0_dp, &
                            tensor_3=t_3c_x_G, &
                            contract_1=[2], notcontract_1=[1], map_1=[3], &

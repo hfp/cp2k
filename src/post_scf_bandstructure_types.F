@@ -66,16 +66,19 @@ MODULE post_scf_bandstructure_types
    END TYPE band_edges_type
 
    ! 3-center integrals of one set of atom ranges (RI, AO_1, AO_2; zero: all atoms), compressed
+   ! (blk_indices, compressed) or as a tensor (t_3c)
    TYPE store_3c_set_type
       INTEGER, DIMENSION(2, 3)                        :: atoms = 0
       INTEGER, DIMENSION(:, :), ALLOCATABLE           :: blk_indices
       TYPE(hfx_compression_type)                      :: compressed
+      TYPE(dbt_type)                                  :: t_3c
    END TYPE store_3c_set_type
 
-   ! 3-center integrals kept for the time points of a phase (in use if sets is allocated);
-   ! memory is the compressed size on this process [MiB]
+   ! 3-center integrals kept for the time points of a phase (in use if sets is allocated), all
+   ! sets uncompressed or all compressed; memory is the size on this process [MiB]
    TYPE store_3c_type
       INTEGER                                         :: nsets = 0
+      LOGICAL                                         :: uncompressed = .FALSE.
       REAL(KIND=dp)                                   :: memory = 0.0_dp
       TYPE(store_3c_set_type), DIMENSION(:), ALLOCATABLE :: sets
    END TYPE store_3c_type
@@ -589,11 +592,16 @@ CONTAINS
 
       IF (ALLOCATED(store%sets)) THEN
          DO i = 1, store%nsets
-            CALL dealloc_containers(store%sets(i)%compressed, unused)
+            IF (store%uncompressed) THEN
+               CALL safe_dbt_destroy(store%sets(i)%t_3c)
+            ELSE
+               CALL dealloc_containers(store%sets(i)%compressed, unused)
+            END IF
          END DO
          DEALLOCATE (store%sets)
       END IF
       store%nsets = 0
+      store%uncompressed = .FALSE.
       store%memory = 0.0_dp
 
    END SUBROUTINE store_3c_release
