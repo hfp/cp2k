@@ -21,9 +21,20 @@
 #include <mpi.h>
 #endif
 
+// Private toggle: LIBXS pools on top of the same system allocations.
+#if !defined(OFFLOAD_MEMPOOL_LIBXS) && defined(__LIBXS) && 0
+#define OFFLOAD_MEMPOOL_LIBXS
+#endif
+#if defined(OFFLOAD_MEMPOOL_LIBXS)
+#include <libxs/libxs_malloc.h>
+#endif
+
 #define OFFLOAD_MEMPOOL_PRINT(FN, MSG, OUTPUT_UNIT)                            \
   ((FN)(MSG, (int)strlen(MSG), OUTPUT_UNIT))
 #define OFFLOAD_MEMPOOL_OMPALLOC 1
+// A chunk is reused for at most this multiple of its size (larger ones are
+// resized), and the available chunks are released down to the size in use.
+#define OFFLOAD_MEMPOOL_FIT 2
 
 /*******************************************************************************
  * \brief Private struct for storing a chunk of memory.
@@ -41,7 +52,8 @@ typedef struct offload_memchunk {
  ******************************************************************************/
 typedef struct offload_mempool {
   offload_memchunk_t *available_head, *allocated_head; // single-linked lists
-  uint64_t peak_size;                                  // for statistics
+  uint64_t available_size, allocated_size; // sums of chunk sizes in the lists
+  uint64_t peak_size;                      // for statistics
 } offload_mempool_t;
 
 /*******************************************************************************
@@ -159,6 +171,46 @@ static void actual_free(void *memory, const bool on_device) {
 #endif
 }
 
+#if defined(OFFLOAD_MEMPOOL_LIBXS)
+/*******************************************************************************
+ * \brief Private LIBXS pools (created on first use) and their allocators.
+ ******************************************************************************/
+static libxs_malloc_pool_t *libxs_pool_host = NULL, *libxs_pool_device = NULL;
+static void *libxs_host_malloc(size_t size) {
+  return actual_malloc(size, false);
+}
+static void libxs_host_free(void *memory) { actual_free(memory, false); }
+static void *libxs_device_malloc(size_t size) {
+  return actual_malloc(size, true);
+}
+static void libxs_device_free(void *memory) { actual_free(memory, true); }
+
+/*******************************************************************************
+ * \brief Private routine for allocating from a LIBXS pool (native pointers,
+ *        as device memory must not carry inline metadata).
+ ******************************************************************************/
+static void *internal_libxs_malloc(libxs_malloc_pool_t **pool,
+                                   const size_t size, const bool on_device) {
+  void *result = NULL;
+  if (size != 0) {
+    libxs_malloc_pool_t *p;
+#pragma omp critical(offload_mempool_modify)
+    {
+      if (*pool == NULL) {
+        *pool = (on_device
+                     ? libxs_malloc_pool(libxs_device_malloc, libxs_device_free)
+                     : libxs_malloc_pool(libxs_host_malloc, libxs_host_free));
+      }
+      p = *pool;
+    }
+    assert(p != NULL);
+    result = libxs_malloc(p, size, LIBXS_MALLOC_NATIVE);
+    assert(result != NULL);
+  }
+  return result;
+}
+#endif
+
 /*******************************************************************************
  * \brief Private routine for allocating host or device memory from the pool.
  * \author Ole Schuett and Hans Pabst
@@ -179,13 +231,14 @@ static void *internal_mempool_malloc(offload_mempool_t *pool, const size_t size,
     offload_memchunk_t **indirect = &pool->available_head;
     while (*indirect != NULL) {
       const size_t s = (*indirect)->size;
-      if (size <= s && (reuse == NULL || s < (*reuse)->size)) {
+      if (size <= s && s / OFFLOAD_MEMPOOL_FIT <= size &&
+          (reuse == NULL || s < (*reuse)->size)) {
         reuse = indirect; // reuse smallest suitable chunk
         if (s == size) {
           break; // perfect match, exit early
         }
       } else if (reclaim == NULL || (*reclaim)->size < s) {
-        reclaim = indirect; // reclaim largest unsuitable chunk
+        reclaim = indirect; // reclaim largest unsuitable chunk (resized)
       }
       indirect = &(*indirect)->next;
     }
@@ -195,10 +248,12 @@ static void *internal_mempool_malloc(offload_mempool_t *pool, const size_t size,
       // Reusing an exising chunk that's already large enough.
       chunk = *reuse;
       *reuse = chunk->next; // remove chunk from available list.
+      pool->available_size -= chunk->size;
     } else if (reclaim != NULL) {
       // Reclaiming an existing chunk (resize will happen outside crit. region).
       chunk = *reclaim;
       *reclaim = chunk->next; // remove chunk from available list.
+      pool->available_size -= chunk->size;
     } else {
       // Found no available chunk, allocate a new one.
       chunk = calloc(1, sizeof(offload_memchunk_t));
@@ -207,7 +262,7 @@ static void *internal_mempool_malloc(offload_mempool_t *pool, const size_t size,
   }
 
   // Resize chunk outside of critical region before adding it to allocated list.
-  if (chunk->size < size) {
+  if (chunk->size < size || chunk->size / OFFLOAD_MEMPOOL_FIT > size) {
     actual_free(chunk->mem, on_device);
     chunk->mem = actual_malloc(size, on_device);
     chunk->size = size;
@@ -220,6 +275,9 @@ static void *internal_mempool_malloc(offload_mempool_t *pool, const size_t size,
   {
     chunk->next = pool->allocated_head;
     pool->allocated_head = chunk;
+    pool->allocated_size += chunk->size;
+    pool->peak_size = imax(pool->peak_size,
+                           pool->available_size + pool->allocated_size);
   }
 
   return chunk->mem;
@@ -230,7 +288,11 @@ static void *internal_mempool_malloc(offload_mempool_t *pool, const size_t size,
  * \author Ole Schuett
  ******************************************************************************/
 void *offload_mempool_host_malloc(const size_t size) {
+#if defined(OFFLOAD_MEMPOOL_LIBXS)
+  return internal_libxs_malloc(&libxs_pool_host, size, false);
+#else
   return internal_mempool_malloc(&mempool_host, size, false);
+#endif
 }
 
 /*******************************************************************************
@@ -238,17 +300,24 @@ void *offload_mempool_host_malloc(const size_t size) {
  * \author Ole Schuett
  ******************************************************************************/
 void *offload_mempool_device_malloc(const size_t size) {
+#if defined(OFFLOAD_MEMPOOL_LIBXS)
+  return internal_libxs_malloc(&libxs_pool_device, size, true);
+#else
   return internal_mempool_malloc(&mempool_device, size, true);
+#endif
 }
 
 /*******************************************************************************
  * \brief Private routine for releasing memory back to the pool.
  * \author Ole Schuett
  ******************************************************************************/
-static void internal_mempool_free(offload_mempool_t *pool, const void *mem) {
+static void internal_mempool_free(offload_mempool_t *pool, const void *mem,
+                                  const bool on_device) {
   if (mem == NULL) {
     return;
   }
+
+  offload_memchunk_t *release = NULL; // chunks to give back to the system
 
 #pragma omp critical(offload_mempool_modify)
   {
@@ -262,10 +331,36 @@ static void internal_mempool_free(offload_mempool_t *pool, const void *mem) {
 
     // Remove chunk from allocated list.
     *indirect = chunk->next;
+    pool->allocated_size -= chunk->size;
 
     // Add chunk to available list.
     chunk->next = pool->available_head;
     pool->available_head = chunk;
+    pool->available_size += chunk->size;
+
+    // Release the largest available chunks while they exceed what is in use.
+    while (pool->allocated_size < pool->available_size) {
+      offload_memchunk_t **largest = &pool->available_head;
+      for (indirect = &(*largest)->next; *indirect != NULL;
+           indirect = &(*indirect)->next) {
+        if ((*largest)->size < (*indirect)->size) {
+          largest = indirect;
+        }
+      }
+      chunk = *largest;
+      *largest = chunk->next; // remove chunk from available list
+      pool->available_size -= chunk->size;
+      chunk->next = release;
+      release = chunk;
+    }
+  }
+
+  // Free released chunks outside of critical region.
+  while (release != NULL) {
+    offload_memchunk_t *chunk = release;
+    release = chunk->next;
+    actual_free(chunk->mem, on_device);
+    free(chunk);
   }
 }
 
@@ -274,7 +369,11 @@ static void internal_mempool_free(offload_mempool_t *pool, const void *mem) {
  * \author Ole Schuett
  ******************************************************************************/
 void offload_mempool_host_free(const void *memory) {
-  internal_mempool_free(&mempool_host, memory);
+#if defined(OFFLOAD_MEMPOOL_LIBXS)
+  libxs_free((void *)memory);
+#else
+  internal_mempool_free(&mempool_host, memory, false);
+#endif
 }
 
 /*******************************************************************************
@@ -282,7 +381,11 @@ void offload_mempool_host_free(const void *memory) {
  * \author Ole Schuett
  ******************************************************************************/
 void offload_mempool_device_free(const void *memory) {
-  internal_mempool_free(&mempool_device, memory);
+#if defined(OFFLOAD_MEMPOOL_LIBXS)
+  libxs_free((void *)memory);
+#else
+  internal_mempool_free(&mempool_device, memory, true);
+#endif
 }
 
 /*******************************************************************************
@@ -307,6 +410,7 @@ static void internal_mempool_clear(offload_mempool_t *pool,
       pool_size += chunk->size;
       free(chunk);
     }
+    pool->available_size = 0;
 
     // Update stats.
     pool->peak_size = imax(pool->peak_size, pool_size);
@@ -318,6 +422,14 @@ static void internal_mempool_clear(offload_mempool_t *pool,
  * \author Ole Schuett and Hans Pabst
  ******************************************************************************/
 void offload_mempool_clear(void) {
+#if defined(OFFLOAD_MEMPOOL_LIBXS)
+#pragma omp critical(offload_mempool_modify)
+  {
+    libxs_free_pool(libxs_pool_host);
+    libxs_free_pool(libxs_pool_device);
+    libxs_pool_host = libxs_pool_device = NULL;
+  }
+#endif
   internal_mempool_clear(&mempool_host, false);
   internal_mempool_clear(&mempool_device, true);
 }
@@ -370,6 +482,21 @@ void offload_mempool_stats_get(offload_mempool_stats_t *memstats) {
                             sum_chunks_size(mempool_device.allocated_head);
     memstats->device_peak =
         imax(mempool_device.peak_size, memstats->device_size);
+#if defined(OFFLOAD_MEMPOOL_LIBXS)
+    libxs_malloc_pool_info_t info;
+    if (libxs_pool_host != NULL &&
+        EXIT_SUCCESS == libxs_malloc_pool_info(libxs_pool_host, &info)) {
+      memstats->host_used = info.used;
+      memstats->host_size = info.size;
+      memstats->host_peak = info.peak;
+    }
+    if (libxs_pool_device != NULL &&
+        EXIT_SUCCESS == libxs_malloc_pool_info(libxs_pool_device, &info)) {
+      memstats->device_used = info.used;
+      memstats->device_size = info.size;
+      memstats->device_peak = info.peak;
+    }
+#endif
   }
 }
 
