@@ -22,7 +22,7 @@
 #endif
 
 // Private toggle: LIBXS pools on top of the same system allocations.
-#if !defined(OFFLOAD_MEMPOOL_LIBXS) && defined(__LIBXS) && 1
+#if !defined(OFFLOAD_MEMPOOL_LIBXS) && defined(__LIBXS) && 0
 #define OFFLOAD_MEMPOOL_LIBXS
 #endif
 #if defined(OFFLOAD_MEMPOOL_LIBXS)
