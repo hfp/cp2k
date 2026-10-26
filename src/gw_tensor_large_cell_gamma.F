@@ -87,7 +87,7 @@ MODULE gw_tensor_large_cell_Gamma
    ! below a share of MEMORY_PER_PROC, kept as tensors (used in place) only below a small share of
    ! MEMORY_PER_PROC and of the memory free at that time, since they add to the working set of the
    ! tensor contractions that the estimate does not cover
-   REAL(KIND=dp), PARAMETER, PRIVATE :: store_3c_share_uncompressed = 0.1_dp, &
+   REAL(KIND=dp), PARAMETER, PRIVATE :: store_3c_share_uncompressed = 0.25_dp, &
                                         store_3c_share_compressed = 0.5_dp
    ! compression stores multiples of EPS_FILTER times this (and drops smaller entries), as the
    ! default EPS_STORAGE_SCALING of low-scaling RPA/GW
@@ -605,7 +605,8 @@ CONTAINS
       IF (0.0_dp <= memory_GB .AND. memory_GB <= store_3c_share_compressed*bs_env%input_memory_per_proc_GB) THEN
          ALLOCATE (store%sets(n_intervals*bs_env%n_intervals_inner_loop_atoms))
          store%uncompressed = (memory_GB <= store_3c_share_uncompressed* &
-                               MIN(bs_env%input_memory_per_proc_GB, free_GB))
+                               bs_env%input_memory_per_proc_GB)
+         MARK_USED(free_GB)
       END IF
 
       CALL timestop(handle)
