@@ -178,6 +178,62 @@ static void actual_free(void *memory, const bool on_device) {
 #endif
 }
 
+/*******************************************************************************
+ * \brief Private list of memory to be freed outside of parallel regions.
+ ******************************************************************************/
+typedef struct offload_memrelease {
+  void *mem;
+  struct offload_memrelease *next;
+  bool on_device;
+} offload_memrelease_t;
+static offload_memrelease_t *release_head = NULL;
+
+/*******************************************************************************
+ * \brief Private routine for freeing the memory released inside of parallel
+ *        regions (no effect inside of a parallel region).
+ ******************************************************************************/
+static void release_pending(void) {
+  if (!omp_in_parallel()) {
+    offload_memrelease_t *pending;
+#pragma omp critical(offload_mempool_release)
+    {
+      pending = release_head;
+      release_head = NULL;
+    }
+    while (pending != NULL) {
+      offload_memrelease_t *const release = pending;
+      pending = release->next;
+      actual_free(release->mem, release->on_device);
+      free(release);
+    }
+  }
+}
+
+/*******************************************************************************
+ * \brief Private routine for giving memory back to the system. Inside of a
+ *        parallel region, freeing is deferred: it may synchronize the device,
+ *        i.e., wait for work that other threads of the team are yet to finish.
+ ******************************************************************************/
+static void release_memory(void *memory, const bool on_device) {
+  if (memory == NULL) {
+    return;
+  }
+  if (omp_in_parallel()) {
+    offload_memrelease_t *const release = malloc(sizeof(offload_memrelease_t));
+    assert(release != NULL);
+    release->mem = memory;
+    release->on_device = on_device;
+#pragma omp critical(offload_mempool_release)
+    {
+      release->next = release_head;
+      release_head = release;
+    }
+  } else {
+    release_pending();
+    actual_free(memory, on_device);
+  }
+}
+
 #if defined(OFFLOAD_MEMPOOL_LIBXS)
 /*******************************************************************************
  * \brief Private LIBXS pools (created on first use) and their allocators.
@@ -186,11 +242,11 @@ static libxs_malloc_pool_t *libxs_pool_host = NULL, *libxs_pool_device = NULL;
 static void *libxs_host_malloc(size_t size) {
   return actual_malloc(size, false);
 }
-static void libxs_host_free(void *memory) { actual_free(memory, false); }
+static void libxs_host_free(void *memory) { release_memory(memory, false); }
 static void *libxs_device_malloc(size_t size) {
   return actual_malloc(size, true);
 }
-static void libxs_device_free(void *memory) { actual_free(memory, true); }
+static void libxs_device_free(void *memory) { release_memory(memory, true); }
 
 /*******************************************************************************
  * \brief Private routine for allocating from a LIBXS pool (native pointers,
@@ -199,6 +255,7 @@ static void libxs_device_free(void *memory) { actual_free(memory, true); }
 static void *internal_libxs_malloc(libxs_malloc_pool_t **pool,
                                    const size_t size, const bool on_device) {
   void *result = NULL;
+  release_pending();
   if (size != 0) {
     libxs_malloc_pool_t *p;
 #pragma omp critical(offload_mempool_modify)
@@ -253,7 +310,7 @@ static void internal_mempool_release(offload_memchunk_t *release,
   while (release != NULL) {
     offload_memchunk_t *const chunk = release;
     release = chunk->next;
-    actual_free(chunk->mem, on_device);
+    release_memory(chunk->mem, on_device);
     free(chunk);
   }
 }
@@ -264,6 +321,7 @@ static void internal_mempool_release(offload_memchunk_t *release,
  ******************************************************************************/
 static void *internal_mempool_malloc(offload_mempool_t *pool, const size_t size,
                                      const bool on_device) {
+  release_pending();
   if (size == 0) {
     return NULL;
   }
@@ -350,6 +408,7 @@ void *offload_mempool_device_malloc(const size_t size) {
  ******************************************************************************/
 static void internal_mempool_free(offload_mempool_t *pool, const void *mem,
                                   const bool on_device) {
+  release_pending();
   if (mem == NULL) {
     return;
   }
@@ -440,6 +499,7 @@ static void internal_mempool_clear(offload_mempool_t *pool,
  * \author Ole Schuett and Hans Pabst
  ******************************************************************************/
 void offload_mempool_clear(void) {
+  release_pending();
 #if defined(OFFLOAD_MEMPOOL_LIBXS)
 #pragma omp critical(offload_mempool_modify)
   {
