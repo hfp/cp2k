@@ -32,11 +32,11 @@
 #define OFFLOAD_MEMPOOL_PRINT(FN, MSG, OUTPUT_UNIT)                            \
   ((FN)(MSG, (int)strlen(MSG), OUTPUT_UNIT))
 #define OFFLOAD_MEMPOOL_OMPALLOC 1
-// A chunk is reused for at most this multiple of the requested size, and the
-// pool holds at most this multiple of the most it ever had in use: what a
-// workload needs again stays cached, whereas sizes that do not fit cannot let
-// the pool grow without bound.
-#define OFFLOAD_MEMPOOL_FIT 2
+// A reused chunk exceeds the requested size by at most this fraction, and the
+// pool holds at most the most ever requested at once plus this fraction of it:
+// what a workload needs again stays cached, whereas sizes that do not fit
+// cannot let the pool grow without bound (the bound covers the reuse waste).
+#define OFFLOAD_MEMPOOL_SLACK 4 /* 1/4 */
 
 /*******************************************************************************
  * \brief Private struct for storing a chunk of memory.
@@ -55,7 +55,7 @@ typedef struct offload_memchunk {
 typedef struct offload_mempool {
   offload_memchunk_t *available_head, *allocated_head; // single-linked lists
   uint64_t available_size, allocated_size; // sums of chunk sizes in the lists
-  uint64_t allocated_peak;                 // most ever in use (bounds the pool)
+  uint64_t allocated_used, used_peak;      // requested sizes in use, most ever
   uint64_t peak_size;                      // for statistics
 } offload_mempool_t;
 
@@ -278,9 +278,10 @@ static void *internal_libxs_malloc(libxs_malloc_pool_t **pool,
  ******************************************************************************/
 static offload_memchunk_t *internal_mempool_trim(offload_mempool_t *pool) {
   offload_memchunk_t *release = NULL;
+  const uint64_t bound =
+      pool->used_peak + pool->used_peak / OFFLOAD_MEMPOOL_SLACK;
   while (pool->available_head != NULL &&
-         OFFLOAD_MEMPOOL_FIT * pool->allocated_peak <
-             pool->available_size + pool->allocated_size) {
+         bound < pool->available_size + pool->allocated_size) {
     offload_memchunk_t **largest = &pool->available_head;
     for (offload_memchunk_t **indirect = &(*largest)->next; *indirect != NULL;
          indirect = &(*indirect)->next) {
@@ -330,7 +331,7 @@ static void *internal_mempool_malloc(offload_mempool_t *pool, const size_t size,
     offload_memchunk_t **indirect = &pool->available_head;
     while (*indirect != NULL) {
       const size_t s = (*indirect)->size;
-      if (size <= s && s / OFFLOAD_MEMPOOL_FIT <= size &&
+      if (size <= s && s - size <= size / OFFLOAD_MEMPOOL_SLACK &&
           (reuse == NULL || s < (*reuse)->size)) {
         reuse = indirect;
         if (s == size) {
@@ -362,9 +363,10 @@ static void *internal_mempool_malloc(offload_mempool_t *pool, const size_t size,
     chunk->next = pool->allocated_head;
     pool->allocated_head = chunk;
     pool->allocated_size += chunk->size;
-    pool->allocated_peak = imax(pool->allocated_peak, pool->allocated_size);
-    pool->peak_size = imax(pool->peak_size,
-                           pool->available_size + pool->allocated_size);
+    pool->allocated_used += size;
+    pool->used_peak = imax(pool->used_peak, pool->allocated_used);
+    pool->peak_size =
+        imax(pool->peak_size, pool->available_size + pool->allocated_size);
     release = internal_mempool_trim(pool);
   }
 
@@ -422,6 +424,7 @@ static void internal_mempool_free(offload_mempool_t *pool, const void *mem,
     // Remove chunk from allocated list.
     *indirect = chunk->next;
     pool->allocated_size -= chunk->size;
+    pool->allocated_used -= chunk->used;
 
     // Add chunk to available list, and keep the pool within its bound.
     chunk->next = pool->available_head;
@@ -480,7 +483,7 @@ static void internal_mempool_clear(offload_mempool_t *pool,
       free(chunk);
     }
     pool->available_size = 0;
-    pool->allocated_peak = 0;
+    pool->used_peak = 0;
 
     // Update stats.
     pool->peak_size = imax(pool->peak_size, pool_size);
