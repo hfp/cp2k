@@ -21,9 +21,13 @@
 #include <mpi.h>
 #endif
 
-// Private toggle: LIBXS pools on top of the same system allocations.
-#if !defined(OFFLOAD_MEMPOOL_LIBXS) && defined(__LIBXS) && 0
-#define OFFLOAD_MEMPOOL_LIBXS
+// Private toggle: LIBXS pools on top of the same system allocations, for host
+// memory (1), device memory (2), or both (3).
+#if !defined(OFFLOAD_MEMPOOL_LIBXS) && defined(__LIBXS)
+#define OFFLOAD_MEMPOOL_LIBXS 2
+#endif
+#if defined(OFFLOAD_MEMPOOL_LIBXS) && (0 == OFFLOAD_MEMPOOL_LIBXS)
+#undef OFFLOAD_MEMPOOL_LIBXS
 #endif
 #if defined(OFFLOAD_MEMPOOL_LIBXS)
 #include <libxs/libxs_malloc.h>
@@ -487,7 +491,7 @@ static void *internal_mempool_malloc(offload_mempool_t *pool, const size_t size,
  * \author Ole Schuett
  ******************************************************************************/
 void *offload_mempool_host_malloc(const size_t size) {
-#if defined(OFFLOAD_MEMPOOL_LIBXS)
+#if defined(OFFLOAD_MEMPOOL_LIBXS) && (1 & OFFLOAD_MEMPOOL_LIBXS)
   return internal_libxs_malloc(&libxs_pool_host, size, false);
 #else
   return internal_mempool_malloc(&mempool_host, size, false);
@@ -499,7 +503,7 @@ void *offload_mempool_host_malloc(const size_t size) {
  * \author Ole Schuett
  ******************************************************************************/
 void *offload_mempool_device_malloc(const size_t size) {
-#if defined(OFFLOAD_MEMPOOL_LIBXS)
+#if defined(OFFLOAD_MEMPOOL_LIBXS) && (2 & OFFLOAD_MEMPOOL_LIBXS)
   return internal_libxs_malloc(&libxs_pool_device, size, true);
 #else
   return internal_mempool_malloc(&mempool_device, size, true);
@@ -539,7 +543,7 @@ static void internal_mempool_free(offload_mempool_t *pool, const void *mem,
  * \author Ole Schuett
  ******************************************************************************/
 void offload_mempool_host_free(const void *memory) {
-#if defined(OFFLOAD_MEMPOOL_LIBXS)
+#if defined(OFFLOAD_MEMPOOL_LIBXS) && (1 & OFFLOAD_MEMPOOL_LIBXS)
   libxs_free((void *)memory);
 #else
   internal_mempool_free(&mempool_host, memory, false);
@@ -551,7 +555,7 @@ void offload_mempool_host_free(const void *memory) {
  * \author Ole Schuett
  ******************************************************************************/
 void offload_mempool_device_free(const void *memory) {
-#if defined(OFFLOAD_MEMPOOL_LIBXS)
+#if defined(OFFLOAD_MEMPOOL_LIBXS) && (2 & OFFLOAD_MEMPOOL_LIBXS)
   libxs_free((void *)memory);
 #else
   internal_mempool_free(&mempool_device, memory, true);
