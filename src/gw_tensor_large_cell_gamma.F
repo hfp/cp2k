@@ -57,9 +57,7 @@ MODULE gw_tensor_large_cell_Gamma
                                               int_8
    USE machine,                         ONLY: m_walltime
    USE message_passing,                 ONLY: mp_file_delete,&
-                                              mp_mem_avail_per_rank_GB,&
-                                              mp_print_mem_per_rank
-   USE offload_api,                     ONLY: offload_mempool_stats_print
+                                              mp_mem_avail_per_rank_GB
    USE mp2_ri_2c,                       ONLY: RI_2c_integral_mat
    USE particle_types,                  ONLY: particle_type
    USE post_scf_bandstructure_types,    ONLY: post_scf_bandstructure_type,&
@@ -146,7 +144,6 @@ CONTAINS
       ! D_µν = sum_n^occ C_µn(k=0) C_νn(k=0), V^trunc_PQ = sum_cell_R <phi_P,0|V^trunc|phi_Q,R>
       ! Σ^x_λσ(k=0) = sum_νQ [sum_P (νσ|P) V^trunc_PQ] [sum_µ (λµ|Q) D_µν)]
       CALL get_Sigma_x(bs_env, qs_env, fm_Sigma_x_Gamma)
-      CALL memory_diag(bs_env, "after Sigma_x")
 
       ! Σ^c_λσ(iτ,k=0) = sum_νQ [sum_P (νσ|P) W^MIC_PQ(iτ)] [sum_µ (λµ|Q) G^occ_µν(i|τ|)], τ < 0
       ! Σ^c_λσ(iτ,k=0) = sum_νQ [sum_P (νσ|P) W^MIC_PQ(iτ)] [sum_µ (λµ|Q) G^vir_µν(i|τ|)], τ > 0
@@ -529,7 +526,6 @@ CONTAINS
                                          atoms_AO_2, atoms_RI)
                store%memory = store%memory + &
                               REAL(dbt_get_nze(store%sets(iset)%t_3c), KIND=dp)*8.0_dp/1024.0_dp**2
-               CALL memory_diag(bs_env, "after keeping a 3c set")
             ELSE
                CALL compute_3c_integrals(qs_env, bs_env, t_3c, atoms_AO_1, atoms_AO_2, atoms_RI)
                CALL alloc_containers(store%sets(iset)%compressed, 1)
@@ -554,20 +550,6 @@ CONTAINS
       CALL timestop(handle)
 
    END SUBROUTINE get_3c_integrals
-
-! **************************************************************************************************
-!> \brief Temporary: process memory (maximum over the ranks) and offload memory pool statistics.
-!> \param bs_env ...
-!> \param label ...
-! **************************************************************************************************
-   SUBROUTINE memory_diag(bs_env, label)
-      TYPE(post_scf_bandstructure_type), POINTER         :: bs_env
-      CHARACTER(LEN=*), INTENT(IN)                       :: label
-
-      CALL mp_print_mem_per_rank(bs_env%para_env, bs_env%unit_nr, label)
-      CALL offload_mempool_stats_print(bs_env%para_env%mp_comm_type, bs_env%unit_nr)
-
-   END SUBROUTINE memory_diag
 
 ! **************************************************************************************************
 !> \brief Puts a store of 3-center integrals in use if the integrals of the group's i and j atoms
@@ -971,7 +953,6 @@ CONTAINS
                                          mat_Sigma_neg_tau(i_t, ispin)%matrix, &
                                          mat_Sigma_pos_tau(i_t, ispin)%matrix, &
                                          count_skipped=(i_t == 2))
-            CALL memory_diag(bs_env, "after Sigma_c time point")
 
             CALL fm_write(bs_env%fm_work_mo(1), read_write_index, bs_env%Sigma_p_name, qs_env, &
                           matrix=mat_Sigma_pos_tau(i_t, ispin)%matrix)
