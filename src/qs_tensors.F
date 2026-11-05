@@ -50,11 +50,19 @@ MODULE qs_tensors
                                               hfx_get_mult_cache_elements,&
                                               hfx_get_single_cache_element,&
                                               hfx_reset_cache_and_container
+#if defined(__LIBXS)
+   USE hfx_compression_methods,         ONLY: hfx_add_mult_real_elements,&
+                                              hfx_decompress_first_real_cache,&
+                                              hfx_flush_last_real_cache,&
+                                              hfx_get_mult_real_elements,&
+                                              hfx_reset_real_cache_and_container
+#endif
    USE hfx_types,                       ONLY: dealloc_containers,&
                                               hfx_cache_type,&
                                               hfx_compression_type,&
                                               hfx_container_type,&
-                                              hfx_init_container
+                                              hfx_init_container,&
+                                              hfx_real_cache_type
    USE input_constants,                 ONLY: do_potential_coulomb,&
                                               do_potential_id,&
                                               do_potential_mix_cl_trunc,&
@@ -3442,23 +3450,29 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'compress_tensor'
 
-      INTEGER :: buffer_left, buffer_size, buffer_start, handle, i, ibin, iblk, init_usage, &
-         memory_usage, nbins, nbits, nblk, nints, offset, shared_offset
-      INTEGER(int_8)                                     :: estimate_to_store_int, &
-                                                            storage_counter_integrals
+      INTEGER :: buffer_left, buffer_size, buffer_start, handle, i, ibin, iblk, &
+         memory_usage, nbins, nblk, nints, offset, shared_offset
+      INTEGER(int_8)                                     :: storage_counter_integrals
       INTEGER, DIMENSION(3)                              :: ind
       LOGICAL                                            :: found
-      LOGICAL, DIMENSION(64)                             :: used
-      REAL(dp)                                           :: spherical_estimate
       REAL(dp), ALLOCATABLE, DIMENSION(:, :, :), TARGET  :: blk_data
       REAL(dp), DIMENSION(:), POINTER                    :: blk_data_1d
       TYPE(dbt_iterator_type)                            :: iter
+#if defined(__LIBXS)
+      TYPE(hfx_container_type), POINTER                  :: integral_container
+      TYPE(hfx_real_cache_type)                          :: real_cache
+#else
+      INTEGER                                            :: init_usage, nbits
+      INTEGER(int_8)                                     :: estimate_to_store_int
+      LOGICAL, DIMENSION(64)                             :: used
+      REAL(dp)                                           :: spherical_estimate
       TYPE(hfx_cache_type), ALLOCATABLE, DIMENSION(:), &
          TARGET                                          :: caches
       TYPE(hfx_cache_type), DIMENSION(:), POINTER        :: integral_caches
       TYPE(hfx_cache_type), POINTER                      :: maxval_cache
       TYPE(hfx_container_type), DIMENSION(:), POINTER    :: integral_containers
       TYPE(hfx_container_type), POINTER                  :: maxval_container
+#endif
 
       CALL timeset(routineN, handle)
 
@@ -3490,6 +3504,47 @@ CONTAINS
       ! Can not use the tensor iterator here because the order of the blocks is not guaranteed.
       nblk = SIZE(blk_indices, 1)
       storage_counter_integrals = 0
+#if defined(__LIBXS)
+      ! values as they are: LIBXS quantizes and packs them within eps (one stream per bin)
+!$OMP PARALLEL DO DEFAULT(NONE) SHARED(tensor,blk_indices,compressed,eps,nbins,nblk) &
+!$OMP PRIVATE(ibin,i,ind,blk_data,blk_data_1d,found,nints,buffer_left,buffer_size,buffer_start) &
+!$OMP PRIVATE(memory_usage,integral_container,real_cache) &
+!$OMP REDUCTION(+:storage_counter_integrals) SCHEDULE(STATIC,1)
+      DO ibin = 1, nbins
+         integral_container => compressed%integral_containers(1, ibin)
+         CALL hfx_init_container(integral_container, memory_usage, .FALSE.)
+         real_cache%element_counter = 1
+
+         DO i = (ibin - 1)*nblk/nbins + 1, ibin*nblk/nbins
+            ind = blk_indices(i, :)
+            CALL dbt_get_block(tensor, ind, blk_data, found)
+            CPASSERT(found)
+            nints = SIZE(blk_data)
+            blk_data_1d(1:nints) => blk_data
+
+            buffer_left = nints
+            buffer_start = 1
+
+            DO WHILE (buffer_left > 0)
+               buffer_size = MIN(buffer_left, cache_size)
+               CALL hfx_add_mult_real_elements(blk_data_1d(buffer_start:), buffer_size, real_cache, &
+                                               integral_container, eps, memory_usage, .FALSE.)
+               buffer_left = buffer_left - buffer_size
+               buffer_start = buffer_start + buffer_size
+            END DO
+
+            NULLIFY (blk_data_1d); DEALLOCATE (blk_data)
+         END DO
+
+         CALL hfx_flush_last_real_cache(real_cache, integral_container, eps, memory_usage, .FALSE.)
+
+         ! all of the bin (before the reset restarts memory_usage): the first node and the nodes added since
+         storage_counter_integrals = storage_counter_integrals + INT(memory_usage, int_8)*cache_size
+
+         CALL hfx_reset_real_cache_and_container(real_cache, integral_container, memory_usage, .FALSE.)
+      END DO
+!$OMP END PARALLEL DO
+#else
 !$OMP PARALLEL DO DEFAULT(NONE) SHARED(tensor,blk_indices,compressed,eps,nbins,nblk) &
 !$OMP PRIVATE(ibin,i,ind,blk_data,blk_data_1d,found,nints,spherical_estimate,nbits) &
 !$OMP PRIVATE(estimate_to_store_int,buffer_left,buffer_size,buffer_start,memory_usage,used) &
@@ -3572,6 +3627,7 @@ CONTAINS
          DEALLOCATE (caches)
       END DO
 !$OMP END PARALLEL DO
+#endif
 
       CALL dbt_clear(tensor)
 
@@ -3601,19 +3657,25 @@ CONTAINS
 
       INTEGER                                            :: A, b, buffer_left, buffer_size, &
                                                             buffer_start, handle, i, ibin, &
-                                                            memory_usage, nbins, nbits, nblk, &
+                                                            memory_usage, nbins, nblk, &
                                                             nblk_per_thread, nints
-      INTEGER(int_8)                                     :: estimate_to_store_int
       INTEGER, DIMENSION(3)                              :: blk_size, ind
-      REAL(dp)                                           :: spherical_estimate
       REAL(dp), ALLOCATABLE, DIMENSION(:), TARGET        :: blk_data
       REAL(dp), DIMENSION(:, :, :), POINTER              :: blk_data_3d
+#if defined(__LIBXS)
+      TYPE(hfx_container_type), POINTER                  :: integral_container
+      TYPE(hfx_real_cache_type)                          :: real_cache
+#else
+      INTEGER                                            :: nbits
+      INTEGER(int_8)                                     :: estimate_to_store_int
+      REAL(dp)                                           :: spherical_estimate
       TYPE(hfx_cache_type), ALLOCATABLE, DIMENSION(:), &
          TARGET                                          :: caches
       TYPE(hfx_cache_type), DIMENSION(:), POINTER        :: integral_caches
       TYPE(hfx_cache_type), POINTER                      :: maxval_cache
       TYPE(hfx_container_type), DIMENSION(:), POINTER    :: integral_containers
       TYPE(hfx_container_type), POINTER                  :: maxval_container
+#endif
 
       CALL timeset(routineN, handle)
 
@@ -3628,6 +3690,42 @@ CONTAINS
       ! bins are independent streams, each holding a contiguous range of blk_indices
       nbins = SIZE(compressed%integral_containers, 2)
       nblk = SIZE(blk_indices, 1)
+#if defined(__LIBXS)
+      MARK_USED(eps) ! within the stream
+!$OMP PARALLEL DO DEFAULT(NONE) SHARED(tensor,blk_indices,compressed,nbins,nblk) &
+!$OMP PRIVATE(ibin,i,ind,blk_size,nints,buffer_left,buffer_size,buffer_start,blk_data,blk_data_3d) &
+!$OMP PRIVATE(memory_usage,integral_container,real_cache) SCHEDULE(STATIC,1)
+      DO ibin = 1, nbins
+         integral_container => compressed%integral_containers(1, ibin)
+         memory_usage = 0
+         CALL hfx_decompress_first_real_cache(real_cache, integral_container, memory_usage, .FALSE.)
+
+         DO i = (ibin - 1)*nblk/nbins + 1, ibin*nblk/nbins
+            ind = blk_indices(i, :)
+            CALL dbt_blk_sizes(tensor, ind, blk_size)
+            nints = PRODUCT(blk_size)
+
+            buffer_left = nints
+            buffer_start = 1
+
+            ALLOCATE (blk_data(nints))
+            DO WHILE (buffer_left > 0)
+               buffer_size = MIN(buffer_left, cache_size)
+               CALL hfx_get_mult_real_elements(blk_data(buffer_start), buffer_size, real_cache, &
+                                               integral_container, memory_usage, .FALSE.)
+               buffer_left = buffer_left - buffer_size
+               buffer_start = buffer_start + buffer_size
+            END DO
+
+            blk_data_3d(1:blk_size(1), 1:blk_size(2), 1:blk_size(3)) => blk_data
+            CALL dbt_put_block(tensor, ind, blk_size, blk_data_3d)
+            NULLIFY (blk_data_3d); DEALLOCATE (blk_data)
+         END DO
+
+         CALL hfx_reset_real_cache_and_container(real_cache, integral_container, memory_usage, .FALSE.)
+      END DO
+!$OMP END PARALLEL DO
+#else
 !$OMP PARALLEL DO DEFAULT(NONE) SHARED(tensor,blk_indices,compressed,eps,nbins,nblk) &
 !$OMP PRIVATE(ibin,i,ind,blk_size,nints,estimate_to_store_int,spherical_estimate,nbits) &
 !$OMP PRIVATE(buffer_left,buffer_size,buffer_start,blk_data,blk_data_3d,memory_usage) &
@@ -3700,6 +3798,7 @@ CONTAINS
          DEALLOCATE (caches)
       END DO
 !$OMP END PARALLEL DO
+#endif
 
       CALL timestop(handle)
    END SUBROUTINE decompress_tensor

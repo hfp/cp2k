@@ -15,7 +15,8 @@ MODULE hfx_compression_methods
    USE cp_files, ONLY: close_file, &
                        open_file
    USE hfx_types, ONLY: hfx_cache_type, &
-                        hfx_container_type
+                        hfx_container_type, &
+                        hfx_real_cache_type
    USE kinds, ONLY: dp, &
                     int_8
    USE hfx_compression_core_methods, ONLY: bits2ints_specific, &
@@ -24,7 +25,7 @@ MODULE hfx_compression_methods
                                            ints2groups
    USE iso_fortran_env, ONLY: iostat_end
 #if defined(__LIBXS)
-   USE libxs, ONLY: libxs_vpack, libxs_vunpack
+   USE libxs, ONLY: libxs_vpack, libxs_vunpack, libxs_vpack_maxbits, LIBXS_DATATYPE_F64
 #endif
 #include "./base/base_uses.f90"
 
@@ -34,6 +35,12 @@ MODULE hfx_compression_methods
              hfx_reset_cache_and_container, hfx_decompress_first_cache, &
              hfx_flush_last_cache, hfx_add_mult_cache_elements, &
              hfx_get_mult_cache_elements
+#if defined(__LIBXS)
+   ! real values as they are: LIBXS quantizes and packs them (records of a cache) within an absolute error
+   PUBLIC :: hfx_add_mult_real_elements, hfx_get_mult_real_elements, &
+             hfx_flush_last_real_cache, hfx_decompress_first_real_cache, &
+             hfx_reset_real_cache_and_container
+#endif
 
 #define CACHE_SIZE 1024
 
@@ -591,6 +598,207 @@ CONTAINS
          cache%element_counter = nints - tmp_elements + 1
       END IF
    END SUBROUTINE hfx_get_mult_cache_elements
+
+#if defined(__LIBXS)
+! **************************************************************************************************
+!> \brief Packs a full cache of real values into a container: a record is its length in words
+!>        followed by the values, which LIBXS keeps within an absolute error of eps.
+!> \param cache cache whose values are packed (all of them)
+!> \param container linked list, that stores the compressed values
+!> \param eps absolute error of a value
+!> \param memory_usage ...
+!> \param use_disk_storage ...
+! **************************************************************************************************
+   SUBROUTINE hfx_compress_real_cache(cache, container, eps, memory_usage, use_disk_storage)
+      TYPE(hfx_real_cache_type)                          :: cache
+      TYPE(hfx_container_type)                           :: container
+      REAL(dp), INTENT(IN)                               :: eps
+      INTEGER                                            :: memory_usage
+      LOGICAL                                            :: use_disk_storage
+
+      INTEGER                                            :: nwords
+      INTEGER(int_8), DIMENSION(CACHE_SIZE+64)           :: record
+
+      ! at most CACHE_SIZE+51 words (64 bits each and a header)
+      nwords = INT(libxs_vpack(record(2:), cache%data, libxs_vpack_maxbits(LIBXS_DATATYPE_F64, eps, 0)))
+      CPASSERT(0 < nwords .AND. nwords < SIZE(record))
+      record(1) = nwords
+      CALL hfx_container_put(container, record, nwords + 1, memory_usage, use_disk_storage)
+   END SUBROUTINE hfx_compress_real_cache
+
+! **************************************************************************************************
+!> \brief Unpacks the next record of a container into a cache of real values.
+!> \param cache cache to be filled (all of it)
+!> \param container linked list, that stores the compressed values
+!> \param memory_usage ...
+!> \param use_disk_storage ...
+! **************************************************************************************************
+   SUBROUTINE hfx_decompress_real_cache(cache, container, memory_usage, use_disk_storage)
+      TYPE(hfx_real_cache_type)                          :: cache
+      TYPE(hfx_container_type)                           :: container
+      INTEGER                                            :: memory_usage
+      LOGICAL                                            :: use_disk_storage
+
+      INTEGER                                            :: nwords
+      INTEGER(int_8)                                     :: nread
+      INTEGER(int_8), DIMENSION(CACHE_SIZE+64)           :: record
+
+      CPASSERT(ASSOCIATED(container%current))
+      CALL hfx_container_get(container, record, 1, memory_usage, use_disk_storage)
+      nwords = INT(record(1))
+      ! a zero word is no record (nothing stored), which decodes as zeros
+      IF (0 < nwords) THEN
+         CPASSERT(nwords < SIZE(record))
+         CALL hfx_container_get(container, record(2:), nwords, memory_usage, use_disk_storage)
+         nread = INT(libxs_vunpack(cache%data, record(2:nwords + 1)), KIND=int_8)
+         CPASSERT(nread == nwords)
+      ELSE
+         cache%data(:) = 0.0_dp
+      END IF
+   END SUBROUTINE hfx_decompress_real_cache
+
+! **************************************************************************************************
+!> \brief Adds real values to a cache (at most a cache full); a full cache is packed into the
+!>        container, then the cache takes the remaining values.
+!> \param values values to be added
+!> \param nints number of values (at most CACHE_SIZE)
+!> \param cache cache to which the values are added
+!> \param container container that contains the compressed values
+!> \param eps absolute error of a value
+!> \param memory_usage ...
+!> \param use_disk_storage ...
+! **************************************************************************************************
+   SUBROUTINE hfx_add_mult_real_elements(values, nints, cache, container, eps, memory_usage, use_disk_storage)
+      REAL(dp)                                           :: values(*)
+      INTEGER, INTENT(IN)                                :: nints
+      TYPE(hfx_real_cache_type)                          :: cache
+      TYPE(hfx_container_type)                           :: container
+      REAL(dp), INTENT(IN)                               :: eps
+      INTEGER                                            :: memory_usage
+      LOGICAL                                            :: use_disk_storage
+
+      INTEGER                                            :: end_idx, start_idx, tmp_elements
+
+      CPASSERT(nints <= CACHE_SIZE)
+      start_idx = cache%element_counter
+      end_idx = start_idx + nints - 1
+      IF (end_idx < CACHE_SIZE) THEN
+         cache%data(start_idx:end_idx) = values(1:nints)
+         cache%element_counter = end_idx + 1
+      ELSE
+         tmp_elements = CACHE_SIZE - start_idx + 1
+         cache%data(start_idx:CACHE_SIZE) = values(1:tmp_elements)
+         CALL hfx_compress_real_cache(cache, container, eps, memory_usage, use_disk_storage)
+         cache%data(1:nints - tmp_elements) = values(tmp_elements + 1:nints)
+         cache%element_counter = nints - tmp_elements + 1
+      END IF
+   END SUBROUTINE hfx_add_mult_real_elements
+
+! **************************************************************************************************
+!> \brief Gets real values from a cache (at most a cache full); an exhausted cache is refilled
+!>        from the next record of the container.
+!> \param values values to be retained from the cache
+!> \param nints number of values (at most CACHE_SIZE)
+!> \param cache cache from which the values are taken
+!> \param container container that contains the compressed values
+!> \param memory_usage ...
+!> \param use_disk_storage ...
+! **************************************************************************************************
+   SUBROUTINE hfx_get_mult_real_elements(values, nints, cache, container, memory_usage, use_disk_storage)
+      REAL(dp)                                           :: values(*)
+      INTEGER, INTENT(IN)                                :: nints
+      TYPE(hfx_real_cache_type)                          :: cache
+      TYPE(hfx_container_type)                           :: container
+      INTEGER                                            :: memory_usage
+      LOGICAL                                            :: use_disk_storage
+
+      INTEGER                                            :: end_idx, start_idx, tmp_elements
+
+      CPASSERT(nints <= CACHE_SIZE)
+      start_idx = cache%element_counter
+      end_idx = start_idx + nints - 1
+      IF (end_idx < CACHE_SIZE) THEN
+         values(1:nints) = cache%data(start_idx:end_idx)
+         cache%element_counter = end_idx + 1
+      ELSE
+         tmp_elements = CACHE_SIZE - start_idx + 1
+         values(1:tmp_elements) = cache%data(start_idx:CACHE_SIZE)
+         CALL hfx_decompress_real_cache(cache, container, memory_usage, use_disk_storage)
+         values(tmp_elements + 1:nints) = cache%data(1:nints - tmp_elements)
+         cache%element_counter = nints - tmp_elements + 1
+      END IF
+   END SUBROUTINE hfx_get_mult_real_elements
+
+! **************************************************************************************************
+!> \brief Packs the last cache of real values (unused values as zeros) into the container.
+!> \param cache cache to be packed
+!> \param container container that contains the compressed values
+!> \param eps absolute error of a value
+!> \param memory_usage ...
+!> \param use_disk_storage ...
+! **************************************************************************************************
+   SUBROUTINE hfx_flush_last_real_cache(cache, container, eps, memory_usage, use_disk_storage)
+      TYPE(hfx_real_cache_type)                          :: cache
+      TYPE(hfx_container_type)                           :: container
+      REAL(dp), INTENT(IN)                               :: eps
+      INTEGER                                            :: memory_usage
+      LOGICAL                                            :: use_disk_storage
+
+      cache%data(cache%element_counter:CACHE_SIZE) = 0.0_dp
+      CALL hfx_compress_real_cache(cache, container, eps, memory_usage, use_disk_storage)
+      IF (use_disk_storage) THEN
+         IF (container%element_counter /= 1) THEN
+            WRITE (container%unit) container%current%data
+            memory_usage = memory_usage + 1
+            container%file_counter = container%file_counter + 1
+         END IF
+      END IF
+   END SUBROUTINE hfx_flush_last_real_cache
+
+! **************************************************************************************************
+!> \brief Fills a cache of real values with the first record of a container.
+!> \param cache cache to be filled
+!> \param container container that contains the compressed values
+!> \param memory_usage ...
+!> \param use_disk_storage ...
+! **************************************************************************************************
+   SUBROUTINE hfx_decompress_first_real_cache(cache, container, memory_usage, use_disk_storage)
+      TYPE(hfx_real_cache_type)                          :: cache
+      TYPE(hfx_container_type)                           :: container
+      INTEGER                                            :: memory_usage
+      LOGICAL                                            :: use_disk_storage
+
+      CALL hfx_decompress_real_cache(cache, container, memory_usage, use_disk_storage)
+      cache%element_counter = 1
+   END SUBROUTINE hfx_decompress_first_real_cache
+
+! **************************************************************************************************
+!> \brief Moves a cache of real values and its container back to the beginning (as
+!>        hfx_reset_cache_and_container).
+!> \param cache cache of real values
+!> \param container container that contains the compressed values
+!> \param memory_usage ...
+!> \param do_disk_storage ...
+! **************************************************************************************************
+   SUBROUTINE hfx_reset_real_cache_and_container(cache, container, memory_usage, do_disk_storage)
+      TYPE(hfx_real_cache_type)                          :: cache
+      TYPE(hfx_container_type)                           :: container
+      INTEGER                                            :: memory_usage
+      LOGICAL                                            :: do_disk_storage
+
+      cache%element_counter = 1
+      container%current => container%first
+      container%element_counter = 1
+      memory_usage = 1
+      container%file_counter = 1
+      IF (do_disk_storage) THEN
+         CALL close_file(container%unit)
+         CALL open_file(file_name=container%filename, file_status="OLD", file_form="UNFORMATTED", file_action="READ", &
+                        unit_number=container%unit)
+         READ (container%unit) container%current%data
+      END IF
+   END SUBROUTINE hfx_reset_real_cache_and_container
+#endif
 
 END MODULE hfx_compression_methods
 
