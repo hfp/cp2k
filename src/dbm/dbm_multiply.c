@@ -134,17 +134,18 @@ static bool backend_upload_packs(const dbm_pack_t *pack_a,
  *        The batch is the page-locked array that is uploaded subsequently.
  * \author Hans Pabst
  ******************************************************************************/
-static void backend_order_batch(const int ntasks, dbm_task_t batch[ntasks]) {
+static void backend_order_batch(dbm_batch_t *batch) {
   const int order_kind = dbm_multiply_gpu_task_order();
+  const int ntasks = batch->ntasks;
   if (DBM_TASK_ORDER_NONE != order_kind && 1 < ntasks) {
     dbm_task_t *const copy =
         offload_mempool_host_malloc(sizeof(dbm_task_t) * ntasks);
     int *const order = malloc(sizeof(int) * ntasks);
     assert(NULL != copy && NULL != order);
-    memcpy(copy, batch, sizeof(dbm_task_t) * ntasks);
+    memcpy(copy, batch->tasks, sizeof(dbm_task_t) * ntasks);
     dbm_multiply_cpu_task_order(ntasks, copy, order);
     for (int itask = 0; itask < ntasks; ++itask) {
-      batch[itask] = copy[order[itask]];
+      batch->tasks[itask] = copy[order[itask]];
     }
     free(order);
     offload_mempool_host_free(copy);
@@ -193,41 +194,42 @@ static void backend_batch_release(dbm_task_t *batch, const bool force_cpu,
 
 /*******************************************************************************
  * \brief Private routine for sending a batch to the multiplication backend.
- *        Returns the batch to be filled next.
+ *        The batch is left empty, i.e., ready to be filled again (its tasks
+ *        may have been swapped for another buffer).
  * \author Ole Schuett
  ******************************************************************************/
-static dbm_task_t *
-backend_process_batch(const int ntasks, dbm_task_t batch[ntasks],
-                      const dbm_batch_shape_t *shape, const double alpha,
-                      const dbm_pack_t *pack_a, const dbm_pack_t *pack_b,
-                      const int kshard, dbm_shard_t *shard_c, const bool finish,
-                      const bool force_cpu, backend_context_t *ctx) {
-  dbm_task_t *result = batch;
+static void backend_process_batch(dbm_batch_t *batch, const double alpha,
+                                  const dbm_pack_t *pack_a,
+                                  const dbm_pack_t *pack_b, const int kshard,
+                                  dbm_shard_t *shard_c, const bool finish,
+                                  const bool force_cpu,
+                                  backend_context_t *ctx) {
   if (NULL != ctx) {
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
     if (!force_cpu) {
-      if (!dbm_multiply_gpu_process_batch_host(
-              ntasks, batch, shape, alpha, pack_a, pack_b, shard_c, kshard,
-              finish, ctx->cpu_options, &ctx->gpu)) {
-        backend_order_batch(ntasks, batch);
-        result = dbm_multiply_gpu_process_batch(
-            ntasks, batch, shape, alpha, shard_c, kshard, finish, &ctx->gpu);
+      if (!dbm_multiply_gpu_process_batch_host(batch, alpha, pack_a, pack_b,
+                                               shard_c, kshard, finish,
+                                               ctx->cpu_options, &ctx->gpu)) {
+        backend_order_batch(batch);
+        dbm_multiply_gpu_process_batch(batch, alpha, shard_c, kshard, finish,
+                                       &ctx->gpu);
       }
     } else
 #endif
     {
-      (void)shape;
       (void)kshard;
       (void)finish;
       (void)force_cpu;
-      dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b,
-                                     shard_c, ctx->cpu_options);
+      dbm_multiply_cpu_process_batch(batch, alpha, pack_a, pack_b, shard_c,
+                                     ctx->cpu_options);
     }
   } else { // Validate against host (aka CPU).
-    dbm_multiply_cpu_process_batch(ntasks, batch, alpha, pack_a, pack_b,
-                                   shard_c, validation_cpu_options());
+    dbm_multiply_cpu_process_batch(batch, alpha, pack_a, pack_b, shard_c,
+                                   validation_cpu_options());
   }
-  return result;
+  batch->max_m = batch->max_n = batch->max_k = 0;
+  batch->flops = 0;
+  batch->ntasks = 0;
 }
 
 /*******************************************************************************
@@ -301,7 +303,8 @@ static void multiply_packs(const bool transa, const bool transb,
 #pragma omp parallel reduction(+ : flop_sum)
   {
     // Thread-private array covering given work in piece-wise fashion.
-    dbm_task_t *batch = backend_batch_acquire(force_cpu, context);
+    dbm_batch_t batch = {0};
+    batch.tasks = backend_batch_acquire(force_cpu, context);
     // Thread-local stats, added to the library's counters once at the end.
     int64_t counters[DBM_NUM_COUNTERS] = {0};
 
@@ -330,8 +333,7 @@ static void multiply_packs(const bool transa, const bool transb,
       for (int shard_col = 0; shard_col < nshard_cols; shard_col++) {
         const int ishard = shard_row * nshard_cols + shard_col;
         dbm_shard_t *const shard_c = &matrix_c->shards[ishard];
-        dbm_batch_shape_t shape = {0};
-        int ntasks = 0;
+        assert(0 == batch.ntasks); // left empty by the previous shard
 
         // Determine contiguous block ranges for this shard in A and B.
         // Use a merge-join to find pairs of blocks with matching sum indices.
@@ -353,9 +355,8 @@ static void multiply_packs(const bool transa, const bool transb,
           }
         }
         if (iblock_start >= iblock_end || jblock_start >= jblock_end) {
-          batch = backend_process_batch(ntasks, batch, &shape, alpha, pack_a,
-                                        pack_b, ishard, shard_c, true,
-                                        force_cpu, context);
+          backend_process_batch(&batch, alpha, pack_a, pack_b, ishard, shard_c,
+                                true, force_cpu, context);
           continue;
         }
 
@@ -447,41 +448,37 @@ static void multiply_packs(const bool transa, const bool transb,
             ++counters[dbm_library_counter_index(m, n, k)];
 
             // Track the shape of the batch.
-            shape.max_m = imax(shape.max_m, m);
-            shape.max_n = imax(shape.max_n, n);
-            shape.max_k = imax(shape.max_k, k);
-            shape.flops += task_flops;
+            batch.max_m = imax(batch.max_m, m);
+            batch.max_n = imax(batch.max_n, n);
+            batch.max_k = imax(batch.max_k, k);
+            batch.flops += task_flops;
 
             // Add block multiplication to batch.
-            dbm_task_t *const tptr = &batch[ntasks];
+            dbm_task_t *const tptr = &batch.tasks[batch.ntasks];
             tptr->offset_a = blk_a->offset;
             tptr->offset_b = blk_b->offset;
             tptr->offset_c = blk_c->offset;
             tptr->m = m;
             tptr->n = n;
             tptr->k = k;
-            ++ntasks;
+            ++batch.ntasks;
 
-            if (ntasks == DBM_MAX_BATCH_SIZE) {
-              batch = backend_process_batch(ntasks, batch, &shape, alpha,
-                                            pack_a, pack_b, ishard, shard_c,
-                                            false, force_cpu, context);
-              memset(&shape, 0, sizeof(shape));
-              ntasks = 0;
+            if (batch.ntasks == DBM_MAX_BATCH_SIZE) {
+              backend_process_batch(&batch, alpha, pack_a, pack_b, ishard,
+                                    shard_c, false, force_cpu, context);
             }
           }
 
           // Advance i; if next A block has same sum_index, B range is reused.
           ++i;
         }
-        batch =
-            backend_process_batch(ntasks, batch, &shape, alpha, pack_a, pack_b,
-                                  ishard, shard_c, true, force_cpu, context);
+        backend_process_batch(&batch, alpha, pack_a, pack_b, ishard, shard_c,
+                              true, force_cpu, context);
       }
     }
 
     dbm_library_counters_add(counters);
-    backend_batch_release(batch, force_cpu, context);
+    backend_batch_release(batch.tasks, force_cpu, context);
   }
 
   free(shard_row_start);

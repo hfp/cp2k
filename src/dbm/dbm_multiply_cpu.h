@@ -33,8 +33,8 @@ void dbm_multiply_cpu_task_order(int ntasks, const dbm_task_t batch[ntasks],
  * \brief Internal routine for executing the tasks in given batch on the CPU.
  * \author Ole Schuett
  ******************************************************************************/
-void dbm_multiply_cpu_process_batch(int ntasks, const dbm_task_t batch[ntasks],
-                                    double alpha, const dbm_pack_t *pack_a,
+void dbm_multiply_cpu_process_batch(const dbm_batch_t *batch, double alpha,
+                                    const dbm_pack_t *pack_a,
                                     const dbm_pack_t *pack_b,
                                     dbm_shard_t *shard_c, int options);
 
@@ -51,8 +51,8 @@ bool dbm_multiply_cpu_generated(int max_m, int max_n, int max_k, double alpha,
  *        which accumulates into data_c holding every block of the batch.
  * \author Hans Pabst
  ******************************************************************************/
-void dbm_multiply_cpu_process_tasks(int ntasks, const dbm_task_t batch[ntasks],
-                                    double alpha, const dbm_pack_t *pack_a,
+void dbm_multiply_cpu_process_tasks(const dbm_batch_t *batch, double alpha,
+                                    const dbm_pack_t *pack_a,
                                     const dbm_pack_t *pack_b, double *data_c,
                                     int options);
 

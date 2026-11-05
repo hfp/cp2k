@@ -52,10 +52,11 @@ typedef struct {
 } dbm_task_t;
 
 /*******************************************************************************
- * \brief Internal struct for the shape of a batch, which is tracked while the
- *        batch is generated such that a backend needs no pass over the tasks.
- *        The batch is homogeneous if flops == 2*ntasks*max_m*max_n*max_k,
- *        otherwise their ratio is the fill of a kernel padded to the maxima.
+ * \brief Internal struct for storing a batch of tasks along with its shape,
+ *        which is tracked while the batch is generated such that a backend
+ *        needs no pass over the tasks. The batch is homogeneous if
+ *        flops == 2*ntasks*max_m*max_n*max_k, otherwise their ratio is the
+ *        fill of a kernel padded to the maxima.
  * \author Hans Pabst
  ******************************************************************************/
 typedef struct {
@@ -63,7 +64,9 @@ typedef struct {
   int max_n;
   int max_k;
   int64_t flops;
-} dbm_batch_shape_t;
+  int ntasks;
+  dbm_task_t *tasks;
+} dbm_batch_t;
 
 #endif
 

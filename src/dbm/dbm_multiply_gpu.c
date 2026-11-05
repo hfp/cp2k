@@ -76,7 +76,7 @@ void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,
   }
   ctx->nthreads = (ctx->unified ? omp_get_max_threads() : 0);
   ctx->batches_host =
-      (0 < ctx->nthreads ? calloc(ctx->nthreads, sizeof(dbm_batch_gpu_t))
+      (0 < ctx->nthreads ? calloc(ctx->nthreads, sizeof(dbm_batch_pair_t))
                          : NULL);
   assert(NULL != ctx->batches_host || 0 == ctx->nthreads);
 
@@ -176,10 +176,10 @@ dbm_task_t *dbm_multiply_gpu_batch_acquire(dbm_multiply_gpu_context_t *ctx) {
   if (ctx->unified) { // a pair per thread, kept until the backend stops
     const int tid = omp_get_thread_num();
     assert(tid < ctx->nthreads);
-    dbm_batch_gpu_t *const pair = &ctx->batches_host[tid];
-    if (NULL == pair->batch[0]) {
+    dbm_batch_pair_t *const pair = &ctx->batches_host[tid];
+    if (NULL == pair->tasks[0]) {
       for (int i = 0; i < 2; ++i) {
-        pair->batch[i] = offload_mempool_host_malloc(size);
+        pair->tasks[i] = offload_mempool_host_malloc(size);
         offloadEventCreate(&pair->done[i]);
         pair->pending[i] = false;
       }
@@ -188,7 +188,7 @@ dbm_task_t *dbm_multiply_gpu_batch_acquire(dbm_multiply_gpu_context_t *ctx) {
       offloadEventSynchronize(pair->done[0]);
       pair->pending[0] = false;
     }
-    result = pair->batch[0];
+    result = pair->tasks[0];
   } else {
     result = offload_mempool_host_malloc(size);
   }
@@ -204,8 +204,8 @@ dbm_task_t *dbm_multiply_gpu_batch_acquire(dbm_multiply_gpu_context_t *ctx) {
 void dbm_multiply_gpu_batch_release(dbm_task_t *batch,
                                     dbm_multiply_gpu_context_t *ctx) {
   if (ctx->unified) { // the pair stays for the next pack
-    dbm_batch_gpu_t *const pair = &ctx->batches_host[omp_get_thread_num()];
-    assert(batch == pair->batch[0] || batch == pair->batch[1]);
+    dbm_batch_pair_t *const pair = &ctx->batches_host[omp_get_thread_num()];
+    assert(batch == pair->tasks[0] || batch == pair->tasks[1]);
     (void)batch; // mark used
   } else {
     offload_mempool_host_free(batch);
@@ -214,22 +214,21 @@ void dbm_multiply_gpu_batch_release(dbm_task_t *batch,
 
 /*******************************************************************************
  * \brief Internal routine for executing the tasks in given batch on the GPU.
- *        Returns the batch to be filled next, i.e., the given one unless a
- *        kernel reads it directly (unified).
+ *        If a kernel reads the tasks directly (unified), the batch receives
+ *        the other buffer of the thread's pair to be filled next.
  * \author Ole Schuett
  ******************************************************************************/
-dbm_task_t *dbm_multiply_gpu_process_batch(const int ntasks, dbm_task_t *batch,
-                                           const dbm_batch_shape_t *shape,
-                                           const double alpha,
-                                           dbm_shard_t *shard_c,
-                                           const int kshard, const bool finish,
-                                           dbm_multiply_gpu_context_t *ctx) {
+void dbm_multiply_gpu_process_batch(dbm_batch_t *batch, const double alpha,
+                                    dbm_shard_t *shard_c, const int kshard,
+                                    const bool finish,
+                                    dbm_multiply_gpu_context_t *ctx) {
   // Assume GPU device was activated earlier.
   dbm_shard_gpu_t *const shard_g = &ctx->shards_c_dev[kshard];
+  dbm_task_t *const tasks = batch->tasks;
+  const int ntasks = batch->ntasks;
   dbm_task_t *const batch_dev =
-      (ctx->unified ? batch : &ctx->batches_dev[kshard * ctx->max_batch_size]);
+      (ctx->unified ? tasks : &ctx->batches_dev[kshard * ctx->max_batch_size]);
   double *old_data_dev = NULL;
-  dbm_task_t *result = batch;
   bool grown = false;
 
   if (0 < ntasks && !ctx->unified) {
@@ -237,7 +236,7 @@ dbm_task_t *dbm_multiply_gpu_process_batch(const int ntasks, dbm_task_t *batch,
 
     // Upload new batch.
     const size_t size = ntasks * sizeof(dbm_task_t);
-    offloadMemcpyAsyncHtoD(batch_dev, batch, size, shard_g->stream);
+    offloadMemcpyAsyncHtoD(batch_dev, tasks, size, shard_g->stream);
   }
 
   // Blocks promised by batches computed on the host grow the shard at finish.
@@ -276,26 +275,26 @@ dbm_task_t *dbm_multiply_gpu_process_batch(const int ntasks, dbm_task_t *batch,
     assert(0 != shard_g->data_size);
 
     // Launch kernel.
-    dbm_multiply_gpu_launch_kernel(shard_g->stream, alpha, ntasks, shape, batch,
-                                   batch_dev, ctx->pack_a_dev.data,
-                                   ctx->pack_b_dev.data, shard_g->data);
+    dbm_multiply_gpu_launch_kernel(shard_g->stream, alpha, batch, batch_dev,
+                                   ctx->pack_a_dev.data, ctx->pack_b_dev.data,
+                                   shard_g->data);
     OFFLOAD_CHECK(offloadGetLastError());
     offloadEventRecord(shard_g->done, shard_g->stream);
     if (0 > ctx->hybrid) {
 #pragma omp atomic
-      ctx->flops[0] += shape->flops;
+      ctx->flops[0] += batch->flops;
     }
     if (ctx->unified) { // fill the other batch while the kernel reads this one
-      dbm_batch_gpu_t *const pair = &ctx->batches_host[omp_get_thread_num()];
-      const int i = (batch == pair->batch[0] ? 0 : 1), j = 1 - i;
-      assert(batch == pair->batch[i]);
+      dbm_batch_pair_t *const pair = &ctx->batches_host[omp_get_thread_num()];
+      const int i = (tasks == pair->tasks[0] ? 0 : 1), j = 1 - i;
+      assert(tasks == pair->tasks[i]);
       offloadEventRecord(pair->done[i], shard_g->stream);
       pair->pending[i] = true;
       if (pair->pending[j]) {
         offloadEventSynchronize(pair->done[j]);
         pair->pending[j] = false;
       }
-      result = pair->batch[j];
+      batch->tasks = pair->tasks[j];
     }
   }
 
@@ -328,8 +327,6 @@ dbm_task_t *dbm_multiply_gpu_process_batch(const int ntasks, dbm_task_t *batch,
       offload_mempool_device_free(old_data_dev);
     }
   }
-
-  return result;
 }
 
 /*******************************************************************************
@@ -339,16 +336,16 @@ dbm_task_t *dbm_multiply_gpu_process_batch(const int ntasks, dbm_task_t *batch,
  * \author Hans Pabst
  ******************************************************************************/
 bool dbm_multiply_gpu_process_batch_host(
-    const int ntasks, const dbm_task_t *batch, const dbm_batch_shape_t *shape,
-    const double alpha, const dbm_pack_t *pack_a, const dbm_pack_t *pack_b,
-    dbm_shard_t *shard_c, const int kshard, const bool finish,
-    const int cpu_options, dbm_multiply_gpu_context_t *ctx) {
+    const dbm_batch_t *batch, const double alpha, const dbm_pack_t *pack_a,
+    const dbm_pack_t *pack_b, dbm_shard_t *shard_c, const int kshard,
+    const bool finish, const int cpu_options, dbm_multiply_gpu_context_t *ctx) {
   dbm_shard_gpu_t *const shard_g = &ctx->shards_c_dev[kshard];
   bool result = false;
 
   // Only generated kernels let the host rival the GPU.
-  if (0 != ctx->hybrid && 0 < ntasks && !offloadEventQuery(shard_g->done) &&
-      dbm_multiply_cpu_generated(shape->max_m, shape->max_n, shape->max_k,
+  if (0 != ctx->hybrid && 0 < batch->ntasks &&
+      !offloadEventQuery(shard_g->done) &&
+      dbm_multiply_cpu_generated(batch->max_m, batch->max_n, batch->max_k,
                                  alpha, cpu_options)) {
     int active;
 #pragma omp atomic capture
@@ -368,18 +365,18 @@ bool dbm_multiply_gpu_process_batch_host(
                (shard_c->data_promised - shard_g->host_size) * sizeof(double));
         shard_g->host_size = shard_c->data_promised;
       }
-      dbm_multiply_cpu_process_tasks(ntasks, batch, alpha, pack_a, pack_b,
+      dbm_multiply_cpu_process_tasks(batch, alpha, pack_a, pack_b,
                                      shard_g->host_data, cpu_options);
       if (0 > ctx->hybrid) {
 #pragma omp atomic
-        ctx->flops[1] += shape->flops;
+        ctx->flops[1] += batch->flops;
       }
     }
 #pragma omp atomic
     --ctx->hybrid_active;
     if (result && finish) { // download as if the GPU processed the batch
-      dbm_multiply_gpu_process_batch(0, NULL, shape, alpha, shard_c, kshard,
-                                     true, ctx);
+      dbm_batch_t empty = {0};
+      dbm_multiply_gpu_process_batch(&empty, alpha, shard_c, kshard, true, ctx);
     }
   }
 
@@ -415,11 +412,11 @@ void dbm_multiply_gpu_stop(dbm_multiply_gpu_context_t *ctx) {
 
   // All streams are synchronized, hence no kernel reads host batches anymore.
   for (int i = 0; i < ctx->nthreads; i++) {
-    dbm_batch_gpu_t *const pair = &ctx->batches_host[i];
-    if (NULL != pair->batch[0]) {
+    dbm_batch_pair_t *const pair = &ctx->batches_host[i];
+    if (NULL != pair->tasks[0]) {
       for (int j = 0; j < 2; ++j) {
         offloadEventDestroy(pair->done[j]);
-        offload_mempool_host_free(pair->batch[j]);
+        offload_mempool_host_free(pair->tasks[j]);
       }
     }
   }

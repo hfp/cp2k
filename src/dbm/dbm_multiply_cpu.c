@@ -90,16 +90,16 @@ void dbm_multiply_cpu_task_order(const int ntasks,
  * \brief Internal routine for executing the tasks in given batch on the CPU.
  * \author Ole Schuett
  ******************************************************************************/
-void dbm_multiply_cpu_process_batch(int ntasks, const dbm_task_t batch[ntasks],
-                                    double alpha, const dbm_pack_t *pack_a,
+void dbm_multiply_cpu_process_batch(const dbm_batch_t *batch, double alpha,
+                                    const dbm_pack_t *pack_a,
                                     const dbm_pack_t *pack_b,
                                     dbm_shard_t *shard_c, int options) {
-  if (0 >= ntasks) { // nothing to do
+  if (0 >= batch->ntasks) { // nothing to do
     return;
   }
   dbm_shard_allocate_promised_blocks(shard_c);
-  dbm_multiply_cpu_process_tasks(ntasks, batch, alpha, pack_a, pack_b,
-                                 shard_c->data, options);
+  dbm_multiply_cpu_process_tasks(batch, alpha, pack_a, pack_b, shard_c->data,
+                                 options);
 }
 
 /*******************************************************************************
@@ -148,17 +148,19 @@ bool dbm_multiply_cpu_generated(int max_m, int max_n, int max_k, double alpha,
  *        which accumulates into data_c holding every block of the batch.
  * \author Ole Schuett and Hans Pabst
  ******************************************************************************/
-void dbm_multiply_cpu_process_tasks(int ntasks, const dbm_task_t batch[ntasks],
-                                    double alpha, const dbm_pack_t *pack_a,
+void dbm_multiply_cpu_process_tasks(const dbm_batch_t *batch, double alpha,
+                                    const dbm_pack_t *pack_a,
                                     const dbm_pack_t *pack_b, double *data_c,
                                     int options) {
+  const int ntasks = batch->ntasks;
+  const dbm_task_t *const tasks = batch->tasks;
   if (0 >= ntasks) { // nothing to do
     return;
   }
 
   int batch_order[ntasks];
   if (DBM_MULTIPLY_TASK_REORDER & options) {
-    dbm_multiply_cpu_task_order(ntasks, batch, batch_order);
+    dbm_multiply_cpu_task_order(ntasks, tasks, batch_order);
   } else {
     for (int itask = 0; itask < ntasks; ++itask) {
       batch_order[itask] = itask;
@@ -171,10 +173,10 @@ void dbm_multiply_cpu_process_tasks(int ntasks, const dbm_task_t batch[ntasks],
 #endif
 
   // Loop over tasks.
-  dbm_task_t task_next = batch[batch_order[0]];
+  dbm_task_t task_next = tasks[batch_order[0]];
   for (int itask = 0; itask < ntasks; ++itask) {
     const dbm_task_t task = task_next;
-    task_next = batch[batch_order[(itask + 1) < ntasks ? (itask + 1) : itask]];
+    task_next = tasks[batch_order[(itask + 1) < ntasks ? (itask + 1) : itask]];
 
 #if defined(__LIBXS)
     if (0 == (DBM_MULTIPLY_BLAS_LIBRARY & options) &&
