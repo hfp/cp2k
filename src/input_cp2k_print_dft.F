@@ -721,6 +721,54 @@ CONTAINS
       CALL section_add_subsection(section, print_key)
       CALL section_release(print_key)
 
+      CALL cp_print_key_section_create(print_key, __LOCATION__, "CC4S", &
+                             description="Export a restricted RI-HF reference and CC4S input after converged single-point SCF. "// &
+                                  "Requires RI_FLAVOR MO, XC_FUNCTIONAL NONE, HF FRACTION 1 and identical HF and RI operators. "// &
+                                       "Use COULOMB for molecules or TRUNCATED for neutral, fully periodic Gamma-point cells. "// &
+                                       "Complete distributed intermediates; no k-point sampling. "// &
+                                       "FILENAME sets the common file prefix; exact names (=name) and stdout are unsupported.", &
+                                       print_level=debug_print_level + 1, filename="cc4s", common_iter_levels=2)
+      CALL keyword_create(keyword, __LOCATION__, name="METHOD", &
+                          description="Correlation method requested in the generated CC4S input file.", default_i_val=2, &
+                          enum_c_vals=s2a("MP2", "CCSD", "CCSD_T"), enum_i_vals=[1, 2, 3], &
+                          enum_desc=s2a("MP2", "MP2 and CCSD", "MP2, CCSD and perturbative triples"))
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="N_FROZEN_CORE", &
+                          description="Number of lowest occupied spatial orbitals omitted from the export.", default_i_val=0)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="MAX_ITER", &
+                          description="Maximum CC4S coupled-cluster iterations.", default_i_val=100)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="ENERGY_CONVERGENCE", &
+                          description="CC4S correlation-energy convergence in Hartree.", &
+                          default_r_val=1.0e-7_dp)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="AMPLITUDES_CONVERGENCE", &
+                          description="CC4S amplitude convergence threshold.", &
+                          default_r_val=1.0e-6_dp)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="OUTPUT_BUFFER_SIZE", &
+                          description="Maximum output buffer size per MPI rank in MiB (1 MiB = 1048576 bytes). "// &
+                          "Positive real value; rounded down to whole Real64 elements and capped by the vertex size. "// &
+                          "The element count must fit a default INTEGER. Does not directly set transformation batch sizes.", &
+                          default_r_val=8.0_dp)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL keyword_create(keyword, __LOCATION__, name="MAX_MEMORY", &
+                          description="Maximum estimated export workspace per MPI rank in MB, "// &
+                          "Selects orbital and auxiliary batch sizes; includes output and reduction buffers. "// &
+                          "Excludes existing SCF storage, allocator overhead and CC4S. This is not a process memory limit.", &
+                          default_r_val=1024.0_dp)
+      CALL section_add_keyword(print_key, keyword)
+      CALL keyword_release(keyword)
+      CALL section_add_subsection(section, print_key)
+      CALL section_release(print_key)
+
       CALL create_mo_section(print_key, "MO_CUBES", "cube", [2, 2, 2], "STRIDE 1 1 1", high_print_level, "write_cube")
       CALL keyword_create(keyword, __LOCATION__, name="APPEND", &
                           description="append the cube files when they already exist", &

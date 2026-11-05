@@ -85,6 +85,14 @@ static inline int dbm_shard_slot(const dbm_shard_t *shard, const int row,
 }
 
 /*******************************************************************************
+ * \brief Internal routine for the slot following the given one (probing).
+ * \author Hans Pabst
+ ******************************************************************************/
+static inline int dbm_shard_nextslot(const dbm_shard_t *shard, const int slot) {
+  return (slot + 1) & (shard->hashtable_size - 1);
+}
+
+/*******************************************************************************
  * \brief Internal routines for prefetching an upcoming lookup in two stages:
  *        the hashtable slot first, then (once cached) the block it refers to.
  *        A lookup otherwise waits for two dependent cache misses.
@@ -92,22 +100,14 @@ static inline int dbm_shard_slot(const dbm_shard_t *shard, const int row,
  ******************************************************************************/
 static inline void dbm_shard_prefetch_slot(const dbm_shard_t *shard,
                                            const int row, const int col) {
-#if defined(__GNUC__)
   __builtin_prefetch(&shard->hashtable[dbm_shard_slot(shard, row, col)]);
-#else
-  (void)shard, (void)row, (void)col;
-#endif
 }
 static inline void dbm_shard_prefetch_block(const dbm_shard_t *shard,
                                             const int row, const int col) {
-#if defined(__GNUC__)
   const int block_idx = shard->hashtable[dbm_shard_slot(shard, row, col)];
   if (0 < block_idx) { // first probe only, 1-based, 0 means empty
     __builtin_prefetch(&shard->blocks[block_idx - 1]);
   }
-#else
-  (void)shard, (void)row, (void)col;
-#endif
 }
 
 /*******************************************************************************

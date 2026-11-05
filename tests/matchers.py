@@ -1,3 +1,4 @@
+import math
 import traceback
 from typing import Any, Dict
 
@@ -29,6 +30,88 @@ class MatcherRegistry(Dict[str, Matcher]):
 
 # ======================================================================================
 registry = MatcherRegistry()
+
+
+class GWOrbitalSelfEnergyMatcher(Matcher):
+    """Check the shared real-frequency orbital file and one reference value."""
+
+    def run(self, output: str, **kwargs: Any) -> MatchResult:
+        method = kwargs["method"]
+        lines = output.splitlines()
+        if f"# Method: {method}" not in lines:
+            return MatchResult(
+                "WRONG RESULT", "Incorrect GW self-energy method.\n", None
+            )
+        header = "# Real_frequency_eV Re_Sigma_c_eV Im_Sigma_c_eV A_n_1_per_eV"
+        if header not in lines:
+            return MatchResult(
+                "WRONG RESULT", "Missing GW self-energy columns.\n", None
+            )
+        try:
+            rows = [
+                tuple(map(float, line.split()))
+                for line in lines
+                if line and not line.startswith("#")
+            ]
+        except ValueError:
+            return MatchResult("WRONG RESULT", "Invalid GW self-energy row.\n", None)
+        if len(rows) != kwargs["points"] or any(
+            len(row) != 4 or not all(map(math.isfinite, row)) for row in rows
+        ):
+            return MatchResult(
+                "WRONG RESULT", "Nonfinite or incomplete GW self-energy rows.\n", None
+            )
+        if any(len(line) > 80 for line in lines):
+            return MatchResult(
+                "WRONG RESULT", "GW self-energy line exceeds 80 columns.\n", None
+            )
+        if any(row[3] < -1e-12 for row in rows):
+            return MatchResult(
+                "WRONG RESULT", "Negative orbital spectral function.\n", None
+            )
+        if method == "EXACT_RPA_DIAG" and any(row[2] > 1e-12 for row in rows):
+            return MatchResult(
+                "WRONG RESULT", "Positive retarded RPA imaginary self-energy.\n", None
+            )
+        if any(rows[i + 1][0] <= rows[i][0] for i in range(len(rows) - 1)):
+            return MatchResult(
+                "WRONG RESULT", "Nonmonotonic real-frequency grid.\n", None
+            )
+        metadata = dict(
+            line[2:].split(": ", 1)
+            for line in lines
+            if line.startswith("# ") and ": " in line
+        )
+        epsilon = float(metadata["SCF_energy_eV"])
+        exchange = float(metadata["Sigma_x_minus_vxc_eV"])
+        eta = float(metadata["Green_broadening_eV"])
+        for omega, real, imag, spectral in rows:
+            gamma = eta - imag if method == "EXACT_RPA_DIAG" else eta + abs(imag)
+            expected = gamma / (
+                math.pi * ((omega - epsilon - exchange - real) ** 2 + gamma**2)
+            )
+            if not math.isclose(spectral, expected, rel_tol=2e-8, abs_tol=1e-12):
+                return MatchResult(
+                    "WRONG RESULT",
+                    "Spectral function disagrees with documented Dyson equation.\n",
+                    None,
+                )
+        value = min(rows, key=lambda row: abs(row[0]))[1]
+        ref, tol = kwargs["ref"], kwargs["tol"]
+        if abs(value - ref) > tol * max(abs(ref), 1.0):
+            return MatchResult(
+                "WRONG RESULT", f"Real self-energy at zero differs: {value}.\n", value
+            )
+        return MatchResult("OK", None, value)
+
+
+registry["GW_orbital_self_energy"] = GWOrbitalSelfEnergyMatcher()
+
+# CC4S export invariants (independent of orbital phases).
+registry["CC4S_vertex_norm"] = GenericMatcher(r"CC4S| Vertex norm squared [Ha]:", col=6)
+registry["CC4S_eigenenergy_sum"] = GenericMatcher(
+    r"CC4S| Sum of exported orbital energies [Ha]:", col=8
+)
 
 # Total energy in Hartree
 registry["E_total"] = GenericMatcher(r"Total energy:", col=3)
@@ -71,6 +154,15 @@ registry["Cell_vector_a_y"] = GenericMatcher(r"CELL| Vector a [angstrom]:", col=
 registry["Cell_angle_alpha"] = GenericMatcher(
     r"CELL| Angle (b,c), alpha [degree]:", col=6
 )
+registry["Cell_angle_beta"] = GenericMatcher(
+    r"CELL| Angle (a,c), beta  [degree]:", col=6
+)
+registry["Cell_angle_gamma"] = GenericMatcher(
+    r"CELL| Angle (a,b), gamma [degree]:", col=6
+)
+# GenericMatcher escapes []()|+*? but not ^. Escape \^ in [angstrom\^3]
+# so regex does not treat ^ as a start-of-line anchor.
+registry["Cell_volume"] = GenericMatcher(r"CELL| Volume [angstrom\^3]:", col=4)
 # The "|a| =  ..." column of the cell-vector lines: the vector length,
 # as printed by write_cell_low (last occurrence = the final cell).
 registry["Cell_length_a"] = GenericMatcher(r"CELL| Vector a [angstrom]:", col=10)
@@ -118,6 +210,69 @@ registry["OT_lattice_local_correction"] = TextPresenceMatcher(
 registry["Kubo_sigma_iso"] = GenericMatcher(r"KUBO_TRANSPORT| sigma_iso[S/cm]", col=3)
 registry["Kubo_sigma_iso_2d"] = GenericMatcher(r"KUBO_TRANSPORT| sigma_iso[S]", col=3)
 registry["Kubo_sigma_iso_1d"] = GenericMatcher(r"KUBO_TRANSPORT| sigma_iso[S*m]", col=3)
+registry["NLO_chi2_3d_zzz_real"] = GenericMatcher(
+    r"NONLINEAR_OPTICS\| 3D\s+ZZZ\s+([-+0-9.EeDd]+)", col=1, regex=True
+)
+registry["NLO_chi2_3d_zzz_imag"] = GenericMatcher(
+    r"NONLINEAR_OPTICS\| 3D\s+ZZZ\s+[-+0-9.EeDd]+\s+([-+0-9.EeDd]+)",
+    col=1,
+    regex=True,
+)
+registry["NLO_chi2_3d_xxz_real"] = GenericMatcher(
+    r"NONLINEAR_OPTICS\| 3D\s+XXZ\s+([-+0-9.EeDd]+)", col=1, regex=True
+)
+registry["NLO_chi2_3d_xxz_imag"] = GenericMatcher(
+    r"NONLINEAR_OPTICS\| 3D\s+XXZ\s+[-+0-9.EeDd]+\s+([-+0-9.EeDd]+)", col=1, regex=True
+)
+registry["NLO_chi2_2d_zzz_real"] = GenericMatcher(
+    r"NONLINEAR_OPTICS\| 2D\s+ZZZ\s+([-+0-9.EeDd]+)", col=1, regex=True
+)
+registry["NLO_chi2_3d_zzz_real_first"] = GenericMatcher(
+    r"NONLINEAR_OPTICS\| 3D\s+ZZZ\s+([-+0-9.EeDd]+)",
+    col=1,
+    regex=True,
+    first=True,
+)
+registry["NLO_chi2_3d_zzz_imag_first"] = GenericMatcher(
+    r"NONLINEAR_OPTICS\| 3D\s+ZZZ\s+[-+0-9.EeDd]+\s+([-+0-9.EeDd]+)",
+    col=1,
+    regex=True,
+    first=True,
+)
+registry["NLO_chi2_2d_zzz_real_first"] = GenericMatcher(
+    r"NONLINEAR_OPTICS\| 2D\s+ZZZ\s+([-+0-9.EeDd]+)",
+    col=1,
+    regex=True,
+    first=True,
+)
+for nlo_order in (3, 4, 5):
+    nlo_prefix = rf"NONLINEAR_OPTICS\| 3D\s+Z{{{nlo_order + 1}}}\s+"
+    registry[f"NLO_chi{nlo_order}_3d_zz_real"] = GenericMatcher(
+        nlo_prefix + r"([-+0-9.EeDd]+)", col=1, regex=True
+    )
+    registry[f"NLO_chi{nlo_order}_3d_zz_imag"] = GenericMatcher(
+        nlo_prefix + r"[-+0-9.EeDd]+\s+([-+0-9.EeDd]+)", col=1, regex=True
+    )
+registry["NLO_T1_T2_fs"] = GenericMatcher(
+    r"NONLINEAR_OPTICS\| T1 = T2:\s+([-+0-9.EeDd]+)\s+fs", col=1, regex=True
+)
+registry["NLO_T1_fs"] = GenericMatcher(
+    r"NONLINEAR_OPTICS\| T1:\s+([-+0-9.EeDd]+)\s+fs", col=1, regex=True
+)
+registry["NLO_T2_fs"] = GenericMatcher(
+    r"NONLINEAR_OPTICS\| T2:\s+([-+0-9.EeDd]+)\s+fs", col=1, regex=True
+)
+registry["NLO_hbar_T1_meV"] = GenericMatcher(
+    r"NONLINEAR_OPTICS\| ℏ/T1:\s+([-+0-9.EeDd]+)\s+meV", col=1, regex=True
+)
+registry["NLO_hbar_T2_meV"] = GenericMatcher(
+    r"NONLINEAR_OPTICS\| ℏ/T2:\s+([-+0-9.EeDd]+)\s+meV", col=1, regex=True
+)
+registry["NLO_transition_width_meV"] = GenericMatcher(
+    r"NONLINEAR_OPTICS\| Band transition width:\s+([-+0-9.EeDd]+)\s+meV",
+    col=1,
+    regex=True,
+)
 registry["Kubo_internal_diag"] = TextPresenceMatcher("internal diagonalization")
 registry["Kubo_reused_mos"] = TextPresenceMatcher("CP2K canonical MOs")
 registry["Kubo_reference"] = TextPresenceMatcher(
@@ -264,7 +419,10 @@ registry["M069"] = GenericMatcher(r"Log(1-CN):", col=10)
 registry["M070"] = GenericMatcher(r"MD| Temperature [K]", col=4)
 registry["M071"] = GenericMatcher(r"Current value of constraint", col=6)
 registry["M072"] = GenericMatcher(r"FORCES| Total atomic force", col=5)
+registry["Atomic_force_1_x"] = GenericMatcher(r"^\s*FORCES\|\s+1\s+", col=3, regex=True)
+registry["Atomic_force_1_y"] = GenericMatcher(r"^\s*FORCES\|\s+1\s+", col=4, regex=True)
 registry["Atomic_force_1_z"] = GenericMatcher(r"^\s*FORCES\|\s+1\s+", col=5, regex=True)
+registry["Atomic_force_2_x"] = GenericMatcher(r"^\s*FORCES\|\s+2\s+", col=3, regex=True)
 registry["Atomic_force_2_y"] = GenericMatcher(r"^\s*FORCES\|\s+2\s+", col=4, regex=True)
 registry["Atomic_force_2_z"] = GenericMatcher(r"^\s*FORCES\|\s+2\s+", col=5, regex=True)
 registry["M073"] = GenericMatcher(r"Diabatic electronic coupling (rotation", col=6)
@@ -344,6 +502,9 @@ registry["M090"] = GenericMatcher(r"Final localization:", col=3)
 registry["M091"] = GenericMatcher(r"Ionization potentials for XPS", col=8)
 registry["M092"] = GenericMatcher(r"FCIDUMP| Checksum:", col=3)
 registry["AS_NMIXING_deprecated"] = TextPresenceMatcher("NMIXING has no effect")
+registry["AS_embedding_iterations"] = GenericMatcher(
+    "rs-DFT embedding run converged in", col=7
+)
 registry["FCIDUMP_MS2"] = GenericMatcher(
     r"&FCI .*MS2=\s*([-+0-9]+),", col=1, regex=True
 )

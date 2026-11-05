@@ -16,12 +16,10 @@
 ! **************************************************************************************************
 MODULE dbt_api
 
-   USE dbt_block,                       ONLY: dbt_iterator_blocks_left,&
-                                              dbt_iterator_next_block,&
-                                              dbt_iterator_num_blocks,&
-                                              dbt_iterator_start,&
-                                              dbt_iterator_stop,&
-                                              dbt_iterator_type
+   USE dbt_block,                       ONLY: &
+        dbt_get_block_data, dbt_get_block_pattern, dbt_iterator_blocks_left, &
+        dbt_iterator_next_block, dbt_iterator_num_blocks, dbt_iterator_start, dbt_iterator_stop, &
+        dbt_iterator_type, dbt_put_block_data
    USE dbt_index,                       ONLY: dbt_get_mapping_info
    USE dbt_io,                          ONLY: dbt_write_blocks,&
                                               dbt_write_split_info,&
@@ -32,6 +30,7 @@ MODULE dbt_api
         dbt_contract, dbt_copy, dbt_copy_matrix_to_tensor, dbt_copy_tensor_to_matrix, &
         dbt_get_block, dbt_get_stored_coordinates, dbt_library_finalize, dbt_library_init, &
         dbt_library_print_stats, dbt_put_block, dbt_reserve_blocks
+   USE dbt_reshape_ops,                 ONLY: dbt_copy_indexed
    USE dbt_split,                       ONLY: dbt_split_blocks
    USE dbt_test,                        ONLY: dbt_checksum,&
                                               dbt_contract_test
@@ -54,8 +53,11 @@ MODULE dbt_api
 
    PUBLIC :: dbt_contract, dbt_contract_test
    PUBLIC :: dbt_get_block
+   PUBLIC :: dbt_get_block_data
+   PUBLIC :: dbt_get_block_pattern, dbt_copy_indexed
    PUBLIC :: dbt_get_stored_coordinates
    PUBLIC :: dbt_put_block
+   PUBLIC :: dbt_put_block_data
    PUBLIC :: dbt_reserve_blocks
    PUBLIC :: dbt_create
    PUBLIC :: dbt_destroy

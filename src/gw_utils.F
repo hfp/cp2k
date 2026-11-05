@@ -47,7 +47,6 @@ MODULE gw_utils
                                               cp_fm_struct_type
    USE cp_fm_types,                     ONLY: cp_fm_create,&
                                               cp_fm_get_diag,&
-                                              cp_fm_get_info,&
                                               cp_fm_release,&
                                               cp_fm_set_all,&
                                               cp_fm_to_fm,&
@@ -95,7 +94,6 @@ MODULE gw_utils
    USE mp2_gpw,                         ONLY: create_mat_munu
    USE mp2_ri_2c,                       ONLY: RI_2c_integral_mat,&
                                               trunc_coulomb_for_exchange
-   USE parallel_gemm_api,               ONLY: parallel_gemm
    USE particle_methods,                ONLY: get_particle_set
    USE particle_types,                  ONLY: particle_type
    USE physcon,                         ONLY: angstrom,&
@@ -126,6 +124,7 @@ MODULE gw_utils
    USE ri_rs_types,                     ONLY: ri_rs_env,&
                                               ri_rs_grid_opt_type
    USE rpa_gw,                          ONLY: continuation_pade
+   USE rpa_gw_im_time_util,             ONLY: build_ao_propagator
    USE time_frequency_grids,            ONLY: build_minimax_time_frequency_grid
 #include "base/base_uses.f90"
 
@@ -272,14 +271,15 @@ CONTAINS
 
       INTEGER                                            :: handle
       LOGICAL                                            :: do_evgw0
-      TYPE(section_vals_type), POINTER                   :: auto_ri_sec, evgw0_sec, grid_opt_sec, &
-                                                            gw_sec, ri_rs_sec
+      TYPE(section_vals_type), POINTER                   :: auto_ri_sec, cohsex_sec, evgw0_sec, &
+                                                            grid_opt_sec, gw_sec, ri_rs_sec
 
       CALL timeset(routineN, handle)
 
-      NULLIFY (auto_ri_sec, evgw0_sec, grid_opt_sec, gw_sec, ri_rs_sec)
+      NULLIFY (auto_ri_sec, cohsex_sec, evgw0_sec, grid_opt_sec, gw_sec, ri_rs_sec)
       gw_sec => section_vals_get_subs_vals(bs_sec, "GW")
       auto_ri_sec => section_vals_get_subs_vals(gw_sec, "AUTO_RI")
+      cohsex_sec => section_vals_get_subs_vals(gw_sec, "COHSEX")
       evgw0_sec => section_vals_get_subs_vals(gw_sec, "EVGW0")
       ri_rs_sec => section_vals_get_subs_vals(gw_sec, "RI_RS")
       grid_opt_sec => section_vals_get_subs_vals(ri_rs_sec, "GRID_OPTIMIZATION")
@@ -295,8 +295,8 @@ CONTAINS
       CALL section_vals_val_get(gw_sec, "KPOINTS_W", i_vals=bs_env%nkp_grid_chi_eps_W_input)
       CALL section_vals_val_get(gw_sec, "HEDIN_SHIFT", l_val=bs_env%do_hedin_shift)
       CALL section_vals_val_get(gw_sec, "FREQ_MAX_FIT", r_val=bs_env%freq_max_fit)
-      CALL section_vals_val_get(gw_sec, "COHSEX_SCALE_OCC", r_val=bs_env%cohsex_scale_occ)
-      CALL section_vals_val_get(gw_sec, "COHSEX_SCALE_VIRT", r_val=bs_env%cohsex_scale_virt)
+      CALL section_vals_val_get(cohsex_sec, "SCALE_OCC", r_val=bs_env%cohsex_scale_occ)
+      CALL section_vals_val_get(cohsex_sec, "SCALE_VIRT", r_val=bs_env%cohsex_scale_virt)
       CALL read_rirs_input(bs_env%ri_rs, ri_rs_sec)
       CALL read_rirs_grid_opt(bs_env%ri_rs, grid_opt_sec)
       CALL read_evgw0_input(bs_env, evgw0_sec, do_evgw0)
@@ -580,9 +580,9 @@ CONTAINS
             ELSE
                WRITE (u, FMT="(T2,A,T71,A10)") "static COHSEX approximation (COHSEX)", "DIAGONAL"
             END IF
-            WRITE (u, FMT="(T2,A,T74,F8.6)") "static COHSEX scaling of Σ^c, occ-occ (COHSEX_SCALE_OCC):", &
+            WRITE (u, FMT="(T2,A,T74,F8.6)") "static COHSEX scaling of Σ^c, occ-occ (COHSEX%SCALE_OCC):", &
                bs_env%cohsex_scale_occ
-            WRITE (u, FMT="(T2,A,T74,F8.6)") "static COHSEX scaling of Σ^c, virt-virt (COHSEX_SCALE_VIRT):", &
+            WRITE (u, FMT="(T2,A,T74,F8.6)") "static COHSEX scaling of Σ^c, virt-virt (COHSEX%SCALE_VIRT):", &
                bs_env%cohsex_scale_virt
          END IF
          WRITE (u, '(A)') ' '
@@ -3624,53 +3624,36 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'G_occ_vir'
 
-      INTEGER                                            :: handle, homo, i_row_local, j_col, &
-                                                            j_col_local, n_mo, ncol_local, &
-                                                            nrow_local
-      INTEGER, DIMENSION(:), POINTER                     :: col_indices
+      INTEGER                                            :: first_mo, handle, homo, i_mo, last_mo
       REAL(KIND=dp)                                      :: tau_E
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)           :: column_factors
 
       CALL timeset(routineN, handle)
 
       CPASSERT(occ .NEQV. vir)
 
-      CALL cp_fm_get_info(matrix=bs_env%fm_work_mo(1), &
-                          nrow_local=nrow_local, &
-                          ncol_local=ncol_local, &
-                          col_indices=col_indices)
-
-      n_mo = bs_env%n_ao
       homo = bs_env%n_occ(ispin)
-
-      CALL cp_fm_to_fm(bs_env%fm_mo_coeff_Gamma(ispin), bs_env%fm_work_mo(1))
-
-      DO i_row_local = 1, nrow_local
-         DO j_col_local = 1, ncol_local
-
-            j_col = col_indices(j_col_local)
-
-            tau_E = ABS(tau*0.5_dp*(bs_env%eigenval_scf_Gamma(j_col, ispin) - bs_env%e_fermi(ispin)))
-
-            IF (tau_E < bs_env%stabilize_exp) THEN
-               bs_env%fm_work_mo(1)%local_data(i_row_local, j_col_local) = &
-                  bs_env%fm_work_mo(1)%local_data(i_row_local, j_col_local)*EXP(-tau_E)
-            ELSE
-               bs_env%fm_work_mo(1)%local_data(i_row_local, j_col_local) = 0.0_dp
-            END IF
-
-            ! the modes above n_mo_retained are removed by the canonical orthogonalization
-            ! (EPS_EIGVAL) and carry no MO coefficients
-            IF ((occ .AND. j_col > homo) .OR. (vir .AND. j_col <= homo) .OR. &
-                j_col > bs_env%n_mo_retained) THEN
-               bs_env%fm_work_mo(1)%local_data(i_row_local, j_col_local) = 0.0_dp
-            END IF
-
-         END DO
+      first_mo = 1
+      ! Canonical orthogonalization removes the modes above n_mo_retained.
+      last_mo = MIN(bs_env%n_ao, bs_env%n_mo_retained)
+      IF (occ) THEN
+         last_mo = MIN(last_mo, homo)
+      ELSE
+         first_mo = homo + 1
+      END IF
+      ALLOCATE (column_factors(first_mo:last_mo))
+      DO i_mo = first_mo, last_mo
+         tau_E = ABS(tau*0.5_dp*(bs_env%eigenval_scf_Gamma(i_mo, ispin) - bs_env%e_fermi(ispin)))
+         IF (tau_E < bs_env%stabilize_exp) THEN
+            column_factors(i_mo) = EXP(-tau_E)
+         ELSE
+            column_factors(i_mo) = 0.0_dp
+         END IF
       END DO
 
-      CALL parallel_gemm(transa="N", transb="T", m=n_mo, n=n_mo, k=n_mo, alpha=1.0_dp, &
-                         matrix_a=bs_env%fm_work_mo(1), matrix_b=bs_env%fm_work_mo(1), &
-                         beta=0.0_dp, matrix_c=fm_G_Gamma)
+      CALL build_ao_propagator(bs_env%fm_mo_coeff_Gamma(ispin), column_factors, first_mo, &
+                               bs_env%fm_work_mo(1), fm_G_Gamma)
+      DEALLOCATE (column_factors)
 
       CALL timestop(handle)
 

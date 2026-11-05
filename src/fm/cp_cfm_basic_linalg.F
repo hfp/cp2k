@@ -28,7 +28,6 @@ MODULE cp_cfm_basic_linalg
    USE kinds,                           ONLY: dp
    USE mathconstants,                   ONLY: z_one,&
                                               z_zero
-   USE message_passing,                 ONLY: mp_comm_type
 #include "../base/base_uses.f90"
 
    IMPLICIT NONE
@@ -624,44 +623,47 @@ CONTAINS
 
 ! **************************************************************************************************
 !> \brief Scales columns of the full matrix by corresponding factors.
-!> \param matrix_a matrix to scale
-!> \param scaling  scale factors for every column. The actual number of scaled columns is
-!>                 limited by the number of scale factors given or by the actual number of columns
-!>                 whichever is smaller.
+!> \param matrix_a target matrix; columns outside the selected window are unchanged
+!> \param scaling factors for consecutive columns starting at first_col;
+!>        the window is truncated at the last global column of the matrix
+!> \param first_col first global column to scale (defaults to 1)
+!> \param source optional source with the same shape and distribution as matrix_a;
+!>        if omitted, matrix_a is scaled in place
 !> \author Joost VandeVondele
 ! **************************************************************************************************
-   SUBROUTINE cp_cfm_column_scale(matrix_a, scaling)
+   SUBROUTINE cp_cfm_column_scale(matrix_a, scaling, first_col, source)
       TYPE(cp_cfm_type), INTENT(INOUT)                   :: matrix_a
       COMPLEX(kind=dp), DIMENSION(:), INTENT(IN)         :: scaling
+      INTEGER, INTENT(IN), OPTIONAL                      :: first_col
+      TYPE(cp_cfm_type), INTENT(IN), OPTIONAL            :: source
 
       CHARACTER(len=*), PARAMETER :: routineN = 'cp_cfm_column_scale'
 
-      COMPLEX(kind=dp), DIMENSION(:, :), POINTER         :: a
-      INTEGER                                            :: handle, icol_local, ncol_local, &
-                                                            nrow_local
-#if defined(__parallel)
+      COMPLEX(kind=dp), DIMENSION(:, :), POINTER         :: a, b
+      INTEGER                                            :: first, handle, i_factor, icol_local, &
+                                                            ncol_local, nrow_local
       INTEGER, DIMENSION(:), POINTER                     :: col_indices
-#endif
+      LOGICAL                                            :: compatible_layout
 
       CALL timeset(routineN, handle)
 
       a => matrix_a%local_data
-
-#if defined(__parallel)
+      b => a
+      IF (PRESENT(source)) THEN
+         compatible_layout = cp_fm_struct_equivalent(matrix_a%matrix_struct, source%matrix_struct)
+         CPASSERT(compatible_layout)
+         b => source%local_data
+      END IF
+      first = 1
+      IF (PRESENT(first_col)) first = first_col
+      CPASSERT(first >= 1)
       CALL cp_cfm_get_info(matrix_a, nrow_local=nrow_local, ncol_local=ncol_local, col_indices=col_indices)
-      ncol_local = MIN(ncol_local, SIZE(scaling))
 
       DO icol_local = 1, ncol_local
-         a(1:nrow_local, icol_local) = scaling(col_indices(icol_local))*a(1:nrow_local, icol_local)
+         i_factor = col_indices(icol_local) - first + 1
+         IF (i_factor < 1 .OR. i_factor > SIZE(scaling)) CYCLE
+         a(1:nrow_local, icol_local) = scaling(i_factor)*b(1:nrow_local, icol_local)
       END DO
-#else
-      nrow_local = SIZE(a, 1)
-      ncol_local = MIN(SIZE(a, 2), SIZE(scaling))
-
-      DO icol_local = 1, ncol_local
-         a(1:nrow_local, icol_local) = scaling(icol_local)*a(1:nrow_local, icol_local)
-      END DO
-#endif
 
       CALL timestop(handle)
    END SUBROUTINE cp_cfm_column_scale
@@ -895,27 +897,30 @@ CONTAINS
    END SUBROUTINE cp_cfm_lu_invert
 
 ! **************************************************************************************************
-!> \brief Returns the trace of matrix_a^T matrix_b, i.e
+!> \brief By default, returns the trace of matrix_a^T matrix_b, i.e
 !>      sum_{i,j}(matrix_a(i,j)*matrix_b(i,j)) .
 !> \param matrix_a a complex matrix
 !> \param matrix_b another complex matrix
 !> \param trace    value of the trace operator
+!> \param conjugate_a conjugate the first matrix for a Hermitian Frobenius inner product (default: false)
+!> \param local return only the local contribution, leaving the reduction to the caller (default: false)
 !> \par History
 !>    * 09.2017 created [Sergey Chulkov]
 !> \author Sergey Chulkov
 !> \note
 !>      Based on the subroutine cp_fm_trace(). Note the transposition of matrix_a!
 ! **************************************************************************************************
-   SUBROUTINE cp_cfm_trace(matrix_a, matrix_b, trace)
+   SUBROUTINE cp_cfm_trace(matrix_a, matrix_b, trace, conjugate_a, local)
       TYPE(cp_cfm_type), INTENT(IN)                      :: matrix_a, matrix_b
       COMPLEX(kind=dp), INTENT(out)                      :: trace
+      LOGICAL, INTENT(IN), OPTIONAL                      :: conjugate_a, local
 
       CHARACTER(len=*), PARAMETER                        :: routineN = 'cp_cfm_trace'
 
       INTEGER                                            :: handle, mypcol, myprow, ncol_local, &
                                                             npcol, nprow, nrow_local
+      LOGICAL                                            :: reduce
       TYPE(cp_blacs_env_type), POINTER                   :: context
-      TYPE(mp_comm_type)                                 :: group
 
       CALL timeset(routineN, handle)
 
@@ -925,16 +930,16 @@ CONTAINS
       nprow = context%num_pe(1)
       npcol = context%num_pe(2)
 
-      group = matrix_a%matrix_struct%para_env
-
       nrow_local = MIN(matrix_a%matrix_struct%nrow_locals(myprow), matrix_b%matrix_struct%nrow_locals(myprow))
       ncol_local = MIN(matrix_a%matrix_struct%ncol_locals(mypcol), matrix_b%matrix_struct%ncol_locals(mypcol))
 
       ! compute an accurate dot-product
       trace = accurate_dot_product(matrix_a%local_data(1:nrow_local, 1:ncol_local), &
-                                   matrix_b%local_data(1:nrow_local, 1:ncol_local))
+                                   matrix_b%local_data(1:nrow_local, 1:ncol_local), conjugate_a=conjugate_a)
 
-      CALL group%sum(trace)
+      reduce = .TRUE.
+      IF (PRESENT(local)) reduce = .NOT. local
+      IF (reduce) CALL matrix_a%matrix_struct%para_env%sum(trace)
 
       CALL timestop(handle)
 

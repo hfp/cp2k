@@ -132,14 +132,6 @@ void dbm_shard_release(dbm_shard_t *shard) {
 }
 
 /*******************************************************************************
- * \brief Internal routine for masking a slot in the hash-table.
- * \author Hans Pabst
- ******************************************************************************/
-static inline int hashtable_mask(const dbm_shard_t *shard) {
-  return shard->hashtable_size - 1;
-}
-
-/*******************************************************************************
  * \brief Private routine for inserting a block into a shard's hashtable.
  * \author Ole Schuett
  ******************************************************************************/
@@ -155,7 +147,7 @@ static void hashtable_insert(dbm_shard_t *shard, const int block_idx) {
       shard->hashtable[slot] = block_idx + 1;       // 1-based
       return;
     }
-    slot = (slot + 1) & hashtable_mask(shard);
+    slot = dbm_shard_nextslot(shard, slot);
   }
   assert(false);
 }
@@ -179,7 +171,7 @@ dbm_block_t *dbm_shard_lookup(const dbm_shard_t *shard, const int row,
     if (blk->row == row && blk->col == col) {
       return blk;
     }
-    slot = (slot + 1) & hashtable_mask(shard);
+    slot = dbm_shard_nextslot(shard, slot);
   }
   return NULL;
 }

@@ -1493,15 +1493,29 @@ if [[ ! -f "${SPACK_BUILD_PATH}/BUILD_DEPENDENCIES_COMPLETED" ]]; then
 
   ((VERBOSE > 0)) && spack find -c
 
-  # Install CP2K dependencies via Spack
-  if ! spack -e "${CP2K_ENV}" install -j "${NUM_PROCS}" -p "${NUM_PACKAGES}" "${VERBOSE_SPACK}"; then
-    echo "ERROR: Building the CP2K dependencies with spack failed"
-    if [[ "${USE_EXTERNALS}" == "yes" ]]; then
-      echo "HINT:  Try to re-run the build without the (-ue | --use_externals) flag which avoids"
-      echo "       errors or conflicts caused by externals from the host system"
+  # Abort git transfers slower than 1 KB/s for 60 s, since git has no timeout,
+  # so that a stalled clone (e.g. py-torch with submodules) fails and is retried
+  export GIT_HTTP_LOW_SPEED_LIMIT=1000
+  export GIT_HTTP_LOW_SPEED_TIME=60
+
+  # Install CP2K dependencies via Spack (retry with backoff to bridge transient network
+  # issues, whereby already installed packages are skipped)
+  for i in 1 2 3; do
+    if spack -e "${CP2K_ENV}" install -j "${NUM_PROCS}" -p "${NUM_PACKAGES}" "${VERBOSE_SPACK}"; then
+      break
     fi
-    ${EXIT_CMD} 1
-  fi
+    if ((i == 3)); then
+      echo "ERROR: Building the CP2K dependencies with spack failed"
+      if [[ "${USE_EXTERNALS}" == "yes" ]]; then
+        echo "HINT:  Try to re-run the build without the (-ue | --use_externals) flag which avoids"
+        echo "       errors or conflicts caused by externals from the host system"
+      fi
+      ${EXIT_CMD} 1
+    fi
+    INSTALL_DELAY=$((60 * 2 ** (i - 1)))
+    echo "WARNING: Installation attempt ${i} failed, retrying in ${INSTALL_DELAY} seconds"
+    sleep "${INSTALL_DELAY}"
+  done
 
   # Find all compilers
   if ! spack compiler find; then
@@ -1896,6 +1910,7 @@ BENCHMARKS=(
   "${CP2K_ROOT}/benchmarks/QS/H2O-64.inp"
   "${CP2K_ROOT}/benchmarks/QS/H2O-64_nonortho.inp"
   "${CP2K_ROOT}/benchmarks/QS_reference/w64PBE.inp"
+  "${CP2K_ROOT}/benchmarks/QS_reference/w64GAPW-SVP.inp"
   "${CP2K_ROOT}/benchmarks/QS_reference/w64SCAN.inp"
   "${CP2K_ROOT}/benchmarks/QS_kp/ZnO.inp"
   "${CP2K_ROOT}/benchmarks/QS_single_node/H2O-hyb.inp"
@@ -2086,6 +2101,7 @@ if [[ -n "${GROMACS_VERSION}" ]]; then
   cmake -S "${GROMACS_ROOT}" -B "${GROMACS_BUILD_PATH}" \
     -DBUILD_SHARED_LIBS="OFF" \
     -DCMAKE_BUILD_TYPE="${CP2K_BUILD_TYPE}" \
+    -DCMAKE_CXX_STANDARD="20" \
     -DCMAKE_INSTALL_LIBDIR="lib" \
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
     -DCP2K_DIR="${INSTALL_PREFIX}"/lib \

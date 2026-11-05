@@ -3,6 +3,7 @@
 # Directories have been reordered according the execution time needed for a gfortran pdbg run using 2 MPI tasks
 # in case a new directory is added just add it at the top of the list..
 # the order will be regularly checked and modified...
+QS/regtest-nonlinear-optics
 QMMM/QS/regtest-mpi                                         parallel mpiranks>2
 QS/regtest-libgint                                          libGint libint offload_cuda !ifx
 MIMIC/regtest-qmmm                                          mimic mpiranks==4
@@ -115,8 +116,10 @@ QS/regtest-dm-ls-scf-4
 QS/regtest-gw-realspace                                     libint !ifx
 QS/regtest-dcdft-gapw                                       libint libxc !ifx
 QS/regtest-dcdft-stress                                     libint libxc !ifx
+QS/regtest-cc4s                                            libint
 QS/regtest-hfx-ri                                           libint !ifx
 QS/regtest-gw                                               libint !ifx
+QS/regtest-gw-rpa
 QS/regtest-libxc                                            libxc libint libdftd4 !ifx
 QS/regtest-ec-stress                                        libint libxc !ifx
 xTB/regtest-1

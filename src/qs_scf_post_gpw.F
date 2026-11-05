@@ -113,6 +113,7 @@ MODULE qs_scf_post_gpw
    USE molden_utils,                    ONLY: write_mos_molden
    USE molecule_types,                  ONLY: molecule_type
    USE mulliken,                        ONLY: mulliken_charges
+   USE nlo,                             ONLY: run_nlo
    USE orbital_pointers,                ONLY: indso
    USE particle_list_types,             ONLY: particle_list_type
    USE particle_types,                  ONLY: particle_type
@@ -238,7 +239,8 @@ MODULE qs_scf_post_gpw
 
    ! Global parameters
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'qs_scf_post_gpw'
-   PUBLIC :: make_lumo_gpw, &
+   PUBLIC :: get_effective_core_charges, &
+             make_lumo_gpw, &
              scf_post_calculation_gpw, &
              qs_scf_post_moments, &
              write_mo_dependent_results, &
@@ -3362,6 +3364,9 @@ CONTAINS
 
       ! post SCF finite-volume Kubo transport
       CALL qs_scf_post_kubo_transport(qs_env)
+
+      ! post SCF nonlinear optical response
+      CALL run_nlo(qs_env)
 
       CALL qs_scf_post_localizer(qs_env)
       CALL qs_scf_post_quadratic(qs_env)

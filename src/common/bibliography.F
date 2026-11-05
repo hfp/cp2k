@@ -102,7 +102,8 @@ MODULE bibliography
                             Cances2000, Herbst2022, Zhang2025, Gresch2017, Soluyanov2011, Dixon2023, Doll2025, &
                             Wong2026, Loring2015, EsteveParedes2023, Cerjan2023, Bairnsfather2026, Davidson1975, &
                             Olsen1988, Stratmann1998, Vecharynski2017, Stathopoulos1998, Bai2012, &
-                            Fukaya2014, Schreder2024_3, Pizzi2020, Marzari1997, Souza2001
+                            Fukaya2014, Schreder2024_3, Pizzi2020, Marzari1997, Souza2001, &
+                            Hummel2017, Cheng2015
 
 CONTAINS
 
@@ -1803,6 +1804,12 @@ CONTAINS
                          source="J. Chem. Phys.", volume="158", pages="164109", &
                          year=2023, doi="10.1063/5.0144493")
 
+      CALL add_reference(key=Hummel2017, &
+                         authors=s2a("F. Hummel", "T. Tsatsoulis", "A. Grueneis"), &
+                         title="Low rank factorization of the Coulomb integrals for periodic coupled cluster theory", &
+                         source="J. Chem. Phys.", volume="146", pages="124105", &
+                         year=2017, doi="10.1063/1.4977994")
+
       CALL add_reference(key=Bussy2024, &
                          authors=s2a("A. Bussy", "J. Hutter"), &
                          title="Efficient periodic resolution-of-the-identity Hartree–Fock exchange "// &
@@ -2488,6 +2495,13 @@ CONTAINS
                          "wave DFT environment", &
                          source="J. Chem. Phys.", volume="161", pages="144110", &
                          year=2024, doi="10.1063/5.0222409")
+
+      CALL add_reference(key=Cheng2015, &
+                         authors=s2a("J. L. Cheng", "N. Vermeulen", "J. E. Sipe"), &
+                         title="Third-order nonlinearity of graphene: Effects of phenomenological "// &
+                         "relaxation and finite temperature", &
+                         source="Phys. Rev. B", volume="91", pages="235320", &
+                         year=2015, doi="10.1103/PhysRevB.91.235320")
 
    END SUBROUTINE add_all_references
 
