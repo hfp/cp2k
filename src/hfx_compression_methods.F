@@ -599,9 +599,9 @@ CONTAINS
 
 ! **************************************************************************************************
 !> \brief Packs a full cache of real values into a container: a record is its length in words
-!>        followed by the values quantized within an absolute error of eps (LIBXS does both,
-!>        else values up to eps become zero and the others multiples of eps packed at a width per
-!>        group).
+!>        followed by the values quantized within eps: LIBXS keeps every value within half of eps
+!>        (a power of two as step, not above eps), else values up to eps become zero and the others
+!>        multiples of eps (within half of eps), packed at a width per group.
 !> \param cache cache whose values are packed (all of them)
 !> \param container linked list, that stores the compressed values
 !> \param eps absolute error of a value
@@ -616,7 +616,7 @@ CONTAINS
       LOGICAL                                            :: use_disk_storage
 
       INTEGER                                            :: nwords
-      INTEGER(int_8), DIMENSION(CACHE_SIZE+64)           :: record
+      INTEGER(int_8), DIMENSION(CACHE_SIZE + 64)           :: record
 #if !defined(__LIBXS)
       INTEGER                                            :: i, nbits
       INTEGER(int_8)                                     :: amax
@@ -625,8 +625,8 @@ CONTAINS
 #endif
 
 #if defined(__LIBXS)
-      ! at most CACHE_SIZE+51 words (64 bits each and a header)
-      nwords = INT(libxs_vpack(record(2:), cache%data, libxs_vpack_maxbits(LIBXS_DATATYPE_F64, eps, 0)))
+      ! at most CACHE_SIZE+51 words (64 bits each and a header); half of eps: a step not coarser than eps
+      nwords = INT(libxs_vpack(record(2:), cache%data, libxs_vpack_maxbits(LIBXS_DATATYPE_F64, 0.5_dp*eps, 0)))
 #else
       eps_inv = 1.0_dp/eps
       amax = 0
@@ -667,7 +667,7 @@ CONTAINS
 
       INTEGER                                            :: nwords
       INTEGER(int_8)                                     :: nread
-      INTEGER(int_8), DIMENSION(CACHE_SIZE+64)           :: record
+      INTEGER(int_8), DIMENSION(CACHE_SIZE + 64)           :: record
 #if !defined(__LIBXS)
       INTEGER(int_8), DIMENSION(CACHE_SIZE)              :: values
 #endif
