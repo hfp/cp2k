@@ -134,8 +134,48 @@ static void backend_order_batch(dbm_batch_t *batch) {
 #endif
 
 /*******************************************************************************
+ * \brief Private routine for obtaining the calling thread's batch.
+ * \author Hans Pabst
+ ******************************************************************************/
+static dbm_task_t *backend_batch_acquire(const bool force_cpu,
+                                         backend_context_t *ctx) {
+  dbm_task_t *result = NULL;
+#if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
+  if (NULL != ctx && !force_cpu) {
+    result = dbm_multiply_gpu_batch_acquire(&ctx->gpu);
+  } else
+#endif
+  {
+    (void)force_cpu; // mark used
+    (void)ctx;
+    result =
+        offload_mempool_host_malloc(sizeof(dbm_task_t) * DBM_MAX_BATCH_SIZE);
+  }
+  return result;
+}
+
+/*******************************************************************************
+ * \brief Private routine for returning the calling thread's batch.
+ * \author Hans Pabst
+ ******************************************************************************/
+static void backend_batch_release(dbm_task_t *batch, const bool force_cpu,
+                                  backend_context_t *ctx) {
+#if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
+  if (NULL != ctx && !force_cpu) {
+    dbm_multiply_gpu_batch_release(batch, &ctx->gpu);
+  } else
+#endif
+  {
+    (void)force_cpu; // mark used
+    (void)ctx;
+    offload_mempool_host_free(batch);
+  }
+}
+
+/*******************************************************************************
  * \brief Private routine for sending a batch to the multiplication backend.
- *        The batch is left empty, i.e., ready to be filled again.
+ *        The batch is left empty, i.e., ready to be filled again (its tasks
+ *        may have been swapped for another buffer).
  * \author Ole Schuett
  ******************************************************************************/
 static void backend_process_batch(dbm_batch_t *batch, const double alpha,
@@ -240,8 +280,7 @@ static void multiply_packs(const bool transa, const bool transb,
   {
     // Thread-private batch covering given work in piece-wise fashion.
     dbm_batch_t batch = {0};
-    batch.tasks =
-        offload_mempool_host_malloc(sizeof(dbm_task_t) * DBM_MAX_BATCH_SIZE);
+    batch.tasks = backend_batch_acquire(force_cpu, context);
     // Thread-local stats, added to the library's counters once at the end.
     int64_t counters[DBM_NUM_COUNTERS] = {0};
 
@@ -415,7 +454,7 @@ static void multiply_packs(const bool transa, const bool transb,
     }
 
     dbm_library_counters_add(counters);
-    offload_mempool_host_free(batch.tasks);
+    backend_batch_release(batch.tasks, force_cpu, context);
   }
 
   free(shard_row_start);
