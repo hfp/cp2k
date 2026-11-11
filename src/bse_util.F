@@ -80,7 +80,7 @@ MODULE bse_util
              adapt_BSE_input_params, adapt_BSE_screening, get_multipoles_mo, &
              reshuffle_eigvec, print_bse_nto_cubes, trace_exciton_descr, &
              get_bse_spin_block_layout, assemble_joint_ov_slab, &
-             ia_of_occ_virt, occ_of_ia, virt_of_ia
+             ia_of_occ_virt, occ_of_ia, virt_of_ia, bse_dgemm
 
 CONTAINS
 
@@ -1391,5 +1391,56 @@ CONTAINS
       CALL timestop(handle)
 
    END SUBROUTINE assemble_joint_ov_slab
+
+! **************************************************************************************************
+!> \brief C := alpha op(A) op(B) + beta C as DGEMM, for the tall-and-skinny products of the BSE
+!>        (rows of the ia space against a small block): with LIBXS, such a GEMM runs as a batch of
+!>        panels along its long dimension (libxs_tas), and any other GEMM as one call
+!> \param transa 'N' or 'T' for A
+!> \param transb 'N' or 'T' for B
+!> \param m rows of op(A) and C
+!> \param n columns of op(B) and C
+!> \param k columns of op(A) and rows of op(B)
+!> \param alpha scale of the product
+!> \param a matrix A
+!> \param lda leading dimension of A
+!> \param b matrix B
+!> \param ldb leading dimension of B
+!> \param beta scale of the previous content of C
+!> \param c matrix C
+!> \param ldc leading dimension of C
+! **************************************************************************************************
+   SUBROUTINE bse_dgemm(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc)
+#if defined(__LIBXS)
+      USE LIBXS_JIT, ONLY: C_LOC, LIBXS_DATATYPE_F64, libxs_tas, libxs_tas_dispatch, &
+                           libxs_tas_release, libxs_tas_t
+#endif
+      CHARACTER(LEN=1), INTENT(IN)                       :: transa, transb
+      INTEGER, INTENT(IN)                                :: m, n, k
+      REAL(KIND=dp), INTENT(IN)                          :: alpha
+      REAL(KIND=dp), DIMENSION(*), INTENT(IN), TARGET    :: a
+      INTEGER, INTENT(IN)                                :: lda
+      REAL(KIND=dp), DIMENSION(*), INTENT(IN), TARGET    :: b
+      INTEGER, INTENT(IN)                                :: ldb
+      REAL(KIND=dp), INTENT(IN)                          :: beta
+      REAL(KIND=dp), DIMENSION(*), INTENT(INOUT), TARGET :: c
+      INTEGER, INTENT(IN)                                :: ldc
+
+#if defined(__LIBXS)
+      TYPE(libxs_tas_t)                                  :: plan
+
+      ! a shape the plan refuses (e.g., k = 0, where C is still scaled by beta) takes DGEMM
+      IF (0 /= libxs_tas_dispatch(plan, LIBXS_DATATYPE_F64, transa, transb, m, n, k, &
+                                  lda, ldb, ldc, alpha, beta)) THEN
+         CALL libxs_tas(plan, C_LOC(a(1)), C_LOC(b(1)), C_LOC(c(1)))
+         CALL libxs_tas_release(plan)
+      ELSE
+#endif
+         CALL DGEMM(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc)
+#if defined(__LIBXS)
+      END IF
+#endif
+
+   END SUBROUTINE bse_dgemm
 
 END MODULE bse_util

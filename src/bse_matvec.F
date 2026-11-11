@@ -13,7 +13,8 @@
 ! **************************************************************************************************
 MODULE bse_matvec
 
-   USE bse_util,                        ONLY: ia_of_occ_virt,&
+   USE bse_util,                        ONLY: bse_dgemm,&
+                                              ia_of_occ_virt,&
                                               occ_of_ia,&
                                               virt_of_ia
    USE cp_blacs_env,                    ONLY: cp_blacs_env_create,&
@@ -484,15 +485,15 @@ CONTAINS
          ! exchange, identical in A Z and B Z: R_ia,k = α sum_P B^P_ia t_Pk, t_Pk = sum_jb B^P_jb Z_jb,k
          CALL timeset(routineN//"_exchange", handle2)
          IF (has_exchange) THEN
-            CALL DGEMM('T', 'N', mv_env%n_ri_loc, nb, mv_env%n_ov, 1.0_dp, B_ia_2d, mv_env%n_ov, Z, mv_env%n_ov, &
-                       0.0_dp, T_Pk, mv_env%n_ri_loc)
+            CALL bse_dgemm('T', 'N', mv_env%n_ri_loc, nb, mv_env%n_ov, 1.0_dp, B_ia_2d, mv_env%n_ov, Z, mv_env%n_ov, &
+                           0.0_dp, T_Pk, mv_env%n_ri_loc)
          END IF
          ! Without screening, Z is no longer needed after forming T_Pk. Reuse its slot
          ! for the canonical exchange image, leaving result_buf free for the reduction.
          IF (.NOT. do_screened) RA(1:mv_env%n_ov, 1:nb) => work_buf(1:nvec)
          IF (has_exchange) THEN
-            CALL DGEMM('N', 'N', mv_env%n_ov, nb, mv_env%n_ri_loc, mv_env%alpha, B_ia_2d, mv_env%n_ov, T_Pk, mv_env%n_ri_loc, &
-                       0.0_dp, RA, mv_env%n_ov)
+            CALL bse_dgemm('N', 'N', mv_env%n_ov, nb, mv_env%n_ri_loc, mv_env%alpha, B_ia_2d, mv_env%n_ov, T_Pk, mv_env%n_ri_loc, &
+                           0.0_dp, RA, mv_env%n_ov)
          ELSE IF (.NOT. do_screened) THEN
             RA(:, :) = 0.0_dp
          END IF

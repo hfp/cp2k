@@ -34,6 +34,7 @@ MODULE bse_davidson
                                               bse_matvec_vector_struct,&
                                               bse_memory_left_GB
    USE bse_types,                       ONLY: bse_env_type
+   USE bse_util,                        ONLY: bse_dgemm
    USE cp_blacs_env,                    ONLY: cp_blacs_env_create,&
                                               cp_blacs_env_release,&
                                               cp_blacs_env_type
@@ -2185,8 +2186,8 @@ CONTAINS
       IF (PRESENT(out_col)) o_col = out_col
       CALL cp_fm_get_info(fm_V, nrow_local=nrow_local)
       IF (nrow_local > 0) THEN
-         CALL DGEMM('N', 'N', nrow_local, nc, nv, alpha, fm_V%local_data, SIZE(fm_V%local_data, 1), &
-                    coef, SIZE(coef, 1), beta, fm_out%local_data(:, o_col:o_col + nc - 1), SIZE(fm_out%local_data, 1))
+         CALL bse_dgemm('N', 'N', nrow_local, nc, nv, alpha, fm_V%local_data, SIZE(fm_V%local_data, 1), &
+                        coef, SIZE(coef, 1), beta, fm_out%local_data(:, o_col:o_col + nc - 1), SIZE(fm_out%local_data, 1))
       END IF
 
       CALL timestop(handle)
@@ -2294,10 +2295,10 @@ CONTAINS
       CALL cp_fm_get_info(fm_U, nrow_local=nrow_local)
       gram(:, :) = 0.0_dp
       IF (nrow_local > 0) THEN
-         CALL DGEMM('T', 'N', nu, nv, nrow_local, 1.0_dp, &
-                    fm_U%local_data(:, u0:u0 + nu - 1), SIZE(fm_U%local_data, 1), &
-                    fm_V%local_data(:, v0:v0 + nv - 1), SIZE(fm_V%local_data, 1), &
-                    0.0_dp, gram, SIZE(gram, 1))
+         CALL bse_dgemm('T', 'N', nu, nv, nrow_local, 1.0_dp, &
+                        fm_U%local_data(:, u0:u0 + nu - 1), SIZE(fm_U%local_data, 1), &
+                        fm_V%local_data(:, v0:v0 + nv - 1), SIZE(fm_V%local_data, 1), &
+                        0.0_dp, gram, SIZE(gram, 1))
       END IF
       CALL para_env%sum(gram)
 
@@ -2594,9 +2595,9 @@ CONTAINS
             CALL subspace_gram(fm_V, 1, nv, fm_T, first_col, nt, para_env, coeff)
          END IF
          IF (nrow_local > 0) THEN
-            CALL DGEMM('N', 'N', nrow_local, nt, nv, -1.0_dp, &
-                       fm_V%local_data, SIZE(fm_V%local_data, 1), coeff, nv, 1.0_dp, &
-                       fm_T%local_data(:, first_col:first_col + nt - 1), SIZE(fm_T%local_data, 1))
+            CALL bse_dgemm('N', 'N', nrow_local, nt, nv, -1.0_dp, &
+                           fm_V%local_data, SIZE(fm_V%local_data, 1), coeff, nv, 1.0_dp, &
+                           fm_T%local_data(:, first_col:first_col + nt - 1), SIZE(fm_T%local_data, 1))
          END IF
       END DO
       DEALLOCATE (coeff)
@@ -2711,9 +2712,9 @@ CONTAINS
             END DO
             IF (nrow_local > 0) THEN
                ALLOCATE (T_reduced(nrow_local, n_keep))
-               CALL DGEMM('N', 'N', nrow_local, n_keep, nt, 1.0_dp, &
-                          fm_T%local_data(:, first_col:first_col + nt - 1), SIZE(fm_T%local_data, 1), &
-                          gram_eigvec(:, nt - n_keep + 1:nt), nt, 0.0_dp, T_reduced, nrow_local)
+               CALL bse_dgemm('N', 'N', nrow_local, n_keep, nt, 1.0_dp, &
+                              fm_T%local_data(:, first_col:first_col + nt - 1), SIZE(fm_T%local_data, 1), &
+                              gram_eigvec(:, nt - n_keep + 1:nt), nt, 0.0_dp, T_reduced, nrow_local)
                fm_T%local_data(1:nrow_local, first_col:first_col + n_keep - 1) = T_reduced(:, :)
                fm_T%local_data(1:nrow_local, first_col + n_keep:first_col + nt - 1) = 0.0_dp
                DEALLOCATE (T_reduced)

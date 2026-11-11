@@ -121,7 +121,7 @@ spack:
     - "libvori@220621"
     - "libwignernj@0.8.0"
     - "libxc@7.1.2"
-    - "libxs@git.cc9188afc9422fda96c9fa0199ea89c49fd78995=main"
+    - "libxs@git.6d1b5d9cc298c38566d70f4aac5368edb32cf42b=main"
     - "libxsmm@git.5fdf801e9c2bf91a929018ade31ebf1c24235f0a=main"
     - "openblas@0.3.34"
     - "pace@2025.12.4.1"
