@@ -128,6 +128,19 @@ static bool backend_upload_packs(const dbm_pack_t *pack_a,
 #endif
 }
 
+/*******************************************************************************
+ * \brief Private routine for waiting until the backend no longer reads the
+ *        packs, i.e., before their buffers are reused or released.
+ * \author Hans Pabst
+ ******************************************************************************/
+static void backend_wait_packs(backend_context_t *ctx) {
+#if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
+  dbm_multiply_gpu_wait_packs(&ctx->gpu);
+#else
+  (void)ctx; // mark as used
+#endif
+}
+
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
 /*******************************************************************************
  * \brief Private routine for ordering a batch in place as the GPU backend asks.
@@ -302,7 +315,7 @@ static void multiply_packs(const bool transa, const bool transb,
 
 #pragma omp parallel reduction(+ : flop_sum)
   {
-    // Thread-private array covering given work in piece-wise fashion.
+    // Thread-private batch covering given work in piece-wise fashion.
     dbm_batch_t batch = {0};
     batch.tasks = backend_batch_acquire(force_cpu, context);
     // Thread-local stats, added to the library's counters once at the end.
@@ -567,6 +580,8 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
     multiply_packs(transa, transb, alpha, pack_a, pack_b, matrix_a, matrix_b,
                    matrix_c, rows_max_eps, retain_sparsity, false /*!uploaded*/,
                    flop, ctx);
+    // The next tick receives into the packs, and the iterator releases them.
+    backend_wait_packs(ctx);
     phase[DBM_PHASE_MULTIPLY] += phase_lap(&tick);
   }
 

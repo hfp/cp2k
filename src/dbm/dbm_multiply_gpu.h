@@ -100,6 +100,13 @@ bool dbm_multiply_gpu_upload_packs(const dbm_pack_t *pack_a,
                                    dbm_multiply_gpu_context_t *ctx);
 
 /*******************************************************************************
+ * \brief Internal routine for waiting until the packs are uploaded such that
+ *        the host can reuse or release their buffers.
+ * \author Hans Pabst
+ ******************************************************************************/
+void dbm_multiply_gpu_wait_packs(dbm_multiply_gpu_context_t *ctx);
+
+/*******************************************************************************
  * \brief Internal routine for obtaining the calling thread's host batch.
  * \author Hans Pabst
  ******************************************************************************/
