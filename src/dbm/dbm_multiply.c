@@ -129,13 +129,13 @@ static bool backend_upload_packs(const dbm_pack_t *pack_a,
 }
 
 /*******************************************************************************
- * \brief Private routine for waiting until the backend no longer reads the
- *        packs, i.e., before their buffers are reused or released.
+ * \brief Private routine for concluding a turn of the main loop, i.e., before
+ *        the packs are reused or released and before batches are refilled.
  * \author Hans Pabst
  ******************************************************************************/
-static void backend_wait_packs(backend_context_t *ctx) {
+static void backend_end_turn(backend_context_t *ctx) {
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
-  dbm_multiply_gpu_wait_packs(&ctx->gpu);
+  dbm_multiply_gpu_end_turn(&ctx->gpu);
 #else
   (void)ctx; // mark as used
 #endif
@@ -167,48 +167,29 @@ static void backend_order_batch(dbm_batch_t *batch) {
 #endif
 
 /*******************************************************************************
- * \brief Private routine for obtaining the calling thread's batch.
+ * \brief Private routine returning where the tasks for the given shard are
+ *        written: where the backend reads them, or the thread's own buffer.
  * \author Hans Pabst
  ******************************************************************************/
-static dbm_task_t *backend_batch_acquire(const bool force_cpu,
-                                         backend_context_t *ctx) {
+static dbm_task_t *backend_batch_tasks(dbm_task_t *own, const int kshard,
+                                       const bool force_cpu,
+                                       backend_context_t *ctx) {
   dbm_task_t *result = NULL;
 #if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
   if (NULL != ctx && !force_cpu) {
-    result = dbm_multiply_gpu_batch_acquire(&ctx->gpu);
-  } else
-#endif
-  {
-    (void)force_cpu; // mark used
-    (void)ctx;
-    result =
-        offload_mempool_host_malloc(sizeof(dbm_task_t) * DBM_MAX_BATCH_SIZE);
+    result = dbm_multiply_gpu_batch_tasks(kshard, &ctx->gpu);
   }
-  return result;
-}
-
-/*******************************************************************************
- * \brief Private routine for returning the calling thread's batch.
- * \author Hans Pabst
- ******************************************************************************/
-static void backend_batch_release(dbm_task_t *batch, const bool force_cpu,
-                                  backend_context_t *ctx) {
-#if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_DBM)
-  if (NULL != ctx && !force_cpu) {
-    dbm_multiply_gpu_batch_release(batch, &ctx->gpu);
-  } else
+#else
+  (void)kshard; // mark as used
+  (void)force_cpu;
+  (void)ctx;
 #endif
-  {
-    (void)force_cpu; // mark used
-    (void)ctx;
-    offload_mempool_host_free(batch);
-  }
+  return (NULL != result ? result : own);
 }
 
 /*******************************************************************************
  * \brief Private routine for sending a batch to the multiplication backend.
- *        The batch is left empty, i.e., ready to be filled again (its tasks
- *        may have been swapped for another buffer).
+ *        The batch is left empty, i.e., ready to be filled again.
  * \author Ole Schuett
  ******************************************************************************/
 static void backend_process_batch(dbm_batch_t *batch, const double alpha,
@@ -317,7 +298,8 @@ static void multiply_packs(const bool transa, const bool transb,
   {
     // Thread-private batch covering given work in piece-wise fashion.
     dbm_batch_t batch = {0};
-    batch.tasks = backend_batch_acquire(force_cpu, context);
+    dbm_task_t *const batch_tasks =
+        offload_mempool_host_malloc(sizeof(dbm_task_t) * DBM_MAX_BATCH_SIZE);
     // Thread-local stats, added to the library's counters once at the end.
     int64_t counters[DBM_NUM_COUNTERS] = {0};
 
@@ -347,6 +329,8 @@ static void multiply_packs(const bool transa, const bool transb,
         const int ishard = shard_row * nshard_cols + shard_col;
         dbm_shard_t *const shard_c = &matrix_c->shards[ishard];
         assert(0 == batch.ntasks); // left empty by the previous shard
+        batch.tasks =
+            backend_batch_tasks(batch_tasks, ishard, force_cpu, context);
 
         // Determine contiguous block ranges for this shard in A and B.
         // Use a merge-join to find pairs of blocks with matching sum indices.
@@ -491,7 +475,7 @@ static void multiply_packs(const bool transa, const bool transb,
     }
 
     dbm_library_counters_add(counters);
-    backend_batch_release(batch.tasks, force_cpu, context);
+    offload_mempool_host_free(batch_tasks);
   }
 
   free(shard_row_start);
@@ -580,8 +564,9 @@ void dbm_multiply(const bool transa, const bool transb, const double alpha,
     multiply_packs(transa, transb, alpha, pack_a, pack_b, matrix_a, matrix_b,
                    matrix_c, rows_max_eps, retain_sparsity, false /*!uploaded*/,
                    flop, ctx);
-    // The next tick receives into the packs, and the iterator releases them.
-    backend_wait_packs(ctx);
+    // The next turn receives into the packs (or the iterator releases them),
+    // and refills batches.
+    backend_end_turn(ctx);
     phase[DBM_PHASE_MULTIPLY] += phase_lap(&tick);
   }
 
