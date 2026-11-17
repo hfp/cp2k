@@ -57,11 +57,42 @@ The `grid_miniapp.x` binary allows to run individual .task files. By default
 $ cd cp2k/src/grid
 $ make
 $ ./grid_miniapp.x
-Usage: grid_miniapp.x [--integrate] [--batch <cycles-per-block>] <cycles> <task-file>
+Usage: grid_miniapp.x [--backend <auto|ref|cpu|dgemm|gpu>] [--cutoff] [--dump <calls>] [--integrate] [--batch <cycles-per-block>] <cycles> <task-file>
 
 $ ./grid_miniapp.x --batch 10 100 ./sample_tasks/ortho_density_l2200.task
 Task: ./sample_tasks/ortho_density_l2200.task                   Collocate Batched   Cycles: 1.000000e+02   Max value: 1.579830e+02   Max rel diff: 7.435177e-11   Time: 1.438550e-04 sec
 ```
+
+`--backend` selects the backend of the batched path (default: auto), and `--cutoff` applies the
+spherical cutoff of the DGEMM and GPU backends (`APPLY_CUTOFF`, which CP2K's input enables by
+default).
+
+## Task Lists
+
+A .task file holds a single task, and `--batch` repeats it. To replay what CP2K actually computes,
+the grid library writes whole task lists, i.e., the arguments of `grid_create_task_list` together
+with one call of `grid_collocate_task_list` or `grid_integrate_task_list`, its inputs, and its
+results. The input keyword `DUMP_TASK_LISTS` in `&GLOBAL&GRID` sets how many collocate and how many
+integrate calls each rank writes:
+
+```
+&GLOBAL
+  &GRID
+    DUMP_TASK_LISTS 1
+  &END GRID
+&END GLOBAL
+```
+
+The files are named `grid_collocate_<rank>_<n>.tasklist` and `grid_integrate_<rank>_<n>.tasklist`
+(binary, native byte order). The miniapp recognizes a task list, replays the recorded call with the
+selected backend, and compares the results with the recorded ones:
+
+```shell
+$ ./grid_miniapp.x --backend cpu 10 grid_collocate_0_0.tasklist
+```
+
+The time of creating the task list is reported separately from the time of the repeated calls.
+`--dump` writes task lists from the miniapp itself, e.g., from a batched .task file.
 
 ## Unit Test
 

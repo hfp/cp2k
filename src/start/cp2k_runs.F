@@ -175,8 +175,8 @@ CONTAINS
       CHARACTER(len=default_path_length), &
          DIMENSION(:, :), INTENT(IN)                     :: initial_variables
 
-      INTEGER                                            :: f_env_handle, grid_backend, ierr, &
-                                                            iter_level, method_name_id, &
+      INTEGER                                            :: f_env_handle, grid_backend, grid_dump, &
+                                                            ierr, iter_level, method_name_id, &
                                                             new_env_id, prog_name_id, run_type_id
       INTEGER(KIND=int_8)                                :: m_memory_max_mpi
       LOGICAL                                            :: echo_input, grid_apply_cutoff, &
@@ -250,10 +250,12 @@ CONTAINS
       CALL section_vals_val_get(root_section, "GLOBAL%GRID%BACKEND", i_val=grid_backend)
       CALL section_vals_val_get(root_section, "GLOBAL%GRID%VALIDATE", l_val=grid_validate)
       CALL section_vals_val_get(root_section, "GLOBAL%GRID%APPLY_CUTOFF", l_val=grid_apply_cutoff)
+      CALL section_vals_val_get(root_section, "GLOBAL%GRID%DUMP_TASK_LISTS", i_val=grid_dump)
 
       CALL grid_library_set_config(backend=grid_backend, &
                                    validate=grid_validate, &
-                                   apply_cutoff=grid_apply_cutoff)
+                                   apply_cutoff=grid_apply_cutoff, &
+                                   dump=grid_dump)
 
       SELECT CASE (prog_name_id)
       CASE (do_atom)

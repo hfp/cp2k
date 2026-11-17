@@ -34,6 +34,11 @@ typedef struct {
   grid_gpu_task_list *gpu;
 #endif
   // more backends to be added here
+  char *dump;       // serialized arguments of grid_create_task_list
+  size_t dump_size; // when the config asks for task lists written to file
 } grid_task_list_internal;
+
+// First line of a task list file, followed by binary records (count, data).
+#define GRID_TASK_LIST_HEADER "#Grid task list v1\n"
 
 #endif

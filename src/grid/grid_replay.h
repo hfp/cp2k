@@ -28,6 +28,28 @@ bool grid_replay(const char *filename, const int cycles, const bool collocate,
                  const bool batch, const int cycles_per_block,
                  const double tolerance);
 
+/*******************************************************************************
+ * \brief Tells whether the given file is a task list, i.e., written by
+ *        grid_collocate_task_list or grid_integrate_task_list when the grid
+ *        library is configured to dump calls (GLOBAL%GRID%DUMP_TASK_LISTS).
+ * \author Hans Pabst
+ ******************************************************************************/
+bool grid_replay_is_task_list(const char *filename);
+
+/*******************************************************************************
+ * \brief Reads a task list, replays the recorded call with the configured
+ *        backend, and compares the results with the recorded ones.
+ *
+ * \param filename          Name of the task list file.
+ * \param cycles            Number of times the call is repeated (timed).
+ * \param tolerance         Tolerance for comparing floating point results.
+ * \returns                 Returns true iff the test passed.
+ *
+ * \author Hans Pabst
+ ******************************************************************************/
+bool grid_replay_task_list(const char *filename, const int cycles,
+                           const double tolerance);
+
 #endif
 
 // EOF

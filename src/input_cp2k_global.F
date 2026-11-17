@@ -888,6 +888,14 @@ CONTAINS
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
+      CALL keyword_create(keyword, __LOCATION__, name="DUMP_TASK_LISTS", &
+                          description="Writes the first N collocate and the first N integrate "// &
+                          "calls of each rank to files grid_collocate_<rank>_<n>.tasklist and "// &
+                          "grid_integrate_<rank>_<n>.tasklist, which grid_miniapp replays "// &
+                          "with any backend.", default_i_val=0)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
    END SUBROUTINE create_grid_section
 
 END MODULE input_cp2k_global

@@ -4,6 +4,7 @@
 /*                                                                            */
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
+#include "../mpiwrap/cp_mpi.h"
 #include "../offload/offload_library.h"
 #include "../offload/offload_mempool.h"
 #include "common/grid_library.h"
@@ -25,37 +26,59 @@ static void print_func(const char *msg, int msglen, int output_unit) {
 }
 
 /*******************************************************************************
- * \brief Stand-alone miniapp for running .task files.
+ * \brief Stand-alone miniapp for running .task files and task lists.
  * \author Ole Schuett
  ******************************************************************************/
 int main(int argc, char *argv[]) {
   // Parsing of optional args.
   int iarg = 1;
   int nrequired_args = 2;
-
   bool collocate = true;
-  if (iarg < argc && strcmp(argv[iarg], "--integrate") == 0) {
-    iarg++;
-    collocate = false;
-  }
-
   bool batch = false;
-  if (iarg < argc && strcmp(argv[iarg], "--batch") == 0) {
-    iarg++;
-    batch = true;
-    nrequired_args++;
+  int cycles_per_block = 1;
+  grid_library_config config = grid_library_get_config();
+  bool valid = true;
+  while (valid && iarg < argc && strncmp(argv[iarg], "--", 2) == 0) {
+    const char *const option = argv[iarg++];
+    if (strcmp(option, "--integrate") == 0) {
+      collocate = false;
+    } else if (strcmp(option, "--batch") == 0) {
+      batch = true;
+      valid =
+          (iarg < argc && sscanf(argv[iarg++], "%i", &cycles_per_block) == 1);
+    } else if (strcmp(option, "--backend") == 0 && iarg < argc) {
+      const char *const name = argv[iarg++];
+      if (strcmp(name, "auto") == 0) {
+        config.backend = GRID_BACKEND_AUTO;
+      } else if (strcmp(name, "ref") == 0) {
+        config.backend = GRID_BACKEND_REF;
+      } else if (strcmp(name, "cpu") == 0) {
+        config.backend = GRID_BACKEND_CPU;
+      } else if (strcmp(name, "dgemm") == 0) {
+        config.backend = GRID_BACKEND_DGEMM;
+      } else if (strcmp(name, "gpu") == 0) {
+        config.backend = GRID_BACKEND_GPU;
+      } else {
+        valid = false;
+      }
+    } else if (strcmp(option, "--cutoff") == 0) {
+      config.apply_cutoff = true; // as GLOBAL%GRID%APPLY_CUTOFF (default)
+    } else if (strcmp(option, "--dump") == 0) {
+      valid = (iarg < argc && sscanf(argv[iarg++], "%i", &config.dump) == 1);
+    } else {
+      valid = false;
+    }
   }
 
   // All optional args have been parsed.
-  if (argc - iarg != nrequired_args) {
-    fprintf(stderr, "Usage: grid_miniapp.x [--integrate] [--batch "
-                    "<cycles-per-block>] <cycles> <task-file>\n");
-    return 1;
-  }
-
-  int cycles_per_block = 1;
-  if (batch && sscanf(argv[iarg++], "%i", &cycles_per_block) != 1) {
-    fprintf(stderr, "Error: Could not parse cycles per block.\n");
+  if (!valid || argc - iarg != nrequired_args) {
+    fprintf(stderr,
+            "Usage: grid_miniapp.x [--backend <auto|ref|cpu|dgemm|gpu>] "
+            "[--cutoff] [--dump <calls>] [--integrate] "
+            "[--batch <cycles-per-block>] "
+            "<cycles> <task-file>\n"
+            "       A task list (GLOBAL%%GRID%%DUMP_TASK_LISTS) is replayed as "
+            "recorded, i.e., without --integrate and --batch.\n");
     return 1;
   }
 
@@ -64,25 +87,34 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "Error: Could not parse cycles.\n");
     return 1;
   }
+  const char *const filename = argv[iarg++];
+  const bool task_list = grid_replay_is_task_list(filename);
+  if (task_list && (batch || !collocate)) {
+    fprintf(stderr, "Error: A task list is replayed as recorded.\n");
+    return 1;
+  }
 
+  cp_mpi_init(&argc, &argv);
   offload_set_chosen_device(0);
   grid_library_init();
+  grid_library_set_config(config.backend, config.validate, config.apply_cutoff,
+                          config.dump);
 
-  const double tolerance = 1e-12 * cycles;
-  const bool success = grid_replay(argv[iarg++], cycles, collocate, batch,
-                                   cycles_per_block, tolerance);
-
+  // Results of a task list do not accumulate over cycles.
+  const double tolerance = 1e-12 * (task_list ? 1 : cycles);
+  const bool success = task_list
+                           ? grid_replay_task_list(filename, cycles, tolerance)
+                           : grid_replay(filename, cycles, collocate, batch,
+                                         cycles_per_block, tolerance);
   if (success) {
     grid_library_print_stats(0 /*fortran_comm*/, &print_func, 0 /*rank*/);
     offload_mempool_stats_print(0 /*fortran_comm*/, &print_func, 0 /*rank*/);
-    grid_library_finalize();
   } else {
     fprintf(stderr, "Error: Maximal difference is too large.\n");
-    grid_library_finalize();
-    return 2;
   }
-
-  return 0;
+  grid_library_finalize();
+  cp_mpi_finalize();
+  return success ? 0 : 2;
 }
 
 // EOF

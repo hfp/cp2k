@@ -37,6 +37,7 @@ typedef struct {
       backend;       // Selectes the backend to be used by the grid library.
   bool validate;     // When true the reference backend runs in shadow mode.
   bool apply_cutoff; // only important for the dgemm and gpu backends
+  int dump; // number of collocate and integrate calls written to file each
 } grid_library_config;
 
 /*******************************************************************************
@@ -44,7 +45,8 @@ typedef struct {
  * \author Ole Schuett
  ******************************************************************************/
 void grid_library_set_config(const enum grid_backend backend,
-                             const bool validate, const bool apply_cutoff);
+                             const bool validate, const bool apply_cutoff,
+                             const int dump);
 
 /*******************************************************************************
  * \brief Returns the library config.

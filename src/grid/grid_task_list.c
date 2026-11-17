@@ -8,12 +8,99 @@
 #include <assert.h>
 #include <math.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "../mpiwrap/cp_mpi.h"
 #include "grid_task_list.h"
 #include "grid_task_list_internal.h"
+
+// Number of collocate (0) and integrate (1) calls written to file so far.
+static int dump_count[2] = {0, 0};
+
+/*******************************************************************************
+ * \brief Appends an array preceded by its number of elements to a buffer.
+ * \author Hans Pabst
+ ******************************************************************************/
+static void dump_append(char **data, size_t *size, const void *array,
+                        const int64_t count, const size_t elem_size) {
+  const size_t bytes = (size_t)count * elem_size;
+  *data = realloc(*data, *size + sizeof(int64_t) + bytes);
+  assert(*data != NULL);
+  memcpy(*data + *size, &count, sizeof(int64_t));
+  if (bytes > 0) {
+    memcpy(*data + *size + sizeof(int64_t), array, bytes);
+  }
+  *size += sizeof(int64_t) + bytes;
+}
+
+/*******************************************************************************
+ * \brief Writes an array preceded by its number of elements to a file.
+ * \author Hans Pabst
+ ******************************************************************************/
+static void dump_write(FILE *fp, const void *array, const int64_t count,
+                       const size_t elem_size) {
+  bool ok = fwrite(&count, sizeof(int64_t), 1, fp) == 1;
+  if (count > 0) {
+    ok = ok && fwrite(array, elem_size, (size_t)count, fp) == (size_t)count;
+  }
+  if (!ok) {
+    fprintf(stderr, "Error: Could not write grid task list.\n");
+    abort();
+  }
+}
+
+/*******************************************************************************
+ * \brief Opens the next task list file of the given kind (0: collocate, 1:
+ *        integrate) and writes the task list, or returns NULL if not wanted.
+ * \author Hans Pabst
+ ******************************************************************************/
+static FILE *dump_begin(const grid_task_list_internal *task_list,
+                        const int kind) {
+  if (task_list->dump == NULL ||
+      dump_count[kind] >= grid_library_get_config().dump) {
+    return NULL;
+  }
+  const int rank = cp_mpi_comm_rank(cp_mpi_get_comm_world());
+  char filename[64];
+  snprintf(filename, sizeof(filename), "grid_%s_%i_%i.tasklist",
+           0 == kind ? "collocate" : "integrate", rank, dump_count[kind]++);
+  FILE *fp = fopen(filename, "wb");
+  if (fp == NULL) {
+    fprintf(stderr, "Error: Could not open %s.\n", filename);
+    abort();
+  }
+  // Values of known bits catch a reader with another byte order.
+  const int probe_int = 1;
+  const double probe_double = 1.0;
+  const bool ok = fputs(GRID_TASK_LIST_HEADER, fp) >= 0;
+  if (!ok) {
+    fprintf(stderr, "Error: Could not write %s.\n", filename);
+    abort();
+  }
+  dump_write(fp, &probe_int, 1, sizeof(int));
+  dump_write(fp, &probe_double, 1, sizeof(double));
+  dump_write(fp, &kind, 1, sizeof(int));
+  if (fwrite(task_list->dump, 1, task_list->dump_size, fp) !=
+      task_list->dump_size) {
+    fprintf(stderr, "Error: Could not write %s.\n", filename);
+    abort();
+  }
+  return fp;
+}
+
+/*******************************************************************************
+ * \brief Closes a task list file.
+ * \author Hans Pabst
+ ******************************************************************************/
+static void dump_end(FILE *fp) {
+  if (fclose(fp) != 0) {
+    fprintf(stderr, "Error: Could not close grid task list.\n");
+    abort();
+  }
+}
 
 /*******************************************************************************
  * \brief Allocates a task list which can be passed to grid_collocate_task_list.
@@ -62,11 +149,56 @@ void grid_create_task_list(
     task_list = (grid_task_list_internal *)*task_list_out;
   }
 
+  free(task_list->dump);
+  task_list->dump = NULL;
+  task_list->dump_size = 0;
+
   if ((nblocks == 0) || (ntasks == 0) || (nlevels == 0)) {
     task_list->empty = true;
     return;
   } else {
     task_list->empty = false;
+  }
+
+  // Keep the arguments as long as calls are to be written to file.
+  if (dump_count[0] < config.dump || dump_count[1] < config.dump) {
+    char **data = &task_list->dump;
+    size_t *size = &task_list->dump_size;
+    const int scalars[6] = {orthorhombic, ntasks, nlevels,
+                            natoms,       nkinds, nblocks};
+    dump_append(data, size, scalars, 6, sizeof(int));
+    dump_append(data, size, block_offsets, nblocks, sizeof(int));
+    dump_append(data, size, atom_positions, 3 * natoms, sizeof(double));
+    dump_append(data, size, atom_kinds, natoms, sizeof(int));
+    for (int ikind = 0; ikind < nkinds; ikind++) {
+      const grid_basis_set *basis = basis_sets[ikind];
+      const int sizes[4] = {basis->nset, basis->nsgf, basis->maxco,
+                            basis->maxpgf};
+      dump_append(data, size, sizes, 4, sizeof(int));
+      dump_append(data, size, basis->lmin, basis->nset, sizeof(int));
+      dump_append(data, size, basis->lmax, basis->nset, sizeof(int));
+      dump_append(data, size, basis->npgf, basis->nset, sizeof(int));
+      dump_append(data, size, basis->nsgf_set, basis->nset, sizeof(int));
+      dump_append(data, size, basis->first_sgf, basis->nset, sizeof(int));
+      dump_append(data, size, basis->sphi, (int64_t)basis->nsgf * basis->maxco,
+                  sizeof(double));
+      dump_append(data, size, basis->zet, (int64_t)basis->nset * basis->maxpgf,
+                  sizeof(double));
+    }
+    const int *task_ints[9] = {level_list, iatom_list,       jatom_list,
+                               iset_list,  jset_list,        ipgf_list,
+                               jpgf_list,  border_mask_list, block_num_list};
+    for (int i = 0; i < 9; i++) {
+      dump_append(data, size, task_ints[i], ntasks, sizeof(int));
+    }
+    dump_append(data, size, radius_list, ntasks, sizeof(double));
+    dump_append(data, size, rab_list, 3 * (int64_t)ntasks, sizeof(double));
+    dump_append(data, size, npts_global, 3 * nlevels, sizeof(int));
+    dump_append(data, size, npts_local, 3 * nlevels, sizeof(int));
+    dump_append(data, size, shift_local, 3 * nlevels, sizeof(int));
+    dump_append(data, size, border_width, 3 * nlevels, sizeof(int));
+    dump_append(data, size, dh, 9 * nlevels, sizeof(double));
+    dump_append(data, size, dh_inv, 9 * nlevels, sizeof(double));
   }
 
   size_t size = (size_t)nlevels * 3 * sizeof(int);
@@ -165,6 +297,7 @@ void grid_free_task_list(grid_task_list *ptr) {
 #endif
 
   free(task_list->npts_local);
+  free(task_list->dump);
   free(task_list);
 }
 
@@ -221,6 +354,22 @@ void grid_collocate_task_list(const grid_task_list *ptr,
     printf("Error: Unknown grid backend: %i.\n", task_list->backend);
     abort();
     break;
+  }
+
+  // Write task list, arguments, and results to file if requested.
+  FILE *const fp = dump_begin(task_list, 0);
+  if (fp != NULL) {
+    const int ifunc = func;
+    dump_write(fp, &ifunc, 1, sizeof(int));
+    dump_write(fp, pab_blocks->host_buffer,
+               (int64_t)(pab_blocks->size / sizeof(double)), sizeof(double));
+    for (int level = 0; level < nlevels; level++) {
+      dump_write(fp, grids[level]->host_buffer,
+                 (int64_t)npts_local[level][0] * npts_local[level][1] *
+                     npts_local[level][2],
+                 sizeof(double));
+    }
+    dump_end(fp);
   }
 
   // Perform validation if enabled.
@@ -348,6 +497,29 @@ void grid_integrate_task_list(const grid_task_list *ptr, const bool compute_tau,
     printf("Error: Unknown grid backend: %i.\n", task_list->backend);
     abort();
     break;
+  }
+
+  // Write task list, arguments, and results to file if requested.
+  FILE *const fp = dump_begin(task_list, 1);
+  if (fp != NULL) {
+    const int flags[4] = {compute_tau, pab_blocks != NULL, forces != NULL,
+                          virial != NULL};
+    dump_write(fp, flags, 4, sizeof(int));
+    dump_write(fp, pab_blocks != NULL ? pab_blocks->host_buffer : NULL,
+               pab_blocks != NULL ? (int64_t)(pab_blocks->size / sizeof(double))
+                                  : 0,
+               sizeof(double));
+    for (int level = 0; level < nlevels; level++) {
+      dump_write(fp, grids[level]->host_buffer,
+                 (int64_t)npts_local[level][0] * npts_local[level][1] *
+                     npts_local[level][2],
+                 sizeof(double));
+    }
+    dump_write(fp, hab_blocks->host_buffer,
+               (int64_t)(hab_blocks->size / sizeof(double)), sizeof(double));
+    dump_write(fp, forces, forces != NULL ? 3 * natoms : 0, sizeof(double));
+    dump_write(fp, virial, virial != NULL ? 9 : 0, sizeof(double));
+    dump_end(fp);
   }
 
   // Perform validation if enabled.

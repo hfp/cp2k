@@ -12,6 +12,7 @@
 #include <omp.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -148,7 +149,46 @@ static void create_dummy_basis_set(const int size, const int lmin,
 }
 
 /*******************************************************************************
- * \brief Creates mock task list with one task per cycle.
+ * \brief Compares n results with their reference times scale, prints the ones
+ *        beyond the tolerance if named, and returns the maximal relative
+ *        difference times weight (infinity for a result that is not finite).
+ * \author Hans Pabst
+ ******************************************************************************/
+static double compare(const char *name, const double *ref, const double scale,
+                      const double *test, const int64_t n, const double weight,
+                      const double tolerance, double *max_value) {
+  double result = 0.0;
+  for (int64_t i = 0; i < n; i++) {
+    const double ref_value = scale * ref[i];
+    const double diff = fabs(test[i] - ref_value);
+    const double rel_diff = isfinite(test[i])
+                                ? weight * diff / fmax(1.0, fabs(ref_value))
+                                : INFINITY;
+    if (name != NULL && rel_diff > tolerance) {
+      printf("%s[%li] ref: %le test: %le diff: %le rel_diff: %le\n", name,
+             (long)i, ref_value, test[i], diff, rel_diff);
+    }
+    result = fmax(result, rel_diff);
+    if (max_value != NULL) {
+      *max_value = fmax(*max_value, fabs(test[i]));
+    }
+  }
+  return result;
+}
+
+/*******************************************************************************
+ * \brief Returns the number of blocks of the mock task list.
+ * \author Ole Schuett
+ ******************************************************************************/
+static int dummy_nblocks(const int cycles, const int cycles_per_block) {
+  /* we can not have more blocks than the number of tasks */
+  return (cycles == 1) ? 1 : (cycles / cycles_per_block + 1);
+}
+
+/*******************************************************************************
+ * \brief Creates mock task list with one task per cycle. Each block has its own
+ *        copy of the data, since blocks are processed concurrently and
+ *        integrate writes into them.
  * \author Ole Schuett
  ******************************************************************************/
 static void create_dummy_task_list(
@@ -156,24 +196,22 @@ static void create_dummy_task_list(
     const double rab[3], const double radius, const grid_basis_set *basis_set_a,
     const grid_basis_set *basis_set_b, const int o1, const int o2,
     const int la_max, const int lb_max, const int cycles,
-    const int cycles_per_block, const int npts_global[][3],
-    const int npts_local[][3], const int shift_local[][3],
-    const int border_width[][3], const double dh[][3][3],
-    const double dh_inv[][3][3], grid_task_list **task_list) {
+    const int cycles_per_block, const int block_size,
+    const int npts_global[][3], const int npts_local[][3],
+    const int shift_local[][3], const int border_width[][3],
+    const double dh[][3][3], const double dh_inv[][3][3],
+    grid_task_list **task_list) {
 
   const int ntasks = cycles;
   const int nlevels = 1;
   const int natoms = 2;
   const int nkinds = 2;
-  int nblocks = cycles / cycles_per_block + 1;
-
-  /* we can not have more blocks than the number of tasks */
-  if (cycles == 1) {
-    nblocks = 1;
-  }
+  const int nblocks = dummy_nblocks(cycles, cycles_per_block);
 
   int block_offsets[nblocks];
-  memset(block_offsets, 0, nblocks * sizeof(int)); // all point to same data
+  for (int i = 0; i < nblocks; i++) {
+    block_offsets[i] = i * block_size;
+  }
   const double atom_positions[2][3] = {
       {ra[0], ra[1], ra[2]}, {rab[0] + ra[0], rab[1] + ra[1], rab[2] + ra[2]}};
   const int atom_kinds[2] = {1, 2};
@@ -367,17 +405,21 @@ bool grid_replay(const char *filename, const int cycles, const bool collocate,
     grid_task_list *task_list = NULL;
     create_dummy_task_list(
         orthorhombic, border_mask, ra, rab, radius, basisa, basisb, o1, o2,
-        la_max, lb_max, cycles, cycles_per_block, (const int (*)[3])npts_global,
-        (const int (*)[3])npts_local, (const int (*)[3])shift_local,
-        (const int (*)[3])border_width, (const double (*)[3][3])dh,
-        (const double (*)[3][3])dh_inv, &task_list);
+        la_max, lb_max, cycles, cycles_per_block, n1 * n2,
+        (const int (*)[3])npts_global, (const int (*)[3])npts_local,
+        (const int (*)[3])shift_local, (const int (*)[3])border_width,
+        (const double (*)[3][3])dh, (const double (*)[3][3])dh_inv, &task_list);
+    const int nblocks = dummy_nblocks(cycles, cycles_per_block);
     offload_buffer *pab_blocks = NULL, *hab_blocks = NULL;
-    offload_create_buffer(n1 * n2, &pab_blocks);
-    offload_create_buffer(n1 * n2, &hab_blocks);
+    offload_create_buffer(nblocks * n1 * n2, &pab_blocks);
+    offload_create_buffer(nblocks * n1 * n2, &hab_blocks);
     const double f = (collocate) ? rscale : 1.0;
-    for (int i = 0; i < n1; i++) {
-      for (int j = 0; j < n2; j++) {
-        pab_blocks->host_buffer[j * n1 + i] = 0.5 * f * pab[j][i];
+    for (int b = 0; b < nblocks; b++) {
+      for (int i = 0; i < n1; i++) {
+        for (int j = 0; j < n2; j++) {
+          pab_blocks->host_buffer[b * n1 * n2 + j * n1 + i] =
+              0.5 * f * pab[j][i];
+        }
       }
     }
     start_time = omp_get_wtime();
@@ -396,7 +438,10 @@ bool grid_replay(const char *filename, const int cycles, const bool collocate,
                                hab_blocks, forces_test, virial_test);
       for (int i = 0; i < n2; i++) {
         for (int j = 0; j < n1; j++) {
-          hab_test[i][j] = hab_blocks->host_buffer[i * n1 + j];
+          hab_test[i][j] = 0.0;
+          for (int b = 0; b < nblocks; b++) {
+            hab_test[i][j] += hab_blocks->host_buffer[b * n1 * n2 + i * n1 + j];
+          }
         }
       }
     }
@@ -440,65 +485,23 @@ bool grid_replay(const char *filename, const int cycles, const bool collocate,
     end_time = omp_get_wtime();
   }
 
-  double max_value = 0.0;
-  double max_rel_diff = 0.0;
+  double max_value = 0.0, max_rel_diff = 0.0;
   const double derivatives_precision = 1e-4; // account for higher numeric noise
   if (collocate) {
-    // collocate
-    // compare grid
-    for (int i = 0; i < npts_local_total; i++) {
-      const double ref_value = cycles * grid_ref->host_buffer[i];
-      const double test_value = grid_test->host_buffer[i];
-      const double diff = fabs(test_value - ref_value);
-      const double rel_diff = diff / fmax(1.0, fabs(ref_value));
-      max_rel_diff = fmax(max_rel_diff, rel_diff);
-      max_value = fmax(max_value, fabs(test_value));
-    }
+    max_rel_diff =
+        compare(NULL, grid_ref->host_buffer, cycles, grid_test->host_buffer,
+                npts_local_total, 1.0, tolerance, &max_value);
   } else {
-    // integrate
-    // compare hab
-    for (int i = 0; i < n2; i++) {
-      for (int j = 0; j < n1; j++) {
-        const double ref_value = cycles * hab_ref[i][j];
-        const double test_value = hab_test[i][j];
-        const double diff = fabs(test_value - ref_value);
-        const double rel_diff = diff / fmax(1.0, fabs(ref_value));
-        max_rel_diff = fmax(max_rel_diff, rel_diff);
-        max_value = fmax(max_value, fabs(test_value));
-        if (rel_diff > tolerance) {
-          printf("hab[%i, %i] ref: %le test: %le diff:%le rel_diff: %le\n", i,
-                 j, ref_value, test_value, diff, rel_diff);
-        }
-      }
-    }
-    // compare forces
-    for (int i = 0; i < 2; i++) {
-      for (int j = 0; j < 3; j++) {
-        const double ref_value = cycles * forces_ref[i][j];
-        const double test_value = forces_test[i][j];
-        const double diff = fabs(test_value - ref_value);
-        const double rel_diff = diff / fmax(1.0, fabs(ref_value));
-        max_rel_diff = fmax(max_rel_diff, rel_diff * derivatives_precision);
-        if (rel_diff * derivatives_precision > tolerance) {
-          printf("forces[%i, %i] ref: %le test: %le diff:%le rel_diff: %le\n",
-                 i, j, ref_value, test_value, diff, rel_diff);
-        }
-      }
-    }
-    // compare virial
-    for (int i = 0; i < 3; i++) {
-      for (int j = 0; j < 3; j++) {
-        const double ref_value = cycles * virial_ref[i][j];
-        const double test_value = virial_test[i][j];
-        const double diff = fabs(test_value - ref_value);
-        const double rel_diff = diff / fmax(1.0, fabs(ref_value));
-        max_rel_diff = fmax(max_rel_diff, rel_diff * derivatives_precision);
-        if (rel_diff * derivatives_precision > tolerance) {
-          printf("virial[ %i, %i] ref: %le test: %le diff:%le rel_diff: %le\n",
-                 i, j, ref_value, test_value, diff, rel_diff);
-        }
-      }
-    }
+    max_rel_diff = compare("hab", hab_ref_storage, cycles, hab_test_storage,
+                           n12, 1.0, tolerance, &max_value);
+    max_rel_diff =
+        fmax(max_rel_diff,
+             compare("forces", &forces_ref[0][0], cycles, &forces_test[0][0], 6,
+                     derivatives_precision, tolerance, NULL));
+    max_rel_diff =
+        fmax(max_rel_diff,
+             compare("virial", &virial_ref[0][0], cycles, &virial_test[0][0], 9,
+                     derivatives_precision, tolerance, NULL));
   }
   printf("Task: %-55s   %9s %-7s   Cycles: %e   Max value: %le   "
          "Max rel diff: %le   Time: %le sec\n",
@@ -521,6 +524,284 @@ bool grid_replay(const char *filename, const int cycles, const bool collocate,
     fprintf(stderr, "Error: Floating point exception FE_OVERFLOW.\n");
     exit(1);
   }
+
+  return max_rel_diff < tolerance;
+}
+
+/*******************************************************************************
+ * \brief Reads an array preceded by its number of elements from a task list
+ *        file. A non-negative expected count must match. The array is
+ *        allocated and has to be freed by the caller.
+ * \author Hans Pabst
+ ******************************************************************************/
+static void *read_array(FILE *fp, const size_t elem_size,
+                        const int64_t expected, int64_t *count) {
+  int64_t n = 0;
+  if (fread(&n, sizeof(int64_t), 1, fp) != 1 || n < 0 ||
+      (expected >= 0 && n != expected)) {
+    fprintf(stderr, "Error: Malformed task list file.\n");
+    abort();
+  }
+  void *array = malloc((n > 0 ? (size_t)n : 1) * elem_size);
+  if (array == NULL) {
+    fprintf(stderr, "Error: Could not allocate task list array.\n");
+    abort();
+  }
+  if (n > 0 && fread(array, elem_size, (size_t)n, fp) != (size_t)n) {
+    fprintf(stderr, "Error: Truncated task list file.\n");
+    abort();
+  }
+  if (count != NULL) {
+    *count = n;
+  }
+  return array;
+}
+
+/*******************************************************************************
+ * \brief Tells whether the given file is a task list (grid_replay_task_list).
+ * \author Hans Pabst
+ ******************************************************************************/
+bool grid_replay_is_task_list(const char *filename) {
+  bool result = false;
+  FILE *fp = fopen(filename, "rb");
+  if (fp != NULL) {
+    char header_line[100];
+    result = (fgets(header_line, sizeof(header_line), fp) != NULL &&
+              strcmp(header_line, GRID_TASK_LIST_HEADER) == 0);
+    fclose(fp);
+  }
+  return result;
+}
+
+/*******************************************************************************
+ * \brief Replays a task list written by grid_collocate_task_list or
+ *        grid_integrate_task_list. See grid_replay.h for details.
+ * \author Hans Pabst
+ ******************************************************************************/
+bool grid_replay_task_list(const char *filename, const int cycles,
+                           const double tolerance) {
+  if (cycles < 1) {
+    fprintf(stderr, "Error: Cycles have to be greater than zero.\n");
+    exit(1);
+  }
+  FILE *fp = fopen(filename, "rb");
+  if (fp == NULL) {
+    fprintf(stderr, "Could not open task list file: %s\n", filename);
+    exit(1);
+  }
+  char header_line[100];
+  read_next_line(header_line, sizeof(header_line), fp);
+  if (strcmp(header_line, GRID_TASK_LIST_HEADER) != 0) {
+    fprintf(stderr, "Error: Wrong file header.\n");
+    abort();
+  }
+  int *probe_int = read_array(fp, sizeof(int), 1, NULL);
+  double *probe_double = read_array(fp, sizeof(double), 1, NULL);
+  if (*probe_int != 1 || *probe_double != 1.0) {
+    fprintf(stderr, "Error: Task list written with another byte order.\n");
+    abort();
+  }
+  free(probe_int);
+  free(probe_double);
+  int *kind = read_array(fp, sizeof(int), 1, NULL);
+  const bool collocate = (*kind == 0);
+  free(kind);
+
+  // Arguments of grid_create_task_list.
+  int *scalars = read_array(fp, sizeof(int), 6, NULL);
+  const bool orthorhombic = scalars[0];
+  const int ntasks = scalars[1], nlevels = scalars[2], natoms = scalars[3];
+  const int nkinds = scalars[4], nblocks = scalars[5];
+  free(scalars);
+  int *block_offsets = read_array(fp, sizeof(int), nblocks, NULL);
+  double *atom_positions = read_array(fp, sizeof(double), 3 * natoms, NULL);
+  int *atom_kinds = read_array(fp, sizeof(int), natoms, NULL);
+  grid_basis_set **basis_sets = calloc(nkinds, sizeof(grid_basis_set *));
+  assert(basis_sets != NULL);
+  for (int ikind = 0; ikind < nkinds; ikind++) {
+    int *sizes = read_array(fp, sizeof(int), 4, NULL);
+    const int nset = sizes[0], nsgf = sizes[1], maxco = sizes[2];
+    const int maxpgf = sizes[3];
+    free(sizes);
+    int *lmin = read_array(fp, sizeof(int), nset, NULL);
+    int *lmax = read_array(fp, sizeof(int), nset, NULL);
+    int *npgf = read_array(fp, sizeof(int), nset, NULL);
+    int *nsgf_set = read_array(fp, sizeof(int), nset, NULL);
+    int *first_sgf = read_array(fp, sizeof(int), nset, NULL);
+    double *sphi = read_array(fp, sizeof(double), (int64_t)nsgf * maxco, NULL);
+    double *zet = read_array(fp, sizeof(double), (int64_t)nset * maxpgf, NULL);
+    grid_create_basis_set(nset, nsgf, maxco, maxpgf, lmin, lmax, npgf, nsgf_set,
+                          first_sgf, (const double (*)[maxco])sphi,
+                          (const double (*)[maxpgf])zet, &basis_sets[ikind]);
+    free(lmin);
+    free(lmax);
+    free(npgf);
+    free(nsgf_set);
+    free(first_sgf);
+    free(sphi);
+    free(zet);
+  }
+  int *task_ints[9];
+  for (int i = 0; i < 9; i++) {
+    task_ints[i] = read_array(fp, sizeof(int), ntasks, NULL);
+  }
+  double *radius_list = read_array(fp, sizeof(double), ntasks, NULL);
+  double *rab_list = read_array(fp, sizeof(double), 3 * (int64_t)ntasks, NULL);
+  int *npts_global = read_array(fp, sizeof(int), 3 * nlevels, NULL);
+  int *npts_local = read_array(fp, sizeof(int), 3 * nlevels, NULL);
+  int *shift_local = read_array(fp, sizeof(int), 3 * nlevels, NULL);
+  int *border_width = read_array(fp, sizeof(int), 3 * nlevels, NULL);
+  double *dh = read_array(fp, sizeof(double), 9 * nlevels, NULL);
+  double *dh_inv = read_array(fp, sizeof(double), 9 * nlevels, NULL);
+  const int (*npts)[3] = (const int (*)[3])npts_local;
+
+  grid_task_list *task_list = NULL;
+  const double create_start = omp_get_wtime();
+  grid_create_task_list(
+      orthorhombic, ntasks, nlevels, natoms, nkinds, nblocks, block_offsets,
+      (const double (*)[3])atom_positions, atom_kinds,
+      (const grid_basis_set **)basis_sets, task_ints[0], task_ints[1],
+      task_ints[2], task_ints[3], task_ints[4], task_ints[5], task_ints[6],
+      task_ints[7], task_ints[8], radius_list, (const double (*)[3])rab_list,
+      (const int (*)[3])npts_global, npts, (const int (*)[3])shift_local,
+      (const int (*)[3])border_width, (const double (*)[3][3])dh,
+      (const double (*)[3][3])dh_inv, &task_list);
+  const double create_time = omp_get_wtime() - create_start;
+
+  // Arguments of the call, its results, and the replay.
+  offload_buffer *pab_blocks = NULL;
+  offload_buffer *grids[nlevels];
+  double *grids_ref[nlevels];
+  for (int level = 0; level < nlevels; level++) {
+    grids[level] = NULL;
+    grids_ref[level] = NULL;
+  }
+  const double derivatives_precision = 1e-4; // as in grid_replay
+  double max_value = 0.0, max_rel_diff = 0.0, start_time, end_time;
+  int64_t npab = 0;
+  if (collocate) {
+    int *func = read_array(fp, sizeof(int), 1, NULL);
+    double *pab = read_array(fp, sizeof(double), -1, &npab);
+    offload_create_buffer((int)npab, &pab_blocks);
+    memcpy(pab_blocks->host_buffer, pab, npab * sizeof(double));
+    free(pab);
+    for (int level = 0; level < nlevels; level++) {
+      const int64_t n =
+          (int64_t)npts[level][0] * npts[level][1] * npts[level][2];
+      grids_ref[level] = read_array(fp, sizeof(double), n, NULL);
+      offload_create_buffer((int)n, &grids[level]);
+    }
+    start_time = omp_get_wtime();
+    for (int i = 0; i < cycles; i++) {
+      grid_collocate_task_list(task_list, (enum grid_func) * func, nlevels,
+                               npts, pab_blocks, grids);
+    }
+    end_time = omp_get_wtime();
+    free(func);
+    for (int level = 0; level < nlevels; level++) {
+      const int64_t n =
+          (int64_t)npts[level][0] * npts[level][1] * npts[level][2];
+      max_rel_diff = fmax(max_rel_diff, compare(NULL, grids_ref[level], 1.0,
+                                                grids[level]->host_buffer, n,
+                                                1.0, tolerance, &max_value));
+    }
+  } else {
+    int *flags = read_array(fp, sizeof(int), 4, NULL);
+    const bool compute_tau = flags[0], has_pab = flags[1];
+    const bool has_forces = flags[2], has_virial = flags[3];
+    free(flags);
+    double *pab = read_array(fp, sizeof(double), -1, &npab);
+    if (has_pab) {
+      offload_create_buffer((int)npab, &pab_blocks);
+      memcpy(pab_blocks->host_buffer, pab, npab * sizeof(double));
+    }
+    free(pab);
+    for (int level = 0; level < nlevels; level++) {
+      const int64_t n =
+          (int64_t)npts[level][0] * npts[level][1] * npts[level][2];
+      double *grid = read_array(fp, sizeof(double), n, NULL);
+      offload_create_buffer((int)n, &grids[level]);
+      memcpy(grids[level]->host_buffer, grid, n * sizeof(double));
+      free(grid);
+    }
+    int64_t nhab = 0;
+    double *hab_ref = read_array(fp, sizeof(double), -1, &nhab);
+    double *forces_ref =
+        read_array(fp, sizeof(double), has_forces ? 3 * natoms : 0, NULL);
+    double *virial_ref =
+        read_array(fp, sizeof(double), has_virial ? 9 : 0, NULL);
+    offload_buffer *hab_blocks = NULL;
+    offload_create_buffer((int)nhab, &hab_blocks);
+    double *forces = calloc(3 * (size_t)natoms + 1, sizeof(double));
+    double virial[3][3];
+    assert(forces != NULL);
+    start_time = omp_get_wtime();
+    for (int i = 0; i < cycles; i++) {
+      grid_integrate_task_list(task_list, compute_tau, natoms, nlevels, npts,
+                               pab_blocks, (const offload_buffer **)grids,
+                               hab_blocks,
+                               has_forces ? (double (*)[3])forces : NULL,
+                               has_virial ? virial : NULL);
+    }
+    end_time = omp_get_wtime();
+    max_rel_diff = compare("hab", hab_ref, 1.0, hab_blocks->host_buffer, nhab,
+                           1.0, tolerance, &max_value);
+    max_rel_diff =
+        fmax(max_rel_diff, compare("forces", forces_ref, 1.0, forces,
+                                   has_forces ? 3 * natoms : 0,
+                                   derivatives_precision, tolerance, NULL));
+    max_rel_diff =
+        fmax(max_rel_diff, compare("virial", virial_ref, 1.0, &virial[0][0],
+                                   has_virial ? 9 : 0, derivatives_precision,
+                                   tolerance, NULL));
+    offload_free_buffer(hab_blocks);
+    free(hab_ref);
+    free(forces_ref);
+    free(virial_ref);
+    free(forces);
+  }
+  if (fclose(fp) != 0) {
+    fprintf(stderr, "Could not close task list file: %s\n", filename);
+    abort();
+  }
+
+  static const char *const backends[] = {"AUTO", "REF", "CPU", "DGEMM", "GPU"};
+  const int backend = ((const grid_task_list_internal *)task_list)->backend;
+  const int ibackend = backend - GRID_BACKEND_AUTO;
+  printf("Task list: %-48s %9s %-5s   Tasks: %i   Levels: %i   Cycles: %i   "
+         "Max value: %le   Max rel diff: %le   Create: %le sec   "
+         "Time: %le sec\n",
+         filename, collocate ? "Collocate" : "Integrate",
+         (0 <= ibackend && ibackend < 5) ? backends[ibackend] : "?", ntasks,
+         nlevels, cycles, max_value, max_rel_diff, create_time,
+         end_time - start_time);
+
+  grid_free_task_list(task_list);
+  for (int level = 0; level < nlevels; level++) {
+    offload_free_buffer(grids[level]);
+    free(grids_ref[level]);
+  }
+  if (pab_blocks != NULL) {
+    offload_free_buffer(pab_blocks);
+  }
+  for (int ikind = 0; ikind < nkinds; ikind++) {
+    grid_free_basis_set(basis_sets[ikind]);
+  }
+  for (int i = 0; i < 9; i++) {
+    free(task_ints[i]);
+  }
+  free(basis_sets);
+  free(block_offsets);
+  free(atom_positions);
+  free(atom_kinds);
+  free(radius_list);
+  free(rab_list);
+  free(npts_global);
+  free(npts_local);
+  free(shift_local);
+  free(border_width);
+  free(dh);
+  free(dh_inv);
 
   return max_rel_diff < tolerance;
 }
