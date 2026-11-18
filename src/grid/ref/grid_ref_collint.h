@@ -27,14 +27,13 @@
  * \brief Collocates coefficients C_x onto the grid for orthorhombic case.
  * \author Ole Schuett
  ******************************************************************************/
-static inline void
-ortho_cx_to_grid(const int lp, const int k1, const int k2, const int j1,
-                 const int j2, const int cmax,
-                 const double pol[3][lp + 1][2 * cmax + 1],
-                 const int map[3][2 * cmax + 1], const double dh[3][3],
-                 const double dh_inv[3][3], const double kremain,
-                 const int npts_local[3], GRID_CONST_WHEN_COLLOCATE double *cx,
-                 GRID_CONST_WHEN_INTEGRATE double *grid) {
+static inline void ortho_cx_to_grid(
+    const int lp, const int k1, const int k2, const int j1, const int j2,
+    const int cmax, const double pol[3][lp + 1][2 * cmax + 1],
+    const int map[3][2 * cmax + 1], const double dh[3][3],
+    const double dh_inv[3][3], const double roffset[3], const double radius2,
+    const int npts_local[3], GRID_CONST_WHEN_COLLOCATE double *cx,
+    GRID_CONST_WHEN_INTEGRATE double *grid) {
 
   const int kg1 = map[2][k1 + cmax];
   const int kg2 = map[2][k2 + cmax];
@@ -42,15 +41,21 @@ ortho_cx_to_grid(const int lp, const int k1, const int k2, const int j1,
   const int jg2 = map[1][j2 + cmax];
 
   // For this innermost dimension we're going sequentially instead of in pairs.
-  // Hence we're processing four points at once, which is well suited for AVX2.
-  const int jd = (2 * j1 - 1) / 2; // distance from center in grid points
-  const double jr = jd * dh[1][1]; // distance from center in a.u.
-  const double jremain = kremain - jr * jr;
-  const int istart = (int)ceil(-1e-8 - sqrt(fmax(0.0, jremain)) * dh_inv[0][0]);
-  const int iend = 1 - istart;
+  // Each of the four rows has its own range of points within the sphere.
+  int lb[4], ub[4];
+  for (int r = 0; r < 4; r++) {
+    grid_sphere_row(radius2, (r < 2) ? j1 : j2, (r % 2) ? k2 : k1, dh, dh_inv,
+                    roffset, &lb[r], &ub[r]);
+  }
+  const int istart = imin(imin(lb[0], lb[1]), imin(lb[2], lb[3]));
+  const int iend = imax(imax(ub[0], ub[1]), imax(ub[2], ub[3]));
 
   for (int i = istart; i <= iend; i++) {
     const int ig = map[0][i + cmax];
+    double w[4];
+    for (int r = 0; r < 4; r++) {
+      w[r] = (lb[r] <= i && i <= ub[r]) ? 1.0 : 0.0;
+    }
 
     const int stride = npts_local[1] * npts_local[0];
     const int grid_index_0 = kg1 * stride + jg1 * npts_local[0] + ig;
@@ -73,14 +78,15 @@ ortho_cx_to_grid(const int lp, const int k1, const int k2, const int j1,
       reg[2] += cx[lxp * 4 + 2] * p;
       reg[3] += cx[lxp * 4 + 3] * p;
     }
-    *grid_0 += reg[0];
-    *grid_1 += reg[1];
-    *grid_2 += reg[2];
-    *grid_3 += reg[3];
+    *grid_0 += w[0] * reg[0];
+    *grid_1 += w[1] * reg[1];
+    *grid_2 += w[2] * reg[2];
+    *grid_3 += w[3] * reg[3];
 
 #else
     // integrate
-    const double reg[4] = {*grid_0, *grid_1, *grid_2, *grid_3};
+    const double reg[4] = {w[0] * *grid_0, w[1] * *grid_1, w[2] * *grid_2,
+                           w[3] * *grid_3};
     for (int lxp = 0; lxp <= lp; lxp++) {
       const double p = pol[0][lxp][i + cmax];
       cx[lxp * 4 + 0] += reg[0] * p;
@@ -132,20 +138,13 @@ static inline void ortho_cxy_to_cx(const int lp, const int j1, const int j2,
 static inline void ortho_cxy_to_grid(
     const int lp, const int k1, const int k2, const int cmax,
     const double pol[3][lp + 1][2 * cmax + 1], const int map[3][2 * cmax + 1],
-    const double dh[3][3], const double dh_inv[3][3], const double radius,
-    const int npts_local[3], GRID_CONST_WHEN_COLLOCATE double *cxy,
+    const double dh[3][3], const double dh_inv[3][3], const double roffset[3],
+    const double radius2, const int jstart, const int npts_local[3],
+    GRID_CONST_WHEN_COLLOCATE double *cxy,
     GRID_CONST_WHEN_INTEGRATE double *grid) {
 
-  // The cube contains an even number of grid points in each direction and
-  // collocation is always performed on a pair of two opposing grid points.
-  // Hence, the points with index 0 and 1 are both assigned distance zero via
-  // the formular distance=(2*index-1)/2.
-
-  const int kd = (2 * k1 - 1) / 2; // distance from center in grid points
-  const double kr = kd * dh[2][2]; // distance from center in a.u.
-  const double kremain = radius * radius - kr * kr;
-  const int jstart = (int)ceil(-1e-8 - sqrt(fmax(0.0, kremain)) * dh_inv[1][1]);
-
+  // Collocation is performed on pairs of two opposing grid points (indices
+  // j and 1 - j), which together cover all rows of the sphere.
   const size_t cx_size = (lp + 1) * 4;
   double cx[cx_size];
   for (int j1 = jstart; j1 <= 0; j1++) {
@@ -155,12 +154,12 @@ static inline void ortho_cxy_to_grid(
 #if (GRID_DO_COLLOCATE)
     // collocate
     ortho_cxy_to_cx(lp, j1, j2, cmax, pol, cxy, cx);
-    ortho_cx_to_grid(lp, k1, k2, j1, j2, cmax, pol, map, dh, dh_inv, kremain,
-                     npts_local, cx, grid);
+    ortho_cx_to_grid(lp, k1, k2, j1, j2, cmax, pol, map, dh, dh_inv, roffset,
+                     radius2, npts_local, cx, grid);
 #else
     // integrate
-    ortho_cx_to_grid(lp, k1, k2, j1, j2, cmax, pol, map, dh, dh_inv, kremain,
-                     npts_local, cx, grid);
+    ortho_cx_to_grid(lp, k1, k2, j1, j2, cmax, pol, map, dh, dh_inv, roffset,
+                     radius2, npts_local, cx, grid);
     ortho_cxy_to_cx(lp, j1, j2, cmax, pol, cxy, cx);
 #endif
   }
@@ -234,11 +233,15 @@ ortho_cxyz_to_grid(const int lp, const double zetp, const double dh[3][3],
     roffset[i] = rp[i] - ((double)cubecenter[i]) * dh[i][i];
   }
 
-  // Cube bounds.
-  int lb_cube[3], ub_cube[3];
+  // Cube bounds: the points within the sphere, then the pairs of opposing
+  // points (indices k and 1 - k) covering them.
+  const double sphere_radius = grid_sphere_radius(radius, dh);
+  const double radius2 = sphere_radius * sphere_radius;
+  int lb_cube[3], ub_cube[3], lb_pair[3];
   for (int i = 0; i < 3; i++) {
-    lb_cube[i] = (int)ceil(-1e-8 - radius * dh_inv[i][i]);
-    ub_cube[i] = 1 - lb_cube[i];
+    grid_sphere_range(radius2, roffset[i], dh_inv[i][i], &lb_cube[i],
+                      &ub_cube[i]);
+    lb_pair[i] = imin(lb_cube[i], 1 - ub_cube[i]);
     // If grid is not period check that cube fits without wrapping.
     if (npts_global[i] != npts_local[i]) {
       const int offset =
@@ -249,8 +252,8 @@ ortho_cxyz_to_grid(const int lp, const double zetp, const double dh[3][3],
     }
   }
 
-  // cmax = MAXVAL(ub_cube)
-  const int cmax = imax(imax(ub_cube[0], ub_cube[1]), ub_cube[2]);
+  // cmax = MAXVAL(1 - lb_pair)
+  const int cmax = 1 - imin(imin(lb_pair[0], lb_pair[1]), lb_pair[2]);
 
   // Precompute (x-xp)**lp*exp(..) for each direction.
   double pol_mutable[3][lp + 1][2 * cmax + 1];
@@ -264,7 +267,7 @@ ortho_cxyz_to_grid(const int lp, const double zetp, const double dh[3][3],
     const double t_exp_2 = pow(t_exp_1, 2);
     double t_exp_min_1 = exp(-zetp * pow(+dr - ro, 2));
     double t_exp_min_2 = exp(-2 * zetp * (+dr - ro) * (-dr));
-    for (int ig = 0; ig >= lb_cube[idir]; ig--) {
+    for (int ig = 0; ig >= lb_pair[idir]; ig--) {
       const double rpg = ig * dr - ro;
       t_exp_min_1 *= t_exp_min_2 * t_exp_1;
       t_exp_min_2 *= t_exp_2;
@@ -276,7 +279,7 @@ ortho_cxyz_to_grid(const int lp, const double zetp, const double dh[3][3],
     }
     double t_exp_plus_1 = exp(-zetp * pow(-ro, 2));
     double t_exp_plus_2 = exp(-2 * zetp * (-ro) * (+dr));
-    for (int ig = 0; ig >= lb_cube[idir]; ig--) {
+    for (int ig = 0; ig >= lb_pair[idir]; ig--) {
       const double rpg = (1 - ig) * dr - ro;
       t_exp_plus_1 *= t_exp_plus_2 * t_exp_1;
       t_exp_plus_2 *= t_exp_2;
@@ -301,7 +304,7 @@ ortho_cxyz_to_grid(const int lp, const double zetp, const double dh[3][3],
   const int (*map)[2 * cmax + 1] = (const int (*)[2 * cmax + 1]) map_mutable;
 
   // Loop over k dimension of the cube.
-  const int kstart = (int)ceil(-1e-8 - radius * dh_inv[2][2]);
+  const int kstart = lb_pair[2];
   const size_t cxy_size = (lp + 1) * (lp + 1) * 2;
   double cxy[cxy_size];
   for (int k1 = kstart; k1 <= 0; k1++) {
@@ -311,12 +314,12 @@ ortho_cxyz_to_grid(const int lp, const double zetp, const double dh[3][3],
 #if (GRID_DO_COLLOCATE)
     // collocate
     ortho_cxyz_to_cxy(lp, k1, k2, cmax, pol, cxyz, cxy);
-    ortho_cxy_to_grid(lp, k1, k2, cmax, pol, map, dh, dh_inv, radius,
-                      npts_local, cxy, grid);
+    ortho_cxy_to_grid(lp, k1, k2, cmax, pol, map, dh, dh_inv, roffset, radius2,
+                      lb_pair[1], npts_local, cxy, grid);
 #else
     // integrate
-    ortho_cxy_to_grid(lp, k1, k2, cmax, pol, map, dh, dh_inv, radius,
-                      npts_local, cxy, grid);
+    ortho_cxy_to_grid(lp, k1, k2, cmax, pol, map, dh, dh_inv, roffset, radius2,
+                      lb_pair[1], npts_local, cxy, grid);
     ortho_cxyz_to_cxy(lp, k1, k2, cmax, pol, cxyz, cxy);
 #endif
   }

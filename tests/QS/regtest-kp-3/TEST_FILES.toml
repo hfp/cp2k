@@ -18,18 +18,18 @@
   {matcher = "S2_estimate", tol = 2.0E-06, ref = 0.437608}
 ]
 "cc1.inp"                       = [{matcher = "M011", tol = 5.0E-12, ref = -45.389916659345360}]
-"cc2.inp"                       = [{matcher = "M011", tol = 5.0E-10, ref = -45.389916849143461}]
-"cc3.inp"                       = [{matcher = "M011", tol = 5.0E-10, ref = -45.389916564497383}]
-"cc4.inp"                       = [{matcher = "M011", tol = 5.0E-10, ref = -45.389916355782667}]
-"cc5.inp"                       = [{matcher = "M011", tol = 5.0E-10, ref = -45.389916356646268}]
-"cc6.inp"                       = [{matcher = "M011", tol = 5.0E-10, ref = -45.389916356646268}]
+"cc2.inp"                       = [{matcher = "M011", tol = 5.0E-10, ref = -45.389916356237016}]
+"cc3.inp"                       = [{matcher = "M011", tol = 5.0E-10, ref = -45.38991663112038}]
+"cc4.inp"                       = [{matcher = "M011", tol = 5.0E-10, ref = -45.38991688400994}]
+"cc5.inp"                       = [{matcher = "M011", tol = 5.0E-10, ref = -45.389916840122375}]
+"cc6.inp"                       = [{matcher = "M011", tol = 5.0E-10, ref = -45.3899167356402}]
 "cc7.inp"                       = [
-  {matcher = "M011", tol = 5.0E-10, ref = -45.389916355960565},
-  {matcher = "gext", tol = 5.0E-08, ref = 0.0700127407}
+  {matcher = "M011", tol = 5.0E-10, ref = -45.38991688287118},
+  {matcher = "gext", tol = 5.0E-08, ref = 0.7311984142}
 ]
 "cc8.inp"                       = [
-  {matcher = "M011", tol = 5.0E-10, ref = -45.389916356641265},
-  {matcher = "gext", tol = 5.0E-08, ref = 0.7099959941}
+  {matcher = "M011", tol = 5.0E-10, ref = -45.389916735428386},
+  {matcher = "gext", tol = 5.0E-08, ref = 0.7149064154}
 ]
 "cc9.inp"                       = [{matcher = "M011", tol = 5.0E-10, ref = -45.270016601865670}]
 "he_kpoint_symmetry_openmp.inp" = [{matcher = "E_total", tol = 1e-10, ref = -11.23084551534152}]

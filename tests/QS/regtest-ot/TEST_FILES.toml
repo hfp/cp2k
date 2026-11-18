@@ -4,8 +4,8 @@
 #      1 compares the last total energy in the file
 #      for details see cp2k/tools/do_regtest
 # test mulliken constraints
-"C2H4-init.inp"                 = [{matcher = "E_total", tol = 2.0E-14, ref = -12.67942273926137}]
-"C2H4.inp"                      = [{matcher = "E_total", tol = 3.0e-14, ref = -13.40496396611267}]
+"C2H4-init.inp"                 = [{matcher = "E_total", tol = 2.0E-14, ref = -12.67942273651626}]
+"C2H4.inp"                      = [{matcher = "E_total", tol = 3.0e-14, ref = -13.40496396428532}]
 # test ddapc constraints
 "He2_ddapc_constraint.inp"      = [{matcher = "E_total", tol = 2.0e-12, ref = -5.11323431572759}]
 "He2_ddapc_constraint-2.inp"    = [{matcher = "E_total", tol = 4.0e-05, ref = -5.1129697165992}]
@@ -26,16 +26,16 @@
 "H2O-geo-pdos_comp_list.inp"    = [{matcher = "E_total", tol = 4.0e-13, ref = -17.11090886166302}]
 "H2O-geo-ot-lumo-all.inp"       = [{matcher = "E_total", tol = 9.0e-14, ref = -17.11058846146146}]
 # sic ddapc decoupled
-"sic_ddapc_rt.inp"              = [{matcher = "E_total", tol = 2.0E-11, ref = -13.49667030531348}]
+"sic_ddapc_rt.inp"              = [{matcher = "E_total", tol = 2.0E-11, ref = -13.49667119568941}]
 # introduce coeff
 "He2_ddapc_constraint-4.inp"    = [{matcher = "E_total", tol = 2.0e-12, ref = -5.11329135077368}]
 #test constraint on becke wight population
 "H2-BECKE-MD.inp"               = [{matcher = "E_total", tol = 1.0e-03, ref = -1.2233386124261501}]
 "H2-diffBECKE-ET_coupling.inp"  = [{matcher = "M011", tol = 5.0e-08, ref = -1.24257949981589}]
 # just energy with sic
-"sic_energy.inp"                = [{matcher = "E_total", tol = 6.0e-14, ref = -16.81972554793751}]
+"sic_energy.inp"                = [{matcher = "E_total", tol = 6.0e-14, ref = -16.81972554798039}]
 # elf
-"C2H4-elf.inp"                  = [{matcher = "E_total", tol = 1.0E-14, ref = -13.40989428421623}]
+"C2H4-elf.inp"                  = [{matcher = "E_total", tol = 1.0E-14, ref = -13.40989428279299}]
 # analytic poisson solver
 "He_a_xyz.inp"                  = [{matcher = "E_total", tol = 2.0e-13, ref = -2.7989297163646398}]
 "He_a_xz.inp"                   = [{matcher = "E_total", tol = 5.0e-11, ref = -2.79892785102722}]

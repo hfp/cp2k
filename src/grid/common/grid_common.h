@@ -7,6 +7,8 @@
 #ifndef GRID_COMMON_H
 #define GRID_COMMON_H
 
+#include <math.h>
+
 #define GRID_STRINGIFY(SYMBOL) #SYMBOL
 
 // GCC added the simd pragma with version 6. Clang defines __GNUC__ as 4 for
@@ -161,6 +163,48 @@ GRID_HOST_DEVICE static inline orbital down(const int i, const orbital a) {
  ******************************************************************************/
 GRID_HOST_DEVICE static inline int idx(const orbital a) {
   return coset(a.l[0], a.l[1], a.l[2]);
+}
+
+/*******************************************************************************
+ * \brief Radius of the spherical cutoff: a task contributes to the grid points
+ *        closer than this to its center. The margin of one grid spacing keeps
+ *        the truncation error below that of rounding the radius up.
+ ******************************************************************************/
+GRID_HOST_DEVICE static inline double
+grid_sphere_radius(const double radius, const double dh[3][3]) {
+  return radius + fmin(dh[0][0], fmin(dh[1][1], dh[2][2]));
+}
+
+/*******************************************************************************
+ * \brief Range lb..ub of the indices c with |c * h - offset| < sqrt(r2), where
+ *        h is the grid spacing. The range is empty (lb > ub) if r2 <= 0.
+ ******************************************************************************/
+GRID_HOST_DEVICE static inline void grid_sphere_range(const double r2,
+                                                      const double offset,
+                                                      const double h_inv,
+                                                      int *lb, int *ub) {
+  if (0.0 < r2) {
+    const double s = sqrt(r2);
+    *lb = (int)floor((offset - s) * h_inv) + 1;
+    *ub = (int)ceil((offset + s) * h_inv) - 1;
+  } else {
+    *lb = 1;
+    *ub = 0;
+  }
+}
+
+/*******************************************************************************
+ * \brief Range lb..ub of the points of the grid row (j, k) within the sphere of
+ *        squared radius radius2 about roffset (cube coordinates, orthorhombic).
+ ******************************************************************************/
+GRID_HOST_DEVICE static inline void
+grid_sphere_row(const double radius2, const int j, const int k,
+                const double dh[3][3], const double dh_inv[3][3],
+                const double roffset[3], int *lb, int *ub) {
+  const double dy = j * dh[1][1] - roffset[1];
+  const double dz = k * dh[2][2] - roffset[2];
+  grid_sphere_range(radius2 - dy * dy - dz * dz, roffset[0], dh_inv[0][0], lb,
+                    ub);
 }
 
 #endif // GRID_COMMON_H
