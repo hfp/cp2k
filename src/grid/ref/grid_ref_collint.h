@@ -132,7 +132,7 @@ static inline void ortho_cxy_to_cx(const int lp, const int j1, const int j2,
 static inline void ortho_cxy_to_grid(
     const int lp, const int k1, const int k2, const int cmax,
     const double pol[3][lp + 1][2 * cmax + 1], const int map[3][2 * cmax + 1],
-    const double dh[3][3], const double dh_inv[3][3], const double disr_radius,
+    const double dh[3][3], const double dh_inv[3][3], const double radius,
     const int npts_local[3], GRID_CONST_WHEN_COLLOCATE double *cxy,
     GRID_CONST_WHEN_INTEGRATE double *grid) {
 
@@ -143,7 +143,7 @@ static inline void ortho_cxy_to_grid(
 
   const int kd = (2 * k1 - 1) / 2; // distance from center in grid points
   const double kr = kd * dh[2][2]; // distance from center in a.u.
-  const double kremain = disr_radius * disr_radius - kr * kr;
+  const double kremain = radius * radius - kr * kr;
   const int jstart = (int)ceil(-1e-8 - sqrt(fmax(0.0, kremain)) * dh_inv[1][1]);
 
   const size_t cx_size = (lp + 1) * 4;
@@ -234,14 +234,10 @@ ortho_cxyz_to_grid(const int lp, const double zetp, const double dh[3][3],
     roffset[i] = rp[i] - ((double)cubecenter[i]) * dh[i][i];
   }
 
-  // Historically, the radius gets discretized to make sphere bounds cacheable.
-  const double drmin = fmin(dh[0][0], fmin(dh[1][1], dh[2][2]));
-  const double disr_radius = drmin * fmax(1.0, ceil(radius / drmin));
-
   // Cube bounds.
   int lb_cube[3], ub_cube[3];
   for (int i = 0; i < 3; i++) {
-    lb_cube[i] = (int)ceil(-1e-8 - disr_radius * dh_inv[i][i]);
+    lb_cube[i] = (int)ceil(-1e-8 - radius * dh_inv[i][i]);
     ub_cube[i] = 1 - lb_cube[i];
     // If grid is not period check that cube fits without wrapping.
     if (npts_global[i] != npts_local[i]) {
@@ -305,7 +301,7 @@ ortho_cxyz_to_grid(const int lp, const double zetp, const double dh[3][3],
   const int (*map)[2 * cmax + 1] = (const int (*)[2 * cmax + 1]) map_mutable;
 
   // Loop over k dimension of the cube.
-  const int kstart = (int)ceil(-1e-8 - disr_radius * dh_inv[2][2]);
+  const int kstart = (int)ceil(-1e-8 - radius * dh_inv[2][2]);
   const size_t cxy_size = (lp + 1) * (lp + 1) * 2;
   double cxy[cxy_size];
   for (int k1 = kstart; k1 <= 0; k1++) {
@@ -315,11 +311,11 @@ ortho_cxyz_to_grid(const int lp, const double zetp, const double dh[3][3],
 #if (GRID_DO_COLLOCATE)
     // collocate
     ortho_cxyz_to_cxy(lp, k1, k2, cmax, pol, cxyz, cxy);
-    ortho_cxy_to_grid(lp, k1, k2, cmax, pol, map, dh, dh_inv, disr_radius,
+    ortho_cxy_to_grid(lp, k1, k2, cmax, pol, map, dh, dh_inv, radius,
                       npts_local, cxy, grid);
 #else
     // integrate
-    ortho_cxy_to_grid(lp, k1, k2, cmax, pol, map, dh, dh_inv, disr_radius,
+    ortho_cxy_to_grid(lp, k1, k2, cmax, pol, map, dh, dh_inv, radius,
                       npts_local, cxy, grid);
     ortho_cxyz_to_cxy(lp, k1, k2, cmax, pol, cxyz, cxy);
 #endif

@@ -18,7 +18,6 @@ ALL_OBJECTS := ../offload/offload_buffer.o \
         grid_task_list.o \
         common/grid_library.o \
         common/grid_basis_set.o \
-        common/grid_sphere_cache.o \
         ref/grid_ref_task_list.o \
         ref/grid_ref_collocate.o \
         ref/grid_ref_integrate.o \

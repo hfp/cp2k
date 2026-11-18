@@ -12,7 +12,6 @@ extern "C" {
 #endif
 
 #include "grid_constants.h"
-#include "grid_sphere_cache.h"
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -72,12 +71,6 @@ enum grid_library_kernel {
   GRID_COLLOCATE_GENERAL = 2,
   GRID_INTEGRATE_GENERAL = 3,
 };
-
-/*******************************************************************************
- * \brief Returns a pointer to the thread local sphere cache.
- * \author Ole Schuett
- ******************************************************************************/
-grid_sphere_cache *grid_library_get_sphere_cache(void);
 
 /*******************************************************************************
  * \brief Returns a pointer to a thread local scratch buffer with at least the

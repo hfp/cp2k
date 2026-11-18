@@ -18,7 +18,6 @@
 
 #include "../common/grid_common.h"
 #include "../common/grid_library.h"
-#include "../common/grid_sphere_cache.h"
 
 #define GRID_MAX_LP_OPTIMIZED 9
 
@@ -348,6 +347,36 @@ static inline void ortho_cxyz_to_cxy(const int lp, const int k1, const int k2,
 }
 
 /*******************************************************************************
+ * \brief Computes the loop bounds of the sphere of the given radius.
+ * \author Ole Schuett
+ ******************************************************************************/
+static inline void ortho_sphere_bounds(const double radius,
+                                       const double dh[3][3],
+                                       const double dh_inv[3][3], int *bounds) {
+
+  // The cube contains an even number of grid points in each direction and
+  // collocation is always performed on a pair of two opposing grid points.
+  // Hence, the points with index 0 and 1 are both assigned distance zero via
+  // the formular distance=(2*index-1)/2.
+  const int kgmin = (int)ceil(-1e-8 - radius * dh_inv[2][2]);
+  *bounds++ = kgmin;
+  for (int kg = kgmin; kg <= 0; kg++) {
+    const int kd = (2 * kg - 1) / 2; // distance from center in grid points
+    const double kr = kd * dh[2][2]; // distance from center in a.u.
+    const double kremain = radius * radius - kr * kr;
+    const int jgmin =
+        (int)ceil(-1e-8 - sqrt(fmax(0.0, kremain)) * dh_inv[1][1]);
+    *bounds++ = jgmin;
+    for (int jg = jgmin; jg <= 0; jg++) {
+      const int jd = (2 * jg - 1) / 2; // distance from center in grid points
+      const double jr = jd * dh[1][1]; // distance from center in a.u.
+      const double jremain = kremain - jr * jr;
+      *bounds++ = (int)ceil(-1e-8 - sqrt(fmax(0.0, jremain)) * dh_inv[0][0]);
+    }
+  }
+}
+
+/*******************************************************************************
  * \brief Collocates coefficients C_xyz onto the grid for orthorhombic case.
  * \author Ole Schuett
  ******************************************************************************/
@@ -382,16 +411,10 @@ ortho_cxyz_to_grid(const int lp, const double zetp, const double dh[3][3],
     roffset[i] = rp[i] - ((double)cubecenter[i]) * dh[i][i];
   }
 
-  // Lookup loop bounds for spherical cutoff.
-  int *sphere_bounds;
-  double disr_radius;
-  grid_sphere_cache_lookup(radius, dh, dh_inv, &sphere_bounds, &disr_radius);
-  int **sphere_bounds_iter = &sphere_bounds;
-
   // Cube bounds.
   int lb_cube[3], ub_cube[3];
   for (int i = 0; i < 3; i++) {
-    lb_cube[i] = (int)ceil(-1e-8 - disr_radius * dh_inv[i][i]);
+    lb_cube[i] = (int)ceil(-1e-8 - radius * dh_inv[i][i]);
     ub_cube[i] = 1 - lb_cube[i];
     // If grid is not period check that cube fits without wrapping.
     if (npts_global[i] != npts_local[i]) {
@@ -467,6 +490,12 @@ ortho_cxyz_to_grid(const int lp, const double zetp, const double dh[3][3],
   }
   const int (*sections)[2 * cmax + 1] =
       (const int (*)[2 * cmax + 1]) sections_mutable;
+
+  // Loop bounds for spherical cutoff.
+  int bounds[1 + ub_cube[2] * (1 + ub_cube[1])];
+  int *sphere_bounds = bounds;
+  int **sphere_bounds_iter = &sphere_bounds;
+  ortho_sphere_bounds(radius, dh, dh_inv, bounds);
 
   // Loop over k dimension of the cube.
   const int kstart = *((*sphere_bounds_iter)++);

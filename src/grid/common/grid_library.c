@@ -27,7 +27,6 @@
 #define GRID_MAX_LP 20
 
 typedef struct {
-  grid_sphere_cache sphere_cache;
   void *scratch; // thread local scratch, grown on demand
   size_t scratch_size;
   long counters[GRID_NBACKENDS * GRID_NKERNELS * GRID_MAX_LP];
@@ -97,23 +96,12 @@ void grid_library_finalize(void) {
   }
 
   for (int i = 0; i < max_threads; i++) {
-    grid_sphere_cache_free(&per_thread_globals[i]->sphere_cache);
     free(per_thread_globals[i]->scratch);
     free(per_thread_globals[i]);
   }
   free(per_thread_globals);
   per_thread_globals = NULL;
   library_initialized = false;
-}
-
-/*******************************************************************************
- * \brief Returns a pointer to the thread local sphere cache.
- * \author Ole Schuett
- ******************************************************************************/
-grid_sphere_cache *grid_library_get_sphere_cache(void) {
-  const int ithread = omp_get_thread_num();
-  assert(ithread < max_threads);
-  return &per_thread_globals[ithread]->sphere_cache;
 }
 
 /*******************************************************************************
