@@ -90,10 +90,10 @@ CONTAINS
 !>        - g       : function g(r)
 !>        - prec_exp: single/double precision exponential function
 !>        - itermax : Maximum number of iterations
-!>        - contract: Golden Section Search (GSS): [0.38, 0.62]
-!>                    Equidistant sampling: [0.2, 0.4, 0.6, 0.8]
-!>                    Bisection (original approach): [0.5]
-!>                    Array size may trigger vectorization
+!>        - contract: interior points of the interval contraction, one function
+!>                    evaluation each: bisection [0.5] (fewest evaluations);
+!>                    more points, e.g., [1/3, 2/3], pay only if evaluated in
+!>                    parallel
 ! **************************************************************************************************
    FUNCTION exp_radius(l, alpha, threshold, prefactor, epsabs, epsrel, rlow, polycoef) RESULT(radius)
       INTEGER, INTENT(IN)                                :: l
@@ -103,7 +103,7 @@ CONTAINS
       REAL(KIND=dp)                                      :: radius
 
       INTEGER, PARAMETER                                 :: itermax = 5000, prec_exp = sp
-      REAL(KIND=dp), PARAMETER :: contract(*) = [0.38_dp, 0.62_dp], mineps = 1.0E-12_dp, &
+      REAL(KIND=dp), PARAMETER :: contract(*) = [0.5_dp], mineps = 1.0E-12_dp, &
          next = 2.0_dp, step = 1.0_dp
 
       INTEGER                                            :: i, j
