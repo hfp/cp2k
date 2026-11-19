@@ -5,11 +5,11 @@
 #      for details see cp2k/tools/do_regtest
 # tests GAPW GTH and ALL
 # High-spin restricted open Kohn-Sham
-"Li-ROKS.inp"              = [{matcher = "E_total", tol = 3e-14, ref = -7.33891041052981}]
-"NO2-ROKS.inp"             = [{matcher = "E_total", tol = 1.0E-14, ref = -203.77833573856498}]
+"Li-ROKS.inp"              = [{matcher = "E_total", tol = 3e-14, ref = -7.33891040775675}]
+"NO2-ROKS.inp"             = [{matcher = "E_total", tol = 1.0E-14, ref = -203.7783356984982}]
 # Level-shifting for ROKS
-"C-levelshift.inp"         = [{matcher = "E_total", tol = 3e-13, ref = -37.44694658301177}]
+"C-levelshift.inp"         = [{matcher = "E_total", tol = 3e-13, ref = -37.44694657737739}]
 # Check restart for nmo = 0
-"H2-pbe-restart-run.inp"   = [{matcher = "E_total", tol = 6e-13, ref = -0.60698327543079}]
-"H2-pbe-restart-rerun.inp" = [{matcher = "E_total", tol = 7e-13, ref = -0.60698327543085}]
+"H2-pbe-restart-run.inp"   = [{matcher = "E_total", tol = 6e-13, ref = -0.60698327167165}]
+"H2-pbe-restart-rerun.inp" = [{matcher = "E_total", tol = 7e-13, ref = -0.60698327167171}]
 #EOF

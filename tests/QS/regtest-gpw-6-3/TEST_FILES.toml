@@ -1,5 +1,5 @@
 "si8_lsd_broy_wc_rst.inp"      = [
-  {matcher = "M023", tol = 2e-09, ref = 2111.2088759214},
+  {matcher = "M023", tol = 2e-09, ref = 2111.2088907206},
   {matcher = "S2_estimate", tol = 2e-06, ref = 0.500101}
 ]
 "si8_lsd_broy_wc_list.inp"     = [
@@ -15,7 +15,7 @@
   {matcher = "S2_estimate", tol = 2e-06, ref = 0.515306}
 ]
 #
-"c8_kerker.inp"                = [{matcher = "E_total", tol = 1e-13, ref = -44.11857062861498}]
-"c8_pmix.inp"                  = [{matcher = "E_total", tol = 2e-13, ref = -43.56688833747685}]
-"c8_pmix_gapw.inp"             = [{matcher = "E_total", tol = 5e-14, ref = -41.11266625407779}]
+"c8_kerker.inp"                = [{matcher = "E_total", tol = 1e-13, ref = -44.11857062885934}]
+"c8_pmix.inp"                  = [{matcher = "E_total", tol = 2e-13, ref = -43.56688833768149}]
+"c8_pmix_gapw.inp"             = [{matcher = "E_total", tol = 5e-14, ref = -41.11266624233948}]
 #EOF

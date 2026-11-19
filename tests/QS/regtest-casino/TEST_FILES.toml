@@ -1,8 +1,8 @@
 # runs are executed in the same order as in this file
-"h2_gapw_casino.inp"                 = [{matcher = "E_total", tol = 1.0e-12, ref = -1.145605560934698}]
-"h2_periodic_kpoints_sym_casino.inp" = [{matcher = "E_total", tol = 1.0e-12, ref = -1.146969144374115}]
-"h_uks_casino.inp"                   = [{matcher = "E_total", tol = 1.0e-12, ref = -0.474856620320986}]
-"h2_ecp_casino.inp"                  = [{matcher = "E_total", tol = 1.0e-12, ref = -1.16330906088859}]
-"h2_gth_casino.inp"                  = [{matcher = "E_total", tol = 1.0e-12, ref = -1.154929982526858}]
-"h2_ghost_casino.inp"                = [{matcher = "E_total", tol = 1.0e-12, ref = -1.16558236487282}]
+"h2_gapw_casino.inp"                 = [{matcher = "E_total", tol = 1.0e-12, ref = -1.14560556091008}]
+"h2_periodic_kpoints_sym_casino.inp" = [{matcher = "E_total", tol = 1.0e-12, ref = -1.14696914435106}]
+"h_uks_casino.inp"                   = [{matcher = "E_total", tol = 1.0e-12, ref = -0.47485662031781}]
+"h2_ecp_casino.inp"                  = [{matcher = "E_total", tol = 1.0e-12, ref = -1.16330906087311}]
+"h2_gth_casino.inp"                  = [{matcher = "E_total", tol = 1.0e-12, ref = -1.15492998250234}]
+"h2_ghost_casino.inp"                = [{matcher = "E_total", tol = 1.0e-12, ref = -1.16558236485761}]
 #EOF

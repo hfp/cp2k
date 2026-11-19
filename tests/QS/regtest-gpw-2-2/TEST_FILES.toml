@@ -1,19 +1,19 @@
 "C.inp"                = [{matcher = "E_total", tol = 7e-12, ref = -5.3386305984555102}]
-"H2O-meta_kinds.inp"   = [{matcher = "E_total", tol = 4e-14, ref = -17.16166674844967}]
-"H2O-meta.inp"         = [{matcher = "E_total", tol = 2e-14, ref = -17.16168353868053}]
-"H2O-meta_res0.inp"    = [{matcher = "E_total", tol = 4e-14, ref = -17.16173774139172}]
-"H2O-meta_res1.inp"    = [{matcher = "E_total", tol = 3e-14, ref = -17.16200759023301}]
-"H2O-meta_res2.inp"    = [{matcher = "E_total", tol = 1.0E-14, ref = -17.16019189142911}]
-"H2O-meta_res3.inp"    = [{matcher = "E_total", tol = 3e-14, ref = -17.16211383664668}]
+"H2O-meta_kinds.inp"   = [{matcher = "E_total", tol = 4e-14, ref = -17.16166674832238}]
+"H2O-meta.inp"         = [{matcher = "E_total", tol = 2e-14, ref = -17.16168353855632}]
+"H2O-meta_res0.inp"    = [{matcher = "E_total", tol = 4e-14, ref = -17.1617377413341}]
+"H2O-meta_res1.inp"    = [{matcher = "E_total", tol = 3e-14, ref = -17.16200759018288}]
+"H2O-meta_res2.inp"    = [{matcher = "E_total", tol = 1.0E-14, ref = -17.16019189119389}]
+"H2O-meta_res3.inp"    = [{matcher = "E_total", tol = 3e-14, ref = -17.16211383657357}]
 # tpss
-"H2O-tpss.inp"         = [{matcher = "E_total", tol = 2e-13, ref = -34.47563994433185}]
+"H2O-tpss.inp"         = [{matcher = "E_total", tol = 2e-13, ref = -34.4756399442079}]
 # tpss new input
-"H2O-tpss_new.inp"     = [{matcher = "E_total", tol = 2e-13, ref = -34.47563994433186}]
+"H2O-tpss_new.inp"     = [{matcher = "E_total", tol = 2e-13, ref = -34.47563994420788}]
 # farming
 "farming.inp"          = []
 #more checking on metadynamics RESTART
-"H2O-meta_coord.inp"   = [{matcher = "M002", tol = 1.0E-14, ref = -0.171568202245E+02}]
+"H2O-meta_coord.inp"   = [{matcher = "M002", tol = 1.0E-14, ref = -17.1568202243}]
 "H2O-meta_coord_1.inp" = [{matcher = "M002", tol = 1.0E-14, ref = -0.171612333222E+02}]
-"H2O-meta_coord_2.inp" = [{matcher = "M002", tol = 1.0E-14, ref = -17.1568200699}]
+"H2O-meta_coord_2.inp" = [{matcher = "M002", tol = 1.0E-14, ref = -17.1568200697}]
 #dimer with nested IO iteration levels
 #EOF

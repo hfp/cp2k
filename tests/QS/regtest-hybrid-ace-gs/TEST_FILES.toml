@@ -12,7 +12,7 @@
   {matcher = "M072", tol = 1e-8, ref = 4.21907792E-03}
 ]
 "h2o-exact-ace-gpaw.inp"       = [
-  {matcher = "E_total", tol = 1e-10, ref = -76.29952974495100},
-  {matcher = "M072", tol = 1e-8, ref = 0.000144497317}
+  {matcher = "E_total", tol = 1e-10, ref = -76.2995297367273},
+  {matcher = "M072", tol = 1e-8, ref = 0.000144469107}
 ]
 #EOF

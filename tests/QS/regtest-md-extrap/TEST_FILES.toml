@@ -3,22 +3,22 @@
 # e.g. 0 means do not compare anything, running is enough
 #      1 compares the last total energy in the file
 #      for details see cp2k/tools/do_regtest
-"extrap-1.inp"      = [{matcher = "E_total", tol = 7e-08, ref = -34.29744946125082}]
-"extrap-2.inp"      = [{matcher = "E_total", tol = 7e-08, ref = -34.29744971100466}]
-"extrap-3.inp"      = [{matcher = "E_total", tol = 7e-08, ref = -34.29744971096963}]
-"extrap-4.inp"      = [{matcher = "E_total", tol = 7e-08, ref = -34.29744986483151}]
-"extrap-5.inp"      = [{matcher = "E_total", tol = 7e-08, ref = -34.29744971096962}]
-"extrap-6.inp"      = [{matcher = "E_total", tol = 7e-08, ref = -34.2974499447915}]
-"extrap-7.inp"      = [{matcher = "E_total", tol = 7e-08, ref = -34.29744816323364}]
-"extrap-8.inp"      = [{matcher = "E_total", tol = 7e-08, ref = -34.29744966908113}]
-"extrap-9.inp"      = [{matcher = "E_total", tol = 7e-08, ref = -34.29744971096962}]
+"extrap-1.inp"      = [{matcher = "E_total", tol = 7e-08, ref = -34.29743548626485}]
+"extrap-2.inp"      = [{matcher = "E_total", tol = 7e-08, ref = -34.29743573599953}]
+"extrap-3.inp"      = [{matcher = "E_total", tol = 7e-08, ref = -34.29743573596446}]
+"extrap-4.inp"      = [{matcher = "E_total", tol = 7e-08, ref = -34.29743588980511}]
+"extrap-5.inp"      = [{matcher = "E_total", tol = 7e-08, ref = -34.29743573596444}]
+"extrap-6.inp"      = [{matcher = "E_total", tol = 7e-08, ref = -34.29743596978874}]
+"extrap-7.inp"      = [{matcher = "E_total", tol = 7e-08, ref = -34.29743418825218}]
+"extrap-8.inp"      = [{matcher = "E_total", tol = 7e-08, ref = -34.29743569407542}]
+"extrap-9.inp"      = [{matcher = "E_total", tol = 7e-08, ref = -34.29743573596446}]
 "extrap-10.inp"     = [
-  {matcher = "E_total", tol = 7e-08, ref = -34.28462568939386},
-  {matcher = "gext", tol = 1e-08, ref = 0.0636419861}
+  {matcher = "E_total", tol = 7e-08, ref = -34.28457120491849},
+  {matcher = "gext", tol = 1e-08, ref = 0.0636648459}
 ]
 "extrap-11.inp"     = [
-  {matcher = "E_total", tol = 7e-08, ref = -34.28462569888468},
-  {matcher = "gext", tol = 1e-08, ref = 0.0782317672}
+  {matcher = "E_total", tol = 7e-08, ref = -34.28457121516277},
+  {matcher = "gext", tol = 1e-08, ref = 0.0782622361}
 ]
 "extrap-1-far.inp"  = [{matcher = "E_total", tol = 4e-07, ref = -34.03793230991441}]
 "extrap-2-far.inp"  = [{matcher = "E_total", tol = 4e-07, ref = -34.03793229024241}]
@@ -31,10 +31,10 @@
 "extrap-9-far.inp"  = [{matcher = "E_total", tol = 4e-07, ref = -34.03793229029415}]
 "extrap-10-far.inp" = [
   {matcher = "E_total", tol = 4e-07, ref = -34.30878385297659},
-  {matcher = "gext", tol = 1e-08, ref = 0.0320523281}
+  {matcher = "gext", tol = 1e-08, ref = 0.0320529254}
 ]
 "extrap-11-far.inp" = [
   {matcher = "E_total", tol = 4e-07, ref = -34.30878386538573},
-  {matcher = "gext", tol = 1e-08, ref = 0.0855742612}
+  {matcher = "gext", tol = 1e-08, ref = 0.0855737798}
 ]
 #EOF

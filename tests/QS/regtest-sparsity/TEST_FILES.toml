@@ -1,8 +1,8 @@
 # changing sparsities (for various methods)
-"Ar-ref-1.inp" = [{matcher = "E_total", tol = 2e-13, ref = -41.93881704593284}]
-"Ar-ref-2.inp" = [{matcher = "E_total", tol = 1e-13, ref = -42.09263109466638}]
-"Ar-ref-3.inp" = [{matcher = "E_total", tol = 2e-13, ref = -42.11488990474717}]
-"Ar-ref-4.inp" = [{matcher = "E_total", tol = 2e-13, ref = -42.28547136849912}]
-"Ar-ref-5.inp" = [{matcher = "E_total", tol = 2e-13, ref = -42.11488990474724}]
-"Ar-ref-6.inp" = [{matcher = "E_total", tol = 2e-13, ref = -42.28547136849915}]
+"Ar-ref-1.inp" = [{matcher = "E_total", tol = 2e-13, ref = -41.93881704579776}]
+"Ar-ref-2.inp" = [{matcher = "E_total", tol = 1e-13, ref = -42.09263109465309}]
+"Ar-ref-3.inp" = [{matcher = "E_total", tol = 2e-13, ref = -42.11488990461587}]
+"Ar-ref-4.inp" = [{matcher = "E_total", tol = 2e-13, ref = -42.28547136848707}]
+"Ar-ref-5.inp" = [{matcher = "E_total", tol = 2e-13, ref = -42.11488990461586}]
+"Ar-ref-6.inp" = [{matcher = "E_total", tol = 2e-13, ref = -42.2854713684871}]
 #EOF

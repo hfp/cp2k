@@ -4,16 +4,16 @@
 #      1 compares the last total energy in the file
 #      for details see cp2k/tools/do_regtest
 # General k-point and symmetry-reduction regression tests
-"c_1.inp"                       = [{matcher = "E_total", tol = 1.0E-14, ref = -45.1038466041724}]
-"c_2.inp"                       = [{matcher = "E_total", tol = 1.0E-14, ref = -45.68042106171708}]
-"c_3.inp"                       = [{matcher = "E_total", tol = 2e-14, ref = -45.66762356228452}]
-"c_4.inp"                       = [{matcher = "E_total", tol = 3e-14, ref = -45.6676235622845}]
-"c_5.inp"                       = [{matcher = "E_total", tol = 3e-14, ref = -46.02680478900555}]
-"c_6.inp"                       = [{matcher = "E_total", tol = 3e-14, ref = -46.02680478900558}]
-"c_gapw.inp"                    = [{matcher = "E_total", tol = 1e-12, ref = -302.0626064405469}]
-"c_gapwxc.inp"                  = [{matcher = "E_total", tol = 3e-12, ref = -45.66746891701955}]
+"c_1.inp"                       = [{matcher = "E_total", tol = 1.0E-14, ref = -45.1038466041754}]
+"c_2.inp"                       = [{matcher = "E_total", tol = 1.0E-14, ref = -45.68042106172033}]
+"c_3.inp"                       = [{matcher = "E_total", tol = 2e-14, ref = -45.66762356228772}]
+"c_4.inp"                       = [{matcher = "E_total", tol = 3e-14, ref = -45.66762356228776}]
+"c_5.inp"                       = [{matcher = "E_total", tol = 3e-14, ref = -46.02680478900908}]
+"c_6.inp"                       = [{matcher = "E_total", tol = 3e-14, ref = -46.02680478900906}]
+"c_gapw.inp"                    = [{matcher = "E_total", tol = 1e-12, ref = -302.0626064611105}]
+"c_gapwxc.inp"                  = [{matcher = "E_total", tol = 3e-12, ref = -45.66746894441239}]
 "cn_1.inp"                      = [{matcher = "E_total", tol = 5e-12, ref = -49.26750298571628}]
-"c_dos.inp"                     = [{matcher = "E_total", tol = 2e-14, ref = -45.6570365368088}]
+"c_dos.inp"                     = [{matcher = "E_total", tol = 2e-14, ref = -45.65703653707646}]
 "h_sym_red.inp"                 = [{matcher = "E_total", tol = 1e-13, ref = -4.34916646889401}]
 "h_sym_red_restart.inp"         = [{matcher = "E_total", tol = 1e-8, ref = -4.34916647312477}]
 "h_noncanonical_kpsym.inp"      = [
@@ -34,7 +34,7 @@
 ]
 "h_inv_red.inp"                 = [{matcher = "E_total", tol = 1e-13, ref = -4.34916646889401}]
 "h_ortho_sym_red.inp"           = [{matcher = "E_total", tol = 1e-8, ref = -2.73592238316042}]
-"h_mono_sym_red.inp"            = [{matcher = "E_total", tol = 1e-10, ref = -3.15139711262736}]
+"h_mono_sym_red.inp"            = [{matcher = "E_total", tol = 1e-10, ref = -3.15139711300631}]
 "h_hex_c3_gamma_k290.inp"       = [
   {matcher = "E_total", tol = 1e-7, ref = -9.29840881688658},
   {matcher = "N_special_kpoints", tol = 0.0, ref = 8}

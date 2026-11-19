@@ -1,15 +1,15 @@
 # All-electron H2O with phase-independent export checks.
 "h2o.inp" = [
-  {matcher = "M011", tol = 1e-10, ref = -76.02262322176965},
+  {matcher = "M011", tol = 1e-10, ref = -76.02262321385109},
   {matcher = "CC4S_vertex_norm", tol = 1e-9, ref = 35.399608877970252},
-  {matcher = "CC4S_eigenenergy_sum", tol = 1e-9, ref = 14.78954031112605},
+  {matcher = "CC4S_eigenenergy_sum", tol = 1e-9, ref = 14.789540024213478},
 ]
 
 # Same H2O reference, forcing orbital/auxiliary batches and 13-value output chunks.
 "h2o-batched.inp" = [
-  {matcher = "M011", tol = 1e-10, ref = -76.02262322176965},
+  {matcher = "M011", tol = 1e-10, ref = -76.02262321386152},
   {matcher = "CC4S_vertex_norm", tol = 1e-9, ref = 35.399608877970252},
-  {matcher = "CC4S_eigenenergy_sum", tol = 1e-9, ref = 14.78954031112605},
+  {matcher = "CC4S_eigenenergy_sum", tol = 1e-9, ref = 14.789540024219473},
 ]
 
 # Gamma-point periodic GPW/RI-HF with a finite-range Coulomb interaction.

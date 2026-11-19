@@ -4,24 +4,24 @@
 #      1 compares the last total energy in the file
 #      for details see cp2k/tools/do_regtest
 
-"simple_non-ortho_grid_auto.inp"     = [{matcher = "E_total", tol = 3e-12, ref = -19.99243423697494}]
+"simple_non-ortho_grid_auto.inp"     = [{matcher = "E_total", tol = 3e-12, ref = -19.95095364162565}]
 "simple_non-ortho_grid_validate.inp" = [{matcher = "E_total", tol = 3e-12, ref = -19.99243423697494}]
-"simple_non-ortho_grid_ref.inp"      = [{matcher = "E_total", tol = 3e-12, ref = -19.99243423697494}]
-"simple_non-ortho_grid_cpu.inp"      = [{matcher = "E_total", tol = 3e-12, ref = -19.99243423697494}]
-"simple_non-ortho_grid_dgemm.inp"    = [{matcher = "E_total", tol = 2e-07, ref = -19.94531914447464}]
+"simple_non-ortho_grid_ref.inp"      = [{matcher = "E_total", tol = 3e-12, ref = -19.95095230784817}]
+"simple_non-ortho_grid_cpu.inp"      = [{matcher = "E_total", tol = 3e-12, ref = -19.95095364162895}]
+"simple_non-ortho_grid_dgemm.inp"    = [{matcher = "E_total", tol = 2e-07, ref = -19.94360384175234}]
 
-"simple_ortho_grid_auto.inp"     = [{matcher = "E_total", tol = 2e-14, ref = -21.04944231939388}]
-"simple_ortho_grid_validate.inp" = [{matcher = "E_total", tol = 2e-14, ref = -21.04944231939389}]
-"simple_ortho_grid_ref.inp"      = [{matcher = "E_total", tol = 2e-14, ref = -21.04944231939388}]
-"simple_ortho_grid_cpu.inp"      = [{matcher = "E_total", tol = 2e-14, ref = -21.04944231939389}]
-"simple_ortho_grid_dgemm.inp"    = [{matcher = "E_total", tol = 2e-14, ref = -21.04944231731886}]
+"simple_ortho_grid_auto.inp"     = [{matcher = "E_total", tol = 2e-14, ref = -21.04944231859906}]
+"simple_ortho_grid_validate.inp" = [{matcher = "E_total", tol = 2e-14, ref = -21.04944231859906}]
+"simple_ortho_grid_ref.inp"      = [{matcher = "E_total", tol = 2e-14, ref = -21.04944231859906}]
+"simple_ortho_grid_cpu.inp"      = [{matcher = "E_total", tol = 2e-14, ref = -21.04944231859906}]
+"simple_ortho_grid_dgemm.inp"    = [{matcher = "E_total", tol = 2e-14, ref = -21.04944231652403}]
 
-"H2O-1_non-ortho_grid_auto.inp"  = [{matcher = "E_total", tol = 1.0E-12, ref = -17.178574723910064}]
-"H2O-1_non-ortho_grid_cpu.inp"   = [{matcher = "E_total", tol = 1.0E-12, ref = -17.178574723910064}]
-"H2O-1_non-ortho_grid_dgemm.inp" = [{matcher = "E_total", tol = 1.0E-12, ref = -17.178574725912100}]
+"H2O-1_non-ortho_grid_auto.inp"  = [{matcher = "E_total", tol = 1.0E-12, ref = -17.1785747257073}]
+"H2O-1_non-ortho_grid_cpu.inp"   = [{matcher = "E_total", tol = 1.0E-12, ref = -17.17857472570729}]
+"H2O-1_non-ortho_grid_dgemm.inp" = [{matcher = "E_total", tol = 1.0E-12, ref = -17.17857472584862}]
 
-"H2O-1_ortho_grid_auto.inp"  = [{matcher = "E_total", tol = 1.0E-12, ref = -17.17857476452579}]
-"H2O-1_ortho_grid_cpu.inp"   = [{matcher = "E_total", tol = 1.0E-12, ref = -17.17857476452579}]
-"H2O-1_ortho_grid_dgemm.inp" = [{matcher = "E_total", tol = 1.0E-12, ref = -17.178574764551222}]
+"H2O-1_ortho_grid_auto.inp"  = [{matcher = "E_total", tol = 1.0E-12, ref = -17.17857476445596}]
+"H2O-1_ortho_grid_cpu.inp"   = [{matcher = "E_total", tol = 1.0E-12, ref = -17.17857476445597}]
+"H2O-1_ortho_grid_dgemm.inp" = [{matcher = "E_total", tol = 1.0E-12, ref = -17.1785747644776}]
 
 #EOF

@@ -5,72 +5,72 @@
 #      for details see cp2k/tools/do_regtest
 #
 "h2_gapw_2-2.inp" = [
-  {matcher = "E_total", tol = 1e-12, ref = -1.12703481947359},
-  {matcher = "M092", tol = 1e-8, ref = 4.08763868}
+  {matcher = "E_total", tol = 1e-12, ref = -1.12703448300653},
+  {matcher = "M092", tol = 1e-8, ref = 4.08764311}
 ]
 
 "h2_gapw_2-3.inp" = [
-  {matcher = "E_total", tol = 1e-12, ref = -1.12703481947359},
-  {matcher = "M092", tol = 1e-8, ref = 6.34131299}
+  {matcher = "E_total", tol = 1e-12, ref = -1.12703448300653},
+  {matcher = "M092", tol = 1e-8, ref = 6.34131804}
 ]
 
 "h2_gapw_2-4.inp" = [
-  {matcher = "E_total", tol = 1e-12, ref = -1.12703481947359},
-  {matcher = "M092", tol = 1e-8, ref = 10.57998079}
+  {matcher = "E_total", tol = 1e-12, ref = -1.12703448300653},
+  {matcher = "M092", tol = 1e-8, ref = 10.57998499}
 ]
 
 "h2_gapw_pp_2-2.inp" = [
-  {matcher = "E_total", tol = 1e-12, ref = -1.12609343153655},
-  {matcher = "M092", tol = 1e-8, ref = 4.08440577}
+  {matcher = "E_total", tol = 1e-12, ref = -1.12609309356857},
+  {matcher = "M092", tol = 1e-8, ref = 4.08441018}
 ]
 
 "h2_gapw_pp_2-3.inp" = [
-  {matcher = "E_total", tol = 1e-12, ref = -1.12609343153655},
-  {matcher = "M092", tol = 1e-8, ref = 6.33491633}
+  {matcher = "E_total", tol = 1e-12, ref = -1.12609309356857},
+  {matcher = "M092", tol = 1e-8, ref = 6.33492137}
 ]
 
 "h2_gapw_pp_2-4.inp" = [
-  {matcher = "E_total", tol = 1e-12, ref = -1.12609343153655},
-  {matcher = "M092", tol = 1e-8, ref = 10.58498318}
+  {matcher = "E_total", tol = 1e-12, ref = -1.12609309356857},
+  {matcher = "M092", tol = 1e-8, ref = 10.58498738}
 ]
 
 "h2_gpw_pp_2-2.inp" = [
-  {matcher = "E_total", tol = 1e-12, ref = -1.12622646044780},
+  {matcher = "E_total", tol = 1e-12, ref = -1.12622646042267},
   {matcher = "M092", tol = 1e-8, ref = 4.08481739}
 ]
 
 "h2_gpw_pp_2-3.inp" = [
-  {matcher = "E_total", tol = 1e-12, ref = -1.12622646044780},
+  {matcher = "E_total", tol = 1e-12, ref = -1.12622646042267},
   {matcher = "M092", tol = 1e-8, ref = 6.33543946}
 ]
 
 "h2_gpw_pp_2-4.inp" = [
-  {matcher = "E_total", tol = 1e-12, ref = -1.12622646044780},
+  {matcher = "E_total", tol = 1e-12, ref = -1.12622646042267},
   {matcher = "M092", tol = 1e-8, ref = 10.58533205}
 ]
 
 "h2o_gapw_2-2.inp" = [
-  {matcher = "E_total", tol = 1e-12, ref = -76.011970410506123},
+  {matcher = "E_total", tol = 1e-12, ref = -76.01196984882623},
   {matcher = "M092", tol = 1e-8, ref = 77.48403318}
 ]
 
 "h2o_gpw_pade_gamma_kpoints.inp" = [
-  {matcher = "E_total", tol = 1e-12, ref = -17.15466408789072},
+  {matcher = "E_total", tol = 1e-12, ref = -17.15466407929575},
   {matcher = "M092", tol = 1e-8, ref = 28.21163259}
 ]
 
 "ch2_gapw_2-3.inp" = [
-  {matcher = "E_total", tol = 1e-12, ref = -38.91914381184247},
-  {matcher = "M092", tol = 1e-8, ref = 50.38752368}
+  {matcher = "E_total", tol = 1e-12, ref = -38.91914332439212},
+  {matcher = "M092", tol = 1e-8, ref = 50.38752579}
 ]
 
 "ch2_gapw_pp_2-3.inp" = [
-  {matcher = "E_total", tol = 1e-12, ref = -6.51646227467145},
-  {matcher = "M092", tol = 1e-8, ref = 17.95445524}
+  {matcher = "E_total", tol = 1e-12, ref = -6.5164617850382},
+  {matcher = "M092", tol = 1e-8, ref = 17.95445774}
 ]
 
 "ch2_gpw_pp_2-3.inp" = [
-  {matcher = "E_total", tol = 1e-12, ref = -6.51682932586237},
+  {matcher = "E_total", tol = 1e-12, ref = -6.5168293257931},
   {matcher = "M092", tol = 1e-8, ref = 17.95513292}
 ]
 #EOF

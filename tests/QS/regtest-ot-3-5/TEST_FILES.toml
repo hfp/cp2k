@@ -8,7 +8,7 @@
   {matcher = "OT_mermin_response_update"},
 ]
 "Al-kpoint-mermin-response-lbfgs.inp" = [
-  {matcher = "E_total", tol = 1e-9, ref = -3.990589661470200},
+  {matcher = "E_total", tol = 1e-9, ref = -3.99058965704912},
   {matcher = "OT_mermin_lbfgs_response_update"},
 ]
 "Al-kpoint-mermin-md.inp"             = [

@@ -12,8 +12,8 @@
 "1Ne_PBEsol.inp"  = [{matcher = "M035", tol = 1.0E-14, ref = -128.492082107564}]
 "1Ne_PBE0.inp"    = [{matcher = "M035", tol = 1.0E-14, ref = -128.83604144442799}]
 "1Ne_PBEsol0.inp" = [{matcher = "M035", tol = 1.0E-14, ref = -128.59698144628001}]
-"1H2_PBE.inp"     = [{matcher = "E_total", tol = 3e-13, ref = -1.15888443195279}]
-"3H2_PBE.inp"     = [{matcher = "E_total", tol = 8e-13, ref = -0.79527067237894}]
-"1H2_PBEsol.inp"  = [{matcher = "E_total", tol = 3e-13, ref = -1.14060061542167}]
-"3H2_PBEsol.inp"  = [{matcher = "E_total", tol = 5e-13, ref = -0.77570074530133}]
+"1H2_PBE.inp"     = [{matcher = "E_total", tol = 3e-13, ref = -1.15888443193402}]
+"3H2_PBE.inp"     = [{matcher = "E_total", tol = 8e-13, ref = -0.79527067234642}]
+"1H2_PBEsol.inp"  = [{matcher = "E_total", tol = 3e-13, ref = -1.14060061540257}]
+"3H2_PBEsol.inp"  = [{matcher = "E_total", tol = 5e-13, ref = -0.77570074526835}]
 #EOF

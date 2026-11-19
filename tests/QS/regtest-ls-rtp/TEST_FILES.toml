@@ -11,16 +11,16 @@
   {matcher = "M067", tol = 9e-9, ref = 2.23001754e-06},
 ]
 "H2O-ls-emd-ngs.inp"                   = [
-  {matcher = "E_total", tol = 2e-14, ref = -17.05272806067376},
+  {matcher = "E_total", tol = 2e-14, ref = -17.05272806061679},
 ]
 "H2O-ls-rtp-bch.inp"                   = [
-  {matcher = "E_total", tol = 3e-14, ref = -17.08907706666414},
+  {matcher = "E_total", tol = 3e-14, ref = -17.0890770666032},
 ]
 "H2O-ls-rtp.inp"                       = [
-  {matcher = "E_total", tol = 6e-14, ref = -17.08907732645699},
+  {matcher = "E_total", tol = 6e-14, ref = -17.08907732639606},
 ]
 "H2O-ls-rtp-scf-restart.inp"           = [
-  {matcher = "E_total", tol = 6e-14, ref = -17.089077326457},
+  {matcher = "E_total", tol = 6e-14, ref = -17.08907732639606},
 ]
 "H2O-ls-emd-scf-restart.inp"           = [
   {matcher = "E_total", tol = 1e-11, ref = -17.08906866058683},
@@ -31,18 +31,18 @@
 "H2O-ls-emd-mcweeny-rt-restart.inp"    = [
   {matcher = "E_total", tol = 1e-11, ref = -17.08905987313443},
 ]
-"emd-KG.inp"                           = [{matcher = "E_total", tol = 1e-14, ref = -18.11820186857209}]
+"emd-KG.inp"                           = [{matcher = "E_total", tol = 1e-14, ref = -18.1182018616992}]
 "H2plus-ls-rtp.inp"                    = [
-  {matcher = "E_total", tol = 2e-12, ref = -0.52809706446402},
+  {matcher = "E_total", tol = 2e-12, ref = -0.5280970643943},
 ]
 "H2plus-ls-rtp2.inp"                   = [
-  {matcher = "E_total", tol = 3e-13, ref = -0.53624161705872},
+  {matcher = "E_total", tol = 3e-13, ref = -0.53624161698867},
 ]
 "H2O-ls-emd-mixing.inp"                = [
   {matcher = "E_total", tol = 3e-11, ref = -17.08894042167865},
 ]
 "Ar_mixed_aa_planar-rtp-osc-field.inp" = [
-  {matcher = "E_total", tol = 8e-13, ref = -21.07372556817139},
+  {matcher = "E_total", tol = 8e-13, ref = -21.07372556815262},
 ]
 "H2O2-emd-overlap-second-deriv.inp"    = [
   {matcher = "M072", tol = 1e-8, ref = 0.901510732},

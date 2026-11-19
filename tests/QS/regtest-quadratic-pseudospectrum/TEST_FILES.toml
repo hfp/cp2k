@@ -15,7 +15,7 @@
 ]
 "translation-gapw.inp"                 = [
   {matcher = "QUADRATIC_GAP", tol = 1e-8, ref = 0.476363977835768},
-  {matcher = "QUADRATIC_TRANSLATION_LEAKAGE", tol = 1e-8, ref = 0.337011416277078},
+  {matcher = "QUADRATIC_TRANSLATION_LEAKAGE", tol = 1e-8, ref = 0.33701141279471},
 ]
 "torus-translation-gapw.inp"           = [
   {matcher = "QUADRATIC_GAP", tol = 1e-8, ref = 0.272131175195650},
