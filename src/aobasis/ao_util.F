@@ -74,6 +74,8 @@ CONTAINS
 !> \brief  The radius of a primitive Gaussian function for a given threshold
 !>         is calculated.
 !>               g(r) = prefactor*r**l*exp(-alpha*r**2) - threshold = 0
+!>         With polycoef, the polynomial of degree l replaces the monomial:
+!>               g(r) = prefactor*SUM(polycoef(i)*r**i)*exp(-alpha*r**2) - threshold
 !> \param l Angular momentum quantum number l.
 !> \param alpha Exponent of the primitive Gaussian function.
 !> \param threshold Threshold for function g(r).
@@ -82,6 +84,7 @@ CONTAINS
 !> \param epsabs Absolute tolerance (radius)
 !> \param epsrel Relative tolerance (radius)
 !> \param rlow Optional lower bound radius, e.g., when searching maximum radius
+!> \param polycoef Optional coefficients 0..l of a polynomial (sum of terms)
 !> \return Calculated radius of the Gaussian function
 !> \par Variables
 !>        - g       : function g(r)
@@ -92,10 +95,11 @@ CONTAINS
 !>                    Bisection (original approach): [0.5]
 !>                    Array size may trigger vectorization
 ! **************************************************************************************************
-   FUNCTION exp_radius(l, alpha, threshold, prefactor, epsabs, epsrel, rlow) RESULT(radius)
+   FUNCTION exp_radius(l, alpha, threshold, prefactor, epsabs, epsrel, rlow, polycoef) RESULT(radius)
       INTEGER, INTENT(IN)                                :: l
       REAL(KIND=dp), INTENT(IN)                          :: alpha, threshold, prefactor
       REAL(KIND=dp), INTENT(IN), OPTIONAL                :: epsabs, epsrel, rlow
+      REAL(KIND=dp), DIMENSION(0:), INTENT(IN), OPTIONAL :: polycoef
       REAL(KIND=dp)                                      :: radius
 
       INTEGER, PARAMETER                                 :: itermax = 5000, prec_exp = sp
@@ -130,8 +134,8 @@ CONTAINS
       r = MAX(SQRT(0.5_dp*REAL(l, dp)/a), radius)
 
       d = ABS(prefactor); g(1) = d
-      IF (l /= 0) THEN
-         g(1) = g(1)*EXP(REAL(-a*r*r, KIND=prec_exp))*r**l
+      IF (l /= 0 .OR. PRESENT(polycoef)) THEN
+         g(1) = gfun(r)
       END IF
       ! original approach may return radius=0
       ! with g(r) != g(radius)
@@ -140,7 +144,7 @@ CONTAINS
 
       radius = r*next + step
       DO i = 1, itermax
-         g(1) = d*EXP(REAL(-a*radius*radius, KIND=prec_exp))*radius**l
+         g(1) = gfun(radius)
          IF (g(1) < t) EXIT
          r = radius; radius = r*next + step
       END DO
@@ -161,7 +165,7 @@ CONTAINS
          ! check if finished or no further progress
          IF ((rd < eps) .OR. (rd == dr)) RETURN
          s = r + rd*contract ! interval contraction
-         g = d*EXP(REAL(-a*s*s, KIND=prec_exp))*s**l
+         g = gfun(s)
          DO j = 1, SIZE(contract)
             IF (g(j) < t) THEN
                radius = s(j) ! interval [r, sj)
@@ -175,6 +179,30 @@ CONTAINS
       IF (i >= itermax) THEN
          CPABORT("Maximum number of iterations reached")
       END IF
+
+   CONTAINS
+
+! **************************************************************************************************
+!> \brief g(x) + threshold: the monomial, or the polynomial given by polycoef
+!> \param x radius
+!> \return value
+! **************************************************************************************************
+      ELEMENTAL FUNCTION gfun(x) RESULT(gx)
+         REAL(KIND=dp), INTENT(IN)                       :: x
+         REAL(KIND=dp)                                   :: gx
+
+         INTEGER                                         :: k
+
+         IF (PRESENT(polycoef)) THEN
+            gx = ABS(polycoef(l)) ! Horner scheme
+            DO k = l - 1, 0, -1
+               gx = gx*x + ABS(polycoef(k))
+            END DO
+            gx = d*gx*EXP(REAL(-a*x*x, KIND=prec_exp))
+         ELSE
+            gx = d*EXP(REAL(-a*x*x, KIND=prec_exp))*x**l
+         END IF
+      END FUNCTION gfun
 
    END FUNCTION exp_radius
 
@@ -222,6 +250,7 @@ CONTAINS
 
 ! get the local prefactor, we'll now use the largest density matrix element of the block to screen
 
+      CPASSERT(la_max + lb_max <= UBOUND(coef, 1))
       epsin_local = 1.0E-2_dp
       IF (PRESENT(epsabs)) epsin_local = epsabs
 
@@ -281,10 +310,9 @@ CONTAINS
       END DO
 
       polycoef(0:la_max + lb_max) = polycoef(0:la_max + lb_max)*prefactor_local
-      radius = 0.0_dp
-      DO i = 0, la_max + lb_max
-         radius = MAX(radius, exp_radius(i, zetp, eps, polycoef(i), epsin_local, rlow=radius))
-      END DO
+      ! radius of the sum of the terms: terms below eps can add up beyond it
+      radius = exp_radius(la_max + lb_max, zetp, eps, 1.0_dp, epsin_local, &
+                          polycoef=polycoef(0:la_max + lb_max))
 
    END FUNCTION exp_radius_very_extended
 
