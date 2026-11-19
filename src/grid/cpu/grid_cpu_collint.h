@@ -16,6 +16,7 @@
 #include <immintrin.h>
 #endif
 
+#include "../common/grid_cab_cxyz.h"
 #include "../common/grid_common.h"
 #include "../common/grid_library.h"
 #include "../common/grid_sphere_cache.h"
@@ -1297,7 +1298,7 @@ cxyz_to_grid(const bool orthorhombic, const int border_mask, const int lp,
 }
 
 /*******************************************************************************
- * \brief Transforms coefficients C_ab into C_xyz.
+ * \brief Transforms coefficients C_ab into C_xyz (see grid_cab_cxyz.h).
  * \author Ole Schuett
  ******************************************************************************/
 static inline void cab_to_cxyz(const int la_max, const int la_min,
@@ -1306,154 +1307,17 @@ static inline void cab_to_cxyz(const int la_max, const int la_min,
                                const double rb[3], const double rp[3],
                                GRID_CONST_WHEN_COLLOCATE double *cab,
                                GRID_CONST_WHEN_INTEGRATE double *cxyz) {
-
-  // Computes the polynomial expansion coefficients:
-  //     (x-a)**lxa (x-b)**lxb -> sum_{ls} alpha(ls,lxa,lxb,1)*(x-p)**ls
-  const int lp = la_max + lb_max;
-  const int lp1 = lp + 1;
-  double alpha[3][lb_max + 1][la_max + 1][lp + 1];
-
-  for (int i = 0; i < 3; i++) {
-    const double drpa = rp[i] - ra[i];
-    const double drpb = rp[i] - rb[i];
-    alpha[i][0][0][0] = 1.0;
-    for (int lxa = 1; lxa <= la_max; lxa++) {
-      alpha[i][0][lxa][0] = drpa * alpha[i][0][lxa - 1][0];
-      for (int k = 1; k < lxa; k++) {
-        alpha[i][0][lxa][k] =
-            alpha[i][0][lxa - 1][k - 1] + drpa * alpha[i][0][lxa - 1][k];
-      }
-      alpha[i][0][lxa][lxa] = 1.0;
-    }
-    for (int lxb = 1; lxb <= lb_max; lxb++) {
-      for (int lxa = 0; lxa <= la_max; lxa++) {
-        const int n = lxa + lxb;
-        alpha[i][lxb][lxa][0] = drpb * alpha[i][lxb - 1][lxa][0];
-        for (int k = 1; k < n; k++) {
-          alpha[i][lxb][lxa][k] =
-              alpha[i][lxb - 1][lxa][k - 1] + drpb * alpha[i][lxb - 1][lxa][k];
-        }
-        alpha[i][lxb][lxa][n] = 1.0;
-      }
-    }
-  }
-
-  //   *** initialise the coefficient matrix, we transform the sum
-  //
-  // sum_{lxa,lya,lza,lxb,lyb,lzb} P_{lxa,lya,lza,lxb,lyb,lzb} *
-  //         (x-a_x)**lxa (y-a_y)**lya (z-a_z)**lza (x-b_x)**lxb (y-a_y)**lya
-  //         (z-a_z)**lza
-  //
-  // into
-  //
-  // sum_{lxp,lyp,lzp} P_{lxp,lyp,lzp} (x-p_x)**lxp (y-p_y)**lyp (z-p_z)**lzp
-  //
-  // where p is center of the product gaussian, and lp = la_max + lb_max
-  // (current implementation is l**7)
-  //
-  // Factor the 3D transformation (lxa,lya,lza,lxb,lyb,lzb) <-> (lxp,lyp,lzp)
-  // into three separable 1D steps along x, y, z.
-  const int ncoset_a = ncoset(la_max);
+  const int lp1 = la_max + lb_max + 1;
+  double alpha[3 * (lb_max + 1) * (la_max + 1) * lp1];
   double txy[lp1 * lp1];
   double tx[lp1];
-
+  grid_cab_alpha(la_max, lb_max, ra, rb, rp, alpha);
 #if (GRID_DO_COLLOCATE)
-  for (int lzb = 0; lzb <= lb_max; lzb++) {
-    for (int lza = 0; lza <= la_max; lza++) {
-      const int lz_max = lza + lzb;
-      const int lyp_max = lp - lz_max;
-      memset(txy, 0, (lyp_max + 1) * lp1 * sizeof(double));
-      for (int lyb = 0; lyb <= lb_max - lzb; lyb++) {
-        for (int lya = 0; lya <= la_max - lza; lya++) {
-          const int ly_max = lya + lyb;
-          const int lxb_min = imax(lb_min - lzb - lyb, 0);
-          const int lxa_min = imax(la_min - lza - lya, 0);
-          const int lxb_max = lb_max - lzb - lyb;
-          const int lxa_max = la_max - lza - lya;
-          const int lxp_max = lxa_max + lxb_max;
-          memset(tx, 0, (lxp_max + 1) * sizeof(double));
-          for (int lxb = lxb_min; lxb <= lxb_max; lxb++) {
-            const int jco = coset(lxb, lyb, lzb);
-            for (int lxa = lxa_min; lxa <= lxa_max; lxa++) {
-              const int ico = coset(lxa, lya, lza);
-              const int cab_index = jco * ncoset_a + ico; // [jco, ico]
-              const double cab_val = cab[cab_index] * prefactor;
-              for (int lxp = 0; lxp <= lxa + lxb; lxp++) {
-                tx[lxp] += cab_val * alpha[0][lxb][lxa][lxp];
-              }
-            }
-          }
-          for (int lyp = 0; lyp <= ly_max; lyp++) {
-            const double ay = alpha[1][lyb][lya][lyp];
-            double *txy_row = &txy[lyp * lp1];
-            for (int lxp = 0; lxp <= lxp_max; lxp++) {
-              txy_row[lxp] += tx[lxp] * ay;
-            }
-          }
-        }
-      }
-      for (int lzp = 0; lzp <= lz_max; lzp++) {
-        const double az = alpha[2][lzb][lza][lzp];
-        double *cxyz_z = &cxyz[lzp * lp1 * lp1];
-        for (int lyp = 0; lyp <= lyp_max; lyp++) {
-          const double *txy_row = &txy[lyp * lp1];
-          double *cxyz_zy = &cxyz_z[lyp * lp1];
-          for (int lxp = 0; lxp <= lyp_max - lyp; lxp++) {
-            cxyz_zy[lxp] += txy_row[lxp] * az;
-          }
-        }
-      }
-    }
-  }
+  grid_cab_to_cxyz(la_max, la_min, lb_max, lb_min, prefactor, alpha, cab, cxyz,
+                   tx, txy);
 #else
-  for (int lzb = 0; lzb <= lb_max; lzb++) {
-    for (int lza = 0; lza <= la_max; lza++) {
-      const int lz_max = lza + lzb;
-      const int lyp_max = lp - lz_max;
-      memset(txy, 0, (lyp_max + 1) * lp1 * sizeof(double));
-      for (int lzp = 0; lzp <= lz_max; lzp++) {
-        const double az = alpha[2][lzb][lza][lzp] * prefactor;
-        const double *cxyz_z = &cxyz[lzp * lp1 * lp1];
-        for (int lyp = 0; lyp <= lyp_max; lyp++) {
-          double *txy_row = &txy[lyp * lp1];
-          const double *cxyz_zy = &cxyz_z[lyp * lp1];
-          for (int lxp = 0; lxp <= lyp_max - lyp; lxp++) {
-            txy_row[lxp] += cxyz_zy[lxp] * az;
-          }
-        }
-      }
-      for (int lyb = 0; lyb <= lb_max - lzb; lyb++) {
-        for (int lya = 0; lya <= la_max - lza; lya++) {
-          const int ly_max = lya + lyb;
-          const int lxb_min = imax(lb_min - lzb - lyb, 0);
-          const int lxa_min = imax(la_min - lza - lya, 0);
-          const int lxb_max = lb_max - lzb - lyb;
-          const int lxa_max = la_max - lza - lya;
-          const int lxp_max = lxa_max + lxb_max;
-          memset(tx, 0, (lxp_max + 1) * sizeof(double));
-          for (int lyp = 0; lyp <= ly_max; lyp++) {
-            const double ay = alpha[1][lyb][lya][lyp];
-            const double *txy_row = &txy[lyp * lp1];
-            for (int lxp = 0; lxp <= lxp_max; lxp++) {
-              tx[lxp] += txy_row[lxp] * ay;
-            }
-          }
-          for (int lxb = lxb_min; lxb <= lxb_max; lxb++) {
-            const int jco = coset(lxb, lyb, lzb);
-            for (int lxa = lxa_min; lxa <= lxa_max; lxa++) {
-              const int ico = coset(lxa, lya, lza);
-              const int cab_index = jco * ncoset_a + ico; // [jco, ico]
-              double sum_x = 0.0;
-              for (int lxp = 0; lxp <= lxa + lxb; lxp++) {
-                sum_x += tx[lxp] * alpha[0][lxb][lxa][lxp];
-              }
-              cab[cab_index] += sum_x;
-            }
-          }
-        }
-      }
-    }
-  }
+  grid_cxyz_to_cab(la_max, la_min, lb_max, lb_min, prefactor, alpha, cxyz, cab,
+                   tx, txy);
 #endif
 }
 

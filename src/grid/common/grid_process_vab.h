@@ -5,7 +5,9 @@
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
 
+#if !defined(__OPENCL_VERSION__)
 #include <stdbool.h>
+#endif
 
 #if defined(__CUDACC__) || defined(__HIPCC__)
 #define GRID_DEVICE __device__

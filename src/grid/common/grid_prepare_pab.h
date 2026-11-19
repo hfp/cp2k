@@ -7,9 +7,11 @@
 
 #include "../common/grid_common.h"
 #include "../common/grid_constants.h"
+#if !defined(__OPENCL_VERSION__)
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#endif
 
 #if defined(__CUDACC__) || defined(__HIPCC__)
 #define GRID_DEVICE __device__
@@ -509,8 +511,15 @@ static prepare_ldiffs prepare_get_ldiffs(const enum grid_func func) {
     ldiffs.lb_min_diff = -2;
     break;
   default:
+#if defined(__OPENCL_VERSION__)
+    ldiffs.la_max_diff = 0; // no error reporting in OpenCL C
+    ldiffs.la_min_diff = 0;
+    ldiffs.lb_max_diff = 0;
+    ldiffs.lb_min_diff = 0;
+#else
     fprintf(stderr, "Error: Unknown ga_gb_function %i.\n", func);
     abort();
+#endif
   }
 
   return ldiffs;
