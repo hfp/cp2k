@@ -26,6 +26,7 @@
 extern "C" {
 #include "../common/grid_basis_set.h"
 #include "../common/grid_constants.h"
+#include "../common/grid_sphere_cache.h"
 }
 
 #include "grid_gpu_context.h"
@@ -301,10 +302,9 @@ compute_cube_properties(const T radius, const T *const __restrict__ dh_,
     norm2 = std::sqrt(norm2);
     norm3 = std::sqrt(norm3);
 
+    const T drmin = std::min(norm1, std::min(norm2, norm3));
     const T disr_radius =
-        std::min(norm1, std::min(norm2, norm3)) *
-        (std::max(1,
-                  (int)ceil(radius / std::min(norm1, std::min(norm2, norm3)))));
+        grid_sphere_radius(grid_sphere_index(radius, drmin), drmin);
 
     rp2.x = cubecenter.x;
     rp2.y = cubecenter.y;

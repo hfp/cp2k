@@ -12,6 +12,7 @@ extern "C" {
 #endif
 
 #include "grid_constants.h"
+#include "grid_sphere_cache.h"
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -37,6 +38,7 @@ typedef struct {
   bool validate;     // When true the reference backend runs in shadow mode.
   bool apply_cutoff; // only important for the dgemm and gpu backends
   int dump; // number of collocate and integrate calls written to file each
+  bool deterministic; // collocate reproducibly for a given number of threads
 } grid_library_config;
 
 /*******************************************************************************
@@ -45,7 +47,7 @@ typedef struct {
  ******************************************************************************/
 void grid_library_set_config(const enum grid_backend backend,
                              const bool validate, const bool apply_cutoff,
-                             const int dump);
+                             const int dump, const bool deterministic);
 
 /*******************************************************************************
  * \brief Returns the library config.
@@ -71,6 +73,12 @@ enum grid_library_kernel {
   GRID_COLLOCATE_GENERAL = 2,
   GRID_INTEGRATE_GENERAL = 3,
 };
+
+/*******************************************************************************
+ * \brief Returns a pointer to the thread local sphere cache.
+ * \author Ole Schuett
+ ******************************************************************************/
+grid_sphere_cache *grid_library_get_sphere_cache(void);
 
 /*******************************************************************************
  * \brief Assigns blocks to threads by estimated cost: largest block first, each

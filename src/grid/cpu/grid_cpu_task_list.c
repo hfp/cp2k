@@ -287,16 +287,20 @@ static void collocate_one_grid_level(
 
   grid_cpu_task_list_internal *task_list = (grid_cpu_task_list_internal *)ptr;
 
-  // Estimated cost of each block: points of its tasks times polynomial degree.
+  // Blocks are assigned to threads dynamically, or by their estimated cost
+  // (points of the tasks times polynomial degree), which is reproducible.
+  const bool deterministic = grid_library_get_config().deterministic;
   const int nblocks = task_list->nblocks;
+  const int nfixed = deterministic ? imax(nblocks, 1) : 1;
   const int maxthreads = omp_get_max_threads();
-  double *cost = calloc(imax(nblocks, 1), sizeof(double));
-  int *order = malloc(imax(nblocks, 1) * sizeof(int));
+  double *cost = calloc(nfixed, sizeof(double));
+  int *order = malloc(nfixed * sizeof(int));
   int *start = malloc((maxthreads + 1) * sizeof(int));
   assert(cost != NULL && order != NULL && start != NULL);
+  int next_block = 0; // dynamic assignment
   const double h_inv =
       fmax(fabs(dh_inv[0][0]), fmax(fabs(dh_inv[1][1]), fabs(dh_inv[2][2])));
-  for (int block_num = 0; block_num < nblocks; block_num++) {
+  for (int block_num = 0; deterministic && block_num < nblocks; block_num++) {
     for (int itask = first_block_task[block_num];
          itask <= last_block_task[block_num]; itask++) {
       const grid_cpu_task *task = &task_list->tasks[itask];
@@ -340,11 +344,34 @@ static void collocate_one_grid_level(
     memset(my_grid, 0, grid_size);
 
     // Parallelize over blocks to avoid unnecessary calls to load_pab. A fixed
-    // assignment makes the result reproducible for a given number of threads.
+    // assignment makes the result reproducible for a given number of threads,
+    // otherwise chunks of consecutive blocks are fetched dynamically.
+    const int chunk_size = imax(1, nblocks / (nthreads * 50));
 #pragma omp single
-    grid_library_schedule(nblocks, cost, nthreads, order, start);
-    for (int k = start[ithread]; k < start[ithread + 1]; k++) {
-      const int block_num = order[k];
+    if (deterministic) {
+      grid_library_schedule(nblocks, cost, nthreads, order, start);
+    }
+    int k = deterministic ? start[ithread] : 0;
+    int kend = deterministic ? start[ithread + 1] : 0;
+    for (;;) {
+      if (k == kend) {
+        if (deterministic) {
+          break;
+        }
+        int chunk;
+#pragma omp atomic capture
+        {
+          chunk = next_block;
+          next_block += chunk_size;
+        }
+        if (nblocks <= chunk) {
+          break;
+        }
+        k = chunk;
+        kend = imin(chunk + chunk_size, nblocks);
+      }
+      const int block_num = deterministic ? order[k] : k;
+      k++;
       const int first_task = first_block_task[block_num];
       const int last_task = last_block_task[block_num];
 

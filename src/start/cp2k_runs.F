@@ -179,7 +179,7 @@ CONTAINS
                                                             ierr, iter_level, method_name_id, &
                                                             new_env_id, prog_name_id, run_type_id
       INTEGER(KIND=int_8)                                :: m_memory_max_mpi
-      LOGICAL                                            :: echo_input, grid_apply_cutoff, &
+      LOGICAL                                            :: echo_input, grid_apply_cutoff, grid_deterministic, &
                                                             grid_validate, has_excited_states, &
                                                             has_properties, I_was_ionode
       TYPE(cp_logger_type), POINTER                      :: logger, sublogger
@@ -251,11 +251,13 @@ CONTAINS
       CALL section_vals_val_get(root_section, "GLOBAL%GRID%VALIDATE", l_val=grid_validate)
       CALL section_vals_val_get(root_section, "GLOBAL%GRID%APPLY_CUTOFF", l_val=grid_apply_cutoff)
       CALL section_vals_val_get(root_section, "GLOBAL%GRID%DUMP_TASK_LISTS", i_val=grid_dump)
+      CALL section_vals_val_get(root_section, "GLOBAL%GRID%DETERMINISTIC", l_val=grid_deterministic)
 
       CALL grid_library_set_config(backend=grid_backend, &
                                    validate=grid_validate, &
                                    apply_cutoff=grid_apply_cutoff, &
-                                   dump=grid_dump)
+                                   dump=grid_dump, &
+                                   deterministic=grid_deterministic)
 
       SELECT CASE (prog_name_id)
       CASE (do_atom)

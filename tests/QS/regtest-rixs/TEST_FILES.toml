@@ -1,13 +1,13 @@
 #Testing the RIXS method and the keyword combinations it involves
 "CO-PBE0.inp" = [
   {matcher = "XAS_excit_ener", tol = 1e-07, ref = 519.422017},
-  {matcher = "TDDFPT_Check_Energy", tol = 5.0E-06, ref = 0.58022708},
+  {matcher = "TDDFPT_Check_Energy", tol = 5.0E-06, ref = 0.59233793},
   {matcher = "TDDFPT_Check_Osc_Strength", tol = 1.0E-06, ref = 0.067962638}
 ]
 
 "CO-PBE0-res.inp" = [
   {matcher = "XAS_excit_ener", tol = 1e-07, ref = 519.422017},
-  {matcher = "TDDFPT_Check_Energy", tol = 5.0E-06, ref = 0.58214193},
+  {matcher = "TDDFPT_Check_Energy", tol = 5.0E-06, ref = 0.59421403},
   {matcher = "TDDFPT_Check_Osc_Strength", tol = 1.0E-06, ref = 0.074488966}
 ]
 

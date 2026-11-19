@@ -27,6 +27,7 @@
 #define GRID_MAX_LP 20
 
 typedef struct {
+  grid_sphere_cache sphere_cache;
   void *scratch; // thread local scratch, grown on demand
   size_t scratch_size;
   long counters[GRID_NBACKENDS * GRID_NKERNELS * GRID_MAX_LP];
@@ -38,7 +39,8 @@ static int max_threads = 0;
 static grid_library_config config = {.backend = GRID_BACKEND_AUTO,
                                      .validate = false,
                                      .apply_cutoff = false,
-                                     .dump = 0};
+                                     .dump = 0,
+                                     .deterministic = false};
 
 #if !defined(_OPENMP)
 #error "OpenMP is required. Please add -fopenmp to your C compiler flags."
@@ -96,12 +98,23 @@ void grid_library_finalize(void) {
   }
 
   for (int i = 0; i < max_threads; i++) {
+    grid_sphere_cache_free(&per_thread_globals[i]->sphere_cache);
     free(per_thread_globals[i]->scratch);
     free(per_thread_globals[i]);
   }
   free(per_thread_globals);
   per_thread_globals = NULL;
   library_initialized = false;
+}
+
+/*******************************************************************************
+ * \brief Returns a pointer to the thread local sphere cache.
+ * \author Ole Schuett
+ ******************************************************************************/
+grid_sphere_cache *grid_library_get_sphere_cache(void) {
+  const int ithread = omp_get_thread_num();
+  assert(ithread < max_threads);
+  return &per_thread_globals[ithread]->sphere_cache;
 }
 
 typedef struct {
@@ -190,11 +203,12 @@ void *grid_library_get_scratch(const size_t bytes) {
  ******************************************************************************/
 void grid_library_set_config(const enum grid_backend backend,
                              const bool validate, const bool apply_cutoff,
-                             const int dump) {
+                             const int dump, const bool deterministic) {
   config.backend = backend;
   config.validate = validate;
   config.apply_cutoff = apply_cutoff;
   config.dump = dump;
+  config.deterministic = deterministic;
 }
 
 /*******************************************************************************

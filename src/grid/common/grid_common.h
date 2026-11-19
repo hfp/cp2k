@@ -7,8 +7,6 @@
 #ifndef GRID_COMMON_H
 #define GRID_COMMON_H
 
-#include <math.h>
-
 #define GRID_STRINGIFY(SYMBOL) #SYMBOL
 
 // GCC added the simd pragma with version 6. Clang defines __GNUC__ as 4 for
@@ -163,77 +161,6 @@ GRID_HOST_DEVICE static inline orbital down(const int i, const orbital a) {
  ******************************************************************************/
 GRID_HOST_DEVICE static inline int idx(const orbital a) {
   return coset(a.l[0], a.l[1], a.l[2]);
-}
-
-/*******************************************************************************
- * \brief Radius of the spherical cutoff: a task contributes to the grid points
- *        closer than this to its center. The margin of one grid spacing keeps
- *        the truncation error below that of rounding the radius up.
- ******************************************************************************/
-GRID_HOST_DEVICE static inline double
-grid_sphere_radius(const double radius, const double dh[3][3]) {
-  return radius + fmin(dh[0][0], fmin(dh[1][1], dh[2][2]));
-}
-
-/*******************************************************************************
- * \brief Whether the point c * h lies within the sphere: squared distance from
- *        offset below r2, the remaining squared radius of the grid line.
- ******************************************************************************/
-GRID_HOST_DEVICE static inline int grid_sphere_inside(const double r2,
-                                                      const int c,
-                                                      const double h,
-                                                      const double offset) {
-  const double d = c * h - offset;
-  return d * d < r2;
-}
-
-/*******************************************************************************
- * \brief Range lb..ub of the indices c with (c * h - offset)^2 < r2, where
- *        offset lies within [0, h), hence the nearest index is 0 or 1. On
- *        input, lb..ub is a guess (an empty guess starts at the nearest index),
- *        which saves steps but does not change the result. Empty: lb > ub.
- ******************************************************************************/
-GRID_HOST_DEVICE static inline void grid_sphere_range(const double r2,
-                                                      const double h,
-                                                      const double offset,
-                                                      int *lb, int *ub) {
-  const int c = grid_sphere_inside(r2, 0, h, offset) ? 0 : 1;
-  if (grid_sphere_inside(r2, c, h, offset)) {
-    // Guess from the square root if none is given (any guess is corrected).
-    const double s = (*lb <= *ub) ? 0.0 : sqrt(r2) / h, o = offset / h;
-    int l = (*lb <= *ub) ? imin(*lb, c) : imin((int)(o - s) + 1, c);
-    int u = (*lb <= *ub) ? imax(*ub, c) : imax((int)(o + s), c);
-    while (grid_sphere_inside(r2, l - 1, h, offset)) {
-      l--;
-    }
-    while (!grid_sphere_inside(r2, l, h, offset)) {
-      l++;
-    }
-    while (grid_sphere_inside(r2, u + 1, h, offset)) {
-      u++;
-    }
-    while (!grid_sphere_inside(r2, u, h, offset)) {
-      u--;
-    }
-    *lb = l;
-    *ub = u;
-  } else {
-    *lb = 1;
-    *ub = 0;
-  }
-}
-
-/*******************************************************************************
- * \brief Remaining squared radius of the grid row (j, k) of the sphere with
- *        squared radius radius2 about roffset (cube coordinates, orthorhombic).
- ******************************************************************************/
-GRID_HOST_DEVICE static inline double grid_sphere_r2(const double radius2,
-                                                     const int j, const int k,
-                                                     const double dh[3][3],
-                                                     const double roffset[3]) {
-  const double dy = j * dh[1][1] - roffset[1];
-  const double dz = k * dh[2][2] - roffset[2];
-  return radius2 - dy * dy - dz * dz;
 }
 
 #endif // GRID_COMMON_H

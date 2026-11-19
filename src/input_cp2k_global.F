@@ -899,6 +899,14 @@ CONTAINS
       CALL section_add_keyword(section, keyword)
       CALL keyword_release(keyword)
 
+      CALL keyword_create(keyword, __LOCATION__, name="DETERMINISTIC", &
+                          description="Collocates reproducibly for a given number of threads "// &
+                          "by assigning blocks to threads by their estimated cost instead of "// &
+                          "dynamically, which can be slower. Integration is always reproducible.", &
+                          usage="DETERMINISTIC", default_l_val=.FALSE., lone_keyword_l_val=.TRUE.)
+      CALL section_add_keyword(section, keyword)
+      CALL keyword_release(keyword)
+
    END SUBROUTINE create_grid_section
 
 END MODULE input_cp2k_global

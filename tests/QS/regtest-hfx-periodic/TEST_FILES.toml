@@ -3,7 +3,7 @@
 # see regtest/TEST_FILES
 "H2O-trunc-2.inp"          = [{matcher = "E_total", tol = 5e-11, ref = -75.999435045011069}]
 "H2O-trunc-auto.inp"       = [{matcher = "E_total", tol = 5e-11, ref = -75.999435045011097}]
-"H2O-coul-0.inp"           = [{matcher = "E_total", tol = 1.0E-14, ref = -76.02314790924812}]
+"H2O-coul-0.inp"           = [{matcher = "E_total", tol = 1.0E-14, ref = -76.02314790926955}]
 "H2O-trunc-auto-md.inp"    = [{matcher = "M002", tol = 3e-10, ref = -75.238597654700001}]
 "CH3-trunc-auto.inp"       = [
   {matcher = "E_total", tol = 4e-10, ref = -39.130055305219678},

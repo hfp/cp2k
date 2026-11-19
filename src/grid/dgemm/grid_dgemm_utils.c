@@ -5,6 +5,7 @@
 /*  SPDX-License-Identifier: BSD-3-Clause                                     */
 /*----------------------------------------------------------------------------*/
 
+#include "../common/grid_sphere_cache.h"
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
@@ -195,7 +196,7 @@ int compute_cube_properties(const bool ortho, const double radius,
 
     // Historically, the radius gets discretized.
     const double drmin = fmin(dh[0][0], fmin(dh[1][1], dh[2][2]));
-    *disr_radius = drmin * fmax(1.0, ceil(radius / drmin));
+    *disr_radius = grid_sphere_radius(grid_sphere_index(radius, drmin), drmin);
 
     for (int i = 0; i < 3; i++) {
       roffset[i] = rp[2 - i] - ((double)cubecenter[i]) * dx[i];

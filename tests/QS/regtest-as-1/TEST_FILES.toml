@@ -55,7 +55,7 @@
 ]
 
 "h2o_gpw_pade_gamma_kpoints.inp" = [
-  {matcher = "E_total", tol = 1e-12, ref = -17.15466408789883},
+  {matcher = "E_total", tol = 1e-12, ref = -17.15466408099030},
   {matcher = "M092", tol = 1e-8, ref = 28.21163259}
 ]
 

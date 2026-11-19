@@ -57,7 +57,7 @@ The `grid_miniapp.x` binary allows to run individual .task files. By default
 $ cd cp2k/src/grid
 $ make
 $ ./grid_miniapp.x
-Usage: grid_miniapp.x [--backend <auto|ref|cpu|dgemm|gpu>] [--cutoff] [--dump <calls>] [--integrate] [--batch <cycles-per-block>] <cycles> <task-file>
+Usage: grid_miniapp.x [--backend <auto|ref|cpu|dgemm|gpu>] [--cutoff] [--deterministic] [--dump <calls>] [--integrate] [--batch <cycles-per-block>] <cycles> <task-file>
 
 $ ./grid_miniapp.x --batch 10 100 ./sample_tasks/ortho_density_l2200.task
 Task: ./sample_tasks/ortho_density_l2200.task                   Collocate Batched   Cycles: 1.000000e+02   Max value: 1.579830e+02   Max rel diff: 7.435177e-11   Time: 1.438550e-04 sec
@@ -65,7 +65,8 @@ Task: ./sample_tasks/ortho_density_l2200.task                   Collocate Batche
 
 `--backend` selects the backend of the batched path (default: auto), and `--cutoff` applies the
 spherical cutoff of the DGEMM and GPU backends (`APPLY_CUTOFF`, which CP2K's input enables by
-default).
+default). `--deterministic` collocates reproducibly for a given number of threads (`DETERMINISTIC`);
+integration is always reproducible.
 
 ## Task Lists
 

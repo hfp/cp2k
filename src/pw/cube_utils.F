@@ -250,7 +250,9 @@ CONTAINS
       ELSE
 
          ! this info is specialized to orthogonal grids
-         imr = CEILING((max_radius)/drmin)
+         ! cutoff radius of the grid library: radius plus half the smallest grid
+         ! spacing, rounded up to an eighth (see grid/common/grid_sphere_cache.h)
+         imr = CEILING(REAL(CEILING((max_radius + 0.5_dp*drmin)*8.0_dp/drmin), dp)/8.0_dp)
          info%max_radius = imr
          dzi = 1.0_dp/dr(3)
          dyi = 1.0_dp/dr(2)

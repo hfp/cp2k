@@ -63,6 +63,8 @@ int main(int argc, char *argv[]) {
       }
     } else if (strcmp(option, "--cutoff") == 0) {
       config.apply_cutoff = true; // as GLOBAL%GRID%APPLY_CUTOFF (default)
+    } else if (strcmp(option, "--deterministic") == 0) {
+      config.deterministic = true; // as GLOBAL%GRID%DETERMINISTIC
     } else if (strcmp(option, "--dump") == 0) {
       valid = (iarg < argc && sscanf(argv[iarg++], "%i", &config.dump) == 1);
     } else {
@@ -74,7 +76,7 @@ int main(int argc, char *argv[]) {
   if (!valid || argc - iarg != nrequired_args) {
     fprintf(stderr,
             "Usage: grid_miniapp.x [--backend <auto|ref|cpu|dgemm|gpu>] "
-            "[--cutoff] [--dump <calls>] [--integrate] "
+            "[--cutoff] [--deterministic] [--dump <calls>] [--integrate] "
             "[--batch <cycles-per-block>] "
             "<cycles> <task-file>\n"
             "       A task list (GLOBAL%%GRID%%DUMP_TASK_LISTS) is replayed as "
@@ -98,7 +100,7 @@ int main(int argc, char *argv[]) {
   offload_set_chosen_device(0);
   grid_library_init();
   grid_library_set_config(config.backend, config.validate, config.apply_cutoff,
-                          config.dump);
+                          config.dump, config.deterministic);
 
   // Results of a task list do not accumulate over cycles.
   const double tolerance = 1e-12 * (task_list ? 1 : cycles);

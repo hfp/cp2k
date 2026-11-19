@@ -1150,28 +1150,32 @@ CONTAINS
 !> \param validate : if set to true, compare the results of all backend to the reference backend
 !> \param apply_cutoff : apply a spherical cutoff before collocating or integrating. Only relevant for CPU backend
 !> \param dump : number of collocate and integrate calls each written to file (task lists for the miniapp)
+!> \param deterministic : collocate reproducibly for a given number of threads
 !> \author Ole Schuett
 ! **************************************************************************************************
-   SUBROUTINE grid_library_set_config(backend, validate, apply_cutoff, dump)
+   SUBROUTINE grid_library_set_config(backend, validate, apply_cutoff, dump, deterministic)
       INTEGER, INTENT(IN)                                :: backend
       LOGICAL, INTENT(IN)                                :: validate, apply_cutoff
       INTEGER, INTENT(IN)                                :: dump
+      LOGICAL, INTENT(IN)                                :: deterministic
 
       INTERFACE
-         SUBROUTINE grid_library_set_config_c(backend, validate, apply_cutoff, dump) &
+         SUBROUTINE grid_library_set_config_c(backend, validate, apply_cutoff, dump, deterministic) &
             BIND(C, name="grid_library_set_config")
             IMPORT :: C_INT, C_BOOL
             INTEGER(KIND=C_INT), VALUE                :: backend
             LOGICAL(KIND=C_BOOL), VALUE               :: validate
             LOGICAL(KIND=C_BOOL), VALUE               :: apply_cutoff
             INTEGER(KIND=C_INT), VALUE                :: dump
+            LOGICAL(KIND=C_BOOL), VALUE               :: deterministic
          END SUBROUTINE grid_library_set_config_c
       END INTERFACE
 
       CALL grid_library_set_config_c(backend=backend, &
                                      validate=LOGICAL(validate, C_BOOL), &
                                      apply_cutoff=LOGICAL(apply_cutoff, C_BOOL), &
-                                     dump=dump)
+                                     dump=dump, &
+                                     deterministic=LOGICAL(deterministic, C_BOOL))
 
    END SUBROUTINE grid_library_set_config
 

@@ -1600,6 +1600,7 @@ set(CP2K_DBM_SRCS_C
 set(CP2K_GRID_SRCS_C
     grid/common/grid_basis_set.c
     grid/common/grid_library.c
+    grid/common/grid_sphere_cache.c
     grid/dgemm/grid_dgemm_coefficients.c
     grid/dgemm/grid_dgemm_collocation_integration.c
     grid/dgemm/grid_dgemm_collocate.c
