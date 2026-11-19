@@ -328,6 +328,7 @@ list(
   input_cp2k_resp.F
   input_cp2k_restarts_util.F
   input_cp2k_rsgrid.F
+  input_cp2k_skala.F
   input_cp2k_subsys.F
   input_cp2k_smeagol.F
   input_cp2k_thermostats.F
@@ -1266,6 +1267,7 @@ list(
   motion/rt_propagation.F
   motion/shell_opt.F
   motion/simpar_methods.F
+  motion/solid_state_coordinates.F
   motion/space_groups.F
   motion/space_groups_types.F
   motion/thermal_region_types.F
