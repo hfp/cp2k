@@ -73,6 +73,16 @@ enum grid_library_kernel {
 };
 
 /*******************************************************************************
+ * \brief Assigns blocks to threads by estimated cost: largest block first, each
+ *        to the least loaded thread. The assignment depends only on the costs
+ *        and the number of threads, hence results are reproducible for a given
+ *        number of threads. Thread t processes the blocks order[start[t]] up to
+ *        order[start[t + 1] - 1] in ascending order.
+ ******************************************************************************/
+void grid_library_schedule(const int nblocks, const double cost[],
+                           const int nthreads, int order[], int start[]);
+
+/*******************************************************************************
  * \brief Returns a pointer to a thread local scratch buffer with at least the
  *        given size. The buffer grows on demand and is reused across calls.
  *        It stays valid until the next call on the same thread.

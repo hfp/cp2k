@@ -176,17 +176,47 @@ grid_sphere_radius(const double radius, const double dh[3][3]) {
 }
 
 /*******************************************************************************
- * \brief Range lb..ub of the indices c with |c * h - offset| < sqrt(r2), where
- *        h is the grid spacing. The range is empty (lb > ub) if r2 <= 0.
+ * \brief Whether the point c * h lies within the sphere: squared distance from
+ *        offset below r2, the remaining squared radius of the grid line.
+ ******************************************************************************/
+GRID_HOST_DEVICE static inline int grid_sphere_inside(const double r2,
+                                                      const int c,
+                                                      const double h,
+                                                      const double offset) {
+  const double d = c * h - offset;
+  return d * d < r2;
+}
+
+/*******************************************************************************
+ * \brief Range lb..ub of the indices c with (c * h - offset)^2 < r2, where
+ *        offset lies within [0, h), hence the nearest index is 0 or 1. On
+ *        input, lb..ub is a guess (an empty guess starts at the nearest index),
+ *        which saves steps but does not change the result. Empty: lb > ub.
  ******************************************************************************/
 GRID_HOST_DEVICE static inline void grid_sphere_range(const double r2,
+                                                      const double h,
                                                       const double offset,
-                                                      const double h_inv,
                                                       int *lb, int *ub) {
-  if (0.0 < r2) {
-    const double s = sqrt(r2);
-    *lb = (int)floor((offset - s) * h_inv) + 1;
-    *ub = (int)ceil((offset + s) * h_inv) - 1;
+  const int c = grid_sphere_inside(r2, 0, h, offset) ? 0 : 1;
+  if (grid_sphere_inside(r2, c, h, offset)) {
+    // Guess from the square root if none is given (any guess is corrected).
+    const double s = (*lb <= *ub) ? 0.0 : sqrt(r2) / h, o = offset / h;
+    int l = (*lb <= *ub) ? imin(*lb, c) : imin((int)(o - s) + 1, c);
+    int u = (*lb <= *ub) ? imax(*ub, c) : imax((int)(o + s), c);
+    while (grid_sphere_inside(r2, l - 1, h, offset)) {
+      l--;
+    }
+    while (!grid_sphere_inside(r2, l, h, offset)) {
+      l++;
+    }
+    while (grid_sphere_inside(r2, u + 1, h, offset)) {
+      u++;
+    }
+    while (!grid_sphere_inside(r2, u, h, offset)) {
+      u--;
+    }
+    *lb = l;
+    *ub = u;
   } else {
     *lb = 1;
     *ub = 0;
@@ -194,17 +224,16 @@ GRID_HOST_DEVICE static inline void grid_sphere_range(const double r2,
 }
 
 /*******************************************************************************
- * \brief Range lb..ub of the points of the grid row (j, k) within the sphere of
+ * \brief Remaining squared radius of the grid row (j, k) of the sphere with
  *        squared radius radius2 about roffset (cube coordinates, orthorhombic).
  ******************************************************************************/
-GRID_HOST_DEVICE static inline void
-grid_sphere_row(const double radius2, const int j, const int k,
-                const double dh[3][3], const double dh_inv[3][3],
-                const double roffset[3], int *lb, int *ub) {
+GRID_HOST_DEVICE static inline double grid_sphere_r2(const double radius2,
+                                                     const int j, const int k,
+                                                     const double dh[3][3],
+                                                     const double roffset[3]) {
   const double dy = j * dh[1][1] - roffset[1];
   const double dz = k * dh[2][2] - roffset[2];
-  grid_sphere_range(radius2 - dy * dy - dz * dz, roffset[0], dh_inv[0][0], lb,
-                    ub);
+  return radius2 - dy * dy - dz * dz;
 }
 
 #endif // GRID_COMMON_H

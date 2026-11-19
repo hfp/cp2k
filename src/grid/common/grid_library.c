@@ -104,6 +104,69 @@ void grid_library_finalize(void) {
   library_initialized = false;
 }
 
+typedef struct {
+  double cost;
+  int block;
+} grid_schedule_entry;
+
+static int schedule_compare(const void *a, const void *b) {
+  const grid_schedule_entry *x = (const grid_schedule_entry *)a;
+  const grid_schedule_entry *y = (const grid_schedule_entry *)b;
+  if (x->cost != y->cost) {
+    return (x->cost < y->cost) ? 1 : -1; // descending cost
+  }
+  return x->block - y->block; // ascending block, total order
+}
+
+/*******************************************************************************
+ * \brief Assigns blocks to threads by estimated cost.
+ *        See grid_library.h for details.
+ ******************************************************************************/
+void grid_library_schedule(const int nblocks, const double cost[],
+                           const int nthreads, int order[], int start[]) {
+  grid_schedule_entry *entries =
+      malloc(imax(nblocks, 1) * sizeof(grid_schedule_entry));
+  int *owner = malloc(imax(nblocks, 1) * sizeof(int));
+  double *load = calloc(nthreads, sizeof(double));
+  assert(entries != NULL && owner != NULL && load != NULL);
+  for (int i = 0; i < nblocks; i++) {
+    entries[i].cost = cost[i];
+    entries[i].block = i;
+  }
+  qsort(entries, nblocks, sizeof(grid_schedule_entry), schedule_compare);
+  for (int i = 0; i < nblocks; i++) {
+    int t = 0;
+    for (int u = 1; u < nthreads; u++) {
+      if (load[u] < load[t]) {
+        t = u;
+      }
+    }
+    owner[entries[i].block] = t;
+    load[t] += entries[i].cost;
+  }
+  // Blocks of each thread in ascending order.
+  for (int t = 0; t <= nthreads; t++) {
+    start[t] = 0;
+  }
+  for (int i = 0; i < nblocks; i++) {
+    start[owner[i] + 1]++;
+  }
+  for (int t = 0; t < nthreads; t++) {
+    start[t + 1] += start[t];
+  }
+  for (int i = 0, t; i < nblocks; i++) {
+    t = owner[i];
+    order[start[t]++] = i;
+  }
+  for (int t = nthreads; t > 0; t--) {
+    start[t] = start[t - 1];
+  }
+  start[0] = 0;
+  free(load);
+  free(owner);
+  free(entries);
+}
+
 /*******************************************************************************
  * \brief Returns a pointer to a thread local scratch buffer with at least the
  *        given size. The buffer grows on demand and is reused across calls.

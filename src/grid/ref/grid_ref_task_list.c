@@ -14,6 +14,7 @@
 #include <string.h>
 
 #include "../common/grid_common.h"
+#include "../common/grid_library.h"
 #include "grid_ref_collocate.h"
 #include "grid_ref_integrate.h"
 #include "grid_ref_task_list.h"
@@ -286,6 +287,30 @@ static void collocate_one_grid_level(
 
   grid_ref_task_list_internal *task_list = (grid_ref_task_list_internal *)ptr;
 
+  // Estimated cost of each block: points of its tasks times polynomial degree.
+  const int nblocks = task_list->nblocks;
+  const int maxthreads = omp_get_max_threads();
+  double *cost = calloc(imax(nblocks, 1), sizeof(double));
+  int *order = malloc(imax(nblocks, 1) * sizeof(int));
+  int *start = malloc((maxthreads + 1) * sizeof(int));
+  assert(cost != NULL && order != NULL && start != NULL);
+  const double h_inv =
+      fmax(fabs(dh_inv[0][0]), fmax(fabs(dh_inv[1][1]), fabs(dh_inv[2][2])));
+  for (int block_num = 0; block_num < nblocks; block_num++) {
+    for (int itask = first_block_task[block_num];
+         itask <= last_block_task[block_num]; itask++) {
+      const grid_ref_task *task = &task_list->tasks[itask];
+      const grid_basis_set *ibasis =
+          task_list->basis_sets[task_list->atom_kinds[task->iatom - 1] - 1];
+      const grid_basis_set *jbasis =
+          task_list->basis_sets[task_list->atom_kinds[task->jatom - 1] - 1];
+      const int lp =
+          ibasis->lmax[task->iset - 1] + jbasis->lmax[task->jset - 1];
+      const double n = 1.0 + 2.0 * task->radius * h_inv;
+      cost[block_num] += n * n * n * (lp + 1);
+    }
+  }
+
 // Using default(shared) because with GCC 9 the behavior around const changed:
 // https://www.gnu.org/software/gcc/gcc-9/porting_to.html
 #pragma omp parallel default(shared)
@@ -315,10 +340,12 @@ static void collocate_one_grid_level(
     double *const my_grid = task_list->threadlocals[ithread];
     memset(my_grid, 0, grid_size);
 
-    // Parallelize over blocks to avoid unnecessary calls to load_pab.
-    const int chunk_size = imax(1, task_list->nblocks / (nthreads * 50));
-#pragma omp for schedule(dynamic, chunk_size)
-    for (int block_num = 0; block_num < task_list->nblocks; block_num++) {
+    // Parallelize over blocks to avoid unnecessary calls to load_pab. A fixed
+    // assignment makes the result reproducible for a given number of threads.
+#pragma omp single
+    grid_library_schedule(nblocks, cost, nthreads, order, start);
+    for (int k = start[ithread]; k < start[ithread + 1]; k++) {
+      const int block_num = order[k];
       const int first_task = first_block_task[block_num];
       const int last_task = last_block_task[block_num];
 
@@ -425,6 +452,10 @@ static void collocate_one_grid_level(
     }
 
   } // end of omp parallel region
+
+  free(start);
+  free(order);
+  free(cost);
 }
 
 /*******************************************************************************
@@ -515,6 +546,16 @@ static void integrate_one_grid_level(
     return;
 
   grid_ref_task_list_internal *task_list = (grid_ref_task_list_internal *)ptr;
+
+  // Forces and virial per block, merged in block order after the parallel
+  // region: reproducible independent of scheduling and number of threads.
+  const int nblocks = task_list->nblocks;
+  double *block_forces =
+      (forces != NULL) ? calloc(imax(nblocks, 1) * 6, sizeof(double)) : NULL;
+  double *block_virials =
+      (virial != NULL) ? calloc(imax(nblocks, 1) * 9, sizeof(double)) : NULL;
+  assert((forces == NULL) == (block_forces == NULL));
+  assert((virial == NULL) == (block_virials == NULL));
 
 // Using default(shared) because with GCC 9 the behavior around const changed:
 // https://www.gnu.org/software/gcc/gcc-9/porting_to.html
@@ -621,22 +662,21 @@ static void integrate_one_grid_level(
 
       } // end of task loop
 
-      // Merge thread-local forces and virial into shared ones.
-      // It does not seem worth the trouble to accumulate them thread-locally.
+      // Forces and virial of this block (merged after the parallel region).
       const double scalef = (iatom == jatom) ? 1.0 : 2.0;
       if (forces != NULL) {
-#pragma omp critical(forces)
+        double *const f = &block_forces[6 * block_num];
         for (int i = 0; i < 3; i++) {
-          forces[iatom][i] += scalef * my_forces[0][i];
-          forces[jatom][i] += scalef * my_forces[1][i];
+          f[i] = scalef * my_forces[0][i];
+          f[3 + i] = scalef * my_forces[1][i];
         }
       }
       if (virial != NULL) {
-#pragma omp critical(virial)
+        double *const v = &block_virials[9 * block_num];
         for (int i = 0; i < 3; i++) {
           for (int j = 0; j < 3; j++) {
-            virial[i][j] += scalef * my_virials[0][i][j];
-            virial[i][j] += scalef * my_virials[1][i][j];
+            v[3 * i + j] = scalef * my_virials[0][i][j];
+            v[3 * i + j] += scalef * my_virials[1][i][j];
           }
         }
       }
@@ -650,6 +690,32 @@ static void integrate_one_grid_level(
     }
 
   } // end of omp parallel region
+
+  // Merge forces and virial in block order.
+  for (int block_num = 0; block_num < nblocks; block_num++) {
+    const int first_task = first_block_task[block_num];
+    if (first_task <= last_block_task[block_num]) {
+      const int iatom = task_list->tasks[first_task].iatom - 1;
+      const int jatom = task_list->tasks[first_task].jatom - 1;
+      if (forces != NULL) {
+        const double *const f = &block_forces[6 * block_num];
+        for (int i = 0; i < 3; i++) {
+          forces[iatom][i] += f[i];
+          forces[jatom][i] += f[3 + i];
+        }
+      }
+      if (virial != NULL) {
+        const double *const v = &block_virials[9 * block_num];
+        for (int i = 0; i < 3; i++) {
+          for (int j = 0; j < 3; j++) {
+            virial[i][j] += v[3 * i + j];
+          }
+        }
+      }
+    }
+  }
+  free(block_virials);
+  free(block_forces);
 }
 
 /*******************************************************************************

@@ -226,6 +226,15 @@ static inline void __attribute__((always_inline)) ortho_cx_to_grid(
   const int lb_any = imin(imin(lbs[0], lbs[1]), imin(lbs[2], lbs[3]));
   const int ub_any = imax(imax(ubs[0], ubs[1]), imax(ubs[2], ubs[3]));
 
+#if defined(__AVX2__) && defined(__FMA__)
+  // Row bounds as vectors for the lane masks of the fringe.
+  const __m256d all = _mm256_castsi256_pd(_mm256_set1_epi64x(-1));
+  const __m256d lbv[4] = {_mm256_set1_pd(lbs[0]), _mm256_set1_pd(lbs[1]),
+                          _mm256_set1_pd(lbs[2]), _mm256_set1_pd(lbs[3])};
+  const __m256d ubv[4] = {_mm256_set1_pd(ubs[0]), _mm256_set1_pd(ubs[1]),
+                          _mm256_set1_pd(ubs[2]), _mm256_set1_pd(ubs[3])};
+#endif
+
   // AVX instructions can only load/store from evenly spaced memory locations.
   // Since the sphere bounds can wrap around due to the grid's periodicity,
   // the inner loop runs over sections with homogeneous cube to grid mapping.
@@ -245,17 +254,17 @@ static inline void __attribute__((always_inline)) ortho_cx_to_grid(
 
     // Use AVX2 to process grid points in chunks of four, ie. 256 bit vectors.
 #if defined(__AVX2__) && defined(__FMA__)
-    const __m256d all = _mm256_castsi256_pd(_mm256_set1_epi64x(-1));
     const int istop_vec = istart + 4 * ((istop - istart + 1) / 4) - 1;
-    for (int i = istart; i <= istop_vec; i += 4) {
+    __m256d iv = _mm256_add_pd(_mm256_set1_pd(istart),
+                               _mm256_set_pd(3.0, 2.0, 1.0, 0.0));
+    for (int i = istart; i <= istop_vec;
+         i += 4, iv = _mm256_add_pd(iv, _mm256_set1_pd(4.0))) {
       const int ig = i + cube2grid;
       __m256d mask[4] = {all, all, all, all};
       if (i < lb || ub < i + 3) {
-        const __m256d iv = _mm256_set_pd(i + 3, i + 2, i + 1, i);
         for (int r = 0; r < 4; r++) {
-          mask[r] = _mm256_and_pd(
-              _mm256_cmp_pd(iv, _mm256_set1_pd(lbs[r]), _CMP_GE_OQ),
-              _mm256_cmp_pd(iv, _mm256_set1_pd(ubs[r]), _CMP_LE_OQ));
+          mask[r] = _mm256_and_pd(_mm256_cmp_pd(iv, lbv[r], _CMP_GE_OQ),
+                                  _mm256_cmp_pd(iv, ubv[r], _CMP_LE_OQ));
         }
       }
       ortho_cx_to_grid_avx2(lp, cmax, i, pol, mask, cx, &grid_base_0[ig],
@@ -350,20 +359,14 @@ static inline void ortho_cxy_to_grid(
     const int cmax, const double pol[3][lp + 1][2 * cmax + 1],
     const int map[3][2 * cmax + 1], const int sections[3][2 * cmax + 1],
     const int npts_local[3], const double dh[3][3], const double dh_inv[3][3],
-    const double roffset[3], const double radius2,
+    const double roffset[3], const double radius2, const int lb_rows[2],
+    const int nrows_j, const int rows[][2],
     GRID_CONST_WHEN_COLLOCATE double *cxy,
     GRID_CONST_WHEN_INTEGRATE double *grid) {
 
   // Collocation is performed on pairs of two opposing grid points (indices
   // j and 1 - j), which together cover the rows of the sphere in both planes.
-  int jlb1, jub1, jlb2, jub2;
-  const double dz1 = k1 * dh[2][2] - roffset[2];
-  const double dz2 = k2 * dh[2][2] - roffset[2];
-  grid_sphere_range(radius2 - dz1 * dz1, roffset[1], dh_inv[1][1], &jlb1,
-                    &jub1);
-  grid_sphere_range(radius2 - dz2 * dz2, roffset[1], dh_inv[1][1], &jlb2,
-                    &jub2);
-  const int jstart = imin(imin(jlb1, 1 - jub1), imin(jlb2, 1 - jub2));
+  const int jstart = lb_rows[0];
   const size_t cx_size = (lp + 1) * 4;
   double cx[cx_size];
   for (int j1 = jstart; j1 <= 0; j1++) {
@@ -374,8 +377,11 @@ static inline void ortho_cxy_to_grid(
     // Each of the four rows has its own range of points within the sphere.
     int lbs[4], ubs[4], nonempty = 0;
     for (int r = 0; r < 4; r++) {
-      grid_sphere_row(radius2, (r < 2) ? j1 : j2, (r % 2) ? k2 : k1, dh, dh_inv,
-                      roffset, &lbs[r], &ubs[r]);
+      const int j = (r < 2) ? j1 : j2, k = (r % 2) ? k2 : k1;
+      const int *const row =
+          rows[(k - lb_rows[1]) * nrows_j + (j - lb_rows[0])];
+      lbs[r] = row[0];
+      ubs[r] = row[1];
       nonempty |= (lbs[r] <= ubs[r]);
     }
     if (!nonempty) {
@@ -474,8 +480,9 @@ ortho_cxyz_to_grid(const int lp, const double zetp, const double dh[3][3],
   const double radius2 = sphere_radius * sphere_radius;
   int lb_cube[3], ub_cube[3], lb_pair[3];
   for (int i = 0; i < 3; i++) {
-    grid_sphere_range(radius2, roffset[i], dh_inv[i][i], &lb_cube[i],
-                      &ub_cube[i]);
+    lb_cube[i] = 1;
+    ub_cube[i] = 0;
+    grid_sphere_range(radius2, dh[i][i], roffset[i], &lb_cube[i], &ub_cube[i]);
     lb_pair[i] = imin(lb_cube[i], 1 - ub_cube[i]);
     // If grid is not period check that cube fits without wrapping.
     if (npts_global[i] != npts_local[i]) {
@@ -552,6 +559,24 @@ ortho_cxyz_to_grid(const int lp, const double zetp, const double dh[3][3],
   const int (*sections)[2 * cmax + 1] =
       (const int (*)[2 * cmax + 1]) sections_mutable;
 
+  // Ranges of all rows (j, k) covered by the pairs, computed up front.
+  const int lb_rows[2] = {lb_pair[1], lb_pair[2]};
+  const int nrows_j = 2 * (1 - lb_pair[1]), nrows_k = 2 * (1 - lb_pair[2]);
+  int rows[nrows_k * nrows_j][2];
+  for (int k = lb_pair[2]; k <= 1 - lb_pair[2]; k++) {
+    int (*const plane)[2] = &rows[(k - lb_pair[2]) * nrows_j];
+    int lb = 1, ub = 0; // previous row of the plane as guess
+    for (int j = lb_pair[1]; j <= 1 - lb_pair[1]; j++) {
+      int *const row = plane[j - lb_pair[1]];
+      lb = 1;
+      ub = 0; // guess from the square root
+      grid_sphere_range(grid_sphere_r2(radius2, j, k, dh, roffset), dh[0][0],
+                        roffset[0], &lb, &ub);
+      row[0] = lb;
+      row[1] = ub;
+    }
+  }
+
   // Loop over k dimension of the cube.
   const int kstart = lb_pair[2];
   const size_t cxy_size = (lp + 1) * (lp + 1) * 2;
@@ -567,11 +592,13 @@ ortho_cxyz_to_grid(const int lp, const double zetp, const double dh[3][3],
     // collocate
     ortho_cxyz_to_cxy(lp, k1, k2, cmax, pol, cxyz, cxy);
     ortho_cxy_to_grid(lp, k1, k2, kg1, kg2, cmax, pol, map, sections,
-                      npts_local, dh, dh_inv, roffset, radius2, cxy, grid);
+                      npts_local, dh, dh_inv, roffset, radius2, lb_rows,
+                      nrows_j, (const int (*)[2])rows, cxy, grid);
 #else
     // integrate
     ortho_cxy_to_grid(lp, k1, k2, kg1, kg2, cmax, pol, map, sections,
-                      npts_local, dh, dh_inv, roffset, radius2, cxy, grid);
+                      npts_local, dh, dh_inv, roffset, radius2, lb_rows,
+                      nrows_j, (const int (*)[2])rows, cxy, grid);
     ortho_cxyz_to_cxy(lp, k1, k2, cmax, pol, cxyz, cxy);
 #endif
   }

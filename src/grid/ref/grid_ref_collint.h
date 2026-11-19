@@ -44,8 +44,11 @@ static inline void ortho_cx_to_grid(
   // Each of the four rows has its own range of points within the sphere.
   int lb[4], ub[4];
   for (int r = 0; r < 4; r++) {
-    grid_sphere_row(radius2, (r < 2) ? j1 : j2, (r % 2) ? k2 : k1, dh, dh_inv,
-                    roffset, &lb[r], &ub[r]);
+    const int j = (r < 2) ? j1 : j2, k = (r % 2) ? k2 : k1;
+    lb[r] = 1;
+    ub[r] = 0;
+    grid_sphere_range(grid_sphere_r2(radius2, j, k, dh, roffset), dh[0][0],
+                      roffset[0], &lb[r], &ub[r]);
   }
   const int istart = imin(imin(lb[0], lb[1]), imin(lb[2], lb[3]));
   const int iend = imax(imax(ub[0], ub[1]), imax(ub[2], ub[3]));
@@ -239,8 +242,9 @@ ortho_cxyz_to_grid(const int lp, const double zetp, const double dh[3][3],
   const double radius2 = sphere_radius * sphere_radius;
   int lb_cube[3], ub_cube[3], lb_pair[3];
   for (int i = 0; i < 3; i++) {
-    grid_sphere_range(radius2, roffset[i], dh_inv[i][i], &lb_cube[i],
-                      &ub_cube[i]);
+    lb_cube[i] = 1;
+    ub_cube[i] = 0;
+    grid_sphere_range(radius2, dh[i][i], roffset[i], &lb_cube[i], &ub_cube[i]);
     lb_pair[i] = imin(lb_cube[i], 1 - ub_cube[i]);
     // If grid is not period check that cube fits without wrapping.
     if (npts_global[i] != npts_local[i]) {
