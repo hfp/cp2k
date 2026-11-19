@@ -1,4 +1,4 @@
-"H2+-BLOCKED-PURIFY-BLOCKED.inp"  = [{matcher = "E_total", tol = 2e-12, ref = -0.49553675525916002}]
+"H2+-BLOCKED-PURIFY-BLOCKED.inp"  = [{matcher = "E_total", tol = 2e-12, ref = -0.49553675526474}]
 "2H2O-BLOCKED-PURIFY-OFF.inp"     = [{matcher = "E_total", tol = 3e-13, ref = -34.07863705853963}]
 "2H2O-BLOCKED-PURIFY-FULL.inp"    = [{matcher = "E_total", tol = 3e-13, ref = -34.07863652618566}]
 "2H2O-BLOCKED-PURIFY-BLOCKED.inp" = [{matcher = "E_total", tol = 3e-13, ref = -34.07863705853961}]

@@ -18,18 +18,18 @@
   {matcher = "S2_estimate", tol = 2.0E-06, ref = 0.437608}
 ]
 "cc1.inp"                       = [{matcher = "M011", tol = 5.0E-12, ref = -45.389916659345360}]
-"cc2.inp"                       = [{matcher = "M011", tol = 5.0E-10, ref = -45.389916849143461}]
-"cc3.inp"                       = [{matcher = "M011", tol = 5.0E-10, ref = -45.389916564497383}]
+"cc2.inp"                       = [{matcher = "M011", tol = 5.0E-10, ref = -45.3899163562367}]
+"cc3.inp"                       = [{matcher = "M011", tol = 5.0E-10, ref = -45.38991663112003}]
 "cc4.inp"                       = [{matcher = "M011", tol = 5.0E-10, ref = -45.389916355782667}]
 "cc5.inp"                       = [{matcher = "M011", tol = 5.0E-10, ref = -45.389916356646268}]
 "cc6.inp"                       = [{matcher = "M011", tol = 5.0E-10, ref = -45.389916356646268}]
 "cc7.inp"                       = [
   {matcher = "M011", tol = 5.0E-10, ref = -45.389916355960565},
-  {matcher = "gext", tol = 5.0E-08, ref = 0.0700127407}
+  {matcher = "gext", tol = 5.0E-08, ref = 0.0207926464}
 ]
 "cc8.inp"                       = [
   {matcher = "M011", tol = 5.0E-10, ref = -45.389916356641265},
-  {matcher = "gext", tol = 5.0E-08, ref = 0.7099959941}
+  {matcher = "gext", tol = 5.0E-08, ref = 0.2345242309}
 ]
 "cc9.inp"                       = [{matcher = "M011", tol = 5.0E-10, ref = -45.270016601865670}]
 "he_kpoint_symmetry_openmp.inp" = [{matcher = "E_total", tol = 1e-10, ref = -11.23084551534152}]

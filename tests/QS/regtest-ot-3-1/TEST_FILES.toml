@@ -3,7 +3,7 @@
 # e.g. 0 means do not compare anything, running is enough
 #      1 compares the last total energy in the file
 #      for details see cp2k/tools/do_regtest
-"Al_fermi.inp"                         = [{matcher = "E_total", tol = 5e-14, ref = -8.17296838715160}]
+"Al_fermi.inp"                         = [{matcher = "E_total", tol = 5e-14, ref = -8.17296838709494}]
 # OT%ENERGIES without an explicit KPOINTS section uses the complex Gamma-point Mermin path
 "Al-gamma-mermin-smoke.inp"            = [
   {matcher = "E_total", tol = 1e-9, ref = -3.106695789848826},

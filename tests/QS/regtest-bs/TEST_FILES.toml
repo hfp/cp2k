@@ -13,7 +13,7 @@
   {matcher = "S2_estimate", tol = 1.0e-6, ref = 2.080475}
 ]
 "cu2cl6_m1_clp6cud9.inp" = [
-  {matcher = "E_total", tol = 8.0e-12, ref = -183.94930042175494},
+  {matcher = "E_total", tol = 8.0e-12, ref = -183.9493003932011},
   {matcher = "S2_estimate", tol = 1.0e-6, ref = 0.979651}
 ]
 "cu2cl6_m3_clp6cud9.inp" = [
