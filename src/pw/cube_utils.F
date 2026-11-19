@@ -248,6 +248,7 @@ CONTAINS
          ! shortest lattice vector, rounded up to an eighth (grid/common/grid_sphere_cache.h)
          hmin = MIN(NORM2(dh(:, 1)), NORM2(dh(:, 2)), NORM2(dh(:, 3)))
          radius = REAL(CEILING((max_radius + 0.5_dp*hmin)*8.0_dp/hmin), dp)*hmin/8.0_dp
+         info%max_rad_ga = radius ! largest radius mapped
          CALL return_cube_nonortho(info, radius, lb, ub, rp)
          info%max_radius = MAX(MAXVAL(ABS(lb)), MAXVAL(ABS(ub)))
 
