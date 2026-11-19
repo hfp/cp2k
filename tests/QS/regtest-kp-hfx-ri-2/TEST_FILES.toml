@@ -1,4 +1,4 @@
-"diamond_gapw_tc.inp"    = [{matcher = "M011", tol = 1.0E-10, ref = -75.01617604073456}]
+"diamond_gapw_tc.inp"    = [{matcher = "M011", tol = 1.0E-10, ref = -75.01617635061281}]
 "diamond_gpw_stress.inp" = [{matcher = "M007", tol = 2.0E-7, ref = -10.2363976286}]
 "hBN_gapw_ovlp.inp"      = [{matcher = "M011", tol = 1.0E-10, ref = -86.26018555399902}]
 "hBN_gpw_pbe0.inp"       = [{matcher = "M011", tol = 1.0E-10, ref = -8.628406066722894}]

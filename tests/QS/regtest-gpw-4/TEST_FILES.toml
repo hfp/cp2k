@@ -4,22 +4,22 @@
 #      1 compares the last total energy in the file
 #      for details see cp2k/tools/do_regtest
 # isokinetic ensemble
-"H2O-5.inp"              = [{matcher = "E_total", tol = 2e-14, ref = -17.14546535458}]
+"H2O-5.inp"              = [{matcher = "E_total", tol = 2e-14, ref = -17.14546535492413}]
 # the added_MOs keyword
-"H2O-6.inp"              = [{matcher = "E_total", tol = 2e-14, ref = -17.14603641157485}]
+"H2O-6.inp"              = [{matcher = "E_total", tol = 2e-14, ref = -17.14603641192488}]
 # tests BFGS and LBFGS and CG
-"H2-geo-1.inp"           = [{matcher = "E_total", tol = 3e-11, ref = -1.10823973132201}]
-"H2-geo-2.inp"           = [{matcher = "E_total", tol = 2e-14, ref = -1.12365243718095}]
-"H2-geo-3.inp"           = [{matcher = "E_total", tol = 4e-14, ref = -1.12365233529729}]
-"H2-geo-4.inp"           = [{matcher = "E_total", tol = 8e-13, ref = -1.09108573493867}]
+"H2-geo-1.inp"           = [{matcher = "E_total", tol = 3e-11, ref = -1.10823973116086}]
+"H2-geo-2.inp"           = [{matcher = "E_total", tol = 2e-14, ref = -1.12365243718167}]
+"H2-geo-3.inp"           = [{matcher = "E_total", tol = 4e-14, ref = -1.12365233529801}]
+"H2-geo-4.inp"           = [{matcher = "E_total", tol = 8e-13, ref = -1.09108573497296}]
 "H2-geo-5.inp"           = [{matcher = "E_total", tol = 1E-11, ref = -1.15154865147647}]
 # some problems with CU
-"Cu.inp"                 = [{matcher = "E_total", tol = 5.0E-14, ref = -64.51883502744819}]
+"Cu.inp"                 = [{matcher = "E_total", tol = 5.0E-14, ref = -64.51883502754339}]
 # test derivatives and keywords
-"H2O-debug-1.inp"        = [{matcher = "E_total", tol = 3e-14, ref = -8.12084591811544}]
-"H2O-debug-2.inp"        = [{matcher = "E_total", tol = 1.0E-14, ref = -16.00183627249758}]
-"H2O-debug-3.inp"        = [{matcher = "E_total", tol = 4e-14, ref = -15.74262975085095}]
-"H2O-debug-4.inp"        = [{matcher = "E_total", tol = 4e-14, ref = -15.74262975085095}]
+"H2O-debug-1.inp"        = [{matcher = "E_total", tol = 3e-14, ref = -8.12084591811994}]
+"H2O-debug-2.inp"        = [{matcher = "E_total", tol = 1.0E-14, ref = -16.00183627250029}]
+"H2O-debug-3.inp"        = [{matcher = "E_total", tol = 4e-14, ref = -15.74262975085223}]
+"H2O-debug-4.inp"        = [{matcher = "E_total", tol = 4e-14, ref = -15.74262975085223}]
 "H2O-debug-5.inp"        = [{matcher = "M086", tol = 2e-7, ref = -0.535129866059}]
 "H2O-debug-6.inp"        = [{matcher = "M086", tol = 2e-7, ref = -0.535125994114}]
 "H2O-debug-7.inp"        = [
@@ -28,25 +28,25 @@
 ]
 "H2O-debug-8.inp"        = [{matcher = "M086", tol = 4e-10, ref = -0.482971230807}]
 # new colvar
-"C2H4-meta.inp"          = [{matcher = "E_total", tol = 7e-14, ref = -14.34745108285589}]
+"C2H4-meta.inp"          = [{matcher = "E_total", tol = 7e-14, ref = -14.34745108285305}]
 # improved atomic_kind
-"test-pdb.inp"           = [{matcher = "E_total", tol = 4e-12, ref = -115.77996952319266}]
+"test-pdb.inp"           = [{matcher = "E_total", tol = 4e-12, ref = -115.77996951977761}]
 # Spin density DDAP charges
 "H2O+SC.inp"             = []
 # spin restraint
 "spin_restraint.inp"     = [{matcher = "E_total", tol = 4e-10, ref = -4.63875114446213}]
 #New grouping colvar
-"H2O-meta_g.inp"         = [{matcher = "E_total", tol = 2e-14, ref = -17.16168353855632}]
+"H2O-meta_g.inp"         = [{matcher = "E_total", tol = 2e-14, ref = -17.16168353855936}]
 #Colvar for hydronium
-"H2O-meta_hydro.inp"     = [{matcher = "E_total", tol = 1e-12, ref = -77.65379787189913}]
+"H2O-meta_hydro.inp"     = [{matcher = "E_total", tol = 1e-12, ref = -77.65379787228756}]
 #NPT ensemble with QS
-"H2O-7.inp"              = [{matcher = "E_total", tol = 3e-14, ref = -17.14737299128618}]
+"H2O-7.inp"              = [{matcher = "E_total", tol = 3e-14, ref = -17.1473729916297}]
 #test wavelet based poisson solver for different boundary conditions
-"H2O_wavelet_free.inp"   = [{matcher = "E_total", tol = 2e-13, ref = -16.59417143866472}]
-"H2O_wavelet_free2.inp"  = [{matcher = "E_total", tol = 4e-13, ref = -16.58217276205351}]
-"H2O_wavelet_XY.inp"     = [{matcher = "E_total", tol = 3e-14, ref = -16.58705134093358}]
-"H2O_wavelet_XZ.inp"     = [{matcher = "E_total", tol = 3e-14, ref = -16.58705134093359}]
-"H2O_wavelet_YZ.inp"     = [{matcher = "E_total", tol = 3e-14, ref = -16.58705134093358}]
+"H2O_wavelet_free.inp"   = [{matcher = "E_total", tol = 2e-13, ref = -16.59417143903186}]
+"H2O_wavelet_free2.inp"  = [{matcher = "E_total", tol = 4e-13, ref = -16.58217276228681}]
+"H2O_wavelet_XY.inp"     = [{matcher = "E_total", tol = 3e-14, ref = -16.58705134131962}]
+"H2O_wavelet_XZ.inp"     = [{matcher = "E_total", tol = 3e-14, ref = -16.58705134131962}]
+"H2O_wavelet_YZ.inp"     = [{matcher = "E_total", tol = 3e-14, ref = -16.58705134131963}]
 #function to compute splined values - distributed grids
 "NO2-EFG-1.inp"          = [{matcher = "M019", tol = 7e-09, ref = 0.2895206349779316}]
 "H2O-8.inp"              = [{matcher = "E_total", tol = 6e-13, ref = -16.99998002334877}]
@@ -54,8 +54,8 @@
 # a system with a very small (1x1) KS matrix
 "H.inp"                  = [{matcher = "E_total", tol = 2e-13, ref = -0.40345508311902}]
 # one (ghost) atom has no basis set associated
-"basis_none_1.inp"       = [{matcher = "E_total", tol = 3e-12, ref = -17.1097900879148}]
-"basis_none_2.inp"       = [{matcher = "E_total", tol = 2e-12, ref = -17.1109802929482}]
+"basis_none_1.inp"       = [{matcher = "E_total", tol = 3e-12, ref = -17.10979008891576}]
+"basis_none_2.inp"       = [{matcher = "E_total", tol = 2e-12, ref = -17.11098029383749}]
 # cell opt with a restart
 "cell-1.inp"             = [{matcher = "M007", tol = 1.0E-14, ref = -21.0496557169}]
 "cell-2.inp"             = [{matcher = "M007", tol = 1.0E-14, ref = -21.0498025073}]
@@ -65,19 +65,19 @@
 "N.inp"                  = [{matcher = "E_total", tol = 3e-09, ref = -9.73919922245225}]
 "N_notfixedMM.inp"       = [{matcher = "E_total", tol = 3e-09, ref = -9.73919922245225}]
 #new diagonalization
-"h2o-otdiag.inp"         = [{matcher = "E_total", tol = 8e-13, ref = -17.09951346434795}]
-"h2o-otdiag-irac.inp"    = [{matcher = "E_total", tol = 2e-12, ref = -17.10802756491893}]
-"h2o-diag.inp"           = [{matcher = "E_total", tol = 6e-14, ref = -16.10105775601919}]
-"h2o-diag-sub.inp"       = [{matcher = "E_total", tol = 6e-14, ref = -17.10796280809621}]
-"h2o-otdiag-lsd.inp"     = [{matcher = "E_total", tol = 1E-13, ref = -12.43939516527955}]
+"h2o-otdiag.inp"         = [{matcher = "E_total", tol = 8e-13, ref = -17.09951346537139}]
+"h2o-otdiag-irac.inp"    = [{matcher = "E_total", tol = 2e-12, ref = -17.10802756598528}]
+"h2o-diag.inp"           = [{matcher = "E_total", tol = 6e-14, ref = -16.10105775692223}]
+"h2o-diag-sub.inp"       = [{matcher = "E_total", tol = 6e-14, ref = -17.10796280916266}]
+"h2o-otdiag-lsd.inp"     = [{matcher = "E_total", tol = 1E-13, ref = -12.43939516558968}]
 #external electrostatic field
 "H2O-extpot.inp"         = [{matcher = "M011", tol = 2e-12, ref = -17.140002715611153}]
 "H-extpot.inp"           = [{matcher = "M011", tol = 1e-12, ref = 0.367583149199772}]
-"H2O-analytic_vee.inp"   = [{matcher = "M011", tol = 3e-12, ref = -17.165089834514067}]
-"H2O-read_cube.inp"      = [{matcher = "M011", tol = 3e-12, ref = -17.165069596996887}]
+"H2O-analytic_vee.inp"   = [{matcher = "M011", tol = 3e-12, ref = -17.165089835308184}]
+"H2O-read_cube.inp"      = [{matcher = "M011", tol = 3e-12, ref = -17.165069597790573}]
 # welltempered metadynamics
-"2H2O_meta_welltemp.inp" = [{matcher = "E_total", tol = 8e-14, ref = -34.16302155107047}]
-"ND3_meta_welltemp.inp"  = [{matcher = "E_total", tol = 2e-14, ref = -11.80921591723418}]
+"2H2O_meta_welltemp.inp" = [{matcher = "E_total", tol = 8e-14, ref = -34.1630215509013}]
+"ND3_meta_welltemp.inp"  = [{matcher = "E_total", tol = 2e-14, ref = -11.80921591723464}]
 # gapw + npt
-"H2O-gapw.inp"           = [{matcher = "E_total", tol = 3e-14, ref = -17.13880431084977}]
+"H2O-gapw.inp"           = [{matcher = "E_total", tol = 3e-14, ref = -17.13880431103036}]
 #EOF

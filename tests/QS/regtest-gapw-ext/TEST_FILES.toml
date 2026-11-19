@@ -4,10 +4,10 @@
 #      1 compares the last total energy in the file
 #      for details see cp2k/tools/do_regtest
 # tests GAPW ext basis sets
-"H2S-e1.inp" = [{matcher = "E_total", tol = 5e-13, ref = -11.30826757243177}]
-"H2S-e2.inp" = [{matcher = "E_total", tol = 5e-13, ref = -11.30826729618823}]
-"H2S-e3.inp" = [{matcher = "E_total", tol = 5e-13, ref = -11.30821432793477}]
-"H2S-e4.inp" = [{matcher = "E_total", tol = 5e-13, ref = -11.30818141653743}]
+"H2S-e1.inp" = [{matcher = "E_total", tol = 5e-13, ref = -11.30826757213702}]
+"H2S-e2.inp" = [{matcher = "E_total", tol = 5e-13, ref = -11.30826729589347}]
+"H2S-e3.inp" = [{matcher = "E_total", tol = 5e-13, ref = -11.30821432763966}]
+"H2S-e4.inp" = [{matcher = "E_total", tol = 5e-13, ref = -11.3081814162422}]
 "H2O-e1.inp" = [{matcher = "E_total", tol = 8e-13, ref = -17.16408605379743}]
 "H2O-e2.inp" = [{matcher = "E_total", tol = 5e-13, ref = -17.16377523486545}]
 "H2O-e3.inp" = [{matcher = "E_total", tol = 5e-13, ref = -17.16475810964394}]

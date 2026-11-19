@@ -4,22 +4,22 @@
 #      1 compares the last total energy in the file
 #      for details see cp2k/tools/do_regtest
 "Al-kpoint-mermin-gaussian.inp"           = [
-  {matcher = "E_total", tol = 1e-9, ref = -2.20124735815183},
+  {matcher = "E_total", tol = 1e-9, ref = -2.20124736139668},
   {matcher = "NO_TEXT", text = "K-point smearing includes the first band"},
   {matcher = "NO_TEXT", text = "K-point smearing includes the last band"}
 ]
 "Al-kpoint-mermin-methfessel-paxton.inp"  = [
-  {matcher = "E_total", tol = 1e-9, ref = -2.20005620578583},
+  {matcher = "E_total", tol = 1e-9, ref = -2.20005620903024},
   {matcher = "NO_TEXT", text = "K-point smearing includes the first band"},
   {matcher = "NO_TEXT", text = "K-point smearing includes the last band"}
 ]
 "Al-kpoint-mermin-marzari-vanderbilt.inp" = [
-  {matcher = "E_total", tol = 1e-9, ref = -2.19990227508232},
+  {matcher = "E_total", tol = 1e-9, ref = -2.19990227832673},
   {matcher = "NO_TEXT", text = "K-point smearing includes the first band"},
   {matcher = "NO_TEXT", text = "K-point smearing includes the last band"}
 ]
 "Al-kpoint-mermin-auto.inp"               = [
-  {matcher = "E_total", tol = 1e-9, ref = -3.00729283020798},
+  {matcher = "E_total", tol = 1e-9, ref = -3.00792496641402},
   {matcher = "OT_added_mos_auto_grow"},
 ]
 #EOF

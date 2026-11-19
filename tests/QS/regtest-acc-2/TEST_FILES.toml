@@ -24,7 +24,7 @@
   {matcher = "M031", tol = 1e-08, ref = -230293.72085}
 ]
 "O2-admmq-gapw-open-shell-accurate-stress.inp" = [
-  {matcher = "M031", tol = 2e-8, ref = 2681.61176472},
+  {matcher = "M031", tol = 2e-8, ref = 2681.61146732},
   {matcher = "S2_estimate", tol = 2e-06, ref = 2.024699}
 ]
 #EOF

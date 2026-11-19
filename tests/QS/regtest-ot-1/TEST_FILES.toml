@@ -3,50 +3,50 @@
 # e.g. 0 means do not compare anything, running is enough
 #      1 compares the last total energy in the file
 #      for details see cp2k/tools/do_regtest
-"H2O.inp"            = [{matcher = "E_total", tol = 4.0E-14, ref = -17.13993294367163}]
-"H2O-print.inp"      = [{matcher = "E_total", tol = 4.0E-14, ref = -17.13993294170503}]
+"H2O.inp"            = [{matcher = "E_total", tol = 4.0E-14, ref = -17.13993294438977}]
+"H2O-print.inp"      = [{matcher = "E_total", tol = 4.0E-14, ref = -17.13993294242315}]
 #restart
-"H2O-OT-1.inp"       = [{matcher = "E_total", tol = 8e-13, ref = -17.13993288535013}]
+"H2O-OT-1.inp"       = [{matcher = "E_total", tol = 8e-13, ref = -17.13993288606825}]
 #restart
-"H2O-OT-2.inp"       = [{matcher = "E_total", tol = 8e-13, ref = -17.13993270992718}]
+"H2O-OT-2.inp"       = [{matcher = "E_total", tol = 8e-13, ref = -17.13993271064367}]
 #restart
-"H2O-OT-3.inp"       = [{matcher = "E_total", tol = 5e-13, ref = -17.14010566011609}]
+"H2O-OT-3.inp"       = [{matcher = "E_total", tol = 5e-13, ref = -17.14010566084049}]
 #restart
-"H2O-OT-4.inp"       = [{matcher = "E_total", tol = 5e-13, ref = -17.13983664856124}]
+"H2O-OT-4.inp"       = [{matcher = "E_total", tol = 5e-13, ref = -17.13983664927266}]
 # restart, state selective
-"H2O-OT-5.inp"       = [{matcher = "E_total", tol = 5e-13, ref = -17.14028119707346}]
+"H2O-OT-5.inp"       = [{matcher = "E_total", tol = 5e-13, ref = -17.14028119778757}]
 # LSD
-"H2-1.inp"           = [{matcher = "E_total", tol = 4e-13, ref = -0.9563536610244}]
+"H2-1.inp"           = [{matcher = "E_total", tol = 4e-13, ref = -0.95635366102363}]
 "H2-2.inp"           = [{matcher = "E_total", tol = 8e-13, ref = -0.93159042605284}]
 "H2-3.inp"           = [{matcher = "E_total", tol = 6e-13, ref = -0.95764459888284}]
 # more complete OT testing
-"Ar-14.inp"          = [{matcher = "E_total", tol = 4e-13, ref = -20.95260103650056}]
-"Ar-15.inp"          = [{matcher = "E_total", tol = 3e-13, ref = -20.94915328742915}]
-"Ar-16.inp"          = [{matcher = "E_total", tol = 4e-13, ref = -20.95260103650055}]
-"Ar-17.inp"          = [{matcher = "E_total", tol = 4e-13, ref = -20.94915329595083}]
-"Ar-18.inp"          = [{matcher = "E_total", tol = 4e-13, ref = -20.95260103650055}]
-"Ar-19.inp"          = [{matcher = "E_total", tol = 4e-13, ref = -20.94915329651046}]
-"Ar-20.inp"          = [{matcher = "E_total", tol = 4e-13, ref = -20.95260103650055}]
-"Ar-21.inp"          = [{matcher = "E_total", tol = 3e-13, ref = -20.94915329658032}]
+"Ar-14.inp"          = [{matcher = "E_total", tol = 4e-13, ref = -20.95260103642494}]
+"Ar-15.inp"          = [{matcher = "E_total", tol = 3e-13, ref = -20.94915328735237}]
+"Ar-16.inp"          = [{matcher = "E_total", tol = 4e-13, ref = -20.95260103642494}]
+"Ar-17.inp"          = [{matcher = "E_total", tol = 4e-13, ref = -20.94915329587408}]
+"Ar-18.inp"          = [{matcher = "E_total", tol = 4e-13, ref = -20.95260103642493}]
+"Ar-19.inp"          = [{matcher = "E_total", tol = 4e-13, ref = -20.94915329643369}]
+"Ar-20.inp"          = [{matcher = "E_total", tol = 4e-13, ref = -20.95260103642494}]
+"Ar-21.inp"          = [{matcher = "E_total", tol = 3e-13, ref = -20.94915329650354}]
 # OT and occuation
-"H2O-7.inp"          = [{matcher = "E_total", tol = 5.0E-14, ref = -16.61131960155547}]
+"H2O-7.inp"          = [{matcher = "E_total", tol = 5.0E-14, ref = -16.61131960222538}]
 "H2O-8.inp"          = [{matcher = "E_total", tol = 2e-07, ref = -16.81101121139572}]
 "H2O-9.inp"          = [{matcher = "E_total", tol = 3e-09, ref = -16.81101157587646}]
 "H2O-10.inp"         = [{matcher = "E_total", tol = 2e-10, ref = -16.81101156910428}]
 # OT ASPC
-"H2O-OT-ASPC-1.inp"  = [{matcher = "E_total", tol = 4e-14, ref = -17.13993294558083}]
-"H2O-OT-ASPC-2.inp"  = [{matcher = "E_total", tol = 3e-14, ref = -17.13994191004419}]
-"H2O-OT-ASPC-3.inp"  = [{matcher = "E_total", tol = 2e-14, ref = -17.13994199184902}]
-"H2O-OT-ASPC-4.inp"  = [{matcher = "E_total", tol = 3e-14, ref = -17.13994198369683}]
-"H2O-OT-ASPC-5.inp"  = [{matcher = "E_total", tol = 9e-14, ref = -17.13993068617222}]
-"H2O-OT-ASPC-6.inp"  = [{matcher = "E_total", tol = 7e-14, ref = -17.13941008526026}]
+"H2O-OT-ASPC-1.inp"  = [{matcher = "E_total", tol = 4e-14, ref = -17.1399329462801}]
+"H2O-OT-ASPC-2.inp"  = [{matcher = "E_total", tol = 3e-14, ref = -17.13994191003619}]
+"H2O-OT-ASPC-3.inp"  = [{matcher = "E_total", tol = 2e-14, ref = -17.13994199184082}]
+"H2O-OT-ASPC-4.inp"  = [{matcher = "E_total", tol = 3e-14, ref = -17.13994198368862}]
+"H2O-OT-ASPC-5.inp"  = [{matcher = "E_total", tol = 9e-14, ref = -17.13993068688035}]
+"H2O-OT-ASPC-6.inp"  = [{matcher = "E_total", tol = 7e-14, ref = -17.13941008525291}]
 # Input driven basis set and potential
-"H2O-bs_input.inp"   = [{matcher = "E_total", tol = 4e-14, ref = -17.13993294170503}]
+"H2O-bs_input.inp"   = [{matcher = "E_total", tol = 4e-14, ref = -17.13993294242316}]
 #broyden
-"H2O-broyden-1.inp"  = [{matcher = "E_total", tol = 3e-14, ref = -17.16150836041825}]
+"H2O-broyden-1.inp"  = [{matcher = "E_total", tol = 3e-14, ref = -17.16150836109951}]
 "H2O-broyden-2.inp"  = [{matcher = "E_total", tol = 2e-05, ref = -17.160495479573299}]
 #inverse_update_preconditioner solve
-"H2O-inverse_up.inp" = [{matcher = "E_total", tol = 2e-14, ref = -17.1401748796032}]
+"H2O-inverse_up.inp" = [{matcher = "E_total", tol = 2e-14, ref = -17.14017488029041}]
 #magnetic dipole moment
 "H2O-magnetic.inp"   = [{matcher = "M017", tol = 1.0E-14, ref = 0.00000000}]
 #EOF

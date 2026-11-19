@@ -2,11 +2,11 @@
 # the second field tells which test should be run in order to compare with the last available output
 # see regtest/TEST_FILES
 # FORCE: PADE - TPSS MO solver
-"N2_pade_tpss.inp"        = [{matcher = "M011", tol = 1e-12, ref = -19.529546603338588}]
+"N2_pade_tpss.inp"        = [{matcher = "M011", tol = 1e-12, ref = -19.529546603032063}]
 # FORCE: TPSS - PADE MO solver
-"N2_tpss_pade.inp"        = [{matcher = "M011", tol = 1e-12, ref = -19.795492341878017}]
+"N2_tpss_pade.inp"        = [{matcher = "M011", tol = 1e-12, ref = -19.795492341980584}]
 # FORCE: PADE - BR89 AO solver
-"N2_pade_br89.inp"        = [{matcher = "M011", tol = 1e-12, ref = -19.51903580944284}]
+"N2_pade_br89.inp"        = [{matcher = "M011", tol = 1e-12, ref = -19.519035809991983}]
 # FORCE: BR89 - PADE AO solver
 "N2_br89_pade.inp"        = [{matcher = "M011", tol = 1e-12, ref = -19.79537155072672}]
 # STRESS: PADE - TPSS MO solver

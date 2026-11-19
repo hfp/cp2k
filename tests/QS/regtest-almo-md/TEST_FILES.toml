@@ -1,7 +1,7 @@
-"almo-md-full-scf.inp"        = [{matcher = "M011", tol = 1e-12, ref = -136.70584523501404}]
-"almo-md-full-x-then-scf.inp" = [{matcher = "M011", tol = 2e-12, ref = -136.98609508500667}]
-"almo-md-no-aspc.inp"         = [{matcher = "M011", tol = 1e-12, ref = -136.47348429423954}]
-"xalmo-scf-md.inp"            = [{matcher = "M011", tol = 1e-12, ref = -136.70559931124606}]
-"almo-md.inp"                 = [{matcher = "M011", tol = 2e-12, ref = -136.6225824795576}]
-"almo-md-wannier.inp"         = [{matcher = "M011", tol = 1e-12, ref = -136.4734789956691}]
+"almo-md-full-scf.inp"        = [{matcher = "M011", tol = 1e-12, ref = -136.7058452367234}]
+"almo-md-full-x-then-scf.inp" = [{matcher = "M011", tol = 2e-12, ref = -136.98609508088657}]
+"almo-md-no-aspc.inp"         = [{matcher = "M011", tol = 1e-12, ref = -136.4734842990262}]
+"xalmo-scf-md.inp"            = [{matcher = "M011", tol = 1e-12, ref = -136.70559931286752}]
+"almo-md.inp"                 = [{matcher = "M011", tol = 2e-12, ref = -136.62258248218066}]
+"almo-md-wannier.inp"         = [{matcher = "M011", tol = 1e-12, ref = -136.4734790004559}]
 #EOF

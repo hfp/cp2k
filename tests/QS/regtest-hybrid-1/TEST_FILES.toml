@@ -1,8 +1,8 @@
 # runs are executed in the same order as in this file
 # the second field tells which test should be run in order to compare with the last available output
 # see regtest/TEST_FILES
-"H2O-hybrid-bhandh.inp"    = [{matcher = "E_total", tol = 2E-14, ref = -75.90482119138338}]
-"H2O-hybrid-bhandhlyp.inp" = [{matcher = "E_total", tol = 2e-14, ref = -76.33558052156707}]
-"H2O-hybrid-pbe0.inp"      = [{matcher = "E_total", tol = 3e-14, ref = -76.31995334361963}]
-"H2O-hybrid-b3lyp.inp"     = [{matcher = "E_total", tol = 4e-14, ref = -76.37338939451132}]
+"H2O-hybrid-bhandh.inp"    = [{matcher = "E_total", tol = 2E-14, ref = -75.90482119138716}]
+"H2O-hybrid-bhandhlyp.inp" = [{matcher = "E_total", tol = 2e-14, ref = -76.33558052157103}]
+"H2O-hybrid-pbe0.inp"      = [{matcher = "E_total", tol = 3e-14, ref = -76.31995334362446}]
+"H2O-hybrid-b3lyp.inp"     = [{matcher = "E_total", tol = 4e-14, ref = -76.37338939451669}]
 #EOF

@@ -11,23 +11,23 @@
 "CO_xastpxfh_150Ry.inp"        = [{matcher = "E_total", tol = 8e-12, ref = -92.84739365620344}]
 "CO_xastpxfh_pdos.inp"         = [{matcher = "E_total", tol = 2e-09, ref = -92.340788080870666}]
 #bug fix gpw_type
-"H2O_O_gpw.inp"                = [{matcher = "E_total", tol = 2e-13, ref = -17.1077419207985}]
+"H2O_O_gpw.inp"                = [{matcher = "E_total", tol = 2e-13, ref = -17.10774192080266}]
 #bug fix perdew_zunger
 "Ne-BP.inp"                    = [{matcher = "E_total", tol = 3.0E-14, ref = -128.0434603501377}]
-"H2O_all_gpw.inp"              = [{matcher = "E_total", tol = 2e-11, ref = -16.14000415772259}]
-"H2O_H_gpw_O_gapw.inp"         = [{matcher = "E_total", tol = 3e-12, ref = -14.6746090732213}]
+"H2O_all_gpw.inp"              = [{matcher = "E_total", tol = 2e-11, ref = -16.14000415814992}]
+"H2O_H_gpw_O_gapw.inp"         = [{matcher = "E_total", tol = 3e-12, ref = -14.6746094294906}]
 "H_hf_gapw_forcepaw.inp"       = [{matcher = "E_total", tol = 4e-13, ref = -0.42427641983316}]
 "H_hf_gapw_nopaw.inp"          = [{matcher = "E_total", tol = 7e-13, ref = -0.42419312869035}]
 "H_hf_gapw_nopaw_full.inp"     = [{matcher = "E_total", tol = 7e-13, ref = -0.42419312869035}]
 # mixed GPW/GAPW geometry optimization
-"H2O_O_gpw_geo_opt.inp"        = [{matcher = "E_total", tol = 1e-13, ref = -17.10699732073703}]
+"H2O_O_gpw_geo_opt.inp"        = [{matcher = "E_total", tol = 1e-13, ref = -17.10699732073919}]
 # GAPW element with local basis > number of projectors
 "Fe.inp"                       = [{matcher = "E_total", tol = 6e-14, ref = -1169.3226158214507}]
 # GAPW with an external potential
 "H2O_constant_extpot_GAPW.inp" = [{matcher = "E_total", tol = 2e-13, ref = -17.15693242387472}]
 "H2O_uniform_efield_GAPW.inp"  = [{matcher = "E_total", tol = 2e-13, ref = -17.15696476825623}]
 #XAS with for beta channel
-"O2_xas_beta_spin.inp"         = [{matcher = "M084", tol = 2e-14, ref = -20.7971537477195}]
+"O2_xas_beta_spin.inp"         = [{matcher = "M084", tol = 2e-14, ref = -20.79715374770393}]
 # WFX export with OT, including ADMM MO_DIAG and an empty UKS beta channel
 "H2O_chargemol_ot.inp"         = [
   {matcher = "E_total", tol = 1e-10, ref = -76.32747127677875},

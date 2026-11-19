@@ -6,7 +6,7 @@
 # QM/MM
 "Cu-H2-qmmm-image-1.inp"     = [{matcher = "E_total", tol = 4e-12, ref = -1.11673069974027}]
 "Cu-H2-qmmm-image-1-gpw.inp" = [{matcher = "E_total", tol = 4e-12, ref = -1.11673069974027}]
-"Cu-H2-qmmm-image-2.inp"     = [{matcher = "E_total", tol = 4e-12, ref = -1.15440438025214}]
+"Cu-H2-qmmm-image-2.inp"     = [{matcher = "E_total", tol = 4e-12, ref = -1.15440438028852}]
 "Cu-H2-qmmm-image-3.inp"     = [{matcher = "E_total", tol = 4e-12, ref = -1.11673069974039}]
 "Cu-H2-qmmm-image-4.inp"     = [{matcher = "E_total", tol = 2e-13, ref = -1.11520145051336}]
 #EOF

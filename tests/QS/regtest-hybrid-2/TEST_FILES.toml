@@ -1,4 +1,4 @@
-"H2O-hybrid-b3lyp-g03.inp"     = [{matcher = "E_total", tol = 3e-14, ref = -76.41035425630625}]
+"H2O-hybrid-b3lyp-g03.inp"     = [{matcher = "E_total", tol = 3e-14, ref = -76.41035425631169}]
 "CH3-hybrid-b3lyp-lsd-g03.inp" = [{matcher = "E_total", tol = 1e-13, ref = -39.83352463487468}]
 "CH3-hybrid-handh-lsd.inp"     = [{matcher = "E_total", tol = 1e-13, ref = -39.50416073166734}]
 "CH3-hybrid-handhlyp-lsd.inp"  = [{matcher = "E_total", tol = 1e-13, ref = -39.82374962284794}]

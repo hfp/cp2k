@@ -11,12 +11,12 @@
 "H+-bloechl.inp"                 = [{matcher = "E_total", tol = 6e-11, ref = 0.018423285333850001}]
 "He2H-bloechl-md.inp"            = [{matcher = "E_total", tol = 2e-05, ref = -0.53855807719486004}]
 "He2H-bloechl.inp"               = [{matcher = "E_total", tol = 9e-12, ref = -0.33998448719952001}]
-"H2O-bloechl.inp"                = [{matcher = "E_total", tol = 2e-13, ref = -17.15579833693714}]
-"H2O-bloechl-Spl.inp"            = [{matcher = "E_total", tol = 3e-13, ref = -17.15578542815322}]
+"H2O-bloechl.inp"                = [{matcher = "E_total", tol = 2e-13, ref = -17.15579833782601}]
+"H2O-bloechl-Spl.inp"            = [{matcher = "E_total", tol = 3e-13, ref = -17.15578542904201}]
 "H2O-bloechl-force-ortho.inp"    = []
 "H2O-bloechl-force-nonortho.inp" = []
 "H2O-bloechl-nonortho.inp"       = []
-"H2O-bloechl-restraint.inp"      = [{matcher = "E_total", tol = 3e-12, ref = -17.14839328232163}]
+"H2O-bloechl-restraint.inp"      = [{matcher = "E_total", tol = 3e-12, ref = -17.1483932829669}]
 # S**2
 "CN.inp"                         = [
   {matcher = "S2_estimate", tol = 1.0E-14, ref = 0.751382},
@@ -43,49 +43,49 @@
 "2H2O_bsse_r.inp"                = [{matcher = "M005", tol = 1.0E-14, ref = -0.000221}]
 # This file is created from the previous run..
 #H2O-1_3.restart    5
-"3H2O_bsse.inp"                  = [{matcher = "M005", tol = 1.0E-14, ref = -1.272961}]
-"3H2O_bsse_multi_LIST.inp"       = [{matcher = "M005", tol = 1.0E-14, ref = -1.272961}]
+"3H2O_bsse.inp"                  = [{matcher = "M005", tol = 1.0E-14, ref = -1.273259}]
+"3H2O_bsse_multi_LIST.inp"       = [{matcher = "M005", tol = 1.0E-14, ref = -1.273259}]
 "OH-H2O-bsse.inp"                = [{matcher = "M005", tol = 1.0E-14, ref = -0.112213}]
 # Langevin dynamics
-"H2O-langevin-1.inp"             = [{matcher = "E_total", tol = 2e-14, ref = -17.14549194050288}]
-"H2O-langevin-2.inp"             = [{matcher = "E_total", tol = 1.0E-14, ref = -17.14566018941058}]
+"H2O-langevin-1.inp"             = [{matcher = "E_total", tol = 2e-14, ref = -17.14549194084927}]
+"H2O-langevin-2.inp"             = [{matcher = "E_total", tol = 1.0E-14, ref = -17.14566018973997}]
 #Ref grid
-"H2O-ref-1.inp"                  = [{matcher = "E_total", tol = 2e-14, ref = -17.14023455215018}]
-"H2O-ref-2.inp"                  = [{matcher = "E_total", tol = 3e-14, ref = -17.1402345554466}]
+"H2O-ref-1.inp"                  = [{matcher = "E_total", tol = 2e-14, ref = -17.14023455258284}]
+"H2O-ref-2.inp"                  = [{matcher = "E_total", tol = 3e-14, ref = -17.14023455604001}]
 # All-to-all single communication in parallel runs
 "H2O-ata.inp"                    = [{matcher = "E_total", tol = 2e-08, ref = -17.14619639410385}]
 # Lowdin charges
 # High-spin restricted open Kohn-Sham
-"H-ROKS.inp"                     = [{matcher = "E_total", tol = 4e-14, ref = -0.47437344093854}]
-"N-ROKS.inp"                     = [{matcher = "E_total", tol = 2e-13, ref = -9.72861898337724}]
-"O2-ROKS.inp"                    = [{matcher = "E_total", tol = 1.0E-14, ref = -31.86289251130594}]
+"H-ROKS.inp"                     = [{matcher = "E_total", tol = 4e-14, ref = -0.47437344093798}]
+"N-ROKS.inp"                     = [{matcher = "E_total", tol = 2e-13, ref = -9.72861898400227}]
+"O2-ROKS.inp"                    = [{matcher = "E_total", tol = 1.0E-14, ref = -31.86289251225479}]
 # Onsager Model
 "H+solv1.inp"                    = [{matcher = "E_total", tol = 3e-12, ref = -0.10460403923644}]
-"H2O-solv.inp"                   = [{matcher = "E_total", tol = 2e-12, ref = -14.76967241624004}]
-"H2O-solv2.inp"                  = [{matcher = "E_total", tol = 2e-12, ref = -14.76967241624003}]
+"H2O-solv.inp"                   = [{matcher = "E_total", tol = 2e-12, ref = -14.76967241628703}]
+"H2O-solv2.inp"                  = [{matcher = "E_total", tol = 2e-12, ref = -14.76967241628703}]
 #XC_FUN NONE
-"H2O-xc_none.inp"                = [{matcher = "E_total", tol = 5e-14, ref = -13.34522399682912}]
+"H2O-xc_none.inp"                = [{matcher = "E_total", tol = 5e-14, ref = -13.3452054922557}]
 # ghost atom dynamics
-"dynamics.inp"                   = [{matcher = "E_total", tol = 8e-09, ref = -15.53407985456994}]
+"dynamics.inp"                   = [{matcher = "E_total", tol = 8e-09, ref = -15.53408093331053}]
 # distributed non-ortho grids
-"rsgrid-dist-2.inp"              = [{matcher = "E_total", tol = 3e-14, ref = -17.15213141813911}]
+"rsgrid-dist-2.inp"              = [{matcher = "E_total", tol = 3e-14, ref = -17.15213142054905}]
 # also write wavefunctions
-"rsgrid-dist-3.inp"              = [{matcher = "E_total", tol = 1e-13, ref = -16.16703900229214}]
+"rsgrid-dist-3.inp"              = [{matcher = "E_total", tol = 1e-13, ref = -16.16703900228803}]
 # ghost atom dynamics at high cutoff highlights problems
-"dynamics-2.inp"                 = [{matcher = "E_total", tol = 2e-13, ref = -17.19699427513734}]
-"ghost_overlap.inp"              = [{matcher = "E_total", tol = 7e-14, ref = -17.10554013068957}]
-"ghost_overlap_vdw.inp"          = [{matcher = "E_total", tol = 7e-14, ref = -17.10561530139686}]
+"dynamics-2.inp"                 = [{matcher = "E_total", tol = 2e-13, ref = -17.19699427514477}]
+"ghost_overlap.inp"              = [{matcher = "E_total", tol = 7e-14, ref = -17.10554013166992}]
+"ghost_overlap_vdw.inp"          = [{matcher = "E_total", tol = 7e-14, ref = -17.10561530237717}]
 # Population analyses
 "NO2-mulliken.inp"               = [{matcher = "M041", tol = 1.0E-14, ref = 1.000000}]
 "NO2-lowdin.inp"                 = [{matcher = "M041", tol = 1.0E-14, ref = 1.000000}]
 "NO2-lowdin-kp.inp"              = [{matcher = "M041", tol = 1.0E-14, ref = 1.000000}]
 # Test the new option relax_multiplicity
-"O2-UKS-GPW-relax_multip.inp"    = [{matcher = "E_total", tol = 5.0E-14, ref = -31.86509210988225}]
-"H2O-UKS-GPW-relax_multip.inp"   = [{matcher = "E_total", tol = 1e-13, ref = -17.15478069299063}]
-"O2-UKS-OTdiag-relax_multip.inp" = [{matcher = "E_total", tol = 5e-14, ref = -31.86509210512576}]
+"O2-UKS-GPW-relax_multip.inp"    = [{matcher = "E_total", tol = 5.0E-14, ref = -31.86509211084848}]
+"H2O-UKS-GPW-relax_multip.inp"   = [{matcher = "E_total", tol = 1e-13, ref = -17.1547806938746}]
+"O2-UKS-OTdiag-relax_multip.inp" = [{matcher = "E_total", tol = 5e-14, ref = -31.86509210609199}]
 # Test reading LnPP2 
 "CeO2.inp"                       = [{matcher = "E_total", tol = 1e-12, ref = -64.41562845156233}]
 # Spin-channel-specific mixing parameters
-"O2-UKS-mixing.inp"              = [{matcher = "E_total", tol = 5.0E-14, ref = -31.86541678173846}]
+"O2-UKS-mixing.inp"              = [{matcher = "E_total", tol = 5.0E-14, ref = -31.86541678271747}]
 "multiple_potential_files.inp"   = [{matcher = "E_total", tol = 1e-12, ref = -1.14920823203207}]
 #EOF

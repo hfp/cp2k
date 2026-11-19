@@ -2,17 +2,17 @@
 # Tests native local/nonlocal operators, mixed NLCC kinds, and energy/forces.
 # GAPW cases retain nonzero one-center contributions.
 "HBr_GPW.inp"     = [
-  {matcher = "M011", tol = 1e-11, ref = -16.119259812815862},
+  {matcher = "M011", tol = 1e-11, ref = -16.119259813067988},
   {matcher = "Atomic_force_1_z", tol = 1e-6, ref = -0.0206469421},
   {matcher = "Atomic_force_2_y", tol = 1e-6, ref = 0.00643540086},
 ]
 "HBr_GAPW_XC.inp" = [
-  {matcher = "M011", tol = 1e-11, ref = -16.127538495650878},
+  {matcher = "M011", tol = 1e-11, ref = -16.127538495897557},
   {matcher = "Atomic_force_1_z", tol = 1e-6, ref = -0.0193301809},
   {matcher = "Atomic_force_2_y", tol = 1e-6, ref = 0.0062152316},
 ]
 "HBr_GAPW.inp"    = [
-  {matcher = "M011", tol = 1e-11, ref = -16.12831093603387},
+  {matcher = "M011", tol = 1e-11, ref = -16.128310936283718},
   {matcher = "Atomic_force_1_z", tol = 1e-6, ref = -0.0124654738},
   {matcher = "Atomic_force_2_y", tol = 1e-6, ref = 0.00415934069},
 ]

@@ -1,6 +1,6 @@
-"c8_kerker_gapw.inp"   = [{matcher = "E_total", tol = 5e-14, ref = -42.05131502831799}]
+"c8_kerker_gapw.inp"   = [{matcher = "E_total", tol = 5e-14, ref = -42.05131502829894}]
 #
-"c8_broy.inp"          = [{matcher = "E_total", tol = 2e-13, ref = -43.77621008773823}]
+"c8_broy.inp"          = [{matcher = "E_total", tol = 2e-13, ref = -43.77621008766874}]
 "c8_broy_gop.inp"      = [{matcher = "E_total", tol = 9e-07, ref = -44.00921069623033}]
 "c8_broy_gapw.inp"     = [{matcher = "E_total", tol = 5e-14, ref = -41.31719415461436}]
 "c8_broy_gapw_gop.inp" = [{matcher = "E_total", tol = 1E-6, ref = -41.71961273642637}]

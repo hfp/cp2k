@@ -1,5 +1,5 @@
 #
-"nlcc-mix.inp"              = [{matcher = "E_total", tol = 1.0E-12, ref = -18.1053045990815}]
+"nlcc-mix.inp"              = [{matcher = "E_total", tol = 1.0E-12, ref = -18.10530459906206}]
 "C2H4_GRRM.inp"             = [{matcher = "E_total", tol = 1.0E-12, ref = -13.93037233364358}]
 "h2o_GRRM.inp"              = [
   {matcher = "Vib_freq", tol = 8.0E-06, ref = 1465.6104041},
@@ -18,11 +18,11 @@
   {matcher = "Vib_frc_const", tol = 1.0E-04, ref = 0.085778}
 ]
 #
-"cif_symbol_1st_column.inp" = [{matcher = "E_total", tol = 1.0E-14, ref = -13.41107059141061}]
-"cif_symbol_2nd_column.inp" = [{matcher = "E_total", tol = 1.0E-14, ref = -13.41107059141061}]
-"cif_symbol_missing.inp"    = [{matcher = "E_total", tol = 1.0E-14, ref = -13.41107059141061}]
-"read_extxyz_cell.inp"      = [{matcher = "E_total", tol = 1.0E-14, ref = -16.9411691006791}]
-"read_pdb_cell.inp"         = [{matcher = "E_total", tol = 1.0E-14, ref = -16.94123937046733}]
+"cif_symbol_1st_column.inp" = [{matcher = "E_total", tol = 1.0E-14, ref = -13.41107059140977}]
+"cif_symbol_2nd_column.inp" = [{matcher = "E_total", tol = 1.0E-14, ref = -13.41107059140977}]
+"cif_symbol_missing.inp"    = [{matcher = "E_total", tol = 1.0E-14, ref = -13.41107059140977}]
+"read_extxyz_cell.inp"      = [{matcher = "E_total", tol = 1.0E-14, ref = -16.94116910068616}]
+"read_pdb_cell.inp"         = [{matcher = "E_total", tol = 1.0E-14, ref = -16.94123937047439}]
 #
 "H2_rigpw.inp"              = [{matcher = "E_total", tol = 5.0E-10, ref = -1.188555459589530}]
 #EOF

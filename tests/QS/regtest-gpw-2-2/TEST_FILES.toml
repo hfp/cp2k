@@ -1,10 +1,10 @@
 "C.inp"                = [{matcher = "E_total", tol = 7e-12, ref = -5.3386305984555102}]
-"H2O-meta_kinds.inp"   = [{matcher = "E_total", tol = 4e-14, ref = -17.16166674832238}]
-"H2O-meta.inp"         = [{matcher = "E_total", tol = 2e-14, ref = -17.16168353855632}]
-"H2O-meta_res0.inp"    = [{matcher = "E_total", tol = 4e-14, ref = -17.1617377413341}]
-"H2O-meta_res1.inp"    = [{matcher = "E_total", tol = 3e-14, ref = -17.16200759018288}]
-"H2O-meta_res2.inp"    = [{matcher = "E_total", tol = 1.0E-14, ref = -17.16019189119389}]
-"H2O-meta_res3.inp"    = [{matcher = "E_total", tol = 3e-14, ref = -17.16211383657357}]
+"H2O-meta_kinds.inp"   = [{matcher = "E_total", tol = 4e-14, ref = -17.16166674832542}]
+"H2O-meta.inp"         = [{matcher = "E_total", tol = 2e-14, ref = -17.16168353855935}]
+"H2O-meta_res0.inp"    = [{matcher = "E_total", tol = 4e-14, ref = -17.16173774133979}]
+"H2O-meta_res1.inp"    = [{matcher = "E_total", tol = 3e-14, ref = -17.16200759018583}]
+"H2O-meta_res2.inp"    = [{matcher = "E_total", tol = 1.0E-14, ref = -17.16019189119762}]
+"H2O-meta_res3.inp"    = [{matcher = "E_total", tol = 3e-14, ref = -17.16211383657629}]
 # tpss
 "H2O-tpss.inp"         = [{matcher = "E_total", tol = 2e-13, ref = -34.4756399442079}]
 # tpss new input

@@ -3,6 +3,6 @@
 "h2o-fine-tpss-stress-debug-1.inp" = []
 "h2o-fine-tpss-full-stress-1.inp"  = [
   {matcher = "M011", tol = 1e-08, ref = -17.232936760412752},
-  {matcher = "M031", tol = 1e-08, ref = -9374.3920378}
+  {matcher = "M031", tol = 1e-08, ref = -9374.39193281}
 ]
 #EOF

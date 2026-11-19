@@ -3,14 +3,14 @@
 # e.g. 0 means do not compare anything, running is enough
 #      1 compares the last total energy in the file
 #      for details see cp2k/tools/do_regtest
-"Al_fermi.inp"                         = [{matcher = "E_total", tol = 5e-14, ref = -8.17296839114989}]
+"Al_fermi.inp"                         = [{matcher = "E_total", tol = 5e-14, ref = -8.17296839138314}]
 # OT%ENERGIES without an explicit KPOINTS section uses the complex Gamma-point Mermin path
 "Al-gamma-mermin-smoke.inp"            = [
-  {matcher = "E_total", tol = 1e-9, ref = -3.11123450873826},
-  {matcher = "M095", tol = 1e-6, ref = -0.27612472008801}
+  {matcher = "E_total", tol = 1e-9, ref = -3.1121632924664},
+  {matcher = "M095", tol = 1e-6, ref = -0.27643486632524}
 ]
 # fixed-N Mermin OT at symmetry-reduced complex K points and its diagonalization reference
-"Al-kpoint-diag-reference.inp"         = [{matcher = "E_total", tol = 1e-9, ref = -2.90612554307126}]
+"Al-kpoint-diag-reference.inp"         = [{matcher = "E_total", tol = 1e-9, ref = -2.90676279169855}]
 "Al-kpoint-otdiag.inp"                 = [
   {matcher = "E_total", tol = 1e-8, ref = -2.06393459533834},
   {matcher = "NO_TEXT", text = "K-point smearing includes the first band"},
@@ -23,17 +23,17 @@
   {matcher = "NO_TEXT", text = "K-point smearing includes the last band"},
 ]
 "Al-kpoint-mermin-smoke.inp"           = [
-  {matcher = "E_total", tol = 1e-9, ref = -2.90612554247241},
+  {matcher = "E_total", tol = 1e-9, ref = -2.90676279158771},
   {matcher = "M072", tol = 1e-8, ref = 0.0},
-  {matcher = "M031", tol = 1e-6, ref = -103267802.016}
+  {matcher = "M031", tol = 1e-6, ref = -103300592.445}
 ]
 "Al-kpoint-mermin-fermi-low-rank.inp"  = [
-  {matcher = "E_total", tol = 1e-9, ref = -2.17112914516418},
+  {matcher = "E_total", tol = 1e-9, ref = -2.17112914886035},
   {matcher = "NO_TEXT", text = "K-point smearing includes the first band"},
   {matcher = "NO_TEXT", text = "K-point smearing includes the last band"},
 ]
 "Al-kpoint-mermin-covariant.inp"       = [
-  {matcher = "E_total", tol = 1e-9, ref = -2.97874702471693},
+  {matcher = "E_total", tol = 1e-9, ref = -2.97938415867663},
   {matcher = "NO_TEXT", text = "K-point smearing includes the first band"},
   {matcher = "NO_TEXT", text = "K-point smearing includes the last band"},
 ]

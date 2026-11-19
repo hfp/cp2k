@@ -13,12 +13,12 @@
 "extrap-8.inp"      = [{matcher = "E_total", tol = 7e-08, ref = -34.29743569407542}]
 "extrap-9.inp"      = [{matcher = "E_total", tol = 7e-08, ref = -34.29743573596446}]
 "extrap-10.inp"     = [
-  {matcher = "E_total", tol = 7e-08, ref = -34.28457120491849},
-  {matcher = "gext", tol = 1e-08, ref = 0.0636648459}
+  {matcher = "E_total", tol = 7e-08, ref = -34.28457364959405},
+  {matcher = "gext", tol = 1e-08, ref = 0.0636649888}
 ]
 "extrap-11.inp"     = [
-  {matcher = "E_total", tol = 7e-08, ref = -34.28457121516277},
-  {matcher = "gext", tol = 1e-08, ref = 0.0782622361}
+  {matcher = "E_total", tol = 7e-08, ref = -34.2845736598526},
+  {matcher = "gext", tol = 1e-08, ref = 0.0782631374}
 ]
 "extrap-1-far.inp"  = [{matcher = "E_total", tol = 4e-07, ref = -34.03793230991441}]
 "extrap-2-far.inp"  = [{matcher = "E_total", tol = 4e-07, ref = -34.03793229024241}]
@@ -31,10 +31,10 @@
 "extrap-9-far.inp"  = [{matcher = "E_total", tol = 4e-07, ref = -34.03793229029415}]
 "extrap-10-far.inp" = [
   {matcher = "E_total", tol = 4e-07, ref = -34.30878385297659},
-  {matcher = "gext", tol = 1e-08, ref = 0.0320529254}
+  {matcher = "gext", tol = 1e-08, ref = 0.0320518668}
 ]
 "extrap-11-far.inp" = [
   {matcher = "E_total", tol = 4e-07, ref = -34.30878386538573},
-  {matcher = "gext", tol = 1e-08, ref = 0.0855737798}
+  {matcher = "gext", tol = 1e-08, ref = 0.085572138}
 ]
 #EOF

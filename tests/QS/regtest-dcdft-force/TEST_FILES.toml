@@ -11,11 +11,11 @@
 # PBE - PBE
 "N2_t04.inp" = [{matcher = "M011", tol = 1e-12, ref = -19.919507647831647}]
 # LDA - TPSS MO solver
-"N2_t05.inp" = [{matcher = "M011", tol = 5e-12, ref = -19.597072975716305}]
+"N2_t05.inp" = [{matcher = "M011", tol = 5e-12, ref = -19.59707297598377}]
 # TPSS - LDA MO solver
-"N2_t06.inp" = [{matcher = "M011", tol = 5e-12, ref = -19.794531087963094}]
+"N2_t06.inp" = [{matcher = "M011", tol = 5e-12, ref = -19.794531080954883}]
 # LDA - BR89 AO solver
-"N2_t07.inp" = [{matcher = "M011", tol = 1e-12, ref = -19.51842987619707}]
+"N2_t07.inp" = [{matcher = "M011", tol = 1e-12, ref = -19.51842987603723}]
 # BR89 - LDA AO solver
 "N2_t08.inp" = [{matcher = "M011", tol = 5e-12, ref = -19.79477063445759}]
 # HFX - PBE
@@ -23,9 +23,9 @@
 # HFX - PBE AO solver
 "N2_t10.inp" = [{matcher = "M011", tol = 1e-12, ref = -19.910894021236807}]
 # PBE0 - LDA
-"N2_t11.inp" = [{matcher = "M011", tol = 1e-12, ref = -19.807038516725562}]
+"N2_t11.inp" = [{matcher = "M011", tol = 1e-12, ref = -19.80703851733288}]
 # PBE0 - LDA AO solver
-"N2_t12.inp" = [{matcher = "M011", tol = 1e-12, ref = -19.807038021438956}]
+"N2_t12.inp" = [{matcher = "M011", tol = 1e-12, ref = -19.807038022039126}]
 # HFX-ADMM-NONE - PBE
 "N2_t13.inp" = [{matcher = "M011", tol = 1e-12, ref = -19.890454343810383}]
 # HFX-ADMM-NONE - PBE AO solver

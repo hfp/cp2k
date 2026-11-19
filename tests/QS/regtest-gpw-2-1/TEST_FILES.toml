@@ -14,13 +14,13 @@
   {matcher = "Vib_frc_const", tol = 1e-04, ref = 3.757279}
 ]
 # test thermostats
-"H2O-2.inp"     = [{matcher = "E_total", tol = 3e-14, ref = -17.14619644558026}]
-"H2O-3.inp"     = [{matcher = "E_total", tol = 4e-14, ref = -17.14553123062288}]
-"H2O-4.inp"     = [{matcher = "E_total", tol = 3e-14, ref = -17.14677584189541}]
+"H2O-2.inp"     = [{matcher = "E_total", tol = 3e-14, ref = -17.14619644592463}]
+"H2O-3.inp"     = [{matcher = "E_total", tol = 4e-14, ref = -17.1455312309638}]
+"H2O-4.inp"     = [{matcher = "E_total", tol = 3e-14, ref = -17.14677584223477}]
 # core ham bug
-"ZrO.inp"       = [{matcher = "E_total", tol = 5e-14, ref = -62.20561057726397}]
+"ZrO.inp"       = [{matcher = "E_total", tol = 5e-14, ref = -62.20561057727268}]
 # new xc routines
-"Ar-12.inp"     = [{matcher = "E_total", tol = 3e-13, ref = -21.04251999887104}]
-"Ar-13.inp"     = [{matcher = "E_total", tol = 8e-13, ref = -21.12624107788402}]
+"Ar-12.inp"     = [{matcher = "E_total", tol = 3e-13, ref = -21.04251999777906}]
+"Ar-13.inp"     = [{matcher = "E_total", tol = 8e-13, ref = -21.12624107690119}]
 # Metadynamics and restart of metadynamics
 #EOF

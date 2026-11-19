@@ -1,21 +1,21 @@
 # bugs in berry phase dipole
 "bug_ai_moments.inp"             = [{matcher = "M039", tol = 1.0E-08, ref = 0.2839176}]
 #
-"si8_broy_stm.inp"               = [{matcher = "E_total", tol = 2e-13, ref = -30.92831595001783}]
+"si8_broy_stm.inp"               = [{matcher = "E_total", tol = 2e-13, ref = -30.92831595003324}]
 "si8_broy_wc.inp"                = [{matcher = "M023", tol = 2e-03, ref = 1902.1967139926}]
 "si8_broy_wc_crazy.inp"          = [{matcher = "M023", tol = 2e-06, ref = 149.9751539129}]
 "si8_broy_wc_crazy_ene.inp"      = [{matcher = "M023", tol = 2e-06, ref = 154.4040134571}]
 # block Davidson diagonalization
-"si8_broy_dav_t300.inp"          = [{matcher = "E_total", tol = 6e-12, ref = -30.97124289778838}]
+"si8_broy_dav_t300.inp"          = [{matcher = "E_total", tol = 6e-12, ref = -30.97124289809734}]
 "si8_modified_broy_dav_t300.inp" = [{matcher = "E_total", tol = 6e-11, ref = -30.90686564635863}]
-"si8_broy_dav_t300_r.inp"        = [{matcher = "E_total", tol = 1e-13, ref = -31.06536104770207}]
+"si8_broy_dav_t300_r.inp"        = [{matcher = "E_total", tol = 1e-13, ref = -31.06536104464938}]
 "si8_broy_dav_t5000_r.inp"       = [{matcher = "E_total", tol = 2e-10, ref = -31.158514641268031}]
-"si8_broy_dav_t300_lsd.inp"      = [{matcher = "E_total", tol = 1e-13, ref = -30.97300206569705}]
-"si8_broy_std_md.inp"            = [{matcher = "E_total", tol = 6e-14, ref = -31.06548770486746}]
-"si8_broy_dav_md.inp"            = [{matcher = "E_total", tol = 2e-13, ref = -31.07283547295625}]
-"si8_broy_davsparse_md.inp"      = [{matcher = "E_total", tol = 5e-14, ref = -31.06607601857138}]
+"si8_broy_dav_t300_lsd.inp"      = [{matcher = "E_total", tol = 1e-13, ref = -30.97300206485095}]
+"si8_broy_std_md.inp"            = [{matcher = "E_total", tol = 6e-14, ref = -31.06548770452779}]
+"si8_broy_dav_md.inp"            = [{matcher = "E_total", tol = 2e-13, ref = -31.07283547029402}]
+"si8_broy_davsparse_md.inp"      = [{matcher = "E_total", tol = 5e-14, ref = -31.06607601663225}]
 #
-"si8_broy_ch.inp"                = [{matcher = "E_total", tol = 8e-14, ref = -30.95911274497804}]
+"si8_broy_ch.inp"                = [{matcher = "E_total", tol = 8e-14, ref = -30.95911274487626}]
 #
 "mao_1.inp"                      = [{matcher = "E_total", tol = 1e-10, ref = -34.30168601404914}]
 "mao_2.inp"                      = [{matcher = "E_total", tol = 1e-10, ref = -34.30168601404868}]

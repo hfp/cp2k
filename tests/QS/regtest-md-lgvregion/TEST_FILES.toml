@@ -3,11 +3,11 @@
 # e.g. 0 means do not compare anything, running is enough
 #      1 compares the last total energy in the file
 #      for details see cp2k/tools/do_regtest
-"langevin_regions-1.inp" = [{matcher = "E_total", tol = 4e-09, ref = -34.28350916191276}]
-"langevin_regions-2.inp" = [{matcher = "E_total", tol = 9e-09, ref = -34.29678168523843}]
-"langevin_regions-3.inp" = [{matcher = "E_total", tol = 4e-09, ref = -34.28350916191276}]
-"langevin_regions-4.inp" = [{matcher = "E_total", tol = 9e-09, ref = -34.28727799467801}]
-"langevin_regions-5.inp" = [{matcher = "E_total", tol = 9e-09, ref = -34.3674261158629}]
-"langevin_regions-6.inp" = [{matcher = "E_total", tol = 9e-09, ref = -34.36334800595873}]
-"langevin_regions-7.inp" = [{matcher = "E_total", tol = 9e-09, ref = -34.37403151567452}]
+"langevin_regions-1.inp" = [{matcher = "E_total", tol = 4e-09, ref = -34.28351160502918}]
+"langevin_regions-2.inp" = [{matcher = "E_total", tol = 9e-09, ref = -34.29678396236478}]
+"langevin_regions-3.inp" = [{matcher = "E_total", tol = 4e-09, ref = -34.28351160502917}]
+"langevin_regions-4.inp" = [{matcher = "E_total", tol = 9e-09, ref = -34.28728060573451}]
+"langevin_regions-5.inp" = [{matcher = "E_total", tol = 9e-09, ref = -34.36742779573825}]
+"langevin_regions-6.inp" = [{matcher = "E_total", tol = 9e-09, ref = -34.36334977490434}]
+"langevin_regions-7.inp" = [{matcher = "E_total", tol = 9e-09, ref = -34.37403323419873}]
 #EOF

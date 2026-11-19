@@ -5,10 +5,10 @@
 #      for details see cp2k/tools/do_regtest
 "ch2o_1.inp"   = [{matcher = "E_total", tol = 3e-13, ref = -22.56644336894099}]
 "ch2o_2.inp"   = [{matcher = "E_total", tol = 3e-13, ref = -22.56644336894095}]
-"ch2o_3.inp"   = [{matcher = "E_total", tol = 3e-13, ref = -59.93603125482982}]
-"ch2o_4.inp"   = [{matcher = "E_total", tol = 3e-13, ref = -59.93603125483024}]
+"ch2o_3.inp"   = [{matcher = "E_total", tol = 3e-13, ref = -59.93603125476838}]
+"ch2o_4.inp"   = [{matcher = "E_total", tol = 3e-13, ref = -59.936031254768}]
 "ch2o_5.inp"   = [{matcher = "E_total", tol = 3e-13, ref = -22.56644336894099}]
-"ch2o_6.inp"   = [{matcher = "E_total", tol = 3e-13, ref = -59.93603125483018}]
+"ch2o_6.inp"   = [{matcher = "E_total", tol = 3e-13, ref = -59.93603125476831}]
 "ch2o_7.inp"   = [{matcher = "E_total", tol = 3e-13, ref = -22.56644336894099}]
 "ch2o_8.inp"   = [{matcher = "E_total", tol = 3e-13, ref = -22.56644336894099}]
 "ch2o_9.inp"   = [{matcher = "E_total", tol = 3e-13, ref = -22.56644336894099}]

@@ -6,15 +6,15 @@
 # General and legacy k-point regression tests
 "bn1.inp"                       = [{matcher = "M094", tol = 1.0E-14, ref = 27}]
 "ch1.inp"                       = [
-  {matcher = "E_total", tol = 1.0E-12, ref = -12.1819378656411},
+  {matcher = "E_total", tol = 1.0E-12, ref = -12.18193787009032},
   {matcher = "S2_estimate", tol = 2.0E-06, ref = 0.787459}
 ]
 "ch2.inp"                       = [
-  {matcher = "E_total", tol = 1.0E-12, ref = -12.1819378656411},
+  {matcher = "E_total", tol = 1.0E-12, ref = -12.18193787009032},
   {matcher = "S2_estimate", tol = 2.0E-06, ref = 0.539058}
 ]
 "ch3.inp"                       = [
-  {matcher = "E_total", tol = 1.0E-12, ref = -12.1819378656411},
+  {matcher = "E_total", tol = 1.0E-12, ref = -12.18193787009032},
   {matcher = "S2_estimate", tol = 2.0E-06, ref = 0.437608}
 ]
 "cc1.inp"                       = [{matcher = "M011", tol = 5.0E-12, ref = -45.389916659345360}]

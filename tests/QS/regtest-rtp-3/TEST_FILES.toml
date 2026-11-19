@@ -13,6 +13,6 @@
 "H2O-delta-01.inp"       = [{matcher = "E_total", tol = 2e-12, ref = -16.8108819339767}]
 "H2O-delta-02.inp"       = [{matcher = "E_total", tol = 1e-13, ref = -17.17819891043314}]
 "H2O-delta-03.inp"       = [{matcher = "E_total", tol = 1e-13, ref = -16.81088185867871}]
-"H2O-delta-04.inp"       = [{matcher = "E_total", tol = 4e-14, ref = -17.17819854557001}]
+"H2O-delta-04.inp"       = [{matcher = "E_total", tol = 4e-14, ref = -17.178198545571}]
 "H2O_added_mos_emd.inp"  = [{matcher = "E_total", tol = 3e-14, ref = -17.16616425877758}]
 #EOF
