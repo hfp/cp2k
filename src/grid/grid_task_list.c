@@ -135,7 +135,8 @@ void grid_create_task_list(
 
     // Resolve AUTO to a concrete backend.
     if (config.backend == GRID_BACKEND_AUTO) {
-#if (defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP)) &&                     \
+#if (defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP) ||                      \
+     defined(__OFFLOAD_OPENCL_GRID)) &&                                        \
     !defined(__NO_OFFLOAD_GRID)
       task_list->backend = GRID_BACKEND_GPU;
 #else
@@ -243,7 +244,8 @@ void grid_create_task_list(
     break;
 
   case GRID_BACKEND_GPU:
-#if (defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP)) &&                     \
+#if (defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP) ||                      \
+     defined(__OFFLOAD_OPENCL_GRID)) &&                                        \
     !defined(__NO_OFFLOAD_GRID)
     grid_gpu_create_task_list(
         orthorhombic, ntasks, nlevels, natoms, nkinds, nblocks, block_offsets,
@@ -288,7 +290,8 @@ void grid_free_task_list(grid_task_list *ptr) {
     grid_dgemm_free_task_list(task_list->dgemm);
     task_list->dgemm = NULL;
   }
-#if (defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP)) &&                     \
+#if (defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP) ||                      \
+     defined(__OFFLOAD_OPENCL_GRID)) &&                                        \
     !defined(__NO_OFFLOAD_GRID)
   if (task_list->gpu != NULL) {
     grid_gpu_free_task_list(task_list->gpu);
@@ -343,7 +346,8 @@ void grid_collocate_task_list(const grid_task_list *ptr,
     grid_dgemm_collocate_task_list(task_list->dgemm, func, nlevels, pab_blocks,
                                    grids);
     break;
-#if (defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP)) &&                     \
+#if (defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP) ||                      \
+     defined(__OFFLOAD_OPENCL_GRID)) &&                                        \
     !defined(__NO_OFFLOAD_GRID)
   case GRID_BACKEND_GPU:
     grid_gpu_collocate_task_list(task_list->gpu, func, nlevels, pab_blocks,
@@ -472,7 +476,8 @@ void grid_integrate_task_list(const grid_task_list *ptr, const bool compute_tau,
   assert(virial == NULL || pab_blocks != NULL);
 
   switch (task_list->backend) {
-#if (defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP)) &&                     \
+#if (defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP) ||                      \
+     defined(__OFFLOAD_OPENCL_GRID)) &&                                        \
     !defined(__NO_OFFLOAD_GRID)
   case GRID_BACKEND_GPU:
     grid_gpu_integrate_task_list(task_list->gpu, compute_tau, nlevels,

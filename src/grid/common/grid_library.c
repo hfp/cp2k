@@ -61,7 +61,8 @@ void grid_library_init(void) {
     abort();
   }
 
-#if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_GRID)
+#if (defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP)) &&                     \
+    !defined(__NO_OFFLOAD_GRID)
   // Reserve global GPU memory for storing the intermediate Cab matrix blocks.
   // CUDA does not allow to increase this limit after a kernel was launched.
   // Unfortunately, the required memory is hard to predict because we neither
