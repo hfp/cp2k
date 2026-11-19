@@ -357,6 +357,9 @@ extern "C" void grid_gpu_create_task_list(
               tasks_host[i].lb_cube,     // lower boundary
               tasks_host[i].cube_size);
     } else {
+      // Points within the cutoff radius of the center (grid_sphere_cache.h).
+      tasks_host[i].radius = grid_sphere_cutoff(tasks_host[i].radius,
+                                                grid_sphere_spacing(grid.dh()));
       tasks_host[i].discrete_radius =
           grid_gpu_backend::compute_cube_properties<double, double3, false>(
               tasks_host[i].radius, grid.dh(), grid.dh_inv(),

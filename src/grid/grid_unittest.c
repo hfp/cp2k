@@ -8,6 +8,7 @@
 #include "../offload/offload_library.h"
 #include "../offload/offload_mempool.h"
 #include "common/grid_library.h"
+#include "common/grid_sphere_cache.h"
 #include "cpu/grid_cpu_collocate.h"
 #include "cpu/grid_cpu_integrate.h"
 #include "grid_replay.h"
@@ -125,7 +126,7 @@ static int run_sheared_case(const double dh[3][3], const double ra[3],
     ref_norm = fmax(ref_norm, fabs(grid_ref[i]));
     max_diff = fmax(max_diff, fabs(grid_cpu[i] - grid_ref[i]));
   }
-  if (ref_norm < 0.5 || max_diff > 1e-12) {
+  if (ref_norm < 0.5 || max_diff > 1e-12 * ref_norm) {
     printf("Sheared-cell test failed: ref_norm = %le, max_diff = %le\n",
            ref_norm, max_diff);
     return 1;
@@ -138,10 +139,13 @@ static int run_sheared_tests(void) {
   // 1. Strongly sheared cell with grazing point (0, 0, 0) (sin^2 < 1e-6).
   const double dh_extreme[3][3] = {
       {0.7443799999999999, 0.0, 0.0}, {0.0, 0.5, 0.0}, {0.73102, 0.0, 0.00023}};
-  const double r_pt = 0.505 * dh_extreme[0][0];
+  // The grazing point lies just within the cutoff the library applies.
+  const double r_extreme = 0.505 * dh_extreme[0][0];
+  const double r_pt =
+      grid_sphere_cutoff(r_extreme, grid_sphere_spacing(&dh_extreme[0][0])) /
+      (1.0 + 5e-10);
   const double ra_extreme[3] = {0.0, 0.0, -r_pt};
-  errors += run_sheared_case(dh_extreme, ra_extreme, r_pt * (1.0 + 5e-10), 2e-5,
-                             false);
+  errors += run_sheared_case(dh_extreme, ra_extreme, r_extreme, 2e-5, false);
 
   // 2. Rotated 3D sheared cell inside the active j-bound regime (sin^2 > 1e-6).
   const double q[3][3] = {{2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0},
@@ -155,10 +159,12 @@ static int run_sheared_tests(void) {
           c[i][0] * q[0][m] + c[i][1] * q[1][m] + c[i][2] * q[2][m];
     }
   }
-  const double ra_active[3] = {-0.55 * q[2][0], -0.55 * q[2][1],
-                               -0.55 * q[2][2]};
-  errors +=
-      run_sheared_case(dh_active, ra_active, 0.55 * (1.0 + 1e-9), 5e-4, true);
+  const double r_active =
+      grid_sphere_cutoff(0.55, grid_sphere_spacing(&dh_active[0][0])) /
+      (1.0 + 1e-9);
+  const double ra_active[3] = {-r_active * q[2][0], -r_active * q[2][1],
+                               -r_active * q[2][2]};
+  errors += run_sheared_case(dh_active, ra_active, 0.55, 5e-4, true);
   return errors;
 }
 

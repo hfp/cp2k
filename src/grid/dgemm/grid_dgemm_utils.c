@@ -212,6 +212,9 @@ int compute_cube_properties(const bool ortho, const double radius,
     }
 
   } else {
+    // Points within the cutoff radius of the center (grid_sphere_cache.h).
+    const double cutoff =
+        grid_sphere_cutoff(radius, grid_sphere_spacing(&dh[0][0]));
     for (int idir = 0; idir < 3; idir++) {
       lb_cube[idir] = INT_MAX;
       ub_cube[idir] = INT_MIN;
@@ -222,9 +225,9 @@ int compute_cube_properties(const bool ortho, const double radius,
     for (int i = -1; i <= 1; i++) {
       for (int j = -1; j <= 1; j++) {
         for (int k = -1; k <= 1; k++) {
-          double x[3] = {/* rp[0] + */ ((double)i) * radius,
-                         /* rp[1] + */ ((double)j) * radius,
-                         /* rp[2] + */ ((double)k) * radius};
+          double x[3] = {/* rp[0] + */ ((double)i) * cutoff,
+                         /* rp[1] + */ ((double)j) * cutoff,
+                         /* rp[2] + */ ((double)k) * cutoff};
           /* convert_to_lattice_coordinates(dh_inv, x, y); */
           for (int idir = 0; idir < 3; idir++) {
             const double resc = dh_inv[0][idir] * x[0] +
@@ -242,7 +245,7 @@ int compute_cube_properties(const bool ortho, const double radius,
       roffset[i] = rp1[i] - cubecenter[i];
     }
 
-    *disr_radius = radius;
+    *disr_radius = cutoff;
   }
 
   /* compute the cube size ignoring periodicity */

@@ -1286,8 +1286,11 @@ cxyz_to_grid(const bool orthorhombic, const int border_mask, const int lp,
                        shift_local, radius, cxyz, grid);
   } else {
     k = (GRID_DO_COLLOCATE) ? GRID_COLLOCATE_GENERAL : GRID_INTEGRATE_GENERAL;
+    // Points within the cutoff radius of the center (grid_sphere_cache.h).
+    const double cutoff =
+        grid_sphere_cutoff(radius, grid_sphere_spacing(&dh[0][0]));
     general_cxyz_to_grid(border_mask, lp, zetp, dh, dh_inv, rp, npts_global,
-                         npts_local, shift_local, border_width, radius, cxyz,
+                         npts_local, shift_local, border_width, cutoff, cxyz,
                          grid);
   }
   grid_library_counter_add(lp, GRID_BACKEND_CPU, k, 1);

@@ -223,8 +223,8 @@ CONTAINS
       INTEGER                                            :: check_1, check_2, handle, i, igmin, imr, &
                                                             jg, jg2, jgmin, k, kg, kg2, kgmin, &
                                                             lb(3), ub(3)
-      REAL(KIND=dp)                                      :: drmin, dxi, dy2, dyi, dz2, dzi, radius, &
-                                                            radius2, rp(3)
+      REAL(KIND=dp)                                      :: drmin, dxi, dy2, dyi, dz2, dzi, hmin, &
+                                                            radius, radius2, rp(3)
 
       CALL timeset(routineN, handle)
       info%dr = dr
@@ -244,7 +244,11 @@ CONTAINS
          !
          ! could still be wrong (maybe needs an additional +1 to account for off-gridpoint rp's)
          !
-         CALL return_cube_nonortho(info, max_radius, lb, ub, rp)
+         ! cutoff radius of the grid library about the center: radius plus half the
+         ! shortest lattice vector, rounded up to an eighth (grid/common/grid_sphere_cache.h)
+         hmin = MIN(NORM2(dh(:, 1)), NORM2(dh(:, 2)), NORM2(dh(:, 3)))
+         radius = REAL(CEILING((max_radius + 0.5_dp*hmin)*8.0_dp/hmin), dp)*hmin/8.0_dp
+         CALL return_cube_nonortho(info, radius, lb, ub, rp)
          info%max_radius = MAX(MAXVAL(ABS(lb)), MAXVAL(ABS(ub)))
 
       ELSE

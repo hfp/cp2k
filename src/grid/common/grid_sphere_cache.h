@@ -27,8 +27,9 @@
  * \brief Discretized cutoff radius in steps of drmin / GRID_SPHERE_STEPS: the
  *        radius plus half the smallest grid spacing drmin, rounded up. A task
  *        contributes to the grid points within this radius of the grid cell
- *        that holds its center; the margin of 1/2 to 5/8 grid spacing keeps
- *        the truncation error below the former rounding to whole spacings.
+ *        that holds its center (orthorhombic), or of its center otherwise; the
+ *        margin of 1/2 to 5/8 grid spacing keeps the truncation error below
+ *        the former rounding to whole spacings (or the bare radius).
  ******************************************************************************/
 GRID_SPHERE_HOST_DEVICE static inline int
 grid_sphere_index(const double radius, const double drmin) {
@@ -41,6 +42,30 @@ grid_sphere_index(const double radius, const double drmin) {
 GRID_SPHERE_HOST_DEVICE static inline double
 grid_sphere_radius(const int index, const double drmin) {
   return index * drmin / GRID_SPHERE_STEPS;
+}
+
+/*******************************************************************************
+ * \brief Smallest length of the lattice vectors dh[0..2] (rows of dh, given as
+ *        nine values), the grid spacing of the cutoff margin.
+ ******************************************************************************/
+GRID_SPHERE_HOST_DEVICE static inline double
+grid_sphere_spacing(const double *dh) {
+  double h = 0.0;
+  for (int i = 0; i < 3; i++) {
+    const double n =
+        sqrt(dh[3 * i] * dh[3 * i] + dh[3 * i + 1] * dh[3 * i + 1] +
+             dh[3 * i + 2] * dh[3 * i + 2]);
+    h = (0 == i || n < h) ? n : h;
+  }
+  return h;
+}
+
+/*******************************************************************************
+ * \brief Cutoff radius for the given radius and grid spacing.
+ ******************************************************************************/
+GRID_SPHERE_HOST_DEVICE static inline double
+grid_sphere_cutoff(const double radius, const double h) {
+  return grid_sphere_radius(grid_sphere_index(radius, h), h);
 }
 
 typedef struct {
