@@ -35,7 +35,7 @@
         TARGET_WORKFUNCTION [eV] 4.5
       &END GCE
       &MIXING
-        ALPHA 0.1
+        ALPHA 0.05
         METHOD NEW_PULAY_MIXING
         NBROYDEN 5
         QK 1
