@@ -190,8 +190,10 @@ def main() -> None:
             f"[{progressbar:60s}] {num_done} / {len(file_list)} files processed\r"
         )
         sys.stdout.flush()
-        if num_done == len(file_list) or len(failed_files) >= 10:
-            executor.shutdown(wait=False)
+        # Fail early when only checking; modifications are better made all at once.
+        give_up = not args.allow_modifications and len(failed_files) >= 10
+        if num_done == len(file_list) or give_up:
+            executor.shutdown(wait=False, cancel_futures=True)  # skip pending files
             break
         sleep(args.progressbar_wait)
 
@@ -202,7 +204,7 @@ def main() -> None:
     if args.plot_file_count:
         counts_by_type: Counter[str] = Counter()
         for fn, f in futures.items():
-            if f.done() and not f.exception():
+            if f.done() and not f.cancelled() and not f.exception():
                 filetype = f.result()
                 counts_by_type[filetype] += 1
         div = 500
