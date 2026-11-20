@@ -6,7 +6,6 @@
 /*----------------------------------------------------------------------------*/
 
 #include "../common/grid_sphere_cache.h"
-#include <assert.h>
 #include <limits.h>
 #include <math.h>
 #include <stdbool.h>

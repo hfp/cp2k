@@ -9,7 +9,7 @@
 #include "offload_library.h"
 #include "offload_runtime.h"
 
-#include <assert.h>
+#include "../base/cp_assert.h"
 #include <inttypes.h>
 #include <omp.h>
 #include <stdbool.h>
@@ -132,7 +132,7 @@ static void *actual_malloc(const size_t size, const bool on_device) {
   memory = malloc(size);
 #endif
 
-  assert(memory != NULL);
+  cp_assert(memory != NULL);
   return memory;
 }
 
@@ -211,9 +211,9 @@ static void *internal_libxs_malloc(libxs_malloc_pool_t **pool,
       }
       p = *pool;
     }
-    assert(p != NULL);
+    cp_assert(p != NULL);
     result = libxs_malloc(p, size, LIBXS_MALLOC_NATIVE);
-    assert(result != NULL);
+    cp_assert(result != NULL);
   }
   return result;
 }
@@ -388,7 +388,7 @@ static offload_memchunk_t *mempool_take_fit(offload_mempool_t *pool,
     if (root->size < size && root->right != NULL) {
       // The search ended at the predecessor. Promote its successor.
       offload_memchunk_t *successor = mempool_splay(root->right, size);
-      assert(successor->left == NULL);
+      cp_assert(successor->left == NULL);
       root->right = NULL;
       successor->left = root;
       root = successor;
@@ -512,14 +512,14 @@ static void internal_mempool_free(offload_mempool_t *pool, const void *mem) {
   }
 #pragma omp critical(offload_mempool_modify)
   {
-    assert(pool->nallocated > 0);
+    cp_assert(pool->nallocated > 0);
     const size_t bucket = mempool_bucket(mem, pool->nbuckets);
     offload_memchunk_t **link = &pool->allocated[bucket];
     while (*link != NULL && (*link)->mem != mem) {
       link = &(*link)->next;
     }
     offload_memchunk_t *chunk = *link;
-    assert(chunk != NULL);
+    cp_assert(chunk != NULL);
     *link = chunk->next;
     --pool->nallocated;
     pool->allocated_size -= chunk->size;
@@ -561,7 +561,7 @@ static void internal_mempool_clear(offload_mempool_t *pool,
   offload_memchunk_t *available, **buckets = NULL;
 #pragma omp critical(offload_mempool_modify)
   {
-    assert(pool->nallocated == 0);
+    cp_assert(pool->nallocated == 0);
     if (pool->nallocated == 0 && pool->allocated != pool->initial_buckets) {
       buckets = pool->allocated;
       memset(pool->initial_buckets, 0, sizeof(pool->initial_buckets));
@@ -606,7 +606,7 @@ void offload_mempool_clear(void) {
  * \author Hans Pabst
  ******************************************************************************/
 void offload_mempool_stats_get(offload_mempool_stats_t *memstats) {
-  assert(NULL != memstats);
+  cp_assert(NULL != memstats);
 #pragma omp critical(offload_mempool_modify)
   {
     memstats->host_mallocs = mempool_host.mallocs;
@@ -645,7 +645,7 @@ void offload_mempool_stats_get(offload_mempool_stats_t *memstats) {
 void offload_mempool_stats_print(int fortran_comm,
                                  void (*print_func)(const char *, int, int),
                                  int output_unit) {
-  assert(omp_get_num_threads() == 1);
+  cp_assert(omp_get_num_threads() == 1);
 
   char buffer[100];
   const cp_mpi_comm_t comm = cp_mpi_comm_f2c(fortran_comm);

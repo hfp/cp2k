@@ -15,7 +15,7 @@
 #include "dbm_multiply_gpu.h"
 #include "dbm_multiply_gpu_kernel.h"
 
-#include <assert.h>
+#include "../base/cp_assert.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,21 +58,15 @@ void dbm_multiply_gpu_start(const int max_batch_size, const int nshards,
   offloadStreamCreate(&ctx->main_stream);
   offloadEventCreate(&ctx->upload_event);
 
-  const size_t size = nshards * max_batch_size * sizeof(dbm_task_t);
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  // Kernels read the tasks where the host writes them (saves an upload per
-  // batch): two sets alternate such that a turn of the main loop fills one set
-  // while kernels of the previous turn may still read the other.
-  ctx->batches_host = offload_mempool_host_malloc(2 * size);
-  ctx->batches_set = 0;
-#else
+#if !defined(__OFFLOAD_UNIFIED_MEMORY)
   // Allocate device storage for batches.
+  const size_t size = nshards * max_batch_size * sizeof(dbm_task_t);
   ctx->batches_dev = offload_mempool_device_malloc(size);
 #endif
 
   // Allocate and upload shards of result matrix C.
   ctx->shards_c_dev = malloc(nshards * sizeof(dbm_shard_gpu_t));
-  assert(ctx->shards_c_dev != NULL || nshards == 0);
+  cp_assert(ctx->shards_c_dev != NULL || nshards == 0);
   for (int i = 0; i < nshards; i++) {
     const dbm_shard_t *const shard_c_host = &shards_c_host[i];
     dbm_shard_gpu_t *const shard_g = &ctx->shards_c_dev[i];
@@ -152,42 +146,19 @@ bool dbm_multiply_gpu_upload_packs(const dbm_pack_t *pack_a,
 }
 
 /*******************************************************************************
- * \brief Internal routine for concluding a turn of the main loop: waits until
- *        the packs are uploaded such that the host can reuse or release their
- *        buffers, and switches the set of batches (unified memory).
+ * \brief Internal routine for concluding a turn of the main loop, i.e., before
+ *        the packs are reused or released and before batches are refilled.
  * \author Hans Pabst
  ******************************************************************************/
 void dbm_multiply_gpu_end_turn(dbm_multiply_gpu_context_t *ctx) {
-  // The uploads are asynchronous, and a turn without tasks (or with unified
-  // memory) has no other synchronization that waits for them.
-  offloadEventSynchronize(ctx->upload_event); // recorded after the uploads
+  // A turn without tasks does not otherwise wait for the asynchronous uploads.
+  offloadEventSynchronize(ctx->upload_event);
 #if defined(__OFFLOAD_UNIFIED_MEMORY)
-  // The next turn refills the set the previous turn's kernels read. A shard's
-  // event was last recorded at the end of that turn or later (then waited).
+  // The next turn refills the batches the previous turn's kernels read.
   for (int i = 0; i < ctx->nshards; i++) {
-    dbm_shard_gpu_t *const shard_g = &ctx->shards_c_dev[i];
-    offloadEventSynchronize(shard_g->event);
-    offloadEventRecord(shard_g->event, shard_g->stream);
+    offloadEventSynchronize(ctx->shards_c_dev[i].event);
+    offloadEventRecord(ctx->shards_c_dev[i].event, ctx->shards_c_dev[i].stream);
   }
-  ctx->batches_set = 1 - ctx->batches_set;
-#endif
-}
-
-/*******************************************************************************
- * \brief Internal routine returning where the tasks for the given shard are
- *        written such that kernels read them directly (unified memory), or
- *        NULL if the batch is uploaded.
- * \author Hans Pabst
- ******************************************************************************/
-dbm_task_t *dbm_multiply_gpu_batch_tasks(const int kshard,
-                                         dbm_multiply_gpu_context_t *ctx) {
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  const int islot = ctx->batches_set * ctx->nshards + kshard;
-  return &ctx->batches_host[islot * ctx->max_batch_size];
-#else
-  (void)kshard; // mark as used
-  (void)ctx;
-  return NULL;
 #endif
 }
 
@@ -203,26 +174,27 @@ void dbm_multiply_gpu_process_batch(const dbm_batch_t *batch,
   dbm_shard_gpu_t *const shard_g = &ctx->shards_c_dev[kshard];
   const int ntasks = batch->ntasks;
   double *old_data_dev = NULL;
-
 #if defined(__OFFLOAD_UNIFIED_MEMORY)
-  // Kernel reads the shard's slot directly (dbm_multiply_gpu_batch_tasks).
-  const dbm_task_t *const batch_dev = batch->tasks;
+  const dbm_task_t *const batch_dev = batch->tasks; // read where written
 #else
   dbm_task_t *const batch_dev = &ctx->batches_dev[kshard * ctx->max_batch_size];
-  if (0 < ntasks) { // Upload new batch.
-    const size_t size = ntasks * sizeof(dbm_task_t);
-    offloadMemcpyAsyncHtoD(batch_dev, batch->tasks, size, shard_g->stream);
-  }
 #endif
 
   // Blocks promised by batches computed on the host grow the shard at finish.
   if (0 < ntasks || finish) {
-    assert(NULL != shard_c && NULL != shard_g);
+    cp_assert(NULL != shard_c && NULL != shard_g);
+
+#if !defined(__OFFLOAD_UNIFIED_MEMORY)
+    if (0 < ntasks) { // Upload new batch.
+      const size_t size = ntasks * sizeof(dbm_task_t);
+      offloadMemcpyAsyncHtoD(batch_dev, batch->tasks, size, shard_g->stream);
+    }
+#endif
 
     // Reallocate shard_g->data if necessary.
     if (shard_c->data_promised > shard_g->data_allocated) {
       shard_g->data_allocated = DBM_ALLOCATION_FACTOR * shard_c->data_promised;
-      assert(shard_c->data_promised <= shard_g->data_allocated);
+      cp_assert(shard_c->data_promised <= shard_g->data_allocated);
       old_data_dev = shard_g->data;
       shard_g->data = offload_mempool_device_malloc(shard_g->data_allocated *
                                                     sizeof(double));
@@ -231,11 +203,7 @@ void dbm_multiply_gpu_process_batch(const dbm_batch_t *batch,
                              shard_g->data_size * sizeof(double),
                              shard_g->stream);
     }
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-    if (NULL != old_data_dev) {
-#else
     if (0 < ntasks || NULL != old_data_dev) {
-#endif
       offloadEventRecord(shard_g->event, shard_g->stream);
     }
 
@@ -253,7 +221,7 @@ void dbm_multiply_gpu_process_batch(const dbm_batch_t *batch,
 
   if (0 < ntasks) {
     OFFLOAD_CHECK(offloadGetLastError());
-    assert(0 != shard_g->data_size);
+    cp_assert(0 != shard_g->data_size);
 
     // Launch kernel.
     dbm_multiply_gpu_launch_kernel(shard_g->stream, alpha, batch, batch_dev,
@@ -266,8 +234,8 @@ void dbm_multiply_gpu_process_batch(const dbm_batch_t *batch,
       ctx->flops[0] += batch->flops;
     }
 #if defined(__OFFLOAD_UNIFIED_MEMORY)
-    if (!finish) { // the shard's next batch refills the slot the kernel reads
-      offloadEventRecord(shard_g->event, shard_g->stream);
+    if (!finish) { // the next batch of the shard refills what the kernel reads
+      offloadStreamSynchronize(shard_g->stream);
     }
 #endif
   }
@@ -283,7 +251,7 @@ void dbm_multiply_gpu_process_batch(const dbm_batch_t *batch,
     // Grow host buffer if necessary.
     dbm_shard_allocate_promised_blocks(shard_c);
     // Download results from device.
-    assert(shard_c->data_size == shard_g->data_size);
+    cp_assert(shard_c->data_size == shard_g->data_size);
     offloadMemcpyAsyncDtoH(shard_c->data, shard_g->data,
                            shard_g->data_size * sizeof(double),
                            shard_g->stream);
@@ -291,13 +259,9 @@ void dbm_multiply_gpu_process_batch(const dbm_batch_t *batch,
     shard_g->downloading = true;
   }
 
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  if ((0 < ntasks && !finish) || NULL != old_data_dev) {
-#else
   if (0 < ntasks || NULL != old_data_dev) {
-#endif
     // Wait for:
-    // - Batch to be uploaded or read (before refilling it).
+    // - Batch to be uploaded (before refilling it).
     // - Safely freeing device buffer (if resized).
     offloadEventSynchronize(shard_g->event);
 
@@ -337,7 +301,7 @@ bool dbm_multiply_gpu_process_batch_host(
               DBM_ALLOCATION_FACTOR * shard_c->data_promised;
           shard_g->host_data = realloc(
               shard_g->host_data, shard_g->host_allocated * sizeof(double));
-          assert(NULL != shard_g->host_data);
+          cp_assert(NULL != shard_g->host_data);
         }
         memset(&shard_g->host_data[shard_g->host_size], 0,
                (shard_c->data_promised - shard_g->host_size) * sizeof(double));
@@ -374,7 +338,7 @@ void dbm_multiply_gpu_stop(dbm_multiply_gpu_context_t *ctx) {
     offloadStreamSynchronize(shard_g->stream);
     if (NULL != shard_g->host_data) { // add contributions computed on the host
       double *const data = ctx->shards_c_host[i].data;
-      assert(shard_g->host_size <= ctx->shards_c_host[i].data_size);
+      cp_assert(shard_g->host_size <= ctx->shards_c_host[i].data_size);
       for (int j = 0; j < shard_g->host_size; j++) {
         data[j] += shard_g->host_data[j];
       }
@@ -396,9 +360,7 @@ void dbm_multiply_gpu_stop(dbm_multiply_gpu_context_t *ctx) {
 
   offload_mempool_device_free(ctx->pack_a_dev.data);
   offload_mempool_device_free(ctx->pack_b_dev.data);
-#if defined(__OFFLOAD_UNIFIED_MEMORY)
-  offload_mempool_host_free(ctx->batches_host); // streams are synchronized
-#else
+#if !defined(__OFFLOAD_UNIFIED_MEMORY)
   offload_mempool_device_free(ctx->batches_dev);
 #endif
   offloadStreamDestroy(ctx->main_stream);
