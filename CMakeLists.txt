@@ -1340,7 +1340,7 @@ if(NOT CP2K_USE_HDF5)
 endif()
 
 if(CP2K_USE_ACCEL MATCHES "NONE")
-  message("  - Hardware acceleration (CUDA, HIP, OpenCL)")
+  message("  - Hardware acceleration")
 endif()
 
 if(NOT CP2K_USE_ELPA)
