@@ -239,12 +239,14 @@ def main() -> None:
 
 # ======================================================================================
 def print_box(fn: str, message: str) -> None:
-    print("+" + "-" * 160 + "+")
-    print(f"| {fn:^158s} |")
-    print("+" + "-" * 160 + "+")
+    # No right border: long lines wrap at the terminal's width and remain intact.
+    rule = "+" + "-" * (min(160, shutil.get_terminal_size().columns) - 1)
+    print(rule)
+    print(f"| {fn}")
+    print(rule)
     for line in message.strip().split("\n"):
-        print(f"| {line:<158s} |")
-    print("+" + "-" * 160 + "+\n\n")
+        print(f"| {line}".rstrip())
+    print(rule + "\n\n")
 
 
 # ======================================================================================
