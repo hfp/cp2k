@@ -293,7 +293,6 @@ CONTAINS
          prefactor_local = prefactor*MAX(1.0_dp, cutoff)
       END IF
 
-      !
       ! assumes that we can compute the radius for the case where
       ! the Gaussians a and b are both on the z - axis, but at the same
       ! distance as the original a and b
