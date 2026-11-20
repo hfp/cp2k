@@ -1076,17 +1076,21 @@ if(CP2K_USE_MPI)
           "    - Libraries: ${CP2K_SCALAPACK_LINK_LIBRARIES}\n")
 endif()
 
-if(CP2K_USE_ACCEL MATCHES "CUDA" OR CP2K_USE_ACCEL MATCHES "HIP")
+if(CP2K_USE_ACCEL MATCHES "CUDA|HIP|OPENCL")
   message("  - Hardware acceleration")
 
   if(CP2K_USE_ACCEL MATCHES "CUDA")
     message("    - Backend: CUDA\n"
             "    - GPU architectures: ${CMAKE_CUDA_ARCHITECTURES}\n"
             "    - GPU profiling enabled: ${CP2K_WITH_GPU_PROFILING}")
-  else()
+  elseif(CP2K_USE_ACCEL MATCHES "HIP")
     message("    - Backend: HIP\n"
             "    - GPU architectures: ${CMAKE_HIP_ARCHITECTURES}\n"
             "    - Flags: ${CMAKE_HIP_FLAGS}")
+  else()
+    message("    - Backend: OpenCL\n"
+            "    - OpenCL library: ${OpenCL_LIBRARIES}\n"
+            "    - LIBXSTREAM package directory: ${libxstream_DIR}")
   endif()
 
   message(
@@ -1097,17 +1101,6 @@ if(CP2K_USE_ACCEL MATCHES "CUDA" OR CP2K_USE_ACCEL MATCHES "HIP")
     "      - PW: ${CP2K_ENABLE_PW_GPU}\n"
     "      - LIBXC: ${CP2K_ENABLE_LIBXC_GPU}\n"
     "      - NNP: ${CP2K_ENABLE_NNP_GPU}\n")
-endif()
-
-if(CP2K_USE_ACCEL MATCHES "OPENCL")
-  message(
-    "  - Hardware acceleration\n"
-    "    - Backend: OpenCL\n"
-    "    - OpenCL library: ${OpenCL_LIBRARIES}\n"
-    "    - LIBXSTREAM package directory: ${libxstream_DIR}\n"
-    "    - GPU-accelerated modules\n"
-    "      - GRID: ${CP2K_ENABLE_GRID_GPU}\n"
-    "      - DBM: ${CP2K_ENABLE_DBM_GPU}\n")
 endif()
 
 if(CP2K_USE_CUSOLVER_MP)
