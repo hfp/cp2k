@@ -13,6 +13,7 @@
 !> \date 07.2023
 ! **************************************************************************************************
 MODULE gw_utils
+   USE admm_types,                      ONLY: admm_type
    USE atomic_kind_types,               ONLY: atomic_kind_type,&
                                               get_atomic_kind_set
    USE auto_basis,                      ONLY: create_ri_aux_basis_set
@@ -75,6 +76,7 @@ MODULE gw_utils
    USE gw_utils_fm,                     ONLY: cfm_contract_ABA,&
                                               fm_invert,&
                                               local_complex_power
+   USE hfx_types,                       ONLY: hfx_type
    USE input_constants,                 ONLY: &
         G0W0, cohsex_qp_update, do_potential_coulomb, do_potential_short, do_potential_truncated, &
         evGW0, gw_ac_nevanlinna, ri_rpa_g0w0_crossing_newton, ri_rs_large_cell_Gamma, &
@@ -166,10 +168,9 @@ MODULE gw_utils
    TYPE gw_qp_summary_type
       PRIVATE
       INTEGER, PUBLIC                                    :: n_kpoints = 1
-      INTEGER(KIND=int_8)                               :: n_unstable = 0_int_8, n_multi = 0_int_8, &
-                                                           n_pade = 0_int_8
-      INTEGER(KIND=int_8)                               :: n_frontier_unstable = 0_int_8, n_frontier_multi = 0_int_8
-      REAL(KIND=dp)                                      :: pick_min = 0.0_dp
+      INTEGER(KIND=int_8)                               :: n_reliable = 0_int_8, n_unstable = 0_int_8, &
+                                                           n_multi = 0_int_8, n_pade = 0_int_8
+      REAL(KIND=dp)                                      :: start_time = 0.0_dp
    END TYPE gw_qp_summary_type
 
 CONTAINS
@@ -923,8 +924,9 @@ CONTAINS
          END IF
          SELECT CASE (bs_env%ri_metric%potential_type)
          CASE (do_potential_short)
-            WRITE (u, FMT="(T2,A,T61,F12.2,A)") "Input: Attenuation of the RI metric:", &
-               bs_env%ri_metric%omega, " bohr^-1"
+            ! ⁻¹ takes three bytes more than two columns: column 83 in bytes is column 80 on screen.
+            WRITE (u, FMT="(T2,A,T73,F11.2)") "Attenuation of the RI metric (bohr⁻¹)", &
+               bs_env%ri_metric%omega
          CASE (do_potential_truncated)
             WRITE (u, FMT="(T2,2A,F15.1,A)") "Cutoff radius for the truncated Coulomb ", &
                "operator in RI metric:", bs_env%ri_metric%cutoff_radius*angstrom, " Å"
@@ -1973,19 +1975,25 @@ CONTAINS
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'compute_V_xc'
 
-      INTEGER                                            :: handle, img, ispin, myfun, nimages
-      LOGICAL                                            :: hf_present
-      REAL(KIND=dp)                                      :: energy_ex, energy_exc, energy_total, &
-                                                            myfraction
+      INTEGER                                            :: handle, img, ispin, myfun, &
+                                                            myfun_admm_aux, myfun_admm_primary, &
+                                                            nimages
+      LOGICAL                                            :: admm_charge_constrain, hf_present
+      REAL(KIND=dp)                                      :: energy_ex, energy_exc, energy_total
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:, :)        :: hf_fraction
+      TYPE(admm_type), POINTER                           :: admm_env
       TYPE(dbcsr_p_type), DIMENSION(:), POINTER          :: mat_ks_without_v_xc
       TYPE(dbcsr_p_type), DIMENSION(:, :), POINTER       :: matrix_ks_kp
       TYPE(dft_control_type), POINTER                    :: dft_control
+      TYPE(hfx_type), DIMENSION(:, :), POINTER           :: x_data
       TYPE(qs_energy_type), POINTER                      :: energy
-      TYPE(section_vals_type), POINTER                   :: hf_section, input, xc_section
+      TYPE(section_vals_type), POINTER                   :: hf_section, input, xc_fun_admm_aux, &
+                                                            xc_fun_admm_primary, xc_section
 
       CALL timeset(routineN, handle)
 
-      CALL get_qs_env(qs_env, input=input, energy=energy, dft_control=dft_control)
+      CALL get_qs_env(qs_env, input=input, energy=energy, dft_control=dft_control, x_data=x_data, &
+                      admm_env=admm_env)
 
       ! previously, dft_control%nimages set to # neighbor cells, revert for Γ-only KS matrix
       nimages = dft_control%nimages
@@ -2000,10 +2008,23 @@ CONTAINS
       IF (ASSOCIATED(hf_section)) THEN
          CALL section_vals_get(hf_section, explicit=hf_present)
       END IF
+      ! the KS build takes the HF fraction from x_data, not from the input section
       IF (hf_present) THEN
-         ! Special case for handling hfx
-         CALL section_vals_val_get(xc_section, "HF%FRACTION", r_val=myfraction)
-         CALL section_vals_val_set(xc_section, "HF%FRACTION", r_val=0.0_dp)
+         ALLOCATE (hf_fraction(SIZE(x_data, 1), SIZE(x_data, 2)))
+         hf_fraction(:, :) = x_data(:, :)%general_parameter%fraction
+         x_data(:, :)%general_parameter%fraction = 0.0_dp
+      END IF
+      ! ADMM evaluates the XC functional with its own copies of the XC section
+      IF (dft_control%do_admm) THEN
+         xc_fun_admm_aux => section_vals_get_subs_vals(admm_env%xc_section_aux, "XC_FUNCTIONAL")
+         CALL section_vals_val_get(xc_fun_admm_aux, "_SECTION_PARAMETERS_", i_val=myfun_admm_aux)
+         CALL section_vals_val_set(xc_fun_admm_aux, "_SECTION_PARAMETERS_", i_val=xc_none)
+         xc_fun_admm_primary => section_vals_get_subs_vals(admm_env%xc_section_primary, "XC_FUNCTIONAL")
+         CALL section_vals_val_get(xc_fun_admm_primary, "_SECTION_PARAMETERS_", i_val=myfun_admm_primary)
+         CALL section_vals_val_set(xc_fun_admm_primary, "_SECTION_PARAMETERS_", i_val=xc_none)
+         ! ADMMQ/ADMMS charge constraint must not act on the KS matrix without XC
+         admm_charge_constrain = admm_env%charge_constrain
+         admm_env%charge_constrain = .FALSE.
       END IF
 
       ! save the energy before the energy gets updated
@@ -2046,6 +2067,7 @@ CONTAINS
       CASE (tensor_small_cell_full_kp, ri_rs_small_cell_full_kp)
 
          ! calculate KS-matrix without XC
+         IF (hf_present) CALL restart_kp_hfx_from_full_density(x_data)
          CALL build_periodic_ks_with_gapw_density(qs_env)
          CALL get_qs_env(qs_env=qs_env, matrix_ks_kp=matrix_ks_kp)
 
@@ -2076,13 +2098,19 @@ CONTAINS
       CALL section_vals_val_set(xc_section, "XC_FUNCTIONAL%_SECTION_PARAMETERS_", &
                                 i_val=myfun)
       IF (hf_present) THEN
-         CALL section_vals_val_set(xc_section, "HF%FRACTION", &
-                                   r_val=myfraction)
+         x_data(:, :)%general_parameter%fraction = hf_fraction(:, :)
+         DEALLOCATE (hf_fraction)
+      END IF
+      IF (dft_control%do_admm) THEN
+         CALL section_vals_val_set(xc_fun_admm_aux, "_SECTION_PARAMETERS_", i_val=myfun_admm_aux)
+         CALL section_vals_val_set(xc_fun_admm_primary, "_SECTION_PARAMETERS_", i_val=myfun_admm_primary)
+         admm_env%charge_constrain = admm_charge_constrain
       END IF
 
       IF (bs_env%gw_implementation == tensor_small_cell_full_kp .OR. &
           bs_env%gw_implementation == ri_rs_small_cell_full_kp) THEN
          ! calculate KS-matrix again with XC
+         IF (hf_present) CALL restart_kp_hfx_from_full_density(x_data)
          CALL build_periodic_ks_with_gapw_density(qs_env)
          DO ispin = 1, bs_env%n_spin
             DO img = 1, dft_control%nimages
@@ -2098,6 +2126,27 @@ CONTAINS
       CALL timestop(handle)
 
    END SUBROUTINE compute_V_xc
+
+! **************************************************************************************************
+!> \brief k-point RI-HFX adds fraction*K(P - P_previous) to its stored exchange matrix. Clearing the
+!>        stored exchange matrix and density makes the next KS build evaluate fraction*K(P).
+!> \param x_data ...
+! **************************************************************************************************
+   SUBROUTINE restart_kp_hfx_from_full_density(x_data)
+      TYPE(hfx_type), DIMENSION(:, :), POINTER           :: x_data
+
+      INTEGER                                            :: i_img, i_spin, irep
+
+      DO irep = 1, SIZE(x_data, 1)
+         DO i_img = 1, SIZE(x_data(irep, 1)%ri_data%ks_t, 2)
+            DO i_spin = 1, SIZE(x_data(irep, 1)%ri_data%ks_t, 1)
+               CALL dbt_clear(x_data(irep, 1)%ri_data%ks_t(i_spin, i_img))
+               CALL dbt_clear(x_data(irep, 1)%ri_data%rho_ao_t(i_spin, i_img))
+            END DO
+         END DO
+      END DO
+
+   END SUBROUTINE restart_kp_hfx_from_full_density
 
 ! **************************************************************************************************
 !> \brief Rebuild a periodic KS matrix with the GAPW density derived from the converged AO density.
@@ -3732,9 +3781,12 @@ CONTAINS
 
       IF (do_nevanlinna) THEN
 
-         IF (ikp == 1 .AND. ispin == 1 .AND. bs_env%unit_nr > 0) THEN
-            WRITE (bs_env%unit_nr, '(T2,A)') 'Starting GW Nevanlinna analytic continuation'
-            CALL m_flush(bs_env%unit_nr)
+         IF (ikp == 1 .AND. ispin == 1) THEN
+            summary%start_time = m_walltime()
+            IF (bs_env%unit_nr > 0) THEN
+               WRITE (bs_env%unit_nr, '(/,T2,A)') 'Starting GW Nevanlinna analytic continuation'
+               CALL m_flush(bs_env%unit_nr)
+            END IF
          END IF
 
          CALL cite_reference(Fei2021)
@@ -3907,7 +3959,7 @@ CONTAINS
       END IF
 
       IF (do_nevanlinna) CALL report_nevanlinna_progress(bs_env, summary, unstable, multi, &
-                                                         n_window, n_ac_pade, pick_min, ikp, ispin)
+                                                         n_window, n_ac_pade, ikp, ispin)
 
       CALL timestop(handle)
 
@@ -4088,24 +4140,22 @@ CONTAINS
 !> \param multi Levels with a second quasiparticle solution of comparable weight.
 !> \param n_window Number of fit windows.
 !> \param n_pade Number of full-frequency fits that fell back to Padé.
-!> \param pick_min Smallest relative Pick eigenvalue of the full-frequency fits, capped at zero.
 !> \param ikp Current k-point index.
 !> \param ispin Current spin index.
 ! **************************************************************************************************
-   SUBROUTINE report_nevanlinna_progress(bs_env, summary, unstable, multi, n_window, n_pade, pick_min, ikp, ispin)
+   SUBROUTINE report_nevanlinna_progress(bs_env, summary, unstable, multi, n_window, n_pade, ikp, ispin)
 
       TYPE(post_scf_bandstructure_type), POINTER         :: bs_env
       TYPE(gw_qp_summary_type), INTENT(INOUT)            :: summary
       LOGICAL, DIMENSION(:), INTENT(IN)                  :: unstable, multi
-      INTEGER, INTENT(IN)                                :: n_window, n_pade
-      REAL(KIND=dp), INTENT(IN)                          :: pick_min
-      INTEGER, INTENT(IN)                                :: ikp, ispin
+      INTEGER, INTENT(IN)                                :: n_window, n_pade, ikp, ispin
 
       INTEGER, PARAMETER                                 :: n_progress_steps = 10
 
-      CHARACTER(LEN=2*default_string_length)             :: message
-      INTEGER                                            :: first_frontier, last_frontier, nkp, u
-      INTEGER(KIND=int_8)                                :: done, step, total
+      CHARACTER(LEN=20)                                  :: count_text
+      CHARACTER(LEN=64)                                  :: count_format, pade_format
+      INTEGER                                            :: count_width, nkp, u
+      INTEGER(KIND=int_8)                                :: done, n_levels, step, total
 
       nkp = summary%n_kpoints
       done = INT(ispin - 1, KIND=int_8)*nkp + ikp
@@ -4118,20 +4168,17 @@ CONTAINS
                       "Increase NUM_TIME_FREQ_POINTS to obtain an error estimate.")
       END IF
 
-      first_frontier = MAX(1, bs_env%n_occ(ispin))
-      last_frontier = MIN(SIZE(unstable), bs_env%n_occ(ispin) + 1)
+      summary%n_reliable = summary%n_reliable + COUNT(.NOT. (unstable .OR. multi))
       summary%n_unstable = summary%n_unstable + COUNT(unstable)
       summary%n_multi = summary%n_multi + COUNT(multi)
       summary%n_pade = summary%n_pade + n_pade
-      summary%pick_min = MIN(summary%pick_min, pick_min)
-      summary%n_frontier_unstable = summary%n_frontier_unstable + COUNT(unstable(first_frontier:last_frontier))
-      summary%n_frontier_multi = summary%n_frontier_multi + COUNT(multi(first_frontier:last_frontier))
 
       IF (u > 0 .AND. total >= n_progress_steps) THEN
          step = (n_progress_steps*done)/total
          IF (step > (n_progress_steps*(done - 1))/total) THEN
-            WRITE (u, '(T2,A,I0,A,I0,A,I0,A)') 'GW analytic continuation: ', (100*step)/n_progress_steps, &
-               '% (', done, '/', total, ')'
+            WRITE (u, '(T2,A,I3,A,I0,A,I0,A,T60,A,T71,F8.1,A)') 'GW analytic continuation: ', &
+               (100*step)/n_progress_steps, ' % (', done, ' / ', total, ')', &
+               'Total time:', m_walltime() - summary%start_time, ' s'
             CALL m_flush(u)
          END IF
       END IF
@@ -4139,16 +4186,24 @@ CONTAINS
       IF (done /= total) RETURN
 
       IF (u > 0) THEN
-         WRITE (u, '(T2,A,I0,A,I0,A,I0,A)') 'GW Nevanlinna, ', n_window, ' fit windows: * ', &
-            summary%n_unstable, ' unreliable, m ', summary%n_multi, ' multi-solution'
-         WRITE (u, '(T2,A,I0,A,I0,A,ES10.2)') 'GW full fits: Padé fallback ', summary%n_pade, '/', &
-            total*SIZE(unstable), ', min. rel. Pick eig. ', summary%pick_min
+         ! counts right-aligned at column 80; é of Padé takes one byte more than one column
+         n_levels = total*SIZE(unstable)
+         WRITE (count_text, '(I0)') n_levels
+         count_width = LEN_TRIM(count_text)
+         WRITE (count_format, '(A,I0,A,I0,A,I0,A)') '(T4,A,T', 68 - 2*count_width, ',I', count_width, &
+            ',A,I', count_width, ',F8.1,A)'
+         WRITE (pade_format, '(A,I0,A,I0,A,I0,A)') '(T4,A,T', 69 - 2*count_width, ',I', count_width, &
+            ',A,I', count_width, ',F8.1,A)'
+         WRITE (u, '(/,T2,A,I0,A)') 'GW Nevanlinna, accuracy for ', n_window, ' fit windows:'
+         WRITE (u, count_format) 'Reliable levels', summary%n_reliable, ' / ', n_levels, &
+            100.0_dp*REAL(summary%n_reliable, dp)/REAL(n_levels, dp), ' %'
+         WRITE (u, count_format) 'Unreliable levels (*)', summary%n_unstable, ' / ', n_levels, &
+            100.0_dp*REAL(summary%n_unstable, dp)/REAL(n_levels, dp), ' %'
+         WRITE (u, count_format) 'Multi-solution levels (m)', summary%n_multi, ' / ', n_levels, &
+            100.0_dp*REAL(summary%n_multi, dp)/REAL(n_levels, dp), ' %'
+         WRITE (u, pade_format) 'Padé fallback of the full-frequency fit', summary%n_pade, ' / ', n_levels, &
+            100.0_dp*REAL(summary%n_pade, dp)/REAL(n_levels, dp), ' %'
          CALL m_flush(u)
-      END IF
-      IF (summary%n_frontier_unstable > 0 .OR. summary%n_frontier_multi > 0) THEN
-         WRITE (message, '(A,I0,A,I0,A)') 'GW HOMO/LUMO levels: ', summary%n_frontier_unstable, &
-            ' marked unreliable (*), ', summary%n_frontier_multi, ' with multiple solutions (m).'
-         CPWARN(TRIM(message))
       END IF
 
    END SUBROUTINE report_nevanlinna_progress
