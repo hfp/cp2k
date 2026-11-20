@@ -6,11 +6,12 @@ import argparse
 import os
 import pathlib
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 from functools import lru_cache
 import itertools
-from typing import Tuple, List, TypeVar, Iterable
+from typing import Tuple, List, Optional, TypeVar, Iterable
 
 T = TypeVar("T")
 
@@ -186,6 +187,29 @@ def get_bibliography_dois() -> List[str]:
     return matches
 
 
+def git_file_mode(path: pathlib.Path) -> Optional[str]:
+    """Mode of a file in Git's index, or None if untracked or not in a repository."""
+    try:
+        output = subprocess.run(
+            ["git", "ls-files", "--stage", "--", path.name],
+            cwd=path.parent,
+            capture_output=True,
+            encoding="utf8",
+            check=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return output.split(maxsplit=1)[0] if output else None
+
+
+def is_executable(path: pathlib.Path) -> bool:
+    """Executable as recorded by Git, which can differ from the file system's mode,
+    e.g., on a Windows drive where files without stored permissions look executable.
+    """
+    mode = git_file_mode(path)
+    return mode == "100755" if mode else os.access(path, os.X_OK)
+
+
 def check_file(path: pathlib.Path) -> List[str]:
     """
     Check the given source file for convention violations, like:
@@ -199,7 +223,6 @@ def check_file(path: pathlib.Path) -> List[str]:
     fn_ext = path.suffix
     abspath = path.resolve()
     basefn = path.name
-    is_executable = os.access(abspath, os.X_OK)
 
     if not PORTABLE_FILENAME_RE.match(str(path)):
         warnings += [f"Filename '{path}' not portable"]
@@ -277,7 +300,11 @@ def check_file(path: pathlib.Path) -> List[str]:
 
     # check shebang
     PY_SHEBANG = "#!/usr/bin/env python3"
-    if fn_ext == ".py" and is_executable and not content.startswith(f"{PY_SHEBANG}\n"):
+    if (
+        fn_ext == ".py"
+        and not content.startswith(f"{PY_SHEBANG}\n")
+        and is_executable(abspath)
+    ):
         warnings += [f"{path}: Wrong shebang, please use '{PY_SHEBANG}'"]
 
     # find all flags
