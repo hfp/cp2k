@@ -627,12 +627,8 @@ if(CP2K_ENABLE_GRID_GPU AND (CP2K_USE_CUDA OR CP2K_USE_HIP))
 endif()
 foreach(__app grid_miniapp grid_unittest)
   add_executable(
-    ${__app}
-    "grid/${__app}.c"
-    ${CP2K_GRID_SRCS_C}
-    ${__grid_srcs_gpu}
-    ${CP2K_MPIWRAP_SRCS_C}
-    ${CP2K_OFFLOAD_SRCS_C})
+    ${__app} "grid/${__app}.c" ${CP2K_GRID_SRCS_C} ${__grid_srcs_gpu}
+             ${CP2K_MPIWRAP_SRCS_C} ${CP2K_OFFLOAD_SRCS_C})
   if(CP2K_GRID_OPENCL)
     libxstream_add_grid(${__app} "${CMAKE_CURRENT_SOURCE_DIR}/grid")
   endif()
