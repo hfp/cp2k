@@ -191,7 +191,7 @@ cmake_dependent_option(
 
 cmake_dependent_option(
   CP2K_ENABLE_GRID_GPU "Enable acceleration for grid related functions." ON
-  "CP2K_USE_ACCEL MATCHES \"HIP|CUDA\"" OFF)
+  "CP2K_USE_ACCEL MATCHES \"OPENCL|HIP|CUDA\"" OFF)
 
 cmake_dependent_option(
   CP2K_ENABLE_DBM_GPU "Enable the dbm accelerated backend (mostly GPU)." ON
@@ -1106,6 +1106,7 @@ if(CP2K_USE_ACCEL MATCHES "OPENCL")
     "    - OpenCL library: ${OpenCL_LIBRARIES}\n"
     "    - LIBXSTREAM package directory: ${libxstream_DIR}\n"
     "    - GPU-accelerated modules\n"
+    "      - GRID: ${CP2K_ENABLE_GRID_GPU}\n"
     "      - DBM: ${CP2K_ENABLE_DBM_GPU}\n")
 endif()
 
@@ -1346,7 +1347,7 @@ if(NOT CP2K_USE_HDF5)
 endif()
 
 if(CP2K_USE_ACCEL MATCHES "NONE")
-  message("  - Hardware acceleration")
+  message("  - Hardware acceleration (CUDA, HIP, OpenCL)")
 endif()
 
 if(NOT CP2K_USE_ELPA)

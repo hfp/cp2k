@@ -17,6 +17,8 @@
 #include "gpu/grid_gpu_task_list.h"
 #include "ref/grid_ref_task_list.h"
 
+#include "../offload/offload_runtime.h"
+
 /*******************************************************************************
  * \brief Internal representation of a task list, abstracting various backends.
  * \author Ole Schuett
@@ -29,9 +31,7 @@ typedef struct {
   grid_ref_task_list *ref;
   grid_cpu_task_list *cpu;
   grid_dgemm_task_list *dgemm;
-#if (defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP) ||                      \
-     defined(__OFFLOAD_OPENCL_GRID)) &&                                        \
-    !defined(__NO_OFFLOAD_GRID)
+#if defined(__OFFLOAD) && !defined(__NO_OFFLOAD_GRID)
   grid_gpu_task_list *gpu;
 #endif
   // more backends to be added here

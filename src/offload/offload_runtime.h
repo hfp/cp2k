@@ -14,10 +14,6 @@
 #endif
 /* TODO: implement support or missing features */
 #if defined(__OFFLOAD_OPENCL)
-/* the grid backend for OpenCL is opt-in until it is part of CP2K */
-#if !defined(__NO_OFFLOAD_GRID) && !defined(__OFFLOAD_OPENCL_GRID)
-#define __NO_OFFLOAD_GRID
-#endif
 #if !defined(__NO_OFFLOAD_PW)
 #define __NO_OFFLOAD_PW
 #endif
