@@ -104,7 +104,7 @@ CONTAINS
 
       INTEGER, PARAMETER                                 :: itermax = 5000, prec_exp = sp
       REAL(KIND=dp), PARAMETER :: contract(*) = [0.5_dp], mineps = 1.0E-12_dp, &
-         next = 2.0_dp, step = 1.0_dp
+                                  next = 2.0_dp, step = 1.0_dp
 
       INTEGER                                            :: i, j
       REAL(KIND=dp)                                      :: a, d, dr, eps, r, rd, t
@@ -140,7 +140,12 @@ CONTAINS
       ! original approach may return radius=0
       ! with g(r) != g(radius)
       !radius = r
-      IF (g(1) < t) RETURN ! early exit
+      IF (PRESENT(polycoef)) THEN ! early exit
+         ! the sum can peak below r: g <= d*P(r) on [0, r] since P increases and EXP <= 1
+         IF (d*poly(r) < t) RETURN
+      ELSE
+         IF (g(1) < t) RETURN
+      END IF
 
       radius = r*next + step
       DO i = 1, itermax
@@ -188,64 +193,75 @@ CONTAINS
 !> \return value
 ! **************************************************************************************************
       ELEMENTAL FUNCTION gfun(x) RESULT(gx)
-         REAL(KIND=dp), INTENT(IN)                       :: x
-         REAL(KIND=dp)                                   :: gx
-
-         INTEGER                                         :: k
+      REAL(KIND=dp), INTENT(IN)                          :: x
+      REAL(KIND=dp)                                      :: gx
 
          IF (PRESENT(polycoef)) THEN
-            gx = ABS(polycoef(l)) ! Horner scheme
-            DO k = l - 1, 0, -1
-               gx = gx*x + ABS(polycoef(k))
-            END DO
-            gx = d*gx*EXP(REAL(-a*x*x, KIND=prec_exp))
+            gx = d*poly(x)*EXP(REAL(-a*x*x, KIND=prec_exp))
          ELSE
             gx = d*EXP(REAL(-a*x*x, KIND=prec_exp))*x**l
          END IF
       END FUNCTION gfun
 
+! **************************************************************************************************
+!> \brief Sum of the absolute polynomial terms (polycoef must be present)
+!> \param x radius
+!> \return value
+! **************************************************************************************************
+      ELEMENTAL FUNCTION poly(x) RESULT(px)
+      REAL(KIND=dp), INTENT(IN)                          :: x
+      REAL(KIND=dp)                                      :: px
+
+      INTEGER                                            :: k
+
+         px = ABS(polycoef(l)) ! Horner scheme
+         DO k = l - 1, 0, -1
+            px = px*x + ABS(polycoef(k))
+         END DO
+      END FUNCTION poly
+
    END FUNCTION exp_radius
 
 ! **************************************************************************************************
-!> \brief computes the radius of the Gaussian outside of which it is smaller
-!>      than eps
-!> \param la_min ...
-!> \param la_max ...
-!> \param lb_min ...
-!> \param lb_max ...
-!> \param pab ...
-!> \param o1 ...
-!> \param o2 ...
-!> \param ra ...
-!> \param rb ...
-!> \param rp ...
-!> \param zetp ...
-!> \param eps ...
-!> \param prefactor ...
-!> \param cutoff ...
-!> \param epsabs ...
-!> \return ...
+!> \brief Radius of the product of two Gaussian shells about rp, outside of which the sum of the
+!>        absolute polynomial terms times the Gaussian is smaller than eps
+!> \param la_min minimum angular momentum of the shell at ra
+!> \param la_max maximum angular momentum of the shell at ra
+!> \param lb_min minimum angular momentum of the shell at rb
+!> \param lb_max maximum angular momentum of the shell at rb
+!> \param pab optional block of coefficients, its largest element (at least cutoff) screens
+!> \param o1 offset of the shell at ra in pab (required with pab)
+!> \param o2 offset of the shell at rb in pab (required with pab)
+!> \param ra center of the shell a
+!> \param rb center of the shell b
+!> \param rp center of the product
+!> \param zetp exponent of the product
+!> \param eps threshold
+!> \param prefactor prefactor of the product
+!> \param cutoff lower bound of the largest coefficient (with pab), else MAX(1, cutoff)
+!> \param epsabs optional accuracy of the radius (default 1E-2)
+!> \return radius
 !> \par History
 !>      03.2007 new version that assumes that the Gaussians origante from spherical
 !>              Gaussians
 !> \note
-!>      can optionally screen by the maximum element of the pab block
+!>      the polynomial bounds (r + |ra - rp|)**la * (r + |rb - rp|)**lb for all la and lb
 ! **************************************************************************************************
    FUNCTION exp_radius_very_extended(la_min, la_max, lb_min, lb_max, pab, o1, o2, ra, rb, rp, &
                                      zetp, eps, prefactor, cutoff, epsabs) RESULT(radius)
 
       INTEGER, INTENT(IN)                                :: la_min, la_max, lb_min, lb_max
       REAL(KIND=dp), DIMENSION(:, :), OPTIONAL, POINTER  :: pab
-      INTEGER, OPTIONAL                                  :: o1, o2
+      INTEGER, INTENT(IN), OPTIONAL                      :: o1, o2
       REAL(KIND=dp), INTENT(IN)                          :: ra(3), rb(3), rp(3), zetp, eps, &
                                                             prefactor, cutoff
-      REAL(KIND=dp), OPTIONAL                            :: epsabs
+      REAL(KIND=dp), INTENT(IN), OPTIONAL                :: epsabs
       REAL(KIND=dp)                                      :: radius
 
-      INTEGER                                            :: i, ico, j, jco, la(3), lb(3), lxa, lxb, &
-                                                            lya, lyb, lza, lzb
+      INTEGER                                            :: i, ico, j, jco, lxa, lxb, lya, lyb, lza, &
+                                                            lzb
       REAL(KIND=dp)                                      :: bini, binj, coef(0:20), epsin_local, &
-                                                            polycoef(0:60), prefactor_local, &
+                                                            polycoef(0:20), prefactor_local, &
                                                             rad_a, rad_b, s1, s2
 
 ! get the local prefactor, we'll now use the largest density matrix element of the block to screen
@@ -255,6 +271,7 @@ CONTAINS
       IF (PRESENT(epsabs)) epsin_local = epsabs
 
       IF (PRESENT(pab)) THEN
+         CPASSERT(PRESENT(o1) .AND. PRESENT(o2))
          prefactor_local = cutoff
          DO lxa = 0, la_max
          DO lxb = 0, lb_max
@@ -262,8 +279,6 @@ CONTAINS
             DO lyb = 0, lb_max - lxb
                DO lza = MAX(la_min - lxa - lya, 0), la_max - lxa - lya
                DO lzb = MAX(lb_min - lxb - lyb, 0), lb_max - lxb - lyb
-                  la = [lxa, lya, lza]
-                  lb = [lxb, lyb, lzb]
                   ico = coset(lxa, lya, lza)
                   jco = coset(lxb, lyb, lzb)
                   prefactor_local = MAX(ABS(pab(o1 + ico, o2 + jco)), prefactor_local)
