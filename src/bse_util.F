@@ -1435,10 +1435,10 @@ CONTAINS
          CALL libxs_tas(plan, C_LOC(a(1)), C_LOC(b(1)), C_LOC(c(1)))
          CALL libxs_tas_release(plan)
       ELSE
-#endif
          CALL DGEMM(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc)
-#if defined(__LIBXS)
       END IF
+#else
+      CALL DGEMM(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc)
 #endif
 
    END SUBROUTINE bse_dgemm
