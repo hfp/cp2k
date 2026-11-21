@@ -168,7 +168,7 @@ cmake_dependent_option(
 
 cmake_dependent_option(
   CP2K_ENABLE_ELPA_GPU "Enable acceleration for elpa related functions." ON
-  "CP2K_USE_ACCEL MATCHES \"HIP|CUDA\"" OFF)
+  "CP2K_USE_ACCEL MATCHES \"OPENCL|HIP|CUDA\"" OFF)
 
 cmake_dependent_option(
   CP2K_ENABLE_GRID_GPU "Enable acceleration for grid related functions." ON
