@@ -36,6 +36,7 @@ int main(int argc, char *argv[]) {
   bool collocate = true;
   bool batch = false;
   int cycles_per_block = 1;
+  double relative_tolerance = 1e-12;
   grid_library_config config = grid_library_get_config();
   bool valid = true;
   while (valid && iarg < argc && strncmp(argv[iarg], "--", 2) == 0) {
@@ -67,6 +68,10 @@ int main(int argc, char *argv[]) {
       config.deterministic = true; // as GLOBAL%GRID%DETERMINISTIC
     } else if (strcmp(option, "--dump") == 0) {
       valid = (iarg < argc && sscanf(argv[iarg++], "%i", &config.dump) == 1);
+    } else if (strcmp(option, "--tolerance") == 0) {
+      valid = (iarg < argc &&
+               sscanf(argv[iarg++], "%lf", &relative_tolerance) == 1 &&
+               0 < relative_tolerance);
     } else {
       valid = false;
     }
@@ -77,10 +82,12 @@ int main(int argc, char *argv[]) {
     fprintf(stderr,
             "Usage: grid_miniapp.x [--backend <auto|ref|cpu|dgemm|gpu>] "
             "[--cutoff] [--deterministic] [--dump <calls>] [--integrate] "
-            "[--batch <cycles-per-block>] "
+            "[--batch <cycles-per-block>] [--tolerance <relative>] "
             "<cycles> <task-file>\n"
             "       A task list (GLOBAL%%GRID%%DUMP_TASK_LISTS) is replayed as "
-            "recorded, i.e., without --integrate and --batch.\n");
+            "recorded, i.e., without --integrate and --batch.\n"
+            "       The tolerance (default 1e-12) bounds the difference of "
+            "each result relative to the reference (or to one).\n");
     return 1;
   }
 
@@ -103,7 +110,7 @@ int main(int argc, char *argv[]) {
                           config.dump, config.deterministic);
 
   // Results of a task list do not accumulate over cycles.
-  const double tolerance = 1e-12 * (task_list ? 1 : cycles);
+  const double tolerance = relative_tolerance * (task_list ? 1 : cycles);
   const bool success = task_list
                            ? grid_replay_task_list(filename, cycles, tolerance)
                            : grid_replay(filename, cycles, collocate, batch,
