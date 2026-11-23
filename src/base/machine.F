@@ -96,8 +96,9 @@ MODULE machine
       END FUNCTION m_cpuid_static
 
       ! **********************************************************************************************
-      !> \brief Trace OpenMP constructs if ennvironment variable CP2K_OMP_TRACE=1.
-      !> \return Number of OpenMP issues encountered (negative if OMPT disabled).
+      !> \brief Check OpenMP constructs if environment variable CP2K_OMP_TRACE is set
+      !>        (see base/openmp_trace.c for the levels).
+      !> \return Number of OpenMP errors encountered (negative if OMPT disabled).
       !> \par History
       !>      11.2024 created [Hans Pabst]
       ! **********************************************************************************************

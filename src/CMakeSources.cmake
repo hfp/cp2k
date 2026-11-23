@@ -1532,7 +1532,6 @@ list(
   sockets.c
   base/machine_cpuid.c
   base/openmp_trace.c
-  base/openmp_trace.c
   common/cp_data_dir.c)
 
 list(
