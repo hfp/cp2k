@@ -26,7 +26,7 @@ MODULE mp2_types
         cohsex_off, do_eri_mme, eri_default, gw_pade_approx, kp_weights_W_auto, mp2_method_direct, &
         mp2_method_gpw, mp2_method_none, mp2_ri_optimize_basis, ri_mp2_laplace, ri_mp2_method_gpw, &
         ri_rpa_g0w0_crossing_z_shot, ri_rpa_method_gpw, rpa_exchange_none, soc_none, &
-        wfc_mm_style_gemm
+        wfc_mm_style_auto
    USE input_section_types,             ONLY: section_vals_release,&
                                               section_vals_type
    USE integral_library_types,          ONLY: coulomb_operator_type
@@ -122,7 +122,7 @@ MODULE mp2_types
    TYPE ri_rpa_type
       INTEGER                                            :: rpa_num_quad_points = -1, &
                                                             rpa_num_integ_groups = -1, &
-                                                            mm_style = wfc_mm_style_gemm
+                                                            mm_style = wfc_mm_style_auto
       TYPE(hfx_type), DIMENSION(:, :), POINTER           :: x_data => NULL()
       TYPE(section_vals_type), POINTER                   :: xc_section_primary => Null(), &
                                                             xc_section_aux => Null()

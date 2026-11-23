@@ -1151,7 +1151,8 @@ MODULE input_constants
                                                ri_mp2_laplace = 9, &
                                                mp2_ri_optimize_basis = 10, &
                                                wfc_mm_style_gemm = 11, &
-                                               wfc_mm_style_syrk = 12
+                                               wfc_mm_style_syrk = 12, &
+                                               wfc_mm_style_auto = 13
 
    ! RPA exchange corrections
    INTEGER, PARAMETER, PUBLIC               :: rpa_exchange_none = 0, &

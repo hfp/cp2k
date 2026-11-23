@@ -31,7 +31,8 @@ MODULE rpa_util
                                               dbcsr_allocate_matrix_set,&
                                               dbcsr_deallocate_matrix_set
    USE cp_fm_basic_linalg,              ONLY: cp_fm_syrk,&
-                                              cp_fm_transpose
+                                              cp_fm_transpose,&
+                                              cp_fm_uplo_to_full
    USE cp_fm_cholesky,                  ONLY: cp_fm_cholesky_decompose
    USE cp_fm_struct,                    ONLY: cp_fm_struct_create,&
                                               cp_fm_struct_release,&
@@ -771,6 +772,7 @@ CONTAINS
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'contract_S_to_Q'
 
       INTEGER                                            :: handle
+      TYPE(cp_fm_type)                                   :: fm_work
 
       CALL timeset(routineN, handle)
 
@@ -782,9 +784,12 @@ CONTAINS
                             matrix_a=fm_mat_S, matrix_b=fm_mat_S, beta=0.0_dp, &
                             matrix_c=fm_mat_Q_gemm)
       CASE (wfc_mm_style_syrk)
-         ! will only compute the upper half of the matrix, which is fine, since we only use it for cholesky later
          CALL cp_fm_syrk(uplo='U', trans='N', k=dimen_ia, alpha=alpha, matrix_a=fm_mat_S, &
                          ia=1, ja=1, beta=0.0_dp, matrix_c=fm_mat_Q_gemm)
+         ! Cholesky only reads the upper triangle, but e.g. the gradients need the full matrix
+         CALL cp_fm_create(fm_work, fm_mat_Q_gemm%matrix_struct)
+         CALL cp_fm_uplo_to_full(fm_mat_Q_gemm, fm_work)
+         CALL cp_fm_release(fm_work)
       CASE DEFAULT
          CPABORT("Unknown mm_style for contract_S_to_Q")
       END SELECT

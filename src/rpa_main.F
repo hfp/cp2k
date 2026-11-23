@@ -39,6 +39,7 @@ MODULE rpa_main
    USE cp_fm_types,                     ONLY: cp_fm_create,&
                                               cp_fm_get_diag,&
                                               cp_fm_get_info,&
+                                              cp_fm_get_mm_type,&
                                               cp_fm_release,&
                                               cp_fm_set_all,&
                                               cp_fm_to_fm,&
@@ -53,12 +54,9 @@ MODULE rpa_main
                                               release_group_dist
    USE hfx_types,                       ONLY: block_ind_type,&
                                               hfx_compression_type
-   USE input_constants,                 ONLY: cohsex_qp_update,&
-                                              rpa_exchange_axk,&
-                                              rpa_exchange_none,&
-                                              rpa_exchange_sosex,&
-                                              sigma_none,&
-                                              wfc_mm_style_gemm
+   USE input_constants,                 ONLY: &
+        cohsex_qp_update, do_cosma, rpa_exchange_axk, rpa_exchange_none, rpa_exchange_sosex, &
+        sigma_none, wfc_mm_style_auto, wfc_mm_style_gemm, wfc_mm_style_syrk
    USE input_section_types,             ONLY: section_vals_type,&
                                               section_vals_val_set
    USE kinds,                           ONLY: dp,&
@@ -79,6 +77,7 @@ MODULE rpa_main
                                               three_dim_real_array,&
                                               two_dim_int_array,&
                                               two_dim_real_array
+   USE offload_api,                     ONLY: offload_get_device_count
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
    USE qs_mo_types,                     ONLY: get_mo_set,&
@@ -1179,6 +1178,7 @@ CONTAINS
       ! For SOS-MP2 only gemm is implemented
       mm_style = wfc_mm_style_gemm
       IF (.NOT. do_ri_sos_laplace_mp2) mm_style = mp2_env%ri_rpa%mm_style
+      IF (mm_style == wfc_mm_style_auto) mm_style = default_mm_style(para_env_RPA)
 
       IF (my_do_gw) THEN
          ext_scaling = 0.2_dp
@@ -2633,5 +2633,28 @@ CONTAINS
 
       CALL timestop(handle)
    END SUBROUTINE determine_energy_range
+
+! **************************************************************************************************
+!> \brief resolves MM_STYLE AUTO: GEMM if COSMA can offload it, SYRK (half the flops) otherwise
+!> \param para_env ranks which take part in the multiplication, and which must agree
+!> \return the style to be used
+! **************************************************************************************************
+   FUNCTION default_mm_style(para_env) RESULT(mm_style)
+      TYPE(mp_para_env_type), INTENT(IN)                 :: para_env
+      INTEGER                                            :: mm_style
+
+#if defined(__OFFLOAD_CUDA) || defined(__OFFLOAD_HIP)
+      LOGICAL, PARAMETER                                 :: cosma_can_offload = .TRUE.
+#else
+      LOGICAL, PARAMETER                                 :: cosma_can_offload = .FALSE.
+#endif
+      INTEGER                                            :: num_devices
+
+      num_devices = 0
+      IF (cosma_can_offload .AND. cp_fm_get_mm_type() == do_cosma) num_devices = offload_get_device_count()
+      CALL para_env%max(num_devices)
+      mm_style = MERGE(wfc_mm_style_gemm, wfc_mm_style_syrk, num_devices > 0)
+
+   END FUNCTION default_mm_style
 
 END MODULE rpa_main
