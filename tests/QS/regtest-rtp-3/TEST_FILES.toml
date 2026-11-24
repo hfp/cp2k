@@ -4,7 +4,10 @@
 "wfn_mix_3.inp"          = [{matcher = "E_total", tol = 8e-14, ref = -17.19408422718460}]
 "wfn_mix_4.inp"          = [{matcher = "E_total", tol = 8e-14, ref = -17.19408422718460}]
 "wfn_mix_loc-0.inp"      = [{matcher = "E_total", tol = 1.0E-14, ref = -17.1885259187565}]
-"wfn_mix_loc-1.inp"      = [{matcher = "E_total", tol = 6e-13, ref = -16.86459883779028}]
+"wfn_mix_loc-1.inp"      = [
+  {matcher = "E_total", tol = 6e-13, ref = -16.86459883779028},
+  {matcher = "Spread_Berry", tol = 1e-8, ref = 13.6875039453}
+]
 "wfn_mix_loc-2.inp"      = []
 "wfn_mix_loc-3.inp"      = []
 "wfn_mix_loc_mark-0.inp" = [{matcher = "E_total", tol = 1.0E-14, ref = -17.1885259187565}]
@@ -15,4 +18,11 @@
 "H2O-delta-03.inp"       = [{matcher = "E_total", tol = 1e-13, ref = -16.81088185867871}]
 "H2O-delta-04.inp"       = [{matcher = "E_total", tol = 4e-14, ref = -17.178198545571}]
 "H2O_added_mos_emd.inp"  = [{matcher = "E_total", tol = 3e-14, ref = -17.16616425877758}]
+# localized initial orbitals: LOCALIZE%PRINT%WFN_RESTART (-0, -1) and LOCALIZE_INITIAL_WFN (-2, -3)
+"H2O-loc-wfn-0.inp"      = [{matcher = "E_total", tol = 1e-12, ref = -17.18852591875707}]
+"H2O-loc-wfn-1.inp"      = [{matcher = "E_total", tol = 1e-10, ref = -15.74758448212426}]
+"H2O-loc-wfn-2.inp"      = [{matcher = "E_total", tol = 1e-10, ref = -15.74758448212426}]
+"H2O-loc-wfn-3.inp"      = [{matcher = "E_total", tol = 1e-10, ref = -17.18852374194047}]
+# open-shell localization along RTP (Nalpha > Nbeta)
+"H2Op-rtp-loc-lsd.inp"   = [{matcher = "Spread_Berry", tol = 1e-8, ref = 9.6084918975}]
 #EOF
