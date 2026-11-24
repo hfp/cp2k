@@ -784,8 +784,10 @@ CONTAINS
                             matrix_a=fm_mat_S, matrix_b=fm_mat_S, beta=0.0_dp, &
                             matrix_c=fm_mat_Q_gemm)
       CASE (wfc_mm_style_syrk)
-         CALL cp_fm_syrk(uplo='U', trans='N', k=dimen_ia, alpha=alpha, matrix_a=fm_mat_S, &
-                         ia=1, ja=1, beta=0.0_dp, matrix_c=fm_mat_Q_gemm)
+         IF (.NOT. syrk_S_to_Q_device(alpha, fm_mat_S, fm_mat_Q_gemm)) THEN
+            CALL cp_fm_syrk(uplo='U', trans='N', k=dimen_ia, alpha=alpha, matrix_a=fm_mat_S, &
+                            ia=1, ja=1, beta=0.0_dp, matrix_c=fm_mat_Q_gemm)
+         END IF
          ! Cholesky only reads the upper triangle, but e.g. the gradients need the full matrix
          CALL cp_fm_create(fm_work, fm_mat_Q_gemm%matrix_struct)
          CALL cp_fm_uplo_to_full(fm_mat_Q_gemm, fm_work)
@@ -803,6 +805,111 @@ CONTAINS
       CALL timestop(handle)
 
    END SUBROUTINE contract_S_to_Q
+
+! **************************************************************************************************
+!> \brief Upper triangle of Q := alpha*S*S^T by LIBXS' distributed SYRK with the panels on a device
+!>        (LIBXSTREAM). Needs every rank to have a device and S on a 1xP grid (all rows of S local);
+!>        the decision is collective, and Q is untouched if the result is false.
+!> \param alpha ...
+!> \param fm_mat_S ...
+!> \param fm_mat_Q result, on the BLACS environment of fm_mat_S
+!> \return whether Q was computed
+! **************************************************************************************************
+   FUNCTION syrk_S_to_Q_device(alpha, fm_mat_S, fm_mat_Q) RESULT(done)
+#if defined(__LIBXS) && defined(__LIBXSTREAM)
+      USE ISO_C_BINDING, ONLY: C_INT, C_LOC, C_NULL_PTR, C_PTR
+      USE libxs, ONLY: LIBXS_DATATYPE_F64, libxs_pdist_t, libxs_syrk, libxs_syrk_device_t, &
+                       libxs_syrk_dispatch, libxs_syrk_release, libxs_syrk_t
+#endif
+      REAL(KIND=dp), INTENT(IN)                          :: alpha
+      TYPE(cp_fm_type), INTENT(IN)                       :: fm_mat_S, fm_mat_Q
+      LOGICAL                                            :: done
+
+      CHARACTER(LEN=*), PARAMETER                        :: routineN = 'syrk_S_to_Q_device'
+
+#if defined(__LIBXS) && defined(__LIBXSTREAM)
+      ! the device of LIBXS' SYRK by LIBXSTREAM (libxstream_syrk.h)
+      INTERFACE
+         FUNCTION libxstream_syrk_create(ctx) BIND(C, name="libxstream_syrk_create")
+            IMPORT :: C_INT, C_PTR
+            TYPE(C_PTR), INTENT(OUT)                       :: ctx
+            INTEGER(C_INT)                                 :: libxstream_syrk_create
+         END FUNCTION libxstream_syrk_create
+         SUBROUTINE libxstream_syrk_device(ctx, device) BIND(C, name="libxstream_syrk_device")
+            IMPORT :: C_PTR, libxs_syrk_device_t
+            TYPE(C_PTR), VALUE                             :: ctx
+            TYPE(libxs_syrk_device_t), INTENT(OUT)         :: device
+         END SUBROUTINE libxstream_syrk_device
+         SUBROUTINE libxstream_syrk_destroy(ctx) BIND(C, name="libxstream_syrk_destroy")
+            IMPORT :: C_PTR
+            TYPE(C_PTR), VALUE                             :: ctx
+         END SUBROUTINE libxstream_syrk_destroy
+      END INTERFACE
+      INTEGER                                            :: handle, have_device, info
+      INTEGER(C_INT)                                     :: k, lda, ldc, n
+      INTEGER(C_INT), ALLOCATABLE, DIMENSION(:), TARGET  :: ranks
+      TYPE(C_PTR)                                        :: a, c, ctx
+      TYPE(libxs_pdist_t), TARGET                        :: dist
+      TYPE(libxs_syrk_device_t), TARGET                  :: device
+      TYPE(libxs_syrk_t)                                 :: plan
+
+      CALL timeset(routineN, handle)
+      done = .FALSE.
+      ! a grid property, the same on all ranks: S holds all rows locally only on a 1xP grid
+      IF (fm_mat_S%matrix_struct%context%num_pe(1) == 1) THEN
+         have_device = 0
+         ctx = C_NULL_PTR
+         IF (0 == libxstream_syrk_create(ctx)) have_device = 1
+         CALL fm_mat_Q%matrix_struct%context%para_env%min(have_device)
+         IF (1 == have_device) THEN
+            CALL libxstream_syrk_device(ctx, device)
+            n = INT(fm_mat_Q%matrix_struct%nrow_global, C_INT)
+            k = INT(SIZE(fm_mat_S%local_data, 2), C_INT)
+            lda = INT(MAX(1, SIZE(fm_mat_S%local_data, 1)), C_INT)
+            a = C_NULL_PTR
+            IF (0 < k .AND. 0 < SIZE(fm_mat_S%local_data, 1)) a = C_LOC(fm_mat_S%local_data(1, 1))
+            c = C_NULL_PTR
+            IF (0 < SIZE(fm_mat_Q%local_data)) c = C_LOC(fm_mat_Q%local_data(1, 1))
+#if defined(__parallel)
+            ldc = INT(fm_mat_Q%matrix_struct%descriptor(9), C_INT)
+            ! C is block-cyclic: ScaLAPACK descriptor values, and the ranks of the grid (column-major)
+            ranks = INT(RESHAPE(fm_mat_Q%matrix_struct%context%blacs2mpi, &
+                                [SIZE(fm_mat_Q%matrix_struct%context%blacs2mpi)]), C_INT)
+            dist%fcomm = INT(fm_mat_Q%matrix_struct%context%para_env%get_handle(), C_INT)
+            dist%mb = INT(fm_mat_Q%matrix_struct%descriptor(5), C_INT)
+            dist%nb = INT(fm_mat_Q%matrix_struct%descriptor(6), C_INT)
+            dist%nprow = INT(fm_mat_Q%matrix_struct%context%num_pe(1), C_INT)
+            dist%npcol = INT(fm_mat_Q%matrix_struct%context%num_pe(2), C_INT)
+            dist%rsrc = INT(fm_mat_Q%matrix_struct%descriptor(7), C_INT)
+            dist%csrc = INT(fm_mat_Q%matrix_struct%descriptor(8), C_INT)
+            dist%ranks = C_LOC(ranks(1))
+            info = libxs_syrk_dispatch(plan, LIBXS_DATATYPE_F64, 'U', 'N', n, k, lda, 0_C_INT, ldc, &
+                                       dist=dist, device=device)
+#else
+            ldc = INT(MAX(1, SIZE(fm_mat_Q%local_data, 1)), C_INT)
+            info = libxs_syrk_dispatch(plan, LIBXS_DATATYPE_F64, 'U', 'N', n, k, lda, 0_C_INT, ldc, &
+                                       device=device)
+#endif
+            ! the verdict of the dispatch is collective: all ranks have a plan, or none has
+            IF (0 /= info) THEN
+               CALL libxs_syrk(plan, alpha, a, 0.0_dp, c, info)
+               CALL libxs_syrk_release(plan)
+               CALL fm_mat_Q%matrix_struct%context%para_env%max(info)
+               done = (0 == info)
+            END IF
+         END IF
+         CALL libxstream_syrk_destroy(ctx) ! after the plan, NULL if the device was not created
+      END IF
+      CALL timestop(handle)
+#else
+      MARK_USED(alpha)
+      MARK_USED(fm_mat_S)
+      MARK_USED(fm_mat_Q)
+      MARK_USED(routineN)
+      done = .FALSE.
+#endif
+
+   END FUNCTION syrk_S_to_Q_device
 
 ! **************************************************************************************************
 !> \brief Factorize epsilon in place and accumulate the frequency-weighted RPA energy.
