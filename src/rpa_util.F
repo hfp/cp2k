@@ -12,6 +12,8 @@
 ! **************************************************************************************************
 MODULE rpa_util
 
+   USE ISO_C_BINDING,                   ONLY: C_NULL_PTR,&
+                                              C_PTR
    USE cell_types,                      ONLY: cell_type,&
                                               get_cell
    USE cp_blacs_env,                    ONLY: cp_blacs_env_create,&
@@ -71,7 +73,17 @@ MODULE rpa_util
    CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'rpa_util'
 
    PUBLIC :: compute_Erpa_by_freq_int, alloc_im_time, calc_mat_Q, &
-             dealloc_im_time, contract_P_omega_with_mat_L, calc_fm_mat_S_rpa, remove_scaling_factor_rpa
+             dealloc_im_time, contract_P_omega_with_mat_L, calc_fm_mat_S_rpa, remove_scaling_factor_rpa, &
+             syrk_S_to_Q_release
+
+   ! device of the RPA SYRK (syrk_S_to_Q_device) per spin: S stays on the device over the frequencies,
+   ! as uploaded at omega_ref, and the scaling relative to it enters as weights
+   TYPE syrk_device_type
+      TYPE(C_PTR)                                        :: ctx = C_NULL_PTR, s = C_NULL_PTR
+      REAL(KIND=dp)                                      :: omega_ref = 0.0_dp
+   END TYPE syrk_device_type
+
+   TYPE(syrk_device_type), DIMENSION(2), SAVE          :: syrk_device_state
 
 CONTAINS
 
@@ -618,8 +630,13 @@ CONTAINS
                                 homo, omega, omega_old)
       END IF
 
-      CALL contract_S_to_Q(mm_style, dimen_RI, dimen_ia, alpha, fm_mat_S, fm_mat_Q_gemm, &
-                           fm_mat_Q, dgemm_counter)
+      IF (do_ri_sos_laplace_mp2) THEN
+         CALL contract_S_to_Q(mm_style, dimen_RI, dimen_ia, alpha, fm_mat_S, fm_mat_Q_gemm, &
+                              fm_mat_Q, dgemm_counter)
+      ELSE ! the scaling of S lets a device keep S (syrk_S_to_Q_device)
+         CALL contract_S_to_Q(mm_style, dimen_RI, dimen_ia, alpha, fm_mat_S, fm_mat_Q_gemm, &
+                              fm_mat_Q, dgemm_counter, first_cycle, omega, virtual, Eigenval, homo)
+      END IF
       ! fm_mat_Q_static_bse_gemm does not enter W_ijab (A matrix in TDA), but only full ABBA
       ! (since only B_ij_bar enters W_ijab)
       ! Changing jquad, since omega=0 is at last idx
@@ -760,14 +777,24 @@ CONTAINS
 !> \param fm_mat_Q_gemm ...
 !> \param fm_mat_Q ...
 !> \param dgemm_counter ...
+!> \param first_cycle scaling of S by calc_fm_mat_S_rpa (RPA), else absent
+!> \param omega ...
+!> \param virtual ...
+!> \param Eigenval ...
+!> \param homo ...
 ! **************************************************************************************************
    SUBROUTINE contract_S_to_Q(mm_style, dimen_RI, dimen_ia, alpha, fm_mat_S, fm_mat_Q_gemm, &
-                              fm_mat_Q, dgemm_counter)
+                              fm_mat_Q, dgemm_counter, first_cycle, omega, virtual, Eigenval, homo)
 
       INTEGER, INTENT(IN)                                :: mm_style, dimen_RI, dimen_ia
       REAL(KIND=dp), INTENT(IN)                          :: alpha
       TYPE(cp_fm_type), INTENT(IN)                       :: fm_mat_S, fm_mat_Q_gemm, fm_mat_Q
       TYPE(dgemm_counter_type), INTENT(INOUT)            :: dgemm_counter
+      LOGICAL, INTENT(IN), OPTIONAL                      :: first_cycle
+      REAL(KIND=dp), INTENT(IN), OPTIONAL                :: omega
+      INTEGER, INTENT(IN), OPTIONAL                      :: virtual
+      REAL(KIND=dp), DIMENSION(:), INTENT(IN), OPTIONAL  :: Eigenval
+      INTEGER, INTENT(IN), OPTIONAL                      :: homo
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'contract_S_to_Q'
 
@@ -784,7 +811,7 @@ CONTAINS
                             matrix_a=fm_mat_S, matrix_b=fm_mat_S, beta=0.0_dp, &
                             matrix_c=fm_mat_Q_gemm)
       CASE (wfc_mm_style_syrk)
-         IF (.NOT. syrk_S_to_Q_device(alpha, fm_mat_S, fm_mat_Q_gemm)) THEN
+         IF (.NOT. syrk_S_to_Q_device(alpha, fm_mat_S, fm_mat_Q_gemm, first_cycle, omega, virtual, Eigenval, homo)) THEN
             CALL cp_fm_syrk(uplo='U', trans='N', k=dimen_ia, alpha=alpha, matrix_a=fm_mat_S, &
                             ia=1, ja=1, beta=0.0_dp, matrix_c=fm_mat_Q_gemm)
          END IF
@@ -809,20 +836,33 @@ CONTAINS
 ! **************************************************************************************************
 !> \brief Upper triangle of Q := alpha*S*S^T by LIBXS' distributed SYRK with the panels on a device
 !>        (LIBXSTREAM). Needs every rank to have a device and S on a 1xP grid (all rows of S local);
-!>        the decision is collective, and Q is untouched if the result is false.
+!>        the decision is collective, and Q is untouched if the result is false. Given the scaling of
+!>        S (RPA), S stays on the device from the first cycle on: there, S = S0*f(omega_ref) with
+!>        f(w) = SQRT(e/(e**2+w**2)), and S*S^T at omega is S*diag(d)*S^T on the device with the weights
+!>        d = (e**2+omega_ref**2)/(e**2+omega**2), however the host scales S in the meantime.
 !> \param alpha ...
 !> \param fm_mat_S ...
 !> \param fm_mat_Q result, on the BLACS environment of fm_mat_S
+!> \param first_cycle (re)upload S, e.g., the first frequency of an iteration
+!> \param omega ...
+!> \param virtual ...
+!> \param Eigenval ...
+!> \param homo ...
 !> \return whether Q was computed
 ! **************************************************************************************************
-   FUNCTION syrk_S_to_Q_device(alpha, fm_mat_S, fm_mat_Q) RESULT(done)
+   FUNCTION syrk_S_to_Q_device(alpha, fm_mat_S, fm_mat_Q, first_cycle, omega, virtual, Eigenval, homo) RESULT(done)
 #if defined(__LIBXS) && defined(__LIBXSTREAM)
-      USE ISO_C_BINDING, ONLY: C_INT, C_LOC, C_NULL_PTR, C_PTR
+      USE ISO_C_BINDING, ONLY: C_ASSOCIATED, C_INT, C_LOC
       USE libxs, ONLY: LIBXS_DATATYPE_F64, libxs_pdist_t, libxs_syrk, libxs_syrk_device_t, &
                        libxs_syrk_dispatch, libxs_syrk_release, libxs_syrk_t
 #endif
       REAL(KIND=dp), INTENT(IN)                          :: alpha
       TYPE(cp_fm_type), INTENT(IN)                       :: fm_mat_S, fm_mat_Q
+      LOGICAL, INTENT(IN), OPTIONAL                      :: first_cycle
+      REAL(KIND=dp), INTENT(IN), OPTIONAL                :: omega
+      INTEGER, INTENT(IN), OPTIONAL                      :: virtual
+      REAL(KIND=dp), DIMENSION(:), INTENT(IN), OPTIONAL  :: Eigenval
+      INTEGER, INTENT(IN), OPTIONAL                      :: homo
       LOGICAL                                            :: done
 
       CHARACTER(LEN=*), PARAMETER                        :: routineN = 'syrk_S_to_Q_device'
@@ -840,14 +880,27 @@ CONTAINS
             TYPE(C_PTR), VALUE                             :: ctx
             TYPE(libxs_syrk_device_t), INTENT(OUT)         :: device
          END SUBROUTINE libxstream_syrk_device
+         SUBROUTINE libxstream_syrk_weights(ctx, d) BIND(C, name="libxstream_syrk_weights")
+            IMPORT :: C_PTR
+            TYPE(C_PTR), VALUE                             :: ctx, d
+         END SUBROUTINE libxstream_syrk_weights
+         SUBROUTINE libxstream_syrk_resident(ctx, keep) BIND(C, name="libxstream_syrk_resident")
+            IMPORT :: C_INT, C_PTR
+            TYPE(C_PTR), VALUE                             :: ctx
+            INTEGER(C_INT), VALUE                          :: keep
+         END SUBROUTINE libxstream_syrk_resident
          SUBROUTINE libxstream_syrk_destroy(ctx) BIND(C, name="libxstream_syrk_destroy")
             IMPORT :: C_PTR
             TYPE(C_PTR), VALUE                             :: ctx
          END SUBROUTINE libxstream_syrk_destroy
       END INTERFACE
-      INTEGER                                            :: handle, have_device, info
+      INTEGER                                            :: avirt, handle, have_device, i_global, &
+                                                            iiB, info, iocc, islot
       INTEGER(C_INT)                                     :: k, lda, ldc, n
       INTEGER(C_INT), ALLOCATABLE, DIMENSION(:), TARGET  :: ranks
+      INTEGER, DIMENSION(:), POINTER                     :: col_indices
+      REAL(KIND=dp)                                      :: eigen_diff, omega_ref
+      REAL(KIND=dp), ALLOCATABLE, DIMENSION(:), TARGET   :: weights
       TYPE(C_PTR)                                        :: a, c, ctx
       TYPE(libxs_pdist_t), TARGET                        :: dist
       TYPE(libxs_syrk_device_t), TARGET                  :: device
@@ -857,19 +910,58 @@ CONTAINS
       done = .FALSE.
       ! a grid property, the same on all ranks: S holds all rows locally only on a 1xP grid
       IF (fm_mat_S%matrix_struct%context%num_pe(1) == 1) THEN
+         n = INT(fm_mat_Q%matrix_struct%nrow_global, C_INT)
+         k = INT(SIZE(fm_mat_S%local_data, 2), C_INT)
+         lda = INT(MAX(1, SIZE(fm_mat_S%local_data, 1)), C_INT)
+         a = C_NULL_PTR
+         IF (0 < k .AND. 0 < SIZE(fm_mat_S%local_data, 1)) a = C_LOC(fm_mat_S%local_data(1, 1))
+         c = C_NULL_PTR
+         IF (0 < SIZE(fm_mat_Q%local_data)) c = C_LOC(fm_mat_Q%local_data(1, 1))
+         ! the context of this S (spin) if S may stay on the device, else one for this call
+         islot = 0
+         IF (PRESENT(first_cycle) .AND. PRESENT(omega) .AND. PRESENT(virtual) .AND. PRESENT(Eigenval) &
+             .AND. PRESENT(homo) .AND. C_ASSOCIATED(a)) THEN
+            DO iiB = 1, SIZE(syrk_device_state)
+               IF (C_ASSOCIATED(syrk_device_state(iiB)%s, a)) islot = iiB
+            END DO
+            DO iiB = 1, SIZE(syrk_device_state)
+               IF (0 == islot .AND. .NOT. C_ASSOCIATED(syrk_device_state(iiB)%s)) islot = iiB
+            END DO
+         END IF
          have_device = 0
-         ctx = C_NULL_PTR
-         IF (0 == libxstream_syrk_create(ctx)) have_device = 1
+         IF (0 < islot) THEN
+            IF (.NOT. C_ASSOCIATED(syrk_device_state(islot)%ctx)) THEN
+               IF (0 /= libxstream_syrk_create(syrk_device_state(islot)%ctx)) syrk_device_state(islot)%ctx = C_NULL_PTR
+            END IF
+            ctx = syrk_device_state(islot)%ctx
+            IF (C_ASSOCIATED(ctx)) have_device = 1
+         ELSE
+            ctx = C_NULL_PTR
+            IF (0 == libxstream_syrk_create(ctx)) have_device = 1
+         END IF
          CALL fm_mat_Q%matrix_struct%context%para_env%min(have_device)
          IF (1 == have_device) THEN
             CALL libxstream_syrk_device(ctx, device)
-            n = INT(fm_mat_Q%matrix_struct%nrow_global, C_INT)
-            k = INT(SIZE(fm_mat_S%local_data, 2), C_INT)
-            lda = INT(MAX(1, SIZE(fm_mat_S%local_data, 1)), C_INT)
-            a = C_NULL_PTR
-            IF (0 < k .AND. 0 < SIZE(fm_mat_S%local_data, 1)) a = C_LOC(fm_mat_S%local_data(1, 1))
-            c = C_NULL_PTR
-            IF (0 < SIZE(fm_mat_Q%local_data)) c = C_LOC(fm_mat_Q%local_data(1, 1))
+            IF (0 < islot) THEN
+               IF (first_cycle .OR. .NOT. C_ASSOCIATED(syrk_device_state(islot)%s, a)) THEN
+                  ! S as it is now goes to the device with the next update, and stays
+                  CALL libxstream_syrk_resident(ctx, 0_C_INT)
+                  CALL libxstream_syrk_resident(ctx, 1_C_INT)
+                  syrk_device_state(islot)%s = a
+                  syrk_device_state(islot)%omega_ref = omega
+               END IF
+               omega_ref = syrk_device_state(islot)%omega_ref
+               CALL cp_fm_get_info(matrix=fm_mat_S, col_indices=col_indices)
+               ALLOCATE (weights(k))
+               DO iiB = 1, k ! as calc_fm_mat_S_rpa
+                  i_global = col_indices(iiB)
+                  iocc = MAX(1, i_global - 1)/virtual + 1
+                  avirt = i_global - (iocc - 1)*virtual
+                  eigen_diff = Eigenval(avirt + homo) - Eigenval(iocc)
+                  weights(iiB) = (eigen_diff**2 + omega_ref**2)/(eigen_diff**2 + omega**2)
+               END DO
+               CALL libxstream_syrk_weights(ctx, C_LOC(weights(1)))
+            END IF
 #if defined(__parallel)
             ldc = INT(fm_mat_Q%matrix_struct%descriptor(9), C_INT)
             ! C is block-cyclic: ScaLAPACK descriptor values, and the ranks of the grid (column-major)
@@ -897,19 +989,49 @@ CONTAINS
                CALL fm_mat_Q%matrix_struct%context%para_env%max(info)
                done = (0 == info)
             END IF
+            IF (0 < islot) CALL libxstream_syrk_weights(ctx, C_NULL_PTR)
          END IF
-         CALL libxstream_syrk_destroy(ctx) ! after the plan, NULL if the device was not created
+         IF (0 == islot) CALL libxstream_syrk_destroy(ctx) ! after the plan, NULL if not created
       END IF
       CALL timestop(handle)
 #else
       MARK_USED(alpha)
       MARK_USED(fm_mat_S)
       MARK_USED(fm_mat_Q)
+      MARK_USED(first_cycle)
+      MARK_USED(omega)
+      MARK_USED(virtual)
+      MARK_USED(Eigenval)
+      MARK_USED(homo)
       MARK_USED(routineN)
       done = .FALSE.
 #endif
 
    END FUNCTION syrk_S_to_Q_device
+
+! **************************************************************************************************
+!> \brief Releases the devices of syrk_S_to_Q_device that kept S over the frequencies.
+! **************************************************************************************************
+   SUBROUTINE syrk_S_to_Q_release()
+#if defined(__LIBXS) && defined(__LIBXSTREAM)
+      USE ISO_C_BINDING, ONLY: C_ASSOCIATED
+
+      INTERFACE
+         SUBROUTINE libxstream_syrk_destroy(ctx) BIND(C, name="libxstream_syrk_destroy")
+            IMPORT :: C_PTR
+            TYPE(C_PTR), VALUE                             :: ctx
+         END SUBROUTINE libxstream_syrk_destroy
+      END INTERFACE
+      INTEGER                                            :: islot
+
+      DO islot = 1, SIZE(syrk_device_state)
+         IF (C_ASSOCIATED(syrk_device_state(islot)%ctx)) CALL libxstream_syrk_destroy(syrk_device_state(islot)%ctx)
+         syrk_device_state(islot)%ctx = C_NULL_PTR
+         syrk_device_state(islot)%s = C_NULL_PTR
+      END DO
+#endif
+
+   END SUBROUTINE syrk_S_to_Q_release
 
 ! **************************************************************************************************
 !> \brief Factorize epsilon in place and accumulate the frequency-weighted RPA energy.

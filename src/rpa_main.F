@@ -121,7 +121,8 @@ MODULE rpa_main
                                               compute_Erpa_by_freq_int,&
                                               contract_P_omega_with_mat_L,&
                                               dealloc_im_time,&
-                                              remove_scaling_factor_rpa
+                                              remove_scaling_factor_rpa,&
+                                              syrk_S_to_Q_release
    USE time_frequency_grids,            ONLY: build_clenshaw_grid,&
                                               build_minimax_time_frequency_grid,&
                                               time_frequency_grid_release,&
@@ -1926,6 +1927,8 @@ CONTAINS
       END IF
 
       IF (.NOT. do_im_time .AND. .NOT. do_ri_sos_laplace_mp2) CALL exchange_work%release()
+      ! the devices that kept S over the frequencies (contract_S_to_Q)
+      CALL syrk_S_to_Q_release()
 
       IF (.NOT. do_ri_sos_laplace_mp2) THEN
          DEALLOCATE (diag_Qomega)
