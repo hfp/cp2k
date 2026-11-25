@@ -174,6 +174,7 @@ void dbm_multiply_gpu_process_batch(const dbm_batch_t *batch,
   dbm_shard_gpu_t *const shard_g = &ctx->shards_c_dev[kshard];
   const int ntasks = batch->ntasks;
   double *old_data_dev = NULL;
+  bool grown = false; // an empty shard starts without a buffer (NULL)
 #if defined(__OFFLOAD_UNIFIED_MEMORY)
   const dbm_task_t *const batch_dev = batch->tasks; // read where written
 #else
@@ -202,6 +203,7 @@ void dbm_multiply_gpu_process_batch(const dbm_batch_t *batch,
       offloadMemcpyAsyncDtoD(shard_g->data, old_data_dev,
                              shard_g->data_size * sizeof(double),
                              shard_g->stream);
+      grown = true;
     }
     if (0 < ntasks || NULL != old_data_dev) {
       offloadEventRecord(shard_g->event, shard_g->stream);
@@ -209,7 +211,7 @@ void dbm_multiply_gpu_process_batch(const dbm_batch_t *batch,
 
     // Zero the headroom once per allocation rather than new blocks per batch:
     // a memset is mostly launch latency, and kernels write promised blocks.
-    if (NULL != old_data_dev) {
+    if (grown) {
       const size_t headroom = shard_g->data_allocated - shard_g->data_size;
       offloadMemsetAsync(&shard_g->data[shard_g->data_size], 0,
                          headroom * sizeof(double), shard_g->stream);
