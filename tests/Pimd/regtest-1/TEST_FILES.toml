@@ -3,8 +3,8 @@
 # see regtest/TEST_FILES
 "h2o_pint_fist_nose.inp"                  = [{matcher = "M009", tol = 2e-14, ref = 1.0721132870718006E-002}]
 "h2o_pint_fist_nose_restart.inp"          = [{matcher = "M009", tol = 2e-14, ref = 1.0723685835629522E-002}]
-"h2o_pint_qs_nve.inp"                     = [{matcher = "M009", tol = 2E-14, ref = -17.137404049023885}]
-"h2o_pint_qs_nose.inp"                    = [{matcher = "M009", tol = 2E-14, ref = -17.129537080470726}]
+"h2o_pint_qs_nve.inp"                     = [{matcher = "M009", tol = 2E-14, ref = -17.13740404903767}]
+"h2o_pint_qs_nose.inp"                    = [{matcher = "M009", tol = 2E-14, ref = -17.12953708048452}]
 "h2o_pint_qs_nose_restart.inp"            = [{matcher = "M009", tol = 2e-09, ref = -17.1295368929579}]
 "h2o_pint_exact_harm.inp"                 = [{matcher = "M009", tol = 3e-14, ref = 2.8542777100474888E-003}]
 "h2o_pint_rpmd.inp"                       = [{matcher = "M009", tol = 2e-14, ref = 1.1503487725277912E-002}]

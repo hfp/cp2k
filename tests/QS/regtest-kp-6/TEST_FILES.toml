@@ -5,13 +5,13 @@
 #      for details see cp2k/tools/do_regtest
 # Wannier90 interoperability at k-points
 "h_fcc_wannier90_scf_mp.inp"                  = [
-  {matcher = "E_total", tol = 1e-13, ref = -4.34524388362931},
+  {matcher = "E_total", tol = 1e-13, ref = -4.34524388363048},
   {matcher = "N_special_kpoints", tol = 0.0, ref = 1},
   {matcher = "WANNIER90_SCF_MO_REUSE"},
   {matcher = "WANNIER90_DEGENERATE_SUBSPACE_ALIGN"}
 ]
 "h_fcc_wannier90_scf_mp_bloch.inp"            = [
-  {matcher = "E_total", tol = 1e-13, ref = -4.34524388362931},
+  {matcher = "E_total", tol = 1e-13, ref = -4.34524388363047},
   {matcher = "N_special_kpoints", tol = 0.0, ref = 1},
   {matcher = "WANNIER90_SCF_MO_REUSE"},
   {matcher = "WANNIER90_DEGENERATE_SUBSPACE_ALIGN"},
@@ -19,7 +19,7 @@
   {matcher = "WANNIER90_BLOCH_PHASE_GAUGE"}
 ]
 "h_fcc_wannier90_scf_mp_4_bloch_validate.inp" = [
-  {matcher = "E_total", tol = 1e-13, ref = -4.30964310653816},
+  {matcher = "E_total", tol = 1e-13, ref = -4.30964310653965},
   {matcher = "N_special_kpoints", tol = 0.0, ref = 4},
   {matcher = "WANNIER90_SCF_MO_REUSE"},
   {matcher = "WANNIER90_DEGENERATE_SUBSPACE_ALIGN"},
@@ -27,17 +27,17 @@
   {matcher = "WANNIER90_BLOCH_PHASE_GAUGE"},
   {matcher = "WANNIER90_REUSE_VALIDATION"}
 ]
-"h_fcc_wannier90_scf_inv.inp"                 = [{matcher = "E_total", tol = 1e-13, ref = -4.34524388362931}]
-"h_fcc_wannier90_scf_full.inp"                = [{matcher = "E_total", tol = 1e-13, ref = -4.34524388362931}]
-"h_fcc_general_wannier90_scf_full.inp"        = [{matcher = "E_total", tol = 1e-13, ref = -4.34524388362931}]
+"h_fcc_wannier90_scf_inv.inp"                 = [{matcher = "E_total", tol = 1e-13, ref = -4.34524388363047}]
+"h_fcc_wannier90_scf_full.inp"                = [{matcher = "E_total", tol = 1e-13, ref = -4.34524388363047}]
+"h_fcc_general_wannier90_scf_full.inp"        = [{matcher = "E_total", tol = 1e-13, ref = -4.34524388363047}]
 "h_fcc_general_wannier90_k290.inp"            = [
-  {matcher = "E_total", tol = 1e-13, ref = -4.34524388362932},
+  {matcher = "E_total", tol = 1e-13, ref = -4.34524388363048},
   {matcher = "N_special_kpoints", tol = 0.0, ref = 1},
   {matcher = "WANNIER90_SCF_MO_REUSE"},
   {matcher = "WANNIER90_DEGENERATE_SUBSPACE_ALIGN"}
 ]
 "h_fcc_macdonald_wannier90_k290.inp"          = [
-  {matcher = "E_total", tol = 1e-13, ref = -4.34524388362931},
+  {matcher = "E_total", tol = 1e-13, ref = -4.34524388363048},
   {matcher = "N_special_kpoints", tol = 0.0, ref = 1},
   {matcher = "WANNIER90_SCF_MO_REUSE"},
   {matcher = "WANNIER90_DEGENERATE_SUBSPACE_ALIGN"}

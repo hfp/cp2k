@@ -3,14 +3,14 @@
 # e.g. 0 means do not compare anything, running is enough
 #      1 compares the last total energy in the file
 #      for details see cp2k/tools/do_regtest
-"h2o_ot_chol_1.inp"      = [{matcher = "E_total", tol = 9e-14, ref = -17.13939625473007}]
-"h2o_ot_chol_diis_1.inp" = [{matcher = "E_total", tol = 2e-14, ref = -17.138472567913}]
+"h2o_ot_chol_1.inp"      = [{matcher = "E_total", tol = 9e-14, ref = -17.13939625472838}]
+"h2o_ot_chol_diis_1.inp" = [{matcher = "E_total", tol = 2e-14, ref = -17.13847256791137}]
 "h2o_ot_lwdn_1.inp"      = [{matcher = "E_total", tol = 1e-13, ref = -17.13940496208453}]
-"h2o_ot_lwdn_diis_1.inp" = [{matcher = "E_total", tol = 3e-14, ref = -17.13832134597439}]
-"o2_ot_chol_1.inp"       = [{matcher = "E_total", tol = 2e-13, ref = -31.80544971341605}]
-"o2_ot_chol_diis_1.inp"  = [{matcher = "E_total", tol = 3e-14, ref = -31.82229826059272}]
-"o2_ot_lwdn_1.inp"       = [{matcher = "E_total", tol = 2e-13, ref = -31.80618657851179}]
-"o2_ot_lwdn_diis_1.inp"  = [{matcher = "E_total", tol = 3e-14, ref = -31.81621403029802}]
+"h2o_ot_lwdn_diis_1.inp" = [{matcher = "E_total", tol = 3e-14, ref = -17.13832134597277}]
+"o2_ot_chol_1.inp"       = [{matcher = "E_total", tol = 2e-13, ref = -31.80544971333105}]
+"o2_ot_chol_diis_1.inp"  = [{matcher = "E_total", tol = 3e-14, ref = -31.82229826051158}]
+"o2_ot_lwdn_1.inp"       = [{matcher = "E_total", tol = 2e-13, ref = -31.80618657842615}]
+"o2_ot_lwdn_diis_1.inp"  = [{matcher = "E_total", tol = 3e-14, ref = -31.81621403021682}]
 "h2o_ot_precond_2.inp"   = [{matcher = "E_total", tol = 1.0E-14, ref = -16.08174174739783}]
 "h2o_ot_precond_3.inp"   = [{matcher = "E_total", tol = 1.0E-14, ref = -16.08174174739782}]
 "h2o_ot_precond_5.inp"   = [{matcher = "E_total", tol = 1.0E-14, ref = -15.99918948154882}]

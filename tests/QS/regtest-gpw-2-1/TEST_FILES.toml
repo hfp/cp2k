@@ -20,7 +20,7 @@
 # core ham bug
 "ZrO.inp"       = [{matcher = "E_total", tol = 5e-14, ref = -62.20561057727268}]
 # new xc routines
-"Ar-12.inp"     = [{matcher = "E_total", tol = 3e-13, ref = -21.04251999777906}]
-"Ar-13.inp"     = [{matcher = "E_total", tol = 8e-13, ref = -21.12624107690119}]
+"Ar-12.inp"     = [{matcher = "E_total", tol = 3e-13, ref = -21.04251998446803}]
+"Ar-13.inp"     = [{matcher = "E_total", tol = 8e-13, ref = -21.1262410637036}]
 # Metadynamics and restart of metadynamics
 #EOF

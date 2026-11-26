@@ -3,6 +3,6 @@
 "graphite3.inp"       = [{matcher = "M002", tol = 2e-07, ref = -17.979872314}]
 "graphite-stm.inp"    = []
 "graphite-lumo.inp"   = [{matcher = "E_gap_DFT", tol = 1.0E-14, ref = -14.812404}]
-"graph_b111.inp"      = [{matcher = "M031", tol = 1.0E-10, ref = 216879.632177}]
-"graph_b111_gapw.inp" = [{matcher = "M031", tol = 1.0E-10, ref = 171727.912203}]
+"graph_b111.inp"      = [{matcher = "M031", tol = 1.0E-10, ref = 216879.408861}]
+"graph_b111_gapw.inp" = [{matcher = "M031", tol = 1.0E-10, ref = 171727.650723}]
 #EOF

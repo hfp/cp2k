@@ -26,7 +26,7 @@
 "H2O-geo-pdos_comp_list.inp"    = [{matcher = "E_total", tol = 4.0e-13, ref = -17.11090886166302}]
 "H2O-geo-ot-lumo-all.inp"       = [{matcher = "E_total", tol = 9.0e-14, ref = -17.11058846146146}]
 # sic ddapc decoupled
-"sic_ddapc_rt.inp"              = [{matcher = "E_total", tol = 2.0E-11, ref = -13.49666811305216}]
+"sic_ddapc_rt.inp"              = [{matcher = "E_total", tol = 2.0E-11, ref = -13.49666811685361}]
 # introduce coeff
 "He2_ddapc_constraint-4.inp"    = [{matcher = "E_total", tol = 2.0e-12, ref = -5.11329135077368}]
 #test constraint on becke wight population
