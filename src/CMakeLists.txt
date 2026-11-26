@@ -290,7 +290,6 @@ target_link_libraries(
             $<$<BOOL:${CP2K_USE_SPGLIB}>:Spglib::symspg>
             $<$<BOOL:${CP2K_USE_LIBSMEAGOL}>:cp2k::libsmeagol::smeagol>
             $<$<BOOL:${CP2K_USE_LIBXC}>:Libxc::xcf03>
-            $<$<BOOL:${CP2K_USE_GAUXC}>:gauxc::gauxc>
             $<$<BOOL:${CP2K_USE_ELPA}>:cp2k::ELPA::elpa>
             $<$<BOOL:${CP2K_USE_PLUMED}>:cp2k::plumed::plumed>
             $<$<BOOL:${CP2K_USE_SPLA}>:SPLA::spla>
@@ -309,9 +308,6 @@ target_link_libraries(
             DBCSR::dbcsr
             $<$<BOOL:${CP2K_USE_MPI}>:cp2k::SCALAPACK::scalapack>
             cp2k_linalg_libs
-            # Torch includes some LAPACK routines, but with floating-point
-            # exceptions.
-            $<$<BOOL:${CP2K_USE_LIBTORCH}>:${TORCH_LIBRARIES}>
             $<$<BOOL:${CP2K_USE_OPENPMD}>:openPMD::openPMD>)
 
 set(CP2K_BUILD_INFO_FILE "${CMAKE_CURRENT_BINARY_DIR}/cp2k_build_info.h")
@@ -336,6 +332,18 @@ if(CP2K_DATA_DIR STREQUAL "default")
 endif()
 
 target_link_libraries(cp2k PUBLIC cp2k_link_libs)
+
+# Link Torch and GauXC PRIVATE so TorchConfig.cmake's -Wl,--no-as-needed flags,
+# static helper archives, and caffe2::mkl link directories do not leak into
+# downstream executables. Expose GauXC's module path for Fortran consumers of
+# xc_gauxc_interface.
+if(CP2K_USE_GAUXC)
+  target_include_directories(
+    cp2k PUBLIC $<TARGET_PROPERTY:gauxc::gauxc,INTERFACE_INCLUDE_DIRECTORIES>)
+endif()
+target_link_libraries(
+  cp2k PRIVATE $<$<BOOL:${CP2K_USE_GAUXC}>:gauxc::gauxc>
+               $<$<BOOL:${CP2K_USE_LIBTORCH}>:${TORCH_LIBRARIES}>)
 
 if(CP2K_USE_ACCEL MATCHES "CUDA"
    AND CP2K_LIBXC_CUDA_SUPPORT
@@ -453,6 +461,7 @@ list(
   "memory_utilities_unittest"
   "cell_opt_utils_unittest"
   "parallel_rng_types_unittest"
+  "upf_inverse_unittest"
   "atom_upf_unittest"
   "xc_semilocal_unittest"
   "skala_periodic_partition_unittest"
@@ -504,6 +513,7 @@ add_executable(orbital_transformation_matrices_unittest
 add_executable(gemm_square_unittest common/gemm_square_unittest.F)
 add_executable(memory_utilities_unittest common/memory_utilities_unittest.F)
 add_executable(parallel_rng_types_unittest common/parallel_rng_types_unittest.F)
+add_executable(upf_inverse_unittest pseudopotentials/upf_inverse_unittest.F)
 add_executable(atom_upf_unittest pseudopotentials/atom_upf_unittest.F)
 add_executable(xc_semilocal_unittest xc/xc_semilocal_unittest.F)
 add_executable(skala_periodic_partition_unittest

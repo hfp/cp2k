@@ -51,6 +51,21 @@ list(
   atoms_input.F
   atom_types.F
   pseudopotentials/upf_types.F
+  aobasis/gaussian_basis_fields.F
+  pseudopotentials/upf_core.F
+  pseudopotentials/upf_inverse.F
+  pseudopotentials/upf_inverse_quadrature.F
+  pseudopotentials/upf_radial_fields.F
+  pseudopotentials/uspp_augmentation.F
+  qs_upf_inverse.F
+  qs_upf_inverse_augmentation.F
+  qs_upf_inverse_core.F
+  qs_upf_inverse_forces.F
+  qs_upf_inverse_grid.F
+  qs_upf_inverse_scf.F
+  qs_upf_inverse_types.F
+  qs_uspp_methods.F
+  qs_uspp_types.F
   pseudopotentials/atom_upf.F
   pseudopotentials/upf_projector_integrals.F
   pseudopotentials/upf_local_integrals.F
@@ -669,6 +684,7 @@ list(
   qs_interactions.F
   qs_kernel_methods.F
   qs_kernel_types.F
+  qs_ionic_charge.F
   qs_kind_types.F
   qs_kinetic.F
   qs_kpoint_operators.F
@@ -1208,6 +1224,8 @@ list(
   motion/dimer_methods.F
   motion/dimer_types.F
   motion/dimer_utils.F
+  motion/fire_minimizer.F
+  motion/fire_optimizer.F
   motion/free_energy_methods.F
   motion/geo_opt.F
   motion/glbopt_callback.F
@@ -1223,6 +1241,7 @@ list(
   motion/helium_types.F
   motion/helium_worm.F
   motion/input_cp2k_constraints.F
+  motion/input_cp2k_fire.F
   motion/input_cp2k_free_energy.F
   motion/input_cp2k_md.F
   motion/input_cp2k_motion.F
@@ -1645,6 +1664,7 @@ set(CP2K_PROGS_F
     common/gemm_square_unittest.F
     common/memory_utilities_unittest.F
     common/parallel_rng_types_unittest.F
+    pseudopotentials/upf_inverse_unittest.F
     pseudopotentials/atom_upf_unittest.F
     xc/xc_semilocal_unittest.F
     pseudopotentials/upf_projector_integrals_unittest.F

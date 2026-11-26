@@ -1238,6 +1238,8 @@ CONTAINS
       CALL section_vals_val_get(qs_section, "EXTRAPOLATION", i_val=qs_control%wf_interpolation_method_nr)
       CALL section_vals_val_get(qs_section, "EXTRAPOLATION_ORDER", i_val=qs_control%wf_extrapolation_order)
 
+      CALL section_vals_val_get(qs_section, "USPP_METHOD", i_val=qs_control%uspp_method)
+
       !Method
       CALL section_vals_val_get(qs_section, "METHOD", i_val=qs_control%method_id)
       qs_control%gapw = .FALSE.
@@ -3691,6 +3693,12 @@ CONTAINS
          pol_vector(:) = REAL(dftc%rtp_control%delta_pulse_direction(:), kind=dp)
       ELSE
          ! Maybe RT field is applied?
+         IF (.NOT. ASSOCIATED(dftc%efield_fields)) THEN
+            CALL cp_abort(__LOCATION__, &
+                          "No delta pulse and no EFIELD to guess the polarizability elements from: "// &
+                          "set DFT%REAL_TIME_PROPAGATION%APPLY_DELTA_PULSE or add a DFT%EFIELD section, "// &
+                          "or name the elements in DFT%REAL_TIME_PROPAGATION%PRINT%POLARIZABILITY%ELEMENT")
+         END IF
          pol_vector(:) = dftc%efield_fields(1)%efield%polarisation(:)
       END IF
       IF (DOT_PRODUCT(pol_vector, pol_vector) > 0.0_dp) pol_vector_known = .TRUE.
